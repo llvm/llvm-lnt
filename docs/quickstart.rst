@@ -27,7 +27,7 @@ following steps should suffice on any modern Unix variant:
 
 #. Checkout the LNT sources::
 
-            svn co http://llvm.org/svn/llvm-project/zorg/trunk/lnt ~/lnt
+            svn co http://llvm.org/svn/llvm-project/lnt/trunk ~/lnt
 
 #. Install LNT into the virtual environment::
 
@@ -52,7 +52,7 @@ command. The information below should be enough to get you started, but see the
 
 #. Checkout the LLVM test-suite, if you haven't already::
 
-             svn co http://llvm.org/svn/llvm-project/test-suite/trunk ~/llvm-test-suite
+     svn co http://llvm.org/svn/llvm-project/test-suite/trunk ~/llvm-test-suite
 
    You should always keep the test-suite directory itself clean (that is, never
    do a configure inside your test suite). Make sure not to check it out into
@@ -62,10 +62,10 @@ command. The information below should be enough to get you started, but see the
 #. Execute the ``lnt runtest nt`` test producer, point it at the test suite and
    the compiler you want to test::
 
-           lnt runtest nt \
-               --sandbox SANDBOX \
-               --cc ~/llvm.obj/Release/bin/clang \
-               --test-suite ~/llvm-test-suite
+     lnt runtest nt \
+         --sandbox SANDBOX \
+         --cc ~/llvm.obj/Release/bin/clang \
+         --test-suite ~/llvm-test-suite
 
    The ``SANDBOX`` value is a path to where the test suite build products and
    results will be stored (inside a timestamped directory, by default).

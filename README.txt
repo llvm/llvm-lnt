@@ -13,8 +13,6 @@ The infrastructure has the following layout:
 
  $ROOT/docs - Sphinx documentation for LNT.
 
- $ROOT/tests - Tests for the infrastructure; they currently assume they are
-                  running on a system with a live instance available at
-                  'http://localhost/zorg/'.
+ $ROOT/tests - Tests for the infrastructure.
 
 For more information, see the web documentation, or docs/.

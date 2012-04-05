@@ -51,7 +51,7 @@ additional steps:
 
     c. Update the nt_emailer configuration.
 
- 4. Add the 'zorg.wsgi' app to your Apache configuration. You should set also
+ 4. Add the 'lnt.wsgi' app to your Apache configuration. You should set also
     configure the WSGIDaemonProcess and WSGIProcessGroup variables if not
     already done.
 
@@ -71,15 +71,11 @@ mode). Currently, the tests require:
  tests want to run Python directly. This should be fixed to substitute in the
  Python that was used to run lit, so the venv doesn't have to be active.
 
-To run the tests, use, e.g.,
+To run the tests use, e.g.::
 
-  lit -sv $ROOT/lnt/tests
+  lit -sv $ROOT/tests
 
-or
-
-  lit -sv $ZORG_ROOT/test
-
-to run the zorg and LNT tests all at once. You can use
+This requires the 'lit' testing tool be installed. You can also use::
 
   python setup.py test
 
