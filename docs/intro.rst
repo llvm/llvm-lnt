@@ -3,10 +3,14 @@
 Introduction
 ============
 
-LNT is designed to be a generic infastrcture for performance testing. The LNT
-software itself consists of two main parts, a web application for accessing and
-visualizing performance data, and command line utilities to allow users to
-generate and submit test results to the server.
+*LNT* is an infrastructure for performance testing. The software itself consists
+of two main parts, a web application for accessing and visualizing performance
+data, and command line utilities to allow users to generate and submit test
+results to the server.
+
+The package was originally written for use in testing LLVM compiler
+technologies, but is designed to be usable for the performance testing of any
+software.
 
 If you are an LLVM developer who is mostly interested in just using LNT to run
 the test-suite against some compiler, then you should fast forward to the

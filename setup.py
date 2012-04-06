@@ -20,6 +20,36 @@ setup(
 
     description = "LLVM Nightly Test Infrastructure",
     keywords = 'web testing performance development llvm',
+    long_description = """\
+*LNT*
++++++
+
+About
+=====
+
+*LNT* is an infrastructure for performance testing. The software itself consists
+of two main parts, a web application for accessing and visualizing performance
+data, and command line utilities to allow users to generate and submit test
+results to the server.
+
+The package was originally written for use in testing LLVM compiler
+technologies, but is designed to be usable for the performance testing of any
+software.
+
+
+Documentation
+=============
+
+The official *LNT* documentation is available online at:
+  http://llvm.org/docs/lnt
+
+
+Source
+======
+
+The *LNT* source is available in the LLVM SVN repository:
+http://llvm.org/svn/llvm-project/lnt/trunk
+""",
 
     classifiers=[
         'Development Status :: 4 - Beta',
@@ -29,7 +59,7 @@ setup(
          'University of Illinois/NCSA Open Source License'),
         'Natural Language :: English',
         'Operating System :: OS Independent',
-        'Progamming Language :: Python',
+        'Programming Language :: Python',
         'Topic :: Software Development :: Quality Assurance',
         'Topic :: Software Development :: Testing',
         ],
@@ -41,8 +71,6 @@ setup(
                                       'static/*.js',
                                       'static/*.css',
                                       'templates/*.html'],
-
-                    'lnt.util': ['NTAuxSubmit'],
                     },
 
     packages = find_packages(),
