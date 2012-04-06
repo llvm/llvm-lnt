@@ -3,7 +3,7 @@
 Introduction
 ============
 
-*LNT* is an infrastructure for performance testing. The software itself consists
+LNT is an infrastructure for performance testing. The software itself consists
 of two main parts, a web application for accessing and visualizing performance
 data, and command line utilities to allow users to generate and submit test
 results to the server.
