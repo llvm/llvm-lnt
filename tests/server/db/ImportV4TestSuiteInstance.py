@@ -2,7 +2,7 @@
 #
 # We first construct a temporary LNT instance.
 # RUN: rm -rf %t.install
-# RUN: lnt create --use-v4 %t.install
+# RUN: lnt create %t.install
 
 # Import the first test set.
 # RUN: lnt import %t.install %S/Inputs/sample-a-small.plist \
