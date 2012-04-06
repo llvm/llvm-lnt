@@ -1,0 +1,33 @@
+#!/bin/sh
+
+# Create a list of all the files in the source tree, excluding various things we
+# know don't belong.
+echo "Creating current directory contents list."
+find . | \
+    grep -v '^\./.git' | \
+    grep -v '^\./dist' | \
+    grep -v '^\./utils' | \
+    grep -v '^\./docs/_build' | \
+    grep -v '^\./test-instance' | \
+    grep -v '^\./notes.txt' | \
+    grep -v '.pyc$' | grep -v '~$' | \
+    sort > /tmp/lnt_source_files.txt
+
+# Create the source distribution.
+echo "Creating source distribution."
+rm -rf dist
+python setup.py sdist > /tmp/lnt_sdist_log.txt
+
+# Creating list of files in source distribution.
+echo "Creating source distrubution file list."
+tar zft dist/LNT*.tar.gz | \
+    sed -e 's#LNT-[0-9.]*/#./#' | \
+    sed -e 's#/$##' | \
+    grep -v '^\./PKG-INFO' | \
+    grep -v '^\./setup.cfg' | \
+    sort > /tmp/lnt_sdist_files.txt
+
+# Diff the files.
+echo "Running diff..."
+diff /tmp/lnt_source_files.txt /tmp/lnt_sdist_files.txt
+
