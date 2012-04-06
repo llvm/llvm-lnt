@@ -1,0 +1,11 @@
+include README.txt CHANGELOG.txt
+recursive-include docs *
+recursive-include tests *
+recursive-include examples *
+recursive-include lnt/server/ui/static *.css *.js *.html *.ico *.txt
+recursive-include lnt/server/ui/templates *.html
+include lnt/server/ui/static/flot/Makefile
+include lnt/external/stats/README.txt
+global-exclude *pyc
+global-exclude *~
+prune docs/_build
