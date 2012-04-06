@@ -62,7 +62,13 @@ The following tools are used to interact with an LNT server:
     generate report emails if enabled in the configuration, you can use
     ``--no-email`` to disable this.
 
-  ``lnt runserver <path | config file>``
+  ``lnt runserver <path | config file | tarball>``
     Start the LNT server using a development WSGI server. Additional options can
     be used to control the server host and port, as well as useful development
     features such as automatic reloading.
+
+    The command has built-in support for running the server on an instance which
+    has been packed into a (compressed) tarball. The tarball will be
+    automatically unpacked into a temporary directory and removed on exit. This
+    is useful for passing database instances back and forth, when others only
+    need to be able to view the results.

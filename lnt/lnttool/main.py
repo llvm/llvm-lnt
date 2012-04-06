@@ -17,7 +17,19 @@ from lnt.testing.util.commands import note, warning, error, fatal
 def action_runserver(name, args):
     """start a new development server"""
 
-    parser = OptionParser("%%prog %s [options] [<path|config file>]" % name)
+    parser = OptionParser("""\
+%%prog %s [options] [<path|config file|tarball>]
+
+Start the LNT server using a development WSGI server. Additional options can be
+used to control the server host and port, as well as useful development features
+such as automatic reloading.
+
+The command has built-in support for running the server on an instance which has
+been packed into a (compressed) tarball. The tarball will be automatically
+unpacked into a temporary directory and removed on exit. This is useful for
+passing database instances back and forth, when others only need to be able to
+view the results.\
+""" % name)
     parser.add_option("", "--hostname", dest="hostname", type=str,
                       help="host interface to use [%default]",
                       default='localhost')
