@@ -7,7 +7,7 @@ import sys
 import urllib
 import urllib2
 
-import lnt.server.config
+import lnt.server.instance
 from lnt.util import json
 from lnt.util import ImportData
 
@@ -42,7 +42,8 @@ def submitFileToServer(url, file, commit):
 def submitFileToInstance(path, file, commit):
     # Otherwise, assume it is a local url and submit to the default database
     # in the instance.
-    config = lnt.server.config.get_config_from_path(path)
+    instance = lnt.server.instance.Instance(path)
+    config = instance.config
     db_name = 'default'
     db = config.get_database(db_name)
     if db is None:

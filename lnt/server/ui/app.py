@@ -10,11 +10,11 @@ from flask import g
 from flask import url_for
 
 import lnt
-import lnt.server.config
+import lnt.server.db.v4db
+import lnt.server.instance
 import lnt.server.ui.filters
 import lnt.server.ui.globals
 import lnt.server.ui.views
-import lnt.server.db.v4db
 
 from lnt.db import perfdbsummary
 from lnt.db import perfdb
@@ -109,11 +109,8 @@ class App(flask.Flask):
         self.wsgi_app = RootSlashPatchMiddleware(self.wsgi_app)
 
     def load_config(self, config_path):
-        config_data = {}
-        exec open(config_path) in config_data
-
-        self.old_config = lnt.server.config.Config.fromData(
-            config_path, config_data)
+        self.instance = lnt.server.instance.Instance.frompath(config_path)
+        self.old_config = self.instance.config
 
         self.jinja_env.globals.update(
             app=current_app,

@@ -1,7 +1,7 @@
 import os
 from optparse import OptionParser, OptionGroup
 
-import lnt.server.config
+import lnt.server.instance
 from lnt.testing.util.commands import note, warning, error, fatal
 
 def action_updatedb(name, args):
@@ -9,7 +9,7 @@ def action_updatedb(name, args):
 
     from optparse import OptionParser, OptionGroup
 
-    parser = OptionParser("%%prog %s [options] <path|config-file> <file>+"%name)
+    parser = OptionParser("%%prog %s [options] <instance> <file>+"%name)
     parser.add_option("", "--database", dest="database", default="default",
                       help="database to modify [%default]")
     parser.add_option("", "--testsuite", dest="testsuite",
@@ -30,21 +30,13 @@ def action_updatedb(name, args):
     if opts.testsuite is None:
         parser.error("--testsuite is required")
         
-    config, = args
+    path, = args
 
-    # Accept paths to config files, or to directories containing 'lnt.cfg'.
-    if os.path.isdir(config):
-        tmp = os.path.join(config, 'lnt.cfg')
-        if os.path.exists(tmp):
-            config = tmp
-
-    # Load the config file.
-    config_data = {}
-    exec open(config) in config_data
-    config = lnt.server.config.Config.fromData(config, config_data)
+    # Load the instance.
+    instance = lnt.server.instance.Instance.frompath(path)
 
     # Get the database and test suite.
-    db = config.get_database(opts.database, echo=opts.show_sql)
+    db = instance.get_database(opts.database, echo=opts.show_sql)
     ts = db.testsuite[opts.testsuite]
 
     # Compute a list of all the runs to delete.

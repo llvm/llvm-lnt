@@ -5,13 +5,14 @@ from lnt import formats
 import lnt.server.config
 import lnt.server.db.v4db
 import lnt.util.ImportData
+import lnt.server.instance
 
 def action_import(name, args):
     """import test data into a database"""
 
     from optparse import OptionParser, OptionGroup
 
-    parser = OptionParser("%%prog %s [options] <path|config-file> <file>+"%name)
+    parser = OptionParser("%%prog %s [options] <instance path> <file>+"%name)
     parser.add_option("", "--database", dest="database", default="default",
                       help="database to write to [%default]")
     parser.add_option("", "--format", dest="format",
@@ -39,8 +40,9 @@ def action_import(name, args):
 
     path = args.pop(0)
 
-    # Load the LNT configuration.
-    config = lnt.server.config.get_config_from_path(path)
+    # Load the LNT instance.
+    instance = lnt.server.instance.Instance.frompath(path)
+    config = instance.config
 
     # Get the database.
     db = config.get_database(opts.database, echo=opts.show_sql)

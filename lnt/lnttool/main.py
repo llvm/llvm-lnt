@@ -1,9 +1,7 @@
 """Implement the command line 'lnt' tool."""
 
 import os
-import shutil
 import sys
-import tarfile
 import tempfile
 from optparse import OptionParser, OptionGroup
 
@@ -18,7 +16,7 @@ def action_runserver(name, args):
     """start a new development server"""
 
     parser = OptionParser("""\
-%%prog %s [options] [<path|config file|tarball>]
+%%prog %s [options] <instance path>
 
 Start the LNT server using a development WSGI server. Additional options can be
 used to control the server host and port, as well as useful development features
@@ -51,51 +49,15 @@ view the results.\
 
     input_path, = args
 
-    # Accept paths to config files, or to directories containing 'lnt.cfg'.
-    tmpdir = None
-    if os.path.isdir(input_path):
-        config_path = os.path.join(input_path, 'lnt.cfg')
-    elif tarfile.is_tarfile(input_path):
-        # Accept paths to tar/tgz etc. files, which we automatically unpack into
-        # a temporary directory.
-        tmpdir = tempfile.mkdtemp(suffix='lnt')
-        
-        note("extracting input tarfile %r to %r" % (input_path, tmpdir))
-        tf = tarfile.open(input_path)
-        tf.extractall(tmpdir)
-
-        # Find the LNT instance inside the tar file. Support tarballs that
-        # either contain the instance directly, or contain a single subdirectory
-        # which is the instance.
-        if os.path.exists(os.path.join(tmpdir, "lnt.cfg")):
-            config_path = os.path.join(tmpdir, "lnt.cfg")
-        else:
-            filenames = os.listdir(tmpdir)
-            if len(filenames) != 1:
-                fatal("unable to find LNT instance inside tarfile")
-            config_path = os.path.join(tmpdir, filenames[0], "lnt.cfg")
-    else:
-        config_path = input_path
-
-    if not config_path or not os.path.exists(config_path):
-        raise SystemExit,"error: invalid config: %r" % config_path
-
     import lnt.server.ui.app
-    instance = lnt.server.ui.app.App.create_standalone(
-        config_path = config_path)
+    app = lnt.server.ui.app.App.create_standalone(input_path,)
     if opts.debugger:
-        instance.debug = True
-    try:
-        instance.run(opts.hostname, opts.port,
-                     use_reloader = opts.reloader,
-                     use_debugger = opts.debugger,
-                     threaded = opts.threaded,
-                     processes = opts.processes)
-    finally:
-        # Clean up the tmpdir if we automatically unpacked a tarfile.
-        if tmpdir is not None:
-            print tmpdir
-            shutil.rmtree(tmpdir)
+        app.debug = True
+    app.run(opts.hostname, opts.port,
+            use_reloader = opts.reloader,
+            use_debugger = opts.debugger,
+            threaded = opts.threaded,
+            processes = opts.processes)
 
 from create import action_create
 from convert import action_convert
