@@ -7,13 +7,10 @@ taking a path_or_file object, the 'write' function should be a callable taking a
 Python object to write, and the path_or_file to write to.
 """
 
-from AppleOpenSSLReader import format as apple_openssl
-from NightlytestReader import format as nightlytest
 from PlistFormat import format as plist
 from JSONFormat import format as json
 
-# FIXME: Lazy loading would be nice.
-formats = [plist, json, nightlytest, apple_openssl]
+formats = [plist, json]
 formats_by_name = dict((f['name'], f) for f in formats)
 format_names = formats_by_name.keys()
 
