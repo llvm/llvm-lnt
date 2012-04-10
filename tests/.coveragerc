@@ -1,0 +1,8 @@
+# .coveragerc to control coverage.py
+[run]
+branch = True
+parallel = True
+source = lnt
+
+[html]
+directory = coverage_html_report
