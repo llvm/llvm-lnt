@@ -12,35 +12,22 @@ from lnt.server.db import v4db
 # Create an in memory database.
 db = v4db.V4DB("sqlite:///:memory:", echo=True)
 
-# Create a new TestSuite.
-ts = testsuite.TestSuite("nt", "NT")
-db.add(ts)
-
-db.commit()
-
+# We expect exactly two test suites, one for NTS and one for Compile.
 test_suites = list(db.query(testsuite.TestSuite))
-assert len(test_suites) == 1
-ts = test_suites[0]
+assert len(test_suites) == 2
 
-assert ts.name == "nt"
+# Check the NTS test suite.
+ts = db.query(testsuite.TestSuite).filter_by(name="nts").first()
+assert ts.name == "nts"
 assert ts.db_key_name == "NT"
-assert len(ts.machine_fields) == 0
-assert len(ts.order_fields) == 0
+assert len(ts.machine_fields) == 2
+assert len(ts.order_fields) == 1
 assert len(ts.run_fields) == 0
 
-# Add a field of each type.
-ts.machine_fields.append(testsuite.MachineField("uname", "uname"))
-ts.order_fields.append(testsuite.OrderField("llvm", "llvm", 0))
-ts.run_fields.append(testsuite.RunField("arch", "ARCH"))
-db.commit()
+assert ts.machine_fields[0].name == "hardware"
+assert ts.machine_fields[1].name == "os"
 
-ts = db.query(testsuite.TestSuite).first()
-assert len(ts.machine_fields) == 1
-assert len(ts.order_fields) == 1
-assert len(ts.run_fields) == 1
-assert ts.machine_fields[0].name == "uname"
-assert ts.order_fields[0].name == "llvm"
-assert ts.run_fields[0].name == "arch"
+assert ts.order_fields[0].name == "llvm_project_revision"
+
 assert ts.machine_fields[0].test_suite is ts
 assert ts.order_fields[0].test_suite is ts
-assert ts.run_fields[0].test_suite is ts

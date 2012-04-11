@@ -208,6 +208,6 @@ def update_path(path):
     if not path.startswith('mysql://') and not path.startswith('sqlite://'):
         path = 'sqlite:///' + path
 
-    engine = sqlalchemy.create_engine(path, echo=True)
+    engine = sqlalchemy.create_engine(path)
 
     update(engine)
