@@ -71,7 +71,7 @@ http://llvm.org/svn/llvm-project/lnt/trunk
                                       'static/*.js',
                                       'static/*.css',
                                       'templates/*.html'],
-                    },
+                    'lnt.server.db': ['migrations/*.py'] },
 
     packages = find_packages(),
 

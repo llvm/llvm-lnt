@@ -1,5 +1,9 @@
 #!/bin/sh
 
+if [ $# == 1 ]; then
+    cd $1
+fi
+
 # Create a list of all the files in the source tree, excluding various things we
 # know don't belong.
 echo "Creating current directory contents list."
@@ -10,18 +14,19 @@ find . | \
     grep -v '^\./docs/_build' | \
     grep -v '^\./test-instance' | \
     grep -v '^\./notes.txt' | \
+    grep -v '/Output' | \
     grep -v '.pyc$' | grep -v '~$' | \
     sort > /tmp/lnt_source_files.txt
 
 # Create the source distribution.
 echo "Creating source distribution."
-rm -rf dist
+rm -rf LNT.egg-info dist
 python setup.py sdist > /tmp/lnt_sdist_log.txt
 
 # Creating list of files in source distribution.
 echo "Creating source distrubution file list."
 tar zft dist/LNT*.tar.gz | \
-    sed -e 's#LNT-[0-9.]*/#./#' | \
+    sed -e 's#LNT-[0-9.dev]*/#./#' | \
     sed -e 's#/$##' | \
     grep -v '^\./PKG-INFO' | \
     grep -v '^\./setup.cfg' | \
@@ -29,5 +34,9 @@ tar zft dist/LNT*.tar.gz | \
 
 # Diff the files.
 echo "Running diff..."
-diff /tmp/lnt_source_files.txt /tmp/lnt_sdist_files.txt
-
+if (diff /tmp/lnt_source_files.txt /tmp/lnt_sdist_files.txt); then
+    echo "Diff is clean!"
+else
+    echo "error: there were differences in the source lists!"
+    exit 1
+fi
