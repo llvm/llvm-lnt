@@ -6,3 +6,8 @@ source = lnt
 
 [html]
 directory = coverage_html_report
+
+# Exclude external code from the coverage report. Note that this is relative to
+# our location.
+[report]
+omit = ../lnt/external/*
