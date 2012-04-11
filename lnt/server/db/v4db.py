@@ -5,6 +5,7 @@ import lnt.testing
 from lnt.server.db import testsuite
 from lnt.server.db import testsuitedb
 from lnt.server.db import testsuitetypes
+import lnt.server.db.migrate
 
 class V4DB(object):
     """
@@ -85,6 +86,9 @@ class V4DB(object):
 
         self.path = path
         self.engine = sqlalchemy.create_engine(path, echo=echo)
+
+        # Update the database to the current version, if necessary.
+        lnt.server.db.migrate.update(self.engine)
 
         # Proxy object for implementing dict-like .testsuite property.
         self._testsuite_proxy = None
