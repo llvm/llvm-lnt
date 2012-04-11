@@ -38,6 +38,8 @@ view the results.\
                       action="store_true", help="use WSGI reload monitor")
     parser.add_option("", "--debugger", dest="debugger", default=False,
                       action="store_true", help="use WSGI debugger")
+    parser.add_option("", "--show-sql", dest="show_sql", default=False,
+                      action="store_true", help="show all SQL queries")
     parser.add_option("", "--threaded", dest="threaded", default=False,
                       action="store_true", help="use a threaded server")
     parser.add_option("", "--processes", dest="processes", type=int,
@@ -59,6 +61,14 @@ view the results.\
             '%(asctime)s %(levelname)s: %(message)s',
             datefmt='%Y-%m-%d %H:%M:%S'))
     logger.addHandler(handler)
+
+    # Enable full SQL logging, if requested.
+    if opts.show_sql:
+        sa_logger = logging.getLogger("sqlalchemy")
+        if opts.debugger:
+            sa_logger.setLevel(logging.DEBUG)
+        sa_logger.setLevel(logging.DEBUG)
+        sa_logger.addHandler(handler)
 
     import lnt.server.ui.app
     app = lnt.server.ui.app.App.create_standalone(input_path,)
