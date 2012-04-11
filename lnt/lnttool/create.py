@@ -83,7 +83,7 @@ if __name__ == "__main__":
 ###
 
 import lnt.testing
-import lnt.server.db.v4db
+import lnt.server.db.migrate
 
 def action_create(name, args):
     """create an LLVM nightly test installation"""
@@ -156,9 +156,8 @@ def action_create(name, args):
     wsgi_file.close()
     os.chmod(wsgi_path, 0755)
 
-    db_class = lnt.server.db.v4db.V4DB
-    db = db_class('sqlite:///' + db_path)
-    db.commit()
+    # Execute an upgrade on the database to initialize the schema.
+    lnt.server.db.migrate.update_path(db_path)
 
     print 'created LNT configuration in %r' % basepath
     print '  configuration file: %s' % cfg_path

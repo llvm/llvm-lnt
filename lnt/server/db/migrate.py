@@ -61,6 +61,10 @@ def _load_migrations():
                                               'migrations')
         schema_migrations = {}
         for item in os.listdir(schema_migrations_path):
+            # Ignore certain known non-scripts.
+            if item in ('README.txt',):
+                continue
+
             # Ignore non-matching files.
             m = upgrade_script_rex.match(item)
             if m is None:
