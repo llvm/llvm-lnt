@@ -11,6 +11,7 @@ import logging
 import os
 import re
 
+import sqlalchemy
 import sqlalchemy.ext.declarative
 import sqlalchemy.orm
 from sqlalchemy import Column, String, Integer
@@ -106,7 +107,7 @@ def _load_migrations():
 
 logger = logging.getLogger(__name__)
 
-def update_schema(session, versions, available_migrations, schema_name):
+def update_schema(engine, session, versions, available_migrations, schema_name):
     schema_migrations = available_migrations[schema_name]
 
     # Get the current schema version.
@@ -148,7 +149,7 @@ def update_schema(session, versions, available_migrations, schema_name):
         # FIXME: Execute this inside a transaction?
         logger.info("applying upgrade for version %d to %d" % (
                 db_version.version, db_version.version+1))
-        upgrade_method(session)
+        upgrade_method(engine)
 
         # Update the schema version.
         db_version.version += 1
@@ -167,7 +168,7 @@ def update(engine):
     # Load the available migrations.
     available_migrations = _load_migrations()
 
-    # Create a session for the update.
+    # Create a session for our queries.
     session = sqlalchemy.orm.sessionmaker(engine)()
 
     # Load all the information from the versions tables. We just do the query
@@ -183,15 +184,26 @@ def update(engine):
 
         # Create the SchemaVersion table.
         Base.metadata.create_all(engine)
-        session.commit()
 
         version_list = []
     versions = dict((v.name, v)
                     for v in version_list)
 
     # Update the core schema.
-    any_changed |= update_schema(session, versions, available_migrations,
-                                 '__core__')
+    any_changed |= update_schema(engine, session, versions,
+                                 available_migrations, '__core__')
 
     if any_changed:
         logger.info("database auto-upgraded")
+
+def update_path(path):
+    # If the path includes no database type, assume sqlite.
+    #
+    # FIXME: I would like to phase this out and force clients to propagate
+    # paths, but it isn't a big deal.
+    if not path.startswith('mysql://') and not path.startswith('sqlite://'):
+        path = 'sqlite:///' + path
+
+    engine = sqlalchemy.create_engine(path, echo=True)
+
+    update(engine)
