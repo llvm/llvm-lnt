@@ -92,7 +92,7 @@ def initialize_core(engine, session):
 ###
 # NTS Testsuite Definition
 
-def initialize_nts_testsuite(engine, session):
+def initialize_nts_definition(engine, session):
     # Fetch the sample types.
     real_sample_type = session.query(SampleType).\
         filter_by(name = "Real").first()
@@ -128,7 +128,7 @@ def initialize_nts_testsuite(engine, session):
 ###
 # Compile Testsuite Definition
 
-def initialize_compile_testsuite(engine, session):
+def initialize_compile_definition(engine, session):
     # Fetch the sample types.
     real_sample_type = session.query(SampleType).\
         filter_by(name = "Real").first()
@@ -164,6 +164,129 @@ def initialize_compile_testsuite(engine, session):
     session.add(ts)
 
 ###
+# Per-Testsuite Table Schema
+
+def get_base_for_testsuite(test_suite):
+    Base = sqlalchemy.ext.declarative.declarative_base()
+
+    db_key_name = test_suite.db_key_name
+    class Machine(Base):
+        __tablename__ = db_key_name + '_Machine'
+
+        id = Column("ID", Integer, primary_key=True)
+        name = Column("Name", String(256), index=True)
+
+        parameters_data = Column("Parameters", Binary)
+
+        class_dict = locals()
+        for item in test_suite.machine_fields:
+            if item.name in class_dict:
+                raise ValueError,"test suite defines reserved key %r" % (
+                    name,)
+
+            class_dict[item.name] = item.column = Column(
+                item.name, String(256))
+
+    class Order(Base):
+        __tablename__ = db_key_name + '_Order'
+
+        id = Column("ID", Integer, primary_key=True)
+
+        next_order_id = Column("NextOrder", Integer, ForeignKey(
+                "%s.ID" % __tablename__))
+        previous_order_id = Column("PreviousOrder", Integer, ForeignKey(
+                "%s.ID" % __tablename__))
+
+        class_dict = locals()
+        for item in test_suite.order_fields:
+            if item.name in class_dict:
+                raise ValueError,"test suite defines reserved key %r" % (
+                    name,)
+
+            class_dict[item.name] = item.column = Column(
+                item.name, String(256))
+
+    class Run(Base):
+        __tablename__ = db_key_name + '_Run'
+
+        id = Column("ID", Integer, primary_key=True)
+        machine_id = Column("MachineID", Integer, ForeignKey(Machine.id),
+                            index=True)
+        order_id = Column("OrderID", Integer, ForeignKey(Order.id),
+                          index=True)
+        imported_from = Column("ImportedFrom", String(512))
+        start_time = Column("StartTime", DateTime)
+        end_time = Column("EndTime", DateTime)
+        simple_run_id = Column("SimpleRunID", Integer)
+
+        parameters_data = Column("Parameters", Binary)
+
+        machine = sqlalchemy.orm.relation(Machine)
+        order = sqlalchemy.orm.relation(Order)
+
+        class_dict = locals()
+        for item in test_suite.run_fields:
+            if item.name in class_dict:
+                raise ValueError,"test suite defines reserved key %r" % (
+                    name,)
+
+            class_dict[item.name] = item.column = Column(
+                item.name, String(256))
+
+    class Test(Base):
+        __tablename__ = db_key_name + '_Test'
+        id = Column("ID", Integer, primary_key=True)
+        name = Column("Name", String(256), unique=True, index=True)
+
+    class Sample(Base):
+        __tablename__ = db_key_name + '_Sample'
+
+        id = Column("ID", Integer, primary_key=True)
+
+        run_id = Column("RunID", Integer, ForeignKey(Run.id))
+        test_id = Column("TestID", Integer, ForeignKey(Test.id), index=True)
+
+        run = sqlalchemy.orm.relation(Run)
+        test = sqlalchemy.orm.relation(Test)
+
+        class_dict = locals()
+        for item in test_suite.sample_fields:
+            if item.name in class_dict:
+                raise ValueError,"test suite defines reserved key %r" % (
+                    name,)
+
+            if item.type.name == 'Real':
+                item.column = Column(item.name, Float)
+            elif item.type.name == 'Status':
+                item.column = Column(item.name, Integer, ForeignKey(
+                        StatusKind.id))
+            else:
+                raise ValueError,(
+                    "test suite defines unknown sample type %r" (
+                        item.type.name,))
+
+            class_dict[item.name] = item.column
+
+    sqlalchemy.schema.Index("ix_%s_Sample_RunID_TestID" % db_key_name,
+                            Sample.run_id, Sample.test_id)
+
+    args = [Machine.name, Machine.parameters_data]
+    for item in test_suite.machine_fields:
+        args.append(item.column)
+    sqlalchemy.schema.Index("ix_%s_Machine_Unique" % db_key_name,
+                            *args, unique = True)
+
+    return Base
+
+def initialize_testsuite(engine, session, name):
+    defn = session.query(TestSuite).filter_by(name=name).first()
+    assert defn is not None
+
+    # Create all the testsuite database tables. We don't need to worry about
+    # checking if they already exist, SA will handle that for us.
+    base = get_base_for_testsuite(defn).metadata.create_all(engine)
+
+###
 
 def upgrade(engine):
     # This upgrade script is special in that it needs to handle databases "in
@@ -180,8 +303,13 @@ def upgrade(engine):
     # Initialize all the test suite definitions for NTS and Compile, if they do
     # not already exist.
     if session.query(TestSuite).filter_by(name="nts").first() is None:
-        initialize_nts_testsuite(engine, session)
+        initialize_nts_definition(engine, session)
     if session.query(TestSuite).filter_by(name="compile").first() is None:
-        initialize_compile_testsuite(engine, session)
+        initialize_compile_definition(engine, session)
 
+    # Commit the results.
     session.commit()
+
+    # Materialize the test suite tables.
+    initialize_testsuite(engine, session, "nts")
+    initialize_testsuite(engine, session, "compile")

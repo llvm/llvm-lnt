@@ -11,24 +11,8 @@ from lnt.server.db import v4db
 # Create an in memory database.
 db = v4db.V4DB("sqlite:///:memory:", echo=True)
 
-# Create a new TestSuite.
-ts = testsuite.TestSuite("nt", "NT")
-
-# Add reasonable definitions for the machine, run, order, and sample fields.
-ts.machine_fields.append(testsuite.MachineField("uname", "uname"))
-ts.order_fields.append(testsuite.OrderField("llvm_revision", "llvm_revision",
-                                            1))
-ts.run_fields.append(testsuite.RunField("arch", "ARCH"))
-ts.sample_fields.append(testsuite.SampleField("value", db.real_sample_type,
-                                              ".value"))
-ts.sample_fields.append(testsuite.SampleField("status", db.status_sample_type,
-                                              ".value.status"))
-db.add(ts)
-
-db.commit()
-
 # Get the test suite wrapper.
-ts_db = db.testsuite['nt']
+ts_db = db.testsuite['nts']
 
 # Check that we can construct and access all of the primary fields for the test
 # suite database objects.
@@ -38,14 +22,13 @@ start_time = datetime.datetime.utcnow()
 end_time = datetime.datetime.utcnow()
 
 machine = ts_db.Machine("test-machine")
-machine.uname = "test-uname"
+machine.os = "test-os"
 order = ts_db.Order()
-order.llvm_revision = "test-revision"
+order.llvm_project_revision = "test-revision"
 run = ts_db.Run(machine, order, start_time, end_time)
-run.arch = "test-arch"
 test = ts_db.Test("test-a")
 sample = ts_db.Sample(run, test)
-sample.value = 1.0
+sample.compile_time = 1.0
 
 # Add and commit.
 ts_db.add(machine)
@@ -79,20 +62,19 @@ sample = samples[0]
 
 # Audit the various fields.
 assert machine.name == "test-machine"
-assert machine.uname == "test-uname"
+assert machine.os == "test-os"
 
 assert order.next_order_id is None
 assert order.previous_order_id is None
-assert order.llvm_revision == "test-revision"
+assert order.llvm_project_revision == "test-revision"
 
 assert run.machine is machine
 assert run.order is order
 assert run.start_time == start_time
 assert run.end_time == end_time
-assert run.arch == "test-arch"
 
 assert test.name == "test-a"
 
 assert sample.run is run
 assert sample.test is test
-assert sample.value == 1.0
+assert sample.compile_time == 1.0
