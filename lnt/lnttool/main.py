@@ -1,5 +1,6 @@
 """Implement the command line 'lnt' tool."""
 
+import logging
 import os
 import sys
 import tempfile
@@ -48,6 +49,16 @@ view the results.\
         parser.error("invalid number of arguments")
 
     input_path, = args
+
+    # Setup the base LNT logger.
+    logger = logging.getLogger("lnt")
+    if opts.debugger:
+        logger.setLevel(logging.DEBUG)
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setFormatter(logging.Formatter(
+            '%(asctime)s %(levelname)s: %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'))
+    logger.addHandler(handler)
 
     import lnt.server.ui.app
     app = lnt.server.ui.app.App.create_standalone(input_path,)
