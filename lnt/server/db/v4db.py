@@ -12,6 +12,8 @@ class V4DB(object):
     Wrapper object for LNT v0.4+ databases.
     """
 
+    _db_updated = set()
+
     class TestSuiteAccessor(object):
         def __init__(self, v4db):
             self.v4db = v4db
@@ -67,8 +69,11 @@ class V4DB(object):
         self.path = path
         self.engine = sqlalchemy.create_engine(path, echo=echo)
 
-        # Update the database to the current version, if necessary.
-        lnt.server.db.migrate.update(self.engine)
+        # Update the database to the current version, if necessary. Only check
+        # this once per path.
+        if path not in V4DB._db_updated:
+            lnt.server.db.migrate.update(self.engine)
+            V4DB._db_updated.add(path)
 
         # Proxy object for implementing dict-like .testsuite property.
         self._testsuite_proxy = None
