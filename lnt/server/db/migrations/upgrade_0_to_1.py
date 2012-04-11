@@ -99,17 +99,20 @@ def initialize_nts_definition(engine, session):
     status_sample_type = session.query(SampleType).\
         filter_by(name = "Status").first()
 
+    # Create a test suite compile with "lnt runtest nt".
     ts = TestSuite(name="nts", db_key_name="NT")
 
-    # Machine fields.
+    # Promote the natural information produced by 'runtest nt' to fields.
     ts.machine_fields.append(MachineField(name="hardware", info_key="hardware"))
     ts.machine_fields.append(MachineField(name="os", info_key="os"))
 
-    # Order fields.
+    # The only reliable order currently is the "run_order" field. We will want
+    # to revise this over time.
     ts.order_fields.append(OrderField(name="llvm_project_revision",
                                       info_key="run_order", ordinal=0))
 
-    # Sample fields.
+    # We are only interested in simple runs, so we expect exactly four fields
+    # per test.
     compile_status = SampleField(name="compile_status", type=status_sample_type,
                                  info_key=".compile.status")
     compile_time = SampleField(name="compile_time", type=real_sample_type,
@@ -135,18 +138,20 @@ def initialize_compile_definition(engine, session):
     status_sample_type = session.query(SampleType).\
         filter_by(name = "Status").first()
 
+    # Create a test suite compile with "lnt runtest compile".
     ts = TestSuite(name="compile", db_key_name="compile")
 
-    # Machine fields.
+    # Promote some natural information to fields.
     ts.machine_fields.append(MachineField(name="hardware", info_key="hw.model"))
     ts.machine_fields.append(MachineField(name="os_version",
                                           info_key="kern.version"))
 
-    # Order fields.
+    # The only reliable order currently is the "run_order" field. We will want
+    # to revise this over time.
     ts.order_fields.append(OrderField(name="llvm_project_revision",
                                       info_key="run_order", ordinal=0))
 
-    # Sample fields.
+    # We expect up to five fields per test, each with a status field.
     for name,type_name in (('user', 'time'),
                            ('sys', 'time'),
                            ('wall', 'time'),

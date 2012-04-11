@@ -2,10 +2,10 @@ import sqlalchemy
 
 import lnt.testing
 
-from lnt.server.db import testsuite
-from lnt.server.db import testsuitedb
-from lnt.server.db import testsuitetypes
+import lnt.server.db.testsuitedb
 import lnt.server.db.migrate
+
+from lnt.server.db import testsuite
 
 class V4DB(object):
     """
@@ -32,30 +32,10 @@ class V4DB(object):
             ts = self.v4db.query(testsuite.TestSuite).\
                 filter(testsuite.TestSuite.name == name).first()
             if ts is None:
-                # Check to see if this is a test suite we know how to
-                # dynamically instantiate.
-                #
-                # FIXME: For now, we assume the typename matches the test suite
-                # name. It would be nice to allow tests to report the typename.
-                ts = testsuitetypes.get_testsuite_for_type(name, self.v4db)
-                if ts is not None:
-                    self.v4db.add(ts)
-                    # FIXME: I'm not really sure why we need to commit here. It
-                    # may be an SA bug. I think we should just be able to flush
-                    # but then there is an issue when the tables will get
-                    # realized by the TestSuiteDB constructor below.
-                    #
-                    # FIXME: This commit makes me a bit nervous because clients
-                    # most likely won't expect us to be
-                    # maybe-commit'ing. However, this is unlikely to be a
-                    # problem in practice.
-                    self.v4db.commit()
-                else:
-                    # Otherwise, return the default value.
-                    return default
+                return default
 
             # Instantiate the per-test suite wrapper object for this test suite.
-            self._cache[name] = ts = testsuitedb.TestSuiteDB(
+            self._cache[name] = ts = lnt.server.db.testsuitedb.TestSuiteDB(
                 self.v4db, name, ts)
             return ts
 
@@ -114,7 +94,7 @@ class V4DB(object):
             .filter_by(id = lnt.testing.FAIL).first()
         self.xfail_status_kind = self.query(testsuite.StatusKind)\
             .filter_by(id = lnt.testing.XFAIL).first()
-        assert (self.pass_status_kind, self.fail_status_kind,
+        assert (self.pass_status_kind and self.fail_status_kind and
                 self.xfail_status_kind), \
                 "status kinds not initialized!"
 

@@ -315,9 +315,6 @@ class TestSuiteDB(object):
         sqlalchemy.schema.Index("ix_%s_Machine_Unique" % db_key_name,
                                 *args, unique = True)
 
-        # Create the test suite database tables in case this is a new database.
-        self.base.metadata.create_all(self.v4db.engine)
-
         # Add several shortcut aliases, similar to the ones on the v4db.
         self.session = self.v4db.session
         self.add = self.v4db.add
