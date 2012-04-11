@@ -1,12 +1,14 @@
+import hashlib
 import os
 import platform
+import random
 import sys
 
 ###
 
 kConfigVersion = (0,1,0)
 kConfigTemplate = """\
-# LNT (aka Zorg) configuration file
+# LNT configuration file
 #
 # Paths are resolved relative to this file.
 
@@ -28,6 +30,9 @@ tmp_dir = %(tmp_dir)r
 # Database directory, for easily rerooting the entire set of databases. Database
 # paths are resolved relative to the config path + this path.
 db_dir = %(db_dir)r
+
+# Secret key for this server instance.
+secret_key = %(secret_key)r
 
 # The list of available databases, and their properties. At a minimum, there
 # should be a 'default' entry for the default database.
@@ -97,6 +102,8 @@ def action_create(name, args):
                       help="name of the directory to hold databases")
     parser.add_option("", "--default-db", dest="default_db", default="lnt.db",
                       help="name for the default db [%default]", metavar="NAME")
+    parser.add_option("", "--secret-key", dest="secret_key", default=None,
+                      help="secret key to use for this installation")
     parser.add_option("", "--hostname", dest="hostname",
                       default=platform.uname()[1],
                       help="host name of the server [%default]", metavar="NAME")
@@ -132,6 +139,8 @@ def action_create(name, args):
     db_path = os.path.join(db_dir_path, default_db)
     tmp_path = os.path.join(basepath, tmp_dir)
     wsgi_path = os.path.join(basepath, wsgi)
+    secret_key = (opts.secret_key or
+                  hashlib.sha1(str(random.getrandbits(256))).hexdigest())
 
     os.mkdir(path)
     os.mkdir(db_dir_path)

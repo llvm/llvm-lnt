@@ -44,6 +44,13 @@ class Request(flask.Request):
     # Utility Methods
 
     def get_db(self):
+        """
+        get_db() -> <db instance>
+
+        Get the active database and add a logging handler if part of the request
+        arguments.
+        """
+
         if self.db is None:
             echo = bool(self.args.get('db_log') or self.form.get('db_log'))
 
@@ -61,6 +68,12 @@ class Request(flask.Request):
         return self.db
 
     def get_testsuite(self):
+        """
+        get_testsuite() -> server.db.testsuite.TestSuite
+
+        Get the active testsuite.
+        """
+
         if self.testsuite is None:
             testsuites = self.get_db().testsuite
             if g.testsuite_name not in testsuites:
@@ -119,6 +132,9 @@ class App(flask.Flask):
 
         lnt.server.ui.globals.register(self)
 
+        # Set the application secret key.
+        self.secret_key = self.old_config.secretKey
+
     def get_db_summary(self, db_name, db):
         # FIXME/v3removal: Eliminate this, V4DB style has no need for summary
         # abstraction.
@@ -126,4 +142,3 @@ class App(flask.Flask):
         if db_summary is None or not db_summary.is_up_to_date(db):
             self.db_summaries[db_name] = db_summary = db.get_db_summary()
         return db_summary
-

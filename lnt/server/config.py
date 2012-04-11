@@ -88,17 +88,20 @@ class Config:
         # FIXME: Remove this default.
         tempDir = data.get('tmp_dir', 'viewer/resources/graphs')
 
+        secretKey = data.get('secret_key', None)
+
         return Config(data.get('name', 'LNT'), data['zorgURL'],
-                      dbDir, os.path.join(baseDir, tempDir),
+                      dbDir, os.path.join(baseDir, tempDir), secretKey,
                       dict([(k,DBInfo.fromData(dbDirPath, v,
                                                default_email_config))
                                      for k,v in data['databases'].items()]))
 
-    def __init__(self, name, zorgURL, dbDir, tempDir, databases):
+    def __init__(self, name, zorgURL, dbDir, tempDir, secretKey, databases):
         self.name = name
         self.zorgURL = zorgURL
         self.dbDir = dbDir
         self.tempDir = tempDir
+        self.secretKey = secretKey
         while self.zorgURL.endswith('/'):
             self.zorgURL = zorgURL[:-1]
         self.databases = databases
