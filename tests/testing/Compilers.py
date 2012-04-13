@@ -39,3 +39,12 @@ pprint.pprint(info)
 assert info['cc_name'] == 'apple_clang'
 assert info['cc_build'] == 'PROD'
 assert info['inferred_run_order'] == '138.1'
+
+# Check a Clang built from git repositories.
+info = get_info("clang-git")
+pprint.pprint(info)
+assert info['cc_name'] == 'clang'
+assert info['cc_build'] == 'DEV'
+assert info['inferred_run_order'] == '%s,%s' % (
+    '37ce0feee598d82e7220fa0a4b110619cae6ea72',
+    '60fca4f64e697ad834ce7ee8c2e478cae394c7dc')

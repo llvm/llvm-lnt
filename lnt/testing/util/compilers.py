@@ -7,6 +7,12 @@ from commands import capture
 from commands import error
 from commands import rm_f
 
+def ishexhash(string):
+    return len(string) == 40 and \
+        len([c
+             for c in string
+             if c.isdigit() or c in 'abcdef']) == 40
+
 def get_cc_info(path, cc_flags=[]):
     """get_cc_info(path) -> { ... }
 
@@ -83,6 +89,7 @@ def get_cc_info(path, cc_flags=[]):
     cc_src_revision = cc_alt_src_revision = None
     cc_src_tag = None
     llvm_capable = False
+    cc_extra = cc_extra.strip()
     if cc_name == 'icc':
         cc_norm_name = 'icc'
         cc_build = 'PROD'
@@ -98,8 +105,8 @@ def get_cc_info(path, cc_flags=[]):
         else:
             error('unable to determine gcc build version: %r' % cc_build_string)
     elif (cc_name in ('clang', 'Apple clang') and
-          cc_extra == '' or 'based on LLVM' in cc_extra or
-          'llvm/' in cc_extra):
+          (cc_extra == '' or 'based on LLVM' in cc_extra or
+           (cc_extra.startswith('(') and cc_extra.endswith(')')))):
         llvm_capable = True
         if cc_name == 'Apple clang':
             cc_norm_name = 'apple_clang'
@@ -136,8 +143,8 @@ def get_cc_info(path, cc_flags=[]):
 
         # Newer Clang's can report separate versions for LLVM and Clang. Parse
         # the cc_extra text so we can get the maximum SVN version.
-        if 'llvm/' in cc_extra:
-            m = re.match(r' \(llvm/(.*) (.*)\)', cc_extra)
+        if cc_extra.startswith('(') and cc_extra.endswith(')'):
+            m = re.match(r'\(([^ ]*) (.*)\)', cc_extra)
             if m:
                 cc_alt_src_branch,cc_alt_src_revision = m.groups()
             else:
@@ -215,6 +222,17 @@ def get_inferred_run_order(info):
             order = max(order, int(info.get('cc_alt_src_revision')))
 
         return str(order)
+
+    # Otherwise if we have a git hash, use that
+    if ishexhash(info.get('cc_src_revision','')):
+        # If we also have an alt src revision, combine them.
+        #
+        # We don't try and support a mix of integral and hash revisions.
+        if ishexhash(info.get('cc_alt_src_revision','')):
+            return '%s,%s' % (info['cc_src_revision'],
+                              info['cc_alt_src_revision'])
+
+        return info['cc_src_revision']
 
     # If this is a production compiler, look for a source tag. We don't accept 0
     # or 9999 as valid source tag, since that is what llvm-gcc builds use when
