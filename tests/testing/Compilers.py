@@ -24,18 +24,18 @@ pprint.pprint(info)
 assert info['cc_name'] == 'icc'
 assert info['cc_build'] == 'PROD'
 assert info['cc_target'] == 'i686-apple-darwin11'
-assert info['inferred_run_order'] == '     12'
+assert info['inferred_run_order'] == '12.1.3'
 
 # Check a random Clang from SVN.
 info = get_info("clang-r154331")
 pprint.pprint(info)
 assert info['cc_name'] == 'clang'
 assert info['cc_build'] == 'DEV'
-assert info['inferred_run_order'] == ' 154331'
+assert info['inferred_run_order'] == '154331'
 
 # Check an Apple Clang.
 info = get_info("apple-clang-138.1")
 pprint.pprint(info)
 assert info['cc_name'] == 'apple_clang'
 assert info['cc_build'] == 'PROD'
-assert info['inferred_run_order'] == '    138'
+assert info['inferred_run_order'] == '138.1'

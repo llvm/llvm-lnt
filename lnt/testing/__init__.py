@@ -37,6 +37,7 @@ class Report:
         self.machine = machine
         self.run = run
         self.tests = list(tests)
+        self.report_version = current_version
 
         assert isinstance(self.machine, Machine)
         assert isinstance(self.run, Run)
@@ -94,6 +95,9 @@ class Run:
         self.end_time = normalize_time(end_time)
         self.info = dict((str(key),str(value))
                          for key,value in info.items())
+        if '__report_version__' in self.info:
+            raise ValueError("'__report_version__' key is reserved")
+        self.info['__report_version__'] = str(current_version)
 
     def render(self):
         return { 'Start Time' : self.start_time,
