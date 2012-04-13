@@ -154,9 +154,20 @@ class TestSuiteDB(object):
                 if self.__class__ is not b.__class__:
                     return -1
 
-                return cmp(tuple(self.get_field(item)
+                # Compare each field numerically integer or integral version,
+                # where possible. We ignore whitespace and convert each dot
+                # separated component to an integer if is is numeric.
+                def convert_field(value):
+                    items = value.strip().split('.')
+                    for i,item in enumerate(items):
+                        if item.isdigit():
+                            items[i] = int(item, 10)
+                    return tuple(items)
+
+                # Compare every field in lexicographic order.
+                return cmp(tuple(convert_field(self.get_field(item))
                                  for item in self.fields),
-                           tuple(b.get_field(item)
+                           tuple(convert_field(b.get_field(item))
                                  for item in self.fields))
 
         class Run(self.base, ParameterizedMixin):
