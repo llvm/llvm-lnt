@@ -80,10 +80,10 @@ print order_a
 print order_b
 assert order_a.previous_order_id is None
 assert order_a.next_order_id is order_b.id
-assert order_a.llvm_project_revision == u'% 7d' % 1
+assert order_a.llvm_project_revision == '1'
 assert order_b.previous_order_id is order_a.id
 assert order_b.next_order_id is None
-assert order_b.llvm_project_revision == u'% 7d' % 2
+assert order_b.llvm_project_revision == '2'
 
 # Validate the runs.
 runs = list(ts.query(ts.Run))
@@ -97,8 +97,10 @@ assert run_a.imported_from.endswith("sample-a-small.plist")
 assert run_b.imported_from.endswith("sample-b-small.plist")
 assert run_a.start_time == datetime.datetime(2009, 11, 17, 2, 12, 25)
 assert run_a.end_time == datetime.datetime(2009, 11, 17, 3, 44, 48)
-assert not run_a.parameters
-assert not run_b.parameters
+assert tuple(sorted(run_a.parameters.items())) == \
+    (('__report_version__', '1'), ('inferred_run_order', '1'))
+assert tuple(sorted(run_b.parameters.items())) == \
+    (('__report_version__', '1'), ('inferred_run_order', '2'))
 
 # Validate the samples.
 samples = list(ts.query(ts.Sample))

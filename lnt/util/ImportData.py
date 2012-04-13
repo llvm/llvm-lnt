@@ -1,6 +1,7 @@
 import os, re, time
 
 import lnt.db.perfdb
+import lnt.testing
 from lnt import formats
 from lnt.db import runinfo
 from lnt.util import NTEmailReport
@@ -45,6 +46,9 @@ def import_and_report(config, db_name, db, file, format, commit=False,
         return result
 
     result['load_time'] = time.time() - startTime
+
+    # Auto-upgrade the data, if necessary.
+    lnt.testing.upgrade_report(data)
 
     # Find the database config, if we have a configuration object.
     if config:

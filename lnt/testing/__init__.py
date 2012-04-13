@@ -6,8 +6,9 @@ the runs they wish to submit, and using Report.render to convert them to JSON
 data suitable for submitting to the server.
 """
 
-import time
 import datetime
+import time
+import re
 
 try:
     import json
@@ -137,5 +138,84 @@ class TestSamples:
         return { 'Name' : self.name,
                  'Info' : self.info,
                  'Data' : self.data }
+
+###
+# Report Versioning
+
+# We record information on the report "version" to allow the server to support
+# some level of auto-upgrading data from submissions of older reports.
+#
+# We recorder the report version as a reserved key in the run information
+# (primarily so that it can be accessed post-import on the server).
+#
+# Version 0 --           : initial (and unversioned).
+#
+# Version 1 -- 2012-04-12: run_order was changed to not be padded, and allow
+# non-integral values.
+current_version = 1
+
+def upgrade_0_to_1(data):
+    # We recompute the run_order here if it looks like this run_order was
+    # derived (we presume from sniffing a compiler).
+    run_info = data['Run']['Info']
+    run_order = run_info.get('run_order')
+    inferred_run_order = run_info.get('inferred_run_order')
+
+    # If the run order is missing, or wasn't the inferred one, do nothing.
+    if run_order is None or (run_order != inferred_run_order and
+                             inferred_run_order is not None):
+        return
+
+    # Otherwise, assume this run order was derived.
+
+    # Trim whitespace.
+    run_order = run_order.strip()
+    run_info['run_order'] = run_info['inferred_run_order'] = run_order
+
+    # If this was a production Clang build, try to recompute the src tag.
+    if 'clang' in run_info.get('cc_name','') and \
+            run_info.get('cc_build') == 'PROD' and \
+            run_info.get('cc_src_tag') and \
+            run_order == run_info['cc_src_tag'].strip():
+        # Extract the version line.
+        version_ln = None
+        for ln in run_info.get('cc_version', '').split('\n'):
+            if ' version ' in ln:
+                version_ln = ln
+                break
+        else:
+            # We are done if we didn't find one.
+            return
+
+        # Extract the build string.
+        m = re.match(r'(.*) version ([^ ]*) (\([^(]*\))(.*)',
+                     version_ln)
+        if not m:
+            return
+
+        cc_name,cc_version_num,cc_build_string,cc_extra = m.groups()
+        m = re.search('clang-([0-9.]*)', cc_build_string)
+        if m:
+            run_info['run_order'] = run_info['inferred_run_order'] = \
+                run_info['cc_src_tag'] = m.group(1)
+
+def upgrade_report(data):
+    # Get the report version.
+    report_version = int(data['Run']['Info'].get('__report_version__', 0))
+
+    # Check if the report is current.
+    if report_version == current_version:
+        return data
+
+    # Check if the version is out-of-range.
+    if report_version > current_version:
+        raise ValueError("unknown report version: %r" % (report_version,))
+
+    # Otherwise, we need to upgrade it.
+    for version in range(report_version, current_version):
+        upgrade_method = globals().get('upgrade_%d_to_%d' % (
+                version, version+1))
+        upgrade_method(data)
+        data['Run']['Info']['__report_version__'] = str(version + 1)
 
 __all__ = ['Report', 'Machine', 'Run', 'TestSamples']
