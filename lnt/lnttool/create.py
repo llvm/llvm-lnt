@@ -1,4 +1,5 @@
 import hashlib
+import logging
 import os
 import platform
 import random
@@ -110,6 +111,9 @@ def action_create(name, args):
     parser.add_option("", "--hostsuffix", dest="hostsuffix", default="perf",
                       help="suffix at which WSGI app lives [%default]",
                       metavar="NAME")
+    parser.add_option("", "--show-sql", dest="show_sql", action="store_true",
+                      help="show SQL statements executed during construction",
+                      default=False)
 
     (opts, args) = parser.parse_args(args)
     if len(args) != 1:
@@ -117,6 +121,22 @@ def action_create(name, args):
 
     path, = args
 
+    # Setup the base LNT logger.
+    logger = logging.getLogger("lnt")
+    logger.setLevel(logging.WARNING)
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setFormatter(logging.Formatter(
+            '%(asctime)s %(levelname)s: %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'))
+    logger.addHandler(handler)
+
+    # Enable full SQL logging, if requested.
+    if opts.show_sql:
+        sa_logger = logging.getLogger("sqlalchemy")
+        sa_logger.setLevel(logging.INFO)
+        sa_logger.addHandler(handler)
+
+    # Set up locals we use later for substitution.
     name = opts.name
     config = opts.config
     wsgi = opts.wsgi
