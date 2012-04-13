@@ -218,6 +218,37 @@ def action_submit(name, args):
     from lnt.util import ServerUtil
     ServerUtil.submitFiles(args[0], args[1:], opts.commit, opts.verbose)
 
+def action_update(name, args):
+    """auto-upgrade the given database"""
+
+    parser = OptionParser("%%prog %s [options] <db path>" % name)
+    parser.add_option("", "--show-sql", dest="show_sql", default=False,
+                      action="store_true", help="show all SQL queries")
+
+    (opts, args) = parser.parse_args(args)
+    if len(args) != 1:
+        parser.error("incorrect number of argments")
+
+    db_path, = args
+
+    # Setup the base LNT logger.
+    logger = logging.getLogger("lnt")
+    logger.setLevel(logging.INFO)
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setFormatter(logging.Formatter(
+            '%(asctime)s %(levelname)s: %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'))
+    logger.addHandler(handler)
+
+    # Enable full SQL logging, if requested.
+    if opts.show_sql:
+        sa_logger = logging.getLogger("sqlalchemy")
+        sa_logger.setLevel(logging.INFO)
+        sa_logger.addHandler(handler)
+
+    # Update the database.
+    lnt.server.db.migrate.update_path(db_path)
+
 ###
 
 commands = dict((name[7:], f) for name,f in locals().items()
