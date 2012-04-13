@@ -109,10 +109,19 @@
       <thead>
         <tr><th>Name</th><th>Value</th></tr>
       </thead>
-{% for key,value in run.parameters|dictsort %}
+{% for key,value in run.parameters|dictsort(case_sensitive=True) %}
       <tr>
         <td> <b>{{key}}</b> </td>
+{# Split lines in multi-line values. #}
+{% if '\n' in value %}
+        <td>
+  {% for ln in value.split('\n') %}
+  {{ ln }}<br>
+  {% endfor %}
+        </td>
+{% else %}
         <td>{{value}}</td>
+{% endif %}
       </tr>
 {% endfor %}
       </table>
