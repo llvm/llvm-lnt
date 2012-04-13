@@ -41,7 +41,7 @@ def main():
     assert resp.status_code == 200
 
     # Get an order page.
-    resp = client.get('/v4/nts/order/1')
+    resp = client.get('/v4/nts/order/3')
     assert resp.status_code == 200
 
     # Get a run result page (and associated views).
