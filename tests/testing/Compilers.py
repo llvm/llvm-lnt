@@ -24,7 +24,7 @@ pprint.pprint(info)
 assert info['cc_name'] == 'icc'
 assert info['cc_build'] == 'PROD'
 assert info['cc_target'] == 'i686-apple-darwin11'
-assert info['inferred_run_order'] == '      0'
+assert info['inferred_run_order'] == '     12'
 
 # Check a random Clang from SVN.
 info = get_info("clang-r154331")
