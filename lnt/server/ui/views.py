@@ -14,6 +14,7 @@ from flask import render_template
 from flask import request
 from flask import url_for
 
+import lnt.util
 from lnt.db import perfdb
 from lnt.server.ui.globals import db_url_for, v4_url_for
 import lnt.server.reporting.analysis
@@ -60,8 +61,6 @@ def browse():
 
 @db_route('/submitRun', only_v3=False, methods=('GET', 'POST'))
 def submit_run():
-    from lnt.util import ImportData
-
     if request.method == 'POST':
         input_file = request.files.get('file')
         input_data = request.form.get('input_data')
@@ -110,7 +109,7 @@ def submit_run():
         #
         # FIXME: Gracefully handle formats failures and DOS attempts. We
         # should at least reject overly large inputs.
-        result = ImportData.import_and_report(
+        result = lnt.util.ImportData.import_and_report(
             current_app.old_config, g.db_name, db, path, '<auto>', commit)
 
         return flask.jsonify(**result)
@@ -1056,3 +1055,36 @@ def v4_graph(id):
                            neighboring_runs=neighboring_runs,
                            graph_plots=graph_plots, legend=legend,
                            use_day_axis=use_day_axis)
+
+###
+# Cross Test-Suite V4 Views
+
+import lnt.server.reporting.summaryreport
+
+def get_summary_config_path():
+    return os.path.join(current_app.old_config.tempDir,
+                        'summary_report_config.json')
+
+@db_route("/summary_report", only_v3=False)
+def v4_summary_report():
+    # FIXME: Add a UI for defining the report configuration.
+
+    # Load the summary report configuration.
+    config_path = get_summary_config_path()
+    if not os.path.exists(config_path):
+        return render_template("error.html", message="""\
+You must define a summary report configuration first.""")
+
+    with open(config_path) as f:
+        config = flask.json.load(f)
+
+    # Create the report object.
+    report = lnt.server.reporting.summaryreport.SummaryReport(
+        request.get_db(), config['orders'], config['machine_patterns'],
+        dict((int(key),value)
+             for key,value in config['machines_to_merge'].items()))
+
+    # Build the report.
+    report.build()
+
+    return render_template("v4_summary_report.html", report=report)

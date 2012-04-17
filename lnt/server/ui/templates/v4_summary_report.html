@@ -1,0 +1,277 @@
+{% extends "layout.html" %}{
+{% set components = [] %}
+{% block head %}
+  <script src="{{ url_for('.static', filename='popup.js') }}"></script>
+   <script language="javascript" type="text/javascript"
+           src="{{ url_for('.static',
+                           filename='jquery/1.5/jquery.min.js') }}"> </script>
+   <script language="javascript" type="text/javascript"
+           src="{{ url_for('.static',
+                           filename='flot/jquery.flot.min.js') }}"> </script>
+   <script language="javascript" type="text/javascript"
+           src="{{ url_for('.static',
+                           filename='flot/jquery.flot.pie.min.js') }}"> </script>
+{% endblock %}
+{% block title %}Summary Report{% endblock %}
+{% block body %}
+
+{# Warn the user if there were a lot of warnings during report generation. #}
+{% if report.warnings|length > 20 %}
+<font color="#F00">
+<p><b>WARNING</b>: Report generation reported {{ report.warnings|length }}
+warnings.</p>
+</font>
+{% endif %}
+
+{% if true %}
+<script type="text/javascript">
+g = {}
+g.tick_list = [{%
+for order in report.report_orders %}
+  [{{ loop.index0 }}, "{{ order[0] }}"],{%
+endfor %}  
+];
+g.single_file_stage_order = {{ report.single_file_stage_order|tojson|safe }};
+
+function init() {
+{% for (metric,build_mode),items in report.grouped_table|dictsort %}
+    setup_grouped_plot("{{metric.replace(' ','')}}_{{build_mode}}", {{ items|tojson|safe }});
+{% endfor %}
+
+{% for (metric,build_mode),items in report.single_file_table|dictsort %}
+    setup_single_file_plot("{{metric.replace(' ','')}}_{{build_mode}}", {{ items|tojson|safe }});
+{% endfor %}
+}
+
+function setup_single_file_plot(name, items) {
+    var graph = $("#single_file_" + name);
+    var plots = [];
+
+    for (var i = 0; i != items.length; ++i) {
+        var item = items[i];
+        if (item === null)
+            continue;
+
+        plots.push({ label : g.single_file_stage_order[i],
+                     data : item });
+    }
+
+    $.plot(graph, plots, {
+        series: {
+            pie: { 
+                show: true }
+        },
+        legend: {
+            show: true },
+        grid: {
+            hoverable: true }});
+
+    // Add tooltips.
+    graph.bind("plothover", function(e,p,i) {
+        update_tooltip(e, p, i, show_pie_tooltip); });
+}
+
+function setup_grouped_plot(name, items) {
+    var graph = $("#grouped_" + name);
+    var plots = [];
+
+    // Build the list of plots.
+    items.sort();
+    for (var i = 0; i != items.length; ++i) {
+        var item = items[i];
+        var test_name = item[0];
+        var arch = item[1];
+        var values = item[2];
+        var plot = [];
+
+        for (var j = 0; j != values.length; ++j) {
+          plot.push([j, 100 * (values[j] - 1)]);
+        }
+
+        plots.push({ label : test_name + " :: " + arch,
+                     data : plot });
+    }
+
+    $.plot(graph, plots, {
+        legend: {
+            position: 'nw' },
+        series: {
+            lines: { show: true },
+            points: { show: true } },
+        xaxis: {
+            ticks: g.tick_list },
+        yaxis: {
+            ticks: 5 },
+        grid: {
+            hoverable: true } });
+
+    // Add tooltips.
+    graph.bind("plothover", function(e,p,i) {
+        update_tooltip(e, p, i, show_tooltip); });
+}
+
+// Show our overlay tooltip.
+g.current_tip_point = null;
+function show_tooltip(x, y, item, pos) {
+    var data = item.datapoint;
+    var tip_body = '<div id="tooltip">';
+    tip_body += "<b><u>" + item.series.label + "</u></b><br>";
+    tip_body += "<b>" + g.tick_list[data[0]][1].toString() + "</b>: ";
+    tip_body += data[1].toFixed(2) + "%" + "</div>";
+
+    $(tip_body).css( {
+        position: 'absolute',
+        display: 'none',
+        top: y + 5,
+        left: x + 5,
+        border: '1px solid #fdd',
+        padding: '2px',
+        'background-color': '#fee',
+        opacity: 0.80
+    }).appendTo("body").fadeIn(200);
+}
+
+function show_pie_tooltip(x, y, item, pos) {
+    var tip_body = '<div id="tooltip">';
+    tip_body += "<b><u>" + item.series.label + "</u></b><br>";
+    tip_body += item.series.percent.toFixed(2) + "%" + "</div>";
+
+    $(tip_body).css( {
+        position: 'absolute',
+        display: 'none',
+        top: pos.pageY + 5,
+        left: pos.pageX + 5,
+        border: '1px solid #fdd',
+        padding: '2px',
+        'background-color': '#fee',
+        opacity: 0.80
+    }).appendTo("body").fadeIn(200);
+}
+
+// Event handler function to update the tooltop.
+function update_tooltip(event, pos, item, show_fn) {
+    if (!item) {
+        $("#tooltip").remove();
+        g.current_tip_point = null;
+        return;
+    }
+        
+    if (!g.current_tip_point || (g.current_tip_point[0] != item.datapoint[0] ||
+                                 g.current_tip_point[1] != item.datapoint[1])) {
+        $("#tooltip").remove();
+        g.current_tip_point = item.datapoint;
+        show_fn(pos.pageX, pos.pageY, item, pos);
+    }
+}
+
+$(function () { init(); });
+</script>
+
+{% set width='800px' %}
+{% set height='500px' %}
+<table border="1">
+  {% for metric,build_mode in report.grouped_table|sort %}
+  <tr>
+    <td>
+      <center><b>{{metric}} Speedup / {{build_mode}}</b></center>
+      <div id="grouped_{{metric.replace(' ','')}}_{{build_mode}}"
+           style="margin:20px;width:{{width}};height:{{height}};"></div>
+    </td>
+  </tr>
+  {% endfor %}
+  {% for metric,build_mode in report.single_file_table|sort %}
+  <tr>
+    <td>
+      <center><b>{{metric}} Single File Breakdown / {{build_mode}}</b></center>
+      <div id="single_file_{{metric.replace(' ','')}}_{{build_mode}}"
+           style="margin:20px;width:{{width}};height:{{height}};"></div>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+<h3>Release Data Table</h3>
+
+{% for (metric,build_mode),items in report.grouped_table|dictsort %}
+<h4>{{ metric }} - {{ build_mode }}</h4>
+<table>
+  <thead>
+    <tr>
+      <th>Name</th><th>Arch</th>
+      {% for order in report.report_orders %}
+      <th>{{order}}</th>
+      {% endfor %}
+    </tr>
+  </thead>
+  {% for test_name,arch,values in items|sort %}
+  <tr>
+    <td>{{test_name}}</td>
+    <td>{{arch}}</td>
+    {% for value in values %}
+    <td>{{ '%.4f' % value }}</td>
+    {% endfor %}
+  </tr>
+  {% endfor %}
+</table>
+{% endfor %}
+
+<h3>Single File Breakdown Data Table</h3>
+
+{% set keys = report.single_file_table.keys()|sort %}
+<table>
+  <thead>
+    <tr>
+      <th>Stage Name</th>
+      {% for metric,build_mode in keys %}
+      <th>{{ build_mode }}</th>
+      {% endfor %}
+    </tr>
+  </thead>
+  {% for stage in report.single_file_stage_order %}
+  {% set stage_index = loop.index0 %}
+  <tr>
+    <td>{{stage}}</td>
+    {% for key in keys %}
+    <td>
+    {% set value = report.single_file_table[key][stage_index] %}
+    {{ '%.4f' % value if value is not none else 'N/A' }}
+    </td>
+    {% endfor %}
+  </tr>
+  {% endfor %}
+</table>
+
+{% if request.args.get('show_normalized_table') %}
+<h3>Normalized Data Table</h3>
+<pre>
+{{ report.normalized_data_table|pprint }}
+</pre>
+{% endif %}
+
+{% if request.args.get('show_indexed_table') %}
+<h3>Indexed Data Table</h3>
+<pre>
+{{ report.indexed_data_table|pprint }}
+</pre>
+{% endif %}
+
+{% if request.args.get('show_raw_table') %}
+<h3>Raw Data Table</h3>
+<pre>
+{{ report.data_table|pprint }}
+</pre>
+{% endif %}
+
+{% if report.warnings %}
+{% if request.args.get('show_warnings') or report.warnings|length > 20 %}
+<h3>Warnings</h3>
+<ul>
+{% for ln in report.warnings %}
+<li><pre>{{ ln }}</pre></li>
+{% endfor %}
+</ul>
+{% endif %}
+{% endif %}
+
+{% endblock %}
