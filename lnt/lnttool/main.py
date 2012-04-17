@@ -6,6 +6,8 @@ import sys
 import tempfile
 from optparse import OptionParser, OptionGroup
 
+import werkzeug.contrib.profiler
+
 import StringIO
 import lnt
 import lnt.util.ImportData
@@ -38,6 +40,8 @@ view the results.\
                       action="store_true", help="use WSGI reload monitor")
     parser.add_option("", "--debugger", dest="debugger", default=False,
                       action="store_true", help="use WSGI debugger")
+    parser.add_option("", "--profiler", dest="profiler", default=False,
+                      action="store_true", help="enable WSGI profiler")
     parser.add_option("", "--show-sql", dest="show_sql", default=False,
                       action="store_true", help="show all SQL queries")
     parser.add_option("", "--threaded", dest="threaded", default=False,
@@ -74,6 +78,9 @@ view the results.\
     app = lnt.server.ui.app.App.create_standalone(input_path,)
     if opts.debugger:
         app.debug = True
+    if opts.profiler:
+        app.wsgi_app = werkzeug.contrib.profiler.ProfilerMiddleware(
+            app.wsgi_app, stream = open('profiler.log', 'w'))
     app.run(opts.hostname, opts.port,
             use_reloader = opts.reloader,
             use_debugger = opts.debugger,
