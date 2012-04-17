@@ -179,57 +179,64 @@ class SummaryReport(object):
         self._build_final_data_tables()
 
     def _build_data_table(self):
-        def get_nts_datapoints_for_sample(ts, run, sample):
+        def get_nts_datapoints_for_sample(ts, sample):
+            # Get the basic sample info.
+            run_id = sample[0]
+            machine_id = run_machine_id_map[run_id]
+            run_parameters = run_parameters_map[run_id]
+
             # Convert the machine ID.
-            machine_id = self.machines_to_merge.get(run.machine_id,
-                                                    run.machine_id)
+            machine_id = self.machines_to_merge.get(machine_id, machine_id)
 
             # Get the test.
-            test = ts_tests[sample.test_id]
+            test = ts_tests[sample[1]]
 
             # The test name for a sample in the NTS suite is just the name of
             # the sample test.
             test_name = test.name
 
             # The arch and build mode are derived from the run flags.
-            parameters = run.parameters
-            arch = parameters['ARCH']
+            arch = run_parameters['ARCH']
             if '86' in arch:
                 arch = 'x86'
 
-            if parameters['OPTFLAGS'] == '-O0':
+            if run_parameters['OPTFLAGS'] == '-O0':
                 build_mode = 'Debug'
             else:
                 build_mode = 'Release'
 
             # Return a datapoint for each passing field.
-            for field in ts.Sample.get_primary_fields():
+            for field_name,field,status_field in ts_sample_primary_fields:
                 # Ignore failing samples.
-                sf = field.status_field
-                if sf and sample.get_field(sf) == lnt.testing.FAIL:
+                if status_field and \
+                        sample[2 + status_field.index] == lnt.testing.FAIL:
                     continue
 
                 # Ignore missing samples.
-                value = sample.get_field(field)
+                value = sample[2 + field.index]
                 if value is None:
                     continue
 
                 # Otherwise, return a datapoint.
-                if field.name == 'compile_time':
+                if field_name == 'compile_time':
                     metric = 'Compile Time'
                 else:
-                    assert field.name == 'execution_time'
+                    assert field_name == 'execution_time'
                     metric = 'Execution Time'
                 yield ((test_name, metric, arch, build_mode, machine_id),
                        value)
 
-        def get_compile_datapoints_for_sample(ts, run, sample):
+        def get_compile_datapoints_for_sample(ts, sample):
+            # Get the basic sample info.
+            run_id = sample[0]
+            machine_id = run_machine_id_map[run_id]
+            run_parameters = run_parameters_map[run_id]
+
             # Convert the machine ID.
-            machine_id = self.machines_to_merge.get(run.machine_id,
-                                                    run.machine_id)
+            machine_id = self.machines_to_merge.get(machine_id, machine_id)
 
             # Get the test.
-            test = ts_tests[sample.test_id]
+            test = ts_tests[sample[1]]
 
             # Extract the compile flags from the test name.
             base_name,flags = test.name.split('(')
@@ -262,8 +269,7 @@ class SummaryReport(object):
             test_name_prefix = '%s(%s)' % (base_name, ','.join(other_flags))
 
             # Extract the arch from the run info (and normalize).
-            parameters = run.parameters
-            arch = parameters['cc_target'].split('-')[0]
+            arch = run_parameters['cc_target'].split('-')[0]
             if arch.startswith('arm'):
                 arch = 'ARM'
             elif '86' in arch:
@@ -273,32 +279,31 @@ class SummaryReport(object):
             metric = 'Compile Time'
 
             # Report the user and wall time.
-            for field in ts.Sample.get_primary_fields():
-                if field.name not in ('user_time', 'wall_time'):
+            for field_name,field,status_field in ts_sample_primary_fields:
+                if field_name not in ('user_time', 'wall_time'):
                     continue
 
                 # Ignore failing samples.
-                sf = field.status_field
-                if sf and sample.get_field(sf) == lnt.testing.FAIL:
+                if status_field and \
+                        sample[2 + status_field.index] == lnt.testing.FAIL:
                     continue
 
                 # Ignore missing samples.
-                value = sample.get_field(field)
+                value = sample[2 + field.index]
                 if value is None:
                     continue
 
                 # Otherwise, return a datapoint.
-                yield (('%s.%s' % (test_name_prefix, field.name), metric, arch,
-                        build_mode, machine_id),
-                       sample.get_field(field))
+                yield (('%s.%s' % (test_name_prefix, field_name), metric, arch,
+                        build_mode, machine_id), value)
 
-        def get_datapoints_for_sample(ts, run, sample):
+        def get_datapoints_for_sample(ts, sample):
             # The exact datapoints in each sample depend on the testsuite
             if ts.name == 'nts':
-                return get_nts_datapoints_for_sample(ts, run, sample)
+                return get_nts_datapoints_for_sample(ts, sample)
             else:
                 assert ts.name == 'compile'
-                return get_compile_datapoints_for_sample(ts, run, sample)
+                return get_compile_datapoints_for_sample(ts, sample)
 
         # For each column...
         for index,runs in enumerate(self.runs_at_index):
@@ -306,21 +311,38 @@ class SummaryReport(object):
             for ts,(ts_runs,_) in zip(self.testsuites, runs):
                 ts_tests = self.tests[ts]
 
-                # For each run...
-                for run in ts_runs:
-                    # Load all the samples for this run.
-                    samples = ts.query(ts.Sample).filter(
-                        ts.Sample.run_id == run.id)
-                    for sample in samples:
-                        datapoints = list()
-                        for key,value in \
-                                get_datapoints_for_sample(ts, run, sample):
-                            items = self.data_table.get(key)
-                            if items is None:
-                                items = [[]
-                                         for _ in self.report_orders]
-                                self.data_table[key] = items
-                            items[index].append(value)
+                # Compute the primary sample fields.
+                ts_sample_primary_fields = [
+                    (f.name, f, f.status_field)
+                    for f in ts.Sample.get_primary_fields()]
+
+                # Compute a mapping from run id to run.
+                run_id_map = dict((r.id, r)
+                                  for r in ts_runs)
+
+                # Compute a mapping from run id to machine id.
+                run_machine_id_map = dict((r.id, r.machine_id)
+                                          for r in ts_runs)
+
+                # Preload the run parameters.
+                run_parameters_map = dict((r.id, r.parameters)
+                                          for r in ts_runs)
+
+                # Load all the samples for all runs we are interested in.
+                columns = [ts.Sample.run_id, ts.Sample.test_id]
+                columns.extend(f.column for f in ts.sample_fields)
+                samples = ts.query(*columns).filter(
+                    ts.Sample.run_id.in_(run_id_map.keys()))
+                for sample in samples:
+                    run = run_id_map[sample[0]]
+                    datapoints = list()
+                    for key,value in get_datapoints_for_sample(ts, sample):
+                        items = self.data_table.get(key)
+                        if items is None:
+                            items = [[]
+                                     for _ in self.report_orders]
+                            self.data_table[key] = items
+                        items[index].append(value)
 
     def _build_indexed_data_table(self):
         def is_in_execution_time_filter(name):
