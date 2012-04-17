@@ -1,4 +1,7 @@
+import StringIO
 import datetime
+import pprint
+
 from lnt.server.ui import util
 
 def filter_asusertime(time):
@@ -9,6 +12,11 @@ def filter_asusertime(time):
 def filter_aspctcell(value, *args, **kwargs):
     cell = util.PctCell(value, *args, **kwargs)
     return cell.render()
+
+def filter_pprint(value):
+    stream = StringIO.StringIO()
+    pprint.pprint(value, stream)
+    return stream.getvalue()
 
 def register(app):
     for name,object in globals().items():
