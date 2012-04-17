@@ -70,6 +70,8 @@ http://llvm.org/svn/llvm-project/lnt/trunk
     package_data = {'lnt.server.ui': ['static/*.ico',
                                       'static/*.js',
                                       'static/*.css',
+                                      'static/flot/*.min.js',
+                                      'static/jquery/1.5/*.min.js',
                                       'templates/*.html'],
                     'lnt.server.db': ['migrations/*.py'] },
 
