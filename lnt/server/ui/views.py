@@ -932,7 +932,17 @@ def v4_graph(id):
                              (field.status_field.column == None))
 
         # Aggregate by revision.
-        data = util.multidict((int(r),v)
+        #
+        # FIXME: For now, we just do something stupid when we encounter release
+        # numbers like '3.0.1' and use convert to 3. This makes the graphs
+        # fairly useless...
+        def convert_revision(r):
+            if r.isdigit():
+                return int(r)
+            else:
+                return int(r.split('.',1)[0])
+            return r
+        data = util.multidict((convert_revision(r),v)
                               for v,r in q).items()
         data.sort()
 
