@@ -19,6 +19,17 @@ from lnt.testing.util.misc import TeeStream, timestamp
 from lnt.testing.util import commands, machineinfo
 from lnt.util import stats
 
+def args_to_quoted_string(args):
+    def quote_arg(arg):
+        if "'" in arg:
+            return '"%s"' % arg.replace('(', '\\(')\
+                .replace(')', '\\)')
+        elif '"' in arg or ' ' in arg:
+            return "'%s'" % arg
+        return arg
+    return ' '.join([quote_arg(a)
+                     for a in args])
+
 # Interface to runN.
 #
 # FIXME: Simplify.
@@ -350,8 +361,7 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs):
     # Collect the samples.
     print >>test_log, '%s: executing full build: %s' % (
         datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),
-        " ".join("'%s'" % arg
-                 for arg in cmd))
+        args_to_quoted_string(cmd))
     stdout_path = os.path.join(output_base, "stdout.log")
     stderr_path = os.path.join(output_base, "stderr.log")
     preprocess_cmd = 'rm -rf "%s"' % (build_base,)
@@ -390,7 +400,7 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs):
             ('%s: warning: test command had stderr files with '
              'different sizes: %r') %
             (datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),
-             stdout_sizes))
+             stderr_sizes))
     
 ###
 
@@ -742,7 +752,7 @@ class CompileTest(builtintest.BuiltinTest):
         if not opts.configs_to_test:
             configs_to_test = ['Debug', 'Release']
         else:
-            configs_to_test = opts.config_to_test
+            configs_to_test = opts.configs_to_test
 
         # Compute the list of all tests.
         all_tests = list(get_tests(opts.test_suite_externals, flags_to_test,
