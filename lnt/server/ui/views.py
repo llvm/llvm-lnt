@@ -1076,6 +1076,51 @@ def get_summary_config_path():
     return os.path.join(current_app.old_config.tempDir,
                         'summary_report_config.json')
 
+@db_route("/summary_report/edit", only_v3=False, methods=('GET', 'POST'))
+def v4_summary_report_ui():
+    # If this is a POST request, update the saved config.
+    if request.method == 'POST':
+        # Parse the config data.
+        config_data = request.form.get('config')
+        config = flask.json.loads(config_data)
+
+        # Write the updated config.
+        with open(get_summary_config_path(), 'w') as f:
+            flask.json.dump(config, f, indent=2)
+
+        # Redirect to the summary report.
+        return redirect(db_url_for("v4_summary_report"))
+
+    config_path = get_summary_config_path()
+    if os.path.exists(config_path):
+        with open(config_path) as f:
+            config = flask.json.load(f)
+    else:
+        config = {}
+
+    # Get the list of available test suites.
+    testsuites = request.get_db().testsuite.values()
+
+    # Gather the list of all run orders and all machines.
+    def to_key(name):
+        first = name.split('.', 1)[0]
+        if first.isdigit():
+            return (int(first), name)
+        return (first, name)
+    all_machines = set()
+    all_orders = set()
+    for ts in testsuites:
+        for name, in ts.query(ts.Machine.name):
+            all_machines.add(name)
+        for name, in ts.query(ts.Order.llvm_project_revision):
+            all_orders.add(name)
+    all_machines = sorted(all_machines)
+    all_orders = sorted(all_orders, key=to_key)
+
+    return render_template("v4_summary_report_ui.html",
+                           config=config, all_machines=all_machines,
+                           all_orders=all_orders)
+
 @db_route("/summary_report", only_v3=False)
 def v4_summary_report():
     # FIXME: Add a UI for defining the report configuration.

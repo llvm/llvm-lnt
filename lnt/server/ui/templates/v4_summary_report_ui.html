@@ -1,0 +1,67 @@
+{% extends "layout.html" %}{
+{% set components = [("report", db_url_for("v4_summary_report"))] %}
+{% block head %}
+  <script src="{{ url_for('.static', filename='popup.js') }}"></script>
+  <script src="{{ url_for('.static',filename='json2.js')}}"></script>
+  <script language="javascript" type="text/javascript"
+           src="{{ url_for('.static',
+                           filename='jquery/1.5/jquery.min.js') }}"></script>
+  <script src="{{ url_for('.static',filename='v4_summary_report_ui.js')}}"></script>
+
+<style>
+.ui-box {
+    border  :  1px dashed #000;
+    padding :  3px;
+    margin  : 20px;
+}
+
+.list {
+    list-style-type : none;
+    margin: 0;
+    padding : 0;
+}
+
+.list-item {
+    border  : 1px solid #672;
+    padding : 1px;
+    margin  : 2px;
+}
+</style>
+
+<script>
+g.config = {{ config|tojson(indent=2)|safe }};
+g.all_orders = {{ all_orders|tojson(indent=2)|safe }};
+g.all_machines = {{ all_machines|tojson(indent=2)|safe }};
+g.save_url = {{ db_url_for("v4_summary_report_ui")|tojson|safe }};
+</script>
+{% endblock %}
+{% block title %}Summary Report Editor{% endblock %}
+{% block body %}
+
+<div>
+<div style="width : 250px; float : left;">
+  <h2><center>Report Orders</center></h2>
+  <div class="ui-box" style="width : 200px; height : 200px">
+    <ul class="list" id="report-order-list">
+    </ul>
+
+    <br>
+    <input type="button" value="Add" onclick="add_order();">
+  </div>
+</div>
+<div style="width : 250px; float : left;">
+  <h2><center>Order Items</center></h2>
+  <div class="ui-box" style="width : 200px; height : 200px;" id="report-order-items">
+  </div>
+</div>
+<div style="width : 280px; float : left;">
+  <h2><center>Machines</center></h2>
+  <div class="ui-box" style="width : 230px; height : 200px" id="report-machines">
+  </div>
+</div>
+<br style="clear: left;" />
+</div>
+
+<input type="button" value="Save" onclick="save_config();">
+
+{% endblock %}
