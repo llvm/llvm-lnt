@@ -83,12 +83,13 @@ class NormalizedMean(Mean):
 ###
 
 class SummaryReport(object):
-    def __init__(self, db, report_orders, report_machine_patterns,
-                 machines_to_merge):
+    def __init__(self, db, report_orders, report_machine_names,
+                 report_machine_patterns, machines_to_merge):
         self.db = db
         self.testsuites = list(db.testsuite.values())
         self.report_orders = list((name,orders)
                                   for name,orders in report_orders)
+        self.report_machine_names = set(report_machine_names)
         self.report_machine_patterns = list(report_machine_patterns)
         self.report_machine_rexes = [
             re.compile(pattern)
@@ -106,6 +107,8 @@ class SummaryReport(object):
         # Build a per-testsuite list of the machines that match the specified
         # patterns.
         def should_be_in_report(machine):
+            if machine.name in self.report_machine_names:
+                return True
             for rex in self.report_machine_rexes:
                 if rex.match(machine.name):
                     return True
