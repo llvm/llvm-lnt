@@ -87,7 +87,8 @@ class SummaryReport(object):
                  machines_to_merge):
         self.db = db
         self.testsuites = list(db.testsuite.values())
-        self.report_orders = list(report_orders)
+        self.report_orders = list((name,orders)
+                                  for name,orders in report_orders)
         self.report_machine_patterns = list(report_machine_patterns)
         self.report_machine_rexes = [
             re.compile(pattern)
@@ -118,7 +119,7 @@ class SummaryReport(object):
         # First, collect all the runs to summarize on, for each index in the
         # report orders.
         self.runs_at_index = []
-        for orders in self.report_orders:
+        for _,orders in self.report_orders:
             # For each test suite...
             runs = []
             for ts in self.testsuites:

@@ -200,7 +200,7 @@ $(function () { init(); });
     <tr>
       <th>Name</th><th>Arch</th>
       {% for order in report.report_orders %}
-      <th>{{order}}</th>
+      <th>{{order[0]}}</th>
       {% endfor %}
     </tr>
   </thead>
