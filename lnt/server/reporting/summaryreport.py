@@ -450,9 +450,6 @@ class SummaryReport(object):
     single_file_stage_order = [
         'init', 'driver', 'syntax', 'irgen_only', 'codegen', 'assembly']
     def _build_final_data_tables(self):
-        def invert(values):
-            return [1.0/v for v in values]
-
         self.grouped_table = {}
         self.single_file_table = {}
         for key,normalized_value in self.normalized_data_table.items():
@@ -466,7 +463,7 @@ class SummaryReport(object):
                     group_key, [])
 
                 items.append((test_name, arch,
-                              invert(normalized_value.getvalue())))
+                              normalized_value.getvalue()))
                 continue
 
             # Add to the single file stack.
@@ -494,4 +491,4 @@ class SummaryReport(object):
                 values = normalized_value.getvalue()
                 baseline = values[0]
                 items.append(('Single File Tests', arch,
-                              invert([v/baseline for v in values])))
+                              [v/baseline for v in values]))

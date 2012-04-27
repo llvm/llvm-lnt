@@ -173,7 +173,7 @@ $(function () { init(); });
   {% for metric,build_mode in report.grouped_table|sort %}
   <tr>
     <td>
-      <center><b>{{metric}} Speedup / {{build_mode}}</b></center>
+      <center><b>{{metric}} (normalized) / {{build_mode}}</b></center>
       <div id="grouped_{{metric.replace(' ','')}}_{{build_mode}}"
            style="margin:20px;width:{{width}};height:{{height}};"></div>
     </td>
