@@ -21,9 +21,8 @@ from lnt.util import stats
 
 def args_to_quoted_string(args):
     def quote_arg(arg):
-        if "'" in arg:
-            return '"%s"' % arg.replace('(', '\\(')\
-                .replace(')', '\\)')
+        if "'" in arg or '(' in arg or ')' in arg:
+            return '"%s"' % arg
         elif '"' in arg or ' ' in arg:
             return "'%s'" % arg
         return arg
