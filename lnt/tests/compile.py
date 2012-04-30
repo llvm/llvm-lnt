@@ -126,8 +126,8 @@ def test_cc_command(base_name, run_info, variables, input, output, flags,
     cmd.append(input)
     cmd.extend(flags)
 
-    # FIXME: Probably a bad idea, but its not worth worry about test failures
-    # for compiler versions which emit warnings on the test inputs for now.
+    # Inhibit all warnings, we don't want to count the time to generate them
+    # against newer compilers which have added (presumably good) warnings.
     cmd.append('-w')
 
     # Do a memory profiling run, if requested.
@@ -348,6 +348,10 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs):
         # Force off the static analyzer, in case it was enabled in any projects
         # (we don't want to obscure what we are trying to time).
         cmd.append('RUN_CLANG_STATIC_ANALYZER=NO')
+
+        # Inhibit all warnings, we don't want to count the time to generate them
+        # against newer compilers which have added (presumably good) warnings.
+        cmd.append('GCC_WARN_INHIBIT_ALL_WARNINGS=YES')
 
         # Add additional arguments to force the build scenario we want.
         cmd.extend(('-jobs', str(num_jobs)))
