@@ -53,6 +53,10 @@ def generate_run_report(run, baseurl, only_html_body = False,
                 filter(ts.Run.order == best).\
                 order_by(ts.Run.start_time.desc()).first()
 
+    # If the baseline is the same as the comparison run, ignore it.
+    if baseline is compare_to:
+        baseline = None
+
     # Gather the runs to use for statistical data.
     if comparison_window is None:
         comparison_start_run = compare_to or run
