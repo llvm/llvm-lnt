@@ -9,12 +9,13 @@ import urllib
 
 import lnt.server.reporting.analysis
 import lnt.server.ui.util
+import lnt.util.stats
 from lnt.db import runinfo
 
 def generate_run_report(run, baseurl, only_html_body = False,
                         num_comparison_runs = 10, result = None,
                         compare_to = None, baseline = None,
-                        comparison_window = None):
+                        comparison_window = None, aggregation_fn = min):
     """
     generate_run_report(...) -> (str: subject, str: text_report,
                                  str: html_report)
@@ -82,7 +83,8 @@ def generate_run_report(run, baseurl, only_html_body = False,
         runs_to_load.add(compare_to.id)
     if baseline:
         runs_to_load.add(baseline.id)
-    sri = lnt.server.reporting.analysis.RunInfo(ts, runs_to_load)
+    sri = lnt.server.reporting.analysis.RunInfo(
+        ts, runs_to_load, aggregation_fn)
 
     # Get the test names, primary fields and total test counts.
     test_names = ts.query(ts.Test.name, ts.Test.id).order_by(ts.Test.name).all()

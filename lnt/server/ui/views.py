@@ -16,6 +16,7 @@ from flask import url_for
 
 import lnt.util
 import lnt.util.ImportData
+import lnt.util.stats
 from lnt.db import perfdb
 from lnt.server.ui.globals import db_url_for, v4_url_for
 import lnt.server.reporting.analysis
@@ -693,6 +694,12 @@ class V4RequestInfo(object):
         if run is None:
             abort(404)
 
+        # Get the aggregation function to use.
+        aggregation_fn_name = request.args.get('aggregation_fn')
+        self.aggregation_fn = { 'min' : min,
+                                'median' : lnt.util.stats.median }.get(
+            aggregation_fn_name, min)
+
         # Find the neighboring runs, by order.
         prev_runs = list(ts.get_previous_runs_on_machine(run, N = 3))
         next_runs = list(ts.get_next_runs_on_machine(run, N = 3))
@@ -747,7 +754,8 @@ class V4RequestInfo(object):
             self.run, baseurl=db_url_for('index', _external=True),
             only_html_body=only_html_body, result=None,
             compare_to=self.compare_to, baseline=self.baseline,
-            comparison_window=self.comparison_window)
+            comparison_window=self.comparison_window,
+            aggregation_fn=self.aggregation_fn)
         _, self.text_report, self.html_report, self.sri = reports
 
 @v4_route("/<int:id>/report")
@@ -797,6 +805,8 @@ def v4_run(id):
         test_min_value_filter = float(test_min_value_filter_str)
     else:
         test_min_value_filter = 0.0
+
+    options['aggregation_fn'] = request.args.get('aggregation_fn', 'min')
 
     # Get the test names.
     test_info = ts.query(ts.Test.name, ts.Test.id).\

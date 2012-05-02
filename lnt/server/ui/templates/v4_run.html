@@ -134,6 +134,16 @@
 <input type="text" name="test_min_value_filter" value="{{
        options.test_min_value_filter }}"><br>
 
+<b>Aggregation Function</b>
+<select name="aggregation_fn">
+<option value="min" {{ " selected"
+                       if "min" == options.aggregation_fn else ""}}>
+  Minimum</value>
+<option value="median" {{ " selected"
+                          if "median" == options.aggregation_fn else ""}}>
+  Median</value>
+</select>
+
 {% if compare_to %}
 <input type="hidden" name="compare_to" value="{{compare_to.id}}">
 {% endif %}

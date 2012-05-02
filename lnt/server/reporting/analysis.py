@@ -8,8 +8,10 @@ from lnt.db.runinfo import ComparisonResult
 from lnt.testing import PASS, FAIL, XFAIL
 
 class RunInfo(object):
-    def __init__(self, testsuite, runs_to_load):
+    def __init__(self, testsuite, runs_to_load,
+                 aggregation_fn = min):
         self.testsuite = testsuite
+        self.aggregation_fn = aggregation_fn
 
         self.sample_map = util.multidict()
         self.loaded_run_ids = set()
@@ -50,11 +52,11 @@ class RunInfo(object):
         prev_values = [s[field.index] for s in prev_samples
                        if s[field.index] is not None]
         if run_values:
-            run_value = min(run_values)
+            run_value = self.aggregation_fn(run_values)
         else:
             run_value = None
         if prev_values:
-            prev_value = min(prev_values)
+            prev_value = self.aggregation_fn(prev_values)
         else:
             prev_value = None
 
