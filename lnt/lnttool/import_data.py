@@ -29,6 +29,9 @@ def action_import(name, args):
     parser.add_option("-v", "--verbose", dest="verbose",
                       help="show verbose test results",
                       action="store_true", default=False)
+    parser.add_option("-q", "--quiet", dest="quiet",
+                      help="don't show test results",
+                      action="store_true", default=False)
     parser.add_option("", "--no-email", dest="no_email",
                       action="store_true", default=False)
     parser.add_option("", "--no-report", dest="no_report",
@@ -56,6 +59,9 @@ def action_import(name, args):
             opts.no_email, opts.no_report)
 
         success &= result.get('success', False)
+        if opts.quiet:
+            continue
+
         if opts.show_raw_result:
             pprint.pprint(result)
         else:
