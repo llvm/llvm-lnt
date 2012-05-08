@@ -50,7 +50,7 @@
   <thead>
     <tr>
       <th>Start Time</th>
-      <th>End Time</th>
+      <th>Duration</th>
       <th>Machine</th>
       <th>Results</th>
     </tr>
@@ -61,7 +61,7 @@
 {% set m = r.machine %}
   <tr>
     <td>{{r.start_time}}</td>
-    <td>{{r.end_time}}</td>
+    <td>{{r.end_time - r.start_time}}</td>
     <td align=left><a href="{{v4_url_for('v4_machine',id=m.id)}}">{{
         m.name}}:{{m.id}}</a></td>
     <td><a href="{{v4_url_for('v4_run', id=r.id)}}">
