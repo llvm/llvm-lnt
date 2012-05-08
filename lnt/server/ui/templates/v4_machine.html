@@ -78,7 +78,8 @@
 {% for run in runs %}
   <tr>
 {% if loop.first %}
-    <td rowspan="{{ runs|length }}" align=right>{{order}}</td>
+    <td rowspan="{{ runs|length }}" align=right>{{
+      order.as_ordered_string() }}</td>
 {% endif %}
     <td>{{ run.start_time }}</td>
     <td>{{ run.end_time }}s</td>

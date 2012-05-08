@@ -147,6 +147,19 @@ class TestSuiteDB(object):
                     db_key_name, self.__class__.__name__,
                     self.previous_order_id, self.next_order_id, fields)
 
+            def as_ordered_string(self):
+                """Return a readable value of the order object by printing the
+                fields in lexicographic order."""
+
+                # If there is only a single field, return it.
+                if len(self.fields) == 1:
+                    return self.get_field(self.fields[0])
+
+                # Otherwise, print as a tuple of string.
+                return '(%s)' % (
+                    ', '.join(self.get_field(field)
+                              for field in self.fields),)
+
             def __cmp__(self, b):
                 # SA occassionally uses comparison to check model instances
                 # verse some sentinels, so we ensure we support comparison

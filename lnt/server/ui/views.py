@@ -674,13 +674,13 @@ def v4_machine(id):
     # Gather all the runs on this machine.
     ts = request.get_testsuite()
 
-    # FIXME: Remove hard coded field use here.
     associated_runs = util.multidict(
         (run_order, r)
-        for r,run_order in ts.query(ts.Run, ts.Order.llvm_project_revision).\
+        for r,run_order in ts.query(ts.Run, ts.Order).\
             join(ts.Order).\
             filter(ts.Run.machine_id == id))
     associated_runs = associated_runs.items()
+    associated_runs.sort()
 
     return render_template("v4_machine.html",
                            testsuite_name=g.testsuite_name, id=id,
