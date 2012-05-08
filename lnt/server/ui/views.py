@@ -1106,7 +1106,12 @@ def v4_summary_report_ui():
         with open(config_path) as f:
             config = flask.json.load(f)
     else:
-        config = {}
+        config = {
+            "machine_names" : [],
+            "orders" : [],
+            "machine_patterns" : [],
+            "machines_to_merge" : {}
+            }
 
     # Get the list of available test suites.
     testsuites = request.get_db().testsuite.values()
