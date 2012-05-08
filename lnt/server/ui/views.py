@@ -678,7 +678,8 @@ def v4_machine(id):
         (run_order, r)
         for r,run_order in ts.query(ts.Run, ts.Order).\
             join(ts.Order).\
-            filter(ts.Run.machine_id == id))
+            filter(ts.Run.machine_id == id).\
+            order_by(ts.Run.start_time.desc()))
     associated_runs = associated_runs.items()
     associated_runs.sort()
 
