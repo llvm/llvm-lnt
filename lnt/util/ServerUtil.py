@@ -42,7 +42,7 @@ def submitFileToServer(url, file, commit):
 def submitFileToInstance(path, file, commit):
     # Otherwise, assume it is a local url and submit to the default database
     # in the instance.
-    instance = lnt.server.instance.Instance(path)
+    instance = lnt.server.instance.Instance.frompath(path)
     config = instance.config
     db_name = 'default'
     db = config.get_database(db_name)
