@@ -176,7 +176,7 @@ def get_cc_info(path, cc_flags=[]):
             cc_target, = m.groups()
         else:
             error("unable to determine LLVM compiler target: %r: %r" %
-                  (cc, target_cc_ll))
+                  (cc, cc_target_assembly))
 
     cc_exec_hash = hashlib.sha1()
     cc_exec_hash.update(open(cc,'rb').read())
