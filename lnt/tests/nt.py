@@ -80,6 +80,32 @@ def scan_for_test_modules(opts):
         assert dirpath.startswith(base_modules_path + '/')
         yield dirpath[len(base_modules_path) + 1:]
 
+def execute_command(test_log, basedir, args, report_dir):
+  logfile = test_log
+
+  if report_dir is not None:
+    logfile = subprocess.PIPE
+    # Open a duplicated logfile at the global dir.
+    _, logname = os.path.split(test_log.name)
+    global_log_path = os.path.join(report_dir, logname)
+    global_log = open(global_log_path, 'a+')
+
+  p = subprocess.Popen(args=args, stdin=None, stdout=logfile,
+                       stderr=subprocess.STDOUT, cwd=basedir,
+                       env=os.environ)
+
+  if report_dir is not None:
+    while p.poll() is None:
+      l = p.stdout.readline()
+      if len(l) > 0:
+        test_log.write(l)
+        global_log.write(l)
+
+    global_log.close()
+
+  return p.wait()
+
+# FIXME: Support duplicate logfiles to global directory.
 def execute_test_modules(test_log, test_modules, test_module_variables,
                          basedir, opts):
     # For now, we don't execute these in parallel, but we do forward the
@@ -190,7 +216,7 @@ def compute_test_module_variables(make_variables, opts):
 
     return test_module_variables
 
-def execute_nt_tests(test_log, make_variables, basedir, opts):
+def execute_nt_tests(test_log, make_variables, basedir, opts, report_dir):
     common_args = ['make', '-k']
     common_args.extend('%s=%s' % (k,v) for k,v in make_variables.items())
     if opts.only_test is not None:
@@ -236,10 +262,7 @@ def execute_nt_tests(test_log, make_variables, basedir, opts):
 
       print >>sys.stderr, '%s: building "nightly tests" with -j%u...' % (
           timestamp(), opts.build_threads)
-      p = subprocess.Popen(args=args, stdin=None, stdout=test_log,
-                           stderr=subprocess.STDOUT, cwd=basedir,
-                           env=os.environ)
-      res = p.wait()
+      res = execute_command(test_log, basedir, args, report_dir)
 
     # Then 'make report'.
     args = common_args + ['-j', str(opts.threads),
@@ -254,10 +277,8 @@ def execute_nt_tests(test_log, make_variables, basedir, opts):
     # X (which changes the driver behavior and causes generally weirdness).
     print >>sys.stderr, '%s: executing "nightly tests" with -j%u...' % (
         timestamp(), opts.threads)
-    p = subprocess.Popen(args=args, stdin=None, stdout=test_log,
-                         stderr=subprocess.STDOUT, cwd=basedir,
-                         env=os.environ)
-    res = p.wait()
+
+    res = execute_command(test_log, basedir, args, report_dir)
 
 def load_nt_report_file(report_path, opts):
     # Compute the test samples to report.
@@ -537,7 +558,7 @@ def compute_run_make_variables(opts, llvm_source_version, target_flags,
 
     return make_variables
 
-def prepare_basedir(opts, start_time, iteration):
+def prepare_report_dir(opts, start_time):
     # Set up the sandbox.
     if not os.path.exists(opts.sandbox_path):
         print >>sys.stderr, "%s: creating sandbox: %r" % (
@@ -550,8 +571,6 @@ def prepare_basedir(opts, start_time, iteration):
         build_dir_name = "test-%s" % ts
     else:
         build_dir_name = "build"
-    if iteration is not None:
-        build_dir_name = "%s-%d" % (build_dir_name, iteration)
     basedir = os.path.join(opts.sandbox_path, build_dir_name)
 
     # Canonicalize paths, in case we are using e.g. an NFS remote mount.
@@ -571,7 +590,31 @@ def prepare_basedir(opts, start_time, iteration):
 
     return basedir
 
-def run_test(nick_prefix, opts, iteration):
+def prepare_build_dir(opts, report_dir, iteration) :
+    # Do nothing in single-sample build, because report_dir and the
+    # build_dir is the same directory.
+    if iteration is None:
+      return report_dir
+
+    # Create the directory for individual iteration.
+    build_dir = report_dir
+
+    build_dir = os.path.join(build_dir, "sample-%d" % iteration)
+    # report_dir is supposed to be canonicalized, so we do not need to
+    # call os.path.realpath before mkdir.
+    if os.path.exists(build_dir):
+        needs_clean = True
+    else:
+        needs_clean = False
+        os.mkdir(build_dir)
+
+    # Unless not using timestamps, we require the basedir not to exist.
+    if needs_clean and opts.timestamp_build:
+        fatal('refusing to reuse pre-existing build dir %r' % build_dir)
+
+    return build_dir
+
+def run_test(nick_prefix, opts, iteration, report_dir):
     print >>sys.stderr, "%s: checking source versions" % (
         timestamp(),)
     if opts.llvm_src_root:
@@ -634,13 +677,13 @@ def run_test(nick_prefix, opts, iteration):
         nick += "__%s__%s" % (cc_nick, cc_info.get('cc_target').split('-')[0])
     print >>sys.stderr, "%s: using nickname: %r" % (timestamp(), nick)
 
-    start_time = timestamp()
-    basedir = prepare_basedir(opts, start_time, iteration)
+    basedir = prepare_build_dir(opts, report_dir, iteration)
 
     # FIXME: Auto-remove old test directories in the source directory (which
     # cause make horrible fits).
 
-    print >>sys.stderr, '%s: starting test in %r' % (timestamp(), basedir)
+    start_time = timestamp()
+    print >>sys.stderr, '%s: starting test in %r' % (start_time, basedir)
 
     # Configure the test suite.
     if opts.run_configure or not os.path.exists(os.path.join(
@@ -663,9 +706,7 @@ def run_test(nick_prefix, opts, iteration):
         configure_log.flush()
 
         print >>sys.stderr, '%s: configuring...' % timestamp()
-        p = subprocess.Popen(args=args, stdin=None, stdout=configure_log,
-                             stderr=subprocess.STDOUT, cwd=basedir)
-        res = p.wait()
+        res = execute_command(configure_log, basedir, args, report_dir)
         configure_log.close()
         if res != 0:
             fatal('configure failed, log is here: %r' % configure_log_path)
@@ -695,10 +736,7 @@ def run_test(nick_prefix, opts, iteration):
                                                       ' '.join('"%s"' % a
                                                                for a in args))
         build_tools_log.flush()
-        p = subprocess.Popen(args=args, stdin=None, stdout=build_tools_log,
-                             stderr=subprocess.STDOUT, cwd=basedir,
-                             env=os.environ)
-        res = p.wait()
+        res = execute_command(build_tools_log, basedir, args, report_dir)
         build_tools_log.close()
         if res != 0:
             fatal('unable to build tools, aborting!')
@@ -719,7 +757,8 @@ def run_test(nick_prefix, opts, iteration):
     run_nightly_test = (opts.only_test is None or
                         not opts.only_test.startswith("LNTBased"))
     if run_nightly_test:
-        execute_nt_tests(test_log, make_variables, basedir, opts)
+        execute_nt_tests(test_log, make_variables, basedir, opts,
+                         report_dir)
 
     # Run the extension test modules, if needed.
     test_module_results = execute_test_modules(test_log, test_modules,
@@ -841,7 +880,7 @@ def run_test(nick_prefix, opts, iteration):
     print >>lnt_report_file,report.render()
     lnt_report_file.close()
 
-    return report, basedir
+    return report
 
 ###
 
@@ -1212,18 +1251,18 @@ class NTTest(builtintest.BuiltinTest):
         # FIXME: We need to validate that there is no configured output in the
         # test-suite directory, that borks things. <rdar://problem/7876418>
 
+        report_dir = prepare_report_dir(opts, timestamp())
+
         # Multisample, if requested.
         if opts.multisample is not None:
             # Collect the sample reports.
             reports = []
-            first_basedir = None
+
             for i in range(opts.multisample):
                 print >>sys.stderr, "%s: (multisample) running iteration %d" % (
                     timestamp(), i)
-                report, basedir = run_test(nick, opts, i)
+                report = run_test(nick, opts, i, report_dir)
                 reports.append(report)
-                if first_basedir is None:
-                    first_basedir = basedir
 
             # Create the merged report.
             #
@@ -1237,7 +1276,7 @@ class NTTest(builtintest.BuiltinTest):
                                 for r in reports], [])
 
             # Write out the merged report.
-            lnt_report_path = os.path.join(first_basedir, 'report-merged.json')
+            lnt_report_path = os.path.join(report_dir, 'report.json')
             report = lnt.testing.Report(machine, run, test_samples)
             lnt_report_file = open(lnt_report_path, 'w')
             print >>lnt_report_file,report.render()
@@ -1245,7 +1284,7 @@ class NTTest(builtintest.BuiltinTest):
 
             return report
 
-        report, _ = run_test(nick, opts, None)
+        report = run_test(nick, opts, None, report_dir)
         return report
 
 def create_instance():
