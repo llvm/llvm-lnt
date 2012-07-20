@@ -537,6 +537,40 @@ def compute_run_make_variables(opts, llvm_source_version, target_flags,
 
     return make_variables
 
+def prepare_basedir(opts, start_time, iteration):
+    # Set up the sandbox.
+    if not os.path.exists(opts.sandbox_path):
+        print >>sys.stderr, "%s: creating sandbox: %r" % (
+            timestamp(), opts.sandbox_path)
+        os.mkdir(opts.sandbox_path)
+
+    # Create the per-test directory.
+    if opts.timestamp_build:
+        ts = start_time.replace(' ','_').replace(':','-')
+        build_dir_name = "test-%s" % ts
+    else:
+        build_dir_name = "build"
+    if iteration is not None:
+        build_dir_name = "%s-%d" % (build_dir_name, iteration)
+    basedir = os.path.join(opts.sandbox_path, build_dir_name)
+
+    # Canonicalize paths, in case we are using e.g. an NFS remote mount.
+    #
+    # FIXME: This should be eliminated, along with the realpath call below.
+    basedir = os.path.realpath(basedir)
+
+    if os.path.exists(basedir):
+        needs_clean = True
+    else:
+        needs_clean = False
+        os.mkdir(basedir)
+
+    # Unless not using timestamps, we require the basedir not to exist.
+    if needs_clean and opts.timestamp_build:
+        fatal('refusing to reuse pre-existing build dir %r' % basedir)
+
+    return basedir
+
 def run_test(nick_prefix, opts, iteration):
     print >>sys.stderr, "%s: checking source versions" % (
         timestamp(),)
@@ -600,37 +634,8 @@ def run_test(nick_prefix, opts, iteration):
         nick += "__%s__%s" % (cc_nick, cc_info.get('cc_target').split('-')[0])
     print >>sys.stderr, "%s: using nickname: %r" % (timestamp(), nick)
 
-    # Set up the sandbox.
-    if not os.path.exists(opts.sandbox_path):
-        print >>sys.stderr, "%s: creating sandbox: %r" % (
-            timestamp(), opts.sandbox_path)
-        os.mkdir(opts.sandbox_path)
-
-    # Create the per-test directory.
     start_time = timestamp()
-    if opts.timestamp_build:
-        ts = start_time.replace(' ','_').replace(':','-')
-        build_dir_name = "test-%s" % ts
-    else:
-        build_dir_name = "build"
-    if iteration is not None:
-        build_dir_name = "%s-%d" % (build_dir_name, iteration)
-    basedir = os.path.join(opts.sandbox_path, build_dir_name)
-
-    # Canonicalize paths, in case we are using e.g. an NFS remote mount.
-    #
-    # FIXME: This should be eliminated, along with the realpath call below.
-    basedir = os.path.realpath(basedir)
-
-    if os.path.exists(basedir):
-        needs_clean = True
-    else:
-        needs_clean = False
-        os.mkdir(basedir)
-
-    # Unless not using timestamps, we require the basedir not to exist.
-    if needs_clean and opts.timestamp_build:
-        fatal('refusing to reuse pre-existing build dir %r' % basedir)
+    basedir = prepare_basedir(opts, start_time, iteration)
 
     # FIXME: Auto-remove old test directories in the source directory (which
     # cause make horrible fits).
