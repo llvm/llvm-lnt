@@ -298,8 +298,6 @@ def load_nt_report_file(report_path, opts):
         if opts.test_jit:
             sample_keys.append(('jit.compile', 'JIT codegen', 'time'))
         sample_keys.append(('gcc.exec', 'GCC', 'time'))
-        if opts.test_cbe:
-            sample_keys.append(('cbe.exec', 'CBE', 'time'))
         if opts.test_llc:
             sample_keys.append(('llc.exec', 'LLC', 'time'))
         if opts.test_llcbeta:
@@ -471,8 +469,6 @@ def compute_run_make_variables(opts, llvm_source_version, target_flags,
     # Set test selection variables.
     if not opts.test_cxx:
         make_variables['DISABLE_CXX'] = '1'
-    if not opts.test_cbe:
-        make_variables['DISABLE_CBE'] = '1'
     if not opts.test_jit:
         make_variables['DISABLE_JIT'] = '1'
     if not opts.test_llc:
@@ -1025,9 +1021,6 @@ class NTTest(builtintest.BuiltinTest):
                          help="Disable C++ tests",
                          action="store_false", default=True)
 
-        group.add_option("", "--enable-cbe", dest="test_cbe",
-                         help="Enable CBE tests",
-                         action="store_true", default=False)
         group.add_option("", "--disable-externals", dest="test_externals",
                          help="Disable test suite externals (if configured)",
                          action="store_false", default=True)
