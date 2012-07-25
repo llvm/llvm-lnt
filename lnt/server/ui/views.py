@@ -1078,6 +1078,78 @@ def v4_graph(id):
                            graph_plots=graph_plots, legend=legend,
                            use_day_axis=use_day_axis)
 
+@v4_route("/daily_report/<int:year>/<int:month>/<int:day>")
+def v4_daily_report(year, month, day):
+    import datetime
+    from lnt.server.ui import util
+
+    ts = request.get_testsuite()
+
+    # The number of previous days we are going to report on.
+    num_prior_days_to_include = 3
+
+    # Construct datetime instances for the report range.
+    day_ordinal = datetime.datetime(year, month, day).toordinal()
+
+    next_day = datetime.datetime.fromordinal(day_ordinal + 1)
+    prior_days = [datetime.datetime.fromordinal(day_ordinal - i)
+                  for i in range(num_prior_days_to_include + 1)]
+
+    # Adjust the dates time component.  As we typically want to do runs
+    # overnight, we define "daily" to really mean "at 0700".
+    day_start_offset = datetime.timedelta(hours=7)
+    next_day += day_start_offset
+    for i,day in enumerate(prior_days):
+        prior_days[i] = day + day_start_offset
+
+    # Find all the runs that occurred for each day slice.
+    prior_runs = [ts.query(ts.Run).\
+                      filter(ts.Run.start_time > prev_day).\
+                      filter(ts.Run.start_time <= day).all()
+                  for day,prev_day in util.pairs(prior_days)]
+
+    # For every machine, we only want to report on the last run order that was
+    # reported for that machine for the particular day range.
+    #
+    # Note that this *does not* mean that we will only report for one particular
+    # run order for each day, because different machines may report on different
+    # orders.
+    #
+    # However, we want to limit ourselves to a single run order for each
+    # (day,machine) so that we don't obscure any details through our
+    # aggregation.
+    prior_days_machine_order_map = [None] * num_prior_days_to_include
+    for i,runs in enumerate(prior_runs):
+        # Aggregate the runs by machine.
+        machine_to_all_orders = util.multidict()
+        for r in runs:
+            machine_to_all_orders[r.machine] = r.order
+
+        # Create a map from machine to max order.
+        prior_days_machine_order_map[i] = machine_order_map = dict(
+            (machine, max(orders))
+            for machine,orders in machine_to_all_orders.items())
+
+        # Update the run list to only include the runs with that order.
+        prior_runs[i] = [r for r in runs
+                         if r.order is machine_order_map[r.machine]]
+
+    # Form a list of all relevant runs.
+    relevant_runs = [r
+                     for runs in prior_runs
+                     for r in runs]
+
+    # Find the union of all machines reporting in the relevant runs.
+    reporting_machines = list(set(r.machine for r in relevant_runs))
+    reporting_machines.sort(key = lambda m: m.name)
+
+    return render_template(
+        "v4_daily_report.html", ts=ts, day_start_offset=day_start_offset,
+        num_prior_days_to_include=num_prior_days_to_include,
+        reporting_machines=reporting_machines,
+        prior_days=prior_days, next_day=next_day,
+        prior_days_machine_order_map=prior_days_machine_order_map)
+
 ###
 # Cross Test-Suite V4 Views
 

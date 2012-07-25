@@ -1,0 +1,53 @@
+{% set db = request.get_db() %}
+
+{% extends "layout.html" %}
+{% set components = [(ts.name, v4_url_for("v4_overview"))] %}
+{% block title %}Daily Report{% endblock %}
+{% block body %}
+
+<center><h2>{#
+  #}(<a href="{{v4_url_for('v4_daily_report',
+                          year=prior_days[1].year,
+                          month=prior_days[1].month,
+                          day=prior_days[1].day)}}">prev</a>){#
+  #}<b>&nbsp;Daily Overview {{ '%04d-%02d-%02d' % (
+      prior_days[0].year, prior_days[0].month, prior_days[0].day) }}&nbsp;</b>{#
+  #}(<a href="{{v4_url_for('v4_daily_report',
+                          year=next_day.year,
+                          month=next_day.month,
+                          day=next_day.day)}}">next</a>){#
+#}</h2>
+(day start is considered to be at +{{ "%02d:%02d" % (
+    (day_start_offset.seconds // 3600),
+    (day_start_offset.seconds // 60) % 60,)}})
+</center>
+
+{# Generate the table showing which run orders we are reporting on, for each
+   machine. #}
+<h3>Reported Machine Order<h3>
+<table border="1">
+  <thead>
+    <tr>
+      <th>Machine Name</th>
+{% for i in range(num_prior_days_to_include)|reverse %}
+      <th>Day - {{i}}</th>
+{% endfor %}
+    </tr>
+  </thead>
+{% for machine in reporting_machines %}
+  <tr>
+    <td>{{machine.name}}</td>
+{% for i in range(num_prior_days_to_include)|reverse %}
+{%   set order = prior_days_machine_order_map[i].get(machine) %}
+{%   if order %}
+    {# FIXME: Don't hard code field name. #}
+    <td>{{order.llvm_project_revision}}</td>
+{%   else %}
+    <td bgcolor="#FF0000">N/A</td>
+{%   endif %}
+{% endfor %}
+  </tr>
+{% endfor %}
+</table>
+
+{% endblock %}
