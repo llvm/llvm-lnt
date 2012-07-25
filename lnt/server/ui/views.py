@@ -1104,9 +1104,9 @@ def v4_daily_report(year, month, day):
 
     # Find all the runs that occurred for each day slice.
     prior_runs = [ts.query(ts.Run).\
-                      filter(ts.Run.start_time > prev_day).\
+                      filter(ts.Run.start_time > prior_day).\
                       filter(ts.Run.start_time <= day).all()
-                  for day,prev_day in util.pairs(prior_days)]
+                  for day,prior_day in util.pairs(prior_days)]
 
     # For every machine, we only want to report on the last run order that was
     # reported for that machine for the particular day range.
@@ -1135,20 +1135,87 @@ def v4_daily_report(year, month, day):
                          if r.order is machine_order_map[r.machine]]
 
     # Form a list of all relevant runs.
-    relevant_runs = [r
-                     for runs in prior_runs
-                     for r in runs]
+    relevant_runs = sum(prior_runs, [])
 
     # Find the union of all machines reporting in the relevant runs.
     reporting_machines = list(set(r.machine for r in relevant_runs))
     reporting_machines.sort(key = lambda m: m.name)
 
+    # We aspire to present a "lossless" report, in that we don't ever hide any
+    # possible change due to aggregation. In addition, we want to make it easy
+    # to see the relation of results across all the reporting machines. In
+    # particular:
+    #
+    #   (a) When a test starts failing or passing on one machine, it should be
+    #       easy to see how that test behaved on other machines. This makes it
+    #       easy to identify the scope of the change.
+    #
+    #   (b) When a performance change occurs, it should be easy to see the
+    #       performance of that test on other machines. This makes it easy to
+    #       see the scope of the change and to potentially apply human
+    #       discretion in determining whether or not a particular result is
+    #       worth considering (as opposed to noise).
+    #
+    # The idea is as follows, for each (machine, test, primary_field), classify
+    # the result into one of REGRESSED, IMPROVED, UNCHANGED_FAIL, ADDED,
+    # REMOVED, PERFORMANCE_REGRESSED, PERFORMANCE_IMPROVED.
+    #
+    # For now, we then just aggregate by test and present the results as
+    # is. This is lossless, but not nearly as nice to read as the old style
+    # per-machine reports. In the future we will want to find a way to combine
+    # the per-machine report style of presenting results aggregated by the kind
+    # of status change, while still managing to present the overview across
+    # machines.
+
+    # Batch load all of the samples reported by all these runs.
+    columns = [ts.Sample.run_id,
+               ts.Sample.test_id]
+    columns.extend(f.column
+                   for f in ts.sample_fields)
+    samples = ts.query(*columns).\
+        filter(ts.Sample.run_id.in_(
+            r.id for r in relevant_runs)).all()
+
+    # Find the union of tests reported in the relevant runs.
+    #
+    # FIXME: This is not particularly efficient, should we just use all tests in
+    # the database?
+    reporting_tests = ts.query(ts.Test).\
+        filter(ts.Test.id.in_(set(s[1] for s in samples))).\
+        order_by(ts.Test.name).all()
+
+    # Aggregate all of the samples by (run_id, test_id).
+    sample_map = util.multidict()
+    for s in samples:
+        sample_map[(s[0], s[1])] = s[2:]
+
+    # Build the result table:
+    #   result_table[test_index][day_index][machine_index] = {samples}
+    result_table = []
+    for test in reporting_tests:
+        key = test
+        test_results = []
+        for day_runs in prior_runs:
+            day_results = []
+            for machine in reporting_machines:
+                # Collect all the results for this machine.
+                results = [s
+                           for run in day_runs
+                           if run.machine is machine
+                           for s in sample_map.get((run.id, test.id), ())]
+                day_results.append(results)
+            test_results.append(day_results)
+        result_table.append(test_results)
+
+    # FIXME: Now compute ComparisonResult objects for each (test, machine, day).
+
     return render_template(
         "v4_daily_report.html", ts=ts, day_start_offset=day_start_offset,
         num_prior_days_to_include=num_prior_days_to_include,
-        reporting_machines=reporting_machines,
+        reporting_machines=reporting_machines, reporting_tests=reporting_tests,
         prior_days=prior_days, next_day=next_day,
-        prior_days_machine_order_map=prior_days_machine_order_map)
+        prior_days_machine_order_map=prior_days_machine_order_map,
+        result_table=result_table)
 
 ###
 # Cross Test-Suite V4 Views
