@@ -1078,6 +1078,27 @@ def v4_graph(id):
                            graph_plots=graph_plots, legend=legend,
                            use_day_axis=use_day_axis)
 
+@v4_route("/daily_report")
+def v4_daily_report_overview():
+    # For now, redirect to the report for the most recent submitted run's date.
+
+    ts = request.get_testsuite()
+
+    # Get the latest run.
+    latest = ts.query(ts.Run).\
+        order_by(ts.Run.start_time.desc()).limit(1).first()
+
+    # If we found a run, use it's start time.
+    if latest:
+        date = latest.start_time
+    else:
+        # Otherwise, just use today.
+        date = datetime.date.today()
+
+    return redirect(v4_url_for("v4_daily_report",
+                               year=date.year, month=date.month, day=date.day))
+
+
 @v4_route("/daily_report/<int:year>/<int:month>/<int:day>")
 def v4_daily_report(year, month, day):
     import datetime
