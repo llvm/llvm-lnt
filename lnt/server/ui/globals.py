@@ -19,6 +19,11 @@ def v4_url_for(*args, **kwargs):
                           testsuite_name=flask.g.testsuite_name, **kwargs)
 
 def register(app):
+    # Add some normal Python builtins which can be useful in templates.
+    app.jinja_env.globals.update(
+        zip=zip)
+
+    # Add our custom global functions.
     app.jinja_env.globals.update(
         db_url_for=db_url_for,
         v4_url_for=v4_url_for)
