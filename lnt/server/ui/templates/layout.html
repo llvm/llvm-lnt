@@ -62,9 +62,11 @@
 
 {# Footer #}
 <hr>
-LNT Version: {{ app.version }}<br>
-Server Started: {{ app.start_time|asusertime }}<br>
-Generated: {{ request.request_time|asusertime }}<br>
-Render Time: {{ "%.2fs" % request.elapsed_time() }}<br>
+<footer>
+<p>LNT Version: {{ app.version }}</p>
+<p>Server Started: {{ app.start_time|asusertime }}</p>
+<p>Generated: {{ request.request_time|asusertime }}</p>
+<p>Render Time: {{ "%.2fs" % request.elapsed_time() }}</p>
+</footer>
 </body>
 </html>

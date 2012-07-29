@@ -78,6 +78,10 @@ nav.zorg_navheader {
   margin-right: 2em;
 }
 
+/* Footer Styles */
+footer {
+    line-height: 0.3em;
+}
 
 /* Nested popups */
 
