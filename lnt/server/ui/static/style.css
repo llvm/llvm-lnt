@@ -62,20 +62,22 @@ tbody.scrollContent {
 nav.zorg_navheader {
   background-color: #cccccc;  
   width: 100%;
-  height: 2em;
+  height: 2.5em;
   font-weight: bolder;
   
   border-style: solid;
-  border-width: 1px;
+  border-width: 1px;  
+  padding-top: 0.5em;
 }
-.zorg_navheader_dbname {
+
+span.zorg_navheader_dbname {
   float: left;
   margin-top: 0.35em;
   margin-left: 1em;
 }
-.zorg_navheader_dbselector {
+span.zorg_navheader_dbselector {
   float: right;
-  margin-right: 2em;
+  margin-right: 1em;
 }
 
 /* Footer Styles */
