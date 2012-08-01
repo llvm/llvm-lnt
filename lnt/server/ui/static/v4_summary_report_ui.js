@@ -1,5 +1,5 @@
 // Register our initialization function.
-window.onload = function() { init(); }
+window.onload = function() { init(); };
 
 var g = {};
 
@@ -21,7 +21,7 @@ function init() {
   // Initialize the "report order" list.
   var order_list = $('#report-order-list');
   order_list.empty();
-  g.list_items = []
+  g.list_items = [];
   for (var i = 0; i != g.config.orders.length; ++i) {
     var order = g.config.orders[i];
     var name = order[0];
@@ -45,13 +45,13 @@ function init() {
   var machines = $('#report-machines');
   machines.empty();
   var machine_select = $('<select multiple="multiple" size="10"></select>');
-  for (var i = 0; i != g.all_machines.length; ++i) {
+  for (var j = 0; j != g.all_machines.length; ++j) {
     var selected_str = '';
-    if ($.inArray(g.all_machines[i], g.config.machine_names) != -1)
+    if ($.inArray(g.all_machines[j], g.config.machine_names) != -1)
       selected_str = ' selected';
-    machine_select.append('<option value="' + i.toString() + '"' +
+    machine_select.append('<option value="' + j.toString() + '"' +
                                  selected_str + '>' +
-                        g.all_machines[i] +
+                        g.all_machines[j] +
                         '</option>');
   }
   machine_select.appendTo(machines);
@@ -113,7 +113,7 @@ function select_order(index) {
 
   var name_elt = $('<input type="text" value="' + g.selected_order[0] + '">');
   name_elt.appendTo(elt);
-  name_elt.change(function() { update_selected_order_name(name_elt[0]) });
+  name_elt.change(function() { update_selected_order_name(name_elt[0]); });
 
   elt.append('<br>');
   var order_select = $('<select multiple="multiple" size="10"></select>');
@@ -131,8 +131,8 @@ function select_order(index) {
       update_selected_order_items(order_select[0]);
     });
 
-  elt.append('<br>')
-   
+  elt.append('<br>');
+  
   var del_button = $('<input type="button" value="Delete Order">');
   del_button.click(function() { delete_order(index); });
   del_button.appendTo(elt);
