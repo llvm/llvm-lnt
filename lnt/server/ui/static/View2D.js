@@ -143,7 +143,7 @@ function ViewData(location, scale) {
 
 ViewData.prototype.copy = function() {
     return new ViewData(this.location, this.scale);
-}
+};
 
 /* ViewAction Class */
 function ViewAction(mode, v2d, start) {
@@ -155,29 +155,29 @@ function ViewAction(mode, v2d, start) {
 ViewAction.prototype.update = function(v2d, co) {
     if (this.mode == 'p') {
         var delta = vec2_sub(v2d.convertClientToNDC(co, this.vd),
-            v2d.convertClientToNDC(this.start, this.vd))
+            v2d.convertClientToNDC(this.start, this.vd));
         v2d.viewData.location = vec2_add(this.vd.location, delta);
     } else {
         var delta = vec2_sub(v2d.convertClientToNDC(co, this.vd),
-            v2d.convertClientToNDC(this.start, this.vd))
+            v2d.convertClientToNDC(this.start, this.vd));
         v2d.viewData.scale = vec2_Npow(Math.E,
                                        vec2_add(vec2_log(this.vd.scale),
-                                                delta))
+                                                delta));
         v2d.viewData.location = vec2_mul(this.vd.location,
                                          vec2_div(v2d.viewData.scale,
-                                                  this.vd.scale))
+                                                  this.vd.scale));
     }
 
     v2d.refresh();
-}
+};
 
 ViewAction.prototype.complete = function(v2d, co) {
     this.update(v2d, co);
-}
+};
 
 ViewAction.prototype.abort = function(v2d) {
     v2d.viewData = this.vd;
-}
+};
 
 /* EventWrapper Class */
 
@@ -185,7 +185,7 @@ function EventWrapper(domevent) {
     this.domevent = domevent;
     this.client = {
         x: domevent.clientX,
-        y: domevent.clientY,
+        y: domevent.clientY
     };
     this.alt = domevent.altKey;
     this.shift = domevent.shiftKey;
@@ -196,7 +196,7 @@ function EventWrapper(domevent) {
 EventWrapper.prototype.stop = function() {
     this.domevent.stopPropagation();
     this.domevent.preventDefault();
-}
+};
 
 /* View2D Class */
 
@@ -239,7 +239,7 @@ View2D.prototype.registerEvents = function(canvas) {
     }
 
     // FIXME: Capturing!
-}
+};
 
 View2D.prototype.onMouseDown = function(event) {
     pos = [event.client.x - this.canvas.offsetLeft,
@@ -253,7 +253,7 @@ View2D.prototype.onMouseDown = function(event) {
     else if (event.alt || event.meta)
         this.viewAction = new ViewAction('z', this, pos);
     event.stop();
-}
+};
 
 View2D.prototype.onMouseMove = function(event) {
     pos = [event.client.x - this.canvas.offsetLeft,
@@ -262,7 +262,7 @@ View2D.prototype.onMouseMove = function(event) {
     if (this.viewAction != null)
         this.viewAction.update(this, pos);
     event.stop();
-}
+};
 
 View2D.prototype.onMouseUp = function(event) {
     pos = [event.client.x - this.canvas.offsetLeft,
@@ -272,7 +272,7 @@ View2D.prototype.onMouseUp = function(event) {
         this.viewAction.complete(this, pos);
     this.viewAction = null;
     event.stop();
-}
+};
 
 View2D.prototype.onMouseWheel = function(event) {
     if (this.viewAction == null) {
@@ -290,18 +290,18 @@ View2D.prototype.onMouseWheel = function(event) {
         this.refresh();
     }
     event.stop();
-}
+};
 
 View2D.prototype.setViewData = function(vd) {
     // FIXME: Check equality and avoid refresh.
     this.viewData = vd;
     this.refresh();
-}
+};
 
 View2D.prototype.refresh = function() {
     // FIXME: Event loop?
     this.draw();
-}
+};
 
 // Coordinate conversion.
 
@@ -311,28 +311,28 @@ View2D.prototype.getAspectScale = function() {
     } else {
         return [1.0, this.aspect];
     }
-}
+};
 
 View2D.prototype.getPixelSize = function() {
     return vec2_sub(this.convertClientToWorld([1,1]),
                     this.convertClientToWorld([0,0]));
-}
+};
 
 View2D.prototype.convertClientToNDC = function(pt, vd) {
     if (vd == null)
-        vd = this.viewData
+        vd = this.viewData;
     return [pt[0] / this.size[0] * 2 - 1,
             pt[1] / this.size[1] * 2 - 1];
-}
+};
 
 View2D.prototype.convertClientToWorld = function(pt, vd) {
     if (vd == null)
-        vd = this.viewData
-    pt = this.convertClientToNDC(pt, vd)
+        vd = this.viewData;
+    pt = this.convertClientToNDC(pt, vd);
     pt = vec2_sub(pt, vd.location);
     pt = vec2_div(pt, vec2_mul(vd.scale, this.getAspectScale()));
     return pt;
-}
+};
 
 View2D.prototype.convertWorldToPreview = function(pt, pos, size) {
     var asp_scale = this.getAspectScale();
@@ -342,7 +342,7 @@ View2D.prototype.convertWorldToPreview = function(pt, pos, size) {
     pt = vec2_mul(pt, size);
     pt = vec2_add(pt, pos);
     return pt;
-}
+};
 
 View2D.prototype.setViewMatrix = function(ctx) {
     ctx.scale(this.size[0], this.size[1]);
@@ -351,7 +351,7 @@ View2D.prototype.setViewMatrix = function(ctx) {
     ctx.translate(this.viewData.location[0], this.viewData.location[1]);
     var scale = vec2_mul(this.viewData.scale, this.getAspectScale());
     ctx.scale(scale[0], scale[1]);
-}
+};
 
 View2D.prototype.setPreviewMatrix = function(ctx, pos, size) {
     ctx.translate(pos[0], pos[1]);
@@ -360,13 +360,13 @@ View2D.prototype.setPreviewMatrix = function(ctx, pos, size) {
     ctx.translate(1, 1);
     var scale = this.getAspectScale();
     ctx.scale(scale[0], scale[1]);
-}
+};
 
 View2D.prototype.setWindowMatrix = function(ctx) {
     ctx.translate(.5, .5);
     ctx.translate(0, this.size[1]);
     ctx.scale(1, -1);
-}
+};
 
 View2D.prototype.draw = function() {
     var canvas = document.getElementById(this.canvasname);
@@ -398,10 +398,10 @@ View2D.prototype.draw = function() {
     ctx.restore();
 
     if (this.useWidgets)
-        this.drawPreview(canvas, ctx)
+        this.drawPreview(canvas, ctx);
 
     ctx.restore();
-}
+};
 
 View2D.prototype.drawPreview = function(canvas, ctx) {
     // Setup the preview context.
@@ -440,27 +440,27 @@ View2D.prototype.drawPreview = function(canvas, ctx) {
     // Draw the current view overlay.
     //
     // FIXME: Find a replacement for stippling.
-    ll = this.convertClientToWorld([0, 0])
+    ll = this.convertClientToWorld([0, 0]);
     ur = this.convertClientToWorld(this.size);
 
     // Convert to pixel coordinates instead of drawing in content
     // perspective.
-    ll = vec2_floor(this.convertWorldToPreview(ll, pv_pos, pv_size))
-    ur = vec2_ceil(this.convertWorldToPreview(ur, pv_pos, pv_size))
+    ll = vec2_floor(this.convertWorldToPreview(ll, pv_pos, pv_size));
+    ur = vec2_ceil(this.convertWorldToPreview(ur, pv_pos, pv_size));
     ll = vec2_clamp(ll, this.previewPosition,
-                    vec2_add(this.previewPosition, this.previewSize))
+                    vec2_add(this.previewPosition, this.previewSize));
     ur = vec2_clamp(ur, this.previewPosition,
-                    vec2_add(this.previewPosition, this.previewSize))
+                    vec2_add(this.previewPosition, this.previewSize));
 
     ctx.strokeStyle = "rgba(128,128,128,255)";
     ctx.lineWidth = 1;
     ctx.strokeRect(ll[0], ll[1], ur[0] - ll[0], ur[1] - ll[1]);
-}
+};
 
-View2D.prototype.on_size_change = function() {}
-View2D.prototype.on_draw_start = function() {}
-View2D.prototype.on_draw = function(canvas, ctx) {}
-View2D.prototype.on_draw_preview = function(canvas, ctx) {}
+View2D.prototype.on_size_change = function() {};
+View2D.prototype.on_draw_start = function() {};
+View2D.prototype.on_draw = function(canvas, ctx) {};
+View2D.prototype.on_draw_preview = function(canvas, ctx) {};
 
 /* View2DTest Class */
 
@@ -486,7 +486,7 @@ View2DTest.prototype.on_draw = function(canvas, ctx) {
     ctx.arc(0, 0, .5, 0, 2 * Math.PI, false);
     ctx.fill();
     ctx.closePath();
-}
+};
 
 View2DTest.prototype.on_draw_preview = function(canvas, ctx) {
     ctx.fillStyle = "rgba(255,255,255,.4)";
@@ -504,7 +504,7 @@ View2DTest.prototype.on_draw_preview = function(canvas, ctx) {
     ctx.arc(0, 0, .5, 0, 2 * Math.PI, false);
     ctx.fill();
     ctx.closePath();
-}
+};
 
 /* Graph2D_GraphInfo Class */
 
@@ -518,19 +518,19 @@ function Graph2D_GraphInfo() {
 Graph2D_GraphInfo.prototype.toNDC = function(pt) {
     return [2 * (pt[0] - this.ll[0]) / (this.ur[0] - this.ll[0]) - 1,
             2 * (pt[1] - this.ll[1]) / (this.ur[1] - this.ll[1]) - 1];
-}
+};
 
 Graph2D_GraphInfo.prototype.fromNDC = function(pt) {
     return [this.ll[0] + (this.ur[0] - this.ll[0]) * (pt[0] + 1) * .5,
             this.ll[1] + (this.ur[1] - this.ll[1]) * (pt[1] + 1) * .5];
-}
+};
 
 /* Graph2D_PlotStyle Class */
 
 function Graph2D_PlotStyle() {
 }
 
-Graph2D_PlotStyle.prototype.plot = function(graph, ctx, data) {}
+Graph2D_PlotStyle.prototype.plot = function(graph, ctx, data) {};
 
 /* Graph2D_LinePlotStyle Class */
 
@@ -562,7 +562,7 @@ Graph2D_LinePlotStyle.prototype.plot = function(graph, ctx, data) {
     ctx.lineWidth = this.width * (graph.getPixelSize()[0] + graph.getPixelSize()[1]) * .5;
     ctx.strokeStyle = col3_to_rgb(this.color);
     ctx.stroke();
-}
+};
 
 /* Graph2D_PointPlotStyle Class */
 
@@ -593,7 +593,7 @@ Graph2D_PointPlotStyle.prototype.plot = function(graph, ctx, data) {
     }
     ctx.fillStyle = col3_to_rgb(this.color);
     ctx.fill();
-}
+};
 
 /* Graph2D_ErrorBarPlotStyle Class */
 
@@ -625,7 +625,7 @@ Graph2D_ErrorBarPlotStyle.prototype.plot = function(graph, ctx, data) {
     ctx.lineWidth = this.width * (graph.getPixelSize()[0] + graph.getPixelSize()[1]) * .5;
     ctx.strokeStyle = col3_to_rgb(this.color);
     ctx.stroke();
-}
+};
 
 /* Graph2D_Axis Class */
 
@@ -649,7 +649,7 @@ Graph2D_Axis.prototype.formats = {
         res += "-" + (date.getUTCMonth() + 1);
         res += "-" + (date.getUTCDate() + 1);
         return res;
-    },
+    }
 };
 
 Graph2D_Axis.prototype.draw = function(graph, ctx, ll, ur, mainUR) {
@@ -786,13 +786,13 @@ Graph2D_Axis.prototype.draw = function(graph, ctx, ll, ur, mainUR) {
             ctx.restore();
         }
     }
-}
+};
 
 
 /* Graph2D Class */
 
 function Graph2D(canvasname) {
-    View2D.call(this, canvasname)
+    View2D.call(this, canvasname);
 
     this.useWidgets = false;
     this.plots = [];
@@ -812,7 +812,7 @@ Graph2D.prototype.graphChanged = function() {
     this.graphInfo = null;
     // FIXME: Need event loop.
     this.refresh();
-}
+};
 
 Graph2D.prototype.layoutGraph = function() {
     var gi = new Graph2D_GraphInfo();
@@ -867,24 +867,24 @@ Graph2D.prototype.layoutGraph = function() {
     gi.ur = vec2_add(center, vec2_mulN(size, .5));
 
     return gi;
-}
+};
 
 //
 
 Graph2D.prototype.convertClientToGraph = function(pt) {
     return this.graphInfo.fromNDC(this.convertClientToWorld(pt));
-}
+};
 
 //
 
 Graph2D.prototype.on_size_change = function() {
     this.graphInfo = null;
-}
+};
 
 Graph2D.prototype.on_draw_start = function() {
     if (!this.graphInfo)
         this.graphInfo = this.layoutGraph();
-}
+};
 
 Graph2D.prototype.on_draw = function(canvas, ctx) {
     var gi = this.graphInfo;
@@ -893,11 +893,11 @@ Graph2D.prototype.on_draw = function(canvas, ctx) {
     this.xAxis.draw(this, ctx,
                     this.convertClientToGraph([gi.yAxisW, 0]),
                     this.convertClientToGraph([w, gi.xAxisH]),
-                    this.convertClientToGraph([w, h]))
+                    this.convertClientToGraph([w, h]));
     this.yAxis.draw(this, ctx,
                     this.convertClientToGraph([0, gi.xAxisH]),
                     this.convertClientToGraph([gi.yAxisW, h]),
-                    this.convertClientToGraph([w, h]))
+                    this.convertClientToGraph([w, h]));
 
     if (this.debugText != null) {
         ctx.save();
@@ -921,19 +921,19 @@ Graph2D.prototype.on_draw = function(canvas, ctx) {
         style.plot(this, ctx, data);
     }
     ctx.restore();
-}
+};
 
 // Client API.
 
 Graph2D.prototype.clearPlots = function() {
     this.plots = [];
     this.graphChanged();
-}
+};
 
 Graph2D.prototype.addPlot = function(data, style) {
     if (!style)
         style = new Graph2D_LinePlotStyle(1);
     this.plots.push( [data, style] );
     this.graphChanged();
-}
+};
 
