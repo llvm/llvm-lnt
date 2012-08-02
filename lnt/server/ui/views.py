@@ -982,9 +982,21 @@ def v4_graph(id):
             data = map(convert, data)
 
         # Compute the graph points.
+        revision_range_region = []
         errorbar_data = []
         points_data = []
         pts = []
+        
+        # Create region of interest for run data region if
+        # we are performing a comparison.
+        if compare_to:
+            start_rev = compare_to.order.llvm_project_revision
+            end_rev = run.order.llvm_project_revision
+            revision_range_region = (
+                convert_revision(start_rev),
+                convert_revision(end_rev)
+            )
+        
         if normalize_by_median:
             normalize_by = 1.0/stats.median([min(values)
                                            for _,values in data])
@@ -1054,7 +1066,14 @@ def v4_graph(id):
                 style = "new Graph2D_LinePlotStyle(2, %r)" % (reglin_col,)
                 graph_plots.append("graph.addPlot([%s], %s);" % (
                         pts,style))
-
+        
+        # If we are comparing two revisions, 
+        if compare_to:
+            reg_col = [0.0, 0.0, 1.0]
+            graph_plots.append("graph.addPlot([%i, %i],%s);" % (
+                    revision_range_region[0], revision_range_region[1],
+                    "new Graph2D_RangePlotStyle(%r)" % reg_col))
+        
         # Add the points plot, if used.
         if points_data:
             pts_col = (0,0,0)
