@@ -126,7 +126,12 @@ function col3_to_rgb(col) {
 
 function col4_to_rgba(col) {
     var norm = vec3_floor(vec3_clampN(vec3_mulN(col, 255), 0, 255));
-    return "rgb(" + norm[0] + "," + norm[1] + "," + norm[2] + "," + col[3] + ")";
+    var result = "rgba(";
+    result += norm[0] + ",";
+    result += norm[1] + ",";
+    result += norm[2] + ",";
+    result += col[3] + ")";
+    return result;
 }
 
 /* ViewData Class */
@@ -627,6 +632,63 @@ Graph2D_ErrorBarPlotStyle.prototype.plot = function(graph, ctx, data) {
     ctx.stroke();
 };
 
+/* Graph2D_RangePlotStyle Class */
+
+function Graph2D_RangePlotStyle(color) {
+    Graph2D_PlotStyle.call(this);
+    
+    this.doNotUseForLayout = true;
+    if (color === null)
+        color = [0,1,0];
+    
+    this.fill_color = color;
+    this.fill_color[this.fill_color.length] = 0.25;  
+    this.initial_line_width = null;
+}
+
+Graph2D_RangePlotStyle.prototype = new Graph2D_PlotStyle();
+Graph2D_RangePlotStyle.prototype.constructor = Graph2D_RangePlotStyle;
+
+Graph2D_RangePlotStyle.prototype.plot = function(graph, ctx, data) {
+    ctx.save();
+    
+    var gi = graph.graphInfo;
+    
+    var line_base = Math.max(graph.getPixelSize()[0], graph.getPixelSize()[1]);
+    
+    // We want our highlight to be darker when we are zoomed out further and lighter
+    // when we are closer in. An exponential heuristic based off of line_base seems
+    // to work nicely.
+    if (this.initial_line_width === null)
+        this.initial_line_width = line_base;
+    
+    var opacity = 1.0;
+    if (this.initial_line_width > line_base) {
+        var delta = (line_base - this.initial_line_width)/this.initial_line_width;
+        delta = delta*delta;
+        opacity = Math.max(Math.exp(-delta), 0.25);
+    }
+    
+    var fill_color = this.fill_color;
+    fill_color[3] = opacity;
+    ctx.fillStyle = col4_to_rgba(fill_color);    
+    
+    var lower_rev = [data[0], gi.ll[1]];
+    var upper_rev = [data[1], gi.ur[1]];
+    
+    var lower_graph = gi.toNDC(lower_rev);
+    var upper_graph = gi.toNDC(upper_rev);
+    
+    var origin_x = lower_graph[0];
+    var origin_y = lower_graph[1];
+    var width = upper_graph[0] - lower_graph[0];
+    var height = upper_graph[1] - lower_graph[1];
+    
+    ctx.fillRect(origin_x, origin_y, width, height);
+    
+    ctx.restore();
+};
+
 /* Graph2D_Axis Class */
 
 function Graph2D_Axis(dir, format) {
@@ -823,6 +885,13 @@ Graph2D.prototype.layoutGraph = function() {
     var min = null, max = null;
     for (var i = 0, e = this.plots.length; i != e; ++i) {
         var data = this.plots[i][0];
+        var style = this.plots[i][1];
+        
+        // Some styles (i.e. Graph2D_RangePlotStyle) do not want to be considered
+        // for layout purposes, so we ignore them.
+        if (style.doNotUseForLayout === true)
+            continue;
+        
         for (var i2 = 0, e2 = data.length; i2 != e2; ++i2) {
             if (min == null)
                 min = data[i2];
