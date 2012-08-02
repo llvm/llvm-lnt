@@ -56,7 +56,7 @@ PlotItem.prototype.init = function(parent) {
     }
 
     return this;
-}
+};
 
 PlotItem.prototype.compute_plot_info = function() {
     var subsets_to_plot = [];
@@ -84,7 +84,7 @@ PlotItem.prototype.compute_plot_info = function() {
     return { 'label' : this.plot_name[0].value,
              'subsets_to_plot' : subsets_to_plot,
              'machine_indices_to_plot' : machine_indices_to_plot };
-}
+};
 
 /* AggregateGraphWidget Class */
 function AggregateGraphWidget(oar) {
@@ -125,14 +125,14 @@ AggregateGraphWidget.prototype.init = function(parent) {
     this.plot_items.push(new PlotItem(this).init(this.options_elt));
 
     return this;
-}
+};
 
 AggregateGraphWidget.prototype.compute_aggregate_for_run =
     function(subset_name, order_idx, machine_idx)
 {
     var test_names = this.oar.data.test_subsets[subset_name];
     var test_data = this.oar.data.data_table[subset_name];
-    var pts = []
+    var pts = [];
 
     for (var i = 0; i != test_names.length; ++i) {
         // Currently we just assume the first machine is the baseline. This
@@ -150,7 +150,7 @@ AggregateGraphWidget.prototype.compute_aggregate_for_run =
     }
 
     return mean(pts);
-}
+};
 
 AggregateGraphWidget.prototype.update_plots = function() {
     // First, compute the metadata on the plots we are generating based on the
@@ -204,7 +204,7 @@ AggregateGraphWidget.prototype.update_plots = function() {
         grid: { hoverable: true }
     };
     $.plot(this.graph_elt, this.plots, options);
-}
+};
 
 /* OrderAggregateReport Class */
 
@@ -233,9 +233,9 @@ OrderAggregateReport.prototype.init = function() {
     this.update_graphs();
 
     return this;
-}
+};
 
 OrderAggregateReport.prototype.update_graphs = function() {
     for (var i = 0; i != this.graphs.length; ++i)
         this.graphs[i].update_plots();
-}
+};
