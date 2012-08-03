@@ -666,11 +666,7 @@ Graph2D_RangePlotStyle.prototype.plot = function(graph, ctx, data) {
     if (this.initial_line_width > line_base) {
         var delta = (line_base - this.initial_line_width)/this.initial_line_width;
         delta = delta*delta;
-        var exp = Math.exp(-delta);
-        var expsq = exp*exp;
-        var expq = expsq*expsq;
-        var expo = expq*expq;
-        
+        var expo = Math.exp(-8*delta);        
         opacity = Math.max(expo, 0.25);
     }
     
