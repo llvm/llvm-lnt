@@ -5,7 +5,6 @@ LNT Config object for tracking user-configurable installation parameters.
 import os
 import re
 
-import lnt.db.perfdb
 import lnt.server.db.v4db
 
 class EmailConfig:

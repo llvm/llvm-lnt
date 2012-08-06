@@ -1,9 +1,6 @@
 import os, pprint, sys, time
 
-import lnt.db.perfdb
-from lnt import formats
-import lnt.server.config
-import lnt.server.db.v4db
+import lnt.formats
 import lnt.util.ImportData
 import lnt.server.instance
 
@@ -16,7 +13,7 @@ def action_import(name, args):
     parser.add_option("", "--database", dest="database", default="default",
                       help="database to write to [%default]")
     parser.add_option("", "--format", dest="format",
-                      choices=formats.format_names + ['<auto>'],
+                      choices=lnt.formats.format_names + ['<auto>'],
                       default='<auto>')
     parser.add_option("", "--commit", dest="commit", type=int,
                       default=False)

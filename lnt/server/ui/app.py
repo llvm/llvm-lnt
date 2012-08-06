@@ -16,9 +16,6 @@ import lnt.server.ui.filters
 import lnt.server.ui.globals
 import lnt.server.ui.views
 
-from lnt.db import perfdbsummary
-from lnt.db import perfdb
-
 class RootSlashPatchMiddleware(object):
     def __init__(self, app):
         self.app = app
@@ -127,7 +124,6 @@ class App(flask.Flask):
 
         self.jinja_env.globals.update(
             app=current_app,
-            perfdb=perfdb,
             old_config=self.old_config)
 
         lnt.server.ui.globals.register(self)

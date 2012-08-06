@@ -1,9 +1,8 @@
 import os, re, time
 
-import lnt.db.perfdb
 import lnt.testing
-from lnt import formats
-from lnt.db import runinfo
+import lnt.formats
+import lnt.db.runinfo
 from lnt.util import NTEmailReport
 
 def import_and_report(config, db_name, db, file, format, commit=False,
@@ -37,7 +36,7 @@ def import_and_report(config, db_name, db, file, format, commit=False,
 
     startTime = time.time()
     try:
-        data = formats.read_any(file, format)
+        data = lnt.formats.read_any(file, format)
     except KeyboardInterrupt:
         raise
     except:
@@ -223,20 +222,20 @@ def print_report_result(result, out, err, verbose = True):
             #
             # FIXME: Think longer about mapping to test codes.
             result_info = None
-            if test_status == runinfo.REGRESSED:
+            if test_status == lnt.db.runinfo.REGRESSED:
                 result_string = 'FAIL'
-            elif test_status == runinfo.IMPROVED:
+            elif test_status == lnt.db.runinfo.IMPROVED:
                 result_string = 'IMPROVED'
                 result_info = "Test started passing."
-            elif test_status == runinfo.UNCHANGED_FAIL:
+            elif test_status == lnt.db.runinfo.UNCHANGED_FAIL:
                 result_string = 'XFAIL'
             elif perf_status == None:
                 # Missing perf status means test was just added or removed.
                 result_string = 'PASS'
-            elif perf_status == runinfo.REGRESSED:
+            elif perf_status == lnt.db.runinfo.REGRESSED:
                 result_string = 'REGRESSED'
                 result_info = 'Performance regressed.'
-            elif perf_status == runinfo.IMPROVED:
+            elif perf_status == lnt.db.runinfo.IMPROVED:
                 result_string = 'IMPROVED'
                 result_info = 'Performance improved.'
             else:

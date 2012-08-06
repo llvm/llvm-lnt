@@ -12,7 +12,6 @@ import StringIO
 import lnt
 import lnt.util.ImportData
 from lnt import testing
-from lnt.db import perfdb
 from lnt.testing.util.commands import note, warning, error, fatal
 
 def action_runserver(name, args):
@@ -90,7 +89,6 @@ view the results.\
 from create import action_create
 from convert import action_convert
 from import_data import action_import
-from report import action_report
 from updatedb import action_updatedb
 
 def action_checkformat(name, args):

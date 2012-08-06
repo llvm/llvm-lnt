@@ -17,7 +17,6 @@ from flask import url_for
 import lnt.util
 import lnt.util.ImportData
 import lnt.util.stats
-from lnt.db import perfdb
 from lnt.server.ui.globals import db_url_for, v4_url_for
 import lnt.server.reporting.analysis
 from lnt.db import runinfo
