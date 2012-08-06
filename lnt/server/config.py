@@ -121,10 +121,8 @@ class Config:
             return None
 
         # Instantiate the appropriate database version.
-        if db_entry.db_version == '0.3':
-            return lnt.db.perfdb.PerfDB(db_entry.path, echo=echo)
         if db_entry.db_version == '0.4':
             return lnt.server.db.v4db.V4DB(db_entry.path, echo=echo)
 
-        raise NotImplementedError,"unable to import to version %r database" % (
+        raise NotImplementedError,"unable to load version %r database" % (
             db_entry.db_version,)
