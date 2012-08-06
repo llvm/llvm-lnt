@@ -32,7 +32,6 @@ class Request(flask.Request):
 
         self.request_time = time.time()
         self.db = None
-        self.db_summary = None
         self.testsuite = None
 
     def elapsed_time(self):
@@ -80,9 +79,6 @@ class Request(flask.Request):
 
         return self.testsuite
 
-    def get_db_summary(self):
-        return current_app.get_db_summary(g.db_name, self.get_db())
-
 class App(flask.Flask):
     @staticmethod
     def create_standalone(config_path):
@@ -106,7 +102,6 @@ class App(flask.Flask):
     def __init__(self, name):
         super(App, self).__init__(name)
         self.start_time = time.time()
-        self.db_summaries = {}
 
         # Override the request class.
         self.request_class = Request
@@ -130,11 +125,3 @@ class App(flask.Flask):
 
         # Set the application secret key.
         self.secret_key = self.old_config.secretKey
-
-    def get_db_summary(self, db_name, db):
-        # FIXME/v3removal: Eliminate this, V4DB style has no need for summary
-        # abstraction.
-        db_summary = self.db_summaries.get(db_name)
-        if db_summary is None or not db_summary.is_up_to_date(db):
-            self.db_summaries[db_name] = db_summary = db.get_db_summary()
-        return db_summary

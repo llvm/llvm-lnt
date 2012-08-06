@@ -152,28 +152,3 @@ class V4DB(object):
                 db_name)
 
         return db.importDataFromDict(data, config)
-
-    def get_db_summary(self):
-        return V4DBSummary(self)
-
-class V4DBSummary(object):
-    class SuiteSummary(object):
-        def __init__(self, name, path):
-            self.name = name
-            self.path = path
-
-    def __init__(self, db):
-        self.db = db
-        # Load all the test suite names now so that we don't attempt to reuse a
-        # cursor later.
-        #
-        # FIXME: Really, we just need to eliminate this object.
-        self.testsuites = list(self.db.testsuite)
-
-    @property
-    def suites(self):
-        for name in self.testsuites:
-            yield V4DBSummary.SuiteSummary(name, ("v4", name))
-
-    def is_up_to_date(self, db):
-        return True

@@ -4,10 +4,9 @@
 {% block body %}
 
 {# Display available test result suites. #}
-{% set summary = request.get_db_summary() %}
 <h3>Test Suites</h3>
-{% for suite in summary.suites %}
-  <a href="{{ '/'.join(suite.path) }}">{{suite.name}}</a><br>
+{% for name in request.get_db().testsuite %}
+  <a href="{{db_url_for('v4_overview', testsuite_name=name)}}">{{name}}</a><br>
 {% endfor %}
 
 {% if g.db_info.db_version == '0.3' and g.db_info.showGeneral %}
