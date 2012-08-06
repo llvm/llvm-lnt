@@ -39,9 +39,6 @@ secret_key = %(secret_key)r
 # should be a 'default' entry for the default database.
 databases = {
     'default' : { 'path' : %(default_db)r,
-                  'showGeneral' : 1,
-                  'showNightlytest' : 1,
-                  'showSimple' : 1,
                   'db_version' : %(default_db_version)r },
     }
 

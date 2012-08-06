@@ -9,12 +9,4 @@
   <a href="{{db_url_for('v4_overview', testsuite_name=name)}}">{{name}}</a><br>
 {% endfor %}
 
-{% if g.db_info.db_version == '0.3' and g.db_info.showGeneral %}
-<hr>
-
-<h3>General Database Access</h3>
-<p><a href="{{url_for('browse')}}">Browse DB</a>
-<p><a href="{{url_for('submit_run')}}">Submit Run</a>
-{% endif %}
-
 {% endblock %}

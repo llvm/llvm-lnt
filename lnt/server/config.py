@@ -47,20 +47,14 @@ class DBInfo:
             email_config = EmailConfig.fromData(dict['emailer'])
 
         return DBInfo(dbPath,
-                      bool(dict.get('showNightlytest')),
-                      bool(dict.get('showGeneral')),
-                      bool(dict.get('showSimple')),
                       str(dict.get('db_version', '0.3')),
                       dict.get('shadow_import', None),
                       email_config)
 
-    def __init__(self, path, showNightlytest, showGeneral, showSimple,
+    def __init__(self, path,
                  db_version, shadow_import, email_config):
         self.config = None
         self.path = path
-        self.showGeneral = showGeneral
-        self.showNightlytest = showNightlytest
-        self.showSimple = showSimple
         self.db_version = db_version
         self.shadow_import = shadow_import
         self.email_config = email_config
