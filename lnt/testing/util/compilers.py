@@ -192,7 +192,7 @@ def get_cc_info(path, cc_flags=[]):
              'cc_ld_version' : cc_ld_version,
              'cc_target_assembly' : cc_target_assembly,
              }
-    if cc1_binary is not None:
+    if cc1_binary is not None and os.path.exists(cc1_binary):
         cc1_exec_hash = hashlib.sha1()
         cc1_exec_hash.update(open(cc1_binary,'rb').read())
         info['cc1_exec_hash'] = cc1_exec_hash.hexdigest()
