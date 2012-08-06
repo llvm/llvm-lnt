@@ -30,11 +30,11 @@
 {% endif %}
 
 {% set cell_color = none %}
-{% if test_status == runinfo.REGRESSED %}
+{% if test_status == analysis.REGRESSED %}
     {% set cell_color = (233,128,128) %}
-{% elif test_status == runinfo.IMPROVED %}
+{% elif test_status == analysis.IMPROVED %}
     {% set cell_color = (143,223,95) %}
-{% elif test_status == runinfo.UNCHANGED_FAIL %}
+{% elif test_status == analysis.UNCHANGED_FAIL %}
     {% set cell_color = (255,195,67) %}
 {% endif %}
 
@@ -46,8 +46,8 @@
 {% endif %}
 
 {% if (options.show_all or
-       value_status == runinfo.REGRESSED or
-       value_status == runinfo.IMPROVED) %}
+       value_status == analysis.REGRESSED or
+       value_status == analysis.IMPROVED) %}
     {{ cr.pct_delta|aspctcell|safe }}
 {% else %}
     <td>-</td>

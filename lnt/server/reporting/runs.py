@@ -10,7 +10,6 @@ import urllib
 import lnt.server.reporting.analysis
 import lnt.server.ui.util
 import lnt.util.stats
-from lnt.db import runinfo
 
 def generate_run_report(run, baseurl, only_html_body = False,
                         num_comparison_runs = 10, result = None,
@@ -365,19 +364,19 @@ def _get_changes_by_type(run_a, run_b, primary_fields, test_names,
             comparison_results[(name,field)] = cr
             test_status = cr.get_test_status()
             perf_status = cr.get_value_status()
-            if test_status == runinfo.REGRESSED:
+            if test_status == lnt.server.reporting.analysis.REGRESSED:
                 bucket = new_failures
-            elif test_status == runinfo.IMPROVED:
+            elif test_status == lnt.server.reporting.analysis.IMPROVED:
                 bucket = new_passes
             elif cr.current is None and cr.previous is not None:
                 bucket = removed_tests
             elif cr.current is not None and cr.previous is None:
                 bucket = added_tests
-            elif test_status == runinfo.UNCHANGED_FAIL:
+            elif test_status == lnt.server.reporting.analysis.UNCHANGED_FAIL:
                 bucket = existing_failures
-            elif perf_status == runinfo.REGRESSED:
+            elif perf_status == lnt.server.reporting.analysis.REGRESSED:
                 bucket = perf_regressions
-            elif perf_status == runinfo.IMPROVED:
+            elif perf_status == lnt.server.reporting.analysis.IMPROVED:
                 bucket = perf_improvements
             else:
                 bucket = unchanged_tests

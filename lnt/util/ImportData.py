@@ -2,7 +2,8 @@ import os, re, time
 
 import lnt.testing
 import lnt.formats
-import lnt.db.runinfo
+import lnt.server.reporting.analysis
+
 from lnt.util import NTEmailReport
 
 def import_and_report(config, db_name, db, file, format, commit=False,
@@ -222,20 +223,20 @@ def print_report_result(result, out, err, verbose = True):
             #
             # FIXME: Think longer about mapping to test codes.
             result_info = None
-            if test_status == lnt.db.runinfo.REGRESSED:
+            if test_status == lnt.server.reporting.analysis.REGRESSED:
                 result_string = 'FAIL'
-            elif test_status == lnt.db.runinfo.IMPROVED:
+            elif test_status == lnt.server.reporting.analysis.IMPROVED:
                 result_string = 'IMPROVED'
                 result_info = "Test started passing."
-            elif test_status == lnt.db.runinfo.UNCHANGED_FAIL:
+            elif test_status == lnt.server.reporting.analysis.UNCHANGED_FAIL:
                 result_string = 'XFAIL'
             elif perf_status == None:
                 # Missing perf status means test was just added or removed.
                 result_string = 'PASS'
-            elif perf_status == lnt.db.runinfo.REGRESSED:
+            elif perf_status == lnt.server.reporting.analysis.REGRESSED:
                 result_string = 'REGRESSED'
                 result_info = 'Performance regressed.'
-            elif perf_status == lnt.db.runinfo.IMPROVED:
+            elif perf_status == lnt.server.reporting.analysis.IMPROVED:
                 result_string = 'IMPROVED'
                 result_info = 'Performance improved.'
             else:

@@ -19,7 +19,7 @@ import lnt.util.ImportData
 import lnt.util.stats
 from lnt.server.ui.globals import db_url_for, v4_url_for
 import lnt.server.reporting.analysis
-from lnt.db import runinfo
+import lnt.server.reporting.runs
 from lnt.server.ui.decorators import frontend, db_route, v4_route
 
 ###
@@ -328,7 +328,7 @@ def v4_run(id):
     return render_template(
         "v4_run.html", ts=ts, options=options,
         primary_fields=list(ts.Sample.get_primary_fields()),
-        test_info=test_info, runinfo=runinfo,
+        test_info=test_info, analysis=lnt.server.reporting.analysis,
         test_min_value_filter=test_min_value_filter,
         request_info=info)
 
