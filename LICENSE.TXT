@@ -59,10 +59,14 @@ Software.
 The following pieces of software have additional or alternate copyrights,
 licenses, and/or restrictions:
 
-Program             Directory
--------             ---------
-sorttable.js        lnt/viewer/resources/sorttable.js
-External Stats      lnt/external/stats/
-jQuery              lnt/server/ui/static/jquery/1.5
-Flot                lnt/server/ui/static/flot
-JSON2               lnt/server/ui/static/json2.js
+Program              Directory
+-------              ---------
+sorttable.js         lnt/viewer/resources/sorttable.js
+External Stats       lnt/external/stats/
+jQuery               lnt/server/ui/static/jquery/1.5
+jQuery               lnt/server/ui/static/jquery/1.7.2
+jQuery.contextmenu   lnt/server/ui/static/jquery/jquery.contextmenu
+jQuery.formdefaults  lnt/server/ui/static/jquery/jquery.formdefaults
+jQuery.scrolltofixed lnt/server/ui/static/jquery/jquery.scrolltofixed
+Flot                 lnt/server/ui/static/flot
+JSON2                lnt/server/ui/static/json2.js
