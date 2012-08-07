@@ -71,7 +71,7 @@ http://llvm.org/svn/llvm-project/lnt/trunk
                                       'static/*.js',
                                       'static/*.css',
                                       'static/flot/*.min.js',
-                                      'static/jquery/1.5/*.min.js',
+                                      'static/jquery/**/*.min.js',
                                       'templates/*.html'],
                     'lnt.server.db': ['migrations/*.py'] },
 
