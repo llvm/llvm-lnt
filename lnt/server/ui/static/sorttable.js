@@ -33,13 +33,22 @@ sorttable = {
 
     forEach(document.getElementsByTagName('table'), function(table) {
       if (table.className.search(/\bsortable\b/) != -1) {
-        sorttable.makeSortable(table);
+        sorttable.makeSortable(table, false);
+      }
+      if (table.className.search(/\bsortable_rev\b/) != -1) {
+        sorttable.makeSortable(table, true);
       }
     });
 
   },
 
-  makeSortable: function(table) {
+  makeSortable: function(table, sort_reversed) {
+    // If sort_reversed is not set, just set to false to preserve
+    // legacy calls.
+    if (typeof sort_reversed === "undefined") {
+        sort_reversed = false;
+    }
+    
     if (table.getElementsByTagName('thead').length == 0) {
       // table doesn't have a tHead. Since it should have, create one and
       // put the first table row in it.
@@ -87,6 +96,15 @@ sorttable = {
           headrow[i].sorttable_sortfunction = sorttable["sort_"+override];
         } else {
           headrow[i].sorttable_sortfunction = sorttable.guessType(table,i);
+        }
+        // If sort_reversed is set, reverse the sort function by wrapping the
+        // actual sort function and calling the actual sort function with its
+        // arguments reversed.
+        if (sort_reversed) {
+            var original_sortfunction = headrow[i].sorttable_sortfunction;
+            headrow[i].sorttable_sortfunction = function(a,b) {
+                return original_sortfunction(b,a);
+            };
         }
         // make it clickable to sort
         var index = i;
