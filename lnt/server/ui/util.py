@@ -174,8 +174,9 @@ class PctCell:
     def getColor(self):
         v = self.value
 
-        # NaN is the unique floating point number with the property
-        # that NaN != NaN. We use this to detect actual NaNs.
+        # NaN is the unique floating point number x with the property
+        # that x != x. We use this to detect actual NaNs and handle
+        # them appropriately.
         if not isinstance(v, float) or v != v:
             return self.kNANColor
 
