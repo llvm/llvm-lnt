@@ -1,0 +1,22 @@
+# FormDefaults for jQuery
+
+This plugin allows you to provide default values for form fields, which are automatically hidden/shown as the user focuses into and out of the form field. The plugin will also bubble up the DOM tree and attach itself to the form to prevent the default values from being submitted.
+
+## Usage
+
+Usage is simple:
+
+    $(".form-text").formDefaults();
+
+This will attach the plugin to any form field with a class of 'form-text'.
+
+You can also provide some settings for the active and inactive text color (depending on whether the form fields is in focus or not):
+
+    $(".form-text").formDefaults({
+      activeColor: '#000',
+      inactiveColor: '#ccc' 
+    });
+
+## Copyright
+
+Copyright (c) 2011 Rob Schmitt. See LICENSE for details.
