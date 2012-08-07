@@ -173,7 +173,10 @@ class PctCell:
 
     def getColor(self):
         v = self.value
-        if not isinstance(v, float):
+
+        # NaN is the unique floating point number with the property
+        # that NaN != NaN. We use this to detect actual NaNs.
+        if not isinstance(v, float) or v != v:
             return self.kNANColor
 
         # Clamp value.
@@ -199,15 +202,18 @@ class PctCell:
             return self.value
         return '%.*f%%' % (self.precision, self.value*100)
 
+    def getColorString(self):
+        r,g,b = [clamp(int(v*255), 0, 255)
+                 for v in self.getColor()]
+        return "#%02x%02x%02x" % (r,g,b)
+    
     def render(self, style=None):
         if style is None:
             style_string = ""
         else:
             style_string = ' style="%s"' % (style,)
-        r,g,b = [clamp(int(v*255), 0, 255)
-                 for v in self.getColor()]
-        res = '<td%s bgcolor="#%02x%02x%02x">%s</td>' % (
-            style_string, r, g, b, self.getValue())
+        res = '<td%s bgcolor="%s">%s</td>' % (
+            style_string, self.getColorString(), self.getValue())
         return res
 
 def sorted(l, *args, **kwargs):
