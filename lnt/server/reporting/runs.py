@@ -30,29 +30,13 @@ def generate_run_report(run, baseurl, only_html_body = False,
     ts = run.testsuite
     machine = run.machine
     machine_parameters = machine.parameters
-
-    # If no baseline was given, find one close to the requested baseline run
-    # order.
+    
     if baseline is None:
-        # Find the closest order to the requested baseline order, for which this
-        # machine also reported.
-        #
-        # FIXME: Scalability! Pretty fast in practice, but still pretty lame.
-        order_to_find = ts.Order(llvm_project_revision = '% 7d' % 144168)
-        best = None
-        for order in ts.query(ts.Order).\
-                join(ts.Run).\
-                filter(ts.Run.machine == machine).distinct():
-            if order >= order_to_find and (best is None or order < best):
-                best = order
-
-        # Find the most recent run on this machine that used that order.
-        if best:
-            baseline = ts.query(ts.Run).\
-                filter(ts.Run.machine == run.machine).\
-                filter(ts.Run.order == best).\
-                order_by(ts.Run.start_time.desc()).first()
-
+        # If a baseline has not been given, look up the run closest to
+        # the default baseline revision for which this machine also
+        # reported.
+        baseline = machine.get_baseline_run()
+    
     # If the baseline is the same as the comparison run, ignore it.
     if baseline is compare_to:
         baseline = None
