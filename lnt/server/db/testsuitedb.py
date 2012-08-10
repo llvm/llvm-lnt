@@ -60,6 +60,8 @@ class TestSuiteDB(object):
         class Machine(self.base, ParameterizedMixin):
             __tablename__ = db_key_name + '_Machine'
 
+            DEFAULT_BASELINE_REVISION = 144168
+
             fields = self.machine_fields
             id = Column("ID", Integer, primary_key=True)
             name = Column("Name", String(256), index=True)
@@ -95,6 +97,50 @@ class TestSuiteDB(object):
             @parameters.setter
             def parameters(self, data):
                 self.parameters_data = json.dumps(sorted(data.items()))
+
+            def get_baseline_run(self, revision=None):
+                """
+                Find the closest order to the requested baseline
+                order, for which this machine also reported.
+                """
+                
+                # FIXME: Scalability! Pretty fast in practice, but
+                # still pretty lame.
+                
+                ts = Machine.testsuite
+
+                # We don't use Machine.DEFAULT_BASELINE_REVISION as a
+                # default argument so that the user can input a None
+                # argument and get the same effect as not using a
+                # second argument at all.
+                if revision is None:
+                    revision = Machine.DEFAULT_BASELINE_REVISION
+
+                # If we have an int, convert it to a proper string.
+                if isinstance(revision, int):
+                    revision = '% 7d' % revision
+
+                # Grab order for revision.
+                order_to_find = ts.Order(llvm_project_revision = revision)
+
+                # Search for best run.
+                baseline = None
+                best = None
+                for order in ts.query(ts.Order).\
+                        join(ts.Run).\
+                        filter(ts.Run.machine_id == self.id).distinct():
+                    if order >= order_to_find and (best is None or order < best):
+                        best = order
+
+                # Find the most recent run on this machine that used
+                # that order.
+                if best:
+                    baseline = ts.query(ts.Run)\
+                        .filter(ts.Run.machine_id == self.id)\
+                        .filter(ts.Run.order_id == best.id)\
+                        .order_by(ts.Run.start_time.desc()).first()
+
+                return baseline
 
         class Order(self.base, ParameterizedMixin):
             __tablename__ = db_key_name + '_Order'
