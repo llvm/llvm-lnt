@@ -40,7 +40,16 @@ v4_global_status = {};
             th.css('max-height', height);
         });        
         $('#data-table-header').scrollToFixed();
-
+        
+        // We serve up our results sorted correctly since sorttable.js does not
+        // sort on page load (which is most likely done for performance reasons, I
+        // guess?). The problem is that we do not have an initial arrow pointing up
+        // or down. So we hack the arrow in.
+        var initial_sort_header = document.getElementById('worst-time-header');
+        sortrevind = document.createElement('span');
+        sortrevind.id = "sorttable_sortrevind";
+        sortrevind.innerHTML = '&nbsp;&#x25BE;';
+        initial_sort_header.appendChild(sortrevind);
     });
     
     /* Helper Functions */
