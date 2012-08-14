@@ -1,4 +1,5 @@
 
+/* Table Styles. */
 table#data-table tr {
     width: 100%;
 }
@@ -44,4 +45,16 @@ table#data-table th.label-header {
 table#data-table td.row-head {
     text-align: left;
     overflow: hidden;
+}
+
+/* Main control panel container styles */
+
+#emperor-control {
+    height: 35em;
+}
+
+#right-king-control {
+    float: right;
+    margin: 0px;
+    padding: 0px;    
 }
