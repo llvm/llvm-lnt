@@ -1,5 +1,9 @@
 // -*- mode: javascript; -*-
 
+String.prototype.pctToFloat = function() {
+    return parseFloat(this.slice(0,-1));
+};
+
 v4_global_status = {};
 (function(_module) {
     // Assign our input module to a var so that a closure is created
@@ -44,8 +48,9 @@ v4_global_status = {};
         // We serve up our results sorted correctly since sorttable.js does not
         // sort on page load (which is most likely done for performance reasons, I
         // guess?). The problem is that we do not have an initial arrow pointing up
-        // or down. So we hack the arrow in.
+        // or down. So we hack the arrow in. 
         var initial_sort_header = document.getElementById('worst-time-header');
+        initial_sort_header.className += ' sorttable_sorted_reverse';
         sortrevind = document.createElement('span');
         sortrevind.id = "sorttable_sortrevind";
         sortrevind.innerHTML = '&nbsp;&#x25BE;';
@@ -56,12 +61,12 @@ v4_global_status = {};
                'contextMenu-runpage' : function(elt) {
                    var new_base = elt.getAttribute('run_id') + '/graph?test.';
                    
-                   field = getQueryParameterByName('field');
+                   field = GetQueryParameterByName('field');
                    if (field == "")
                        field = 2; // compile time.
                    
                    new_base += elt.getAttribute('test_id') + '=' + field.toString();
-                   window.location = url_replace_basename(window.location.toString(),
+                   window.location = UrlReplaceBasename(window.location.toString(),
                                                           new_base);
                }
            }
@@ -70,7 +75,7 @@ v4_global_status = {};
     
     /* Helper Functions */
     
-    function url_replace_basename(url, new_basename) {
+    function UrlReplaceBasename(url, new_basename) {
         // Remove query string.
         var last_question_index = url.lastIndexOf('?');
         if (last_question_index != -1) 
@@ -83,7 +88,7 @@ v4_global_status = {};
         return without_base + new_basename;
     }
     
-    function getQueryParameterByName(name) {
+    function GetQueryParameterByName(name) {
         name = name.replace(/[\[]/, "\\\[").replace(/[\]]/, "\\\]");
         var regexS = "[\\?&]" + name + "=([^&#]*)";
         var regex = new RegExp(regexS);
@@ -92,7 +97,11 @@ v4_global_status = {};
             return "";
         else
             return decodeURIComponent(results[1].replace(/\+/g, " "));
-    }    
+    }
+    
+    function IsHidden(elem) {
+        return elem.offsetWidth === 0 && elem.offsetHeight === 0;
+    }
     
     /* Exported Functions */
 
@@ -147,7 +156,31 @@ v4_global_status = {};
     };
     
     m.recompute_worst_times = function() {
+        $('#data-table tr.data-row').each(function(index, value) {
+            var cells = value.cells;
+            var i = 2, length = cells.length;
+            var max = -Infinity;
+            var max_index = -1;
+            for (; i < length; i++) {
+                // We only consider visible cells.
+                if (IsHidden(cells[i]))
+                    continue;
+                
+                var flt = cells[i].innerHTML.pctToFloat();
+                if (max < flt) {
+                    max = flt;
+                    max_index = i;
+                }
+            }
+            
+            cells[1].innerHTML = (max != -Infinity)? max.toString() + '%' : "";
+            cells[1].setAttribute('bgcolor', (max_index != -1)? cells[max_index].getAttribute('bgcolor') : "#dbdbdb");            
+        });
         
+        // Resort.
+        var initial_sort_header = document.getElementById('worst-time-header');
+        initial_sort_header.className = initial_sort_header.className.replace('sorttable_sorted_reverse','').replace('sorttable_sorted','');
+        $(initial_sort_header).trigger('click');
     };
     
 })(v4_global_status);
