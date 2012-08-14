@@ -740,14 +740,20 @@ def v4_global_status():
 
     # Order the table by worst regression.
     test_table.sort(key = lambda row: row[1], reverse=True)
-
+    
+    baselinetype = None
+    date = None
+    
     return render_template("v4_global_status.html",
                            ts=ts,
                            tests=test_table,
                            machines=recent_machines,
                            machine_groups_map=machine_groups_map,
                            groups = list(grouping_set),
-                           selected_field=field)
+                           selected_field=field,
+                           selected_baselinetype=baselinetype,
+                           selected_revision=revision,
+                           selected_date=date)
 
 @v4_route("/daily_report/<int:year>/<int:month>/<int:day>")
 def v4_daily_report(year, month, day):
