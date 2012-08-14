@@ -631,7 +631,8 @@ def v4_global_status():
     from lnt.server.ui import util
 
     ts = request.get_testsuite()
-
+    fields = [f for f in ts.Sample.get_primary_fields()]
+    
     # Get the latest run.
     latest = ts.query(ts.Run.start_time).\
         order_by(ts.Run.start_time.desc()).first()
@@ -649,10 +650,7 @@ def v4_global_status():
     # Get arguments.
     revision = int(request.args.get('revision',
                                     ts.Machine.DEFAULT_BASELINE_REVISION))
-    field = int(request.args.get('field', 2)) # 2 is for compile time
-    # FIXME: This maybe could be done in itertools or we could maybe
-    # return an actual list that is populated lazily.
-    field = [x for x in ts.Sample.get_primary_fields()][field-2]
+    field = fields[int(request.args.get('field', 2)) - 2] # 2 is for compile time    
     
     # Get the list of all runs we might be interested in.
     recent_runs = ts.query(ts.Run).filter(ts.Run.start_time > yesterday).all()
@@ -741,7 +739,8 @@ def v4_global_status():
     # Order the table by worst regression.
     test_table.sort(key = lambda row: row[1], reverse=True)
     
-    baselinetype = None
+    baseline_types = []
+    baseline_type = None
     date = None
     
     return render_template("v4_global_status.html",
@@ -750,8 +749,10 @@ def v4_global_status():
                            machines=recent_machines,
                            machine_groups_map=machine_groups_map,
                            groups = list(grouping_set),
+                           fields = fields,
+                           baseline_types = baseline_types,
                            selected_field=field,
-                           selected_baselinetype=baselinetype,
+                           selected_baseline_type=baseline_type,
                            selected_revision=revision,
                            selected_date=date)
 
