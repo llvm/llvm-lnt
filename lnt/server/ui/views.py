@@ -707,6 +707,8 @@ def v4_global_status():
         # Add in inverse groups.
         groups.extend("not-" + x for x in grouping_set.difference(groups))
         
+        # Join together all groups so we can just add it to a base css
+        # class string.
         machine_groups_map[machine] = ' '.join(groups)
 
     # Get the set all tests reported in the recent runs.
@@ -723,17 +725,17 @@ def v4_global_status():
     test_table = []
     for i,(test_id,test_name) in enumerate(reported_tests):
         # Create the row, starting with the test name and worst entry.
-        row = [test_name, None]
+        row = [(test_id, test_name), None]
 
         # Compute comparison results for each machine.
-        row.extend(runinfo.get_run_comparison_result(run, baseline, test_id,
-                                                     field)
+        row.extend((runinfo.get_run_comparison_result(run, baseline, test_id,
+                                                     field), run.id)
                    for baseline,run in machine_run_info)
 
         # Compute the worst cell value.
         row[1] = max(cr.pct_delta
-                     for cr in row[2:])
-
+                     for cr,_ in row[2:])
+        
         test_table.append(row)
 
     # Order the table by worst regression.

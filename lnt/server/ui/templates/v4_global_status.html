@@ -54,6 +54,16 @@
 {% endblock %}
 
 {% block body %}
+{# 
+   This div is hidden on load and is there after controlled by the jquery
+   context menu script.
+#}
+<div class="contextMenu" id="contextmenu-datacell">
+  <ul>
+    <li id="contextMenu-runpage">View Graph</li>
+  </ul>
+</div>
+
 <div id="emperor-control">
   <div id="right-king-control" class="control-panel">
     <h3>Current Settings</h3>
@@ -134,13 +144,16 @@
     {% endfor %}
   </tr>
   {% for row in tests %}
+  {% set outer_index = loop.index0 %}
   <tr>
     <td class="row-head">
-      {{ row[0] }}
+      {{ row[0][1] }}
     </td>
     {{ row[1]|aspctcell("data-cell worst-time")|safe }}
-    {% for cr in row[2:] %}
-      {{ cr.pct_delta|aspctcell("data-cell " + machines[loop.index0].get_css_name() + " " + machine_groups_map[machines[loop.index0]])|safe }}
+    {% for cr, run_id in row[2:] %}
+      {{ cr.pct_delta|aspctcell("data-cell " + machines[loop.index0].get_css_name() + " " + machine_groups_map[machines[loop.index0]],
+                                attributes={'test_id': row[0][0], 'run_id': run_id})
+         |safe }}
     {% endfor %}
   </tr>
   {% endfor %}

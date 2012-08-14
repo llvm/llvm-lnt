@@ -50,9 +50,49 @@ v4_global_status = {};
         sortrevind.id = "sorttable_sortrevind";
         sortrevind.innerHTML = '&nbsp;&#x25BE;';
         initial_sort_header.appendChild(sortrevind);
+
+        $('.data-cell').contextMenu('contextmenu-datacell', {
+           bindings: {
+               'contextMenu-runpage' : function(elt) {
+                   var new_base = elt.getAttribute('run_id') + '/graph?test.';
+                   
+                   field = getQueryParameterByName('field');
+                   if (field == "")
+                       field = 2; // compile time.
+                   
+                   new_base += elt.getAttribute('test_id') + '=' + field.toString();
+                   window.location = url_replace_basename(window.location.toString(),
+                                                          new_base);
+               }
+           }
+       });
     });
     
     /* Helper Functions */
+    
+    function url_replace_basename(url, new_basename) {
+        // Remove query string.
+        var last_question_index = url.lastIndexOf('?');
+        if (last_question_index != -1) 
+            url = url.substring(0, last_question_index);
+        if (url.charAt(url.length-1) == '/') {
+            url = url.substring(0, url.length-1);
+        }
+        
+        var without_base = url.substring(0, url.lastIndexOf('/') + 1);
+        return without_base + new_basename;
+    }
+    
+    function getQueryParameterByName(name) {
+        name = name.replace(/[\[]/, "\\\[").replace(/[\]]/, "\\\]");
+        var regexS = "[\\?&]" + name + "=([^&#]*)";
+        var regex = new RegExp(regexS);
+        var results = regex.exec(window.location.search);
+        if(results == null)
+            return "";
+        else
+            return decodeURIComponent(results[1].replace(/\+/g, " "));
+    }    
     
     /* Exported Functions */
     
