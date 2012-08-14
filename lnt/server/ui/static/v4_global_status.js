@@ -20,6 +20,27 @@ v4_global_status = {};
             autoHeight: false,
             active: 1
         });
+        
+        // Make our table headers fixed when we scroll.
+        $('table#data-table th').each(function(i,v) {
+            // Ensure that the headers of our table do not
+            // change size when our table header switches to
+            // fixed and back.
+            var th = $(this);
+            var width = th.outerWidth(true);
+            th.css('width', width);
+            th.css('min-width', width);
+            th.css('max-width', width);
+            th.css('margin', '0px');
+            th.css('padding', '0px');
+            
+            var height = th.outerHeight(true);
+            th.css('height', height);
+            th.css('min-height', height);
+            th.css('max-height', height);
+        });        
+        $('#data-table-header').scrollToFixed();
+
     });
     
     /* Helper Functions */
