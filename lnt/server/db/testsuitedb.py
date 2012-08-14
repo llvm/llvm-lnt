@@ -65,6 +65,7 @@ class TestSuiteDB(object):
             fields = self.machine_fields
             id = Column("ID", Integer, primary_key=True)
             name = Column("Name", String(256), index=True)
+            _css_name = None
 
             # The parameters blob is used to store any additional information
             # reported by the run but not promoted into the machine record. Such
@@ -97,7 +98,14 @@ class TestSuiteDB(object):
             @parameters.setter
             def parameters(self, data):
                 self.parameters_data = json.dumps(sorted(data.items()))
-
+            
+            def get_css_name(self):
+                """ Lazy method which returns a safe css name to
+                    represent this machine."""
+                if self._css_name is None:
+                    self._css_name = self.name.replace('.','-')
+                return self._css_name            
+            
             def get_baseline_run(self, revision=None):
                 """
                 Find the closest order to the requested baseline

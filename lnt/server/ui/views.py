@@ -669,8 +669,9 @@ def v4_global_status():
     machine_run_info = []
     reported_run_ids = []
 
-    # Create groupings based off of the names of our input machines.
-    grouping_set = set()
+    # Create groupings based off of the names of our input machines.    
+    grouping_set = set(['O3']) # Due to the default way we name our machines,
+                               # we need to add O3 since no O0/Os => O3.
     machine_groups_map = {}
     for machine in recent_machines:
         runs = recent_runs_by_machine[machine]
@@ -690,20 +691,21 @@ def v4_global_status():
         machine_groups_map[machine] = machine_groupings
         grouping_set = grouping_set.union(machine_groupings)
 
-    # Invert machine name to groupings map and add in inverse names as classname with the not-prefix. This allows
-    # us to hide certain columns by changing the class on the table.
+    # Invert machine name to groupings map and add in inverse names as
+    # classname with the not-prefix. This allows us to hide certain
+    # columns by changing the class on the table.
     for machine in machine_groups_map:
         groups = machine_groups_map[machine]
-
-        # If a machine does not have O0 or Os in its name,
-        # we treat it as an O3 run. This is to be compatible
-        # with our current naming scheme.
+        
+        # If a machine does not have O0 or Os in its name, we treat it
+        # as an O3 run. This is to be compatible with our current
+        # naming scheme.
         if not 'O0' in groups and not 'Os' in groups:
             groups.append('O3')
-
+        
         # Add in inverse groups.
         groups.extend("not-" + x for x in grouping_set.difference(groups))
-
+        
         machine_groups_map[machine] = ' '.join(groups)
 
     # Get the set all tests reported in the recent runs.
@@ -741,6 +743,7 @@ def v4_global_status():
                            tests=test_table,
                            machines=recent_machines,
                            machine_groups_map=machine_groups_map,
+                           groups = list(grouping_set),
                            selected_field=field)
 
 @v4_route("/daily_report/<int:year>/<int:month>/<int:day>")

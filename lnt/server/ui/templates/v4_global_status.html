@@ -8,6 +8,27 @@
               href="{{ url_for('.static', filename='v4_global_status.css') }}"></link>
         <script async src="{{ url_for('.static', filename='popup.js') }}"></script>
         <script async src="{{ url_for('.static', filename='sorttable.js') }}"></script>
+        
+        <style type="text/css">
+          {# Generate css classes to show/hide groups and machines #}
+          
+          {% for m in machines %}
+             table.hide-{{ m.get_css_name() }} td.{{ m.get_css_name() }},
+             table.hide-{{ m.get_css_name() }} th.{{ m.get_css_name() }},
+             table.hidenot-{{ m.get_css_name() }} td.not-{{ m.get_css_name() }},
+             table.hidenot-{{ m.get_css_name() }} th.not-{{ m.get_css_name() }} {
+                 display: none;
+             }
+          {% endfor %}
+          {% for group in groups %}
+             table.hide-{{group}} td.{{group}},
+             table.hide-{{group}} th.{{group}},
+             table.hidenot-{{group}} td.not-{{group}},
+             table.hidenot-{{group}} th.not-{{group}} {
+               display: none;
+             }
+          {% endfor %}
+        </style>
 {% endblock %}
 
 {% block title %}Global Status - {{
@@ -19,7 +40,7 @@
     <th class="label-header">Test</th>
     <th id="worst-time-header" class="data-header worst-time">Worst Time</th>
     {% for m in machines %}
-    <th class="data-header {{ machine_groups_map[m] }}">{{ m.name }}</th>
+    <th class="data-header {{ m.get_css_name() }} {{ machine_groups_map[m] }}">{{ m.name }}</th>
     {% endfor %}
   </tr>
   {% for row in tests %}
@@ -29,7 +50,7 @@
     </td>
     {{ row[1]|aspctcell("data-cell worst-time")|safe }}
     {% for cr in row[2:] %}
-       {{ cr.pct_delta|aspctcell("data-cell " + machine_groups_map[machines[loop.index0]])|safe }}
+      {{ cr.pct_delta|aspctcell("data-cell " + machines[loop.index0].get_css_name() + " " + machine_groups_map[machines[loop.index0]])|safe }}
     {% endfor %}
   </tr>
   {% endfor %}
