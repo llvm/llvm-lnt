@@ -19,7 +19,7 @@
     <th class="label-header">Test</th>
     <th id="worst-time-header" class="data-header worst-time">Worst Time</th>
     {% for m in machines %}
-    <th class="data-header">{{ m.name }}</th>
+    <th class="data-header {{ machine_groups_map[m] }}">{{ m.name }}</th>
     {% endfor %}
   </tr>
   {% for row in tests %}
@@ -29,7 +29,7 @@
     </td>
     {{ row[1]|aspctcell("data-cell worst-time")|safe }}
     {% for cr in row[2:] %}
-       {{ cr.pct_delta|aspctcell("data-cell worst-time")|safe }}
+       {{ cr.pct_delta|aspctcell("data-cell worst-time " + machine_groups_map[machines[loop.index0]])|safe }}
     {% endfor %}
   </tr>
   {% endfor %}
