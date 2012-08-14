@@ -104,3 +104,9 @@ div#revision-control-panel input.baseline-form {
     width: 60%;
     display: block;
 }
+
+/* jQuery Accordion Styling */
+
+h3.ui-state-focus {
+    outline: none;
+}

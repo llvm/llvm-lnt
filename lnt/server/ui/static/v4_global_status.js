@@ -13,6 +13,13 @@ v4_global_status = {};
     $(document).ready(function() {
         // Create a global variable for table.
         g.table = $('#data-table')[0];
+        
+        // Make left king control an accordion.
+        $('#left-king-control').accordion({
+            collapsible: true,
+            autoHeight: false,
+            active: 1
+        });
     });
     
     /* Helper Functions */
