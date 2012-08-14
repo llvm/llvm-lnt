@@ -38,14 +38,70 @@
 
 <div id="emperor-control">
   <div id="right-king-control" class="control-panel">
+    <h3>Current Settings</h3>
+    <table>
+      <tr><td>Comparison Field:</td><td>{{ selected_field.name }}</td></tr>
+      <tr><td>Baseline Type:</td><td>{{ selected_baseline_type }}</td></tr>
+      <tr><td>Baseline Revision:</td><td>{{ selected_revision }}</td></tr>
+      <tr><td>Baseline Date:</td><td>{{ selected_date }}</td></tr>
+    </table>
+    <h3>Select a New Comparison</h3>
+    <div id="revision-control-panel">
+      <form>
+        <ul>
+          <li>
+            <select name="field" class="field-form">
+              {% for f in fields %}
+                  {% if f == selected_field %}
+                      <option value="{{ f.id }}" selected="selected">{{ f.name }}</option>
+                  {% else %}
+                      <option value="{{ f.id }}">{{ f.name }}</option>
+                  {% endif %}
+              {% endfor %}
+            </select>
+          </li>
+          <li>
+            <select name="type" class="baseline-form">
+              {% for value, desc in baseline_types %}
+                 {% if value == selected_baseline_type %}
+                    <option value="{{ value }}" selected="selected">{{ desc }}</option>
+                 {% else %}
+                    <option value="{{ value }}">{{ desc }}</option>
+                 {% endif %}
+              {% endfor %}
+            </select>
+          </li>
+          <li>
+            <input class="baseline-form" name="revision" type="text" value="Revision (if Arbitrary Revision is selected)"/>
+          </li>
+          <li>
+            <input id="baseline-form-date-input" class="baseline-form" name="date" type="text" value="Date (if Arbitrary Date is selected)"/>
+          </li>
+          <li>
+            <input type="submit" value="submit"/>
+          </li>
+        </ul>
+      </form>
+    </div>    
   </div>
+  
   <div id="left-king-control" class="control-panel">  
     <h3>Toggle Machine Visibility</h3>
     <div id="toggle-machine-control-panel">
       <ul>
         {% for m in machines %}
-        <li><input machine="{{ m.name }}" id="checkbox-{{ m.get_css_name() }}" checked="checked" type="checkbox" onclick="toggle_column_visibility('{{ m.get_css_name() }}');">{{ m.name }}</input></li>
+        <li><input machine="{{ m.name }}" id="checkbox-{{ m.get_css_name() }}" checked="checked" type="checkbox" onclick="v4_global_status.toggle_column_visibility('{{ m.get_css_name() }}');">{{ m.name }}</input></li>
         {% endfor %}
+      </ul>
+    </div>
+    <h3>Preconfigured Data Views</h3>
+    <div id="preconfigured-groups-control-panel">
+      <ul>
+        {% for group in groups %}
+           <li><button onclick="v4_global_status.set_table_view('{{ group }}');">{{ group }}</button></li>
+        {% endfor %}
+
+        <li><button onclick="v4_global_status.reset_table();">Reset Table</button></li>
       </ul>
     </div>
   </div>
