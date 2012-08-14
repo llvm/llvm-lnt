@@ -208,12 +208,15 @@ class PctCell:
                  for v in self.getColor()]
         return "#%02x%02x%02x" % (r,g,b)
     
-    def render(self, class_=None, style=None):
+    def render(self, class_=None, style=None, attributes=None):
         attrs = []
         if style is not None:
             attrs.append('style="%s"' % (style,))
         if class_ is not None:
             attrs.append('class="%s"' % (class_,))
+        if attributes is not None:
+            for key, value in attributes.items():
+                attrs.append('%s="%s"' % (key, value))
         attrs.append('bgcolor="%s"' % (self.getColorString(),))
         attr_string = ' '.join(attrs)
         return '<td %s>%s</td>' % (attr_string, self.getValue())

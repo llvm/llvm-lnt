@@ -9,9 +9,9 @@ def filter_asusertime(time):
     ts = datetime.datetime.fromtimestamp(time)
     return ts.strftime('%Y-%m-%d %H:%M:%S %Z PST')
 
-def filter_aspctcell(value, class_=None, style=None, *args, **kwargs):
+def filter_aspctcell(value, class_=None, style=None, attributes=None, *args, **kwargs):
     cell = util.PctCell(value, *args, **kwargs)
-    return cell.render(class_, style)
+    return cell.render(class_, style, attributes)
 
 def filter_pprint(value):
     stream = StringIO.StringIO()
