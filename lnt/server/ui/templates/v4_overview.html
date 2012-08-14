@@ -5,6 +5,10 @@
 {% block title %}Overview{% endblock %}
 {% block body %}
 
+<center><h3>Compiler Status Pages</h3></center>
+<a href="{{ v4_url_for('v4_global_status', field=2) }}">Compile Time</a>
+<a href="{{ v4_url_for('v4_global_status', field=3) }}">Execution Time</a>
+
 {# Find recent runs. #}
 <center><h3>Submission Overview</h3></center>
 <table width="100%%">

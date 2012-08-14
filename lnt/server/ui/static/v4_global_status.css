@@ -1,0 +1,47 @@
+
+table#data-table tr {
+    width: 100%;
+}
+
+table#data-table th {
+    outline: rgba(0, 0, 0, 0.3) solid 1px;
+}
+
+/* Turn off text select */
+table#data-table {
+    -moz-user-select: none;
+    -khtml-user-select: none;
+    -webkit-user-select: none;
+    user-select: none;
+    margin-right: 10px;
+    cursor: default;
+}
+
+table#data-table td {
+    border: rgba(0, 0, 0, 0.3) solid 1px;
+}
+
+table#data-table td.data-cell, table#data-table th {
+    text-align: center;
+}
+
+table#data-table td.data-cell, table#data-table th.data-header {
+    min-width: 15em;
+    max-width: 15em;
+    width: 15em;
+}
+
+table#data-table td.row-head {
+    min-width: 30em;
+    max-width: 30em;
+    width: 30em;
+}
+
+table#data-table th.label-header {
+    width: auto;
+}
+
+table#data-table td.row-head {
+    text-align: left;
+    overflow: hidden;
+}

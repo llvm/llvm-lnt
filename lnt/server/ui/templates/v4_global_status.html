@@ -1,0 +1,37 @@
+{% import "v4_utils.html" as v4_utils %}
+{% import "utils.html" as utils %}
+
+{% extends "layout.html" %}
+{% set components = [(ts.name, v4_url_for("v4_global_status"))] %}
+{% block head %}
+        <link type="text/css" rel="stylesheet"
+              href="{{ url_for('.static', filename='v4_global_status.css') }}"></link>
+        <script async src="{{ url_for('.static', filename='popup.js') }}"></script>
+        <script async src="{{ url_for('.static', filename='sorttable.js') }}"></script>
+{% endblock %}
+
+{% block title %}Global Status - {{
+        selected_field.name.replace("_", " ").title() }}{% endblock %}
+
+{% block body %}
+<table id="data-table" class="sortable_rev">
+  <tr id="data-table-header">
+    <th class="label-header">Test</th>
+    <th id="worst-time-header" class="data-header worst-time">Worst Time</th>
+    {% for m in machines %}
+    <th class="data-header">{{ m.name }}</th>
+    {% endfor %}
+  </tr>
+  {% for row in tests %}
+  <tr>
+    <td class="row-head">
+      {{ row[0] }}
+    </td>
+    {{ row[1]|aspctcell("data-cell worst-time")|safe }}
+    {% for cr in row[2:] %}
+       {{ cr.pct_delta|aspctcell("data-cell worst-time")|safe }}
+    {% endfor %}
+  </tr>
+  {% endfor %}
+</table>
+{% endblock %}

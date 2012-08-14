@@ -3,6 +3,9 @@ import os
 import re
 import tempfile
 import time
+import csv
+import cStringIO
+import json
 
 import flask
 from flask import abort
@@ -14,6 +17,8 @@ from flask import render_template
 from flask import request
 from flask import url_for
 
+import sqlalchemy.sql
+
 import lnt.util
 import lnt.util.ImportData
 import lnt.util.stats
@@ -21,6 +26,7 @@ from lnt.server.ui.globals import db_url_for, v4_url_for
 import lnt.server.reporting.analysis
 import lnt.server.reporting.runs
 from lnt.server.ui.decorators import frontend, db_route, v4_route
+import lnt.server.ui.util
 
 ###
 # Root-Only Routes
@@ -492,7 +498,7 @@ def v4_graph(id):
         errorbar_data = []
         points_data = []
         pts = []
-        
+
         # Create region of interest for run data region if
         # we are performing a comparison.
         if compare_to:
@@ -502,7 +508,7 @@ def v4_graph(id):
                 convert_revision(start_rev),
                 convert_revision(end_rev)
             )
-        
+
         if normalize_by_median:
             normalize_by = 1.0/stats.median([min(values)
                                            for _,values in data])
@@ -572,14 +578,14 @@ def v4_graph(id):
                 style = "new Graph2D_LinePlotStyle(2, %r)" % (reglin_col,)
                 graph_plots.append("graph.addPlot([%s], %s);" % (
                         pts,style))
-        
-        # If we are comparing two revisions, 
+
+        # If we are comparing two revisions,
         if compare_to:
             reg_col = [0.0, 0.0, 1.0]
             graph_plots.append("graph.addPlot([%i, %i],%s);" % (
                     revision_range_region[0], revision_range_region[1],
                     "new Graph2D_RangePlotStyle(%r)" % reg_col))
-        
+
         # Add the points plot, if used.
         if points_data:
             pts_col = (0,0,0)
@@ -623,6 +629,97 @@ def v4_daily_report_overview():
     return redirect(v4_url_for("v4_daily_report",
                                year=date.year, month=date.month, day=date.day))
 
+@v4_route("/global_status")
+def v4_global_status():
+    from lnt.server.ui import util
+
+    ts = request.get_testsuite()
+
+    # Get the latest run.
+    latest = ts.query(ts.Run.start_time).\
+        order_by(ts.Run.start_time.desc()).first()
+
+    # If we found an entry, use that.
+    if latest is not None:
+        latest_date, = latest
+    else:
+        # Otherwise, just use today.
+        latest_date = datetime.date.today()
+
+    # Create a datetime for the day before the most recent run.
+    yesterday = latest_date - datetime.timedelta(days=1)
+
+    # Get the revision number for a nondefault baseline if we
+    # are given one.
+    revision = ts.Machine.DEFAULT_BASELINE_REVISION
+    field = ts.Sample.get_primary_fields().next()
+
+    # Get the list of all runs we might be interested in.
+    recent_runs = ts.query(ts.Run).filter(ts.Run.start_time > yesterday).all()
+
+    # Aggregate the runs by machine.
+    recent_runs_by_machine = util.multidict()
+    for run in recent_runs:
+        recent_runs_by_machine[run.machine] = run
+
+    # Get a sorted list of recent machines.
+    recent_machines = sorted(recent_runs_by_machine.keys(),
+                             key=lambda m: m.name)
+
+    # For each machine, build a table of the machine, the baseline run, and the
+    # most recent run. We also computed a list of all the runs we are reporting
+    # over.
+    machine_run_info = []
+    reported_run_ids = []
+    for machine in recent_machines:
+        runs = recent_runs_by_machine[machine]
+
+        # Get the baseline run for this machine.
+        baseline = machine.get_baseline_run(revision)
+
+        # Choose the "best" run to report on. We want the most recent one with
+        # the most recent order.
+        run = max(runs, key=lambda r: (r.order, r.start_time))
+
+        machine_run_info.append((baseline, run))
+        reported_run_ids.append(baseline.id)
+        reported_run_ids.append(run.id)
+
+    # Get the set all tests reported in the recent runs.
+    reported_tests = ts.query(ts.Test.id, ts.Test.name).filter(
+        sqlalchemy.sql.exists('*', sqlalchemy.sql.and_(
+            ts.Sample.run_id.in_(reported_run_ids),
+            ts.Sample.test_id == ts.Test.id))).all()
+
+    # Load all of the runs we are interested in.
+    runinfo = lnt.server.reporting.analysis.RunInfo(ts, reported_run_ids)
+
+    # Build the test matrix. This is a two dimensional table index by
+    # (machine-index, test-index), where each entry is the percent change.
+    test_table = []
+    for i,(test_id,test_name) in enumerate(reported_tests):
+        # Create the row, starting with the test name and worst entry.
+        row = [test_name, None]
+
+        # Compute comparison results for each machine.
+        row.extend(runinfo.get_run_comparison_result(run, baseline, test_id,
+                                                     field)
+                   for baseline,run in machine_run_info)
+
+        # Compute the worst cell value.
+        row[1] = max(cr.pct_delta
+                     for cr in row[2:])
+
+        test_table.append(row)
+
+    # Order the table by worst regression.
+    test_table.sort(key = lambda row: row[1], reverse=True)
+
+    return render_template("v4_global_status.html",
+                           ts=ts,
+                           tests=test_table,
+                           machines=recent_machines,
+                           selected_field=field)
 
 @v4_route("/daily_report/<int:year>/<int:month>/<int:day>")
 def v4_daily_report(year, month, day):
