@@ -40,6 +40,14 @@
   <div id="right-king-control" class="control-panel">
   </div>
   <div id="left-king-control" class="control-panel">  
+    <h3>Toggle Machine Visibility</h3>
+    <div id="toggle-machine-control-panel">
+      <ul>
+        {% for m in machines %}
+        <li><input machine="{{ m.name }}" id="checkbox-{{ m.get_css_name() }}" checked="checked" type="checkbox" onclick="toggle_column_visibility('{{ m.get_css_name() }}');">{{ m.name }}</input></li>
+        {% endfor %}
+      </ul>
+    </div>
   </div>
 </div>
 
