@@ -646,8 +646,8 @@ def v4_global_status():
     # Create a datetime for the day before the most recent run.
     yesterday = latest_date - datetime.timedelta(days=1)
 
-    # Get the revision number for a nondefault baseline if we
-    # are given one.
+    # Get the revision number for the default baseline and look up
+    # the fields we are interested in.
     revision = ts.Machine.DEFAULT_BASELINE_REVISION
     field = ts.Sample.get_primary_fields().next()
 
