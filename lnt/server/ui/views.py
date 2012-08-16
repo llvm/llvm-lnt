@@ -394,7 +394,16 @@ def v4_graph(id):
         request.args.get('show_failures'))
     options['normalize_by_median'] = normalize_by_median = bool(
         request.args.get('normalize_by_median'))
-
+    options['show_moving_average'] = moving_average = bool(
+        request.args.get('show_moving_average'))
+    options['show_moving_median'] = moving_median = bool(
+        request.args.get('show_moving_median'))
+    options['moving_window_size'] = moving_window_size = int(
+        request.args.get('moving_window_size', 10))
+    options['hide_highlight'] = bool(
+        request.args.get('hide_highlight'))    
+    show_highlight = not options['hide_highlight']
+    
     # Load the graph parameters.
     graph_tests = []
     for name,value in request.args.items():
@@ -495,10 +504,12 @@ def v4_graph(id):
         errorbar_data = []
         points_data = []
         pts = []
+        moving_median_data = []
+        moving_average_data = []
 
         # Create region of interest for run data region if
         # we are performing a comparison.
-        if compare_to:
+        if compare_to and show_highlight:
             start_rev = compare_to.order.llvm_project_revision
             end_rev = run.order.llvm_project_revision
             revision_range_region = (
@@ -511,7 +522,8 @@ def v4_graph(id):
                                            for _,values in data])
         else:
             normalize_by = 1.0
-        for x,orig_values in data:
+        for i in range(len(data)):
+            x, orig_values = data[i]
             values = [v*normalize_by for v in orig_values]
             min_value = min(values)
             pts.append((x, min_value))
@@ -534,9 +546,28 @@ def v4_graph(id):
                 med = stats.median(values)
                 mad = stats.median_absolute_deviation(values, med)
                 errorbar_data.append((x, med - mad, med + mad))
-
+            
+            if moving_average:
+                len_pts = len(pts)
+                start_index = max(0, i - moving_window_size)
+                end_index = min(len_pts, i + moving_window_size)
+                
+                window_pts = [x[1] for x in pts[start_index:end_index]]
+                window_average = sum(window_pts)/len(window_pts)
+                moving_average_data.append((pts[i][0], window_average))
+                
+            if moving_median:
+                len_pts = len(pts)
+                start_index = max(0, i - moving_window_size)
+                end_index = min(len_pts, i + moving_window_size)
+                
+                window_pts = sorted([x[1] for x in pts[start_index:end_index]])
+                median = window_pts[len(window_pts)/2]
+                moving_median_data.append((pts[i][0], median))
+        
         # Add the minimum line plot.
         num_points += len(data)
+        
         graph_plots.append("graph.addPlot([%s], %s);" % (
                         ','.join(['[%.4f,%.4f]' % (t,v)
                                   for t,v in pts]),
@@ -577,7 +608,7 @@ def v4_graph(id):
                         pts,style))
 
         # If we are comparing two revisions,
-        if compare_to:
+        if compare_to and show_highlight:
             reg_col = [0.0, 0.0, 1.0]
             graph_plots.append("graph.addPlot([%i, %i],%s);" % (
                     revision_range_region[0], revision_range_region[1],
@@ -598,6 +629,23 @@ def v4_graph(id):
                 ','.join(['[%.4f,%.4f,%.4f]' % (x,y_min,y_max)
                           for x,y_min,y_max in errorbar_data]),
                 "new Graph2D_ErrorBarPlotStyle(1, %r)" % (bar_col,)))
+        
+        # Add the moving average plot, if used.
+        if moving_average_data:
+            col = [0.32, 0.6, 0.0]
+            graph_plots.append("graph.addPlot([%s], %s);" % (
+                    ','.join(['[%.4f,%.4f]' % (t,v)
+                              for t,v in moving_average_data]),
+                    "new Graph2D_LinePlotStyle(1, %r)" % (col,)))
+
+        
+        # Add the moving median plot, if used.
+        if moving_median_data:
+            col = [0.75, 0.0, 1.0]
+            graph_plots.append("graph.addPlot([%s], %s);" % (
+                    ','.join(['[%.4f,%.4f]' % (t,v)
+                              for t,v in moving_median_data]),
+                    "new Graph2D_LinePlotStyle(1, %r)" % (col,)))            
 
     return render_template("v4_graph.html", ts=ts, run=run,
                            compare_to=compare_to, options=options,

@@ -69,6 +69,21 @@ function init() {
 <input type="checkbox" name="normalize_by_median" value="yes" {{
        'checked' if options.normalize_by_median else ""}}><br>
 
+<b>Show Moving Average</b>
+<input type="checkbox" name="show_moving_average" value="yes" {{
+       'checked' if options.show_moving_average else ""}}><br>
+
+<b>Show Moving Median</b>
+<input type="checkbox" name="show_moving_median" value="yes" {{
+       'checked' if options.show_moving_median else ""}}><br>
+
+<b>Moving Average/Median Window Size</b>
+<input type="text" name="moving_window_size" value="{{ options.moving_window_size }}"/><br>
+
+<b>Hide Revision Comparison Region Highlight</b>
+<input type="checkbox" name="hide_highlight" value="yes" {{
+       'checked' if options.hide_highlight else ""}}><br>
+
 {# Add all the hidden fields. #}
 {% for name,value in request.args.items() %}
   {% if name.startswith('test.') %}
