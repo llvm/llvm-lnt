@@ -671,7 +671,9 @@ def v4_graph(id):
             "shadowSize" : 0
             },
         "zoom" : {"interactive" : True },
-        "pan" : { "interactive" : True }
+        "pan" : { "interactive" : True },
+        "grid" : {
+            "hoverable" : True }
         }
 
     return render_template("v4_graph.html", ts=ts, run=run,
