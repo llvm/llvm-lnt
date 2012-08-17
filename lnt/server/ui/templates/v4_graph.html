@@ -41,6 +41,10 @@ function init() {
 
 {{ utils.render_popup_begin('view_options', 'View Options', true) }}
 <form action="" method="get">
+<b>Hide Line Plot:</b>
+<input type="checkbox" name="hide_lineplot" value="yes" {{
+       'checked' if options.hide_lineplot else ""}}><br>
+
 <b>Show Median Absolute Deviation:</b>
 <input type="checkbox" name="show_mad" value="yes" {{
        'checked' if options.show_mad else ""}}><br>

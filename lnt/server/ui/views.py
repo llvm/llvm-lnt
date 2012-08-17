@@ -383,6 +383,8 @@ def v4_graph(id):
 
     # Parse the view options.
     options = {}
+    options['hide_lineplot'] = bool(request.args.get('hide_lineplot'))
+    show_lineplot = not options['hide_lineplot']
     options['show_mad'] = show_mad = bool(request.args.get('show_mad'))
     options['show_stddev'] = show_stddev = bool(request.args.get('show_stddev'))
     options['show_points'] = show_points = bool(request.args.get('show_points'))
@@ -522,8 +524,7 @@ def v4_graph(id):
                                            for _,values in data])
         else:
             normalize_by = 1.0
-        for i in range(len(data)):
-            x, orig_values = data[i]
+        for x, orig_values in data:
             values = [v*normalize_by for v in orig_values]
             min_value = min(values)
             pts.append((x, min_value))
@@ -546,32 +547,41 @@ def v4_graph(id):
                 med = stats.median(values)
                 mad = stats.median_absolute_deviation(values, med)
                 errorbar_data.append((x, med - mad, med + mad))
-            
-            if moving_average:
-                len_pts = len(pts)
+        
+        # Compute the moving average and or moving median of our data if requested.
+        if moving_average or moving_median:
+            fun = None
+
+            def compute_moving_average(x, window, average_list, median_list):
+                average_list.append((x, lnt.util.stats.mean(window)))
+            def compute_moving_median(x, window, average_list, median_list):
+                median_list.append((x, lnt.util.stats.median(window)))
+            def compute_moving_average_and_median(x, window, average_list, median_list):
+                average_list.append((x, lnt.util.stats.mean(window)))
+                median_list.append((x, lnt.util.stats.median(window)))
+
+            if moving_average and moving_median:
+                fun = compute_moving_average_and_median
+            elif moving_average:
+                fun = compute_moving_average
+            else:
+                fun = compute_moving_median
+
+            len_pts = len(pts)
+            for i in range(len_pts):
                 start_index = max(0, i - moving_window_size)
                 end_index = min(len_pts, i + moving_window_size)
                 
                 window_pts = [x[1] for x in pts[start_index:end_index]]
-                window_average = sum(window_pts)/len(window_pts)
-                moving_average_data.append((pts[i][0], window_average))
-                
-            if moving_median:
-                len_pts = len(pts)
-                start_index = max(0, i - moving_window_size)
-                end_index = min(len_pts, i + moving_window_size)
-                
-                window_pts = sorted([x[1] for x in pts[start_index:end_index]])
-                median = window_pts[len(window_pts)/2]
-                moving_median_data.append((pts[i][0], median))
-        
-        # Add the minimum line plot.
-        num_points += len(data)
-        
-        graph_plots.append("graph.addPlot([%s], %s);" % (
-                        ','.join(['[%.4f,%.4f]' % (t,v)
-                                  for t,v in pts]),
-                        "new Graph2D_LinePlotStyle(1, %r)" % col))
+                fun(pts[i][0], window_pts, moving_average_data, moving_median_data)
+
+        # Add the minimum line plot, if requested.
+        if show_lineplot:
+            num_points += len(data)        
+            graph_plots.append("graph.addPlot([%s], %s);" % (
+                    ','.join(['[%.4f,%.4f]' % (t,v)
+                              for t,v in pts]),
+                    "new Graph2D_LinePlotStyle(1, %r)" % col))
 
         # Add regression line, if requested.
         if show_linear_regression:
