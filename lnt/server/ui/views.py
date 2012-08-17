@@ -540,13 +540,13 @@ def v4_graph(id):
             if show_stddev:
                 mean = stats.mean(values)
                 sigma = stats.standard_deviation(values)
-                errorbar_data.append((x, mean - sigma, mean + sigma))
+                errorbar_data.append((x, mean, sigma))
 
             # Add the MAD error bar, if requested.
             if show_mad:
                 med = stats.median(values)
                 mad = stats.median_absolute_deviation(values, med)
-                errorbar_data.append((x, med - mad, med + mad))
+                errorbar_data.append((x, med, mad))
         
         # Compute the moving average and or moving median of our data if requested.
         if moving_average or moving_median:
@@ -578,10 +578,9 @@ def v4_graph(id):
         # Add the minimum line plot, if requested.
         if show_lineplot:
             num_points += len(data)        
-            graph_plots.append("graph.addPlot([%s], %s);" % (
-                    ','.join(['[%.4f,%.4f]' % (t,v)
-                              for t,v in pts]),
-                    "new Graph2D_LinePlotStyle(1, %r)" % col))
+            graph_plots.append({
+                    "data" : pts,
+                    "color" : util.toColorString(col) })
 
         # Add regression line, if requested.
         if show_linear_regression:
@@ -606,63 +605,81 @@ def v4_graph(id):
             if info is not None:
                 slope, intercept,_,_,_ = info
 
-                reglin_col = [c*.5 for c in col]
-                pts = ','.join('[%.4f,%.4f]' % pt
-                               for pt in [(x_min, 0.0 * slope + intercept),
-                                          (x_max, 1.0 * slope + intercept)])
-                style = "new Graph2D_LinePlotStyle(4, %r)" % ([.7, .7, .7],)
-                graph_plots.append("graph.addPlot([%s], %s);" % (
-                        pts,style))
-                style = "new Graph2D_LinePlotStyle(2, %r)" % (reglin_col,)
-                graph_plots.append("graph.addPlot([%s], %s);" % (
-                        pts,style))
+                reglin_col = [c * .7 for c in col]
+                reglin_pts = [(x_min, 0.0 * slope + intercept),
+                              (x_max, 1.0 * slope + intercept)]
+                graph_plots.insert(0, {
+                        "data" : reglin_pts,
+                        "color" : util.toColorString(reglin_col),
+                        "lines" : {
+                            "lineWidth" : 2 },
+                        "shadowSize" : 4 })
 
         # If we are comparing two revisions,
         if compare_to and show_highlight:
             reg_col = [0.0, 0.0, 1.0]
-            graph_plots.append("graph.addPlot([%i, %i],%s);" % (
-                    revision_range_region[0], revision_range_region[1],
-                    "new Graph2D_RangePlotStyle(%r)" % reg_col))
+            graph_plots.insert(0, {
+                    "data" : revision_range_region,
+                    "color" : util.toColorString(reg_col) })
 
         # Add the points plot, if used.
         if points_data:
             pts_col = (0,0,0)
-            graph_plots.append("graph.addPlot([%s], %s);" % (
-                ','.join(['[%.4f,%.4f]' % (t,v)
-                            for t,v in points_data]),
-                "new Graph2D_PointPlotStyle(1, %r)" % (pts_col,)))
+            graph_plots.append({
+                    "data" : points_data,
+                    "color" : util.toColorString(pts_col),
+                    "lines" : {
+                        "show" : False },
+                    "points" : {
+                        "show" : True,
+                        "radius" : .25,
+                        "fill" : True } })
 
         # Add the error bar plot, if used.
         if errorbar_data:
             bar_col = [c*.7 for c in col]
-            graph_plots.append("graph.addPlot([%s], %s);" % (
-                ','.join(['[%.4f,%.4f,%.4f]' % (x,y_min,y_max)
-                          for x,y_min,y_max in errorbar_data]),
-                "new Graph2D_ErrorBarPlotStyle(1, %r)" % (bar_col,)))
+            graph_plots.append({
+                    "data" : errorbar_data,
+                    "lines" : { "show" : False },
+                    "color" : util.toColorString(bar_col),
+                    "points" : {
+                        "errorbars" : "y",
+                        "yerr" : { "show" : True,
+                                   "lowerCap" : "-",
+                                   "upperCap" : "-",
+                                   "lineWidth" : 1 } } })
         
         # Add the moving average plot, if used.
         if moving_average_data:
             col = [0.32, 0.6, 0.0]
-            graph_plots.append("graph.addPlot([%s], %s);" % (
-                    ','.join(['[%.4f,%.4f]' % (t,v)
-                              for t,v in moving_average_data]),
-                    "new Graph2D_LinePlotStyle(1, %r)" % (col,)))
+            graph_plots.append({
+                    "data" : moving_average_data,
+                    "color" : util.toColorString(col) })
 
         
         # Add the moving median plot, if used.
         if moving_median_data:
             col = [0.75, 0.0, 1.0]
-            graph_plots.append("graph.addPlot([%s], %s);" % (
-                    ','.join(['[%.4f,%.4f]' % (t,v)
-                              for t,v in moving_median_data]),
-                    "new Graph2D_LinePlotStyle(1, %r)" % (col,)))            
+            graph_plots.append({
+                    "data" : moving_median_data,
+                    "color" : util.toColorString(col) })
+
+    graph_options = {
+        "series" : {
+            "lines" : {
+                "lineWidth" : 1 },
+            "shadowSize" : 0
+            },
+        "zoom" : {"interactive" : True },
+        "pan" : { "interactive" : True }
+        }
 
     return render_template("v4_graph.html", ts=ts, run=run,
                            compare_to=compare_to, options=options,
                            num_plots=num_plots, num_points=num_points,
                            neighboring_runs=neighboring_runs,
-                           graph_plots=graph_plots, legend=legend,
-                           use_day_axis=use_day_axis)
+                           graph_plots=graph_plots, graph_options=graph_options,
+                           legend=legend, use_day_axis=use_day_axis)
 
 @v4_route("/daily_report")
 def v4_daily_report_overview():

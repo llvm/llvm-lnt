@@ -7,9 +7,20 @@
 {% set components = [(ts.name, v4_url_for("v4_overview")),
                      ('machine', v4_url_for("v4_machine", id=machine.id))] %}
 {% block head %}
-        <script src="{{ url_for('.static', filename='popup.js') }}"></script>
-        <script src="{{ url_for('.static', filename='sorttable.js') }}"></script>
-        <script src="{{ url_for('.static', filename='View2D.js') }}"></script>
+  <script src="{{ url_for('.static', filename='popup.js') }}"></script>
+  <script src="{{ url_for('.static', filename='sorttable.js') }}"></script>
+  <script language="javascript" type="text/javascript"
+          src="{{ url_for('.static',
+                          filename='jquery/1.5/jquery.min.js') }}"> </script>
+  <script language="javascript" type="text/javascript"
+          src="{{ url_for('.static',
+                          filename='flot/jquery.flot.min.js') }}"> </script>
+  <script language="javascript" type="text/javascript"
+          src="{{ url_for('.static',
+                          filename='flot/jquery.flot.navigate.min.js') }}"> </script>
+  <script language="javascript" type="text/javascript"
+          src="{{ url_for('.static',
+                          filename='flot/jquery.flot.errorbars.js') }}"> </script>
 {% endblock %}
 
 {% block title %}Graph{% endblock %}
@@ -18,20 +29,11 @@
 {% block onload %}init(){% endblock %}
 {% block javascript %}
 function init() {
-    graph = new Graph2D("graph");
-    graph.clearColor = [1, 1, 1];
+  var graph = $("#graph");
 
-{% for plot in graph_plots %}
-    {{ plot }}
-{% endfor %}
-
-{% if use_day_axis %}
-    graph.xAxis.format = graph.xAxis.formats.day;
-{% else %}
-    graph.xAxis.format = graph.xAxis.formats.normal;
-{% endif %}
-
-    graph.draw();
+  var graph_plots = {{graph_plots|tojson|safe}};
+  var graph_options = {{graph_options|tojson|safe}};
+  $.plot(graph, graph_plots, graph_options);
 }
 {% endblock %}
 
@@ -103,7 +105,7 @@ function init() {
 <table>
 <tr>
 <td rowspan=2 valign="top">
-  <canvas id="graph" width="600" height="400"></canvas>
+  <div id="graph" style="margin:0px;width:600px;height:400px;"></div>
 </td>
 <td valign="top">
 <table cellspacing=4 border=1>
@@ -120,9 +122,9 @@ function init() {
 </td></tr>
 <tr><td align="right" valign="bottom">
 <font size="-2">
-Shift-Left Mouse: Pan<br>
-Alt/Meta-Left Mouse: Zoom<br>
-Wheel: Zoom (<i>Shift Slows</i>)<br>
+Left Mouse: Pan<br>
+Double Left Mouse: Zoom<br>
+Wheel: Zoom<br>
 </font>
 </td></tr>
 </table>
