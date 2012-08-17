@@ -1,6 +1,11 @@
 import colorsys
 import math
 
+def toColorString(col):
+    r,g,b = [clamp(int(v*255), 0, 255)
+             for v in col]
+    return "#%02x%02x%02x" % (r,g,b)
+
 def detectCPUs():
     """
     Detects the number of CPUs on a system. Cribbed from pp.
@@ -204,9 +209,7 @@ class PctCell:
         return '%.*f%%' % (self.precision, self.value*100)
 
     def getColorString(self):
-        r,g,b = [clamp(int(v*255), 0, 255)
-                 for v in self.getColor()]
-        return "#%02x%02x%02x" % (r,g,b)
+        return toColorString(self.getColor())
     
     def render(self, class_=None, style=None, attributes=None):
         attrs = []
