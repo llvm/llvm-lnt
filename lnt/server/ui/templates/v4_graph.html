@@ -17,10 +17,13 @@
                           filename='flot/jquery.flot.min.js') }}"> </script>
   <script language="javascript" type="text/javascript"
           src="{{ url_for('.static',
+                          filename='flot/jquery.flot.errorbars.js') }}"> </script>
+  <script language="javascript" type="text/javascript"
+          src="{{ url_for('.static',
                           filename='flot/jquery.flot.navigate.min.js') }}"> </script>
   <script language="javascript" type="text/javascript"
           src="{{ url_for('.static',
-                          filename='flot/jquery.flot.errorbars.js') }}"> </script>
+                          filename='flot/jquery.flot.selection.min.js') }}"> </script>
 {% endblock %}
 
 {% block title %}Graph{% endblock %}
@@ -31,15 +34,46 @@
 var g = {}
 
 function init() {
+  // Set up the primary graph.
   var graph = $("#graph");
-
   var graph_plots = {{graph_plots|tojson|safe}};
-  var graph_options = {{graph_options|tojson|safe}};
+  var graph_options = {
+      series : {
+        lines : {
+          lineWidth : 1 },
+        shadowSize : 0
+        },
+      zoom : { interactive : true },
+      pan : { interactive : true },
+      grid : {
+        hoverable : true }
+      };
   $.plot(graph, graph_plots, graph_options);
 
   // Add tooltips.
   graph.bind("plothover", function(e,p,i) {
     update_tooltip(e, p, i, show_tooltip); });
+
+  // Set up the overview graph.
+  var overview = $("#overview")
+  var overview_plots = {{overview_plots|tojson|safe}};
+  $.plot(overview, overview_plots, {
+    series : {
+      lines : {
+        lineWidth : 1 },
+      shadowSize : 0 },
+    selection: { mode: "x" },
+    yaxis: { ticks: [] } });
+
+  // Connect selection on the overview graph to the main plot.
+  $("#overview").bind("plotselected", function (event, ranges) {
+    // Set the zooming on the plot.
+    $.plot(graph, graph_plots,
+      $.extend(true, {}, graph_options, {
+        xaxis: { min: ranges.xaxis.from, max: ranges.xaxis.to },
+        yaxis: { min: ranges.yaxis.from, max: ranges.yaxis.to }
+      }));
+  });
 }
 
 // Show our overlay tooltip.
@@ -147,7 +181,8 @@ function update_tooltip(event, pos, item, show_fn) {
 <table>
 <tr>
 <td rowspan=2 valign="top">
-  <div id="graph" style="margin:0px;width:600px;height:400px;"></div>
+  <div id="graph" style="width:600px;height:400px;"></div>
+  <div id="overview" style="width:600px;height:80px;"></div>
 </td>
 <td valign="top">
 <table cellspacing=4 border=1>

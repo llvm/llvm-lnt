@@ -436,6 +436,7 @@ def v4_graph(id):
     # Build the graph data.
     legend = []
     graph_plots = []
+    overview_plots = []
     num_points = 0
     num_plots = len(graph_tests)
     use_day_axis = None
@@ -575,6 +576,11 @@ def v4_graph(id):
                 window_pts = [x[1] for x in pts[start_index:end_index]]
                 fun(pts[i][0], window_pts, moving_average_data, moving_median_data)
 
+        # On the overview, we always show the line plot.
+        overview_plots.append({
+                "data" : pts,
+                "color" : util.toColorString(col) })
+
         # Add the minimum line plot, if requested.
         if show_lineplot:
             num_points += len(data)        
@@ -664,24 +670,13 @@ def v4_graph(id):
                     "data" : moving_median_data,
                     "color" : util.toColorString(col) })
 
-    graph_options = {
-        "series" : {
-            "lines" : {
-                "lineWidth" : 1 },
-            "shadowSize" : 0
-            },
-        "zoom" : {"interactive" : True },
-        "pan" : { "interactive" : True },
-        "grid" : {
-            "hoverable" : True }
-        }
-
     return render_template("v4_graph.html", ts=ts, run=run,
                            compare_to=compare_to, options=options,
                            num_plots=num_plots, num_points=num_points,
                            neighboring_runs=neighboring_runs,
-                           graph_plots=graph_plots, graph_options=graph_options,
-                           legend=legend, use_day_axis=use_day_axis)
+                           graph_plots=graph_plots,
+                           overview_plots=overview_plots, legend=legend,
+                           use_day_axis=use_day_axis)
 
 @v4_route("/daily_report")
 def v4_daily_report_overview():
