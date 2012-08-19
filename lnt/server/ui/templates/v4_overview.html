@@ -3,74 +3,72 @@
 {% extends "layout.html" %}
 {% set components = [(testsuite_name, v4_url_for("v4_overview"))] %}
 {% block title %}Overview{% endblock %}
+
+{% block head %}
+<style type="text/css">
+
+a {
+  color: #000;
+  text-decoration: none;
+}
+
+div .dashboard {
+  padding: 0.8em;
+  -moz-border-radius: 10px;
+  -webkit-border-radius: 10px;
+  border-radius: 10px;
+}
+
+div #dashboard_content {
+  background-color: #DFE0E3;
+  width: 600px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+div .dashboard_box {
+  background-color: #AFA3A3;
+  width: 200px;
+  margin: 1em;
+  position: relative;
+  display: inline-block;
+  text-align: center;
+}
+
+</style>
+{% endblock %}
+
 {% block body %}
 
-<center><h3>Compiler Status Pages</h3></center>
-<a href="{{ v4_url_for('v4_global_status', field=2) }}">Compile Time</a>
-<a href="{{ v4_url_for('v4_global_status', field=3) }}">Execution Time</a>
+<div id="dashboard_content" class="dashboard">
 
-{# Find recent runs. #}
-<center><h3>Submission Overview</h3></center>
-<table width="100%%">
-  <tr>
-    <td valign="top" width="50%">
-      <center>
-      <h3>Active Machines</h3>
-      <table class="sortable" border=1>
-        <thead>
-        <tr>
-          <th>Latest Submission</th>
-          <th>Machine</th>
-          <th>Results</th>
-        </tr>
-        </thead>
+<a href="{{ v4_url_for('v4_recent_activity') }}">
+  <div class="dashboard_box dashboard">
+    <h2>Recent Activity</h2>
+    <p>display recent runs and active machines</p>
+  </div>
+</a>
+<a href="{{ v4_url_for('v4_global_status') }}">
+  <div class="dashboard_box dashboard">
+    <h2>Global Status</h2>
+    <p>show baseline comparison for all tests and machines</p>
+  </div>
+</a>
 
-{# Show the most active machines. #}
-{% for machine_name,r in active_machines|dictsort %}
-      <tr>
-        <td>{{r.start_time}}</td>
-        <td align=left><a href="{{v4_url_for('v4_machine', id=r.machine.id)}}">{{
-            r.machine.name}}:{{r.machine.id}}</a></td>
-        <td><a href="{{v4_url_for('v4_run', id=r.id)}}">
-            View Results</a></td>
-      </tr>
-{% endfor %}
+<a href="{{ v4_url_for('v4_daily_report_overview') }}">
+  <div class="dashboard_box dashboard">
+    <h2>Daily Report</h2>
+    <p>daily performance change report (WIP)</p>
+  </div>
+</a>
 
-      </table>
-      </center>
-    </td>
-    <td valign="top">
-      <center>
-      <h3>Recent Submissions</h3>
-      <table class="sortable" border=1>
-        <thead>
-        <tr>
-          <th>Run Order</th>
-          <th>Start Time</th>
-          <th>Duration</th>
-          <th>Machine</th>
-          <th>Results</th>
-        </tr>
-        </thead>
+<a href="{{ v4_url_for('v4_summary_report') }}">
+  <div class="dashboard_box dashboard">
+    <h2>Summary Report</h2>
+    <p>high-level performance summary charts (WIP)</p>
+  </div>
+</a>
 
-{# Show the active submissions. #}
-{% for r,run_order in active_submissions %}
-{% set m = r.machine %}
-      <tr>
-        <td><a href="{{v4_url_for('v4_order', id=r.order.id)}}">{{
-            run_order}}</a></td></td>
-        <td>{{r.start_time}}</td>
-        <td>{{r.end_time - r.start_time}}</td>
-        <td align=left><a href="{{v4_url_for('v4_machine',id=m.id)}}">{{
-            m.name}}:{{m.id}}</a></td>
-        <td><a href="{{v4_url_for('v4_run', id=r.id)}}">
-            View Results</a></td>
-      </tr>
-{% endfor %}
-      </table>
-      </center>
-    </td>
-  </tr>
-</table>
+</div>
 
 {% endblock %}

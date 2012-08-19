@@ -122,6 +122,11 @@ def submit_run():
 
 @v4_route("/")
 def v4_overview():
+    return render_template("v4_overview.html",
+                           testsuite_name=g.testsuite_name)
+
+@v4_route("/recent_activity")
+def v4_recent_activity():
     ts = request.get_testsuite()
 
     # Get the most recent runs in this tag, we just arbitrarily limit to looking
@@ -141,7 +146,7 @@ def v4_overview():
     active_submissions = [(r, r.order.llvm_project_revision)
                           for r in recent_runs[:N]]
 
-    return render_template("v4_overview.html",
+    return render_template("v4_recent_activity.html",
                            testsuite_name=g.testsuite_name,
                            active_machines=active_machines,
                            active_submissions=active_submissions)
