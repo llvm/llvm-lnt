@@ -1,26 +1,114 @@
-/* General Styles */
-
-body {
-    color:#000000;
-    background-color:#ffffff
-}
+/* Body and Top-Level Containers */
 
 body {
     font-family: Helvetica, sans-serif;
-    font-size:9pt
+    font-size: 9pt;
+    background-color : #FFFFFF;
+    margin: 0;
+    padding: 0;
 }
 
-h1 {
-    font-size: 14pt;
+.container {
+    padding: 0px 10px 0px 10px;
 }
 
-h2 {
-    font-size: 12pt;
+#content {
+    margin: 5px;
 }
 
-table {
-    font-size:9pt
+.clearfix {
+    display: block;
 }
+.clearfix::after {
+    content: ".";
+    display: block;
+    height: 0;
+    clear: both;
+    visibility: hidden;
+}
+
+/* Top-Level Content */
+
+.top-level-content { }
+
+footer {
+    padding : 5px 0px 5px 0px;
+    border-top: 2px solid #DFE0E3;
+    position : relative;
+    line-height: 0.3em;
+}
+
+#footer-content {
+    padding-left: 10px;
+    margin: 0 auto;
+}
+
+/* Page Header */
+
+#header {
+    font-family: "Lucida Grande", "Lucida Sans Unicode", Arial, Verdana, Helvetica, sans-serif;
+    font-size: small;
+
+    background: #DFE0E3;
+    background: -moz-linear-gradient(#DFE0E3,#CFCFCF);
+    background: -webkit-linear-gradient(#DFE0E3,#CFCFCF);
+    -ms-filter: "progid:DXImageTransform.Microsoft.gradient(startColorstr='#DFE0E3',endColorstr='#CFCFCF')";
+    position: relative;
+    border-bottom: 1px solid #DFE0E3;
+    box-shadow: 0 0px,0 0 5px rgba(0, 0, 0, 0.2)
+}
+#header a {
+    color: #000;
+    text-decoration: none;
+}
+
+#header .header-title {
+    float: left;
+    position: relative;
+    padding: 9px 0 0 0;
+    zoom: 1;
+}
+#header .header-title h2 {
+    font-size: 2em;
+    position: absolute;
+    margin: 0;
+    padding: 0;
+    top: 0;
+    left: 0;
+}
+
+#nav-breadcrumbs {
+    float: left;
+    clear: none;
+    width: auto;
+    border-left: 1px solid #DFE0E3;
+    box-shadow: -1px 0 0 #BFC3C3;
+    padding: 3px 10px 3px 10px;
+    margin: 0 0 0 71px;
+}
+
+#nav-dbselector {
+    float: right;
+    line-height: 20px;
+    padding: 3px 10px 3px 10px;
+}
+
+.nav {
+    float: left;
+    margin: 0 0 0 20px;
+    list-style: none;
+    line-height: 26px;
+}
+#navlist {
+    margin: 0;
+    padding: 0;
+}
+.nav li {
+    float: left;
+    margin: 0 10px 0 0;
+}
+
+/* Content */
 
 table {
     border-spacing: 0px;
@@ -50,6 +138,8 @@ tbody.scrollContent {
     overflow:auto
 }
 
+/* Popups */
+
 .hideable {
     border-width:thin;
     border-color:background;
@@ -57,35 +147,6 @@ tbody.scrollContent {
     background: #F8F8FF;
     padding:8px;
 }
-
-/* Nav Header Styles */
-nav.zorg_navheader {
-  background-color: #cccccc;  
-  width: 100%;
-  height: 2.5em;
-  font-weight: bolder;
-  
-  border-style: solid;
-  border-width: 1px;  
-  padding-top: 0.5em;
-}
-
-span.zorg_navheader_dbname {
-  float: left;
-  margin-top: 0.35em;
-  margin-left: 1em;
-}
-span.zorg_navheader_dbselector {
-  float: right;
-  margin-right: 1em;
-}
-
-/* Footer Styles */
-footer {
-    line-height: 0.3em;
-}
-
-/* Nested popups */
 
 .hideable_1 {
     border-width:thin;

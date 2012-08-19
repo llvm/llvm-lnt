@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <META http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+  <meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+  <meta name="viewport" content="width=device-width" />
   <link rel="icon" type="image/png"
         href="{{ url_for('.static', filename='favicon.ico') }}">
   <title>{{old_config.name}}{%
@@ -19,53 +20,64 @@
 {% else %}
 <body>
 {% endif %}
+  {# Top-Level Content (non-footer) #}
+  <div class="top-level-content">
+    {# Page Header #}
+    <nav id="header" class="clearfix">
+      <div class="container">
+        {# LNT Instance Title #}
+        <a href="{{url_for('index')}}" class="header-title">
+          <h2>{{old_config.name}}</h2>
+        </a>
 
-{# Header #}
+        {# Navigation Breadcrumbs #}
+        <span id="nav-breadcrumbs">
+          <ul id="navlist" class="nav">
+            {% for short_name,path in components %}
+            <li><a href="{{ path }}">{{short_name}}</a></li>
+            <li>|</li>
+            {% endfor %}
+            <li>{{ self.title() }}</li>
+          </ul>
+        </span>
 
-{# Database selection header. #}
-<nav class="zorg_navheader">
-  <span class="zorg_navheader_dbname">[{{ g.db_name }}]</span>
-  <span class="zorg_navheader_dbselector">
-    <form method="get" action="{{ url_for('select_db') }}">
-      <input type="hidden" name="path" value="{{ request.path }}"/>
-      <label>Database:</label>
-      <select name="db" onchange="submit()">
-        {% for name in old_config.databases.keys()|sort %}
-        <option{{" selected" if name == g.db_name else ""}}>{{ name }}</option>
-        {% endfor %}
-      </select>
-      <input type="submit" value="Go"/>
-    </form>
-  </span>
-</nav>
+        {# Database Selector #}
+        <span id="nav-dbselector">
+          <form method="get" action="{{ url_for('select_db') }}" class="nav">
+            <input type="hidden" name="path" value="{{ request.path }}"/>
+            <label>Database:</label>
+            <select name="db" onchange="submit()">
+              {% for name in old_config.databases.keys()|sort %}
+              <option{{" selected" if name == g.db_name else ""}}>{{ name }}</option>
+              {% endfor %}
+            </select>
+            <input type="submit" value="Go"/>
+          </form>
+        </span>
+      </div>
+    </nav>
 
-{# Component links #}
-<h2><a href="{{url_for('index')}}">{{old_config.name}}</a>
-{% for short_name,path in components %}
-  : <a href="{{ path }}">{{short_name}}</a>
-{% endfor %}
- - {{ self.title() }}</h2>
+    {# Page Content #}
+    <div id="content" class="container">{%
+      block body %}{% endblock %}
+    </div>
+  </div>
 
-{# Actual body #}
-<div class="body">{% 
-  block body %}{% endblock %}
-</div>
-
-{# Include any database log, if present. #}
-{% if g.db_log is defined %}
-<hr>
-
-<h3>SQL Log</h3>
-<pre>{{g.db_log.getvalue()}}</pre>
-{% endif %}
-
-{# Footer #}
-<hr>
-<footer>
-<p>LNT Version: {{ app.version }}</p>
-<p>Server Started: {{ app.start_time|asusertime }}</p>
-<p>Generated: {{ request.request_time|asusertime }}</p>
-<p>Render Time: {{ "%.2fs" % request.elapsed_time() }}</p>
-</footer>
+  {# Page Footer #}
+  <footer class="container clearfix">
+    <div id="footer-content">
+      {# Include any database log, if present. #}
+      {% if g.db_log is defined %}
+      <h3>SQL Log</h3>
+      <pre>{{g.db_log.getvalue()}}</pre>
+      <hr>
+      {% endif %}
+      <p>LNT Version: {{ app.version }}</p>
+      <p>Server Started: {{ app.start_time|asusertime }}</p>
+      <p>Generated: {{ request.request_time|asusertime }}</p>
+      <p>Render Time: {{ "%.2fs" % request.elapsed_time() }}</p>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
