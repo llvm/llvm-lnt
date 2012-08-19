@@ -21,7 +21,7 @@
 <body>
 {% endif %}
   {# Top-Level Content (non-footer) #}
-  <div class="top-level-content">
+  <div id="top-level-content">
     {# Page Header #}
     <nav id="header" class="clearfix">
       <div class="container">
@@ -61,23 +61,23 @@
     <div id="content" class="container">{%
       block body %}{% endblock %}
     </div>
+
+    {# Force space for footer #}
+    <div id="header-push"></div>
   </div>
 
   {# Page Footer #}
   <footer class="container clearfix">
-    <div id="footer-content">
-      {# Include any database log, if present. #}
-      {% if g.db_log is defined %}
-      <h3>SQL Log</h3>
-      <pre>{{g.db_log.getvalue()}}</pre>
-      <hr>
-      {% endif %}
-      <p>LNT Version: {{ app.version }}</p>
-      <p>Server Started: {{ app.start_time|asusertime }}</p>
-      <p>Generated: {{ request.request_time|asusertime }}</p>
-      <p>Render Time: {{ "%.2fs" % request.elapsed_time() }}</p>
-      </div>
-    </div>
-  </div>
+    {# Include any database log, if present. #}
+    {% if g.db_log is defined %}
+    <h3>SQL Log</h3>
+    <pre>{{g.db_log.getvalue()}}</pre>
+    <hr>
+    {% endif %}
+    <p>LNT Version: {{ app.version }}</p>
+    <p>Server Started: {{ app.start_time|asusertime }}</p>
+    <p>Generated: {{ request.request_time|asusertime }}</p>
+    <p>Render Time: {{ "%.2fs" % request.elapsed_time() }}</p>
+  </footer>
 </body>
 </html>

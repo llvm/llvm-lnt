@@ -1,5 +1,9 @@
 /* Body and Top-Level Containers */
 
+html, body {
+    height: 100%;
+}
+
 body {
     font-family: Helvetica, sans-serif;
     font-size: 9pt;
@@ -27,20 +31,27 @@ body {
     visibility: hidden;
 }
 
-/* Top-Level Content */
+/* Top-Level Content Wrapper and Footer Positioning */
 
-.top-level-content { }
-
-footer {
-    padding : 5px 0px 5px 0px;
-    border-top: 2px solid #DFE0E3;
-    position : relative;
-    line-height: 0.3em;
+#top-level-content {
+    min-height: 100%;
+    height: auto !important;
+    height: 100%;
+    margin: 0 auto -6em;
 }
 
-#footer-content {
-    padding-left: 10px;
-    margin: 0 auto;
+#header-push {
+    height: 6em;
+}
+
+footer {
+    height: 6em;
+    background: #CFCFCF;
+    padding: 5px 0px 5px 0px;
+    border-top: 2px solid #DFE0E3;
+}
+footer p {
+    margin: 0;
 }
 
 /* Page Header */
