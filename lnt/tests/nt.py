@@ -285,8 +285,12 @@ def load_nt_report_file(report_path, opts):
     sample_keys = []
     if opts.test_style == "simple":
         test_namespace = 'nts'
-        sample_keys.append(('compile', 'CC_Time', None, 'CC'))
-        sample_keys.append(('exec', 'Exec_Time', None, 'Exec'))
+        time_stat = ''
+        # for now, user time is the unqualified Time stat
+        if opts.test_time_stat == "real":
+            time_stat = 'Real_'
+        sample_keys.append(('compile', 'CC_' + time_stat + 'Time', None, 'CC'))
+        sample_keys.append(('exec', 'Exec_' + time_stat + 'Time', None, 'Exec'))
     else:
         test_namespace = 'nightlytest'
         sample_keys.append(('gcc.compile', 'GCCAS', 'time'))
@@ -1016,6 +1020,10 @@ class NTTest(builtintest.BuiltinTest):
         group.add_option("", "--test-style", dest="test_style",
                          help="Set the test style to run [%default]",
                          choices=('nightly', 'simple'), default='simple')
+
+        group.add_option("", "--test-time-stat", dest="test_time_stat",
+                         help="Set the test timing statistic to gather [%default]",
+                         choices=('user', 'real'), default='user')
 
         group.add_option("", "--disable-cxx", dest="test_cxx",
                          help="Disable C++ tests",
