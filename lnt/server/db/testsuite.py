@@ -81,7 +81,16 @@ class TestSuite(Base):
         return '%s%r' % (self.__class__.__name__, (self.name, self.db_key_name,
                                                    self.version))
 
-class MachineField(Base):
+class FieldMixin(object):
+    
+    @property
+    def title(self):
+        """ Return a title for the given field by replacing all _ with
+            spaces and that has every word capitalized.
+        """
+        return self.name.replace("_", " ").title()
+
+class MachineField(FieldMixin, Base):
     __tablename__ = 'TestSuiteMachineFields'
 
     id = Column("ID", Integer, primary_key=True)
@@ -105,7 +114,7 @@ class MachineField(Base):
     def __repr__(self):
         return '%s%r' % (self.__class__.__name__, (self.name, self.info_key))
 
-class OrderField(Base):
+class OrderField(FieldMixin, Base):
     __tablename__ = 'TestSuiteOrderFields'
 
     id = Column("ID", Integer, primary_key=True)
@@ -137,7 +146,7 @@ class OrderField(Base):
         return '%s%r' % (self.__class__.__name__, (self.name, self.info_key,
                                                    self.ordinal))
 
-class RunField(Base):
+class RunField(FieldMixin, Base):
     __tablename__ = 'TestSuiteRunFields'
 
     id = Column("ID", Integer, primary_key=True)
@@ -161,7 +170,7 @@ class RunField(Base):
     def __repr__(self):
         return '%s%r' % (self.__class__.__name__, (self.name, self.info_key))
 
-class SampleField(Base):
+class SampleField(FieldMixin, Base):
     __tablename__ = 'TestSuiteSampleFields'
 
     id = Column("ID", Integer, primary_key=True)

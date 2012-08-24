@@ -49,9 +49,7 @@
         </style>
 {% endblock %}
 
-{% block title %}Global Status - {{
-        selected_field.name.replace("_", " ").title() }}
-{% endblock %}
+{% block title %}Global Status - {{ selected_field.title }}{% endblock %}
 
 {% block body %}
 {# 
