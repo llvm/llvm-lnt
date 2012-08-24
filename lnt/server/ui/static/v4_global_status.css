@@ -89,21 +89,6 @@ div.control-panel table {
     padding: 0px;    
 }
 
-/* Revision control panel styles */
-
-div#revision-control-panel {
-    height: auto;
-}
-
-div#revision-control-panel label {
-    width: 30%;
-    display: block;
-}
-
-div#revision-control-panel input.baseline-form {
-    width: 60%;
-    display: block;
-}
 
 /* jQuery Accordion Styling */
 
