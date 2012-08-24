@@ -89,9 +89,3 @@ div.control-panel table {
     padding: 0px;    
 }
 
-
-/* jQuery Accordion Styling */
-
-h3.ui-state-focus {
-    outline: none;
-}

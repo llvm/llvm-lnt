@@ -18,13 +18,6 @@ v4_global_status = {};
         // Create a global variable for table.
         g.table = $('#data-table')[0];
         
-        // Make left king control an accordion.
-        $('#left-king-control').accordion({
-            collapsible: true,
-            autoHeight: false,
-            active: 1
-        });
-        
         // Make our table headers fixed when we scroll.
         $('table#data-table th').each(function(i,v) {
             // Ensure that the headers of our table do not

@@ -103,16 +103,6 @@
         {% endfor %}
       </ul>
     </div>
-    <h3>Preconfigured Data Views</h3>
-    <div id="preconfigured-groups-control-panel">
-      <ul>
-        {% for group in groups %}
-           <li><button onclick="v4_global_status.set_table_view('{{ group }}');">{{ group }}</button></li>
-        {% endfor %}
-
-        <li><button onclick="v4_global_status.reset_table();">Reset Table</button></li>
-      </ul>
-    </div>
   </div>
 </div>
 
