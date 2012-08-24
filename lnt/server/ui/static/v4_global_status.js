@@ -97,37 +97,6 @@ v4_global_status = {};
     }
     
     /* Exported Functions */
-
-    /*
-     We create a specific view by hiding all cells which have the
-     hidenot-<groupname> as a className.
-    */
-    m.set_table_view = function(_view_name) {
-        var view_name = _view_name;
-        var classname = 'hidenot-' + view_name;
-        
-        // Hide Columns.
-        var table = g.table;
-        if ($(table).hasClass(view_name)) {
-            table.className = 'sortable_rev';
-        } else {
-            table.className = 'sortable_rev ' + classname;
-        }
-        
-        // Sync checkboxes.
-        $('input:checkbox').each(function(i, val) {
-            var machine = val.getAttribute("machine");
-            if (machine.indexOf(view_name) != -1) {
-                val.checked = true;
-                val.disabled = false;
-            } else {
-                val.checked = false;
-                val.disabled = true;
-            }
-        });
-        
-        m.recompute_worst_times();
-    };
     
     m.reset_table = function() {
         g.table.className = 'sortable_rev';
