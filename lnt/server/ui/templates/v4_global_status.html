@@ -74,9 +74,9 @@
               <select name="field" class="field-form">
                 {% for f in fields %}
                   {% if f == selected_field %}
-                    <option value="{{ f.id }}" selected="selected">{{ f.title }}</option>
+                    <option value="{{ f.name }}" selected="selected">{{ f.title }}</option>
                   {% else %}
-                    <option value="{{ f.id }}">{{ f.title }}</option>
+                    <option value="{{ f.name }}">{{ f.title }}</option>
                   {% endif %}
                 {% endfor %}
               </select>

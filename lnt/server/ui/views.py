@@ -708,7 +708,8 @@ def v4_global_status():
     from lnt.server.ui import util
 
     ts = request.get_testsuite()
-    fields = [f for f in ts.Sample.get_primary_fields()]
+    primary_fields = list(ts.Sample.get_primary_fields())
+    fields = dict((f.name, f) for f in primary_fields)
     
     # Get the latest run.
     latest = ts.query(ts.Run.start_time).\
@@ -727,7 +728,7 @@ def v4_global_status():
     # Get arguments.
     revision = int(request.args.get('revision',
                                     ts.Machine.DEFAULT_BASELINE_REVISION))
-    field = fields[int(request.args.get('field', 2)) - 2] # 2 is for compile time    
+    field = fields.get(request.args.get('field', None), primary_fields[0])
     
     # Get the list of all runs we might be interested in.
     recent_runs = ts.query(ts.Run).filter(ts.Run.start_time > yesterday).all()
@@ -828,7 +829,7 @@ def v4_global_status():
                            machines=recent_machines,
                            machine_groups_map=machine_groups_map,
                            groups = list(grouping_set),
-                           fields = fields,
+                           fields = primary_fields,
                            baseline_types = baseline_types,
                            selected_field=field,
                            selected_baseline_type=baseline_type,
