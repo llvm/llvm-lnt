@@ -747,11 +747,7 @@ def v4_global_status():
     # over.
     machine_run_info = []
     reported_run_ids = []
-
-    # Create groupings based off of the names of our input machines.    
-    grouping_set = set(['O3']) # Due to the default way we name our machines,
-                               # we need to add O3 since no O0/Os => O3.
-    machine_groups_map = {}
+    
     for machine in recent_machines:
         runs = recent_runs_by_machine[machine]
 
@@ -765,30 +761,7 @@ def v4_global_status():
         machine_run_info.append((baseline, run))
         reported_run_ids.append(baseline.id)
         reported_run_ids.append(run.id)
-
-        machine_groupings = machine.name.split('.')
-        machine_groups_map[machine] = machine_groupings
-        grouping_set = grouping_set.union(machine_groupings)
-
-    # Invert machine name to groupings map and add in inverse names as
-    # classname with the not-prefix. This allows us to hide certain
-    # columns by changing the class on the table.
-    for machine in machine_groups_map:
-        groups = machine_groups_map[machine]
-        
-        # If a machine does not have O0 or Os in its name, we treat it
-        # as an O3 run. This is to be compatible with our current
-        # naming scheme.
-        if not 'O0' in groups and not 'Os' in groups:
-            groups.append('O3')
-        
-        # Add in inverse groups.
-        groups.extend("not-" + x for x in grouping_set.difference(groups))
-        
-        # Join together all groups so we can just add it to a base css
-        # class string.
-        machine_groups_map[machine] = ' '.join(groups)
-
+    
     # Get the set all tests reported in the recent runs.
     reported_tests = ts.query(ts.Test.id, ts.Test.name).filter(
         sqlalchemy.sql.exists('*', sqlalchemy.sql.and_(
@@ -819,22 +792,13 @@ def v4_global_status():
     # Order the table by worst regression.
     test_table.sort(key = lambda row: row[1], reverse=True)
     
-    baseline_types = []
-    baseline_type = None
-    date = None
-    
     return render_template("v4_global_status.html",
                            ts=ts,
                            tests=test_table,
                            machines=recent_machines,
-                           machine_groups_map=machine_groups_map,
-                           groups = list(grouping_set),
                            fields = primary_fields,
-                           baseline_types = baseline_types,
                            selected_field=field,
-                           selected_baseline_type=baseline_type,
-                           selected_revision=revision,
-                           selected_date=date)
+                           selected_revision=revision)
 
 @v4_route("/daily_report/<int:year>/<int:month>/<int:day>")
 def v4_daily_report(year, month, day):
