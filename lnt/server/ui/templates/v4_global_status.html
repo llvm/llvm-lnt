@@ -39,6 +39,12 @@
              }
           {% endfor %}
         </style>
+        
+        <script language="javascript" type="text/javascript">
+          $(document).ready(function() {
+            v4_global_status.init("{{ selected_field.index }}");
+          });
+        </script>
 {% endblock %}
 
 {% block title %}Global Status - {{ selected_field.title }}{% endblock %}

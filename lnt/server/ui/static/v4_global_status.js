@@ -14,7 +14,9 @@ v4_global_status = {};
     var g = {};
     
     /* Initialization */
-    $(document).ready(function() {
+    m.init = function(field) {
+        g.field = field;
+        
         // Create a global variable for table.
         g.table = $('#data-table')[0];
         
@@ -53,18 +55,13 @@ v4_global_status = {};
            bindings: {
                'contextMenu-runpage' : function(elt) {
                    var new_base = elt.getAttribute('run_id') + '/graph?test.';
-                   
-                   field = GetQueryParameterByName('field');
-                   if (field == "")
-                       field = 2; // compile time.
-                   
-                   new_base += elt.getAttribute('test_id') + '=' + field.toString();
+                   new_base += elt.getAttribute('test_id') + '=' + g.field.toString();
                    window.location = UrlReplaceBasename(window.location.toString(),
                                                           new_base);
                }
            }
        });
-    });
+    };
     
     /* Helper Functions */
     
@@ -79,17 +76,6 @@ v4_global_status = {};
         
         var without_base = url.substring(0, url.lastIndexOf('/') + 1);
         return without_base + new_basename;
-    }
-    
-    function GetQueryParameterByName(name) {
-        name = name.replace(/[\[]/, "\\\[").replace(/[\]]/, "\\\]");
-        var regexS = "[\\?&]" + name + "=([^&#]*)";
-        var regex = new RegExp(regexS);
-        var results = regex.exec(window.location.search);
-        if(results == null)
-            return "";
-        else
-            return decodeURIComponent(results[1].replace(/\+/g, " "));
     }
     
     function IsHidden(elem) {
