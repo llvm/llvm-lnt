@@ -796,7 +796,7 @@ def v4_global_status():
                            ts=ts,
                            tests=test_table,
                            machines=recent_machines,
-                           fields = primary_fields,
+                           fields=primary_fields,
                            selected_field=field,
                            selected_revision=revision)
 
