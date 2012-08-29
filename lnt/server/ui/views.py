@@ -708,7 +708,8 @@ def v4_global_status():
     from lnt.server.ui import util
 
     ts = request.get_testsuite()
-    primary_fields = list(ts.Sample.get_primary_fields())
+    primary_fields = sorted(list(ts.Sample.get_primary_fields()),
+                            key=lambda f: f.name)
     fields = dict((f.name, f) for f in primary_fields)
     
     # Get the latest run.
