@@ -38,8 +38,18 @@ class DBInfo:
     @staticmethod
     def fromData(baseDir, dict, default_email_config):
         dbPath = dict.get('path')
+
+        # If the path does not contain a database specifier, assume it is a
+        # relative path.
         if '://' not in dbPath:
             dbPath = os.path.join(baseDir, dbPath)
+
+        # If the path contains a relative SQLite specifier, make it absolute
+        # relative to the base dir.
+        if dbPath.startswith("sqlite:///") and not \
+                dbPath.startswith("sqlite:////"):
+            dbPath = "sqlite:///%s" % os.path.join(baseDir,
+                                                   dbPath[len("sqlite:///"):])
 
         # Support per-database email configurations.
         email_config = default_email_config
