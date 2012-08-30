@@ -183,11 +183,12 @@ def update(engine):
     except sqlalchemy.exc.OperationalError,e:
         # Filter on the DB-API error message. This is a bit flimsy, but works
         # for SQLite at least.
-        if 'no such table' not in e.orig.message:
+        if 'no such table' not in str(e.orig):
             raise
 
         # Create the SchemaVersion table.
         Base.metadata.create_all(engine)
+        session.commit()
 
         version_list = []
     versions = dict((v.name, v)
