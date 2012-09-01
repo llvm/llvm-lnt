@@ -57,7 +57,7 @@ class DBInfo:
             email_config = EmailConfig.fromData(dict['emailer'])
 
         return DBInfo(dbPath,
-                      str(dict.get('db_version', '0.3')),
+                      str(dict.get('db_version', '0.4')),
                       dict.get('shadow_import', None),
                       email_config)
 
