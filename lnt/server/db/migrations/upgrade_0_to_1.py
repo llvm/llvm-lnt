@@ -139,7 +139,7 @@ def initialize_compile_definition(engine, session):
         filter_by(name = "Status").first()
 
     # Create a test suite compile with "lnt runtest compile".
-    ts = TestSuite(name="compile", db_key_name="compile")
+    ts = TestSuite(name="compile", db_key_name="Compile")
 
     # Promote some natural information to fields.
     ts.machine_fields.append(MachineField(name="hardware", info_key="hw.model"))
