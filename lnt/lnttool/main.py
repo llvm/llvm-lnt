@@ -224,7 +224,7 @@ def action_submit(name, args):
     ServerUtil.submitFiles(args[0], args[1:], opts.commit, opts.verbose)
 
 def action_update(name, args):
-    """auto-upgrade the given database"""
+    """create and or auto-update the given database"""
 
     parser = OptionParser("%%prog %s [options] <db path>" % name)
     parser.add_option("", "--show-sql", dest="show_sql", default=False,
