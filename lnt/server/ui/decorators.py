@@ -1,6 +1,7 @@
 import flask
 from flask import abort
 from flask import current_app, g, render_template
+from flask import request
 
 frontend = flask.Module(__name__)
 
@@ -27,8 +28,14 @@ def db_route(rule, only_v3 = True, **options):
 UI support for database with version %r is not yet implemented.""" % (
                         g.db_info.db_version))
 
+            # Compute result.
+            result = f(**args)
 
-            return f(**args)
+            # Make sure that any transactions begun by this request are finished.
+            request.get_db().rollback()
+
+            # Return result.
+            return result
 
         frontend.add_url_rule(rule, f.__name__, wrap, **options)
         frontend.add_url_rule("/db_<db_name>" + rule,
@@ -56,7 +63,14 @@ def v4_route(rule, **options):
             if g.db_info is None:
                 abort(404)
 
-            return f(**args)
+            # Compute result.
+            result = f(**args)
+
+            # Make sure that any transactions begun by this request are finished.
+            request.get_db().rollback()
+
+            # Return result.
+            return result
 
         frontend.add_url_rule("/v4/<testsuite_name>" + rule,
                               f.__name__, wrap, **options)
