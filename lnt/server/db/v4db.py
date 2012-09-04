@@ -6,6 +6,7 @@ import lnt.server.db.testsuitedb
 import lnt.server.db.migrate
 
 from lnt.server.db import testsuite
+import lnt.server.db.util
 
 class V4DB(object):
     """
@@ -60,10 +61,7 @@ class V4DB(object):
 
     def __init__(self, path, echo=False):
         # If the path includes no database type, assume sqlite.
-        #
-        # FIXME: I would like to phase this out and force clients to propagate
-        # paths, but it isn't a big deal.
-        if not path.startswith('mysql://') and not path.startswith('sqlite://'):
+        if lnt.server.db.util.path_has_no_database_type(path):
             path = 'sqlite:///' + path
 
         self.path = path

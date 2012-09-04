@@ -16,6 +16,8 @@ import sqlalchemy.ext.declarative
 import sqlalchemy.orm
 from sqlalchemy import Column, String, Integer
 
+import lnt.server.db.util
+
 ###
 # Schema for in-database version information.
 
@@ -218,11 +220,8 @@ def update(engine):
         logger.info("database auto-upgraded")
 
 def update_path(path):
-    # If the path includes no database type, assume sqlite.
-    #
-    # FIXME: I would like to phase this out and force clients to propagate
-    # paths, but it isn't a big deal.
-    if not path.startswith('mysql://') and not path.startswith('sqlite://'):
+    # If the path includes no database type, assume sqlite.    
+    if lnt.server.db.util.path_has_no_database_type(path):
         path = 'sqlite:///' + path
 
     engine = sqlalchemy.create_engine(path)
