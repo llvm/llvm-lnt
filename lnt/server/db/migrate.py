@@ -175,20 +175,36 @@ def update(engine):
     # Create a session for our queries.
     session = sqlalchemy.orm.sessionmaker(engine)()
 
+    def will_not_handle_error(e):
+        message = e.orig.message
+        if 'no such table' in message:
+            return False
+        if 'relation' in message and 'does not exist' in message:
+            return False
+        return True
+
     # Load all the information from the versions tables. We just do the query
     # and handle the exception if the table hasn't been defined yet (for
     # databases before versioning started).
     try:
         version_list = session.query(SchemaVersion).all()
-    except sqlalchemy.exc.OperationalError,e:
+    except (sqlalchemy.exc.OperationalError,
+            sqlalchemy.exc.ProgrammingError) as e:
+
         # Filter on the DB-API error message. This is a bit flimsy, but works
-        # for SQLite at least.
-        if 'no such table' not in str(e.orig):
+        # for SQLite and PostgresSQL at least.
+        if will_not_handle_error(e):
             raise
 
         # Create the SchemaVersion table.
         Base.metadata.create_all(engine)
         session.commit()
+
+        # Certain databases like PostgreSQL use ``isolated''
+        # transactions, i.e., we will be unable to insert data. Thus
+        # to ensure that no matter the settings, i.e. whether or not
+        # autocommit is set, we create a new session.
+        session = sqlalchemy.orm.sessionmaker(engine)()
 
         version_list = []
     versions = dict((v.name, v)
