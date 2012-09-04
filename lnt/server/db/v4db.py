@@ -1,3 +1,9 @@
+
+try:
+    import threading
+except:
+    import dummy_threading as threading
+
 import sqlalchemy
 
 import lnt.testing
@@ -14,6 +20,8 @@ class V4DB(object):
     """
 
     _db_updated = set()
+    _engine_lock = threading.Lock()
+    _engine = None
 
     class TestSuiteAccessor(object):
         def __init__(self, v4db):
@@ -65,7 +73,10 @@ class V4DB(object):
             path = 'sqlite:///' + path
 
         self.path = path
-        self.engine = sqlalchemy.create_engine(path, echo=echo)
+        with V4DB._engine_lock:
+            if V4DB._engine is None:
+                V4DB._engine = sqlalchemy.create_engine(path, echo=echo)
+        self.engine = V4DB._engine
 
         # Update the database to the current version, if necessary. Only check
         # this once per path.
