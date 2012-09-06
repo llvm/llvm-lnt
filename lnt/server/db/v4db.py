@@ -21,7 +21,7 @@ class V4DB(object):
 
     _db_updated = set()
     _engine_lock = threading.Lock()
-    _engine = None
+    _engine = {}
 
     class TestSuiteAccessor(object):
         def __init__(self, v4db):
@@ -74,9 +74,9 @@ class V4DB(object):
 
         self.path = path
         with V4DB._engine_lock:
-            if V4DB._engine is None:
-                V4DB._engine = sqlalchemy.create_engine(path, echo=echo)
-        self.engine = V4DB._engine
+            if path not in V4DB._engine:
+                V4DB._engine[path] = sqlalchemy.create_engine(path, echo=echo)
+        self.engine = V4DB._engine[path]
 
         # Update the database to the current version, if necessary. Only check
         # this once per path.
