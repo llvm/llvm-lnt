@@ -1,5 +1,9 @@
 import datetime
 
+import sqlalchemy.sql
+
+import lnt.server.reporting.analysis
+
 from lnt.server.ui import util
 
 class DailyReport(object):
@@ -9,6 +13,7 @@ class DailyReport(object):
         self.year = year
         self.month = month
         self.day = day
+        self.fields = list(ts.Sample.get_primary_fields())
 
         # Computed values.
         self.day_start_offset = None
@@ -26,8 +31,10 @@ class DailyReport(object):
                                         self.day).toordinal()
 
         # Adjust the dates time component.  As we typically want to do runs
-        # overnight, we define "daily" to really mean "at 0700".
-        self.day_start_offset = datetime.timedelta(hours=7)
+        # overnight, we define "daily" to really mean "daily plus some
+        # offset". The offset should generally be whenever the last run finishes
+        # on today's date.
+        self.day_start_offset = datetime.timedelta(hours=16)
 
         self.next_day = (datetime.datetime.fromordinal(day_ordinal + 1) +
                          self.day_start_offset)
@@ -101,45 +108,43 @@ class DailyReport(object):
         # by the kind of status change, while still managing to present the
         # overview across machines.
 
-        # Batch load all of the samples reported by all these runs.
-        columns = [ts.Sample.run_id,
-                   ts.Sample.test_id]
-        columns.extend(f.column
-                       for f in ts.sample_fields)
-        samples = ts.query(*columns).\
-            filter(ts.Sample.run_id.in_(
-                r.id for r in relevant_runs)).all()
+        relevant_run_ids = [r.id for r in relevant_runs]
 
-        # Find the union of tests reported in the relevant runs.
-        #
-        # FIXME: This is not particularly efficient, should we just use all
-        # tests in the database?
-        self.reporting_tests = ts.query(ts.Test).\
-            filter(ts.Test.id.in_(set(s[1] for s in samples))).\
-            order_by(ts.Test.name).all()
+        # Get the set all tests reported in the recent runs.
+        self.reporting_tests = ts.query(ts.Test).filter(
+            sqlalchemy.sql.exists('*', sqlalchemy.sql.and_(
+                    ts.Sample.run_id.in_(relevant_run_ids),
+                    ts.Sample.test_id == ts.Test.id))).all()
+        self.reporting_tests.sort(key=lambda t: t.name)
 
-        # Aggregate all of the samples by (run_id, test_id).
-        sample_map = util.multidict()
-        for s in samples:
-            sample_map[(s[0], s[1])] = s[2:]
+        # Create a run info object.
+        sri = lnt.server.reporting.analysis.RunInfo(ts, relevant_run_ids)
 
-        # Build the result table:
-        #   result_table[test_index][day_index][machine_index] = {samples}
+        # Aggregate runs by machine ID and day index.
+        machine_runs = util.multidict()
+        for day_index,day_runs in enumerate(prior_runs):
+            for run in day_runs:
+                machine_runs[(run.machine_id, day_index)] = run
+                
+        # Build the result table::
+        #   result_table[field_index][test_index][day_index][machine_index] = \
+        #     {samples}
         self.result_table = []
-        for test in self.reporting_tests:
-            key = test
-            test_results = []
-            for day_runs in prior_runs:
-                day_results = []
-                for machine in self.reporting_machines:
-                    # Collect all the results for this machine.
-                    results = [s
-                               for run in day_runs
-                               if run.machine is machine
-                               for s in sample_map.get((run.id, test.id), ())]
-                    day_results.append(results)
-                test_results.append(day_results)
-            self.result_table.append(test_results)
-
-        # FIXME: Now compute ComparisonResult objects for each (test, machine,
-        # day).
+        for field in self.fields:
+            field_results = []
+            for test in self.reporting_tests:
+                key = test
+                test_results = []
+                for day_index,day_runs in enumerate(prior_runs):
+                    day_results = []
+                    for machine in self.reporting_machines:
+                        prev_runs = machine_runs.get(
+                            (machine.id, day_index+1), ())
+                        day_runs = machine_runs.get(
+                            (machine.id, day_index), ())
+                        cr = sri.get_comparison_result(
+                            day_runs, prev_runs, test.id, field)
+                        day_results.append(cr)
+                    test_results.append(day_results)
+                field_results.append(test_results)
+            self.result_table.append(field_results)

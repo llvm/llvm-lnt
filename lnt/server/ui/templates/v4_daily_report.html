@@ -51,8 +51,28 @@
 {% endfor %}
 </table>
 
+{% macro get_cell_value(cr) %}
+{% set test_status = cr.get_test_status() %}
+{% set value_status = cr.get_value_status() %}
+
+{% if (test_status == analysis.REGRESSED or
+       test_status == analysis.UNCHANGED_FAIL) %}
+    <td>FAIL</td>
+{% else %}
+
+{% if (value_status == analysis.REGRESSED or
+       value_status == analysis.IMPROVED) %}
+    {{ cr.pct_delta|aspctcell|safe }}
+{% else %}
+    <td>-</td>
+{% endif %}
+
+{% endif %}
+{% endmacro %}
+
 {# Generate the table showing the raw sample data. #}
-<h3>Result Table</h3>
+{% for field in report.fields %}
+<h3>Result Table ({{ field.name }})</h3>
 <table border="1">
   <thead>
     <tr>
@@ -62,7 +82,8 @@
       <th>Day - {{i}}</th>
 {% endfor %}
   </thead>
-{% for test,test_results in zip(report.reporting_tests, report.result_table) %}
+{% for test,test_results in zip(report.reporting_tests,
+                                report.result_table[loop.index0]) %}
   <tr>
     <td colspan="2"><b>{{test.name}}</b></td>
     <td colspan="{{report.num_prior_days_to_include}}">&nbsp;</td>
@@ -72,12 +93,14 @@
   <tr>
     <td>&nbsp;</td>
     <td>{{machine.name}}</td>
-{%     for day_results in test_results|reverse %}
-    <td>{{day_results[machine_loop.index0]}}</td>
+    <td>{{ test_results[-1][machine_loop.index0].current }}</td>
+{%     for day_result in test_results[:-1]|reverse %}
+    {{ get_cell_value(day_result[machine_loop.index0]) }}
 {%     endfor %}
   </tr>
 {%   endfor %}
 {% endfor %}
 </table>
+{% endfor %}
 
 {% endblock %}

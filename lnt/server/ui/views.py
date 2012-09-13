@@ -813,7 +813,8 @@ def v4_daily_report(year, month, day):
     # Build the report.
     report.build()
 
-    return render_template("v4_daily_report.html", ts=ts, report=report)
+    return render_template("v4_daily_report.html", ts=ts, report=report,
+                           analysis=lnt.server.reporting.analysis)
 
 ###
 # Cross Test-Suite V4 Views
