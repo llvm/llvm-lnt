@@ -7,6 +7,8 @@ import os
 import time
 import urllib
 
+from flask import render_template
+
 import lnt.server.reporting.analysis
 import lnt.server.ui.util
 import lnt.util.stats
@@ -76,13 +78,13 @@ def generate_run_report(run, baseurl, only_html_body = False,
 
     # Gather the run-over-run changes to report, organized by field and then
     # collated by change type.
-    run_to_run_info,test_results = _get_changes_by_type(
+    run_to_run_info, test_results = _get_changes_by_type(
         run, compare_to, primary_fields, test_names, comparison_window, sri)
 
     # If we have a baseline, gather the run-over-baseline results and
     # changes.
     if baseline:
-        run_to_baseline_info,baselined_results = _get_changes_by_type(
+        run_to_baseline_info, baselined_results = _get_changes_by_type(
             run, baseline, primary_fields, test_names, baseline_window, sri)
     else:
         run_to_baseline_info = baselined_results = None
@@ -102,15 +104,48 @@ def generate_run_report(run, baseurl, only_html_body = False,
                                          cr.get_test_status(),
                                          cr.get_value_status()))
 
-    # Begin report generation...
-    subject = """%s test results""" % (machine.name,)
-    report = StringIO.StringIO()
-    html_report = StringIO.StringIO()
+    # Aggregate counts across all bucket types for our num item
+    # display
+    def aggregate_counts_across_all_bucket_types(i, name):
+        num_items = sum(len(field_results[i][1])
+                        for _,field_results in test_results)
+        if baseline:
+            num_items_vs_baseline = sum(
+                len(field_results[i][1])
+                for _,field_results in baselined_results)
+        else:
+            num_items_vs_baseline = None
 
-    # Generate the report header.
+        return i, name, num_items, num_items_vs_baseline
+
+    num_item_buckets = [aggregate_counts_across_all_bucket_types(x[0], x[1][0])\
+                            for x in enumerate(test_results[0][1])]
+
+    def maybe_sort_bucket(bucket, bucket_name, show_perf):
+        if not bucket or bucket_name == 'Unchanged Test' or not show_perf:
+            return bucket
+        else:
+            return sorted(bucket, key=lambda (_,cr,__): -abs(cr.pct_delta))
+    def prioritize_buckets(test_results):
+        prioritized = [(priority, field, bucket_name, maybe_sort_bucket(bucket, bucket_name, show_perf),
+                        [name for name, _, __ in bucket], show_perf)
+                       for field,field_results in test_results
+                       for priority,(bucket_name, bucket,
+                                     show_perf) in enumerate(field_results)]
+        prioritized.sort(key = lambda item: (item[0], item[1].name))
+        return prioritized
+
+    # Generate prioritized buckets for run over run and run over baseline data.
+    prioritized_buckets_run_over_run = prioritize_buckets(test_results)
+    prioritized_buckets_run_over_baseline = prioritize_buckets(baselined_results)
+
+    # Prepare auxillary variables for rendering.
+    # Create Subject
+    subject = """%s test results""" % (machine.name,)
+
+    # Define URLS.
     if baseurl[-1] == '/':
         baseurl = baseurl[:-1]
-
     ts_url = """%s/v4/%s""" % (baseurl, ts.name)
     run_url = """%s/%d""" % (ts_url, run.id)
     report_url = run_url
@@ -121,34 +156,6 @@ def generate_run_report(run, baseurl, only_html_body = False,
         url_fields.append(('baseline', str(baseline.id)))
     report_url = "%s?%s" % (run_url, "&".join("%s=%s" % (k,v)
                                               for k,v in url_fields))
-    print >>report, report_url
-    print >>report, """Nickname: %s:%d""" % (machine.name, machine.id)
-    if 'name' in machine_parameters:
-        print >>report, """Name: %s""" % (machine_parameters['name'],)
-    print >>report, "Comparing:"
-    # FIXME: Remove hard coded field use here.
-    print >>report, "     Run: %d, Order: %s, Start Time: %s, End Time: %s" % (
-        run.id, run.order.llvm_project_revision, run.start_time, run.end_time)
-    if compare_to:
-        # FIXME: Remove hard coded field use here.
-        print >>report, ("      To: %d, Order: %s, "
-                         "Start Time: %s, End Time: %s") % (
-            compare_to.id, compare_to.order.llvm_project_revision,
-            compare_to.start_time, compare_to.end_time)
-        if run.machine != compare_to.machine:
-            print >>report, """*** WARNING ***:""",
-            print >>report, """comparison is against a different machine""",
-            print >>report, """(%s:%d)""" % (compare_to.machine.name,
-                                             compare_to.machine.id)
-    else:
-        print >>report, "      To: (none)"
-    if baseline:
-        # FIXME: Remove hard coded field use here.
-        print >>report, ("Baseline: %d, Order: %s, "
-                         "Start Time: %s, End Time: %s") % (
-            baseline.id, baseline.order.llvm_project_revision,
-            baseline.start_time, baseline.end_time)
-    print >>report
 
     # Compute static CSS styles for elemenets. We use the style directly on
     # elements instead of via a stylesheet to support major email clients (like
@@ -167,167 +174,48 @@ def generate_run_report(run, baseurl, only_html_body = False,
         "td" : "padding:5px; padding-left:8px",
         }
 
-    # Generate the HTML report header.
-    print >>html_report, """<h1 style="%s"><a href="%s">%s</a></h1>""" % (
-        styles['h1'], report_url, subject)
-    print >>html_report, """\
-<p>
-<table style="%s">
-<thead>
-  <tr>
-    <th style="%s">Run</th>
-    <th style="%s">Order</th>
-    <th style="%s">Start Time</th>
-    <th style="%s">Duration</th>
-  </tr>
-</thead>""" % (styles['table'],
-               styles['th'], styles['th'], styles['th'], styles['th'])
-    for (title, r) in (('Current', run),
-                       ('Previous', compare_to),
-                       ('Baseline', baseline)):
-        if r is None:
-            print >>html_report, """\
-<tr><td style="%s" colspan=4>No %s Run</td></tr>""" % (
-                styles['td'], title,)
-            continue
+    # Generate reports.  The timing code here is a cludge and will
+    # give enough accuracy for approximate timing estimates. I am
+    # going to separate the text/html report in a later commit (so
+    # that we can have more output types [i.e. json] if we need to)
+    # and remove this. The time will then be generated separately and
+    # correctly for each different template.
+    text_report_start_time = time.time()
+    text_report = render_template("reporting/runs.txt",
+                                  report_url=report_url,
+                                  machine=machine,
+                                  machine_parameters=machine_parameters,
+                                  run=run,
+                                  compare_to=compare_to,
+                                  baseline=baseline,
+                                  num_item_buckets=num_item_buckets,
+                                  num_total_tests=num_total_tests,
+                                  prioritized_buckets_run_over_run=prioritized_buckets_run_over_run,
+                                  prioritized_buckets_run_over_baseline=prioritized_buckets_run_over_baseline,
+                                  start_time=start_time)
+    text_report_delta = time.time() - text_report_start_time
+    start_time = start_time + text_report_delta
 
-        # FIXME: Remove hard coded field use here.
-        print >>html_report, """\
-<tr><td style="%s"><a href="%s/%d">%s</a></td>\
-<td style="%s"><a href="%s/order/%d">%s</a></td>\
-<td style="%s">%s</td>\
-<td style="%s">%s</td></tr>""" % (
-            styles['td'], ts_url, r.id, title,
-            styles['td'], ts_url, r.order.id, r.order.llvm_project_revision,
-            styles['td'], r.start_time,
-            styles['td'], r.end_time - r.start_time)
-    print >>html_report, """</table>"""
-    if compare_to and run.machine != compare_to.machine:
-        print >>html_report, """<p><b>*** WARNING ***:""",
-        print >>html_report, """comparison is against a different machine""",
-        print >>html_report, """(%s:%d)</b></p>""" % (compare_to.machine.name,
-                                                      compare_to.machine.id)
-    if baseline and run.machine != baseline.machine:
-        print >>html_report, """<p><b>*** WARNING ***:""",
-        print >>html_report, """baseline is against a different machine""",
-        print >>html_report, """(%s:%d)</b></p>""" % (baseline.machine.name,
-                                                      baseline.machine.id)
+    html_report = render_template("reporting/runs.html",
+                                  ts=ts,
+                                  subject=subject,
+                                  only_html_body=only_html_body,
+                                  report_url=report_url,
+                                  ts_url=ts_url,
+                                  compare_to=compare_to,
+                                  run=run,
+                                  run_url=run_url,
+                                  baseline=baseline,
+                                  num_item_buckets=num_item_buckets,
+                                  num_total_tests=num_total_tests,
+                                  run_to_run_info=run_to_run_info,
+                                  prioritized_buckets_run_over_run=prioritized_buckets_run_over_run,
+                                  run_to_baseline_info=run_to_baseline_info,
+                                  prioritized_buckets_run_over_baseline=prioritized_buckets_run_over_baseline,
+                                  styles=styles,
+                                  start_time=start_time)
 
-    # Generate the summary of the changes.
-    num_total_changes = sum(len(bucket)
-                            for _,field_results in test_results
-                            for name,bucket,_ in field_results
-                            if name != 'Unchanged Tests')
-
-    print >>report, """==============="""
-    print >>report, """Tests Summary"""
-    print >>report, """==============="""
-    print >>report
-    print >>html_report, """
-<hr>
-<h3>Tests Summary</h3>
-<table style="%s">
-<thead>
-  <tr>
-    <th style="%s">Status Group</th>
-    <th style="%s" align="right">#</th>""" % (
-        styles['table'], styles['th'], styles['th'])
-    if baseline:
-        print >>html_report, """<th style="%s" align="right"># (B)</th>""" % (
-            styles['th'],)
-    print >>html_report, """</tr></thead> """
-    # For now, we aggregate across all bucket types for reports.
-    for i,(name,_,_) in enumerate(test_results[0][1]):
-        num_items = sum(len(field_results[i][1])
-                        for _,field_results in test_results)
-        if baseline:
-            num_items_vs_baseline = sum(
-                len(field_results[i][1])
-                for _,field_results in baselined_results)
-        else:
-            num_items_vs_baseline = None
-        if num_items or num_items_vs_baseline:
-            if baseline:
-                print >>report, '%s: %d (%d on baseline)' % (
-                    name, num_items, num_items_vs_baseline)
-            else:
-                print >>report, '%s: %d' % (name, num_items)
-            print >>html_report, """
-<tr><td style="%s">%s</td><td style="%s" align="right">%d</td>""" % (
-                styles['td'], name, styles['td'], num_items)
-            if baseline:
-                print >>html_report, """\
-<td style="%s" align="right">%d</td>""" % (
-                    styles['td'], num_items_vs_baseline)
-            print >>html_report, """</tr>"""
-    print >>report, """Total Tests: %d""" % num_total_tests
-    print >>report
-    print >>html_report, """
-<tfoot>
-  <tr>\
-<td style="%s"><b>Total Tests</b></td>\
-<td style="%s" align="right"><b>%d</b></td>""" % (
-        styles['td'], styles['td'], num_total_tests)
-    if baseline:
-        print >>html_report, """\
-<td style="%s" align="right"><b>%d</b></td>""" % (
-            styles['td'], num_total_tests,)
-    print >>html_report, """</tr>
-</tfoot>
-</table>
-"""
-
-    # Add the run-over-run changes detail (if any were present).
-    print >>report, """==========================="""
-    print >>report, """Run-Over-Run Changes Detail"""
-    print >>report, """==========================="""
-    print >>html_report, """
-<p>
-<h3>Run-Over-Run Changes Detail</h3>"""
-
-    _add_report_changes_detail(ts, test_results, report,
-                               html_report, run_url,
-                               run_to_baseline_info,
-                               'Previous', '', ' (B)',
-                               styles)
-
-    # Add the run-over-baseline changes detail.
-    if baseline:
-        print >>report, """================================"""
-        print >>report, """Run-Over-Baseline Changes Detail"""
-        print >>report, """================================"""
-        print >>html_report, """
-<p>
-<h3>Run-Over-Baseline Changes Detail</h3>"""
-
-        _add_report_changes_detail(ts, baselined_results, report,
-                                   html_report, run_url,
-                                   run_to_run_info,
-                                   'Baseline', '(B)', '',
-                                   styles)
-
-    report_time = time.time() - start_time
-    print >>report, "Report Time: %.2fs" % (report_time,)
-    print >>html_report, """
-<hr>
-<b>Report Time</b>: %.2fs""" % (report_time,)
-
-    # Finish up the HTML report (wrapping the body, if necessary).
-    html_report = html_report.getvalue()
-    if not only_html_body:
-        # We embed the additional resources, so that the message is self
-        # contained.
-        html_report = """\
-<html>
-  <head>
-    <title>%s</title>
-  </head>
-  <body style="%s">
-%s
-  </body>
-</html>""" % (subject, styles['body'], html_report)
-
-    return subject, report.getvalue(), html_report, sri
+    return subject, text_report, html_report, sri
 
 def _get_changes_by_type(run_a, run_b, primary_fields, test_names,
                          comparison_window, sri):
@@ -377,124 +265,3 @@ def _get_changes_by_type(run_a, run_b, primary_fields, test_names,
                      ('Existing Failures', existing_failures, False),
                      ('Unchanged Tests', unchanged_tests, False))))
     return comparison_results, results_by_type
-
-def _add_report_changes_detail(ts, test_results, report, html_report,
-                               run_url, run_to_baseline_info,
-                               primary_name, primary_field_suffix,
-                               secondary_field_suffix,
-                               styles):
-    # Reorder results to present by most important bucket first.
-    prioritized = [(priority, field, bucket_name, bucket, show_perf)
-                   for field,field_results in test_results
-                   for priority,(bucket_name, bucket,
-                                 show_perf) in enumerate(field_results)]
-    prioritized.sort(key = lambda item: (item[0], item[1].name))
-
-    for _,field,bucket_name,bucket,show_perf in prioritized:
-        _add_report_changes_detail_for_field_and_bucket(
-            ts, field, bucket_name, bucket, show_perf, report,
-            html_report, run_url, run_to_baseline_info,
-            primary_name, primary_field_suffix, secondary_field_suffix,
-            styles)
-
-def _add_report_changes_detail_for_field_and_bucket(
-      ts, field, bucket_name, bucket, show_perf, report,
-      html_report, run_url, secondary_info,
-      primary_name, primary_field_suffix, secondary_field_suffix,
-      styles):
-    if not bucket or bucket_name == 'Unchanged Tests':
-        return
-
-    field_index = ts.sample_fields.index(field)
-    # FIXME: Do not hard code field display names here, this should be in the
-    # test suite metadata.
-    field_display_name = { "compile_time" : "Compile Time",
-                           "execution_time" : "Execution Time" }.get(
-        field.name, field.name)
-
-    print >>report, "%s - %s" % (bucket_name, field_display_name)
-    print >>report, '-' * (len(bucket_name) + len(field_display_name) + 3)
-    print >>html_report, """
-<p>
-<table style="%s" class="sortable">
-<tr><th style="%s", width="500">%s - %s </th>""" % (
-        styles['table'], styles['th'], bucket_name, field_display_name)
-    if show_perf:
-        print >>html_report, """\
-<th style="%s">&Delta;%s</th>\
-<th style="%s">%s</th>\
-<th style="%s">Current</th>\
-<th style="%s">&sigma;%s</th>""" % (
-            styles['th'], primary_field_suffix,
-            styles['th'], primary_name,
-            styles['th'], styles['th'], primary_field_suffix)
-        if secondary_info:
-            print >>html_report, """<th style="%s">&Delta;%s</th>""" % (
-                styles['th'], secondary_field_suffix,)
-            print >>html_report, """<th style="%s">&sigma;%s</th>""" % (
-                styles['th'], secondary_field_suffix,)
-        print >>html_report, """</tr>"""
-
-    # If we aren't displaying any performance results, just write out the
-    # list of tests and continue.
-    if not show_perf:
-        for name,cr,_ in bucket:
-            print >>report, '  %s' % (name,)
-            print >>html_report, """
-<tr><td style="%s">%s</td></tr>""" % (styles['td'], name,)
-        print >>report
-        print >>html_report, """
-</table>"""
-        return
-
-    bucket.sort(key = lambda (_,cr,__): -abs(cr.pct_delta))
-
-    for name,cr,test_id in bucket:
-        if cr.stddev is not None:
-            stddev_value = ', std. dev.: %.4f' % cr.stddev
-        else:
-            stddev_value = ''
-        print >>report, ('  %s: %.2f%% (%.4f => %.4f%s)') % (
-            name, 100. * cr.pct_delta,
-            cr.previous, cr.current, stddev_value)
-
-        # Link the regression to the chart of its performance.
-        form_data = urllib.urlencode([('test.%d' % test_id,
-                                       str(field_index))])
-        linked_name = '<a href="%s?%s">%s</a>' % (
-            os.path.join(run_url, "graph"),
-            form_data, name)
-
-        pct_value = lnt.server.ui.util.PctCell(cr.pct_delta).render(
-            style=styles['td'])
-        if cr.stddev is not None:
-            stddev_value = "%.4f" % cr.stddev
-        else:
-            stddev_value = "-"
-
-        if secondary_info:
-            a_cr = secondary_info[(name,field)]
-            if a_cr.stddev is not None:
-                a_stddev_value = "%.4f" % a_cr.stddev
-            else:
-                a_stddev_value = "-"
-            baseline_info = """%s<td style="%s">%s</td>""" % (
-                lnt.server.ui.util.PctCell(a_cr.pct_delta).render(
-                    style=styles['td']),
-                styles['td'], a_stddev_value)
-        else:
-            baseline_info = ""
-        print >>html_report, """\
-<tr>\
-<td style="%s">%s</td>%s\
-<td style="%s">%.4f</td>\
-<td style="%s">%.4f</td>\
-<td style="%s">%s</td>%s</tr>""" %(
-            styles['td'], linked_name, pct_value,
-            styles['td'], cr.previous,
-            styles['td'], cr.current,
-            styles['td'], stddev_value,
-            baseline_info)
-    print >>report
-    print >>html_report, """
-</table>"""
