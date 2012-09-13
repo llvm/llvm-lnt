@@ -1,0 +1,77 @@
+{%- macro add_report_changes_detail_for_field_and_bucket(show_perf, field_display_name, bucket_name, bucket, test_names) -%}
+{%- if bucket and bucket_name != 'Unchanged Tests' %}
+
+{{ bucket_name }} - {{ field_display_name }}
+{{ '-' * (bucket_name.__len__() + field_display_name.__len__() + 3) }}
+{%- if not show_perf %}
+  {%- for name in test_names %}
+  {{ name }}
+  {%- endfor %}
+{%- endif %}
+{%- for name, cr, test_id in bucket -%}
+{% if cr.previous is not none and cr.current is not none %}
+  {{ name }}: {{ "%.2f%%" | format_or_default(cr.pct_delta and cr.pct_delta*100, '-')}} {{ "(%.4f => %.4f" | format(cr.previous, cr.current) }}{{ ", std.dev.: %.4f)" | format_or_default(cr.stddev, ")")}}
+{%- endif %}
+{%- endfor %}
+
+{%- endif %}
+{%- endmacro -%}
+
+{{ report_url }}
+Nickname: {{ machine.name }}:{{ machine.id }}
+{% if 'name' in machine_parameters -%}
+{{ "Name: %s" | format(machine_parameters['name']) }}
+{%- endif %}
+Comparing:
+     Run: {{ run.id }}, Order: {{ run.order.llvm_project_revision }}, Start Time: {{ run.start_time }}, End Time: {{ run.end_time }}
+{%- if compare_to %}
+      To: {{ compare_to.id }}, Order: {{ compare_to.order.llvm_project_revision }}, Start Time: {{ compare_to.start_time }}, End Time: {{ compare_to.end_time }}
+     {%- if run.machine != compare_to.machine %}
+*** WARNING ***:
+comparision is against a different machine
+({{ compare_to.machine.name }}:{{ compare_to.machine.id }})        
+     {%- endif %}
+{%- else %}
+      To: (none)
+{%- endif %}
+{%- if baseline %}
+Baseline: {{ baseline.id }}, Order: {{ baseline.order.llvm_project_revision }}, Start Time: {{ baseline.start_time }}, End Time: {{ baseline.end_time }}
+{%- endif %}
+
+===============
+Tests Summary
+===============
+{% for i, name, num_items, num_items_vs_baseline in num_item_buckets -%}
+  {%- if num_items or num_items_vs_baseline %}
+     {%- if baseline %}
+{{ name }}: {{ num_items }} ({{ num_items_vs_baseline }} on baseline)
+     {%- else %}
+{{ name }}: {{ num_items }}
+     {%- endif %}
+  {%- endif %}                
+{%- endfor %}
+Total Tests: {{ num_total_tests }}
+
+===========================
+Run-Over-Run Changes Detail
+===========================
+{%- for _, field, bucket_name, sorted_bucket, test_names, show_perf in prioritized_buckets_run_over_run %}
+  {%- set field_display_name = {"compile_time":"Compile Time", "execution_time":"Execution Time"}.get(field.name, field.name) -%}
+  {{ add_report_changes_detail_for_field_and_bucket(show_perf, field_display_name, bucket_name, sorted_bucket, test_names) }}
+{%- endfor %}
+{%- if baseline %}
+
+================================
+Run-Over-Baseline Changes Detail
+================================
+{%- for _, field, bucket_name, sorted_bucket, test_names, show_perf in prioritized_buckets_run_over_baseline -%}
+  {%- set field_display_name = {"compile_time":"Compile Time",
+                               "execution_time":"Execution Time"}.get(field.name, field.name) -%}
+  {{
+    add_report_changes_detail_for_field_and_bucket(show_perf, field_display_name,
+                                                           bucket_name, sorted_bucket, test_names)
+  }}
+{%- endfor %}
+{%- endif %}
+
+Report Time: {{ start_time | timedelta }}

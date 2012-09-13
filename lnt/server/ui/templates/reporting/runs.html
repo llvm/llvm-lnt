@@ -1,0 +1,166 @@
+
+{% import "v4_utils.html" as v4_utils %}
+{% import "utils.html" as utils %}
+
+{#
+  Macro for rendering the report for either a run-to-run display or a run-to-baseline display.
+#}
+{%
+  macro add_report_changes_detail_for_field_and_bucket(
+    field, show_perf, run_url, field_index, field_display_name, bucket_name, bucket, test_names,
+    primary_name, primary_field_suffix, secondary_field_suffix, secondary_info, styles
+  )
+%}
+
+{% if bucket and bucket_name != 'Unchanged Tests' %}
+   <p>
+     <table style="{{ styles['table'] }}" class="sortable">
+       <tr>
+         <th style="{{ styles['th'] }}" width="500">{{ bucket_name }} - {{ field_display_name }}</th>
+       {% if not show_perf %}
+         {% for name in test_names %}
+           <tr><td style="{{ styles['td'] }}">{{ name }}</td></tr>
+         {% endfor %}
+       {% else %}
+         <th style="{{ styles['th'] }}">&Delta; {{ primary_field_suffix }}</th>
+         <th style="{{ styles['th'] }}">{{ primary_name }}</th>
+         <th style="{{ styles['th'] }}">Current</th>
+         <th style="{{ styles['th'] }}">&sigma; {{ primary_field_suffix }}</th>
+         {% if secondary_info %}
+         <th style="{{ styles['th'] }}">&Delta; {{ secondary_field_suffix }}</th>           
+         <th style="{{ styles['th'] }}">&sigma; {{ secondary_field_suffix }}</th>
+         {% endif %}
+         </tr>
+         
+         {% for name, cr, test_id in bucket %}
+         <tr>
+           <td style="{{ styles['td'] }}">
+             <a href="{{ run_url }}/graph?{{ [('test.%d' % test_id, field_index)] | urlencode }}">{{ name }}</a>
+           </td>
+           {{ cr.pct_delta|aspctcell(style=styles['td'])|safe }}
+           <td style="{{ styles['td'] }}">{{ "%.4f" | format(cr.previous) }}</td>
+           <td style="{{ styles['td'] }}">{{ "%.4f" | format(cr.current) }}</td>
+           <td style="{{ styles['td'] }}">{{ "%.4f" | format_or_default(cr.stddev, '-') }}</td>
+           {% if secondary_info %}
+             {% set a_cr = secondary_info[(name, field)] %}
+             {{ a_cr.pct_delta|aspctcell(style=styles['td'])|safe }}
+             <td style="{{ styles['td'] }}">{{ "%.4f" | format_or_default(a_cr.stddev, '-') }}</td>
+           {% endif %}
+         </tr>
+         {% endfor %}
+       {% endif %}
+     </table>
+{% endif %}
+{% endmacro %}
+
+{% if not only_html_body %}
+<html>
+<head>
+   <title>{{ subject }}</title>
+</head>
+<body style="{{ styles['body'] }}">
+{% endif %}
+
+<h1 style="{{ styles['h1'] }}">
+  <a href="{{ report_url }}">{{ subject }}</a>
+</h1>
+
+<p>
+<table style="{{ styles['table'] }}">
+  <thead>
+    <tr>
+      <th style="{{ styles['th'] }}">Run</th>
+      <th style="{{ styles['th'] }}">Order</th>
+      <th style="{{ styles['th'] }}">Start Time</th>
+      <th style="{{ styles['th'] }}">Duration</th>
+    </tr>
+  </thead>
+  {% for title, r in (('Current', run), ('Previous', compare_to), ('Baseline', baseline)) %}
+    {% if r %}
+    <tr>
+      <td style="{{ styles['td'] }}"><a href="{{ ts_url }}/{{ r.id }}">{{ title }}</a></td>
+      <td style="{{ styles['td'] }}"><a href="{{ ts_url }}/order/{{ r.order.id }}">{{ r.order.llvm_project_revision }}</a></td>
+      <td style="{{ styles['td'] }}">{{ r.start_time }}</td>
+      <td style="{{ styles['td'] }}">{{ r.end_time - r.start_time }}</td>
+    </tr>
+    {% else %}
+      <tr><td style="{{ styles['td'] }}" colspan=4>No {{ title }} Run</td></tr>
+    {% endif %}
+  {% endfor %}
+</table>
+
+{% if compare_to and run.machine != compare_to.machine %}
+<p><b>
+*** WARNING ***: comparison is against a different machine ({{compare_to.machine.name}},{{compare_to.machine.id}})
+</b></p>
+{% endif %}
+{% if baseline and run.machine != baseline.machine %}
+<p><b>
+*** WARNING ***: baseline is against a different machine ({{baseline.machine.name}},{{baseline.machine.id}})
+</b></p>
+{% endif %}
+
+<hr>
+<h3>Tests Summary</h3>
+<table style="{{ styles['table'] }}">
+  <thead>
+    <tr>
+      <th style="{{ styles['th'] }}">Status Group</th>
+      <th style="{{ styles['th'] }}" align="right">#</th>
+      {% if baseline %}
+        <th style="{{ styles['th'] }}" align="right"># (B)</th>
+      {% endif %}
+    </tr>
+  </thead>
+  
+  {% for i, name, num_items, num_items_vs_baseline in num_item_buckets %}
+    {% if num_items or num_items_vs_baseline %}
+      <tr>
+        <td style="{{ styles['td'] }}">{{ name }}</td>
+        <td style="{{ styles['td'] }}" align="right">{{ num_items }}</td>
+        {% if baseline %}
+        <td style="{{ styles['td'] }}" align="right">{{ num_items_vs_baseline }}</td>
+        {% endif %}
+      </tr>
+    {% endif %}                
+  {% endfor %}
+  
+  <tfoot>
+    <tr>
+      <td style="{{ styles['td'] }}"><b>Total Tests</b></td>
+      <td style="{{ styles['td'] }}" align="right"><b>{{ num_total_tests }}</b></td>
+    </tr>
+  </tfoot>
+</table>
+
+<p>
+<h3>Run-Over-Run Changes Detail</h3>
+{% for _, field, bucket_name, sorted_bucket, test_names, show_perf in prioritized_buckets_run_over_run %}
+  {% set field_index = ts.sample_fields.index(field) %}
+  {% set field_display_name = {"compile_time":"Compile Time",
+                               "execution_time":"Execution Time"}.get(field.name, field.name) %}
+  {{
+    add_report_changes_detail_for_field_and_bucket(field, show_perf, run_url, field_index, field_display_name,
+                                                   bucket_name, sorted_bucket, test_names,
+                                                   'Previous', '', ' (B)', run_to_baseline_info, styles)
+  }}
+{% endfor %}
+<p>
+<h3>Run-Over-Baseline Changes Detail</h3>
+{% for _, field, bucket_name, sorted_bucket, test_names, show_perf in prioritized_buckets_run_over_baseline %}
+  {% set field_index = ts.sample_fields.index(field) %}
+  {% set field_display_name = {"compile_time":"Compile Time",
+                               "execution_time":"Execution Time"}.get(field.name, field.name) %}
+  {{
+    add_report_changes_detail_for_field_and_bucket(field, show_perf, run_url, field_index, field_display_name,
+                                                   bucket_name, sorted_bucket, test_names,
+                                                   'Baseline', '(B)', '', run_to_run_info, styles)
+  }}
+{% endfor %}
+<hr/>
+<b>Report Time</b>: {{ start_time | timedelta }}
+{% if not only_html_body %}
+</body>
+</html>
+{% endif %}
+
