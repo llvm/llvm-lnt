@@ -137,7 +137,7 @@ def import_and_report(config, db_name, db, file, format, commit=False,
 
 def print_report_result(result, out, err, verbose = True):
     """
-    print_report_result(result, out) -> None
+    print_report_result(result, out, [err], [verbose]) -> None
 
     Print a human readable form of an import result object to the given output
     stream. Test results are printed in 'lit' format.
