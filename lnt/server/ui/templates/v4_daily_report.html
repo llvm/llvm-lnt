@@ -71,7 +71,7 @@
 {% endmacro %}
 
 {# Generate the table showing the raw sample data. #}
-{% for field in report.fields %}
+{% for field,field_results in report.result_table %}
 <h3>Result Table ({{ field.name }})</h3>
 <table border="1">
   <thead>
@@ -82,20 +82,19 @@
       <th>Day - {{i}}</th>
 {% endfor %}
   </thead>
-{% for test,test_results in zip(report.reporting_tests,
-                                report.result_table[loop.index0]) %}
+{% for test,visible_results in field_results %}
   <tr>
     <td colspan="2"><b>{{test.name}}</b></td>
     <td colspan="{{report.num_prior_days_to_include}}">&nbsp;</td>
   </tr>
-{%   for machine in report.reporting_machines %}
+{%   for machine,day_results in visible_results %}
 {%   set machine_loop = loop %}
   <tr>
     <td>&nbsp;</td>
     <td>{{machine.name}}</td>
-    <td>{{ test_results[-1][machine_loop.index0].current }}</td>
-{%     for day_result in test_results[:-1]|reverse %}
-    {{ get_cell_value(day_result[machine_loop.index0]) }}
+    <td>{{ day_results[-1].current }}</td>
+{%     for day_result in day_results[:-1]|reverse %}
+    {{ get_cell_value(day_result) }}
 {%     endfor %}
   </tr>
 {%   endfor %}

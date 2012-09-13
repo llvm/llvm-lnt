@@ -126,25 +126,39 @@ class DailyReport(object):
             for run in day_runs:
                 machine_runs[(run.machine_id, day_index)] = run
                 
-        # Build the result table::
-        #   result_table[field_index][test_index][day_index][machine_index] = \
-        #     {samples}
+        # Build the result table of tests with interesting results.
         self.result_table = []
         for field in self.fields:
             field_results = []
             for test in self.reporting_tests:
-                key = test
-                test_results = []
-                for day_index,day_runs in enumerate(prior_runs):
-                    day_results = []
-                    for machine in self.reporting_machines:
-                        prev_runs = machine_runs.get(
-                            (machine.id, day_index+1), ())
-                        day_runs = machine_runs.get(
-                            (machine.id, day_index), ())
-                        cr = sri.get_comparison_result(
-                            day_runs, prev_runs, test.id, field)
+                # For each machine, compute if there is anything to display for
+                # the most recent day, and if so add it to the view.
+                visible_results = []
+                for machine in self.reporting_machines:
+                    # Get the most recent comparison result.
+                    day_runs = machine_runs.get((machine.id, 0), ())
+                    prev_runs = machine_runs.get((machine.id, 1), ())
+                    cr = sri.get_comparison_result(day_runs, prev_runs,
+                                                   test.id, field)
+
+                    # If the result is not "interesting", ignore this machine.
+                    if not cr.is_result_interesting():
+                        continue
+                    
+                    # Otherwise, compute the results for all the days.
+                    day_results = [cr]
+                    for i in range(1, self.num_prior_days_to_include):
+                        day_runs = prev_runs
+                        prev_runs = machine_runs.get((machine.id, i+1), ())
+                        cr = sri.get_comparison_result(day_runs, prev_runs,
+                                                       test.id, field)
                         day_results.append(cr)
-                    test_results.append(day_results)
-                field_results.append(test_results)
-            self.result_table.append(field_results)
+
+                    # Append the result for the machine.
+                    visible_results.append((machine, day_results))
+
+                # If there are visible results for this test, append it to the
+                # view.
+                if visible_results:
+                    field_results.append((test, visible_results))
+            self.result_table.append((field, field_results))

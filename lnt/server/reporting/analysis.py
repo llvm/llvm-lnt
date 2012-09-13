@@ -30,6 +30,17 @@ class ComparisonResult:
     def get_samples(self):
         return self.samples
 
+    def is_result_interesting(self):
+        """is_result_interesting() -> bool
+
+        Check whether the result is worth displaying, either because of a
+        failure, a test status change or a performance change."""
+        if self.get_test_status() != UNCHANGED_PASS:
+            return True
+        if self.get_value_status() in (REGRESSED, IMPROVED):
+            return True
+        return False
+
     def get_test_status(self):
         # Compute the comparison status for the test success.
         if self.failed:
