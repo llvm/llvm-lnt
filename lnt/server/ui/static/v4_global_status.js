@@ -76,17 +76,13 @@ v4_global_status = {};
         sortrevind.id = "sorttable_sortrevind";
         sortrevind.innerHTML = '&nbsp;&#x25BE;';
         initial_sort_header.appendChild(sortrevind);
-
-        $('.data-cell').contextMenu('contextmenu-datacell', {
-           bindings: {
-               'contextMenu-runpage' : function(elt) {
-                   var new_base = elt.getAttribute('run_id') + '/graph?test.';
-                   new_base += elt.getAttribute('test_id') + '=' + g.field.toString();
-                   window.location = UrlReplaceBasename(window.location.toString(),
-                                                          new_base);
-               }
-           }
-       });
+        
+        $('.data-cell').click(function() {
+            var new_base = this.getAttribute('run_id') + '/graph?test.';
+            new_base += this.getAttribute('test_id') + '=' + g.field.toString();
+            window.location = UrlReplaceBasename(window.location.toString(),
+                                                 new_base);
+        });
     };    
     
     m.reset_table = function() {
