@@ -99,6 +99,7 @@
         {% for m in machines %}
         <li><input machine="{{ m.name }}" id="checkbox-{{ m.get_css_name() }}" checked="checked" type="checkbox" onclick="v4_global_status.toggle_column_visibility('{{ m.get_css_name() }}');">{{ m.name }}</input></li>
         {% endfor %}
+        <li><button onclick="v4_global_status.update_table();">Set Visibility</button><button onclick="v4_global_status.reset_table();">Reset</button></li>
       </ul>
     </div>
   </div>

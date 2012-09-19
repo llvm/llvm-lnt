@@ -6,16 +6,42 @@ String.prototype.pctToFloat = function() {
 
 v4_global_status = {};
 (function(_module) {
+    
     // Assign our input module to a var so that a closure is created
     // in our local context.
     var m = _module;
     
     /* Globals */
     var g = {};
+
+    /* Helper Functions */
     
-    /* Initialization */
+    function UrlReplaceBasename(url, new_basename) {
+        // Remove query string.
+        var last_question_index = url.lastIndexOf('?');
+        if (last_question_index != -1) 
+            url = url.substring(0, last_question_index);
+        if (url.charAt(url.length-1) == '/') {
+            url = url.substring(0, url.length-1);
+        }
+        
+        var without_base = url.substring(0, url.lastIndexOf('/') + 1);
+        return without_base + new_basename;
+    }
+    
+    function IsHidden(elem) {
+        return elem.offsetWidth === 0 && elem.offsetHeight === 0;
+    }
+    
+    /* Exported Functions */
+    
+    /*
+      @arg field The field we are viewing data for currently (compile time and
+                 execution time)
+    */
     m.init = function(field) {
         g.field = field;
+        g.hidden_columns = [];
         
         // Create a global variable for table.
         g.table = $('#data-table')[0];
@@ -61,28 +87,7 @@ v4_global_status = {};
                }
            }
        });
-    };
-    
-    /* Helper Functions */
-    
-    function UrlReplaceBasename(url, new_basename) {
-        // Remove query string.
-        var last_question_index = url.lastIndexOf('?');
-        if (last_question_index != -1) 
-            url = url.substring(0, last_question_index);
-        if (url.charAt(url.length-1) == '/') {
-            url = url.substring(0, url.length-1);
-        }
-        
-        var without_base = url.substring(0, url.lastIndexOf('/') + 1);
-        return without_base + new_basename;
-    }
-    
-    function IsHidden(elem) {
-        return elem.offsetWidth === 0 && elem.offsetHeight === 0;
-    }
-    
-    /* Exported Functions */
+    };    
     
     m.reset_table = function() {
         g.table.className = 'sortable_rev';
@@ -97,9 +102,26 @@ v4_global_status = {};
     };
 
     m.toggle_column_visibility = function(_col) {
-        var col = _col;
-        var classname = 'hide-' + col;
-        $(g.table).toggleClass(classname);
+        var index;
+        if ((index = g.hidden_columns.indexOf(_col)) != -1) {
+            g.hidden_columns.splice(index, 1);
+        } else {
+            g.hidden_columns.push(_col);
+        }
+    };
+
+    m.update_table = function() {
+        // Compute base class name.
+        var new_classname = g.table.className.search(/\bsortable\b/) != -1? "sortable" : "sortable_rev";
+
+        // Add rest of hidden columns.
+        var hidden_columns = g.hidden_columns;
+        for (var i = 0, len = hidden_columns.length; i < len; ++i) {
+            new_classname += ' hide-' + hidden_columns[i];
+        }
+        
+        g.table.className = new_classname;
+        
         m.recompute_worst_times();
     };
     
