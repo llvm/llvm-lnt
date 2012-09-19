@@ -444,6 +444,7 @@ def v4_graph(id):
     legend = []
     graph_plots = []
     overview_plots = []
+    revision_range = None
     num_points = 0
     num_plots = len(graph_tests)
     use_day_axis = None
@@ -510,7 +511,6 @@ def v4_graph(id):
             data = map(convert, data)
 
         # Compute the graph points.
-        revision_range_region = []
         errorbar_data = []
         points_data = []
         pts = []
@@ -522,10 +522,10 @@ def v4_graph(id):
         if compare_to and show_highlight:
             start_rev = compare_to.order.llvm_project_revision
             end_rev = run.order.llvm_project_revision
-            revision_range_region = (
-                convert_revision(start_rev),
-                convert_revision(end_rev)
-            )
+            revision_range = {
+                "start": convert_revision(start_rev),
+                "end": convert_revision(end_rev)
+            }
 
         if normalize_by_median:
             normalize_by = 1.0/stats.median([min(values)
@@ -628,13 +628,6 @@ def v4_graph(id):
                             "lineWidth" : 2 },
                         "shadowSize" : 4 })
 
-        # If we are comparing two revisions,
-        if compare_to and show_highlight:
-            reg_col = [0.0, 0.0, 1.0]
-            graph_plots.insert(0, {
-                    "data" : revision_range_region,
-                    "color" : util.toColorString(reg_col) })
-
         # Add the points plot, if used.
         if points_data:
             pts_col = (0,0,0)
@@ -681,6 +674,7 @@ def v4_graph(id):
                            compare_to=compare_to, options=options,
                            num_plots=num_plots, num_points=num_points,
                            neighboring_runs=neighboring_runs,
+                           revision_range=revision_range,
                            graph_plots=graph_plots,
                            overview_plots=overview_plots, legend=legend,
                            use_day_axis=use_day_axis)

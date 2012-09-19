@@ -24,6 +24,9 @@
   <script language="javascript" type="text/javascript"
           src="{{ url_for('.static',
                           filename='flot/jquery.flot.selection.min.js') }}"> </script>
+  <script language="javascript" type="text/javascript"
+          src="{{ url_for('.static',
+                          filename='flot/jquery.flot.highlight.min.js') }}"></script>
 {% endblock %}
 
 {% block title %}Graph{% endblock %}
@@ -43,6 +46,9 @@ function init() {
           lineWidth : 1 },
         shadowSize : 0
         },
+      highlight : {
+        range: {{revision_range|tojson|safe}} 
+      },
       zoom : { interactive : true },
       pan : { interactive : true },
       grid : {
@@ -63,6 +69,11 @@ function init() {
         lineWidth : 1 },
       shadowSize : 0 },
     selection: { mode: "x" },
+    highlight : {
+       range: {{revision_range|tojson|safe}},
+       alpha: "1",
+       stroke: true,
+    },
     yaxis: { ticks: [] } });
 
   // Connect selection on the overview graph to the main plot.
