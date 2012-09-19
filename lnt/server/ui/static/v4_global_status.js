@@ -34,15 +34,17 @@ v4_global_status = {};
     }
     
     /* Exported Functions */
-    
-    /*
-      @arg field The field we are viewing data for currently (compile time and
-                 execution time)
-    */
+
     m.init = function(field) {
         g.field = field;
-        g.hidden_columns = [];
-        
+
+        g.hidden_columns = localStorage;
+        var len = g.hidden_columns.length;
+        for (var i = 0; i < len; ++i) {
+            var key = g.hidden_columns.key(i);
+            $('#checkbox-' + key)[0].checked = false;
+        }
+
         // Create a global variable for table.
         g.table = $('#data-table')[0];
         
@@ -83,8 +85,9 @@ v4_global_status = {};
             window.location = UrlReplaceBasename(window.location.toString(),
                                                  new_base);
         });
-    };    
-    
+        m.update_table();
+    };
+
     m.reset_table = function() {
         g.table.className = 'sortable_rev';
         
@@ -93,16 +96,17 @@ v4_global_status = {};
             val.checked = true;
             val.disabled = false;
         });
-        
+
+        localStorage.clear();
+
         m.recompute_worst_times();
     };
 
     m.toggle_column_visibility = function(_col) {
-        var index;
-        if ((index = g.hidden_columns.indexOf(_col)) != -1) {
-            g.hidden_columns.splice(index, 1);
+        if (_col in g.hidden_columns) {
+            delete g.hidden_columns[_col];
         } else {
-            g.hidden_columns.push(_col);
+            g.hidden_columns[_col] = "true";
         }
     };
 
@@ -111,9 +115,9 @@ v4_global_status = {};
         var new_classname = g.table.className.search(/\bsortable\b/) != -1? "sortable" : "sortable_rev";
 
         // Add rest of hidden columns.
-        var hidden_columns = g.hidden_columns;
-        for (var i = 0, len = hidden_columns.length; i < len; ++i) {
-            new_classname += ' hide-' + hidden_columns[i];
+        var len = g.hidden_columns.length;
+        for (var i = 0; i < len; ++i) {
+            new_classname += ' hide-' + g.hidden_columns.key(i);
         }
         
         g.table.className = new_classname;
