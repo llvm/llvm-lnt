@@ -550,6 +550,8 @@ def compute_run_make_variables(opts, llvm_source_version, target_flags,
             inferred_arch = 'Alpha'
         elif arch.startswith('sparc'):
             inferred_arch = 'Sparc'
+        elif arch in ('mips', 'mipsel'):
+            inferred_arch = 'Mips'
 
     if inferred_arch:
         make_variables['ARCH'] = inferred_arch
