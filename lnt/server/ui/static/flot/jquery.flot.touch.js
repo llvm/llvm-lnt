@@ -89,15 +89,11 @@
                 
                 // Do the pan and or double click if it was quick.
                 if (isOneTouch && !isPan) {
-                    console.log('At touch end. Trying to double click.');
                     var now = new Date().getTime();
                     var lasttime = lastTouchTime || now + 1; // now + 1 so the first time we are negative.
                     var delta = now - lasttime;
                     
-                    console.log("Now: " + now.toString() + "; LastTime: " + lasttime.toString() + " Delta: " + delta.toString());
-                    
                     if (delta < 500 && delta > 0) {
-                        console.log('Double touch success.');
                         // We have a double touch.
                         plot.zoom({ center: { left: lastDoubleTouchCenter[0],
                                               top: lastDoubleTouchCenter[1] }});
