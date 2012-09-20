@@ -50,7 +50,8 @@ function init() {
         range: {{revision_range|tojson|safe}} 
       },
       zoom : { interactive : true },
-      pan : { interactive : true },
+      pan : { interactive : true,
+              frameRate: 60 },
       grid : {
         hoverable : true }
       };
