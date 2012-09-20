@@ -27,6 +27,9 @@
   <script language="javascript" type="text/javascript"
           src="{{ url_for('.static',
                           filename='flot/jquery.flot.highlight.min.js') }}"></script>
+  <script language="javascript" type="text/javascript"
+          src="{{ url_for('.static',
+                          filename='flot/jquery.flot.touch.min.js') }}"></script>
 {% endblock %}
 
 {% block title %}Graph{% endblock %}
@@ -70,6 +73,9 @@ function init() {
         lineWidth : 1 },
       shadowSize : 0 },
     selection: { mode: "x" },
+    touch: {
+      enabled: false
+    },
     highlight : {
        range: {{revision_range|tojson|safe}},
        alpha: "1",
