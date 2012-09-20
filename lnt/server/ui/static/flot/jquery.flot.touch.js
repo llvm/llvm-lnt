@@ -6,7 +6,9 @@
     function init(plot) {                        
         var isOneTouch = false;
         var isTwoTouch = false;
+        var isPan = false;
         var lastTouchCenter = [0,0];
+        var lastDoubleTouchCenter = [0,0];
         var lastTouchPosition = [0,0];
         var lastTwoTouchPosition = [[0,0],[0,0]];
         var lastTwoTouchDistance = Infinity;
@@ -29,8 +31,8 @@
                     
                     lastTouchPosition = [touches[0].pageX,
                                          touches[0].pageY];
-                    lastTouchCenter = [touches[0].pageX - offset.left,
-                                       touches[0].pageY - offset.top];
+                    lastDoubleTouchCenter = [touches[0].pageX - offset.left,
+                                             touches[0].pageY - offset.top];
                 } else if (touches.length === 2) {
                     // Prepare for pinch zoom.           
                     isTwoTouch = true;
@@ -62,6 +64,7 @@
                     });
                     
                     lastTouchPosition = newTouchPosition;
+                    isPan = true;
                 } else if (isTwoTouch && touches.length === 2) {
                     // If we hit a touchmove with one touch,
                     // we are zooming.
@@ -85,36 +88,28 @@
                 var touches = e.originalEvent.touches;
                 
                 // Do the pan and or double click if it was quick.
-                if (isOneTouch) {
+                if (isOneTouch && !isPan) {
+                    console.log('At touch end. Trying to double click.');
                     var now = new Date().getTime();
                     var lasttime = lastTouchTime || now + 1; // now + 1 so the first time we are negative.
                     var delta = now - lasttime;
                     
+                    console.log("Now: " + now.toString() + "; LastTime: " + lasttime.toString() + " Delta: " + delta.toString());
+                    
                     if (delta < 500 && delta > 0) {
+                        console.log('Double touch success.');
                         // We have a double touch.
-                        plot.zoom({ center: { left: lastTouchCenter[0],
-                                              top: lastTouchCenter[1] }});
-                    }
-                    
-                    lastTouchTime = lastTouchTime !== null? null : now;
-                } else if (isTwoTouch) {
-                    // Finish off our zoom.
-
-                    // We look at the delta from our last positions and zoom
-                    // in by the percent difference from the total distance in between
-                    // the previous distance in between the fingers total.                    
-                    var xdelta = touches[1].pageX - touches[0].pageX;
-                    var ydelta = touches[1].pageY - touches[0].pageY;
-                    var newTwoTouchDistance = Math.sqrt(xdelta*xdelta + ydelta*ydelta);
-                    var scale = (newTwoTouchDistance - lastTwoTouchDistance)/lastTwoTouchDistance;
-                    lastTwoTouchDistance = newTwoTouchDistance;
-                    
-                    plot.zoom({ amount: scale,
-                                center: { left: lastTouchCenter[0], top: lastTouchCenter[1] }});
+                        plot.zoom({ center: { left: lastDoubleTouchCenter[0],
+                                              top: lastDoubleTouchCenter[1] }});
+                        lastTouchTime = null;
+                    } else {
+                        lastTouchTime = now;
+                    }                    
                 }
                 
                 isOneTouch = false;
                 isTwoTouch = false;
+                isPan = false;
                 return false;
             });
         }
