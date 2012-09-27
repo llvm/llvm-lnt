@@ -32,6 +32,9 @@ The relevent arguments for this function are:
 
     function init(plot) {
         plot.hooks.draw.push(function(plot, ctx) {
+            if (!plot.getOptions().highlight.enabled)
+                return;
+            
             var plot_offset = plot.getPlotOffset();
             var plot_height = plot.height();
 
@@ -73,6 +76,7 @@ The relevent arguments for this function are:
         init: init,
         options: {
             highlight: {
+                enabled: true,
                 range: {start: 0, end: 0},
                 color: ["0", "0", "255"],
                 alpha: "0.2",

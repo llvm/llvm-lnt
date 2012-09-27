@@ -50,7 +50,11 @@ function init() {
         shadowSize : 0
         },
       highlight : {
+{% if revision_range is not none %}
         range: {{revision_range|tojson|safe}} 
+{% else %}
+        enabled: false
+{% endif %}
       },
       zoom : { interactive : true },
       pan : { interactive : true,
@@ -77,9 +81,13 @@ function init() {
       enabled: false
     },
     highlight : {
+{% if revision_range is not none %}
        range: {{revision_range|tojson|safe}},
        alpha: "1",
        stroke: true,
+{% else %}
+        enabled: false
+{% endif %}
     },
     yaxis: { ticks: [] } });
 
