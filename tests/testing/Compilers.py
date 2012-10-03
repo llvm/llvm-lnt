@@ -48,3 +48,11 @@ assert info['cc_build'] == 'DEV'
 assert info['inferred_run_order'] == '%s,%s' % (
     '37ce0feee598d82e7220fa0a4b110619cae6ea72',
     '60fca4f64e697ad834ce7ee8c2e478cae394c7dc')
+
+info = get_info("clang-git-2")
+pprint.pprint(info)
+assert info['cc_name'] == 'clang'
+assert info['cc_build'] == 'DEV'
+assert info['inferred_run_order'] == '%s,%s' % (
+    '8ab09316f63ea99ff23b2684c454b1008b8d5f10',
+    '7c53f795961cc2d35b85d315aadb2ac135a0fdb2')

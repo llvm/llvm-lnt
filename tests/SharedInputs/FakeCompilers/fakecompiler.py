@@ -93,6 +93,21 @@ Thread model: posix"""
  "%s" "-cc1" "-E" ... more boring stuff here ...""" % (
             g_program,)
 
+# Clang build from a git repository.
+class Clang_git_2(LLVMCompiler):
+    compiler_name = "clang-git-2"
+
+    def print_verbose_info(self):
+        print >>sys.stderr, """\
+clang version 3.2\
+ (/d/g/puzzle/clang.git git:/git/puzzlebox/clang.git 8ab09316f63ea99ff23b2684c454b1008b8d5f10)\
+ (http://llvm.org/git/llvm.git /d/g/puzzle/llvm.git git:/git/puzzlebox/llvm.git 7c53f795961cc2d35b85d315aadb2ac135a0fdb2)
+Target: x86_64-apple-darwin12.2.0
+Thread model: posix"""
+        print >>sys.stderr, """\
+ "%s" "-cc1" "-E" ... more boring stuff here ...""" % (
+            g_program,)
+
 class AppleClang_138_1(LLVMCompiler):
     compiler_name = "apple-clang-138.1"
 

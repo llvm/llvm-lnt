@@ -123,7 +123,7 @@ def get_cc_info(path, cc_flags=[]):
         else:
             # Otherwise, see if we can match a branch and a tag name. That could
             # be a git hash.
-            m = re.match(r'\(([^ ]+) ([^ ]+)\)', cc_build_string)
+            m = re.match(r'\((.+) ([^ ]+)\)', cc_build_string)
             if m:
                 cc_src_branch,cc_src_revision = m.groups()
             else:
@@ -144,7 +144,7 @@ def get_cc_info(path, cc_flags=[]):
         # Newer Clang's can report separate versions for LLVM and Clang. Parse
         # the cc_extra text so we can get the maximum SVN version.
         if cc_extra.startswith('(') and cc_extra.endswith(')'):
-            m = re.match(r'\(([^ ]*) (.*)\)', cc_extra)
+            m = re.match(r'\((.+) ([^ ]+)\)', cc_extra)
             if m:
                 cc_alt_src_branch,cc_alt_src_revision = m.groups()
             else:
