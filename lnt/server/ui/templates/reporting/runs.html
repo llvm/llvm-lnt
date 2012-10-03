@@ -146,6 +146,7 @@
   }}
 {% endfor %}
 <p>
+{% if baseline %}
 <h3>Run-Over-Baseline Changes Detail</h3>
 {% for _, field, bucket_name, sorted_bucket, test_names, show_perf in prioritized_buckets_run_over_baseline %}
   {% set field_index = ts.sample_fields.index(field) %}
@@ -157,6 +158,7 @@
                                                    'Baseline', '(B)', '', run_to_run_info, styles)
   }}
 {% endfor %}
+{% endif %}
 <hr/>
 <b>Report Time</b>: {{ start_time | timedelta }}
 {% if not only_html_body %}

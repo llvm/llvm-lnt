@@ -137,8 +137,11 @@ def generate_run_report(run, baseurl, only_html_body = False,
 
     # Generate prioritized buckets for run over run and run over baseline data.
     prioritized_buckets_run_over_run = prioritize_buckets(test_results)
-    prioritized_buckets_run_over_baseline = prioritize_buckets(baselined_results)
-
+    if baseline:
+        prioritized_buckets_run_over_baseline = prioritize_buckets(baselined_results)
+    else:
+        prioritized_buckets_run_over_baseline = None
+    
     # Prepare auxillary variables for rendering.
     # Create Subject
     subject = """%s test results""" % (machine.name,)
