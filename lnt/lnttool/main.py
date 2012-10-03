@@ -10,6 +10,7 @@ import werkzeug.contrib.profiler
 
 import StringIO
 import lnt
+import lnt.util.multitool
 import lnt.util.ImportData
 from lnt import testing
 from lnt.testing.util.commands import note, warning, error, fatal
@@ -18,7 +19,7 @@ def action_runserver(name, args):
     """start a new development server"""
 
     parser = OptionParser("""\
-%%prog %s [options] <instance path>
+%s [options] <instance path>
 
 Start the LNT server using a development WSGI server. Additional options can be
 used to control the server host and port, as well as useful development features
@@ -94,7 +95,7 @@ from updatedb import action_updatedb
 def action_checkformat(name, args):
     """check the format of an LNT test report file"""
 
-    parser = OptionParser("%%prog %s [options] files" % name)
+    parser = OptionParser("%s [options] files" % name)
 
     (opts, args) = parser.parse_args(args)
     if len(args) > 1:
@@ -117,7 +118,7 @@ def action_checkformat(name, args):
 def action_runtest(name, args):
     """run a builtin test application"""
 
-    parser = OptionParser("%%prog %s test-name [options]" % name)
+    parser = OptionParser("%s test-name [options]" % name)
     parser.disable_interspersed_args()
     parser.add_option("", "--submit", dest="submit_url", metavar="URLORPATH",
                       help=("autosubmit the test result to the given server "
@@ -190,7 +191,7 @@ def action_runtest(name, args):
 def action_showtests(name, args):
     """show the available built-in tests"""
 
-    parser = OptionParser("%%prog %s" % name)
+    parser = OptionParser("%s" % name)
     (opts, args) = parser.parse_args(args)
     if len(args) != 0:
         parser.error("incorrect number of argments")
@@ -207,7 +208,7 @@ def action_showtests(name, args):
 def action_submit(name, args):
     """submit a test report to the server"""
 
-    parser = OptionParser("%%prog %s [options] <url> <file>+" % name)
+    parser = OptionParser("%s [options] <url> <file>+" % name)
     parser.add_option("", "--commit", dest="commit", type=int,
                       help=("whether the result should be committed "
                             "[%default]"),
@@ -226,7 +227,7 @@ def action_submit(name, args):
 def action_update(name, args):
     """create and or auto-update the given database"""
 
-    parser = OptionParser("%%prog %s [options] <db path>" % name)
+    parser = OptionParser("%s [options] <db path>" % name)
     parser.add_option("", "--show-sql", dest="show_sql", default=False,
                       action="store_true", help="show all SQL queries")
 
@@ -256,29 +257,8 @@ def action_update(name, args):
 
 ###
 
-commands = dict((name[7:], f) for name,f in locals().items()
-                if name.startswith('action_'))
-def main():
-    cmds_width = max(map(len, commands))
-    parser = OptionParser("""\
-%%prog [options] <command> ... arguments ...
-
-Available commands:
-%s""" % ("\n".join("  %-*s - %s" % (cmds_width, name, func.__doc__)
-                   for name, func in sorted(commands.items()))),
-                          version = "lnt version %s" % lnt.__version__)
-    parser.disable_interspersed_args()
-    (opts, args) = parser.parse_args()
-
-    if not args:
-        parser.print_usage()
-        return
-
-    cmd = args[0]
-    if cmd not in commands:
-        parser.error("invalid command: %r" % cmd)
-
-    commands[cmd](cmd, args[1:])
+tool = lnt.util.multitool.MultiTool(locals())
+main = tool.main
 
 if __name__ == '__main__':
     main()

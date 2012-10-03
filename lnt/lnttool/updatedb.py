@@ -9,7 +9,7 @@ def action_updatedb(name, args):
 
     from optparse import OptionParser, OptionGroup
 
-    parser = OptionParser("%%prog %s [options] <instance> <file>+"%name)
+    parser = OptionParser("%s [options] <instance> <file>+"%name)
     parser.add_option("", "--database", dest="database", default="default",
                       help="database to modify [%default]")
     parser.add_option("", "--testsuite", dest="testsuite",
