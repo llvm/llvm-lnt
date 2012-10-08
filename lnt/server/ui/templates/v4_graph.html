@@ -1,11 +1,7 @@
-{% import "v4_utils.html" as v4_utils %}
 {% import "utils.html" as utils %}
 
-{% set machine = run.machine %}
-
 {% extends "layout.html" %}
-{% set components = [(ts.name, v4_url_for("v4_overview")),
-                     ('machine', v4_url_for("v4_machine", id=machine.id))] %}
+{% set components = [(ts.name, v4_url_for("v4_overview"))] %}
 {% block head %}
   <script src="{{ url_for('.static', filename='popup.js') }}"></script>
   <script src="{{ url_for('.static', filename='sorttable.js') }}"></script>
@@ -141,8 +137,6 @@ function update_tooltip(event, pos, item, show_fn) {
 
 {% block body %}
 
-{% call v4_utils.v4_run_page(ts, machine, run, compare_to, neighboring_runs) %}
-
 {{ utils.render_popup_begin('view_options', 'View Options', true) }}
 <form action="" method="get">
 <b>Hide Line Plot:</b>
@@ -232,9 +226,5 @@ Wheel: Zoom<br>
 </td></tr>
 </table>
 <p>
-<b>Plots</b>: {{ num_plots }}<br>
-<b>Num Points</b>: {{ num_points }}<br>
-
-{% endcall %}
 
 {% endblock %}

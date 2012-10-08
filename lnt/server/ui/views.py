@@ -386,7 +386,6 @@ def v4_graph(id):
         compare_to = prev_runs[0]
     else:
         compare_to = None
-    neighboring_runs = next_runs[::-1] + [run] + prev_runs
 
     # Parse the view options.
     options = {}
@@ -445,7 +444,6 @@ def v4_graph(id):
     graph_plots = []
     overview_plots = []
     revision_range = None
-    num_points = 0
     num_plots = len(graph_tests)
     for i,(test,field) in enumerate(graph_tests):
         # Determine the base plot color.
@@ -565,7 +563,6 @@ def v4_graph(id):
 
         # Add the minimum line plot, if requested.
         if show_lineplot:
-            num_points += len(data)        
             graph_plots.append({
                     "data" : pts,
                     "color" : util.toColorString(col) })
@@ -645,10 +642,7 @@ def v4_graph(id):
                     "data" : moving_median_data,
                     "color" : util.toColorString(col) })
 
-    return render_template("v4_graph.html", ts=ts, run=run,
-                           compare_to=compare_to, options=options,
-                           num_plots=num_plots, num_points=num_points,
-                           neighboring_runs=neighboring_runs,
+    return render_template("v4_graph.html", ts=ts, options=options,
                            revision_range=revision_range,
                            graph_plots=graph_plots,
                            overview_plots=overview_plots, legend=legend)
