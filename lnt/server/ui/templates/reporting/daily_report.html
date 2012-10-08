@@ -56,7 +56,7 @@
 
 {# Generate the table showing the raw sample data. #}
 {% set graph_base=v4_url_for('v4_graph') %}
-{% for field,field_results in report.result_table %}
+{% for field,field_results in report.result_table|reverse %}
 <h3>Result Table ({{ field.name }})</h3>
 <table border="1" style="{{ styles.table }}">
   <thead>
