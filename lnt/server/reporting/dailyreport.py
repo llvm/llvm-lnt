@@ -7,16 +7,17 @@ import lnt.server.reporting.analysis
 from lnt.server.ui import util
 
 class DailyReport(object):
-    def __init__(self, ts, year, month, day, num_prior_days_to_include = 3):
+    def __init__(self, ts, year, month, day, num_prior_days_to_include = 3,
+                 day_start_offset_hours=16):
         self.ts = ts
         self.num_prior_days_to_include = num_prior_days_to_include
         self.year = year
         self.month = month
         self.day = day
         self.fields = list(ts.Sample.get_primary_fields())
+        self.day_start_offset = datetime.timedelta(hours=day_start_offset_hours)
 
         # Computed values.
-        self.day_start_offset = None
         self.next_day = None
         self.prior_days = None
         self.reporting_machines = None
@@ -34,7 +35,6 @@ class DailyReport(object):
         # overnight, we define "daily" to really mean "daily plus some
         # offset". The offset should generally be whenever the last run finishes
         # on today's date.
-        self.day_start_offset = datetime.timedelta(hours=16)
 
         self.next_day = (datetime.datetime.fromordinal(day_ordinal + 1) +
                          self.day_start_offset)
