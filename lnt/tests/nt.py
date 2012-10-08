@@ -483,6 +483,10 @@ def compute_run_make_variables(opts, llvm_source_version, target_flags,
         make_variables['ENABLE_LLCBETA'] = '1'
     if opts.test_small:
         make_variables['SMALL_PROBLEM_SIZE'] = '1'
+    if opts.test_large:
+        if opts.test_small:
+          fatal('the --small and --large options are mutually exclusive')
+        make_variables['LARGE_PROBLEM_SIZE'] = '1'
     if opts.test_integrated_as:
         make_variables['TEST_INTEGRATED_AS'] = '1'
     if opts.liblto_path:
@@ -1052,6 +1056,9 @@ class NTTest(builtintest.BuiltinTest):
 
         group.add_option("", "--small", dest="test_small",
                          help="Use smaller test inputs and disable large tests",
+                         action="store_true", default=False)
+        group.add_option("", "--large", dest="test_large",
+                         help="Use larger test inputs",
                          action="store_true", default=False)
 
         group.add_option("", "--only-test", dest="only_test", metavar="PATH",
