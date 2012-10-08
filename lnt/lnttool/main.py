@@ -255,6 +255,80 @@ def action_update(name, args):
     # Update the database.
     lnt.server.db.migrate.update_path(db_path)
 
+def action_send_daily_report(name, args):
+    """send a daily report email"""
+    import datetime
+    import email.mime.multipart
+    import email.mime.text
+    import smtplib
+
+    import lnt.server.reporting.dailyreport
+
+    parser = OptionParser("%%prog %s [options] <instance path> <address>" % (
+            name,))
+    parser.add_option("", "--database", dest="database", default="default",
+                      help="database to use [%default]")
+    parser.add_option("", "--testsuite", dest="testsuite", default="nts",
+                      help="testsuite to use [%default]")
+    parser.add_option("", "--host", dest="host", default="localhost",
+                      help="email relay host to use [%default]")
+    parser.add_option("", "--from", dest="from_address", default=None,
+                      help="from email address (required)")
+    (opts, args) = parser.parse_args(args)
+
+    if len(args) != 2:
+        parser.error("invalid number of arguments")
+    if opts.from_address is None:
+        parser.error("--from argument is required")
+
+    path, to_address = args
+
+    # Load the LNT instance.
+    instance = lnt.server.instance.Instance.frompath(path)
+    config = instance.config
+
+    # Get the database.
+    db = config.get_database(opts.database)
+
+    # Get the testsuite.
+    ts = db.testsuite[opts.testsuite]
+
+    # Get a timestamp to use to derive the daily report to generate.
+    latest = ts.query(ts.Run).\
+        order_by(ts.Run.start_time.desc()).limit(1).first()
+
+    # If we found a run, use it's start time.
+    if latest:
+        date = latest.start_time
+    else:
+        # Otherwise, just use now.
+        date = datetime.datetime.now()
+
+    # Generate the daily report.
+    note("building report data...")
+    report = lnt.server.reporting.dailyreport.DailyReport(
+        ts, year=date.year, month=date.month, day=date.day,
+        day_start_offset_hours=date.hour)
+    report.build()
+
+    note("generating HTML report...")
+    subject = "Daily Report: %04d-%02d-%02d" % (
+        report.year, report.month, report.day)
+    html_report = report.render(only_html_body=False)
+
+    # Form the multipart email message.
+    msg = email.mime.multipart.MIMEMultipart('alternative')
+    msg['Subject'] = subject
+    msg['From'] = opts.from_address
+    msg['To'] = to_address
+    msg.attach(email.mime.text.MIMEText(html_report, "html"))
+
+    # Send the report.
+    s = smtplib.SMTP(opts.host)
+    s.sendmail(opts.from_address, [to_address],
+               msg.as_string())
+    s.quit()
+
 ###
 
 tool = lnt.util.multitool.MultiTool(locals())
