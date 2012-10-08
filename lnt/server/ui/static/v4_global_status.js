@@ -145,7 +145,7 @@ v4_global_status = {};
                 }
             }
             
-            cells[1].innerHTML = (max != -Infinity)? max.toString() + '%' : "";
+            cells[1].innerHTML = (max != -Infinity)? max.toFixed(2) + '%' : "";
             cells[1].setAttribute('bgcolor', (max_index != -1)? cells[max_index].getAttribute('bgcolor') : "#dbdbdb");            
         });
         
