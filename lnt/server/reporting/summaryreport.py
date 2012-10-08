@@ -325,7 +325,7 @@ class SummaryReport(object):
                                   for r in ts_runs)
 
                 # Compute a mapping from run id to machine id.
-                run_machine_id_map = dict((r.id, r.machine_id)
+                run_machine_id_map = dict((r.id, r.machine.name)
                                           for r in ts_runs)
 
                 # Preload the run parameters.
