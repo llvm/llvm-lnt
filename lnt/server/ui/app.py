@@ -86,7 +86,7 @@ class App(flask.Flask):
         app = App(__name__)
 
         # Register additional filters.
-        lnt.server.ui.filters.register(app.jinja_env)
+        create_jinja_environment(app.jinja_env)
 
         # Set up strict undefined mode for templates.
         app.jinja_env.undefined = jinja2.StrictUndefined
@@ -121,7 +121,22 @@ class App(flask.Flask):
             app=current_app,
             old_config=self.old_config)
 
-        lnt.server.ui.globals.register(self.jinja_env)
-
         # Set the application secret key.
         self.secret_key = self.old_config.secretKey
+
+
+def create_jinja_environment(env=None):
+    """
+    create_jinja_environment([env]) -> jinja2.Environment
+
+    Create (or modify) a new Jinja2 environment suitable for rendering the LNT
+    templates.
+    """
+
+    if env is None:
+        env = jinja2.Environment(loader=jinja2.PackageLoader(
+                'lnt.server.ui', 'templates'))
+    lnt.server.ui.globals.register(env)
+    lnt.server.ui.filters.register(env)
+
+    return env
