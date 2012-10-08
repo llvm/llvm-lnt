@@ -32,7 +32,7 @@ def filter_urlencode(args):
 def filter_timedelta(start_time):
     return "%.2fs" % (time.time() - start_time)
 
-def register(app):
+def register(env):
     for name,object in globals().items():
         if name.startswith('filter_'):
-            app.jinja_env.filters[name[7:]] = object
+            env.filters[name[7:]] = object
