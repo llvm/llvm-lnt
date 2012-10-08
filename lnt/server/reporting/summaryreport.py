@@ -84,7 +84,7 @@ class NormalizedMean(Mean):
 
 class SummaryReport(object):
     def __init__(self, db, report_orders, report_machine_names,
-                 report_machine_patterns, machines_to_merge):
+                 report_machine_patterns):
         self.db = db
         self.testsuites = list(db.testsuite.values())
         self.report_orders = list((name,orders)
@@ -94,7 +94,6 @@ class SummaryReport(object):
         self.report_machine_rexes = [
             re.compile(pattern)
             for pattern in self.report_machine_patterns]
-        self.machines_to_merge = dict(machines_to_merge)
 
         self.data_table = None
         self.requested_machine_ids = None
@@ -189,9 +188,6 @@ class SummaryReport(object):
             machine_id = run_machine_id_map[run_id]
             run_parameters = run_parameters_map[run_id]
 
-            # Convert the machine ID.
-            machine_id = self.machines_to_merge.get(machine_id, machine_id)
-
             # Get the test.
             test = ts_tests[sample[1]]
 
@@ -235,9 +231,6 @@ class SummaryReport(object):
             run_id = sample[0]
             machine_id = run_machine_id_map[run_id]
             run_parameters = run_parameters_map[run_id]
-
-            # Convert the machine ID.
-            machine_id = self.machines_to_merge.get(machine_id, machine_id)
 
             # Get the test.
             test = ts_tests[sample[1]]

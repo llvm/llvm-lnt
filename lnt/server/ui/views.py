@@ -841,7 +841,6 @@ def v4_summary_report_ui():
             "machine_names" : [],
             "orders" : [],
             "machine_patterns" : [],
-            "machines_to_merge" : {}
             }
 
     # Get the list of available test suites.
@@ -881,10 +880,7 @@ You must define a summary report configuration first.""")
     # Create the report object.
     report = lnt.server.reporting.summaryreport.SummaryReport(
         request.get_db(), config['orders'], config['machine_names'],
-        config['machine_patterns'],
-        dict((int(key),value)
-             for key,value in config['machines_to_merge'].items()))
-
+        config['machine_patterns'])
     # Build the report.
     report.build()
 
