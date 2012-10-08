@@ -163,7 +163,7 @@
 
 <h3>Tests</h3>
 
-{% set graph_base=v4_url_for('v4_graph', id=run.id) %}
+{% set graph_base=v4_url_for('v4_graph', highlight_run=run.id) %}
 <form method="GET" action="{{ graph_base }}">
 
 {# Report one table for each primary field. #}
@@ -205,9 +205,10 @@
 {%  if cr.previous is not none or cr.current is not none %}
 {%    if cr.current is none or cr.current >= test_min_value_filter %}
   <tr>
-    <td><input type="checkbox" name="test.{{test_id}}"
-               value="{{field.index}}"></td>
-    <td><a href="{{graph_base}}?test.{{test_id}}={{field.index}}">{{
+    <td><input type="checkbox" name="plot.{{test_id}}"
+               value="{{machine.id}}.{{test_id}}.{{field.index}}"></td>
+    <td><a href="{{graph_base}}&plot.{{test_id}}={{
+                   machine.id}}.{{test_id}}.{{field.index}}">{{
         test_name}}</a></td>
     {{ get_cell_value(cr) }}
   </tr>

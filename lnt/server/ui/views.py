@@ -368,24 +368,56 @@ def v4_all_orders():
     return render_template("v4_all_orders.html", ts=ts, orders=orders)
 
 @v4_route("/<int:id>/graph")
-def v4_graph(id):
-    from lnt.server.ui import util
-    from lnt.testing import PASS
-    from lnt.util import stats
-    from lnt.external.stats import stats as ext_stats
+def v4_run_graph(id):
+    # This is an old style endpoint that treated graphs as associated with
+    # runs. Redirect to the new endpoint.
 
     ts = request.get_testsuite()
     run = ts.query(ts.Run).filter_by(id=id).first()
     if run is None:
         abort(404)
 
-    # Find the neighboring runs, by order.
-    prev_runs = list(ts.get_previous_runs_on_machine(run, N = 3))
-    next_runs = list(ts.get_next_runs_on_machine(run, N = 3))
-    if prev_runs:
-        compare_to = prev_runs[0]
-    else:
-        compare_to = None
+    # Convert the old style test parameters encoding.
+    args = { 'highlight_run' : id }
+    plot_number = 0
+    for name,value in request.args.items():
+        # If this isn't a test specification, just forward it.
+        if not name.startswith('test.'):
+            args[name] = value
+            continue
+
+        # Otherwise, rewrite from the old style of::
+        #
+        #   test.<test id>=<sample field index>
+        #
+        # into the new style of::
+        #
+        #   plot.<number>=<machine id>.<test id>.<sample field index>
+        test_id = name.split('.', 1)[1]
+        args['plot.%d' % (plot_number,)] = '%d.%s.%s' % (
+            run.machine.id, test_id, value)
+        plot_number += 1
+
+    return redirect(v4_url_for("v4_graph", **args))
+
+@v4_route("/graph")
+def v4_graph():
+    from lnt.server.ui import util
+    from lnt.testing import PASS
+    from lnt.util import stats
+    from lnt.external.stats import stats as ext_stats
+
+    # FIXME: For now, we just do something stupid when we encounter release
+    # numbers like '3.0.1' and use convert to 3. This makes the graphs
+    # fairly useless...
+    def convert_revision(r):
+        if r.isdigit():
+            return int(r)
+        else:
+            return int(r.split('.',1)[0])
+        return r
+
+    ts = request.get_testsuite()
 
     # Parse the view options.
     options = {}
@@ -409,46 +441,71 @@ def v4_graph(id):
     options['moving_window_size'] = moving_window_size = int(
         request.args.get('moving_window_size', 10))
     options['hide_highlight'] = bool(
-        request.args.get('hide_highlight'))    
+        request.args.get('hide_highlight'))
     show_highlight = not options['hide_highlight']
-    
+
     # Load the graph parameters.
-    graph_tests = []
+    graph_parameters = []
     for name,value in request.args.items():
-        # Tests to graph are passed as test.<test id>=<sample field id>.
-        if not name.startswith(str('test.')):
+        # Plots to graph are passed as::
+        #
+        #  plot.<unused>=<machine id>.<test id>.<field index>
+        if not name.startswith(str('plot.')):
             continue
 
-        # Extract the test id string and convert to integers.
-        test_id_str = name[5:]
+        # Ignore the extra part of the key, it is unused.
+        machine_id_str,test_id_str,field_index_str = value.split('.')
         try:
+            machine_id = int(machine_id_str)
             test_id = int(test_id_str)
-            field_index = int(value)
+            field_index = int(field_index_str)
         except:
             return abort(400)
 
-        # Get the test and the field.
         if not (0 <= field_index < len(ts.sample_fields)):
             return abort(400)
 
+        machine = ts.query(ts.Machine).filter(ts.Machine.id == machine_id).one()
         test = ts.query(ts.Test).filter(ts.Test.id == test_id).one()
         field = ts.sample_fields[field_index]
 
-        graph_tests.append((test, field))
+        graph_parameters.append((machine, test, field))
 
-    # Order the plots by test name and then field.
-    graph_tests.sort(key = lambda (t,f): (t.name, f.name))
+    # Order the plots by machine name, test name and then field.
+    graph_parameters.sort(key = lambda (m,t,f): (m.name, t.name, f.name))
+
+    # Sanity check the arguments.
+    if not graph_parameters:
+        return render_template("error.html", message="Nothing to graph.")
+
+    # Create region of interest for run data region if we are performing a
+    # comparison.
+    revision_range = None
+    highlight_run_id = request.args.get('highlight_run')
+    if show_highlight and highlight_run_id and highlight_run_id.isdigit():
+        highlight_run = ts.query(ts.Run).filter_by(
+            id=int(highlight_run_id)).first()
+        if highlight_run is None:
+            abort(404)
+
+        # Find the neighboring runs, by order.
+        prev_runs = list(ts.get_previous_runs_on_machine(highlight_run, N = 1))
+        if prev_runs:
+            start_rev = prev_runs[0].order.llvm_project_revision
+            end_rev = highlight_run.order.llvm_project_revision
+            revision_range = {
+                "start": convert_revision(start_rev),
+                "end": convert_revision(end_rev) }
 
     # Build the graph data.
     legend = []
     graph_plots = []
     overview_plots = []
-    revision_range = None
-    num_plots = len(graph_tests)
-    for i,(test,field) in enumerate(graph_tests):
+    num_plots = len(graph_parameters)
+    for i,(machine,test,field) in enumerate(graph_parameters):
         # Determine the base plot color.
         col = list(util.makeDarkColor(float(i) / num_plots))
-        legend.append((test.name, field.name, tuple(col)))
+        legend.append((machine, test.name, field.name, tuple(col)))
 
         # Load all the field values for this test on the same machine.
         #
@@ -458,7 +515,7 @@ def v4_graph(id):
         # FIXME: Don't hard code field name.
         q = ts.query(field.column, ts.Order.llvm_project_revision).\
             join(ts.Run).join(ts.Order).\
-            filter(ts.Run.machine == run.machine).\
+            filter(ts.Run.machine_id == machine.id).\
             filter(ts.Sample.test == test).\
             filter(field.column != None)
 
@@ -469,16 +526,6 @@ def v4_graph(id):
                              (field.status_field.column == None))
 
         # Aggregate by revision.
-        #
-        # FIXME: For now, we just do something stupid when we encounter release
-        # numbers like '3.0.1' and use convert to 3. This makes the graphs
-        # fairly useless...
-        def convert_revision(r):
-            if r.isdigit():
-                return int(r)
-            else:
-                return int(r.split('.',1)[0])
-            return r
         data = util.multidict((convert_revision(r),v)
                               for v,r in q).items()
         data.sort()
@@ -489,17 +536,6 @@ def v4_graph(id):
         pts = []
         moving_median_data = []
         moving_average_data = []
-
-        # Create region of interest for run data region if
-        # we are performing a comparison.
-        if compare_to and show_highlight:
-            start_rev = compare_to.order.llvm_project_revision
-            end_rev = run.order.llvm_project_revision
-            revision_range = {
-                "start": convert_revision(start_rev),
-                "end": convert_revision(end_rev)
-            }
-
         if normalize_by_median:
             normalize_by = 1.0/stats.median([min(values)
                                            for _,values in data])
@@ -528,7 +564,7 @@ def v4_graph(id):
                 med = stats.median(values)
                 mad = stats.median_absolute_deviation(values, med)
                 errorbar_data.append((x, med, mad))
-        
+
         # Compute the moving average and or moving median of our data if requested.
         if moving_average or moving_median:
             fun = None
@@ -552,7 +588,7 @@ def v4_graph(id):
             for i in range(len_pts):
                 start_index = max(0, i - moving_window_size)
                 end_index = min(len_pts, i + moving_window_size)
-                
+
                 window_pts = [x[1] for x in pts[start_index:end_index]]
                 fun(pts[i][0], window_pts, moving_average_data, moving_median_data)
 
@@ -626,7 +662,7 @@ def v4_graph(id):
                                    "lowerCap" : "-",
                                    "upperCap" : "-",
                                    "lineWidth" : 1 } } })
-        
+
         # Add the moving average plot, if used.
         if moving_average_data:
             col = [0.32, 0.6, 0.0]
@@ -634,7 +670,7 @@ def v4_graph(id):
                     "data" : moving_average_data,
                     "color" : util.toColorString(col) })
 
-        
+
         # Add the moving median plot, if used.
         if moving_median_data:
             col = [0.75, 0.0, 1.0]
@@ -655,7 +691,7 @@ def v4_global_status():
     primary_fields = sorted(list(ts.Sample.get_primary_fields()),
                             key=lambda f: f.name)
     fields = dict((f.name, f) for f in primary_fields)
-    
+
     # Get the latest run.
     latest = ts.query(ts.Run.start_time).\
         order_by(ts.Run.start_time.desc()).first()
@@ -669,12 +705,12 @@ def v4_global_status():
 
     # Create a datetime for the day before the most recent run.
     yesterday = latest_date - datetime.timedelta(days=1)
-    
+
     # Get arguments.
     revision = int(request.args.get('revision',
                                     ts.Machine.DEFAULT_BASELINE_REVISION))
     field = fields.get(request.args.get('field', None), primary_fields[0])
-    
+
     # Get the list of all runs we might be interested in.
     recent_runs = ts.query(ts.Run).filter(ts.Run.start_time > yesterday).all()
 
@@ -692,7 +728,7 @@ def v4_global_status():
     # over.
     machine_run_info = []
     reported_run_ids = []
-    
+
     for machine in recent_machines:
         runs = recent_runs_by_machine[machine]
 
@@ -706,7 +742,7 @@ def v4_global_status():
         machine_run_info.append((baseline, run))
         reported_run_ids.append(baseline.id)
         reported_run_ids.append(run.id)
-    
+
     # Get the set all tests reported in the recent runs.
     reported_tests = ts.query(ts.Test.id, ts.Test.name).filter(
         sqlalchemy.sql.exists('*', sqlalchemy.sql.and_(
@@ -731,12 +767,12 @@ def v4_global_status():
         # Compute the worst cell value.
         row[1] = max(cr.pct_delta
                      for cr,_ in row[2:])
-        
+
         test_table.append(row)
 
     # Order the table by worst regression.
     test_table.sort(key = lambda row: row[1], reverse=True)
-    
+
     return render_template("v4_global_status.html",
                            ts=ts,
                            tests=test_table,

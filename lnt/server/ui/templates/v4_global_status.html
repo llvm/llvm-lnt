@@ -102,15 +102,16 @@
     {% endfor %}
   </tr>
   {% for row in tests %}
-  {% set outer_index = loop.index0 %}
   <tr class="data-row">
     <td class="row-head">
       {{ row[0][1] }}
     </td>
     {{ row[1]|aspctcell("data-cell worst-time")|safe }}
     {% for cr, run_id in row[2:] %}
-      {{ cr.pct_delta|aspctcell("data-cell " + machines[loop.index0].get_css_name(),
-                                attributes={'test_id': row[0][0], 'run_id': run_id})
+      {% set machine = machines[loop.index0] %}
+      {{ cr.pct_delta|aspctcell("data-cell " + machine.get_css_name(),
+                                attributes={ 'test_id': row[0][0],
+                                             'machine_id': machine.id })
          |safe }}
     {% endfor %}
   </tr>

@@ -80,10 +80,12 @@ v4_global_status = {};
         initial_sort_header.appendChild(sortrevind);
         
         $('.data-cell').click(function() {
-            var new_base = this.getAttribute('run_id') + '/graph?test.';
-            new_base += this.getAttribute('test_id') + '=' + g.field.toString();
+            var test_id = this.getAttribute('test_id');
+            var machine_id = this.getAttribute('machine_id');
+            var plot_param = ('plot.0=' + machine_id + '.' +
+                              test_id + '.' + g.field.toString());
             window.location = UrlReplaceBasename(window.location.toString(),
-                                                 new_base);
+                                                 'graph?' + plot_param);
         });
         m.update_table();
     };

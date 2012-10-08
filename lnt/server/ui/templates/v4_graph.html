@@ -206,12 +206,17 @@ function update_tooltip(event, pos, item, show_fn) {
 </td>
 <td valign="top">
 <table cellspacing=4 border=1>
-<tr><th colspan=3>Test</th></tr>
-{% for name,field_name,col in legend %}
+<tr>
+  <th colspan=2>Machine</th>
+  <th>Test</th>
+  <th>Type</th>
+</tr>
+{% for machine,test_name,field_name,col in legend %}
     <tr>
       <td bgcolor="{{ '%02x%02x%02x' % (
                         255*col[0], 255*col[1], 255*col[2]) }}">&nbsp;</td>
-      <td>{{name}}</td>
+      <td>{{machine.name}}:{{machine.id}}</td>
+      <td>{{test_name}}</td>
       <td>{{field_name}}</td>
     </tr>
 {% endfor %}
