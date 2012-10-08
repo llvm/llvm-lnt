@@ -1,0 +1,92 @@
+{% if not only_html_body %}
+<html>
+<head>
+   <title>Daily Report: {{
+     '%04d-%02d-%02d' % (report.year, report.month, report.day) }}</title>
+</head>
+<body style="{{ styles['body'] }}">
+{% endif %}
+
+{# Generate the table showing which run orders we are reporting on, for each
+   machine. #}
+<h3 style={{ "styles.h3" }}>Reported Machine Order</h3>
+<table border="1" style="{{ styles.table }}">
+  <thead>
+    <tr>
+      <th style="{{ styles.th }}">Machine Name</th>
+{% for i in range(report.num_prior_days_to_include)|reverse %}
+      <th style="{{ styles.th }}">Day - {{i}}</th>
+{% endfor %}
+    </tr>
+  </thead>
+{% for machine in report.reporting_machines %}
+  <tr>
+    <td style="{{ styles.td }}">{{machine.name}}</td>
+{% for i in range(report.num_prior_days_to_include)|reverse %}
+{%   set order = report.prior_days_machine_order_map[i].get(machine) %}
+{%   if order %}
+    {# FIXME: Don't hard code field name. #}
+    <td style="{{ styles.td }}">{{order.llvm_project_revision}}</td>
+{%   else %}
+    <td style="{{ styles.td }}" bgcolor="#FF0000">N/A</td>
+{%   endif %}
+{% endfor %}
+  </tr>
+{% endfor %}
+</table>
+
+{% macro get_cell_value(cr) %}
+{% set test_status = cr.get_test_status() %}
+{% set value_status = cr.get_value_status() %}
+
+{% if (test_status == analysis.REGRESSED or
+       test_status == analysis.UNCHANGED_FAIL) %}
+    <td style="{{ styles.td }}">FAIL</td>
+{% else %}
+
+{% if (value_status == analysis.REGRESSED or
+       value_status == analysis.IMPROVED) %}
+    {{ cr.pct_delta|aspctcell|safe }}
+{% else %}
+    <td style="{{ styles.td }}">-</td>
+{% endif %}
+
+{% endif %}
+{% endmacro %}
+
+{# Generate the table showing the raw sample data. #}
+{% for field,field_results in report.result_table %}
+<h3>Result Table ({{ field.name }})</h3>
+<table border="1" style="{{ styles.table }}">
+  <thead>
+    <tr>
+      <th style="{{ styles.th }}">Test Name</th>
+      <th style="{{ styles.th }}">Machine Name</th>
+{% for i in range(report.num_prior_days_to_include)|reverse %}
+      <th style="{{ styles.th }}">Day - {{i}}</th>
+{% endfor %}
+  </thead>
+{% for test,visible_results in field_results %}
+  <tr>
+    <td style="{{ styles.td }}" colspan="2"> <b>{{test.name}}</b></td>
+    <td style="{{ styles.td }}" colspan="{{report.num_prior_days_to_include}}">&nbsp;</td>
+  </tr>
+{%   for machine,day_results in visible_results %}
+{%   set machine_loop = loop %}
+  <tr>
+    <td style="{{ styles.td }}">&nbsp;</td>
+    <td style="{{ styles.td }}">{{machine.name}}</td>
+    <td style="{{ styles.td }}">{{ day_results[-1].current }}</td>
+{%     for day_result in day_results[:-1]|reverse %}
+    {{ get_cell_value(day_result) }}
+{%     endfor %}
+  </tr>
+{%   endfor %}
+{% endfor %}
+</table>
+{% endfor %}
+
+{% if not only_html_body %}
+</body>
+</html>
+{% endif %}

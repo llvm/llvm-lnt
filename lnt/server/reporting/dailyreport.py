@@ -3,6 +3,7 @@ import datetime
 import sqlalchemy.sql
 
 import lnt.server.reporting.analysis
+import lnt.server.ui.app
 
 from lnt.server.ui import util
 
@@ -162,3 +163,10 @@ class DailyReport(object):
                 if visible_results:
                     field_results.append((test, visible_results))
             self.result_table.append((field, field_results))
+
+    def render(self):
+        env = lnt.server.ui.app.create_jinja_environment()
+        template = env.get_template('reporting/daily_report.html')
+
+        return template.render(
+            report=self, analysis=lnt.server.reporting.analysis)
