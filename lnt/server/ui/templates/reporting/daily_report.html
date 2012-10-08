@@ -55,6 +55,7 @@
 {% endmacro %}
 
 {# Generate the table showing the raw sample data. #}
+{% set graph_base=v4_url_for('v4_graph') %}
 {% for field,field_results in report.result_table %}
 <h3>Result Table ({{ field.name }})</h3>
 <table border="1" style="{{ styles.table }}">
@@ -75,7 +76,9 @@
 {%   set machine_loop = loop %}
   <tr>
     <td style="{{ styles.td }}">&nbsp;</td>
-    <td style="{{ styles.td }}">{{machine.name}}</td>
+    <td style="{{ styles.td }}"><a href="{{
+      graph_base}}?plot.0={{machine.id}}.{{test.id}}.{{field.index}}">{{
+          machine.name}}</a></td>
     <td style="{{ styles.td }}">{{ day_results[-1].current }}</td>
 {%     for day_result in day_results[:-1]|reverse %}
     {{ get_cell_value(day_result) }}
