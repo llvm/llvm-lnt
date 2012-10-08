@@ -126,7 +126,7 @@ class DailyReport(object):
         for day_index,day_runs in enumerate(prior_runs):
             for run in day_runs:
                 machine_runs[(run.machine_id, day_index)] = run
-                
+
         # Build the result table of tests with interesting results.
         self.result_table = []
         for field in self.fields:
@@ -145,7 +145,7 @@ class DailyReport(object):
                     # If the result is not "interesting", ignore this machine.
                     if not cr.is_result_interesting():
                         continue
-                    
+
                     # Otherwise, compute the results for all the days.
                     day_results = [cr]
                     for i in range(1, self.num_prior_days_to_include):
@@ -164,9 +164,27 @@ class DailyReport(object):
                     field_results.append((test, visible_results))
             self.result_table.append((field, field_results))
 
-    def render(self):
+    def render(self, only_html_body=True):
         env = lnt.server.ui.app.create_jinja_environment()
         template = env.get_template('reporting/daily_report.html')
 
+        # Compute static CSS styles for elements. We use the style directly on
+        # elements instead of via a stylesheet to support major email clients
+        # (like Gmail) which can't deal with embedded style sheets.
+        #
+        # These are derived from the static style.css file we use elsewhere.
+        styles = {
+            "body" : ("color:#000000; background-color:#ffffff; "
+                      "font-family: Helvetica, sans-serif; font-size:9pt"),
+            "table" : ("font-size:9pt; border-spacing: 0px; "
+                       "border: 1px solid black"),
+            "th" : (
+                "background-color:#eee; color:#666666; font-weight: bold; "
+                "cursor: default; text-align:center; font-weight: bold; "
+                "font-family: Verdana; padding:5px; padding-left:8px"),
+            "td" : "padding:5px; padding-left:8px",
+        }
+
         return template.render(
-            report=self, analysis=lnt.server.reporting.analysis)
+            report=self, styles=styles, analysis=lnt.server.reporting.analysis,
+            only_html_body=only_html_body)
