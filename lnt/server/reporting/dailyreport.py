@@ -164,7 +164,7 @@ class DailyReport(object):
                     field_results.append((test, visible_results))
             self.result_table.append((field, field_results))
 
-    def render(self, only_html_body=True):
+    def render(self, ts_url, only_html_body=True):
         env = lnt.server.ui.app.create_jinja_environment()
         template = env.get_template('reporting/daily_report.html')
 
@@ -187,4 +187,4 @@ class DailyReport(object):
 
         return template.render(
             report=self, styles=styles, analysis=lnt.server.reporting.analysis,
-            only_html_body=only_html_body)
+            ts_url=ts_url, only_html_body=only_html_body)

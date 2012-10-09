@@ -312,9 +312,10 @@ def action_send_daily_report(name, args):
     report.build()
 
     note("generating HTML report...")
+    ts_url = "%s/db_%s/v4/%s" % (config.zorgURL, opts.database, opts.testsuite)
     subject = "Daily Report: %04d-%02d-%02d" % (
         report.year, report.month, report.day)
-    html_report = report.render(only_html_body=False)
+    html_report = report.render(ts_url, only_html_body=False)
 
     # Form the multipart email message.
     msg = email.mime.multipart.MIMEMultipart('alternative')
