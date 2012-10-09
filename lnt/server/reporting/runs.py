@@ -7,10 +7,8 @@ import os
 import time
 import urllib
 
-from flask import render_template
-
 import lnt.server.reporting.analysis
-import lnt.server.ui.util
+import lnt.server.ui.app
 import lnt.util.stats
 
 def generate_run_report(run, baseurl, only_html_body = False,
@@ -177,46 +175,51 @@ def generate_run_report(run, baseurl, only_html_body = False,
         "td" : "padding:5px; padding-left:8px",
         }
 
+    # Create an environment for rendering the reports.
+    env = lnt.server.ui.app.create_jinja_environment()
+
     # Generate reports.  The timing code here is a cludge and will
     # give enough accuracy for approximate timing estimates. I am
     # going to separate the text/html report in a later commit (so
     # that we can have more output types [i.e. json] if we need to)
     # and remove this. The time will then be generated separately and
     # correctly for each different template.
+    text_template = env.get_template('reporting/runs.txt')
     text_report_start_time = time.time()
-    text_report = render_template("reporting/runs.txt",
-                                  report_url=report_url,
-                                  machine=machine,
-                                  machine_parameters=machine_parameters,
-                                  run=run,
-                                  compare_to=compare_to,
-                                  baseline=baseline,
-                                  num_item_buckets=num_item_buckets,
-                                  num_total_tests=num_total_tests,
-                                  prioritized_buckets_run_over_run=prioritized_buckets_run_over_run,
-                                  prioritized_buckets_run_over_baseline=prioritized_buckets_run_over_baseline,
-                                  start_time=start_time)
+    text_report = text_template.render(
+        report_url=report_url,
+        machine=machine,
+        machine_parameters=machine_parameters,
+        run=run,
+        compare_to=compare_to,
+        baseline=baseline,
+        num_item_buckets=num_item_buckets,
+        num_total_tests=num_total_tests,
+        prioritized_buckets_run_over_run=prioritized_buckets_run_over_run,
+        prioritized_buckets_run_over_baseline=prioritized_buckets_run_over_baseline,
+        start_time=start_time)
     text_report_delta = time.time() - text_report_start_time
     start_time = start_time + text_report_delta
 
-    html_report = render_template("reporting/runs.html",
-                                  ts=ts,
-                                  subject=subject,
-                                  only_html_body=only_html_body,
-                                  report_url=report_url,
-                                  ts_url=ts_url,
-                                  compare_to=compare_to,
-                                  run=run,
-                                  run_url=run_url,
-                                  baseline=baseline,
-                                  num_item_buckets=num_item_buckets,
-                                  num_total_tests=num_total_tests,
-                                  run_to_run_info=run_to_run_info,
-                                  prioritized_buckets_run_over_run=prioritized_buckets_run_over_run,
-                                  run_to_baseline_info=run_to_baseline_info,
-                                  prioritized_buckets_run_over_baseline=prioritized_buckets_run_over_baseline,
-                                  styles=styles,
-                                  start_time=start_time)
+    html_template = env.get_template('reporting/runs.html')
+    html_report = html_template.render(
+        ts=ts,
+        subject=subject,
+        only_html_body=only_html_body,
+        report_url=report_url,
+        ts_url=ts_url,
+        compare_to=compare_to,
+        run=run,
+        run_url=run_url,
+        baseline=baseline,
+        num_item_buckets=num_item_buckets,
+        num_total_tests=num_total_tests,
+        run_to_run_info=run_to_run_info,
+        prioritized_buckets_run_over_run=prioritized_buckets_run_over_run,
+        run_to_baseline_info=run_to_baseline_info,
+        prioritized_buckets_run_over_baseline=prioritized_buckets_run_over_baseline,
+        styles=styles,
+        start_time=start_time)
 
     return subject, text_report, html_report, sri
 
