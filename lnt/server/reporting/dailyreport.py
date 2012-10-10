@@ -17,6 +17,7 @@ class DailyReport(object):
         self.day = day
         self.fields = list(ts.Sample.get_primary_fields())
         self.day_start_offset = datetime.timedelta(hours=day_start_offset_hours)
+        self.num_comparison_runs = 10
 
         # Computed values.
         self.next_day = None
@@ -109,6 +110,12 @@ class DailyReport(object):
         # by the kind of status change, while still managing to present the
         # overview across machines.
 
+        # Aggregate runs by machine ID and day index.
+        machine_runs = util.multidict()
+        for day_index,day_runs in enumerate(prior_runs):
+            for run in day_runs:
+                machine_runs[(run.machine_id, day_index)] = run
+
         relevant_run_ids = [r.id for r in relevant_runs]
 
         # Get the set all tests reported in the recent runs.
@@ -118,14 +125,26 @@ class DailyReport(object):
                     ts.Sample.test_id == ts.Test.id))).all()
         self.reporting_tests.sort(key=lambda t: t.name)
 
-        # Create a run info object.
-        sri = lnt.server.reporting.analysis.RunInfo(ts, relevant_run_ids)
+        # Determine the comparison window runs for each machine we are reporting
+        # over.
+        run_ids_to_load = list(relevant_run_ids)
+        machine_comparison_window = {}
+        for machine in self.reporting_machines:
+            # Get the oldest reported run, and base the comparison down on the
+            # runs before that.
+            comparison_start_run = machine_runs.get((machine.id, 
+                                                     len(prior_runs) - 1))
+            if comparison_start_run is None:
+                comparison_window = []
+            else:
+                comparison_window = list(ts.get_previous_runs_on_machine(
+                        comparison_start_run[0], self.num_comparison_runs))
+            run_ids_to_load.extend([r.id
+                                    for r in comparison_window])
+            machine_comparison_window[machine] = comparison_window
 
-        # Aggregate runs by machine ID and day index.
-        machine_runs = util.multidict()
-        for day_index,day_runs in enumerate(prior_runs):
-            for run in day_runs:
-                machine_runs[(run.machine_id, day_index)] = run
+        # Create a run info object.
+        sri = lnt.server.reporting.analysis.RunInfo(ts, run_ids_to_load)
 
         # Build the result table of tests with interesting results.
         def compute_visible_results_priority(visible_results):
@@ -159,8 +178,9 @@ class DailyReport(object):
                     # Get the most recent comparison result.
                     day_runs = machine_runs.get((machine.id, 0), ())
                     prev_runs = machine_runs.get((machine.id, 1), ())
-                    cr = sri.get_comparison_result(day_runs, prev_runs,
-                                                   test.id, field)
+                    cr = sri.get_comparison_result(
+                        day_runs, prev_runs, test.id, field,
+                        machine_comparison_window[machine])
 
                     # If the result is not "interesting", ignore this machine.
                     if not cr.is_result_interesting():
