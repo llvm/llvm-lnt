@@ -23,6 +23,6 @@
     (report.day_start_offset.seconds // 60) % 60,)}})
 </center>
 
-{{ report.render(v4_url_for('index'))|safe }}
+{{ report.render(v4_url_for('v4_overview'))|safe }}
 
 {% endblock %}

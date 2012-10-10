@@ -165,6 +165,10 @@ class DailyReport(object):
             self.result_table.append((field, field_results))
 
     def render(self, ts_url, only_html_body=True):
+        # Strip any trailing slash on the testsuite URL.
+        if ts_url.endswith('/'):
+            ts_url = ts_url[:-1]
+
         env = lnt.server.ui.app.create_jinja_environment()
         template = env.get_template('reporting/daily_report.html')
 
