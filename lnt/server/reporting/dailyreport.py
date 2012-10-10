@@ -128,6 +128,26 @@ class DailyReport(object):
                 machine_runs[(run.machine_id, day_index)] = run
 
         # Build the result table of tests with interesting results.
+        def compute_visible_results_priority(visible_results):
+            # We just use an ad hoc priority that favors showing tests with
+            # failures and large changes. We do this by computing the priority
+            # as tuple of whether or not there are any failures, and then sum of
+            # the mean percentage changes.
+            test, results = visible_results
+            had_failures = False
+            sum_abs_day0_deltas = 0.
+            for machine,day_results in results:
+                day0_cr = day_results[0]
+
+                test_status = day0_cr.get_test_status()
+
+                if (test_status==lnt.server.reporting.analysis.REGRESSED or
+                    test_status==lnt.server.reporting.analysis.UNCHANGED_FAIL):
+                    had_failures = True
+                elif day0_cr.pct_delta is not None:
+                    sum_abs_day0_deltas += abs(day0_cr.pct_delta)
+            return (-int(had_failures), -sum_abs_day0_deltas, test.name)
+
         self.result_table = []
         for field in self.fields:
             field_results = []
@@ -162,6 +182,10 @@ class DailyReport(object):
                 # view.
                 if visible_results:
                     field_results.append((test, visible_results))
+
+            # Order the field results by "priority".
+            field_results.sort(key=compute_visible_results_priority)
+
             self.result_table.append((field, field_results))
 
     def render(self, ts_url, only_html_body=True):
