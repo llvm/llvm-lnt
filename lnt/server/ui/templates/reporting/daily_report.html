@@ -59,25 +59,26 @@
 {% endmacro %}
 
 {# Generate the table showing the raw sample data. #}
-{% for field,field_results in report.result_table|reverse %}
-<h3>Result Table ({{ field.name }})</h3>
 
 {# If the report is for mail, we put the table header on each test. This is
    ugly, however it makes it much easier to inline comments in replies to the
    email. Given that is the primary purpose of the email, we trade off wasted
    space for convenience. #}
 {% macro result_header() %}
-<table border="1" style="{{ styles.table }}; width: 800px;">
+<table border="1" style="{{ styles.table }}; width: {{
+                            400 + report.num_prior_days_to_include*80}}px;">
   <thead>
     <tr>
       <th style="{{ styles.th }}; width: 100px;">Test Name</th>
-      <th style="{{ styles.th }}; width: 350px;">Machine Name</th>
+      <th style="{{ styles.th }}; width: 300px;">Machine Name</th>
 {% for i in range(report.num_prior_days_to_include)|reverse %}
       <th style="{{ styles.th }}">Day - {{i}}</th>
 {% endfor %}
   </thead>
 {% endmacro %}
 
+{% for field,field_results in report.result_table|reverse %}
+<h3>Result Table ({{ field.name }})</h3>
 {{ result_header() if not report.for_mail }}
 {% for test,visible_results in field_results %}
 {{ result_header() if report.for_mail }}
@@ -101,8 +102,8 @@
 {%   endfor %}
 {{ "</table><p>" if report.for_mail }}
 {% endfor %}
-{% endfor %}
 {{ "</table>" if not report.for_mail }}
+{% endfor %}
 
 {% if not only_html_body %}
 </body>

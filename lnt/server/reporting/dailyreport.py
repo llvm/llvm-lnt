@@ -18,7 +18,7 @@ class DailyReport(object):
         self.fields = list(ts.Sample.get_primary_fields())
         self.day_start_offset = datetime.timedelta(hours=day_start_offset_hours)
         self.num_comparison_runs = 10
-        self.for_mail = True
+        self.for_mail = for_mail
 
         # Computed values.
         self.next_day = None

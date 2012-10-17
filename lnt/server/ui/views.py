@@ -803,10 +803,17 @@ def v4_daily_report_overview():
 
 @v4_route("/daily_report/<int:year>/<int:month>/<int:day>")
 def v4_daily_report(year, month, day):
+    num_days_str = request.args.get('num_days')
+    if num_days_str is not None:
+        num_days = int(num_days_str)
+    else:
+        num_days = 3
+
     ts = request.get_testsuite()
 
     # Create the report object.
-    report = lnt.server.reporting.dailyreport.DailyReport(ts, year, month, day)
+    report = lnt.server.reporting.dailyreport.DailyReport(
+        ts, year, month, day, num_days)
 
     # Build the report.
     report.build()
