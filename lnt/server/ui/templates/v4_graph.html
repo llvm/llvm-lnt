@@ -188,7 +188,7 @@ function update_tooltip(event, pos, item, show_fn) {
 
 {# Add all the hidden fields. #}
 {% for name,value in request.args.items() %}
-  {% if name.startswith('test.') %}
+  {% if name.startswith('plot.') %}
     <input type="hidden" name="{{name}}" value="{{value}}">
   {% endif %}
 {% endfor %}
