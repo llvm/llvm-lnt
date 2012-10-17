@@ -41,7 +41,9 @@
 
 {% if (test_status == analysis.REGRESSED or
        test_status == analysis.UNCHANGED_FAIL) %}
-    <td style="{{ styles.td }}" bgcolor="#FF0000">FAIL</td>
+    <td style="{{ styles.td }}" bgcolor="#e98080">FAIL</td>
+{% elif test_status == analysis.IMPROVED %}
+    <td style="{{ styles.td }}" bgcolor="#8fdf5f">PASS</td>
 {% else %}
 
 {% if (value_status == analysis.REGRESSED or
