@@ -7,6 +7,28 @@
 <body style="{{ styles['body'] }}">
 {% endif %}
 
+<center><h2>{#
+  #}(<a href="{{ts_url}}/daily_report/{{
+                 report.prior_days[1].year}}/{{
+                 report.prior_days[1].month}}/{{
+                 report.prior_days[1].day}}">prev</a>){#
+  #}<b>&nbsp;<a href="{{ts_url}}/daily_report/{{
+                 report.prior_days[0].year}}/{{
+                 report.prior_days[0].month}}/{{
+                 report.prior_days[0].day}}">{#
+        #}Daily Report {{ '%04d-%02d-%02d' % (
+          report.prior_days[0].year, report.prior_days[0].month,
+          report.prior_days[0].day) }}</a>&nbsp;</b>{#
+  #}(<a href="{{ts_url}}/daily_report/{{
+                 report.next_day.year}}/{{
+                 report.next_day.month}}/{{
+                 report.next_day.day}}">next</a>){#
+#}</h2>
+(day start is considered to be at UTC+{{ "%02d:%02d" % (
+    (report.day_start_offset.seconds // 3600),
+    (report.day_start_offset.seconds // 60) % 60,)}})
+</center>
+
 {# Generate the table showing which run orders we are reporting on, for each
    machine. #}
 <h3 style={{ "styles.h3" }}>Reported Machine Order</h3>

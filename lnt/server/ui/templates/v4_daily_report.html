@@ -5,24 +5,6 @@
 {% block title %}Daily Report{% endblock %}
 {% block body %}
 
-<center><h2>{#
-  #}(<a href="{{v4_url_for('v4_daily_report',
-                          year=report.prior_days[1].year,
-                          month=report.prior_days[1].month,
-                          day=report.prior_days[1].day)}}">prev</a>){#
-  #}<b>&nbsp;Daily Overview {{ '%04d-%02d-%02d' % (
-      report.prior_days[0].year, report.prior_days[0].month,
-      report.prior_days[0].day) }}&nbsp;</b>{#
-  #}(<a href="{{v4_url_for('v4_daily_report',
-                          year=report.next_day.year,
-                          month=report.next_day.month,
-                          day=report.next_day.day)}}">next</a>){#
-#}</h2>
-(day start is considered to be at +{{ "%02d:%02d" % (
-    (report.day_start_offset.seconds // 3600),
-    (report.day_start_offset.seconds // 60) % 60,)}})
-</center>
-
 {{ report.render(v4_url_for('v4_overview'))|safe }}
 
 {% endblock %}
