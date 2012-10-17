@@ -76,11 +76,12 @@
     <td style="{{ styles.td }}" colspan="{{report.num_prior_days_to_include}}">&nbsp;</td>
   </tr>
 {%   for machine,day_results in visible_results %}
-{%   set machine_loop = loop %}
+{%   set key_run = report.get_key_run(machine, 0) %}
   <tr>
     <td style="{{ styles.td }}">&nbsp;</td>
     <td style="{{ styles.td }}"><a href="{{
-      ts_url}}/graph?plot.0={{machine.id}}.{{test.id}}.{{field.index}}">{{
+      ts_url}}/graph?plot.0={{machine.id}}.{{test.id}}.{{
+        field.index}}&highlight_run={{key_run.id}}">{{
           machine.name}}</a></td>
     <td style="{{ styles.td }}">{{ day_results[-1].current }}</td>
 {%     for day_result in day_results[:-1]|reverse %}
