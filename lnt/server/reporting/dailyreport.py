@@ -22,10 +22,34 @@ class DailyReport(object):
         # Computed values.
         self.next_day = None
         self.prior_days = None
+        self.machine_runs = None
         self.reporting_machines = None
         self.reporting_tests = None
         self.result_table = None
 
+    def get_key_run(self, machine, day_index):
+        """
+        get_key_run(machine, day_index) -> Run or None
+
+        Get the "key" run for the given machine and day index, or None if there
+        are no runs for that machine and day.
+
+        The key run is an arbitrarily selected run from all the available runs
+        that reported for the reported run order, for that machine and day.
+        """
+
+        if self.machine_runs is None:
+            raise ArgumentError("report not initialized")
+        if day_index >= self.num_prior_days_to_include:
+            raise ArgumentError("invalid day index")
+            
+        runs = self.machine_runs.get((machine.id, day_index))
+        if runs is None:
+            return None
+
+        # Select a key run arbitrarily.
+        return runs[0]
+        
     def build(self):
         ts = self.ts
 
@@ -111,7 +135,7 @@ class DailyReport(object):
         # overview across machines.
 
         # Aggregate runs by machine ID and day index.
-        machine_runs = util.multidict()
+        self.machine_runs = machine_runs = util.multidict()
         for day_index,day_runs in enumerate(prior_runs):
             for run in day_runs:
                 machine_runs[(run.machine_id, day_index)] = run

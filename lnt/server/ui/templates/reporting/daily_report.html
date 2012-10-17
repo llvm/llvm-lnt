@@ -23,10 +23,12 @@
   <tr>
     <td style="{{ styles.td }}">{{machine.name}}</td>
 {% for i in range(report.num_prior_days_to_include)|reverse %}
-{%   set order = report.prior_days_machine_order_map[i].get(machine) %}
-{%   if order %}
+{%   set key_run = report.get_key_run(machine, i) %}
+{%   if key_run %}
     {# FIXME: Don't hard code field name. #}
-    <td style="{{ styles.td }}">{{order.llvm_project_revision}}</td>
+    <td style="{{ styles.td }}">
+      <a href="{{ ts_url }}/{{ key_run.id }}">{{
+        key_run.order.llvm_project_revision}}</a></td>
 {%   else %}
     <td style="{{ styles.td }}" bgcolor="#FF0000">N/A</td>
 {%   endif %}
