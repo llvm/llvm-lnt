@@ -37,6 +37,19 @@
 {% endfor %}
 </table>
 
+{% macro get_initial_cell_value(cr) %}
+{% set test_status = cr.get_test_status() %}
+
+{% if (test_status == analysis.REGRESSED or
+       test_status == analysis.UNCHANGED_FAIL) %}
+    <td style="{{ styles.td }}" bgcolor="#e98080">FAIL</td>
+{% else %}
+    <td style="{{ styles.td }}" bgcolor="#d2d2d2">
+      {{ ("%.4f" % cr.current) if cr.current != none else "N/A" }}</td>
+{% endif %}
+
+{% endmacro %}
+
 {% macro get_cell_value(cr) %}
 {% set test_status = cr.get_test_status() %}
 {% set value_status = cr.get_value_status() %}
@@ -94,7 +107,7 @@
       ts_url}}/graph?plot.0={{machine.id}}.{{test.id}}.{{
         field.index}}&highlight_run={{key_run.id}}">{{
           machine.name}}</a></td>
-    <td style="{{ styles.td }}">{{ day_results[-1].current }}</td>
+    {{ get_initial_cell_value(day_results[-1]) }}
 {%     for day_result in day_results[:-1]|reverse %}
     {{ get_cell_value(day_result) }}
 {%     endfor %}
