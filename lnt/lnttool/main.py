@@ -309,7 +309,7 @@ def action_send_daily_report(name, args):
     note("building report data...")
     report = lnt.server.reporting.dailyreport.DailyReport(
         ts, year=date.year, month=date.month, day=date.day,
-        day_start_offset_hours=date.hour)
+        day_start_offset_hours=date.hour, for_mail=True)
     report.build()
 
     note("generating HTML report...")

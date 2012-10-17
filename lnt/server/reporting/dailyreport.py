@@ -9,7 +9,7 @@ from lnt.server.ui import util
 
 class DailyReport(object):
     def __init__(self, ts, year, month, day, num_prior_days_to_include = 3,
-                 day_start_offset_hours=16):
+                 day_start_offset_hours=16, for_mail=False):
         self.ts = ts
         self.num_prior_days_to_include = num_prior_days_to_include
         self.year = year
@@ -18,6 +18,7 @@ class DailyReport(object):
         self.fields = list(ts.Sample.get_primary_fields())
         self.day_start_offset = datetime.timedelta(hours=day_start_offset_hours)
         self.num_comparison_runs = 10
+        self.for_mail = True
 
         # Computed values.
         self.next_day = None
