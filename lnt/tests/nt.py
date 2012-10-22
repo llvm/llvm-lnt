@@ -528,8 +528,8 @@ def compute_run_make_variables(opts, llvm_source_version, target_flags,
     #
     # FIXME: We should probably be more strict about this.
     cc_target = cc_info.get('cc_target')
-    inferred_arch = None
-    if cc_target:
+    llvm_arch = opts.llvm_arch
+    if cc_target and llvm_arch is None:
         # cc_target is expected to be a (GCC style) target triple. Pick out the
         # arch component, and then try to convert it to an LLVM nightly test
         # style architecture name, which is of course totally different from all
@@ -541,24 +541,24 @@ def compute_run_make_variables(opts, llvm_source_version, target_flags,
         arch = cc_target.split('-',1)[0].lower()
         if (len(arch) == 4 and arch[0] == 'i' and arch.endswith('86') and
             arch[1] in '3456789'): # i[3-9]86
-            inferred_arch = 'x86'
+            llvm_arch = 'x86'
         elif arch in ('x86_64', 'amd64'):
-            inferred_arch = 'x86_64'
+            llvm_arch = 'x86_64'
         elif arch in ('powerpc', 'powerpc64', 'ppu'):
-            inferred_arch = 'PowerPC'
+            llvm_arch = 'PowerPC'
         elif (arch == 'arm' or arch.startswith('armv') or
               arch == 'thumb' or arch.startswith('thumbv') or
               arch == 'xscale'):
-            inferred_arch = 'ARM'
+            llvm_arch = 'ARM'
         elif arch.startswith('alpha'):
-            inferred_arch = 'Alpha'
+            llvm_arch = 'Alpha'
         elif arch.startswith('sparc'):
-            inferred_arch = 'Sparc'
+            llvm_arch = 'Sparc'
         elif arch in ('mips', 'mipsel'):
-            inferred_arch = 'Mips'
+            llvm_arch = 'Mips'
 
-    if inferred_arch:
-        make_variables['ARCH'] = inferred_arch
+    if llvm_arch is not None:
+        make_variables['ARCH'] = llvm_arch
     else:
         warning("unable to infer ARCH, some tests may not run correctly!")
 
@@ -983,6 +983,9 @@ class NTTest(builtintest.BuiltinTest):
         group = OptionGroup(parser, "Test Options")
         group.add_option("", "--arch", dest="arch",
                          help="Set -arch in TARGET_FLAGS [%default]",
+                         type=str, default=None)
+        group.add_option("", "--llvm-arch", dest="llvm_arch",
+                         help="Set the ARCH value used in the makefiles to [%default]",
                          type=str, default=None)
         group.add_option("", "--isysroot", dest="isysroot", metavar="PATH",
                          help="Set -isysroot in TARGET_FLAGS [%default]",
