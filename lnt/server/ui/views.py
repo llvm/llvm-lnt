@@ -722,6 +722,16 @@ def v4_global_status():
     # Get a sorted list of recent machines.
     recent_machines = sorted(recent_runs_by_machine.keys(),
                              key=lambda m: m.name)
+    
+    # We use periods in our machine names. css does not like this
+    # since it uses periods to demark classes. Thus we convert periods
+    # in the names of our machines to dashes for use in css. It is
+    # also convenient for our computations in the jinja page to have
+    # access to 
+    def get_machine_keys(m):
+        m.css_name = m.name.replace('.','-')
+        return m    
+    recent_machines = map(get_machine_keys, recent_machines)
 
     # For each machine, build a table of the machine, the baseline run, and the
     # most recent run. We also computed a list of all the runs we are reporting
@@ -771,8 +781,8 @@ def v4_global_status():
         test_table.append(row)
 
     # Order the table by worst regression.
-    test_table.sort(key = lambda row: row[1], reverse=True)
-
+    test_table.sort(key = lambda row: row[1], reverse=True)    
+    
     return render_template("v4_global_status.html",
                            ts=ts,
                            tests=test_table,

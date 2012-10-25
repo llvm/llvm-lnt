@@ -28,10 +28,10 @@
           {# Generate css classes to show/hide groups and machines #}
           
           {% for m in machines %}
-             table.hide-{{ m.get_css_name() }} td.{{ m.get_css_name() }},
-             table.hide-{{ m.get_css_name() }} th.{{ m.get_css_name() }},
-             table.hidenot-{{ m.get_css_name() }} td.not-{{ m.get_css_name() }},
-             table.hidenot-{{ m.get_css_name() }} th.not-{{ m.get_css_name() }} {
+             table.hide-{{ m.css_name }} td.{{ m.css_name }},
+             table.hide-{{ m.css_name }} th.{{ m.css_name }},
+             table.hidenot-{{ m.css_name }} td.not-{{ m.css_name }},
+             table.hidenot-{{ m.css_name }} th.not-{{ m.css_name }} {
                  display: none;
              }
           {% endfor %}
@@ -85,7 +85,7 @@
     <div id="toggle-machine-control-panel">
       <ul>
         {% for m in machines %}
-        <li><input machine="{{ m.name }}" id="checkbox-{{ m.get_css_name() }}" checked="checked" type="checkbox" onclick="v4_global_status.toggle_column_visibility('{{ m.get_css_name() }}');">{{ m.name }}</input></li>
+        <li><input machine="{{ m.name }}" id="checkbox-{{ m.css_name }}" checked="checked" type="checkbox" onclick="v4_global_status.toggle_column_visibility('{{ m.css_name }}');">{{ m.name }}</input></li>
         {% endfor %}
         <li><button onclick="v4_global_status.update_table();">Set Visibility</button><button onclick="v4_global_status.reset_table();">Reset</button></li>
       </ul>
@@ -98,7 +98,7 @@
     <th class="label-header">Test</th>
     <th id="worst-time-header" class="data-header worst-time">Worst Time</th>
     {% for m in machines %}
-    <th class="data-header {{ m.get_css_name() }}">{{ m.name }}</th>
+    <th class="data-header {{ m.css_name }}">{{ m.name }}</th>
     {% endfor %}
   </tr>
   {% for row in tests %}
@@ -109,7 +109,7 @@
     {{ row[1]|aspctcell("data-cell worst-time")|safe }}
     {% for cr, run_id in row[2:] %}
       {% set machine = machines[loop.index0] %}
-      {{ cr.pct_delta|aspctcell("normal-data-cell data-cell " + machine.get_css_name(),
+      {{ cr.pct_delta|aspctcell("normal-data-cell data-cell " + machine.css_name,
                                 attributes={ 'test_id': row[0][0],
                                              'machine_id': machine.id })
          |safe }}
