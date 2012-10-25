@@ -79,7 +79,7 @@ v4_global_status = {};
         sortrevind.innerHTML = '&nbsp;&#x25BE;';
         initial_sort_header.appendChild(sortrevind);
         
-        $('.data-cell').click(function() {
+        $('.normal-data-cell').click(function() {
             var test_id = this.getAttribute('test_id');
             var machine_id = this.getAttribute('machine_id');
             var plot_param = ('plot.0=' + machine_id + '.' +

@@ -109,7 +109,7 @@
     {{ row[1]|aspctcell("data-cell worst-time")|safe }}
     {% for cr, run_id in row[2:] %}
       {% set machine = machines[loop.index0] %}
-      {{ cr.pct_delta|aspctcell("data-cell " + machine.get_css_name(),
+      {{ cr.pct_delta|aspctcell("normal-data-cell data-cell " + machine.get_css_name(),
                                 attributes={ 'test_id': row[0][0],
                                              'machine_id': machine.id })
          |safe }}
