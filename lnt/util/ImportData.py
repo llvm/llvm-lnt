@@ -225,11 +225,11 @@ def print_report_result(result, out, err, verbose = True):
             result_info = None
             if test_status == lnt.server.reporting.analysis.REGRESSED:
                 result_string = 'FAIL'
+            elif test_status == lnt.server.reporting.analysis.UNCHANGED_FAIL:
+                result_string = 'FAIL'
             elif test_status == lnt.server.reporting.analysis.IMPROVED:
                 result_string = 'IMPROVED'
                 result_info = "Test started passing."
-            elif test_status == lnt.server.reporting.analysis.UNCHANGED_FAIL:
-                result_string = 'XFAIL'
             elif perf_status == None:
                 # Missing perf status means test was just added or removed.
                 result_string = 'PASS'
