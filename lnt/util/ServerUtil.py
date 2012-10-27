@@ -36,7 +36,7 @@ def submitFileToServer(url, file, commit):
         traceback.print_exc()
         print
         print "Result:"
-        print result
+        print result_data
         return
 
 def submitFileToInstance(path, file, commit):
