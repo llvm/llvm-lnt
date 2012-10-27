@@ -75,7 +75,7 @@ def read_any(path_or_file, format_name):
     else:
         f = get_format(format_name)
         if f is None or not f.get('read'):
-            raise SystemExit("unknown input format: %r" % inFormat)
+            raise SystemExit("unknown input format: %r" % format_name)
 
     return f['read'](path_or_file)
 
