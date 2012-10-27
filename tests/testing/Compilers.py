@@ -56,3 +56,9 @@ assert info['cc_build'] == 'DEV'
 assert info['inferred_run_order'] == '%s,%s' % (
     '8ab09316f63ea99ff23b2684c454b1008b8d5f10',
     '7c53f795961cc2d35b85d315aadb2ac135a0fdb2')
+
+# Check a Clang that prints no info.
+info = get_info("clang-no-info")
+pprint.pprint(info)
+assert info['cc_name'] == 'clang'
+assert info['cc_version_number'] == '3.2'

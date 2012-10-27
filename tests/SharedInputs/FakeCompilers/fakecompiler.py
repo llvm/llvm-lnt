@@ -125,6 +125,23 @@ fake_compilers = dict((value.compiler_name, value)
                       if inspect.isclass(value) and \
                           issubclass(value, FakeCompiler))
 
+class ClangNoInfo(LLVMCompiler):
+    compiler_name = "clang-no-info"
+
+    def print_verbose_info(self):
+        print >>sys.stderr, """\
+clang version 3.2
+Target: x86_64-bla-bla
+Thread model: posix"""
+        print >>sys.stderr, """\
+ "%s" "-cc1" "-E" ... more boring stuff here ...""" % (
+            g_program,)
+
+fake_compilers = dict((value.compiler_name, value)
+                      for key,value in locals().items()
+                      if inspect.isclass(value) and \
+                          issubclass(value, FakeCompiler))
+
 def main():
     global g_program
     g_program = sys.argv[0]

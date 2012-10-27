@@ -76,10 +76,19 @@ def get_cc_info(path, cc_flags=[]):
         error("unable to find compiler cc1 binary: %r: %r" % (
                 cc, cc_version))
     m = re.match(r'(.*) version ([^ ]*) (\([^(]*\))(.*)', version_ln)
-    if not m:
-        error("unable to determine compiler version: %r: %r" % (
-                cc, version_ln))
-    cc_name,cc_version_num,cc_build_string,cc_extra = m.groups()
+    if m is not None:
+        cc_name,cc_version_num,cc_build_string,cc_extra = m.groups()
+    else:
+        # If that didn't match, try a more basic pattern.
+        m = re.match(r'(.*) version ([^ ]*)', version_ln)
+        if m is not None:
+            cc_name,cc_version_num = m.groups()
+            cc_build_string = cc_extra = ""
+        else:
+            error("unable to determine compiler version: %r: %r" % (
+                    cc, version_ln))
+            cc_name = "unknown"
+            cc_version_num = cc_build_string = cc_extra = ""
 
     # Compute normalized compiler name and type. We try to grab source
     # revisions, branches, and tags when possible.
@@ -119,7 +128,7 @@ def get_cc_info(path, cc_flags=[]):
 
             # These show up with git-svn.
             if cc_src_branch == '$URL$':
-                cc_src_branch = None
+                cc_src_branch = ""
         else:
             # Otherwise, see if we can match a branch and a tag name. That could
             # be a git hash.
@@ -129,6 +138,7 @@ def get_cc_info(path, cc_flags=[]):
             else:
                 error('unable to determine Clang development build info: %r' % (
                         (cc_name, cc_build_string, cc_extra),))
+                cc_src_branch = ""
 
         m = re.search('clang-([0-9.]*)', cc_src_branch)
         if m:
@@ -200,7 +210,7 @@ def get_cc_info(path, cc_flags=[]):
         info['cc_src_tag'] = cc_src_tag
     if cc_src_revision is not None:
         info['cc_src_revision'] = cc_src_revision
-    if cc_src_branch is not None:
+    if cc_src_branch:
         info['cc_src_branch'] = cc_src_branch
     if cc_alt_src_revision is not None:
         info['cc_alt_src_revision'] = cc_alt_src_revision
