@@ -50,6 +50,20 @@ class TestModule(object):
         
 ###
 
+def resolve_command_path(name):
+    # If the given name exists (or is a path), make it absolute.
+    if os.path.exists(name):
+        return os.path.abspath(name)
+
+    # Otherwise we most likely have a command name, try to look it up.
+    path = which(name)
+    if path is not None:
+        note("resolved command %r to path %r" % (name, path))
+        return path
+
+    # If that failed just return the original name.
+    return name
+
 def scan_for_test_modules(opts):
     base_modules_path = os.path.join(opts.test_suite_root, 'LNTBased')
     if opts.only_test is None:
@@ -1188,6 +1202,9 @@ class NTTest(builtintest.BuiltinTest):
         if opts.cc_under_test is None:
             parser.error('--cc is required')
 
+        # Resolve the cc_under_test path.
+        opts.cc_under_test = resolve_command_path(opts.cc_under_test)
+
         # If there was no --cxx given, attempt to infer it from the --cc.
         if opts.cxx_under_test is None:
             opts.cxx_under_test = lnt.testing.util.compilers.infer_cxx_compiler(
@@ -1200,10 +1217,21 @@ class NTTest(builtintest.BuiltinTest):
         if opts.test_cxx and opts.cxx_under_test is None:
             parser.error('--cxx is required')
 
+        if opts.cxx_under_test is not None:
+            opts.cxx_under_test = resolve_command_path(opts.cxx_under_test)
+            
         # Always set cxx_under_test, since it may be used as the linker even
         # when not testing C++ code.
         if opts.cxx_under_test is None:
             opts.cxx_under_test = opts.cc_under_test
+
+        # Validate that the compilers under test exist.
+        if not os.path.exists(opts.cc_under_test):
+            parser.error("invalid --cc argument %r, does not exist" % (
+                    opts.cc_under_test))
+        if not os.path.exists(opts.cxx_under_test):
+            parser.error("invalid --cxx argument %r, does not exist" % (
+                    opts.cxx_under_test))
 
         # FIXME: As a hack to allow sampling old Clang revisions, if we are
         # given a C++ compiler that doesn't exist, reset it to just use the
