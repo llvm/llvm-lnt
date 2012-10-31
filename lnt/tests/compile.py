@@ -688,7 +688,7 @@ class CompileTest(builtintest.BuiltinTest):
                 h.setFormatter(f)
                 return h
             l = logging.Logger('compile_test')
-            l.setLevel(logging.WARN)
+            l.setLevel(logging.INFO)
             l.addHandler(file_log_handler(os.path.join(output_dir, 'test.log')))
             l.addHandler(stderr_log_handler())
             return l
