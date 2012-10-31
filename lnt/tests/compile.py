@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import sys
 import zipfile
+import logging
 from datetime import datetime
 
 import lnt.testing
@@ -52,8 +53,8 @@ def runN(args, N, cwd, preprocess_cmd=None, env=None, sample_mem=False,
     cmd.extend(args)
 
     if opts.verbose:
-        print >>test_log, "running: %s" % " ".join("'%s'" % arg
-                                                   for arg in cmd)
+        g_log.info("running: %s" % " ".join("'%s'" % arg
+                                               for arg in cmd))
     p = subprocess.Popen(args=cmd,
                          stdin=None,
                          stdout=subprocess.PIPE,
@@ -254,8 +255,7 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs):
 
     # Unpack if necessary.
     if last_unpack_hash == archive_hash:
-        print >>test_log, '%s: reusing sources %r (already unpacked)' % (
-            datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'), name)
+        g_log.info('reusing sources %r (already unpacked)' % name)
     else:
         # Remove any existing content, if necessary.
         try:
@@ -269,8 +269,7 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs):
         # We shell out to unzip here because zipfile's extractall does not
         # appear to preserve permissions properly.
         commands.mkdir_p(source_path)
-        print >>test_log, '%s: extracting sources for %r' % (
-            datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'), name)
+        g_log.info('extracting sources for %r' % name)
         
         if archive_path[-6:] == "tar.gz":
             p = subprocess.Popen(args=['tar', '-xzf', archive_path],
@@ -296,9 +295,7 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs):
         # Apply the patch file, if necessary.
         patch_file = project.get('patch_file')
         if patch_file:
-            print >>test_log, '%s: applying patch file %r for %r' % (
-                datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),
-                patch_file, name)
+            g_log.info('applying patch file %r for %r' % (patch_file, name))
             patch_file_path = get_input_path(opts, patch_file)
             p = subprocess.Popen(args=['patch', '-i', patch_file_path,
                                        '-p', '1'],
@@ -370,9 +367,7 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs):
     commands.mkdir_p(output_base)
 
     # Collect the samples.
-    print >>test_log, '%s: executing full build: %s' % (
-        datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),
-        args_to_quoted_string(cmd))
+    g_log.info('executing full build: %s' % args_to_quoted_string(cmd))
     stdout_path = os.path.join(output_base, "stdout.log")
     stderr_path = os.path.join(output_base, "stderr.log")
     preprocess_cmd = 'rm -rf "%s"' % (build_base,)
@@ -401,17 +396,11 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs):
             stderr_sizes.append(None)
 
     if len(set(stdout_sizes)) != 1:
-        print >>test_log, (
-            ('%s: warning: test command had stdout files with '
-             'different sizes: %r') %
-            (datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),
-             stdout_sizes))
+        g_log.warning(('test command had stdout files with '
+                          'different sizes: %r') % stdout_sizes)
     if len(set(stderr_sizes)) != 1:
-        print >>test_log, (
-            ('%s: warning: test command had stderr files with '
-             'different sizes: %r') %
-            (datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),
-             stderr_sizes))
+        g_log.warning(('test command had stderr files with '
+                          'different sizes: %r') % stderr_sizes)
     
 ###
 
@@ -466,6 +455,8 @@ def get_full_build_tests(jobs_to_test, configs_to_test,
     # Load the project description file from the externals.
     path = os.path.join(test_suite_externals, test_suite_externals_subdir,
                            "project_list.json")
+
+    g_log.info("Loading config file: %s" % path)
     with open(path) as f:
         data = json.load(f)
 
@@ -494,6 +485,7 @@ import builtintest
 from optparse import OptionParser, OptionGroup
 
 g_output_dir = None
+g_log = None
 usage_info = """
 Script for testing compile time performance.
 
@@ -672,6 +664,28 @@ class CompileTest(builtintest.BuiltinTest):
             else:
                 raise
 
+        # Setup log file
+        global g_log
+        def setup_log(output_dir):
+            def stderr_log_handler():
+                h = logging.StreamHandler()
+                f = logging.Formatter("%(asctime)-7s: %(levelname)s: %(message)s",
+                                      "%Y-%m-%d %H:%M:%S")
+                h.setFormatter(f)
+                return h
+            def file_log_handler(path):
+                h = logging.FileHandler(path, mode='w')
+                f = logging.Formatter("%(asctime)-7s: %(levelname)s: %(message)s",
+                                      "%Y-%m-%d %H:%M:%S")
+                h.setFormatter(f)
+                return h
+            l = logging.Logger('compile_test')
+            l.setLevel(logging.WARN)
+            l.addHandler(file_log_handler(os.path.join(output_dir, 'test.log')))
+            l.addHandler(stderr_log_handler())
+            return l
+        g_log = setup_log(g_output_dir)
+        
         # Collect machine and run information.
         machine_info, run_info = machineinfo.get_machine_information(
             opts.use_machdep_info)
@@ -790,34 +804,21 @@ class CompileTest(builtintest.BuiltinTest):
         # Ensure output directory is available.
         if not os.path.exists(g_output_dir):
             os.mkdir(g_output_dir)
-
-        # Create the test log.
-        global test_log
-        test_log_path = os.path.join(g_output_dir, 'test.log')
-        test_log = open(test_log_path, 'w')
-
-        # Tee the output to stderr as well.
-        test_log = TeeStream(test_log, sys.stderr, noclose_b=True)
-
+        
         # Execute the run.
         run_info.update(variables)
         run_info['tag'] = tag = 'compile'
 
         testsamples = []
         start_time = datetime.utcnow()
-        print >>test_log, '%s: run started' % start_time.strftime(
-            '%Y-%m-%d %H:%M:%S')
-        print >>test_log, '%s: using CC: %r' % (start_time.strftime(
-                '%Y-%m-%d %H:%M:%S'), opts.cc)
-        print >>test_log, '%s: using CXX: %r' % (start_time.strftime(
-            '%Y-%m-%d %H:%M:%S'), opts.cxx)
+        g_log.info('run started')
+        g_log.info('using CC: %r' % opts.cc)
+        g_log.info('using CXX: %r' % opts.cxx)
         try:
             for basename,test_fn in tests_to_run:
                 for success,name,samples in test_fn(basename, run_info,
                                                          variables):
-                    now = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-                    print >>test_log, '%s: collected samples: %r' % (
-                        now, name)
+                    g_log.info('collected samples: %r' % name)
                     num_samples = len(samples)
                     if num_samples:
                         samples_median = '%.4f' % (stats.median(samples),)
@@ -825,8 +826,8 @@ class CompileTest(builtintest.BuiltinTest):
                             stats.median_absolute_deviation(samples),)
                     else:
                         samples_median = samples_mad = 'N/A'
-                    print >>test_log, '%s:   N=%d, median=%s, MAD=%s' % (
-                        now, num_samples, samples_median, samples_mad)
+                    g_log.info('N=%d, median=%s, MAD=%s' % (
+                        num_samples, samples_median, samples_mad))
                     test_name = '%s.%s' % (tag, name)
                     if not success:
                         testsamples.append(lnt.testing.TestSamples(
@@ -843,11 +844,7 @@ class CompileTest(builtintest.BuiltinTest):
             traceback.print_exc()
             print >>sys.stderr,'--'
             run_info['had_errors'] = 1
-        end_time = datetime.utcnow()
-        print >>test_log, '%s: run complete' % end_time.strftime(
-            '%Y-%m-%d %H:%M:%S')
-
-        test_log.close()
+        g_log.info('run complete')
 
         # Package up the report.
         machine = lnt.testing.Machine(opts.machine_name, machine_info)
