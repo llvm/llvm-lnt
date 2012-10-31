@@ -236,7 +236,7 @@ def test_compile(name, run_info, variables, input, output, pch_input,
                            extra_flags, has_output, ignore_stderr)
 
 def test_build(base_name, run_info, variables, project, build_config, num_jobs):
-    name = '%s_config=%s_j=%d' % (base_name, build_config, num_jobs)
+    name = '%s_%s_j%d' % (base_name, build_config, num_jobs)
     # Check if we need to expand the archive into the sandbox.
     archive_path = get_input_path(opts, project['archive'])
     with open(archive_path) as f:
