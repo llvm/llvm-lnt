@@ -445,18 +445,18 @@ def get_single_file_tests(flags_to_test, test_suite_externals,
                              output=output, pch_input=None,
                              flags=f, stage='pch-gen'))
                 
-                for input in all_inputs:
-                    path, pch_input = input['path'], input.get('pch', None)
-                    extra_flags = input['extra_flags']
-                    
-                    name = path
-                    output = os.path.splitext(os.path.basename(path))[0] + '.o'
-                    for stage in stages_to_test:
-                        yield ('compile/%s/%s' % (name, stage),
-                               curry(test_compile,
-                                     input=os.path.join(base_path, path),
-                                     output=output, pch_input=pch_input, flags=f,
-                                     stage=stage, extra_flags=extra_flags))
+            for input in all_inputs:
+                path, pch_input = input['path'], input.get('pch', None)
+                extra_flags = input['extra_flags']
+                
+                name = path
+                output = os.path.splitext(os.path.basename(path))[0] + '.o'
+                for stage in stages_to_test:
+                    yield ('compile/%s/%s' % (name, stage),
+                           curry(test_compile,
+                                 input=os.path.join(base_path, path),
+                                 output=output, pch_input=pch_input, flags=f,
+                                 stage=stage, extra_flags=extra_flags))
 
 def get_full_build_tests(jobs_to_test, configs_to_test,
                          test_suite_externals, test_suite_externals_subdir):
