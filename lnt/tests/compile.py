@@ -271,11 +271,19 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs):
         commands.mkdir_p(source_path)
         print >>test_log, '%s: extracting sources for %r' % (
             datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'), name)
-        p = subprocess.Popen(args=['unzip', '-q', archive_path],
-                             stdin=None,
-                             stdout=subprocess.PIPE,
-                             stderr=subprocess.PIPE,
-                             cwd=source_path)
+        
+        if archive_path[-6:] == "tar.gz":
+            p = subprocess.Popen(args=['tar', '-xzf', archive_path],
+                                 stdin=None,
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE,
+                                 cwd=source_path)
+        else:
+            p = subprocess.Popen(args=['unzip', '-q', archive_path],
+                                 stdin=None,
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE,
+                                 cwd=source_path)            
         stdout,stderr = p.communicate()
         if p.wait() != 0:
             fatal(("unable to extract archive %r at %r\n"
