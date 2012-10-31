@@ -81,7 +81,7 @@ def runN(args, N, cwd, preprocess_cmd=None, env=None, sample_mem=False,
 
 # Test functions.
 def get_input_path(opts, *names):
-    return os.path.join(opts.test_suite_externals, "lnt-compile-suite-src",
+    return os.path.join(opts.test_suite_externals, opts.test_subdir,
                         *names)
 
 def get_output_path(*names):
@@ -456,42 +456,49 @@ k_OGF_compile_flags = (
     '-fdiagnostics-show-category=id', '-fdiagnostics-parseable-fixits',
     '-fpascal-strings',)
 
-def get_single_file_tests(flags_to_test):
-    all_inputs = [('Sketch+Accessibility/SKTGraphicView.m', True, ()),
-                  ('403.gcc/combine.c', False, ('-DSPEC_CPU_MACOSX',)),
-                  ('JavaScriptCore/Interpreter.cpp', False,
-                   k_JSC_compile_flags),
-                  ('OmniGroupFrameworks/NSBezierPath-OAExtensions.m', False,
-                   k_OGF_compile_flags)]
-
+def get_single_file_tests(flags_to_test, test_suite_externals,
+                          subdir):
+    # Load the project description file from the externals.
+    path = os.path.join(test_suite_externals, test_suite_externals_subdir,
+                        "project_list.json")
+    with open(path) as f:
+        all_tests = json.load(f).get('single-file', [])
+    
     stages_to_test = ['driver', 'init', 'syntax', 'irgen_only', 'irgen',
                       'codegen', 'assembly']
+    base_path = os.path.join(test_suite_externals, subdir, 'single-file')
+    
     for f in flags_to_test:
         # FIXME: Note that the order matters here, because we need to make sure
         # to generate the right PCH file before we try to use it. Ideally the
         # testing infrastructure would just handle this.
         yield ('pch-gen/Cocoa',
-               curry(test_compile, input='single-file/Cocoa_Prefix.h',
+               curry(test_compile,
+                     input=os.path.join(base_path, 'Cocoa_Prefix.h'),
                      output='Cocoa_Prefix.h.gch', pch_input=None,
                      flags=f, stage='pch-gen'))
-        for input,uses_pch,extra_flags in all_inputs:
-            name = input
-            output = os.path.splitext(os.path.basename(input))[0] + '.o'
+        for input in all_inputs:
+            path, uses_pch = i['path'], i['use_pch']
+            extra_flags = i['extra_flags']
+            
+            name = path
+            output = os.path.splitext(os.path.basename(path))[0] + '.o'
             for stage in stages_to_test:
                 pch_input = None
                 if uses_pch:
                     pch_input = 'Cocoa_Prefix.h.gch'
                 yield ('compile/%s/%s' % (name, stage),
                        curry(test_compile,
-                             input=os.path.join('single-file', input),
+                             input=os.path.join(base_path, path),
                              output=output, pch_input=pch_input, flags=f,
                              stage=stage, extra_flags=extra_flags))
 
 def get_full_build_tests(jobs_to_test, configs_to_test,
-                         test_suite_externals):
+                         test_suite_externals, test_suite_externals_subdir):
     # Load the project description file from the externals.
-    with open(os.path.join(test_suite_externals, "lnt-compile-suite-src",
-                           "project_list.json")) as f:
+    path = os.path.join(test_suite_externals, test_suite_externals_subdir,
+                           "project_list.json")
+    with open(path) as f:
         data = json.load(f)
 
     for jobs in jobs_to_test:
@@ -502,13 +509,15 @@ def get_full_build_tests(jobs_to_test, configs_to_test,
                        curry(test_build, project=project, build_config=config,
                              num_jobs=jobs))
 
-def get_tests(test_suite_externals, flags_to_test, jobs_to_test,
-              configs_to_test):
-    for item in get_single_file_tests(flags_to_test):
+def get_tests(test_suite_externals, test_suite_externals_subdir, flags_to_test,
+              jobs_to_test, configs_to_test):
+    for item in get_single_file_tests(flags_to_test, test_suite_externals,
+                                      test_suite_externals_subdir):
         yield item
 
     for item in get_full_build_tests(jobs_to_test, configs_to_test,
-                                     test_suite_externals):
+                                     test_suite_externals,
+                                     test_suite_externals_subdir):
         yield item
 
 ###
@@ -598,6 +607,9 @@ class CompileTest(builtintest.BuiltinTest):
         group.add_option("", "--run-order", dest="run_order", metavar="STR",
                          help="String to use to identify and order this run",
                          action="store", type=str, default=None)
+        group.add_option("", "--test-subdir", dest="test_subdir",
+                         help="Subdirectory of test external dir to look for tests in.",
+                         type=str, default="lnt-compile-suite-src")
         parser.add_option_group(group)
 
         group = OptionGroup(parser, "Test Selection")
@@ -766,8 +778,9 @@ class CompileTest(builtintest.BuiltinTest):
             configs_to_test = opts.configs_to_test
 
         # Compute the list of all tests.
-        all_tests = list(get_tests(opts.test_suite_externals, flags_to_test,
-                                   jobs_to_test, configs_to_test))
+        all_tests = list(get_tests(opts.test_suite_externals, opts.test_subdir,
+                                   flags_to_test, jobs_to_test,
+                                   configs_to_test))
 
         # Show the tests, if requested.
         if opts.show_tests:
