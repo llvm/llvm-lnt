@@ -421,7 +421,7 @@ def curry(fn, **kw_args):
 def get_single_file_tests(flags_to_test, test_suite_externals,
                           subdir):
     # Load the project description file from the externals.
-    path = os.path.join(test_suite_externals, test_suite_externals_subdir,
+    path = os.path.join(test_suite_externals, subdir,
                         "project_list.json")
     with open(path) as f:
         all_tests = json.load(f).get('single-file', [])
