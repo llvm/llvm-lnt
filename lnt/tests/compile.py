@@ -424,31 +424,37 @@ def get_single_file_tests(flags_to_test, test_suite_externals,
     path = os.path.join(test_suite_externals, subdir,
                         "project_list.json")
     with open(path) as f:
-        all_tests = json.load(f).get('single-file', [])
+        config = json.load(f).get("single_file", {})
+
+        all_pch = config.get("pch", [])
+        all_tests = config.get("tests", [])        
     
     stages_to_test = ['driver', 'init', 'syntax', 'irgen_only', 'irgen',
                       'codegen', 'assembly']
     base_path = os.path.join(test_suite_externals, subdir, 'single-file')
     
+    if not os.access(base_path, os.F_OK | os.R_OK):
+        return
+    
     for f in flags_to_test:
         # FIXME: Note that the order matters here, because we need to make sure
         # to generate the right PCH file before we try to use it. Ideally the
         # testing infrastructure would just handle this.
-        yield ('pch-gen/Cocoa',
-               curry(test_compile,
-                     input=os.path.join(base_path, 'Cocoa_Prefix.h'),
-                     output='Cocoa_Prefix.h.gch', pch_input=None,
-                     flags=f, stage='pch-gen'))
+        for pch in all_pch:
+            path, name, output = pch['path'], pch['name'], pch['output']
+            yield (os.path.join('pch-gen', name),
+                   curry(test_compile,
+                         input=os.path.join(base_path, path),
+                         output=output, pch_input=None,
+                         flags=f, stage='pch-gen'))
+        
         for input in all_inputs:
-            path, uses_pch = i['path'], i['use_pch']
+            path, pch_input = i['path'], i.get('pch', None)
             extra_flags = i['extra_flags']
             
             name = path
             output = os.path.splitext(os.path.basename(path))[0] + '.o'
             for stage in stages_to_test:
-                pch_input = None
-                if uses_pch:
-                    pch_input = 'Cocoa_Prefix.h.gch'
                 yield ('compile/%s/%s' % (name, stage),
                        curry(test_compile,
                              input=os.path.join(base_path, path),
