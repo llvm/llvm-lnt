@@ -418,44 +418,6 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs):
 def curry(fn, **kw_args):
     return lambda *args: fn(*args, **kw_args)
 
-# These are the JavaScriptCore compile flags, extracted from a full build.
-k_JSC_compile_flags = (
-    # Target options.
-    '-mmacosx-version-min=10.7',
-
-    # Warning options.
-    '-Wall', '-Wextra', '-Wcast-qual', '-Wchar-subscripts', '-Wextra-tokens',
-    '-Wformat=2', '-Winit-self', '-Wmissing-format-attribute', '-Wpacked',
-    '-Wmissing-noreturn', '-Wmissing-prototypes', '-Wnon-virtual-dtor',
-    '-Wnewline-eof', '-Wno-deprecated-declarations', '-Wpointer-arith',
-    '-Wredundant-decls', '-Wundef', '-Wwrite-strings', '-Wshorten-64-to-32',
-    '-Wno-trigraphs',
-
-    # Compiler flags.
-    '-fasm-blocks', '-fstrict-aliasing', '-fvisibility-inlines-hidden',
-    '-fno-threadsafe-statics', '-fmessage-length=0', '-fno-exceptions',
-    '-fno-rtti', '-fpascal-strings', '-fomit-frame-pointer', '-funwind-tables')
-
-# These are the OmniGroupFrameworks compile flags, extract from a full build.
-k_OGF_compile_flags = (
-    # Target options.
-    '-mmacosx-version-min=10.6',
-
-    # Language options.
-    '-std=gnu99',
-
-    # Warning options.
-    '-Wno-trigraphs', '-Wmissing-prototypes', '-Wreturn-type', '-Wparentheses',
-    '-Wmissing-braces', '-Wswitch', '-Wunused-function', '-Wunused-label',
-    '-Wno-unused-parameter', '-Wunused-variable', '-Wunknown-pragmas',
-    '-Wunused-value', '-Wsign-compare', '-Wshorten-64-to-32', '-Wnewline-eof',
-    '-Wall', '-Wno-#warnings', '-Wno-trigraphs', '-Winit-self',
-
-    # Compiler flags.
-    '-fmessage-length=0', '-fdiagnostics-print-source-range-info',
-    '-fdiagnostics-show-category=id', '-fdiagnostics-parseable-fixits',
-    '-fpascal-strings',)
-
 def get_single_file_tests(flags_to_test, test_suite_externals,
                           subdir):
     # Load the project description file from the externals.
