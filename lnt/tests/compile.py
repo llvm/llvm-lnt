@@ -849,10 +849,10 @@ class CompileTest(builtintest.BuiltinTest):
             raise SystemExit("\ninterrupted\n")
         except:
             import traceback
-            print >>sys.stderr,'*** EXCEPTION DURING TEST, HALTING ***'
-            print >>sys.stderr,'--'
-            traceback.print_exc()
-            print >>sys.stderr,'--'
+            g_log.error('*** EXCEPTION DURING TEST, HALTING ***')
+            g_log.error('--')
+            g_log.error(traceback.format_exc())
+            g_log.error('--')
             run_info['had_errors'] = 1
         g_log.info('run complete')
 
