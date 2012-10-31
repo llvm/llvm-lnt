@@ -415,40 +415,50 @@ def get_single_file_tests(flags_to_test, test_suite_externals,
     with open(path) as f:
         config = json.load(f).get("single_file", {})
 
+        if len(config) == 0:
+            g_log.warning("config file %s has no data." % path)
+        
         all_pch = config.get("pch", [])
-        all_tests = config.get("tests", [])        
+        all_inputs = config.get("tests", [])        
     
     stages_to_test = ['driver', 'init', 'syntax', 'irgen_only', 'irgen',
                       'codegen', 'assembly']
     base_path = os.path.join(test_suite_externals, subdir, 'single-file')
     
     if not os.access(base_path, os.F_OK | os.R_OK):
-        return
-    
-    for f in flags_to_test:
-        # FIXME: Note that the order matters here, because we need to make sure
-        # to generate the right PCH file before we try to use it. Ideally the
-        # testing infrastructure would just handle this.
-        for pch in all_pch:
-            path, name, output = pch['path'], pch['name'], pch['output']
-            yield (os.path.join('pch-gen', name),
-                   curry(test_compile,
-                         input=os.path.join(base_path, path),
-                         output=output, pch_input=None,
-                         flags=f, stage='pch-gen'))
-        
-        for input in all_inputs:
-            path, pch_input = i['path'], i.get('pch', None)
-            extra_flags = i['extra_flags']
-            
-            name = path
-            output = os.path.splitext(os.path.basename(path))[0] + '.o'
-            for stage in stages_to_test:
-                yield ('compile/%s/%s' % (name, stage),
+        g_log.warning('single-file directory does not exist. Dir: %s' \
+                         % base_path)
+    else:
+        # I did not want to handle the control flow in this manner, but due to
+        # the nature of python generators I can not just return in the previous
+        # warning case.
+        for f in flags_to_test:
+            # FIXME: Note that the order matters here, because we need to make sure
+            # to generate the right PCH file before we try to use it. Ideally the
+            # testing infrastructure would just handle this.
+            for pch in all_pch:
+                path, name, output = pch['path'], pch['name'], pch['output']
+                
+                yield (os.path.join('pch-gen', name),
                        curry(test_compile,
                              input=os.path.join(base_path, path),
-                             output=output, pch_input=pch_input, flags=f,
-                             stage=stage, extra_flags=extra_flags))
+                             output=output, pch_input=None,
+                             flags=f, stage='pch-gen'))
+                
+                for input in all_inputs:
+                    path, pch_input = i['path'], i.get('pch', None)
+                    extra_flags = i['extra_flags']
+                    
+                    print path
+                    
+                    name = path
+                    output = os.path.splitext(os.path.basename(path))[0] + '.o'
+                    for stage in stages_to_test:
+                        yield ('compile/%s/%s' % (name, stage),
+                               curry(test_compile,
+                                     input=os.path.join(base_path, path),
+                                     output=output, pch_input=pch_input, flags=f,
+                                     stage=stage, extra_flags=extra_flags))
 
 def get_full_build_tests(jobs_to_test, configs_to_test,
                          test_suite_externals, test_suite_externals_subdir):
