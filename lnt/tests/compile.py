@@ -413,7 +413,7 @@ def get_single_file_tests(flags_to_test, test_suite_externals,
     path = os.path.join(test_suite_externals, subdir,
                         "project_list.json")
     with open(path) as f:
-        config = json.load(f).get("single_file", {})
+        config = json.load(f).get("single-file", {})
 
         if len(config) == 0:
             g_log.warning("config file %s has no data." % path)
@@ -446,8 +446,8 @@ def get_single_file_tests(flags_to_test, test_suite_externals,
                              flags=f, stage='pch-gen'))
                 
                 for input in all_inputs:
-                    path, pch_input = i['path'], i.get('pch', None)
-                    extra_flags = i['extra_flags']
+                    path, pch_input = input['path'], input.get('pch', None)
+                    extra_flags = input['extra_flags']
                     
                     print path
                     
