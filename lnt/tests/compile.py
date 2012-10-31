@@ -449,8 +449,6 @@ def get_single_file_tests(flags_to_test, test_suite_externals,
                     path, pch_input = input['path'], input.get('pch', None)
                     extra_flags = input['extra_flags']
                     
-                    print path
-                    
                     name = path
                     output = os.path.splitext(os.path.basename(path))[0] + '.o'
                     for stage in stages_to_test:
