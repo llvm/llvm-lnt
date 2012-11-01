@@ -320,6 +320,11 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs):
     
     # Form the test build command.
     build_info = project['build_info']
+    
+    # Add arguments to ensure output files go into our build directory.
+    output_base = get_output_path(name)
+    build_base = os.path.join(output_base, 'build')
+    
     if build_info['style'].startswith('xcode-'):
         file_path = os.path.join(source_path, build_info['file'])
         cmd = ['xcodebuild']
@@ -337,9 +342,6 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs):
         # Add the build configuration selection.
         cmd.extend(('-configuration', build_config))
 
-        # Add arguments to ensure output files go into our build directory.
-        output_base = get_output_path(name)
-        build_base = os.path.join(output_base, 'build')
         cmd.append('OBJROOT=%s' % (os.path.join(build_base, 'obj')))
         cmd.append('SYMROOT=%s' % (os.path.join(build_base, 'sym')))
         cmd.append('DSTROOT=%s' % (os.path.join(build_base, 'dst')))
@@ -364,6 +366,14 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs):
 
         # Add additional arguments to force the build scenario we want.
         cmd.extend(('-jobs', str(num_jobs)))
+    elif build_info['style'] == 'make':
+        
+        target_dir = os.path.dirname(os.path.join(source_path, build_info['file']))
+        cmd = []
+        cmd.extend(['make', '-C', target_dir, build_info['target'], "-j",
+                    str(num_jobs)])
+        env.update(build_info.get('extra_flags', {}))
+        
     else:
         fatal("unknown build style in project: %r" % project)
 
