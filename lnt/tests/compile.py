@@ -90,13 +90,14 @@ def get_output_path(*names):
 
 def get_runN_test_data(name, variables, cmd, ignore_stderr=False,
                        sample_mem=False, only_mem=False,
-                       stdout=None, stderr=None, preprocess_cmd=None):
+                       stdout=None, stderr=None, preprocess_cmd=None, env=None):
     if only_mem and not sample_mem:
         raise ArgumentError,"only_mem doesn't make sense without sample_mem"
 
     data = runN(cmd, variables.get('run_count'), cwd='/tmp',
                 ignore_stderr=ignore_stderr, sample_mem=sample_mem,
-                stdout=stdout, stderr=stderr, preprocess_cmd=preprocess_cmd)
+                stdout=stdout, stderr=stderr, preprocess_cmd=preprocess_cmd,
+                env=env)
     if data is not None:
         if data.get('version') != 0:
             raise ValueError,'unknown runN data format'
@@ -314,6 +315,9 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs):
         with open(last_unpack_hash_path, "w") as f:
             f.write(archive_hash)
 
+    # Create an env dict in case the user wants to use it.
+    env = dict(os.environ)
+    
     # Form the test build command.
     build_info = project['build_info']
     if build_info['style'].startswith('xcode-'):
@@ -374,7 +378,7 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs):
 
     for res in get_runN_test_data(name, variables, cmd,
                                   stdout=stdout_path, stderr=stderr_path,
-                                  preprocess_cmd=preprocess_cmd):
+                                  preprocess_cmd=preprocess_cmd, env=env):
         yield res
 
     # Check that the file sizes of the output log files "make sense", and warn
