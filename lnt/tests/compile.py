@@ -366,13 +366,31 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs):
 
         # Add additional arguments to force the build scenario we want.
         cmd.extend(('-jobs', str(num_jobs)))
-    elif build_info['style'] == 'make':
+
+        # If the user specifies any additional options to be included on the command line,
+        # append them here.
+        cmd.extend(build_info.get('extra_args', []))
+
+        # If the user specifies any extra environment variables, put
+        # them in our env dictionary.
+        env.update(build_info.get('extra_env', {}))
         
+    elif build_info['style'] == 'make':
+        # Get the directory in which our makefile lives.
         target_dir = os.path.dirname(os.path.join(source_path, build_info['file']))
+
+        # Create our make command.
         cmd = []
         cmd.extend(['make', '-C', target_dir, build_info['target'], "-j",
                     str(num_jobs)])
-        env.update(build_info.get('extra_flags', {}))
+        
+        # If the user specifies any additional options to be included on the command line,
+        # append them here.
+        cmd.extend(build_info.get('extra_args', []))
+        
+        # If the user specifies any extra environment variables, put
+        # them in our env dictionary.
+        env.update(build_info.get('extra_env', {}))
         
     else:
         fatal("unknown build style in project: %r" % project)
