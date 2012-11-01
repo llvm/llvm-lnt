@@ -113,11 +113,11 @@ def get_cc_info(path, cc_flags=[]):
             cc_src_tag, = m.groups()
         else:
             error('unable to determine gcc build version: %r' % cc_build_string)
-    elif (cc_name in ('clang', 'Apple clang') and
+    elif (cc_name in ('clang', 'Apple clang', 'Apple LLVM') and
           (cc_extra == '' or 'based on LLVM' in cc_extra or
            (cc_extra.startswith('(') and cc_extra.endswith(')')))):
         llvm_capable = True
-        if cc_name == 'Apple clang':
+        if cc_name == 'Apple clang' or cc_name == 'Apple LLVM':
             cc_norm_name = 'apple_clang'
         else:
             cc_norm_name = 'clang'
