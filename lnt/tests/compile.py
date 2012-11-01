@@ -852,8 +852,11 @@ class CompileTest(builtintest.BuiltinTest):
             g_log.error(traceback.format_exc())
             g_log.error('--')
             run_info['had_errors'] = 1
-        g_log.info('run complete')
 
+        end_time = datetime.utcnow()
+        
+        g_log.info('run complete')
+        
         # Package up the report.
         machine = lnt.testing.Machine(opts.machine_name, machine_info)
         run = lnt.testing.Run(start_time, end_time, info = run_info)
