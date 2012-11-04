@@ -36,17 +36,10 @@ def mkdir_p(path):
     will also make directories for any missing parent directories."""
     import errno
 
-    if not path or os.path.exists(path):
-        return
-
-    parent = os.path.dirname(path) 
-    if parent != path:
-        mkdir_p(parent)
-
     try:
-        os.mkdir(path)
-    except OSError,e:
-        # Ignore EEXIST, which may occur during a race condition.
+        os.makedirs(path)
+    except OSError as e:
+        # Ignore EEXIST, which may occur during a race condition.        
         if e.errno != errno.EEXIST:
             raise
 
