@@ -236,7 +236,8 @@ def test_compile(name, run_info, variables, input, output, pch_input,
     return test_cc_command(name, run_info, variables, input, output, flags,
                            extra_flags, has_output, ignore_stderr)
 
-def test_build(base_name, run_info, variables, project, build_config, num_jobs):
+def test_build(base_name, run_info, variables, project, build_config, num_jobs,
+               codesize_util=None):
     name = '%s_%s_j%d' % (base_name, build_config, num_jobs)
     # Check if we need to expand the archive into the sandbox.
     archive_path = get_input_path(opts, project['archive'])
@@ -323,11 +324,17 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs):
     
     # Add arguments to ensure output files go into our build directory.
     output_base = get_output_path(name)
-    build_base = os.path.join(output_base, 'build')
+    build_base = os.path.join(output_base, 'build', build_config)
+        
+    # Create the build base directory and by extension output base directory.
+    commands.mkdir_p(build_base)
+
+    cmd = []
+    preprocess_cmd = None
     
     if build_info['style'].startswith('xcode-'):
         file_path = os.path.join(source_path, build_info['file'])
-        cmd = ['xcodebuild']
+        cmd.extend(['xcodebuild'])
 
         # Add the arguments to select the build target.
         if build_info['style'] == 'xcode-project':
@@ -370,18 +377,34 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs):
         # If the user specifies any additional options to be included on the command line,
         # append them here.
         cmd.extend(build_info.get('extra_args', []))
-
+        
         # If the user specifies any extra environment variables, put
         # them in our env dictionary.
-        env.update(build_info.get('extra_env', {}))
-        
-    elif build_info['style'] == 'make':
-        # Get the directory in which our makefile lives.
-        target_dir = os.path.dirname(os.path.join(source_path, build_info['file']))
+        env_format = {
+            'build_base' : build_base
+        }
+        extra_env = build_info.get('extra_env', {})        
+        for k in extra_env:
+            extra_env[k] = extra_env[k] % env_format
+        env.update(extra_env)
 
+        # Create preprocess cmd
+        preprocess_cmd = 'rm -rf "%s"' % (build_base,)
+        
+    elif build_info['style'] == 'make':        
+        # Get the subdirectory in Source where our sources exist.
+        src_dir = os.path.dirname(os.path.join(source_path, build_info['file']))
+        
+        # Copy our source directory over to build_base.
+        # We do this since we assume that we are processing a make project which
+        # has already been configured and so that we do not need to worry about
+        # make install or anything like that. We can just build the project and
+        # use the user supplied path to its location in the build directory.        
+        copied_src_dir = os.path.join(build_base, os.path.basename(name))
+        shutil.copytree(src_dir, copied_src_dir)
+        
         # Create our make command.
-        cmd = []
-        cmd.extend(['make', '-C', target_dir, build_info['target'], "-j",
+        cmd.extend(['make', '-C', copied_src_dir, build_info['target'], "-j",
                     str(num_jobs)])
         
         # If the user specifies any additional options to be included on the command line,
@@ -390,25 +413,64 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs):
         
         # If the user specifies any extra environment variables, put
         # them in our env dictionary.
-        env.update(build_info.get('extra_env', {}))
         
+        # We create a dictionary for build_base so that users can use
+        # it optionally in an environment variable via the python
+        # format %(build_base)s.
+        env_format = {
+            'build_base' : build_base
+        }
+        extra_env = build_info.get('extra_env', {})
+        for k in extra_env:
+            extra_env[k] = extra_env[k] % env_format
+        env.update(extra_env)
+
+        # Set build base to copied_src_dir so that if codesize_util
+        # is not None, we pass it the correct path.
+        build_base = copied_src_dir
     else:
         fatal("unknown build style in project: %r" % project)
-
-    # Create the output base directory.
-    commands.mkdir_p(output_base)
-
+    
     # Collect the samples.
     g_log.info('executing full build: %s' % args_to_quoted_string(cmd))
     stdout_path = os.path.join(output_base, "stdout.log")
     stderr_path = os.path.join(output_base, "stderr.log")
-    preprocess_cmd = 'rm -rf "%s"' % (build_base,)
 
     for res in get_runN_test_data(name, variables, cmd,
                                   stdout=stdout_path, stderr=stderr_path,
                                   preprocess_cmd=preprocess_cmd, env=env):
         yield res
 
+    # If we have a binary path, get the text size of our result.
+    binary_path = build_info.get('binary_path', None)
+    if binary_path is not None and codesize_util is not None:
+        tname = "%s.size" % (name,)
+        success = False
+        samples = []
+        
+        try:
+            # We use a dictionary here for our formatted processing of binary_path so
+            # that if the user needs our build config he can get it via %(build_config)s
+            # in his string and if he does not, an error is not thrown.
+            format_args = {"build_config":build_config}
+            cmd = codesize_util + [os.path.join(build_base,
+                                                binary_path % format_args)]
+            result = subprocess.check_output(cmd)
+            bytes = long(result)
+            success = True
+            
+            # For now, the way the software is set up things are going to get
+            # confused if we don't report the same number of samples as reported
+            # for other variables. So we just report the size N times.
+            #
+            # FIXME: We should resolve this, eventually.
+            for i in range(variables.get('run_count')):
+                samples.append(bytes)
+        except OSError as e:
+            if e.errno != errno.ENOENT:
+                raise
+        yield (success, tname, samples)
+    
     # Check that the file sizes of the output log files "make sense", and warn
     # if they do not. That might indicate some kind of non-determinism in the
     # test command, which makes timing less useful.
@@ -500,13 +562,15 @@ def get_full_build_tests(jobs_to_test, configs_to_test,
     with open(path) as f:
         data = json.load(f)
 
+    codesize_util = data.get('codesize_util', None)
+    
     for jobs in jobs_to_test:
         for project in data['projects']:
             for config in configs_to_test:
                 # Check the style.
                 yield ('build/%s' % (project['name'],),
                        curry(test_build, project=project, build_config=config,
-                             num_jobs=jobs))
+                             num_jobs=jobs, codesize_util=codesize_util))
 
 def get_tests(test_suite_externals, test_suite_externals_subdir, flags_to_test,
               jobs_to_test, configs_to_test):
