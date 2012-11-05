@@ -356,12 +356,12 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs,
 
         # Add arguments to force the appropriate compiler.
         cmd.append('CC=%s' % (opts.cc,))
-        cmd.append('CPLUSPLUS=%s' % (opts.cxx,))
-
+        cmd.append('CPLUSPLUS=%s' % (opts.cxx,))        
+        cmd.append('LD=%s' % (opts.ld,))
+        
         # We need to force this variable here because Xcode has some completely
         # broken logic for deriving this variable from the compiler
         # name. <rdar://problem/7989147>
-        cmd.append('LD=%s' % (opts.cc,))
         cmd.append('LDPLUSPLUS=%s' % (opts.cxx,))
 
         # Force off the static analyzer, in case it was enabled in any projects
@@ -658,6 +658,9 @@ class CompileTest(builtintest.BuiltinTest):
         group.add_option("", "--cxx", dest="cxx",
                          help="Path to the C++ compiler to test",
                          type=str, default=None)
+        group.add_option("", "--ld", dest="ld",
+                         help="Path to the ld to use.",
+                         type=str, default=None)
         group.add_option("", "--test-externals", dest="test_suite_externals",
                          help="Path to the LLVM test-suite externals",
                          type=str, default=None, metavar="PATH")
@@ -742,6 +745,7 @@ class CompileTest(builtintest.BuiltinTest):
         # Force the CC and CXX variables to be absolute paths.
         cc_abs = os.path.abspath(commands.which(opts.cc))
         cxx_abs = os.path.abspath(commands.which(opts.cxx))
+        
         if not os.path.exists(cc_abs):
             parser.error("unable to determine absolute path for --cc: %r" % (
                     opts.cc,))
@@ -751,6 +755,10 @@ class CompileTest(builtintest.BuiltinTest):
         opts.cc = cc_abs
         opts.cxx = cxx_abs
 
+        # If no ld was set, set ld to opts.cc
+        if opts.ld is None:
+            opts.ld = opts.cc
+        
         # Set up the sandbox.
         global g_output_dir
         if not os.path.exists(opts.sandbox_path):
