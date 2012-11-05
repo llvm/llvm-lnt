@@ -356,13 +356,13 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs,
 
         # Add arguments to force the appropriate compiler.
         cmd.append('CC=%s' % (opts.cc,))
-        cmd.append('CPLUSPLUS=%s' % (opts.cxx,))        
-        cmd.append('LD=%s' % (opts.ld,))
-        
+        cmd.append('CPLUSPLUS=%s' % (opts.cxx,))
+
         # We need to force this variable here because Xcode has some completely
         # broken logic for deriving this variable from the compiler
-        # name. <rdar://problem/7989147>
-        cmd.append('LDPLUSPLUS=%s' % (opts.cxx,))
+        # name. <rdar://problem/7989147>        
+        cmd.append('LD=%s' % (opts.ld,))
+        cmd.append('LDPLUSPLUS=%s' % (opts.ldxx,))
 
         # Force off the static analyzer, in case it was enabled in any projects
         # (we don't want to obscure what we are trying to time).
@@ -659,7 +659,10 @@ class CompileTest(builtintest.BuiltinTest):
                          help="Path to the C++ compiler to test",
                          type=str, default=None)
         group.add_option("", "--ld", dest="ld",
-                         help="Path to the ld to use.",
+                         help="Path to the c linker to use. (Xcode Distinction)",
+                         type=str, default=None)
+        group.add_option("", "--ldxx", dest="ldxx",
+                         help="Path to the cxx linker to use. (Xcode Distinction)",
                          type=str, default=None)
         group.add_option("", "--test-externals", dest="test_suite_externals",
                          help="Path to the LLVM test-suite externals",
@@ -758,6 +761,9 @@ class CompileTest(builtintest.BuiltinTest):
         # If no ld was set, set ld to opts.cc
         if opts.ld is None:
             opts.ld = opts.cc
+        # If no ldxx was set, set ldxx to opts.cxx
+        if opts.ldxx is None:
+            opts.ldxx = opts.cxx
         
         # Set up the sandbox.
         global g_output_dir
