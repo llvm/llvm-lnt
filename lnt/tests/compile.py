@@ -361,6 +361,7 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs,
         # We need to force this variable here because Xcode has some completely
         # broken logic for deriving this variable from the compiler
         # name. <rdar://problem/7989147>
+        cmd.append('LD=%s' % (opts.cc,))
         cmd.append('LDPLUSPLUS=%s' % (opts.cxx,))
 
         # Force off the static analyzer, in case it was enabled in any projects
