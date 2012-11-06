@@ -61,7 +61,7 @@ def get_cc_info(path, cc_flags=[]):
         if ' version ' in ln:
             version_ln = ln
         elif 'cc1' in ln or 'clang-cc' in ln:
-            m = re.match(r' "([^"]*)".*"-E".*', ln)
+            m = re.match(r' "?([^"]*)"?.*"?-E"?.*', ln)
             if not m:
                 error("unable to determine cc1 binary: %r: %r" % (cc, ln))
             cc1_binary, = m.groups()
