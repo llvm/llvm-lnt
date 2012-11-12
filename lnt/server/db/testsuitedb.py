@@ -161,10 +161,14 @@ class TestSuiteDB(object):
             previous_order_id = Column("PreviousOrder", Integer, ForeignKey(
                     "%s.ID" % __tablename__))
 
-            # FIXME: <sheepish> I would really like to have next_order and
-            # previous_order relation's here, but can't figure out how to
-            # declare them </sheepsih>.
-
+            # This will implicitly create the previous_order relation.
+            next_order = sqlalchemy.orm.relation("Order",
+                                                 backref=sqlalchemy.orm.backref('previous_order',
+                                                                                uselist=False,
+                                                                                remote_side=id),
+                                                 primaryjoin='Order.previous_order_id==Order.id',
+                                                 uselist=False)
+            
             # Dynamically create fields for all of the test suite defined order
             # fields.
             class_dict = locals()
