@@ -274,6 +274,10 @@ def action_send_daily_report(name, args):
                       help="email relay host to use [%default]")
     parser.add_option("", "--from", dest="from_address", default=None,
                       help="from email address (required)")
+    parser.add_option("", "--today", dest="today", action="store_true",
+                      help="send the report for today (instead of most recent)")
+    parser.add_option("", "--subject-prefix", dest="subject_prefix",
+                      help="add a subject prefix")
     (opts, args) = parser.parse_args(args)
 
     if len(args) != 2:
@@ -293,17 +297,20 @@ def action_send_daily_report(name, args):
     # Get the testsuite.
     ts = db.testsuite[opts.testsuite]
 
-    # Get a timestamp to use to derive the daily report to generate.
-    latest = ts.query(ts.Run).\
-        order_by(ts.Run.start_time.desc()).limit(1).first()
-
-    # If we found a run, use it's start time (rounded up to the next hour, so we
-    # make sure it gets included).
-    if latest:
-        date = latest.start_time + datetime.timedelta(hours=1)
-    else:
-        # Otherwise, just use now.
+    if opts.today:
         date = datetime.datetime.now()
+    else:
+        # Get a timestamp to use to derive the daily report to generate.
+        latest = ts.query(ts.Run).\
+            order_by(ts.Run.start_time.desc()).limit(1).first()
+
+        # If we found a run, use it's start time (rounded up to the next hour,
+        # so we make sure it gets included).
+        if latest:
+            date = latest.start_time + datetime.timedelta(hours=1)
+        else:
+            # Otherwise, just use now.
+            date = datetime.datetime.now()
 
     # Generate the daily report.
     note("building report data...")
@@ -317,6 +324,9 @@ def action_send_daily_report(name, args):
     subject = "Daily Report: %04d-%02d-%02d" % (
         report.year, report.month, report.day)
     html_report = report.render(ts_url, only_html_body=False)
+
+    if opts.subject_prefix is not None:
+        subject = "%s %s" % (opts.subject_prefix, subject)
 
     # Form the multipart email message.
     msg = email.mime.multipart.MIMEMultipart('alternative')
