@@ -29,6 +29,13 @@
     (report.day_start_offset.seconds // 60) % 60,)}})
 </center>
 
+{% if report.error is not none %}
+
+<p>An error was encountered while producing the daily report: {{
+  report.error }}.</p>
+
+{% else %}
+
 {# Generate the table showing which run orders we are reporting on, for each
    machine. #}
 <h3 style={{ "styles.h3" }}>Reported Machine Order</h3>
@@ -139,6 +146,8 @@
 {% endfor %}
 {{ "</table>" if not report.for_mail }}
 {% endfor %}
+
+{% endif %}
 
 {% if not only_html_body %}
 </body>

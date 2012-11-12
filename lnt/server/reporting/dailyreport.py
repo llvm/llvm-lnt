@@ -21,6 +21,7 @@ class DailyReport(object):
         self.for_mail = for_mail
 
         # Computed values.
+        self.error = None
         self.next_day = None
         self.prior_days = None
         self.machine_runs = None
@@ -142,6 +143,12 @@ class DailyReport(object):
                 machine_runs[(run.machine_id, day_index)] = run
 
         relevant_run_ids = [r.id for r in relevant_runs]
+
+        # If there are no relevant runs, just stop processing (the report will
+        # generate an error).
+        if not relevant_run_ids:
+            self.error = "no runs to display in selected date range"
+            return
 
         # Get the set all tests reported in the recent runs.
         self.reporting_tests = ts.query(ts.Test).filter(
