@@ -427,7 +427,7 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs,
             'build_base' : build_base
         }
         
-        extra_env = config.get(build_config, {})
+        extra_env = config.get('extra_env', {})
         for k in extra_env:
             extra_env[k] = extra_env[k] % env_format
         env.update(extra_env)
