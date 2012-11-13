@@ -399,7 +399,7 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs,
         # the make build style since Xcode, the only other build style as of today,
         # handles changing configuration through the configuration type variables.
         # Make does not do this so we have to use more brute force to get it right.
-        config = build_info.get('config', {})
+        config = build_info.get('config', {}).get(build_config, {})
         
         # Copy our source directory over to build_base.
         # We do this since we assume that we are processing a make project which
