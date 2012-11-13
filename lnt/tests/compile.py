@@ -395,6 +395,11 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs,
     elif build_info['style'] == 'make':        
         # Get the subdirectory in Source where our sources exist.
         src_dir = os.path.dirname(os.path.join(source_path, build_info['file']))
+        # Grab our config from build_info. This is config is currently only used in
+        # the make build style since Xcode, the only other build style as of today,
+        # handles changing configuration through the configuration type variables.
+        # Make does not do this so we have to use more brute force to get it right.
+        config = build_info.get('config', {})
         
         # Copy our source directory over to build_base.
         # We do this since we assume that we are processing a make project which
@@ -410,7 +415,7 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs,
         
         # If the user specifies any additional options to be included on the command line,
         # append them here.
-        cmd.extend(build_info.get('extra_args', []))
+        cmd.extend(config.get('extra_args', []))
         
         # If the user specifies any extra environment variables, put
         # them in our env dictionary.
@@ -421,7 +426,8 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs,
         env_format = {
             'build_base' : build_base
         }
-        extra_env = build_info.get('extra_env', {})
+        
+        extra_env = config.get(build_config, {})
         for k in extra_env:
             extra_env[k] = extra_env[k] % env_format
         env.update(extra_env)
