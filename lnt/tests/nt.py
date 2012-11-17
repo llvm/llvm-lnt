@@ -576,7 +576,7 @@ def compute_run_make_variables(opts, llvm_source_version, target_flags,
     else:
         warning("unable to infer ARCH, some tests may not run correctly!")
 
-    # Add in any additional make flags passed in via --make-params.
+    # Add in any additional make flags passed in via --make-param.
     for entry in opts.make_parameters:
         if '=' not in entry:
             name,value = entry,''
