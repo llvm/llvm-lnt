@@ -576,6 +576,15 @@ def compute_run_make_variables(opts, llvm_source_version, target_flags,
     else:
         warning("unable to infer ARCH, some tests may not run correctly!")
 
+    # Add in any additional make flags passed in via --make-params.
+    for entry in opts.make_parameters:
+        if '=' not in entry:
+            name,value = entry,''
+        else:
+            name,value = entry.split('=', 1)
+        print "make",name,value
+        make_variables[name] = value
+    
     return make_variables
 
 def prepare_report_dir(opts, start_time):
@@ -1001,6 +1010,10 @@ class NTTest(builtintest.BuiltinTest):
         group.add_option("", "--llvm-arch", dest="llvm_arch",
                          help="Set the ARCH value used in the makefiles to [%default]",
                          type=str, default=None)
+        group.add_option("", "--make-param", dest="make_parameters",
+                         metavar="NAME=VAL",
+                         help="Add 'NAME' = 'VAL' to the makefile parameters",
+                         type=str, action="append", default=[])
         group.add_option("", "--isysroot", dest="isysroot", metavar="PATH",
                          help="Set -isysroot in TARGET_FLAGS [%default]",
                          type=str, default=None)
