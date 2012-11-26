@@ -295,8 +295,8 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs,
             fatal
 
         # Apply the patch file, if necessary.
-        patch_file = project.get('patch_file')
-        if patch_file:
+        patch_files = project.get('patch_files', [])
+        for patch_file in patch_files:
             g_log.info('applying patch file %r for %r' % (patch_file, name))
             patch_file_path = get_input_path(opts, patch_file)
             p = subprocess.Popen(args=['patch', '-i', patch_file_path,
