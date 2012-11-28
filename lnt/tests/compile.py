@@ -463,16 +463,17 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs,
             cmd = codesize_util + [os.path.join(build_base,
                                                 binary_path % format_args)]
             result = subprocess.check_output(cmd)
-            bytes = long(result)
-            success = True
-            
-            # For now, the way the software is set up things are going to get
-            # confused if we don't report the same number of samples as reported
-            # for other variables. So we just report the size N times.
-            #
-            # FIXME: We should resolve this, eventually.
-            for i in range(variables.get('run_count')):
-                samples.append(bytes)
+            if result != "fail":
+                bytes = long(result)
+                success = True
+                
+                # For now, the way the software is set up things are going to get
+                # confused if we don't report the same number of samples as reported
+                # for other variables. So we just report the size N times.
+                #
+                # FIXME: We should resolve this, eventually.
+                for i in range(variables.get('run_count')):
+                    samples.append(bytes)
         except OSError as e:
             if e.errno != errno.ENOENT:
                 raise
