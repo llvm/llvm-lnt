@@ -238,7 +238,8 @@ def test_compile(name, run_info, variables, input, output, pch_input,
 
 def test_build(base_name, run_info, variables, project, build_config, num_jobs,
                codesize_util=None):
-    name = '%s_%s_j%d' % (base_name, build_config, num_jobs)
+    name = '%s(config=%r,j=%d)' % (base_name, build_config, num_jobs)
+        
     # Check if we need to expand the archive into the sandbox.
     archive_path = get_input_path(opts, project['archive'])
     with open(archive_path) as f:
@@ -323,7 +324,8 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs,
     build_info = project['build_info']
     
     # Add arguments to ensure output files go into our build directory.
-    output_base = get_output_path(name)
+    dir_name = '%s_%s_j%d' % (base_name, build_config, num_jobs)    
+    output_base = get_output_path(dir_name)
     build_base = os.path.join(output_base, 'build', build_config)
         
     # Create the build base directory and by extension output base directory.
@@ -406,7 +408,7 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs,
         # has already been configured and so that we do not need to worry about
         # make install or anything like that. We can just build the project and
         # use the user supplied path to its location in the build directory.        
-        copied_src_dir = os.path.join(build_base, os.path.basename(name))
+        copied_src_dir = os.path.join(build_base, os.path.basename(dir_name))
         shutil.copytree(src_dir, copied_src_dir)
         
         # Create our make command.
