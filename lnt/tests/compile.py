@@ -550,7 +550,7 @@ def get_single_file_tests(flags_to_test, test_suite_externals,
                              flags=f, stage='pch-gen'))
                 
             for input in all_inputs:
-                path, pch_input = input['path'], input.get('pch', None)
+                path, pch_input = input['path'], input.get('pch_input', None)
                 extra_flags = input['extra_flags']
                 
                 name = path
