@@ -12,6 +12,7 @@ import sqlalchemy
 from sqlalchemy import *
 
 import testsuite
+import lnt.server.db.fieldchange
 
 class TestSuiteDB(object):
     """
@@ -686,6 +687,8 @@ test %r does not map to a sample field in the reported suite""" % (
 
                 sample.set_field(sample_field, value)
 
+            lnt.server.db.fieldchange.regenerate_fieldchanges_for_run(self, run)
+    
     def importDataFromDict(self, data, config=None):
         """
         importDataFromDict(data) -> Run, bool

@@ -132,6 +132,9 @@ class RunInfo(object):
 
         self._load_samples_for_runs(runs_to_load)
 
+    def get_test_ids(self):
+        return [key[1] for key in self.sample_map.keys()]
+    
     def get_run_comparison_result(self, run, compare_to, test_id, field,
                                   comparison_window=[]):
         if compare_to is not None:
