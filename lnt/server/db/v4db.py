@@ -100,6 +100,7 @@ class V4DB(object):
         self.SampleType = testsuite.SampleType
         self.StatusKind = testsuite.StatusKind
         self.TestSuite = testsuite.TestSuite
+        self.SampleField = testsuite.SampleField
 
         # Resolve or create the known status kinds.
         self.pass_status_kind = self.query(testsuite.StatusKind)\

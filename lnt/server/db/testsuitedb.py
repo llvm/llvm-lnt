@@ -366,18 +366,62 @@ class TestSuiteDB(object):
 
             def __repr__(self):
                 fields = dict((item.name, self.get_field(item))
-                              for item in self.fields)
+                             for item in self.fields)
 
                 return '%s_%s(%r, %r, **%r)' % (
                     db_key_name, self.__class__.__name__,
                     self.run, self.test, fields)
+        
+        class FieldChange(self.base, ParameterizedMixin):
+            """FieldChange represents a change in between the values
+            of the same field belonging to two samples from consecutive runs."""
+            
+            __tablename__ = db_key_name + '_FieldChange'
+            id = Column("ID", Integer, primary_key = True)
+            start_order_id = Column("StartOrderID", Integer,
+                                    ForeignKey("%s_Order.ID" % db_key_name))
+            end_order_id = Column("EndOrderID", Integer,
+                                  ForeignKey("%s_Order.ID" % db_key_name))
+            test_id = Column("TestID", Integer,
+                             ForeignKey("%s_Test.ID" % db_key_name))
+            machine_id = Column("MachineID", Integer,
+                                ForeignKey("%s_Machine.ID" % db_key_name))
+            field_id = Column("FieldID", Integer,
+                              ForeignKey(self.v4db.SampleField.id))
+            
+            start_order = sqlalchemy.orm.relation(Order,
+                                                  primaryjoin='FieldChange.'\
+                                                  'start_order_id==Order.id')
+            end_order = sqlalchemy.orm.relation(Order,
+                                                primaryjoin='FieldChange.'\
+                                                'end_order_id==Order.id')
+            test = sqlalchemy.orm.relation(Test)
+            machine = sqlalchemy.orm.relation(Machine)
+            field = sqlalchemy.orm.relation(self.v4db.SampleField,
+                                            primaryjoin= \
+                                              self.v4db.SampleField.id == \
+                                              field_id)
+            
+            def __init__(self, start_order, end_order, test, machine,
+                         field):
+                self.start_order = start_order
+                self.end_order = end_order
+                self.test = test
+                self.machine = machine
+                self.field = field
+
+            def __repr__(self):
+                return '%s_%s%r' % (db_key_name, self.__class__.__name__,
+                                    (self.start_order, self.end_order,
+                                     self.test, self.machine, self.field))
 
         self.Machine = Machine
         self.Run = Run
         self.Test = Test
         self.Sample = Sample
         self.Order = Order
-
+        self.FieldChange = FieldChange
+        
         # Create the compound index we cannot declare inline.
         sqlalchemy.schema.Index("ix_%s_Sample_RunID_TestID" % db_key_name,
                                 Sample.run_id, Sample.test_id)
