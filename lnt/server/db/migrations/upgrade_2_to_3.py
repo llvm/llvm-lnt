@@ -49,8 +49,15 @@ def upgrade_testsuite(engine, session, name):
     # Add FieldChange to the test suite.
     Base = add_fieldchange(test_suite)
 
-    # Create tables.
+    # Create tables. We commit now since databases like Postgres run
+    # into deadlocking issues due to previous queries that we have run
+    # during the upgrade process. The commit closes all of the
+    # relevant transactions allowing us to then perform our upgrade.
+    session.commit()
     Base.metadata.create_all(engine)
+    # Commit changes (also closing all relevant transactions with
+    # respect to Postgres like databases).
+    session.commit()
 
 def upgrade(engine):
     # Create a session.
@@ -60,5 +67,3 @@ def upgrade(engine):
     upgrade_testsuite(engine, session, 'nts')
     upgrade_testsuite(engine, session, 'compile')
 
-    # Commit changes.
-    session.commit()
