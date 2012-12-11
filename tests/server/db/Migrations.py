@@ -41,7 +41,7 @@ def sanity_check_instance(instance_path):
 
         # Get the test suite overview page.
         overview = client.get(os.path.join("/", link, ""))
-        assert "Submission Overview" in overview.data
+        assert "LNT : %s - Overview" % (name,) in overview.data
 
 def check_instance(instance_path, temp_path):
     logging.info("checking instance: %r", instance_path)

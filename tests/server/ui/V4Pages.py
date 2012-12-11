@@ -52,8 +52,12 @@ def main():
     resp = client.get('/v4/nts/1/text_report')
     assert resp.status_code == 200
 
-    # Get a graph page.
+    # Get a graph page. This has been changed to redirect.
     resp = client.get('/v4/nts/1/graph?test.87=2')
+    assert resp.status_code == 302
+
+    # Get the new graph page.
+    resp = client.get('/v4/nts/graph?plot.0=1.87.2')
     assert resp.status_code == 200
 
 if __name__ == '__main__':
