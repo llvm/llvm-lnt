@@ -686,8 +686,8 @@ test %r does not map to a sample field in the reported suite""" % (
                     self.add(sample)
 
                 sample.set_field(sample_field, value)
-
-            lnt.server.db.fieldchange.regenerate_fieldchanges_for_run(self, run)
+        
+        lnt.server.db.fieldchange.regenerate_fieldchanges_for_run(self, run)
     
     def importDataFromDict(self, data, config=None):
         """
