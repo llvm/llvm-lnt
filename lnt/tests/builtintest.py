@@ -22,7 +22,7 @@ class BuiltinTest(object):
         Execute the test (accessed via name, for use in the usage message) with
         the given command line args.
         """
-        abstract
+        raise RuntimeError("Abstract Method.")
 
     def log(self, message, ts=timestamp()):
         print >>sys.stderr, '%s: %s' % (ts, message)
