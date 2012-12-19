@@ -1008,7 +1008,8 @@ class NTTest(builtintest.BuiltinTest):
                          help="Set -arch in TARGET_FLAGS [%default]",
                          type=str, default=None)
         group.add_option("", "--llvm-arch", dest="llvm_arch",
-                         help="Set the ARCH value used in the makefiles to [%default]",
+                         help="Set the ARCH value used in the makefiles to " \
+                             "[%default]",
                          type=str, default=None)
         group.add_option("", "--make-param", dest="make_parameters",
                          metavar="NAME=VAL",
@@ -1059,7 +1060,8 @@ class NTTest(builtintest.BuiltinTest):
                          choices=('nightly', 'simple'), default='simple')
 
         group.add_option("", "--test-time-stat", dest="test_time_stat",
-                         help="Set the test timing statistic to gather [%default]",
+                         help="Set the test timing statistic to gather " \
+                             "[%default]",
                          choices=('user', 'real'), default='user')
 
         group.add_option("", "--disable-cxx", dest="test_cxx",
