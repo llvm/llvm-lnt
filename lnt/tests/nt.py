@@ -32,7 +32,7 @@ class TestModule(object):
         raise NotImplementedError
 
     def execute_test(self, options):
-        abstract
+        raise RuntimeError("Abstract Method.")
 
     def _execute_test(self, test_log, options):
         self._log = test_log
