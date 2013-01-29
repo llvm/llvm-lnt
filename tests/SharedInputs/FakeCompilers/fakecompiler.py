@@ -100,8 +100,8 @@ class Clang_git_2(LLVMCompiler):
     def print_verbose_info(self):
         print >>sys.stderr, """\
 clang version 3.2\
- (/d/g/puzzle/clang.git git:/git/puzzlebox/clang.git 8ab09316f63ea99ff23b2684c454b1008b8d5f10)\
- (http://llvm.org/git/llvm.git /d/g/puzzle/llvm.git git:/git/puzzlebox/llvm.git 7c53f795961cc2d35b85d315aadb2ac135a0fdb2)
+ (/d/g/pz/clang.git git:/git/pz/clang.git 8ab09316f63ea99ff23b2684c454b1008b8d5f10)\
+ (http://llvm.org/git/llvm.git /d/g/pz/llvm.git git:/git/pb/llvm.git 7c53f795961cc2d35b85d315aadb2ac135a0fdb2)
 Target: x86_64-apple-darwin12.2.0
 Thread model: posix"""
         print >>sys.stderr, """\
@@ -132,6 +132,18 @@ class ClangNoInfo(LLVMCompiler):
         print >>sys.stderr, """\
 clang version 3.2
 Target: x86_64-bla-bla
+Thread model: posix"""
+        print >>sys.stderr, """\
+ "%s" "-cc1" "-E" ... more boring stuff here ...""" % (
+            g_program,)
+
+class GenericLLVMCompiler(LLVMCompiler):
+    compiler_name = "llvm-compiler"
+
+    def print_verbose_info(self):
+        print >>sys.stderr, """\
+LLVM version 3.3 (git:/git/pz/clang.git 597522d740374f093a089a2acbec5b20466b2f34) (/d/g/pz/llvm git:/git/pz/llvm.git 6e95d969734af111bb33bcec0bcc27fd803a3b76)
+Target: x86_64-apple-darwin12.3.0
 Thread model: posix"""
         print >>sys.stderr, """\
  "%s" "-cc1" "-E" ... more boring stuff here ...""" % (
