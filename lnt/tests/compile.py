@@ -464,7 +464,7 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs,
             format_args = {"build_config":build_config}
             cmd = codesize_util + [os.path.join(build_base,
                                                 binary_path % format_args)]
-            result = subprocess.check_output(cmd)
+            result = subprocess.check_output(cmd).strip()
             if result != "fail":
                 bytes = long(result)
                 success = True
