@@ -75,7 +75,7 @@ def get_cc_info(path, cc_flags=[]):
     if cc1_binary is None:
         error("unable to find compiler cc1 binary: %r: %r" % (
                 cc, cc_version))
-    m = re.match(r'(.*) version ([^ ]*) (\([^(]*\))(.*)', version_ln)
+    m = re.match(r'(.*) version ([^ ]*) +(\([^(]*\))(.*)', version_ln)
     if m is not None:
         cc_name,cc_version_num,cc_build_string,cc_extra = m.groups()
     else:
