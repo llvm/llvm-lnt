@@ -38,11 +38,12 @@
 import datetime, sys
 
 import lnt.testing
+from lnt.server.config import Config
 from lnt.server.db import testsuite
 from lnt.server.db import v4db
 
 # Load the test database.
-db = v4db.V4DB("sqlite:///%s" % sys.argv[1], echo=True)
+db = v4db.V4DB("sqlite:///%s" % sys.argv[1], Config.dummyInstance(), echo=True)
 
 # Get the status kinds, and validate the IDs align with the testing IDs.
 pass_kind = db.query(db.StatusKind).filter_by(id = lnt.testing.PASS).one()

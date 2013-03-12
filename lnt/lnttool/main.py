@@ -108,8 +108,11 @@ def action_checkformat(name, args):
 
     if input == '-':
         input = StringIO.StringIO(sys.stdin.read())
-
-    db = lnt.server.db.v4db.V4DB('sqlite:///:memory:')
+    
+    import lnt.server.db.v4db
+    import lnt.server.config
+    db = lnt.server.db.v4db.V4DB('sqlite:///:memory:',
+                                 lnt.server.config.Config.dummyInstance())
     result = lnt.util.ImportData.import_and_report(
         None, None, db, input, 'json', commit = True)
     lnt.util.ImportData.print_report_result(result, sys.stdout, sys.stderr,
@@ -180,7 +183,11 @@ def action_runtest(name, args):
 
         # Construct a temporary database and import the result.
         test_instance.log("submitting result to dummy instance")
-        db = lnt.server.db.v4db.V4DB("sqlite:///:memory:")
+        
+        import lnt.server.db.v4db
+        import lnt.server.config
+        db = lnt.server.db.v4db.V4DB("sqlite:///:memory:",
+                                     lnt.server.config.Config.dummyInstance())
         result = lnt.util.ImportData.import_and_report(
             None, None, db, tmp.name, 'json', commit = True)
         lnt.util.ImportData.print_report_result(result, sys.stdout, sys.stderr,

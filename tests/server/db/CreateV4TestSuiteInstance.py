@@ -5,11 +5,12 @@
 
 import datetime
 
+from lnt.server.config import Config
 from lnt.server.db import testsuite
 from lnt.server.db import v4db
 
 # Create an in memory database.
-db = v4db.V4DB("sqlite:///:memory:", echo=True)
+db = v4db.V4DB("sqlite:///:memory:", Config.dummyInstance(), echo=True)
 
 # Get the test suite wrapper.
 ts_db = db.testsuite['nts']

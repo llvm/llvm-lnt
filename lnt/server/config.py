@@ -4,6 +4,7 @@ LNT Config object for tracking user-configurable installation parameters.
 
 import os
 import re
+import tempfile
 
 import lnt.server.db.v4db
 
@@ -60,7 +61,12 @@ class DBInfo:
                       str(dict.get('db_version', '0.4')),
                       dict.get('shadow_import', None),
                       email_config)
-
+    
+    @staticmethod
+    def dummyInstance():
+        return DBInfo("sqlite:///:memory:", "0.4", None,
+                      EmailConfig(False, '', '', []))
+    
     def __init__(self, path,
                  db_version, shadow_import, email_config):
         self.config = None
@@ -97,7 +103,20 @@ class Config:
                                                default_email_config))
                                      for k,v in data['databases'].items()]),
                       data.get('baselineRevision', '144168'))
-
+    
+    @staticmethod
+    def dummyInstance():
+        baseDir = tempfile.mkdtemp()        
+        dbDir = '.'
+        dbDirPath = os.path.join(baseDir, dbDir)
+        tempDir = os.path.join(baseDir, 'tmp')        
+        secretKey = None
+        dbInfo = {'dummy': DBInfo.dummyInstance()}
+        baselineRevision = '144168'
+        
+        return Config('LNT', 'http://localhost:8000', dbDir, tempDir, secretKey, dbInfo,
+                      baselineRevision)
+    
     def __init__(self, name, zorgURL, dbDir, tempDir, secretKey, databases,
                  baselineRevision):
         self.name = name
