@@ -743,7 +743,7 @@ def v4_global_status():
         runs = recent_runs_by_machine[machine]
 
         # Get the baseline run for this machine.
-        baseline = machine.get_baseline_run(revision)
+        baseline = machine.get_closest_reported_order(revision)
 
         # Choose the "best" run to report on. We want the most recent one with
         # the most recent order.
