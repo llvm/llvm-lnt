@@ -95,9 +95,11 @@ class Config:
                       dbDir, os.path.join(baseDir, tempDir), secretKey,
                       dict([(k,DBInfo.fromData(dbDirPath, v,
                                                default_email_config))
-                                     for k,v in data['databases'].items()]))
+                                     for k,v in data['databases'].items()]),
+                      data.get('baselineRevision', '144168'))
 
-    def __init__(self, name, zorgURL, dbDir, tempDir, secretKey, databases):
+    def __init__(self, name, zorgURL, dbDir, tempDir, secretKey, databases,
+                 baselineRevision):
         self.name = name
         self.zorgURL = zorgURL
         self.dbDir = dbDir
@@ -108,6 +110,7 @@ class Config:
         self.databases = databases
         for db in self.databases.values():
             db.config = self
+        self.baselineRevision = baselineRevision
 
     def get_database(self, name, echo=False):
         """
@@ -123,7 +126,7 @@ class Config:
 
         # Instantiate the appropriate database version.
         if db_entry.db_version == '0.4':
-            return lnt.server.db.v4db.V4DB(db_entry.path, echo=echo)
+            return lnt.server.db.v4db.V4DB(db_entry.path, self, echo=echo)
 
         raise NotImplementedError,"unable to load version %r database" % (
             db_entry.db_version,)
