@@ -102,7 +102,7 @@ class TestSuiteDB(object):
             
             def get_baseline_run(self):
                 baseline = Machine.DEFAULT_BASELINE_REVISION
-                return self.get_closest_reported_order(self, baseline)
+                return self.get_closest_reported_order(baseline)
             
             def get_closest_reported_order(self, revision):
                 """
