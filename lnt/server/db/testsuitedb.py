@@ -102,12 +102,12 @@ class TestSuiteDB(object):
             
             def get_baseline_run(self):
                 baseline = Machine.DEFAULT_BASELINE_REVISION
-                return self.get_closest_reported_order(baseline)
+                return self.get_closest_previously_reported_run(baseline)
             
-            def get_closest_reported_order(self, revision):
+            def get_closest_previously_reported_run(self, revision):
                 """
-                Find the closest order to the requested order, for which this
-                machine also reported.
+                Find the closest previous run to the requested order, for which
+                this machine also reported.
                 """
                 
                 # FIXME: Scalability! Pretty fast in practice, but
@@ -122,24 +122,25 @@ class TestSuiteDB(object):
                 # Grab order for revision.
                 order_to_find = ts.Order(llvm_project_revision = revision)
 
-                # Search for best run.
-                order = None
-                best = None
+                # Search for best order.
+                best_order = None
                 for order in ts.query(ts.Order).\
                         join(ts.Run).\
                         filter(ts.Run.machine_id == self.id).distinct():
-                    if order >= order_to_find and (best is None or order < best):
-                        best = order
-
+                    if order >= order_to_find and \
+                          (best_order is None or order < best_order):
+                        best_order = order
+                
                 # Find the most recent run on this machine that used
                 # that order.
-                if best:
-                    order = ts.query(ts.Run)\
+                closest_run = None
+                if best_order:
+                    closest_run = ts.query(ts.Run)\
                         .filter(ts.Run.machine_id == self.id)\
-                        .filter(ts.Run.order_id == best.id)\
+                        .filter(ts.Run.order_id == best_order.id)\
                         .order_by(ts.Run.start_time.desc()).first()
-
-                return order
+                
+                return closest_run
 
         class Order(self.base, ParameterizedMixin):
             __tablename__ = db_key_name + '_Order'
