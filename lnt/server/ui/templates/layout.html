@@ -25,6 +25,7 @@
     {# Page Header #}
     <nav id="header" class="clearfix">
       <div class="container">
+        {% block page_header %}
         {# LNT Instance Title #}
         <a href="{{url_for('index')}}" class="header-title">
           <h2>{{old_config.name}}</h2>
@@ -54,6 +55,7 @@
             <input type="submit" value="Go"/>
           </form>
         </span>
+        {% endblock %}
       </div>
     </nav>
 
