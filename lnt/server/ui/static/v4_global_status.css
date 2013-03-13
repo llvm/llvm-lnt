@@ -1,4 +1,23 @@
 
+/* Page Header Styles */
+
+#settings-wrench {
+    float: right;
+    border-right: 1px solid #DFE0E3;
+    box-shadow: 1px 0 0 #BFC3C3;
+    line-height: 20px;
+    padding: 4.5px 10px 3px 10px;
+    margin-right: -10px;
+}
+
+#settings-wrench li {
+    margin: 0px;
+}
+
+#nav-dbselector {
+    padding-left: 0px;
+}
+
 /* Table Styles */
 table#data-table tr {
     width: 100%;

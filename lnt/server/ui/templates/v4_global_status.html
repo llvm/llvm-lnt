@@ -46,6 +46,41 @@
 
 {% block title %}Global Status - {{ selected_field.title }}{% endblock %}
 
+{% block page_header %}
+        {# LNT Instance Title #}
+        <a href="{{url_for('index')}}" class="header-title">
+          <h2>{{old_config.name}}</h2>
+        </a>
+
+        {# Navigation Breadcrumbs #}
+        <span id="nav-breadcrumbs">
+          <ul id="navlist" class="nav">
+            {% for short_name,path in components %}
+            <li><a href="{{ path }}">{{short_name}}</a></li>
+            <li>|</li>
+            {% endfor %}
+            <li>{{ self.title() }}</li>
+          </ul>
+        </span>
+
+        {# Database Selector #}
+        <span id="nav-dbselector">
+          <form method="get" action="{{ url_for('select_db') }}" class="nav">
+            <input type="hidden" name="path" value="{{ request.path }}"/>
+            <label>Database:</label>
+            <select name="db" onchange="submit()">
+              {% for name in old_config.databases.keys()|sort %}
+              <option{{" selected" if name == g.db_name else ""}}>{{ name }}</option>
+              {% endfor %}
+            </select>
+            <input type="submit" value="Go"/>
+          </form>
+        </span>
+        
+        {# Settings Wrench #}
+        <img id="settings-wrench" src="{{ url_for('.static', filename='cog.svg') }}"></img>
+{% endblock %}
+
 {% block body %}
 
 <div id="emperor-control">
