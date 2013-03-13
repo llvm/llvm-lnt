@@ -4,14 +4,17 @@
 #settings-wrench {
     float: right;
     border-right: 1px solid #DFE0E3;
-    box-shadow: 1px 0 0 #BFC3C3;
+    box-shadow: 1px 0 0 #BFC3C3, -1px 0 0 #BFC3C3; /* block-shadow both sides */
+    border-left: 1px solid #DFE0E3;
     line-height: 20px;
     padding: 4.5px 10px 3px 10px;
     margin-right: -10px;
 }
 
-#settings-wrench li {
-    margin: 0px;
+#settings-wrench:hover {
+    -webkit-box-shadow: 0px 0px 20px rgba(255,255,255,0.8);
+    -moz-box-shadow: 0px 0px 20px rgba(255,255,255,0.8);
+    box-shadow: 0px 0px 20px rgba(255,255,255,0.8);
 }
 
 #nav-dbselector {
