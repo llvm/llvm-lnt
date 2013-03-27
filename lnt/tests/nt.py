@@ -1280,7 +1280,7 @@ class NTTest(builtintest.BuiltinTest):
         elif not os.path.exists(opts.test_suite_root):
             parser.error("invalid --test-suite argument, does not exist: %r" % (
                     opts.test_suite_root))
-            
+
         if opts.remote:
             if opts.remote_port is None:
                 parser.error('--remote-port is required with --remote')
@@ -1296,6 +1296,11 @@ class NTTest(builtintest.BuiltinTest):
         # Support disabling test suite externals separately from providing path.
         if not opts.test_externals:
             opts.test_suite_externals = '/dev/null'
+        else:
+            if not os.path.exists(opts.test_suite_externals):
+                parser.error(
+                    "invalid --test-externals argument, does not exist: %r" % (
+                        opts.test_suite_externals))
 
         # Set up iOS simulator options.
         if opts.ios_simulator_sdk:
