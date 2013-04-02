@@ -7,7 +7,7 @@
 <body style="{{ styles['body'] }}">
 {% endif %}
 
-{% set hour_offset = report.prior_days[0].day_start_offset.seconds // 3600 %}
+{% set hour_offset = report.day_start_offset.seconds // 3600 %}
 
 <center><h2>{#
   #}(<a href="{{ts_url}}/daily_report/{{
