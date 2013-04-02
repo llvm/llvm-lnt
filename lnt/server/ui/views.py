@@ -818,12 +818,18 @@ def v4_daily_report(year, month, day):
         num_days = int(num_days_str)
     else:
         num_days = 3
-
+    
+    day_start_str = request.args.get('day_start')
+    if day_start_str is not None:
+        day_start = int(day_start_str)
+    else:
+        day_start = 16
+    
     ts = request.get_testsuite()
 
     # Create the report object.
     report = lnt.server.reporting.dailyreport.DailyReport(
-        ts, year, month, day, num_days)
+        ts, year, month, day, num_days, day_start)
 
     # Build the report.
     report.build()
