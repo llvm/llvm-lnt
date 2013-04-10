@@ -265,8 +265,6 @@
   {{request_info.html_report|safe}}
   {{ utils.render_popup_end() }}
 
-  <h3>Tests</h3>
-  
   {% set graph_base=v4_url_for('v4_graph', highlight_run=run.id) %}
   <form method="GET" action="{{ graph_base }}">
   

@@ -1,14 +1,17 @@
 {% macro render_popup_begin(id, title, hidden, depth=1) -%}
-<p>
-<a href="javascript://" onclick="toggleLayer('{{id}}')"; id="{{id}}_">({{
-  "-" if hidden else "+" }}) {{title}}</a>
-<div id="{{id}}"
-     style="display: {{'none' if hidden else '' }};"
-     class="hideable_{{depth}}">
+  <div class="accordion" id="{{id}}-accordion">
+    <div class="accordion-group">
+      <div class="accordion-heading">
+        <a class="accordion-toggle" data-toggle="collapse" data-parent="#{{id}}-accordion" href="#{{id}}-collapse">{{ title }}</a>
+      </div>
+      <div id="{{id}}-collapse" class="accordion-body {{ 'collapse' if hidden else 'collapse in' }}">
+        <div class="accordion-inner">
 {%- endmacro %}
-
 {% macro render_popup_end() -%}
-</div>
+        </div>
+      </div>
+    </div>
+  </div>
 {%- endmacro %}
 
 {% macro render_result(r) -%}
