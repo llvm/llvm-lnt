@@ -128,6 +128,9 @@
     <tr>
       <td style="{{ styles['td'] }}"><b>Total Tests</b></td>
       <td style="{{ styles['td'] }}" align="right"><b>{{ num_total_tests }}</b></td>
+      {% if baseline %}
+      <td></td>
+      {% endif %}
     </tr>
   </tfoot>
 </table>
