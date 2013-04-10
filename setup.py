@@ -71,6 +71,8 @@ http://llvm.org/svn/llvm-project/lnt/trunk
                                       'static/*.js',
                                       'static/*.css',
                                       'static/*.svg',
+                                      'static/bootstrap/css/*.css',
+                                      'static/bootstrap/js/*.js',
                                       'static/flot/*.min.js',
                                       'static/jquery/**/*.min.js',
                                       'templates/*.html',
