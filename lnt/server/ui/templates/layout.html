@@ -1,85 +1,170 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <link href="/static/bootstrap/css/bootstrap.min.css" rel="stylesheet" media="screen">
+  <link href="/static/bootstrap/css/bootstrap-responsive.min.css" rel="stylesheet">
+  <script src="http://code.jquery.com/jquery-latest.js"></script>
+  <script src="/static/bootstrap/js/bootstrap.min.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
-  <meta name="viewport" content="width=device-width" />
-  <link rel="icon" type="image/png"
-        href="{{ url_for('.static', filename='favicon.ico') }}">
-  <title>{{old_config.name}}{%
-    for short_name,_ in components
-    %} : {{short_name}}{% endfor %} - {{ self.title() }}</title>
-  <link rel="stylesheet" type="text/css"{#
-        #} href="{{ url_for('.static', filename='style.css') }}">
-  {% block head %}{% endblock %}
+
+  <style type="text/css">
+    /* Sticky footer styles ------------------------------------------------- */
+    html,
+    body {
+      height: 100%;
+      /* The html and body elements cannot have any padding or margin. */
+    }
+    
+    /* Wrapper for page content to push down footer */
+    #wrap {
+      min-height: 100%;
+      height: auto !important;
+      height: 100%;
+      /* Negative indent footer by it's height */
+      margin: 0 auto -60px;
+    }
+    
+    /* Set the fixed height of the footer here */
+    #push,
+    #footer {
+      height: 60px;
+    }
+    #footer {
+      background-color: #f5f5f5;
+    }
+    
+    /* Lastly, apply responsive CSS fixes as necessary */
+    @media (max-width: 767px) {
+      #footer {
+        margin-left: -20px;
+        margin-right: -20px;
+        padding-left: 20px;
+        padding-right: 20px;
+      }
+    }
+  </style>
+
+  <link rel="icon" type="image/png" href="{{ url_for('.static', filename='favicon.ico') }}">
+
+  <title>
+    {{old_config.name}}{% for short_name,_ in components %} : {{short_name}}{% endfor %} - {{ self.title() }}
+  </title>
+
+  {% block head %}
+  {% endblock %}
+
   <script type='text/javascript'>
-  {% block javascript %}{% endblock %}
+    {% block javascript %}
+    {% endblock %}
   </script>
 </head>
+
 {% if self.onload is defined %}
 <body onload="{{ self.onload() }}">
 {% else %}
 <body>
 {% endif %}
   {# Top-Level Content (non-footer) #}
-  <div id="top-level-content">
+  <div id="wrap">
     {# Page Header #}
-    <nav id="header" class="clearfix">
-      <div class="container">
-        {% block page_header %}
+    <div id="header" class="navbar navbar-static-top">
+      <div class="navbar-inner">
         {# LNT Instance Title #}
-        <a href="{{url_for('index')}}" class="header-title">
-          <h2>{{old_config.name}}</h2>
-        </a>
-
-        {# Navigation Breadcrumbs #}
-        <span id="nav-breadcrumbs">
-          <ul id="navlist" class="nav">
-            {% for short_name,path in components %}
-            <li><a href="{{ path }}">{{short_name}}</a></li>
-            <li>|</li>
-            {% endfor %}
-            <li>{{ self.title() }}</li>
-          </ul>
-        </span>
+        <a class="brand" href="{{url_for('index')}}">{{old_config.name}}</a>
+        <ul class="nav">
+          <li class="dropdown">
+            <a href="#" class="dropdown-toggle" data-toggle="dropdown">Suite<b class="caret"></b></a>
+            <ul class="dropdown-menu">
+              {% for name in request.get_db().testsuite %}
+              <li><a href="{{db_url_for('v4_recent_activity', testsuite_name=name)}}">{{name}}</a></li>
+              {% endfor %}
+            </ul>
+          </li>
+        </ul>
+        {# Go to #}
+        {% if g.testsuite_name is defined %}
+        <ul class="nav">
+          <li class="dropdown">
+            <a href="#" class="dropdown-toggle" data-toggle="dropdown">Go to<b class="caret"></b></a>
+            <ul class="dropdown-menu">
+              <li><a href="{{ v4_url_for('v4_recent_activity') }}">Recent Activity</a></li>
+              <li><a href="{{ v4_url_for('v4_global_status') }}">Global Status</a></li>
+              <li><a href="{{ v4_url_for('v4_daily_report_overview') }}">Daily Report</a></li>
+              <li class="disabled"><a href=#>Summary Report</a></li>
+              {#"{{ v4_url_for('v4_summary_report') }}"#}
+            </ul>
+          </li>
+        </ul>
+        {% endif %}
 
         {# Database Selector #}
-        <span id="nav-dbselector">
-          <form method="get" action="{{ url_for('select_db') }}" class="nav">
-            <input type="hidden" name="path" value="{{ request.path }}"/>
-            <label>Database:</label>
-            <select name="db" onchange="submit()">
+        <ul class="nav pull-right">
+          <li class="dropdown pull-right">
+            <a href="#" class="dropdown-toggle" data-toggle="dropdown">Database <b class="caret"></b></a>
+            <ul class="dropdown-menu">
               {% for name in old_config.databases.keys()|sort %}
-              <option{{" selected" if name == g.db_name else ""}}>{{ name }}</option>
+                <li><a href="{{ url_for('select_db', db=name, path=request.path) }}">
+                {% if name == g.db_name %}
+                  <b>{{ name }}</b>
+                {% else %}
+                  {{ name }}
+                {% endif %}
+                </a></li>
               {% endfor %}
-            </select>
-            <input type="submit" value="Go"/>
-          </form>
-        </span>
-        {% endblock %}
+            </ul>
+          </li>
+        </ul>
+
       </div>
-    </nav>
+    </div>
+
+    <div>
+      {# Navigation Breadcrumbs #}
+      <ul class="breadcrumb">
+        {% for short_name,path in components %}
+        <li><a href="{{ path }}">{{short_name}}</a><span class="divider">/</span></li>
+        {% endfor %}
+        <li class="active">{{self.title()}}</li>
+      </ul>
+    </div>
+
+    {# Include any database log, if present. #}
+    {% if g.db_log is defined %}
+    <div class="alert alert-info">
+      <h4>SQL Log</h4>
+      <pre>{{g.db_log.getvalue()}}</pre>
+    </div>
+    {% endif %}
 
     {# Page Content #}
-    <div id="content" class="container">{%
-      block body %}{% endblock %}
+    <div id="content" class="container-fluid">
+      <div class="row-fluid">
+        <div class="span2 bs-docs-sidebar">
+          {% block sidebar %}{% endblock %}
+        </div>
+        <div class="span10">
+          {% block body %}{% endblock %}
+        </div>
+      </div>
     </div>
 
     {# Force space for footer #}
-    <div id="header-push"></div>
+    <div id="push"></div>
   </div>
 
   {# Page Footer #}
-  <footer class="container clearfix">
-    {# Include any database log, if present. #}
-    {% if g.db_log is defined %}
-    <h3>SQL Log</h3>
-    <pre>{{g.db_log.getvalue()}}</pre>
-    <hr>
-    {% endif %}
-    <p>LNT Version: {{ app.version }}</p>
-    <p>Server Started: {{ app.start_time|asusertime }}</p>
-    <p>Generated: {{ request.request_time|asusertime }}</p>
-    <p>Render Time: {{ "%.2fs" % request.elapsed_time() }}</p>
-  </footer>
+  <div id="footer">
+    <div class="container">
+      <table class="table">
+        <tr>
+          <td>LNT Version: {{ app.version }}</td>
+          <td>Server Started: {{ app.start_time|asusertime }}</td>
+          <td>Generated: {{ request.request_time|asusertime }}</td>
+          <td>Render Time: {{ "%.2fs" % request.elapsed_time() }}</td>
+        </tr>
+      </table>
+    </div>
+  </div>
 </body>
 </html>
