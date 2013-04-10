@@ -1,72 +1,64 @@
+{% import "utils.html" as utils %}
 {% set db = request.get_db() %}
 
 {% extends "layout.html" %}
 {% set components = [(testsuite_name, v4_url_for("v4_overview"))] %}
-{% block title %}Overview{% endblock %}
+{% block title %}Recent Activity{% endblock %}
+
+{% block sidebar %}
+  <ul class="nav nav-list bs-docs-sidenav">
+      <li><a href="#machines"><i class="icon-chevron-right"></i> Active Machines</a></li>
+      <li><a href="#submissions"><i class="icon-chevron-right"></i> Recent Submissions</a></li>
+  </ul>
+{% endblock %}
+
 {% block body %}
-
-{# Find recent runs. #}
-<center><h3>Submission Overview</h3></center>
-<table width="100%%">
-  <tr>
-    <td valign="top" width="50%">
-      <center>
-      <h3>Active Machines</h3>
-      <table class="sortable" border=1>
-        <thead>
-        <tr>
-          <th>Latest Submission</th>
-          <th>Machine</th>
-          <th>Results</th>
-        </tr>
-        </thead>
-
-{# Show the most active machines. #}
-{% for machine_name,r in active_machines|dictsort %}
+  {# Find recent runs. #}
+  <section id="machines" />
+  <h3>Active Machines</h3>
+  <table class="table table-striped table-hover table-condensed">
+    <thead>
+    <tr>
+      <th>Machine</th>
+      <th>Latest Submission</th>
+      <th>Results</th>
+    </tr>
+    </thead>
+    <tbody>
+      {# Show the most active machines. #}
+      {% for machine_name,r in active_machines|dictsort %}
       <tr>
-        <td>{{r.start_time}}</td>
-        <td align=left><a href="{{v4_url_for('v4_machine', id=r.machine.id)}}">{{
-            r.machine.name}}:{{r.machine.id}}</a></td>
-        <td><a href="{{v4_url_for('v4_run', id=r.id)}}">
-            View Results</a></td>
+        <td>{{ utils.render_machine(r.machine) }}</td>
+        <td>{{ r.start_time }}</td>
+        <td>{{ utils.render_result(r) }}</td>
       </tr>
-{% endfor %}
-
-      </table>
-      </center>
-    </td>
-    <td valign="top">
-      <center>
-      <h3>Recent Submissions</h3>
-      <table class="sortable" border=1>
-        <thead>
-        <tr>
-          <th>Run Order</th>
-          <th>Start Time</th>
-          <th>Duration</th>
-          <th>Machine</th>
-          <th>Results</th>
-        </tr>
-        </thead>
-
-{# Show the active submissions. #}
-{% for r,run_order in active_submissions %}
-{% set m = r.machine %}
+      {% endfor %}
+    </tbody>
+  </table>
+  
+  <section id="submissions" />
+  <h3>Recent Submissions</h3>
+  <table class="table table-striped table-hover table-condensed">
+    <thead>
+    <tr>
+      <th>Run Order</th>
+      <th>Start Time</th>
+      <th>Duration</th>
+      <th>Machine</th>
+      <th>Results</th>
+    </tr>
+    </thead>
+    <tbody> 
+      {# Show the active submissions. #}
+      {% for r,run_order in active_submissions %}
       <tr>
-        <td><a href="{{v4_url_for('v4_order', id=r.order.id)}}">{{
-            run_order}}</a></td></td>
-        <td>{{r.start_time}}</td>
-        <td>{{r.end_time - r.start_time}}</td>
-        <td align=left><a href="{{v4_url_for('v4_machine',id=m.id)}}">{{
-            m.name}}:{{m.id}}</a></td>
-        <td><a href="{{v4_url_for('v4_run', id=r.id)}}">
-            View Results</a></td>
+        <td><a href="{{v4_url_for('v4_order', id=r.order.id)}}">{{run_order}}</a></td></td>
+        <td>{{ r.start_time }}</td>
+        <td>{{ r.end_time - r.start_time }}</td>
+        <td>{{ utils.render_machine(r.machine) }}</td>
+        <td>{{ utils.render_result(r) }}</td>
       </tr>
-{% endfor %}
-      </table>
-      </center>
-    </td>
-  </tr>
-</table>
-
+      {% endfor %}
+    </tbody>
+  </table>
 {% endblock %}

@@ -32,6 +32,7 @@
 
 {# Add JS to initialize the graph. #}
 {% block onload %}init(){% endblock %}
+
 {% block javascript %}
 var g = {}
 
@@ -135,101 +136,124 @@ function update_tooltip(event, pos, item, show_fn) {
 }
 {% endblock %}
 
+{% block sidebar %}
+  <h4>Controls</h4>
+  <ul>
+  <li>Left Mouse: Pan
+  <li>Double Left Mouse: Zoom
+  <li>Wheel: Zoom
+  </ul>
+{% endblock %}
+
 {% block body %}
+  <table width="100%">
+  <tr>
+    <td><h3>Graph</h3></td>
+    <td>
+      <div class="dropdown pull-right" id="settings">
+        <a class="dropdown-toggle" data-toggle="dropdown" href="#settings">
+          Settings <i class="icon-wrench"></i>
+        </a>
+        <div class="dropdown-menu">
+          <form action="" method="get">
+          <table class="table table-striped table-hover table-condensed">
+            <tbody>
+              <tr>
+                <td>Hide Line Plot:</td>
+                <td><input type="checkbox" name="hide_lineplot" value="yes"
+                     {{ 'checked' if options.hide_lineplot else ""}}></td>
+              </tr>
+              <tr>
+                <td>Show Median Absolute Deviation:</td>
+                <td><input type="checkbox" name="show_mad" value="yes"
+                     {{ 'checked' if options.show_mad else ""}}></td>
+              </tr>
+              <tr>
+                <td>Show Standard Deviation:</td>
+                <td><input type="checkbox" name="show_stddev" value="yes"
+                     {{ 'checked' if options.show_stddev else ""}}></td>
+              </tr>
+              <tr>
+                <td>Show Linear Regression:</td>
+                <td><input type="checkbox" name="show_linear_regression" value="yes"
+                     {{ 'checked' if options.show_linear_regression else ""}}></td>
+              </tr>
+              <tr>
+                <td>Show Points For Failures:</td>
+                <td><input type="checkbox" name="show_failures" value="yes"
+                     {{ 'checked' if options.show_failures else ""}}></td>
+              </tr>
+              <tr>
+                <td>Show Sample Points:</td>
+                <td><input type="checkbox" name="show_points" value="yes"
+                     {{ 'checked' if options.show_points else ""}}></td>
+              </tr>
+              <tr>
+                <td>Show All Sample Points:</td>
+                <td><input type="checkbox" name="show_all_points" value="yes"
+                     {{ 'checked' if options.show_all_points else ""}}></td>
+              </tr>
+              <tr>
+                <td>Normalize By Median:</td>
+                <td><input type="checkbox" name="normalize_by_median" value="yes"
+                     {{ 'checked' if options.normalize_by_median else ""}}></td>
+              </tr>
+              <tr>
+                <td>Show Moving Average</td>
+                <td><input type="checkbox" name="show_moving_average" value="yes"
+                     {{ 'checked' if options.show_moving_average else ""}}></td>
+              </tr>
+              <tr>
+                <td>Show Moving Median</td>
+                <td><input type="checkbox" name="show_moving_median" value="yes"
+                     {{ 'checked' if options.show_moving_median else ""}}></td>
+              </tr>
+              <tr>
+                <td>Moving Average/Median Window Size</tr>
+                <td><input type="text" name="moving_window_size"
+                     value="{{ options.moving_window_size }}"/></td>
+              </tr>
+              <tr>
+                <td>Hide Revision Comparison Region Highlight</tr>
+                <td><input type="checkbox" name="hide_highlight" value="yes"
+                     {{ 'checked' if options.hide_highlight else ""}}></td>
+              </tr>
+            </tbody>
+          </table>
 
-{{ utils.render_popup_begin('view_options', 'View Options', true) }}
-<form action="" method="get">
-<b>Hide Line Plot:</b>
-<input type="checkbox" name="hide_lineplot" value="yes" {{
-       'checked' if options.hide_lineplot else ""}}><br>
-
-<b>Show Median Absolute Deviation:</b>
-<input type="checkbox" name="show_mad" value="yes" {{
-       'checked' if options.show_mad else ""}}><br>
-
-<b>Show Standard Deviation:</b>
-<input type="checkbox" name="show_stddev" value="yes" {{
-       'checked' if options.show_stddev else ""}}><br>
-
-<b>Show Linear Regression:</b>
-<input type="checkbox" name="show_linear_regression" value="yes" {{
-       'checked' if options.show_linear_regression else ""}}><br>
-
-<b>Show Points For Failures:</b>
-<input type="checkbox" name="show_failures" value="yes" {{
-       'checked' if options.show_failures else ""}}><br>
-
-<b>Show Sample Points:</b>
-<input type="checkbox" name="show_points" value="yes" {{
-       'checked' if options.show_points else ""}}><br>
-
-<b>Show All Sample Points:</b>
-<input type="checkbox" name="show_all_points" value="yes" {{
-       'checked' if options.show_all_points else ""}}><br>
-
-<b>Normalize By Median:</b>
-<input type="checkbox" name="normalize_by_median" value="yes" {{
-       'checked' if options.normalize_by_median else ""}}><br>
-
-<b>Show Moving Average</b>
-<input type="checkbox" name="show_moving_average" value="yes" {{
-       'checked' if options.show_moving_average else ""}}><br>
-
-<b>Show Moving Median</b>
-<input type="checkbox" name="show_moving_median" value="yes" {{
-       'checked' if options.show_moving_median else ""}}><br>
-
-<b>Moving Average/Median Window Size</b>
-<input type="text" name="moving_window_size" value="{{ options.moving_window_size }}"/><br>
-
-<b>Hide Revision Comparison Region Highlight</b>
-<input type="checkbox" name="hide_highlight" value="yes" {{
-       'checked' if options.hide_highlight else ""}}><br>
-
-{# Add all the hidden fields. #}
-{% for name,value in request.args.items() %}
-  {% if name.startswith('plot.') %}
-    <input type="hidden" name="{{name}}" value="{{value}}">
-  {% endif %}
-{% endfor %}
-
-<input type="submit" name="submit" value="Update">
-</form>
-{{ utils.render_popup_end() }}
-
-<h3>Graph</h3>
-<table>
-<tr>
-<td rowspan=2 valign="top">
-  <div id="graph" style="width:600px;height:400px;"></div>
-  <div id="overview" style="width:600px;height:80px;"></div>
-</td>
-<td valign="top">
-<table cellspacing=4 border=1>
-<tr>
-  <th colspan=2>Machine</th>
-  <th>Test</th>
-  <th>Type</th>
-</tr>
-{% for machine,test_name,field_name,col in legend %}
+          {# Add all the hidden fields. #}
+          {% for name,value in request.args.items() %}
+          {% if name.startswith('plot.') %}
+          <input type="hidden" name="{{name}}" value="{{value}}">
+          {% endif %}
+          {% endfor %}
+            
+          <input class="btn btn-primary" style="clear: left; width: 100%"
+                 type="submit" name="submit" value="Update" />
+          </form>
+        </div>
+      </div>
+    </td>
+  </tr>
+  <tr><td colspan="2"><div id="graph" style="width:100%;height:500px;"></div></td></tr>
+  <tr><td colspan="2"><div id="overview" style="width:100%;height:80px;"></div></td></td>
+  </table>
+  
+  <h3>Legend</h3>
+  <table class="table table-condensed table-hover table-striped">
     <tr>
-      <td bgcolor="{{ '%02x%02x%02x' % (
-                        255*col[0], 255*col[1], 255*col[2]) }}">&nbsp;</td>
-      <td>{{machine.name}}:{{machine.id}}</td>
-      <td>{{test_name}}</td>
-      <td>{{field_name}}</td>
+      <th></th>
+      <th>Machine</th>
+      <th>Test</th>
+      <th>Type</th>
     </tr>
-{% endfor %}
-</table>
-</td></tr>
-<tr><td align="right" valign="bottom">
-<font size="-2">
-Left Mouse: Pan<br>
-Double Left Mouse: Zoom<br>
-Wheel: Zoom<br>
-</font>
-</td></tr>
-</table>
-<p>
-
+    {% for machine,test_name,field_name,col in legend %}
+    <tr>
+      <td style="background-color: #{{ '%02x%02x%02x' % (255*col[0], 255*col[1], 255*col[2]) }}">&nbsp;</td>
+      <td>{{ utils.render_machine(machine) }}</td>
+      <td>{{ test_name }}</td>
+      <td>{{ field_name }}</td>
+    </tr>
+    {% endfor %}
+  </table>
 {% endblock %}

@@ -10,3 +10,11 @@
 {% macro render_popup_end() -%}
 </div>
 {%- endmacro %}
+
+{% macro render_result(r) -%}
+<a href="{{v4_url_for('v4_run', id=r.id)}}">View Results</a>
+{%- endmacro %}
+
+{% macro render_machine(m) -%}
+<a href="{{v4_url_for('v4_machine', id=m.id)}}">{{m.name}}:{{m.id}}</a>
+{%- endmacro %}
