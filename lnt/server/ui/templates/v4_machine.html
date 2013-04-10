@@ -4,7 +4,7 @@
 {% set machine = ts.getMachine(id) %}
 
 {% extends "layout.html" %}{
-{% set components = [(testsuite_name, v4_url_for("v4_overview"))] %}
+{% set components = [(testsuite_name, v4_url_for("v4_recent_activity"))] %}
 {% block title %}{{machine.name}}:{{machine.id}}{% endblock %}
 
 {% block sidebar %}

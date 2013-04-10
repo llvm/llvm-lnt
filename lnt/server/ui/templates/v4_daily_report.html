@@ -1,7 +1,7 @@
 {% set db = request.get_db() %}
 
 {% extends "layout.html" %}
-{% set components = [(ts.name, v4_url_for("v4_overview"))] %}
+{% set components = [(ts.name, v4_url_for("v4_recent_activity"))] %}
 {% block title %}Daily Report{% endblock %}
 {% block body %}
 

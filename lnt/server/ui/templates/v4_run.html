@@ -9,7 +9,7 @@
 {% set comparison_neighboring_runs = request_info.comparison_neighboring_runs %}
 
 {% extends "layout.html" %}
-{% set components = [(ts.name, v4_url_for("v4_overview")),
+{% set components = [(ts.name, v4_url_for("v4_recent_activity")),
                      ('%s:%s' % (machine.name, machine.id),
                      v4_url_for("v4_machine", id=machine.id))] %}
 
