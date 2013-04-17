@@ -305,7 +305,7 @@ def action_send_daily_report(name, args):
     ts = db.testsuite[opts.testsuite]
 
     if opts.today:
-        date = datetime.datetime.now()
+        date = datetime.datetime.utcnow()
     else:
         # Get a timestamp to use to derive the daily report to generate.
         latest = ts.query(ts.Run).\
@@ -317,7 +317,7 @@ def action_send_daily_report(name, args):
             date = latest.start_time + datetime.timedelta(hours=1)
         else:
             # Otherwise, just use now.
-            date = datetime.datetime.now()
+            date = datetime.datetime.utcnow()
 
     # Generate the daily report.
     note("building report data...")
