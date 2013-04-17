@@ -88,7 +88,7 @@ results.
 
 Once you have a local instance, you can either submit results directly with::
 
-     lnt import ~/myperfdb SANDBOX/test-<stamp>/report.json
+     lnt import --commit=1 ~/myperfdb SANDBOX/test-<stamp>/report.json
 
 or as part of a run with::
 

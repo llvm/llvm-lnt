@@ -56,7 +56,7 @@ The following tools are used to interact with an LNT server:
   ``lnt createdb <path>``
     Creates a new LNT sqlite3 database at the specified path.
 
-  ``lnt import <instance path> <file>+``
+  ``lnt import [--commit=1] <instance path> <file>+``
     Import an LNT data file into a database. You can use ``--database`` to
     select the database to write to. Note that by default this will also
     generate report emails if enabled in the configuration, you can use
