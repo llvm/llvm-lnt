@@ -196,7 +196,7 @@ class SummaryReport(object):
             test_name = test.name
 
             # The arch and build mode are derived from the run flags.
-            arch = run_parameters['ARCH']
+            arch = run_parameters['cc_target'].split('-')[0]
             if '86' in arch:
                 arch = 'x86'
 
