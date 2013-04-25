@@ -661,6 +661,9 @@ class CompileTest(builtintest.BuiltinTest):
                           type=str, default=None, metavar="PATH")
 
         group = OptionGroup(parser, "Test Options")
+        group.add_option("", "--no-timestamp", dest="timestamp_build",
+                         help="Don't timestamp build directory (for testing)",
+                         action="store_false", default=True)
         group.add_option("", "--cc", dest="cc", type='str',
                          help="Path to the compiler under test",
                          action="store", default=None)
@@ -780,9 +783,12 @@ class CompileTest(builtintest.BuiltinTest):
             print >>sys.stderr, "%s: creating sandbox: %r" % (
                 timestamp(), opts.sandbox_path)
             os.mkdir(opts.sandbox_path)
-        g_output_dir = os.path.join(os.path.abspath(opts.sandbox_path),
-                                    "test-%s" % (
-                timestamp().replace(' ','_').replace(':','-'),))
+        if opts.timestamp_build:
+            report_name = "test-%s" % (timestamp().replace(' ','_').replace(':','-'))
+        else:
+            report_name = "build"
+        g_output_dir = os.path.join(os.path.abspath(opts.sandbox_path),report_name)
+            
         try:
             os.mkdir(g_output_dir)
         except OSError,e:
