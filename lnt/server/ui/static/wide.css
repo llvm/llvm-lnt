@@ -1,0 +1,4 @@
+#content { margin-top:97px; }
+#header { position: fixed;}
+#page-content { float: left; width: 85%; height: 100%; margin-left: 19%; }
+#side-bar { width: 16%; height: 100%; position: fixed; margin-left: 20px; }

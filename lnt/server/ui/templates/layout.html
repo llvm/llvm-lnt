@@ -5,6 +5,10 @@
               }}" rel="stylesheet" media="screen">
   <link href="{{ url_for('.static', filename='bootstrap/css/bootstrap-responsive.min.css')
               }}" rel="stylesheet">
+  <link href="{{ url_for('.static', filename='narrow.css')
+              }}" rel="stylesheet" media='screen and (max-width: 750px)' >
+  <link href="{{ url_for('.static', filename='wide.css')
+              }}" rel="stylesheet" media='screen and (min-width: 750px)'>
   <script src="http://code.jquery.com/jquery-latest.js"></script>
   <script src="{{ url_for('.static', filename='bootstrap/js/bootstrap.min.js')
                }}"></script>
@@ -18,7 +22,7 @@
       height: 100%;
       /* The html and body elements cannot have any padding or margin. */
     }
-    
+
     /* Wrapper for page content to push down footer */
     #wrap {
       min-height: 100%;
@@ -27,16 +31,22 @@
       /* Negative indent footer by it's height */
       margin: 0 auto -60px;
     }
-    
-    /* Set the fixed height of the footer here */
+
+    /*Set the fixed height of the header and footer here */
     #push,
-    #footer {
-      height: 60px;
+    #header {
+      height: 90px;
     }
+
     #footer {
       background-color: #f5f5f5;
     }
-    
+
+    /* Offset Navbar items away from window corner */
+    #push,
+    #lnt-instance { margin-left:20px; }
+    #dbselect { margin-right : 20px; }
+
     /* Lastly, apply responsive CSS fixes as necessary */
     @media (max-width: 767px) {
       #footer {
@@ -66,25 +76,27 @@
 {% if self.onload is defined %}
 <body onload="{{ self.onload() }}">
 {% else %}
-<body>
+<body data-spy="scroll" data-target="#side-bar">
 {% endif %}
   {# Top-Level Content (non-footer) #}
   <div id="wrap">
     {# Page Header #}
-    <div id="header" class="navbar navbar-static-top">
+    <div id="header" class="navbar navbar-fixed-top">
       <div class="navbar-inner">
         {# LNT Instance Title #}
-        <a class="brand" href="{{url_for('index')}}">{{old_config.name}}</a>
-        <ul class="nav">
-          <li class="dropdown">
-            <a href="#" class="dropdown-toggle" data-toggle="dropdown">Suite<b class="caret"></b></a>
-            <ul class="dropdown-menu">
-              {% for name in request.get_db().testsuite %}
-              <li><a href="{{db_url_for('v4_recent_activity', testsuite_name=name)}}">{{name}}</a></li>
-              {% endfor %}
-            </ul>
-          </li>
-        </ul>
+        <div id="lnt-instance">
+          <a class="brand" href="{{url_for('index')}}">{{old_config.name}}</a>
+          <ul class="nav">
+            <li class="dropdown">
+              <a href="#" class="dropdown-toggle" data-toggle="dropdown">Suite<b class="caret"></b></a>
+              <ul class="dropdown-menu">
+                {% for name in request.get_db().testsuite %}
+                <li><a href="{{db_url_for('v4_recent_activity', testsuite_name=name)}}">{{name}}</a></li>
+                {% endfor %}
+              </ul>
+            </li>
+          </ul>
+        </div>
         {# Go to #}
         {% if g.testsuite_name is defined %}
         <ul class="nav">
@@ -94,6 +106,7 @@
               <li><a href="{{ v4_url_for('v4_recent_activity') }}">Recent Activity</a></li>
               <li><a href="{{ v4_url_for('v4_global_status') }}">Global Status</a></li>
               <li><a href="{{ v4_url_for('v4_daily_report_overview') }}">Daily Report</a></li>
+              <li class="divider"></li>
               <li class="disabled"><a href=#>Summary Report</a></li>
               {#"{{ v4_url_for('v4_summary_report') }}"#}
             </ul>
@@ -103,8 +116,8 @@
 
         {# Database Selector #}
         <ul class="nav pull-right">
-          <li class="dropdown pull-right">
-            <a href="#" class="dropdown-toggle" data-toggle="dropdown">Database <b class="caret"></b></a>
+          <li class="dropdown">
+            <a href="#" class="dropdown-toggle" data-toggle="dropdown" id="dbselect" >Database <b class="caret"></b></a>
             <ul class="dropdown-menu">
               {% for name in old_config.databases.keys()|sort %}
                 <li><a href="{{ url_for('select_db', db=name, path=request.path) }}">
@@ -120,16 +133,15 @@
         </ul>
 
       </div>
-    </div>
-
-    <div>
-      {# Navigation Breadcrumbs #}
-      <ul class="breadcrumb">
-        {% for short_name,path in components %}
-        <li><a href="{{ path }}">{{short_name}}</a><span class="divider">/</span></li>
-        {% endfor %}
-        <li class="active">{{self.title()}}</li>
-      </ul>
+      <div>
+        {# Navigation Breadcrumbs #}
+        <ul class="breadcrumb">
+          {% for short_name,path in components %}
+          <li><a href="{{ path }}">{{short_name}}</a><span class="divider">/</span></li>
+          {% endfor %}
+          <li class="active">{{self.title()}}</li>
+        </ul>
+      </div>
     </div>
 
     {# Include any database log, if present. #}
@@ -142,11 +154,11 @@
 
     {# Page Content #}
     <div id="content" class="container-fluid">
-      <div class="row-fluid">
-        <div class="span2 bs-docs-sidebar">
+      <div class="row-fluid row">
+        <div id ="side-bar" class="span3 bs-docs-sidebar ">
           {% block sidebar %}{% endblock %}
         </div>
-        <div class="span10">
+        <div id="page-content" class="span9">
           {% block body %}{% endblock %}
         </div>
       </div>
