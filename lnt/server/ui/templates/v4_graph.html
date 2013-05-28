@@ -107,7 +107,7 @@ function show_tooltip(x, y, item, pos) {
     tip_body += "<b>Revision:</b>" + data[0].toFixed(0) + "<br>";
     tip_body += "<b>Value:</b>" + data[1].toFixed(4) + "s" + "</div>";
 
-    $(tip_body).css( {
+    var tooltip_div = $(tip_body).css( {
         position: 'absolute',
         display: 'none',
         top: y + 5,
@@ -117,6 +117,27 @@ function show_tooltip(x, y, item, pos) {
         'background-color': '#fee',
         opacity: 0.80
     }).appendTo("body").fadeIn(200);
+
+    // Now make sure the tool tip is on the graph canvas.
+    var tt_position = tooltip_div.position();
+    var tt_offset = tooltip_div.offset();
+
+    var graph_div = $("#graph");
+    var graph_position = graph_div.position();
+
+    // The right edge of the graph.
+    var max_width = graph_position.left + graph_div.width();
+    // The right edge of the tool tip.
+    var tt_right = tt_position.left + tooltip_div.width();
+
+    if (tt_right > max_width) {
+        var diff = tt_right - max_width
+        var GRAPH_BORDER = 10;
+        var VISUAL_APPEAL = 10;
+        tooltip_div.css({'left' : tt_position.left - diff 
+                         - GRAPH_BORDER - VISUAL_APPEAL});
+    }
+
 }
 
 // Event handler function to update the tooltop.
