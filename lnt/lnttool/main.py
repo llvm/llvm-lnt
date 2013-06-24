@@ -348,6 +348,102 @@ def action_send_daily_report(name, args):
                msg.as_string())
     s.quit()
 
+def action_send_run_comparison(name, args):
+    """send a run-vs-run comparison email"""
+    import datetime
+    import email.mime.multipart
+    import email.mime.text
+    import smtplib
+
+    import lnt.server.reporting.dailyreport
+
+    parser = OptionParser("%%prog %s [options] <instance path> "
+                          "<run A ID> <run B ID>" % (
+            name,))
+    parser.add_option("", "--database", dest="database", default="default",
+                      help="database to use [%default]")
+    parser.add_option("", "--testsuite", dest="testsuite", default="nts",
+                      help="testsuite to use [%default]")
+    parser.add_option("", "--host", dest="host", default="localhost",
+                      help="email relay host to use [%default]")
+    parser.add_option("", "--from", dest="from_address", default=None,
+                      help="from email address (required)")
+    parser.add_option("", "--to", dest="to_address", default=None,
+                      help="to email address (required)")
+    parser.add_option("", "--today", dest="today", action="store_true",
+                      help="send the report for today (instead of most recent)")
+    parser.add_option("", "--subject-prefix", dest="subject_prefix",
+                      help="add a subject prefix")
+    (opts, args) = parser.parse_args(args)
+
+    if len(args) != 3:
+        parser.error("invalid number of arguments")
+    if opts.from_address is None:
+        parser.error("--from argument is required")
+    if opts.to_address is None:
+        parser.error("--to argument is required")
+
+    path, run_a_id, run_b_id = args
+
+    # Setup the base LNT logger.
+    logger = logging.getLogger("lnt")
+    logger.setLevel(logging.ERROR)
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setFormatter(logging.Formatter(
+            '%(asctime)s %(levelname)s: %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'))
+    logger.addHandler(handler)
+
+    # Load the LNT instance.
+    instance = lnt.server.instance.Instance.frompath(path)
+    config = instance.config
+
+    # Get the database.
+    db = config.get_database(opts.database)
+
+    # Get the testsuite.
+    ts = db.testsuite[opts.testsuite]
+
+    # Lookup the two runs.
+    run_a_id = int(run_a_id)
+    run_b_id = int(run_b_id)
+    run_a = ts.query(ts.Run).\
+        filter_by(id=run_a_id).first()
+    run_b = ts.query(ts.Run).\
+        filter_by(id=run_b_id).first()
+    if run_a is None:
+        parser.error("invalid run ID %r (not in database)" % (run_a_id,))
+    if run_b is None:
+        parser.error("invalid run ID %r (not in database)" % (run_b_id,))
+
+    # Gather the runs to use for statistical data.
+    comparison_window = list(ts.get_previous_runs_on_machine(
+                run_a, N=10))
+
+    # Generate the report.
+    reports = lnt.server.reporting.runs.generate_run_report(
+        run_b, baseurl=config.zorgURL, only_html_body=False, result=None,
+        compare_to=run_a, baseline=None, comparison_window=comparison_window,
+        aggregation_fn=min)
+    subject, text_report, html_report, _ = reports
+
+    if opts.subject_prefix is not None:
+        subject = "%s %s" % (opts.subject_prefix, subject)
+
+    # Form the multipart email message.
+    msg = email.mime.multipart.MIMEMultipart('alternative')
+    msg['Subject'] = subject
+    msg['From'] = opts.from_address
+    msg['To'] = opts.to_address
+    msg.attach(email.mime.text.MIMEText(text_report, 'plain'))
+    msg.attach(email.mime.text.MIMEText(html_report, 'html'))
+
+    # Send the report.
+    s = smtplib.SMTP(opts.host)
+    s.sendmail(opts.from_address, [opts.to_address],
+               msg.as_string())
+    s.quit()
+
 ###
 
 def _version_check():
