@@ -230,12 +230,15 @@ function update_tooltip(event, pos, item, show_fn) {
                      {{ 'checked' if options.show_moving_median else ""}}></td>
               </tr>
               <tr>
-                <td>Moving Average/Median Window Size</tr>
+                <td>Moving Average/Median Window Size</td>
+              </tr>
+              {# Split this into a new row to avoid making the dialog wider. #}
+              <tr>
                 <td><input type="text" name="moving_window_size"
                      value="{{ options.moving_window_size }}"/></td>
               </tr>
               <tr>
-                <td>Hide Revision Comparison Region Highlight</tr>
+                <td>Hide Revision Comparison Region Highlight</td>
                 <td><input type="checkbox" name="hide_highlight" value="yes"
                      {{ 'checked' if options.hide_highlight else ""}}></td>
               </tr>
