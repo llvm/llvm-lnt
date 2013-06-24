@@ -350,8 +350,33 @@ def action_send_daily_report(name, args):
 
 ###
 
+def _version_check():
+    """
+    Check that the installed version of the LNT is up-to-date with the running
+    package.
+
+    This check is used to force users of distribute's develop mode to reinstall
+    when the version number changes (which may involve changing package
+    requirements).
+    """
+    import pkg_resources
+
+    # Get the current distribution.
+    installed_dist = pkg_resources.get_distribution("LNT")
+    installed_dist_name = "%s %s" % (installed_dist.project_name,
+                                     installed_dist.version)
+    current_dist_name = "LNT %s" % (lnt.__version__,)
+    if installed_dist_name != current_dist_name:
+        raise SystemExit("""\
+error: installed distribution %s is not current (%s), you may need to reinstall
+LNT or rerun 'setup.py develop' if using development mode.""" % (
+                installed_dist_name, current_dist_name))
+
 tool = lnt.util.multitool.MultiTool(locals())
-main = tool.main
+
+def main(*args, **kwargs):
+    _version_check()
+    return tool.main(*args, **kwargs)
 
 if __name__ == '__main__':
     main()
