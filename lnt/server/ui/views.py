@@ -27,6 +27,8 @@ import lnt.server.ui.util
 import lnt.server.reporting.dailyreport
 import lnt.server.reporting.summaryreport
 
+integral_rex = re.compile(r"[\d]+")
+
 ###
 # Root-Only Routes
 
@@ -407,16 +409,6 @@ def v4_graph():
     from lnt.util import stats
     from lnt.external.stats import stats as ext_stats
 
-    # FIXME: For now, we just do something stupid when we encounter release
-    # numbers like '3.0.1' and use convert to 3. This makes the graphs
-    # fairly useless...
-    def convert_revision(r):
-        if r.isdigit():
-            return int(r)
-        else:
-            return int(r.split('.',1)[0])
-        return r
-
     ts = request.get_testsuite()
 
     # Parse the view options.
@@ -443,6 +435,14 @@ def v4_graph():
     options['hide_highlight'] = bool(
         request.args.get('hide_highlight'))
     show_highlight = not options['hide_highlight']
+
+    def convert_revision(dotted):
+        """Turn a version number like 489.2.10 into something
+        that is ordered and sortable.
+        For now 489.2.10 will be returned as a tuple of ints.
+        """
+        dotted = integral_rex.findall(dotted)
+        return tuple([int(d) for d in dotted])
 
     # Load the graph parameters.
     graph_parameters = []
@@ -526,9 +526,8 @@ def v4_graph():
                              (field.status_field.column == None))
 
         # Aggregate by revision.
-        data = util.multidict((convert_revision(r),v)
-                              for v,r in q).items()
-        data.sort()
+        data = util.multidict((rev, val) for val,rev in q).items()
+        data.sort(key=lambda sample: convert_revision(sample[0]))
 
         # Compute the graph points.
         errorbar_data = []
@@ -541,18 +540,24 @@ def v4_graph():
                                            for _,values in data])
         else:
             normalize_by = 1.0
-        for x, orig_values in data:
+        for pos, (point_label, orig_values) in enumerate(data):
+            metadata = {"label":point_label}
+            # on simple revisions use rev number for x else start from
+            # 0
+            rev_x = convert_revision(point_label)
+            x = rev_x if len(rev_x)==1 else pos
             values = [v*normalize_by for v in orig_values]
             min_value = min(values)
-            pts.append((x, min_value))
+            pts.append((x, min_value, metadata))
 
             # Add the individual points, if requested.
+            # For each point add a text label for the mouse over.
             if show_all_points:
                 for v in values:
-                    points_data.append((x, v))
+                    points_data.append((x, v, metadata))
             elif show_points:
-                points_data.append((x, min_value))
-
+                points_data.append((x, min_value, metadata))
+    
             # Add the standard deviation error bar, if requested.
             if show_stddev:
                 mean = stats.mean(values)
@@ -605,8 +610,8 @@ def v4_graph():
 
         # Add regression line, if requested.
         if show_linear_regression:
-            xs = [t for t,v in pts]
-            ys = [v for t,v in pts]
+            xs = [t for t,v,_ in pts]
+            ys = [v for t,v,_ in pts]
 
             # We compute the regression line in terms of a normalized X scale.
             x_min, x_max = min(xs), max(xs)

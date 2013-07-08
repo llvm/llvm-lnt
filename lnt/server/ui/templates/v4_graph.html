@@ -63,7 +63,7 @@ function init() {
 
   // Add tooltips.
   graph.bind("plothover", function(e,p,i) {
-    update_tooltip(e, p, i, show_tooltip); });
+    update_tooltip(e, p, i, show_tooltip, graph_plots); });
 
   // Set up the overview graph.
   var overview = $("#overview")
@@ -101,11 +101,25 @@ function init() {
 
 // Show our overlay tooltip.
 g.current_tip_point = null;
-function show_tooltip(x, y, item, pos) {
+function show_tooltip(x, y, item, pos, graph_data) {
+
+    // Given the event handler item, get the graph metadata.
+    function extract_metadata(item, graph_data) {
+        var index = item.dataIndex;
+        var series_index = item.seriesIndex;
+        // Graph data is formatted as [x, y, meta_data].
+        var meta_data = graph_data[series_index].data[index][2];
+        return meta_data;
+
+    }
     var data = item.datapoint;
+    var meta_data = extract_metadata(item, graph_data);
     var tip_body = '<div id="tooltip">';
-    tip_body += "<b>Revision:</b>" + data[0].toFixed(0) + "<br>";
-    tip_body += "<b>Value:</b>" + data[1].toFixed(4) + "s" + "</div>";
+    console.log(data)
+    if ("label" in meta_data) {
+        tip_body += "<b>Revision:</b>" + meta_data.label + "<br>";
+    }
+    tip_body += "<b>Value:</b>" + data[1].toFixed(4) + "</div>";
 
     var tooltip_div = $(tip_body).css( {
         position: 'absolute',
@@ -152,7 +166,7 @@ function update_tooltip(event, pos, item, show_fn) {
                                  g.current_tip_point[1] != item.datapoint[1])) {
         $("#tooltip").remove();
         g.current_tip_point = item.datapoint;
-        show_fn(pos.pageX, pos.pageY, item, pos);
+        show_fn(pos.pageX, pos.pageY, item, pos, graph_data);
     }
 }
 {% endblock %}
