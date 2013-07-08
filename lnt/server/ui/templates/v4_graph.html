@@ -115,7 +115,7 @@ function show_tooltip(x, y, item, pos, graph_data) {
     var data = item.datapoint;
     var meta_data = extract_metadata(item, graph_data);
     var tip_body = '<div id="tooltip">';
-    console.log(data)
+
     if ("label" in meta_data) {
         tip_body += "<b>Revision:</b>" + meta_data.label + "<br>";
     }
@@ -155,7 +155,7 @@ function show_tooltip(x, y, item, pos, graph_data) {
 }
 
 // Event handler function to update the tooltop.
-function update_tooltip(event, pos, item, show_fn) {
+function update_tooltip(event, pos, item, show_fn, graph_data) {
     if (!item) {
         $("#tooltip").remove();
         g.current_tip_point = null;
