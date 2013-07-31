@@ -1286,7 +1286,12 @@ class NTTest(builtintest.BuiltinTest):
                 parser.error('--remote-port is required with --remote')
             if opts.remote_user is None:
                 parser.error('--remote-user is required with --remote')
-
+        else:
+            if opts.remote_port is not None:
+                parser.error('--remote is required with --remote-port')
+            if opts.remote_user is not  None:
+                parser.error('--remote is required with --remote-user')
+                
         # libLTO should exist, if given.
         if opts.liblto_path:
             if not os.path.exists(opts.liblto_path):
