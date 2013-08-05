@@ -505,7 +505,13 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs,
     if len(set(stderr_sizes)) != 1:
         g_log.warning(('test command had stderr files with '
                           'different sizes: %r') % stderr_sizes)
-    
+
+    # Unless cleanup is disabled, rerun the preprocessing command.
+    if not opts.save_temps and preprocess_cmd:
+        g_log.info('cleaning up temporary results')
+        if os.system(preprocess_cmd) != 0:
+            g_log.warning("cleanup command returned a non-zero exit status")
+
 ###
 
 def curry(fn, **kw_args):
@@ -705,6 +711,9 @@ class CompileTest(builtintest.BuiltinTest):
         group.add_option("", "--min-sample-time", dest="min_sample_time",
                          help="Ensure all tests run for at least N seconds",
                          metavar="N", action="store", type=float, default=.5)
+        group.add_option("", "--save-temps", dest="save_temps",
+                         help="Save temporary build output files",
+                         action="store_true", default=False)
         group.add_option("", "--show-tests", dest="show_tests",
                          help="Only list the availables tests that will be run",
                          action="store_true", default=False)
