@@ -6,6 +6,7 @@ echo "This is a fake configure script."
 
 echo "Copying in Makefile..."
 cp $SRC_PATH/Makefile .
+cp $SRC_PATH/subtest/Makefile ./subtest/
 
 echo "Creating Makefile.config..."
 echo "PROJ_SRC_ROOT = \"${SRC_PATH}\"" > Makefile.config
