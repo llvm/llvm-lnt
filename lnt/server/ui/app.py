@@ -81,7 +81,7 @@ class Request(flask.Request):
 
 class App(flask.Flask):
     @staticmethod
-    def create_standalone(config_path):
+    def create_with_instance(instance):
         # Construct the application.
         app = App(__name__)
 
@@ -92,12 +92,17 @@ class App(flask.Flask):
         app.jinja_env.undefined = jinja2.StrictUndefined
 
         # Load the application configuration.
-        app.load_config(config_path)
+        app.load_config(instance)
 
         # Load the application routes.
         app.register_module(lnt.server.ui.views.frontend)
                         
         return app
+
+    @staticmethod
+    def create_standalone(config_path):
+        instance = lnt.server.instance.Instance.frompath(config_path)
+        return App.create_with_instance(instance)
 
     def __init__(self, name):
         super(App, self).__init__(name)
@@ -113,8 +118,8 @@ class App(flask.Flask):
         # #169).
         self.wsgi_app = RootSlashPatchMiddleware(self.wsgi_app)
 
-    def load_config(self, config_path):
-        self.instance = lnt.server.instance.Instance.frompath(config_path)
+    def load_config(self, instance):
+        self.instance = instance
         self.old_config = self.instance.config
 
         self.jinja_env.globals.update(
