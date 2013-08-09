@@ -513,7 +513,7 @@ def v4_graph():
         # we want to load. Actually, we should just make this a single query.
         #
         # FIXME: Don't hard code field name.
-        q = ts.query(field.column, ts.Order.llvm_project_revision).\
+        q = ts.query(field.column, ts.Order.llvm_project_revision, ts.Run.start_time).\
             join(ts.Run).join(ts.Order).\
             filter(ts.Run.machine_id == machine.id).\
             filter(ts.Sample.test == test).\
@@ -526,7 +526,7 @@ def v4_graph():
                              (field.status_field.column == None))
 
         # Aggregate by revision.
-        data = util.multidict((rev, val) for val,rev in q).items()
+        data = util.multidict((rev, (val, date)) for val,rev,date in q).items()
         data.sort(key=lambda sample: convert_revision(sample[0]))
 
         # Compute the graph points.
@@ -536,25 +536,34 @@ def v4_graph():
         moving_median_data = []
         moving_average_data = []
         if normalize_by_median:
-            normalize_by = 1.0/stats.median([min(values)
+            normalize_by = 1.0/stats.median([min([d[0] for d in values])
                                            for _,values in data])
         else:
             normalize_by = 1.0
-        for pos, (point_label, orig_values) in enumerate(data):
+        for pos, (point_label, datapoints) in enumerate(data):
+            # Get the samples.
+            data = [data_date[0] for data_date in datapoints]
+            # And the date on which they were taken.
+            dates = [data_date[1] for data_date in datapoints]
+
             metadata = {"label":point_label}
             # on simple revisions use rev number for x else start from
             # 0
             rev_x = convert_revision(point_label)
             x = rev_x if len(rev_x)==1 else pos
-            values = [v*normalize_by for v in orig_values]
-            min_value = min(values)
+
+            values = [v*normalize_by for v in data]
+            min_index,min_value = min(enumerate(values))
+            metadata["date"] = str(dates[min_index])
             pts.append((x, min_value, metadata))
 
             # Add the individual points, if requested.
             # For each point add a text label for the mouse over.
             if show_all_points:
-                for v in values:
-                    points_data.append((x, v, metadata))
+                for i,v in enumerate(values):
+                    point_metadata = dict(metadata)
+                    point_metadata["date"] = str(dates[i]) 
+                    points_data.append((x, v, point_metadata))
             elif show_points:
                 points_data.append((x, min_value, metadata))
     

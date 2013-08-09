@@ -117,10 +117,14 @@ function show_tooltip(x, y, item, pos, graph_data) {
     var tip_body = '<div id="tooltip">';
 
     if ("label" in meta_data) {
-        tip_body += "<b>Revision:</b>" + meta_data.label + "<br>";
+        tip_body += "<b>Revision:</b> " + meta_data.label + "<br>";
     }
-    tip_body += "<b>Value:</b>" + data[1].toFixed(4) + "</div>";
+    tip_body += "<b>Value:</b> " + data[1].toFixed(4) + "<br>";
 
+    if ("date" in meta_data) {
+        tip_body += "<b>Date:</b> " + meta_data.date;
+    }
+    tip_body += "</div>";
     var tooltip_div = $(tip_body).css( {
         position: 'absolute',
         display: 'none',
