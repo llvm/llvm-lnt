@@ -272,7 +272,7 @@ def action_send_daily_report(name, args):
 
     import lnt.server.reporting.dailyreport
 
-    parser = OptionParser("%%prog %s [options] <instance path> <address>" % (
+    parser = OptionParser("%s [options] <instance path> <address>" % (
             name,))
     parser.add_option("", "--database", dest="database", default="default",
                       help="database to use [%default]")
@@ -358,7 +358,7 @@ def action_send_run_comparison(name, args):
 
     import lnt.server.reporting.dailyreport
 
-    parser = OptionParser("%%prog %s [options] <instance path> "
+    parser = OptionParser("%s [options] <instance path> "
                           "<run A ID> <run B ID>" % (
             name,))
     parser.add_option("", "--database", dest="database", default="default",

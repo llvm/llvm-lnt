@@ -925,7 +925,7 @@ repository, and formatting the results for submission to an LNT server.
 
 Basic usage:
 
-  %%prog %(name)s \\
+  %(name)s \\
     --sandbox FOO \\
     --cc ~/llvm.obj.64/Release/bin/clang \\
     --test-suite ~/llvm-test-suite
@@ -955,7 +955,7 @@ class NTTest(builtintest.BuiltinTest):
 
     def run_test(self, name, args):
         parser = OptionParser(
-            ("%%prog %(name)s [options] tester-name\n" + usage_info) % locals())
+            ("%(name)s [options] tester-name\n" + usage_info) % locals())
 
         group = OptionGroup(parser, "Sandbox Options")
         group.add_option("-s", "--sandbox", dest="sandbox_path",
