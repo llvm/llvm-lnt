@@ -547,10 +547,11 @@ def v4_graph():
             dates = [data_date[1] for data_date in datapoints]
 
             metadata = {"label":point_label}
-            # on simple revisions use rev number for x else start from
-            # 0
+            
+            # When we can, map x-axis to revisions, but when that is too hard
+            # use the position of the sample instead.
             rev_x = convert_revision(point_label)
-            x = rev_x if len(rev_x)==1 else pos
+            x = rev_x[0] if len(rev_x)==1 else pos
 
             values = [v*normalize_by for v in data]
             min_index,min_value = min(enumerate(values))
