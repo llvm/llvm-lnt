@@ -47,6 +47,345 @@ class TestModule(object):
         if self._log is None:
             raise ValueError("log() unavailable outside test execution")
         return self._log
+
+
+class TestConfiguration(object):
+    """Store and calculate important paths and options for this test based
+    on the command line arguments. This object is stateless and only
+    based on the command line arguments! Options which take a long
+    time to calculate are cached, since we are stateless this is okay.
+
+    """
+
+    def __init__(self, opts, start_time):
+        """Prepare the configuration:
+        opts -- the command line options object
+        start_time -- the time the program was invoked as a string
+        """
+        self.opts = opts
+        self.start_time = start_time
+        
+        # Report directory cache.
+        self._report_dir = None
+        # Compiler interrogation is a lot of work, this will cache it.
+        self._cc_info = None
+        # Getting compiler version spawns subprocesses, cache it.
+        self._get_source_version = None
+
+    def __getattr__(self, attr):
+        """Provide direct access to the options when we don't provide a
+        configuration directly."""
+        return getattr(self.opts, attr)
+
+    @property
+    def report_dir(self):
+        """Get the (possibly cached) path to the directory where test suite
+        will be placed. Report dir is a directory within the sandbox which
+        is either "build" or a timestamped directory based on """
+        if self._report_dir is not None:
+            return self._report_dir
+ 
+        if self.timestamp_build:
+            ts = self.start_time.replace(' ','_').replace(':','-')
+            build_dir_name = "test-%s" % ts
+        else:
+            build_dir_name = "build"
+        basedir = os.path.join(self.opts.sandbox_path, build_dir_name)
+        # Canonicalize paths, in case we are using e.g. an NFS remote mount.
+        #
+        # FIXME: This should be eliminated, along with the realpath call below.
+        basedir = os.path.realpath(basedir)
+        self._report_dir = basedir
+        return basedir
+
+    def report_path(self, iteration):
+        """Path to a single run's JSON results file."""
+        return os.path.join(self.build_dir(iteration), 'report.json')
+
+    def build_dir(self, iteration):
+        """Path of the build dir within the report dir.  iteration -- the
+        iteration number if multisample otherwise None.
+        When multisample is off report_dir == build_dir.
+        """
+        # Do nothing in single-sample build, because report_dir and the
+        # build_dir is the same directory.
+        if iteration is None:
+            return self.report_dir
+
+        # Create the directory for individual iteration.
+        return os.path.join(self.report_dir, "sample-%d" % iteration)
+
+    @property
+    def target_flags(self):
+        """Computed target flags list."""
+        # Compute TARGET_FLAGS.
+        target_flags = []
+
+        # FIXME: Eliminate this blanket option.
+        target_flags.extend(self.opts.cflags)
+
+        # Pass flags to backend.
+        for f in self.opts.mllvm:
+            target_flags.extend(['-mllvm', f])
+
+        if self.opts.arch is not None:
+            target_flags.append('-arch')
+            target_flags.append(self.opts.arch)
+        if self.opts.isysroot is not None:
+            target_flags.append('-isysroot')
+            target_flags.append(self.opts.isysroot)
+        return target_flags
+
+    @property
+    def cc_info(self):
+        """Discovered compiler information from the cc under test. Cached
+        because discovery is slow.
+
+        """
+        if self._cc_info is None:
+            self._cc_info = lnt.testing.util.compilers.get_cc_info( \
+                                                    self.opts.cc_under_test,
+                                                    self.target_flags)
+        return self._cc_info
+
+    @property
+    def target(self):
+        """Discovered compiler's target information."""
+        # Get compiler info.
+        cc_target = self.cc_info.get('cc_target')
+        return cc_target
+
+    @property
+    def llvm_source_version(self):
+        """The version of llvm from llvm_src_root."""
+        if self.opts.llvm_src_root:
+            if self._get_source_version is None:
+                self._get_source_version  = get_source_version(
+                    self.opts.llvm_src_root)
+            return self._get_source_version
+        else:
+            return None
+
+    def build_report_path(self, iteration):
+        """The path of the results.csv file which each run of the test suite
+        will produce.
+        iteration -- the multisample iteration number otherwise None."""
+        report_path = os.path.join(self.build_dir(iteration))
+        if self.opts.only_test is not None:
+            report_path =  os.path.join(report_path, self.opts.only_test)
+        report_path = os.path.join(report_path, 'report.%s.csv' % \
+                                   self.opts.test_style)
+        return report_path
+
+    def test_log_path(self, iteration):
+        """The path of the log file for the build.
+        iteration -- the multisample iteration number otherwise None."""
+        return os.path.join(self.build_dir(iteration), 'test.log')
+
+    def compute_run_make_variables(self):
+        """Compute make variables from command line arguments and compiler.
+        Returns a dict of make_variables as well as a public version
+        with the remote options removed.
+
+        """
+        cc_info = self.cc_info
+        # Set the make variables to use.
+        make_variables = {
+            'TARGET_CC' : self.opts.cc_reference,
+            'TARGET_CXX' : self.opts.cxx_reference,
+            'TARGET_LLVMGCC' : self.opts.cc_under_test,
+            'TARGET_LLVMGXX' : self.opts.cxx_under_test,
+            'TARGET_FLAGS' : ' '.join(self.target_flags),
+        }
+
+        # Compute TARGET_LLCFLAGS, for TEST=nightly runs.
+        if self.opts.test_style == "nightly":
+            # Compute TARGET_LLCFLAGS.
+            target_llcflags = []
+        if self.opts.mcpu is not None:
+            target_llcflags.append('-mcpu')
+            target_llcflags.append(self.opts.mcpu)
+        if self.opts.relocation_model is not None:
+            target_llcflags.append('-relocation-model')
+            target_llcflags.append(self.opts.relocation_model)
+        if self.opts.disable_fp_elim:
+            target_llcflags.append('-disable-fp-elim')
+            make_variables['TARGET_LLCFLAGS'] = ' '.join(target_llcflags)
+
+        # Set up environment overrides if requested, to effectively
+        # run under the specified Darwin iOS simulator.
+        #
+        # See /D/P/../Developer/Tools/RunPlatformUnitTests.
+        if self.opts.ios_simulator_sdk is not None:
+            make_variables['EXECUTION_ENVIRONMENT_OVERRIDES'] = ' '.join(
+                ['DYLD_FRAMEWORK_PATH="%s"' % self.opts.ios_simulator_sdk,
+                 'DYLD_LIBRARY_PATH=""',
+                 'DYLD_ROOT_PATH="%s"' % self.opts.ios_simulator_sdk,
+                 'DYLD_NEW_LOCAL_SHARED_REGIONS=YES',
+                 'DYLD_NO_FIX_PREBINDING=YES',
+                 'IPHONE_SIMULATOR_ROOT="%s"' % self.opts.ios_simulator_sdk,
+                 'CFFIXED_USER_HOME="%s"' % os.path.expanduser(
+                     "~/Library/Application Support/iPhone Simulator/User")])
+
+        # Pick apart the build mode.
+        build_mode = self.opts.build_mode
+        if build_mode.startswith("Debug"):
+            build_mode = build_mode[len("Debug"):]
+            make_variables['ENABLE_OPTIMIZED'] = '0'
+        elif build_mode.startswith("Unoptimized"):
+            build_mode = build_mode[len("Unoptimized"):]
+            make_variables['ENABLE_OPTIMIZED'] = '0'
+        elif build_mode.startswith("Release"):
+            build_mode = build_mode[len("Release"):]
+            make_variables['ENABLE_OPTIMIZED'] = '1'
+        else:
+            fatal('invalid build mode: %r' % self.opts.build_mode)
+
+        while build_mode:
+            for (name, key) in (('+Asserts', 'ENABLE_ASSERTIONS'),
+                               ('+Checks', 'ENABLE_EXPENSIVE_CHECKS'),
+                               ('+Coverage', 'ENABLE_COVERAGE'),
+                               ('+Debug', 'DEBUG_SYMBOLS'),
+                               ('+Profile', 'ENABLE_PROFILING')):
+                if build_mode.startswith(name):
+                    build_mode = build_mode[len(name):]
+                    make_variables[key] = '1'
+                    break
+                else:
+                    fatal('invalid build mode: %r' % self.opts.build_mode)
+
+        # Assertions are disabled by default.
+        if 'ENABLE_ASSERTIONS' in make_variables:
+            del make_variables['ENABLE_ASSERTIONS']
+        else:
+            make_variables['DISABLE_ASSERTIONS'] = '1'
+
+        # Set the optimization level options.
+        make_variables['OPTFLAGS'] = self.opts.optimize_option
+        if self.opts.optimize_option == '-Os':
+            make_variables['LLI_OPTFLAGS'] = '-O2'
+            make_variables['LLC_OPTFLAGS'] = '-O2'
+        else:
+            make_variables['LLI_OPTFLAGS'] = self.opts.optimize_option
+            make_variables['LLC_OPTFLAGS'] = self.opts.optimize_option
+
+        # Set test selection variables.
+        if not self.opts.test_cxx:
+            make_variables['DISABLE_CXX'] = '1'
+        if not self.opts.test_jit:
+            make_variables['DISABLE_JIT'] = '1'
+        if not self.opts.test_llc:
+            make_variables['DISABLE_LLC'] = '1'
+        if not self.opts.test_lto:
+            make_variables['DISABLE_LTO'] = '1'
+        if self.opts.test_llcbeta:
+            make_variables['ENABLE_LLCBETA'] = '1'
+        if self.opts.test_small:
+            make_variables['SMALL_PROBLEM_SIZE'] = '1'
+        if self.opts.test_large:
+            if self.opts.test_small:
+                fatal('the --small and --large options are mutually exclusive')
+            make_variables['LARGE_PROBLEM_SIZE'] = '1'
+        if self.opts.test_integrated_as:
+            make_variables['TEST_INTEGRATED_AS'] = '1'
+            if self.opts.liblto_path:
+                make_variables['LD_ENV_OVERRIDES'] = (
+                    'env DYLD_LIBRARY_PATH=%s' % os.path.dirname(
+                        self.opts.liblto_path))
+
+        if self.opts.threads > 1 or self.opts.build_threads > 1:
+            make_variables['ENABLE_PARALLEL_REPORT'] = '1'
+
+        # Select the test style to use.
+        if self.opts.test_style == "simple":
+            # We always use reference outputs with TEST=simple.
+            make_variables['ENABLE_HASHED_PROGRAM_OUTPUT'] = '1'
+            make_variables['USE_REFERENCE_OUTPUT'] = '1'
+            make_variables['TEST'] = self.opts.test_style
+
+        # Set CC_UNDER_TEST_IS_CLANG when appropriate.
+        if cc_info.get('cc_name') in ('apple_clang', 'clang'):
+            make_variables['CC_UNDER_TEST_IS_CLANG'] = '1'
+        elif cc_info.get('cc_name') in ('llvm-gcc',):
+            make_variables['CC_UNDER_TEST_IS_LLVM_GCC'] = '1'
+        elif cc_info.get('cc_name') in ('gcc',):
+            make_variables['CC_UNDER_TEST_IS_GCC'] = '1'
+
+        # Convert the target arch into a make variable, to allow more
+        # target based specialization (e.g.,
+        # CC_UNDER_TEST_TARGET_IS_ARMV7).
+        if '-' in cc_info.get('cc_target', ''):
+            arch_name = cc_info.get('cc_target').split('-', 1)[0]
+            make_variables['CC_UNDER_TEST_TARGET_IS_' + arch_name.upper()] = '1'
+
+        # Set LLVM_RELEASE_IS_PLUS_ASSERTS when appropriate, to allow
+        # testing older LLVM source trees.
+        llvm_source_version = self.llvm_source_version
+        if (llvm_source_version and llvm_source_version.isdigit() and
+            int(llvm_source_version) < 107758):
+            make_variables['LLVM_RELEASE_IS_PLUS_ASSERTS'] = 1
+
+        # Set ARCH appropriately, based on the inferred target.
+        #
+        # FIXME: We should probably be more strict about this.
+        cc_target = cc_info.get('cc_target')
+        llvm_arch = self.opts.llvm_arch
+        if cc_target and llvm_arch is None:
+            # cc_target is expected to be a (GCC style) target
+            # triple. Pick out the arch component, and then try to
+            # convert it to an LLVM nightly test style architecture
+            # name, which is of course totally different from all of
+            # GCC names, triple names, LLVM target names, and LLVM
+            # triple names. Stupid world.
+            #
+            # FIXME: Clean this up once everyone is on 'lnt runtest
+            # nt' style nightly testing.
+            arch = cc_target.split('-', 1)[0].lower()
+            if (len(arch) == 4 and arch[0] == 'i' and arch.endswith('86') and
+                arch[1] in '3456789'): # i[3-9]86
+                llvm_arch = 'x86'
+            elif arch in ('x86_64', 'amd64'):
+                llvm_arch = 'x86_64'
+            elif arch in ('powerpc', 'powerpc64', 'ppu'):
+                llvm_arch = 'PowerPC'
+            elif (arch == 'arm' or arch.startswith('armv') or
+                  arch == 'thumb' or arch.startswith('thumbv') or
+                  arch == 'xscale'):
+                llvm_arch = 'ARM'
+            elif arch.startswith('alpha'):
+                llvm_arch = 'Alpha'
+            elif arch.startswith('sparc'):
+                llvm_arch = 'Sparc'
+            elif arch in ('mips', 'mipsel'):
+                llvm_arch = 'Mips'
+
+        if llvm_arch is not None:
+            make_variables['ARCH'] = llvm_arch
+        else:
+            warning("unable to infer ARCH, some tests may not run correctly!")
+
+        # Add in any additional make flags passed in via --make-param.
+        for entry in self.opts.make_parameters:
+            if '=' not in entry:
+                name, value = entry,''
+            else:
+                name, value = entry.split('=', 1)
+                print "make", name, value
+                make_variables[name] = value
+
+                
+        # Set remote execution variables, if used.
+        if self.opts.remote:
+            # make a copy of args for report, without remote options.
+            public_vars = make_variables.copy()
+            make_variables['REMOTE_HOST'] = self.opts.remote_host
+            make_variables['REMOTE_USER'] = self.opts.remote_user
+            make_variables['REMOTE_PORT'] = str(self.opts.remote_port)
+            make_variables['REMOTE_CLIENT'] = self.opts.remote_client
+        else:
+            public_vars = make_variables
+
+        return make_variables, public_vars
         
 ###
 
@@ -64,12 +403,12 @@ def resolve_command_path(name):
     # If that failed just return the original name.
     return name
 
-def scan_for_test_modules(opts):
-    base_modules_path = os.path.join(opts.test_suite_root, 'LNTBased')
-    if opts.only_test is None:
+def scan_for_test_modules(config):
+    base_modules_path = os.path.join(config.test_suite_root, 'LNTBased')
+    if config.only_test is None:
         test_modules_path = base_modules_path
-    elif opts.only_test.startswith('LNTBased'):
-        test_modules_path = os.path.join(opts.test_suite_root, opts.only_test)
+    elif config.only_test.startswith('LNTBased'):
+        test_modules_path = os.path.join(config.test_suite_root, config.only_test)
     else:
         return
 
@@ -80,7 +419,7 @@ def scan_for_test_modules(opts):
     for dirpath,dirnames,filenames in os.walk(test_modules_path,
                                               followlinks = True):
         # Ignore the example tests, unless requested.
-        if not opts.include_test_examples and 'Examples' in dirnames:
+        if not config.include_test_examples and 'Examples' in dirnames:
             dirnames.remove('Examples')
 
         # Check if this directory defines a test module.
@@ -121,7 +460,7 @@ def execute_command(test_log, basedir, args, report_dir):
 
 # FIXME: Support duplicate logfiles to global directory.
 def execute_test_modules(test_log, test_modules, test_module_variables,
-                         basedir, opts):
+                         basedir, config):
     # For now, we don't execute these in parallel, but we do forward the
     # parallel build options to the test.
     test_modules.sort()
@@ -131,7 +470,7 @@ def execute_test_modules(test_log, test_modules, test_module_variables,
     for name in test_modules:
         # First, load the test module file.
         locals = globals = {}
-        test_path = os.path.join(opts.test_suite_root, 'LNTBased', name)
+        test_path = os.path.join(config.test_suite_root, 'LNTBased', name)
         test_obj_path = os.path.join(basedir, 'LNTBased', name)
         module_path = os.path.join(test_path, 'TestModule')
         module_file = open(module_path)
@@ -189,7 +528,7 @@ def execute_test_modules(test_log, test_modules, test_module_variables,
 
     return results
 
-def compute_test_module_variables(make_variables, opts):
+def compute_test_module_variables(make_variables, config):
     # Set the test module options, which we try and restrict to a tighter subset
     # than what we pass to the LNT makefiles.
     test_module_variables = {
@@ -201,7 +540,7 @@ def compute_test_module_variables(make_variables, opts):
                       make_variables['OPTFLAGS']) }
 
     # Add the remote execution variables.
-    if opts.remote:
+    if config.remote:
         test_module_variables['REMOTE_HOST'] = make_variables['REMOTE_HOST']
         test_module_variables['REMOTE_USER'] = make_variables['REMOTE_USER']
         test_module_variables['REMOTE_PORT'] = make_variables['REMOTE_PORT']
@@ -225,19 +564,20 @@ def compute_test_module_variables(make_variables, opts):
 
     # We pass the test execution values as variables too, this might be better
     # passed as actual arguments.
-    test_module_variables['THREADS'] = opts.threads
-    test_module_variables['BUILD_THREADS'] = opts.build_threads or opts.threads
-
+    test_module_variables['THREADS'] = config.threads
+    test_module_variables['BUILD_THREADS'] = config.build_threads or \
+                                             config.threads
     return test_module_variables
 
-def execute_nt_tests(test_log, make_variables, basedir, opts, report_dir):
+def execute_nt_tests(test_log, make_variables, basedir, config):
+    report_dir = config.report_dir
     common_args = ['make', '-k']
     common_args.extend('%s=%s' % (k,v) for k,v in make_variables.items())
-    if opts.only_test is not None:
-        common_args.extend(['-C',opts.only_test])
+    if config.only_test is not None:
+        common_args.extend(['-C',config.only_test])
 
     # If we are using isolation, run under sandbox-exec.
-    if opts.use_isolation:
+    if config.use_isolation:
         # Write out the sandbox profile.
         sandbox_profile_path = os.path.join(basedir, "isolation.sb")
         print >>sys.stderr, "%s: creating sandbox profile %r" % (
@@ -267,20 +607,20 @@ def execute_nt_tests(test_log, make_variables, basedir, opts, report_dir):
         common_args = ['sandbox-exec', '-f', sandbox_profile_path] + common_args
 
     # Run a separate 'make build' step if --build-threads was given.
-    if opts.build_threads > 0:
-      args = common_args + ['-j', str(opts.build_threads), 'build']
+    if config.build_threads > 0:
+      args = common_args + ['-j', str(config.build_threads), 'build']
       print >>test_log, '%s: running: %s' % (timestamp(),
                                              ' '.join('"%s"' % a
                                                       for a in args))
       test_log.flush()
 
       print >>sys.stderr, '%s: building "nightly tests" with -j%u...' % (
-          timestamp(), opts.build_threads)
+          timestamp(), config.build_threads)
       res = execute_command(test_log, basedir, args, report_dir)
 
     # Then 'make report'.
-    args = common_args + ['-j', str(opts.threads),
-        'report', 'report.%s.csv' % opts.test_style]
+    args = common_args + ['-j', str(config.threads),
+        'report', 'report.%s.csv' % config.test_style]
     print >>test_log, '%s: running: %s' % (timestamp(),
                                            ' '.join('"%s"' % a
                                                     for a in args))
@@ -290,7 +630,7 @@ def execute_nt_tests(test_log, make_variables, basedir, opts, report_dir):
     # somehow MACOSX_DEPLOYMENT_TARGET gets injected into the environment on OS
     # X (which changes the driver behavior and causes generally weirdness).
     print >>sys.stderr, '%s: executing "nightly tests" with -j%u...' % (
-        timestamp(), opts.threads)
+        timestamp(), config.threads)
 
     res = execute_command(test_log, basedir, args, report_dir)
 
@@ -402,311 +742,133 @@ def load_nt_report_file(report_path, opts):
 
     return test_samples
 
-def compute_run_make_variables(opts, llvm_source_version, target_flags,
-                               cc_info):
-    # Set the make variables to use.
-    make_variables = {
-        'TARGET_CC' : opts.cc_reference,
-        'TARGET_CXX' : opts.cxx_reference,
-        'TARGET_LLVMGCC' : opts.cc_under_test,
-        'TARGET_LLVMGXX' : opts.cxx_under_test,
-        'TARGET_FLAGS' : ' '.join(target_flags),
-        }
-
-    # Compute TARGET_LLCFLAGS, for TEST=nightly runs.
-    if opts.test_style == "nightly":
-        # Compute TARGET_LLCFLAGS.
-        target_llcflags = []
-        if opts.mcpu is not None:
-            target_llcflags.append('-mcpu')
-            target_llcflags.append(opts.mcpu)
-        if opts.relocation_model is not None:
-            target_llcflags.append('-relocation-model')
-            target_llcflags.append(opts.relocation_model)
-        if opts.disable_fp_elim:
-            target_llcflags.append('-disable-fp-elim')
-        make_variables['TARGET_LLCFLAGS'] = ' '.join(target_llcflags)
-
-    # Set up environment overrides if requested, to effectively run under the
-    # specified Darwin iOS simulator.
-    #
-    # See /D/P/../Developer/Tools/RunPlatformUnitTests.
-    if opts.ios_simulator_sdk is not None:
-        make_variables['EXECUTION_ENVIRONMENT_OVERRIDES'] = ' '.join(
-            ['DYLD_FRAMEWORK_PATH="%s"' % opts.ios_simulator_sdk,
-             'DYLD_LIBRARY_PATH=""',
-             'DYLD_ROOT_PATH="%s"' % opts.ios_simulator_sdk,
-             'DYLD_NEW_LOCAL_SHARED_REGIONS=YES',
-             'DYLD_NO_FIX_PREBINDING=YES',
-             'IPHONE_SIMULATOR_ROOT="%s"' % opts.ios_simulator_sdk,
-             'CFFIXED_USER_HOME="%s"' % os.path.expanduser(
-                    "~/Library/Application Support/iPhone Simulator/User")])
-
-    # Pick apart the build mode.
-    build_mode = opts.build_mode
-    if build_mode.startswith("Debug"):
-        build_mode = build_mode[len("Debug"):]
-        make_variables['ENABLE_OPTIMIZED'] = '0'
-    elif build_mode.startswith("Unoptimized"):
-        build_mode = build_mode[len("Unoptimized"):]
-        make_variables['ENABLE_OPTIMIZED'] = '0'
-    elif build_mode.startswith("Release"):
-        build_mode = build_mode[len("Release"):]
-        make_variables['ENABLE_OPTIMIZED'] = '1'
-    else:
-        fatal('invalid build mode: %r' % opts.build_mode)
-
-    while build_mode:
-        for (name,key) in (('+Asserts', 'ENABLE_ASSERTIONS'),
-                           ('+Checks', 'ENABLE_EXPENSIVE_CHECKS'),
-                           ('+Coverage', 'ENABLE_COVERAGE'),
-                           ('+Debug', 'DEBUG_SYMBOLS'),
-                           ('+Profile', 'ENABLE_PROFILING')):
-            if build_mode.startswith(name):
-                build_mode = build_mode[len(name):]
-                make_variables[key] = '1'
-                break
-        else:
-            fatal('invalid build mode: %r' % opts.build_mode)
-
-    # Assertions are disabled by default.
-    if 'ENABLE_ASSERTIONS' in make_variables:
-        del make_variables['ENABLE_ASSERTIONS']
-    else:
-        make_variables['DISABLE_ASSERTIONS'] = '1'
-
-    # Set the optimization level options.
-    make_variables['OPTFLAGS'] = opts.optimize_option
-    if opts.optimize_option == '-Os':
-        make_variables['LLI_OPTFLAGS'] = '-O2'
-        make_variables['LLC_OPTFLAGS'] = '-O2'
-    else:
-        make_variables['LLI_OPTFLAGS'] = opts.optimize_option
-        make_variables['LLC_OPTFLAGS'] = opts.optimize_option
-
-    # Set test selection variables.
-    if not opts.test_cxx:
-        make_variables['DISABLE_CXX'] = '1'
-    if not opts.test_jit:
-        make_variables['DISABLE_JIT'] = '1'
-    if not opts.test_llc:
-        make_variables['DISABLE_LLC'] = '1'
-    if not opts.test_lto:
-        make_variables['DISABLE_LTO'] = '1'
-    if opts.test_llcbeta:
-        make_variables['ENABLE_LLCBETA'] = '1'
-    if opts.test_small:
-        make_variables['SMALL_PROBLEM_SIZE'] = '1'
-    if opts.test_large:
-        if opts.test_small:
-          fatal('the --small and --large options are mutually exclusive')
-        make_variables['LARGE_PROBLEM_SIZE'] = '1'
-    if opts.test_integrated_as:
-        make_variables['TEST_INTEGRATED_AS'] = '1'
-    if opts.liblto_path:
-        make_variables['LD_ENV_OVERRIDES'] = (
-            'env DYLD_LIBRARY_PATH=%s' % os.path.dirname(
-                opts.liblto_path))
-
-    if opts.threads > 1 or opts.build_threads > 1:
-        make_variables['ENABLE_PARALLEL_REPORT'] = '1'
-
-    # Select the test style to use.
-    if opts.test_style == "simple":
-        # We always use reference outputs with TEST=simple.
-        make_variables['ENABLE_HASHED_PROGRAM_OUTPUT'] = '1'
-        make_variables['USE_REFERENCE_OUTPUT'] = '1'
-    make_variables['TEST'] = opts.test_style
-
-    # Set CC_UNDER_TEST_IS_CLANG when appropriate.
-    if cc_info.get('cc_name') in ('apple_clang', 'clang'):
-        make_variables['CC_UNDER_TEST_IS_CLANG'] = '1'
-    elif cc_info.get('cc_name') in ('llvm-gcc',):
-        make_variables['CC_UNDER_TEST_IS_LLVM_GCC'] = '1'
-    elif cc_info.get('cc_name') in ('gcc',):
-        make_variables['CC_UNDER_TEST_IS_GCC'] = '1'
-
-    # Convert the target arch into a make variable, to allow more target based
-    # specialization (e.g., CC_UNDER_TEST_TARGET_IS_ARMV7).
-    if '-' in cc_info.get('cc_target', ''):
-        arch_name = cc_info.get('cc_target').split('-',1)[0]
-        make_variables['CC_UNDER_TEST_TARGET_IS_' + arch_name.upper()] = '1'
-
-    # Set LLVM_RELEASE_IS_PLUS_ASSERTS when appropriate, to allow testing older
-    # LLVM source trees.
-    if (llvm_source_version and llvm_source_version.isdigit() and
-        int(llvm_source_version) < 107758):
-        make_variables['LLVM_RELEASE_IS_PLUS_ASSERTS'] = 1
-
-    # Set ARCH appropriately, based on the inferred target.
-    #
-    # FIXME: We should probably be more strict about this.
-    cc_target = cc_info.get('cc_target')
-    llvm_arch = opts.llvm_arch
-    if cc_target and llvm_arch is None:
-        # cc_target is expected to be a (GCC style) target triple. Pick out the
-        # arch component, and then try to convert it to an LLVM nightly test
-        # style architecture name, which is of course totally different from all
-        # of GCC names, triple names, LLVM target names, and LLVM triple
-        # names. Stupid world.
-        #
-        # FIXME: Clean this up once everyone is on 'lnt runtest nt' style
-        # nightly testing.
-        arch = cc_target.split('-',1)[0].lower()
-        if (len(arch) == 4 and arch[0] == 'i' and arch.endswith('86') and
-            arch[1] in '3456789'): # i[3-9]86
-            llvm_arch = 'x86'
-        elif arch in ('x86_64', 'amd64'):
-            llvm_arch = 'x86_64'
-        elif arch in ('powerpc', 'powerpc64', 'ppu'):
-            llvm_arch = 'PowerPC'
-        elif (arch == 'arm' or arch.startswith('armv') or
-              arch == 'thumb' or arch.startswith('thumbv') or
-              arch == 'xscale'):
-            llvm_arch = 'ARM'
-        elif arch.startswith('alpha'):
-            llvm_arch = 'Alpha'
-        elif arch.startswith('sparc'):
-            llvm_arch = 'Sparc'
-        elif arch in ('mips', 'mipsel'):
-            llvm_arch = 'Mips'
-
-    if llvm_arch is not None:
-        make_variables['ARCH'] = llvm_arch
-    else:
-        warning("unable to infer ARCH, some tests may not run correctly!")
-
-    # Add in any additional make flags passed in via --make-param.
-    for entry in opts.make_parameters:
-        if '=' not in entry:
-            name,value = entry,''
-        else:
-            name,value = entry.split('=', 1)
-        print "make",name,value
-        make_variables[name] = value
-    
-    return make_variables
-
-def prepare_report_dir(opts, start_time):
+def prepare_report_dir(config):
     # Set up the sandbox.
-    if not os.path.exists(opts.sandbox_path):
+    sandbox_path = config.sandbox_path
+    if not os.path.exists(sandbox_path):
         print >>sys.stderr, "%s: creating sandbox: %r" % (
-            timestamp(), opts.sandbox_path)
-        os.mkdir(opts.sandbox_path)
+            timestamp(), sandbox_path)
+        os.mkdir(sandbox_path)
 
     # Create the per-test directory.
-    if opts.timestamp_build:
-        ts = start_time.replace(' ','_').replace(':','-')
-        build_dir_name = "test-%s" % ts
-    else:
-        build_dir_name = "build"
-    basedir = os.path.join(opts.sandbox_path, build_dir_name)
-
-    # Canonicalize paths, in case we are using e.g. an NFS remote mount.
-    #
-    # FIXME: This should be eliminated, along with the realpath call below.
-    basedir = os.path.realpath(basedir)
-
-    if os.path.exists(basedir):
+    report_dir = config.report_dir
+    if os.path.exists(report_dir):
         needs_clean = True
     else:
         needs_clean = False
-        os.mkdir(basedir)
+        os.mkdir(report_dir)
 
-    # Unless not using timestamps, we require the basedir not to exist.
-    if needs_clean and opts.timestamp_build:
-        fatal('refusing to reuse pre-existing build dir %r' % basedir)
+    # Unless not using timestamps, we require the report dir not to exist.
+    if needs_clean and config.timestamp_build:
+        fatal('refusing to reuse pre-existing build dir %r' % report_dir)
 
-    return basedir
-
-def prepare_build_dir(opts, report_dir, iteration) :
-    # Do nothing in single-sample build, because report_dir and the
-    # build_dir is the same directory.
-    if iteration is None:
-      return report_dir
-
-    # Create the directory for individual iteration.
-    build_dir = report_dir
-
-    build_dir = os.path.join(build_dir, "sample-%d" % iteration)
+def prepare_build_dir(config, iteration) :
     # report_dir is supposed to be canonicalized, so we do not need to
     # call os.path.realpath before mkdir.
+    build_dir = config.build_dir(iteration)
+    if iteration is None:
+        return build_dir
+
     if os.path.exists(build_dir):
         needs_clean = True
     else:
         needs_clean = False
         os.mkdir(build_dir)
-
+        
     # Unless not using timestamps, we require the basedir not to exist.
-    if needs_clean and opts.timestamp_build:
+    if needs_clean and config.timestamp_build:
         fatal('refusing to reuse pre-existing build dir %r' % build_dir)
-
     return build_dir
 
-def run_test(nick_prefix, opts, iteration, report_dir):
+def update_tools(make_variables, config, iteration):
+    """Update the test suite tools. """
+
+    print >>sys.stderr, '%s: building test-suite tools' % (timestamp(),)
+    args = ['make', 'tools']
+    args.extend('%s=%s' % (k,v) for k,v in make_variables.items())
+    build_tools_log_path = os.path.join(config.build_dir(iteration), 
+                                        'build-tools.log')
+    build_tools_log = open(build_tools_log_path, 'w')
+    print >>build_tools_log, '%s: running: %s' % (timestamp(),
+                                                  ' '.join('"%s"' % a
+                                                           for a in args))
+    build_tools_log.flush()
+    res = execute_command(build_tools_log, config.build_dir(iteration), 
+                          args, config.report_dir)
+    build_tools_log.close()
+    if res != 0:
+        fatal('unable to build tools, aborting!')
+
+def configure_test_suite(config, iteration):
+    """Run configure on the test suite."""
+
+    basedir = config.build_dir(iteration)
+    configure_log_path = os.path.join(basedir, 'configure.log')
+    configure_log = open(configure_log_path, 'w')
+
+    args = [os.path.realpath(os.path.join(config.test_suite_root,
+                                              'configure'))]
+    if config.without_llvm:
+        args.extend(['--without-llvmsrc', '--without-llvmobj'])
+    else:
+        args.extend(['--with-llvmsrc=%s' % config.llvm_src_root,
+                     '--with-llvmobj=%s' % config.llvm_obj_root])
+        args.append('--with-externals=%s' % os.path.realpath(
+            config.test_suite_externals))
+    print >>configure_log, '%s: running: %s' % (timestamp(),
+                                                ' '.join('"%s"' % a
+                                                         for a in args))
+    configure_log.flush()
+
+    print >>sys.stderr, '%s: configuring...' % timestamp()
+    res = execute_command(configure_log, basedir, args, config.report_dir)
+    configure_log.close()
+    if res != 0:
+        fatal('configure failed, log is here: %r' % configure_log_path)
+
+def copy_missing_makefiles(config, basedir):
+    """When running with only_test something, makefiles will be missing,
+    so copy them into place. """
+    suffix = ''
+    for component in config.only_test.split('/'):
+        suffix = os.path.join(suffix, component)
+        obj_path = os.path.join(basedir, suffix)
+        src_path = os.path.join(config.test_suite_root, suffix)
+        if not os.path.exists(obj_path):
+            print '%s: initializing test dir %s' % (timestamp(), suffix)
+            os.mkdir(obj_path)
+            shutil.copyfile(os.path.join(src_path, 'Makefile'),
+                            os.path.join(obj_path, 'Makefile'))
+
+def run_test(nick_prefix, iteration, config):
     print >>sys.stderr, "%s: checking source versions" % (
         timestamp(),)
-    if opts.llvm_src_root:
-        llvm_source_version = get_source_version(opts.llvm_src_root)
-    else:
-        llvm_source_version = None
-    test_suite_source_version = get_source_version(opts.test_suite_root)
-
-    # Compute TARGET_FLAGS.
-    target_flags = []
-
-    # FIXME: Eliminate this blanket option.
-    target_flags.extend(opts.cflags)
-
-    # Pass flags to backend.
-    for f in opts.mllvm:
-      target_flags.extend(['-mllvm', f])
-
-    if opts.arch is not None:
-        target_flags.append('-arch')
-        target_flags.append(opts.arch)
-    if opts.isysroot is not None:
-        target_flags.append('-isysroot')
-        target_flags.append(opts.isysroot)
-
-    # Get compiler info.
-    cc_info = lnt.testing.util.compilers.get_cc_info(opts.cc_under_test,
-                                                     target_flags)
-    cc_target = cc_info.get('cc_target')
+    
+    test_suite_source_version = get_source_version(config.test_suite_root)
 
     # Compute the make variables.
-    make_variables = compute_run_make_variables(opts, llvm_source_version,
-                                                target_flags, cc_info)
-
-    # Stash the variables we want to report.
-    public_make_variables = make_variables.copy()
-
-    # Set remote execution variables, if used.
-    if opts.remote:
-        make_variables['REMOTE_HOST'] = opts.remote_host
-        make_variables['REMOTE_USER'] = opts.remote_user
-        make_variables['REMOTE_PORT'] = str(opts.remote_port)
-        make_variables['REMOTE_CLIENT'] = opts.remote_client
+    make_variables, public_make_variables = config.compute_run_make_variables()
 
     # Compute the test module variables, which are a restricted subset of the
     # make variables.
-    test_module_variables = compute_test_module_variables(make_variables, opts)
+    test_module_variables = compute_test_module_variables(make_variables, config)
 
     # Scan for LNT-based test modules.
     print >>sys.stderr, "%s: scanning for LNT-based test modules" % (
         timestamp(),)
-    test_modules = list(scan_for_test_modules(opts))
+    test_modules = list(scan_for_test_modules(config))
     print >>sys.stderr, "%s: found %d LNT-based test modules" % (
         timestamp(), len(test_modules))
 
     nick = nick_prefix
-    if opts.auto_name:
+    if config.auto_name:
         # Construct the nickname from a few key parameters.
+        cc_info = config.cc_info
         cc_nick = '%s_%s' % (cc_info.get('cc_name'), cc_info.get('cc_build'))
         nick += "__%s__%s" % (cc_nick, cc_info.get('cc_target').split('-')[0])
     print >>sys.stderr, "%s: using nickname: %r" % (timestamp(), nick)
 
-    basedir = prepare_build_dir(opts, report_dir, iteration)
+    basedir = prepare_build_dir(config, iteration)
 
     # FIXME: Auto-remove old test directories in the source directory (which
     # cause make horrible fits).
@@ -714,102 +876,56 @@ def run_test(nick_prefix, opts, iteration, report_dir):
     start_time = timestamp()
     print >>sys.stderr, '%s: starting test in %r' % (start_time, basedir)
 
+
     # Configure the test suite.
-    if opts.run_configure or not os.path.exists(os.path.join(
+    if config.run_configure or not os.path.exists(os.path.join(
             basedir, 'Makefile.config')):
-        configure_log_path = os.path.join(basedir, 'configure.log')
-        configure_log = open(configure_log_path, 'w')
-
-        args = [os.path.realpath(os.path.join(opts.test_suite_root,
-                                              'configure'))]
-        if opts.without_llvm:
-            args.extend(['--without-llvmsrc', '--without-llvmobj'])
-        else:
-            args.extend(['--with-llvmsrc=%s' % opts.llvm_src_root,
-                         '--with-llvmobj=%s' % opts.llvm_obj_root])
-        args.append('--with-externals=%s' % os.path.realpath(
-                opts.test_suite_externals))
-        print >>configure_log, '%s: running: %s' % (timestamp(),
-                                                    ' '.join('"%s"' % a
-                                                             for a in args))
-        configure_log.flush()
-
-        print >>sys.stderr, '%s: configuring...' % timestamp()
-        res = execute_command(configure_log, basedir, args, report_dir)
-        configure_log.close()
-        if res != 0:
-            fatal('configure failed, log is here: %r' % configure_log_path)
+        configure_test_suite(config, iteration)
 
     # If running with --only-test, creating any dirs which might be missing and
     # copy Makefiles.
-    if opts.only_test is not None and not opts.only_test.startswith("LNTBased"):
-        suffix = ''
-        for component in opts.only_test.split('/'):
-            suffix = os.path.join(suffix, component)
-            obj_path = os.path.join(basedir, suffix)
-            src_path = os.path.join(opts.test_suite_root, suffix)
-            if not os.path.exists(obj_path):
-                print '%s: initializing test dir %s' % (timestamp(), suffix)
-                os.mkdir(obj_path)
-                shutil.copyfile(os.path.join(src_path, 'Makefile'),
-                                os.path.join(obj_path, 'Makefile'))
+    if config.only_test is not None and not config.only_test.startswith("LNTBased"):
+        copy_missing_makefiles(config, basedir)
 
-    # If running without LLVM, make sure tools are up to date.
-    if opts.without_llvm:
-        print >>sys.stderr, '%s: building test-suite tools' % (timestamp(),)
-        args = ['make', 'tools']
-        args.extend('%s=%s' % (k,v) for k,v in make_variables.items())
-        build_tools_log_path = os.path.join(basedir, 'build-tools.log')
-        build_tools_log = open(build_tools_log_path, 'w')
-        print >>build_tools_log, '%s: running: %s' % (timestamp(),
-                                                      ' '.join('"%s"' % a
-                                                               for a in args))
-        build_tools_log.flush()
-        res = execute_command(build_tools_log, basedir, args, report_dir)
-        build_tools_log.close()
-        if res != 0:
-            fatal('unable to build tools, aborting!')
-        
-    # Always blow away any existing report.
-    report_path = os.path.join(basedir)
-    if opts.only_test is not None:
-        report_path =  os.path.join(report_path, opts.only_test)
-    report_path = os.path.join(report_path, 'report.%s.csv' % opts.test_style)
-    if os.path.exists(report_path):
-        os.remove(report_path)
+    # If running without LLVM, make sure tools are up to date.                
+    if config.without_llvm:
+        update_tools(make_variables, config, iteration)
+ 
+   # Always blow away any existing report.
+    build_report_path = config.build_report_path(iteration)
+    if os.path.exists(build_report_path):
+        os.remove(build_report_path)
 
     # Execute the tests.
-    test_log_path = os.path.join(basedir, 'test.log')
-    test_log = open(test_log_path, 'w')
+    test_log = open(config.test_log_path(iteration), 'w')
 
     # Run the make driven tests if needed.
-    run_nightly_test = (opts.only_test is None or
-                        not opts.only_test.startswith("LNTBased"))
+    run_nightly_test = (config.only_test is None or
+                        not config.only_test.startswith("LNTBased"))
     if run_nightly_test:
-        execute_nt_tests(test_log, make_variables, basedir, opts,
-                         report_dir)
+        execute_nt_tests(test_log, make_variables, basedir, config)
 
     # Run the extension test modules, if needed.
     test_module_results = execute_test_modules(test_log, test_modules,
                                                test_module_variables, basedir,
-                                               opts)
-
+                                               config)
     test_log.close()
 
     end_time = timestamp()
 
     # Load the nightly test samples.
-    if opts.test_style == "simple":
+    if config.test_style == "simple":
         test_namespace = 'nts'
     else:
         test_namespace = 'nightlytest'
     if run_nightly_test:
         print >>sys.stderr, '%s: loading nightly test data...' % timestamp()
         # If nightly test went screwy, it won't have produced a report.
-        if not os.path.exists(report_path):
+        print build_report_path
+        if not os.path.exists(build_report_path):
             fatal('nightly test failed, no report generated')
 
-        test_samples = load_nt_report_file(report_path, opts)
+        test_samples = load_nt_report_file(build_report_path, config)
     else:
         test_samples = []
 
@@ -831,9 +947,9 @@ def run_test(nick_prefix, opts, iteration, report_dir):
     machine_info['hardware'] = capture(["uname","-m"],
                                        include_stderr=True).strip()
     machine_info['os'] = capture(["uname","-sr"], include_stderr=True).strip()
-    if opts.cc_reference is not None:
+    if config.cc_reference is not None:
         machine_info['gcc_version'] = capture(
-            [opts.cc_reference, '--version'],
+            [config.cc_reference, '--version'],
             include_stderr=True).split('\n')[0]
 
     # FIXME: We aren't getting the LLCBETA options.
@@ -846,11 +962,11 @@ def run_test(nick_prefix, opts, iteration, report_dir):
         run_info['sw_vers'] = capture(['sw_vers'], include_stderr=True).strip()
 
     # Query remote properties if in use.
-    if opts.remote:
-        remote_args = [opts.remote_client,
-                       "-l", opts.remote_user,
-                       "-p",  str(opts.remote_port),
-                       opts.remote_host]
+    if config.remote:
+        remote_args = [config.remote_client,
+                       "-l", config.remote_user,
+                       "-p",  str(config.remote_port),
+                       config.remote_host]
         run_info['remote_uname'] = capture(remote_args + ["uname", "-a"],
                                            include_stderr=True).strip()
 
@@ -860,32 +976,32 @@ def run_test(nick_prefix, opts, iteration, report_dir):
                                                  include_stderr=True).strip()
 
     # Add machine dependent info.
-    if opts.use_machdep_info:
+    if config.use_machdep_info:
         machdep_info = machine_info
     else:
         machdep_info = run_info
-
+    
     machdep_info['uname'] = capture(["uname","-a"], include_stderr=True).strip()
     machdep_info['name'] = capture(["uname","-n"], include_stderr=True).strip()
 
     # FIXME: Hack, use better method of getting versions. Ideally, from binaries
     # so we are more likely to be accurate.
-    if llvm_source_version is not None:
-        run_info['llvm_revision'] = llvm_source_version
+    if config.llvm_source_version is not None:
+        run_info['llvm_revision'] = config.llvm_source_version
     run_info['test_suite_revision'] = test_suite_source_version
     run_info.update(public_make_variables)
 
     # Set the run order from the user, if given.
-    if opts.run_order is not None:
-        run_info['run_order'] = opts.run_order
+    if config.run_order is not None:
+        run_info['run_order'] = config.run_order
 
     else:
         # Otherwise, use the inferred run order from the compiler.
         run_info['run_order'] = cc_info['inferred_run_order']
 
     # Add any user specified parameters.
-    for target,params in ((machine_info, opts.machine_parameters),
-                          (run_info, opts.run_parameters)):
+    for target,params in ((machine_info, config.machine_parameters),
+                          (run_info, config.run_parameters)):
         for entry in params:
             if '=' not in entry:
                 name,value = entry,''
@@ -898,7 +1014,7 @@ def run_test(nick_prefix, opts, iteration, report_dir):
             target[name] = value
 
     # Generate the test report.
-    lnt_report_path = os.path.join(basedir, 'report.json')
+    lnt_report_path = config.report_path(iteration)
     print >>sys.stderr, '%s: generating report: %r' % (timestamp(),
                                                        lnt_report_path)
     machine = lnt.testing.Machine(nick, machine_info)
@@ -1317,8 +1433,8 @@ class NTTest(builtintest.BuiltinTest):
 
         # FIXME: We need to validate that there is no configured output in the
         # test-suite directory, that borks things. <rdar://problem/7876418>
-
-        report_dir = prepare_report_dir(opts, timestamp())
+        config = TestConfiguration(opts, timestamp())
+        prepare_report_dir(config)
 
         # Multisample, if requested.
         if opts.multisample is not None:
@@ -1328,7 +1444,7 @@ class NTTest(builtintest.BuiltinTest):
             for i in range(opts.multisample):
                 print >>sys.stderr, "%s: (multisample) running iteration %d" % (
                     timestamp(), i)
-                report = run_test(nick, opts, i, report_dir)
+                report = run_test(nick, i, config)
                 reports.append(report)
 
             # Create the merged report.
@@ -1343,7 +1459,7 @@ class NTTest(builtintest.BuiltinTest):
                                 for r in reports], [])
 
             # Write out the merged report.
-            lnt_report_path = os.path.join(report_dir, 'report.json')
+            lnt_report_path = os.path.join(config.report_dir, 'report.json')
             report = lnt.testing.Report(machine, run, test_samples)
             lnt_report_file = open(lnt_report_path, 'w')
             print >>lnt_report_file,report.render()
@@ -1351,7 +1467,7 @@ class NTTest(builtintest.BuiltinTest):
 
             return report
 
-        report = run_test(nick, opts, None, report_dir)
+        report = run_test(nick, None, config)
         return report
 
 def create_instance():
