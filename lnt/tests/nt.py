@@ -955,7 +955,7 @@ def run_test(nick_prefix, iteration, config):
     # FIXME: We aren't getting the LLCBETA options.
     run_info = {}
     run_info['tag'] = test_namespace
-    run_info.update(cc_info)
+    run_info.update(config.cc_info)
 
     # Capture sw_vers if this looks like Darwin.
     if 'Darwin' in machine_info['os']:
