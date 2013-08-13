@@ -997,7 +997,7 @@ def run_test(nick_prefix, iteration, config):
 
     else:
         # Otherwise, use the inferred run order from the compiler.
-        run_info['run_order'] = cc_info['inferred_run_order']
+        run_info['run_order'] = config.cc_info['inferred_run_order']
 
     # Add any user specified parameters.
     for target,params in ((machine_info, config.machine_parameters),
