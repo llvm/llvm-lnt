@@ -288,10 +288,10 @@ class TestConfiguration(object):
             make_variables['LARGE_PROBLEM_SIZE'] = '1'
         if self.opts.test_integrated_as:
             make_variables['TEST_INTEGRATED_AS'] = '1'
-            if self.opts.liblto_path:
-                make_variables['LD_ENV_OVERRIDES'] = (
-                    'env DYLD_LIBRARY_PATH=%s' % os.path.dirname(
-                        self.opts.liblto_path))
+        if self.opts.liblto_path:
+            make_variables['LD_ENV_OVERRIDES'] = (
+                'env DYLD_LIBRARY_PATH=%s' % os.path.dirname(
+                    self.opts.liblto_path))
 
         if self.opts.threads > 1 or self.opts.build_threads > 1:
             make_variables['ENABLE_PARALLEL_REPORT'] = '1'
