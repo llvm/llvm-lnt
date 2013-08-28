@@ -813,8 +813,11 @@ def configure_test_suite(config, iteration):
     else:
         args.extend(['--with-llvmsrc=%s' % config.llvm_src_root,
                      '--with-llvmobj=%s' % config.llvm_obj_root])
-        args.append('--with-externals=%s' % os.path.realpath(
-            config.test_suite_externals))
+
+    if config.test_suite_externals:
+        args.append('--with-externals=%s' %
+                    os.path.realpath(config.test_suite_externals))
+
     print >>configure_log, '%s: running: %s' % (timestamp(),
                                                 ' '.join('"%s"' % a
                                                          for a in args))
