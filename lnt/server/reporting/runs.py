@@ -70,7 +70,9 @@ def generate_run_report(run, baseurl, only_html_body = False,
         ts, runs_to_load, aggregation_fn)
 
     # Get the test names, primary fields and total test counts.
-    test_names = ts.query(ts.Test.name, ts.Test.id).order_by(ts.Test.name).all()
+    test_names = ts.query(ts.Test.name, ts.Test.id).\
+        order_by(ts.Test.name).\
+        filter(ts.Test.id.in_(sri.get_test_ids())).all()
     primary_fields = list(ts.Sample.get_primary_fields())
     num_total_tests = len(primary_fields) * len(test_names)
 
