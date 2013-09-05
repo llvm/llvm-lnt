@@ -62,7 +62,9 @@ class TestConfiguration(object):
         opts -- the command line options object
         start_time -- the time the program was invoked as a string
         """
+        assert type(opts) == dict, "Options must be a dict."
         self.opts = opts
+        self.__dict__.update(opts)
         self.start_time = start_time
         
         # Report directory cache.
@@ -71,11 +73,6 @@ class TestConfiguration(object):
         self._cc_info = None
         # Getting compiler version spawns subprocesses, cache it.
         self._get_source_version = None
-
-    def __getattr__(self, attr):
-        """Provide direct access to the options when we don't provide a
-        configuration directly."""
-        return getattr(self.opts, attr)
 
     @property
     def report_dir(self):
@@ -90,7 +87,7 @@ class TestConfiguration(object):
             build_dir_name = "test-%s" % ts
         else:
             build_dir_name = "build"
-        basedir = os.path.join(self.opts.sandbox_path, build_dir_name)
+        basedir = os.path.join(self.sandbox_path, build_dir_name)
         # Canonicalize paths, in case we are using e.g. an NFS remote mount.
         #
         # FIXME: This should be eliminated, along with the realpath call below.
@@ -122,18 +119,18 @@ class TestConfiguration(object):
         target_flags = []
 
         # FIXME: Eliminate this blanket option.
-        target_flags.extend(self.opts.cflags)
+        target_flags.extend(self.cflags)
 
         # Pass flags to backend.
-        for f in self.opts.mllvm:
+        for f in self.mllvm:
             target_flags.extend(['-mllvm', f])
 
-        if self.opts.arch is not None:
+        if self.arch is not None:
             target_flags.append('-arch')
-            target_flags.append(self.opts.arch)
-        if self.opts.isysroot is not None:
+            target_flags.append(self.arch)
+        if self.isysroot is not None:
             target_flags.append('-isysroot')
-            target_flags.append(self.opts.isysroot)
+            target_flags.append(self.isysroot)
         return target_flags
 
     @property
@@ -144,7 +141,7 @@ class TestConfiguration(object):
         """
         if self._cc_info is None:
             self._cc_info = lnt.testing.util.compilers.get_cc_info( \
-                                                    self.opts.cc_under_test,
+                                                    self.cc_under_test,
                                                     self.target_flags)
         return self._cc_info
 
@@ -158,10 +155,10 @@ class TestConfiguration(object):
     @property
     def llvm_source_version(self):
         """The version of llvm from llvm_src_root."""
-        if self.opts.llvm_src_root:
+        if self.llvm_src_root:
             if self._get_source_version is None:
                 self._get_source_version  = get_source_version(
-                    self.opts.llvm_src_root)
+                    self.llvm_src_root)
             return self._get_source_version
         else:
             return None
@@ -171,10 +168,10 @@ class TestConfiguration(object):
         will produce.
         iteration -- the multisample iteration number otherwise None."""
         report_path = os.path.join(self.build_dir(iteration))
-        if self.opts.only_test is not None:
-            report_path =  os.path.join(report_path, self.opts.only_test)
+        if self.only_test is not None:
+            report_path =  os.path.join(report_path, self.only_test)
         report_path = os.path.join(report_path, 'report.%s.csv' % \
-                                   self.opts.test_style)
+                                   self.test_style)
         return report_path
 
     def test_log_path(self, iteration):
@@ -191,24 +188,24 @@ class TestConfiguration(object):
         cc_info = self.cc_info
         # Set the make variables to use.
         make_variables = {
-            'TARGET_CC' : self.opts.cc_reference,
-            'TARGET_CXX' : self.opts.cxx_reference,
-            'TARGET_LLVMGCC' : self.opts.cc_under_test,
-            'TARGET_LLVMGXX' : self.opts.cxx_under_test,
+            'TARGET_CC' : self.cc_reference,
+            'TARGET_CXX' : self.cxx_reference,
+            'TARGET_LLVMGCC' : self.cc_under_test,
+            'TARGET_LLVMGXX' : self.cxx_under_test,
             'TARGET_FLAGS' : ' '.join(self.target_flags),
         }
 
         # Compute TARGET_LLCFLAGS, for TEST=nightly runs.
-        if self.opts.test_style == "nightly":
+        if self.test_style == "nightly":
             # Compute TARGET_LLCFLAGS.
             target_llcflags = []
-        if self.opts.mcpu is not None:
+        if self.mcpu is not None:
             target_llcflags.append('-mcpu')
-            target_llcflags.append(self.opts.mcpu)
-        if self.opts.relocation_model is not None:
+            target_llcflags.append(self.mcpu)
+        if self.relocation_model is not None:
             target_llcflags.append('-relocation-model')
-            target_llcflags.append(self.opts.relocation_model)
-        if self.opts.disable_fp_elim:
+            target_llcflags.append(self.relocation_model)
+        if self.disable_fp_elim:
             target_llcflags.append('-disable-fp-elim')
             make_variables['TARGET_LLCFLAGS'] = ' '.join(target_llcflags)
 
@@ -216,19 +213,19 @@ class TestConfiguration(object):
         # run under the specified Darwin iOS simulator.
         #
         # See /D/P/../Developer/Tools/RunPlatformUnitTests.
-        if self.opts.ios_simulator_sdk is not None:
+        if self.ios_simulator_sdk is not None:
             make_variables['EXECUTION_ENVIRONMENT_OVERRIDES'] = ' '.join(
-                ['DYLD_FRAMEWORK_PATH="%s"' % self.opts.ios_simulator_sdk,
+                ['DYLD_FRAMEWORK_PATH="%s"' % self.ios_simulator_sdk,
                  'DYLD_LIBRARY_PATH=""',
-                 'DYLD_ROOT_PATH="%s"' % self.opts.ios_simulator_sdk,
+                 'DYLD_ROOT_PATH="%s"' % self.ios_simulator_sdk,
                  'DYLD_NEW_LOCAL_SHARED_REGIONS=YES',
                  'DYLD_NO_FIX_PREBINDING=YES',
-                 'IPHONE_SIMULATOR_ROOT="%s"' % self.opts.ios_simulator_sdk,
+                 'IPHONE_SIMULATOR_ROOT="%s"' % self.ios_simulator_sdk,
                  'CFFIXED_USER_HOME="%s"' % os.path.expanduser(
                      "~/Library/Application Support/iPhone Simulator/User")])
 
         # Pick apart the build mode.
-        build_mode = self.opts.build_mode
+        build_mode = self.build_mode
         if build_mode.startswith("Debug"):
             build_mode = build_mode[len("Debug"):]
             make_variables['ENABLE_OPTIMIZED'] = '0'
@@ -239,7 +236,7 @@ class TestConfiguration(object):
             build_mode = build_mode[len("Release"):]
             make_variables['ENABLE_OPTIMIZED'] = '1'
         else:
-            fatal('invalid build mode: %r' % self.opts.build_mode)
+            fatal('invalid build mode: %r' % self.build_mode)
 
         while build_mode:
             for (name, key) in (('+Asserts', 'ENABLE_ASSERTIONS'),
@@ -252,7 +249,7 @@ class TestConfiguration(object):
                     make_variables[key] = '1'
                     break
                 else:
-                    fatal('invalid build mode: %r' % self.opts.build_mode)
+                    fatal('invalid build mode: %r' % self.build_mode)
 
         # Assertions are disabled by default.
         if 'ENABLE_ASSERTIONS' in make_variables:
@@ -261,47 +258,47 @@ class TestConfiguration(object):
             make_variables['DISABLE_ASSERTIONS'] = '1'
 
         # Set the optimization level options.
-        make_variables['OPTFLAGS'] = self.opts.optimize_option
-        if self.opts.optimize_option == '-Os':
+        make_variables['OPTFLAGS'] = self.optimize_option
+        if self.optimize_option == '-Os':
             make_variables['LLI_OPTFLAGS'] = '-O2'
             make_variables['LLC_OPTFLAGS'] = '-O2'
         else:
-            make_variables['LLI_OPTFLAGS'] = self.opts.optimize_option
-            make_variables['LLC_OPTFLAGS'] = self.opts.optimize_option
+            make_variables['LLI_OPTFLAGS'] = self.optimize_option
+            make_variables['LLC_OPTFLAGS'] = self.optimize_option
 
         # Set test selection variables.
-        if not self.opts.test_cxx:
+        if not self.test_cxx:
             make_variables['DISABLE_CXX'] = '1'
-        if not self.opts.test_jit:
+        if not self.test_jit:
             make_variables['DISABLE_JIT'] = '1'
-        if not self.opts.test_llc:
+        if not self.test_llc:
             make_variables['DISABLE_LLC'] = '1'
-        if not self.opts.test_lto:
+        if not self.test_lto:
             make_variables['DISABLE_LTO'] = '1'
-        if self.opts.test_llcbeta:
+        if self.test_llcbeta:
             make_variables['ENABLE_LLCBETA'] = '1'
-        if self.opts.test_small:
+        if self.test_small:
             make_variables['SMALL_PROBLEM_SIZE'] = '1'
-        if self.opts.test_large:
-            if self.opts.test_small:
+        if self.test_large:
+            if self.test_small:
                 fatal('the --small and --large options are mutually exclusive')
             make_variables['LARGE_PROBLEM_SIZE'] = '1'
-        if self.opts.test_integrated_as:
+        if self.test_integrated_as:
             make_variables['TEST_INTEGRATED_AS'] = '1'
-        if self.opts.liblto_path:
+        if self.liblto_path:
             make_variables['LD_ENV_OVERRIDES'] = (
                 'env DYLD_LIBRARY_PATH=%s' % os.path.dirname(
-                    self.opts.liblto_path))
+                    self.liblto_path))
 
-        if self.opts.threads > 1 or self.opts.build_threads > 1:
+        if self.threads > 1 or self.build_threads > 1:
             make_variables['ENABLE_PARALLEL_REPORT'] = '1'
 
         # Select the test style to use.
-        if self.opts.test_style == "simple":
+        if self.test_style == "simple":
             # We always use reference outputs with TEST=simple.
             make_variables['ENABLE_HASHED_PROGRAM_OUTPUT'] = '1'
             make_variables['USE_REFERENCE_OUTPUT'] = '1'
-            make_variables['TEST'] = self.opts.test_style
+            make_variables['TEST'] = self.test_style
 
         # Set CC_UNDER_TEST_IS_CLANG when appropriate.
         if cc_info.get('cc_name') in ('apple_clang', 'clang'):
@@ -329,7 +326,7 @@ class TestConfiguration(object):
         #
         # FIXME: We should probably be more strict about this.
         cc_target = cc_info.get('cc_target')
-        llvm_arch = self.opts.llvm_arch
+        llvm_arch = self.llvm_arch
         if cc_target and llvm_arch is None:
             # cc_target is expected to be a (GCC style) target
             # triple. Pick out the arch component, and then try to
@@ -365,7 +362,7 @@ class TestConfiguration(object):
             warning("unable to infer ARCH, some tests may not run correctly!")
 
         # Add in any additional make flags passed in via --make-param.
-        for entry in self.opts.make_parameters:
+        for entry in self.make_parameters:
             if '=' not in entry:
                 name, value = entry,''
             else:
@@ -375,13 +372,13 @@ class TestConfiguration(object):
 
                 
         # Set remote execution variables, if used.
-        if self.opts.remote:
+        if self.remote:
             # make a copy of args for report, without remote options.
             public_vars = make_variables.copy()
-            make_variables['REMOTE_HOST'] = self.opts.remote_host
-            make_variables['REMOTE_USER'] = self.opts.remote_user
-            make_variables['REMOTE_PORT'] = str(self.opts.remote_port)
-            make_variables['REMOTE_CLIENT'] = self.opts.remote_client
+            make_variables['REMOTE_HOST'] = self.remote_host
+            make_variables['REMOTE_USER'] = self.remote_user
+            make_variables['REMOTE_PORT'] = str(self.remote_port)
+            make_variables['REMOTE_CLIENT'] = self.remote_client
         else:
             public_vars = make_variables
 
@@ -745,6 +742,7 @@ def load_nt_report_file(report_path, opts):
 def prepare_report_dir(config):
     # Set up the sandbox.
     sandbox_path = config.sandbox_path
+    print sandbox_path
     if not os.path.exists(sandbox_path):
         print >>sys.stderr, "%s: creating sandbox: %r" % (
             timestamp(), sandbox_path)
@@ -1436,7 +1434,8 @@ class NTTest(builtintest.BuiltinTest):
 
         # FIXME: We need to validate that there is no configured output in the
         # test-suite directory, that borks things. <rdar://problem/7876418>
-        config = TestConfiguration(opts, timestamp())
+        options = dict(vars(opts).items())
+        config = TestConfiguration(options, timestamp())
         prepare_report_dir(config)
 
         # Multisample, if requested.
