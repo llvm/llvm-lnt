@@ -631,14 +631,14 @@ def execute_nt_tests(test_log, make_variables, basedir, config):
 
     res = execute_command(test_log, basedir, args, report_dir)
 
-def load_nt_report_file(report_path, opts):
+def load_nt_report_file(report_path, config):
     # Compute the test samples to report.
     sample_keys = []
-    if opts.test_style == "simple":
+    if config.test_style == "simple":
         test_namespace = 'nts'
         time_stat = ''
         # for now, user time is the unqualified Time stat
-        if opts.test_time_stat == "real":
+        if config.test_time_stat == "real":
             time_stat = 'Real_'
         sample_keys.append(('compile', 'CC_' + time_stat + 'Time', None, 'CC'))
         sample_keys.append(('exec', 'Exec_' + time_stat + 'Time', None, 'Exec'))
@@ -646,18 +646,18 @@ def load_nt_report_file(report_path, opts):
         test_namespace = 'nightlytest'
         sample_keys.append(('gcc.compile', 'GCCAS', 'time'))
         sample_keys.append(('bc.compile', 'Bytecode', 'size'))
-        if opts.test_llc:
+        if config.test_llc:
             sample_keys.append(('llc.compile', 'LLC compile', 'time'))
-        if opts.test_llcbeta:
+        if config.test_llcbeta:
             sample_keys.append(('llc-beta.compile', 'LLC-BETA compile', 'time'))
-        if opts.test_jit:
+        if config.test_jit:
             sample_keys.append(('jit.compile', 'JIT codegen', 'time'))
         sample_keys.append(('gcc.exec', 'GCC', 'time'))
-        if opts.test_llc:
+        if config.test_llc:
             sample_keys.append(('llc.exec', 'LLC', 'time'))
-        if opts.test_llcbeta:
+        if config.test_llcbeta:
             sample_keys.append(('llc-beta.exec', 'LLC-BETA', 'time'))
-        if opts.test_jit:
+        if config.test_jit:
             sample_keys.append(('jit.exec', 'JIT', 'time'))
 
     # Load the report file.
@@ -683,8 +683,8 @@ def load_nt_report_file(report_path, opts):
         record = dict(zip(header, row))
 
         program = record['Program']
-        if opts.only_test is not None:
-            program = os.path.join(opts.only_test, program)
+        if config.only_test is not None:
+            program = os.path.join(config.only_test, program)
         test_base_name = '%s.%s' % (test_namespace, program.replace('.','_'))
 
         # Check if this is a subtest result, in which case we ignore missing
