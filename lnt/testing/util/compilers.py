@@ -13,6 +13,12 @@ def ishexhash(string):
              for c in string
              if c.isdigit() or c in 'abcdef']) == 40
 
+
+def is_valid(path):
+    """Does this path point to a valid executable?"""
+    return os.path.isfile(path) and os.access(path, os.X_OK)
+
+
 def get_cc_info(path, cc_flags=[]):
     """get_cc_info(path) -> { ... }
 

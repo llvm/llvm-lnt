@@ -750,6 +750,13 @@ class CompileTest(builtintest.BuiltinTest):
         if len(args) != 0:
             parser.error("invalid number of arguments")
 
+        # Resolve the cc_under_test path.
+        opts.cc = resolve_command_path(opts.cc)
+
+        if not lnt.testing.util.compilers.is_valid(opts.cc):
+            parser.error('--cc does not point to a valid executable.')
+
+
         # Attempt to infer the cxx compiler if not given.
         if opts.cc and opts.cxx is None:
             opts.cxx = lnt.testing.util.compilers.infer_cxx_compiler(opts.cc)

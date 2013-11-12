@@ -1338,6 +1338,9 @@ class NTTest(builtintest.BuiltinTest):
         # Resolve the cc_under_test path.
         opts.cc_under_test = resolve_command_path(opts.cc_under_test)
 
+        if not lnt.testing.util.compilers.is_valid(opts.cc_under_test):
+            parser.error('--cc does not point to a valid executable.')
+
         # If there was no --cxx given, attempt to infer it from the --cc.
         if opts.cxx_under_test is None:
             opts.cxx_under_test = lnt.testing.util.compilers.infer_cxx_compiler(
