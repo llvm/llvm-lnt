@@ -926,4 +926,16 @@ You must define a summary report configuration first.""")
     # Build the report.
     report.build()
 
+    if bool(request.args.get('json')):
+        json_obj = dict()
+        json_obj['ticks'] = report.report_orders
+        data = []
+        for e in report.normalized_data_table.items():
+            header, samples = e
+            raw_samples = samples.getvalue()
+            data.append([header, raw_samples])
+        json_obj['data'] = data
+
+        return flask.jsonify(**json_obj)
+
     return render_template("v4_summary_report.html", report=report)
