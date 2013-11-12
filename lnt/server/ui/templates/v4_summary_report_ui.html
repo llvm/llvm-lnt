@@ -8,60 +8,58 @@
                            filename='jquery/1.5/jquery.min.js') }}"></script>
   <script src="{{ url_for('.static',filename='v4_summary_report_ui.js')}}"></script>
 
+
+<script>
+  g.config = {{ config|tojson(indent=2)|safe }};
+  g.all_orders = {{ all_orders|tojson(indent=2)|safe }};
+  g.all_machines = {{ all_machines|tojson(indent=2)|safe }};
+  g.save_url = {{ db_url_for("v4_summary_report_ui")|tojson|safe }};
+</script>
+
 <style>
-.ui-box {
-    border  :  1px dashed #000;
-    padding :  3px;
-    margin  : 20px;
-}
-
-.list {
-    list-style-type : none;
-    margin: 0;
-    padding : 0;
-}
-
-.list-item {
-    border  : 1px solid #672;
-    padding : 1px;
-    margin  : 2px;
+/* Base class */
+.smbox {
+  position: relative;
+  height: 550px;
+  margin: 15px 0;
+  padding: 39px 19px 14px;
+  *padding-top: 19px;
+  background-color: #fff;
+  border: 1px solid #ddd;
+  -webkit-border-radius: 4px;
+     -moz-border-radius: 4px;
+          border-radius: 4px;
+  
 }
 </style>
 
-<script>
-g.config = {{ config|tojson(indent=2)|safe }};
-g.all_orders = {{ all_orders|tojson(indent=2)|safe }};
-g.all_machines = {{ all_machines|tojson(indent=2)|safe }};
-g.save_url = {{ db_url_for("v4_summary_report_ui")|tojson|safe }};
-</script>
 {% endblock %}
 {% block title %}Summary Report Editor{% endblock %}
 {% block body %}
 
-<div>
-<div style="width : 250px; float : left;">
-  <h2><center>Report Orders</center></h2>
-  <div class="ui-box" style="width : 200px; height : 200px">
-    <ul class="list" id="report-order-list">
-    </ul>
-
-    <br>
-    <input type="button" value="Add" onclick="add_order();">
+<div class="span2 smbox">
+  <h3><center>Report Orders</center></h3>
+  <div class="btn-group btn-group-vertical" style="width:100%"  id="report-order-list">
   </div>
-</div>
-<div style="width : 250px; float : left;">
-  <h2><center>Order Items</center></h2>
-  <div class="ui-box" style="width : 200px; height : 200px;" id="report-order-items">
-  </div>
-</div>
-<div style="width : 280px; float : left;">
-  <h2><center>Machines</center></h2>
-  <div class="ui-box" style="width : 230px; height : 200px" id="report-machines">
-  </div>
-</div>
-<br style="clear: left;" />
+  <br>
+  <br>
+  <input type="button" value="Add" onclick="add_order();">
 </div>
 
-<input type="button" value="Save" onclick="save_config();">
+<div  class="span4 smbox">
+  <h3><center>Order Items</center></h3>
+  <div class="ui-box"  id="report-order-items">
+  </div>
+</div>
 
+<div class="span4 smbox">
+  <h3><center>Machines</center></h3>
+  <div class="ui-box"  id="report-machines">
+  </div>
+</div>
+
+<div class="span9 form-actions" >
+  <button type="submit" class="btn btn-primary" onclick="save_config();">Save changes</button>
+  <button type="button" class="btn" onClick="document.location.reload(true)">Cancel</button>
+</div>
 {% endblock %}

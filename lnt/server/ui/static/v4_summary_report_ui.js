@@ -25,7 +25,7 @@ function init() {
   for (var i = 0; i != g.config.orders.length; ++i) {
     var order = g.config.orders[i];
     var name = order[0];
-    var item = $('<li class="list-item"></li>');
+    var item = $('<button class="btn" style="width:90%;" ></button>');
     g.list_items.push(item);
 
     // Add the item contents.
@@ -44,7 +44,7 @@ function init() {
   // Initialize the machines list.
   var machines = $('#report-machines');
   machines.empty();
-  var machine_select = $('<select multiple="multiple" size="10"></select>');
+  var machine_select = $('<select multiple="multiple"  style="width:300px;" size=20></select>');
   for (var j = 0; j != g.all_machines.length; ++j) {
     var selected_str = '';
     if ($.inArray(g.all_machines[j], g.config.machine_names) != -1)
@@ -101,7 +101,7 @@ function update_machine_items(select_elt) {
     if (option.selected)
       g.config.machine_names.push(g.all_machines[option.value]);
   }
-}
+} s
 
 // Select a report order entry to edit.
 function select_order(index) {
@@ -116,7 +116,7 @@ function select_order(index) {
   name_elt.change(function() { update_selected_order_name(name_elt[0]); });
 
   elt.append('<br>');
-  var order_select = $('<select multiple="multiple" size="10"></select>');
+  var order_select = $('<select multiple="multiple"  style="width:300px;" size=20></select>');
   for (var i = 0; i != g.all_orders.length; ++i) {
     var selected_str = '';
     if ($.inArray(g.all_orders[i], g.selected_order[1]) != -1)
