@@ -416,7 +416,7 @@ def scan_for_test_modules(config):
         assert dirpath.startswith(base_modules_path + '/')
         yield dirpath[len(base_modules_path) + 1:]
 
-def execute_command(test_log, basedir, args, report_dir):
+def execute_command(test_log, basedir, args, report_dir, verbose=False):
   logfile = test_log
 
   if report_dir is not None:
@@ -436,7 +436,9 @@ def execute_command(test_log, basedir, args, report_dir):
       if len(l) > 0:
         test_log.write(l)
         global_log.write(l)
-
+        if verbose == True:
+            sys.stdout.write(l)
+        
     global_log.close()
 
   return p.wait()
@@ -599,7 +601,7 @@ def execute_nt_tests(test_log, make_variables, basedir, config):
 
       print >>sys.stderr, '%s: building "nightly tests" with -j%u...' % (
           timestamp(), config.build_threads)
-      res = execute_command(test_log, basedir, args, report_dir)
+      res = execute_command(test_log, basedir, args, report_dir, config.verbose)
       if res != 0:
           print >> sys.std, "Failure while running make build!  See log: %s"%(test_log.name)
 
@@ -617,7 +619,7 @@ def execute_nt_tests(test_log, make_variables, basedir, config):
     print >>sys.stderr, '%s: executing "nightly tests" with -j%u...' % (
         timestamp(), config.threads)
 
-    res = execute_command(test_log, basedir, args, report_dir)
+    res = execute_command(test_log, basedir, args, report_dir, config.verbose)
 
     if res != 0:
         print >> sys.std, "Failure while running nightly tests!  See log: %s"%(test_log.name)
@@ -783,7 +785,7 @@ def update_tools(make_variables, config, iteration):
                                                            for a in args))
     build_tools_log.flush()
     res = execute_command(build_tools_log, config.build_dir(iteration), 
-                          args, config.report_dir)
+                          args, config.report_dir, config.verbose)
     build_tools_log.close()
     if res != 0:
         fatal('Unable to build tools, aborting! See log: %s'%(build_tools_log_path))
@@ -813,7 +815,7 @@ def configure_test_suite(config, iteration):
     configure_log.flush()
 
     print >>sys.stderr, '%s: configuring...' % timestamp()
-    res = execute_command(configure_log, basedir, args, config.report_dir)
+    res = execute_command(configure_log, basedir, args, config.report_dir, config.verbose)
     configure_log.close()
     if res != 0:
         fatal('Configure failed, log is here: %r' % configure_log_path)
@@ -1270,6 +1272,11 @@ class NTTest(builtintest.BuiltinTest):
                          metavar="NAME=VAL",
                          help="Add 'NAME' = 'VAL' to the run parameters",
                          type=str, action="append", default=[])
+        group.add_option("", "--verbose", dest="verbose",
+                         help=("Be verbose in output. Print the output of"
+                               "sub-commands."),
+                         action="store_true", default=False)
+
         parser.add_option_group(group)
 
         (opts, args) = parser.parse_args(args)
