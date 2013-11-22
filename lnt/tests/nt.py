@@ -600,6 +600,8 @@ def execute_nt_tests(test_log, make_variables, basedir, config):
       print >>sys.stderr, '%s: building "nightly tests" with -j%u...' % (
           timestamp(), config.build_threads)
       res = execute_command(test_log, basedir, args, report_dir)
+      if res != 0:
+          print >> sys.std, "Failure while running make build!  See log: %s"%(test_log.name)
 
     # Then 'make report'.
     args = common_args + ['-j', str(config.threads),
@@ -616,6 +618,9 @@ def execute_nt_tests(test_log, make_variables, basedir, config):
         timestamp(), config.threads)
 
     res = execute_command(test_log, basedir, args, report_dir)
+
+    if res != 0:
+        print >> sys.std, "Failure while running nightly tests!  See log: %s"%(test_log.name)
 
 def load_nt_report_file(report_path, config):
     # Compute the test samples to report.
@@ -781,7 +786,7 @@ def update_tools(make_variables, config, iteration):
                           args, config.report_dir)
     build_tools_log.close()
     if res != 0:
-        fatal('unable to build tools, aborting!')
+        fatal('Unable to build tools, aborting! See log: %s'%(build_tools_log_path))
 
 def configure_test_suite(config, iteration):
     """Run configure on the test suite."""
@@ -811,7 +816,7 @@ def configure_test_suite(config, iteration):
     res = execute_command(configure_log, basedir, args, config.report_dir)
     configure_log.close()
     if res != 0:
-        fatal('configure failed, log is here: %r' % configure_log_path)
+        fatal('Configure failed, log is here: %r' % configure_log_path)
 
 def copy_missing_makefiles(config, basedir):
     """When running with only_test something, makefiles will be missing,
