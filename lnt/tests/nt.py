@@ -13,7 +13,7 @@ from datetime import datetime
 import lnt.testing
 import lnt.testing.util.compilers
 
-from lnt.testing.util.commands import note, warning, error, fatal
+from lnt.testing.util.commands import note, warning, error, fatal, resolve_command_path
 from lnt.testing.util.commands import capture, mkdir_p, which
 from lnt.testing.util.rcs import get_source_version
 from lnt.testing.util.misc import timestamp
@@ -385,20 +385,6 @@ class TestConfiguration(object):
         return make_variables, public_vars
         
 ###
-
-def resolve_command_path(name):
-    # If the given name exists (or is a path), make it absolute.
-    if os.path.exists(name):
-        return os.path.abspath(name)
-
-    # Otherwise we most likely have a command name, try to look it up.
-    path = which(name)
-    if path is not None:
-        note("resolved command %r to path %r" % (name, path))
-        return path
-
-    # If that failed just return the original name.
-    return name
 
 def scan_for_test_modules(config):
     base_modules_path = os.path.join(config.test_suite_root, 'LNTBased')

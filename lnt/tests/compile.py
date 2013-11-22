@@ -15,7 +15,7 @@ from datetime import datetime
 
 import lnt.testing
 import lnt.testing.util.compilers
-from lnt.testing.util.commands import note, warning, error, fatal
+from lnt.testing.util.commands import note, error, fatal, resolve_command_path
 from lnt.testing.util.misc import TeeStream, timestamp
 from lnt.testing.util import commands, machineinfo
 from lnt.util import stats
