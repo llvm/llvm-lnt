@@ -13,7 +13,7 @@ from datetime import datetime
 import lnt.testing
 import lnt.testing.util.compilers
 
-from lnt.testing.util.commands import note, warning, error, fatal, resolve_command_path
+from lnt.testing.util.commands import note, warning, error, fatal, resolve_commandvc-_path
 from lnt.testing.util.commands import capture, mkdir_p, which
 from lnt.testing.util.rcs import get_source_version
 from lnt.testing.util.misc import timestamp
@@ -603,7 +603,7 @@ def execute_nt_tests(test_log, make_variables, basedir, config):
           timestamp(), config.build_threads)
       res = execute_command(test_log, basedir, args, report_dir, config.verbose)
       if res != 0:
-          print >> sys.std, "Failure while running make build!  See log: %s"%(test_log.name)
+          print >> sys.stderr, "Failure while running make build!  See log: %s"%(test_log.name)
 
     # Then 'make report'.
     args = common_args + ['-j', str(config.threads),
