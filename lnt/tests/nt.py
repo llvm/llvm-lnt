@@ -13,7 +13,7 @@ from datetime import datetime
 import lnt.testing
 import lnt.testing.util.compilers
 
-from lnt.testing.util.commands import note, warning, error, fatal, resolve_commandvc-_path
+from lnt.testing.util.commands import note, warning, error, fatal, resolve_command_path
 from lnt.testing.util.commands import capture, mkdir_p, which
 from lnt.testing.util.rcs import get_source_version
 from lnt.testing.util.misc import timestamp
