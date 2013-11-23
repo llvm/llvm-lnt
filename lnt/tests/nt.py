@@ -622,7 +622,7 @@ def execute_nt_tests(test_log, make_variables, basedir, config):
     res = execute_command(test_log, basedir, args, report_dir, config.verbose)
 
     if res != 0:
-        print >> sys.std, "Failure while running nightly tests!  See log: %s"%(test_log.name)
+        print >> sys.stderr, "Failure while running nightly tests!  See log: %s" % (test_log.name)
 
 def load_nt_report_file(report_path, config):
     # Compute the test samples to report.
