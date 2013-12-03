@@ -101,7 +101,7 @@ function update_machine_items(select_elt) {
     if (option.selected)
       g.config.machine_names.push(g.all_machines[option.value]);
   }
-} s
+}
 
 // Select a report order entry to edit.
 function select_order(index) {
