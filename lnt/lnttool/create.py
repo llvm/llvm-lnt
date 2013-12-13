@@ -75,7 +75,7 @@ application = lnt.server.ui.app.App.create_standalone(
 
 if __name__ == "__main__":
     import werkzeug
-    werkzeug.run_simple('localhost', 8000, application)
+    werkzeug.run_simple('%(hostname)s', 8000, application)
 """
 
 ###
