@@ -87,7 +87,7 @@ def import_and_report(config, db_name, db, file, format, commit=False,
         # Record the original run this is a duplicate of.
         result['original_run'] = run.id
     else:
-        # Record the new run.id
+        # Record the new run.id.
         result['runid'] = run.id
 
     reportStartTime = time.time()
