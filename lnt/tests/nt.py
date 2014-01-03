@@ -815,8 +815,14 @@ def configure_test_suite(config, iteration):
     configure_log.flush()
 
     print >>sys.stderr, '%s: configuring...' % timestamp()
-    res = execute_command(configure_log, basedir, args, config.report_dir, config.verbose)
-    configure_log.close()
+    try:
+        res = execute_command(configure_log, basedir, args,
+                              config.report_dir, config.verbose)
+    except OSError as e:
+        fatal('Configure failed to execute, '
+              'log is here: %r\nError: %r' % configure_log_path, e)
+    finally:
+        configure_log.close()
     if res != 0:
         fatal('Configure failed, log is here: %r' % configure_log_path)
 
