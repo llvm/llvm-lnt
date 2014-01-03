@@ -90,7 +90,6 @@ def import_and_report(config, db_name, db, file, format, commit=False,
         # Record the new run.id.
         result['runid'] = run.id
 
-    reportStartTime = time.time()
     result['report_to_address'] = toAddress
     if config:
         report_url = "%s/db_%s/" % (config.zorgURL, db_name)
