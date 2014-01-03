@@ -129,7 +129,7 @@ def action_runtest(name, args):
     parser.add_option("", "--submit", dest="submit", type=str, default=None)
     parser.add_option("", "--commit", dest="commit", type=str, default=None)
     parser.add_option("", "--output", dest="output", type=str, default=None)
-    parser.add_option("-v", "--verbose", dest="verbose", default=None)
+    parser.add_option("-v", "--verbose", dest="verbose", action="store_true")
 
     (deprecated_opts, args) = parser.parse_args(args)
     if len(args) < 1:
