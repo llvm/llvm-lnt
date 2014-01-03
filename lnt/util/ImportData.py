@@ -1,4 +1,5 @@
-import os, re, time
+import os
+import time
 
 import lnt.testing
 import lnt.formats
