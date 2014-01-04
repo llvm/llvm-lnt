@@ -122,29 +122,28 @@ def action_checkformat(name, args):
 def action_runtest(name, args):
     """run a builtin test application"""
 
-    # Runtest accepting options is deprecated, but lets not break the
-    # world, so collect them anyways and pass them on.
     parser = OptionParser("%s test-name [options]" % name)
     parser.disable_interspersed_args()
-    parser.add_option("", "--submit", dest="submit", type=str, default=None)
-    parser.add_option("", "--commit", dest="commit", type=str, default=None)
-    parser.add_option("", "--output", dest="output", type=str, default=None)
-    parser.add_option("-v", "--verbose", dest="verbose", action="store_true")
+    parser.add_option("", "--submit", dest="submit_url", metavar="URLORPATH",
+                      help=("autosubmit the test result to the given server "
+                            "(or local instance) [%default]"),
+                      type=str, default=None)
+    parser.add_option("", "--commit", dest="commit",
+                      help=("whether the autosubmit result should be committed "
+                            "[%default]"),
+                      type=int, default=True)
+    parser.add_option("", "--output", dest="output", metavar="PATH",
+                      help="write raw report data to PATH (or stdout if '-')",
+                      action="store", default=None)
+    parser.add_option("-v", "--verbose", dest="verbose",
+                      help="show verbose test results",
+                      action="store_true", default=False)
 
-    (deprecated_opts, args) = parser.parse_args(args)
+    (opts, args) = parser.parse_args(args)
     if len(args) < 1:
         parser.error("incorrect number of argments")
 
-    test_name, args = args[0], args[1:]
-    # Rebuild the deprecated arguments.
-    for key, val in vars(deprecated_opts).iteritems():
-        if val is not None:
-            if isinstance(val, str):
-                args.insert(0, val)
-            args.insert(0, "--" + key)
-
-            warning("--{} should be passed directly to the"
-                        " test suite.".format(key))
+    test_name,args = args[0],args[1:]
 
     import lnt.tests
     try:
@@ -152,7 +151,50 @@ def action_runtest(name, args):
     except KeyError:
         parser.error('invalid test name %r' % test_name)
 
-    test_instance.run_test('%s %s' % (name, test_name), args)
+    report = test_instance.run_test('%s %s' % (name, test_name), args)
+
+    if opts.output is not None:
+        if opts.output == '-':
+            output_stream = sys.stdout
+        else:
+            output_stream = open(opts.output, 'w')
+        print >>output_stream, report.render()
+        if output_stream is not sys.stdout:
+            output_stream.close()
+
+    # Save the report to a temporary file.
+    #
+    # FIXME: This is silly, the underlying test probably wrote the report to a
+    # file itself. We need to clean this up and make it standard across all
+    # tests. That also has the nice side effect that writing into a local
+    # database records the correct imported_from path.
+    tmp = tempfile.NamedTemporaryFile(suffix='.json')
+    print >>tmp, report.render()
+    tmp.flush()
+
+    if opts.submit_url is not None:
+        if report is None:
+            raise SystemExit,"error: report generation failed"
+
+        from lnt.util import ServerUtil
+        test_instance.log("submitting result to %r" % (opts.submit_url,))
+        ServerUtil.submitFile(opts.submit_url, tmp.name, True, opts.verbose)
+    else:
+        # Simulate a submission to retrieve the results report.
+
+        # Construct a temporary database and import the result.
+        test_instance.log("submitting result to dummy instance")
+        
+        import lnt.server.db.v4db
+        import lnt.server.config
+        db = lnt.server.db.v4db.V4DB("sqlite:///:memory:",
+                                     lnt.server.config.Config.dummyInstance())
+        result = lnt.util.ImportData.import_and_report(
+            None, None, db, tmp.name, 'json', commit = True)
+        lnt.util.ImportData.print_report_result(result, sys.stdout, sys.stderr,
+                                                opts.verbose)
+
+    tmp.close()
 
 def action_showtests(name, args):
     """show the available built-in tests"""
@@ -188,7 +230,7 @@ def action_submit(name, args):
         parser.error("incorrect number of argments")
 
     from lnt.util import ServerUtil
-    ServerUtil.submitFiles(args[0], args[1:], opts.commit)
+    ServerUtil.submitFiles(args[0], args[1:], opts.commit, opts.verbose)
 
 def action_update(name, args):
     """create and or auto-update the given database"""

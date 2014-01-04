@@ -659,6 +659,9 @@ class CompileTest(builtintest.BuiltinTest):
         parser = OptionParser(
             ("%(name)s [options] [<output file>]\n" +
              usage_info) % locals())
+        parser.add_option("-v", "--verbose", dest="verbose",
+                          help="Show more test output",
+                          action="store_true", default=False)
         parser.add_option("-s", "--sandbox", dest="sandbox_path",
                           help="Parent directory to build and run tests in",
                           type=str, default=None, metavar="PATH")
@@ -740,21 +743,6 @@ class CompileTest(builtintest.BuiltinTest):
         group.add_option("", "--machine-name", dest="machine_name", type='str',
                          help="Machine name to use in submission [%default]",
                          action="store", default=platform.uname()[1])
-        group.add_option("", "--submit", dest="submit_url", metavar="URLORPATH",
-                          help=("autosubmit the test result to the given server "
-                                "(or local instance) [%default]"),
-                          type=str, default=None)
-        group.add_option("", "--commit", dest="commit",
-                          help=("whether the autosubmit result should be committed "
-                                "[%default]"),
-                          type=int, default=True)
-        group.add_option("", "--output", dest="output", metavar="PATH",
-                          help="write raw report data to PATH (or stdout if '-')",
-                          action="store", default=None)
-        group.add_option("-v", "--verbose", dest="verbose",
-                          help="show verbose test results",
-                          action="store_true", default=False)
-
         parser.add_option_group(group)
 
         opts,args = parser.parse_args(args)
@@ -1008,7 +996,7 @@ class CompileTest(builtintest.BuiltinTest):
             run_info['had_errors'] = 1
 
         end_time = datetime.utcnow()
-
+        
         g_log.info('run complete')
         
         # Package up the report.
@@ -1018,15 +1006,9 @@ class CompileTest(builtintest.BuiltinTest):
         # Write out the report.
         lnt_report_path = os.path.join(g_output_dir, 'report.json')
         report = lnt.testing.Report(machine, run, testsamples)
-
-        # Save report to disk for submission.
-        self.print_report(report, lnt_report_path)
-
-        # Then, also print to screen if requested.
-        if opts.output is not None:
-            self.print_report(report, opts.output)
-
-        self.submit(lnt_report_path, opts)
+        lnt_report_file = open(lnt_report_path, 'w')
+        print >>lnt_report_file, report.render()
+        lnt_report_file.close()
 
         return report
 

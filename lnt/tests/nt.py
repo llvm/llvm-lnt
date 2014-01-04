@@ -815,14 +815,8 @@ def configure_test_suite(config, iteration):
     configure_log.flush()
 
     print >>sys.stderr, '%s: configuring...' % timestamp()
-    try:
-        res = execute_command(configure_log, basedir, args,
-                              config.report_dir, config.verbose)
-    except OSError as e:
-        fatal('Configure failed to execute, '
-              'log is here: %r\nError: %r' % configure_log_path, e)
-    finally:
-        configure_log.close()
+    res = execute_command(configure_log, basedir, args, config.report_dir, config.verbose)
+    configure_log.close()
     if res != 0:
         fatal('Configure failed, log is here: %r' % configure_log_path)
 
@@ -1278,20 +1272,10 @@ class NTTest(builtintest.BuiltinTest):
                          metavar="NAME=VAL",
                          help="Add 'NAME' = 'VAL' to the run parameters",
                          type=str, action="append", default=[])
-        group.add_option("", "--submit", dest="submit_url", metavar="URLORPATH",
-                         help=("autosubmit the test result to the given server"
-                               " (or local instance) [%default]"),
-                         type=str, default=None)
-        group.add_option("", "--commit", dest="commit",
-                          help=("whether the autosubmit result should be committed "
-                                "[%default]"),
-                          type=int, default=True)
-        group.add_option("", "--output", dest="output", metavar="PATH",
-                          help="write raw report data to PATH (or stdout if '-')",
-                          action="store", default=None)
-        group.add_option("-v", "--verbose", dest="verbose",
-                          help="show verbose test results",
-                          action="store_true", default=False)
+        group.add_option("", "--verbose", dest="verbose",
+                         help=("Be verbose in output. Print the output of"
+                               "sub-commands."),
+                         action="store_true", default=False)
 
         parser.add_option_group(group)
 
@@ -1449,9 +1433,10 @@ class NTTest(builtintest.BuiltinTest):
                 warning('expected --isysroot when executing with '
                         '--ios-simulator-sdk')
 
-        config = TestConfiguration(vars(opts), timestamp())
         # FIXME: We need to validate that there is no configured output in the
         # test-suite directory, that borks things. <rdar://problem/7876418>
+        options = dict(vars(opts).items())
+        config = TestConfiguration(options, timestamp())
         prepare_report_dir(config)
 
         # Multisample, if requested.
@@ -1477,20 +1462,15 @@ class NTTest(builtintest.BuiltinTest):
                                 for r in reports], [])
 
             # Write out the merged report.
-            lnt_report_path = config.report_path(None)
+            lnt_report_path = os.path.join(config.report_dir, 'report.json')
             report = lnt.testing.Report(machine, run, test_samples)
             lnt_report_file = open(lnt_report_path, 'w')
-            print >>lnt_report_file, report.render()
+            print >>lnt_report_file,report.render()
             lnt_report_file.close()
 
-        else:
-            report = run_test(nick, None, config)
+            return report
 
-        if config.output is not None:
-            self.print_report(report, config.output)
-
-        self.submit(config.report_path(None), config)
-
+        report = run_test(nick, None, config)
         return report
 
 def create_instance():

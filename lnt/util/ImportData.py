@@ -1,5 +1,4 @@
-import os
-import time
+import os, re, time
 
 import lnt.testing
 import lnt.formats
@@ -87,11 +86,8 @@ def import_and_report(config, db_name, db, file, format, commit=False,
     if not success:
         # Record the original run this is a duplicate of.
         result['original_run'] = run.id
-    else:
-        if commit:
-            # Record the new run.id.
-            result['runid'] = run.id
 
+    reportStartTime = time.time()
     result['report_to_address'] = toAddress
     if config:
         report_url = "%s/db_%s/" % (config.zorgURL, db_name)
@@ -167,9 +163,6 @@ def print_report_result(result, out, err, verbose = True):
     if not result['committed']:
         print >>out, "NOTE: This run was not committed!"
         print >>out
-
-    if 'runid' in result:
-        print >>out, "Submitted results as Run %s" % result['runid']
 
     if result['report_to_address']:
         print >>out, "Report emailed to: %r" % result['report_to_address']

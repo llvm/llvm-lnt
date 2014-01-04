@@ -51,7 +51,7 @@ def submitFileToInstance(path, file, commit):
     return lnt.util.ImportData.import_and_report(
         config, db_name, db, file, format='<auto>', commit=commit)
 
-def submitFile(url, file, commit):
+def submitFile(url, file, commit, verbose):
     # If this is a real url, submit it using urllib.
     if '://' in url:
         result = submitFileToServer(url, file, commit)
@@ -59,10 +59,10 @@ def submitFile(url, file, commit):
             return
     else:
         result = submitFileToInstance(url, file, commit)
-    return result
 
-def submitFiles(url, files, commit):
-    results = []
+    # Print the test report.
+    ImportData.print_report_result(result, sys.stdout, sys.stderr, verbose)
+
+def submitFiles(url, files, commit, verbose):
     for file in files:
-        result = submitFile(url, file, commit, verbose)
-        results.append(result)
+        submitFile(url, file, commit, verbose)
