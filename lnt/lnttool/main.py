@@ -188,7 +188,7 @@ def action_submit(name, args):
         parser.error("incorrect number of argments")
 
     from lnt.util import ServerUtil
-    ServerUtil.submitFiles(args[0], args[1:], opts.commit, opts.verbose)
+    ServerUtil.submitFiles(args[0], args[1:], opts.commit)
 
 def action_update(name, args):
     """create and or auto-update the given database"""
