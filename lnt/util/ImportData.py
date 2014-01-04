@@ -88,8 +88,9 @@ def import_and_report(config, db_name, db, file, format, commit=False,
         # Record the original run this is a duplicate of.
         result['original_run'] = run.id
     else:
-        # Record the new run.id.
-        result['runid'] = run.id
+        if commit:
+            # Record the new run.id.
+            result['runid'] = run.id
 
     result['report_to_address'] = toAddress
     if config:
