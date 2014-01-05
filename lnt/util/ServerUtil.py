@@ -59,10 +59,10 @@ def submitFile(url, file, commit, verbose):
             return
     else:
         result = submitFileToInstance(url, file, commit)
-
-    # Print the test report.
-    ImportData.print_report_result(result, sys.stdout, sys.stderr, verbose)
+    return result
 
 def submitFiles(url, files, commit, verbose):
+    results = []
     for file in files:
-        submitFile(url, file, commit, verbose)
+        result = submitFile(url, file, commit, verbose)
+        results.append(result)

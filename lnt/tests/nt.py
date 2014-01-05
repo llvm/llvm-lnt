@@ -1270,7 +1270,20 @@ class NTTest(builtintest.BuiltinTest):
                          metavar="NAME=VAL",
                          help="Add 'NAME' = 'VAL' to the run parameters",
                          type=str, action="append", default=[])
-        parser.add_option_group(group)
+        group.add_option("", "--submit", dest="submit_url", metavar="URLORPATH",
+                         help=("autosubmit the test result to the given server"
+                               " (or local instance) [%default]"),
+                         type=str, default=None)
+        group.add_option("", "--commit", dest="commit",
+                          help=("whether the autosubmit result should be committed "
+                                "[%default]"),
+                          type=int, default=True)
+        group.add_option("", "--output", dest="output", metavar="PATH",
+                          help="write raw report data to PATH (or stdout if '-')",
+                          action="store", default=None)
+        group.add_option("-v", "--verbose", dest="verbose",
+                          help="show verbose test results",
+                          action="store_true", default=False)
 
         (opts, args) = parser.parse_args(args)
         if len(args) == 0:
@@ -1426,10 +1439,9 @@ class NTTest(builtintest.BuiltinTest):
                 warning('expected --isysroot when executing with '
                         '--ios-simulator-sdk')
 
+        config = TestConfiguration(vars(opts), timestamp())
         # FIXME: We need to validate that there is no configured output in the
         # test-suite directory, that borks things. <rdar://problem/7876418>
-        options = dict(vars(opts).items())
-        config = TestConfiguration(options, timestamp())
         prepare_report_dir(config)
 
         # Multisample, if requested.
@@ -1455,15 +1467,20 @@ class NTTest(builtintest.BuiltinTest):
                                 for r in reports], [])
 
             # Write out the merged report.
-            lnt_report_path = os.path.join(config.report_dir, 'report.json')
+            lnt_report_path = config.report_path(None)
             report = lnt.testing.Report(machine, run, test_samples)
             lnt_report_file = open(lnt_report_path, 'w')
-            print >>lnt_report_file,report.render()
+            print >>lnt_report_file, report.render()
             lnt_report_file.close()
 
-            return report
+        else:
+            report = run_test(nick, None, config)
 
-        report = run_test(nick, None, config)
+        if config.output is not None:
+            self.print_report(report, config.output)
+
+        self.submit(config.report_path(None), config)
+
         return report
 
 def create_instance():
