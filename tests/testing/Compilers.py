@@ -62,11 +62,3 @@ info = get_info("clang-no-info")
 pprint.pprint(info)
 assert info['cc_name'] == 'clang'
 assert info['cc_version_number'] == '3.2'
-
-# Check a Clang that reports as "LLVM compiler."
-info = get_info("llvm-compiler")
-assert info['cc_name'] == 'clang'
-assert info['cc_build'] == 'DEV'
-assert info['inferred_run_order'] == '%s,%s' % (
-    '597522d740374f093a089a2acbec5b20466b2f34',
-    '6e95d969734af111bb33bcec0bcc27fd803a3b76')
