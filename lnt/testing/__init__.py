@@ -38,7 +38,9 @@ class Report:
         self.run = run
         self.tests = list(tests)
         self.report_version = current_version
+        self.check()
 
+    def check(self):
         assert isinstance(self.machine, Machine)
         assert isinstance(self.run, Run)
         for t in self.tests:
