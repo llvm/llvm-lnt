@@ -192,7 +192,12 @@ def action_submit(name, args):
                 " at the server.")
 
     from lnt.util import ServerUtil
-    ServerUtil.submitFiles(args[0], args[1:], opts.commit, opts.verbose)
+    files = ServerUtil.submitFiles(args[0], args[1:],
+                                   opts.commit, opts.verbose)
+    if opts.verbose:
+        for f in files:
+            lnt.util.ImportData.print_report_result(f, sys.stdout,
+                                                    sys.stderr, True)
 
 def action_update(name, args):
     """create and or auto-update the given database"""
