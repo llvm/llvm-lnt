@@ -178,7 +178,7 @@ def action_submit(name, args):
     parser.add_option("", "--commit", dest="commit", type=int,
                       help=("whether the result should be committed "
                             "[%default]"),
-                      default=False)
+                      default=True)
     parser.add_option("-v", "--verbose", dest="verbose",
                       help="show verbose test results",
                       action="store_true", default=False)
@@ -186,6 +186,10 @@ def action_submit(name, args):
     (opts, args) = parser.parse_args(args)
     if len(args) < 2:
         parser.error("incorrect number of argments")
+
+    if not opts.commit:
+        warning("submit called with --commit=0, your results will not be saved"
+                " at the server.")
 
     from lnt.util import ServerUtil
     ServerUtil.submitFiles(args[0], args[1:], opts.commit, opts.verbose)
