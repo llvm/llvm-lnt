@@ -382,6 +382,11 @@ class TestConfiguration(object):
         else:
             public_vars = make_variables
 
+        # Set qemu user mode variables, if used.
+        if self.qemu_user_mode:
+            make_variables['USER_MODE_EMULATION'] = '1'
+            make_variables['RUNUNDER'] = self.qemu_user_mode
+
         return make_variables, public_vars
         
 ###
@@ -967,6 +972,10 @@ def run_test(nick_prefix, iteration, config):
             run_info['remote_sw_vers'] = capture(remote_args + ["sw_vers"],
                                                  include_stderr=True).strip()
 
+    # Query qemu user mode properties if in use.
+    if config.qemu_user_mode:
+        run_info['qemu_user_mode'] = config.qemu_user_mode
+
     # Add machine dependent info.
     if config.use_machdep_info:
         machdep_info = machine_info
@@ -1245,6 +1254,11 @@ class NTTest(builtintest.BuiltinTest):
                                "OS access (e.g., to the network or "
                                "non-test directories)"),
                          action="store_true", default=False)
+
+        group.add_option("", "--qemu-user-mode", dest="qemu_user_mode",
+                         help=("Enable qemu user mode emulation using this "
+                               "qemu executable [%default]"),
+                         type=str, default=None)
 
         group.add_option("", "--multisample", dest="multisample",
                          help="Accumulate test data from multiple runs",
