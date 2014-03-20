@@ -693,6 +693,26 @@ def v4_graph():
                     "data" : moving_median_data,
                     "color" : util.toColorString(col) })
 
+    if bool(request.args.get('json')):
+        json_obj = dict()
+        json_obj['data'] = graph_plots
+        # Flatten ORM machine objects to their string names.
+        simple_type_legend = []
+        for machine, test, unit, color in legend:
+            # Flatten name, make color a dict.
+            new_entry = {'name':machine.name,
+                         'test':test,
+                         'unit': unit,
+                         'color': {'r': color[0],
+                                   'g': color[1],
+                                   'b': color[2]}}
+            simple_type_legend.append(new_entry)
+        json_obj['legend'] = simple_type_legend
+        json_obj['revision_range'] = revision_range
+        json_obj['current_options'] = options
+        json_obj['test_suite_name'] = ts.name
+        return flask.jsonify(**json_obj)
+
     return render_template("v4_graph.html", ts=ts, options=options,
                            revision_range=revision_range,
                            graph_plots=graph_plots,
