@@ -1,6 +1,8 @@
+import sys
 import jinja2
 import logging
 import logging.handlers
+from logging import Formatter
 import os
 import time
 
@@ -102,12 +104,13 @@ class App(flask.Flask):
     @staticmethod
     def create_standalone(config_path):
         instance = lnt.server.instance.Instance.frompath(config_path)
-        return App.create_with_instance(instance)
-
+        app =  App.create_with_instance(instance)
+        app.start_file_logging()
+        return app
+    
     def __init__(self, name):
         super(App, self).__init__(name)
         self.start_time = time.time()
-
         # Override the request class.
         self.request_class = Request
 
@@ -128,6 +131,27 @@ class App(flask.Flask):
 
         # Set the application secret key.
         self.secret_key = self.old_config.secretKey
+
+    def start_file_logging(self):
+        """Start server production logging.  At this point flask already logs
+        to stderr, so just log to a file as well.
+
+        """
+        if not self.debug:
+            LOG_FILENAME = "/var/log/lnt/lnt.log"
+            try:
+                rotating = logging.handlers.RotatingFileHandler(
+                    LOG_FILENAME, maxBytes=1048576, backupCount=5)
+                rotating.setFormatter(Formatter(
+                    '%(asctime)s %(levelname)s: %(message)s '
+                    '[in %(pathname)s:%(lineno)d]'
+                ))
+                rotating.setLevel(logging.DEBUG)
+                self.logger.addHandler(rotating)
+            except (OSError, IOError) as e:
+                print >> sys.stderr, "Error making log file " + LOG_FILENAME + str(e)
+                print >> sys.stderr, "Will not log to file."
+            self.logger.info("Started file logging.")
 
 
 def create_jinja_environment(env=None):
