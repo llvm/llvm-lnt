@@ -36,10 +36,12 @@ def safediv(a, b, default=None):
     except ZeroDivisionError:
         return default
 
-def makeDarkColor(h):
+def makeDarkerColor(h):
+    return makeDarkColor(h, 0.50)
+
+def makeDarkColor(h, v=0.8):
     h = h%1.
     s = 0.95
-    v = 0.8
     return colorsys.hsv_to_rgb(h,0.9+s*.1,v)
 
 def makeMediumColor(h):

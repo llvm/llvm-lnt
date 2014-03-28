@@ -26,6 +26,7 @@ from lnt.server.ui.decorators import frontend, db_route, v4_route
 import lnt.server.ui.util
 import lnt.server.reporting.dailyreport
 import lnt.server.reporting.summaryreport
+from collections import namedtuple
 
 integral_rex = re.compile(r"[\d]+")
 
@@ -402,6 +403,8 @@ def v4_run_graph(id):
 
     return redirect(v4_url_for("v4_graph", **args))
 
+BaselineLegendItem = namedtuple('BaselineLegendItem', 'name id')
+
 @v4_route("/graph")
 def v4_graph():
     from lnt.server.ui import util
@@ -478,6 +481,31 @@ def v4_graph():
     if not graph_parameters:
         return render_template("error.html", message="Nothing to graph.")
 
+    # Extract requested baselines.
+    baseline_parameters = []
+    for name,value in request.args.items():
+        # Baselines to graph are passed as:
+        #
+        #  baseline.<unused>=<run id>
+        if not name.startswith(str('baseline.')):
+            continue
+
+        # Ignore the extra part of the key, it is unused.
+        run_id_str = value
+        try:
+            run_id = int(run_id_str)
+        except:
+            return abort(400)
+
+        try:
+            run = ts.query(ts.Run).join(ts.Machine).filter(ts.Run.id == run_id).one()
+        except:
+            err_msg = "The run {} was not found in the database.".format(run_id)
+            return render_template("error.html",
+                                   message=err_msg)
+
+        baseline_parameters.append(run)
+
     # Create region of interest for run data region if we are performing a
     # comparison.
     revision_range = None
@@ -501,6 +529,7 @@ def v4_graph():
     legend = []
     graph_plots = []
     overview_plots = []
+    baseline_plots = []
     num_plots = len(graph_parameters)
     for i,(machine,test,field) in enumerate(graph_parameters):
         # Determine the base plot color.
@@ -529,6 +558,27 @@ def v4_graph():
         data = util.multidict((rev, (val, date)) for val,rev,date in q).items()
         data.sort(key=lambda sample: convert_revision(sample[0]))
 
+        # Get baselines for this line
+        for baseline in baseline_parameters:
+            q_baseline = ts.query(field.column, ts.Order.llvm_project_revision, ts.Run.start_time, ts.Machine.name).\
+                         join(ts.Run).join(ts.Order).join(ts.Machine).\
+                         filter(ts.Run.id == baseline.id).\
+                         filter(ts.Sample.test == test).\
+                         filter(field.column != None)
+            # In the event of many samples, use the mean of the samples as the baseline.
+            samples = []
+            for sample in q_baseline:
+                samples.append(sample[0])
+            mean = sum(samples)/len(samples)
+            # Darken the baseline color distinguish from real line.
+            dark_col = list(util.makeDarkerColor(float(i) / num_plots))
+            str_dark_col =  util.toColorString(dark_col)
+            baseline_plots.append({'color': str_dark_col,
+                                   'lineWidth': 2,
+                                   'yaxis': {'from': mean, 'to': mean},
+                                   'name': q_baseline[0].llvm_project_revision})
+            baseline_name = "Baseline {} on {}".format(q_baseline[0].llvm_project_revision,  q_baseline[0].name)
+            legend.append((BaselineLegendItem(baseline_name, baseline.id), test.name, field.name, dark_col))
         # Compute the graph points.
         errorbar_data = []
         points_data = []
@@ -700,23 +750,23 @@ def v4_graph():
         simple_type_legend = []
         for machine, test, unit, color in legend:
             # Flatten name, make color a dict.
-            new_entry = {'name':machine.name,
-                         'test':test,
+            new_entry = {'name': machine.name,
+                         'test': test,
                          'unit': unit,
-                         'color': {'r': color[0],
-                                   'g': color[1],
-                                   'b': color[2]}}
+                         'color': util.toColorString(color),}
             simple_type_legend.append(new_entry)
         json_obj['legend'] = simple_type_legend
         json_obj['revision_range'] = revision_range
         json_obj['current_options'] = options
         json_obj['test_suite_name'] = ts.name
+        json_obj['baselines'] = baseline_plots
         return flask.jsonify(**json_obj)
 
     return render_template("v4_graph.html", ts=ts, options=options,
                            revision_range=revision_range,
                            graph_plots=graph_plots,
-                           overview_plots=overview_plots, legend=legend)
+                           overview_plots=overview_plots, legend=legend,
+                           baseline_plots=baseline_plots)
 
 @v4_route("/global_status")
 def v4_global_status():

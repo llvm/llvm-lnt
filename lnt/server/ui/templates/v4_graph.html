@@ -40,6 +40,7 @@ function init() {
   // Set up the primary graph.
   var graph = $("#graph");
   var graph_plots = {{graph_plots|tojson|safe}};
+  var baseline_plots = {{baseline_plots|tojson|safe}};
   var graph_options = {
       series : {
         lines : {
@@ -59,6 +60,9 @@ function init() {
       grid : {
         hoverable : true }
       };
+
+  // Add baseline lines
+  graph_options['grid']['markings'] = baseline_plots;
   $.plot(graph, graph_plots, graph_options);
 
   // Add tooltips.
@@ -266,6 +270,9 @@ function update_tooltip(event, pos, item, show_fn, graph_data) {
           {# Add all the hidden fields. #}
           {% for name,value in request.args.items() %}
           {% if name.startswith('plot.') %}
+          <input type="hidden" name="{{name}}" value="{{value}}">
+          {% endif %}
+          {% if name.startswith('baseline.') %}
           <input type="hidden" name="{{name}}" value="{{value}}">
           {% endif %}
           {% endfor %}
