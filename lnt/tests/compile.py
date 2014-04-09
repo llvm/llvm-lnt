@@ -762,6 +762,9 @@ class CompileTest(builtintest.BuiltinTest):
         if len(args) != 0:
             parser.error("invalid number of arguments")
 
+        if opts.cc is None:
+            parser.error("You must specify a --cc argument.")
+
         # Resolve the cc_under_test path.
         opts.cc = resolve_command_path(opts.cc)
 
