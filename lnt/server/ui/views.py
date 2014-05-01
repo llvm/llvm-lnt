@@ -604,7 +604,7 @@ def v4_graph():
             x = rev_x[0] if len(rev_x)==1 else pos
 
             values = [v*normalize_by for v in data]
-            min_index,min_value = min(enumerate(values))
+            min_value,min_index = min((value, index) for (index, value) in enumerate(values))
             metadata["date"] = str(dates[min_index])
             pts.append((x, min_value, metadata))
 
