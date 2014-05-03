@@ -5,7 +5,6 @@ Utilities for helping with the analysis of data, for reporting purposes.
 from lnt.util import stats
 from lnt.server.ui import util
 from lnt.testing import PASS, FAIL, XFAIL
-from scipy.stats import mannwhitneyu
 
 REGRESSED = 'REGRESSED'
 IMPROVED = 'IMPROVED'
@@ -14,8 +13,8 @@ UNCHANGED_FAIL = 'UNCHANGED_FAIL'
 
 class ComparisonResult:
     def __init__(self, cur_value, prev_value, delta, pct_delta, stddev, MAD,
-                 cur_failed, prev_failed, samples, prev_samples, stddev_mean = None,
-                 stddev_is_estimated = False, confidence_lv = .9):
+                 cur_failed, prev_failed, samples, stddev_mean = None,
+                 stddev_is_estimated = False):
         self.current = cur_value
         self.previous = prev_value
         self.delta = delta
@@ -25,17 +24,8 @@ class ComparisonResult:
         self.failed = cur_failed
         self.prev_failed = prev_failed
         self.samples = samples
-        self.prev_samples = prev_samples
         self.stddev_mean = stddev_mean
         self.stddev_is_estimated = stddev_is_estimated
-        self.confidence_lv = confidence_lv
-
-        try:
-            u, prob = mannwhitneyu(self.samples, self.prev_samples)
-            self.p = 1 - prob
-        except ValueError:
-            # All numbers are identical
-            self.p = 1
 
     def get_samples(self):
         return self.samples
@@ -99,12 +89,6 @@ class ComparisonResult:
         if ignore_small and abs(self.delta) < .01:
             return UNCHANGED_PASS
 
-        # Use Mann-Whitney U test to test null hypothesis that result is
-        # unchanged.
-        if len(self.samples) >= 4 and len(self.prev_samples) >= 4:
-            if self.p <= self.confidence_lv:
-                return UNCHANGED_PASS
-
         # If we have a comparison window, then measure using a symmetic
         # confidence interval.
         if self.stddev is not None:
@@ -137,16 +121,11 @@ class ComparisonResult:
         else:
             return UNCHANGED_PASS
 
-
-    def get_p_value(self):
-        return self.p
-
 class RunInfo(object):
     def __init__(self, testsuite, runs_to_load,
-                 aggregation_fn = min, confidence_lv = .9):
+                 aggregation_fn = min):
         self.testsuite = testsuite
         self.aggregation_fn = aggregation_fn
-        self.confidence_lv = confidence_lv
 
         self.sample_map = util.multidict()
         self.loaded_run_ids = set()
@@ -228,8 +207,7 @@ class RunInfo(object):
                 run_value, prev_value, delta=None,
                 pct_delta = None, stddev = stddev, MAD = MAD,
                 cur_failed = run_failed, prev_failed = prev_failed,
-                samples = run_values, prev_samples = prev_values,
-                confidence_lv = self.confidence_lv)
+                samples = run_values)
 
         # Compute the comparison status for the test value.
         delta = run_value - prev_value
@@ -263,9 +241,8 @@ class RunInfo(object):
 
         return ComparisonResult(run_value, prev_value, delta,
                                 pct_delta, stddev, MAD,
-                                run_failed, prev_failed, run_values, prev_values,
-                                stddev_mean, stddev_is_estimated,
-                                self.confidence_lv)
+                                run_failed, prev_failed, run_values,
+                                stddev_mean, stddev_is_estimated)
 
     def _load_samples_for_runs(self, run_ids):
         # Find the set of new runs to load.

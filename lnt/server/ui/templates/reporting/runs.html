@@ -25,11 +25,9 @@
          <th style="{{ styles['th'] }}">{{ primary_name }}</th>
          <th style="{{ styles['th'] }}">Current</th>
          <th style="{{ styles['th'] }}">&sigma; {{ primary_field_suffix }}</th>
-         <th style="{{ styles['th'] }}">p {{ primary_field_suffix }}</th>
          {% if secondary_info %}
          <th style="{{ styles['th'] }}">&Delta; {{ secondary_field_suffix }}</th>           
          <th style="{{ styles['th'] }}">&sigma; {{ secondary_field_suffix }}</th>
-         <th style="{{ styles['th'] }}">p {{ secondary_field_suffix }}</th>
          {% endif %}
          </tr>
          
@@ -42,12 +40,10 @@
            <td style="{{ styles['td'] }}">{{ "%.4f" | format(cr.previous) }}</td>
            <td style="{{ styles['td'] }}">{{ "%.4f" | format(cr.current) }}</td>
            <td style="{{ styles['td'] }}">{{ "%.4f" | format_or_default(cr.stddev, '-') }}</td>
-           <td style="{{ styles['td'] }}">{{ "%.4f" | format_or_default(cr.p, '-') }}</td>
            {% if secondary_info %}
              {% set a_cr = secondary_info[(name, field)] %}
              {{ a_cr.pct_delta|aspctcell(style=styles['td'])|safe }}
              <td style="{{ styles['td'] }}">{{ "%.4f" | format_or_default(a_cr.stddev, '-') }}</td>
-             <td style="{{ styles['td'] }}">{{ "%.4f" | format_or_default(a_cr.p, '-') }}</td>
            {% endif %}
          </tr>
          {% endfor %}
