@@ -76,6 +76,10 @@
   {% if options.show_sample_counts %}
     <td>{{cr.get_samples()|length}}</td>
   {% endif %}
+
+  {% if options.show_p_value %}
+    <td>{{ "%.4f" % cr.get_p_value() }}</td>
+  {% endif %}
 {% endmacro %}
 
 {% block sidebar %}
@@ -244,6 +248,14 @@
       </td>
     </tr>
     <tr>
+      <td>Mann-Whitney test confidence level:</td>
+      <td><input type="text" name="MW_confidence_lv" value="{{ options.MW_confidence_lv }}"></td>
+    </tr>
+    <tr>
+      <td>Show Mann-Whitney p value:</td>
+      <td><input type="checkbox" name="show_p_value" value="yes" {{ "checked" if options.show_p_value else ""}}></td>
+    </tr>
+    <tr>
       <td colspan="2">
         {% if compare_to %}
           <input type="hidden" name="compare_to" value="{{compare_to.id}}">
@@ -285,6 +297,7 @@
             {% if options.show_mad %}<th>MAD</th>{% endif %}
             {% if options.show_all_samples %}<th>Samples</th>{% endif %}
             {% if options.show_sample_counts %}<th>N</th>{% endif %}
+            {% if options.show_p_value %}<th>p</th>{% endif %}
           </tr>
         </thead>
         <tbody>  
