@@ -481,16 +481,17 @@ def v4_graph():
     if not graph_parameters:
         return render_template("error.html", message="Nothing to graph.")
 
-    # Extract requested baselines.
+    # Extract requested baselines, and their titles.
     baseline_parameters = []
     for name,value in request.args.items():
         # Baselines to graph are passed as:
         #
-        #  baseline.<unused>=<run id>
+        #  baseline.title=<run id>
         if not name.startswith(str('baseline.')):
             continue
 
-        # Ignore the extra part of the key, it is unused.
+        baseline_title = name[len('baseline.'):]
+
         run_id_str = value
         try:
             run_id = int(run_id_str)
@@ -504,7 +505,7 @@ def v4_graph():
             return render_template("error.html",
                                    message=err_msg)
 
-        baseline_parameters.append(run)
+        baseline_parameters.append((run, baseline_title))
 
     # Create region of interest for run data region if we are performing a
     # comparison.
@@ -559,7 +560,7 @@ def v4_graph():
         data.sort(key=lambda sample: convert_revision(sample[0]))
 
         # Get baselines for this line
-        for baseline in baseline_parameters:
+        for baseline, baseline_title in baseline_parameters:
             q_baseline = ts.query(field.column, ts.Order.llvm_project_revision, ts.Run.start_time, ts.Machine.name).\
                          join(ts.Run).join(ts.Order).join(ts.Machine).\
                          filter(ts.Run.id == baseline.id).\
@@ -577,7 +578,7 @@ def v4_graph():
                                    'lineWidth': 2,
                                    'yaxis': {'from': mean, 'to': mean},
                                    'name': q_baseline[0].llvm_project_revision})
-            baseline_name = "Baseline {} on {}".format(q_baseline[0].llvm_project_revision,  q_baseline[0].name)
+            baseline_name = "Baseline {} on {}".format(baseline_title,  q_baseline[0].name)
             legend.append((BaselineLegendItem(baseline_name, baseline.id), test.name, field.name, dark_col))
         # Compute the graph points.
         errorbar_data = []
