@@ -66,3 +66,4 @@ def submitFiles(url, files, commit, verbose):
     for file in files:
         result = submitFile(url, file, commit, verbose)
         results.append(result)
+    return results
