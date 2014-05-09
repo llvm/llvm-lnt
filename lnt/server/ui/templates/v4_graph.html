@@ -62,7 +62,6 @@ function init() {
 	var graph = $("#graph");
 	var graph_plots = {{graph_plots|tojson|safe}};
 	var baseline_plots = {{baseline_plots|tojson|safe}};
-	var is_interactive = ! $.browser.webkit;
 	var graph_options = {
       series : {
         lines : {
@@ -76,7 +75,7 @@ function init() {
         enabled: false
 {% endif %}
       },
-      zoom : { interactive : true },
+      zoom : { interactive : false },
       pan : { interactive : true,
               frameRate: 60 },
       grid : {
