@@ -191,6 +191,13 @@ class V4RequestInfo(object):
                                 'median' : lnt.util.stats.median }.get(
             aggregation_fn_name, min)
 
+        # Get the MW confidence level.
+        try:
+            confidence_lv = float(request.args.get('MW_confidence_lv'))
+        except (TypeError, ValueError):
+            confidence_lv = .05
+        self.confidence_lv = confidence_lv
+
         # Find the neighboring runs, by order.
         prev_runs = list(ts.get_previous_runs_on_machine(run, N = 3))
         next_runs = list(ts.get_next_runs_on_machine(run, N = 3))
@@ -246,7 +253,7 @@ class V4RequestInfo(object):
             only_html_body=only_html_body, result=None,
             compare_to=self.compare_to, baseline=self.baseline,
             comparison_window=self.comparison_window,
-            aggregation_fn=self.aggregation_fn)
+            aggregation_fn=self.aggregation_fn, confidence_lv=confidence_lv)
         _, self.text_report, self.html_report, self.sri = reports
 
 @v4_route("/<int:id>/report")
@@ -294,7 +301,12 @@ Unable to find a v0.4 run for this ID. Please use the native v0.4 URL interface
 
 @v4_route("/<int:id>")
 def v4_run(id):
-    info = V4RequestInfo(id)
+    try:
+        info = V4RequestInfo(id)
+    except ImportError:
+        return render_template("error.html",
+            message="SciPy is not installed on server and sample size is too large.")
+
     ts = info.ts
     run = info.run
 
@@ -314,6 +326,7 @@ def v4_run(id):
     options['num_comparison_runs'] = info.num_comparison_runs
     options['test_filter'] = test_filter_str = request.args.get(
         'test_filter', '')
+    options['MW_confidence_lv'] = info.confidence_lv
     if test_filter_str:
         test_filter_re = re.compile(test_filter_str)
     else:

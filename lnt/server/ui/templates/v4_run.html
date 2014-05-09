@@ -76,6 +76,7 @@
   {% if options.show_sample_counts %}
     <td>{{cr.get_samples()|length}}</td>
   {% endif %}
+
 {% endmacro %}
 
 {% block sidebar %}
@@ -240,6 +241,17 @@
           Minimum</value>
         <option value="median" {{ " selected" if "median" == options.aggregation_fn else ""}}>
           Median</value>
+        </select>
+      </td>
+    </tr>
+    <tr>
+      <td>Mann-Whitney test confidence level:</td>
+      <td>
+        <select name="MW_confidence_lv">
+          <option value="0.05" {{ "selected" if options.MW_confidence_lv == 0.05 else ""}}>
+            5%</value>
+          <option value="0.01" {{ "selected" if options.MW_confidence_lv == 0.01 else ""}}>
+            1%</value>
         </select>
       </td>
     </tr>

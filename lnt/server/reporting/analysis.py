@@ -13,8 +13,8 @@ UNCHANGED_FAIL = 'UNCHANGED_FAIL'
 
 class ComparisonResult:
     def __init__(self, cur_value, prev_value, delta, pct_delta, stddev, MAD,
-                 cur_failed, prev_failed, samples, stddev_mean = None,
-                 stddev_is_estimated = False):
+                 cur_failed, prev_failed, samples, prev_samples, stddev_mean = None,
+                 stddev_is_estimated = False, confidence_lv = .05):
         self.current = cur_value
         self.previous = prev_value
         self.delta = delta
@@ -24,8 +24,10 @@ class ComparisonResult:
         self.failed = cur_failed
         self.prev_failed = prev_failed
         self.samples = samples
+        self.prev_samples = prev_samples
         self.stddev_mean = stddev_mean
         self.stddev_is_estimated = stddev_is_estimated
+        self.confidence_lv = confidence_lv
 
     def get_samples(self):
         return self.samples
@@ -56,6 +58,9 @@ class ComparisonResult:
 
     def get_value_status(self, confidence_interval=2.576,
                          value_precision=0.0001, ignore_small=True):
+        """
+        Raises ImportError if SciPy is not installed and sample size is too large.
+        """
         if self.current is None or self.previous is None:
             return None
 
@@ -88,6 +93,13 @@ class ComparisonResult:
         # good enough (for reasons I do not yet understand).
         if ignore_small and abs(self.delta) < .01:
             return UNCHANGED_PASS
+
+        # Use Mann-Whitney U test to test null hypothesis that result is
+        # unchanged.
+        if len(self.samples) >= 4 and len(self.prev_samples) >= 4:
+            same = stats.mannwhitneyu(self.samples, self.prev_samples, self.confidence_lv)
+            if same:
+                return UNCHANGED_PASS
 
         # If we have a comparison window, then measure using a symmetic
         # confidence interval.
@@ -123,9 +135,10 @@ class ComparisonResult:
 
 class RunInfo(object):
     def __init__(self, testsuite, runs_to_load,
-                 aggregation_fn = min):
+                 aggregation_fn = min, confidence_lv = .05):
         self.testsuite = testsuite
         self.aggregation_fn = aggregation_fn
+        self.confidence_lv = confidence_lv
 
         self.sample_map = util.multidict()
         self.loaded_run_ids = set()
@@ -207,7 +220,8 @@ class RunInfo(object):
                 run_value, prev_value, delta=None,
                 pct_delta = None, stddev = stddev, MAD = MAD,
                 cur_failed = run_failed, prev_failed = prev_failed,
-                samples = run_values)
+                samples = run_values, prev_samples = prev_values,
+                confidence_lv = self.confidence_lv)
 
         # Compute the comparison status for the test value.
         delta = run_value - prev_value
@@ -241,8 +255,9 @@ class RunInfo(object):
 
         return ComparisonResult(run_value, prev_value, delta,
                                 pct_delta, stddev, MAD,
-                                run_failed, prev_failed, run_values,
-                                stddev_mean, stddev_is_estimated)
+                                run_failed, prev_failed, run_values, prev_values,
+                                stddev_mean, stddev_is_estimated,
+                                self.confidence_lv)
 
     def _load_samples_for_runs(self, run_ids):
         # Find the set of new runs to load.
