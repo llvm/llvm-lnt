@@ -36,12 +36,34 @@
 {% block javascript %}
 var g = {}
 
+/* Bind events to the zoom bar buttons, so that 
+ * the zoom buttons work, then position them
+ * over top of the main graph.
+ */
+function bind_zoom_bar(my_plot) {
+
+	$('#out').click(function (e) {
+        e.preventDefault(); 
+        my_plot.zoomOut(); 
+    }); 
+
+    $('#in').click(function (e) {
+        e.preventDefault(); 
+        my_plot.zoom(); 
+    }); 
+	// Now move the bottons onto the graph.
+	$('#zoombar').css('position', 'relative');
+	$('#zoombar').css('left', '60px');
+	$('#zoombar').css('top', '-470px');
+}
+
 function init() {
   // Set up the primary graph.
-  var graph = $("#graph");
-  var graph_plots = {{graph_plots|tojson|safe}};
-  var baseline_plots = {{baseline_plots|tojson|safe}};
-  var graph_options = {
+	var graph = $("#graph");
+	var graph_plots = {{graph_plots|tojson|safe}};
+	var baseline_plots = {{baseline_plots|tojson|safe}};
+	var is_interactive = ! $.browser.webkit;
+	var graph_options = {
       series : {
         lines : {
           lineWidth : 1 },
@@ -63,8 +85,8 @@ function init() {
 
   // Add baseline lines
   graph_options['grid']['markings'] = baseline_plots;
-  $.plot(graph, graph_plots, graph_options);
-
+  var main_plot = $.plot(graph, graph_plots, graph_options);
+  
   // Add tooltips.
   graph.bind("plothover", function(e,p,i) {
     update_tooltip(e, p, i, show_tooltip, graph_plots); });
@@ -101,6 +123,8 @@ function init() {
         yaxis: { min: ranges.yaxis.from, max: ranges.yaxis.to }
       }));
   });
+  bind_zoom_bar(main_plot);
+	
 }
 
 // Show our overlay tooltip.
@@ -284,9 +308,11 @@ function update_tooltip(event, pos, item, show_fn, graph_data) {
       </div>
     </td>
   </tr>
-  <tr><td colspan="2"><div id="graph" style="width:100%;height:500px;"></div></td></tr>
+
+	<tr><td colspan="2"><div id="graph" style="height:500px"></div><div id="zoombar" style="width:40px;"><button id="in" type="button" class="btn btn-default" style="width:100%;text-align:center;">+</button><br><button id="out" type="button" class="btn btn-default" style="width:100%; text-align:center;">-</button></div></td></tr>
   <tr><td colspan="2"><div id="overview" style="width:100%;height:80px;"></div></td></td>
-  </table>
+
+</table>
   
   <h3>Legend</h3>
   <table class="table table-condensed table-hover table-striped">
