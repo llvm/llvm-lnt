@@ -43,7 +43,7 @@ def mannwhitneyu_small(a, b, sigLevel):
     assert len(a) <= 20, "Sample size must be less than 20."
     assert len(b) <= 20, "Sample size must be less than 20."
 
-    if not sigLevel in tables:
+    if not sigLevel in SIGN_TABLES:
         raise ValueError("Do not have according significance table.")
 
     # Calculate U value for sample groups using method described on Wikipedia.
