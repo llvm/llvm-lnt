@@ -248,6 +248,8 @@
       <td>Mann-Whitney test confidence level:</td>
       <td>
         <select name="MW_confidence_lv">
+          <option value="0.10" {{ "selected" if options.MW_confidence_lv == 0.10 else ""}}>
+            10%</value>
           <option value="0.05" {{ "selected" if options.MW_confidence_lv == 0.05 else ""}}>
             5%</value>
           <option value="0.01" {{ "selected" if options.MW_confidence_lv == 0.01 else ""}}>
