@@ -301,11 +301,7 @@ Unable to find a v0.4 run for this ID. Please use the native v0.4 URL interface
 
 @v4_route("/<int:id>")
 def v4_run(id):
-    try:
-        info = V4RequestInfo(id)
-    except ImportError:
-        return render_template("error.html",
-            message="SciPy is not installed on server and sample size is too large.")
+    info = V4RequestInfo(id)
 
     ts = info.ts
     run = info.run

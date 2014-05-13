@@ -1,4 +1,5 @@
 import math
+from lnt.external.stats.stats import mannwhitneyu as mannwhitneyu_large
 
 def mean(l):
     return sum(l)/len(l)
@@ -22,15 +23,12 @@ def standard_deviation(l):
 
 def mannwhitneyu(a, b, sigLevel = .05):
     """
-    Determine if sample a and b are the same at given significance level,
-    raises ImportError if SciPy is not installed on server and sample size is
-    too large.
+    Determine if sample a and b are the same at given significance level.
     """
     if len(a) <= 20 and len(b) <= 20:
         return mannwhitneyu_small(a, b, sigLevel)
     else:
         try:
-            from scipy.stats import mannwhitneyu as mannwhitneyu_large
             # MWU in SciPy is one-sided, multiply by 2 to get two-sided.
             p = mannwhitneyu_large(a, b, False) * 2
             return p >= sigLevel

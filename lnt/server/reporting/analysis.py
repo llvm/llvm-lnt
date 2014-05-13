@@ -58,9 +58,6 @@ class ComparisonResult:
 
     def get_value_status(self, confidence_interval=2.576,
                          value_precision=0.0001, ignore_small=True):
-        """
-        Raises ImportError if SciPy is not installed and sample size is too large.
-        """
         if self.current is None or self.previous is None:
             return None
 
