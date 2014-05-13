@@ -214,6 +214,9 @@ class PctCell:
         return toColorString(self.getColor())
     
     def render(self, class_=None, style=None, attributes=None):
+        bgcolor = 'background-color:%s' % (self.getColorString(),)
+        style = bgcolor if style is None else style + "; " + bgcolor
+
         attrs = []
         if style is not None:
             attrs.append('style="%s"' % (style,))
@@ -222,7 +225,6 @@ class PctCell:
         if attributes is not None:
             for key, value in attributes.items():
                 attrs.append('%s="%s"' % (key, value))
-        attrs.append('bgcolor="%s"' % (self.getColorString(),))
         attr_string = ' '.join(attrs)
         return '<td %s>%s</td>' % (attr_string, self.getValue())
 
