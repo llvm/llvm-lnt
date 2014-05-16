@@ -9,7 +9,8 @@
               }}" rel="stylesheet" media='screen and (max-width: 750px)' >
   <link href="{{ url_for('.static', filename='wide.css')
               }}" rel="stylesheet" media='screen and (min-width: 750px)'>
-  <script src="http://code.jquery.com/jquery-latest.js"></script>
+  <script src="{{ url_for('.static', filename='jquery/1.7.2/jquery-1.7.2.min.js')
+               }}"> </script>
   <script src="{{ url_for('.static', filename='bootstrap/js/bootstrap.min.js')
                }}"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
