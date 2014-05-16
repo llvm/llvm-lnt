@@ -180,8 +180,8 @@
       <table class="table">
         <tr>
           <td>LNT Version: {{ app.version }}</td>
-          <td>Server Started: {{ app.start_time|asusertime }}</td>
-          <td>Generated: {{ request.request_time|asusertime }}</td>
+          <td>Server Started: {{ app.start_time|asutctime }}</td>
+          <td>Generated: {{ request.request_time|asutctime }}</td>
           <td>Render Time: {{ "%.2fs" % request.elapsed_time() }}</td>
         </tr>
       </table>

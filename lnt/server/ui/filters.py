@@ -6,10 +6,9 @@ import time
 
 from lnt.server.ui import util
 
-def filter_asusertime(time):
-    # FIXME: Support alternate timezones?
-    ts = datetime.datetime.fromtimestamp(time)
-    return ts.strftime('%Y-%m-%d %H:%M:%S %Z PST')
+def filter_asutctime(time):
+    ts = datetime.datetime.utcfromtimestamp(time)
+    return ts.strftime('%Y-%m-%d %H:%M:%S UTC')
 
 def filter_aspctcell(value, class_=None, style=None, attributes=None, *args, **kwargs):
     cell = util.PctCell(value, *args, **kwargs)
