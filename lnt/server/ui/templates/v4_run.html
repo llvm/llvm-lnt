@@ -300,10 +300,10 @@
     {% for field in primary_fields %}
       <section id="{{ field.name }}" />
       {{ utils.render_popup_begin('test_data-' + field.name, field.name, false) }}
-      <table class="table table-striped table-hover table-condensed">
+      <table class="table table-striped table-hover table-condensed sortable">
         <thead>
           <tr>
-            <th rowspan="1"><input type="checkbox" id="select-all" onClick="selectAll(this)"></th>
+            <th rowspan="1" class="sorttable_nosort"><input type="checkbox" id="select-all" onClick="selectAll(this)"></th>
             <th rowspan="1">Name</th>
             {% if options.show_previous %}<th>Prev</th>{% endif %}
             <th>Current</th>
