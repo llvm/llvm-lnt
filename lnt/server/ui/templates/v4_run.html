@@ -40,7 +40,7 @@
   {% endif %}
   
   {% if cell_color %}
-    <td bgcolor="{{ '#%02x%02x%02x' % cell_color }}">{{ run_cell_value }}</td>
+    <td style="background-color:{{ '#%02x%02x%02x' % cell_color }}">{{ run_cell_value }}</td>
   {% else %}
     <td>{{run_cell_value}}</td>
   {% endif %}
