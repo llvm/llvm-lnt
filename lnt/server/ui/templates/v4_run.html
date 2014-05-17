@@ -17,17 +17,8 @@
   <script src="{{ url_for('.static', filename='popup.js') }}"></script>
   <script src="{{ url_for('.static', filename='sorttable.js') }}"></script>
   <script type="text/javascript">
-  function getClosestTable(el) {
-    while (el.nodeName !== "TABLE") {
-      el = el.parentNode;
-    }
-    return el;
-  }
-
   function selectAll(source) {
-    checkboxes = getClosestTable(source).getElementsByTagName('input');
-    for(var i in checkboxes)
-      checkboxes[i].checked = source.checked;
+    $(source).closest("table").find("input:checkbox").prop("checked", source.checked);
   }
   </script>
 {% endblock %}
