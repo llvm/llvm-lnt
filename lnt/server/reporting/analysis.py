@@ -256,6 +256,40 @@ class RunInfo(object):
                                 stddev_mean, stddev_is_estimated,
                                 self.confidence_lv)
 
+    def get_geomean_comparison_result(self, run, compare_to, field,
+                                          comparison_window=[]):
+        # FIXME: Geometric mean does not take 0 values, so fix it by adding 1
+        # to each value and substract 1 from the result. Since we are only
+        # interested in the change of data set, this workaround is good enough,
+        # but not ideal.
+        run_samples = filter(None,
+            [self.sample_map.get((run.id, test_id))
+            for test_id in self.get_test_ids()])
+        run_values = [self.aggregation_fn(a[field.index] + 1
+            for a in e) for e in run_samples]
+
+        prev_samples = filter(None,
+            [self.sample_map.get((run.id, test_id))
+            for test_id in self.get_test_ids()])
+        prev_values = [self.aggregation_fn(a[field.index] + 1
+            for a in e) for e in prev_samples]
+
+        run_geomean = util.geometric_mean(run_values) - 1
+        prev_geomean = util.geometric_mean(prev_values) - 1
+
+        delta = run_geomean - prev_geomean
+        if prev_geomean != 0:
+            pct_delta = delta / prev_geomean
+        else:
+            pct_delta = 0.0
+
+        return ComparisonResult(run_geomean, prev_geomean, delta,
+                                pct_delta, stddev = None, MAD = None,
+                                cur_failed = False, prev_failed = False,
+                                samples = [run_geomean],
+                                prev_samples = [prev_geomean],
+                                confidence_lv = 0)
+
     def _load_samples_for_runs(self, run_ids):
         # Find the set of new runs to load.
         to_load = set(run_ids) - self.loaded_run_ids

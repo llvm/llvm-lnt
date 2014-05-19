@@ -321,6 +321,13 @@
             {% endif %}
           {% endfor %}
         </tbody>
+        <tfoot>
+          {% set cr = request_info.sri.get_geomean_comparison_result(
+                      run, compare_to, field, request_info.comparison_window) %}
+          <td></td>
+          <td>Mean</td>
+          {{ get_cell_value(cr) }}
+        </tfoot>
       </table>
       {{ utils.render_popup_end() }}
     {% endfor %}
