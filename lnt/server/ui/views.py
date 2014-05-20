@@ -229,7 +229,7 @@ class V4RequestInfo(object):
             self.num_comparison_runs = int(
                 request.args.get('num_comparison_runs'))
         except:
-            self.num_comparison_runs = 10
+            self.num_comparison_runs = 0
 
         # Find the baseline run, if requested.
         baseline_str = request.args.get('baseline')
@@ -245,14 +245,12 @@ class V4RequestInfo(object):
 
         # Gather the runs to use for statistical data.
         comparison_start_run = self.compare_to or self.run
-        self.comparison_window = list(ts.get_previous_runs_on_machine(
-                    comparison_start_run, self.num_comparison_runs))
 
         reports = lnt.server.reporting.runs.generate_run_report(
             self.run, baseurl=db_url_for('index', _external=True),
             only_html_body=only_html_body, result=None,
             compare_to=self.compare_to, baseline=self.baseline,
-            comparison_window=self.comparison_window,
+            num_comparison_runs=self.num_comparison_runs,
             aggregation_fn=self.aggregation_fn, confidence_lv=confidence_lv)
         _, self.text_report, self.html_report, self.sri = reports
 

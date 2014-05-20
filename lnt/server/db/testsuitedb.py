@@ -747,8 +747,11 @@ test %r does not map to a sample field in the reported suite""" % (
         The direction must be -1 or 1 and specified whether or not the
         preceeding or following runs should be returned.
         """
-        assert N > 0, "invalid count"
+        assert N >= 0, "invalid count"
         assert direction in (-1, 1), "invalid direction"
+
+        if N==0:
+            return []
 
         # The obvious algorithm here is to step through the run orders in the
         # appropriate direction and yield any runs on the same machine which

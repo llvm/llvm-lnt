@@ -14,7 +14,7 @@ UNCHANGED_FAIL = 'UNCHANGED_FAIL'
 class ComparisonResult:
     def __init__(self, cur_value, prev_value, delta, pct_delta, stddev, MAD,
                  cur_failed, prev_failed, samples, prev_samples, stddev_mean = None,
-                 stddev_is_estimated = False, confidence_lv = .05):
+                 confidence_lv = .05):
         self.current = cur_value
         self.previous = prev_value
         self.delta = delta
@@ -26,7 +26,6 @@ class ComparisonResult:
         self.samples = samples
         self.prev_samples = prev_samples
         self.stddev_mean = stddev_mean
-        self.stddev_is_estimated = stddev_is_estimated
         self.confidence_lv = confidence_lv
 
     def get_samples(self):
@@ -104,12 +103,6 @@ class ComparisonResult:
             is_significant = abs(self.delta) > (self.stddev *
                                                 confidence_interval)
 
-            # If the stddev is estimated, then it is also only significant if
-            # the delta from the estimate mean is above the confidence interval.
-            if self.stddev_is_estimated:
-                is_significant &= (abs(self.current - self.stddev_mean) >
-                                   self.stddev * confidence_interval)
-
             # If the delta is significant, return 
             if is_significant:
                 if self.delta < 0:
@@ -144,18 +137,33 @@ class RunInfo(object):
 
     def get_test_ids(self):
         return set(key[1] for key in self.sample_map.keys())
+
+    def get_sliding_runs(self, run, compare_run, num_comparison_runs=0):
+        """
+        Get num_comparison_runs most recent runs,
+        This query is expensive.
+        """
+        runs = [run]
+        runs_prev = self.testsuite.get_previous_runs_on_machine(run, num_comparison_runs)
+        runs += runs_prev
+
+        if compare_run is not None:
+            compare_runs = [compare_run]
+            comp_prev = self.testsuite.get_previous_runs_on_machine(compare_run, num_comparison_runs)
+            compare_runs += comp_prev
+        else:
+            compare_runs = []
+
+        return runs, compare_runs
     
-    def get_run_comparison_result(self, run, compare_to, test_id, field,
-                                  comparison_window=[]):
+    def get_run_comparison_result(self, run, compare_to, test_id, field):
         if compare_to is not None:
             compare_to = [compare_to]
         else:
             compare_to = []
-        return self.get_comparison_result([run], compare_to, test_id, field,
-                                          comparison_window)
+        return self.get_comparison_result([run], compare_to, test_id, field)
 
-    def get_comparison_result(self, runs, compare_runs, test_id, field,
-                              comparison_window=[]):
+    def get_comparison_result(self, runs, compare_runs, test_id, field):
         # Get the field which indicates the requested field's status.
         status_field = field.status_field
 
@@ -204,12 +212,10 @@ class RunInfo(object):
             stddev = stats.standard_deviation(run_values)
             MAD = stats.median_absolute_deviation(run_values)
             stddev_mean = stats.mean(run_values)
-            stddev_is_estimated = False
         else:
             stddev = None
             MAD = None
             stddev_mean = None
-            stddev_is_estimated = False
 
         # If we are missing current or comparison values we are done.
         if run_value is None or prev_value is None:
@@ -227,34 +233,10 @@ class RunInfo(object):
         else:
             pct_delta = 0.0
 
-        # If we don't have an estimate for the distribution, attempt to "guess"
-        # it using the comparison window.
-        #
-        # FIXME: We can substantially improve the algorithm for guessing the
-        # noise level from a list of values. Probably better to just find a way
-        # to kill this code though.
-        if stddev is None:
-            # Get all previous values in the comparison window.
-            prev_samples = [s for run in comparison_window
-                            for s in self.sample_map.get((run.id, test_id), ())
-                            if s[field.index] is not None]
-            # Filter out failing samples.
-            if status_field:
-                prev_samples = [s for s in prev_samples
-                                if s[status_field.index] != FAIL]
-            if prev_samples:
-                prev_values = [s[field.index]
-                               for s in prev_samples]
-                stddev = stats.standard_deviation(prev_values)
-                MAD = stats.median_absolute_deviation(prev_values)
-                stddev_mean = stats.mean(prev_values)
-                stddev_is_estimated = True
-
         return ComparisonResult(run_value, prev_value, delta,
                                 pct_delta, stddev, MAD,
                                 run_failed, prev_failed, run_values, prev_values,
-                                stddev_mean, stddev_is_estimated,
-                                self.confidence_lv)
+                                stddev_mean, self.confidence_lv)
 
     def get_geomean_comparison_result(self, run, compare_to, field,
                                           comparison_window=[]):

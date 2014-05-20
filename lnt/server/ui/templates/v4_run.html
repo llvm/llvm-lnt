@@ -307,9 +307,9 @@
           </tr>
         </thead>
         <tbody>  
+		  {% set (runs, compare_runs) = request_info.sri.get_sliding_runs(run, compare_to, request_info.num_comparison_runs) %}
           {% for test_name,test_id in test_info %}
-            {% set cr = request_info.sri.get_run_comparison_result(
-                      run, compare_to, test_id, field, request_info.comparison_window) %}
+		    {% set cr = request_info.sri.get_comparison_result(runs, compare_runs, test_id, field) %}
             {% if cr.previous is not none or cr.current is not none %}
               {% if cr.current is none or cr.current >= test_min_value_filter %}
                 <tr>
@@ -356,7 +356,7 @@
         <tr>
           <td>{{ test_name }}</td>
           {% for field in primary_fields %}
-            {% set cr = request_info.sri.get_run_comparison_result(run, compare_to, test_id, field, request_info.comparison_window) %}
+		    {% set cr = request_info.sri.get_run_comparison_result(run, compare_to, test_id, field) %}
             <td>{{cr.previous}}</td>
             <td>{{cr.current}}</td>
             <td>{{cr.pct_delta}}</td>
