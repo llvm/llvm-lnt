@@ -578,6 +578,9 @@ def v4_graph():
             samples = []
             for sample in q_baseline:
                 samples.append(sample[0])
+            # Skip this baseline if there is no data.
+            if not samples:
+                continue
             mean = sum(samples)/len(samples)
             # Darken the baseline color distinguish from non-baselines.
             # Make a color spread that is wide enough for all baselines x plots.
