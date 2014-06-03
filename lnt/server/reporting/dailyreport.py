@@ -17,7 +17,6 @@ class DailyReport(object):
         self.day = day
         self.fields = list(ts.Sample.get_primary_fields())
         self.day_start_offset = datetime.timedelta(hours=day_start_offset_hours)
-        self.num_comparison_runs = 10
         self.for_mail = for_mail
 
         # Computed values.
@@ -157,23 +156,7 @@ class DailyReport(object):
                     ts.Sample.test_id == ts.Test.id))).all()
         self.reporting_tests.sort(key=lambda t: t.name)
 
-        # Determine the comparison window runs for each machine we are reporting
-        # over.
         run_ids_to_load = list(relevant_run_ids)
-        machine_comparison_window = {}
-        for machine in self.reporting_machines:
-            # Get the oldest reported run, and base the comparison down on the
-            # runs before that.
-            comparison_start_run = machine_runs.get((machine.id, 
-                                                     len(prior_runs) - 1))
-            if comparison_start_run is None:
-                comparison_window = []
-            else:
-                comparison_window = list(ts.get_previous_runs_on_machine(
-                        comparison_start_run[0], self.num_comparison_runs))
-            run_ids_to_load.extend([r.id
-                                    for r in comparison_window])
-            machine_comparison_window[machine] = comparison_window
 
         # Create a run info object.
         sri = lnt.server.reporting.analysis.RunInfo(ts, run_ids_to_load)
@@ -211,8 +194,7 @@ class DailyReport(object):
                     day_runs = machine_runs.get((machine.id, 0), ())
                     prev_runs = machine_runs.get((machine.id, 1), ())
                     cr = sri.get_comparison_result(
-                        day_runs, prev_runs, test.id, field,
-                        machine_comparison_window[machine])
+                        day_runs, prev_runs, test.id, field)
 
                     # If the result is not "interesting", ignore this machine.
                     if not cr.is_result_interesting():
