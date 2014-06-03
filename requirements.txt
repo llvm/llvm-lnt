@@ -1,0 +1,12 @@
+Flask==0.10.1
+Jinja2==2.7.2
+MarkupSafe==0.23
+SQLAlchemy==0.9.4
+Werkzeug==0.9.4
+gunicorn==18.0
+heroku==0.1.4
+itsdangerous==0.24
+psycopg2==2.5.3
+python-dateutil==1.5
+requests==2.3.0
+wsgiref==0.1.2
