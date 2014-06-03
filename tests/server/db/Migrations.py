@@ -7,7 +7,7 @@ import os
 import re
 import shutil
 import sys
-import tempfile
+import glob
 
 import lnt.server.db.migrate
 import lnt.server.ui.app
@@ -73,7 +73,7 @@ def main():
 
     inputs_dir = os.path.join(os.path.dirname(__file__), 'Inputs')
 
-    for item in os.listdir(inputs_dir):
+    for item in glob.glob(inputs_dir + '/*'):
         input_path = os.path.join(inputs_dir, item)
 
         # Ignore non-directories.
