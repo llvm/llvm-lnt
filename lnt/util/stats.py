@@ -10,11 +10,16 @@ def safe_min(l):
     else:
         return min(l)
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> Fixups in geomean calculation
 def mean(l):
     if l:
         return sum(l)/len(l)
     else:
         return None
+
 
 def median(l):
     if not l:
