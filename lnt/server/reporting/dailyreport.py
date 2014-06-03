@@ -43,14 +43,14 @@ class DailyReport(object):
             raise ArgumentError("report not initialized")
         if day_index >= self.num_prior_days_to_include:
             raise ArgumentError("invalid day index")
-            
+
         runs = self.machine_runs.get((machine.id, day_index))
         if runs is None:
             return None
 
         # Select a key run arbitrarily.
         return runs[0]
-        
+
     def build(self):
         ts = self.ts
 

@@ -1,25 +1,42 @@
 import math
 from lnt.external.stats.stats import mannwhitneyu as mannwhitneyu_large
 
+
+def safe_min(l):
+    """Calculate min, but if given an empty list return None."""
+    l = list(l)  #In case this is a complex type, get a simple list.
+    if not l:
+        return None
+    else:
+        return min(l)
+
 def mean(l):
-    return sum(l)/len(l)
+    if l:
+        return sum(l)/len(l)
+    else:
+        return None
 
 def median(l):
+    if not l:
+        return None
     l = list(l)
     l.sort()
     N = len(l)
     return (l[(N-1)//2] + l[N//2])*.5
+
 
 def median_absolute_deviation(l, med = None):
     if med is None:
         med = median(l)
     return median([abs(x - med) for x in l])
 
+
 def standard_deviation(l):
     m = mean(l)
     means_sqrd = sum([(v - m)**2 for v in l]) / len(l)
     rms = math.sqrt(means_sqrd)
     return rms
+
 
 def mannwhitneyu(a, b, sigLevel = .05):
     """
@@ -34,6 +51,7 @@ def mannwhitneyu(a, b, sigLevel = .05):
             return p >= sigLevel
         except ValueError:
             return True
+
 
 def mannwhitneyu_small(a, b, sigLevel):
     """

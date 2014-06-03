@@ -187,9 +187,9 @@ class V4RequestInfo(object):
 
         # Get the aggregation function to use.
         aggregation_fn_name = request.args.get('aggregation_fn')
-        self.aggregation_fn = { 'min' : min,
-                                'median' : lnt.util.stats.median }.get(
-            aggregation_fn_name, min)
+        self.aggregation_fn = {'min': lnt.util.stats.safe_min,
+                               'median': lnt.util.stats.median}.get(
+            aggregation_fn_name, lnt.util.stats.safe_min)
 
         # Get the MW confidence level.
         try:
@@ -612,7 +612,7 @@ def v4_graph():
             dates = [data_date[1] for data_date in datapoints]
 
             metadata = {"label":point_label}
-            
+
             # When we can, map x-axis to revisions, but when that is too hard
             # use the position of the sample instead.
             rev_x = convert_revision(point_label)
@@ -628,11 +628,11 @@ def v4_graph():
             if show_all_points:
                 for i,v in enumerate(values):
                     point_metadata = dict(metadata)
-                    point_metadata["date"] = str(dates[i]) 
+                    point_metadata["date"] = str(dates[i])
                     points_data.append((x, v, point_metadata))
             elif show_points:
                 points_data.append((x, min_value, metadata))
-    
+
             # Add the standard deviation error bar, if requested.
             if show_stddev:
                 mean = stats.mean(values)
@@ -822,15 +822,15 @@ def v4_global_status():
     # Get a sorted list of recent machines.
     recent_machines = sorted(recent_runs_by_machine.keys(),
                              key=lambda m: m.name)
-    
+
     # We use periods in our machine names. css does not like this
     # since it uses periods to demark classes. Thus we convert periods
     # in the names of our machines to dashes for use in css. It is
     # also convenient for our computations in the jinja page to have
-    # access to 
+    # access to
     def get_machine_keys(m):
         m.css_name = m.name.replace('.','-')
-        return m    
+        return m
     recent_machines = map(get_machine_keys, recent_machines)
 
     # For each machine, build a table of the machine, the baseline run, and the
@@ -881,8 +881,8 @@ def v4_global_status():
         test_table.append(row)
 
     # Order the table by worst regression.
-    test_table.sort(key = lambda row: row[1], reverse=True)    
-    
+    test_table.sort(key = lambda row: row[1], reverse=True)
+
     return render_template("v4_global_status.html",
                            ts=ts,
                            tests=test_table,
@@ -918,13 +918,13 @@ def v4_daily_report(year, month, day):
         num_days = int(num_days_str)
     else:
         num_days = 3
-    
+
     day_start_str = request.args.get('day_start')
     if day_start_str is not None:
         day_start = int(day_start_str)
     else:
         day_start = 16
-    
+
     ts = request.get_testsuite()
 
     # Create the report object.

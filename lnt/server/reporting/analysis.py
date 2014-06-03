@@ -103,7 +103,7 @@ class ComparisonResult:
             is_significant = abs(self.delta) > (self.stddev *
                                                 confidence_interval)
 
-            # If the delta is significant, return 
+            # If the delta is significant, return
             if is_significant:
                 if self.delta < 0:
                     return IMPROVED
@@ -123,9 +123,10 @@ class ComparisonResult:
         else:
             return UNCHANGED_PASS
 
+
 class RunInfo(object):
     def __init__(self, testsuite, runs_to_load,
-                 aggregation_fn = min, confidence_lv = .05):
+                 aggregation_fn=stats.safe_min, confidence_lv=.05):
         self.testsuite = testsuite
         self.aggregation_fn = aggregation_fn
         self.confidence_lv = confidence_lv
@@ -155,7 +156,7 @@ class RunInfo(object):
             compare_runs = []
 
         return runs, compare_runs
-    
+
     def get_run_comparison_result(self, run, compare_to, test_id, field):
         if compare_to is not None:
             compare_to = [compare_to]
@@ -235,42 +236,66 @@ class RunInfo(object):
 
         return ComparisonResult(run_value, prev_value, delta,
                                 pct_delta, stddev, MAD,
-                                run_failed, prev_failed, run_values, prev_values,
-                                stddev_mean, self.confidence_lv)
+                                run_failed, prev_failed, run_values,
+                                prev_values, stddev_mean, self.confidence_lv)
+
+    #Smallest possible change we ever look for.
+    MIN_VALUE = 0.00001
+
+    @staticmethod
+    def not_none(thing):
+        if thing is None:
+            return True
+        return False
+
+    def _extract_values_from_samples(self, run, field):
+        """Given a run object, collect values for a particular field."""
+
+        run_samples = filter(self.not_none,
+                             [self.sample_map.get((run, test_id))
+                              for test_id in self.get_test_ids()])
+
+        run_values = filter(self.not_none,
+                            [self.aggregation_fn(a[field] + self.MIN_VALUE
+                             for a in e if a[field] is not None)
+                             for e in run_samples if e])
+        return run_values
+
+    def _calc_geomean(self, run_values):
+        if not run_values:
+            return None
+        return util.geometric_mean(run_values) - self.MIN_VALUE
 
     def get_geomean_comparison_result(self, run, compare_to, field,
-                                          comparison_window=[]):
+                                      comparison_window=[]):
         # FIXME: Geometric mean does not take 0 values, so fix it by adding 1
         # to each value and substract 1 from the result. Since we are only
         # interested in the change of data set, this workaround is good enough,
         # but not ideal.
-        run_samples = filter(None,
-            [self.sample_map.get((run.id, test_id))
-            for test_id in self.get_test_ids()])
-        run_values = [self.aggregation_fn(a[field.index] + 1
-            for a in e) for e in run_samples]
 
-        prev_samples = filter(None,
-            [self.sample_map.get((run.id, test_id))
-            for test_id in self.get_test_ids()])
-        prev_values = [self.aggregation_fn(a[field.index] + 1
-            for a in e) for e in prev_samples]
+        run_values = self._extract_values_from_samples(run.id, field.index)
 
-        run_geomean = util.geometric_mean(run_values) - 1
-        prev_geomean = util.geometric_mean(prev_values) - 1
+        prev_values = self._extract_values_from_samples(compare_to, field.index)
 
-        delta = run_geomean - prev_geomean
-        if prev_geomean != 0:
-            pct_delta = delta / prev_geomean
+        prev_geomean = self._calc_geomean(prev_values)
+        run_geomean = self._calc_geomean(run_values)
+
+        if run_geomean and prev_geomean:
+            delta = run_geomean - prev_geomean
+            if prev_geomean != 0:
+                pct_delta = delta / prev_geomean
+            else:
+                pct_delta = 0.0
         else:
-            pct_delta = 0.0
+            delta = pct_delta = 0
 
         return ComparisonResult(run_geomean, prev_geomean, delta,
-                                pct_delta, stddev = None, MAD = None,
-                                cur_failed = False, prev_failed = False,
-                                samples = [run_geomean],
-                                prev_samples = [prev_geomean],
-                                confidence_lv = 0)
+                                pct_delta, stddev=None, MAD=None,
+                                cur_failed=not run_geomean,
+                                prev_failed=not prev_geomean,
+                                samples=[run_geomean],
+                                prev_samples=[prev_geomean],
+                                confidence_lv=0)
 
     def _load_samples_for_runs(self, run_ids):
         # Find the set of new runs to load.
@@ -283,7 +308,7 @@ class RunInfo(object):
         # We speed things up considerably by loading the column data directly
         # here instead of requiring SA to materialize Sample objects.
         columns = [self.testsuite.Sample.run_id,
-                  self.testsuite.Sample.test_id]
+                   self.testsuite.Sample.test_id]
         columns.extend(f.column for f in self.testsuite.sample_fields)
         q = self.testsuite.query(*columns)
         q = q.filter(self.testsuite.Sample.run_id.in_(to_load))
@@ -294,4 +319,3 @@ class RunInfo(object):
             self.sample_map[(run_id, test_id)] = sample_values
 
         self.loaded_run_ids |= to_load
-

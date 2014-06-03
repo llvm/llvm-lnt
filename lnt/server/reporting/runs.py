@@ -7,10 +7,11 @@ import lnt.server.reporting.analysis
 import lnt.server.ui.app
 import lnt.util.stats
 
-def generate_run_report(run, baseurl, only_html_body = False,
-                        num_comparison_runs = 0, result = None,
-                        compare_to = None, baseline = None,
-                        aggregation_fn = min, confidence_lv = .05):
+
+def generate_run_report(run, baseurl, only_html_body=False,
+                        num_comparison_runs=0, result=None,
+                        compare_to=None, baseline=None,
+                        aggregation_fn=lnt.util.stats.safe_min, confidence_lv=.05):
     """
     generate_run_report(...) -> (str: subject, str: text_report,
                                  str: html_report)
@@ -27,6 +28,7 @@ def generate_run_report(run, baseurl, only_html_body = False,
     machine = run.machine
     machine_parameters = machine.parameters
     
+
     if baseline is None:
         # If a baseline has not been given, look up the run closest to
         # the default baseline revision for which this machine also
