@@ -283,6 +283,8 @@ class TestConfiguration(object):
             if self.test_small:
                 fatal('the --small and --large options are mutually exclusive')
             make_variables['LARGE_PROBLEM_SIZE'] = '1'
+        if self.test_benchmarking_only:
+            make_variables['BENCHMARKING_ONLY'] = '1'
         if self.test_integrated_as:
             make_variables['TEST_INTEGRATED_AS'] = '1'
         if self.liblto_path:
@@ -1209,6 +1211,9 @@ class NTTest(builtintest.BuiltinTest):
                          action="store_true", default=False)
         group.add_option("", "--large", dest="test_large",
                          help="Use larger test inputs",
+                         action="store_true", default=False)
+        group.add_option("", "--benchmarking-only", dest="test_benchmarking_only",
+                         help="Benchmarking-only mode",
                          action="store_true", default=False)
 
         group.add_option("", "--only-test", dest="only_test", metavar="PATH",
