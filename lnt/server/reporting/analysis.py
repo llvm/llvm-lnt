@@ -242,20 +242,14 @@ class RunInfo(object):
     #Smallest possible change we ever look for.
     MIN_VALUE = 0.00001
 
-    @staticmethod
-    def not_none(thing):
-        if thing is None:
-            return True
-        return False
-
     def _extract_values_from_samples(self, run, field):
         """Given a run object, collect values for a particular field."""
 
-        run_samples = filter(self.not_none,
+        run_samples = filter(lambda x: x is not None,
                              [self.sample_map.get((run, test_id))
                               for test_id in self.get_test_ids()])
 
-        run_values = filter(self.not_none,
+        run_values = filter(lambda x: x is not None,
                             [self.aggregation_fn(a[field] + self.MIN_VALUE
                              for a in e if a[field] is not None)
                              for e in run_samples if e])
