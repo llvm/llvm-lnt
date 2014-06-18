@@ -132,6 +132,11 @@ def get_cc_info(path, cc_flags=[]):
         if m:
             cc_src_branch,_,cc_src_revision = m.groups()
 
+            # With a CMake build, the branch is not emitted.
+            if cc_src_branch and not cc_src_revision and cc_src_branch.isdigit():
+                cc_src_revision = cc_src_branch
+                cc_src_branch = None
+
             # These show up with git-svn.
             if cc_src_branch == '$URL$':
                 cc_src_branch = ""
@@ -163,6 +168,12 @@ def get_cc_info(path, cc_flags=[]):
             m = re.match(r'\((.+) ([^ ]+)\)', cc_extra)
             if m:
                 cc_alt_src_branch,cc_alt_src_revision = m.groups()
+
+                # With a CMake build, the branch is not emitted.
+                if cc_src_branch and not cc_src_revision and cc_src_branch.isdigit():
+                    cc_alt_src_revision = cc_alt_src_branch
+                    cc_alt_src_branch = None
+                
             else:
                 error('unable to determine Clang development build info: %r' % (
                         (cc_name, cc_build_string, cc_extra),))
