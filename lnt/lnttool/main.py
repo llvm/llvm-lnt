@@ -436,7 +436,7 @@ error: installed distribution %s is not current (%s), you may need to reinstall
 LNT or rerun 'setup.py develop' if using development mode.""" % (
                 installed_dist_name, current_dist_name))
 
-tool = lnt.util.multitool.MultiTool(locals())
+tool = lnt.util.multitool.MultiTool(locals(), "LNT %s" % (lnt.__version__,))
 
 def main(*args, **kwargs):
     _version_check()

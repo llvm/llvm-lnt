@@ -25,7 +25,9 @@ class MultiTool(object):
     "-debug" are not listed in the help.
     """
 
-    def __init__(self, locals):
+    def __init__(self, locals, version=None):
+        self.version = version
+
         # Create the list of commands.
         self.commands = dict((name[7:].replace('_','-'), f)
                              for name,f in locals.items()
@@ -51,10 +53,26 @@ Use ``%s <command> --help`` for more information on a specific command.\n""" % (
         if args is None:
             args = sys.argv
 
-        if len(args) < 2 or args[1] not in self.commands:
-            if len(args) >= 2:
-                print >>sys.stderr,"error: invalid command %r\n" % args[1]
-            self.usage(args[0])
+        progname = os.path.basename(args.pop(0))
 
-        cmd = args[1]
-        self.commands[cmd]('%s %s' % (os.path.basename(args[0]), cmd), args[2:])
+        # Parse immediate command line options.
+        while args and args[0].startswith("-"):
+            option = args.pop(0)
+            if option in ("-h", "--help"):
+                self.usage(progname)
+            elif option in ("-v", "--version") and self.version is not None:
+                print self.version
+                return
+            else:
+                print >>sys.stderr, "error: invalid option %r\n" % (option,)
+                self.usage(progname)
+
+        if not args:
+            self.usage(progname)
+
+        cmd = args.pop(0)
+        if cmd not in self.commands:
+            print >>sys.stderr,"error: invalid command %r\n" % cmd
+            self.usage(progname)
+
+        self.commands[cmd]('%s %s' % (progname, cmd), args)
