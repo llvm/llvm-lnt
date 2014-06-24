@@ -287,8 +287,8 @@ class RunInfo(object):
                                 pct_delta, stddev=None, MAD=None,
                                 cur_failed=not run_geomean,
                                 prev_failed=not prev_geomean,
-                                samples=[run_geomean],
-                                prev_samples=[prev_geomean],
+                                samples=[run_geomean] if run_geomean else [],
+                                prev_samples=[prev_geomean] if prev_geomean else [],
                                 confidence_lv=0)
 
     def _load_samples_for_runs(self, run_ids):
