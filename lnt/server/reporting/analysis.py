@@ -269,7 +269,7 @@ class RunInfo(object):
 
         run_values = self._extract_values_from_samples(run.id, field.index)
 
-        prev_values = self._extract_values_from_samples(compare_to, field.index)
+        prev_values = self._extract_values_from_samples(compare_to.id, field.index)
 
         prev_geomean = self._calc_geomean(prev_values)
         run_geomean = self._calc_geomean(run_values)
