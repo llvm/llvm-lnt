@@ -268,11 +268,13 @@ class RunInfo(object):
         # but not ideal.
 
         run_values = self._extract_values_from_samples(run.id, field.index)
-
-        prev_values = self._extract_values_from_samples(compare_to.id, field.index)
-
-        prev_geomean = self._calc_geomean(prev_values)
         run_geomean = self._calc_geomean(run_values)
+
+        if compare_to:
+            prev_values = self._extract_values_from_samples(compare_to.id, field.index)
+        else:
+            prev_values = []
+        prev_geomean = self._calc_geomean(prev_values)
 
         if run_geomean and prev_geomean:
             delta = run_geomean - prev_geomean
@@ -285,8 +287,8 @@ class RunInfo(object):
 
         return ComparisonResult(run_geomean, prev_geomean, delta,
                                 pct_delta, stddev=None, MAD=None,
-                                cur_failed=not run_geomean,
-                                prev_failed=not prev_geomean,
+                                cur_failed=run_values and not run_geomean,
+                                prev_failed=prev_values and not prev_geomean,
                                 samples=[run_geomean] if run_geomean else [],
                                 prev_samples=[prev_geomean] if prev_geomean else [],
                                 confidence_lv=0)
