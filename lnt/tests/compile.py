@@ -62,23 +62,23 @@ def runN(args, N, cwd, preprocess_cmd=None, env=None, sample_mem=False,
                          env=env,
                          cwd=cwd)
     stdout,stderr = p.communicate()
-    res = p.wait()
+    res = p.returncode
 
-    data = None
+    # If the runN command failed, or it had stderr when we didn't expect it,
+    # fail immediately and don't try to parse the output.
+    if res != 0:
+        g_log.error("command failed with stderr:\n--\n%s\n--" % stderr.strip())
+        return None
+    elif not ignore_stderr and stderr.strip():
+        g_log.error("command had unexpected output on stderr:\n--\n%s\n--" % (
+                stderr.strip(),))
+        return None
+
+    # Otherwise, parse the timing data from runN.
     try:
-        data = eval(stdout)
+        return eval(stdout)
     except:
-        error("failed to parse output: %s\n" % stdout)
-
-    if not ignore_stderr and stderr.strip():
-        error("stderr isn't empty: %s\n" % stderr)
-        data = None
-
-    if res:
-        error("res != 0: %s\n" % res)
-        data = None
-
-    return data
+        fatal("failed to parse output: %s\n" % stdout)
 
 # Test functions.
 def get_input_path(opts, *names):
