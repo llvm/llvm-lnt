@@ -565,10 +565,9 @@ def v4_graph():
         # Aggregate by revision.
         data = util.multidict((rev, (val, date)) for val,rev,date in q).items()
         data.sort(key=lambda sample: convert_revision(sample[0]))
-        color_offset = 1
         # Get baselines for this line
         num_baselines = len(baseline_parameters)
-        for baseline, baseline_title in baseline_parameters:
+        for baseline_id, (baseline, baseline_title) in enumerate(baseline_parameters):
             q_baseline = ts.query(field.column, ts.Order.llvm_project_revision, ts.Run.start_time, ts.Machine.name).\
                          join(ts.Run).join(ts.Order).join(ts.Machine).\
                          filter(ts.Run.id == baseline.id).\
@@ -583,8 +582,9 @@ def v4_graph():
                 continue
             mean = sum(samples)/len(samples)
             # Darken the baseline color distinguish from non-baselines.
-            # Make a color spread that is wide enough for all baselines x plots.
-            my_color = (float(i) * num_baselines + color_offset) / (num_plots * num_baselines)
+            # Make a color closer to the sample than its neighbour.
+            color_offset = float(baseline_id) / num_baselines / 2
+            my_color = (i + color_offset) / num_plots
             dark_col = list(util.makeDarkerColor(my_color))
             str_dark_col =  util.toColorString(dark_col)
             baseline_plots.append({'color': str_dark_col,
@@ -593,7 +593,7 @@ def v4_graph():
                                    'name': q_baseline[0].llvm_project_revision})
             baseline_name = "Baseline {} on {}".format(baseline_title,  q_baseline[0].name)
             legend.append((BaselineLegendItem(baseline_name, baseline.id), test.name, field.name, dark_col))
-            color_offset += 1
+
         # Compute the graph points.
         errorbar_data = []
         points_data = []
