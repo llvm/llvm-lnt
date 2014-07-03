@@ -109,7 +109,7 @@ def action_checkformat(name, args):
 
     if input == '-':
         input = StringIO.StringIO(sys.stdin.read())
-    
+
     import lnt.server.db.v4db
     import lnt.server.config
     db = lnt.server.db.v4db.V4DB('sqlite:///:memory:',
@@ -384,14 +384,10 @@ def action_send_run_comparison(name, args):
     if run_b is None:
         parser.error("invalid run ID %r (not in database)" % (run_b_id,))
 
-    # Gather the runs to use for statistical data.
-    comparison_window = list(ts.get_previous_runs_on_machine(
-                run_a, N=10))
-
     # Generate the report.
     reports = lnt.server.reporting.runs.generate_run_report(
         run_b, baseurl=config.zorgURL, only_html_body=False, result=None,
-        compare_to=run_a, baseline=None, comparison_window=comparison_window,
+        compare_to=run_a, baseline=None,
         aggregation_fn=min)
     subject, text_report, html_report, _ = reports
 
