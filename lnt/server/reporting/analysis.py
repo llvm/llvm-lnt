@@ -239,9 +239,6 @@ class RunInfo(object):
                                 run_failed, prev_failed, run_values,
                                 prev_values, stddev_mean, self.confidence_lv)
 
-    #Smallest possible change we ever look for.
-    MIN_VALUE = 0.00001
-
     def _extract_values_from_samples(self, run, field):
         """Given a run object, collect values for a particular field."""
 
@@ -250,23 +247,29 @@ class RunInfo(object):
                               for test_id in self.get_test_ids()])
 
         run_values = filter(lambda x: x is not None,
-                            [self.aggregation_fn(a[field] + self.MIN_VALUE
+                            [self.aggregation_fn(a[field]
                              for a in e if a[field] is not None)
                              for e in run_samples if e])
         return run_values
 
     def _calc_geomean(self, run_values):
+        # NOTE Geometric mean applied only to positive values, so fix it by
+        # adding MIN_VALUE to each value and substract it from the result.
+        # Since we are only interested in the change of the central tendency,
+        # this workaround is good enough.
+
+        # Smallest possible change we ever look for.
+        MIN_VALUE = 0.00001
+
         if not run_values:
             return None
-        return util.geometric_mean(run_values) - self.MIN_VALUE
+
+        values = [v + MIN_VALUE for v in run_values]
+
+        return util.geometric_mean(values) - MIN_VALUE
 
     def get_geomean_comparison_result(self, run, compare_to, field,
                                       comparison_window=[]):
-        # FIXME: Geometric mean does not take 0 values, so fix it by adding 1
-        # to each value and substract 1 from the result. Since we are only
-        # interested in the change of data set, this workaround is good enough,
-        # but not ideal.
-
         run_values = self._extract_values_from_samples(run.id, field.index)
         run_geomean = self._calc_geomean(run_values)
 
