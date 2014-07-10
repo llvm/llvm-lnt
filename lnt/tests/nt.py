@@ -12,6 +12,7 @@ from datetime import datetime
 
 import lnt.testing
 import lnt.testing.util.compilers
+import lnt.util.ImportData as ImportData
 
 from lnt.testing.util.commands import note, warning, error, fatal, resolve_command_path
 from lnt.testing.util.commands import capture, mkdir_p, which
