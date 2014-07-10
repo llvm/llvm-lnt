@@ -45,6 +45,15 @@ class Report:
         for t in self.tests:
             assert isinstance(t, TestSamples)
 
+    def update_report(self, new_samples):
+        """Add extra samples to this report, and update
+        the end time.
+        """
+        self.check()
+        self.tests.extend(new_samples)
+        self.run.update_endtime()
+        self.check()
+
     def render(self, indent=4):
         # Note that we specifically override the encoding to avoid the
         # possibility of encoding errors. Clients which care about the text
@@ -100,6 +109,11 @@ class Run:
             raise ValueError("'__report_version__' key is reserved")
         self.info['__report_version__'] = str(current_version)
 
+    def update_endtime(self, end_time=None):
+        if end_time is None:
+            end_time = datetime.datetime.utcnow()
+        self.end_time = normalize_time(end_time)
+
     def render(self):
         return { 'Start Time' : self.start_time,
                  'End Time' : self.end_time,
@@ -144,6 +158,12 @@ class TestSamples:
                  'Info' : self.info,
                  'Data' : self.data }
 
+
+    def __repr__(self):
+        # TODO remove this
+        return "TestSample({}): {} - {}".format(self.name,
+                                                self.data,
+                                                self.info)
 ###
 # Report Versioning
 
