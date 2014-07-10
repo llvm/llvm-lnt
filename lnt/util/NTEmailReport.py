@@ -50,5 +50,5 @@ def getReport(result, db, run, baseurl, was_added, will_commit,
 
     reports = lnt.server.reporting.runs.generate_run_report(
         run, baseurl=baseurl, only_html_body=only_html_body,
-        result=result, compare_to=compare_to)
+        result=result, compare_to=compare_to, num_comparison_runs=10)
     return reports[:3]
