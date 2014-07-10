@@ -7,7 +7,6 @@ data suitable for submitting to the server.
 """
 
 import datetime
-import time
 import re
 
 try:
