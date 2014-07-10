@@ -13,7 +13,6 @@ logging.basicConfig(level=logging.DEBUG)
 
 
 def check_code(client, url, expected_code=200):
-    # Fetch the index page.
     resp = client.get(url, follow_redirects=False)
     assert resp.status_code == expected_code, \
         "Call to %s returned: %d, not the expected %d"%(url, resp.status_code, expected_code)
