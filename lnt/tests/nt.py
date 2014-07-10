@@ -1493,14 +1493,50 @@ class NTTest(builtintest.BuiltinTest):
             lnt_report_file.close()
 
         else:
-            report = run_test(nick, None, config)
+            test_results = run_test(nick, None, config)
 
-        if config.output is not None:
-            self.print_report(report, config.output)
+            if config.output is not None:
+                self.print_report(test_results, config.output)
 
-        self.submit(config.report_path(None), config)
+        commit = True
+        server_report = self.submit_helper(config, commit)
 
-        return report
+        ImportData.print_report_result(server_report,
+                                       sys.stdout,
+                                       sys.stderr,
+                                       config.verbose)
+        return server_report
+
+    def submit_helper(self, config, commit=False):
+        """Submit the report to the server.  If no server
+        was specified, use a local mock server.
+        """
+        report_path = config.report_path(None)
+        assert os.path.exists(report_path), "Passed an invalid report file. " \
+            "Should have never gotten here!"
+
+        result = None
+        if config.submit_url is not None:
+            from lnt.util import ServerUtil
+            self.log("submitting result to %r" % (config.submit_url,))
+            result = ServerUtil.submitFile(config.submit_url, report_path, commit, False)
+
+        else:
+            # Simulate a submission to retrieve the results report.
+            # Construct a temporary database and import the result.
+            self.log("submitting result to dummy instance")
+
+            import lnt.server.db.v4db
+            import lnt.server.config
+            db = lnt.server.db.v4db.V4DB("sqlite:///:memory:",
+                                         lnt.server.config.Config.dummyInstance())
+            result = lnt.util.ImportData.import_and_report(
+                None, None, db, report_path, 'json', commit)
+
+        assert result is not None, "Results were not obtained from submission."
+
+        return result
+
 
 def create_instance():
     return NTTest()
