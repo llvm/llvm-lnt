@@ -7,7 +7,7 @@ import os
 
 from lnt.testing.util.misc import timestamp
 
-import lnt.util.ServerUtil as ServerUtil 
+import lnt.util.ServerUtil as ServerUtil
 import lnt.util.ImportData as ImportData
 import lnt.server.config as server_config
 import lnt.server.db.v4db
@@ -49,7 +49,7 @@ class BuiltinTest(object):
     def submit(self, report_path, config, commit=True):
         """Submit the results file to the server.  If no server
         was specified, use a local mock server.
-        
+
         report_path is the location of the json report file.  config
         holds options for submission url, and verbosity.  When commit
         is true, results will be saved in the server, otherwise you
