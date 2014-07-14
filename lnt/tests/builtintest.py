@@ -65,7 +65,8 @@ class BuiltinTest(object):
             self.log("submitting result to %r" % (config.submit_url,))
             server_report = ServerUtil.submitFile(config.submit_url,
                                                   report_path,
-                                                  commit)
+                                                  commit,
+                                                  config.verbose)
         else:
             # Simulate a submission to retrieve the results report.
 
