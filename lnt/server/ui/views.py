@@ -315,6 +315,7 @@ def v4_run(id):
     options['show_sample_counts'] = bool(request.args.get('show_sample_counts'))
     options['show_graphs'] = show_graphs = bool(request.args.get('show_graphs'))
     options['show_data_table'] = bool(request.args.get('show_data_table'))
+    options['show_small_diff'] = bool(request.args.get('show_small_diff'))
     options['hide_report_by_default'] = bool(
         request.args.get('hide_report_by_default'))
     options['num_comparison_runs'] = info.num_comparison_runs

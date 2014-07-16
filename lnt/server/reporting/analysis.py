@@ -72,7 +72,7 @@ class ComparisonResult:
         elif self.prev_failed:
             return UNCHANGED_PASS
 
-        # Ignore tests whose delt is too small relative to the precision we can
+        # Ignore tests whose delta is too small relative to the precision we can
         # sample at; otherwise quantization means that we can't measure the
         # standard deviation with enough accuracy.
         if abs(self.delta) <= 2 * value_precision * confidence_interval:
@@ -115,7 +115,7 @@ class ComparisonResult:
         # Otherwise, report any changes above 0.2%, which is a rough
         # approximation for the smallest change we expect "could" be measured
         # accurately.
-        if abs(self.pct_delta) >= .002:
+        if not ignore_small or abs(self.pct_delta) >= .002:
             if self.pct_delta < 0:
                 return IMPROVED
             else:

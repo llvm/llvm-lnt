@@ -27,7 +27,7 @@
 
 {% macro get_cell_value(cr) %}
   {% set test_status = cr.get_test_status() %}
-  {% set value_status = cr.get_value_status() %}
+  {% set value_status = cr.get_value_status(ignore_small=not options.show_small_diff) %}
   {% set run_cell_value = "-" if cr.current is none else "%.4f" % cr.current %}
   
   {% if options.show_previous %}
@@ -213,6 +213,10 @@
     <tr>
       <td>Show Sample Counts:</td>
       <td><input type="checkbox" name="show_sample_counts" value="yes" {{ "checked" if options.show_sample_counts else "" }}></td>
+    </tr>
+    <tr>
+      <td>Show Small Differences:</td>
+      <td><input type="checkbox" name="show_small_diff" value="yes" {{ "checked" if options.show_small_diff else "" }}></td>
     </tr>
     <tr>
       <td>Number of Comparison Runs:</td>
