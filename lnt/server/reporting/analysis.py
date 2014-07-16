@@ -239,19 +239,6 @@ class RunInfo(object):
                                 run_failed, prev_failed, run_values,
                                 prev_values, stddev_mean, self.confidence_lv)
 
-    def _extract_values_from_samples(self, run, field):
-        """Given a run object, collect values for a particular field."""
-
-        run_samples = filter(lambda x: x is not None,
-                             [self.sample_map.get((run, test_id))
-                              for test_id in self.get_test_ids()])
-
-        run_values = filter(lambda x: x is not None,
-                            [self.aggregation_fn(a[field]
-                             for a in e if a[field] is not None)
-                             for e in run_samples if e])
-        return run_values
-
     def _calc_geomean(self, run_values):
         # NOTE Geometric mean applied only to positive values, so fix it by
         # adding MIN_VALUE to each value and substract it from the result.
@@ -268,15 +255,11 @@ class RunInfo(object):
 
         return util.geometric_mean(values) - MIN_VALUE
 
-    def get_geomean_comparison_result(self, run, compare_to, field,
+    def get_geomean_comparison_result(self, run, compare_to, field, tests,
                                       comparison_window=[]):
-        run_values = self._extract_values_from_samples(run.id, field.index)
-        run_geomean = self._calc_geomean(run_values)
+        prev_values,run_values = zip(*[(cr.previous,cr.current) for _,_,cr in tests])
 
-        if compare_to:
-            prev_values = self._extract_values_from_samples(compare_to.id, field.index)
-        else:
-            prev_values = []
+        run_geomean = self._calc_geomean(run_values)
         prev_geomean = self._calc_geomean(prev_values)
 
         if run_geomean and prev_geomean:

@@ -311,23 +311,28 @@
           </tr>
         </thead>
         <tbody>  
-		  {% set (runs, compare_runs) = request_info.sri.get_sliding_runs(run, compare_to, request_info.num_comparison_runs) %}
+          {% set tests = [] %}
+          {% set (runs, compare_runs) = request_info.sri.get_sliding_runs(run, compare_to, request_info.num_comparison_runs) %}
           {% for test_name,test_id in test_info %}
-		    {% set cr = request_info.sri.get_comparison_result(runs, compare_runs, test_id, field) %}
+            {% set cr = request_info.sri.get_comparison_result(runs, compare_runs, test_id, field) %}
             {% if cr.previous is not none or cr.current is not none %}
               {% if cr.current is none or cr.current >= test_min_value_filter %}
-                <tr>
-                  <td><input type="checkbox" name="plot.{{test_id}}" value="{{machine.id}}.{{test_id}}.{{field.index}}"></td>
-                  <td><a href="{{graph_base}}&plot.{{test_id}}={{ machine.id}}.{{test_id}}.{{field.index}}">{{ test_name }}</a></td>
-                  {{ get_cell_value(cr) }}
-                </tr>
+                {% if tests.append((test_name, test_id, cr)) %}{% endif %}
               {% endif %}
             {% endif %}
+          {% endfor %}
+
+          {% for test_name,test_id,cr in tests %}
+            <tr>
+              <td><input type="checkbox" name="plot.{{test_id}}" value="{{machine.id}}.{{test_id}}.{{field.index}}"></td>
+              <td><a href="{{graph_base}}&plot.{{test_id}}={{ machine.id}}.{{test_id}}.{{field.index}}">{{ test_name }}</a></td>
+              {{ get_cell_value(cr) }}
+            </tr>
           {% endfor %}
         </tbody>
         <tfoot>
           {% set cr = request_info.sri.get_geomean_comparison_result(
-                      run, compare_to, field, request_info.comparison_window) %}
+                      run, compare_to, field, tests, request_info.comparison_window) %}
           <td></td>
           <td>Mean</td>
           {{ get_cell_value(cr) }}
