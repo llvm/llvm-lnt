@@ -257,7 +257,10 @@ class RunInfo(object):
 
     def get_geomean_comparison_result(self, run, compare_to, field, tests,
                                       comparison_window=[]):
-        prev_values,run_values = zip(*[(cr.previous,cr.current) for _,_,cr in tests])
+        if tests:
+            prev_values,run_values = zip(*[(cr.previous,cr.current) for _,_,cr in tests])
+        else:
+            prev_values,run_values = [], []
 
         run_geomean = self._calc_geomean(run_values)
         prev_geomean = self._calc_geomean(prev_values)
