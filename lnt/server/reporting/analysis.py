@@ -248,10 +248,10 @@ class RunInfo(object):
         # Smallest possible change we ever look for.
         MIN_VALUE = 0.00001
 
-        if not run_values:
-            return None
+        values = [v + MIN_VALUE for v in run_values if v]
 
-        values = [v + MIN_VALUE for v in run_values]
+        if not values:
+            return None
 
         return util.geometric_mean(values) - MIN_VALUE
 
