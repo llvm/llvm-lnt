@@ -248,7 +248,7 @@ class RunInfo(object):
         # Smallest possible change we ever look for.
         MIN_VALUE = 0.00001
 
-        values = [v + MIN_VALUE for v in run_values if v]
+        values = [v + MIN_VALUE for v in run_values if v is not None]
 
         if not values:
             return None
