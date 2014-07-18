@@ -253,6 +253,10 @@ def action_send_daily_report(name, args):
                       help="send the report for today (instead of most recent)")
     parser.add_option("", "--subject-prefix", dest="subject_prefix",
                       help="add a subject prefix")
+    parser.add_option("-n", "--dry-run", dest="dry_run", default=False,
+                      action="store_true", help="Don't actually send email."
+                      " Used for testing.")
+ 
     (opts, args) = parser.parse_args(args)
 
     if len(args) != 2:
@@ -311,10 +315,11 @@ def action_send_daily_report(name, args):
     msg.attach(email.mime.text.MIMEText(html_report, "html"))
 
     # Send the report.
-    s = smtplib.SMTP(opts.host)
-    s.sendmail(opts.from_address, [to_address],
-               msg.as_string())
-    s.quit()
+    if not opts.dry_run:
+        s = smtplib.SMTP(opts.host)
+        s.sendmail(opts.from_address, [to_address],
+                   msg.as_string())
+        s.quit()
 
 def action_send_run_comparison(name, args):
     """send a run-vs-run comparison email"""
@@ -342,6 +347,10 @@ def action_send_run_comparison(name, args):
                       help="send the report for today (instead of most recent)")
     parser.add_option("", "--subject-prefix", dest="subject_prefix",
                       help="add a subject prefix")
+    parser.add_option("-n", "--dry-run", dest="dry_run", default=False,
+                      action="store_true", help="Don't actually send email."
+                      " Used for testing.")
+
     (opts, args) = parser.parse_args(args)
 
     if len(args) != 3:
@@ -403,10 +412,11 @@ def action_send_run_comparison(name, args):
     msg.attach(email.mime.text.MIMEText(html_report, 'html'))
 
     # Send the report.
-    s = smtplib.SMTP(opts.host)
-    s.sendmail(opts.from_address, [opts.to_address],
-               msg.as_string())
-    s.quit()
+    if not opts.dry_run:
+        s = smtplib.SMTP(opts.host)
+        s.sendmail(opts.from_address, [opts.to_address],
+                   msg.as_string())
+        s.quit()
 
 ###
 
