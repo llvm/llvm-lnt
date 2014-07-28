@@ -164,6 +164,12 @@ class TestConfiguration(object):
         else:
             return None
 
+    @property
+    def qemu_user_mode_command(self):
+        """ The command used for qemu user mode """
+        assert self.qemu_user_mode
+        return ' '.join([self.qemu_user_mode] + self.qemu_flags)
+
     def build_report_path(self, iteration):
         """The path of the results.csv file which each run of the test suite
         will produce.
@@ -388,7 +394,7 @@ class TestConfiguration(object):
         # Set qemu user mode variables, if used.
         if self.qemu_user_mode:
             make_variables['USER_MODE_EMULATION'] = '1'
-            make_variables['RUNUNDER'] = self.qemu_user_mode
+            make_variables['RUNUNDER'] = self.qemu_user_mode_command
 
         return make_variables, public_vars
         
@@ -977,7 +983,7 @@ def run_test(nick_prefix, iteration, config):
 
     # Query qemu user mode properties if in use.
     if config.qemu_user_mode:
-        run_info['qemu_user_mode'] = config.qemu_user_mode
+        run_info['qemu_user_mode'] = config.qemu_user_mode_command
 
     # Add machine dependent info.
     if config.use_machdep_info:
@@ -1265,6 +1271,9 @@ class NTTest(builtintest.BuiltinTest):
                          help=("Enable qemu user mode emulation using this "
                                "qemu executable [%default]"),
                          type=str, default=None)
+        group.add_option("", "--qemu-flag", dest="qemu_flags",
+                         help="Additional flags to pass to qemu",
+                         action="append", type=str, default=[], metavar="FLAG")
 
         group.add_option("", "--multisample", dest="multisample",
                          help="Accumulate test data from multiple runs",
