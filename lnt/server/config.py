@@ -90,7 +90,9 @@ class Config:
             default_email_config = EmailConfig(False, '', '', [])
 
         dbDir = data.get('db_dir', '.')
-        dbDirPath = os.path.join(baseDir, dbDir)
+
+        # If the path does not contain database type, assume relative path.
+        dbDirPath = dbDir if "://" in dbDir else os.path.join(baseDir, dbDir)
 
         # FIXME: Remove this default.
         tempDir = data.get('tmp_dir', 'viewer/resources/graphs')

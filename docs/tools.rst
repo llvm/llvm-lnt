@@ -51,7 +51,8 @@ The following tools are used to interact with an LNT server:
     to tweak the generated server, but they can all be modified after the fact
     in the LNT configuration file.
 
-    The default server will have one database named *default*.
+    The default server will have a sqlite3 database named *default*. You can
+    specify to use PostgreSQL using ``--db-dir postgresql://user@hostname``.
 
   ``lnt createdb <path>``
     Creates a new LNT sqlite3 database at the specified path.

@@ -151,17 +151,22 @@ def action_create(name, args):
     hosturl = "http://%s/%s" % (hostname, hostsuffix)
 
     python_executable = sys.executable
-    db_dir_path = os.path.join(basepath, db_dir)
     cfg_path = os.path.join(basepath, config)
-    db_path = os.path.join(db_dir_path, default_db)
     tmp_path = os.path.join(basepath, tmp_dir)
     wsgi_path = os.path.join(basepath, wsgi)
     secret_key = (opts.secret_key or
                   hashlib.sha1(str(random.getrandbits(256))).hexdigest())
 
     os.mkdir(path)
-    os.mkdir(db_dir_path)
     os.mkdir(tmp_path)
+
+    # If the path does not contain database type, assume relative path.
+    if "://" not in db_dir:
+        db_dir_path = os.path.join(basepath, db_dir)
+        db_path = os.path.join(db_dir_path, default_db)
+        os.mkdir(db_dir_path)
+    else:
+        db_path = os.path.join(db_dir, default_db)
 
     cfg_version = kConfigVersion
     cfg_file = open(cfg_path, 'w')

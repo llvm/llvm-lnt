@@ -34,13 +34,13 @@ If you are only interested in using LNT to run tests locally, see the
 If you want to run an LNT server, you will need to perform the following
 additional steps:
 
- 2. Create a new LNT installation:
+ 2. Create a new LNT installation::
 
       lnt create path/to/install-dir
 
     This will create the LNT configuration file, the default database, and a
     .wsgi wrapper to create the application. You can execute the generated app
-    directly to run with the builtin web server, or use 
+    directly to run with the builtin web server, or use::
 
       lnt runserver path/to/install-dir
 
@@ -62,6 +62,21 @@ additional steps:
     If running in a virtualenv you will need to configure that as well; see the
     `modwsgi wiki <http://code.google.com/p/modwsgi/wiki/VirtualEnvironments>`_.
 
+For production servers, you should consider using a full DBMS like PostgreSQL.
+To create an LNT instance with PostgreSQL backend, you need to do this instead:
+
+ 1. Create an LNT database in PostgreSQL, also make sure the user has
+    write permission to the database::
+
+      CREATE DATABASE "lnt.db"
+
+ 2. Then create LNT installation::
+
+      lnt create path/to/install-dir --db-dir postgresql://user@host
+
+ 3. Run server normally::
+
+      lnt runserver path/to/install-dir
 
 Development
 -----------
@@ -85,7 +100,6 @@ This requires the 'lit' testing tool be installed. You can also use::
 
 if you prefer 'unittest' style output (this still requires that 'lit' be
 installed).
-
 
 Architecture
 ------------
