@@ -5,6 +5,7 @@ import tempfile
 
 from commands import capture
 from commands import error
+from commands import fatal
 from commands import rm_f
 
 def ishexhash(string):
@@ -69,12 +70,12 @@ def get_cc_info(path, cc_flags=[]):
         elif 'cc1' in ln or 'clang-cc' in ln:
             m = re.match(r' "?([^"]*)"?.*"?-E"?.*', ln)
             if not m:
-                error("unable to determine cc1 binary: %r: %r" % (cc, ln))
+                fatal("unable to determine cc1 binary: %r: %r" % (cc, ln))
             cc1_binary, = m.groups()
         elif "-_Amachine" in ln:
             m = re.match(r'([^ ]*) *-.*', ln)
             if not m:
-                error("unable to determine cc1 binary: %r: %r" % (cc, ln))
+                fatal("unable to determine cc1 binary: %r: %r" % (cc, ln))
             cc1_binary, = m.groups()
     if version_ln is None:
         error("unable to find compiler version: %r: %r" % (cc, cc_version))
