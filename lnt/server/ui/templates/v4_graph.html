@@ -140,6 +140,10 @@ function show_tooltip(x, y, item, pos, graph_data) {
     var meta_data = extract_metadata(item, graph_data);
     var tip_body = '<div id="tooltip">';
 
+    if ("test_name" in meta_data) {
+        tip_body += "<b>Test:</b> " + meta_data.test_name + "<br>";
+    }
+
     if ("label" in meta_data) {
         tip_body += "<b>Revision:</b> " + meta_data.label + "<br>";
     }

@@ -592,7 +592,7 @@ def v4_graph():
         data = util.multidict((rev, (val, date)) for val,rev,date in q).items()
         data.sort(key=lambda sample: convert_revision(sample[0]))
 
-        graph_datum.append((data, col))
+        graph_datum.append((test.name, data, col))
 
         # Get baselines for this line
         num_baselines = len(baseline_parameters)
@@ -626,9 +626,10 @@ def v4_graph():
     # Draw mean trend if requested.
     if mean_parameter:
         machine, field = mean_parameter
+        test_name = 'Mean'
 
         col = (0,0,0)
-        legend.append((machine, 'Mean', field.name, col))
+        legend.append((machine, test_name, field.name, col))
 
         q = ts.query(sqlalchemy.sql.func.min(field.column),
                 ts.Order.llvm_project_revision,
@@ -646,9 +647,9 @@ def v4_graph():
         # Sort data points according to revision number.
         data.sort(key=lambda sample: convert_revision(sample[0]))
 
-        graph_datum.append((data, col))
+        graph_datum.append((test_name, data, col))
 
-    for data, col in graph_datum:
+    for name, data, col in graph_datum:
         # Compute the graph points.
         errorbar_data = []
         points_data = []
@@ -668,8 +669,6 @@ def v4_graph():
             # And the date on which they were taken.
             dates = [data_date[1] for data_date in datapoints]
 
-            metadata = {"label":point_label}
-
             # When we can, map x-axis to revisions, but when that is too hard
             # use the position of the sample instead.
             rev_x = convert_revision(point_label)
@@ -677,7 +676,15 @@ def v4_graph():
 
             values = [v*normalize_by for v in data]
             min_value,min_index = min((value, index) for (index, value) in enumerate(values))
+
+            # Generate metadata.
+            metadata = {"label":point_label}
             metadata["date"] = str(dates[min_index])
+            if len(graph_datum) > 1:
+                # If there are more than one plot in the graph, also label the
+                # test name.
+                metadata["test_name"] = name
+
             pts.append((x, min_value, metadata))
 
             # Add the individual points, if requested.
