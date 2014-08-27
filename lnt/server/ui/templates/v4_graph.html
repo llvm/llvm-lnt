@@ -294,6 +294,9 @@ function update_tooltip(event, pos, item, show_fn, graph_data) {
           {% if name.startswith('baseline.') %}
           <input type="hidden" name="{{name}}" value="{{value}}">
           {% endif %}
+          {% if name == 'mean' %}
+          <input type="hidden" name="{{name}}" value="{{value}}">
+          {% endif %}
           {% endfor %}
             
           <input class="btn btn-primary" style="clear: left; width: 100%"

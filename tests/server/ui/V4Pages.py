@@ -58,6 +58,9 @@ def main():
     # Get the new graph page.
     check_code(client, '/v4/nts/graph?plot.0=1.87.2')
 
+    # Get the mean graph page.
+    check_code(client, '/v4/nts/graph?mean=1.2')
+
     # Check some variations of the daily report work.
     check_code(client, '/v4/nts/daily_report/2012/4/12')
     check_code(client, '/v4/nts/daily_report/2012/4/11')
@@ -92,6 +95,9 @@ def main():
 
     # Get the new graph page.
     check_code(client, '/v4/compile/graph?plot.38=2.38.9')
+
+    # Get the mean graph page.
+    check_code(client, 'v4/compile/graph?mean=2.9')
 
     # Check some variations of the daily report work.
     check_code(client, '/v4/compile/daily_report/2014/6/5?day_start=16')

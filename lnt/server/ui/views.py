@@ -485,8 +485,32 @@ def v4_graph():
     # Order the plots by machine name, test name and then field.
     graph_parameters.sort(key = lambda (m,t,f): (m.name, t.name, f.name))
 
+    # Extract requested mean trend.
+    mean_parameter = None
+    for name,value in request.args.items():
+        # Mean to graph is passed as:
+        #
+        #  mean=<machine id>.<field index>
+        if name != 'mean':
+            continue
+
+        machine_id_str,field_index_str  = value.split('.')
+        try:
+            machine_id = int(machine_id_str)
+            field_index = int(field_index_str)
+        except ValueError:
+            return abort(400)
+
+        if not (0 <= field_index < len(ts.sample_fields)):
+            return abort(400)
+
+        machine = ts.query(ts.Machine).filter(ts.Machine.id == machine_id).one()
+        field = ts.sample_fields[field_index]
+
+        mean_parameter = (machine, field)
+
     # Sanity check the arguments.
-    if not graph_parameters:
+    if not graph_parameters and not mean_parameter:
         return render_template("error.html", message="Nothing to graph.")
 
     # Extract requested baselines, and their titles.
@@ -537,6 +561,7 @@ def v4_graph():
     # Build the graph data.
     legend = []
     graph_plots = []
+    graph_datum = []
     overview_plots = []
     baseline_plots = []
     num_plots = len(graph_parameters)
@@ -566,6 +591,9 @@ def v4_graph():
         # Aggregate by revision.
         data = util.multidict((rev, (val, date)) for val,rev,date in q).items()
         data.sort(key=lambda sample: convert_revision(sample[0]))
+
+        graph_datum.append((data, col))
+
         # Get baselines for this line
         num_baselines = len(baseline_parameters)
         for baseline_id, (baseline, baseline_title) in enumerate(baseline_parameters):
@@ -595,17 +623,45 @@ def v4_graph():
             baseline_name = "Baseline {} on {}".format(baseline_title,  q_baseline[0].name)
             legend.append((BaselineLegendItem(baseline_name, baseline.id), test.name, field.name, dark_col))
 
+    # Draw mean trend if requested.
+    if mean_parameter:
+        machine, field = mean_parameter
+
+        col = (0,0,0)
+        legend.append((machine, 'Mean', field.name, col))
+
+        q = ts.query(sqlalchemy.sql.func.min(field.column),
+                ts.Order.llvm_project_revision,
+                sqlalchemy.sql.func.min(ts.Run.start_time)).\
+            join(ts.Run).join(ts.Order).join(ts.Test).\
+            filter(ts.Run.machine_id == machine.id).\
+            filter(field.column != None).\
+            group_by(ts.Order.llvm_project_revision, ts.Test)
+
+        # Calculate geomean of each revision.
+        data = util.multidict(((rev, date), val) for val,rev,date in q).items()
+        data = [(rev, [(lnt.server.reporting.analysis.calc_geomean(vals), date)])
+                for ((rev, date), vals) in data]
+
+        # Sort data points according to revision number.
+        data.sort(key=lambda sample: convert_revision(sample[0]))
+
+        graph_datum.append((data, col))
+
+    for data, col in graph_datum:
         # Compute the graph points.
         errorbar_data = []
         points_data = []
         pts = []
         moving_median_data = []
         moving_average_data = []
+
         if normalize_by_median:
             normalize_by = 1.0/stats.median([min([d[0] for d in values])
                                            for _,values in data])
         else:
             normalize_by = 1.0
+
         for pos, (point_label, datapoints) in enumerate(data):
             # Get the samples.
             data = [data_date[0] for data_date in datapoints]
