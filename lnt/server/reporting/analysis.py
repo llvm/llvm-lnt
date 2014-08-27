@@ -11,6 +11,22 @@ IMPROVED = 'IMPROVED'
 UNCHANGED_PASS = 'UNCHANGED_PASS'
 UNCHANGED_FAIL = 'UNCHANGED_FAIL'
 
+def calc_geomean(run_values):
+    # NOTE Geometric mean applied only to positive values, so fix it by
+    # adding MIN_VALUE to each value and substract it from the result.
+    # Since we are only interested in the change of the central tendency,
+    # this workaround is good enough.
+
+    # Smallest possible change we ever look for.
+    MIN_VALUE = 0.00001
+
+    values = [v + MIN_VALUE for v in run_values if v is not None]
+
+    if not values:
+        return None
+
+    return util.geometric_mean(values) - MIN_VALUE
+
 class ComparisonResult:
     def __init__(self, cur_value, prev_value, delta, pct_delta, stddev, MAD,
                  cur_failed, prev_failed, samples, prev_samples, stddev_mean = None,
@@ -239,21 +255,6 @@ class RunInfo(object):
                                 run_failed, prev_failed, run_values,
                                 prev_values, stddev_mean, self.confidence_lv)
 
-    def _calc_geomean(self, run_values):
-        # NOTE Geometric mean applied only to positive values, so fix it by
-        # adding MIN_VALUE to each value and substract it from the result.
-        # Since we are only interested in the change of the central tendency,
-        # this workaround is good enough.
-
-        # Smallest possible change we ever look for.
-        MIN_VALUE = 0.00001
-
-        values = [v + MIN_VALUE for v in run_values if v is not None]
-
-        if not values:
-            return None
-
-        return util.geometric_mean(values) - MIN_VALUE
 
     def get_geomean_comparison_result(self, run, compare_to, field, tests,
                                       comparison_window=[]):
@@ -262,8 +263,8 @@ class RunInfo(object):
         else:
             prev_values,run_values = [], []
 
-        run_geomean = self._calc_geomean(run_values)
-        prev_geomean = self._calc_geomean(prev_values)
+        run_geomean = calc_geomean(run_values)
+        prev_geomean = calc_geomean(prev_values)
 
         if run_geomean and prev_geomean:
             delta = run_geomean - prev_geomean
