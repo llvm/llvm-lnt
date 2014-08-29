@@ -358,6 +358,8 @@ class TestConfiguration(object):
                   arch == 'thumb' or arch.startswith('thumbv') or
                   arch == 'xscale'):
                 llvm_arch = 'ARM'
+            elif arch in ('aarch64', 'arm64'):
+                llvm_arch = 'AArch64'
             elif arch.startswith('alpha'):
                 llvm_arch = 'Alpha'
             elif arch.startswith('sparc'):
