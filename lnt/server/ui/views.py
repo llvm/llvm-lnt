@@ -626,7 +626,7 @@ def v4_graph():
     # Draw mean trend if requested.
     if mean_parameter:
         machine, field = mean_parameter
-        test_name = 'Mean'
+        test_name = 'Geometric Mean'
 
         col = (0,0,0)
         legend.append((machine, test_name, field.name, col))

@@ -334,7 +334,7 @@
           {% set cr = request_info.sri.get_geomean_comparison_result(
                       run, compare_to, field, tests, request_info.comparison_window) %}
           <td><input type="checkbox" name="mean" value="{{machine.id}}.{{field.index}}"></td>
-          <td><a href="{{graph_base}}&mean={{machine.id}}.{{field.index}}">Mean</a></td>
+          <td><a href="{{graph_base}}&mean={{machine.id}}.{{field.index}}">Geometric Mean</a></td>
           {{ get_cell_value(cr) }}
         </tfoot>
       </table>
