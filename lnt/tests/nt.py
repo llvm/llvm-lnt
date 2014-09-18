@@ -398,6 +398,10 @@ class TestConfiguration(object):
             make_variables['USER_MODE_EMULATION'] = '1'
             make_variables['RUNUNDER'] = self.qemu_user_mode_command
 
+        # Set USE_PERF flag, if specified.
+        if self.use_perf:
+            make_variables['USE_PERF'] = '1'
+
         return make_variables, public_vars
         
 ###
@@ -1241,6 +1245,10 @@ class NTTest(builtintest.BuiltinTest):
         group.add_option("", "--build-threads", dest="build_threads",
                          help="Number of compilation threads",
                          type=int, default=0, metavar="N")
+        group.add_option("", "--use-perf", dest="use_perf",
+                         help=("Use perf to obtain high accuracy timing"
+                             "[%default]"),
+                         type=str, default=None)
 
         group.add_option("", "--remote", dest="remote",
                          help=("Execute remotely, see "
