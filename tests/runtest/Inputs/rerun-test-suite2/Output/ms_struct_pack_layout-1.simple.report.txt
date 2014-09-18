@@ -1,0 +1,13 @@
+---------------------------------------------------------------
+>>> ========= '/private/tmp/lnt_test_26297-2/test-2014-09-09_22-12-54/SingleSource/Benchmarks/Shootout/ms_struct_pack_layout-1' Program
+---------------------------------------------------------------
+
+TEST-PASS: compile /private/tmp/lnt_test_26297-2/test-2014-09-09_22-12-54/SingleSource/Benchmarks/Shootout/ms_struct_pack_layout-1
+TEST-RESULT-compile-success: pass
+TEST-RESULT-compile-time: user       0.7001
+TEST-RESULT-compile-real-time: real       0.8219
+
+TEST-PASS: exec /private/tmp/lnt_test_26297-2/test-2014-09-09_22-12-54/SingleSource/Benchmarks/Shootout/ms_struct_pack_layout-1
+TEST-RESULT-exec-success: pass
+TEST-RESULT-exec-time: user       0.9900
+TEST-RESULT-exec-real-time: real       1.0802

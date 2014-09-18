@@ -5,19 +5,29 @@ import re
 import shutil
 import subprocess
 import sys
+import glob
 import time
 import traceback
-
 from datetime import datetime
+from optparse import OptionParser, OptionGroup
+
 
 import lnt.testing
 import lnt.testing.util.compilers
 import lnt.util.ImportData as ImportData
 
-from lnt.testing.util.commands import note, warning, error, fatal, resolve_command_path
+from lnt.testing.util.commands import note, warning, fatal
 from lnt.testing.util.commands import capture, mkdir_p, which
+from lnt.testing.util.commands import resolve_command_path
+
 from lnt.testing.util.rcs import get_source_version
+
 from lnt.testing.util.misc import timestamp
+
+from lnt.server.reporting.analysis import UNCHANGED_PASS, UNCHANGED_FAIL
+from lnt.server.reporting.analysis import REGRESSED, IMPROVED
+from lnt.util import ImportData
+import builtintest
 
 ###
 
@@ -169,6 +179,11 @@ class TestConfiguration(object):
         """ The command used for qemu user mode """
         assert self.qemu_user_mode
         return ' '.join([self.qemu_user_mode] + self.qemu_flags)
+
+    @property
+    def generate_report_script(self):
+        """ The path to the report generation script. """
+        return os.path.join(self.test_suite_root, "GenerateReport.pl")
 
     def build_report_path(self, iteration):
         """The path of the results.csv file which each run of the test suite
@@ -642,6 +657,9 @@ def execute_nt_tests(test_log, make_variables, basedir, config):
     if res != 0:
         print >> sys.stderr, "Failure while running nightly tests!  See log: %s" % (test_log.name)
 
+# Keep a mapping of mangled test names, to the original names in the test-suite.
+TEST_TO_NAME = {}
+
 def load_nt_report_file(report_path, config):
     # Compute the test samples to report.
     sample_keys = []
@@ -694,17 +712,25 @@ def load_nt_report_file(report_path, config):
         record = dict(zip(header, row))
 
         program = record['Program']
+
         if config.only_test is not None:
             program = os.path.join(config.only_test, program)
-        test_base_name = '%s.%s' % (test_namespace, program.replace('.','_'))
+        program_real = program
+        program_mangled = program.replace('.','_')
+        test_base_name = program_mangled
 
         # Check if this is a subtest result, in which case we ignore missing
         # values.
         if '_Subtest_' in test_base_name:
             is_subtest = True
             test_base_name = test_base_name.replace('_Subtest_', '.')
+
         else:
             is_subtest = False
+
+        test_base_name = '%s.%s' % (test_namespace, test_base_name)
+
+        TEST_TO_NAME[test_base_name] = program_real
 
         for info in sample_keys:
             if len(info) == 3:
@@ -1045,8 +1071,283 @@ def run_test(nick_prefix, iteration, config):
 
 ###
 
-import builtintest
-from optparse import OptionParser, OptionGroup
+def _construct_report_path(basedir, only_test, test_style, file_type="csv"):
+    """Get the full path to report files in the sandbox.
+    """
+    report_path = os.path.join(basedir)
+    if only_test is not None:
+        report_path =  os.path.join(report_path, only_test)
+    report_path = os.path.join(report_path, ('report.%s.' % test_style) + file_type)
+    return report_path
+
+
+def rerun_test(config, name, num_times):
+    """Take the test at name, and rerun it num_times with the previous settings
+    stored in config.
+
+    """
+    # Extend the old log file.
+    logfile = open(config.test_log_path(None), 'a')
+
+    # Grab the real test name instead of the LNT benchmark URL.
+    real_name = TEST_TO_NAME["nts." + name]
+
+    relative_test_path = os.path.dirname(real_name)
+    test_name = os.path.basename(real_name)
+
+    test_full_path = os.path.join(
+        config.report_dir, relative_test_path)
+
+    assert os.path.exists(test_full_path), "Previous test directory not there?" + \
+        test_full_path
+
+    results = []
+    for _ in xrange(0, num_times):
+        test_results = _execute_test_again(config,
+                                          test_name,
+                                          test_full_path,
+                                          relative_test_path,
+                                          logfile)
+        results.extend(test_results)
+
+    # Check we got an exec and status from each run.
+    assert len(results) >= num_times, "Did not get all the runs?" + str(results)
+
+    logfile.close()
+    return results
+
+
+def _prepare_testsuite_for_rerun(test_name, test_full_path, config):
+    """Rerun  step 1: wipe out old files to get ready for rerun.
+
+    """
+    output = os.path.join(test_full_path, "Output/")
+    test_path_prefix = output + test_name + "."
+    os.remove(test_path_prefix + "out-" + config.test_style)
+
+    # Remove all the test-suite accounting files for this benchmark
+    to_go = glob.glob(test_path_prefix + "*.time")
+    to_go.extend(glob.glob(test_path_prefix + "*.txt"))
+    to_go.extend(glob.glob(test_path_prefix + "*.csv"))
+
+    assert len(to_go) >= 1, "Missing at least one accounting file."
+    for path in to_go:
+        print "Removing:", path
+        os.remove(path)
+
+
+def _execute_test_again(config, test_name, test_path, test_relative_path, logfile):
+    """(Re)Execute the benchmark of interest. """
+
+    _prepare_testsuite_for_rerun(test_name, test_path, config)
+
+    # Grab old make invocation.
+    mk_vars, _ = config.compute_run_make_variables()
+    to_exec = ['make', '-k']
+    to_exec.extend('%s=%s' % (k, v) for k, v in mk_vars.items())
+
+    # We need to run the benchmark's makefile, not the global one.
+    if config.only_test is not None:
+        to_exec.extend(['-C', config.only_test])
+    else:
+        if test_relative_path:
+            to_exec.extend(['-C', test_relative_path])
+
+    # The target for the specific benchmark.
+    # Make target.
+    benchmark_report_target =  "Output/" + test_name + \
+        "." + config.test_style + ".report.txt"
+    # Actual file system location of the target.
+    benchmark_report_path =  os.path.join(config.build_dir(None),
+                                       test_path,
+                                       benchmark_report_target)
+    to_exec.append(benchmark_report_target)
+
+    returncode = execute_command(logfile,
+        config.build_dir(None), to_exec, config.report_dir)
+    assert returncode == 0, "Remake command failed."
+    assert os.path.exists(benchmark_report_path), "Missing " \
+        "generated report: " + benchmark_report_path
+
+    # Now we need to pull out the results into the CSV format LNT can read.
+    schema = os.path.join(config.test_suite_root,
+        "TEST." + config.test_style + ".report")
+    result_path =  os.path.join(config.build_dir(None),
+        test_path, "Output",
+        test_name + "." + config.test_style + ".report.csv") 
+
+    gen_report_template = "{gen} -csv {schema} < {input} > {output}"
+    gen_cmd = gen_report_template.format(gen=config.generate_report_script,
+        schema=schema, input=benchmark_report_path, output=result_path)
+    bash_gen_cmd  = ["/bin/bash", "-c", gen_cmd]
+
+    assert not os.path.exists(result_path), "Results should not exist yet." + \
+        result_path
+    returncode = execute_command(logfile,
+        config.build_dir(None), bash_gen_cmd, config.report_dir)
+    assert returncode == 0, "command failed"
+    assert os.path.exists(result_path), "Missing results file."
+
+    results = load_nt_report_file(result_path, config)
+    assert len(results) > 0
+    return results
+
+
+# When set to true, all benchmarks will be rerun.
+# TODO: remove me when rerun patch is done.
+NUMBER_OF_RERUNS = 4
+
+SERVER_FAIL = u'FAIL'
+SERVER_PASS = u'PASS'
+
+# Local test results names have these suffixes
+# Test will have the perf suffix if it passed, or
+# if it failed it will have a status suffix.
+LOCAL_COMPILE_PERF = "compile"
+LOCAL_COMPILE_STATUS = "compile.status"
+LOCAL_EXEC_PERF = "exec"
+LOCAL_EXEC_STATUS = "exec.status"
+
+# Server results have both status and performance in each entry
+SERVER_COMPILE_RESULT = "compile_time"
+SERVER_EXEC_RESULT = "execution_time"
+
+
+class PastRunData(object):
+    """To decide if we need to rerun, we must know
+    what happened on each test in the first runs.
+    Because the server returns data in a different format than
+    the local results, this class is comprised of a per-test
+    per-run aggregate of the two reports."""
+    def __init__(self, name):
+        self.name = name
+        self.compile_status = None
+        self.compile_time = None
+        self.execution_status = None
+        self.execution_time = None
+        self.valid = False
+
+    def check(self):
+        """Make sure this run data is complete."""
+        assert self.name is not None
+        msg = "Malformed test: %s" % (repr(self))
+        assert self.compile_status is not None, msg
+        assert self.execution_status is not None, msg
+        assert self.compile_time is not None, msg
+        assert self.execution_time is not None, msg
+        self.valid = True
+
+    def is_rerunable(self):
+        """Decide if we should rerun this test."""
+        assert self.valid
+        # Don't rerun if compile failed.
+        if self.compile_status == SERVER_FAIL:
+            return False
+
+        # Don't rerun on correctness failure or test pass.
+        if self.execution_status == UNCHANGED_FAIL or \
+           self.execution_status == UNCHANGED_PASS or \
+           self.execution_status == SERVER_FAIL:
+            return False
+
+        # Do rerun on regression or improvement.
+        if self.execution_status == REGRESSED or \
+           self.execution_status == IMPROVED:
+            return True
+
+        assert False, "Malformed run data: " \
+            "you should not get here. " + str(self)
+
+    def __repr__(self):
+        template = "<{}: CS {}, CT {}, ES {}, ET {}>"
+        return template.format(self.name,
+                               repr(self.compile_status),
+                               repr(self.compile_time),
+                               repr(self.execution_status),
+                               repr(self.execution_time))
+
+
+def _process_reruns(config, server_reply, local_results):
+    """Rerun each benchmark which the server reported "changed", N more
+    times.  
+    """
+    server_results = server_reply['test_results'][0]['results']
+
+    # Holds the combined local and server results.
+    collated_results = dict()
+
+    for b in local_results.tests:
+        # format: suite.test/path/and/name.type<.type>
+        fields = b.name.split('.')
+        test_name = fields[1]
+        test_type = '.'.join(fields[2:])\
+
+        updating_entry = collated_results.get(test_name,
+                                               PastRunData(test_name))
+        if test_type == LOCAL_COMPILE_PERF:
+            updating_entry.compile_time = b.data
+        elif test_type == LOCAL_COMPILE_STATUS:
+            updating_entry.compile_status = SERVER_FAIL
+        elif test_type == LOCAL_EXEC_PERF:
+            updating_entry.execution_time = b.data
+        elif test_type == LOCAL_EXEC_STATUS:
+            updating_entry.execution_status = SERVER_FAIL
+        else:
+            assert False, "Unexpected local test type."
+
+        collated_results[test_name] = updating_entry
+
+    # Now add on top the server results to any entry we already have.
+    for full_name, results_status, perf_status in server_results:
+        test_name, test_type = full_name.split(".")
+
+        new_entry = collated_results.get(test_name,  None)
+        # Some tests will come from the server, which we did not run locally.
+        # Drop them.
+        if new_entry is None:
+            continue
+        # Set these, if they were not set with fails above.
+        if SERVER_COMPILE_RESULT in test_type:
+            if new_entry.compile_status is None:
+                new_entry.compile_status = results_status
+        elif SERVER_EXEC_RESULT in test_type:
+            if new_entry.execution_status is None:
+                # If the server has not seen the test before, it will return
+                # None for the performance results analysis. In this case we
+                # will assume no rerun is needed, so assign unchanged.
+                if perf_status is None:
+                    derived_perf_status = UNCHANGED_PASS
+                else:
+                    derived_perf_status = perf_status
+                new_entry.execution_status = derived_perf_status
+        else:
+            assert False, "Unexpected server result type."
+        collated_results[test_name] = new_entry
+
+    # Double check that all values are there for all tests.
+    for test in collated_results.values():
+        test.check()
+
+    rerunable_benches = [x for x in collated_results.values() \
+        if x.is_rerunable()]
+    rerunable_benches.sort(key=lambda x: x.name)
+    # Now lets do the reruns.
+    rerun_results = []
+    summary = "Rerunning {} of {} benchmarks."
+    note(summary.format(len(rerunable_benches),
+                        len(collated_results.values())))
+
+    for i, bench in enumerate(rerunable_benches):
+        note("Rerunning: {} [{}/{}]".format(bench.name,
+                                            i + 1,
+                                            len(rerunable_benches)))
+        fresh_samples = rerun_test(config,
+                                   bench.name,
+                                   NUMBER_OF_RERUNS)
+        rerun_results.extend(fresh_samples)
+
+    return rerun_results
+
 
 usage_info = """
 Script for running the tests in LLVM's test-suite repository.
@@ -1249,7 +1550,9 @@ class NTTest(builtintest.BuiltinTest):
                          help=("Use perf to obtain high accuracy timing"
                              "[%default]"),
                          type=str, default=None)
-
+        group.add_option("", "--rerun", dest="rerun",
+                 help="Rerun tests that have regressed.",
+                 action="store_true", default=False)
         group.add_option("", "--remote", dest="remote",
                          help=("Execute remotely, see "
                                "--remote-{host,port,user,client} [%default]"),
@@ -1514,6 +1817,18 @@ class NTTest(builtintest.BuiltinTest):
 
         else:
             test_results = run_test(nick, None, config)
+            if opts.rerun:
+                self.log("Performing any needed reruns.")
+                server_report = self.submit_helper(config, commit=False)
+                new_samples = _process_reruns(config, server_report, test_results)
+                test_results.update_report(new_samples)
+
+                # persist report with new samples.
+                lnt_report_path = config.report_path(None)
+
+                lnt_report_file = open(lnt_report_path, 'w')
+                print >>lnt_report_file, test_results.render()
+                lnt_report_file.close()
 
             if config.output is not None:
                 self.print_report(test_results, config.output)
