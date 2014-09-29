@@ -1279,8 +1279,15 @@ def _process_reruns(config, server_reply, local_results):
     for b in local_results.tests:
         # format: suite.test/path/and/name.type<.type>
         fields = b.name.split('.')
-        test_name = fields[1]
-        test_type = '.'.join(fields[2:])\
+        test_suite = fields[0]
+
+        test_type_size = -1
+        if fields[-1] == "status":
+            test_type_size = -2
+
+        test_type = '.'.join(fields[test_type_size:])
+
+        test_name = '.'.join(fields[1:test_type_size])
 
         updating_entry = collated_results.get(test_name,
                                                PastRunData(test_name))
@@ -1299,7 +1306,9 @@ def _process_reruns(config, server_reply, local_results):
 
     # Now add on top the server results to any entry we already have.
     for full_name, results_status, perf_status in server_results:
-        test_name, test_type = full_name.split(".")
+        fields = full_name.split(".")
+        test_name = '.'.join(fields[:-1]) 
+        test_type = fields[-1]
 
         new_entry = collated_results.get(test_name,  None)
         # Some tests will come from the server, which we did not run locally.
