@@ -84,6 +84,7 @@ class TestConfiguration(object):
         self._cc_info = None
         # Getting compiler version spawns subprocesses, cache it.
         self._get_source_version = None
+        self.rerun_test = None
 
     @property
     def report_dir(self):
@@ -715,6 +716,9 @@ def load_nt_report_file(report_path, config):
 
         if config.only_test is not None:
             program = os.path.join(config.only_test, program)
+        if config.rerun_test is not None:
+            program = os.path.join(config.rerun_test, program)
+
         program_real = program
         program_mangled = program.replace('.','_')
         test_base_name = program_mangled
@@ -1152,7 +1156,7 @@ def _execute_test_again(config, test_name, test_path, test_relative_path, logfil
     else:
         if test_relative_path:
             to_exec.extend(['-C', test_relative_path])
-
+            config.rerun_test = test_relative_path
     # The target for the specific benchmark.
     # Make target.
     benchmark_report_target =  "Output/" + test_name + \
