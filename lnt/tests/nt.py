@@ -1295,6 +1295,13 @@ def _process_reruns(config, server_reply, local_results):
 
         updating_entry = collated_results.get(test_name,
                                                PastRunData(test_name))
+   
+        # Filter out "LNTBased" benchmarks for rerun, they
+        # won't work. LNTbased look like nts.module.test
+        # So just filter out anything with .
+        if '.' in test_name:
+            continue
+
         if test_type == LOCAL_COMPILE_PERF:
             updating_entry.compile_time = b.data
         elif test_type == LOCAL_COMPILE_STATUS:
@@ -1354,6 +1361,7 @@ def _process_reruns(config, server_reply, local_results):
         note("Rerunning: {} [{}/{}]".format(bench.name,
                                             i + 1,
                                             len(rerunable_benches)))
+
         fresh_samples = rerun_test(config,
                                    bench.name,
                                    NUMBER_OF_RERUNS)
