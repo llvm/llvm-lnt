@@ -1238,7 +1238,7 @@ class PastRunData(object):
         assert self.compile_status is not None, msg
         assert self.execution_status is not None, msg
         assert self.compile_time is not None, msg
-        assert self.execution_time is not None, msg
+
         self.valid = True
 
     def is_rerunable(self):
