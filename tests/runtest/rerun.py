@@ -3,7 +3,7 @@
 # some of the test, so they should be marked as regressions, and reruns should
 # be triggered.
 
-# RUN: cp -a %S/Inputs/rerun_server_instance %S/Output/server
+# RUN: rsync -av --exclude .svn %S/Inputs/rerun_server_instance/ %S/Output/server
 # RUN: rm -f CHECK-STDOUT CHECK-STDOUT2 CHECK-STDERR CHECK-STDERR2
 # RUN: %S/Inputs/runtest_server_wrapper.sh %S/Output/server nt \
 # RUN:   --sandbox %t.SANDBOX \
