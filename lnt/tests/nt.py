@@ -1275,8 +1275,15 @@ def _process_reruns(config, server_reply, local_results):
     """Rerun each benchmark which the server reported "changed", N more
     times.  
     """
-    server_results = server_reply['test_results'][0]['results']
-
+    try:
+        server_results = server_reply['test_results'][0]['results']
+    except KeyError:
+        # Server might send us back an error.
+        if server_reply.get('error', None):
+            warning("Server returned an error:" + 
+                server_reply['error'])
+        fatal("No Server results. Cannot do reruns.")
+        logging.fatal()
     # Holds the combined local and server results.
     collated_results = dict()
 
