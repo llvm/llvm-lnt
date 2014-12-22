@@ -172,6 +172,26 @@ def v4_machine(id):
             order_by(ts.Run.start_time.desc()))
     associated_runs = associated_runs.items()
     associated_runs.sort()
+    if request.args.get('json'):
+        json_obj = dict()
+        machine_obj = ts.query(ts.Machine).filter(ts.Machine.id == id).one()
+        json_obj['name'] = machine_obj.name
+        json_obj['id'] = machine_obj.id
+        runs = {}
+        tests = {}
+        for sample in ts.query(ts.Sample).filter(ts.Run.machine_id == id).all():
+            tests[sample.test.id] = sample.test.name
+            runs[sample.run.id] = (sample.run.order.llvm_project_revision,
+                                   sample.run.start_time,
+                                   sample.run.end_time)
+        json_obj['tests'] = []
+        for test_id in tests:
+            json_obj['tests'].append((test_id, tests[test_id]))
+        json_obj['runs'] = []
+        for run_id in runs:
+            (rev, start, end) = runs[run_id]
+            json_obj['runs'].append((run_id, rev, start, end))
+        return flask.jsonify(**json_obj)
 
     return render_template("v4_machine.html",
                            testsuite_name=g.testsuite_name, id=id,

@@ -38,6 +38,9 @@ def main():
     # Get a machine overview page.
     check_code(client, '/v4/nts/machine/1')
 
+    # Get a machine overview page in JSON format.
+    check_code(client, '/v4/nts/machine/1?json=true')
+
     # Get the order summary page.
     check_code(client, '/v4/nts/all_orders')
 
