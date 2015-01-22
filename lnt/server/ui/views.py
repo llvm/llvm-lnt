@@ -172,25 +172,18 @@ def v4_machine(id):
             order_by(ts.Run.start_time.desc()))
     associated_runs = associated_runs.items()
     associated_runs.sort()
+
     if request.args.get('json'):
         json_obj = dict()
         machine_obj = ts.query(ts.Machine).filter(ts.Machine.id == id).one()
         json_obj['name'] = machine_obj.name
         json_obj['id'] = machine_obj.id
-        runs = {}
-        tests = {}
-        for sample in ts.query(ts.Sample).filter(ts.Run.machine_id == id).all():
-            tests[sample.test.id] = sample.test.name
-            runs[sample.run.id] = (sample.run.order.llvm_project_revision,
-                                   sample.run.start_time,
-                                   sample.run.end_time)
-        json_obj['tests'] = []
-        for test_id in tests:
-            json_obj['tests'].append((test_id, tests[test_id]))
         json_obj['runs'] = []
-        for run_id in runs:
-            (rev, start, end) = runs[run_id]
-            json_obj['runs'].append((run_id, rev, start, end))
+        for order in associated_runs:
+            rev = order[0].llvm_project_revision
+            for run in order[1]:
+                json_obj['runs'].append((run.id, rev,
+                                         run.start_time, run.end_time))
         return flask.jsonify(**json_obj)
 
     return render_template("v4_machine.html",
@@ -365,6 +358,25 @@ def v4_run(id):
         test_info = [test
                      for test in test_info
                      if test_filter_re.search(test[0])]
+
+    if request.args.get('json'):
+        json_obj = dict()
+
+        sri = lnt.server.reporting.analysis.RunInfo(ts, [id])
+        reported_tests = ts.query(ts.Test.name, ts.Test.id).\
+            filter(ts.Run.id == id).\
+            filter(ts.Test.id.in_(sri.get_test_ids())).all()
+
+        json_obj['tests'] = {}
+        for test_name, test_id in reported_tests:
+            test = {}
+            test['name'] = test_name
+            for sample_field in ts.sample_fields:
+                res = sri.get_run_comparison_result(run, None, test_id, sample_field)
+                test[sample_field.name] = res.current
+            json_obj['tests'][test_id] = test
+
+        return flask.jsonify(**json_obj)
 
     return render_template(
         "v4_run.html", ts=ts, options=options,

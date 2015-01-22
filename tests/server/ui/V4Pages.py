@@ -50,6 +50,8 @@ def main():
     # Get a run result page (and associated views).
     check_code(client, '/v4/nts/1')
 
+    check_code(client, '/v4/nts/1?json=true')
+
     check_code(client, '/v4/nts/1/report')
 
     check_code(client, '/v4/nts/1/text_report')
