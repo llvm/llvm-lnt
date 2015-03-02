@@ -527,9 +527,9 @@ supplied run is missing required run parameter: %r""" % (
             # If not, then we need to insert this order into the total ordering
             # linked list.
 
-            # Add the new order and flush, to assign an ID.
+            # Add the new order and commit, to assign an ID.
             self.add(order)
-            self.v4db.session.flush()
+            self.v4db.session.commit()
 
             # Load all the orders.
             orders = list(self.query(self.Order))
