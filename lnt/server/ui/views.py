@@ -183,7 +183,7 @@ def v4_machine(id):
             rev = order[0].llvm_project_revision
             for run in order[1]:
                 json_obj['runs'].append((run.id, rev,
-                                         run.start_time, run.end_time))
+                                         run.start_time.isoformat(), run.end_time.isoformat()))
         return flask.jsonify(**json_obj)
 
     return render_template("v4_machine.html",
