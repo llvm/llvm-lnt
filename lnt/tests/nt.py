@@ -1900,8 +1900,41 @@ class NTTest(builtintest.BuiltinTest):
 
         return result
 
+def _tools_check():
+    """
+    Check that the required software is installed in the system.
+
+    This check is used to make sure the tests won't fail because of a missing
+    tool (like yacc or tclsh).
+
+    As new tools end up required by the tests, add them here.
+    """
+    from subprocess import call
+
+    # Let's try only on Linux, for now
+    if platform.system() != 'Linux':
+      return;
+
+    FNULL = open(os.devnull, 'w')
+
+    status = call(["which", "yacc"], stdout=FNULL, stderr=FNULL)
+    if status > 0:
+      raise SystemExit("""error: yacc not available on your system.""")
+
+    status = call(["which", "groff"], stdout=FNULL, stderr=FNULL)
+    if status > 0:
+      raise SystemExit("""error: groff not available on your system.""")
+
+    status = call(["which", "gawk"], stdout=FNULL, stderr=FNULL)
+    if status > 0:
+      raise SystemExit("""error: gawk not available on your system.""")
+
+    status = call(["which", "tclsh"], stdout=FNULL, stderr=FNULL)
+    if status > 0:
+      raise SystemExit("""error: tclsh not available on your system.""")
 
 def create_instance():
+    _tools_check()
     return NTTest()
 
 __all__ = ['create_instance']
