@@ -1925,10 +1925,6 @@ def _tools_check():
     if status > 0:
       raise SystemExit("""error: groff not available on your system.""")
 
-    status = call(["which", "gawk"], stdout=FNULL, stderr=FNULL)
-    if status > 0:
-      raise SystemExit("""error: gawk not available on your system.""")
-
     status = call(["which", "tclsh"], stdout=FNULL, stderr=FNULL)
     if status > 0:
       raise SystemExit("""error: tclsh not available on your system.""")
