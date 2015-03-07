@@ -1921,6 +1921,10 @@ def _tools_check():
     if status > 0:
       raise SystemExit("""error: yacc not available on your system.""")
 
+    status = call(["which", "awk"], stdout=FNULL, stderr=FNULL)
+    if status > 0:
+      raise SystemExit("""error: awk not available on your system.""")
+
     status = call(["which", "groff"], stdout=FNULL, stderr=FNULL)
     if status > 0:
       raise SystemExit("""error: groff not available on your system.""")
