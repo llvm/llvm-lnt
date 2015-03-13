@@ -58,11 +58,10 @@ class TestSuiteDB(object):
                 return setattr(self, field.name, value)
 
         db_key_name = self.test_suite.db_key_name
-        baselineRevision = self.v4db.config.baselineRevision
         class Machine(self.base, ParameterizedMixin):
             __tablename__ = db_key_name + '_Machine'
 
-            DEFAULT_BASELINE_REVISION = baselineRevision
+            DEFAULT_BASELINE_REVISION = self.v4db.config.baseline_revision
 
             fields = self.machine_fields
             id = Column("ID", Integer, primary_key=True)

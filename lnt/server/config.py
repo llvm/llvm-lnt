@@ -37,7 +37,7 @@ class EmailConfig:
 
 class DBInfo:
     @staticmethod
-    def fromData(baseDir, dict, default_email_config):
+    def fromData(baseDir, dict, default_email_config, default_baseline_revision):
         dbPath = dict.get('path')
 
         # If the path does not contain a database specifier, assume it is a
@@ -57,23 +57,29 @@ class DBInfo:
         if 'emailer' in dict:
             email_config = EmailConfig.fromData(dict['emailer'])
 
+        baseline_revision = dict.get('baseline_revision',
+                                     default_baseline_revision)
+
         return DBInfo(dbPath,
                       str(dict.get('db_version', '0.4')),
                       dict.get('shadow_import', None),
-                      email_config)
+                      email_config,
+                      baseline_revision)
     
     @staticmethod
     def dummyInstance():
         return DBInfo("sqlite:///:memory:", "0.4", None,
-                      EmailConfig(False, '', '', []))
+                      EmailConfig(False, '', '', []), 0)
     
     def __init__(self, path,
-                 db_version, shadow_import, email_config):
+                 db_version, shadow_import, email_config,
+                 baseline_revision):
         self.config = None
         self.path = path
         self.db_version = db_version
         self.shadow_import = shadow_import
         self.email_config = email_config
+        self.baseline_revision = baseline_revision
 
 class Config:
     @staticmethod
@@ -102,9 +108,9 @@ class Config:
         return Config(data.get('name', 'LNT'), data['zorgURL'],
                       dbDir, os.path.join(baseDir, tempDir), secretKey,
                       dict([(k,DBInfo.fromData(dbDirPath, v,
-                                               default_email_config))
-                                     for k,v in data['databases'].items()]),
-                      data.get('baselineRevision', '144168'))
+                                               default_email_config,
+                                               0))
+                                     for k,v in data['databases'].items()]))
     
     @staticmethod
     def dummyInstance():
@@ -114,13 +120,10 @@ class Config:
         tempDir = os.path.join(baseDir, 'tmp')        
         secretKey = None
         dbInfo = {'dummy': DBInfo.dummyInstance()}
-        baselineRevision = '144168'
         
-        return Config('LNT', 'http://localhost:8000', dbDir, tempDir, secretKey, dbInfo,
-                      baselineRevision)
+        return Config('LNT', 'http://localhost:8000', dbDir, tempDir, secretKey, dbInfo)
     
-    def __init__(self, name, zorgURL, dbDir, tempDir, secretKey, databases,
-                 baselineRevision):
+    def __init__(self, name, zorgURL, dbDir, tempDir, secretKey, databases):
         self.name = name
         self.zorgURL = zorgURL
         self.dbDir = dbDir
@@ -131,7 +134,6 @@ class Config:
         self.databases = databases
         for db in self.databases.values():
             db.config = self
-        self.baselineRevision = baselineRevision
 
     def get_database(self, name, echo=False):
         """
@@ -147,7 +149,9 @@ class Config:
 
         # Instantiate the appropriate database version.
         if db_entry.db_version == '0.4':
-            return lnt.server.db.v4db.V4DB(db_entry.path, self, echo=echo)
+            return lnt.server.db.v4db.V4DB(db_entry.path, self,
+                                           db_entry.baseline_revision,
+                                           echo)
 
         raise NotImplementedError,"unable to load version %r database" % (
             db_entry.db_version,)

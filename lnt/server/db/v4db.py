@@ -67,7 +67,7 @@ class V4DB(object):
             for name in self:
                 yield name,self[name]
 
-    def __init__(self, path, config, echo=False):
+    def __init__(self, path, config, baseline_revision, echo=False):
         # If the path includes no database type, assume sqlite.
         if lnt.server.db.util.path_has_no_database_type(path):
             path = 'sqlite:///' + path
