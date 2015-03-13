@@ -61,7 +61,7 @@ class TestSuiteDB(object):
         class Machine(self.base, ParameterizedMixin):
             __tablename__ = db_key_name + '_Machine'
 
-            DEFAULT_BASELINE_REVISION = self.v4db.config.baseline_revision
+            DEFAULT_BASELINE_REVISION = self.v4db.baseline_revision
 
             fields = self.machine_fields
             id = Column("ID", Integer, primary_key=True)

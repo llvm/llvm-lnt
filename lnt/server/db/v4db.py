@@ -67,13 +67,15 @@ class V4DB(object):
             for name in self:
                 yield name,self[name]
 
-    def __init__(self, path, config, baseline_revision, echo=False):
+    def __init__(self, path, config, baseline_revision=0, echo=False):
         # If the path includes no database type, assume sqlite.
         if lnt.server.db.util.path_has_no_database_type(path):
             path = 'sqlite:///' + path
 
         self.path = path
         self.config = config
+        self.baseline_revision = baseline_revision
+
         with V4DB._engine_lock:
             if path not in V4DB._engine:
                 V4DB._engine[path] = sqlalchemy.create_engine(path, echo=echo)
