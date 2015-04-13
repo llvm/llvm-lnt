@@ -38,6 +38,8 @@ def main():
     # Get a machine overview page.
     check_code(client, '/v4/nts/machine/1')
 
+    # Check invalid machine gives error.
+    check_code(client,  '/v4/nts/machine/1000', expected_code=404)
     # Get a machine overview page in JSON format.
     check_code(client, '/v4/nts/machine/1?json=true')
 

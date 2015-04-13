@@ -185,11 +185,12 @@ def v4_machine(id):
                 json_obj['runs'].append((run.id, rev,
                                          run.start_time.isoformat(), run.end_time.isoformat()))
         return flask.jsonify(**json_obj)
-
-    return render_template("v4_machine.html",
+    try:
+        return render_template("v4_machine.html",
                            testsuite_name=g.testsuite_name, id=id,
                            associated_runs=associated_runs)
-
+    except sqlalchemy.orm.exc.NoResultFound as e:
+        abort(404)
 class V4RequestInfo(object):
     def __init__(self, run_id, only_html_body=True):
         self.db = request.get_db()
