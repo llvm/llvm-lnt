@@ -476,11 +476,16 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs,
                 # FIXME: We should resolve this, eventually.
                 for i in range(variables.get('run_count')):
                     samples.append(bytes)
+            else:
+                g_log.warning('Codesize failed.')
+
         except OSError as e:
             if e.errno != errno.ENOENT:
                 raise
+            else:
+                g_log.warning('Codesize failed with ENOENT.')
         yield (success, tname, samples)
-    
+
     # Check that the file sizes of the output log files "make sense", and warn
     # if they do not. That might indicate some kind of non-determinism in the
     # test command, which makes timing less useful.
