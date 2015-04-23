@@ -15,7 +15,6 @@
 
 # CHECK-STDOUT: Import succeeded.
 # CHECK-STDOUT: Added Runs    : 1
-# CHECK-STDOUT: --- Tested: 138 tests --
 
 # CHECK-STDERR: inferred C++ compiler under test
 # CHECK-STDERR: checking source versions
@@ -41,7 +40,6 @@
 
 # CHECK-STDOUT2: Import succeeded.
 # CHECK-STDOUT2: Added Runs    : 1
-# CHECK-STDOUT2: --- Tested: 138 tests --
 
 # CHECK-STDERR2: inferred C++ compiler under test
 # CHECK-STDERR2: checking source versions
