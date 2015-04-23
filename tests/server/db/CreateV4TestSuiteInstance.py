@@ -30,6 +30,7 @@ run = ts_db.Run(machine, order, start_time, end_time)
 test = ts_db.Test("test-a")
 sample = ts_db.Sample(run, test)
 sample.compile_time = 1.0
+sample.score = 4.2
 
 # Add and commit.
 ts_db.add(machine)
@@ -79,3 +80,4 @@ assert test.name == "test-a"
 assert sample.run is run
 assert sample.test is test
 assert sample.compile_time == 1.0
+assert sample.score == 4.2
