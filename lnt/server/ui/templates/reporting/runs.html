@@ -36,13 +36,13 @@
            <td style="{{ styles['td'] }}">
              <a href="{{ run_url }}/graph?{{ [('test.%d' % test_id, field_index)] | urlencode }}">{{ name }}</a>
            </td>
-           {{ cr.pct_delta|aspctcell(style=styles['td'])|safe }}
+           {{ cr.pct_delta|aspctcell(style=styles['td'],reverse=cr.bigger_is_better)|safe }}
            <td style="{{ styles['td'] }}">{{ "%.4f" | format(cr.previous) }}</td>
            <td style="{{ styles['td'] }}">{{ "%.4f" | format(cr.current) }}</td>
            <td style="{{ styles['td'] }}">{{ "%.4f" | format_or_default(cr.stddev, '-') }}</td>
            {% if secondary_info %}
              {% set a_cr = secondary_info[(name, field)] %}
-             {{ a_cr.pct_delta|aspctcell(style=styles['td'])|safe }}
+             {{ a_cr.pct_delta|aspctcell(style=styles['td'],reverse=cr.bigger_is_better)|safe }}
              <td style="{{ styles['td'] }}">{{ "%.4f" | format_or_default(a_cr.stddev, '-') }}</td>
            {% endif %}
          </tr>

@@ -30,7 +30,7 @@ def calc_geomean(run_values):
 class ComparisonResult:
     def __init__(self, cur_value, prev_value, delta, pct_delta, stddev, MAD,
                  cur_failed, prev_failed, samples, prev_samples, stddev_mean = None,
-                 confidence_lv = .05):
+                 confidence_lv = .05, bigger_is_better = False):
         self.current = cur_value
         self.previous = prev_value
         self.delta = delta
@@ -43,6 +43,7 @@ class ComparisonResult:
         self.prev_samples = prev_samples
         self.stddev_mean = stddev_mean
         self.confidence_lv = confidence_lv
+        self.bigger_is_better = bigger_is_better
 
     def get_samples(self):
         return self.samples
@@ -122,9 +123,9 @@ class ComparisonResult:
             # If the delta is significant, return
             if is_significant:
                 if self.delta < 0:
-                    return IMPROVED
+                    return REGRESSED if self.bigger_is_better else IMPROVED
                 else:
-                    return REGRESSED
+                    return IMPROVED if self.bigger_is_better else REGRESSED
             else:
                 return UNCHANGED_PASS
 
@@ -133,9 +134,9 @@ class ComparisonResult:
         # accurately.
         if not ignore_small or abs(self.pct_delta) >= .002:
             if self.pct_delta < 0:
-                return IMPROVED
+                return REGRESSED if self.bigger_is_better else IMPROVED
             else:
-                return REGRESSED
+                return IMPROVED if self.bigger_is_better else REGRESSED
         else:
             return UNCHANGED_PASS
 
@@ -241,7 +242,8 @@ class RunInfo(object):
                 pct_delta = None, stddev = stddev, MAD = MAD,
                 cur_failed = run_failed, prev_failed = prev_failed,
                 samples = run_values, prev_samples = prev_values,
-                confidence_lv = self.confidence_lv)
+                confidence_lv = self.confidence_lv,
+                bigger_is_better = field.bigger_is_better)
 
         # Compute the comparison status for the test value.
         delta = run_value - prev_value
@@ -253,7 +255,8 @@ class RunInfo(object):
         return ComparisonResult(run_value, prev_value, delta,
                                 pct_delta, stddev, MAD,
                                 run_failed, prev_failed, run_values,
-                                prev_values, stddev_mean, self.confidence_lv)
+                                prev_values, stddev_mean, self.confidence_lv,
+                                bigger_is_better = field.bigger_is_better)
 
 
     def get_geomean_comparison_result(self, run, compare_to, field, tests,
@@ -281,7 +284,8 @@ class RunInfo(object):
                                 prev_failed=prev_values and not prev_geomean,
                                 samples=[run_geomean] if run_geomean else [],
                                 prev_samples=[prev_geomean] if prev_geomean else [],
-                                confidence_lv=0)
+                                confidence_lv=0,
+                                bigger_is_better = field.bigger_is_better)
 
     def _load_samples_for_runs(self, run_ids):
         # Find the set of new runs to load.

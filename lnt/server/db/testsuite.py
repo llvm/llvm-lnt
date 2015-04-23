@@ -194,11 +194,17 @@ class SampleField(FieldMixin, Base):
             'TestSuiteSampleFields.ID'))
     status_field = relation('SampleField', remote_side=id)
 
-    def __init__(self, name, type, info_key, status_field = None):
+    # Most real type samples assume lower values are better than higher values.
+    # This assumption can be inverted by setting this column to nonzero.
+    bigger_is_better = Column("bigger_is_better", Integer)
+    
+    def __init__(self, name, type, info_key, status_field = None,
+                 bigger_is_better = 0):
         self.name = name
         self.type = type
         self.info_key = info_key
         self.status_field = status_field
+        self.bigger_is_better = bigger_is_better
 
         # Index of this column.
         self.index = None
