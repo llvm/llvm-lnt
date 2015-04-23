@@ -14,7 +14,6 @@
 # CHECK-STDOUT: Added Machines: 1
 # CHECK-STDOUT: Added Runs    : 1
 # CHECK-STDOUT: Added Tests   : 130
-# CHECK-STDOUT: --- Tested: 260 tests --
 
 # CHECK-STDERR: inferred C++ compiler under test
 # CHECK-STDERR: checking source versions
@@ -27,5 +26,3 @@
 # CHECK-STDERR: capturing machine information
 # CHECK-STDERR: generating report
 # CHECK-STDERR: submitting result to dummy instance
-
-

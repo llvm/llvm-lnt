@@ -9,13 +9,12 @@
 # RUN: FileCheck --check-prefix CHECK-STDOUT < %t.log %s
 # RUN: FileCheck --check-prefix CHECK-BASIC < %t.err %s
 # RUN: FileCheck --check-prefix CHECK-REPORT < %t.SANDBOX/build/report.json %s
-# CHECK-REPORT: "run_order": "154331" 
+# CHECK-REPORT: "run_order": "154331"
 #
 # CHECK-STDOUT: Import succeeded.
 # CHECK-STDOUT: Added Machines: 1
 # CHECK-STDOUT: Added Runs    : 1
 # CHECK-STDOUT: Added Tests   : 130
-# CHECK-STDOUT: --- Tested: 260 tests --
 #
 # CHECK-BASIC: inferred C++ compiler under test
 # CHECK-BASIC: checking source versions
@@ -45,7 +44,7 @@
 # RUN:   --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
 # RUN:   --no-timestamp --run-order=123 > %t.log 2> %t.err
 # RUN: FileCheck --check-prefix CHECK-RESULTS < %t.SANDBOX/build/report.json %s
-# CHECK-RESULTS: "run_order": "123" 
+# CHECK-RESULTS: "run_order": "123"
 #
 # Change the machine name. Don't use LLVM.
 # RUN: lnt runtest nt \
