@@ -29,7 +29,6 @@ from lnt.server.reporting.analysis import REGRESSED, IMPROVED
 from lnt.util import ImportData
 import builtintest
 
-###
 
 class TestModule(object):
     """
@@ -95,7 +94,7 @@ class TestConfiguration(object):
             return self._report_dir
 
         if self.timestamp_build:
-            ts = self.start_time.replace(' ','_').replace(':','-')
+            ts = self.start_time.replace(' ', '_').replace(':', '-')
             build_dir_name = "test-%s" % ts
         else:
             build_dir_name = "build"
@@ -152,7 +151,7 @@ class TestConfiguration(object):
 
         """
         if self._cc_info is None:
-            self._cc_info = lnt.testing.util.compilers.get_cc_info( \
+            self._cc_info = lnt.testing.util.compilers.get_cc_info(
                                                     self.cc_under_test,
                                                     self.target_flags)
         return self._cc_info
@@ -169,7 +168,7 @@ class TestConfiguration(object):
         """The version of llvm from llvm_src_root."""
         if self.llvm_src_root:
             if self._get_source_version is None:
-                self._get_source_version  = get_source_version(
+                self._get_source_version = get_source_version(
                     self.llvm_src_root)
             return self._get_source_version
         else:
@@ -192,8 +191,8 @@ class TestConfiguration(object):
         iteration -- the multisample iteration number otherwise None."""
         report_path = os.path.join(self.build_dir(iteration))
         if self.only_test is not None:
-            report_path =  os.path.join(report_path, self.only_test)
-        report_path = os.path.join(report_path, 'report.%s.csv' % \
+            report_path = os.path.join(report_path, self.only_test)
+        report_path = os.path.join(report_path, 'report.%s.csv' %
                                    self.test_style)
         return report_path
 
@@ -211,11 +210,11 @@ class TestConfiguration(object):
         cc_info = self.cc_info
         # Set the make variables to use.
         make_variables = {
-            'TARGET_CC' : self.cc_reference,
-            'TARGET_CXX' : self.cxx_reference,
-            'TARGET_LLVMGCC' : self.cc_under_test,
-            'TARGET_LLVMGXX' : self.cxx_under_test,
-            'TARGET_FLAGS' : ' '.join(self.target_flags),
+            'TARGET_CC': self.cc_reference,
+            'TARGET_CXX': self.cxx_reference,
+            'TARGET_LLVMGCC': self.cc_under_test,
+            'TARGET_LLVMGXX': self.cxx_under_test,
+            'TARGET_FLAGS': ' '.join(self.target_flags),
         }
 
         # Compute TARGET_LLCFLAGS, for TEST=nightly runs.
@@ -364,7 +363,7 @@ class TestConfiguration(object):
             # nt' style nightly testing.
             arch = cc_target.split('-', 1)[0].lower()
             if (len(arch) == 4 and arch[0] == 'i' and arch.endswith('86') and
-                arch[1] in '3456789'): # i[3-9]86
+                arch[1] in '3456789'):  # i[3-9]86
                 llvm_arch = 'x86'
             elif arch in ('x86_64', 'amd64'):
                 llvm_arch = 'x86_64'
@@ -1356,8 +1355,8 @@ def _process_reruns(config, server_reply, local_results):
     for test in collated_results.values():
         test.check()
 
-    rerunable_benches = [x for x in collated_results.values() \
-        if x.is_rerunable()]
+    rerunable_benches = [x for x in collated_results.values()
+                         if x.is_rerunable()]
     rerunable_benches.sort(key=lambda x: x.name)
     # Now lets do the reruns.
     rerun_results = []
@@ -1410,6 +1409,7 @@ which will cause the same build directory to be used, and the configure step
 will be skipped if it appears to already have been configured. This is
 effectively an incremental retest. It is useful for testing the scripts or
 nightly test, but it should not be used for submissions."""
+
 
 class NTTest(builtintest.BuiltinTest):
     def describe(self):
@@ -1470,7 +1470,7 @@ class NTTest(builtintest.BuiltinTest):
                          help="Set -arch in TARGET_FLAGS [%default]",
                          type=str, default=None)
         group.add_option("", "--llvm-arch", dest="llvm_arch",
-                         help="Set the ARCH value used in the makefiles to " \
+                         help="Set the ARCH value used in the makefiles to "
                              "[%default]",
                          type=str, default=None)
         group.add_option("", "--make-param", dest="make_parameters",
@@ -1491,7 +1491,7 @@ class NTTest(builtintest.BuiltinTest):
                          type=str, default=None, metavar="CPU")
         group.add_option("", "--relocation-model", dest="relocation_model",
                          help=("Set -relocation-model in TARGET_LLCFLAGS "
-                                "[%default]"),
+                               "[%default]"),
                          type=str, default=None, metavar="MODEL")
         group.add_option("", "--disable-fp-elim", dest="disable_fp_elim",
                          help=("Set -disable-fp-elim in TARGET_LLCFLAGS"),
@@ -1499,7 +1499,7 @@ class NTTest(builtintest.BuiltinTest):
 
         group.add_option("", "--optimize-option", dest="optimize_option",
                          help="Set optimization level for {LLC_,LLI_,}OPTFLAGS",
-                         choices=('-O0','-O1','-O2','-O3','-Os','-Oz'),
+                         choices=('-O0', '-O1', '-O2', '-O3', '-Os', '-Oz'),
                          default='-O3')
         group.add_option("", "--cflag", dest="cflags",
                          help="Additional flags to set in TARGET_FLAGS",
@@ -1522,7 +1522,7 @@ class NTTest(builtintest.BuiltinTest):
                          choices=('nightly', 'simple'), default='simple')
 
         group.add_option("", "--test-time-stat", dest="test_time_stat",
-                         help="Set the test timing statistic to gather " \
+                         help="Set the test timing statistic to gather "
                              "[%default]",
                          choices=('user', 'real'), default='user')
 
@@ -1533,7 +1533,8 @@ class NTTest(builtintest.BuiltinTest):
         group.add_option("", "--disable-externals", dest="test_externals",
                          help="Disable test suite externals (if configured)",
                          action="store_false", default=True)
-        group.add_option("", "--enable-integrated-as",dest="test_integrated_as",
+        group.add_option("", "--enable-integrated-as",
+                         dest="test_integrated_as",
                          help="Enable TEST_INTEGRATED_AS tests",
                          action="store_true", default=False)
         group.add_option("", "--enable-jit", dest="test_jit",
@@ -1577,11 +1578,11 @@ class NTTest(builtintest.BuiltinTest):
                          type=int, default=0, metavar="N")
         group.add_option("", "--use-perf", dest="use_perf",
                          help=("Use perf to obtain high accuracy timing"
-                             "[%default]"),
+                               "[%default]"),
                          type=str, default=None)
         group.add_option("", "--rerun", dest="rerun",
-                 help="Rerun tests that have regressed.",
-                 action="store_true", default=False)
+                         help="Rerun tests that have regressed.",
+                         action="store_true", default=False)
         group.add_option("", "--remote", dest="remote",
                          help=("Execute remotely, see "
                                "--remote-{host,port,user,client} [%default]"),
@@ -1631,8 +1632,8 @@ class NTTest(builtintest.BuiltinTest):
                                "variables with machine info"),
                          action="store_false", default=True)
         group.add_option("", "--run-order", dest="run_order", metavar="STR",
-                          help="String to use to identify and order this run",
-                          action="store", type=str, default=None)
+                         help="String to use to identify and order this run",
+                         action="store", type=str, default=None)
         group.add_option("", "--machine-param", dest="machine_parameters",
                          metavar="NAME=VAL",
                          help="Add 'NAME' = 'VAL' to the machine parameters",
@@ -1646,15 +1647,15 @@ class NTTest(builtintest.BuiltinTest):
                                " (or local instance) [%default]"),
                          type=str, default=None)
         group.add_option("", "--commit", dest="commit",
-                          help=("whether the autosubmit result should be committed "
+                         help=("whether the autosubmit result should be committed "
                                 "[%default]"),
                           type=int, default=True)
         group.add_option("", "--output", dest="output", metavar="PATH",
-                          help="write raw report data to PATH (or stdout if '-')",
-                          action="store", default=None)
+                         help="write raw report data to PATH (or stdout if '-')",
+                         action="store", default=None)
         group.add_option("-v", "--verbose", dest="verbose",
-                          help="show verbose test results",
-                          action="store_true", default=False)
+                         help="show verbose test results",
+                         action="store_true", default=False)
 
         (opts, args) = parser.parse_args(args)
         if len(args) == 0:
@@ -1739,10 +1740,10 @@ class NTTest(builtintest.BuiltinTest):
         # Validate that the compilers under test exist.
         if not os.path.exists(opts.cc_under_test):
             parser.error("invalid --cc argument %r, does not exist" % (
-                    opts.cc_under_test))
+                         opts.cc_under_test))
         if not os.path.exists(opts.cxx_under_test):
             parser.error("invalid --cxx argument %r, does not exist" % (
-                    opts.cxx_under_test))
+                         opts.cxx_under_test))
 
         # FIXME: As a hack to allow sampling old Clang revisions, if we are
         # given a C++ compiler that doesn't exist, reset it to just use the
@@ -1774,7 +1775,7 @@ class NTTest(builtintest.BuiltinTest):
             parser.error('--test-suite is required')
         elif not os.path.exists(opts.test_suite_root):
             parser.error("invalid --test-suite argument, does not exist: %r" % (
-                    opts.test_suite_root))
+                         opts.test_suite_root))
 
         if opts.remote:
             if opts.remote_port is None:
@@ -1784,7 +1785,7 @@ class NTTest(builtintest.BuiltinTest):
         else:
             if opts.remote_port is not None:
                 parser.error('--remote is required with --remote-port')
-            if opts.remote_user is not  None:
+            if opts.remote_user is not None:
                 parser.error('--remote is required with --remote-user')
 
         # libLTO should exist, if given.
@@ -1901,6 +1902,7 @@ class NTTest(builtintest.BuiltinTest):
 
         return result
 
+
 def _tools_check():
     """
     Check that the required software is installed in the system.
@@ -1914,25 +1916,26 @@ def _tools_check():
 
     # Let's try only on Linux, for now
     if platform.system() != 'Linux':
-      return;
+        return
 
     FNULL = open(os.devnull, 'w')
 
     status = call(["which", "yacc"], stdout=FNULL, stderr=FNULL)
     if status > 0:
-      raise SystemExit("""error: yacc not available on your system.""")
+        raise SystemExit("""error: yacc not available on your system.""")
 
     status = call(["which", "awk"], stdout=FNULL, stderr=FNULL)
     if status > 0:
-      raise SystemExit("""error: awk not available on your system.""")
+        raise SystemExit("""error: awk not available on your system.""")
 
     status = call(["which", "groff"], stdout=FNULL, stderr=FNULL)
     if status > 0:
-      raise SystemExit("""error: groff not available on your system.""")
+        raise SystemExit("""error: groff not available on your system.""")
 
     status = call(["which", "tclsh"], stdout=FNULL, stderr=FNULL)
     if status > 0:
-      raise SystemExit("""error: tclsh not available on your system.""")
+        raise SystemExit("""error: tclsh not available on your system.""")
+
 
 def create_instance():
     _tools_check()
