@@ -1215,6 +1215,7 @@ LOCAL_EXEC_STATUS = "exec.status"
 # Server results have both status and performance in each entry
 SERVER_COMPILE_RESULT = "compile_time"
 SERVER_EXEC_RESULT = "execution_time"
+SERVER_SCORE_RESULT = "score"
 
 
 class PastRunData(object):
@@ -1337,7 +1338,7 @@ def _process_reruns(config, server_reply, local_results):
         if SERVER_COMPILE_RESULT in test_type:
             if new_entry.compile_status is None:
                 new_entry.compile_status = results_status
-        elif SERVER_EXEC_RESULT in test_type:
+        elif SERVER_EXEC_RESULT in test_type or SERVER_SCORE_RESULT in test_type:
             if new_entry.execution_status is None:
                 # If the server has not seen the test before, it will return
                 # None for the performance results analysis. In this case we
@@ -1348,7 +1349,7 @@ def _process_reruns(config, server_reply, local_results):
                     derived_perf_status = perf_status
                 new_entry.execution_status = derived_perf_status
         else:
-            assert False, "Unexpected server result type."
+            assert False, "Unexpected server result type." + test_type
         collated_results[test_name] = new_entry
 
     # Double check that all values are there for all tests.
