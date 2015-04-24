@@ -77,7 +77,7 @@ class TestConfiguration(object):
         self.opts = opts
         self.__dict__.update(opts)
         self.start_time = start_time
-        
+
         # Report directory cache.
         self._report_dir = None
         # Compiler interrogation is a lot of work, this will cache it.
@@ -93,7 +93,7 @@ class TestConfiguration(object):
         is either "build" or a timestamped directory based on """
         if self._report_dir is not None:
             return self._report_dir
- 
+
         if self.timestamp_build:
             ts = self.start_time.replace(' ','_').replace(':','-')
             build_dir_name = "test-%s" % ts
@@ -397,7 +397,7 @@ class TestConfiguration(object):
                 print "make", name, value
                 make_variables[name] = value
 
-                
+
         # Set remote execution variables, if used.
         if self.remote:
             # make a copy of args for report, without remote options.
@@ -419,7 +419,7 @@ class TestConfiguration(object):
             make_variables['USE_PERF'] = '1'
 
         return make_variables, public_vars
-        
+
 ###
 
 def scan_for_test_modules(config):
@@ -610,7 +610,7 @@ def execute_nt_tests(test_log, make_variables, basedir, config):
 (allow default)
 (debug deny)
 
-;; Deny all file writes by default.        
+;; Deny all file writes by default.
 (deny file-write*)
 
 ;; Deny all network access by default.
@@ -813,7 +813,7 @@ def prepare_build_dir(config, iteration) :
     else:
         needs_clean = False
         os.mkdir(build_dir)
-        
+
     # Unless not using timestamps, we require the basedir not to exist.
     if needs_clean and config.timestamp_build:
         fatal('refusing to reuse pre-existing build dir %r' % build_dir)
@@ -825,14 +825,14 @@ def update_tools(make_variables, config, iteration):
     print >>sys.stderr, '%s: building test-suite tools' % (timestamp(),)
     args = ['make', 'tools']
     args.extend('%s=%s' % (k,v) for k,v in make_variables.items())
-    build_tools_log_path = os.path.join(config.build_dir(iteration), 
+    build_tools_log_path = os.path.join(config.build_dir(iteration),
                                         'build-tools.log')
     build_tools_log = open(build_tools_log_path, 'w')
     print >>build_tools_log, '%s: running: %s' % (timestamp(),
                                                   ' '.join('"%s"' % a
                                                            for a in args))
     build_tools_log.flush()
-    res = execute_command(build_tools_log, config.build_dir(iteration), 
+    res = execute_command(build_tools_log, config.build_dir(iteration),
                           args, config.report_dir)
     build_tools_log.close()
     if res != 0:
@@ -885,7 +885,7 @@ def copy_missing_makefiles(config, basedir):
 def run_test(nick_prefix, iteration, config):
     print >>sys.stderr, "%s: checking source versions" % (
         timestamp(),)
-    
+
     test_suite_source_version = get_source_version(config.test_suite_root)
 
     # Compute the make variables.
@@ -929,10 +929,10 @@ def run_test(nick_prefix, iteration, config):
     if config.only_test is not None and not config.only_test.startswith("LNTBased"):
         copy_missing_makefiles(config, basedir)
 
-    # If running without LLVM, make sure tools are up to date.                
+    # If running without LLVM, make sure tools are up to date.
     if config.without_llvm:
         update_tools(make_variables, config, iteration)
- 
+
    # Always blow away any existing report.
     build_report_path = config.build_report_path(iteration)
     if os.path.exists(build_report_path):
@@ -1026,7 +1026,7 @@ def run_test(nick_prefix, iteration, config):
         machdep_info = machine_info
     else:
         machdep_info = run_info
-    
+
     machdep_info['uname'] = capture(["uname","-a"], include_stderr=True).strip()
     machdep_info['name'] = capture(["uname","-n"], include_stderr=True).strip()
 
@@ -1178,7 +1178,7 @@ def _execute_test_again(config, test_name, test_path, test_relative_path, logfil
         "TEST." + config.test_style + ".report")
     result_path =  os.path.join(config.build_dir(None),
         test_path, "Output",
-        test_name + "." + config.test_style + ".report.csv") 
+        test_name + "." + config.test_style + ".report.csv")
 
     gen_report_template = "{gen} -csv {schema} < {input} > {output}"
     gen_cmd = gen_report_template.format(gen=config.generate_report_script,
@@ -1274,14 +1274,14 @@ class PastRunData(object):
 
 def _process_reruns(config, server_reply, local_results):
     """Rerun each benchmark which the server reported "changed", N more
-    times.  
+    times.
     """
     try:
         server_results = server_reply['test_results'][0]['results']
     except KeyError:
         # Server might send us back an error.
         if server_reply.get('error', None):
-            warning("Server returned an error:" + 
+            warning("Server returned an error:" +
                 server_reply['error'])
         fatal("No Server results. Cannot do reruns.")
         logging.fatal()
@@ -1303,7 +1303,7 @@ def _process_reruns(config, server_reply, local_results):
 
         updating_entry = collated_results.get(test_name,
                                                PastRunData(test_name))
-   
+
         # Filter out "LNTBased" benchmarks for rerun, they
         # won't work. LNTbased look like nts.module.test
         # So just filter out anything with .
@@ -1326,7 +1326,7 @@ def _process_reruns(config, server_reply, local_results):
     # Now add on top the server results to any entry we already have.
     for full_name, results_status, perf_status in server_results:
         fields = full_name.split(".")
-        test_name = '.'.join(fields[:-1]) 
+        test_name = '.'.join(fields[:-1])
         test_type = fields[-1]
 
         new_entry = collated_results.get(test_name,  None)
@@ -1730,7 +1730,7 @@ class NTTest(builtintest.BuiltinTest):
 
         if opts.cxx_under_test is not None:
             opts.cxx_under_test = resolve_command_path(opts.cxx_under_test)
-            
+
         # Always set cxx_under_test, since it may be used as the linker even
         # when not testing C++ code.
         if opts.cxx_under_test is None:
@@ -1786,7 +1786,7 @@ class NTTest(builtintest.BuiltinTest):
                 parser.error('--remote is required with --remote-port')
             if opts.remote_user is not  None:
                 parser.error('--remote is required with --remote-user')
-                
+
         # libLTO should exist, if given.
         if opts.liblto_path:
             if not os.path.exists(opts.liblto_path):
