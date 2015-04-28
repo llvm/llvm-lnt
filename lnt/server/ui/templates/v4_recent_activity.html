@@ -31,7 +31,7 @@
       {% for machine_name,r in active_machines|dictsort %}
       <tr>
         <td>{{ utils.render_machine(r.machine) }}</td>
-        <td><span class="reltime">{{r.start_time.isoformat()}}</span></td>
+        <td><span class="reltime">{{r.end_time.isoformat()}}</span></td>
         <td>{{ utils.render_result(r) }}</td>
       </tr>
       {% endfor %}
