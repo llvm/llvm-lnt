@@ -11,8 +11,14 @@
               }}" rel="stylesheet" media='screen and (min-width: 750px)'>
   <script src="{{ url_for('.static', filename='jquery/1.7.2/jquery-1.7.2.min.js')
                }}"> </script>
+  <script src="{{ url_for('.static', filename='jquery/jquery.dateFormat/jquery-dateFormat.min.js')
+               }}"> </script>
+
   <script src="{{ url_for('.static', filename='bootstrap/js/bootstrap.min.js')
                }}"></script>
+   <script src="{{ url_for('.static', filename='timedate.js')
+                        }}"></script>
+
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
 
@@ -175,8 +181,8 @@
       <table class="table">
         <tr>
           <td>LNT Version: {{ app.version }}</td>
-          <td>Server Started: {{ app.start_time|asutctime }}</td>
-          <td>Generated: {{ request.request_time|asutctime }}</td>
+          <td>Server Started: <span class="utctime">{{ app.start_time|asisotime }}</span></td>
+          <td>Generated: <span class="utctime">{{ request.request_time|asisotime }}</span></td>
           <td>Render Time: {{ "%.2fs" % request.elapsed_time() }}</td>
         </tr>
       </table>

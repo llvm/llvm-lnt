@@ -13,7 +13,7 @@
     <li><a href="#parameters"><i class="icon-chevron-right"></i> Parameters</a></li>
     <li><a href="#submissions"><i class="icon-chevron-right"></i> Submissions</a></li>
   </ul>
-  
+
   <h4>Relatives</h4>
   <ul class="nav nav-list bs-docs-sidenav">
     {# List all machines with this name. #}
@@ -75,7 +75,7 @@
       {% if loop.first %}
       <td rowspan="{{ runs|length }}" align=right>{{ order.as_ordered_string() }}</td>
       {% endif %}
-      <td>{{ run.start_time }}</td>
+      <td><span class="utctime">{{ run.start_time.isoformat() }}</span></td>
       <td>{{ run.end_time - run.start_time }}s</td>
       <td>{{ utils.render_result(run) }}</td>
     </tr>

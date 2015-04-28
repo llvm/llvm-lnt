@@ -29,12 +29,12 @@
   {% set test_status = cr.get_test_status() %}
   {% set value_status = cr.get_value_status(ignore_small=not options.show_small_diff) %}
   {% set run_cell_value = "-" if cr.current is none else "%.4f" % cr.current %}
-  
+
   {% if options.show_previous %}
     {% set prev_cell_value = "-" if cr.previous is none else "%.4f" % cr.previous %}
     <td>{{prev_cell_value}}</td>
   {% endif %}
-  
+
   {% set cell_color = none %}
   {% if test_status == analysis.REGRESSED %}
     {% set cell_color = (233,128,128) %}
@@ -43,13 +43,13 @@
   {% elif test_status == analysis.UNCHANGED_FAIL %}
     {% set cell_color = (255,195,67) %}
   {% endif %}
-  
+
   {% if cell_color %}
     <td style="background-color:{{ '#%02x%02x%02x' % cell_color }}">{{ run_cell_value }}</td>
   {% else %}
     <td>{{run_cell_value}}</td>
   {% endif %}
-  
+
   {% if (options.show_all or
          value_status == analysis.REGRESSED or
          value_status == analysis.IMPROVED) %}
@@ -57,7 +57,7 @@
   {% else %}
     <td>-</td>
   {% endif %}
-  
+
   {% if options.show_delta %}
     <td>{{ "-" if cr.delta is none else "%.4f" % cr.delta }}</td>
   {% endif %}
@@ -77,7 +77,7 @@
       ]
     </td>
   {% endif %}
-  
+
   {% if options.show_sample_counts %}
     <td>{{cr.get_samples()|length}}</td>
   {% endif %}
@@ -101,7 +101,7 @@
   {% for r in neighboring_runs %}
     <li>
       {{ "<b>"|safe if r.id == run.id else "" }}
-      <a href="{{v4_url_for('v4_run', id=r.id)}}">{{ r.start_time }}</a>
+      <a href="{{v4_url_for('v4_run', id=r.id)}}"><span class="utctime">{{ r.start_time.isoformat() }}</span></a>
       {{ "</b>"|safe if r.id == run.id else "" }}
   {% endfor %}
   </ul>
@@ -112,7 +112,7 @@
     {% for r in comparison_neighboring_runs %}
       <li>
         {{ "<b>"|safe if compare_to and r.id == compare_to.id else "" }}
-        <a href="{{v4_url_for('v4_run', id=run.id, compare_to=r.id)}}">{{ r.start_time}}</a>
+        <a href="{{v4_url_for('v4_run', id=run.id, compare_to=r.id)}}"><span class="utctime">{{ run.start_time.isoformat() }}</span></a>
         {{ "</b>"|safe if compare_to and r.id == compare_to.id else "" }}
     {% endfor %}
     </ul>
@@ -274,7 +274,7 @@
         {% if baseline %}
           <input type="hidden" name="baseline" value="{{baseline.id}}">
         {% endif %}
-        
+
         <input type="submit" name="submit" value="Update">
       </td>
     </tr>
@@ -290,7 +290,7 @@
 
   {% set graph_base=v4_url_for('v4_graph', highlight_run=run.id) %}
   <form method="GET" action="{{ graph_base }}">
-  
+
     {# Report one table for each primary field. #}
     {% for field in primary_fields %}
       <section id="{{ field.name }}" />
@@ -310,7 +310,7 @@
             {% if options.show_sample_counts %}<th>N</th>{% endif %}
           </tr>
         </thead>
-        <tbody>  
+        <tbody>
           {% set tests = [] %}
           {% set (runs, compare_runs) = request_info.sri.get_sliding_runs(run, compare_to, request_info.num_comparison_runs) %}
           {% for test_name,test_id in test_info %}
@@ -342,7 +342,7 @@
     {% endfor %}
     <p><input type="submit" value="Graph">
   </form>
-  
+
   {% if options.show_data_table %}
     <h3>Test Data</h3>
     <table class="table table-striped table-condensed table-hover">
@@ -375,5 +375,5 @@
       </tbody>
     </table>
   {% endif %}
-  
+
 {% endblock %}

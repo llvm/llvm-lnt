@@ -26,11 +26,11 @@
          <th style="{{ styles['th'] }}">Current</th>
          <th style="{{ styles['th'] }}">&sigma; {{ primary_field_suffix }}</th>
          {% if secondary_info %}
-         <th style="{{ styles['th'] }}">&Delta; {{ secondary_field_suffix }}</th>           
+         <th style="{{ styles['th'] }}">&Delta; {{ secondary_field_suffix }}</th>
          <th style="{{ styles['th'] }}">&sigma; {{ secondary_field_suffix }}</th>
          {% endif %}
          </tr>
-         
+
          {% for name, cr, test_id in bucket %}
          <tr>
            <td style="{{ styles['td'] }}">
@@ -79,7 +79,7 @@
     <tr>
       <td style="{{ styles['td'] }}"><a href="{{ ts_url }}/{{ r.id }}">{{ title }}</a></td>
       <td style="{{ styles['td'] }}"><a href="{{ ts_url }}/order/{{ r.order.id }}">{{ r.order.llvm_project_revision }}</a></td>
-      <td style="{{ styles['td'] }}">{{ r.start_time }}</td>
+      <td style="{{ styles['td'] }}"><span class="utctime">{{ r.start_time.isoformat() }}</span></td>
       <td style="{{ styles['td'] }}">{{ r.end_time - r.start_time }}</td>
     </tr>
     {% else %}
@@ -111,7 +111,7 @@
       {% endif %}
     </tr>
   </thead>
-  
+
   {% for i, name, num_items, num_items_vs_baseline in num_item_buckets %}
     {% if num_items or num_items_vs_baseline %}
       <tr>
@@ -121,9 +121,9 @@
         <td style="{{ styles['td'] }}" align="right">{{ num_items_vs_baseline }}</td>
         {% endif %}
       </tr>
-    {% endif %}                
+    {% endif %}
   {% endfor %}
-  
+
   <tfoot>
     <tr>
       <td style="{{ styles['td'] }}"><b>Total Tests</b></td>
@@ -167,4 +167,3 @@
 </body>
 </html>
 {% endif %}
-

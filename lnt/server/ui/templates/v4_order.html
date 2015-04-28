@@ -73,11 +73,11 @@
         <th>Results</th>
       </tr>
     </thead>
-    <tbody>  
+    <tbody>
       {# Show the active submissions. #}
       {% for r in ts.query(ts.Run).filter_by(order_id = order.id) %}
       <tr>
-        <td>{{r.start_time}}</td>
+        <td><span class="utctime">{{ r.start_time.isoformat() }}</span></td>
         <td>{{r.end_time - r.start_time}}</td>
         <td>{{ utils.render_machine(r.machine) }}</td>
         <td>{{ utils.render_result(r) }}</td>

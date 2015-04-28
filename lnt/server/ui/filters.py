@@ -10,6 +10,11 @@ def filter_asutctime(time):
     ts = datetime.datetime.utcfromtimestamp(time)
     return ts.strftime('%Y-%m-%d %H:%M:%S UTC')
 
+def filter_asisotime(time):
+    ts = datetime.datetime.utcfromtimestamp(time)
+    return ts.isoformat()
+
+
 def filter_aspctcell(value, class_=None, style=None, attributes=None, *args, **kwargs):
     cell = util.PctCell(value, *args, **kwargs)
     return cell.render(class_, style, attributes)
