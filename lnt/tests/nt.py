@@ -390,12 +390,11 @@ class TestConfiguration(object):
         # Add in any additional make flags passed in via --make-param.
         for entry in self.make_parameters:
             if '=' not in entry:
-                name, value = entry,''
+                name, value = entry, ''
             else:
                 name, value = entry.split('=', 1)
-                print "make", name, value
-                make_variables[name] = value
 
+            make_variables[name] = value
 
         # Set remote execution variables, if used.
         if self.remote:
