@@ -152,7 +152,9 @@ def action_runtest(name, args):
     except KeyError:
         parser.error('invalid test name %r' % test_name)
 
-    test_instance.run_test('%s %s' % (name, test_name), args)
+    server_results = test_instance.run_test('%s %s' % (name, test_name), args)
+    print "Results available at:", server_results['result_url']
+
 
 def action_showtests(name, args):
     """show the available built-in tests"""

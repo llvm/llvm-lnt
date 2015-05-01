@@ -1034,9 +1034,10 @@ class CompileTest(builtintest.BuiltinTest):
         if opts.output is not None:
             self.print_report(report, opts.output)
 
-        self.submit(lnt_report_path, opts)
+        server_report = self.submit(lnt_report_path, opts)
 
-        return report
+        return server_report
+
 
 def create_instance():
     return CompileTest()

@@ -92,7 +92,11 @@ def import_and_report(config, db_name, db, file, format, commit=False,
     if config:
         report_url = "%s/db_%s/" % (config.zorgURL, db_name)
     else:
-        report_url = 'localhost'
+        report_url = "localhost"
+    # Add a handy relative link to the submitted run.
+    ts_name = data['Run']['Info'].get('tag')
+    result['result_url'] = "db_{}/v4/{}/{}".format(db_name, ts_name, run.id)
+
     if not disable_report:
         NTEmailReport.emailReport(result, db, run, report_url,
                                   email_config, toAddress, success, commit)
