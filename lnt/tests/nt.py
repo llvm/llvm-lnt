@@ -379,7 +379,7 @@ class TestConfiguration(object):
                 llvm_arch = 'Alpha'
             elif arch.startswith('sparc'):
                 llvm_arch = 'Sparc'
-            elif arch in ('mips', 'mipsel'):
+            elif arch in ('mips', 'mipsel', 'mips64', 'mips64el'):
                 llvm_arch = 'Mips'
 
         if llvm_arch is not None:
