@@ -2,6 +2,7 @@
 import sqlalchemy.sql
 
 import lnt.server.reporting.analysis
+from lnt.testing.util.commands import warning
 
 def regenerate_fieldchanges_for_run(ts, run):
     """Regenerate the set of FieldChange objects for the given run.
@@ -26,6 +27,15 @@ def regenerate_fieldchanges_for_run(ts, run):
     
     # Load our run data for the creation of the new fieldchanges.
     runs_to_load = [r.id for r in (runs + previous_runs + next_runs)]
+
+    # When the same rev is submitted many times, the database accesses here
+    # can be huge, and it is almost always an error to have the same rev
+    # be used in so many runs.
+    run_size = len(runs_to_load)
+    if run_size > 50:
+        warning("Generating field changes for {} runs."
+                "That will be very slow.".format(run_size))
+
     runinfo = lnt.server.reporting.analysis.RunInfo(ts, runs_to_load)
         
     for field in list(ts.sample_fields):
