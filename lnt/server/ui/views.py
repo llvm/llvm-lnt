@@ -120,7 +120,8 @@ def submit_run():
 
         # It is nice to have a full URL to the run, so fixup the request URL
         # here were we know more about the flask instance.
-        result['result_url'] = request.url_root + result['result_url']
+        if result.get('result_url'):
+            result['result_url'] = request.url_root + result['result_url']
 
         return flask.jsonify(**result)
 
