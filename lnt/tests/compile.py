@@ -984,37 +984,26 @@ class CompileTest(builtintest.BuiltinTest):
         g_log.info('run started')
         g_log.info('using CC: %r' % opts.cc)
         g_log.info('using CXX: %r' % opts.cxx)
-        try:
-            for basename,test_fn in tests_to_run:
-                for success,name,samples in test_fn(basename, run_info,
-                                                         variables):
-                    g_log.info('collected samples: %r' % name)
-                    num_samples = len(samples)
-                    if num_samples:
-                        samples_median = '%.4f' % (stats.median(samples),)
-                        samples_mad = '%.4f' % (
-                            stats.median_absolute_deviation(samples),)
-                    else:
-                        samples_median = samples_mad = 'N/A'
-                    g_log.info('N=%d, median=%s, MAD=%s' % (
-                        num_samples, samples_median, samples_mad))
-                    test_name = '%s.%s' % (tag, name)
-                    if not success:
-                        testsamples.append(lnt.testing.TestSamples(
-                                test_name + '.status', [lnt.testing.FAIL]))
-                    if samples:
-                        testsamples.append(lnt.testing.TestSamples(
-                                test_name, samples))
-        except KeyboardInterrupt:
-            raise SystemExit("\ninterrupted\n")
-        except:
-            import traceback
-            g_log.error('*** EXCEPTION DURING TEST, HALTING ***')
-            g_log.error('--')
-            g_log.error(traceback.format_exc())
-            g_log.error('--')
-            run_info['had_errors'] = 1
-
+        for basename,test_fn in tests_to_run:
+            for success,name,samples in test_fn(basename, run_info,
+                                                     variables):
+                g_log.info('collected samples: %r' % name)
+                num_samples = len(samples)
+                if num_samples:
+                    samples_median = '%.4f' % (stats.median(samples),)
+                    samples_mad = '%.4f' % (
+                        stats.median_absolute_deviation(samples),)
+                else:
+                    samples_median = samples_mad = 'N/A'
+                g_log.info('N=%d, median=%s, MAD=%s' % (
+                    num_samples, samples_median, samples_mad))
+                test_name = '%s.%s' % (tag, name)
+                if not success:
+                    testsamples.append(lnt.testing.TestSamples(
+                            test_name + '.status', [lnt.testing.FAIL]))
+                if samples:
+                    testsamples.append(lnt.testing.TestSamples(
+                            test_name, samples))
         end_time = datetime.utcnow()
 
         g_log.info('run complete')
