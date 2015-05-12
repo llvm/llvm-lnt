@@ -10,7 +10,7 @@ import time
 import traceback
 from datetime import datetime
 from optparse import OptionParser, OptionGroup
-
+import urllib2
 
 import lnt.testing
 import lnt.testing.util.compilers
@@ -1644,7 +1644,7 @@ class NTTest(builtintest.BuiltinTest):
         group.add_option("", "--submit", dest="submit_url", metavar="URLORPATH",
                          help=("autosubmit the test result to the given server"
                                " (or local instance) [%default]"),
-                         type=str, default=None)
+                         type=str, default=[], action="append")
         group.add_option("", "--commit", dest="commit",
                          help=("whether the autosubmit result should be committed "
                                 "[%default]"),
@@ -1880,11 +1880,16 @@ class NTTest(builtintest.BuiltinTest):
             "Should have never gotten here!"
 
         result = None
-        if config.submit_url is not None:
+        if config.submit_url:
             from lnt.util import ServerUtil
-            self.log("submitting result to %r" % (config.submit_url,))
-            result = ServerUtil.submitFile(config.submit_url, report_path, commit, False)
-
+            for server in config.submit_url:
+                self.log("submitting result to %r" % (server,))
+                try:
+                    result = ServerUtil.submitFile(server, report_path,
+                                                   commit, False)
+                except (urllib2.HTTPError, urllib2.URLError) as e:
+                    warning("submitting to {} failed with {}".format(server,
+                            e))
         else:
             # Simulate a submission to retrieve the results report.
             # Construct a temporary database and import the result.
@@ -1897,7 +1902,8 @@ class NTTest(builtintest.BuiltinTest):
             result = lnt.util.ImportData.import_and_report(
                 None, None, db, report_path, 'json', commit)
 
-        assert result is not None, "Results were not obtained from submission."
+        if result is None:
+            fatal("Results were not obtained from submission.")
 
         return result
 
