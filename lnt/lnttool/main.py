@@ -232,6 +232,7 @@ def action_update(name, args):
     # Update the database.
     lnt.server.db.migrate.update_path(db_path)
 
+
 def action_send_daily_report(name, args):
     """send a daily report email"""
     import datetime
@@ -258,7 +259,9 @@ def action_send_daily_report(name, args):
     parser.add_option("-n", "--dry-run", dest="dry_run", default=False,
                       action="store_true", help="Don't actually send email."
                       " Used for testing.")
- 
+    parser.add_option("", "--days", dest="days", default=3, type="int",
+                      help="Number of days to show in report.")
+
     (opts, args) = parser.parse_args(args)
 
     if len(args) != 2:
@@ -297,7 +300,8 @@ def action_send_daily_report(name, args):
     note("building report data...")
     report = lnt.server.reporting.dailyreport.DailyReport(
         ts, year=date.year, month=date.month, day=date.day,
-        day_start_offset_hours=date.hour, for_mail=True)
+        day_start_offset_hours=date.hour, for_mail=True,
+        num_prior_days_to_include=opts.days)
     report.build()
 
     note("generating HTML report...")
