@@ -29,9 +29,9 @@ def upgrade(engine):
     session.commit()
     # upgrade_3_to_4.py added this column, so it is not in the ORM.
     session.connection().execute("""
-UPDATE TestSuiteSampleFields
+UPDATE "TestSuiteSampleFields"
 SET bigger_is_better=1
-WHERE name='score'
+WHERE "Name"='score'
                                  """)
     session.commit()
 
@@ -39,8 +39,8 @@ WHERE name='score'
     # trying to find out how to do it properly in SQLAlchemy without
     # SQLAlchemy-migrate installed.
     session.connection().execute("""
-ALTER TABLE NT_Sample
-ADD COLUMN score FLOAT
+ALTER TABLE "NT_Sample"
+ADD COLUMN "score" FLOAT
 """)
     session.commit()
 

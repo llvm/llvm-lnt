@@ -15,8 +15,8 @@ def upgrade(engine):
     # Add our new column. SQLAlchemy doesn't really support adding a new column to an
     # existing table, so instead of requiring SQLAlchemy-Migrate, just execute the raw SQL.
     session.connection().execute("""
-ALTER TABLE TestSuiteSampleFields
-ADD COLUMN bigger_is_better INTEGER DEFAULT 0
+ALTER TABLE "TestSuiteSampleFields"
+ADD COLUMN "bigger_is_better" INTEGER DEFAULT 0
 """)
     
     session.commit()
