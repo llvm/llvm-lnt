@@ -153,7 +153,10 @@ def action_runtest(name, args):
         parser.error('invalid test name %r' % test_name)
 
     server_results = test_instance.run_test('%s %s' % (name, test_name), args)
-    print "Results available at:", server_results['result_url']
+    if result.get('result_url'):
+        print "Results available at:", server_results['result_url']
+    else:
+        print "Results available at: no URL available"
 
 
 def action_showtests(name, args):
