@@ -133,13 +133,7 @@ class ComparisonResult:
         if self.failed:
             return UNCHANGED_FAIL
         elif self.prev_failed:
-            return UNCHANGED_PASS
-
-        # Ignore tests whose delta is too small relative to the precision we can
-        # sample at; otherwise quantization means that we can't measure the
-        # standard deviation with enough accuracy.
-        if abs(self.delta) <= 2 * value_precision * confidence_interval:
-            return UNCHANGED_PASS
+            return UNCHANGED_PASS 
 
         # Always ignore percentage changes below 1%, for now, we just don't have
         # enough time to investigate that level of stuff.
@@ -153,10 +147,17 @@ class ComparisonResult:
         if ignore_small and abs(self.delta) < .01:
             return UNCHANGED_PASS
 
+        # Ignore tests whose delta is too small relative to the precision we can
+        # sample at; otherwise quantization means that we can't measure the
+        # standard deviation with enough accuracy.
+        if abs(self.delta) <= 2 * value_precision * confidence_interval:
+            return UNCHANGED_PASS
+
         # Use Mann-Whitney U test to test null hypothesis that result is
         # unchanged.
         if len(self.samples) >= 4 and len(self.prev_samples) >= 4:
-            same = stats.mannwhitneyu(self.samples, self.prev_samples, self.confidence_lv)
+            same = stats.mannwhitneyu(self.samples, self.prev_samples,
+                                      self.confidence_lv)
             if same:
                 return UNCHANGED_PASS
 
