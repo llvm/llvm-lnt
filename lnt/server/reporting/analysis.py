@@ -27,8 +27,12 @@ def calc_geomean(run_values):
 
     return util.geometric_mean(values) - MIN_VALUE
 
+
 class ComparisonResult:
-    def __init__(self, cur_value, prev_value, delta, pct_delta, stddev, MAD,
+    """A ComparisonResult is ultimatly responsible for determining if a test
+    improves, regresses or does not change, given some new and old data."""
+    
+    def __init__(self,cur_value, prev_value, delta, pct_delta, stddev, MAD,
                  cur_failed, prev_failed, samples, prev_samples, stddev_mean = None,
                  confidence_lv = .05, bigger_is_better = False):
         self.current = cur_value
