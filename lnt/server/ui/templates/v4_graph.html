@@ -250,14 +250,10 @@ function update_tooltip(event, pos, item, show_fn, graph_data) {
                      {{ 'checked' if options.show_failures else ""}}></td>
               </tr>
               <tr>
-                <td>Show Sample Points:</td>
-                <td><input type="checkbox" name="show_points" value="yes"
-                     {{ 'checked' if options.show_points else ""}}></td>
-              </tr>
               <tr>
-                <td>Show All Sample Points:</td>
-                <td><input type="checkbox" name="show_all_points" value="yes"
-                     {{ 'checked' if options.show_all_points else ""}}></td>
+                <td>Hide Sample Points:</td>
+                <td><input type="checkbox" name="hide_all_points" value="yes"
+                     {{ 'checked' if options.hide_all_points else ""}}></td>
               </tr>
               <tr>
                 <td>Normalize By Median:</td>

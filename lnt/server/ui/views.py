@@ -466,9 +466,8 @@ def v4_graph():
     show_lineplot = not options['hide_lineplot']
     options['show_mad'] = show_mad = bool(request.args.get('show_mad'))
     options['show_stddev'] = show_stddev = bool(request.args.get('show_stddev'))
-    options['show_points'] = show_points = bool(request.args.get('show_points'))
-    options['show_all_points'] = show_all_points = bool(
-        request.args.get('show_all_points'))
+    options['hide_all_points'] = hide_all_points = bool(
+        request.args.get('hide_all_points'))
     options['show_linear_regression'] = show_linear_regression = bool(
         request.args.get('show_linear_regression'))
     options['show_failures'] = show_failures = bool(
@@ -727,14 +726,12 @@ def v4_graph():
 
             # Add the individual points, if requested.
             # For each point add a text label for the mouse over.
-            if show_all_points:
+            if not hide_all_points:
                 for i,v in enumerate(values):
                     point_metadata = dict(metadata)
                     point_metadata["date"] = str(dates[i])
                     points_data.append((x, v, point_metadata))
-            elif show_points:
-                points_data.append((x, min_value, metadata))
-
+            
             # Add the standard deviation error bar, if requested.
             if show_stddev:
                 mean = stats.mean(values)
