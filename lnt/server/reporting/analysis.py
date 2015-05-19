@@ -31,43 +31,67 @@ def calc_geomean(run_values):
 class ComparisonResult:
     """A ComparisonResult is ultimatly responsible for determining if a test
     improves, regresses or does not change, given some new and old data."""
-    
-    def __init__(self,cur_value, prev_value, delta, pct_delta, stddev, MAD,
-                 cur_failed, prev_failed, samples, prev_samples, stddev_mean = None,
-                 confidence_lv = .05, bigger_is_better = False):
-        self.current = cur_value
-        self.previous = prev_value
-        self.delta = delta
-        self.pct_delta = pct_delta
-        self.stddev = stddev
-        self.MAD = MAD
+
+    def __init__(self, aggregation_fn,
+                 cur_failed, prev_failed, samples, prev_samples,
+                 confidence_lv=0.05, bigger_is_better=False):
+        self.aggregation_fn = aggregation_fn
+        if samples:
+            self.current = aggregation_fn(samples)
+        else:
+            self.current = None
+        if prev_samples:
+            self.previous = aggregation_fn(prev_samples)
+        else:
+            self.previous = None
+
+        # Compute the comparison status for the test value.
+        if self.current and self.previous and self.previous != 0:
+            self.delta = self.current - self.previous
+            self.pct_delta = self.delta / self.previous
+        else:
+            self.delta = 0
+            self.pct_delta = 0.0
+
+        # If we have multiple values for this run, use that to estimate the
+        # distribution.
+        if samples and len(samples) > 1:
+            self.stddev = stats.standard_deviation(samples)
+            self.MAD = stats.median_absolute_deviation(samples)
+        else:
+            self.stddev = None
+            self.MAD = None
+
+        self.stddev_mean = None  # Only calculate this if needed.
         self.failed = cur_failed
         self.prev_failed = prev_failed
         self.samples = samples
         self.prev_samples = prev_samples
-        self.stddev_mean = stddev_mean
+
         self.confidence_lv = confidence_lv
         self.bigger_is_better = bigger_is_better
 
+    @property
+    def stddev_mean(self):
+        """The mean around stddev for current sampples. Cached after first call.
+        """
+        if not self.stddev_mean:
+            self.stddev_mean = stats.mean(self.samples)
+        return self.stddev_mean
+
     def __repr__(self):
         """Print this ComparisonResult's constructor.
-        
+
         Handy for generating test cases for comparisons doing odd things."""
-        frmt = "{}(" + "{}, " * 11 + ")"
-        return frmt.format("ComparisonResult",
-                           self.current,
-                           self.previous,
-                           self.delta,
-                           self.pct_delta,
-                           self.stddev,
-                           self.MAD,
-                           self.failed,
-                           self.prev_failed,
-                           self.samples,
-                           self.prev_samples,
-                           self.stddev_mean,
-                           self.confidence_lv,
-                           self.bigger_is_better)
+        fmt = "{}(" + "{}, " * 7 + ")"
+        return fmt.format(self.__class__.__name__,
+                          self.aggregation_fn.__name__,
+                          self.failed,
+                          self.prev_failed,
+                          self.samples,
+                          self.prev_samples,
+                          self.confidence_lv,
+                          bool(self.bigger_is_better))
 
     def is_result_interesting(self):
         """is_result_interesting() -> bool
@@ -237,77 +261,27 @@ class RunInfo(object):
                       if s[field.index] is not None]
         prev_values = [s[field.index] for s in prev_samples
                        if s[field.index] is not None]
-        if run_values:
-            run_value = self.aggregation_fn(run_values)
-        else:
-            run_value = None
-        if prev_values:
-            prev_value = self.aggregation_fn(prev_values)
-        else:
-            prev_value = None
+        
+        r = ComparisonResult(self.aggregation_fn,
+                             run_failed, prev_failed, run_values,
+                             prev_values, self.confidence_lv,
+                             bigger_is_better=field.bigger_is_better)
+        print repr(r)
+        return r
 
-        # If we have multiple values for this run, use that to estimate the
-        # distribution.
-        if run_values and len(run_values) > 1:
-            stddev = stats.standard_deviation(run_values)
-            MAD = stats.median_absolute_deviation(run_values)
-            stddev_mean = stats.mean(run_values)
-        else:
-            stddev = None
-            MAD = None
-            stddev_mean = None
-
-        # If we are missing current or comparison values we are done.
-        if run_value is None or prev_value is None:
-            return ComparisonResult(
-                run_value, prev_value, delta=None,
-                pct_delta = None, stddev = stddev, MAD = MAD,
-                cur_failed = run_failed, prev_failed = prev_failed,
-                samples = run_values, prev_samples = prev_values,
-                confidence_lv = self.confidence_lv,
-                bigger_is_better = field.bigger_is_better)
-
-        # Compute the comparison status for the test value.
-        delta = run_value - prev_value
-        if prev_value != 0:
-            pct_delta = delta / prev_value
-        else:
-            pct_delta = 0.0
-
-        return ComparisonResult(run_value, prev_value, delta,
-                                pct_delta, stddev, MAD,
-                                run_failed, prev_failed, run_values,
-                                prev_values, stddev_mean, self.confidence_lv,
-                                bigger_is_better = field.bigger_is_better)
-
-
-    def get_geomean_comparison_result(self, run, compare_to, field, tests,
-                                      comparison_window=[]):
+    def get_geomean_comparison_result(self, run, compare_to, field, tests):
         if tests:
             prev_values,run_values = zip(*[(cr.previous,cr.current) for _,_,cr in tests])
         else:
             prev_values,run_values = [], []
 
-        run_geomean = calc_geomean(run_values)
-        prev_geomean = calc_geomean(prev_values)
-
-        if run_geomean and prev_geomean:
-            delta = run_geomean - prev_geomean
-            if prev_geomean != 0:
-                pct_delta = delta / prev_geomean
-            else:
-                pct_delta = 0.0
-        else:
-            delta = pct_delta = 0
-
-        return ComparisonResult(run_geomean, prev_geomean, delta,
-                                pct_delta, stddev=None, MAD=None,
-                                cur_failed=run_values and not run_geomean,
-                                prev_failed=prev_values and not prev_geomean,
-                                samples=[run_geomean] if run_geomean else [],
-                                prev_samples=[prev_geomean] if prev_geomean else [],
+        return ComparisonResult(calc_geomean,
+                                cur_failed=bool(run_values),
+                                prev_failed=bool(prev_values),
+                                samples=run_values,
+                                prev_samples=prev_values,
                                 confidence_lv=0,
-                                bigger_is_better = field.bigger_is_better)
+                                bigger_is_better=field.bigger_is_better)
 
     def _load_samples_for_runs(self, run_ids):
         # Find the set of new runs to load.

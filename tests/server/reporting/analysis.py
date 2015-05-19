@@ -4,7 +4,7 @@
 import unittest
 import lnt.util.stats as stats
 from lnt.server.reporting.analysis import ComparisonResult, REGRESSED, IMPROVED
-from lnt.server.reporting.analysis import UNCHANGED_PASS
+from lnt.server.reporting.analysis import UNCHANGED_PASS, UNCHANGED_FAIL
 
 
 class ComparisonResultTest(unittest.TestCase):
@@ -13,15 +13,8 @@ class ComparisonResultTest(unittest.TestCase):
     def test_comp(self):
         """Test a real example."""
         curr_samples = [0.0887, 0.0919, 0.0903]
-        prev = 0.0858
-        cur = min(curr_samples)
-        stddev = stats.standard_deviation(curr_samples)
-        MAD = stats.median_absolute_deviation(curr_samples)
-        stddev_mean = stats.mean(curr_samples)
-        uninteresting = ComparisonResult(cur, prev, cur-prev,
-                                         (cur-prev)/prev, stddev, MAD,
-                                         False, False, curr_samples, [prev],
-                                         stddev_mean)
+        prev = [0.0858]
+        uninteresting = ComparisonResult(min, False, False, curr_samples, prev)
 
         self.assertFalse(uninteresting.is_result_interesting())
         self.assertEquals(uninteresting.get_test_status(), UNCHANGED_PASS)
@@ -29,31 +22,36 @@ class ComparisonResultTest(unittest.TestCase):
 
     def test_slower(self):
         """Test getting a simple regression."""
-        slower = ComparisonResult(10, 5, 5, 0.5, None, None,
-                                  False, False, [10], [5], None)
+        slower = ComparisonResult(min,
+                                  False, False, [10], [5])
         self.assertEquals(slower.get_value_status(), REGRESSED)
         self.assertTrue(slower.is_result_interesting())
 
     def test_faster(self):
         """Test getting a simple improvement."""
 
-        faster = ComparisonResult(5, 10, -5, -0.5, None, None,
-                                  False, False, [5], [10], None)
+        faster = ComparisonResult(min,
+                                  False, False, [5], [10])
         self.assertEquals(faster.get_value_status(), IMPROVED)
         self.assertTrue(faster.is_result_interesting())
 
     def test_improved_status(self):
         """Test getting a test status improvement."""
-        improved = ComparisonResult(None, None, None, None, None, None,
-                                    False, True, [5], [10], None)
+        improved = ComparisonResult(min,
+                                    False, True, [1], None)
         self.assertEquals(improved.get_test_status(), IMPROVED)
 
     def test_regressed_status(self):
         """Test getting a test status improvement."""
-        improved = ComparisonResult(None, None, None, None, None, None,
-                                    True, False, [5], [10], None)
+        improved = ComparisonResult(min,
+                                    True, False, None, [10])
         self.assertEquals(improved.get_test_status(), REGRESSED)
 
+    def test_keep_on_failing_status(self):
+        """Test getting a repeated fail."""
+        improved = ComparisonResult(min,
+                                    True, True, None, None)
+        self.assertEquals(improved.get_test_status(), UNCHANGED_FAIL)
 
 if __name__ == '__main__':
     unittest.main()
