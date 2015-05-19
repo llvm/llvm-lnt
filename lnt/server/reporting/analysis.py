@@ -45,6 +45,25 @@ class ComparisonResult:
         self.confidence_lv = confidence_lv
         self.bigger_is_better = bigger_is_better
 
+    def __repr__(self):
+        """Print this ComparisonResult's constructor.
+        
+        Handy for generating test cases for comparisons doing odd things."""
+        frmt = "{}(" + "{}, " * 11 + ")"
+        return frmt.format("ComparisonResult",
+                           self.current,
+                           self.previous,
+                           self.delta,
+                           self.pct_delta,
+                           self.stddev,
+                           self.MAD,
+                           self.failed,
+                           self.prev_failed,
+                           self.samples,
+                           self.prev_samples,
+                           self.stddev_mean,
+                           self.confidence_lv,
+                           self.bigger_is_better)
 
     def is_result_interesting(self):
         """is_result_interesting() -> bool
