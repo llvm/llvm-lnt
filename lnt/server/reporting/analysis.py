@@ -11,21 +11,22 @@ IMPROVED = 'IMPROVED'
 UNCHANGED_PASS = 'UNCHANGED_PASS'
 UNCHANGED_FAIL = 'UNCHANGED_FAIL'
 
+# The smallest measureable change we can detect in seconds.
+MIN_VALUE_PRECISION = 0.0001
+
+
 def calc_geomean(run_values):
     # NOTE Geometric mean applied only to positive values, so fix it by
     # adding MIN_VALUE to each value and substract it from the result.
     # Since we are only interested in the change of the central tendency,
     # this workaround is good enough.
 
-    # Smallest possible change we ever look for.
-    MIN_VALUE = 0.00001
-
-    values = [v + MIN_VALUE for v in run_values if v is not None]
+    values = [v + MIN_VALUE_PRECISION for v in run_values if v is not None]
 
     if not values:
         return None
 
-    return util.geometric_mean(values) - MIN_VALUE
+    return util.geometric_mean(values) - MIN_VALUE_PRECISION
 
 
 class ComparisonResult:
@@ -118,7 +119,7 @@ class ComparisonResult:
                 return UNCHANGED_PASS
 
     def get_value_status(self, confidence_interval=2.576,
-                         value_precision=0.0001, ignore_small=True):
+                         value_precision=MIN_VALUE_PRECISION, ignore_small=True):
         if self.current is None or self.previous is None:
             return None
 
