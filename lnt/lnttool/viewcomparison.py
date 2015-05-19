@@ -76,10 +76,10 @@ def action_view_comparison(name, args):
         db_path = os.path.join(tmpdir, 'data.db')
         db_info = lnt.server.config.DBInfo(
             'sqlite:///%s' % (db_path,), '0.4', None,
-            lnt.server.config.EmailConfig(False, '', '', []))
+            lnt.server.config.EmailConfig(False, '', '', []), "0")
         config = lnt.server.config.Config(
             'LNT', url, db_path, tmpdir,
-            None, { 'default' : db_info }, 1)
+            None, { 'default' : db_info })
         instance = lnt.server.instance.Instance(None, config)
 
         # Create the database.
