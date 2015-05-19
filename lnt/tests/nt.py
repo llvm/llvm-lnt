@@ -658,35 +658,41 @@ def execute_nt_tests(test_log, make_variables, basedir, config):
 
 # Keep a mapping of mangled test names, to the original names in the test-suite.
 TEST_TO_NAME = {}
-
+KNOWN_SAMPLE_KEYS = ('compile', 'exec', 'gcc.compile', 'bc.compile', 'llc.compile',
+                     'llc-beta.compile', 'jit.compile', 'gcc.exec', 'llc.exec',
+                     'llc-beta.exec', 'jit.exec')
 def load_nt_report_file(report_path, config):
     # Compute the test samples to report.
     sample_keys = []
+    def append_to_sample_keys(tup):
+        stat = tup[0]
+        if not tup[0] in config.exclude_stat_from_submission:
+            sample_keys.append(tup)
     if config.test_style == "simple":
         test_namespace = 'nts'
         time_stat = ''
         # for now, user time is the unqualified Time stat
         if config.test_time_stat == "real":
             time_stat = 'Real_'
-        sample_keys.append(('compile', 'CC_' + time_stat + 'Time', None, 'CC'))
-        sample_keys.append(('exec', 'Exec_' + time_stat + 'Time', None, 'Exec'))
+        append_to_sample_keys(('compile', 'CC_' + time_stat + 'Time', None, 'CC'))
+        append_to_sample_keys(('exec', 'Exec_' + time_stat + 'Time', None, 'Exec'))
     else:
         test_namespace = 'nightlytest'
-        sample_keys.append(('gcc.compile', 'GCCAS', 'time'))
-        sample_keys.append(('bc.compile', 'Bytecode', 'size'))
+        append_to_sample_keys(('gcc.compile', 'GCCAS', 'time'))
+        append_to_sample_keys(('bc.compile', 'Bytecode', 'size'))
         if config.test_llc:
-            sample_keys.append(('llc.compile', 'LLC compile', 'time'))
+            append_to_sample_keys(('llc.compile', 'LLC compile', 'time'))
         if config.test_llcbeta:
-            sample_keys.append(('llc-beta.compile', 'LLC-BETA compile', 'time'))
+            append_to_sample_keys(('llc-beta.compile', 'LLC-BETA compile', 'time'))
         if config.test_jit:
-            sample_keys.append(('jit.compile', 'JIT codegen', 'time'))
-        sample_keys.append(('gcc.exec', 'GCC', 'time'))
+            append_to_sample_keys(('jit.compile', 'JIT codegen', 'time'))
+        append_to_sample_keys(('gcc.exec', 'GCC', 'time'))
         if config.test_llc:
-            sample_keys.append(('llc.exec', 'LLC', 'time'))
+            append_to_sample_keys(('llc.exec', 'LLC', 'time'))
         if config.test_llcbeta:
-            sample_keys.append(('llc-beta.exec', 'LLC-BETA', 'time'))
+            append_to_sample_keys(('llc-beta.exec', 'LLC-BETA', 'time'))
         if config.test_jit:
-            sample_keys.append(('jit.exec', 'JIT', 'time'))
+            append_to_sample_keys(('jit.exec', 'JIT', 'time'))
 
     # Load the report file.
     report_file = open(report_path, 'rb')
@@ -1655,6 +1661,13 @@ class NTTest(builtintest.BuiltinTest):
         group.add_option("-v", "--verbose", dest="verbose",
                          help="show verbose test results",
                          action="store_true", default=False)
+        group.add_option("", "--exclude-stat-from-submission", dest="exclude_stat_from_submission",
+                         help="Do not submit the stat of this type "
+                             "[%default]",
+                         action='append',
+                         choices=KNOWN_SAMPLE_KEYS,
+                         default=[])
+        parser.add_option_group(group)
 
         (opts, args) = parser.parse_args(args)
         if len(args) == 0:
