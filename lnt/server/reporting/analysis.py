@@ -153,7 +153,8 @@ class RunInfo(object):
 
         self._load_samples_for_runs(runs_to_load)
 
-    def get_test_ids(self):
+    @property
+    def test_ids(self):
         return set(key[1] for key in self.sample_map.keys())
 
     def get_sliding_runs(self, run, compare_run, num_comparison_runs=0):

@@ -371,7 +371,7 @@ def v4_run(id):
         sri = lnt.server.reporting.analysis.RunInfo(ts, [id])
         reported_tests = ts.query(ts.Test.name, ts.Test.id).\
             filter(ts.Run.id == id).\
-            filter(ts.Test.id.in_(sri.get_test_ids())).all()
+            filter(ts.Test.id.in_(sri.test_ids)).all()
 
         json_obj['tests'] = {}
         for test_name, test_id in reported_tests:

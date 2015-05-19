@@ -39,7 +39,7 @@ def regenerate_fieldchanges_for_run(ts, run):
     runinfo = lnt.server.reporting.analysis.RunInfo(ts, runs_to_load)
         
     for field in list(ts.sample_fields):
-        for test_id in runinfo.get_test_ids():
+        for test_id in runinfo.test_ids:
             result = runinfo.get_comparison_result(runs, previous_runs,
                                                    test_id, field)
             if result.is_result_interesting():
