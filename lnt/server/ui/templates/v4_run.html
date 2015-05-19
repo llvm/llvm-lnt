@@ -70,7 +70,7 @@
   {% if options.show_all_samples %}
     <td>
       [
-      {%- for v in cr.get_samples() -%}
+      {%- for v in cr.samples -%}
         {{ ", " if not loop.first else "" }}
         {{ "%.4f" % v }}
       {%- endfor -%}
@@ -79,7 +79,7 @@
   {% endif %}
 
   {% if options.show_sample_counts %}
-    <td>{{cr.get_samples()|length}}</td>
+    <td>{{cr.samples|length}}</td>
   {% endif %}
 
 {% endmacro %}

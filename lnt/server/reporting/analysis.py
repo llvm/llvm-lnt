@@ -45,8 +45,6 @@ class ComparisonResult:
         self.confidence_lv = confidence_lv
         self.bigger_is_better = bigger_is_better
 
-    def get_samples(self):
-        return self.samples
 
     def is_result_interesting(self):
         """is_result_interesting() -> bool
