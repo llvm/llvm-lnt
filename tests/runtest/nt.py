@@ -10,6 +10,8 @@
 # RUN: FileCheck --check-prefix CHECK-BASIC < %t.err %s
 # RUN: FileCheck --check-prefix CHECK-REPORT < %t.SANDBOX/build/report.json %s
 # CHECK-REPORT: "run_order": "154331"
+# CHECK-REPORT: "Name": "nts.{{[^.]+}}.exec"
+# CHECK-REPORT: "Name": "nts.{{[^.]+}}.compile"
 #
 # CHECK-STDOUT: Import succeeded.
 # CHECK-STDOUT: Added Machines: 1
