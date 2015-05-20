@@ -666,6 +666,7 @@ def load_nt_report_file(report_path, config):
     sample_keys = []
     def append_to_sample_keys(tup):
         stat = tup[0]
+        assert stat in KNOWN_SAMPLE_KEYS
         if not tup[0] in config.exclude_stat_from_submission:
             sample_keys.append(tup)
     if config.test_style == "simple":
