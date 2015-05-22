@@ -161,6 +161,17 @@ def v4_recent_activity():
                            active_machines=active_machines,
                            active_submissions=active_submissions)
 
+@v4_route("/machine/")
+def v4_machines():
+    # Compute the list of associated runs, grouped by order.
+    from lnt.server.ui import util
+
+    # Gather all the runs on this machine.
+    ts = request.get_testsuite()
+
+    return render_template("all_machines.html",
+                       ts=ts)
+
 @v4_route("/machine/<int:id>")
 def v4_machine(id):
     # Compute the list of associated runs, grouped by order.
@@ -196,6 +207,7 @@ def v4_machine(id):
                            associated_runs=associated_runs)
     except sqlalchemy.orm.exc.NoResultFound as e:
         abort(404)
+        
 class V4RequestInfo(object):
     def __init__(self, run_id, only_html_body=True):
         self.db = request.get_db()
