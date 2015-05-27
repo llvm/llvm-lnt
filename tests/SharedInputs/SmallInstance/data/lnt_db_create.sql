@@ -118,7 +118,6 @@ CREATE TABLE "NT_Test" (
 	PRIMARY KEY ("ID")
 );
 INSERT INTO "NT_Test" VALUES(1,'SingleSource/UnitTests/2006-12-01-float_varg');
-INSERT INTO "NT_Test" VALUES(87,'SingleSource/UnitTests/ObjC/block-byref-aggr');
 CREATE TABLE "NT_Run" (
 	"ID" INTEGER NOT NULL, 
 	"MachineID" INTEGER, 
@@ -167,7 +166,6 @@ CREATE TABLE "compile_Test" (
 );
 INSERT INTO "compile_Test" VALUES(1,'compile/OmniGroupFrameworks/NSBezierPath-OAExtensions.m/assembly/(-O0 -g)');
 INSERT INTO "compile_Test" VALUES(2,'compile/JavaScriptCore/Interpreter.cpp/init/(-O0 -g)');
-INSERT INTO "compile_Test" VALUES(38,'compile/403.gcc/combine.c/init/(-O0)');
 CREATE TABLE "compile_Order" (
 	"ID" INTEGER NOT NULL, 
 	"NextOrder" INTEGER, 

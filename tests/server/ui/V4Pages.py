@@ -4,7 +4,7 @@
 # create temporary instance
 # Cleanup temporary directory in case one remained from a previous run - also see PR9904.
 # RUN: rm -rf %t.instance
-# RUN: python %{shared_inputs}/create_temp_instance.py %{shared_inputs}/SmallInstance %t.instance
+# RUN: python %{shared_inputs}/create_temp_instance.py %{shared_inputs}/SmallInstance %t.instance %S/Inputs/V4Pages_extra_records.sql
 #
 # RUN: python %s %t.instance
 
