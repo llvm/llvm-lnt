@@ -1,7 +1,12 @@
 # Perform basic sanity checking of the V4 UI pages. Currently this really only
 # checks that we don't crash on any of them.
 #
-# RUN: python %s %{shared_inputs}/SmallInstance
+# create temporary instance
+# Cleanup temporary directory in case one remained from a previous run - also see PR9904.
+# RUN: rm -rf %t.instance
+# RUN: python %{shared_inputs}/create_temp_instance.py %{shared_inputs}/SmallInstance %t.instance
+#
+# RUN: python %s %t.instance
 
 import logging
 import sys
