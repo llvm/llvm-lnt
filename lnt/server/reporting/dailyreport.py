@@ -5,6 +5,8 @@ import sqlalchemy.sql
 import lnt.server.reporting.analysis
 import lnt.server.ui.app
 
+from lnt.server.reporting.analysis import REGRESSED, UNCHANGED_FAIL
+
 from lnt.server.ui import util
 
 class DailyReport(object):
@@ -175,8 +177,7 @@ class DailyReport(object):
 
                 test_status = day0_cr.get_test_status()
 
-                if (test_status==lnt.server.reporting.analysis.REGRESSED or
-                    test_status==lnt.server.reporting.analysis.UNCHANGED_FAIL):
+                if (test_status == REGRESSED or test_status == UNCHANGED_FAIL):
                     had_failures = True
                 elif day0_cr.pct_delta is not None:
                     sum_abs_day0_deltas += abs(day0_cr.pct_delta)
