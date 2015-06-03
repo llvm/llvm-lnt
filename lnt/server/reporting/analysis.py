@@ -4,7 +4,7 @@ Utilities for helping with the analysis of data, for reporting purposes.
 
 from lnt.util import stats
 from lnt.server.ui import util
-from lnt.testing import PASS, FAIL, XFAIL
+from lnt.testing import FAIL
 
 REGRESSED = 'REGRESSED'
 IMPROVED = 'IMPROVED'
