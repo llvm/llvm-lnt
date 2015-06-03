@@ -17,7 +17,7 @@ MIN_VALUE_PRECISION = 0.0001
 
 def absmin_diff(current, prevs):
     """Min of differences between current sample and all previous samples.
-    Given more than one min, use the last one detected which is probably a 
+    Given more than one min, use the last one detected which is probably a
     newer value. Returns (difference, prev used)
     """
     diffs = [abs(current-prev) for prev in prevs]
@@ -36,7 +36,7 @@ def calc_geomean(run_values):
     # Since we are only interested in the change of the central tendency,
     # this workaround is good enough.
 
-    values = [v + MIN_VALUE_PRECISION for v in run_values if v is not None]
+    values = [v + MIN_VALUE_PRECISION for v in run_values]
 
     if not values:
         return None
@@ -288,9 +288,12 @@ class RunInfo(object):
     def get_geomean_comparison_result(self, run, compare_to, field, tests):
         if tests:
             prev_values,run_values = zip(*[(cr.previous,cr.current) for _,_,cr in tests])
+            prev_values = [x for x in prev_values if x is not None]
+            run_values = [x for x in run_values if x is not None]
         else:
             prev_values,run_values = [], []
 
+        
         return ComparisonResult(calc_geomean,
                                 cur_failed=bool(run_values),
                                 prev_failed=bool(prev_values),
