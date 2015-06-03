@@ -2,8 +2,10 @@
 #
 # RUN: python %s
 import unittest
+
 from lnt.server.reporting.analysis import ComparisonResult, REGRESSED, IMPROVED
 from lnt.server.reporting.analysis import UNCHANGED_PASS, UNCHANGED_FAIL
+from lnt.server.reporting.analysis import absmin_diff
 
 FLAT_LINE = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
              1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
@@ -308,6 +310,19 @@ class ComparisonResultTest(unittest.TestCase):
             min, False, False, [SLOW_IMP_NOISE[12]], SLOW_IMP_NOISE[0:11])
         # Fixme
         # self.assertEquals(slow.get_value_status(), IMPROVED)
+
+
+class AbsMinTester(unittest.TestCase):
+
+    def test_absmin(self):
+        """Test finding smallest difference."""
+        self.assertEqual(absmin_diff(1, [2, 2, 3]), (-1, 2))
+        self.assertEqual(absmin_diff(1, [1, 2, 3]), (0, 1))
+        self.assertEqual(absmin_diff(1, [2]), (-1, 2))
+        self.assertEqual(absmin_diff(1.5, [1, 4, 4]), (0.5, 1))
+        self.assertEqual(absmin_diff(5, [1, 2, 1]), (3, 2))
+        self.assertEqual(absmin_diff(1, [2, 0, 3]), (1, 0))
+
 
 if __name__ == '__main__':
     unittest.main()

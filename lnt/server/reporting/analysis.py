@@ -15,6 +15,21 @@ UNCHANGED_FAIL = 'UNCHANGED_FAIL'
 MIN_VALUE_PRECISION = 0.0001
 
 
+def absmin_diff(current, prevs):
+    """Min of differences between current sample and all previous samples.
+    Given more than one min, use the last one detected which is probably a 
+    newer value. Returns (difference, prev used)
+    """
+    diffs = [abs(current-prev) for prev in prevs]
+    smallest_pos = 0
+    smallest = diffs[0]
+    for i, diff in enumerate(diffs):
+        if diff <= smallest:
+            smallest = diff
+            smallest_pos = i
+    return current-prevs[smallest_pos], prevs[smallest_pos]
+
+
 def calc_geomean(run_values):
     # NOTE Geometric mean applied only to positive values, so fix it by
     # adding MIN_VALUE to each value and substract it from the result.
@@ -48,8 +63,8 @@ class ComparisonResult:
 
         # Compute the comparison status for the test value.
         if self.current and self.previous and self.previous != 0:
-            self.delta = self.current - self.previous
-            self.pct_delta = self.delta / self.previous
+            self.delta, value = absmin_diff(self.current, prev_samples)
+            self.pct_delta = self.delta / value
         else:
             self.delta = 0
             self.pct_delta = 0.0
