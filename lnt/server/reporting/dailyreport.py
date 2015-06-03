@@ -13,8 +13,9 @@ from collections import namedtuple
 
 OrderAndHistory = namedtuple('OrderAndHistory', ['max_order', 'recent_orders'])
 
+
 class DailyReport(object):
-    def __init__(self, ts, year, month, day, num_prior_days_to_include = 3,
+    def __init__(self, ts, year, month, day, num_prior_days_to_include=3,
                  day_start_offset_hours=16, for_mail=False):
         self.ts = ts
         self.num_prior_days_to_include = num_prior_days_to_include
@@ -22,7 +23,8 @@ class DailyReport(object):
         self.month = month
         self.day = day
         self.fields = list(ts.Sample.get_primary_fields())
-        self.day_start_offset = datetime.timedelta(hours=day_start_offset_hours)
+        self.day_start_offset = datetime.timedelta(
+            hours=day_start_offset_hours)
         self.for_mail = for_mail
 
         # Computed values.
@@ -66,8 +68,8 @@ class DailyReport(object):
 
         # Adjust the dates time component.  As we typically want to do runs
         # overnight, we define "daily" to really mean "daily plus some
-        # offset". The offset should generally be whenever the last run finishes
-        # on today's date.
+        # offset". The offset should generally be whenever the last run
+        # finishes on today's date.
 
         self.next_day = (datetime.datetime.fromordinal(day_ordinal + 1) +
                          self.day_start_offset)
@@ -77,9 +79,9 @@ class DailyReport(object):
 
         # Find all the runs that occurred for each day slice.
         prior_runs = [ts.query(ts.Run).
-                          filter(ts.Run.start_time > prior_day).\
-                          filter(ts.Run.start_time <= day).all()
-                      for day,prior_day in util.pairs(self.prior_days)]
+                      filter(ts.Run.start_time > prior_day).
+                      filter(ts.Run.start_time <= day).all()
+                      for day, prior_day in util.pairs(self.prior_days)]
 
         # For every machine, we only want to report on the last run order that
         # was reported for that machine for the particular day range.
@@ -106,12 +108,14 @@ class DailyReport(object):
                 for machine, orders in machine_to_all_orders.items())
 
             # Update the run list to only include the runs with that order.
-            prior_runs[i] = [r for r in runs
-                             if r.order is machine_order_map[r.machine].max_order]
+            def is_max_order(r):
+                return r.order is machine_order_map[r.machine].max_order
+            prior_runs[i] = [r for r in runs if is_max_order(r)]
 
             # Also keep some recent runs, so we have some extra samples.
-            historic_runs[i] = [r for r in runs
-                                if r.order in machine_order_map[r.machine].recent_orders]
+            def is_recent_order(r):
+                return r.order in machine_order_map[r.machine].recent_orders
+            historic_runs[i] = [r for r in runs if is_recent_order(r)]
 
         # Form a list of all relevant runs.
         relevant_runs = sum(prior_runs, [])
@@ -119,7 +123,7 @@ class DailyReport(object):
 
         # Find the union of all machines reporting in the relevant runs.
         self.reporting_machines = list(set(r.machine for r in relevant_runs))
-        self.reporting_machines.sort(key = lambda m: m.name)
+        self.reporting_machines.sort(key=lambda m: m.name)
 
         # We aspire to present a "lossless" report, in that we don't ever hide
         # any possible change due to aggregation. In addition, we want to make
@@ -149,7 +153,7 @@ class DailyReport(object):
 
         # Aggregate runs by machine ID and day index.
         self.machine_runs = machine_runs = util.multidict()
-        for day_index,day_runs in enumerate(prior_runs):
+        for day_index, day_runs in enumerate(prior_runs):
             for run in day_runs:
                 machine_runs[(run.machine_id, day_index)] = run
 
@@ -174,7 +178,8 @@ class DailyReport(object):
                     ts.Sample.test_id == ts.Test.id))).all()
         self.reporting_tests.sort(key=lambda t: t.name)
 
-        run_ids_to_load = list(relevant_run_ids) + [r.id for r in less_relevant_runs]
+        run_ids_to_load = list(relevant_run_ids) + \
+            [r.id for r in less_relevant_runs]
 
         # Create a run info object.
         sri = lnt.server.reporting.analysis.RunInfo(ts, run_ids_to_load)
@@ -183,12 +188,12 @@ class DailyReport(object):
         def compute_visible_results_priority(visible_results):
             # We just use an ad hoc priority that favors showing tests with
             # failures and large changes. We do this by computing the priority
-            # as tuple of whether or not there are any failures, and then sum of
-            # the mean percentage changes.
+            # as tuple of whether or not there are any failures, and then sum
+            # of the mean percentage changes.
             test, results = visible_results
             had_failures = False
             sum_abs_day0_deltas = 0.
-            for machine,day_results in results:
+            for machine, day_results in results:
                 day0_cr = day_results[0]
 
                 test_status = day0_cr.get_test_status()
@@ -219,7 +224,7 @@ class DailyReport(object):
                     # If the result is not "interesting", ignore this machine.
                     if not cr.is_result_interesting():
                         continue
-                    
+
                     # Otherwise, compute the results for all the days.
                     day_results = [cr]
                     for i in range(1, self.num_prior_days_to_include):
@@ -258,15 +263,15 @@ class DailyReport(object):
         #
         # These are derived from the static style.css file we use elsewhere.
         styles = {
-            "body" : ("color:#000000; background-color:#ffffff; "
-                      "font-family: Helvetica, sans-serif; font-size:9pt"),
-            "table" : ("font-size:9pt; border-spacing: 0px; "
-                       "border: 1px solid black"),
-            "th" : (
+            "body": ("color:#000000; background-color:#ffffff; "
+                     "font-family: Helvetica, sans-serif; font-size:9pt"),
+            "table": ("font-size:9pt; border-spacing: 0px; "
+                      "border: 1px solid black"),
+            "th": (
                 "background-color:#eee; color:#666666; font-weight: bold; "
                 "cursor: default; text-align:center; font-weight: bold; "
                 "font-family: Verdana; padding:5px; padding-left:8px"),
-            "td" : "padding:5px; padding-left:8px",
+            "td": "padding:5px; padding-left:8px",
         }
 
         return template.render(
