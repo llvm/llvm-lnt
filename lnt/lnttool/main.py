@@ -332,13 +332,12 @@ def action_send_daily_report(name, args):
 
 def action_send_run_comparison(name, args):
     """send a run-vs-run comparison email"""
-    import datetime
     import email.mime.multipart
     import email.mime.text
     import smtplib
 
     import lnt.server.reporting.dailyreport
-
+    
     parser = OptionParser("%s [options] <instance path> "
                           "<run A ID> <run B ID>" % (
             name,))
@@ -352,8 +351,6 @@ def action_send_run_comparison(name, args):
                       help="from email address (required)")
     parser.add_option("", "--to", dest="to_address", default=None,
                       help="to email address (required)")
-    parser.add_option("", "--today", dest="today", action="store_true",
-                      help="send the report for today (instead of most recent)")
     parser.add_option("", "--subject-prefix", dest="subject_prefix",
                       help="add a subject prefix")
     parser.add_option("-n", "--dry-run", dest="dry_run", default=False,
