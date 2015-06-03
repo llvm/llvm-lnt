@@ -121,32 +121,32 @@ class ComparisonResultTest(unittest.TestCase):
 
     def test_slower(self):
         """Test getting a simple regression."""
-        slower = ComparisonResult(min, False, False, [10], [5])
+        slower = ComparisonResult(min, False, False, [10.], [5.])
         self.assertEquals(slower.get_value_status(), REGRESSED)
         self.assertTrue(slower.is_result_interesting())
 
     def test_faster(self):
         """Test getting a simple improvement."""
 
-        faster = ComparisonResult(min, False, False, [5], [10])
+        faster = ComparisonResult(min, False, False, [5.], [10.])
         self.assertEquals(faster.get_value_status(), IMPROVED)
         self.assertTrue(faster.is_result_interesting())
 
     def test_really_faster(self):
         """Test getting a simple improvement."""
 
-        faster = ComparisonResult(min, False, False, [5, 6], [10, 10, 10])
+        faster = ComparisonResult(min, False, False, [5., 6.], [10., 10., 10.])
         self.assertEquals(faster.get_value_status(), IMPROVED)
         self.assertTrue(faster.is_result_interesting())
 
     def test_improved_status(self):
         """Test getting a test status improvement."""
-        improved = ComparisonResult(min, False, True, [1], None)
+        improved = ComparisonResult(min, False, True, [1.], None)
         self.assertEquals(improved.get_test_status(), IMPROVED)
 
     def test_regressed_status(self):
         """Test getting a test status improvement."""
-        improved = ComparisonResult(min, True, False, None, [10])
+        improved = ComparisonResult(min, True, False, None, [10.])
         self.assertEquals(improved.get_test_status(), REGRESSED)
 
     def test_keep_on_failing_status(self):
