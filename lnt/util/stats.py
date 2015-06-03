@@ -23,7 +23,6 @@ def check_floating(l):
 def mean(l):
     check_floating(l)
     if l:
-        l = map(float, l)
         return float_mean(l)
     else:
         return None
