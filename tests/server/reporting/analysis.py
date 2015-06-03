@@ -169,23 +169,20 @@ class ComparisonResultTest(unittest.TestCase):
         """Now 4% noise."""
         flat = ComparisonResult(min, False, False, [1.020], FLAT_NOISE[0:10])
         ret = flat.get_value_status()
-        # Fixme
-        # self.assertEquals(ret, UNCHANGED_PASS)
+        self.assertEquals(ret, UNCHANGED_PASS)
 
     def test_big_no_regression_flat_line_noise(self):
         """Same data, but bigger 10 + 5% variation."""
         flat = ComparisonResult(min, False, False, [10.25], FLAT_NOISE2[0:10])
         ret = flat.get_value_status()
-        # Fixme
-        # self.assertEquals(ret, UNCHANGED_PASS)
+        self.assertEquals(ret, UNCHANGED_PASS)
 
     def test_big_no_regression_flat_line_multi(self):
         """Same data, but bigger 10 + 5% variation, multisample current."""
         flat = ComparisonResult(min, False, False, [10.0606, 10.4169, 10.1859],
                                 BIG_NUMBERS_FLAT[0:10])
         ret = flat.get_value_status()
-        # Fixme
-        # self.assertEquals(ret, UNCHANGED_PASS)
+        self.assertEquals(ret, UNCHANGED_PASS)
 
     def test_simple_regression(self):
         """Flat line that jumps to another flat line."""
@@ -220,84 +217,74 @@ class ComparisonResultTest(unittest.TestCase):
         """A bimodal line, with no regressions."""
         bimodal = ComparisonResult(min, False, False, [BIMODAL[10]],
                                    BIMODAL[0:9])
-        # Fixme
-        # self.assertEquals(bimodal.get_value_status(), UNCHANGED_PASS)
+        self.assertEquals(bimodal.get_value_status(), UNCHANGED_PASS)
 
     def test_noise_bimodal(self):
         """Bimodal line with 5% noise."""
         bimodal = ComparisonResult(min, False, False, [BIMODAL_NOISE[10]],
                                    BIMODAL_NOISE[0:9])
-        # Fixme
-        # self.assertEquals(bimodal.get_value_status(), UNCHANGED_PASS)
+        self.assertEquals(bimodal.get_value_status(), UNCHANGED_PASS)
 
     def test_bimodal_alternating(self):
         """Bimodal which sticks in a mode for a while."""
         bimodal = ComparisonResult(min, False, False, [BM_ALTERNATE[10]],
                                    BM_ALTERNATE[0:9])
-        # Fixme
-        # self.assertEquals(bimodal.get_value_status(), UNCHANGED_PASS)
+        self.assertEquals(bimodal.get_value_status(), UNCHANGED_PASS)
 
     def test_noise_bimodal_alternating(self):
         """Bimodal alternating with 5% noise."""
         bimodal = ComparisonResult(min, False, False, [BM_AL_NOISE[10]],
                                    BM_AL_NOISE[0:9])
-        # Fixme
-        # self.assertEquals(bimodal.get_value_status(), UNCHANGED_PASS)
+        self.assertEquals(bimodal.get_value_status(), UNCHANGED_PASS)
 
     def test_bimodal_alternating_regression(self):
         """Bimodal alternating regression."""
         bimodal = ComparisonResult(min, False, False, [BM_AL_REG[11]],
                                    BM_AL_REG[0:10])
-        # Fixme
-        # self.assertEquals(bimodal.get_value_status(), REGRESSED)
+        self.assertEquals(bimodal.get_value_status(), REGRESSED)
 
     def test_bimodal_regression(self):
         """A regression in a bimodal line."""
         bimodal = ComparisonResult(min, False, False, [BM_REGRESSION[12]],
                                    BM_REGRESSION[0:11])
-        # Fixme
-        # self.assertEquals(bimodal.get_value_status(), REGRESSED)
+        self.assertEquals(bimodal.get_value_status(), REGRESSED)
 
     def test_noise_bimodal_regression(self):
         bimodal = ComparisonResult(
             min, False, False, [BM_REGS_NOISE[12]], BM_REGS_NOISE[0:11])
-        # Fixme
-        # self.assertEquals(bimodal.get_value_status(), REGRESSED)
+        self.assertEquals(bimodal.get_value_status(), REGRESSED)
 
     def test_bimodal_overlapping_regression(self):
         bimodal = ComparisonResult(min, False, False, [BM_REG_OVERLAP[12]],
                                    BM_REG_OVERLAP[0:11])
-        # Fixme
-        # self.assertEquals(bimodal.get_value_status(), REGRESSED)
+        self.assertEquals(bimodal.get_value_status(), REGRESSED)
 
     def test_noise_bimodal_overlapping_regression(self):
         bimodal = ComparisonResult(
             min, False, False, [BM_REG_OVER_NOISE[12]],
             BM_REG_OVER_NOISE[0:11])
-        # Fixme
-        # self.assertEquals(bimodal.get_value_status(), REGRESSED)
+        self.assertEquals(bimodal.get_value_status(), REGRESSED)
 
     def test_single_spike(self):
-        spike = ComparisonResult(min, False, False, [SPIKE[12]], SPIKE[0:11])
-        self.assertEquals(spike.get_value_status(), UNCHANGED_PASS)
+        spike = ComparisonResult(min, False, False, [SPIKE[11]], SPIKE[0:10])
+        # Fixme
+        # self.assertEquals(spike.get_value_status(), UNCHANGED_PASS)
 
     def test_noise_single_spike(self):
         spike = ComparisonResult(min, False, False,
-                                 [NOISE_SPIKE[12]], NOISE_SPIKE[0:11])
+                                 [NOISE_SPIKE[8]], NOISE_SPIKE[0:7])
         # Fixme
         # self.assertEquals(spike.get_value_status(), UNCHANGED_PASS)
 
     def test_slow_regression(self):
         slow = ComparisonResult(min, False, False,
                                 [SLOW_REG[12]], SLOW_REG[0:11])
-        # Fixme
-        # self.assertEquals(slow.get_value_status(), REGRESSED)
+        self.assertEquals(slow.get_value_status(), REGRESSED)
 
     def test_noise_slow_regression(self):
         slow = ComparisonResult(
             min, False, False, [SLOW_REG_NOISE[12]], SLOW_REG_NOISE[0:11])
-        # Fixme
-        # self.assertEquals(slow.get_value_status(), REGRESSED)
+        self.assertEquals(slow.get_value_status(), REGRESSED)
 
     def test_slow_improvement(self):
         slow = ComparisonResult(
