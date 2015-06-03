@@ -268,7 +268,6 @@ class RunInfo(object):
                              run_failed, prev_failed, run_values,
                              prev_values, self.confidence_lv,
                              bigger_is_better=field.bigger_is_better)
-        print repr(r)
         return r
 
     def get_geomean_comparison_result(self, run, compare_to, field, tests):
