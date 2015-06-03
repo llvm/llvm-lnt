@@ -13,13 +13,15 @@
 
 {% if bucket and bucket_name != 'Unchanged Tests' %}
    <p>
-     <table style="{{ styles['table'] }}" class="sortable">
+     <table style="{{ styles['table'] }}">
        <tr>
          <th style="{{ styles['th'] }}" width="500">{{ bucket_name }} - {{ field_display_name }}</th>
        {% if not show_perf %}
+         <tbody class="searchable">
          {% for name in test_names %}
            <tr><td style="{{ styles['td'] }}">{{ name }}</td></tr>
          {% endfor %}
+         </tbody>
        {% else %}
          <th style="{{ styles['th'] }}">&Delta; {{ primary_field_suffix }}</th>
          <th style="{{ styles['th'] }}">{{ primary_name }}</th>
@@ -30,7 +32,8 @@
          <th style="{{ styles['th'] }}">&sigma; {{ secondary_field_suffix }}</th>
          {% endif %}
          </tr>
-
+         <tbody class="searchable">
+         
          {% for name, cr, test_id in bucket %}
          <tr>
            <td style="{{ styles['td'] }}">
@@ -47,6 +50,7 @@
            {% endif %}
          </tr>
          {% endfor %}
+         </tbody>
        {% endif %}
      </table>
 {% endif %}
@@ -74,6 +78,7 @@
       <th style="{{ styles['th'] }}">Duration</th>
     </tr>
   </thead>
+  <tbody>
   {% for title, r in (('Current', run), ('Previous', compare_to), ('Baseline', baseline)) %}
     {% if r %}
     <tr>
@@ -86,6 +91,7 @@
       <tr><td style="{{ styles['td'] }}" colspan=4>No {{ title }} Run</td></tr>
     {% endif %}
   {% endfor %}
+ </tbody>
 </table>
 
 {% if compare_to and run.machine != compare_to.machine %}
@@ -111,7 +117,7 @@
       {% endif %}
     </tr>
   </thead>
-
+  <tbody class="searchable">
   {% for i, name, num_items, num_items_vs_baseline in num_item_buckets %}
     {% if num_items or num_items_vs_baseline %}
       <tr>
@@ -123,7 +129,7 @@
       </tr>
     {% endif %}
   {% endfor %}
-
+  </tbody>
   <tfoot>
     <tr>
       <td style="{{ styles['td'] }}"><b>Total Tests</b></td>
