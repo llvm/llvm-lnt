@@ -219,8 +219,7 @@ class DailyReport(object):
                     # If the result is not "interesting", ignore this machine.
                     if not cr.is_result_interesting():
                         continue
-                    else:
-                        print test.name.split("/")[-1], repr(cr), cr.pct_delta
+                    
                     # Otherwise, compute the results for all the days.
                     day_results = [cr]
                     for i in range(1, self.num_prior_days_to_include):
