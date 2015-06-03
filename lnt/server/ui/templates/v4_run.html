@@ -112,7 +112,7 @@
     {% for r in comparison_neighboring_runs %}
       <li>
         {{ "<b>"|safe if compare_to and r.id == compare_to.id else "" }}
-        <a href="{{v4_url_for('v4_run', id=run.id, compare_to=r.id)}}"><span class="utctime">{{ run.start_time.isoformat() }}</span></a>
+        <a href="{{v4_url_for('v4_run', id=run.id, compare_to=r.id)}}"><span class="utctime">{{ r.start_time.isoformat() }}</span></a>
         {{ "</b>"|safe if compare_to and r.id == compare_to.id else "" }}
     {% endfor %}
     </ul>
