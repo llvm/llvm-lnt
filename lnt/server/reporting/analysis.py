@@ -55,7 +55,7 @@ class ComparisonResult:
 
         # Special case: if we're using the minimum to aggregate, swap it for max
         # if bigger_is_better.
-        if aggregation_fn == stats.safe_min:
+        if aggregation_fn == stats.safe_min and bigger_is_better:
             aggregation_fn = stats.safe_max
         
         if samples:
