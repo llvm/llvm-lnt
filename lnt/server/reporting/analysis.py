@@ -52,6 +52,12 @@ class ComparisonResult:
                  cur_failed, prev_failed, samples, prev_samples,
                  confidence_lv=0.05, bigger_is_better=False):
         self.aggregation_fn = aggregation_fn
+
+        # Special case: if we're using the minimum to aggregate, swap it for max
+        # if bigger_is_better.
+        if aggregation_fn == stats.safe_min:
+            aggregation_fn = stats.safe_max
+        
         if samples:
             self.current = aggregation_fn(samples)
         else:

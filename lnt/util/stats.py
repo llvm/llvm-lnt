@@ -10,6 +10,13 @@ def safe_min(l):
     else:
         return min(l)
 
+def safe_max(l):
+    """Calculate max, but if given an empty list return None."""
+    l = list(l)  #In case this is a complex type, get a simple list.
+    if not l:
+        return None
+    else:
+        return max(l)
 
 def check_floating(l):
     """These math ops are totally wrong when they done on anything besides
