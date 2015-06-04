@@ -100,7 +100,7 @@
 
 {% if (value_status == analysis.REGRESSED or
        value_status == analysis.IMPROVED) %}
-    {{ cr.pct_delta|aspctcell|safe }}
+    {{ cr.pct_delta|aspctcell(reverse=cr.bigger_is_better)|safe }}
 {% else %}
     <td style="{{ styles.td }}">-</td>
 {% endif %}
