@@ -77,7 +77,11 @@ class ComparisonResult:
 
         # If we have multiple values for this run, use that to estimate the
         # distribution.
-        if samples and len(samples) > 1:
+        #
+        # We can get integer sample types here - for example if the field is
+        # .exec.status. Make sure we don't assert by avoiding the stats
+        # functions in this case.
+        if samples and len(samples) > 1 and isinstance(samples[0], float):
             self.stddev = stats.standard_deviation(samples)
             self.MAD = stats.median_absolute_deviation(samples)
         else:
