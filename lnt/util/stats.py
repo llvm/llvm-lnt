@@ -1,3 +1,4 @@
+from __future__ import division
 import math
 from lnt.external.stats.stats import mannwhitneyu as mannwhitneyu_large
 
@@ -18,32 +19,17 @@ def safe_max(l):
     else:
         return max(l)
 
-def check_floating(l):
-    """These math ops are totally wrong when they done on anything besides
-    floats.  I would just cast them, however that really slows them down.
-    So lets error on this """
-    for v in l:
-        assert type(v) == float, "Math op on non-floating point:" + str(v) + \
-            str(l)
-
-
 def mean(l):
-    check_floating(l)
     if l:
-        return float_mean(l)
+        return sum(l)/len(l)
     else:
         return None
-
-
-def float_mean(l):
-    return sum(l)/len(l)
 
 
 def median(l):
     if not l:
         return None
-    l = list(l)  # Could be a tuple.
-    check_floating(l)
+    l = list(l)
     l.sort()
     N = len(l)
     return (l[(N-1)//2] + l[N//2])*.5
@@ -52,13 +38,11 @@ def median(l):
 def median_absolute_deviation(l, med = None):
     if med is None:
         med = median(l)
-    check_floating(l)
     return median([abs(x - med) for x in l])
 
 
 def standard_deviation(l):
-    check_floating(l)
-    m = float_mean(l)
+    m = mean(l)
     means_sqrd = sum([(v - m)**2 for v in l]) / len(l)
     rms = math.sqrt(means_sqrd)
     return rms
@@ -68,8 +52,6 @@ def mannwhitneyu(a, b, sigLevel = .05):
     """
     Determine if sample a and b are the same at given significance level.
     """
-    check_floating(a)
-    check_floating(b)
     if len(a) <= 20 and len(b) <= 20:
         return mannwhitneyu_small(a, b, sigLevel)
     else:
@@ -89,7 +71,7 @@ def mannwhitneyu_small(a, b, sigLevel):
     assert len(a) <= 20, "Sample size must be less than 20."
     assert len(b) <= 20, "Sample size must be less than 20."
 
-    if sigLevel not in SIGN_TABLES:
+    if not sigLevel in SIGN_TABLES:
         raise ValueError("Do not have according significance table.")
 
     # Calculate U value for sample groups using method described on Wikipedia.
