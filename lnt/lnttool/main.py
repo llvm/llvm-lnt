@@ -264,6 +264,9 @@ def action_send_daily_report(name, args):
                       " Used for testing.")
     parser.add_option("", "--days", dest="days", default=3, type="int",
                       help="Number of days to show in report.")
+    parser.add_option("", "--filter-machine-regex", dest="filter_machine_regex",
+                      default=None,
+                      help="only show machines that contain the regex.")
 
     (opts, args) = parser.parse_args(args)
 
@@ -304,7 +307,8 @@ def action_send_daily_report(name, args):
     report = lnt.server.reporting.dailyreport.DailyReport(
         ts, year=date.year, month=date.month, day=date.day,
         day_start_offset_hours=date.hour, for_mail=True,
-        num_prior_days_to_include=opts.days)
+        num_prior_days_to_include=opts.days,
+        filter_machine_regex=opts.filter_machine_regex)
     report.build()
 
     note("generating HTML report...")

@@ -2,13 +2,13 @@
 <html lang="en">
 <head>
   <link href="{{ url_for('.static', filename='bootstrap/css/bootstrap.min.css')
-              }}" rel="stylesheet" media="screen">
+              }}" rel="stylesheet" media="screen"/>
   <link href="{{ url_for('.static', filename='bootstrap/css/bootstrap-responsive.min.css')
-              }}" rel="stylesheet">
+              }}" rel="stylesheet"/>
   <link href="{{ url_for('.static', filename='narrow.css')
-              }}" rel="stylesheet" media='screen and (max-width: 750px)' >
+              }}" rel="stylesheet" media='screen and (max-width: 750px)'/>
   <link href="{{ url_for('.static', filename='wide.css')
-              }}" rel="stylesheet" media='screen and (min-width: 750px)'>
+              }}" rel="stylesheet" media='screen and (min-width: 750px)'/>
   <script src="{{ url_for('.static', filename='jquery/1.7.2/jquery-1.7.2.min.js')
                }}"> </script>
   <script src="{{ url_for('.static', filename='jquery/jquery.dateFormat/jquery-dateFormat.min.js')
@@ -16,11 +16,11 @@
 
   <script src="{{ url_for('.static', filename='bootstrap/js/bootstrap.min.js')
                }}"></script>
-   <script src="{{ url_for('.static', filename='timedate.js')
-                        }}"></script>
+  <script src="{{ url_for('.static', filename='timedate.js')
+               }}"></script>
 
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"/>
 
   <style type="text/css">
     /* Sticky footer styles ------------------------------------------------- */
@@ -65,7 +65,7 @@
     }
   </style>
 
-  <link rel="icon" type="image/png" href="{{ url_for('.static', filename='favicon.ico') }}">
+  <link rel="icon" type="image/png" href="{{ url_for('.static', filename='favicon.ico') }}"/>
 
   <title>
     {{old_config.name}}{% for short_name,_ in components %} : {{short_name}}{% endfor %} - {{ self.title() }}
@@ -115,7 +115,7 @@
               <li><a href="{{ v4_url_for('v4_daily_report_overview') }}">Daily Report</a></li>
               <li><a href="{{ v4_url_for('v4_machines') }}">All Machines</a></li>
               <li class="divider"></li>
-              <li class="disabled"><a href=#>Summary Report</a></li>
+              <li class="disabled"><a href="#">Summary Report</a></li>
               {#"{{ v4_url_for('v4_summary_report') }}"#}
             </ul>
           </li>

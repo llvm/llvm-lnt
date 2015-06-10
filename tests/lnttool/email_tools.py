@@ -9,6 +9,5 @@
 # RUN: --from some.other@address.com  \
 # RUN: --host localhost %t.instance 1 2
 # RUN: lnt send-daily-report --dry-run --from some.other@address.com \
-# RUN: --host localhost --testsuite nts \
+# RUN: --host localhost --testsuite nts --filter-machine-regex=machine.? \
 # RUN: %t.instance some@address.com
-#

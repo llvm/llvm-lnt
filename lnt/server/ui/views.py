@@ -1036,11 +1036,14 @@ def v4_daily_report(year, month, day):
     else:
         day_start = 16
 
+    filter_machine_regex = request.args.get('filter-machine-regex')
+
     ts = request.get_testsuite()
 
     # Create the report object.
     report = lnt.server.reporting.dailyreport.DailyReport(
-        ts, year, month, day, num_days, day_start)
+        ts, year, month, day, num_days, day_start,
+        filter_machine_regex=filter_machine_regex)
 
     # Build the report.
     report.build()

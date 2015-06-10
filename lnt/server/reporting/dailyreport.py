@@ -1,4 +1,5 @@
 import datetime
+import re
 
 import sqlalchemy.sql
 
@@ -16,7 +17,8 @@ OrderAndHistory = namedtuple('OrderAndHistory', ['max_order', 'recent_orders'])
 
 class DailyReport(object):
     def __init__(self, ts, year, month, day, num_prior_days_to_include=3,
-                 day_start_offset_hours=16, for_mail=False):
+                 day_start_offset_hours=16, for_mail=False,
+                 filter_machine_regex=None):
         self.ts = ts
         self.num_prior_days_to_include = num_prior_days_to_include
         self.year = year
@@ -26,6 +28,12 @@ class DailyReport(object):
         self.day_start_offset = datetime.timedelta(
             hours=day_start_offset_hours)
         self.for_mail = for_mail
+        self.filter_machine_re = None
+        if filter_machine_regex:
+            try:
+                self.filter_machine_re = re.compile(filter_machine_regex)
+            except re.error:
+                pass
 
         # Computed values.
         self.error = None
@@ -82,6 +90,11 @@ class DailyReport(object):
                       filter(ts.Run.start_time > prior_day).
                       filter(ts.Run.start_time <= day).all()
                       for day, prior_day in util.pairs(self.prior_days)]
+
+        if self.filter_machine_re is not None:
+            prior_runs = [[run for run in runs
+                           if self.filter_machine_re.search(run.machine.name)]
+                          for runs in prior_runs]
 
         # For every machine, we only want to report on the last run order that
         # was reported for that machine for the particular day range.

@@ -10,6 +10,8 @@
 
 import logging
 import sys
+import xml.etree.ElementTree as ET
+from htmlentitydefs import name2codepoint
 
 import lnt.server.db.migrate
 import lnt.server.ui.app
@@ -21,6 +23,48 @@ def check_code(client, url, expected_code=200):
     resp = client.get(url, follow_redirects=False)
     assert resp.status_code == expected_code, \
         "Call to %s returned: %d, not the expected %d"%(url, resp.status_code, expected_code)
+    return resp
+
+def dump_html(html_string):
+   for linenr, line in enumerate(html_string.split('\n')):
+      print "%4d:%s" % (linenr+1, line)
+
+def get_xml_tree(html_string):
+    try:
+        parser = ET.XMLParser()
+        parser.parser.UseForeignDTD(True)
+        parser.entity.update((x, unichr(i)) for x, i in name2codepoint.iteritems())
+        tree = ET.fromstring(html_string, parser=parser)
+    except:
+       dump_html(html_string)
+       raise
+    return tree
+
+def check_nr_machines_reported(client, url, expected_nr_machines):
+    resp = check_code(client, url)
+    html = resp.data
+    tree = get_xml_tree(html)
+    # look for the table containing the machines on the page.
+    # do this by looking for the title containing "Reported Machine Order"
+    # and assuming that the first <table> at the same level after it is the
+    # one we're looking for.
+    reported_machine_order_table = None
+    table_parent_elements = tree.findall(".//table/..")
+    found_header = False
+    for parent in table_parent_elements:
+        for child in parent.findall('*'):
+            if found_header:
+                if child.tag == "table":
+                    reported_machine_order_table = child
+                    found_header = False
+            elif child.tag.startswith('h') and \
+                child.text == 'Reported Machine Order':
+                found_header = True
+    if reported_machine_order_table is None:
+        nr_machines = 0
+    else:
+        nr_machines = len(reported_machine_order_table.findall("./tr"))
+    assert expected_nr_machines == nr_machines
 
 def main():
     _,instance_path = sys.argv
@@ -79,6 +123,15 @@ def main():
     check_code(client, '/v4/nts/daily_report/2012/4/13')
     check_code(client, '/v4/nts/daily_report/2012/4/10')
     check_code(client, '/v4/nts/daily_report/2012/4/14')
+
+    # check ?filter-machine-regex= filter
+    check_nr_machines_reported(client, '/v4/nts/daily_report/2012/4/12', 3)
+    check_nr_machines_reported(client, '/v4/nts/daily_report/2012/4/12?filter-machine-regex=machine2', 1)
+    check_nr_machines_reported(client, '/v4/nts/daily_report/2012/4/12?filter-machine-regex=machine', 2)
+    check_nr_machines_reported(client, '/v4/nts/daily_report/2012/4/12?filter-machine-regex=ma.*[34]$', 1)
+    check_nr_machines_reported(client, '/v4/nts/daily_report/2012/4/12?filter-machine-regex=ma.*4', 0)
+    # Don't crash on an invalid regular expression:
+    check_nr_machines_reported(client, '/v4/nts/daily_report/2012/4/12?filter-machine-regex=?', 3)
 
     # Now check the compile report
     # Get the V4 overview page.

@@ -46,7 +46,7 @@
 
 {# Generate the table showing which run orders we are reporting on, for each
    machine. #}
-<h3 style={{ "styles.h3" }}>Reported Machine Order</h3>
+<h3 style="{{ styles.h3 }}">Reported Machine Order</h3>
 <table border="1" style="{{ styles.table }}">
   <thead>
     <tr>
@@ -124,6 +124,7 @@
 {% for i in range(report.num_prior_days_to_include)|reverse %}
       <th style="{{ styles.th }}">Day - {{i}}</th>
 {% endfor %}
+    </tr>
   </thead>
 {% endmacro %}
 
@@ -148,6 +149,7 @@
 {%     for day_result in day_results[:-1]|reverse %}
     {{ get_cell_value(day_result) }}
 {%     endfor %}
+    <td>{{test.name}}</td>
   </tr>
 {%   endfor %}
 {{ "</table><p>" if report.for_mail }}
