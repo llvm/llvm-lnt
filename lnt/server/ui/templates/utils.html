@@ -22,20 +22,26 @@
 <a href="{{v4_url_for('v4_machine', id=m.id)}}">{{m.name}}:{{m.id}}</a>
 {%- endmacro %}
 
-{% macro regex_filter_box(input_id, selector, placeholder) -%}
+{% macro regex_filter_box(input_id, selector, placeholder,
+                          selector_part_to_search=None) -%}
 <div class="input-group"> <span class="input-group-addon">Filter</span>
     <input id="{{input_id}}" type="text" class="form-control"
            placeholder="{{placeholder}}"/>
 </div>
 <script type="text/javascript">
-// Filter table by filter text box.
 $(document).ready(function() {
     (function ($) {
         $('#{{input_id}}').keyup(function () {
             var filter_regex = new RegExp($(this).val(), 'i');
             $('{{selector}}').hide();
             $('{{selector}}').filter(function () {
-                return filter_regex.test($(this).text());
+                var text=
+{% if selector_part_to_search is none %}
+                    $(this).text();
+{% else %}
+                    $(this).find("{{selector_part_to_search|safe}}").text();
+{% endif %}
+                return filter_regex.test(text);
             }).show();
         })
     }(jQuery));

@@ -288,7 +288,8 @@
 
   {{ utils.regex_filter_box(input_id='filter',
                             selector='.searchable tr',
-                            placeholder="Benchmark name regex...") }}
+                            placeholder="Benchmark name regex...",
+                            selector_part_to_search=".benchmark-name") }}
 
   {{request_info.html_report|safe}}
   {{ utils.render_popup_end() }}
@@ -330,7 +331,7 @@
           {% for test_name,test_id,cr in tests %}
             <tr>
               <td><input type="checkbox" name="plot.{{test_id}}" value="{{machine.id}}.{{test_id}}.{{field.index}}"></td>
-              <td><a href="{{graph_base}}&plot.{{test_id}}={{ machine.id}}.{{test_id}}.{{field.index}}">{{ test_name }}</a></td>
+              <td class="benchmark-name"><a href="{{graph_base}}&plot.{{test_id}}={{ machine.id}}.{{test_id}}.{{field.index}}">{{ test_name }}</a></td>
               {{ get_cell_value(cr) }}
             </tr>
           {% endfor %}
@@ -368,7 +369,7 @@
       <tbody class="searchable">
       {% for test_name,test_id in test_info %}
         <tr>
-          <td>{{ test_name }}</td>
+          <td class="benchmark-name">{{ test_name }}</td>
           {% for field in primary_fields %}
 		    {% set cr = request_info.sri.get_run_comparison_result(run, compare_to, test_id, field) %}
             <td>{{cr.previous}}</td>
