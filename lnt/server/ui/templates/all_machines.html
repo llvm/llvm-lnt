@@ -4,36 +4,8 @@
 {% set components = [(ts.name, v4_url_for("v4_recent_activity"))] %}
 {% block title %}Machines{%endblock%}
 
-
-{# Add JS to initialize the graph. #}
-{% block onload %}init(){% endblock %}
-
-{% block javascript %}
-
-function init() {
-    // Filter table by filter text box.
-    $(document).ready(function() {
-        (function ($) {
-            $('#filter').keyup(function () {
-                
-                var filter_regex = new RegExp($(this).val(), 'i');
-                $('.searchable tr').hide();
-                $('.searchable tr').filter(function () {
-                    return filter_regex.test($(this).text());
-                }).show();
-            })
-        }(jQuery));
-    });
-}
-
-{% endblock %}
-
-</script>
-
 {% block body %}
-<div class="input-group"> <span class="input-group-addon">Filter</span>
-    <input id="filter" type="text" class="form-control" placeholder="Machines...">
-</div>
+  {{ utils.regex_filter_box('filter', '.searchable tr', "Machines...") }}
 
   <section id="machines" />
   {# List all Machines which reported for this database. #}

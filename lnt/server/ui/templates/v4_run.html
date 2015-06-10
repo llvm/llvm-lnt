@@ -23,30 +23,6 @@
   </script>
 {% endblock %}
 
-{# Add JS to initialize the run page. #}
-{% block onload %}init(){% endblock %}
-
-{% block javascript %}
-
-function init() {
-    // Filter table by filter text box.
-    $(document).ready(function() {
-        (function ($) {
-            $('#filter').keyup(function () {
-                
-                var filter_regex = new RegExp($(this).val(), 'i');
-                $('.searchable tr').hide();
-                $('.searchable tr').filter(function () {
-                    return filter_regex.test($(this).text());
-                }).show();
-            })
-        }(jQuery));
-    });
-}
-
-{% endblock %}
-
-
 {% block title %}Run Results{% endblock %}
 
 {% macro get_cell_value(cr) %}
@@ -309,11 +285,11 @@ function init() {
   <section id="report" />
   {{ utils.render_popup_begin('html_report', 'Report',
                               options.hide_report_by_default) }}
-  
-    <div class="input-group"> <span class="input-group-addon">Benchmark Filter: </span>
-        <input id="filter" type="text" class="form-control" placeholder="Benchmark name regex...">
-    </div>
-                              
+
+  {{ utils.regex_filter_box(input_id='filter',
+                            selector='.searchable tr',
+                            placeholder="Benchmark name regex...") }}
+
   {{request_info.html_report|safe}}
   {{ utils.render_popup_end() }}
 
