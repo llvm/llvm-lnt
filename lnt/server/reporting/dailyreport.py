@@ -48,9 +48,9 @@ class DailyReport(object):
         """
 
         if self.machine_runs is None:
-            raise TypeError("report not initialized")
+            raise ValueError("report not initialized")
         if day_index >= self.num_prior_days_to_include:
-            raise TypeError("invalid day index")
+            raise ValueError("invalid day index")
 
         runs = self.machine_runs.get((machine.id, day_index))
         if runs is None:
