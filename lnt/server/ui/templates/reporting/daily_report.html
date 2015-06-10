@@ -1,3 +1,4 @@
+{% import "utils.html" as utils %}
 {% if not only_html_body %}
 <html>
 <head>
@@ -47,6 +48,11 @@
 {# Generate the table showing which run orders we are reporting on, for each
    machine. #}
 <h3 style="{{ styles.h3 }}">Reported Machine Order</h3>
+{{ utils.regex_filter_box(input_id='filter', 
+                          selector='.searchable',
+                          placeholder="Machine name regex...",
+                          selector_part_to_search=".machine-name")
+}}
 <table border="1" style="{{ styles.table }}">
   <thead>
     <tr>
@@ -57,8 +63,8 @@
     </tr>
   </thead>
 {% for machine in report.reporting_machines %}
-  <tr>
-    <td style="{{ styles.td }}">{{machine.name}}</td>
+  <tr class="searchable">
+    <td class="machine-name" style="{{ styles.td }}">{{machine.name}}</td>
 {% for i in range(report.num_prior_days_to_include)|reverse %}
 {%   set key_run = report.get_key_run(machine, i) %}
 {%   if key_run %}
@@ -139,9 +145,9 @@
   </tr>
 {%   for machine,day_results in visible_results %}
 {%   set key_run = report.get_key_run(machine, 0) %}
-  <tr>
+  <tr class="searchable">
     <td style="{{ styles.td }}">&nbsp;</td>
-    <td style="{{ styles.td }}"><a href="{{
+    <td class="machine-name" style="{{ styles.td }}"><a href="{{
       ts_url}}/graph?plot.0={{machine.id}}.{{test.id}}.{{
         field.index}}&highlight_run={{key_run.id}}">{{
           machine.name}}</a></td>
