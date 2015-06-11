@@ -155,7 +155,6 @@
 {%     for day_result in day_results[:-1]|reverse %}
     {{ get_cell_value(day_result) }}
 {%     endfor %}
-    <td>{{test.name}}</td>
   </tr>
 {%   endfor %}
 {{ "</table><p>" if report.for_mail }}
