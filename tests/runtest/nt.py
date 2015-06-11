@@ -63,3 +63,64 @@
 # RUN:   --test-suite %S/Inputs/test-suite \
 # RUN:   --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
 # RUN:   --no-timestamp --without-llvm > %t.log 2> %t.err
+
+# Check cflag handling
+
+## With a lone cflag
+# RUN: lnt runtest nt \
+# RUN:   --sandbox %t.SANDBOX \
+# RUN:   --test-suite %S/Inputs/test-suite \
+# RUN:   --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
+# RUN:   --cflag '-Wall' \
+# RUN:   --no-timestamp > %t.log 2> %t.err
+# RUN: FileCheck --check-prefix CHECK-CFLAG1 < %t.err %s
+# CHECK-CFLAG1: inferred C++ compiler under test
+# CHECK-CFLAG1: TARGET_FLAGS: -Wall
+
+## With a couple of cflags
+# RUN: lnt runtest nt \
+# RUN:   --sandbox %t.SANDBOX \
+# RUN:   --test-suite %S/Inputs/test-suite \
+# RUN:   --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
+# RUN:   --cflag '-Wall' \
+# RUN:   --cflag '-mfloat-abi=hard' \
+# RUN:   --cflag '-O3' \
+# RUN:   --no-timestamp > %t.log 2> %t.err
+# RUN: FileCheck --check-prefix CHECK-CFLAG2 < %t.err %s
+# CHECK-CFLAG2: inferred C++ compiler under test
+# CHECK-CFLAG2: TARGET_FLAGS: -Wall -mfloat-abi=hard -O3
+
+## With a cflags
+# RUN: lnt runtest nt \
+# RUN:   --sandbox %t.SANDBOX \
+# RUN:   --test-suite %S/Inputs/test-suite \
+# RUN:   --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
+# RUN:   --cflags '-Wall -mfloat-abi=hard -O3' \
+# RUN:   --no-timestamp > %t.log 2> %t.err
+# RUN: FileCheck --check-prefix CHECK-CFLAG3 < %t.err %s
+# CHECK-CFLAG3: inferred C++ compiler under test
+# CHECK-CFLAG3: TARGET_FLAGS: -Wall -mfloat-abi=hard -O3
+
+## With a cflags with a quoted space and escaped spaces
+# RUN: lnt runtest nt \
+# RUN:   --sandbox %t.SANDBOX \
+# RUN:   --test-suite %S/Inputs/test-suite \
+# RUN:   --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
+# RUN:   --cflags "-Wall -test=escaped\ space -some-option='stay with me' -O3" \
+# RUN:   --no-timestamp > %t.log 2> %t.err
+# RUN: FileCheck --check-prefix CHECK-CFLAG4 < %t.err %s
+# CHECK-CFLAG4: inferred C++ compiler under test
+# CHECK-CFLAG4: TARGET_FLAGS: -Wall '-test=escaped space' '-some-option=stay with me' -O3
+
+## With cflag and cflags
+# RUN: lnt runtest nt \
+# RUN:   --sandbox %t.SANDBOX \
+# RUN:   --test-suite %S/Inputs/test-suite \
+# RUN:   --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
+# RUN:   --cflag '--target=armv7a-none-eabi' \
+# RUN:   --cflag '-Weverything' \
+# RUN:   --cflags '-Wall -test=escaped\ space -some-option="stay with me" -O3' \
+# RUN:   --no-timestamp > %t.log 2> %t.err
+# RUN: FileCheck --check-prefix CHECK-CFLAG5 < %t.err %s
+# CHECK-CFLAG5: inferred C++ compiler under test
+# CHECK-CFLAG5: TARGET_FLAGS: --target=armv7a-none-eabi -Weverything -Wall '-test=escaped space' '-some-option=stay with me' -O3

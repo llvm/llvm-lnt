@@ -11,6 +11,8 @@ import traceback
 from datetime import datetime
 from optparse import OptionParser, OptionGroup
 import urllib2
+import shlex
+import pipes
 
 import lnt.testing
 import lnt.testing.util.compilers
@@ -131,6 +133,11 @@ class TestConfiguration(object):
 
         # FIXME: Eliminate this blanket option.
         target_flags.extend(self.cflags)
+
+        if self.cflag_string:
+            # FIXME: This isn't generally OK on Windows :/
+            safely_quoted_on_unix = map(pipes.quote, shlex.split(self.cflag_string))
+            target_flags.extend(safely_quoted_on_unix)
 
         # Pass flags to backend.
         for f in self.mllvm:
@@ -1510,6 +1517,10 @@ class NTTest(builtintest.BuiltinTest):
         group.add_option("", "--cflag", dest="cflags",
                          help="Additional flags to set in TARGET_FLAGS",
                          action="append", type=str, default=[], metavar="FLAG")
+        group.add_option("", "--cflags", dest="cflag_string",
+                         help="Additional flags to set in TARGET_FLAGS, space separated string. "
+                         "These flags are appended after *all* the individual --cflag arguments.",
+                         type=str, default='', metavar="FLAG")
         group.add_option("", "--mllvm", dest="mllvm",
                          help="Add -mllvm FLAG to TARGET_FLAGS",
                          action="append", type=str, default=[], metavar="FLAG")
@@ -1828,6 +1839,8 @@ class NTTest(builtintest.BuiltinTest):
         # FIXME: We need to validate that there is no configured output in the
         # test-suite directory, that borks things. <rdar://problem/7876418>
         prepare_report_dir(config)
+
+        note('TARGET_FLAGS: {}'.format(' '.join(config.target_flags)))
 
         # Multisample, if requested.
         if opts.multisample is not None:
