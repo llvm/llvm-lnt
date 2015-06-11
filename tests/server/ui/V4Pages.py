@@ -9,6 +9,7 @@
 # RUN: python %s %t.instance
 
 import logging
+import re
 import sys
 import xml.etree.ElementTree as ET
 from htmlentitydefs import name2codepoint
@@ -24,6 +25,17 @@ def check_code(client, url, expected_code=200):
     assert resp.status_code == expected_code, \
         "Call to %s returned: %d, not the expected %d"%(url, resp.status_code, expected_code)
     return resp
+
+def check_redirect(client, url, expected_redirect_regex):
+    resp = client.get(url, follow_redirects=False)
+    assert resp.status_code == 302, \
+        "Call to %s returned: %d, not the expected %d"%(url, resp.status_code, 302)
+    regex = re.compile(expected_redirect_regex)
+    assert regex.search(resp.location), \
+        "Call to %s redirects to: %s, not matching the expected regex %s" \
+        % (url, resp.location, expected_redirect_regex)
+    return resp
+
 
 def dump_html(html_string):
    for linenr, line in enumerate(html_string.split('\n')):
@@ -109,7 +121,8 @@ def main():
 
 
     # Get a graph page. This has been changed to redirect.
-    check_code(client, '/v4/nts/1/graph?test.87=2', expected_code=302)
+    check_redirect(client, '/v4/nts/1/graph?test.87=2',
+                   'v4/nts/graph\?plot\.0=1\.87\.2&highlight_run=1$')
 
     # Get the new graph page.
     check_code(client, '/v4/nts/graph?plot.0=1.87.2')
@@ -123,6 +136,14 @@ def main():
     check_code(client, '/v4/nts/daily_report/2012/4/13')
     check_code(client, '/v4/nts/daily_report/2012/4/10')
     check_code(client, '/v4/nts/daily_report/2012/4/14')
+    check_redirect(client, '/v4/nts/daily_report',
+                   '/v4/nts/daily_report/\d+/\d+/\d+$')
+    check_redirect(client, '/v4/nts/daily_report?num_days=7',
+                   '/v4/nts/daily_report/\d+/\d+/\d+\?num_days=7$')
+    # Don't crash when using a parameter that happens to have the same name as
+    # a flask URL variable.
+    check_redirect(client, '/v4/nts/daily_report?day=15',
+                   '/v4/nts/daily_report/\d+/\d+/\d+$')
 
     # check ?filter-machine-regex= filter
     check_nr_machines_reported(client, '/v4/nts/daily_report/2012/4/12', 3)

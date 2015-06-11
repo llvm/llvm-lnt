@@ -3,6 +3,7 @@ import os
 import re
 import tempfile
 import time
+import copy
 
 import flask
 from flask import abort
@@ -1019,8 +1020,14 @@ def v4_daily_report_overview():
         # Otherwise, just use today.
         date = datetime.date.today()
 
+    extra_args = request.args.copy()
+    extra_args.pop("year", None)
+    extra_args.pop("month", None)
+    extra_args.pop("day", None)
+
     return redirect(v4_url_for("v4_daily_report",
-                               year=date.year, month=date.month, day=date.day))
+                               year=date.year, month=date.month, day=date.day,
+                               **extra_args))
 
 @v4_route("/daily_report/<int:year>/<int:month>/<int:day>")
 def v4_daily_report(year, month, day):
