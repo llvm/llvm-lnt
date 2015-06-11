@@ -166,22 +166,23 @@ def main():
     # Instantiate the compiler class.
     compiler_instance = compiler_class()
 
-    # Pattern match on the arguments to determine what kind of response to fake.
+    def args_contained_in(a, b):
+        """Return true if every element of tuple b is contained in
+        tuple a."""
+        return all([bi in a for bi in b])
+    
+    # Search in the arguments to determine what kind of response to fake.
     args = tuple(sys.argv[1:])
-    if args == ('-v', '-E', '-x', 'c', '/dev/null', '-###'):
-        compiler_instance.print_verbose_info()
-    elif args == ('-dumpmachine',):
+    if '-dumpmachine' in args:
         compiler_instance.print_dumpmachine()
-    elif args == ('-c', '-Wa,-v', '-o', '/dev/null', '-x', 'assembler',
-                  '/dev/null'):
+    elif args_contained_in(args, ('-v', '-###')):
+        compiler_instance.print_verbose_info()
+    elif 'Wa,-v' in args:
         compiler_instance.print_as_version()
-    elif args == ('-S', '-flto', '-o', '-', '-x', 'c', '/dev/null'):
-        compiler_instance.print_llvm_target()
-    elif len(args) == 4 and \
-            args[0] == '-Wl,-v' and \
-            args[1] == '-o' and \
-            args[2] == '/dev/null':
+    elif 'Wl,-v' in args:
         compiler_instance.print_ld_version()
+    elif args_contained_in(args, ('-S', '-flto', '-o', '-', '/dev/null')):
+        compiler_instance.print_llvm_target()
     else:
         raise SystemExit("unrecognized argument vector: %r" % (
                 args,))
