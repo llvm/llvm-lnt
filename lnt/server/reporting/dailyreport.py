@@ -15,6 +15,55 @@ from collections import namedtuple
 OrderAndHistory = namedtuple('OrderAndHistory', ['max_order', 'recent_orders'])
 
 
+# Helper classes to make the sparkline chart construction easier in the jinja
+# template.
+class DayResult:
+    def __init__(self, comparisonResult):
+        self.cr = comparisonResult
+        self.samples = self.cr.samples
+        if self.samples is None:
+            self.samples = []
+
+
+class DayResults:
+    """
+    DayResults contains pre-processed data to easily construct the HTML for
+    a single row in the results table, showing how one test on one board
+    evolved over a number of runs/days.
+    """
+    def __init__(self):
+        self.day_results = []
+        self._complete = False
+        self.min_sample = None
+        self.max_sample = None
+
+    def __getitem__(self, i):
+        return self.day_results[i]
+
+    def __len__(self):
+        return len(self.day_results)
+
+    def append(self, day_result):
+        assert not self._complete
+        self.day_results.append(day_result)
+
+    def complete(self):
+        """
+        complete() needs to be called after all appends to this object, but
+        before the data is used the jinja template.
+        """
+        self._complete = True
+        all_samples = []
+        for dr in self.day_results:
+            if dr is None:
+                continue
+            if dr.cr.samples is not None:
+                all_samples.extend(dr.cr.samples)
+        if len(all_samples) > 0:
+            self.min_sample = min(all_samples)
+            self.max_sample = max(all_samples)
+
+
 class DailyReport(object):
     def __init__(self, ts, year, month, day, num_prior_days_to_include=3,
                  day_start_offset_hours=16, for_mail=False,
@@ -207,7 +256,7 @@ class DailyReport(object):
             had_failures = False
             sum_abs_day0_deltas = 0.
             for machine, day_results in results:
-                day0_cr = day_results[0]
+                day0_cr = day_results[0].cr
 
                 test_status = day0_cr.get_test_status()
 
@@ -239,7 +288,8 @@ class DailyReport(object):
                         continue
 
                     # Otherwise, compute the results for all the days.
-                    day_results = [cr]
+                    day_results = DayResults()
+                    day_results.append(DayResult(cr))
                     for i in range(1, self.num_prior_days_to_include):
                         day_runs = prev_day_run
                         prev_day_run = machine_runs.get((machine.id, i+1), ())
@@ -247,7 +297,9 @@ class DailyReport(object):
                                        (machine.id, i+1), ())
                         cr = sri.get_comparison_result(day_runs, prev_runs,
                                                        test.id, field)
-                        day_results.append(cr)
+                        day_results.append(DayResult(cr))
+
+                    day_results.complete()
 
                     # Append the result for the machine.
                     visible_results.append((machine, day_results))
