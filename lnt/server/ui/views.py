@@ -642,7 +642,7 @@ def v4_graph():
         data = util.multidict((rev, (val, date)) for val,rev,date in q).items()
         data.sort(key=lambda sample: convert_revision(sample[0]))
 
-        graph_datum.append((test.name, data, col))
+        graph_datum.append((test.name, data, col, field))
 
         # Get baselines for this line
         num_baselines = len(baseline_parameters)
@@ -697,9 +697,9 @@ def v4_graph():
         # Sort data points according to revision number.
         data.sort(key=lambda sample: convert_revision(sample[0]))
 
-        graph_datum.append((test_name, data, col))
+        graph_datum.append((test_name, data, col, field))
 
-    for name, data, col in graph_datum:
+    for name, data, col, field in graph_datum:
         # Compute the graph points.
         errorbar_data = []
         points_data = []
@@ -725,17 +725,22 @@ def v4_graph():
             x = rev_x[0] if len(rev_x)==1 else pos
 
             values = [v*normalize_by for v in data]
-            min_value,min_index = min((value, index) for (index, value) in enumerate(values))
+            aggregation_fn = min
+            if field.bigger_is_better:
+                aggregation_fn = max
+            agg_value, agg_index = \
+                aggregation_fn((value, index)
+                               for (index, value) in enumerate(values))
 
             # Generate metadata.
             metadata = {"label":point_label}
-            metadata["date"] = str(dates[min_index])
+            metadata["date"] = str(dates[agg_index])
             if len(graph_datum) > 1:
                 # If there are more than one plot in the graph, also label the
                 # test name.
                 metadata["test_name"] = name
 
-            pts.append((x, min_value, metadata))
+            pts.append((x, agg_value, metadata))
 
             # Add the individual points, if requested.
             # For each point add a text label for the mouse over.
