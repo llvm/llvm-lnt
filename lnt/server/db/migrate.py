@@ -64,7 +64,7 @@ def _load_migrations():
         schema_migrations = {}
         for item in os.listdir(schema_migrations_path):
             # Ignore certain known non-scripts.
-            if item in ('README.txt',) or item.endswith('.pyc'):
+            if item in ('README.txt', '__init__.py') or item.endswith('.pyc'):
                 continue
 
             # Ignore non-matching files.
