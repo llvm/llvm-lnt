@@ -47,7 +47,7 @@ def action_updatedb(name, args):
             for id, in ts.query(ts.Run.id).\
                 join(ts.Machine).\
                 filter(ts.Machine.name.in_(opts.delete_machines)))
-
+        
     # Delete all samples associated with those runs.
     ts.query(ts.Sample).\
         filter(ts.Sample.run_id.in_(runs_to_delete)).\
@@ -60,6 +60,12 @@ def action_updatedb(name, args):
 
     # Delete the machines.
     for name in opts.delete_machines:
+        # Delete all FieldChanges associated with this machine.
+        ids = ts.query(ts.FieldChange.id).\
+            join(ts.Machine).filter(ts.Machine.name == name).all()
+        for i in ids:
+            ts.query(ts.FieldChange).filter(ts.FieldChange.id == i[0]).delete()
+
         num_deletes = ts.query(ts.Machine).filter_by(name=name).delete()
         if num_deletes == 0:
             warning("unable to find machine named: %r" % name)
