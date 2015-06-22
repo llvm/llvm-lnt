@@ -136,8 +136,7 @@ class TestConfiguration(object):
 
         if self.cflag_string:
             # FIXME: This isn't generally OK on Windows :/
-            safely_quoted_on_unix = map(pipes.quote, shlex.split(self.cflag_string))
-            target_flags.extend(safely_quoted_on_unix)
+            target_flags.extend(_unix_quote_args(self.cflag_string))
 
         # Pass flags to backend.
         for f in self.mllvm:
@@ -185,7 +184,10 @@ class TestConfiguration(object):
     def qemu_user_mode_command(self):
         """ The command used for qemu user mode """
         assert self.qemu_user_mode
-        return ' '.join([self.qemu_user_mode] + self.qemu_flags)
+        qemu_cmd_line = [self.qemu_user_mode] + self.qemu_flags
+        if self.qemu_string:
+            qemu_cmd_line += _unix_quote_args(self.qemu_string)
+        return ' '.join(qemu_cmd_line)
 
     @property
     def generate_report_script(self):
@@ -1208,6 +1210,8 @@ def _execute_test_again(config, test_name, test_path, test_relative_path, logfil
     assert len(results) > 0
     return results
 
+def _unix_quote_args(s):
+    return map(pipes.quote, shlex.split(s))
 
 # When set to true, all benchmarks will be rerun.
 # TODO: remove me when rerun patch is done.
@@ -1634,6 +1638,11 @@ class NTTest(builtintest.BuiltinTest):
         group.add_option("", "--qemu-flag", dest="qemu_flags",
                          help="Additional flags to pass to qemu",
                          action="append", type=str, default=[], metavar="FLAG")
+        group.add_option("", "--qemu-flags", dest="qemu_string",
+                         help="Additional flags to pass to qemu, space separated string. "
+                         "These flags are appended after *all* the individual "
+                         "--qemu-flag arguments.",
+                         type=str, default='', metavar="FLAG")
 
         group.add_option("", "--multisample", dest="multisample",
                          help="Accumulate test data from multiple runs",
@@ -1840,7 +1849,11 @@ class NTTest(builtintest.BuiltinTest):
         # test-suite directory, that borks things. <rdar://problem/7876418>
         prepare_report_dir(config)
 
+        # These notes are used by the regression tests to check if we've handled
+        # flags correctly.
         note('TARGET_FLAGS: {}'.format(' '.join(config.target_flags)))
+        if config.qemu_user_mode:
+            note('QEMU_USER_MODE_COMMAND: {}'.format(config.qemu_user_mode_command))
 
         # Multisample, if requested.
         if opts.multisample is not None:
