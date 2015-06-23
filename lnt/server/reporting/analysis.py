@@ -68,12 +68,12 @@ class ComparisonResult:
             self.previous = None
 
         # Compute the comparison status for the test value.
-        if self.current and self.previous and self.previous != 0:
+        self.delta = 0
+        self.pct_delta = 0.0
+        if self.current and self.previous:
             self.delta, value = absmin_diff(self.current, prev_samples)
-            self.pct_delta = self.delta / value
-        else:
-            self.delta = 0
-            self.pct_delta = 0.0
+            if value != 0:
+                self.pct_delta = self.delta / value
 
         # If we have multiple values for this run, use that to estimate the
         # distribution.

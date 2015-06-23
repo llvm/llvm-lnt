@@ -6,6 +6,7 @@ import unittest
 from lnt.server.reporting.analysis import ComparisonResult, REGRESSED, IMPROVED
 from lnt.server.reporting.analysis import UNCHANGED_PASS, UNCHANGED_FAIL
 from lnt.server.reporting.analysis import absmin_diff
+from lnt.util.stats import median
 
 FLAT_LINE = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
              1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
@@ -297,6 +298,12 @@ class ComparisonResultTest(unittest.TestCase):
             min, False, False, [SLOW_IMP_NOISE[12]], SLOW_IMP_NOISE[0:11])
         # Fixme
         # self.assertEquals(slow.get_value_status(), IMPROVED)
+
+    def test_handle_zero_sample(self):
+        for agfn in (min, median):
+            zeroSample = ComparisonResult(
+                agfn, False, False, [0.005, 0.0047, 0.0048], [0.0, 0.01, 0.01])
+            self.assertEquals(zeroSample.get_value_status(), UNCHANGED_PASS)
 
 
 class AbsMinTester(unittest.TestCase):
