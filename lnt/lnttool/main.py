@@ -40,6 +40,13 @@ view the results.\
                       action="store_true", help="use WSGI reload monitor")
     parser.add_option("", "--debugger", dest="debugger", default=False,
                       action="store_true", help="use WSGI debugger")
+    parser.add_option("", "--profiler-file", dest="profiler_file",
+                      help="file to dump profile info to [%default]",
+                      default="profiler.log")
+    parser.add_option("", "--profiler-dir", dest="profiler_dir",
+                      help="pstat.Stats files are saved to this directory " \
+                          +"[%default]",
+                      default=None)
     parser.add_option("", "--profiler", dest="profiler", default=False,
                       action="store_true", help="enable WSGI profiler")
     parser.add_option("", "--show-sql", dest="show_sql", default=False,
@@ -79,8 +86,12 @@ view the results.\
     if opts.debugger:
         app.debug = True
     if opts.profiler:
+        if opts.profiler_dir:
+            if not os.path.isdir(opts.profiler_dir):
+                os.mkdir(opts.profiler_dir)
         app.wsgi_app = werkzeug.contrib.profiler.ProfilerMiddleware(
-            app.wsgi_app, stream = open('profiler.log', 'w'))
+            app.wsgi_app, stream = open(opts.profiler_file, 'w'),
+            profile_dir = opts.profiler_dir)
     app.run(opts.hostname, opts.port,
             use_reloader = opts.reloader,
             use_debugger = opts.debugger,
