@@ -254,22 +254,22 @@ class RunInfo(object):
             compare_to = []
         return self.get_comparison_result([run], compare_to, test_id, field)
 
+    def get_samples(self, runs, test_id, field):
+        all_samples = []
+        for run in runs:
+            samples = self.sample_map.get((run.id, test_id))
+            if samples is not None:
+                all_samples.extend(samples)
+        return all_samples
+
     def get_comparison_result(self, runs, compare_runs, test_id, field):
         # Get the field which indicates the requested field's status.
         status_field = field.status_field
 
         # Load the sample data for the current and previous runs and the
         # comparison window.
-        run_samples = []
-        prev_samples = []
-        for run in runs:
-            samples = self.sample_map.get((run.id, test_id))
-            if samples is not None:
-                run_samples.extend(samples)
-        for run in compare_runs:
-            samples = self.sample_map.get((run.id, test_id))
-            if samples is not None:
-                prev_samples.extend(samples)
+        run_samples = self.get_samples(runs, test_id, field)
+        prev_samples = self.get_samples(compare_runs, test_id, field)
 
         # Determine whether this (test,pset) passed or failed in the current and
         # previous runs.

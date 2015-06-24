@@ -178,11 +178,13 @@
 {% endfor %}
   <polyline points="
   {% for dr in day_results %}
-    {% set cr = dr.cr %}
-    {% set day_nr = loop.index %}
-    {% if cr.current is not none %}
-      {{ spark_x_coord(day_nr) }}
-      {{ spark_y_coord(day_nr, cr.current) }}
+    {% if dr is not none %}
+      {% set cr = dr.cr %}
+      {% set day_nr = loop.index %}
+      {% if cr.current is not none %}
+        {{ spark_x_coord(day_nr) }}
+        {{ spark_y_coord(day_nr, cr.current) }}
+      {% endif %}
     {% endif %}
   {% endfor %}
   " fill="none" stroke="red" stroke-width="1"/>
@@ -206,11 +208,20 @@
     <td style="{{ styles.td }}">&nbsp;</td>
     <td class="machine-name" style="{{ styles.td }}"><a href="{{
       ts_url}}/graph?plot.0={{machine.id}}.{{test.id}}.{{
-        field.index}}&highlight_run={{key_run.id}}">{{
+        field.index}}&amp;highlight_run={{key_run.id}}">{{
           machine.name}}</a></td>
-    {{ get_initial_cell_value(day_results[-1]) }}
-{%     for day_result in day_results[:-1]|reverse %}
+{%     set first_result_shown = false %}
+{%     for day_result in day_results|reverse %}
+{%       if day_result is none %}
+    <td style="{{ styles.td }}">-</td>
+{%       else %}
+{%         if first_result_shown %}
     {{ get_cell_value(day_result) }}
+{%         else %}
+{%         set first_result_shown = true %}
+    {{ get_initial_cell_value(day_result) }}
+{%         endif %}
+{%       endif %}
 {%     endfor %}
     <td>{{ spark_plot(day_results) }}</td>
   </tr>

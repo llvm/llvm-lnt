@@ -1,5 +1,4 @@
-# Perform basic sanity checking of the V4 UI pages. Currently this really only
-# checks that we don't crash on any of them.
+# Perform basic sanity checking of the V4 UI pages.
 #
 # create temporary instance
 # Cleanup temporary directory in case one remained from a previous run - also see PR9904.
@@ -52,6 +51,21 @@ def get_xml_tree(html_string):
        raise
     return tree
 
+
+def find_table_with_heading(tree, table_heading):
+    table_parent_elements = tree.findall(".//table/..")
+    found_header = False
+    for parent in table_parent_elements:
+        for child in parent.findall('*'):
+            if found_header:
+                if child.tag == "table":
+                    return child
+            elif (child.tag.startswith('h') and
+                  child.text == table_heading):
+                found_header = True
+    return None
+
+
 def check_nr_machines_reported(client, url, expected_nr_machines):
     resp = check_code(client, url)
     html = resp.data
@@ -60,23 +74,35 @@ def check_nr_machines_reported(client, url, expected_nr_machines):
     # do this by looking for the title containing "Reported Machine Order"
     # and assuming that the first <table> at the same level after it is the
     # one we're looking for.
-    reported_machine_order_table = None
-    table_parent_elements = tree.findall(".//table/..")
-    found_header = False
-    for parent in table_parent_elements:
-        for child in parent.findall('*'):
-            if found_header:
-                if child.tag == "table":
-                    reported_machine_order_table = child
-                    found_header = False
-            elif child.tag.startswith('h') and \
-                child.text == 'Reported Machine Order':
-                found_header = True
+    reported_machine_order_table = \
+        find_table_with_heading(tree, 'Reported Machine Order')
     if reported_machine_order_table is None:
         nr_machines = 0
     else:
         nr_machines = len(reported_machine_order_table.findall("./tr"))
     assert expected_nr_machines == nr_machines
+
+
+def convert_html_to_text(element):
+    return ("".join(element.itertext()))
+
+
+def check_body_result_table(client, url, fieldname,
+                            expected_table_body_content):
+    resp = check_code(client, url)
+    html = resp.data
+    tree = get_xml_tree(html)
+    table_header = "Result Table (%s)" % fieldname
+    table = find_table_with_heading(tree, table_header)
+    assert table is not None, \
+        "Couldn't find table with header '%s'" % table_header
+    body_content = [[convert_html_to_text(cell).strip()
+                     for cell in row.findall("./td")]
+                    for row in table.findall("./tr")]
+    assert expected_table_body_content == body_content, \
+        "Expected table content %s, found %s" % \
+        (expected_table_body_content, body_content)
+
 
 def main():
     _,instance_path = sys.argv
@@ -153,6 +179,15 @@ def main():
     check_nr_machines_reported(client, '/v4/nts/daily_report/2012/4/12?filter-machine-regex=ma.*4', 0)
     # Don't crash on an invalid regular expression:
     check_nr_machines_reported(client, '/v4/nts/daily_report/2012/4/12?filter-machine-regex=?', 3)
+
+    # check that a regression seen between 2 consecutive runs that are
+    # more than a day apart gets reported
+    check_body_result_table(client, '/v4/nts/daily_report/2012/5/04',
+                            "execution_time",
+                            [["test1", ""],
+                             ["", "machine2", "1.0000", "-", "900.00%", ""],
+                             ["test2", ""],
+                             ["", "machine2", "FAIL", "-", "PASS", ""]])
 
     # Now check the compile report
     # Get the V4 overview page.

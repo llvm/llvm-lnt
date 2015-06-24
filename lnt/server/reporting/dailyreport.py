@@ -275,11 +275,26 @@ class DailyReport(object):
                 visible_results = []
                 for machine in self.reporting_machines:
                     # Get the most recent comparison result.
+                    # Record which days have samples, so that we'll compare
+                    # also consecutive runs that are further than a day
+                    # apart if no runs happened in between.
+                    day_has_samples = []
+                    for i in range(0, self.num_prior_days_to_include):
+                        runs = self.machine_past_runs.get((machine.id, i), ())
+                        samples = sri.get_samples(runs, test.id, field)
+                        day_has_samples.append(len(samples) > 0)
+
+                    def find_most_recent_run_with_samples(day_nr):
+                        for i in range(day_nr+1,
+                                       self.num_prior_days_to_include):
+                            if day_has_samples[i]:
+                                return i
+                        return day_nr+1
+
+                    prev_day_index = find_most_recent_run_with_samples(0)
                     day_runs = machine_runs.get((machine.id, 0), ())
-                    prev_runs = self.machine_past_runs.get((machine.id, 1), ())
-
-                    prev_day_run = machine_runs.get((machine.id, 1), ())
-
+                    prev_runs = self.machine_past_runs.get(
+                        (machine.id, prev_day_index), ())
                     cr = sri.get_comparison_result(
                         day_runs, prev_runs, test.id, field)
 
@@ -291,10 +306,14 @@ class DailyReport(object):
                     day_results = DayResults()
                     day_results.append(DayResult(cr))
                     for i in range(1, self.num_prior_days_to_include):
-                        day_runs = prev_day_run
-                        prev_day_run = machine_runs.get((machine.id, i+1), ())
+                        day_runs = machine_runs.get((machine.id, i), ())
+                        if len(day_runs) == 0:
+                            day_results.append(None)
+                            continue
+
+                        prev_day_index = find_most_recent_run_with_samples(i)
                         prev_runs = self.machine_past_runs.get(
-                                       (machine.id, i+1), ())
+                                       (machine.id, prev_day_index), ())
                         cr = sri.get_comparison_result(day_runs, prev_runs,
                                                        test.id, field)
                         day_results.append(DayResult(cr))
