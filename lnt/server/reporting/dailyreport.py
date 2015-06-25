@@ -1,5 +1,6 @@
 import datetime
 import re
+import urllib
 
 import sqlalchemy.sql
 
@@ -77,8 +78,9 @@ class DailyReport(object):
         self.day_start_offset = datetime.timedelta(
             hours=day_start_offset_hours)
         self.for_mail = for_mail
+        self.filter_machine_regex_str = filter_machine_regex
         self.filter_machine_re = None
-        if filter_machine_regex:
+        if self.filter_machine_regex_str:
             try:
                 self.filter_machine_re = re.compile(filter_machine_regex)
             except re.error:
@@ -92,6 +94,20 @@ class DailyReport(object):
         self.reporting_machines = None
         self.reporting_tests = None
         self.result_table = None
+
+    def get_query_parameters_string(self):
+        query_params = [
+            "{}={}".format(
+                urllib.quote_plus(query_param), urllib.quote_plus(str(value)))
+            for query_param, value in (
+                ("day_start", self.day_start_offset.seconds / 3600),
+                ("num_days", self.num_prior_days_to_include),
+                ("filter-machine-regex", self.filter_machine_regex_str),)
+            if value is not None]
+        # Use &amp; instead of plain & to make sure legal XML is
+        # produced, so that the unit tests can parse the output using
+        # python's built-in XML parser.
+        return "&amp;".join(query_params)
 
     def get_key_run(self, machine, day_index):
         """
