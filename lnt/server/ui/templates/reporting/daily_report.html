@@ -55,63 +55,60 @@
   <thead>
     <tr>
       <th style="{{ styles.th }}">Machine Name</th>
-{% for i in range(report.num_prior_days_to_include)|reverse %}
+{%- for i in range(report.num_prior_days_to_include)|reverse %}
       <th style="{{ styles.th }}">Day - {{i}}</th>
-{% endfor %}
+{%- endfor %}
     </tr>
   </thead>
-{% for machine in report.reporting_machines %}
+{%- for machine in report.reporting_machines %}
   <tr class="searchable">
     <td class="machine-name" style="{{ styles.td }}">{{machine.name}}</td>
-{% for i in range(report.num_prior_days_to_include)|reverse %}
-{%   set key_run = report.get_key_run(machine, i) %}
-{%   if key_run %}
+{%- for i in range(report.num_prior_days_to_include)|reverse %}
+{%-   set key_run = report.get_key_run(machine, i) -%}
+{%-   if key_run -%}
     {# FIXME: Don't hard code field name. #}
     <td style="{{ styles.td }}">
       <a href="{{ ts_url }}/{{ key_run.id }}">{{
         key_run.order.llvm_project_revision}}</a></td>
-{%   else %}
+{%-   else -%}
     <td style="{{ styles.td }}" bgcolor="#FF0000">N/A</td>
-{%   endif %}
-{% endfor %}
+{%-   endif -%}
+{%- endfor %}
   </tr>
 {% endfor %}
 </table>
 
 {% macro get_initial_cell_value(day_result) %}
-{% set cr = day_result.cr %}
-{% set test_status = cr.get_test_status() %}
+{%- set cr = day_result.cr -%}
+{%- set test_status = cr.get_test_status() -%}
 
-{% if (test_status == analysis.REGRESSED or
+{%- if (test_status == analysis.REGRESSED or
        test_status == analysis.UNCHANGED_FAIL) %}
     <td style="{{ styles.td }}" bgcolor="#e98080">FAIL</td>
-{% else %}
-    <td style="{{ styles.td }}" bgcolor="#d2d2d2">
+{%- else %}
+    <td style="{{ styles.td }}" bgcolor="#d2d2d2"> {#- -#}
       {{ ("%.4f" % cr.current) if cr.current != none else "N/A" }}</td>
-{% endif %}
+{%- endif -%}
 
 {% endmacro %}
 
 {% macro get_cell_value(day_result) %}
-{% set cr = day_result.cr %}
-{% set test_status = cr.get_test_status() %}
-{% set value_status = cr.get_value_status() %}
-
-{% if (test_status == analysis.REGRESSED or
+{%- set cr = day_result.cr -%}
+{%- set test_status = cr.get_test_status() -%}
+{%- set value_status = cr.get_value_status() -%}
+{%- if (test_status == analysis.REGRESSED or
        test_status == analysis.UNCHANGED_FAIL) %}
     <td style="{{ styles.td }}" bgcolor="#e98080">FAIL</td>
-{% elif test_status == analysis.IMPROVED %}
+{%- elif test_status == analysis.IMPROVED %}
     <td style="{{ styles.td }}" bgcolor="#8fdf5f">PASS</td>
-{% else %}
-
-{% if (value_status == analysis.REGRESSED or
+{%- else -%}
+{%- if (value_status == analysis.REGRESSED or
        value_status == analysis.IMPROVED) %}
     {{ cr.pct_delta|aspctcell(reverse=cr.bigger_is_better)|safe }}
-{% else %}
+{%- else %}
     <td style="{{ styles.td }}">-</td>
-{% endif %}
-
-{% endif %}
+{%- endif -%}
+{%- endif -%}
 {% endmacro %}
 
 {# Generate the table showing the raw sample data. #}
@@ -127,107 +124,106 @@
     <tr>
       <th style="{{ styles.th }}; width: 100px;">Test Name</th>
       <th style="{{ styles.th }}; width: 300px;">Machine Name</th>
-{% for i in range(report.num_prior_days_to_include)|reverse %}
+{%- for i in range(report.num_prior_days_to_include)|reverse %}
       <th style="{{ styles.th }}">Day - {{i}}</th>
-{% endfor %}
+{%- endfor %}
       <th style="{{ styles.th }}">Sparkline</th>
     </tr>
   </thead>
 {% endmacro %}
 
 {% macro spark_plot(day_results) %}
-{% set x_border_size = 5 %}
-{% set y_border_size = 2 %}
-{% set height = 18 %}
-{% set full_height = height + 2*y_border_size %}
-{% set x_day_spacing = 10 %}
-{% set sample_fuzzing = 0.5 %}
-{% set nr_days = day_results|length %}
-{% set width = x_day_spacing * nr_days + 2*x_border_size %}
-{% if day_results.max_sample != day_results.min_sample %}
-  {% set scaling_factor = (1.0*height)
-         / (day_results.max_sample-day_results.min_sample) %}
-{% else %}
-  {% set scaling_factor = 1.0 %}
-{% endif %}
-{% macro spark_y_coord(day_nr, value) %}
+{%- set x_border_size = 5 %}
+{%- set y_border_size = 2 %}
+{%- set height = 18 %}
+{%- set full_height = height + 2*y_border_size %}
+{%- set x_day_spacing = 10 %}
+{%- set sample_fuzzing = 0.5 %}
+{%- set nr_days = day_results|length %}
+{%- set width = x_day_spacing * nr_days + 2*x_border_size %}
+{%- if day_results.max_sample != day_results.min_sample %}
+  {%- set scaling_factor = (1.0*height)
+         / (day_results.max_sample-day_results.min_sample) -%}
+{%- else %}
+  {%- set scaling_factor = 1.0 -%}
+{%- endif %}
+{%- macro spark_y_coord(day_nr, value) -%}
   {{ (value-day_results.min_sample) * scaling_factor + y_border_size }}
-{% endmacro %}
-{% macro spark_x_coord(day_nr) %}
+{%- endmacro -%}
+{%- macro spark_x_coord(day_nr) -%}
   {{ (nr_days - day_nr) * x_day_spacing + x_border_size }}
-{% endmacro %}
-<span>
-<svg width="{{width}}" height="{{full_height}}">
-<rect width="{{width}}" height="{{full_height}}" fill="beige"/>
-{# Make y-axis go upwards instead of downwards: #}
-<g transform="translate(0, {{full_height}}) scale(1, -1) ">
-{% for dr in day_results %}
-  {% set day_nr = loop.index %}
-  {% set nr_samples_for_day = dr.samples|length %}
-  {% for sample in dr.samples %}
+{%- endmacro -%}
+    <span>
+      <svg width="{{width}}" height="{{full_height}}">
+      <rect width="{{width}}" height="{{full_height}}" fill="beige"/>
+{#- Make y-axis go upwards instead of downwards: #}
+      <g transform="translate(0, {{full_height}}) scale(1, -1) ">
+{%- for dr in day_results -%}
+  {%- set day_nr = loop.index %}
+  {%- set nr_samples_for_day = dr.samples|length %}
+  {%- for sample in dr.samples -%}
     {# fuzz the x-coordinate slightly so that multiple samples with the same
        value can be noticed #}
-    {% set sample_fuzz = (-sample_fuzzing*1.25) +
+    {%- set sample_fuzz = (-sample_fuzzing*1.25) +
                      (2.0*sample_fuzzing/nr_samples_for_day) * loop.index %}
-    <circle cx="{{ spark_x_coord(day_nr)|float + sample_fuzz }}"
-            cy="{{ spark_y_coord(day_nr, sample) }}" r="1"
-            stroke-width="1" stroke="black" fill="black" />
-  {% endfor %}
-{% endfor %}
-  <polyline points="
-  {% for dr in day_results %}
-    {% if dr is not none %}
-      {% set cr = dr.cr %}
-      {% set day_nr = loop.index %}
-      {% if cr.current is not none %}
-        {{ spark_x_coord(day_nr) }}
-        {{ spark_y_coord(day_nr, cr.current) }}
-      {% endif %}
-    {% endif %}
-  {% endfor %}
-  " fill="none" stroke="red" stroke-width="1"/>
-</g>
-</svg>
-</span>
-{% endmacro %}
+        <circle cx="{{ spark_x_coord(day_nr)|float + sample_fuzz }}" {# -#}
+                cy="{{ spark_y_coord(day_nr, sample) }}" r="1"
+                stroke-width="1" stroke="black" fill="black" />
+  {%- endfor -%}
+{%- endfor %}
+        <polyline points="
+  {%- for dr in day_results -%}
+    {%- if dr is not none -%}
+      {%- set cr = dr.cr -%}
+      {%- set day_nr = loop.index -%}
+      {%- if cr.current is not none %}
+          {{ spark_x_coord(day_nr) }} {{ spark_y_coord(day_nr, cr.current) }}
+      {%- endif -%}
+    {%- endif -%}
+  {%- endfor -%}
+          " fill="none" stroke="red" stroke-width="1"/>
+        </g>
+      </svg>
+    </span>
+{%- endmacro %}
 
 {% for field,field_results in report.result_table|reverse %}
 <h3>Result Table ({{ field.name }})</h3>
 {{ result_header() if not report.for_mail }}
-{% for test,visible_results in field_results %}
+{%- for test,visible_results in field_results -%}
 {{ result_header() if report.for_mail }}
   <tr>
     <td style="{{ styles.td }}" colspan="2"> <b>{{test.name}}</b></td>
     <td style="{{ styles.td }}" colspan="{{report.num_prior_days_to_include + 1}}">&nbsp;</td>
   </tr>
-{%   for machine,day_results in visible_results %}
-{%   set key_run = report.get_key_run(machine, 0) %}
+{%-   for machine,day_results in visible_results -%}
+{%-   set key_run = report.get_key_run(machine, 0) %}
   <tr class="searchable">
     <td style="{{ styles.td }}">&nbsp;</td>
     <td class="machine-name" style="{{ styles.td }}"><a href="{{
       ts_url}}/graph?plot.0={{machine.id}}.{{test.id}}.{{
         field.index}}&amp;highlight_run={{key_run.id}}">{{
           machine.name}}</a></td>
-{%     set first_result_shown = false %}
-{%     for day_result in day_results|reverse %}
-{%       if day_result is none %}
+{%-    set first_result_shown = false -%}
+{%-    for day_result in day_results|reverse -%}
+{%-      if day_result is none %}
     <td style="{{ styles.td }}">-</td>
-{%       else %}
-{%         if first_result_shown %}
+{%-      else -%}
+{%-        if first_result_shown -%}
     {{ get_cell_value(day_result) }}
-{%         else %}
-{%         set first_result_shown = true %}
+{%-        else -%}
+{%-        set first_result_shown = true -%}
     {{ get_initial_cell_value(day_result) }}
-{%         endif %}
-{%       endif %}
-{%     endfor %}
+{%-        endif -%}
+{%-      endif -%}
+{%-    endfor %}
     <td>{{ spark_plot(day_results) }}</td>
   </tr>
-{%   endfor %}
+{%-  endfor %}
 {{ "</table><p>" if report.for_mail }}
-{% endfor %}
+{%- endfor %}
 {{ "</table>" if not report.for_mail }}
-{% endfor %}
+{%- endfor -%}
 
 {% endif %}
 
