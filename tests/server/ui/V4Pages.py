@@ -15,25 +15,15 @@ from htmlentitydefs import name2codepoint
 
 import lnt.server.db.migrate
 import lnt.server.ui.app
-import json
 
 logging.basicConfig(level=logging.DEBUG)
 
 
-def check_code(client, url, expected_code=200, data_to_send=None):
-    """Call a flask url, and make sure the return code is good."""
-    resp = client.get(url, follow_redirects=False, data=data_to_send)
+def check_code(client, url, expected_code=200):
+    resp = client.get(url, follow_redirects=False)
     assert resp.status_code == expected_code, \
         "Call to %s returned: %d, not the expected %d"%(url, resp.status_code, expected_code)
     return resp
-
-
-def check_json(client, url, expected_code=200, data_to_send=None):
-    """Call a flask url, make sure the return code is good,
-    and grab reply data from the json payload."""
-    return json.loads(check_code(client, url, expected_code,
-                      data_to_send=data_to_send).data)
-
 
 def check_redirect(client, url, expected_redirect_regex):
     resp = client.get(url, follow_redirects=False)

@@ -10,8 +10,6 @@ import flask
 from flask import current_app
 from flask import g
 from flask import url_for
-from flask import Flask
-from flask_restful import Resource, Api
 
 import lnt
 import lnt.server.db.v4db
@@ -19,8 +17,6 @@ import lnt.server.instance
 import lnt.server.ui.filters
 import lnt.server.ui.globals
 import lnt.server.ui.views
-from lnt.server.ui.api import load_api_resources
-
 
 class RootSlashPatchMiddleware(object):
     def __init__(self, app):
@@ -102,11 +98,7 @@ class App(flask.Flask):
 
         # Load the application routes.
         app.register_module(lnt.server.ui.views.frontend)
-
-        # Load the flaskRESTful API.
-        app.api = Api(app)
-        load_api_resources(app.api)
-
+                        
         return app
 
     @staticmethod
