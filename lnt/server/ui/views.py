@@ -16,6 +16,7 @@ from flask import request
 from flask import url_for
 
 import sqlalchemy.sql
+from sqlalchemy.orm.exc import NoResultFound
 
 import lnt.util
 import lnt.util.ImportData
@@ -206,7 +207,7 @@ def v4_machine(id):
         return render_template("v4_machine.html",
                            testsuite_name=g.testsuite_name, id=id,
                            associated_runs=associated_runs)
-    except sqlalchemy.orm.exc.NoResultFound as e:
+    except NoResultFound as e:
         abort(404)
         
 class V4RequestInfo(object):
@@ -526,10 +527,12 @@ def v4_graph():
         if not (0 <= field_index < len(ts.sample_fields)):
             return abort(400)
 
-        machine = ts.query(ts.Machine).filter(ts.Machine.id == machine_id).one()
-        test = ts.query(ts.Test).filter(ts.Test.id == test_id).one()
-        field = ts.sample_fields[field_index]
-
+        try:
+            machine = ts.query(ts.Machine).filter(ts.Machine.id == machine_id).one()
+            test = ts.query(ts.Test).filter(ts.Test.id == test_id).one()
+            field = ts.sample_fields[field_index]
+        except NoResultFound:
+            return abort(400)
         graph_parameters.append((machine, test, field))
 
     # Order the plots by machine name, test name and then field.
