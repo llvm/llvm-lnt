@@ -525,14 +525,15 @@ def v4_graph():
             return abort(400)
 
         if not (0 <= field_index < len(ts.sample_fields)):
-            return abort(400)
+            return abort(404)
 
         try:
-            machine = ts.query(ts.Machine).filter(ts.Machine.id == machine_id).one()
+            machine = \
+                ts.query(ts.Machine).filter(ts.Machine.id == machine_id).one()
             test = ts.query(ts.Test).filter(ts.Test.id == test_id).one()
             field = ts.sample_fields[field_index]
         except NoResultFound:
-            return abort(400)
+            return abort(404)
         graph_parameters.append((machine, test, field))
 
     # Order the plots by machine name, test name and then field.
@@ -555,9 +556,13 @@ def v4_graph():
             return abort(400)
 
         if not (0 <= field_index < len(ts.sample_fields)):
-            return abort(400)
+            return abort(404)
 
-        machine = ts.query(ts.Machine).filter(ts.Machine.id == machine_id).one()
+        try:
+            machine = \
+                ts.query(ts.Machine).filter(ts.Machine.id == machine_id).one()
+        except NoResultFound:
+            return abort(404)
         field = ts.sample_fields[field_index]
 
         mean_parameter = (machine, field)
@@ -1061,7 +1066,10 @@ def v4_daily_report(year, month, day):
         filter_machine_regex=filter_machine_regex)
 
     # Build the report.
-    report.build()
+    try:
+        report.build()
+    except ValueError:
+        return abort(400)
 
     return render_template("v4_daily_report.html", ts=ts, report=report,
                            analysis=lnt.server.reporting.analysis)

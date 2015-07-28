@@ -19,6 +19,9 @@ import json
 
 logging.basicConfig(level=logging.DEBUG)
 
+HTTP_BAD_REQUEST = 400
+HTTP_NOT_FOUND = 404
+
 
 def check_code(client, url, expected_code=200, data_to_send=None):
     """Call a flask url, and make sure the return code is good."""
@@ -134,9 +137,8 @@ def main():
 
     # Get a machine overview page.
     check_code(client, '/v4/nts/machine/1')
-
     # Check invalid machine gives error.
-    check_code(client,  '/v4/nts/machine/1000', expected_code=404)
+    check_code(client,  '/v4/nts/machine/9999', expected_code=HTTP_NOT_FOUND)
     # Get a machine overview page in JSON format.
     check_code(client, '/v4/nts/machine/1?json=true')
 
@@ -145,16 +147,23 @@ def main():
 
     # Get an order page.
     check_code(client, '/v4/nts/order/3')
+    # Check invalid order gives error.
+    check_code(client, '/v4/nts/order/9999', expected_code=HTTP_NOT_FOUND)
 
     # Get a run result page (and associated views).
     check_code(client, '/v4/nts/1')
-
     check_code(client, '/v4/nts/1?json=true')
-
     check_code(client, '/v4/nts/1/report')
-
     check_code(client, '/v4/nts/1/text_report')
-
+    # Check invalid run numbers give errors.
+    check_code(client, '/v4/nts/9999',
+               expected_code=HTTP_NOT_FOUND)
+    check_code(client, '/v4/nts/9999?json=true',
+               expected_code=HTTP_NOT_FOUND)
+    check_code(client, '/v4/nts/9999/report',
+               expected_code=HTTP_NOT_FOUND)
+    check_code(client, '/v4/nts/9999/text_report',
+               expected_code=HTTP_NOT_FOUND)
 
     # Get a graph page. This has been changed to redirect.
     check_redirect(client, '/v4/nts/1/graph?test.87=2',
@@ -162,9 +171,22 @@ def main():
 
     # Get the new graph page.
     check_code(client, '/v4/nts/graph?plot.0=1.87.2')
+    # Don't crash when requesting non-existing data
+    check_code(client, '/v4/nts/graph?plot.9999=1.87.2')
+    check_code(client, '/v4/nts/graph?plot.0=9999.87.2',
+               expected_code=HTTP_NOT_FOUND)
+    check_code(client, '/v4/nts/graph?plot.0=1.9999.2',
+               expected_code=HTTP_NOT_FOUND)
+    check_code(client, '/v4/nts/graph?plot.0=1.87.9999',
+               expected_code=HTTP_NOT_FOUND)
 
     # Get the mean graph page.
     check_code(client, '/v4/nts/graph?mean=1.2')
+    # Don't crash when requesting non-existing data
+    check_code(client, '/v4/nts/graph?mean=9999.2',
+               expected_code=HTTP_NOT_FOUND)
+    check_code(client, '/v4/nts/graph?mean=1.9999',
+               expected_code=HTTP_NOT_FOUND)
 
     # Check some variations of the daily report work.
     check_code(client, '/v4/nts/daily_report/2012/4/12')
@@ -180,6 +202,14 @@ def main():
     # a flask URL variable.
     check_redirect(client, '/v4/nts/daily_report?day=15',
                    '/v4/nts/daily_report/\d+/\d+/\d+$')
+    # Don't crash when requesting non-existing data
+    check_code(client, '/v4/nts/daily_report/1999/4/12')
+    check_code(client, '/v4/nts/daily_report/-1/4/12',
+               expected_code=HTTP_NOT_FOUND)
+    check_code(client, '/v4/nts/daily_report/2012/13/12',
+               expected_code=HTTP_BAD_REQUEST)
+    check_code(client, '/v4/nts/daily_report/2012/4/32',
+               expected_code=HTTP_BAD_REQUEST)
 
     # check ?filter-machine-regex= filter
     check_nr_machines_reported(client, '/v4/nts/daily_report/2012/4/12', 3)
@@ -188,6 +218,8 @@ def main():
     check_nr_machines_reported(client, '/v4/nts/daily_report/2012/4/12?filter-machine-regex=ma.*[34]$', 1)
     check_nr_machines_reported(client, '/v4/nts/daily_report/2012/4/12?filter-machine-regex=ma.*4', 0)
     # Don't crash on an invalid regular expression:
+    # FIXME - this should probably return HTTP_BAD_REQUEST instead of silently
+    # ignoring the invalid regex.
     check_nr_machines_reported(client, '/v4/nts/daily_report/2012/4/12?filter-machine-regex=?', 3)
 
     # check that a regression seen between 2 consecutive runs that are
@@ -206,6 +238,11 @@ def main():
     # Get a machine overview page.
     check_code(client, '/v4/compile/machine/1')
     check_code(client, '/v4/compile/machine/2')
+    # Don't crash when requesting non-existing data
+    check_code(client, '/v4/compile/machine/9999',
+               expected_code=HTTP_NOT_FOUND)
+    check_code(client, '/v4/compile/machine/-1', expected_code=HTTP_NOT_FOUND)
+    check_code(client, '/v4/compile/machine/a', expected_code=HTTP_NOT_FOUND)
 
     # Get the order summary page.
     check_code(client, '/v4/compile/all_orders')
@@ -218,7 +255,7 @@ def main():
     check_code(client, '/v4/compile/2')
     check_code(client, '/v4/compile/3')
     check_code(client, '/v4/compile/4')
-    check_code(client, '/v4/compile/10', expected_code=404) # This page should not be there.
+    check_code(client, '/v4/compile/9999', expected_code=HTTP_NOT_FOUND)
 
     check_code(client, '/v4/compile/1/report')
 
