@@ -37,7 +37,9 @@ machine_expected_response[0][u'runs'] = [u'/api/db_default/v4/nts/run/1',
                                          u'/api/db_default/v4/nts/run/2']
 
 machine_expected_response[1] = machines_expected_response[1].copy()
-machine_expected_response[1][u'runs'] = [u'/api/db_default/v4/nts/run/3']
+machine_expected_response[1][u'runs'] = [u'/api/db_default/v4/nts/run/3',
+                                         u'/api/db_default/v4/nts/run/5',
+                                         u'/api/db_default/v4/nts/run/6']
 
 machine_expected_response[2] = machines_expected_response[2].copy()
 machine_expected_response[2][u'runs'] = [u'/api/db_default/v4/nts/run/4']
