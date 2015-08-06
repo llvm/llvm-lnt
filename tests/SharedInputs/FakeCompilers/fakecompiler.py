@@ -73,7 +73,9 @@ class Clang_r154331(LLVMCompiler):
         print >>sys.stderr, """\
 clang version 3.1 (trunk 154331) (llvm/trunk 154329)
 Target: x86_64-apple-darwin11.3.0
-Thread model: posix"""
+Thread model: posix
+InstalledDir: /home/foo/bin
+"""
         print >>sys.stderr, """\
  "%s" "-cc1" "-E" ... more boring stuff here ...""" % (
             g_program,)
@@ -88,7 +90,9 @@ clang version 3.1\
  (git:/git/clang.git 37ce0feee598d82e7220fa0a4b110619cae6ea72)\
  (git:/git/llvm.git 60fca4f64e697ad834ce7ee8c2e478cae394c7dc)
 Target: arm-apple-darwin11.4.0
-Thread model: posix"""
+Thread model: posix
+InstalledDir: /home/foo/bin
+"""
         print >>sys.stderr, """\
  "%s" "-cc1" "-E" ... more boring stuff here ...""" % (
             g_program,)
@@ -115,7 +119,8 @@ class AppleClang_138_1(LLVMCompiler):
         print >>sys.stderr, """\
 Apple clang version 2.0 (tags/Apple/clang-138.1) (based on LLVM 2.9svn)
 Target: x86_64-apple-darwin11.3.0
-Thread model: posix"""
+Thread model: posix
+InstalledDir: /home/foo/bin"""
         print >>sys.stderr, """\
  "%s" "-cc1" "-E" ... more boring stuff here ...""" % (
             g_program,)
