@@ -148,6 +148,7 @@ def test_cc_command(base_name, run_info, variables, input, output, flags,
                 ln.startswith('Configured with:') or
                 ln.startswith('Target:') or
                 ln.startswith('Thread model:') or
+                ln.startswith('InstallDir') or
                 ' version ' in ln):
                 continue
             cc_commands.append(ln)
