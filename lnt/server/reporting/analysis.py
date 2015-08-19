@@ -300,11 +300,13 @@ class RunInfo(object):
             prev_values,run_values = zip(*[(cr.previous,cr.current) for _,_,cr in tests])
             prev_values = [x for x in prev_values if x is not None]
             run_values = [x for x in run_values if x is not None]
+            prev_values = [calc_geomean(prev_values)]
+            run_values = [calc_geomean(run_values)]
         else:
             prev_values,run_values = [], []
 
         
-        return ComparisonResult(calc_geomean,
+        return ComparisonResult(self.aggregation_fn,
                                 cur_failed=bool(run_values),
                                 prev_failed=bool(prev_values),
                                 samples=run_values,
