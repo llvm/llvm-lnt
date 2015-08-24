@@ -297,7 +297,9 @@ class RunInfo(object):
 
     def get_geomean_comparison_result(self, run, compare_to, field, tests):
         if tests:
-            prev_values,run_values = zip(*[(cr.previous,cr.current) for _,_,cr in tests])
+            prev_values,run_values = zip(
+                *[(cr.previous,cr.current) for _,_,cr in tests
+                  if cr.get_test_status() == UNCHANGED_PASS])
             prev_values = [x for x in prev_values if x is not None]
             run_values = [x for x in run_values if x is not None]
             prev_values = [calc_geomean(prev_values)]
@@ -307,8 +309,8 @@ class RunInfo(object):
 
         
         return ComparisonResult(self.aggregation_fn,
-                                cur_failed=bool(run_values),
-                                prev_failed=bool(prev_values),
+                                cur_failed=not bool(run_values),
+                                prev_failed=not bool(prev_values),
                                 samples=run_values,
                                 prev_samples=prev_values,
                                 confidence_lv=0,

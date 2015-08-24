@@ -29,9 +29,11 @@
   {% set test_status = cr.get_test_status() %}
   {% set value_status = cr.get_value_status(ignore_small=not options.show_small_diff) %}
   {% set run_cell_value = "-" if cr.current is none else "%.4f" % cr.current %}
+  {% set run_cell_value = "-" if test_status in [analysis.REGRESSED, analysis.UNCHANGED_FAIL] else run_cell_value %}
 
   {% if options.show_previous %}
     {% set prev_cell_value = "-" if cr.previous is none else "%.4f" % cr.previous %}
+    {% set prev_cell_value = "-" if test_status in [analysis.IMPROVED, analysis.UNCHANGED_FAIL] else prev_cell_value %}
     <td>{{prev_cell_value}}</td>
   {% endif %}
 
@@ -50,7 +52,8 @@
     <td>{{run_cell_value}}</td>
   {% endif %}
 
-  {% if (options.show_all or
+  {% if test_status == analysis.UNCHANGED_PASS and
+        (options.show_all or
          value_status == analysis.REGRESSED or
          value_status == analysis.IMPROVED) %}
     {{ cr.pct_delta|aspctcell(reverse=cr.bigger_is_better)|safe }}
@@ -59,13 +62,13 @@
   {% endif %}
 
   {% if options.show_delta %}
-    <td>{{ "-" if cr.delta is none else "%.4f" % cr.delta }}</td>
+    <td>{{ "-" if cr.delta is none or test_status != analysis.UNCHANGED_PASS else "%.4f" % cr.delta }}</td>
   {% endif %}
   {% if options.show_stddev %}
-    <td>{{ "-" if cr.stddev is none else "%.4f" % cr.stddev }}</td>
+    <td>{{ "-" if cr.stddev is none or test_status != analysis.UNCHANGED_PASS  else "%.4f" % cr.stddev }}</td>
   {% endif %}
   {% if options.show_mad %}
-    <td>{{ "-" if cr.MAD is none else "%.4f" % cr.MAD }}</td>
+    <td>{{ "-" if cr.MAD is none or test_status != analysis.UNCHANGED_PASS  else "%.4f" % cr.MAD }}</td>
   {% endif %}
   {% if options.show_all_samples %}
     <td>
