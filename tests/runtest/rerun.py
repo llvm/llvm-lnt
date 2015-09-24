@@ -1,11 +1,14 @@
 # Testing for the rerun feature of LNT nt.
-# This test runs two stub test suites. The scond one has different values for
+# This test runs two stub test suites. The second one has different values for
 # some of the test, so they should be marked as regressions, and reruns should
 # be triggered.
 
-# RUN: rsync -av --exclude .svn %S/Inputs/rerun_server_instance/ %S/Output/server
+# RUN: mkdir -p %{test_exec_root}/runtest/server_instance
+# RUN: rsync -av --exclude .svn %S/Inputs/rerun_server_instance/ \
+# RUN:   %{test_exec_root}/runtest/rerun_server_instance
 # RUN: rm -f CHECK-STDOUT CHECK-STDOUT2 CHECK-STDERR CHECK-STDERR2
-# RUN: %S/Inputs/runtest_server_wrapper.sh %S/Output/server nt \
+# RUN: %S/Inputs/runtest_server_wrapper.sh \
+# RUN:   %{test_exec_root}/runtest/rerun_server_instance nt \
 # RUN:   --sandbox %t.SANDBOX \
 # RUN:   --test-suite %S/Inputs/rerun-test-suite1 \
 # RUN:   --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
@@ -29,11 +32,13 @@
 # CHECK-STDERR: submitting result to
 # CHECK-STDERR: note: Rerunning 0 of 69 benchmarks.
 
-# RUN: %S/Inputs/runtest_server_wrapper.sh %S/Output/server nt \
+# RUN: %S/Inputs/runtest_server_wrapper.sh \
+# RUN:   %{test_exec_root}/runtest/rerun_server_instance nt \
 # RUN:   --sandbox %t.SANDBOX2 \
 # RUN:   --test-suite %S/Inputs/rerun-test-suite2 \
 # RUN:   --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
-# RUN:   --no-timestamp --rerun --run-order 4 --verbose > %t.2.log 2> %t.2.err || cat %t.2.err
+# RUN:   --no-timestamp --rerun --run-order 4 --verbose \
+# RUN:   > %t.2.log 2> %t.2.err || cat %t.2.err
 # RUN: echo "Run 2"
 # RUN: FileCheck --check-prefix CHECK-STDOUT2 < %t.2.log %s
 # RUN: FileCheck --check-prefix CHECK-STDERR2 < %t.2.err %s
