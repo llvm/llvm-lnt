@@ -16,6 +16,8 @@ Contents
 
    changes
 
+   developer_guide
+
    todo
 
 Indices and tables
