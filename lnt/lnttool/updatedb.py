@@ -1,5 +1,6 @@
 import os
 from optparse import OptionParser, OptionGroup
+import contextlib
 
 import lnt.server.instance
 from lnt.testing.util.commands import note, warning, error, fatal
@@ -29,48 +30,50 @@ def action_updatedb(name, args):
 
     if opts.testsuite is None:
         parser.error("--testsuite is required")
-        
+
     path, = args
 
     # Load the instance.
     instance = lnt.server.instance.Instance.frompath(path)
 
     # Get the database and test suite.
-    db = instance.get_database(opts.database, echo=opts.show_sql)
-    ts = db.testsuite[opts.testsuite]
+    with contextlib.closing(instance.get_database(opts.database,
+                                                  echo=opts.show_sql)) as db:
+        ts = db.testsuite[opts.testsuite]
 
-    # Compute a list of all the runs to delete.
-    runs_to_delete = list(opts.delete_runs)
-    if opts.delete_machines:
-        runs_to_delete.extend(
-            id
-            for id, in ts.query(ts.Run.id).\
-                join(ts.Machine).\
-                filter(ts.Machine.name.in_(opts.delete_machines)))
-        
-    # Delete all samples associated with those runs.
-    ts.query(ts.Sample).\
-        filter(ts.Sample.run_id.in_(runs_to_delete)).\
-        delete(synchronize_session=False)
+        # Compute a list of all the runs to delete.
+        runs_to_delete = list(opts.delete_runs)
+        if opts.delete_machines:
+            runs_to_delete.extend(
+                id
+                for id, in ts.query(ts.Run.id).\
+                    join(ts.Machine).\
+                    filter(ts.Machine.name.in_(opts.delete_machines)))
 
-    # Delete all those runs.
-    ts.query(ts.Run).\
-        filter(ts.Run.id.in_(runs_to_delete)).\
-        delete(synchronize_session=False)
+        # Delete all samples associated with those runs.
+        ts.query(ts.Sample).\
+            filter(ts.Sample.run_id.in_(runs_to_delete)).\
+            delete(synchronize_session=False)
 
-    # Delete the machines.
-    for name in opts.delete_machines:
-        # Delete all FieldChanges associated with this machine.
-        ids = ts.query(ts.FieldChange.id).\
-            join(ts.Machine).filter(ts.Machine.name == name).all()
-        for i in ids:
-            ts.query(ts.FieldChange).filter(ts.FieldChange.id == i[0]).delete()
+        # Delete all those runs.
+        ts.query(ts.Run).\
+            filter(ts.Run.id.in_(runs_to_delete)).\
+            delete(synchronize_session=False)
 
-        num_deletes = ts.query(ts.Machine).filter_by(name=name).delete()
-        if num_deletes == 0:
-            warning("unable to find machine named: %r" % name)
+        # Delete the machines.
+        for name in opts.delete_machines:
+            # Delete all FieldChanges associated with this machine.
+            ids = ts.query(ts.FieldChange.id).\
+                join(ts.Machine).filter(ts.Machine.name == name).all()
+            for i in ids:
+                ts.query(ts.FieldChange).filter(ts.FieldChange.id == i[0]).\
+                    delete()
 
-    if opts.commit:
-        db.commit()
-    else:
-        db.rollback()
+            num_deletes = ts.query(ts.Machine).filter_by(name=name).delete()
+            if num_deletes == 0:
+                warning("unable to find machine named: %r" % name)
+
+        if opts.commit:
+            db.commit()
+        else:
+            db.rollback()

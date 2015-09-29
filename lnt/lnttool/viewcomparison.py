@@ -8,6 +8,7 @@ import time
 import urllib
 import webbrowser
 from optparse import OptionParser, OptionGroup
+import contextlib
 
 import lnt.util.ImportData
 from lnt.testing.util.commands import note, warning, error, fatal
@@ -86,22 +87,22 @@ def action_view_comparison(name, args):
         lnt.server.db.migrate.update_path(db_path)
 
         # Import the two reports.
-        db = config.get_database('default')
-        result = lnt.util.ImportData.import_and_report(
-            config, 'default', db, report_a_path,
-            '<auto>', commit=True)
-        result = lnt.util.ImportData.import_and_report(
-            config, 'default', db, report_b_path,
-            '<auto>', commit=True)
+        with contextlib.closing(config.get_database('default')) as db:
+            result = lnt.util.ImportData.import_and_report(
+                config, 'default', db, report_a_path,
+                '<auto>', commit=True)
+            result = lnt.util.ImportData.import_and_report(
+                config, 'default', db, report_b_path,
+                '<auto>', commit=True)
 
-        # Dispatch another thread to start the webbrowser.
-        comparison_url = '%s/v4/nts/2?compare_to=1' % (url,)
-        note("opening comparison view: %s" % (comparison_url,))
-        thread.start_new_thread(start_browser, (comparison_url,True))
+            # Dispatch another thread to start the webbrowser.
+            comparison_url = '%s/v4/nts/2?compare_to=1' % (url,)
+            note("opening comparison view: %s" % (comparison_url,))
+            thread.start_new_thread(start_browser, (comparison_url, True))
 
-        # Run the webserver.
-        app = lnt.server.ui.app.App.create_with_instance(instance)
-        app.debug = True
-        app.run(opts.hostname, opts.port, use_reloader=False)
+            # Run the webserver.
+            app = lnt.server.ui.app.App.create_with_instance(instance)
+            app.debug = True
+            app.run(opts.hostname, opts.port, use_reloader=False)
     finally:
         shutil.rmtree(tmpdir)

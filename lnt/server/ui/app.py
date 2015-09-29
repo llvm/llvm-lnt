@@ -85,6 +85,13 @@ class Request(flask.Request):
 
         return self.testsuite
 
+    def close(self):
+        db = getattr(self, 'db', None)
+        if db is not None:
+            db.close()
+        return super(Request, self).close()
+
+
 class App(flask.Flask):
     @staticmethod
     def create_with_instance(instance):

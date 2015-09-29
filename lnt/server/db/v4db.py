@@ -124,6 +124,10 @@ class V4DB(object):
         assert (self.real_sample_type and self.status_sample_type), \
             "sample types not initialized!"
 
+    def close(self):
+        if self.session is not None:
+            self.session.close()
+
     @property
     def testsuite(self):
         # This is the start of "magic" part of V4DB, which allows us to get

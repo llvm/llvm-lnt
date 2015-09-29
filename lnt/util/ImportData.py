@@ -122,19 +122,19 @@ def import_and_report(config, db_name, db, file, format, commit=False,
         # Load the shadow database to import into.
         db_config = config.databases[db_name]
         shadow_name = db_config.shadow_import
-        shadow_db = config.get_database(shadow_name)
-        if shadow_db is None:
-            raise ValueError,("invalid configuration, shadow import "
-                              "database %r does not exist") % shadow_name
+        with closing(config.get_database(shadow_name)) as shadow_db:
+            if shadow_db is None:
+                raise ValueError, ("invalid configuration, shadow import "
+                                   "database %r does not exist") % shadow_name
 
-        # Perform the shadow import.
-        shadow_result = import_and_report(config, shadow_name,
-                                          shadow_db, file, format, commit,
-                                          show_sample_count, disable_email,
-                                          disable_report)
+            # Perform the shadow import.
+            shadow_result = import_and_report(config, shadow_name,
+                                              shadow_db, file, format, commit,
+                                              show_sample_count, disable_email,
+                                              disable_report)
 
-        # Append the shadow result to the result.
-        result['shadow_result'] = shadow_result
+            # Append the shadow result to the result.
+            result['shadow_result'] = shadow_result
 
     result['success'] = True
     return result

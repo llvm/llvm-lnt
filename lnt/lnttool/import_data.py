@@ -3,6 +3,8 @@ import os, pprint, sys, time
 import lnt.formats
 import lnt.util.ImportData
 import lnt.server.instance
+import contextlib
+
 
 def action_import(name, args):
     """import test data into a database"""
@@ -45,27 +47,26 @@ def action_import(name, args):
     config = instance.config
 
     # Get the database.
-    db = config.get_database(opts.database, echo=opts.show_sql)
+    with contextlib.closing(config.get_database(opts.database,
+                                                echo=opts.show_sql)) as db:
+        # Load the database.
+        success = True
+        for file in args:
+            result = lnt.util.ImportData.import_and_report(
+                config, opts.database, db, file,
+                opts.format, opts.commit, opts.show_sample_count,
+                opts.no_email, opts.no_report)
 
-    # Load the database.
-    success = True
-    for file in args:
-        result = lnt.util.ImportData.import_and_report(
-            config, opts.database, db, file,
-            opts.format, opts.commit, opts.show_sample_count,
-            opts.no_email, opts.no_report)
+            success &= result.get('success', False)
+            if opts.quiet:
+                continue
 
-        success &= result.get('success', False)
-        if opts.quiet:
-            continue
+            if opts.show_raw_result:
+                pprint.pprint(result)
+            else:
+                lnt.util.ImportData.print_report_result(result, sys.stdout,
+                                                        sys.stderr,
+                                                        opts.verbose)
 
-        if opts.show_raw_result:
-            pprint.pprint(result)
-        else:
-            lnt.util.ImportData.print_report_result(result, sys.stdout,
-                                                    sys.stderr,
-                                                    opts.verbose)
-
-    if not success:
-        raise SystemExit, 1
-
+        if not success:
+            raise SystemExit, 1

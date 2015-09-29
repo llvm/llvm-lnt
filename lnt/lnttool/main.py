@@ -5,6 +5,7 @@ import os
 import sys
 import tempfile
 from optparse import OptionParser, OptionGroup
+import contextlib
 
 import werkzeug.contrib.profiler
 
@@ -293,57 +294,59 @@ def action_send_daily_report(name, args):
     config = instance.config
 
     # Get the database.
-    db = config.get_database(opts.database)
+    with contextlib.closing(config.get_database(opts.database)) as db:
 
-    # Get the testsuite.
-    ts = db.testsuite[opts.testsuite]
+        # Get the testsuite.
+        ts = db.testsuite[opts.testsuite]
 
-    if opts.today:
-        date = datetime.datetime.utcnow()
-    else:
-        # Get a timestamp to use to derive the daily report to generate.
-        latest = ts.query(ts.Run).\
-            order_by(ts.Run.start_time.desc()).limit(1).first()
-
-        # If we found a run, use it's start time (rounded up to the next hour,
-        # so we make sure it gets included).
-        if latest:
-            date = latest.start_time + datetime.timedelta(hours=1)
-        else:
-            # Otherwise, just use now.
+        if opts.today:
             date = datetime.datetime.utcnow()
+        else:
+            # Get a timestamp to use to derive the daily report to generate.
+            latest = ts.query(ts.Run).\
+                order_by(ts.Run.start_time.desc()).limit(1).first()
 
-    # Generate the daily report.
-    note("building report data...")
-    report = lnt.server.reporting.dailyreport.DailyReport(
-        ts, year=date.year, month=date.month, day=date.day,
-        day_start_offset_hours=date.hour, for_mail=True,
-        num_prior_days_to_include=opts.days,
-        filter_machine_regex=opts.filter_machine_regex)
-    report.build()
+            # If we found a run, use it's start time (rounded up to the next
+            # hour, so we make sure it gets included).
+            if latest:
+                date = latest.start_time + datetime.timedelta(hours=1)
+            else:
+                # Otherwise, just use now.
+                date = datetime.datetime.utcnow()
 
-    note("generating HTML report...")
-    ts_url = "%s/db_%s/v4/%s" % (config.zorgURL, opts.database, opts.testsuite)
-    subject = "Daily Report: %04d-%02d-%02d" % (
-        report.year, report.month, report.day)
-    html_report = report.render(ts_url, only_html_body=False)
+        # Generate the daily report.
+        note("building report data...")
+        report = lnt.server.reporting.dailyreport.DailyReport(
+            ts, year=date.year, month=date.month, day=date.day,
+            day_start_offset_hours=date.hour, for_mail=True,
+            num_prior_days_to_include=opts.days,
+            filter_machine_regex=opts.filter_machine_regex)
+        report.build()
 
-    if opts.subject_prefix is not None:
-        subject = "%s %s" % (opts.subject_prefix, subject)
+        note("generating HTML report...")
+        ts_url = "%s/db_%s/v4/%s" \
+            % (config.zorgURL, opts.database, opts.testsuite)
+        subject = "Daily Report: %04d-%02d-%02d" % (
+            report.year, report.month, report.day)
+        html_report = report.render(ts_url, only_html_body=False)
 
-    # Form the multipart email message.
-    msg = email.mime.multipart.MIMEMultipart('alternative')
-    msg['Subject'] = subject
-    msg['From'] = opts.from_address
-    msg['To'] = to_address
-    msg.attach(email.mime.text.MIMEText(html_report, "html"))
+        if opts.subject_prefix is not None:
+            subject = "%s %s" % (opts.subject_prefix, subject)
 
-    # Send the report.
-    if not opts.dry_run:
-        s = smtplib.SMTP(opts.host)
-        s.sendmail(opts.from_address, [to_address],
-                   msg.as_string())
-        s.quit()
+        # Form the multipart email message.
+        msg = email.mime.multipart.MIMEMultipart('alternative')
+        msg['Subject'] = subject
+        msg['From'] = opts.from_address
+        msg['To'] = to_address
+        msg.attach(email.mime.text.MIMEText(html_report, "html"))
+
+        # Send the report.
+        if not opts.dry_run:
+            s = smtplib.SMTP(opts.host)
+            s.sendmail(opts.from_address, [to_address],
+                       msg.as_string())
+            s.quit()
+
 
 def action_send_run_comparison(name, args):
     """send a run-vs-run comparison email"""
@@ -397,47 +400,47 @@ def action_send_run_comparison(name, args):
     config = instance.config
 
     # Get the database.
-    db = config.get_database(opts.database)
+    with contextlib.closing(config.get_database(opts.database)) as db:
 
-    # Get the testsuite.
-    ts = db.testsuite[opts.testsuite]
+        # Get the testsuite.
+        ts = db.testsuite[opts.testsuite]
 
-    # Lookup the two runs.
-    run_a_id = int(run_a_id)
-    run_b_id = int(run_b_id)
-    run_a = ts.query(ts.Run).\
-        filter_by(id=run_a_id).first()
-    run_b = ts.query(ts.Run).\
-        filter_by(id=run_b_id).first()
-    if run_a is None:
-        parser.error("invalid run ID %r (not in database)" % (run_a_id,))
-    if run_b is None:
-        parser.error("invalid run ID %r (not in database)" % (run_b_id,))
+        # Lookup the two runs.
+        run_a_id = int(run_a_id)
+        run_b_id = int(run_b_id)
+        run_a = ts.query(ts.Run).\
+            filter_by(id=run_a_id).first()
+        run_b = ts.query(ts.Run).\
+            filter_by(id=run_b_id).first()
+        if run_a is None:
+            parser.error("invalid run ID %r (not in database)" % (run_a_id,))
+        if run_b is None:
+            parser.error("invalid run ID %r (not in database)" % (run_b_id,))
 
-    # Generate the report.
-    reports = lnt.server.reporting.runs.generate_run_report(
-        run_b, baseurl=config.zorgURL, only_html_body=False, result=None,
-        compare_to=run_a, baseline=None,
-        aggregation_fn=min)
-    subject, text_report, html_report, _ = reports
+        # Generate the report.
+        reports = lnt.server.reporting.runs.generate_run_report(
+            run_b, baseurl=config.zorgURL, only_html_body=False, result=None,
+            compare_to=run_a, baseline=None,
+            aggregation_fn=min)
+        subject, text_report, html_report, _ = reports
 
-    if opts.subject_prefix is not None:
-        subject = "%s %s" % (opts.subject_prefix, subject)
+        if opts.subject_prefix is not None:
+            subject = "%s %s" % (opts.subject_prefix, subject)
 
-    # Form the multipart email message.
-    msg = email.mime.multipart.MIMEMultipart('alternative')
-    msg['Subject'] = subject
-    msg['From'] = opts.from_address
-    msg['To'] = opts.to_address
-    msg.attach(email.mime.text.MIMEText(text_report, 'plain'))
-    msg.attach(email.mime.text.MIMEText(html_report, 'html'))
+        # Form the multipart email message.
+        msg = email.mime.multipart.MIMEMultipart('alternative')
+        msg['Subject'] = subject
+        msg['From'] = opts.from_address
+        msg['To'] = opts.to_address
+        msg.attach(email.mime.text.MIMEText(text_report, 'plain'))
+        msg.attach(email.mime.text.MIMEText(html_report, 'html'))
 
-    # Send the report.
-    if not opts.dry_run:
-        s = smtplib.SMTP(opts.host)
-        s.sendmail(opts.from_address, [opts.to_address],
-                   msg.as_string())
-        s.quit()
+        # Send the report.
+        if not opts.dry_run:
+            s = smtplib.SMTP(opts.host)
+            s.sendmail(opts.from_address, [opts.to_address],
+                       msg.as_string())
+            s.quit()
 
 ###
 

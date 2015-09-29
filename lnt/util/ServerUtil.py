@@ -45,11 +45,12 @@ def submitFileToInstance(path, file, commit):
     instance = lnt.server.instance.Instance.frompath(path)
     config = instance.config
     db_name = 'default'
-    db = config.get_database(db_name)
-    if db is None:
-        raise ValueError("no default database in instance: %r" % (path,))
-    return lnt.util.ImportData.import_and_report(
-        config, db_name, db, file, format='<auto>', commit=commit)
+    with closing(config.get_database(db_name)) as db:
+        if db is None:
+            raise ValueError("no default database in instance: %r" % (path,))
+        return lnt.util.ImportData.import_and_report(
+            config, db_name, db, file, format='<auto>', commit=commit)
+
 
 def submitFile(url, file, commit, verbose):
     # If this is a real url, submit it using urllib.
