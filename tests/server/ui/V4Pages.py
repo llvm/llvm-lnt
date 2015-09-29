@@ -1,9 +1,12 @@
 # Perform basic sanity checking of the V4 UI pages.
 #
 # create temporary instance
-# Cleanup temporary directory in case one remained from a previous run - also see PR9904.
+# Cleanup temporary directory in case one remained from a previous run - also
+# see PR9904.
 # RUN: rm -rf %t.instance
-# RUN: python %{shared_inputs}/create_temp_instance.py %{shared_inputs}/SmallInstance %t.instance %S/Inputs/V4Pages_extra_records.sql
+# RUN: python %{shared_inputs}/create_temp_instance.py \
+# RUN:   %s %{shared_inputs}/SmallInstance %t.instance \
+# RUN:   %S/Inputs/V4Pages_extra_records.sql
 #
 # RUN: python %s %t.instance
 

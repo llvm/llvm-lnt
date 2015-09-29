@@ -1,8 +1,11 @@
 # RUN: rm -rf %t.install
-# RUN: dropdb --if-exists testdb
-# RUN: createdb testdb
+# RUN: dropdb --if-exists --maintenance-db=%{postgres_db_uri} \
+# RUN:   lnt_regr_test_PostgresDB
+# RUN: createdb --maintenance-db=%{postgres_db_uri} \
+# RUN:   lnt_regr_test_PostgresDB
 
-# RUN: lnt create %t.install --db-dir postgresql://localhost/ --default-db testdb
+# RUN: lnt create %t.install --db-dir %{postgres_db_uri} \
+# RUN:     --default-db lnt_regr_test_PostgresDB
 
 # Import a test set.
 # RUN: lnt import %t.install %{shared_inputs}/sample-a-small.plist \

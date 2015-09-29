@@ -2,7 +2,7 @@
 # create temporary instance
 # RUN: rm -rf %t.instance
 # RUN: python %{shared_inputs}/create_temp_instance.py \
-# RUN:     %{shared_inputs}/SmallInstance \
+# RUN:     %s %{shared_inputs}/SmallInstance \
 # RUN:     %t.instance %S/Inputs/V4Pages_extra_records.sql
 #
 # RUN: python %s %t.instance

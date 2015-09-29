@@ -41,9 +41,21 @@ you can run the tests in a different directory too::
 For simple changes, adding a regression test and making sure all regression
 tests pass, is often a good enough testing approach. For some changes, the
 existing regression tests aren't good enough at the moment, and manual testing
-will be needed. For any changes that touch on the LNT database design, you'll
-need to run tests on at least sqlite and postgress database engines.  By
-default, LNT uses sqlite, and most of the regression tests still use a
-temporary sqlite database to run tests against. Therefore, at the moment,
-you'll probably need to do some manual testing on a setup with a postgress
-database if you touch database functionality.
+will be needed.
+
+For any changes that touch on the LNT database design, you'll need to run tests
+on at least sqlite and postgres database engines.  By default the regression
+tests uses sqlite. To run the regression tests against a postgress database,
+use a command like the following::
+
+     PATH=$LLVMBUILD/bin:$PATH llvm-lit -sv -Dpostgres='postgresql://lnt:lnt@127.0.0.1' ../lnt/tests
+
+The argument to -Dpostgres needs to be a postgres URI for a postgres role
+that is allowed to create databases. One example to set up such a user is::
+
+     sudo -u postgres psql
+     CREATE USER lnt_test PASSWORD 'lnt_test';
+     CREATE DATABASE lnt_test OWNER = lnt_test;
+     ALTER USER lnt_test CREATEDB;
+
+You'll need to use at least postgres version 9.2 to run the regression tests.
