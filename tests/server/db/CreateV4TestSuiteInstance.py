@@ -31,6 +31,7 @@ test = ts_db.Test("test-a")
 sample = ts_db.Sample(run, test)
 sample.compile_time = 1.0
 sample.score = 4.2
+sample.mem_bytes = 58093568
 
 # Add and commit.
 ts_db.add(machine)
@@ -81,3 +82,4 @@ assert sample.run is run
 assert sample.test is test
 assert sample.compile_time == 1.0
 assert sample.score == 4.2
+assert sample.mem_bytes == 58093568

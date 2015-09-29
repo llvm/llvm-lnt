@@ -5,7 +5,7 @@ CREATE TABLE "SchemaVersion" (
 	PRIMARY KEY ("Name"), 
 	UNIQUE ("Name")
 );
-INSERT INTO "SchemaVersion" VALUES('__core__',5);
+INSERT INTO "SchemaVersion" VALUES('__core__',6);
 CREATE TABLE "TestSuite" (
 	"ID" INTEGER NOT NULL, 
 	"Name" VARCHAR(256), 
@@ -79,6 +79,7 @@ INSERT INTO "TestSuiteSampleFields" VALUES(12,2,'wall_time',1,'.wall',7,0);
 INSERT INTO "TestSuiteSampleFields" VALUES(13,2,'size_bytes',1,'.size',8,0);
 INSERT INTO "TestSuiteSampleFields" VALUES(14,2,'mem_bytes',1,'.mem',9,0);
 INSERT INTO "TestSuiteSampleFields" VALUES(15,1,'score',1,'.score',NULL,1);
+INSERT INTO "TestSuiteSampleFields" VALUES(16,1,'mem_bytes',1,'.mem',NULL,0);
 CREATE TABLE "TestSuiteMachineFields" (
 	"ID" INTEGER NOT NULL, 
 	"TestSuiteID" INTEGER, 
@@ -141,15 +142,15 @@ CREATE TABLE "NT_Sample" (
 	compile_status INTEGER, 
 	execution_status INTEGER, 
 	compile_time FLOAT, 
-	execution_time FLOAT, score FLOAT, 
+	execution_time FLOAT, score FLOAT, "mem_bytes" FLOAT, 
 	PRIMARY KEY ("ID"), 
 	FOREIGN KEY("RunID") REFERENCES "NT_Run" ("ID"), 
 	FOREIGN KEY("TestID") REFERENCES "NT_Test" ("ID"), 
 	FOREIGN KEY(compile_status) REFERENCES "StatusKind" ("ID"), 
 	FOREIGN KEY(execution_status) REFERENCES "StatusKind" ("ID")
 );
-INSERT INTO "NT_Sample" VALUES(1,1,1,NULL,NULL,0.007,0.0003,NULL);
-INSERT INTO "NT_Sample" VALUES(2,1,2,NULL,NULL,0.0072,0.0003,NULL);
+INSERT INTO "NT_Sample" VALUES(1,1,1,NULL,NULL,0.007,0.0003,NULL,NULL);
+INSERT INTO "NT_Sample" VALUES(2,1,2,NULL,NULL,0.0072,0.0003,NULL,NULL);
 CREATE TABLE "compile_Machine" (
 	"ID" INTEGER NOT NULL, 
 	"Name" VARCHAR(256), 
