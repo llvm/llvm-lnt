@@ -1232,6 +1232,7 @@ LOCAL_EXEC_STATUS = "exec.status"
 SERVER_COMPILE_RESULT = "compile_time"
 SERVER_EXEC_RESULT = "execution_time"
 SERVER_SCORE_RESULT = "score"
+SERVER_MEM_RESULT = "mem"
 
 
 class PastRunData(object):
@@ -1354,7 +1355,9 @@ def _process_reruns(config, server_reply, local_results):
         if SERVER_COMPILE_RESULT in test_type:
             if new_entry.compile_status is None:
                 new_entry.compile_status = results_status
-        elif SERVER_EXEC_RESULT in test_type or SERVER_SCORE_RESULT in test_type:
+        elif SERVER_EXEC_RESULT in test_type or \
+             SERVER_SCORE_RESULT in test_type or \
+             SERVER_MEM_RESULT in test_type:
             if new_entry.execution_status is None:
                 # If the server has not seen the test before, it will return
                 # None for the performance results analysis. In this case we
