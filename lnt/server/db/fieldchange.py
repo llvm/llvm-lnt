@@ -37,8 +37,10 @@ def regenerate_fieldchanges_for_run(ts, run):
                 "That will be very slow.".format(run_size))
 
     runinfo = lnt.server.reporting.analysis.RunInfo(ts, runs_to_load)
-        
-    for field in list(ts.sample_fields):
+
+    # Only store fieldchanges for "metric" samples like execution time;
+    # not for fields with other data, e.g. hash of a binary
+    for field in list(ts.Sample.get_metric_fields()):
         for test_id in runinfo.test_ids:
             result = runinfo.get_comparison_result(runs, previous_runs,
                                                    test_id, field)

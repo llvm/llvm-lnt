@@ -66,23 +66,23 @@ def generate_run_report(run, baseurl, only_html_body=False,
     sri = lnt.server.reporting.analysis.RunInfo(
         ts, runs_to_load, aggregation_fn, confidence_lv)
 
-    # Get the test names, primary fields and total test counts.
+    # Get the test names, metric fields and total test counts.
     test_names = ts.query(ts.Test.name, ts.Test.id).\
         order_by(ts.Test.name).\
         filter(ts.Test.id.in_(sri.test_ids)).all()
-    primary_fields = list(ts.Sample.get_primary_fields())
-    num_total_tests = len(primary_fields) * len(test_names)
+    metric_fields = list(ts.Sample.get_metric_fields())
+    num_total_tests = len(metric_fields) * len(test_names)
 
     # Gather the run-over-run changes to report, organized by field and then
     # collated by change type.
     run_to_run_info, test_results = _get_changes_by_type(
-        run, compare_to, primary_fields, test_names, num_comparison_runs, sri)
+        run, compare_to, metric_fields, test_names, num_comparison_runs, sri)
 
     # If we have a baseline, gather the run-over-baseline results and
     # changes.
     if baseline:
         run_to_baseline_info, baselined_results = _get_changes_by_type(
-            run, baseline, primary_fields, test_names, num_comparison_runs, sri)
+            run, baseline, metric_fields, test_names, num_comparison_runs, sri)
     else:
         run_to_baseline_info = baselined_results = None
 
@@ -222,11 +222,12 @@ def generate_run_report(run, baseurl, only_html_body=False,
 
     return subject, text_report, html_report, sri
 
-def _get_changes_by_type(run_a, run_b, primary_fields, test_names,
+
+def _get_changes_by_type(run_a, run_b, metric_fields, test_names,
                          num_comparison_runs, sri):
     comparison_results = {}
     results_by_type = []
-    for field in primary_fields:
+    for field in metric_fields:
         new_failures = []
         new_passes = []
         perf_regressions = []

@@ -7,7 +7,7 @@
 {%
   macro add_report_changes_detail_for_field_and_bucket(
     field, show_perf, run_url, field_index, field_display_name, bucket_name, bucket, test_names,
-    primary_name, primary_field_suffix, secondary_field_suffix, secondary_info, styles
+    metric_name, metric_field_suffix, secondary_field_suffix, secondary_info, styles
   )
 %}
 
@@ -24,10 +24,10 @@
          {% endfor %}
          </tbody>
        {% else %}
-         <th style="{{ styles['th'] }}">&Delta; {{ primary_field_suffix }}</th>
-         <th style="{{ styles['th'] }}">{{ primary_name }}</th>
+         <th style="{{ styles['th'] }}">&Delta; {{ metric_field_suffix }}</th>
+         <th style="{{ styles['th'] }}">{{ metric_name }}</th>
          <th style="{{ styles['th'] }}">Current</th>
-         <th style="{{ styles['th'] }}">&sigma; {{ primary_field_suffix }}</th>
+         <th style="{{ styles['th'] }}">&sigma; {{ metric_field_suffix }}</th>
          {% if secondary_info %}
          <th style="{{ styles['th'] }}">&Delta; {{ secondary_field_suffix }}</th>
          <th style="{{ styles['th'] }}">&sigma; {{ secondary_field_suffix }}</th>

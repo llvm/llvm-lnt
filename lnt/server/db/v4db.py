@@ -118,10 +118,13 @@ class V4DB(object):
 
         # Resolve or create the known sample types.
         self.real_sample_type = self.query(testsuite.SampleType)\
-            .filter_by(name = "Real").first()
+            .filter_by(name="Real").first()
         self.status_sample_type = self.query(testsuite.SampleType)\
-            .filter_by(name = "Status").first()
-        assert (self.real_sample_type and self.status_sample_type), \
+            .filter_by(name="Status").first()
+        self.hash_sample_type = self.query(testsuite.SampleType)\
+            .filter_by(name="Hash").first()
+        assert (self.real_sample_type and self.status_sample_type and
+                self.hash_sample_type), \
             "sample types not initialized!"
 
     def close(self):

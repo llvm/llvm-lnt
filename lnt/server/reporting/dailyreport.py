@@ -74,7 +74,7 @@ class DailyReport(object):
         self.year = year
         self.month = month
         self.day = day
-        self.fields = list(ts.Sample.get_primary_fields())
+        self.fields = list(ts.Sample.get_metric_fields())
         self.day_start_offset = datetime.timedelta(
             hours=day_start_offset_hours)
         self.for_mail = for_mail
@@ -218,7 +218,7 @@ class DailyReport(object):
         #       discretion in determining whether or not a particular result is
         #       worth considering (as opposed to noise).
         #
-        # The idea is as follows, for each (machine, test, primary_field),
+        # The idea is as follows, for each (machine, test, metric_field),
         # classify the result into one of REGRESSED, IMPROVED, UNCHANGED_FAIL,
         # ADDED, REMOVED, PERFORMANCE_REGRESSED, PERFORMANCE_IMPROVED.
         #

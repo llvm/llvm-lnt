@@ -400,7 +400,7 @@ def v4_run(id):
 
     return render_template(
         "v4_run.html", ts=ts, options=options,
-        primary_fields=list(ts.Sample.get_primary_fields()),
+        metric_fields=list(ts.Sample.get_metric_fields()),
         test_info=test_info, analysis=lnt.server.reporting.analysis,
         test_min_value_filter=test_min_value_filter,
         request_info=info)
@@ -913,9 +913,9 @@ def v4_global_status():
     from lnt.server.ui import util
 
     ts = request.get_testsuite()
-    primary_fields = sorted(list(ts.Sample.get_primary_fields()),
-                            key=lambda f: f.name)
-    fields = dict((f.name, f) for f in primary_fields)
+    metric_fields = sorted(list(ts.Sample.get_metric_fields()),
+                           key=lambda f: f.name)
+    fields = dict((f.name, f) for f in metric_fields)
 
     # Get the latest run.
     latest = ts.query(ts.Run.start_time).\
@@ -934,7 +934,7 @@ def v4_global_status():
     # Get arguments.
     revision = int(request.args.get('revision',
                                     ts.Machine.DEFAULT_BASELINE_REVISION))
-    field = fields.get(request.args.get('field', None), primary_fields[0])
+    field = fields.get(request.args.get('field', None), metric_fields[0])
 
     # Get the list of all runs we might be interested in.
     recent_runs = ts.query(ts.Run).filter(ts.Run.start_time > yesterday).all()
@@ -1012,7 +1012,7 @@ def v4_global_status():
                            ts=ts,
                            tests=test_table,
                            machines=recent_machines,
-                           fields=primary_fields,
+                           fields=metric_fields,
                            selected_field=field,
                            selected_revision=revision)
 

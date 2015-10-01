@@ -667,16 +667,20 @@ def execute_nt_tests(test_log, make_variables, basedir, config):
 
 # Keep a mapping of mangled test names, to the original names in the test-suite.
 TEST_TO_NAME = {}
-KNOWN_SAMPLE_KEYS = ('compile', 'exec', 'gcc.compile', 'bc.compile', 'llc.compile',
+KNOWN_SAMPLE_KEYS = ('compile', 'exec', 'hash',
+                     'gcc.compile', 'bc.compile', 'llc.compile',
                      'llc-beta.compile', 'jit.compile', 'gcc.exec', 'llc.exec',
                      'llc-beta.exec', 'jit.exec')
+
+
 def load_nt_report_file(report_path, config):
     # Compute the test samples to report.
     sample_keys = []
+
     def append_to_sample_keys(tup):
-        stat = tup[0]
+        stat = tup[1]
         assert stat in KNOWN_SAMPLE_KEYS
-        if not tup[0] in config.exclude_stat_from_submission:
+        if stat not in config.exclude_stat_from_submission:
             sample_keys.append(tup)
     if config.test_style == "simple":
         test_namespace = 'nts'
@@ -684,25 +688,29 @@ def load_nt_report_file(report_path, config):
         # for now, user time is the unqualified Time stat
         if config.test_time_stat == "real":
             time_stat = 'Real_'
-        append_to_sample_keys(('compile', 'CC_' + time_stat + 'Time', None, 'CC'))
-        append_to_sample_keys(('exec', 'Exec_' + time_stat + 'Time', None, 'Exec'))
+        append_to_sample_keys((True, 'compile', 'CC_' + time_stat + 'Time',
+                               None, 'CC', float))
+        append_to_sample_keys((False, 'hash', 'CC_Hash', None, 'CC', str))
+        append_to_sample_keys((True, 'exec', 'Exec_' + time_stat + 'Time',
+                               None, 'Exec', float))
     else:
         test_namespace = 'nightlytest'
-        append_to_sample_keys(('gcc.compile', 'GCCAS', 'time'))
-        append_to_sample_keys(('bc.compile', 'Bytecode', 'size'))
+        append_to_sample_keys((True, 'gcc.compile', 'GCCAS', 'time'))
+        append_to_sample_keys((True, 'bc.compile', 'Bytecode', 'size'))
         if config.test_llc:
-            append_to_sample_keys(('llc.compile', 'LLC compile', 'time'))
+            append_to_sample_keys((True, 'llc.compile', 'LLC compile', 'time'))
         if config.test_llcbeta:
-            append_to_sample_keys(('llc-beta.compile', 'LLC-BETA compile', 'time'))
+            append_to_sample_keys((True, 'llc-beta.compile',
+                                   'LLC-BETA compile', 'time'))
         if config.test_jit:
-            append_to_sample_keys(('jit.compile', 'JIT codegen', 'time'))
-        append_to_sample_keys(('gcc.exec', 'GCC', 'time'))
+            append_to_sample_keys((True, 'jit.compile', 'JIT codegen', 'time'))
+        append_to_sample_keys((True, 'gcc.exec', 'GCC', 'time'))
         if config.test_llc:
-            append_to_sample_keys(('llc.exec', 'LLC', 'time'))
+            append_to_sample_keys((True, 'llc.exec', 'LLC', 'time'))
         if config.test_llcbeta:
-            append_to_sample_keys(('llc-beta.exec', 'LLC-BETA', 'time'))
+            append_to_sample_keys((True, 'llc-beta.exec', 'LLC-BETA', 'time'))
         if config.test_jit:
-            append_to_sample_keys(('jit.exec', 'JIT', 'time'))
+            append_to_sample_keys((True, 'jit.exec', 'JIT', 'time'))
 
     # Load the report file.
     report_file = open(report_path, 'rb')
@@ -717,8 +725,10 @@ def load_nt_report_file(report_path, config):
     if 'Program' not in header:
         fatal('missing key %r in report header' % 'Program')
     for item in sample_keys:
-        if item[1] not in header:
-            fatal('missing key %r in report header' % item[1])
+        required = item[0]
+        header_name = item[2]
+        if required and header_name not in header:
+            fatal('missing key %r in report header' % header_name)
 
     # We don't use the test info, currently.
     test_info = {}
@@ -751,13 +761,16 @@ def load_nt_report_file(report_path, config):
         TEST_TO_NAME[test_base_name] = program_real
 
         for info in sample_keys:
-            if len(info) == 3:
-                name,key,tname = info
+            if len(info) == 4:
+                required, name, key, tname = info
                 success_key = None
+                conv_f = float
             else:
-                name,key,tname,success_key = info
+                required, name, key, tname, success_key, conv_f = info
 
             test_name = '%s.%s' % (test_base_name, name)
+            if not required and key not in record:
+                continue
             value = record[key]
             if success_key is None:
                 success_value = value
@@ -783,12 +796,12 @@ def load_nt_report_file(report_path, config):
                     test_samples.append(lnt.testing.TestSamples(
                             test_name + '.status', [status_value], test_info))
             if value != '*':
-                if tname is None:
-                    test_samples.append(lnt.testing.TestSamples(
-                            test_name, [float(value)], test_info))
-                else:
-                    test_samples.append(lnt.testing.TestSamples(
-                            test_name + '.' + tname, [float(value)], test_info))
+                sample_test_name = test_name
+                if tname is not None:
+                    sample_test_name += '.' + tname
+                test_samples.append(lnt.testing.TestSamples(
+                    sample_test_name, [conv_f(value)], test_info,
+                    conv_f=conv_f))
 
     report_file.close()
 
@@ -1225,6 +1238,8 @@ SERVER_PASS = u'PASS'
 # if it failed it will have a status suffix.
 LOCAL_COMPILE_PERF = "compile"
 LOCAL_COMPILE_STATUS = "compile.status"
+LOCAL_HASH = "hash"
+LOCAL_HASH_STATUS = "hash.status"
 LOCAL_EXEC_PERF = "exec"
 LOCAL_EXEC_STATUS = "exec.status"
 
@@ -1233,6 +1248,7 @@ SERVER_COMPILE_RESULT = "compile_time"
 SERVER_EXEC_RESULT = "execution_time"
 SERVER_SCORE_RESULT = "score"
 SERVER_MEM_RESULT = "mem"
+SERVER_HASH_RESULT = "hash"
 
 
 class PastRunData(object):
@@ -1335,6 +1351,11 @@ def _process_reruns(config, server_reply, local_results):
             updating_entry.execution_time = b.data
         elif test_type == LOCAL_EXEC_STATUS:
             updating_entry.execution_status = SERVER_FAIL
+        elif test_type == LOCAL_HASH:
+            # do not trigger reruns just because the binary has changed.
+            pass
+        elif test_type == LOCAL_HASH_STATUS:
+            updating_entry.hash_status = SERVER_FAIL
         else:
             assert False, "Unexpected local test type."
 

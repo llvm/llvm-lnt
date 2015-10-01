@@ -147,17 +147,16 @@ class TestSamples:
     data.
     """
 
-    def __init__(self, name, data, info={}):
+    def __init__(self, name, data, info={}, conv_f=float):
         self.name = str(name)
-        self.info = dict((str(key),str(value))
-                         for key,value in info.items())
-        self.data = map(float, data)
+        self.info = dict((str(key), str(value))
+                         for key, value in info.items())
+        self.data = map(conv_f, data)
 
     def render(self):
-        return { 'Name' : self.name,
-                 'Info' : self.info,
-                 'Data' : self.data }
-
+        return {'Name': self.name,
+                'Info': self.info,
+                'Data': self.data}
 
     def __repr__(self):
         # TODO remove this

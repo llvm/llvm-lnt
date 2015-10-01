@@ -143,8 +143,12 @@ class ComparisonResult:
             else:
                 return UNCHANGED_PASS
 
+    # FIXME: take into account hash of binary - if available. If the hash is
+    # the same, the binary is the same and therefore the difference cannot be
+    # significant - for execution time. It can be significant for compile time.
     def get_value_status(self, confidence_interval=2.576,
-                         value_precision=MIN_VALUE_PRECISION, ignore_small=True):
+                         value_precision=MIN_VALUE_PRECISION,
+                         ignore_small=True):
         if self.current is None or self.previous is None:
             return None
 

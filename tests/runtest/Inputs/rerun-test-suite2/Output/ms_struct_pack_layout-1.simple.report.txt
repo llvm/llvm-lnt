@@ -5,6 +5,7 @@
 TEST-PASS: compile /private/tmp/lnt_test_26297-2/test-2014-09-09_22-12-54/SingleSource/Benchmarks/Shootout/ms_struct_pack_layout-1
 TEST-RESULT-compile-success: pass
 TEST-RESULT-compile-time: user       0.7001
+TEST-RESULT-compile-hash: 1234567890abcdef
 TEST-RESULT-compile-real-time: real       0.8219
 
 TEST-PASS: exec /private/tmp/lnt_test_26297-2/test-2014-09-09_22-12-54/SingleSource/Benchmarks/Shootout/ms_struct_pack_layout-1

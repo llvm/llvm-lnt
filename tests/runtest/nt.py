@@ -39,6 +39,16 @@
 # RUN: FileCheck --check-prefix CHECK-NOCONF < %t.err %s
 # CHECK-NOCONF-NOT: configuring
 #
+# Check a basic nt run on a test-suite without binary hash support.
+# RUN: lnt runtest nt \
+# RUN:   --sandbox %t.SANDBOX-NO-HASH \
+# RUN:   --test-suite %S/Inputs/test-suite-nohash \
+# RUN:   --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
+# RUN:   --no-timestamp > %t.log 2> %t.err
+# RUN: FileCheck --check-prefix CHECK-STDOUT < %t.log %s
+# RUN: FileCheck --check-prefix CHECK-BASIC < %t.err %s
+# RUN: FileCheck --check-prefix CHECK-REPORT < %t.SANDBOX-NO-HASH/build/report.json %s
+#
 # Manually set a run order.
 # RUN: lnt runtest nt \
 # RUN:   --sandbox %t.SANDBOX \

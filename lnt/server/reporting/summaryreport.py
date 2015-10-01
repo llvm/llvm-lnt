@@ -206,7 +206,7 @@ class SummaryReport(object):
                 build_mode = 'Release'
 
             # Return a datapoint for each passing field.
-            for field_name,field,status_field in ts_sample_primary_fields:
+            for field_name, field, status_field in ts_sample_metric_fields:
                 # Ignore failing samples.
                 if status_field and \
                         sample[2 + status_field.index] == lnt.testing.FAIL:
@@ -276,7 +276,7 @@ class SummaryReport(object):
             metric = 'Compile Time'
 
             # Report the user and wall time.
-            for field_name,field,status_field in ts_sample_primary_fields:
+            for field_name, field, status_field in ts_sample_metric_fields:
                 if field_name not in ('user_time', 'wall_time'):
                     continue
 
@@ -303,15 +303,15 @@ class SummaryReport(object):
                 return get_compile_datapoints_for_sample(ts, sample)
 
         # For each column...
-        for index,runs in enumerate(self.runs_at_index):
+        for index, runs in enumerate(self.runs_at_index):
             # For each test suite and run list...
-            for ts,(ts_runs,_) in zip(self.testsuites, runs):
+            for ts, (ts_runs, _) in zip(self.testsuites, runs):
                 ts_tests = self.tests[ts]
 
-                # Compute the primary sample fields.
-                ts_sample_primary_fields = [
+                # Compute the metric fields.
+                ts_sample_metric_fields = [
                     (f.name, f, f.status_field)
-                    for f in ts.Sample.get_primary_fields()]
+                    for f in ts.Sample.get_metric_fields()]
 
                 # Compute a mapping from run id to run.
                 run_id_map = dict((r.id, r)

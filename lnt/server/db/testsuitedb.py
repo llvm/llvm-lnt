@@ -330,8 +330,21 @@ class TestSuiteDB(object):
                     if field not in status_fields:
                         yield field
 
-            # Dynamically create fields for all of the test suite defined sample
-            # fields.
+            @staticmethod
+            def get_metric_fields():
+                """
+                get_metric_fields() -> [SampleField*]
+
+                Get the sample fields which represent some kind of metric, i.e.
+                those which have a value that can be interpreted as better or
+                worse than other potential values for this field.
+                """
+                for field in self.Sample.fields:
+                    if field.type.name == 'Real':
+                        yield field
+
+            # Dynamically create fields for all of the test suite defined
+            # sample fields.
             #
             # FIXME: We might want to index some of these, but for a different
             # reason than above. It is possible worth it to turn the compound
@@ -348,6 +361,8 @@ class TestSuiteDB(object):
                 elif item.type.name == 'Status':
                     item.column = Column(item.name, Integer, ForeignKey(
                             testsuite.StatusKind.id))
+                elif item.type.name == 'Hash':
+                    item.column = Column(item.name, String)
                 else:
                     raise ValueError,(
                         "test suite defines unknown sample type %r" (
