@@ -49,14 +49,14 @@ run_expected_response = [{u'end_time': u'2012-04-11T16:28:58',
                           u'id': 1,
                           u'machine_id': 1,
                           u'machine': u'/api/db_default/v4/nts/machine/1',
-                          u'order_id': 3,
-                          u'order': u'/api/db_default/v4/nts/order/3',
+                          u'order_id': 1,
+                          u'order': u'/api/db_default/v4/nts/order/1',
                           u'start_time': u'2012-04-11T16:28:23'}]
 
-order_expected_response = {u'id': 3,
+order_expected_response = {u'id': 1,
                            u'llvm_project_revision': "154331",
                            u'next_order_id': 0,
-                           u'previous_order_id': 4}
+                           u'previous_order_id': 2}
 
 
 class JSONAPITester(unittest.TestCase):
@@ -94,7 +94,7 @@ class JSONAPITester(unittest.TestCase):
     def test_order_api(self):
         """ Check /order/n returns the expected order information."""
         client = self.client
-        j = check_json(client, 'api/db_default/v4/nts/order/3')
+        j = check_json(client, 'api/db_default/v4/nts/order/1')
         self.assertEquals(j, order_expected_response)
 
 

@@ -44,6 +44,7 @@ def replace_sqlite_with_postgress_syntax(sql_file):
         r"convert_to(\1, 'UTF8')")
     search_replace_in_file(sql_file, "BLOB", "bytea")
     search_replace_in_file(sql_file, "DATETIME", "timestamp")
+    search_replace_in_file(sql_file, "INTEGER PRIMARY KEY", "serial primary key")
 
 
 def run_sql_file(db, sql_file, dest_dir):

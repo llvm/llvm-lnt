@@ -169,18 +169,18 @@ def main():
                expected_code=HTTP_NOT_FOUND)
 
     # Get a graph page. This has been changed to redirect.
-    check_redirect(client, '/v4/nts/1/graph?test.87=2',
-                   'v4/nts/graph\?plot\.0=1\.87\.2&highlight_run=1$')
+    check_redirect(client, '/v4/nts/1/graph?test.3=2',
+                   'v4/nts/graph\?plot\.0=1\.3\.2&highlight_run=1$')
 
     # Get the new graph page.
-    check_code(client, '/v4/nts/graph?plot.0=1.87.2')
+    check_code(client, '/v4/nts/graph?plot.0=1.3.2')
     # Don't crash when requesting non-existing data
-    check_code(client, '/v4/nts/graph?plot.9999=1.87.2')
-    check_code(client, '/v4/nts/graph?plot.0=9999.87.2',
+    check_code(client, '/v4/nts/graph?plot.9999=1.3.2')
+    check_code(client, '/v4/nts/graph?plot.0=9999.3.2',
                expected_code=HTTP_NOT_FOUND)
     check_code(client, '/v4/nts/graph?plot.0=1.9999.2',
                expected_code=HTTP_NOT_FOUND)
-    check_code(client, '/v4/nts/graph?plot.0=1.87.9999',
+    check_code(client, '/v4/nts/graph?plot.0=1.3.9999',
                expected_code=HTTP_NOT_FOUND)
 
     # Get the mean graph page.
@@ -265,7 +265,7 @@ def main():
     check_code(client, '/v4/compile/1/text_report')
 
     # Get the new graph page.
-    check_code(client, '/v4/compile/graph?plot.38=2.38.9')
+    check_code(client, '/v4/compile/graph?plot.3=2.3.9')
 
     # Get the mean graph page.
     check_code(client, 'v4/compile/graph?mean=2.9')
