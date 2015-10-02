@@ -53,7 +53,9 @@
     #push,
     #lnt-instance { margin-left:20px; }
     #dbselect { margin-right : 20px; }
-
+    {% if nosidebar is defined %}
+        #page-content { margin-left:20px; width:100%}
+    {% endif %}
     /* Lastly, apply responsive CSS fixes as necessary */
     @media (max-width: 767px) {
       #footer {
@@ -63,6 +65,7 @@
         padding-right: 20px;
       }
     }
+
   </style>
 
   <link rel="icon" type="image/png" href="{{ url_for('.static', filename='favicon.ico') }}"/>
@@ -162,15 +165,21 @@
 
     {# Page Content #}
     <div id="content" class="container-fluid">
-      <div class="row-fluid row">
+    {% if nosidebar is defined %}
+      <div class="row">
+        <div id="page-content" class="span12">
+    {% else %}
         <div id ="side-bar" class="span3 bs-docs-sidebar ">
-          {% block sidebar %}{% endblock %}
+         {% block sidebar %}{% endblock %} 
         </div>
         <div id="page-content" class="span9">
+    {% endif %}
+  
           {% block body %}{% endblock %}
         </div>
       </div>
     </div>
+
 
     {# Force space for footer #}
     <div id="push"></div>
