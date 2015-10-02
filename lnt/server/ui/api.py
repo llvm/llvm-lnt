@@ -3,7 +3,6 @@ from flask import request
 from sqlalchemy.orm.exc import NoResultFound
 from flask_restful import Resource, reqparse, fields, marshal_with, abort
 from lnt.testing import PASS
-from collections import namedtuple
 
 parser = reqparse.RequestParser()
 parser.add_argument('db', type=str)
@@ -184,8 +183,7 @@ class Graph(Resource):
                 .one()
             field = ts.sample_fields[field_index]
         except NoResultFound:
-            print "Foo"
-            return abort(402)
+            return abort(404)
 
         q = ts.query(field.column, ts.Order.llvm_project_revision, ts.Run.start_time) \
             .join(ts.Run) \
