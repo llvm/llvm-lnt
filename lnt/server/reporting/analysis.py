@@ -57,23 +57,22 @@ class ComparisonResult:
         # if bigger_is_better.
         if aggregation_fn == stats.safe_min and bigger_is_better:
             aggregation_fn = stats.safe_max
-        
+
         if samples:
             self.current = aggregation_fn(samples)
         else:
             self.current = None
-        if prev_samples:
-            self.previous = aggregation_fn(prev_samples)
-        else:
-            self.previous = None
+
+        self.previous = None
 
         # Compute the comparison status for the test value.
         self.delta = 0
         self.pct_delta = 0.0
-        if self.current and self.previous:
+        if self.current and prev_samples:
             self.delta, value = absmin_diff(self.current, prev_samples)
             if value != 0:
                 self.pct_delta = self.delta / value
+            self.previous = value
 
         # If we have multiple values for this run, use that to estimate the
         # distribution.
