@@ -153,7 +153,7 @@ class App(flask.Flask):
 
         """
         if not self.debug:
-            LOG_FILENAME = "/var/log/lnt/lnt.log"
+            LOG_FILENAME = "lnt.log"
             try:
                 rotating = logging.handlers.RotatingFileHandler(
                     LOG_FILENAME, maxBytes=1048576, backupCount=5)
@@ -164,10 +164,12 @@ class App(flask.Flask):
                 rotating.setLevel(logging.DEBUG)
                 self.logger.addHandler(rotating)
             except (OSError, IOError) as e:
-                print >> sys.stderr, "Error making log file " + LOG_FILENAME + str(e)
+                print >> sys.stderr, "Error making log file", LOG_FILENAME, str(e)
                 print >> sys.stderr, "Will not log to file."
-            self.logger.info("Started file logging.")
-
+            else:
+                self.logger.info("Started file logging.")
+                print "Logging to :", LOG_FILENAME
+            
 
 def create_jinja_environment(env=None):
     """
