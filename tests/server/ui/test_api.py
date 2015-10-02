@@ -58,6 +58,12 @@ order_expected_response = {u'id': 1,
                            u'next_order_id': 0,
                            u'previous_order_id': 2}
 
+graph_data = [{u'time': u'2012-05-01T16:28:23',
+               u'rev': u'152292',
+               u'val': 1.0},
+              {u'time': u'2012-05-03T16:28:24',
+               u'rev': u'152293',
+               u'val': 10.0}]
 
 class JSONAPITester(unittest.TestCase):
     """Test the REST api."""
@@ -97,6 +103,11 @@ class JSONAPITester(unittest.TestCase):
         j = check_json(client, 'api/db_default/v4/nts/order/1')
         self.assertEquals(j, order_expected_response)
 
+    def test_graph_api(self):
+        """Check that /graph/x/y/z returns what we expect."""
+        client = self.client
+        j = check_json(client, 'api/db_default/v4/nts/graph/2/88/3')
+        self.assertEqual(graph_data, j)
 
 if __name__ == '__main__':
     unittest.main(argv=[sys.argv[0], ])

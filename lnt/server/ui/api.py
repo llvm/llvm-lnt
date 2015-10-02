@@ -2,6 +2,8 @@ from flask import current_app, g
 from flask import request
 from sqlalchemy.orm.exc import NoResultFound
 from flask_restful import Resource, reqparse, fields, marshal_with, abort
+from lnt.testing import PASS
+from collections import namedtuple
 
 parser = reqparse.RequestParser()
 parser.add_argument('db', type=str)
@@ -154,8 +156,59 @@ class Order(Resource):
         return changes
 
 
+graph_fields = {
+    'val': fields.Float,
+    'rev': fields.String,
+    'time': fields.DateTime(dt_format=DATE_FORMAT),
+    }
+graph_list_fields = {
+    fields.List(fields.Nested(graph_fields)),
+}
+
+
+class Graph(Resource):
+    """List all the machines and give summary information."""
+    method_decorators = [in_db]
+
+    @marshal_with(graph_fields)
+    def get(self, machine_id, test_id, field_index):
+        """Get the data for a particular line in a graph."""
+        ts = request.get_testsuite()
+        # Maybe we don't need to do this?
+        try:
+            machine = ts.query(ts.Machine) \
+                .filter(ts.Machine.id == machine_id) \
+                .one()
+            test = ts.query(ts.Test) \
+                .filter(ts.Test.id == test_id) \
+                .one()
+            field = ts.sample_fields[field_index]
+        except NoResultFound:
+            print "Foo"
+            return abort(402)
+
+        q = ts.query(field.column, ts.Order.llvm_project_revision, ts.Run.start_time) \
+            .join(ts.Run) \
+            .join(ts.Order) \
+            .filter(ts.Run.machine_id == machine.id) \
+            .filter(ts.Sample.test == test) \
+            .filter(field.column != None)
+
+        if field.status_field:
+            q = q.filter((field.status_field.column == PASS) |
+                         (field.status_field.column == None))
+
+        samples = [{'val': val, 'rev': rev, 'time': time} for val, rev, time in q.all()]
+        import pprint
+        print "Samples"
+        pprint.pprint(samples)
+        return samples
+
+
 def load_api_resources(api):
     api.add_resource(Machines, ts_path("machines"))
     api.add_resource(Machine, ts_path("machine/<int:machine_id>"))
     api.add_resource(Runs, ts_path("run/<int:run_id>"))
     api.add_resource(Order, ts_path("order/<int:order_id>"))
+    graph_url = "graph/<int:machine_id>/<int:test_id>/<int:field_index>"
+    api.add_resource(Graph, ts_path(graph_url))
