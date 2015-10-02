@@ -162,9 +162,20 @@
       <pre>{{g.db_log.getvalue()}}</pre>
     </div>
     {% endif %}
+    
 
     {# Page Content #}
     <div id="content" class="container-fluid">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="{{ category }}" role="alert">
+                        {{ message }}
+                    </div>
+                    {% endfor %}
+            {% endif %}
+        {% endwith %} 
+    
     {% if nosidebar is defined %}
       <div class="row">
         <div id="page-content" class="span12">

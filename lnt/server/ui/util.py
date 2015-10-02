@@ -232,3 +232,8 @@ def sorted(l, *args, **kwargs):
     l = list(l)
     l.sort(*args, **kwargs)
     return l
+
+FLASH_DANGER = "alert alert-danger"
+FLASH_INFO = "alert alert-info"
+FLASH_SUCCESS = "alert alert-success"
+FLASH_WARNING = "alert alert-warning"
