@@ -170,7 +170,7 @@
             {% if messages %}
                 {% for category, message in messages %}
                     <div class="{{ category }}" role="alert">
-                        {{ message }}
+                        {{ message }}  <a href="#" class="close" data-dismiss="alert" aria-label="close">&times;</a>
                     </div>
                     {% endfor %}
             {% endif %}
