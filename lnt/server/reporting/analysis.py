@@ -20,7 +20,12 @@ def absmin_diff(current, prevs):
     Given more than one min, use the last one detected which is probably a
     newer value. Returns (difference, prev used)
     """
-    diffs = [abs(current-prev) for prev in prevs]
+    try:
+        diffs = [abs(current-prev) for prev in prevs]
+    except:
+        print current, prevs
+        import sys
+        sys.exit(1)
     smallest_pos = 0
     smallest = diffs[0]
     for i, diff in enumerate(diffs):
@@ -304,7 +309,7 @@ class RunInfo(object):
                       if s[field.index] is not None]
         prev_values = [s[field.index] for s in prev_samples
                        if s[field.index] is not None]
-        
+
         r = ComparisonResult(self.aggregation_fn,
                              run_failed, prev_failed, run_values,
                              prev_values, self.confidence_lv,
@@ -314,16 +319,16 @@ class RunInfo(object):
     def get_geomean_comparison_result(self, run, compare_to, field, tests):
         if tests:
             prev_values,run_values = zip(
-                *[(cr.previous,cr.current) for _,_,cr in tests
+                *[(cr.previous, cr.current) for _,_,cr in tests
                   if cr.get_test_status() == UNCHANGED_PASS])
             prev_values = [x for x in prev_values if x is not None]
             run_values = [x for x in run_values if x is not None]
-            prev_values = [calc_geomean(prev_values)]
+            prev_geo = calc_geomean(prev_values)
+            prev_values = [prev_geo] if prev_geo else []
             run_values = [calc_geomean(run_values)]
         else:
-            prev_values,run_values = [], []
+            prev_values, run_values = [], []
 
-        
         return ComparisonResult(self.aggregation_fn,
                                 cur_failed=not bool(run_values),
                                 prev_failed=not bool(prev_values),
