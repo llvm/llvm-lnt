@@ -147,3 +147,43 @@
 # RUN:   --no-timestamp > %t.log 2> %t.err
 # RUN: FileCheck --check-prefix CHECK-QEMU-FLAG1 < %t.err %s
 # CHECK-QEMU-FLAG1: QEMU_USER_MODE_COMMAND: TEST -soundhw gus -net nic -device gus,irq=5 '-test=escaped space' '-some-option=stay with me'
+
+# Check submission to a server through url works:
+# RUN: rsync -av --exclude .svn %S/Inputs/rerun_server_instance/ \
+# RUN:   %{test_exec_root}/runtest/nt_server_instance
+# RUN: %S/Inputs/runtest_server_wrapper.sh \
+# RUN:   %{test_exec_root}/runtest/nt_server_instance nt yes 9089 \
+# RUN:   --sandbox %t.SANDBOX \
+# RUN:   --test-suite %S/Inputs/rerun-test-suite1 \
+# RUN:   --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
+# RUN:   --no-timestamp --rerun --run-order 1 > %t.log 2> %t.err
+# RUN: FileCheck --check-prefix CHECK-SUBMIT-STDOUT < %t.log %s
+# RUN: FileCheck --check-prefix CHECK-SUBMIT-STDERR < %t.err %s
+
+# CHECK-SUBMIT-STDOUT: Import succeeded.
+# CHECK-SUBMIT-STDOUT: Added Runs    : 1
+
+# CHECK-SUBMIT-STDERR: inferred C++ compiler under test
+# CHECK-SUBMIT-STDERR: checking source versions
+# CHECK-SUBMIT-STDERR: using nickname
+# CHECK-SUBMIT-STDERR: starting test
+# CHECK-SUBMIT-STDERR: configuring
+# CHECK-SUBMIT-STDERR: building test-suite tools
+# CHECK-SUBMIT-STDERR: executing "nightly tests" with -j1
+# CHECK-SUBMIT-STDERR: loading nightly test data
+# CHECK-SUBMIT-STDERR: capturing machine information
+# CHECK-SUBMIT-STDERR: generating report
+# CHECK-SUBMIT-STDERR: submitting result to
+# CHECK-SUBMIT-STDERR: note: Rerunning 0 of 69 benchmarks.
+
+# Check submission to a server through server instance works:
+# RUN: rsync -av --exclude .svn %S/Inputs/rerun_server_instance/ \
+# RUN:   %{test_exec_root}/runtest/nt_server_instance
+# RUN: %S/Inputs/runtest_server_wrapper.sh \
+# RUN:   %{test_exec_root}/runtest/nt_server_instance nt no 9089 \
+# RUN:   --sandbox %t.SANDBOX \
+# RUN:   --test-suite %S/Inputs/rerun-test-suite1 \
+# RUN:   --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
+# RUN:   --no-timestamp --rerun --run-order 1 > %t.log 2> %t.err
+# RUN: FileCheck --check-prefix CHECK-SUBMIT-STDOUT < %t.log %s
+# RUN: FileCheck --check-prefix CHECK-SUBMIT-STDERR < %t.err %s

@@ -2,18 +2,16 @@
 # This script wraps a call to lnt runtest with a local server
 # instance.  It is intended for testing full runtest invocations
 # that need a real server instnace to work.
-# ./runtest_server_wrapper <location of server files> <runtest type> [arguments for lnt runtest]
+# ./runtest_server_wrapper <location of server files> <runtest type> <submit-through-url> <portnr> [arguments for lnt runtest]
 # ./runtest_server_wrapper /tmp/ nt --cc /bin/clang --sandbox /tmp/sandbox
 
 # First launch the server.
-# TODO: we can't run the tests in parrelle unless we do something smart
-# with this port.
 
 PROGRAM="$(basename $0)"
 
 usage() {
-	echo "usage: $PROGRAM <location of server files> <runtest type> [arguments for lnt runtest]"
-	echo "e.g:   $PROGRAM /tmp/ nt --cc /bin/clang --sandbox /tmp/sandbox"
+	echo "usage: $PROGRAM <location of server files> <runtest type> <submit-through-url> <portnr> [arguments for lnt runtest]"
+	echo "e.g:   $PROGRAM /tmp/ nt yes --cc /bin/clang --sandbox /tmp/sandbox"
 }
 
 error() {
@@ -26,11 +24,22 @@ main() {
 	[ $# -lt 2 ] &&
 		error "not enough arguments"
 
-	lnt runserver $1 --hostname localhost --port 9090 &
+	local serverinstance=$1
+	local portnr=$4
+	lnt runserver $serverinstance --hostname localhost --port $portnr &
 	local pid=$!
 	local type=$2
-	shift 2
-	lnt runtest $type --submit http://localhost:9090/db_default/submitRun $@
+	local submit_through_url=$3
+	shift 4
+	case $submit_through_url in
+	    [yY][eE][sS]|[yY])
+	        submit_pointer=http://localhost:$portnr/db_default/submitRun
+		;;
+	    *)
+	        submit_pointer=$serverinstance
+		;;
+	esac
+	lnt runtest $type --submit $submit_pointer $@
 	local rc=$?
 
 	kill -15 $pid

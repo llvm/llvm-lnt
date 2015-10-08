@@ -6,6 +6,7 @@ import plistlib
 import sys
 import urllib
 import urllib2
+import contextlib
 
 import lnt.server.instance
 from lnt.util import json
@@ -45,7 +46,7 @@ def submitFileToInstance(path, file, commit):
     instance = lnt.server.instance.Instance.frompath(path)
     config = instance.config
     db_name = 'default'
-    with closing(config.get_database(db_name)) as db:
+    with contextlib.closing(config.get_database(db_name)) as db:
         if db is None:
             raise ValueError("no default database in instance: %r" % (path,))
         return lnt.util.ImportData.import_and_report(
