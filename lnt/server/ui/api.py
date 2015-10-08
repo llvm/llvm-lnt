@@ -3,7 +3,7 @@ from flask import request
 from sqlalchemy.orm.exc import NoResultFound
 from flask_restful import Resource, reqparse, fields, marshal_with, abort
 from lnt.testing import PASS
-
+import json
 parser = reqparse.RequestParser()
 parser.add_argument('db', type=str)
 
@@ -155,21 +155,10 @@ class Order(Resource):
         return changes
 
 
-graph_fields = {
-    'val': fields.Float,
-    'rev': fields.String,
-    'time': fields.DateTime(dt_format=DATE_FORMAT),
-    }
-graph_list_fields = {
-    fields.List(fields.Nested(graph_fields)),
-}
-
-
 class Graph(Resource):
     """List all the machines and give summary information."""
     method_decorators = [in_db]
 
-    @marshal_with(graph_fields)
     def get(self, machine_id, test_id, field_index):
         """Get the data for a particular line in a graph."""
         ts = request.get_testsuite()
@@ -190,16 +179,14 @@ class Graph(Resource):
             .join(ts.Order) \
             .filter(ts.Run.machine_id == machine.id) \
             .filter(ts.Sample.test == test) \
-            .filter(field.column != None)
+            .filter(field.column != None) \
+            .order_by(ts.Order.llvm_project_revision)
 
         if field.status_field:
             q = q.filter((field.status_field.column == PASS) |
                          (field.status_field.column == None))
+        samples = [[int(rev), val, {'label': rev, 'date': str(time)}] for val, rev, time in q.all()]
 
-        samples = [{'val': val, 'rev': rev, 'time': time} for val, rev, time in q.all()]
-        import pprint
-        print "Samples"
-        pprint.pprint(samples)
         return samples
 
 
