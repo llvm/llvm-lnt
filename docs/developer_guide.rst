@@ -13,6 +13,12 @@ Installation
 See :ref:`quickstart` for setting up an installation. Use the "develop" option
 when running ~/lnt/setup.py.
 
+You may have to install psycopg2 into your python virtualenv to run the
+unit tests against a postgres database:
+
+     pip install psycopg2
+
+
 Running LNT's Regression Tests
 ------------------------------
 
