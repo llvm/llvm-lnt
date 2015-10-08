@@ -20,7 +20,7 @@
                }}"></script>
 
   <!-- DataTables CSS -->
-  <link rel="stylesheet" type="text/css" href="//cdn.datatables.net/1.10.8/css/jquery.dataTables.css">
+  <link rel="stylesheet" type="text/css" href="//cdn.datatables.net/1.10.8/css/jquery.dataTables.css" />
                  
    <!-- DataTables -->
    <script type="text/javascript" charset="utf8" src="//cdn.datatables.net/1.10.8/js/jquery.dataTables.js">
@@ -96,130 +96,131 @@
 {% else %}
 <body data-spy="scroll" data-target="#side-bar">
 {% endif %}
-  {# Top-Level Content (non-footer) #}
-  <div id="wrap">
-    {# Page Header #}
-    <div id="header" class="navbar navbar-fixed-top">
-      <div class="navbar-inner">
-        {# LNT Instance Title #}
-        <div id="lnt-instance">
-          <a class="brand" href="{{url_for('index')}}">{{old_config.name}}</a>
-          <ul class="nav">
-            <li class="dropdown">
-              <a href="#" class="dropdown-toggle" data-toggle="dropdown">Suite<b class="caret"></b></a>
-              <ul class="dropdown-menu">
-                {% for name in request.get_db().testsuite %}
-                <li><a href="{{db_url_for('v4_recent_activity', testsuite_name=name)}}">{{name}}</a></li>
-                {% endfor %}
-              </ul>
-            </li>
-          </ul>
-        </div>
-        {# Go to #}
-        {% if g.testsuite_name is defined %}
-        <ul class="nav">
-          <li class="dropdown">
-            <a href="#" class="dropdown-toggle" data-toggle="dropdown">Go to<b class="caret"></b></a>
-            <ul class="dropdown-menu">
-              <li><a href="{{ v4_url_for('v4_recent_activity') }}">Recent Activity</a></li>
-              <li><a href="{{ v4_url_for('v4_global_status') }}">Global Status</a></li>
-              <li><a href="{{ v4_url_for('v4_daily_report_overview') }}">Daily Report</a></li>
-              <li><a href="{{ v4_url_for('v4_machines') }}">All Machines</a></li>
-              <li><a href="{{ v4_url_for('v4_new_regressions') }}">Triage</a></li>
-              <li><a href="{{ v4_url_for('v4_regression_list') }}">Tracking</a></li>
-              <li class="divider"></li>
-              <li class="disabled"><a href="#">Summary Report</a></li>
-              {#"{{ v4_url_for('v4_summary_report') }}"#}
-            </ul>
-          </li>
-        </ul>
-        {% endif %}
-
-        {# Database Selector #}
-        <ul class="nav pull-right">
-          <li class="dropdown">
-            <a href="#" class="dropdown-toggle" data-toggle="dropdown" id="dbselect" >Database <b class="caret"></b></a>
-            <ul class="dropdown-menu">
-              {% for name in old_config.databases.keys()|sort %}
-                <li><a href="{{ url_for('select_db', db=name, path=request.path) }}">
-                {% if name == g.db_name %}
-                  <b>{{ name }}</b>
-                {% else %}
-                  {{ name }}
+    {# Top-Level Content (non-footer) #}
+    <div id="wrap">
+        {# Page Header #}
+        <div id="header" class="navbar navbar-fixed-top">
+            <div class="navbar-inner">
+            {# LNT Instance Title #}
+                <div id="lnt-instance">
+                    <a class="brand" href="{{url_for('index')}}">{{old_config.name}}</a>
+                    <ul class="nav">
+                        <li class="dropdown">
+                            <a href="#" class="dropdown-toggle" data-toggle="dropdown">Suite<b class="caret"></b></a>
+                            <ul class="dropdown-menu">
+                                {% for name in request.get_db().testsuite %}
+                                    <li><a href="{{db_url_for('v4_recent_activity', testsuite_name=name)}}">{{name}}</a></li>
+                                {% endfor %}
+                            </ul>
+                        </li>
+                    </ul>
+                </div>
+        
+                {# Go to #}
+                {% if g.testsuite_name is defined %}
+                    <ul class="nav">
+                        <li class="dropdown">
+                            <a href="#" class="dropdown-toggle" data-toggle="dropdown">Go to<b class="caret"></b></a>
+                            <ul class="dropdown-menu">
+                              <li><a href="{{ v4_url_for('v4_recent_activity') }}">Recent Activity</a></li>
+                              <li><a href="{{ v4_url_for('v4_global_status') }}">Global Status</a></li>
+                              <li><a href="{{ v4_url_for('v4_daily_report_overview') }}">Daily Report</a></li>
+                              <li><a href="{{ v4_url_for('v4_machines') }}">All Machines</a></li>
+                              <li><a href="{{ v4_url_for('v4_new_regressions') }}">Triage</a></li>
+                              <li><a href="{{ v4_url_for('v4_regression_list') }}">Tracking</a></li>
+                              <li class="divider"></li>
+                              <li class="disabled"><a href="#">Summary Report</a></li>
+                              {#"{{ v4_url_for('v4_summary_report') }}"#}
+                            </ul>
+                        </li>
+                    </ul>
                 {% endif %}
-                </a></li>
-              {% endfor %}
-            </ul>
-          </li>
-        </ul>
 
-      </div>
-      <div>
-        {# Navigation Breadcrumbs #}
-        <ul class="breadcrumb">
-          {% for short_name,path in components %}
-          <li><a href="{{ path }}">{{short_name}}</a><span class="divider">/</span></li>
-          {% endfor %}
-          <li class="active">{{self.title()}}</li>
-        </ul>
-      </div>
-    </div>
+                {# Database Selector #}
+                <ul class="nav pull-right">
+                    <li class="dropdown">
+                        <a href="#" class="dropdown-toggle" data-toggle="dropdown" id="dbselect" >Database <b class="caret"></b></a>
+                        <ul class="dropdown-menu">
+                            {% for name in old_config.databases.keys()|sort %}
+                                <li><a href="{{ url_for('select_db', db=name, path=request.path) }}">
+                                {% if name == g.db_name %}
+                                    <b>{{ name }}</b>
+                                {% else %}
+                                    {{ name }}
+                                {% endif %}
+                                </a></li>
+                            {% endfor %}
+                        </ul>
+                    </li>
+                </ul>
 
-    {# Include any database log, if present. #}
-    {% if g.db_log is defined %}
-    <div class="alert alert-info">
-      <h4>SQL Log</h4>
-      <pre>{{g.db_log.getvalue()}}</pre>
-    </div>
-    {% endif %}
-    
-
-    {# Page Content #}
-    <div id="content" class="container-fluid">
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="{{ category }}" role="alert">
-                        {{ message }}  <a href="#" class="close" data-dismiss="alert" aria-label="close">&times;</a>
-                    </div>
+            </div>
+            <div>
+                {# Navigation Breadcrumbs #}
+                <ul class="breadcrumb">
+                    {% for short_name,path in components %}
+                        <li><a href="{{ path }}">{{short_name}}</a><span class="divider">/</span></li>
                     {% endfor %}
-            {% endif %}
-        {% endwith %} 
-    
-    {% if nosidebar is defined %}
-      <div class="row">
-        <div id="page-content" class="span12">
-    {% else %}
-        <div id ="side-bar" class="span3 bs-docs-sidebar ">
-         {% block sidebar %}{% endblock %} 
+                    <li class="active">{{self.title()}}</li>
+                </ul>
+            </div>
         </div>
-        <div id="page-content" class="span9">
-    {% endif %}
-  
-          {% block body %}{% endblock %}
-    {% if nosidebar is defined %}
-         </div>
-    {% endif %}
-      </div>
-    </div>
 
+        {# Include any database log, if present. #}
+        {% if g.db_log is defined %}
+        <div class="alert alert-info">
+          <h4>SQL Log</h4>
+          <pre>{{g.db_log.getvalue()}}</pre>
+        </div>
+        {% endif %}
+        
 
-    {# Force space for footer #}
-    <div id="push"></div>
-  </div>
+        {# Page Content #}
+        <div id="content" class="container-fluid">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="{{ category }}" role="alert">
+                            {{ message }}  <a href="#" class="close" data-dismiss="alert" aria-label="close">&times;</a>
+                        </div>
+                        {% endfor %}
+                {% endif %}
+            {% endwith %} 
+        
+            {% if nosidebar is defined %}
+                <div class="row">
+                    <div id="page-content" class="span12">
+            {% else %}
+                <div id ="side-bar" class="span3 bs-docs-sidebar ">
+                 {% block sidebar %}{% endblock %} 
+                </div>
+                    <div id="page-content" class="span9">
+            {% endif %}
+          
+                        {% block body %}{% endblock %}
+                    </div>
+                {% if nosidebar is defined %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
 
-  {# Page Footer #}
-  <div id="footer">
-    <div class="container">
-      <table class="table">
-        <tr>
-          <td>LNT Version: {{ app.version }}</td>
-          <td>Server Started: <span class="utctime">{{ app.start_time|asisotime }}</span></td>
-          <td>Generated: <span class="utctime">{{ request.request_time|asisotime }}</span></td>
-          <td>Render Time: {{ "%.2fs" % request.elapsed_time() }}</td>
-        </tr>
-      </table>
-    </div>
-  </div>
+        {# Force space for footer #}
+        <div id="push"></div>
+
+        {# Page Footer #}
+        <div id="footer">
+            <div class="container">
+              <table class="table">
+                <tr>
+                  <td>LNT Version: {{ app.version }}</td>
+                  <td>Server Started: <span class="utctime">{{ app.start_time|asisotime }}</span></td>
+                  <td>Generated: <span class="utctime">{{ request.request_time|asisotime }}</span></td>
+                  <td>Render Time: {{ "%.2fs" % request.elapsed_time() }}</td>
+                </tr>
+              </table>
+            </div>
+        </div>
+>>>>>>> Re-indent layout.html, fix hanging div
 </body>
 </html>
