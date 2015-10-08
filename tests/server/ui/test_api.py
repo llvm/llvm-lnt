@@ -58,12 +58,10 @@ order_expected_response = {u'id': 1,
                            u'next_order_id': 0,
                            u'previous_order_id': 2}
 
-graph_data = [{u'time': u'2012-05-01T16:28:23',
-               u'rev': u'152292',
-               u'val': 1.0},
-              {u'time': u'2012-05-03T16:28:24',
-               u'rev': u'152293',
-               u'val': 10.0}]
+graph_data = [[152292, 1.0,
+               {u'date': u'2012-05-01 16:28:23', u'label': u'152292'}],
+              [152293, 10.0,
+               {u'date': u'2012-05-03 16:28:24', u'label': u'152293'}]]
 
 
 class JSONAPITester(unittest.TestCase):

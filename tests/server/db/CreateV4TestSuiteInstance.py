@@ -59,6 +59,7 @@ field_change2 = ts_db.FieldChange(order2, order3, machine, test,
 ts_db.add(field_change2)
 
 TEST_TITLE = "Some regression title"
+
 regression = ts_db.Regression(TEST_TITLE, "PR1234")
 ts_db.add(regression)
 
@@ -105,7 +106,7 @@ assert machine.os == "test-os"
 
 assert order.next_order_id is None
 assert order.previous_order_id is None
-assert order.llvm_project_revision == "test-revision"
+assert order.llvm_project_revision == "1234"
 
 assert run.machine is machine
 assert run.order is order
