@@ -187,7 +187,9 @@
     {% endif %}
   
           {% block body %}{% endblock %}
-        </div>
+    {% if nosidebar is defined %}
+         </div>
+    {% endif %}
       </div>
     </div>
 
