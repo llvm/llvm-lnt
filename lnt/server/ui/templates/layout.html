@@ -19,6 +19,14 @@
   <script src="{{ url_for('.static', filename='timedate.js')
                }}"></script>
 
+  <!-- DataTables CSS -->
+  <link rel="stylesheet" type="text/css" href="//cdn.datatables.net/1.10.8/css/jquery.dataTables.css">
+                 
+   <!-- DataTables -->
+   <script type="text/javascript" charset="utf8" src="//cdn.datatables.net/1.10.8/js/jquery.dataTables.js">
+   </script>
+
+
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"/>
 
@@ -117,6 +125,8 @@
               <li><a href="{{ v4_url_for('v4_global_status') }}">Global Status</a></li>
               <li><a href="{{ v4_url_for('v4_daily_report_overview') }}">Daily Report</a></li>
               <li><a href="{{ v4_url_for('v4_machines') }}">All Machines</a></li>
+              <li><a href="{{ v4_url_for('v4_new_regressions') }}">Triage</a></li>
+              <li><a href="{{ v4_url_for('v4_regression_list') }}">Tracking</a></li>
               <li class="divider"></li>
               <li class="disabled"><a href="#">Summary Report</a></li>
               {#"{{ v4_url_for('v4_summary_report') }}"#}

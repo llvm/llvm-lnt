@@ -390,8 +390,10 @@ class TestSuiteDB(object):
             """FieldChange represents a change in between the values
             of the same field belonging to two samples from consecutive runs."""
             
-            __tablename__ = db_key_name + '_FieldChange'
+            __tablename__ = db_key_name + '_FieldChangeV2'
             id = Column("ID", Integer, primary_key = True)
+            old_value = Column("OldValue", Float)
+            new_value = Column("NewValue", Float)
             start_order_id = Column("StartOrderID", Integer,
                                     ForeignKey("%s_Order.ID" % db_key_name))
             end_order_id = Column("EndOrderID", Integer,
@@ -402,6 +404,9 @@ class TestSuiteDB(object):
                                 ForeignKey("%s_Machine.ID" % db_key_name))
             field_id = Column("FieldID", Integer,
                               ForeignKey(self.v4db.SampleField.id))
+            # Could be from many runs, but most recent one is interesting.
+            run_id = Column("RunID", Integer,
+                                ForeignKey("%s_Run.ID" % db_key_name))
             
             start_order = sqlalchemy.orm.relation(Order,
                                                   primaryjoin='FieldChange.'\
@@ -415,19 +420,77 @@ class TestSuiteDB(object):
                                             primaryjoin= \
                                               self.v4db.SampleField.id == \
                                               field_id)
-            
-            def __init__(self, start_order, end_order, test, machine,
-                         field):
+            run = sqlalchemy.orm.relation(Run)
+
+            def __init__(self, start_order, end_order, machine,
+                         test, field):
                 self.start_order = start_order
                 self.end_order = end_order
-                self.test = test
                 self.machine = machine
                 self.field = field
+                self.test = test
 
             def __repr__(self):
                 return '%s_%s%r' % (db_key_name, self.__class__.__name__,
                                     (self.start_order, self.end_order,
                                      self.test, self.machine, self.field))
+
+        class Regression(self.base, ParameterizedMixin):
+            """Regession hold data about a set of RegressionIndicies."""
+
+            __tablename__ = db_key_name + '_Regression'
+            id = Column("ID", Integer, primary_key=True)
+            title = Column("Title", String(256), unique=False, index=False)
+            bug = Column("BugLink", String(256), unique=False, index=False)
+            state = Column("State", Integer)
+
+            def __init__(self, title, bug):
+                self.title = title
+                self.bug = bug
+
+            def __repr__(self):
+                return '%s_%s:"%s"' % (db_key_name, self.__class__.__name__,
+                                    self.title)
+
+        class RegressionIndicator(self.base, ParameterizedMixin):
+            """"""
+
+            __tablename__ = db_key_name + '_RegressionIndicator'
+            id = Column("ID", Integer, primary_key=True)
+            regression_id = Column("RegressionID", Integer,
+                                   ForeignKey("%s_Regression.ID" % db_key_name))
+
+            field_change_id = Column("FieldChangeID", Integer,
+                            ForeignKey("%s_FieldChangeV2.ID" % db_key_name))
+
+            regression = sqlalchemy.orm.relation(Regression)
+            field_change = sqlalchemy.orm.relation(FieldChange)
+
+            def __init__(self, regression, field_change):
+                self.regression = regression
+                self.field_change = field_change
+
+            def __repr__(self):
+                return '%s_%s%r' % (db_key_name, self.__class__.__name__,(
+                        self.id, self.regression, self.field_change))
+
+        class ChangeIgnore(self.base, ParameterizedMixin):
+            """Changes to ignore in the web interface."""
+
+            __tablename__ = db_key_name + '_ChangeIgnore'
+            id = Column("ID", Integer, primary_key=True)
+
+            field_change_id = Column("ChangeIgnoreID", Integer,
+                                     ForeignKey("%s_FieldChangeV2.ID" % db_key_name))
+
+            field_change = sqlalchemy.orm.relation(FieldChange)
+
+            def __init__(self, field_change):
+                self.field_change = field_change
+
+            def __repr__(self):
+                return '%s_%s%r' % (db_key_name, self.__class__.__name__,(
+                                    self.id, self.field_change))
 
         self.Machine = Machine
         self.Run = Run
@@ -435,7 +498,10 @@ class TestSuiteDB(object):
         self.Sample = Sample
         self.Order = Order
         self.FieldChange = FieldChange
-        
+        self.Regression = Regression
+        self.RegressionIndicator = RegressionIndicator
+        self.ChangeIgnore = ChangeIgnore
+
         # Create the compound index we cannot declare inline.
         sqlalchemy.schema.Index("ix_%s_Sample_RunID_TestID" % db_key_name,
                                 Sample.run_id, Sample.test_id)
@@ -450,6 +516,7 @@ class TestSuiteDB(object):
         # Add several shortcut aliases, similar to the ones on the v4db.
         self.session = self.v4db.session
         self.add = self.v4db.add
+        self.delete = self.v4db.delete
         self.commit = self.v4db.commit
         self.query = self.v4db.query
         self.rollback = self.v4db.rollback

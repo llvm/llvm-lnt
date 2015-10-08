@@ -19,6 +19,8 @@ import lnt.server.instance
 import lnt.server.ui.filters
 import lnt.server.ui.globals
 import lnt.server.ui.views
+
+import lnt.server.ui.regression_views
 from lnt.server.ui.api import load_api_resources
 
 

@@ -257,18 +257,19 @@ def get_base_for_testsuite(test_suite):
         class_dict = locals()
         for item in test_suite.sample_fields:
             if item.name in class_dict:
-                raise ValueError,"test suite defines reserved key %r" % (
-                    name,)
+                raise ValueError("test suite defines reserved key {}"
+                                 .format(name))
 
             if item.type.name == 'Real':
                 item.column = Column(item.name, Float)
             elif item.type.name == 'Status':
                 item.column = Column(item.name, Integer, ForeignKey(
                         StatusKind.id))
+            elif item.type.name == 'Hash':
+                continue
             else:
-                raise ValueError,(
-                    "test suite defines unknown sample type %r" (
-                        item.type.name,))
+                raise ValueError("test suite defines unknown sample type {}"
+                                 .format(item.type.name))
 
             class_dict[item.name] = item.column
 

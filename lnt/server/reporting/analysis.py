@@ -120,6 +120,12 @@ class ComparisonResult:
                           self.confidence_lv,
                           bool(self.bigger_is_better))
 
+    def is_result_performance_change(self):
+        """Check if we think there was a performance change."""
+        if self.get_value_status() in (REGRESSED, IMPROVED):
+            return True
+        return False
+
     def is_result_interesting(self):
         """is_result_interesting() -> bool
 
@@ -220,7 +226,12 @@ class ComparisonResult:
 
 class RunInfo(object):
     def __init__(self, testsuite, runs_to_load,
-                 aggregation_fn=stats.safe_min, confidence_lv=.05):
+                 aggregation_fn=stats.safe_min, confidence_lv=.05,
+                 only_tests=None):
+        """Get all the samples needed to build a CR.
+        runs_to_load are the run IDs of the runs to get the samples from.
+        if only_tests is passed, only samples form those test IDs are fetched.
+        """
         self.testsuite = testsuite
         self.aggregation_fn = aggregation_fn
         self.confidence_lv = confidence_lv
@@ -228,7 +239,7 @@ class RunInfo(object):
         self.sample_map = util.multidict()
         self.loaded_run_ids = set()
 
-        self._load_samples_for_runs(runs_to_load)
+        self._load_samples_for_runs(runs_to_load, only_tests)
 
     @property
     def test_ids(self):
@@ -321,7 +332,7 @@ class RunInfo(object):
                                 confidence_lv=0,
                                 bigger_is_better=field.bigger_is_better)
 
-    def _load_samples_for_runs(self, run_ids):
+    def _load_samples_for_runs(self, run_ids, only_tests):
         # Find the set of new runs to load.
         to_load = set(run_ids) - self.loaded_run_ids
         if not to_load:
@@ -335,6 +346,8 @@ class RunInfo(object):
                    self.testsuite.Sample.test_id]
         columns.extend(f.column for f in self.testsuite.sample_fields)
         q = self.testsuite.query(*columns)
+        if only_tests:
+            q = q.filter(self.testsuite.Sample.test_id.in_(only_tests))
         q = q.filter(self.testsuite.Sample.run_id.in_(to_load))
         for data in q:
             run_id = data[0]

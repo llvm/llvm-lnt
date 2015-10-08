@@ -1,0 +1,75 @@
+{% set nosidebar = True %}
+{% import "utils.html" as utils %}
+{% set db = request.get_db() %}
+
+
+{% extends "layout.html" %}
+{% set components = [(testsuite_name, v4_url_for("v4_recent_activity"))] %}
+{% block title %}Regression Triage{% endblock %}
+
+{% block body %}
+
+
+<section id="Changes" />
+<h3>Recent Changes</h3>
+
+<form method="POST" action="{{ v4_url_for("v4_new_regressions") }}">
+    {{ form.hidden_tag() }}
+
+<table id="changes_table" class="display">
+  
+  <thead>
+  <tr>
+    <th>X</th>
+    <th>Machine</th>
+    <th>Metric</th>
+    <th>Test</th>
+    <th>Good, Bad</th>
+    <th>Old</th><th>New</th>
+    <th>%&Delta;</th>
+    <th>Now</th>
+    <th>Curernt</th>
+    <th>Age</th>
+
+  </tr>
+  </thead>
+  <tbody>
+    {% set graph_base=v4_url_for('v4_graph') %}
+    {# Show the active submissions. #}
+    {% for form_change in form.field_changes%}
+        {% set fc = changes[loop.index -1] %}
+    <tr>
+        <td>{{ form_change }}</td>
+        <td>{{utils.render_machine(fc.ri.machine)}}</td>
+        <td> {{ fc.ri.field.name }} </td>
+         {% set graph_base=v4_url_for('v4_graph', highlight_run=fc.run.id) %}
+        <td><a href="{{graph_base}}&plot.{{fc.ri.test.id}}={{ fc.ri.machine.id}}.{{fc.ri.test.id}}.{{fc.ri.field.index}}">{{ fc.ri.test.name }}</a></td>
+        <td>m{{ fc.ri.start_order.llvm_project_revision }}, {{utils.render_order_link(fc.ri.end_order)}}</td>
+        <td>{{ fc.cr.previous }}</td><td>{{ fc.cr.current }}</td>
+        {{ utils.get_regression_cell_value(fc.cr, analysis)}}
+        <td>{{ fc.latest_cr.current }}</td>
+
+        {{ utils.get_regression_cell_value(fc.latest_cr, analysis)}}
+
+        <td><span class="reltime" data-toggle="tooltip" title="{{fc.run.end_time}}">{{ fc.run.end_time.isoformat() }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+    <input name="btn" type="submit" value="Create New Regression">
+    <input name="btn" type="submit" value="Ignore Changes">
+
+</form>
+
+
+<script type="text/javascript">
+$(document).ready( function () {
+    $('#changes_table').DataTable({
+    "sDom": '<"top"if>rt<"bottom"Flp>'
+  });
+} );
+</script>
+
+
+{% endblock %}

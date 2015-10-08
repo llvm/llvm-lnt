@@ -1,0 +1,31 @@
+{% import "utils.html" as utils %}
+{% set db = request.get_db() %}
+
+{% extends "layout.html" %}
+{% set components = [(testsuite_name, v4_url_for("v4_recent_activity"))] %}
+{% block title %}Regression List{% endblock %}
+
+{% block body %}
+<section id="Regressions" />
+
+<table class="table table-striped table-hover table-condensed">
+  <caption>This needs to be dynamically queried</caption>
+
+  <thead>
+  <tr>
+    <th>Title</th>
+    <th>Bug</th>
+  </tr>
+  </thead>
+  <tbody>
+    {% for regress in regressions %}
+    <tr>
+        <td>{{utils.render_regression(regress)}} {% if regress.id|int == highlight|int %} <span class="label label-success">Updated</span> {% endif %} </td>
+        <td>{{utils.render_bug(regress.bug)}}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+
+{% endblock %}

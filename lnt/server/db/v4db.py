@@ -94,6 +94,7 @@ class V4DB(object):
 
         # Add several shortcut aliases.
         self.add = self.session.add
+        self.delete = self.session.delete
         self.commit = self.session.commit
         self.query = self.session.query
         self.rollback = self.session.rollback

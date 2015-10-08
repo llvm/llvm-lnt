@@ -15,6 +15,10 @@ import lnt.server.db.migrations.upgrade_0_to_1 as upgrade_0_to_1
 
 ###
 # Upgrade TestSuite
+def get_base(test_suite):
+    """Return the schema base with field changes added."""
+    return add_fieldchange(test_suite)
+
 
 def add_fieldchange(test_suite):
     # Grab the Base for the previous schema so that we have all
@@ -66,4 +70,3 @@ def upgrade(engine):
     # Create our FieldChangeField table and commit.
     upgrade_testsuite(engine, session, 'nts')
     upgrade_testsuite(engine, session, 'compile')
-

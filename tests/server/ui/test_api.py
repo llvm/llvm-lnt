@@ -65,6 +65,7 @@ graph_data = [{u'time': u'2012-05-01T16:28:23',
                u'rev': u'152293',
                u'val': 10.0}]
 
+
 class JSONAPITester(unittest.TestCase):
     """Test the REST api."""
 
