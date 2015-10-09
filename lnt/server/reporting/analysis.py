@@ -73,8 +73,6 @@ class ComparisonResult:
         # Compute the comparison status for the test value.
         self.delta = 0
         self.pct_delta = 0.0
-        if prev_samples:
-            prev_samples = [s for s in prev_samples if s is not None]
         if self.current and prev_samples:
             self.delta, value = absmin_diff(self.current, prev_samples)
             if value != 0:
