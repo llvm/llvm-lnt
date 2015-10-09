@@ -90,5 +90,9 @@ http://llvm.org/svn/llvm-project/lnt/trunk
             'lnt = lnt.lnttool:main',
             ],
         },
-    install_requires=['Flask-RESTful', 'SQLAlchemy', 'Flask'],
+    install_requires=['WTForms',
+                      'Flask-WTF',
+                      'Flask-RESTful',
+                      'SQLAlchemy',
+                      'Flask'],
 )

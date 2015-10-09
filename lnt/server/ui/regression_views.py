@@ -15,7 +15,6 @@ import lnt.server.reporting.analysis
 from lnt.server.ui.globals import db_url_for, v4_url_for
 
 from collections import namedtuple
-from loremipsum import get_sentences
 from random import randint
 from sqlalchemy import desc, asc
 from lnt.server.ui.util import FLASH_DANGER, FLASH_INFO, FLASH_SUCCESS
