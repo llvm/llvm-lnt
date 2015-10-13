@@ -1711,7 +1711,7 @@ class NTTest(builtintest.BuiltinTest):
                              "[%default]",
                          action='append',
                          choices=KNOWN_SAMPLE_KEYS,
-                         default=[])
+                         default=['hash'])
         parser.add_option_group(group)
 
         (opts, args) = parser.parse_args(args)
