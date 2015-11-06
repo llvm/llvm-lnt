@@ -103,8 +103,7 @@ def convert_html_to_text(element):
     return ("".join(element.itertext()))
 
 
-def check_body_result_table(client, url, fieldname,
-                            expected_table_body_content):
+def get_results_table(client, url, fieldname):
     resp = check_code(client, url)
     html = resp.data
     tree = get_xml_tree(html)
@@ -112,6 +111,12 @@ def check_body_result_table(client, url, fieldname,
     table = find_table_with_heading(tree, table_header)
     assert table is not None, \
         "Couldn't find table with header '%s'" % table_header
+    return table
+
+
+def check_body_result_table(client, url, fieldname,
+                            expected_table_body_content):
+    table = get_results_table(client, url, fieldname)
     body_content = [[convert_html_to_text(cell).strip()
                      for cell in row.findall("./td")]
                     for row in table.findall("./tr")]
@@ -120,8 +125,36 @@ def check_body_result_table(client, url, fieldname,
         (expected_table_body_content, body_content)
 
 
+def get_sparkline(client, url, fieldname, testname, machinename):
+    table = get_results_table(client, url, fieldname)
+    body_content = [[cell
+                     for cell in row.findall("./td")]
+                    for row in table.findall("./tr")]
+    txt_body_content = [[convert_html_to_text(cell).strip()
+                         for cell in row.findall("./td")]
+                        for row in table.findall("./tr")]
+    cur_test_name = ""
+    for rownr, row_content in enumerate(txt_body_content):
+        nr_columns = len(row_content)
+        for colnr, col_content in enumerate(row_content):
+            if colnr == 0 and col_content != "":
+                cur_test_name = col_content
+            if colnr == 1 and col_content != "":
+                cur_machine_name = machinename
+                if (cur_machine_name, cur_test_name) == \
+                   (machinename, testname):
+                    return body_content[rownr][-1]
+    return None
+
+
+def extract_sample_points(sparkline_svg):
+    # assume all svg:circle elements are exactly all the sample points
+    samples = sparkline_svg.findall(".//circle")
+    return samples
+
+
 def main():
-    _,instance_path = sys.argv
+    _, instance_path = sys.argv
 
     # Create the application instance.
     app = lnt.server.ui.app.App.create_standalone(instance_path)
@@ -233,6 +266,20 @@ def main():
                              ["", "machine2", "1.0000", "-", "900.00%", ""],
                              ["test2", ""],
                              ["", "machine2", "FAIL", "-", "PASS", ""]])
+
+    # Check that a failing result does not show up in the spark line
+    # as a dot with value 0.
+    check_body_result_table(client,
+                            '/v4/nts/daily_report/2012/5/13?num_days=3',
+                            "execution_time",
+                            [["test6", ""],
+                             ["", "machine2", "1.0000", "FAIL", "PASS", ""]])
+    sparkline_xml = get_sparkline(client,
+                                  '/v4/nts/daily_report/2012/5/13?num_days=3',
+                                  "execution_time", "test6", "machine2")
+    nr_sample_points = len(extract_sample_points(sparkline_xml))
+    assert 2 == nr_sample_points, \
+        "Expected 2 sample points, found %d" % nr_sample_points
 
     # Now check the compile report
     # Get the V4 overview page.

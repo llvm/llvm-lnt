@@ -3,6 +3,7 @@ INSERT INTO "NT_Test" ("Name")
  VALUES('SingleSource/UnitTests/ObjC/block-byref-aggr'); -- ID 3 (was 87)
 INSERT INTO "compile_Test" ("Name")
  VALUES('compile/403.gcc/combine.c/init/(-O0)'); -- ID 3 (was 38)
+ 
 -- make sure there are 3 machines - to test ?filter-machine-regex= on daily_report page
 INSERT INTO "NT_Machine" ("Name", "Parameters", "hardware", "os")
  VALUES('machine2','[]','AArch64','linux'); -- ID 2
@@ -30,9 +31,10 @@ INSERT INTO "NT_Sample" ("RunID", "TestID", "compile_status",
                          "execution_status", "compile_time", "execution_time",
                          "score", "mem_bytes")
  VALUES(4,1,NULL,NULL,0.001,0.0001,NULL,NULL); -- ID 4
+ 
 -- check that a regression on consecutive runs more than 1 day apart can be detected:
-INSERT INTO "NT_Test" VALUES(88,'test1');
-INSERT INTO "NT_Test" VALUES(89,'test2');
+INSERT INTO "NT_Test" VALUES(4,'test1'); -- ID 4
+INSERT INTO "NT_Test" VALUES(5,'test2'); -- ID 5
 INSERT INTO "NT_Order" ("NextOrder", "PreviousOrder", "llvm_project_revision")
  VALUES(NULL,NULL,'152292'); -- ID 5
 INSERT INTO "NT_Run" ("MachineID", "OrderID", "ImportedFrom", "StartTime",
@@ -42,11 +44,11 @@ INSERT INTO "NT_Run" ("MachineID", "OrderID", "ImportedFrom", "StartTime",
 INSERT INTO "NT_Sample" ("RunID", "TestID", "compile_status",
                          "execution_status", "compile_time", "execution_time",
                          "score", "mem_bytes")
- VALUES(5,88,0,0,0.001,1.0,NULL,NULL); -- ID 5: passing result
+ VALUES(5,4,0,0,0.001,1.0,NULL,NULL); -- ID 5: passing result
 INSERT INTO "NT_Sample" ("RunID", "TestID", "compile_status",
                          "execution_status", "compile_time", "execution_time",
                          "score", "mem_bytes")
- VALUES(5,89,0,1,0.001,1.0,NULL,NULL); -- ID 6: failing result
+ VALUES(5,5,0,1,0.001,1.0,NULL,NULL); -- ID 6: failing result
 INSERT INTO "NT_Order" ("NextOrder", "PreviousOrder", "llvm_project_revision")
  VALUES(5,NULL,'152293'); -- ID 6
 UPDATE "NT_Order" SET "PreviousOrder" = 6 WHERE "ID" = 5;
@@ -57,10 +59,45 @@ INSERT INTO "NT_Run" ("MachineID", "OrderID", "ImportedFrom", "StartTime",
 INSERT INTO "NT_Sample" ("RunID", "TestID", "compile_status",
                          "execution_status", "compile_time", "execution_time",
                          "score", "mem_bytes")
- VALUES(6,88,0,0,0.001,10.0,NULL,NULL); -- ID 7: passing result 10x slower
+ VALUES(6,4,0,0,0.001,10.0,NULL,NULL); -- ID 7: passing result 10x slower
 INSERT INTO "NT_Sample" ("RunID", "TestID", "compile_status",
                          "execution_status", "compile_time", "execution_time",
                          "score", "mem_bytes")
- VALUES(5,89,0,0,0.001,1.0,NULL,NULL); -- ID 8: passing result
+ VALUES(5,5,0,0,0.001,1.0,NULL,NULL); -- ID 8: passing result
+
+-- check that a failing test result does not show up in the sparkline
+INSERT INTO "NT_Test" VALUES(6,'test6'); -- ID 6
+INSERT INTO "NT_Order" ("NextOrder", "PreviousOrder", "llvm_project_revision")
+ VALUES(NULL,NULL,'152294'); -- ID 6
+INSERT INTO "NT_Order" ("NextOrder", "PreviousOrder", "llvm_project_revision")
+ VALUES(NULL,NULL,'152295'); -- ID 7
+INSERT INTO "NT_Order" ("NextOrder", "PreviousOrder", "llvm_project_revision")
+ VALUES(NULL,NULL,'152296'); -- ID 8
+INSERT INTO "NT_Run" ("MachineID", "OrderID", "ImportedFrom", "StartTime",
+                      "EndTime", "SimpleRunID", "Parameters")
+ VALUES(2,6,'run7.json','2012-05-10 16:28:23.000000',
+        '2012-05-10 16:28:58.000000',NULL,'[]'); -- ID 7
+INSERT INTO "NT_Run" ("MachineID", "OrderID", "ImportedFrom", "StartTime",
+                      "EndTime", "SimpleRunID", "Parameters")
+ VALUES(2,7,'run8.json','2012-05-11 16:28:23.000000',
+        '2012-05-11 16:28:58.000000',NULL,'[]'); -- ID 8
+INSERT INTO "NT_Run" ("MachineID", "OrderID", "ImportedFrom", "StartTime",
+                      "EndTime", "SimpleRunID", "Parameters")
+ VALUES(2,8,'run9.json','2012-05-12 16:28:23.000000',
+        '2012-05-12 16:28:58.000000',NULL,'[]'); -- ID 9
+INSERT INTO "NT_Sample" ("RunID", "TestID", "compile_status",
+                         "execution_status", "compile_time", "execution_time",
+                         "score", "mem_bytes")
+ VALUES(7,6,0,0,0.001,1.0,NULL,NULL); -- ID 9: passing result
+INSERT INTO "NT_Sample" ("RunID", "TestID", "compile_status",
+                         "execution_status", "compile_time", "execution_time",
+                         "score", "mem_bytes")
+ VALUES(8,6,0,1,0.001,1.0,NULL,NULL); -- ID 10: failing result
+INSERT INTO "NT_Sample" ("RunID", "TestID", "compile_status",
+                         "execution_status", "compile_time", "execution_time",
+                         "score", "mem_bytes")
+ VALUES(9,6,0,0,0.001,1.2,NULL,NULL); -- ID 11: passing result; 20% bigger,
+                                      -- so shown in daily report page.
+
 
 COMMIT;

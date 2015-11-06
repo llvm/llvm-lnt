@@ -39,7 +39,10 @@ machine_expected_response[0][u'runs'] = [u'/api/db_default/v4/nts/run/1',
 machine_expected_response[1] = machines_expected_response[1].copy()
 machine_expected_response[1][u'runs'] = [u'/api/db_default/v4/nts/run/3',
                                          u'/api/db_default/v4/nts/run/5',
-                                         u'/api/db_default/v4/nts/run/6']
+                                         u'/api/db_default/v4/nts/run/6',
+                                         u'/api/db_default/v4/nts/run/7',
+                                         u'/api/db_default/v4/nts/run/8',
+                                         u'/api/db_default/v4/nts/run/9']
 
 machine_expected_response[2] = machines_expected_response[2].copy()
 machine_expected_response[2][u'runs'] = [u'/api/db_default/v4/nts/run/4']
@@ -105,7 +108,7 @@ class JSONAPITester(unittest.TestCase):
     def test_graph_api(self):
         """Check that /graph/x/y/z returns what we expect."""
         client = self.client
-        j = check_json(client, 'api/db_default/v4/nts/graph/2/88/3')
+        j = check_json(client, 'api/db_default/v4/nts/graph/2/4/3')
         self.assertEqual(graph_data, j)
 
 if __name__ == '__main__':

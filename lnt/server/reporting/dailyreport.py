@@ -58,7 +58,7 @@ class DayResults:
         for dr in self.day_results:
             if dr is None:
                 continue
-            if dr.cr.samples is not None:
+            if dr.cr.samples is not None and not dr.cr.failed:
                 all_samples.extend(dr.cr.samples)
         if len(all_samples) > 0:
             self.min_sample = min(all_samples)

@@ -159,24 +159,26 @@
 {#- Make y-axis go upwards instead of downwards: #}
       <g transform="translate(0, {{full_height}}) scale(1, -1) ">
 {%- for dr in day_results -%}
-  {%- set day_nr = loop.index %}
-  {%- set nr_samples_for_day = dr.samples|length %}
-  {%- for sample in dr.samples -%}
-    {# fuzz the x-coordinate slightly so that multiple samples with the same
-       value can be noticed #}
-    {%- set sample_fuzz = (-sample_fuzzing*1.25) +
-                     (2.0*sample_fuzzing/nr_samples_for_day) * loop.index %}
+  {%- if dr is not none and not dr.cr.failed -%}
+    {%- set day_nr = loop.index %}
+    {%- set nr_samples_for_day = dr.samples|length %}
+    {%- for sample in dr.samples -%}
+      {# fuzz the x-coordinate slightly so that multiple samples with the same
+         value can be noticed #}
+      {%- set sample_fuzz = (-sample_fuzzing*1.25) +
+                       (2.0*sample_fuzzing/nr_samples_for_day) * loop.index %}
         <circle cx="{{ spark_x_coord(day_nr)|float + sample_fuzz }}" {# -#}
                 cy="{{ spark_y_coord(day_nr, sample) }}" r="1"
                 stroke-width="1" stroke="black" fill="black" />
-  {%- endfor -%}
+    {%- endfor -%}
+  {%- endif -%}
 {%- endfor %}
         <polyline points="
   {%- for dr in day_results -%}
     {%- if dr is not none -%}
       {%- set cr = dr.cr -%}
       {%- set day_nr = loop.index -%}
-      {%- if cr.current is not none %}
+      {%- if not cr.failed and cr.current is not none %}
           {{ spark_x_coord(day_nr) }} {{ spark_y_coord(day_nr, cr.current) }}
       {%- endif -%}
     {%- endif -%}
