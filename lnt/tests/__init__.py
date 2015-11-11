@@ -5,7 +5,7 @@ Access to built-in tests.
 # FIXME: There are better ways to do this, no doubt. We also would like this to
 # be extensible outside of the installation. Lookup how 'nose' handles this.
 
-known_tests = set(['compile', 'nt'])
+known_tests = set(['compile', 'nt', 'test_suite'])
 
 def get_test_names():
     """get_test_names() -> list
@@ -20,7 +20,10 @@ def get_test_instance(name):
 
     Return an instance of the named test.
     """
-
+    # Allow hyphens instead of underscores when specifying the test on the command
+    # line. (test-suite instead of test_suite).
+    name = name.replace('-', '_')
+    
     if name not in known_tests:
         raise KeyError,name
 
