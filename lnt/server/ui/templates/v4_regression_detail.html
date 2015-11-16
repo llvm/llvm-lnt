@@ -36,7 +36,7 @@
          {% set graph_base=v4_url_for('v4_graph', highlight_run=ind.run.id) %}
         <td>{{utils.render_machine(ind.ri.machine)}}</td>
         <td>{{ind.ri.field.name}}</td>
-        <td><a href="{{graph_base}}&plot.{{ind.ri.test.id}}={{ ind.ri.machine.id}}.{{ind.ri.test.id}}.{{ind.ri.field.index}}">{{ ind.ri.test.name }}</a></td>
+        <td><a href="{{graph_base}}&amp;plot.{{ind.ri.test.id}}={{ ind.ri.machine.id}}.{{ind.ri.test.id}}.{{ind.ri.field.index}}">{{ ind.ri.test.name }}</a></td>
         <td><span class="reltime" data-toggle="tooltip" title="{{ind.run.end_time}}">{{ ind.run.end_time.isoformat() }}</td>
 
         <td>{{utils.render_order_link(ind.ri.start_order)}}</td>

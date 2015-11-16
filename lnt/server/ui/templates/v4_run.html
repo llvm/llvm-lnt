@@ -339,7 +339,7 @@
           {% for test_name,test_id,cr in tests %}
             <tr>
               <td><input type="checkbox" name="plot.{{test_id}}" value="{{machine.id}}.{{test_id}}.{{field.index}}"></td>
-              <td class="benchmark-name"><a href="{{graph_base}}&plot.{{test_id}}={{ machine.id}}.{{test_id}}.{{field.index}}">{{ test_name }}</a></td>
+              <td class="benchmark-name"><a href="{{graph_base}}&amp;plot.{{test_id}}={{ machine.id}}.{{test_id}}.{{field.index}}">{{ test_name }}</a></td>
               {{ get_cell_value(cr) }}
             </tr>
           {% endfor %}
@@ -348,8 +348,8 @@
           {% set cr = request_info.sri.get_geomean_comparison_result(
                       run, compare_to, field, tests) %}
           <td><input type="checkbox" name="mean" value="{{machine.id}}.{{field.index}}"></td>
-          <td><a href="{{graph_base}}&mean={{machine.id}}.{{field.index}}">Geometric Mean</a></td>
           {{ get_cell_value(cr) }}
+          <td><a href="{{graph_base}}&amp;mean={{machine.id}}.{{field.index}}">Geometric Mean</a></td>
         </tfoot>
       </table>
       {{ utils.render_popup_end() }}

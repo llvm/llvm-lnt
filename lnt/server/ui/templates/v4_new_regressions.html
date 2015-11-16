@@ -238,7 +238,7 @@ function update_tooltip(event, pos, item, show_fn, graph_data) {
         <td>{{utils.render_machine(fc.ri.machine)}}</td>
         <td> {{ fc.ri.field.name }} </td>
          {% set graph_base=v4_url_for('v4_graph', highlight_run=fc.run.id) %}
-        <td><a href="{{graph_base}}&plot.{{fc.ri.test.id}}={{ fc.ri.machine.id}}.{{fc.ri.test.id}}.{{fc.ri.field.index}}">{{ fc.ri.test.name }}</a></td>
+        <td><a href="{{graph_base}}&amp;plot.{{fc.ri.test.id}}={{ fc.ri.machine.id}}.{{fc.ri.test.id}}.{{fc.ri.field.index}}">{{ fc.ri.test.name }}</a></td>
         <td>m{{ fc.ri.start_order.llvm_project_revision }}, {{utils.render_order_link(fc.ri.end_order)}}</td>
         <td>{{ fc.cr.previous }}</td><td>{{ fc.cr.current }}</td>
         {{ utils.get_regression_cell_value(fc.cr, analysis)}}

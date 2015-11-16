@@ -154,7 +154,7 @@ def generate_run_report(run, baseurl, only_html_body=False,
         url_fields.append(('compare_to', str(compare_to.id)))
     if baseline:
         url_fields.append(('baseline', str(baseline.id)))
-    report_url = "%s?%s" % (run_url, "&".join("%s=%s" % (k,v)
+    report_url = "%s?%s" % (run_url, "&amp;".join("%s=%s" % (k,v)
                                               for k,v in url_fields))
 
     # Compute static CSS styles for elemenets. We use the style directly on
