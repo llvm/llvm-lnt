@@ -106,6 +106,7 @@
       {{ "<b>"|safe if r.id == run.id else "" }}
       <a href="{{v4_url_for('v4_run', id=r.id)}}"><span class="utctime">{{ r.start_time.isoformat() }}</span></a>
       {{ "</b>"|safe if r.id == run.id else "" }}
+    </li>
   {% endfor %}
   </ul>
   {# Show a small number of runs in the neighborhood of the comparison run. #}
@@ -117,6 +118,7 @@
         {{ "<b>"|safe if compare_to and r.id == compare_to.id else "" }}
         <a href="{{v4_url_for('v4_run', id=run.id, compare_to=r.id)}}"><span class="utctime">{{ r.start_time.isoformat() }}</span></a>
         {{ "</b>"|safe if compare_to and r.id == compare_to.id else "" }}
+      </li>
     {% endfor %}
     </ul>
   {% endif %}
@@ -124,7 +126,7 @@
 
 {% block body %}
 
-  <section id="machine_info" />
+  <section id="machine_info">
   {{ utils.render_popup_begin('machine_info', 'Machine Info', true) }}
   <h4>Fields</h4>
   <table class="table table-striped table-condensed table-hover">
@@ -146,8 +148,9 @@
   {% endfor %}
   </table>
   {{ utils.render_popup_end() }}
+  </section>
 
-  <section id="run_info" />
+  <section id="run_info">
   {{ utils.render_popup_begin('run_info', 'Run Info', true) }}
   <h4>Fields</h4>
   <table class="table table-striped table-condensed table-hover">
@@ -184,8 +187,9 @@
     {% endfor %}
   </table>
   {{ utils.render_popup_end() }}
+  </section>
 
-  <section id="view_options" />
+  <section id="view_options">
   {{ utils.render_popup_begin('view_options', 'View Options', true) }}
   <form action="" method="get">
     <table class="table table-striped table-condensed table-hover">
@@ -207,7 +211,7 @@
     </tr>
     <tr>
       <td>Show All Values:</td>
-      <td><input type="checkbox" name="show_all" value="yes" {{ "checked" if options.show_all else "" }}><td>
+      <td><input type="checkbox" name="show_all" value="yes" {{ "checked" if options.show_all else "" }}></td>
     </tr>
     <tr>
       <td>Show All Samples:</td>
@@ -250,9 +254,9 @@
       <td>
         <select name="aggregation_fn">
         <option value="min" {{ " selected" if "min" == options.aggregation_fn else ""}}>
-          Minimum</value>
+          Minimum</option>
         <option value="median" {{ " selected" if "median" == options.aggregation_fn else ""}}>
-          Median</value>
+          Median</option>
         </select>
       </td>
     </tr>
@@ -261,11 +265,11 @@
       <td>
         <select name="MW_confidence_lv">
           <option value="0.10" {{ "selected" if options.MW_confidence_lv == 0.10 else ""}}>
-            10%</value>
+            10%</option>
           <option value="0.05" {{ "selected" if options.MW_confidence_lv == 0.05 else ""}}>
-            5%</value>
+            5%</option>
           <option value="0.01" {{ "selected" if options.MW_confidence_lv == 0.01 else ""}}>
-            1%</value>
+            1%</option>
         </select>
       </td>
     </tr>
@@ -284,8 +288,9 @@
     </table>
   </form>
   {{ utils.render_popup_end() }}
+  </section>
 
-  <section id="report" />
+  <section id="report">
   {{ utils.render_popup_begin('html_report', 'Report',
                               options.hide_report_by_default) }}
 
@@ -302,7 +307,7 @@
 
     {# Report one table for each primary field. #}
     {% for field in metric_fields %}
-      <section id="{{ field.name }}" />
+      <section id="{{ field.name }}">
       {{ utils.render_popup_begin('test_data-' + field.name, field.name, false) }}
       <table class="table table-striped table-hover table-condensed sortable">
         <thead>
@@ -348,9 +353,11 @@
         </tfoot>
       </table>
       {{ utils.render_popup_end() }}
+      </section>
     {% endfor %}
     <p><input type="submit" value="Graph">
   </form>
+  </section>
 
   {% if options.show_data_table %}
     <h3>Test Data</h3>
