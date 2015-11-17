@@ -71,7 +71,7 @@
       <a href="{{ ts_url }}/{{ key_run.id }}">{{
         key_run.order.llvm_project_revision}}</a></td>
 {%-   else -%}
-    <td style="{{ styles.td }}" bgcolor="#FF0000">N/A</td>
+    <td style="{{ styles.td }}; background-color:#FF0000">N/A</td>
 {%-   endif -%}
 {%- endfor %}
   </tr>
@@ -84,9 +84,9 @@
 
 {%- if (test_status == analysis.REGRESSED or
        test_status == analysis.UNCHANGED_FAIL) %}
-    <td style="{{ styles.td }}" bgcolor="#e98080">FAIL</td>
+    <td style="{{ styles.td }}; background-color:#e98080">FAIL</td>
 {%- else %}
-    <td style="{{ styles.td }}" bgcolor="#d2d2d2"> {#- -#}
+    <td style="{{ styles.td }}; background-color:#d2d2d2"> {#- -#}
       {{ ("%.4f" % cr.current) if cr.current != none else "N/A" }}</td>
 {%- endif -%}
 
@@ -98,9 +98,9 @@
 {%- set value_status = cr.get_value_status() -%}
 {%- if (test_status == analysis.REGRESSED or
        test_status == analysis.UNCHANGED_FAIL) %}
-    <td style="{{ styles.td }}" bgcolor="#e98080">FAIL</td>
+    <td style="{{ styles.td }}; background-color:#e98080">FAIL</td>
 {%- elif test_status == analysis.IMPROVED %}
-    <td style="{{ styles.td }}" bgcolor="#8fdf5f">PASS</td>
+    <td style="{{ styles.td }}; background-color:#8fdf5f">PASS</td>
 {%- else -%}
 {%- if (value_status == analysis.REGRESSED or
        value_status == analysis.IMPROVED) %}

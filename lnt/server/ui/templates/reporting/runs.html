@@ -15,7 +15,7 @@
    <p>
      <table style="{{ styles['table'] }}">
        <tr>
-         <th style="{{ styles['th'] }}" width="500">{{ bucket_name }} - {{ field_display_name }}</th>
+         <th style="{{ styles['th'] }}; width:500px">{{ bucket_name }} - {{ field_display_name }}</th>
        {% if not show_perf %}
          <tbody class="searchable">
          {% for name in test_names %}
@@ -112,9 +112,9 @@
   <thead>
     <tr>
       <th style="{{ styles['th'] }}">Status Group</th>
-      <th style="{{ styles['th'] }}" align="right">#</th>
+      <th style="{{ styles['th'] }}; text-align:right">#</th>
       {% if baseline %}
-        <th style="{{ styles['th'] }}" align="right"># (B)</th>
+        <th style="{{ styles['th'] }}; text-align:right"># (B)</th>
       {% endif %}
     </tr>
   </thead>
@@ -123,9 +123,9 @@
     {% if num_items or num_items_vs_baseline %}
       <tr>
         <td style="{{ styles['td'] }}">{{ name }}</td>
-        <td style="{{ styles['td'] }}" align="right">{{ num_items }}</td>
+        <td style="{{ styles['td'] }}; text-align:right">{{ num_items }}</td>
         {% if baseline %}
-        <td style="{{ styles['td'] }}" align="right">{{ num_items_vs_baseline }}</td>
+        <td style="{{ styles['td'] }}; text-align:right">{{ num_items_vs_baseline }}</td>
         {% endif %}
       </tr>
     {% endif %}
@@ -134,7 +134,7 @@
   <tfoot>
     <tr>
       <td style="{{ styles['td'] }}"><b>Total Tests</b></td>
-      <td style="{{ styles['td'] }}" align="right"><b>{{ num_total_tests }}</b></td>
+      <td style="{{ styles['td'] }}; text-align:right"><b>{{ num_total_tests }}</b></td>
       {% if baseline %}
       <td></td>
       {% endif %}
