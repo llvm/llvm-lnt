@@ -13,6 +13,7 @@ from optparse import OptionParser, OptionGroup
 import urllib2
 import shlex
 import pipes
+import resource
 
 import lnt.testing
 import lnt.testing.util.compilers
@@ -43,15 +44,36 @@ class TestModule(object):
     def main(self):
         raise NotImplementedError
 
-    def execute_test(self, options):
+    def execute_test(self, options, make_variables, config):
         raise RuntimeError("Abstract Method.")
 
-    def _execute_test(self, test_log, options):
+    def _execute_test(self, test_log, options, make_variables, config):
         self._log = test_log
+        self._user_time = config.test_time_stat == 'user'
         try:
-            return self.execute_test(options)
+            return self.execute_test(options, make_variables, config)
         finally:
             self._log = None
+
+    def call(self, args, **kwargs):
+        if kwargs.get('shell', False):
+            cmdstr = args
+        else:
+            cmdstr = ' '.join(args)
+
+        if 'cwd' in kwargs:
+            print >>self._log, "# In working dir: " + kwargs['cwd']
+        print >>self.log, cmdstr
+
+        self._log.flush()
+        p = subprocess.Popen(args, stdout=self._log, stderr=self._log, **kwargs)
+        return p.wait()
+
+    def get_time(self):
+        if self._user_time:
+            return resource.getrusage(resource.RUSAGE_CHILDREN).ru_utime
+        else:
+            return time.time()
 
     @property
     def log(self):
@@ -322,6 +344,10 @@ class TestConfiguration(object):
             make_variables['LD_ENV_OVERRIDES'] = (
                 'env DYLD_LIBRARY_PATH=%s' % os.path.dirname(
                     self.liblto_path))
+        # If ref input is requested for SPEC, we wil run SPEC through its new test
+        # module so skip SPEC as part of NT.
+        if self.test_spec_ref:
+            make_variables['USE_SPEC_TEST_MODULE'] = '1'
 
         if self.threads > 1 or self.build_threads > 1:
             make_variables['ENABLE_PARALLEL_REPORT'] = '1'
@@ -448,6 +474,10 @@ def scan_for_test_modules(config):
         if not config.include_test_examples and 'Examples' in dirnames:
             dirnames.remove('Examples')
 
+        # Only use the SPEC test module if the ref input was requested.
+        if not config.test_spec_ref and re.search('/spec', dirpath):
+            continue
+
         # Check if this directory defines a test module.
         if 'TestModule' not in filenames:
             continue
@@ -486,7 +516,7 @@ def execute_command(test_log, basedir, args, report_dir):
 
 # FIXME: Support duplicate logfiles to global directory.
 def execute_test_modules(test_log, test_modules, test_module_variables,
-                         basedir, config):
+                         basedir, config, make_variables):
     # For now, we don't execute these in parallel, but we do forward the
     # parallel build options to the test.
     test_modules.sort()
@@ -497,6 +527,8 @@ def execute_test_modules(test_log, test_modules, test_module_variables,
         # First, load the test module file.
         locals = globals = {}
         test_path = os.path.join(config.test_suite_root, 'LNTBased', name)
+        # This is where shared code between test modules should go.
+        sys.path.append(os.path.join(config.test_suite_root, 'LNTBased/lib'))
         test_obj_path = os.path.join(basedir, 'LNTBased', name)
         module_path = os.path.join(test_path, 'TestModule')
         module_file = open(module_path)
@@ -515,7 +547,9 @@ def execute_test_modules(test_log, test_modules, test_module_variables,
         try:
             test_instance = test_class()
         except:
-            fatal("unable to instantiate test class for: %r" % module_path)
+            info = traceback.format_exc()
+            fatal("unable to instantiate test class for: %r\n%s" % (
+                    module_path, info))
 
         if not isinstance(test_instance, TestModule):
             fatal("invalid test class (expected lnt.tests.nt.TestModule "
@@ -530,7 +564,7 @@ def execute_test_modules(test_log, test_modules, test_module_variables,
 
         # Execute the tests.
         try:
-            test_samples = test_instance._execute_test(test_log, variables)
+            test_samples = test_instance._execute_test(test_log, variables, make_variables, config)
         except:
             info = traceback.format_exc()
             fatal("exception executing tests for: %r\n%s" % (
@@ -977,7 +1011,7 @@ def run_test(nick_prefix, iteration, config):
     # Run the extension test modules, if needed.
     test_module_results = execute_test_modules(test_log, test_modules,
                                                test_module_variables, basedir,
-                                               config)
+                                               config, make_variables)
     test_log.close()
 
     end_time = timestamp()
@@ -1552,6 +1586,8 @@ class NTTest(builtintest.BuiltinTest):
         group.add_option("", "--mllvm", dest="mllvm",
                          help="Add -mllvm FLAG to TARGET_FLAGS",
                          action="append", type=str, default=[], metavar="FLAG")
+        group.add_option("", "--spec-with-pgo", help="Use PGO with SPEC",
+                         action="store_true")
         parser.add_option_group(group)
 
         group = OptionGroup(parser, "Test Selection")
@@ -1600,6 +1636,10 @@ class NTTest(builtintest.BuiltinTest):
                          action="store_true", default=False)
         group.add_option("", "--large", dest="test_large",
                          help="Use larger test inputs",
+                         action="store_true", default=False)
+        group.add_option("", "--spec-with-ref", dest="test_spec_ref",
+                         help="Use reference test inputs for SPEC.  "
+                         "This is currently experimental",
                          action="store_true", default=False)
         group.add_option("", "--benchmarking-only", dest="test_benchmarking_only",
                          help="Benchmarking-only mode",
@@ -1844,6 +1884,12 @@ class NTTest(builtintest.BuiltinTest):
                 parser.error('--remote is required with --remote-port')
             if opts.remote_user is not None:
                 parser.error('--remote is required with --remote-user')
+
+        if opts.test_spec_ref and opts.remote:
+            parser.error('--remote with --spec-with-ref is not yet supported')
+
+        if opts.spec_with_pgo and not opts.test_spec_ref:
+            parser.error('--spec-with-pgo is only supported with --spec-with-ref')
 
         # libLTO should exist, if given.
         if opts.liblto_path:
