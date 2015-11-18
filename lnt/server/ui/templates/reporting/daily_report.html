@@ -8,7 +8,7 @@
 <body style="{{ styles['body'] }}">
 {% endif %}
 
-<center><h2>{#
+<h2 style="text-align:center">{#
   #}(<a href="{{ts_url}}/daily_report/{{
                  report.prior_days[1].year}}/{{
                  report.prior_days[1].month}}/{{
@@ -31,10 +31,11 @@
 		 report.get_query_parameters_string()
 		 }}">next</a>){#
 #}</h2>
+<p style="text-align:center">
 (day start is considered to be at UTC+{{ "%02d:%02d" % (
     report.day_start_offset.seconds // 3600,
     (report.day_start_offset.seconds // 60) % 60,)}})
-</center>
+</p>
 
 {% if report.error is not none %}
 
