@@ -1885,9 +1885,6 @@ class NTTest(builtintest.BuiltinTest):
             if opts.remote_user is not None:
                 parser.error('--remote is required with --remote-user')
 
-        if opts.test_spec_ref and opts.remote:
-            parser.error('--remote with --spec-with-ref is not yet supported')
-
         if opts.spec_with_pgo and not opts.test_spec_ref:
             parser.error('--spec-with-pgo is only supported with --spec-with-ref')
 
