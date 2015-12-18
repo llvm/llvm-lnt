@@ -73,20 +73,19 @@ def regenerate_fieldchanges_for_run(ts, run_id):
                 continue
 
             if result.is_result_performance_change() and not f:
-
+                test = ts.query(ts.Test).filter(ts.Test.id == test_id).one()
                 f = ts.FieldChange(start_order=start_order,
                                    end_order=run.order,
                                    machine=run.machine,
-                                   test=None,
+                                   test=test,
                                    field=field)
-                f.test_id = test_id
                 ts.add(f)
                 ts.commit()
                 found, new_reg = identify_related_changes(ts, regressions, f)
                 if found:
                     regressions.append(new_reg)
                 note("Found field change: {}".format(run.machine))
-                
+
             # Always update FCs with new values.
             if f:
                 f.old_value = result.previous
