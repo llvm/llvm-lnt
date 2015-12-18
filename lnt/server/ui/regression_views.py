@@ -1,5 +1,6 @@
 import datetime
 from flask import g
+from flask import abort
 from flask import render_template
 from flask import request
 from flask import make_response
@@ -23,9 +24,9 @@ from wtforms import SelectMultipleField, StringField, widgets, SelectField
 from flask_wtf import Form
 from wtforms.validators import DataRequired
 import lnt.server.ui.util as util
-
+from lnt.testing.util.commands import warning, error, note
 import lnt.server.db.fieldchange
-
+from lnt.server.db import rules_manager as rule_hooks
 
 class RegressionState:
     # A new regression, not approved by the user yet.
@@ -251,6 +252,10 @@ class MergeRegressionForm(Form):
 
 @v4_route("/regressions/", methods=["GET", "POST"])
 def v4_regression_list():
+    warning("regression list")
+    error("regression list")
+    note("regression list")
+
     ts = request.get_testsuite()
     form = MergeRegressionForm(request.form)
 
@@ -401,3 +406,9 @@ def v4_regression_detail(id):
                            testsuite_name=g.testsuite_name,
                            regression=regression_info, changes=crs,
                            form=form, analysis=lnt.server.reporting.analysis)
+
+@v4_route("/hook",  methods=["GET"])
+def v4_hook():
+    ts = request.get_testsuite()
+    rule_hooks.post_submission_hooks(ts, 0)
+    abort(400)

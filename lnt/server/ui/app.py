@@ -23,6 +23,7 @@ import lnt.server.ui.views
 
 import lnt.server.ui.regression_views
 from lnt.server.ui.api import load_api_resources
+import lnt.server.db.rules_manager
 
 
 class RootSlashPatchMiddleware(object):
@@ -151,6 +152,8 @@ class App(flask.Flask):
 
         # Set the application secret key.
         self.secret_key = self.old_config.secretKey
+        
+        lnt.server.db.rules_manager.register_hooks()
 
     def start_file_logging(self):
         """Start server production logging.  At this point flask already logs

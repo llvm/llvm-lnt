@@ -22,13 +22,12 @@ def is_fixed(ts, regression):
     fixed?
     """
     r_inds = get_ris(ts, regression)
-    changes = [r.field_change for r in r_inds]
-    fixes = [_fixed_rind(ts, x) for x in changes]
+    fixes = [_fixed_rind(ts, x) for x in r_inds]
     return all(fixes)
 
 
 
-def regression_evolution(ts, regressions):
+def regression_evolution(ts, run_id):
     """Analyse regressions. If they have changes, process them.
     Look at each regression in state detect.  Move to ignore if it is fixed.
     Look at each regression in state stage. Move to verify if fixed.
@@ -36,6 +35,7 @@ def regression_evolution(ts, regressions):
 
     """
     note("Running regression evolution")
+    regressions = ts.query(ts.Regression).all()
     detects = [r for r in regressions if r.state == RegressionState.DETECTED]
     
     for regression in detects:

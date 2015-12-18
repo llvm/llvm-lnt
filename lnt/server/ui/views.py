@@ -28,7 +28,7 @@ from lnt.server.ui.decorators import frontend, db_route, v4_route
 import lnt.server.ui.util
 import lnt.server.reporting.dailyreport
 import lnt.server.reporting.summaryreport
-import lnt.server.db.rules
+import lnt.server.db.rules_manager
 from collections import namedtuple
 
 integral_rex = re.compile(r"[\d]+")
@@ -1166,8 +1166,7 @@ You must define a summary report configuration first.""")
 
 @frontend.route('/rules')
 def rules():
-    lnt.server.db.rules.register_hooks()
-    discovered_rules = lnt.server.db.rules.DESCRIPTIONS
+    discovered_rules = lnt.server.db.rules_manager.DESCRIPTIONS
     return render_template("rules.html",rules=discovered_rules)
 
 @frontend.route('/log')
