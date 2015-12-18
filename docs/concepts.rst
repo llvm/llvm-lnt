@@ -71,4 +71,5 @@ can run a set of compile time benchmarks and submit to the Compile test suite.
 
 Given how simple it is to make your own results and send them to LNT,
 it is common to not use the LNT client application at all, and just have a
-custom script run your tests and submit the data to the LNT server.
+custom script run your tests and submit the data to the LNT server. Details
+on how to do this are in :mod:`lnt.testing`
