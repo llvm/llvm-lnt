@@ -158,3 +158,6 @@ class Config:
 
         raise NotImplementedError,"unable to load version %r database" % (
             db_entry.db_version,)
+
+    def get_database_names(self):
+        return self.databases.keys()
