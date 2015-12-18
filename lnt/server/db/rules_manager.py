@@ -31,7 +31,7 @@ def load_rules():
         # Ignore non-matching files.
         m = rule_script_rex.match(item)
         if m is None:
-            warning("ignoring item %r in rule  directory: %r", item, rules_path)
+            warning("ignoring item {} in rule  directory: {}".format(item, rules_path))
             continue
 
         name = m.groups()[0]
