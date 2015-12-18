@@ -3,7 +3,7 @@ import sqlalchemy.sql
 import lnt.server.reporting.analysis
 from lnt.testing.util.commands import warning
 from lnt.testing.util.commands import note
-from lnt.server.ui.regression_views import new_regression
+from lnt.server.ui.regression_views import new_regression, RegressionState
 # How many runs backwards to use in the previous run set.
 # More runs are slower (more DB access), but may provide
 # more accurate results.
@@ -105,12 +105,29 @@ def is_overlaping(fc1, fc2):
            (r1_min < r2_max and r2_min < r1_max)
 
 
-def rebuild_title(regression, new_size):
+def shortname(benchmark):
+    """Given a benchmarks full name, make a short version"""
+    return benchmark.split("/")[-1]
+
+
+def rebuild_title(ts, regression):
     """Update the title of a regresson."""
     if re.match("Regression of \d+ benchmarks.*", regression.title):
-        new_title = "Regression of {} benchmarks".format(new_size)
-        regression.title = new_title
-        print new_title
+        old_changes = ts.query(ts.RegressionIndicator) \
+            .filter(ts.RegressionIndicator.regression_id == regression.id) \
+            .all()
+        new_size = len(old_changes)
+        benchmarks = set()
+        for ri in old_changes:
+            fc = ri.field_change
+            benchmarks.add(shortname(fc.test.name))
+        print benchmarks
+        FMT = "Regression of {} benchmarks: {}"
+        title = FMT.format(new_size, ', '.join(benchmarks))
+        # Crop long titles.
+        title = (title[:120] + '...') if len(title) > 120 else title
+        regression.title = title
+        print title
     return regression
 
 
@@ -142,7 +159,7 @@ def identify_related_changes(ts, regressions, fc):
                     ri = ts.RegressionIndicator(regression, fc)
                     ts.add(ri)
                     # Update the default title if needed.
-                    rebuild_title(regression, len(regression_indicators) + 1)
+                    rebuild_title(ts, regression)
                     return (True, regression)
     note("Could not find a partner, creating new Regression for change")
     new_reg = new_regression(ts, [fc.id])

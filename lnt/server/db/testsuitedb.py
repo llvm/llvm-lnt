@@ -444,9 +444,10 @@ class TestSuiteDB(object):
             bug = Column("BugLink", String(256), unique=False, index=False)
             state = Column("State", Integer)
 
-            def __init__(self, title, bug):
+            def __init__(self, title, bug, state):
                 self.title = title
                 self.bug = bug
+                self.state = state
 
             def __repr__(self):
                 return '%s_%s:"%s"' % (db_key_name, self.__class__.__name__,

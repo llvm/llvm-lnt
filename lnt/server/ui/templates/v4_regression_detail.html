@@ -6,48 +6,259 @@
                       ("Tracking", v4_url_for("v4_regression_list"))] %}
 {% block title %}Regression Details{% endblock %}
 
+{% block head %}
+  <script src="{{ url_for('.static', filename='popup.js') }}"></script>
+  <script src="{{ url_for('.static', filename='sorttable.js') }}"></script>
+  <script language="javascript" type="text/javascript"
+          src="{{ url_for('.static',
+                          filename='flot/jquery.flot.min.js') }}"> </script>
+  <script language="javascript" type="text/javascript"
+          src="{{ url_for('.static',
+                          filename='flot/jquery.flot.errorbars.min.js') }}"> </script>
+  <script language="javascript" type="text/javascript"
+          src="{{ url_for('.static',
+                          filename='flot/jquery.flot.navigate.min.js') }}"> </script>
+  <script language="javascript" type="text/javascript"
+          src="{{ url_for('.static',
+                          filename='flot/jquery.flot.selection.min.js') }}"> </script>
+  <script language="javascript" type="text/javascript"
+          src="{{ url_for('.static',
+                          filename='flot/jquery.flot.highlight.min.js') }}"></script>
+  <script src="{{ url_for('.static', filename='lnt_graph.js') }}"></script>
+{% endblock %}
+
+
+
+
+{% block javascript %}
+var g = {}
+{% set api_graph = "api/db_default/v4/" + testsuite_name + "/graph"%}
+var changes = [
+{% for form_change in form.field_changes%}
+    {% set fc = changes[loop.index -1] %}
+    {"url": "/{{api_graph}}/{{ fc.ri.machine.id}}/{{fc.ri.test.id}}/{{fc.ri.field.index}}",
+     "start": {{fc.ri.start_order.llvm_project_revision}},
+     "end": {{fc.ri.end_order.llvm_project_revision}}
+ },
+{% endfor %}
+];
+
+/* Bind events to the zoom bar buttons, so that 
+ * the zoom buttons work, then position them
+ * over top of the main graph.
+ */
+function bind_zoom_bar(my_plot) {
+
+	$('#out').click(function (e) {
+        e.preventDefault(); 
+        my_plot.zoomOut(); 
+    }); 
+
+    $('#in').click(function (e) {
+        e.preventDefault(); 
+        my_plot.zoom(); 
+    }); 
+    
+
+	// Now move the bottons onto the graph.
+	$('#zoombar').css('position', 'relative');
+	$('#zoombar').css('left', '40px');
+	$('#zoombar').css('top', '-235px');
+}
+$('#normalize').click(function (e) {
+    normalize = !normalize;
+    alert(normalize);
+    update_graph();
+}); 
+function init(data, start_highlight, end_highlight) {
+  // Set up the primary graph.
+	var graph = $("#graph");
+	var graph_plots = data;
+    var line_width = 1;
+    if (data.length > 0 && data[0]['data'].length < 50) {
+        line_width = 2;
+    }
+	var graph_options = {
+      series : {
+        lines : {
+          lineWidth : line_width },
+        shadowSize : 0
+      },
+      highlight : {
+
+          range: {"end": [end_highlight], "start": [start_highlight]},
+          alpha: "0.1",
+          stroke: false,
+
+      },
+      zoom : { interactive : false },
+      pan : { interactive : true,
+              frameRate: 60 },
+      grid : {
+        hoverable : true }
+      };
+
+  var main_plot = $.plot("#graph", graph_plots, graph_options);
+
+  // Add tooltips.
+  $("#graph").bind("plothover", function(e,p,i) {
+    update_tooltip(e, p, i, show_tooltip, graph_plots); });
+  bind_zoom_bar(main_plot);
+ 
+ 
+}
+
+// Show our overlay tooltip.
+g.current_tip_point = null;
+function show_tooltip(x, y, item, pos, graph_data) {
+
+    // Given the event handler item, get the graph metadata.
+    function extract_metadata(item, graph_data) {
+        var index = item.dataIndex;
+        var series_index = item.seriesIndex;
+        // Graph data is formatted as [x, y, meta_data].
+        var meta_data = item.series.data[series_index][2];
+        return meta_data;
+
+    }
+    var data = item.datapoint;
+    var meta_data = extract_metadata(item, graph_data);
+    var tip_body = '<div id="tooltip">';
+
+    if ("test_name" in meta_data) {
+        tip_body += "<b>Test:</b> " + meta_data.test_name + "<br>";
+    }
+
+    if ("label" in meta_data) {
+        tip_body += "<b>Revision:</b> " + meta_data.label + "<br>";
+    }
+    tip_body += "<b>Value:</b> " + data[1].toFixed(4) + "<br>";
+
+    if ("date" in meta_data) {
+        tip_body += "<b>Date:</b> " + meta_data.date;
+    }
+    tip_body += "</div>";
+    var tooltip_div = $(tip_body).css( {
+        position: 'absolute',
+        display: 'none',
+        top: y + 5,
+        left: x + 5,
+        border: '1px solid #fdd',
+        padding: '2px',
+        'background-color': '#fee',
+        opacity: 0.80
+    }).appendTo("body").fadeIn(200);
+
+    // Now make sure the tool tip is on the graph canvas.
+    var tt_position = tooltip_div.position();
+    var tt_offset = tooltip_div.offset();
+
+    var graph_div = $("#graph");
+    var graph_position = graph_div.position();
+
+    // The right edge of the graph.
+    var max_width = graph_position.left + graph_div.width();
+    // The right edge of the tool tip.
+    var tt_right = tt_position.left + tooltip_div.width();
+
+    if (tt_right > max_width) {
+        var diff = tt_right - max_width
+        var GRAPH_BORDER = 10;
+        var VISUAL_APPEAL = 10;
+        tooltip_div.css({'left' : tt_position.left - diff 
+                         - GRAPH_BORDER - VISUAL_APPEAL});
+    }
+
+}
+
+// Event handler function to update the tooltop.
+function update_tooltip(event, pos, item, show_fn, graph_data) {
+    if (!item) {
+        $("#tooltip").remove();
+        g.current_tip_point = null;
+        return;
+    }
+        
+    if (!g.current_tip_point || (g.current_tip_point[0] != item.datapoint[0] ||
+                                 g.current_tip_point[1] != item.datapoint[1])) {
+        $("#tooltip").remove();
+        g.current_tip_point = item.datapoint;
+        show_fn(pos.pageX, pos.pageY, item, pos, graph_data);
+    }
+}
+{% endblock %}
+
 {% block body %}
 <section id="Regression Detail" />
 <h3>Regression: {{regression.title}}</h3>
-<a href="{{regression.bug}}">{{regression.bug}}</a>
-<form method="POST" action="">
-<table class="table table-striped table-hover table-condensed">
-  <caption>This needs to be dynamically queried</caption>
 
+<div id="graph" style="height:250px"></div>
+<div id="zoombar" style="width:40px;z-index: 999;">
+    <button id="in" type="button" class="btn btn-default" style="width:100%;text-align:center;">+</button>
+    <br>
+    <button id="out" type="button" class="btn btn-default" style="width:100%; text-align:center;">-</button>
+    <br>
+    <button id="normalize" type="button" class="btn btn-default" style="width:100%; text-align:center;">%</button>
+</div>
+
+<a href="{{regression.bug}}">{{regression.bug}}</a>
+
+
+
+
+<form method="POST" action="">
+    {{ form.hidden_tag() }}
+
+<table id="changes_table" class="display">
+  
   <thead>
   <tr>
     <th>X</th>
     <th>Machine</th>
     <th>Metric</th>
     <th>Test</th>
-    <th>Detected</th>
-    <th>Last Good Rev.</th>
-    <th>First Bad Rev.</th>
-    <th>Change</th>
-    <th>Current</th>
+    <th>Good, Bad</th>
+    <th>Old</th><th>New</th>
+    <th>%&Delta;</th>
+    <th>Now</th>
+    <th>Curernt</th>
+    <th>Age</th>
 
   </tr>
   </thead>
   <tbody>
+    {% set graph_base=v4_url_for('v4_graph') %}
+    {# Show the active submissions. #}
     {% for form_change in form.field_changes%}
-        {% set ind = indicators[loop.index -1] %}
+        {% set fc = changes[loop.index -1] %}
     <tr>
-        <td>{{form_change}}</td>
-         {% set graph_base=v4_url_for('v4_graph', highlight_run=ind.run.id) %}
-        <td>{{utils.render_machine(ind.ri.machine)}}</td>
-        <td>{{ind.ri.field.name}}</td>
-        <td><a href="{{graph_base}}&amp;plot.{{ind.ri.test.id}}={{ ind.ri.machine.id}}.{{ind.ri.test.id}}.{{ind.ri.field.index}}">{{ ind.ri.test.name }}</a></td>
-        <td><span class="reltime" data-toggle="tooltip" title="{{ind.run.end_time}}">{{ ind.run.end_time.isoformat() }}</td>
+        <td>
+            
+            <table>
+                <tr style="background:transparent;">
+                    <td style="background:transparent;"></td><td>{{ form_change }}</td>
+                </tr>
+            </table>
+        <td>{{utils.render_machine(fc.ri.machine)}}</td>
+        <td> {{ fc.ri.field.name }} </td>
+         {% set graph_base=v4_url_for('v4_graph', highlight_run=fc.run.id) %}
+        <td><a href="{{graph_base}}&amp;plot.{{fc.ri.test.id}}={{ fc.ri.machine.id}}.{{fc.ri.test.id}}.{{fc.ri.field.index}}">{{ fc.ri.test.name }}</a></td>
+        <td>m{{ fc.ri.start_order.llvm_project_revision }}, {{utils.render_order_link(fc.ri.end_order)}}</td>
+        <td>{{ fc.cr.previous }}</td><td>{{ fc.cr.current }}</td>
+        {{ utils.get_regression_cell_value(fc.cr, analysis)}}
+        <td>{{ fc.latest_cr.current }}</td>
 
-        <td>{{utils.render_order_link(ind.ri.start_order)}}</td>
-        <td>{{utils.render_order_link(ind.ri.end_order)}}</td>
-        {{utils.get_regression_cell_value(ind.cr, analysis)}}
-        {{utils.get_regression_cell_value(ind.latest_cr, analysis)}}
+        {{ utils.get_regression_cell_value(fc.latest_cr, analysis)}}
 
+        <td><span class="reltime" data-toggle="tooltip" title="{{fc.run.end_time}}">{{ fc.run.end_time.isoformat() }}</td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
+
+<button id="all" type="button" class="btn btn-default" onclick="all_checks()">Check Visable</button>
+<button id="clear" type="button" class="btn btn-default" onclick="clear_checks()">Clear Visable</button>
+
 
 <!-- Button to trigger modal -->
 <a href="#editRegressionModal" role="button" class="btn" data-toggle="modal">Edit</a>
@@ -63,6 +274,7 @@
       <div class="modal-body">
           <p>{{ form.title.label }}{{ form.title }}</p>
           <p>{{ form.bug.label }}{{form.bug }}</p>
+          <p>{{ form.state.label }}{{form.state}}</p>
       </div>
       <div class="modal-footer">
           <button class="btn" data-dismiss="modal" aria-hidden="true">Close</button>
@@ -91,5 +303,92 @@
 
   </div>
 </div>
+
+<!-- Button to trigger modal -->
+<a href="#deleteRegressionModal" role="button" class="btn" data-toggle="modal">Delete</a>
+ 
+<!-- Modal -->
+<div id="deleteRegressionModal" class="modal hide fade" tabindex="-1" role="dialog" aria-labelledby="deleteRegressionModal" aria-hidden="true">
+  <div class="modal-header">
+    <button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button>
+    <h3 id="editRegressionModal">Delete Regression</h3>
+  </div>
+     
+      <div class="modal-body">
+      Remove all traces of this regression from the database. Are you sure?
+      </div>
+      <div class="modal-footer">
+          <button class="btn" data-dismiss="modal" aria-hidden="true">Close</button>
+          <input name="save_btn" class="btn btn-primary" type="submit" value="Delete">
+
+  </div>
+</div>
 </form> 
+
+<script type="text/javascript">
+
+function clear_checks() {
+     $('input:checkbox').removeAttr('checked');
+     $('input:checkbox').trigger('change');
+}
+
+function all_checks() {
+     $('input:checkbox').prop('checked','checked');
+     $('input:checkbox').trigger('change');
+}
+
+function show_all() {
+    dt.page.len(-1).draw();
+}
+
+function register_checkboxes() {
+    $(':checkbox').change(function(){
+          var c = this.checked
+          var id = this.id;
+          var index = id.split("-")[1];
+          if (c) {
+              var color = color_codes[index % color_codes.length];
+              var prev_cell = $(this).closest('td').prev();
+              prev_cell.css("background-color", color);
+              add_data_to_graph(changes[index]["url"], index);
+          } else {
+              is_checked[index] = false;
+              var prev_cell = $(this).closest('td').prev();
+              prev_cell.css("background-color", "transparent");
+              update_graph();
+          }
+          
+      });
+    $(':checkbox').css("-webkit-transform", "scale(2)");
+  }
+var dt = null;
+
+$(document).ready( function () {
+    dt = $('#changes_table').DataTable({
+    "dom": '<"top"if>rt<"bottom"Flp>',
+    "drawCallback": function( settings ) {
+        register_checkboxes();
+    },
+    "aLengthMenu": [
+        [25, 50, 100, 200, -1],
+        [25, 50, 100, 200, "All"]],
+});
+
+
+  for (var i = 0; i < changes.length; i++) {
+      is_checked[i] = false;
+  }
+      
+    register_checkboxes();
+    all_checks();
+    $('#normalize').click(function (e) {
+        normalize = !normalize;
+        update_graph();
+    }); 
+    update_graph();
+  
+    
+} );
+</script>
+
 {% endblock %}
