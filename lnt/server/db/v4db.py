@@ -172,11 +172,11 @@ class V4DB(object):
         # FIXME: Promote this to a top-level field in the data.
         db_name = data['Run']['Info'].get('tag')
         if db_name is None:
-            raise ValueError,"unknown database target (no tag field)"
+            raise ValueError, "unknown database target (no tag field)"
 
         db = self.testsuite.get(db_name)
         if db is None:
-            raise ValueError,"test suite %r not present in this database!" % (
+            raise ValueError, "test suite %r not present in this database!" % (
                 db_name)
 
         return db.importDataFromDict(data, commit, config)

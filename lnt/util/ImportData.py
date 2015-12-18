@@ -6,6 +6,7 @@ import lnt.server.reporting.analysis
 
 from lnt.util import NTEmailReport
 
+
 def import_and_report(config, db_name, db, file, format, commit=False,
                       show_sample_count=False, disable_email=False,
                       disable_report=False):
@@ -75,6 +76,7 @@ def import_and_report(config, db_name, db, file, format, commit=False,
     except KeyboardInterrupt:
         raise
     except:
+        raise
         import traceback
         result['error'] = "import failure: %s" % traceback.format_exc()
         return result

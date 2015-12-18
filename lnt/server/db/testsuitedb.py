@@ -758,7 +758,7 @@ test %r does not map to a sample field in the reported suite""" % (
                 test_cache[test_name] = test = self.Test(test_name)
                 self.add(test)
 
-            for i,value in enumerate(test_samples):
+            for i, value in enumerate(test_samples):
                 record_key = (test_name, i)
                 sample = sample_records.get(record_key)
                 if sample is None:
@@ -789,7 +789,7 @@ test %r does not map to a sample field in the reported suite""" % (
 
         # Get the schema tag.
         tag = data['Run']['Info']['tag']
-
+        
         # If we didn't construct a new run, this is a duplicate
         # submission. Return the prior Run.
         if not inserted:
