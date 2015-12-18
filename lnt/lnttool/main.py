@@ -65,10 +65,12 @@ view the results.\
     input_path, = args
 
     # Setup the base LNT logger.
-    logger = logging.getLogger("lnt")
+    # Root logger in debug.
+    logger = logging.getLogger("LNT")
     if opts.debugger:
         logger.setLevel(logging.DEBUG)
-    handler = logging.StreamHandler(sys.stderr)
+    handler = logging.StreamHandler()
+    handler.setLevel(logging.DEBUG)
     handler.setFormatter(logging.Formatter(
             '%(asctime)s %(levelname)s: %(message)s',
             datefmt='%Y-%m-%d %H:%M:%S'))
@@ -79,7 +81,7 @@ view the results.\
         sa_logger = logging.getLogger("sqlalchemy")
         if opts.debugger:
             sa_logger.setLevel(logging.DEBUG)
-        sa_logger.setLevel(logging.DEBUG)
+        sa_logger.setLevel(logging.INFO)
         sa_logger.addHandler(handler)
 
     import lnt.server.ui.app
@@ -158,6 +160,14 @@ def action_runtest(name, args):
             warning("--{} should be passed directly to the"
                         " test suite.".format(key))
 
+    logger = logging.getLogger("LNT")
+    logger.setLevel(logging.DEBUG)
+    handler = logging.StreamHandler()
+    handler.setLevel(logging.DEBUG)
+    handler.setFormatter(logging.Formatter(
+            '%(asctime)s %(levelname)s: %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'))
+    logger.addHandler(handler)
     import lnt.tests
     try:
         test_instance = lnt.tests.get_test_instance(test_name)

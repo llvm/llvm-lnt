@@ -5,6 +5,7 @@ import logging.handlers
 from logging import Formatter
 import os
 import time
+import StringIO
 
 import flask
 from flask import current_app
@@ -64,7 +65,6 @@ class Request(flask.Request):
             #
             # FIXME: Conditionalize on an is_production variable.
             if echo:
-                import logging, StringIO
                 g.db_log = StringIO.StringIO()
                 logger = logging.getLogger("sqlalchemy")
                 logger.addHandler(logging.StreamHandler(g.db_log))
@@ -137,7 +137,10 @@ class App(flask.Flask):
         # Inject a fix for missing slashes on the root URL (see Flask issue
         # #169).
         self.wsgi_app = RootSlashPatchMiddleware(self.wsgi_app)
-
+        
+        self.lnt_logger = logging.getLogger('LNT')
+        self.lnt_logger.setLevel(logging.DEBUG)
+        
     def load_config(self, instance):
         self.instance = instance
         self.old_config = self.instance.config
@@ -154,9 +157,21 @@ class App(flask.Flask):
         to stderr, so just log to a file as well.
 
         """
+        # Print to screen.
+        ch = logging.StreamHandler()
+        ch.setLevel(logging.DEBUG)
+        self.lnt_logger.addHandler(ch)
+        
+        # Log to mem for the /log view.
+        h = logging.handlers.MemoryHandler(1024 * 1024)
+        h.setLevel(logging.DEBUG)
+        self.lnt_logger.addHandler(h)
+        self.logger.addHandler(h)
+        self.old_config.mem_logger = h
+        
         if not self.debug:
             LOG_FILENAME = "lnt.log"
-            try:
+            try:    
                 rotating = logging.handlers.RotatingFileHandler(
                     LOG_FILENAME, maxBytes=1048576, backupCount=5)
                 rotating.setFormatter(Formatter(
@@ -164,7 +179,7 @@ class App(flask.Flask):
                     '[in %(pathname)s:%(lineno)d]'
                 ))
                 rotating.setLevel(logging.DEBUG)
-                self.logger.addHandler(rotating)
+                self.lnt_logger.addHandler(rotating)                
             except (OSError, IOError) as e:
                 print >> sys.stderr, "Error making log file", LOG_FILENAME, str(e)
                 print >> sys.stderr, "Will not log to file."

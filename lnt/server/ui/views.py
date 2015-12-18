@@ -1169,3 +1169,7 @@ def rules():
     lnt.server.db.rules.register_hooks()
     discovered_rules = lnt.server.db.rules.DESCRIPTIONS
     return render_template("rules.html",rules=discovered_rules)
+
+@frontend.route('/log')
+def log():
+    return render_template("log.html")

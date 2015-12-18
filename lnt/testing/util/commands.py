@@ -6,23 +6,18 @@ import errno
 import inspect
 import os
 import sys
-
+import logging
 # FIXME: Find a better place for this code.
 
-def _write_message(kind, message):
-    # Get the file/line where this message was generated.
-    f = inspect.currentframe()
-    # Step out of _write_message, and then out of wrapper.
-    f = f.f_back.f_back
-    file,line,_,_,_ = inspect.getframeinfo(f)
-    location = '%s:%d' % (os.path.basename(file), line)
+note = lambda message: logging.getLogger('LNT').info(message)
+warning = lambda message: logging.getLogger('LNT').warning(message)
+error = lambda message: logging.getLogger('LNT').error(message)
 
-    print >>sys.stderr, '%s: %s: %s' % (location, kind, message)
 
-note = lambda message: _write_message('note', message)
-warning = lambda message: _write_message('warning', message)
-error = lambda message: _write_message('error', message)
-fatal = lambda message: (_write_message('fatal error', message), sys.exit(1))
+def fatal(message):
+    logging.getLogger('LNT').critical(message)
+    sys.exit(1)
+
 
 def rm_f(path):
     try:

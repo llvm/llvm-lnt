@@ -35,6 +35,7 @@ def regression_evolution(ts, regressions):
     Look at regressions in detect, do they match our policy? If no, move to NTBF.
 
     """
+    note("Running regression evolution")
     detects = [r for r in regressions if r.state == RegressionState.DETECTED]
     
     for regression in detects:
