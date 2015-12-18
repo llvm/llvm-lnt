@@ -97,6 +97,8 @@ def import_and_report(config, db_name, db, file, format, commit=False,
         report_url = "localhost"
 
     if not disable_report:
+        #  This has the side effect of building the run report for
+        #  this result.
         NTEmailReport.emailReport(result, db, run, report_url,
                                   email_config, toAddress, success, commit)
 
@@ -110,8 +112,12 @@ def import_and_report(config, db_name, db, file, format, commit=False,
     ts_name = data['Run']['Info'].get('tag')
     if commit:
         db.commit()
-        ts = db.testsuite.get(ts_name)
-        async_ops.async_fieldchange_calc(ts, run)
+        if db_config:
+            #  If we are not in a dummy instance, also run backgound jobs.
+            #  We have to have a commit before we run, so subprocesses can
+            #  see the submitted data.
+            ts = db.testsuite.get(ts_name)
+            async_ops.async_fieldchange_calc(db_name, ts, run)
 
     else:
         db.rollback()

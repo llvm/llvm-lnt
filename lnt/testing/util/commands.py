@@ -11,9 +11,10 @@ import time
 from flask import current_app
 # FIXME: Find a better place for this code.
 
+LOGGER_NAME = "lnt.server.ui.app"
 
 def getLogger():
-    logger = logging.getLogger("lnt.server.ui.app")
+    logger = logging.getLogger(LOGGER_NAME)
     return logger
 
 note = lambda message: getLogger().info(message)

@@ -8,6 +8,7 @@ subprocesses (because they are not serializable because they don't have a fix
 package in the system, but are generated on program load) we recreate the test
 suite that we need inside each subprocess before we execute the work job.
 """
+import atexit
 import os
 import time
 import logging
@@ -16,6 +17,7 @@ import sys
 import lnt.server.db.fieldchange as fieldchange
 import lnt.server.db.v4db
 import traceback
+import signal
 import contextlib
 import multiprocessing
 from multiprocessing import Pool, TimeoutError, Manager, Process
@@ -33,17 +35,36 @@ def launch_workers():
     global WORKERS
     if not WORKERS:
         note("Starting workers")
-        manager = Manager()            
-        current_app.config['mem_logger'].buffer = manager.list(current_app.config['mem_logger'].buffer)
-    
+        manager = Manager()         
+        try:
+            current_app.config['mem_logger'].buffer = manager.list(current_app.config['mem_logger'].buffer)
+        except RuntimeError:
+            #  It might be the case that we are not running in the app.
+            #  In this case, don't bother memory logging, stdout should
+            #  sufficent for console mode.
+            pass
+        atexit.register(cleanup)
+        signal.signal(signal.SIGTERM, sigHandler)
 
-def async_fieldchange_calc(ts, run):
+def sigHandler(signo, frame):
+    sys.exit(0)
+
+
+def cleanup():
+    print "Running process cleanup."
+    for p in JOBS:
+        print "Waiting for", p.name, p.pid
+        if p.is_alive:
+            p.join()
+
+def async_fieldchange_calc(db_name, ts, run):
     """Run regenerate field changes in the background."""
     func_args = {'run_id': run.id}
     #  Make sure this run is in the database!
     async_run_job(fieldchange.post_submit_tasks,
-                  ts,
+                  db_name, ts,
                   func_args)
+
 
 def check_workers(is_logged):
     global JOBS
@@ -61,38 +82,33 @@ def check_workers(is_logged):
             logging.getLogger("lnt.server.ui.app").info("Job queue empty.")
     return len(JOBS)
         
-def async_run_job(job, ts, func_args):
+def async_run_job(job, db_name, ts, func_args):
     """Send a job to the async wrapper in the subprocess."""
     # If the run is not in the database, we can't do anything more.
     note("Queuing background job to process fieldchanges " + str(os.getpid()))
     launch_workers()
     check_workers(True)
+
     args = {'tsname': ts.name,
-            'db': g.db_name}
+            'db': db_name}
     job = Process(target=async_wrapper,
                   args=[job, args, func_args])
 
     job.start()
-    # Lets see if we crash right away?
-    # try:
-    #     stuff = job.join(timeout=1)
-    #     assert False, "This should aways fail."
-    # except TimeoutError:
     JOBS.append(job)
 
 # Flag to track if we have disposed of the parents database connections in
 # this subprocess.
 clean_db = False
-lock = Lock()
+
 def async_wrapper(job, ts_args, func_args):
     """Setup test-suite in this subprocess and run something.
     
     Because of multipocessing, capture excptions and log messages,
     and return them.
     """
-    global clean_db, lock
+    global clean_db
     try:
-
         start_time = time.time()
         
         if not clean_db:
@@ -117,7 +133,7 @@ def async_wrapper(job, ts_args, func_args):
     except:
         # Put all exception text into an exception and raise that for our
         # parent process.
-        error("".join(traceback.format_exception(*sys.exc_info())))
+        error("Subprocess failed with:" + "".join(traceback.format_exception(*sys.exc_info())))
         sys.exit(1)
     sys.exit(0)
 

@@ -4,7 +4,7 @@
 # RUN:   --sandbox %t.SANDBOX \
 # RUN:   --test-suite %S/Inputs/test-suite \
 # RUN:   --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
-# RUN:   --no-timestamp --multisample 2 > %t.log 2> %t.err
+# RUN:   --no-timestamp --multisample 5 > %t.log 2> %t.err
 #
 # RUN: FileCheck --check-prefix CHECK-STDOUT < %t.log %s
 # RUN: FileCheck --check-prefix CHECK-STDERR < %t.err %s
@@ -26,4 +26,7 @@
 # CHECK-STDERR: capturing machine information
 # CHECK-STDERR: generating report
 # CHECK-STDERR: (multisample) running iteration 1
+# CHECK-STDERR: (multisample) running iteration 2
+# CHECK-STDERR: (multisample) running iteration 3
+# CHECK-STDERR: (multisample) running iteration 4
 # CHECK-STDERR: submitting result to dummy instance

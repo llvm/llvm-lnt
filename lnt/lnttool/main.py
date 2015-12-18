@@ -14,7 +14,7 @@ import lnt
 import lnt.util.multitool
 import lnt.util.ImportData
 from lnt import testing
-from lnt.testing.util.commands import note, warning, error, fatal
+from lnt.testing.util.commands import note, warning, error, fatal, LOGGER_NAME
 
 def action_runserver(name, args):
     """start a new development server"""
@@ -66,7 +66,7 @@ view the results.\
 
     # Setup the base LNT logger.
     # Root logger in debug.
-    logger = logging.getLogger("LNT")
+    logger = logging.getLogger(LOGGER_NAME)
     if opts.debugger:
         logger.setLevel(logging.DEBUG)
     handler = logging.StreamHandler()
@@ -160,10 +160,10 @@ def action_runtest(name, args):
             warning("--{} should be passed directly to the"
                         " test suite.".format(key))
 
-    logger = logging.getLogger("LNT")
-    logger.setLevel(logging.DEBUG)
+    logger = logging.getLogger(LOGGER_NAME)
+    logger.setLevel(logging.INFO)
     handler = logging.StreamHandler()
-    handler.setLevel(logging.DEBUG)
+    handler.setLevel(logging.INFO)
     handler.setFormatter(logging.Formatter(
             '%(asctime)s %(levelname)s: %(message)s',
             datefmt='%Y-%m-%d %H:%M:%S'))

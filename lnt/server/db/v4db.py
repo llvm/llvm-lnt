@@ -139,7 +139,7 @@ class V4DB(object):
         in memory database."""
         V4DB._engine[db_path].dispose()
         V4DB._engine.pop(db_path)
-        #V4DB._db_updated.remove(db_path)
+        V4DB._db_updated.remove(db_path)
     
     @staticmethod
     def close_all_engines():

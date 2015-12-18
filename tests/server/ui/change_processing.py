@@ -108,20 +108,20 @@ class ChangeProcessingTests(unittest.TestCase):
         ts_db.commit()
 
     def tearDown(self):
-        self.db.close_engine()
-
-    def test_fc(self):
-        pass
+        self.db.close_all_engines()
 
     def _mkorder(self, ts, rev):
         order = ts.Order()
         order.llvm_project_revision = rev
         ts.add(order)
         return order
+    
+    def test_startup(self):
+        pass
 
-    def test_rebuild_title(self):
-        ts = self.ts_db
-        
+    #def test_rebuild_title(self):
+    #    ts = self.ts_db
+    #    
     def test_change_grouping_criteria(self):
         ts_db = self.ts_db
 
