@@ -15,6 +15,8 @@ Contents
    tests
 
    changes
+   
+   concepts
 
    developer_guide
 
