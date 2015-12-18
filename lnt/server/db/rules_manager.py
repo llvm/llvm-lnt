@@ -2,9 +2,9 @@
 Define facilities for automatically applying rules to data.
 """
 
-import logging
 import os
 import re
+from lnt.testing.util.commands import note, warning, timed, error
 
 def load_rules():
     """
@@ -31,9 +31,7 @@ def load_rules():
         # Ignore non-matching files.
         m = rule_script_rex.match(item)
         if m is None:
-            logger.warning(
-                "ignoring item %r in rule  directory: %r",
-                item, rules_path)
+            warning("ignoring item %r in rule  directory: %r", item, rules_path)
             continue
 
         name = m.groups()[0]
