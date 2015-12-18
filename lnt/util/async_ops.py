@@ -48,7 +48,6 @@ def async_run_job(job, ts, func_args):
             'db': ts.v4db.settings()}
     launch_workers()
     job = WORKERS.apply_async(async_wrapper, [job, args, func_args])
-    job.get()
 
 
 def async_wrapper(job, ts_args, func_args):
