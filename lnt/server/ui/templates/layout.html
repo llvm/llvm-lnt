@@ -181,6 +181,7 @@
 
         {# Page Content #}
         <div id="content" class="container-fluid">
+            <div id="errors"></div>
             {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
                     {% for category, message in messages %}

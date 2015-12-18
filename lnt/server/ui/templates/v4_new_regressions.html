@@ -209,7 +209,7 @@ function update_tooltip(event, pos, item, show_fn, graph_data) {
   
   <thead>
   <tr>
-    <th><button id="clear" type="button" class="btn btn-default" style="width:100%;text-align:center;" onclick="clear_checks()">X</button></th>
+    <th>X</th>
     <th>Machine</th>
     <th>Metric</th>
     <th>Test</th>
@@ -251,9 +251,11 @@ function update_tooltip(event, pos, item, show_fn, graph_data) {
     {% endfor %}
   </tbody>
 </table>
-
-    <input name="btn" type="submit" value="Create New Regression">
-    <input name="btn" type="submit" value="Ignore Changes">
+<button id="all" type="button" class="btn btn-default" onclick="show_all()">Show All</button>
+    <button id="all" type="button" class="btn btn-default" onclick="all_checks()">Check Visable</button>
+    <button id="clear" type="button" class="btn btn-default" onclick="clear_checks()">Clear Visable</button>
+    <input name="btn" type="submit" value="Create New Regression" onclick="show_all()">
+    <input name="btn" type="submit" value="Ignore Changes" onclick="show_all()">
 
 </form>
 
@@ -265,36 +267,47 @@ function clear_checks() {
      $('input:checkbox').trigger('change');
 }
 
+function all_checks() {
+     $('input:checkbox').prop('checked','checked');
+     $('input:checkbox').trigger('change');
+}
+
+function show_all() {
+    dt.page.len(-1).draw();
+}
+
 function register_checkboxes() {
     $(':checkbox').change(function(){
           var c = this.checked
           var id = this.id;
           var index = id.split("-")[1];
-          
           if (c) {
               var color = color_codes[index % color_codes.length];
               var prev_cell = $(this).closest('td').prev();
               prev_cell.css("background-color", color);
-              $.getJSON(changes[index]["url"], function(data) {
-                  new_graph_data_callback(data, index);
-                  });
+              add_data_to_graph(changes[index]["url"], index);
           } else {
               is_checked[index] = false;
               var prev_cell = $(this).closest('td').prev();
               prev_cell.css("background-color", "transparent");
+              update_graph();
           }
-          update_graph();
+          
       });
+    $(':checkbox').css("-webkit-transform", "scale(2)");
   }
-
+var dt = null;
 $(document).ready( function () {
-    $('#changes_table').DataTable({
-    "sDom": '<"top"if>rt<"bottom"Flp>',
+    dt = $('#changes_table').DataTable({
+    "dom": '<"top"if>rt<"bottom"Flp>',
     "drawCallback": function( settings ) {
         register_checkboxes();
-    }
-  });
-  
+    },
+    "aLengthMenu": [
+        [25, 50, 100, 200, -1],
+        [25, 50, 100, 200, "All"]],
+});
+
   for (var i = 0; i < changes.length; i++) {
       is_checked[i] = false;
   }

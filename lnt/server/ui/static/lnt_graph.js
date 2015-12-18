@@ -3,7 +3,7 @@
 var data_cache = [];
 var is_checked = []; // The current list of lines to plot.
 var normalize = false;
-
+var MAX_TO_DRAW = 25;
 
 function try_normal(data_array, end_rev) {
     $("#graph_range").prop("min", 0);
@@ -77,16 +77,19 @@ var color_codes = ["#4D4D4D",
 
 function new_graph_data_callback(data, index) {
     data_cache[index] = data;
-    is_checked[index] = true;
     update_graph();
 }
 
+NOT_DRAWING = '<div class="alert alert-success" role="alert">' +
+            'Too many to graph.<a href="#" class="close" data-dismiss="alert" aria-label="close">×</a>' + 
+                        '</div>';
 function update_graph() {
     var to_draw = [];
     var starts = [];
     var ends = [];
     for ( var i = 0; i < changes.length; i++) {
-            if (is_checked[i]) {
+            
+            if (is_checked[i] && data_cache[i]) {
                     starts.push(changes[i].start);
                     ends.push(changes[i].end);
                     var color = color_codes[i % color_codes.length];
@@ -98,4 +101,18 @@ function update_graph() {
     var lowest_rev = Math.min.apply(Math, starts);
     var highest_rev = Math.max.apply(Math, ends);
     init(to_draw, lowest_rev, highest_rev);    
+}
+
+// To be called by main page. It will fetch data and make graph ready.
+function add_data_to_graph(URL, index) {
+    var current_to_draw = is_checked.filter(function(x){ return x; }).length
+    if (current_to_draw > MAX_TO_DRAW) {
+        $('#errors').empty().prepend(NOT_DRAWING);
+        is_checked[index] = true;
+        return;
+    }
+    $.getJSON(URL, function(data) {
+        new_graph_data_callback(data, index);
+        });
+    is_checked[index] = true;
 }
