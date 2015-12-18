@@ -918,6 +918,8 @@ def configure_test_suite(config, iteration):
         args.append('--with-externals=%s' %
                     os.path.realpath(config.test_suite_externals))
 
+    args.extend(['--target=%s' % config.target])
+
     print >>configure_log, '%s: running: %s' % (timestamp(),
                                                 ' '.join('"%s"' % a
                                                          for a in args))
