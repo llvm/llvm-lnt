@@ -1,26 +1,20 @@
-
 import sqlalchemy.sql
-
 import lnt.server.reporting.analysis
 from lnt.testing.util.commands import warning
-
-
+from lnt.testing.util.commands import note
 # How many runs backwards to use in the previous run set.
 # More runs are slower (more DB access), but may provide
 # more accurate results.
 FIELD_CHANGE_LOOKBACK = 10
 
-from lnt.testing.util.commands import note
 
-
-def regenerate_fieldchanges_for_run(ts, run):
+def regenerate_fieldchanges_for_run(ts, run_id):
     """Regenerate the set of FieldChange objects for the given run.
     """
-    
     # Allow for potentially a few different runs, previous_runs, next_runs
     # all with the same order_id which we will aggregate together to make
     # our comparison result.
-
+    run = ts.getRun(run_id)
     runs = ts.query(ts.Run). \
         filter(ts.Run.order_id == run.order_id). \
         filter(ts.Run.machine_id == run.machine_id). \
@@ -37,7 +31,7 @@ def regenerate_fieldchanges_for_run(ts, run):
         end_order = next_runs[-1].order
     else:
         end_order = run.order
-    
+
     # Load our run data for the creation of the new fieldchanges.
     runs_to_load = [r.id for r in (runs + previous_runs)]
 
@@ -84,13 +78,11 @@ def regenerate_fieldchanges_for_run(ts, run):
                                    field=field)
                 f.test_id = test_id
                 ts.add(f)
-
                 note("Found field change: {}".format(run.machine))
-
-                ts.commit()
 
             # Always update FCs with new values.
             if f:
                 f.old_value = result.previous
                 f.new_value = result.current
                 f.run = run
+    ts.commit()

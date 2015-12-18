@@ -12,7 +12,7 @@ import sqlalchemy
 from sqlalchemy import *
 
 import testsuite
-import lnt.server.db.fieldchange
+from lnt.util import async_ops
 
 class TestSuiteDB(object):
     """
@@ -696,7 +696,7 @@ supplied run is missing required run parameter: %r""" % (
 
             return run,True
 
-    def _importSampleValues(self, tests_data, run, tag):
+    def _importSampleValues(self, tests_data, run, tag, commit):
         # We now need to transform the old schema data (composite samples split
         # into multiple tests with mangling) into the V4DB format where each
         # sample is a complete record.
@@ -766,10 +766,11 @@ test %r does not map to a sample field in the reported suite""" % (
                     self.add(sample)
 
                 sample.set_field(sample_field, value)
-        
-        lnt.server.db.fieldchange.regenerate_fieldchanges_for_run(self, run)
-    
-    def importDataFromDict(self, data, config=None):
+        # No need to calculate fieldchanges at all if we won't commit them.
+        if commit:
+            async_ops.async_fieldchange_calc(self, run)
+
+    def importDataFromDict(self, data, commit, config=None):
         """
         importDataFromDict(data) -> Run, bool
 
@@ -793,8 +794,8 @@ test %r does not map to a sample field in the reported suite""" % (
         # submission. Return the prior Run.
         if not inserted:
             return False, run
-
-        self._importSampleValues(data['Tests'], run, tag)
+        
+        self._importSampleValues(data['Tests'], run, tag, commit)
 
         return True, run
 

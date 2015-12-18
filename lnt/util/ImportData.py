@@ -71,7 +71,7 @@ def import_and_report(config, db_name, db, file, format, commit=False,
 
     importStartTime = time.time()
     try:
-        success,run = db.importDataFromDict(data, config=db_config)
+        success, run = db.importDataFromDict(data, commit, config=db_config)
     except KeyboardInterrupt:
         raise
     except:

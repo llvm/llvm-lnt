@@ -75,7 +75,7 @@ class V4DB(object):
         self.path = path
         self.config = config
         self.baseline_revision = baseline_revision
-
+        self.echo = echo
         with V4DB._engine_lock:
             if path not in V4DB._engine:
                 V4DB._engine[path] = sqlalchemy.create_engine(path, echo=echo)
@@ -132,6 +132,13 @@ class V4DB(object):
         if self.session is not None:
             self.session.close()
 
+    def settings(self):
+        """All the setting needed to recreate this instnace elsewhere."""
+        return {'path': self.path,
+                'config': self.config,
+                'baseline_revision': self.baseline_revision,
+                'echo': self.echo}
+
     @property
     def testsuite(self):
         # This is the start of "magic" part of V4DB, which allows us to get
@@ -159,7 +166,7 @@ class V4DB(object):
         return sum([ts.query(ts.Test).count()
                     for ts in self.testsuite.values()])
 
-    def importDataFromDict(self, data, config=None):
+    def importDataFromDict(self, data, commit, config=None):
         # Select the database to import into.
         #
         # FIXME: Promote this to a top-level field in the data.
@@ -172,4 +179,4 @@ class V4DB(object):
             raise ValueError,"test suite %r not present in this database!" % (
                 db_name)
 
-        return db.importDataFromDict(data, config)
+        return db.importDataFromDict(data, commit, config)
