@@ -5,7 +5,7 @@ import lnt.formats
 import lnt.server.reporting.analysis
 from lnt.testing.util.commands import note
 from lnt.util import NTEmailReport
-
+from lnt.util import async_ops
 
 def import_and_report(config, db_name, db, file, format, commit=False,
                       show_sample_count=False, disable_email=False,
@@ -107,12 +107,16 @@ def import_and_report(config, db_name, db, file, format, commit=False,
         result['added_samples'] = db.getNumSamples() - numSamples
 
     result['committed'] = commit
+    ts_name = data['Run']['Info'].get('tag')
     if commit:
         db.commit()
+        ts = db.testsuite.get(ts_name)
+        async_ops.async_fieldchange_calc(ts, run)
+
     else:
         db.rollback()
     # Add a handy relative link to the submitted run.
-    ts_name = data['Run']['Info'].get('tag')
+
     result['result_url'] = "db_{}/v4/{}/{}".format(db_name, ts_name, run.id)
     result['report_time'] = time.time() - importStartTime
     result['total_time'] = time.time() - startTime

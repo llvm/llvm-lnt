@@ -1,3 +1,4 @@
+{% set nosidebar = True %}
 {% import "utils.html" as utils %}
 
 {% extends "layout.html" %}
@@ -12,7 +13,6 @@
     <tr>
       <th>Kind</th>
       <th>Location</th>
-      <th>Time</th>
       <th>Message<th>
     </tr>
   </thead>
@@ -27,7 +27,6 @@
     {% endif %}
       <td>{{ item.levelname}}</td>
       <td>{{item.filename}}:{{item.lineno}}</td>
-      <td>{{ item.asctime}}</td>
       <td>{{ item.msg }}</td>
     </tr>
 {% endfor %}

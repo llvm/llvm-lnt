@@ -132,12 +132,19 @@ class V4DB(object):
         if self.session is not None:
             self.session.close()
     
-    def close_engine(self):
+    @staticmethod    
+    def close_engine(db_path):
         """Rip down everything about this path, so we can make it
         new again. This is used for tests that need to make a fresh
         in memory database."""
-        self._engine.pop(self.path)
-        V4DB._db_updated.remove(self.path)
+        V4DB._engine[db_path].dispose()
+        V4DB._engine.pop(db_path)
+        #V4DB._db_updated.remove(db_path)
+    
+    @staticmethod
+    def close_all_engines():
+        for key in V4DB._engine.keys():
+            V4DB.close_engine(key)
 
     def settings(self):
         """All the setting needed to recreate this instnace elsewhere."""

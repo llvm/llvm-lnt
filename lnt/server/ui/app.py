@@ -9,6 +9,7 @@ import StringIO
 
 import flask
 from flask import current_app
+from flask import request
 from flask import g
 from flask import url_for
 from flask import Flask
@@ -25,6 +26,7 @@ import lnt.server.ui.regression_views
 from lnt.server.ui.api import load_api_resources
 import lnt.server.db.rules_manager
 
+from sqlalchemy.exc import DatabaseError
 
 class RootSlashPatchMiddleware(object):
     def __init__(self, app):
@@ -48,7 +50,6 @@ class Request(flask.Request):
         return time.time() - self.request_time
 
     # Utility Methods
-
     def get_db(self):
         """
         get_db() -> <db instance>
@@ -59,9 +60,10 @@ class Request(flask.Request):
 
         if self.db is None:
             echo = bool(self.args.get('db_log') or self.form.get('db_log'))
-
-            self.db = current_app.old_config.get_database(g.db_name, echo=echo)
-
+            try:
+                self.db = current_app.old_config.get_database(g.db_name, echo=echo)
+            except DatabaseError:
+                self.db = current_app.old_config.get_database(g.db_name, echo=echo)
             # Enable SQL logging with db_log.
             #
             # FIXME: Conditionalize on an is_production variable.
@@ -168,7 +170,7 @@ class App(flask.Flask):
         self.logger.addHandler(ch)
         
         # Log to mem for the /log view.
-        h = logging.handlers.MemoryHandler(1024 * 1024)
+        h = logging.handlers.MemoryHandler(1024 * 1024, flushLevel=logging.CRITICAL)
         h.setLevel(logging.DEBUG)
         self.logger.addHandler(h)
         # Also store the logger, so we can render the buffer in it.

@@ -4,7 +4,7 @@ Staged or Active + fixed -> Verify
 """
 from lnt.server.db.regression import RegressionState
 from lnt.server.db.regression import get_cr_for_field_change, get_ris
-from lnt.testing.util.commands import note
+from lnt.testing.util.commands import note, timed
 
 def _fixed_rind(ts, rind):
     """Is this regression indicator fixed?"""
@@ -26,7 +26,7 @@ def is_fixed(ts, regression):
     return all(fixes)
 
 
-
+@timed
 def regression_evolution(ts, run_id):
     """Analyse regressions. If they have changes, process them.
     Look at each regression in state detect.  Move to ignore if it is fixed.

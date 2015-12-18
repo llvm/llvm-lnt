@@ -7,23 +7,39 @@ import inspect
 import os
 import sys
 import logging
+import time
 from flask import current_app
 # FIXME: Find a better place for this code.
 
+
 def getLogger():
-    try:
-         logger = current_app.logger
-    except RuntimeError:
-        print "Using other logger."
-        logger = logging.getLogger("LNT")
+    logger = logging.getLogger("lnt.server.ui.app")
     return logger
+
 note = lambda message: getLogger().info(message)
 warning = lambda message: getLogger().warning(message)
 error = lambda message: getLogger().error(message)
 
+def timed(func):
+    def timed(*args, **kw):
+        t_start = time.time()
+        result = func(*args, **kw)
+        t_end = time.time()
+        short_args = repr(args)
+        if len(short_args) > 80:
+            short_args = short_args[0:80]
+        delta = t_end - t_start
+        msg = '%r (%s, %r) %2.2f sec' % (func.__name__, short_args, kw, delta)
+        if delta > 10:
+            warning(msg)
+        else:
+            note(msg)
+        return result
+
+    return timed
 
 def fatal(message):
-    logging.getLogger('LNT').critical(message)
+    getLogger().critical(message)
     sys.exit(1)
 
 

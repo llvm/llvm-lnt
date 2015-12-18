@@ -31,6 +31,7 @@ import lnt.server.reporting.dailyreport
 import lnt.server.reporting.summaryreport
 import lnt.server.db.rules_manager
 from collections import namedtuple
+from lnt.util import async_ops
 
 integral_rex = re.compile(r"[\d]+")
 
@@ -1172,5 +1173,10 @@ def rules():
 
 @frontend.route('/log')
 def log():
+    async_ops.check_workers()
     note("Showing log page.")
     return render_template("log.html")
+
+@frontend.route('/debug')
+def debug():
+    assert current_app.debug == False

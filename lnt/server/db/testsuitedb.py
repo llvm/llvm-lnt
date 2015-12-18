@@ -12,7 +12,7 @@ import sqlalchemy
 from sqlalchemy import *
 
 import testsuite
-from lnt.util import async_ops
+
 
 class TestSuiteDB(object):
     """
@@ -767,9 +767,6 @@ test %r does not map to a sample field in the reported suite""" % (
                     self.add(sample)
 
                 sample.set_field(sample_field, value)
-        # No need to calculate fieldchanges at all if we won't commit them.
-        if commit:
-            async_ops.async_fieldchange_calc(self, run)
 
     def importDataFromDict(self, data, commit, config=None):
         """

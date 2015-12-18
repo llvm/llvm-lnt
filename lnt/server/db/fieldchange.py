@@ -2,7 +2,7 @@ import re
 import sqlalchemy.sql
 import lnt.server.reporting.analysis
 from lnt.testing.util.commands import warning
-from lnt.testing.util.commands import note
+from lnt.testing.util.commands import note, timed
 from lnt.server.db.regression import new_regression, RegressionState
 from lnt.server.db.regression import get_ris
 from lnt.server.db.regression import rebuild_title
@@ -14,6 +14,12 @@ from lnt.server.db import rules_manager as rules
 FIELD_CHANGE_LOOKBACK = 10
 
 
+def post_submit_tasks(ts, run_id):
+    regenerate_fieldchanges_for_run(ts, run_id)
+
+
+
+@timed
 def regenerate_fieldchanges_for_run(ts, run_id):
     """Regenerate the set of FieldChange objects for the given run.
     """
@@ -99,7 +105,6 @@ def regenerate_fieldchanges_for_run(ts, run_id):
     rules.post_submission_hooks(ts, regressions)
 
 
-
 def is_overlaping(fc1, fc2):
     """"Returns true if these two orders intersect. """
     r1_min = fc1.start_order
@@ -109,7 +114,7 @@ def is_overlaping(fc1, fc2):
     return (r1_min == r2_min and r1_max == r2_max) or \
            (r1_min < r2_max and r2_min < r1_max)
 
-
+@timed
 def identify_related_changes(ts, regressions, fc):
     """Can we find a home for this change in some existing regression? """
     for regression in regressions:
