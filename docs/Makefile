@@ -38,6 +38,7 @@ clean:
 
 html:
 	$(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html
+	cp -av $(BUILDDIR)/html/* $(BUILDDIR)/../../lnt/server/ui/static/docs/
 	@echo
 	@echo "Build finished. The HTML pages are in $(BUILDDIR)/html."
 

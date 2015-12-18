@@ -128,7 +128,6 @@
                               <li><a href="{{ v4_url_for('v4_global_status') }}">Global Status</a></li>
                               <li><a href="{{ v4_url_for('v4_daily_report_overview') }}">Daily Report</a></li>
                               <li><a href="{{ v4_url_for('v4_machines') }}">All Machines</a></li>
-                              <li><a href="{{ v4_url_for('v4_new_regressions') }}">Triage</a></li>
                               <li><a href="{{ v4_url_for('v4_regression_list', state=0) }}">Detected</a></li>
                               <li><a href="{{ v4_url_for('v4_regression_list', state=1) }}">Staged</a></li>
                               <li><a href="{{ v4_url_for('v4_regression_list', state=10) }}">Active</a></li>
@@ -137,6 +136,10 @@
                               <li><a href="{{ v4_url_for('v4_regression_list', state=23) }}">Verify</a></li>
                               <li><a href="{{ v4_url_for('v4_regression_list', state=22) }}">Fixed</a></li>
                               <li><a href="{{ v4_url_for('v4_regression_list', state=-1) }}">All</a></li>
+                              <li><a href="/log">Logs</a></li>
+                              <li><a href="/rules">Rules</a></li>
+                              <li><a href="/static/docs/index.html">Documentation</a></li>
+                              
                               <li class="divider"></li>
                               <li class="disabled"><a href="#">Summary Report</a></li>
                               {#"{{ v4_url_for('v4_summary_report') }}"#}
