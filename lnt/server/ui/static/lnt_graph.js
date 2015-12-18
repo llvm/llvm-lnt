@@ -158,7 +158,7 @@ function normalize_data(data_array, index) {
     console.assert(factor !== 0, "Did not find the element to normalize on.");
     for (i = 0; i < data_array.length; i++) {
         new_data[i] = jQuery.extend({}, data_array[i]);
-        new_data[i][1] = data_array[i][1] / factor;
+        new_data[i][1] = (data_array[i][1] / factor) * 100;
     }
     return new_data;
 }
@@ -191,7 +191,7 @@ function make_graph_point_entry(data, color, regression) {
                            }
                 };
     if (regression) {
-        entry.points.symbol = "cross";
+        entry.points.symbol = "triangle";
     }
     return entry;
 }
@@ -205,16 +205,16 @@ var color_codes = ["#4D4D4D",
                    "#B276B2",
                    "#DECF3F",
                    "#F15854",
-                   "#1f78b4",
-                   "#33a02c",
-                   "#e31a1c",
-                   "#ff7f00",
-                   "#6a3d9a",
-                   "#a6cee3",
-                   "#b2df8a",
-                   "#fb9a99",
-                   "#fdbf6f",
-                   "#cab2d6"];
+                   "#1F78B4",
+                   "#33A02C",
+                   "#E31A1C",
+                   "#FF7F00",
+                   "#6A3D9A",
+                   "#A6CEE3",
+                   "#B2DF8A",
+                   "#FB9A99",
+                   "#FDBF6F",
+                   "#CAB2D6"];
 
 function new_graph_data_callback(data, index) {
     "use strict";
@@ -315,11 +315,50 @@ function add_data_to_graph(URL, index) {
 }
 
 function init_graph () {
+    function onlyUnique(value, index, self) { 
+        return self.indexOf(value) === index;
+    }
+    var metrics = $('.metric').map( function() {
+        return $(this).text();
+    }).get();
+    metrics = metrics.filter(onlyUnique);
+    
+    var yaxis_name = metrics.join(", ");
+    yaxis_name = yaxis_name.replace("_"," ");
+    
+    $('#yaxis').text(yaxis_name);
+
     $('#normalize').click(function (e) {
         normalize = !normalize;
+        if (normalize) {
+            $('#normalize').toggleClass("btn-default btn-primary");
+            $('#normalize').text("x1");
+            $('#yaxis').text("Normalized (%)");
+            
+
+        } else {
+            $('#normalize').toggleClass("btn-primary btn-default");
+            $('#normalize').text("%");
+            $('#yaxis').text(yaxis_name);
+
+        }
         update_graph();
     }); 
 
+    $('#xaxis').css('position', 'relative');
+    $('#xaxis').css('left', '50%');
+    $('#xaxis').css('bottom', '100px');
+    $('#xaxis').css('width', '100px');
+    $('#xaxis').css('margin-left', '-50px');
+
+    $('#yaxis').css('position', 'relative');
+    $('#yaxis').css('left', '-60px');
+    $('#yaxis').css('float', 'left');
+    $('#yaxis').css('top', '-250px');
+    $('#yaxis').css('-webkit-transform', 'rotate(-90deg)');
+    $('#yaxis').css('-moz-transform', 'rotate(-90deg)');
+    
+    
 }
 
 

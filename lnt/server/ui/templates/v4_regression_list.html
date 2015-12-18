@@ -75,6 +75,10 @@ $(document).ready( function () {
                     "aLengthMenu": [[50, -1],
                                     [50, "All"]]};
     dt = $('#regression_list').DataTable(settings);
+    $('input[type=search]').attr('autocomplete', 'off');
+    $('input[type=search]').attr('autocorrect', 'off');
+    $('input[type=search]').attr('spellcheck', 'off');
+
 });
 
 </script>

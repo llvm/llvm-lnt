@@ -62,6 +62,8 @@ var changes = [
     <br>
     <button id="normalize" type="button" class="btn btn-default" style="width:100%; text-align:center;">%</button>
 </div>
+<div id="yaxis">Metric</div>
+<div id="xaxis">Order</div>
 
 <a href="{{regression.bug}}">{{regression.bug}}</a>
 
@@ -124,7 +126,7 @@ var changes = [
 
 
 <!-- Button to trigger modal -->
-<a href="#editRegressionModal" role="button" class="btn" data-toggle="modal">Edit</a>
+<a id="editButton" href="#editRegressionModal" role="button" class="btn" data-toggle="modal">Change State</a>
  
 <!-- Modal -->
 <div id="editRegressionModal" class="modal hide fade" tabindex="-1" role="dialog" aria-labelledby="editRegressionModal" aria-hidden="true">
@@ -283,6 +285,8 @@ $(document).ready( function () {
     "drawCallback": function( settings ) {
         register_checkboxes();
     },
+    "aLengthMenu": [[-1, 50],
+                    ["All", 50]],
 
     });
 
