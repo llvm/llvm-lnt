@@ -107,10 +107,14 @@ def regenerate_fieldchanges_for_run(ts, run_id):
 
 def is_overlaping(fc1, fc2):
     """"Returns true if these two orders intersect. """
-    r1_min = fc1.start_order
-    r1_max = fc1.end_order
-    r2_min = fc2.start_order
-    r2_max = fc2.end_order
+    try:
+        r1_min = fc1.start_order
+        r1_max = fc1.end_order
+        r2_min = fc2.start_order
+        r2_max = fc2.end_order
+    except AttributeError:
+        # If we are on first run, some of these could be None.
+        return False
     return (r1_min == r2_min and r1_max == r2_max) or \
            (r1_min < r2_max and r2_min < r1_max)
 
