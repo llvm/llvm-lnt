@@ -30,7 +30,7 @@
 # CHECK-STDERR: capturing machine information
 # CHECK-STDERR: generating report
 # CHECK-STDERR: submitting result to
-# CHECK-STDERR: note: Rerunning 0 of 69 benchmarks.
+# CHECK-STDERR: Rerunning 0 of 69 benchmarks.
 
 # RUN: %S/Inputs/runtest_server_wrapper.sh \
 # RUN:   %{test_exec_root}/runtest/rerun_server_instance nt yes 9090 \
@@ -56,9 +56,9 @@
 # CHECK-STDERR2: loading nightly test data
 # CHECK-STDERR2: capturing machine information
 # CHECK-STDERR2: generating report
-# CHECK-STDERR2: note: Rerunning 3 of 69 benchmarks.
-# CHCCK-SDTERR2: note: Rerunning: ms_struct-bitfield [1/3]
-# CHCCK-SDTERR2: note: Rerunning: ms_struct_pack_layout-1 [2/3]
-# CHCCK-SDTERR2: note: Rerunning: vla [3/3]
+# CHECK-STDERR2: Rerunning 3 of 69 benchmarks.
+# CHCCK-SDTERR2: Rerunning: ms_struct-bitfield [1/3]
+# CHCCK-SDTERR2: Rerunning: ms_struct_pack_layout-1 [2/3]
+# CHCCK-SDTERR2: Rerunning: vla [3/3]
 
 # CHECK-STDERR2: submitting result to

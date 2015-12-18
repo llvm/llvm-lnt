@@ -174,7 +174,7 @@
 # CHECK-SUBMIT-STDERR: capturing machine information
 # CHECK-SUBMIT-STDERR: generating report
 # CHECK-SUBMIT-STDERR: submitting result to
-# CHECK-SUBMIT-STDERR: note: Rerunning 0 of 69 benchmarks.
+# CHECK-SUBMIT-STDERR: Rerunning 0 of 69 benchmarks.
 
 # Check submission to a server through server instance works:
 # RUN: rsync -av --exclude .svn %S/Inputs/rerun_server_instance/ \

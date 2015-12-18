@@ -8,6 +8,7 @@ import datetime
 from lnt.server.config import Config
 from lnt.server.db import testsuite
 from lnt.server.db import v4db
+from lnt.server.db.fieldchange import RegressionState
 
 # Create an in memory database.
 db = v4db.V4DB("sqlite:///:memory:", Config.dummyInstance(), echo=True)
@@ -60,7 +61,7 @@ ts_db.add(field_change2)
 
 TEST_TITLE = "Some regression title"
 
-regression = ts_db.Regression(TEST_TITLE, "PR1234")
+regression = ts_db.Regression(TEST_TITLE, "PR1234", RegressionState.DETECTED)
 ts_db.add(regression)
 
 regression_indicator1 = ts_db.RegressionIndicator(regression, field_change)
