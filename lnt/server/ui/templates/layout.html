@@ -104,6 +104,7 @@
             {# LNT Instance Title #}
                 <div id="lnt-instance">
                     <a class="brand" href="{{url_for('index')}}">{{old_config.name}}</a>
+                    {% if g.db_name is defined %}
                     <ul class="nav">
                         <li class="dropdown">
                             <a href="#" class="dropdown-toggle" data-toggle="dropdown">Suite<b class="caret"></b></a>
@@ -114,6 +115,7 @@
                             </ul>
                         </li>
                     </ul>
+                    {% endif %}
                 </div>
         
                 {# Go to #}
@@ -138,6 +140,7 @@
 
                 {# Database Selector #}
                 <ul class="nav pull-right">
+                    {% if g.db_name is defined %}
                     <li class="dropdown">
                         <a href="#" class="dropdown-toggle" data-toggle="dropdown" id="dbselect" >Database <b class="caret"></b></a>
                         <ul class="dropdown-menu">
@@ -152,6 +155,7 @@
                             {% endfor %}
                         </ul>
                     </li>
+                    {% endif %}
                 </ul>
 
             </div>
