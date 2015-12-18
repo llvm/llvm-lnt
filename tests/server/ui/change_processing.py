@@ -15,19 +15,76 @@ import datetime
 from lnt.server.config import Config
 from lnt.server.db import v4db
 from lnt.server.db.fieldchange import is_overlaping, identify_related_changes
+from lnt.server.db.fieldchange import rebuild_title, RegressionState
+from lnt.server.db.rules import rule_update_fixed_regressions
 
 logging.basicConfig(level=logging.DEBUG)
 
 
 class ChangeProcessingTests(unittest.TestCase):
-    """Test the REST api."""
+    """Test fieldchange and regression building."""
 
     def setUp(self):
         """Bind to the LNT test instance."""
-        db = v4db.V4DB("sqlite:///:memory:", Config.dummyInstance(), echo=False)
+        
+        self.db = v4db.V4DB("sqlite:///:memory:", Config.dummyInstance(), echo=False)
 
         # Get the test suite wrapper.
-        self.ts_db = db.testsuite['nts']
+        ts_db = self.ts_db = self.db.testsuite['nts']
+        
+        order1234 = self.order1234 = self._mkorder(ts_db, "1234")
+        order1235 = self.order1235 = self._mkorder(ts_db, "1235")
+        order1236 = self.order1236 = self._mkorder(ts_db, "1236")
+        order1237 = self.order1237 = self._mkorder(ts_db, "1237")
+        order1238 = self.order1238 = self._mkorder(ts_db, "1238")
+
+        start_time = end_time = datetime.datetime.utcnow()
+        machine = self.machine = ts_db.Machine("test-machine")
+        test = self.test = ts_db.Test("test-a")
+        machine2 = self.machine2 = ts_db.Machine("test-machine2")
+        test2 = self.test2 = ts_db.Test("test-b")
+
+        run = self.run = ts_db.Run(machine, order1235,  start_time,
+                        end_time)
+        sample = ts_db.Sample(run, test, compile_time=1.0,
+                              score=4.2)
+        a_field = self.a_field = list(sample.get_primary_fields())[0]
+        a_field2 = self.a_field2 = list(sample.get_primary_fields())[1]
+
+        field_change = self.field_change = ts_db.FieldChange(order1234,
+                                         order1236,
+                                         machine,
+                                         test,
+                                         a_field)
+        ts_db.add(field_change)
+
+        field_change2 = self.field_change2 = ts_db.FieldChange(order1235, order1236, machine,
+                                          test,
+                                          a_field)
+        ts_db.add(field_change2)
+
+        field_change3 = self.field_change3 = ts_db.FieldChange(order1237, order1238, machine,
+                                          test,
+                                          a_field)
+        ts_db.add(field_change3)
+
+        regression = self.regression = ts_db.Regression("Regression of 1 benchmarks:", "PR1234",
+                                      RegressionState.DETECTED)
+        ts_db.add(self.regression)
+
+        self.regression_indicator1 = ts_db.RegressionIndicator(regression,
+                                                          field_change)
+        self.regression_indicator2 = ts_db.RegressionIndicator(regression,
+                                                          field_change2)
+
+        ts_db.add(self.regression_indicator1)
+        ts_db.add(self.regression_indicator2)
+
+        # All the regressions we detected.
+        self.regressions = [regression]
+        
+    def tearDown(self):
+        self.db.close_engine()
 
     def test_fc(self):
         pass
@@ -38,110 +95,78 @@ class ChangeProcessingTests(unittest.TestCase):
         ts.add(order)
         return order
 
+    def test_rebuild_title(self):
+        ts = self.ts_db
+        
     def test_change_grouping_criteria(self):
         ts_db = self.ts_db
-        order1234 = self._mkorder(ts_db, "1234")
-        order1235 = self._mkorder(ts_db, "1235")
-        order1236 = self._mkorder(ts_db, "1236")
-        order1237 = self._mkorder(ts_db, "1237")
-        order1238 = self._mkorder(ts_db, "1238")
 
-        start_time = end_time = datetime.datetime.utcnow()
-        machine = ts_db.Machine("test-machine")
-        test = ts_db.Test("test-a")
-        machine2 = ts_db.Machine("test-machine2")
-        test2 = ts_db.Test("test-b")
-
-        run = ts_db.Run(machine, order1235,  start_time,
-                        end_time)
-        sample = ts_db.Sample(run, test, compile_time=1.0,
-                              score=4.2)
-        a_field = list(sample.get_primary_fields())[0]
-        a_field2 = list(sample.get_primary_fields())[1]
-
-        field_change = ts_db.FieldChange(order1234,
-                                         order1235,
-                                         machine,
-                                         test,
-                                         a_field)
-        ts_db.add(field_change)
-
-        field_change2 = ts_db.FieldChange(order1235, order1236, machine,
-                                          test,
-                                          a_field)
-        ts_db.add(field_change2)
-
-        field_change3 = ts_db.FieldChange(order1237, order1238, machine,
-                                          test,
-                                          a_field)
-        ts_db.add(field_change3)
-
-        regression = ts_db.Regression("Some regression title", "PR1234")
-        ts_db.add(regression)
-
-        regression_indicator1 = ts_db.RegressionIndicator(regression,
-                                                          field_change)
-        regression_indicator2 = ts_db.RegressionIndicator(regression,
-                                                          field_change2)
-
-        ts_db.add(regression_indicator1)
-        ts_db.add(regression_indicator2)
-
-        # All the regressions we detected.
-        regressions = [regression]
-
+        
         # Check simple overlap checks work.
-        self.assertTrue(is_overlaping(field_change, field_change2),
+        self.assertTrue(is_overlaping(self.field_change, self.field_change2),
                         "Should be overlapping")
-        self.assertFalse(is_overlaping(field_change, field_change3),
+        self.assertFalse(is_overlaping(self.field_change, self.field_change3),
                          "Should not be overlapping")
 
         # Check non-overlapping changes are always False.
-        ret, reg = identify_related_changes(ts_db, regressions, field_change3)
+        ret, reg = identify_related_changes(ts_db, self.regressions,
+                                            self.field_change3)
+                                            
         self.assertFalse(ret, "Ranges don't overlap, should not match")
-        regressions.append(reg)
+        self.regressions.append(reg)
         # Check a regression matches if all fields match.
-        ret, _ = identify_related_changes(ts_db, regressions, field_change)
+        ret, _ = identify_related_changes(ts_db, self.regressions,
+                                          self.field_change)
         self.assertTrue(ret, "Should Match.")
 
-        field_change7 = ts_db.FieldChange(order1234,
-                                          order1235,
-                                          machine2,
-                                          test2,
-                                          a_field)
+        field_change7 = ts_db.FieldChange(self.order1234,
+                                          self.order1235,
+                                          self.machine2,
+                                          self.test2,
+                                          self.a_field)
         ts_db.add(field_change7)
-        ret, reg = identify_related_changes(ts_db, regressions, field_change7)
-        self.assertNotEquals(regression, reg)
+        ret, reg = identify_related_changes(ts_db, self.regressions, field_change7)
+        self.assertNotEquals(self.regression, reg)
         self.assertFalse(ret, "Should not match with differnt machine and tests.")
-        regressions.append(reg)
-        field_change4 = ts_db.FieldChange(order1234,
-                                          order1235,
-                                          machine2,
-                                          test,
-                                          a_field)
+        self.regressions.append(reg)
+        field_change4 = ts_db.FieldChange(self.order1234,
+                                          self.order1235,
+                                          self.machine2,
+                                          self.test,
+                                          self.a_field)
 
         # Check a regression matches if all fields match.
-        ret, _ = identify_related_changes(ts_db, regressions, field_change4)
+        ret, _ = identify_related_changes(ts_db, self.regressions, field_change4)
         self.assertTrue(ret, "Should Match with differnt machine.")
 
-        field_change5 = ts_db.FieldChange(order1234,
-                                          order1235,
-                                          machine,
-                                          test2,
-                                          a_field)
+        field_change5 = ts_db.FieldChange(self.order1234,
+                                          self.order1235,
+                                          self.machine,
+                                          self.test2,
+                                          self.a_field)
 
         # Check a regression matches if all fields match.
-        ret, _ = identify_related_changes(ts_db, regressions, field_change5)
+        ret, _ = identify_related_changes(ts_db, self.regressions, field_change5)
         self.assertTrue(ret, "Should Match with differnt tests.")
-        field_change6 = ts_db.FieldChange(order1234,
-                                          order1235,
-                                          machine,
-                                          test,
-                                          a_field2)
+        field_change6 = ts_db.FieldChange(self.order1234,
+                                          self.order1235,
+                                          self.machine,
+                                          self.test,
+                                          self.a_field2)
 
         # Check a regression matches if all fields match.
-        ret, _ = identify_related_changes(ts_db, regressions, field_change6)
+        ret, _ = identify_related_changes(ts_db, self.regressions, field_change6)
         self.assertTrue(ret, "Should Match with differnt fields.")
+
+        ts_db.commit()
+        
+        r2 = rebuild_title(ts_db, self.regression)
+        EXPECTED_TITLE = "Regression of 6 benchmarks: test-a, test-b"
+        self.assertEquals(r2.title, EXPECTED_TITLE)
+
+    def test_regression_evolution(self):
+        ts_db = self.ts_db
+        rule_update_fixed_regressions.regression_evolution(ts_db, self.regressions)
 
 
 if __name__ == '__main__':

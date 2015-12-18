@@ -65,5 +65,9 @@ def register_hooks():
                 HOOKS[hook_name].append(globals[hook_name])
     return HOOKS
 
+def post_submission_hooks(ts, run_id):
+    """Run all the post submission hooks on the submitted run."""
+    for func in HOOKS['post_submission_hook']:
+        func(ts, run)
 
 logger = logging.getLogger(__name__)

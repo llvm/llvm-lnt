@@ -310,6 +310,12 @@ class EditRegressionForm(Form):
     state = SelectField(u'State', choices=choices)
 
 
+def get_ris(ts, regression):
+    return ts.query(ts.RegressionIndicator) \
+        .filter(ts.RegressionIndicator.regression_id == regression.id) \
+        .all()
+
+
 @v4_route("/regressions/<int:id>",  methods=["GET", "POST"])
 def v4_regression_detail(id):
     ts = request.get_testsuite()

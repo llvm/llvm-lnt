@@ -4,6 +4,8 @@ import lnt.server.reporting.analysis
 from lnt.testing.util.commands import warning
 from lnt.testing.util.commands import note
 from lnt.server.ui.regression_views import new_regression, RegressionState
+from lnt.server.ui.regression_views import get_ris
+from lnt.server.db import rules
 # How many runs backwards to use in the previous run set.
 # More runs are slower (more DB access), but may provide
 # more accurate results.
@@ -92,6 +94,8 @@ def regenerate_fieldchanges_for_run(ts, run_id):
                 f.new_value = result.current
                 f.run = run
     ts.commit()
+    rules.post_submission_hooks(ts, regressions)
+
 
 
 def is_overlaping(fc1, fc2):
@@ -130,12 +134,11 @@ def rebuild_title(ts, regression):
     return regression
 
 
+
 def identify_related_changes(ts, regressions, fc):
     """Can we find a home for this change in some existing regression? """
     for regression in regressions:
-        regression_indicators = ts.query(ts.RegressionIndicator) \
-            .filter(ts.RegressionIndicator.regression_id == regression.id) \
-            .all()
+        regression_indicators = get_ris(ts, regression)
         for change in regression_indicators:
             regression_change = change.field_change
             if is_overlaping(regression_change, fc):

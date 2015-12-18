@@ -131,6 +131,13 @@ class V4DB(object):
     def close(self):
         if self.session is not None:
             self.session.close()
+    
+    def close_engine(self):
+        """Rip down everything about this path, so we can make it
+        new again. This is used for tests that need to make a fresh
+        in memory database."""
+        self._engine.pop(self.path)
+        V4DB._db_updated.remove(self.path)
 
     def settings(self):
         """All the setting needed to recreate this instnace elsewhere."""
