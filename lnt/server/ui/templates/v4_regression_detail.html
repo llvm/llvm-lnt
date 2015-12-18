@@ -34,7 +34,9 @@
 
 
 {% block javascript %}
-var g = {}
+var g = {};
+var test_suite_name = "{{ testsuite_name }}";
+var db_name = "{{ request.view_args.db_name }}";
 
 var changes = [
 {% for form_change in form.field_changes%}
@@ -46,163 +48,6 @@ var changes = [
 {% endfor %}
 ];
 
-var test_suite_name = "{{ testsuite_name }}";
-var db_name = "{{ request.view_args.db_name }}";
-
-/* Bind events to the zoom bar buttons, so that 
- * the zoom buttons work, then position them
- * over top of the main graph.
- */
-function bind_zoom_bar(my_plot) {
-
-	$('#out').click(function (e) {
-        e.preventDefault(); 
-        my_plot.zoomOut(); 
-    }); 
-
-    $('#in').click(function (e) {
-        e.preventDefault(); 
-        my_plot.zoom(); 
-    }); 
-    
-
-	// Now move the bottons onto the graph.
-	$('#zoombar').css('position', 'relative');
-	$('#zoombar').css('left', '40px');
-	$('#zoombar').css('top', '-235px');
-}
-$('#normalize').click(function (e) {
-    normalize = !normalize;
-    alert(normalize);
-    update_graph();
-}); 
-function init(data, start_highlight, end_highlight) {
-  // Set up the primary graph.
-	var graph = $("#graph");
-	var graph_plots = data;
-    var line_width = 1;
-    if (data.length > 0 && data[0]['data'].length < 50) {
-        line_width = 2;
-    }
-	var graph_options = {
-      series : {
-        lines : {
-          lineWidth : line_width },
-        shadowSize : 0
-      },
-      highlight : {
-
-          range: {"end": [end_highlight], "start": [start_highlight]},
-          alpha: "0.35",
-          stroke: true,
-      },
-      zoom : { interactive : false },
-      pan : { interactive : true,
-              frameRate: 60 },
-      grid : {
-        hoverable : true,
-        clickable: true}
-      };
-
-  var main_plot = $.plot("#graph", graph_plots, graph_options);
-
-  // Add tooltips.
-  $("#graph").bind("plotclick", function(e,p,i) {
-    update_tooltip(e, p, i, show_tooltip, graph_plots); });
-  bind_zoom_bar(main_plot);
- 
- 
-}
-
-// Show our overlay tooltip.
-g.current_tip_point = null;
-function show_tooltip(x, y, item, pos, graph_data) {
-
-    // Given the event handler item, get the graph metadata.
-    function extract_metadata(item, graph_data) {
-        var index = item.dataIndex;
-        var series_index = item.seriesIndex;
-        // Graph data is formatted as [x, y, meta_data].
-        var meta_data = item.series.data[index][2];
-        return meta_data;
-
-    }
-    var data = item.datapoint;
-    var meta_data = extract_metadata(item, graph_data);
-    var tip_body = '<div id="tooltip">';
-
-    if ("title" in meta_data) {    
-        tip_body +=  "<b><a href=\"" + metadata.link + "\">" + meta_data.title + "</a></b></br>";
-    }
-
-    if ("test_name" in meta_data) {
-        tip_body += "<b>Test:</b> " + meta_data.test_name + "<br>";
-    }
-
-    if ("label" in meta_data) {
-        tip_body += "<b>Revision:</b> " + meta_data.label + "<br>";
-    }
-    tip_body += "<b>Value:</b> " + data[1].toFixed(4) + "<br>";
-
-    if ("date" in meta_data) {
-        tip_body += "<b>Date:</b> " + meta_data.date;
-    }
-    if ("state" in meta_data) {
-        tip_body += "<b>State:</b> " + meta_data.state;
-    }
-
-    tip_body += "</div>";
-    var tooltip_div = $(tip_body).css( {
-        position: 'absolute',
-        display: 'none',
-        top: y + 5,
-        left: x + 5,
-        border: '1px solid #fdd',
-        padding: '2px',
-        'background-color': '#fee',
-        opacity: 0.80,
-        'z-index': 100000
-    }).appendTo("body").fadeIn(200);
-
-    // Now make sure the tool tip is on the graph canvas.
-    var tt_position = tooltip_div.position();
-    var tt_offset = tooltip_div.offset();
-
-    var graph_div = $("#graph");
-    var graph_position = graph_div.position();
-
-    // The right edge of the graph.
-    var max_width = graph_position.left + graph_div.width();
-    // The right edge of the tool tip.
-    var tt_right = tt_position.left + tooltip_div.width();
-
-    if (tt_right > max_width) {
-        var diff = tt_right - max_width
-        var GRAPH_BORDER = 10;
-        var VISUAL_APPEAL = 10;
-        tooltip_div.css({'left' : tt_position.left - diff 
-                         - GRAPH_BORDER - VISUAL_APPEAL});
-    }
-
-}
-
-// Event handler function to update the tooltop.
-function update_tooltip(event, pos, item, show_fn, graph_data) {
-    if (!item) {
-        $("#tooltip").fadeOut(200, function () {
-            $("#tooltip").remove();    
-        });
-        g.current_tip_point = null;
-        return;
-    }
-        
-    if (!g.current_tip_point || (g.current_tip_point[0] != item.datapoint[0] ||
-                                 g.current_tip_point[1] != item.datapoint[1])) {
-        $("#tooltip").remove();
-        g.current_tip_point = item.datapoint;
-        show_fn(pos.pageX, pos.pageY, item, pos, graph_data);
-    }
-}
 {% endblock %}
 
 {% block body %}
@@ -238,7 +83,7 @@ function update_tooltip(event, pos, item, show_fn, graph_data) {
     <th>Old</th><th>New</th>
     <th>%&Delta;</th>
     <th>Now</th>
-    <th>Curernt</th>
+    <th>Current</th>
     <th>Age</th>
 
   </tr>
@@ -274,8 +119,8 @@ function update_tooltip(event, pos, item, show_fn, graph_data) {
   </tbody>
 </table>
 
-<button id="all" type="button" class="btn btn-default" onclick="all_checks()">Check Visable</button>
-<button id="clear" type="button" class="btn btn-default" onclick="clear_checks()">Clear Visable</button>
+<button id="all" type="button" class="btn btn-default" onclick="all_checks()">Check Visible</button>
+<button id="clear" type="button" class="btn btn-default" onclick="clear_checks()">Clear Visible</button>
 
 
 <!-- Button to trigger modal -->
@@ -434,26 +279,21 @@ var dt = null;
 
 $(document).ready( function () {
     dt = $('#changes_table').DataTable({
-    "dom": '<"top"if>rt<"bottom"Flp>',
+    "dom": '<"top">rt<"bottom">',
     "drawCallback": function( settings ) {
         register_checkboxes();
     },
-    "aLengthMenu": [
-        [25, 50, 100, 200, -1],
-        [25, 50, 100, 200, "All"]],
-});
 
+    });
 
-  for (var i = 0; i < changes.length; i++) {
-      is_checked[i] = false;
-  }
+    for (var i = 0; i < changes.length; i++) {
+        is_checked[i] = false;
+    }
       
     register_checkboxes();
+    init_graph();
     all_checks();
-    $('#normalize').click(function (e) {
-        normalize = !normalize;
-        update_graph();
-    }); 
+
     update_graph();
     update_order_summary();
   

@@ -185,7 +185,7 @@ class Graph(Resource):
         if field.status_field:
             q = q.filter((field.status_field.column == PASS) |
                          (field.status_field.column == None))
-        samples = [[int(rev), val, {'label': rev, 'date': str(time)}] for val, rev, time in q.all()]
+        samples = [[rev, val, {'label': rev, 'date': str(time)}] for val, rev, time in q.all()]
 
         return samples
 

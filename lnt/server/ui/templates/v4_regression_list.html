@@ -71,8 +71,12 @@
 
 <script type="text/javascript">
 $(document).ready( function () {
-    dt = $('#regression_list').DataTable();
+    var settings = {"dom": '<"top"if>rt<"bottom"Flp>',
+                    "aLengthMenu": [[50, -1],
+                                    [50, "All"]]};
+    dt = $('#regression_list').DataTable(settings);
 });
+
 </script>
 
 {% endblock %}
