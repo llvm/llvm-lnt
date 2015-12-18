@@ -105,7 +105,17 @@ var color_codes = ["#4D4D4D",
                    "#B2912F",
                    "#B276B2",
                    "#DECF3F",
-                   "#F15854"]
+                   "#F15854",
+                   "#1f78b4",
+                   "#33a02c",
+                   "#e31a1c",
+                   "#ff7f00",
+                   "#6a3d9a",
+                   "#a6cee3",
+                   "#b2df8a",
+                   "#fb9a99",
+                   "#fdbf6f",
+                   "#cab2d6"]
 
 function new_graph_data_callback(data, index) {
     data_cache[index] = data;

@@ -93,9 +93,8 @@ function init(data, start_highlight, end_highlight) {
       highlight : {
 
           range: {"end": [end_highlight], "start": [start_highlight]},
-          alpha: "0.1",
-          stroke: false,
-
+          alpha: "0.35",
+          stroke: true,
       },
       zoom : { interactive : false },
       pan : { interactive : true,
@@ -249,7 +248,8 @@ function update_tooltip(event, pos, item, show_fn, graph_data) {
     {# Show the active submissions. #}
     {% for form_change in form.field_changes%}
         {% set fc = changes[loop.index -1] %}
-    <tr>
+    <tr class="change-row" data-order-start="{{ fc.ri.start_order.llvm_project_revision }}"
+        data-order-end="{{fc.ri.end_order.llvm_project_revision}}">
         <td>
             
             <table>
@@ -268,7 +268,7 @@ function update_tooltip(event, pos, item, show_fn, graph_data) {
 
         {{ utils.get_regression_cell_value(fc.latest_cr, analysis)}}
 
-        <td><span class="reltime" data-toggle="tooltip" title="{{fc.run.end_time}}">{{ fc.run.end_time.isoformat() }}</td>
+        <td><span class="reltime" data-time="{{fc.run.end_time.isoformat()}}" data-toggle="tooltip" title="{{fc.run.end_time}}">{{ fc.run.end_time.isoformat() }}</td>
     </tr>
     {% endfor %}
   </tbody>
@@ -343,6 +343,7 @@ function update_tooltip(event, pos, item, show_fn, graph_data) {
 </div>
 </form> 
 
+
 <script type="text/javascript">
 
 function clear_checks() {
@@ -379,6 +380,56 @@ function register_checkboxes() {
       });
     $(':checkbox').css("-webkit-transform", "scale(2)");
   }
+function update_order_summary() {
+    var start_orders = $(".change-row").map(function () {
+        return parseInt($(this).data('order-start'));
+    });
+    var end_orders = $(".change-row").map(function () {
+        return parseInt($(this).data('order-end'));
+    });
+    
+    var min_order = Math.min.apply(Math, start_orders);
+    var min_order_end = Math.min.apply(Math, end_orders);
+    var max_order = Math.max.apply(Math, end_orders);
+    var max_order_start = Math.max.apply(Math, start_orders);
+    
+    var times = $(".reltime").map(function () {
+        return Date.parse($(this).data('time'));
+    });
+    var min_time = Math.min.apply(Math, times);
+    
+    // Now print all these things.
+    var SIDE_BAR = '#side-bar'
+    $(SIDE_BAR).append("<h3>Summary</h3></br>")
+    
+    $(SIDE_BAR).append("<h4>Found</h4>");
+    var change = " changes.";
+    if (start_orders.length == 1) {
+            change = " change."
+    }
+    $(SIDE_BAR).append(start_orders.length + change + "</br>");
+
+    $(SIDE_BAR).append($.format.prettyDate(new Date(min_time).toISOString()));
+    $(SIDE_BAR).append(".</br>");
+    
+    $(SIDE_BAR).append(new Date(min_time).toLocaleString());
+    $(SIDE_BAR).append(".</br>");
+    $(SIDE_BAR).append("<h4>Orders</h4>");
+    
+    $(SIDE_BAR).append("<b>Union (" + (max_order - min_order) + " commits):</b></br>");
+    $(SIDE_BAR).append("<b>Min Order:</b> " + min_order + "</br>");
+    $(SIDE_BAR).append("<b>Max Order:</b> " + max_order + "</br></br>");
+    
+    var intersection_size = min_order_end - max_order_start;
+    if (intersection_size > 0) {
+        $(SIDE_BAR).append("<b>Intersection ("+ intersection_size +"): </b></br>");
+        $(SIDE_BAR).append("<b>Min Order:</b> " + max_order_start + "</br>");
+        $(SIDE_BAR).append("<b>Max Order:</b> " + min_order_end + "</br></br>");
+    } else {
+        $(SIDE_BAR).append("<b>No intersection</b></br>");
+    }
+    
+}
 var dt = null;
 
 $(document).ready( function () {
@@ -404,6 +455,7 @@ $(document).ready( function () {
         update_graph();
     }); 
     update_graph();
+    update_order_summary();
   
     
 } );
