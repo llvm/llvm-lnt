@@ -1,7 +1,9 @@
+import re
 import sqlalchemy.sql
 import lnt.server.reporting.analysis
 from lnt.testing.util.commands import warning
 from lnt.testing.util.commands import note
+from lnt.server.ui.regression_views import new_regression
 # How many runs backwards to use in the previous run set.
 # More runs are slower (more DB access), but may provide
 # more accurate results.
@@ -19,6 +21,7 @@ def regenerate_fieldchanges_for_run(ts, run_id):
         filter(ts.Run.order_id == run.order_id). \
         filter(ts.Run.machine_id == run.machine_id). \
         all()
+    regressions = ts.query(ts.Regression).all()[::-1]
     previous_runs = ts.get_previous_runs_on_machine(run, FIELD_CHANGE_LOOKBACK)
     next_runs = ts.get_next_runs_on_machine(run, FIELD_CHANGE_LOOKBACK)
 
@@ -78,11 +81,69 @@ def regenerate_fieldchanges_for_run(ts, run_id):
                                    field=field)
                 f.test_id = test_id
                 ts.add(f)
+                ts.commit()
+                found, new_reg = identify_related_changes(ts, regressions, f)
+                if found:
+                    regressions.append(new_reg)
                 note("Found field change: {}".format(run.machine))
-
+                
             # Always update FCs with new values.
             if f:
                 f.old_value = result.previous
                 f.new_value = result.current
                 f.run = run
     ts.commit()
+
+
+def is_overlaping(fc1, fc2):
+    """"Returns true if these two orders intersect. """
+    r1_min = fc1.start_order
+    r1_max = fc1.end_order
+    r2_min = fc2.start_order
+    r2_max = fc2.end_order
+    return (r1_min == r2_min and r1_max == r2_max) or \
+           (r1_min < r2_max and r2_min < r1_max)
+
+
+def rebuild_title(regression, new_size):
+    """Update the title of a regresson."""
+    if re.match("Regression of \d+ benchmarks.*", regression.title):
+        new_title = "Regression of {} benchmarks".format(new_size)
+        regression.title = new_title
+        print new_title
+    return regression
+
+
+def identify_related_changes(ts, regressions, fc):
+    """Can we find a home for this change in some existing regression? """
+    for regression in regressions:
+        regression_indicators = ts.query(ts.RegressionIndicator) \
+            .filter(ts.RegressionIndicator.regression_id == regression.id) \
+            .all()
+        for change in regression_indicators:
+            regression_change = change.field_change
+            if is_overlaping(regression_change, fc):
+                confidence = 0
+                relation = ["Revision"]
+                if regression_change.machine == fc.machine:
+                    confidence += 1
+                    relation.append("Machine")
+                if regression_change.test == fc.test:
+                    confidence += 1
+                    relation.append("Test")
+                if regression_change.field == fc.field:
+                    confidence += 1
+                    relation.append("Field")
+
+                if confidence >= 2:
+                    # Matching
+                    note("Found a match:" + str(regression)  + " On " +
+                         ', '.join(relation))
+                    ri = ts.RegressionIndicator(regression, fc)
+                    ts.add(ri)
+                    # Update the default title if needed.
+                    rebuild_title(regression, len(regression_indicators) + 1)
+                    return (True, regression)
+    note("Could not find a partner, creating new Regression for change")
+    new_reg = new_regression(ts, [fc.id])
+    return (False, new_reg)
