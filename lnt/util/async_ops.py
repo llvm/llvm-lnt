@@ -45,27 +45,28 @@ def async_fieldchange_calc(ts, run):
                   ts,
                   func_args)
 
-def check_workers():
+def check_workers(is_logged):
     global JOBS
     JOBS = [x for x in JOBS if x.is_alive()]
     still_running = len(JOBS)
     msg = "{} Job(s) in the queue.".format(still_running)
-    if still_running > 5:
-        # This could be run outside of the application context, so use
-        # full logger name.
-        logging.getLogger("lnt.server.ui.app").warning(msg)
-    elif still_running > 0:
-        logging.getLogger("lnt.server.ui.app").info(msg)
-    else:
-        logging.getLogger("lnt.server.ui.app").info("Job queue empty.")
-    #print [x for x in JOBS if not x.successful()]
+    if is_logged:
+        if still_running > 5:
+            # This could be run outside of the application context, so use
+            # full logger name.
+            logging.getLogger("lnt.server.ui.app").warning(msg)
+        elif still_running > 0:
+            logging.getLogger("lnt.server.ui.app").info(msg)
+        else:
+            logging.getLogger("lnt.server.ui.app").info("Job queue empty.")
+    return len(JOBS)
         
 def async_run_job(job, ts, func_args):
     """Send a job to the async wrapper in the subprocess."""
     # If the run is not in the database, we can't do anything more.
     note("Queuing background job to process fieldchanges " + str(os.getpid()))
     launch_workers()
-    check_workers()
+    check_workers(True)
     args = {'tsname': ts.name,
             'db': g.db_name}
     job = Process(target=async_wrapper,

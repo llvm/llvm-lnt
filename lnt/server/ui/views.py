@@ -1173,7 +1173,7 @@ def rules():
 
 @frontend.route('/log')
 def log():
-    async_ops.check_workers()
+    async_ops.check_workers(True)
     note("Showing log page.")
     return render_template("log.html")
 
@@ -1188,7 +1188,7 @@ def health():
     return 500.  Monitor might reboot us for this."""
     explode = False
     msg = "Ok"
-    queue_length = async_ops.check_workers()
+    queue_length = async_ops.check_workers(False)
     if queue_length > 10:
         explode = True
         msg = "Queue too long."
