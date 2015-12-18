@@ -1,5 +1,5 @@
 """
-Test that this hook can be run.
+Test rule system. A simple rules, with one hook that can be run.
 """
 
 

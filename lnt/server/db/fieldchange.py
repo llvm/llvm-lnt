@@ -3,9 +3,11 @@ import sqlalchemy.sql
 import lnt.server.reporting.analysis
 from lnt.testing.util.commands import warning
 from lnt.testing.util.commands import note
-from lnt.server.ui.regression_views import new_regression, RegressionState
-from lnt.server.ui.regression_views import get_ris
-from lnt.server.db import rules
+from lnt.server.db.regression import new_regression, RegressionState
+from lnt.server.db.regression import get_ris
+from lnt.server.db.regression import rebuild_title
+
+from lnt.server.db import rules_manager as rules
 # How many runs backwards to use in the previous run set.
 # More runs are slower (more DB access), but may provide
 # more accurate results.
@@ -86,7 +88,7 @@ def regenerate_fieldchanges_for_run(ts, run_id):
                 found, new_reg = identify_related_changes(ts, regressions, f)
                 if found:
                     regressions.append(new_reg)
-                note("Found field change: {}".format(run.machine))
+                    note("Found field change: {}".format(run.machine))
 
             # Always update FCs with new values.
             if f:
@@ -106,33 +108,6 @@ def is_overlaping(fc1, fc2):
     r2_max = fc2.end_order
     return (r1_min == r2_min and r1_max == r2_max) or \
            (r1_min < r2_max and r2_min < r1_max)
-
-
-def shortname(benchmark):
-    """Given a benchmarks full name, make a short version"""
-    return benchmark.split("/")[-1]
-
-
-def rebuild_title(ts, regression):
-    """Update the title of a regresson."""
-    if re.match("Regression of \d+ benchmarks.*", regression.title):
-        old_changes = ts.query(ts.RegressionIndicator) \
-            .filter(ts.RegressionIndicator.regression_id == regression.id) \
-            .all()
-        new_size = len(old_changes)
-        benchmarks = set()
-        for ri in old_changes:
-            fc = ri.field_change
-            benchmarks.add(shortname(fc.test.name))
-        print benchmarks
-        FMT = "Regression of {} benchmarks: {}"
-        title = FMT.format(new_size, ', '.join(benchmarks))
-        # Crop long titles.
-        title = (title[:120] + '...') if len(title) > 120 else title
-        regression.title = title
-        print title
-    return regression
-
 
 
 def identify_related_changes(ts, regressions, fc):

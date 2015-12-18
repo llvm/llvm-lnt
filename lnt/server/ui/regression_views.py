@@ -11,11 +11,10 @@ from flask import redirect
 # from sqlalchemy.orm.exc import NoResultFound
 
 from lnt.server.ui.decorators import v4_route
-from lnt.server.reporting.analysis import RunInfo
 import lnt.server.reporting.analysis
 from lnt.server.ui.globals import db_url_for, v4_url_for
 
-from collections import namedtuple
+
 from random import randint
 from sqlalchemy import desc, asc
 from lnt.server.ui.util import FLASH_DANGER, FLASH_INFO, FLASH_SUCCESS
@@ -26,32 +25,13 @@ from wtforms.validators import DataRequired
 import lnt.server.ui.util as util
 from lnt.testing.util.commands import warning, error, note
 import lnt.server.db.fieldchange
+from lnt.server.db.regression import RegressionState, new_regression
+from lnt.server.db.regression import get_all_orders_for_machine
+from lnt.server.db.regression import ChangeRuns
+from lnt.server.db.regression import get_first_runs_of_fieldchange
+from lnt.server.db.regression import get_cr_for_field_change 
+from lnt.server.db.regression import ChangeData
 from lnt.server.db import rules_manager as rule_hooks
-
-class RegressionState:
-    # A new regression, not approved by the user yet.
-    DETECTED = 0
-    # Approved, but waiting for cooldown.
-    STAGED = 1
-    # Needs to be investigated.
-    ACTIVE = 10
-
-    # We won't fix this.
-    NTBF = 20
-    # This is not a real regression.
-    IGNORED = 21
-    # Manually marked as fixed.
-    FIXED = 22
-    # System detected it is fixed.
-    DETECTED_FIXED = 23
-    names = {DETECTED: u'Detected',
-             STAGED: u'Staged',
-             ACTIVE: u'Active',
-             NTBF: u'Not to be Fixed',
-             IGNORED: u'Ignored',
-             DETECTED_FIXED: u'Verify',
-             FIXED: u'Fixed'
-             }
 
 
 class MultiCheckboxField(SelectMultipleField):
@@ -68,9 +48,6 @@ class MultiCheckboxField(SelectMultipleField):
 class TriagePageSelectedForm(Form):
     field_changes = MultiCheckboxField("Changes", coerce=int)
     name = StringField('name', validators=[DataRequired()])
-
-
-ChangeData = namedtuple("ChangeData", ["ri", "cr", "run", "latest_cr"])
 
 
 def get_fieldchange(ts, id):
@@ -96,22 +73,6 @@ class PrecomputedCR():
 
     def get_value_status(self, ignore_small=True):
         return REGRESSED
-
-
-def new_regression(ts, field_changes):
-    """Make a new regression and add to DB."""
-    today = datetime.date.today()
-    MSG = "Regression of 0 benchmarks"
-    title = MSG
-    regression = ts.Regression(title, "", RegressionState.DETECTED)
-    ts.add(regression)
-    for fc_id in field_changes:
-        fc = get_fieldchange(ts, fc_id)
-        ri1 = ts.RegressionIndicator(regression, fc)
-        ts.add(ri1)
-    lnt.server.db.fieldchange.rebuild_title(ts, regression)
-    ts.commit()
-    return regression
 
 
 @v4_route("/regressions/new", methods=["GET", "POST"])
@@ -161,69 +122,6 @@ def v4_new_regressions():
                            testsuite_name=g.testsuite_name,
                            changes=crs, analysis=lnt.server.reporting.analysis,
                            form=form)
-
-
-ChangeRuns = namedtuple("ChangeRuns", ["before", "after"])
-
-
-def get_runs_for_order_and_machine(ts, order_id, machine_id):
-    """Collect all the runs for a particular order/machine combo."""
-    runs = ts.query(ts.Run) \
-        .filter(ts.Run.machine_id == machine_id) \
-        .filter(ts.Run.order_id == order_id) \
-        .all()
-    return runs
-
-
-def get_runs_of_fieldchange(ts, fc):
-    before_runs = get_runs_for_order_and_machine(ts, fc.start_order_id,
-                                                 fc.machine_id)
-    after_runs = get_runs_for_order_and_machine(ts, fc.end_order_id,
-                                                fc.machine_id)
-    return ChangeRuns(before_runs, after_runs)
-
-
-def get_current_runs_of_fieldchange(ts, fc):
-    before_runs = get_runs_for_order_and_machine(ts, fc.start_order_id,
-                                                 fc.machine_id)
-    newest_order = get_all_orders_for_machine(ts, fc.machine_id)[-1]
-
-    after_runs = get_runs_for_order_and_machine(ts, newest_order.id,
-                                                fc.machine_id)
-    return ChangeRuns(before_runs, after_runs)
-
-
-def get_first_runs_of_fieldchange(ts, fc):
-    # import ipdb; ipdb.set_trace()
-    run = ts.query(ts.Run) \
-        .filter(ts.Run.machine_id == fc.machine_id) \
-        .filter(ts.Run.order_id == fc.end_order_id) \
-        .first()
-    return run
-
-
-def get_all_orders_for_machine(ts, machine):
-    """Get all the oredrs for this sa machine."""
-    return ts.query(ts.Order) \
-        .join(ts.Run) \
-        .filter(ts.Run.machine_id == machine) \
-        .order_by(asc(ts.Order.llvm_project_revision)) \
-        .all()
-
-
-def get_cr_for_field_change(ts, field_change, current=False):
-    """Given a filed_change, calculate a comparison result for that change. 
-    And the last run."""
-    if current:
-        runs = get_current_runs_of_fieldchange(ts, field_change)
-    else:
-        runs = get_runs_of_fieldchange(ts, field_change)
-    runs_all = list(runs.before)
-    runs_all.extend(runs.after)
-    ri = RunInfo(ts, [r.id for r in runs_all], only_tests=[field_change.test_id])
-    cr = ri.get_comparison_result(runs.after, runs.before,
-                                  field_change.test.id, field_change.field)
-    return cr, runs.after[0]
 
 
 def calc_impact(ts, fcs):
@@ -313,12 +211,6 @@ class EditRegressionForm(Form):
     field_changes = MultiCheckboxField("Changes", coerce=int)
     choices = RegressionState.names.items()
     state = SelectField(u'State', choices=choices)
-
-
-def get_ris(ts, regression):
-    return ts.query(ts.RegressionIndicator) \
-        .filter(ts.RegressionIndicator.regression_id == regression.id) \
-        .all()
 
 
 @v4_route("/regressions/<int:id>",  methods=["GET", "POST"])

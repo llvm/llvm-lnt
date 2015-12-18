@@ -2,8 +2,8 @@
 Detcted + fixed -> Ignored
 Staged or Active + fixed -> Verify
 """
-from lnt.server.ui.regression_views import RegressionState
-from lnt.server.ui.regression_views import get_cr_for_field_change, get_ris
+from lnt.server.db.regression import RegressionState
+from lnt.server.db.regression import get_cr_for_field_change, get_ris
 from lnt.testing.util.commands import note
 
 def _fixed_rind(ts, rind):

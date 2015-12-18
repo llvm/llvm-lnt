@@ -7,7 +7,7 @@ import sys
 
 logging.basicConfig(level=logging.DEBUG)
 
-import lnt.server.db.rules as rules
+import lnt.server.db.rules_manager as rules
 
 class RuleProcssingTests(unittest.TestCase):
     """Test the Rules facility."""

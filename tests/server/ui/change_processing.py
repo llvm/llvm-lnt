@@ -15,7 +15,7 @@ import datetime
 from lnt.server.config import Config
 from lnt.server.db import v4db
 from lnt.server.db.fieldchange import is_overlaping, identify_related_changes
-from lnt.server.db.fieldchange import rebuild_title, RegressionState
+from lnt.server.db.regression import rebuild_title, RegressionState
 from lnt.server.db.rules import rule_update_fixed_regressions
 
 logging.basicConfig(level=logging.DEBUG)
@@ -40,14 +40,29 @@ class ChangeProcessingTests(unittest.TestCase):
 
         start_time = end_time = datetime.datetime.utcnow()
         machine = self.machine = ts_db.Machine("test-machine")
+        ts_db.add(machine)
+        
         test = self.test = ts_db.Test("test-a")
+        ts_db.add(test)
+        
         machine2 = self.machine2 = ts_db.Machine("test-machine2")
+        ts_db.add(machine2)
+        
         test2 = self.test2 = ts_db.Test("test-b")
-
+        ts_db.add(test2)
+        
         run = self.run = ts_db.Run(machine, order1235,  start_time,
                         end_time)
+        ts_db.add(run)
+        
+        run2 = self.run2 = ts_db.Run(machine2, order1235,  start_time,
+                        end_time)
+        ts_db.add(run2)
+        
         sample = ts_db.Sample(run, test, compile_time=1.0,
                               score=4.2)
+        ts_db.add(sample)
+        
         a_field = self.a_field = list(sample.get_primary_fields())[0]
         a_field2 = self.a_field2 = list(sample.get_primary_fields())[1]
 
@@ -57,6 +72,14 @@ class ChangeProcessingTests(unittest.TestCase):
                                          test,
                                          a_field)
         ts_db.add(field_change)
+
+        fc_mach2 = ts_db.FieldChange(order1234,
+                                         order1236,
+                                         machine2,
+                                         test,
+                                         a_field)
+        ts_db.add(fc_mach2)
+
 
         field_change2 = self.field_change2 = ts_db.FieldChange(order1235, order1236, machine,
                                           test,
@@ -82,7 +105,8 @@ class ChangeProcessingTests(unittest.TestCase):
 
         # All the regressions we detected.
         self.regressions = [regression]
-        
+        ts_db.commit()
+
     def tearDown(self):
         self.db.close_engine()
 
