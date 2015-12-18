@@ -80,6 +80,9 @@ class DBInfo:
         self.shadow_import = shadow_import
         self.email_config = email_config
         self.baseline_revision = baseline_revision
+        
+    def __str__(self):
+        return "DBInfo(" + self.path + ")"
 
 class Config:
     @staticmethod
