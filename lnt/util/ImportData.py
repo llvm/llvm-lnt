@@ -1,5 +1,5 @@
 import os, re, time
-
+import collections
 import lnt.testing
 import lnt.formats
 import lnt.server.reporting.analysis
@@ -158,6 +158,70 @@ def print_report_result(result, out, err, verbose = True):
         print >>err, "--\n%s--\n" % result['error']
         err.flush()
         return
+        
+    # Print the test results.
+    test_results = result.get('test_results')
+    if not test_results:
+        return
+
+    # List the parameter sets, if interesting.
+    show_pset = len(test_results) > 1
+    if show_pset:
+        print >>out, "Parameter Sets"
+        print >>out, "--------------"
+        for i,info in enumerate(test_results):
+            print >>out, "P%d: %s" % (i, info['pset'])
+        print >>out
+
+    total_num_tests = sum([len(item['results'])
+                           for item in test_results])
+    print >>out, "--- Tested: %d tests --" % total_num_tests
+    test_index = 0
+    result_kinds = collections.Counter()
+    for i,item in enumerate(test_results):
+        pset = item['pset']
+        pset_results = item['results']
+
+        for name,test_status,perf_status in pset_results:
+            test_index += 1
+            # FIXME: Show extended information for performance changes, previous
+            # samples, standard deviation, all that.
+            #
+            # FIXME: Think longer about mapping to test codes.
+            result_info = None
+            
+            if test_status == lnt.server.reporting.analysis.REGRESSED:
+                result_string = 'FAIL'
+            elif test_status == lnt.server.reporting.analysis.UNCHANGED_FAIL:
+                result_string = 'FAIL'
+            elif test_status == lnt.server.reporting.analysis.IMPROVED:
+                result_string = 'IMPROVED'
+                result_info = "Test started passing."
+            elif perf_status == None:
+                # Missing perf status means test was just added or removed.
+                result_string = 'PASS'
+            elif perf_status == lnt.server.reporting.analysis.REGRESSED:
+                result_string = 'REGRESSED'
+                result_info = 'Performance regressed.'
+            elif perf_status == lnt.server.reporting.analysis.IMPROVED:
+                result_string = 'IMPROVED'
+                result_info = 'Performance improved.'
+            else:
+                result_string = 'PASS'
+            result_kinds[result_string] += 1
+            # Ignore passes unless in verbose mode.
+            if not verbose and result_string == 'PASS':
+                continue
+
+            if show_pset:
+                name = 'P%d :: %s' % (i, name)
+            print >>out, "%s: %s (%d of %d)" % (result_string, name, test_index,
+                                                total_num_tests)
+
+            if result_info:
+                print >>out, "%s TEST '%s' %s" % ('*'*20, name, '*'*20)
+                print >>out, result_info
+                print >>out, "*" * 20
 
     if 'original_run' in result:
         print >>out, ("This submission is a duplicate of run %d, "
@@ -196,66 +260,7 @@ def print_report_result(result, out, err, verbose = True):
         if result.get('added_samples', 0):
             print >>out, "Added Samples : %d" % result['added_samples']
         print >>out
-
-    # Print the test results.
-    test_results = result.get('test_results')
-    if not test_results:
-        return
-
-    # List the parameter sets, if interesting.
-    show_pset = len(test_results) > 1
-    if show_pset:
-        print >>out, "Parameter Sets"
-        print >>out, "--------------"
-        for i,info in enumerate(test_results):
-            print >>out, "P%d: %s" % (i, info['pset'])
-        print >>out
-
-    total_num_tests = sum([len(item['results'])
-                           for item in test_results])
-    print >>out, "--- Tested: %d tests --" % total_num_tests
-    test_index = 0
-    for i,item in enumerate(test_results):
-        pset = item['pset']
-        pset_results = item['results']
-
-        for name,test_status,perf_status in pset_results:
-            test_index += 1
-
-            # FIXME: Show extended information for performance changes, previous
-            # samples, standard deviation, all that.
-            #
-            # FIXME: Think longer about mapping to test codes.
-            result_info = None
-            if test_status == lnt.server.reporting.analysis.REGRESSED:
-                result_string = 'FAIL'
-            elif test_status == lnt.server.reporting.analysis.UNCHANGED_FAIL:
-                result_string = 'FAIL'
-            elif test_status == lnt.server.reporting.analysis.IMPROVED:
-                result_string = 'IMPROVED'
-                result_info = "Test started passing."
-            elif perf_status == None:
-                # Missing perf status means test was just added or removed.
-                result_string = 'PASS'
-            elif perf_status == lnt.server.reporting.analysis.REGRESSED:
-                result_string = 'REGRESSED'
-                result_info = 'Performance regressed.'
-            elif perf_status == lnt.server.reporting.analysis.IMPROVED:
-                result_string = 'IMPROVED'
-                result_info = 'Performance improved.'
-            else:
-                result_string = 'PASS'
-
-            # Ignore passes unless in verbose mode.
-            if not verbose and result_string == 'PASS':
-                continue
-
-            if show_pset:
-                name = 'P%d :: %s' % (i, name)
-            print >>out, "%s: %s (%d of %d)" % (result_string, name, test_index,
-                                                total_num_tests)
-
-            if result_info:
-                print >>out, "%s TEST '%s' %s" % ('*'*20, name, '*'*20)
-                print >>out, result_info
-                print >>out, "*" * 20
+    print >>out, "Results"
+    print >>out, "----------------"
+    for kind, count in result_kinds.items():
+        print >>out, kind, ":", count
