@@ -12,6 +12,9 @@
   <script language="javascript" type="text/javascript"
           src="{{ url_for('.static',
                           filename='flot/jquery.flot.min.js') }}"> </script>
+                          <script language="javascript" type="text/javascript"
+                                  src="{{ url_for('.static',
+                                                  filename='flot/jquery.flot.symbol.min.js') }}"> </script>  
   <script language="javascript" type="text/javascript"
           src="{{ url_for('.static',
                           filename='flot/jquery.flot.errorbars.min.js') }}"> </script>
@@ -32,16 +35,19 @@
 
 {% block javascript %}
 var g = {}
-{% set api_graph = "api/db_default/v4/" + testsuite_name + "/graph"%}
+
 var changes = [
 {% for form_change in form.field_changes%}
     {% set fc = changes[loop.index -1] %}
-    {"url": "/{{api_graph}}/{{ fc.ri.machine.id}}/{{fc.ri.test.id}}/{{fc.ri.field.index}}",
+    {"url": "{{fc.ri.machine.id}}/{{fc.ri.test.id}}/{{fc.ri.field.index}}",
      "start": {{fc.ri.start_order.llvm_project_revision}},
      "end": {{fc.ri.end_order.llvm_project_revision}}
  },
 {% endfor %}
 ];
+
+var test_suite_name = "{{ testsuite_name }}";
+var db_name = "{{ request.view_args.db_name }}";
 
 /* Bind events to the zoom bar buttons, so that 
  * the zoom buttons work, then position them
@@ -95,13 +101,14 @@ function init(data, start_highlight, end_highlight) {
       pan : { interactive : true,
               frameRate: 60 },
       grid : {
-        hoverable : true }
+        hoverable : true,
+        clickable: true}
       };
 
   var main_plot = $.plot("#graph", graph_plots, graph_options);
 
   // Add tooltips.
-  $("#graph").bind("plothover", function(e,p,i) {
+  $("#graph").bind("plotclick", function(e,p,i) {
     update_tooltip(e, p, i, show_tooltip, graph_plots); });
   bind_zoom_bar(main_plot);
  
@@ -117,13 +124,17 @@ function show_tooltip(x, y, item, pos, graph_data) {
         var index = item.dataIndex;
         var series_index = item.seriesIndex;
         // Graph data is formatted as [x, y, meta_data].
-        var meta_data = item.series.data[series_index][2];
+        var meta_data = item.series.data[index][2];
         return meta_data;
 
     }
     var data = item.datapoint;
     var meta_data = extract_metadata(item, graph_data);
     var tip_body = '<div id="tooltip">';
+
+    if ("title" in meta_data) {    
+        tip_body +=  "<b><a href=\"" + metadata.link + "\">" + meta_data.title + "</a></b></br>";
+    }
 
     if ("test_name" in meta_data) {
         tip_body += "<b>Test:</b> " + meta_data.test_name + "<br>";
@@ -137,6 +148,10 @@ function show_tooltip(x, y, item, pos, graph_data) {
     if ("date" in meta_data) {
         tip_body += "<b>Date:</b> " + meta_data.date;
     }
+    if ("state" in meta_data) {
+        tip_body += "<b>State:</b> " + meta_data.state;
+    }
+
     tip_body += "</div>";
     var tooltip_div = $(tip_body).css( {
         position: 'absolute',
@@ -146,7 +161,8 @@ function show_tooltip(x, y, item, pos, graph_data) {
         border: '1px solid #fdd',
         padding: '2px',
         'background-color': '#fee',
-        opacity: 0.80
+        opacity: 0.80,
+        'z-index': 100000
     }).appendTo("body").fadeIn(200);
 
     // Now make sure the tool tip is on the graph canvas.
@@ -174,7 +190,9 @@ function show_tooltip(x, y, item, pos, graph_data) {
 // Event handler function to update the tooltop.
 function update_tooltip(event, pos, item, show_fn, graph_data) {
     if (!item) {
-        $("#tooltip").remove();
+        $("#tooltip").fadeOut(200, function () {
+            $("#tooltip").remove();    
+        });
         g.current_tip_point = null;
         return;
     }

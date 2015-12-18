@@ -5,6 +5,28 @@ var is_checked = []; // The current list of lines to plot.
 var normalize = false;
 var MAX_TO_DRAW = 25;
 
+var STATE_NAMES = {0: 'Detected',
+                   1: 'Staged',
+                   10: 'Active',
+                   20: 'Not to be Fixed',
+                   21: 'Ignored',
+                   23: 'Verify',
+                   22: 'Fixed'};
+
+var regression_cache = [];
+
+// Grab the graph API url for this line.
+function get_api_url(kind, db, ts, mtf) {
+    return ["/api", "db_"+ db, "v4", ts, kind, mtf].join('/');
+}
+
+// Grab the URL for a regression by id.
+function get_regression_url(db, ts, regression) {
+    return ["", "db_"+ db, "v4", ts, "regressions", regression].join('/');
+}
+
+
+
 function try_normal(data_array, end_rev) {
     $("#graph_range").prop("min", 0);
     var max = $("#graph_range").prop("max");
@@ -53,15 +75,25 @@ function normalize_data(data_array) {
     
 }
 
-function make_graph_point_entry(data, color) {
+function make_graph_point_entry(data, color, regression) {
+    var radius = 0.25;
+    var fill = true;
+    if (regression) {
+        radius = 5.0;
+        fill = false;
+        color = "red";
+    }
     var entry = {"color": color,
                  "data": data,
                  "lines": {"show": false},
-                 "points": {"fill": true,
-                            "radius": 0.25,
+                 "points": {"fill": fill,
+                            "radius": radius,
                             "show": true
                            }
                 };
+    if (regression) {
+            entry["points"]["symbol"] = "cross";
+    }
     return entry;
 }
 
@@ -80,6 +112,38 @@ function new_graph_data_callback(data, index) {
     update_graph();
 }
 
+function get_regression_id() {
+    var path = window.location.pathname.split("/");
+    if (path[path.length - 2] == "regressions") {
+        return parseInt(path[path.length - 1]);
+    } else {
+        return null;
+    }
+}
+
+
+
+function new_graph_regression_callback(data, index) {
+    $.each(data, function (i, d) {
+
+        if (get_regression_id() != null) {
+            if (get_regression_id() == d['id'] || d['state'] == 21) {
+                return;
+            }
+        }
+        if ( ! (regression_cache[index])) {
+            regression_cache[index] = [];
+        }
+        metadata = {'label': d['end_point'][0],
+                    'title': d['title'],
+                    'link': get_regression_url(db_name, test_suite_name, d['id']),
+                    'state': STATE_NAMES[d['state']]}
+        regression_cache[index].push([parseInt(d['end_point'][0]), d['end_point'][1],metadata]);
+    });
+    update_graph();
+}
+
+
 NOT_DRAWING = '<div class="alert alert-success" role="alert">' +
             'Too many to graph.<a href="#" class="close" data-dismiss="alert" aria-label="close">×</a>' + 
                         '</div>';
@@ -87,6 +151,7 @@ function update_graph() {
     var to_draw = [];
     var starts = [];
     var ends = [];
+    // Data.
     for ( var i = 0; i < changes.length; i++) {
             
             if (is_checked[i] && data_cache[i]) {
@@ -94,12 +159,26 @@ function update_graph() {
                     ends.push(changes[i].end);
                     var color = color_codes[i % color_codes.length];
                     var data = try_normal(data_cache[i], changes[i].end);
-                    to_draw.push(make_graph_point_entry(data, color));
+
+                    to_draw.push(make_graph_point_entry(data, color, false));
                     to_draw.push({"color": color, "data": data});
+                
+            }
+    }
+    // Regressions.
+    for ( var i = 0; i < changes.length; i++) {
+            
+            if (is_checked[i] && data_cache[i]) {
+                    if (regression_cache[i]) {
+                        var regressions = try_normal(regression_cache[i], changes[i].end);
+                        to_draw.push(make_graph_point_entry(regressions, color, true));
+                    }
+                
             }
     }
     var lowest_rev = Math.min.apply(Math, starts);
     var highest_rev = Math.max.apply(Math, ends);
+    console.log(to_draw);
     init(to_draw, lowest_rev, highest_rev);    
 }
 
@@ -111,8 +190,11 @@ function add_data_to_graph(URL, index) {
         is_checked[index] = true;
         return;
     }
-    $.getJSON(URL, function(data) {
+    $.getJSON(get_api_url("graph", db_name, test_suite_name, URL), function(data) {
         new_graph_data_callback(data, index);
+        });
+    $.getJSON(get_api_url("regression", db_name, test_suite_name, URL), function(data) {
+        new_graph_regression_callback(data, index);
         });
     is_checked[index] = true;
 }

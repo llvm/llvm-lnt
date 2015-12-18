@@ -190,6 +190,48 @@ class Graph(Resource):
         return samples
 
 
+class Regression(Resource):
+    """List all the machines and give summary information."""
+    method_decorators = [in_db]
+
+    def get(self, machine_id, test_id, field_index):
+        """Get the regressions for a particular line in a graph."""
+        ts = request.get_testsuite()
+        field = ts.sample_fields[field_index]
+        # Maybe we don't need to do this?
+        fcs = ts.query(ts.FieldChange) \
+            .filter(ts.FieldChange.machine_id == machine_id) \
+            .filter(ts.FieldChange.test_id == test_id) \
+            .filter(ts.FieldChange.field_id == field.id) \
+            .all()
+        fc_ids = [x.id for x in fcs]
+        fc_mappings = dict([(x.id, (x.end_order.as_ordered_string(), x.new_value)) for x in fcs])
+        if len(fcs) == 0:
+            # If we don't find anything, lets see if we are even looking
+            # for a valid thing to provide a nice error.
+            try:
+                machine = ts.query(ts.Machine) \
+                    .filter(ts.Machine.id == machine_id) \
+                    .one()
+                test = ts.query(ts.Test) \
+                    .filter(ts.Test.id == test_id) \
+                    .one()
+                field = ts.sample_fields[field_index]
+            except NoResultFound:
+                return abort(404)
+            # I think we found nothing.
+            return []
+        regressions = ts.query(ts.Regression.title, ts.Regression.id, ts.RegressionIndicator.field_change_id, ts.Regression.state) \
+            .join(ts.RegressionIndicator) \
+            .filter(ts.RegressionIndicator.field_change_id.in_(fc_ids)) \
+            .all()
+        results = [{'title': r.title,
+                    'id': r.id, 
+                    'state': r.state, 
+                    'end_point': fc_mappings[r.field_change_id]} for r in regressions]
+        return results
+
+
 def load_api_resources(api):
     api.add_resource(Machines, ts_path("machines"))
     api.add_resource(Machine, ts_path("machine/<int:machine_id>"))
@@ -197,3 +239,5 @@ def load_api_resources(api):
     api.add_resource(Order, ts_path("order/<int:order_id>"))
     graph_url = "graph/<int:machine_id>/<int:test_id>/<int:field_index>"
     api.add_resource(Graph, ts_path(graph_url))
+    regression_url = "regression/<int:machine_id>/<int:test_id>/<int:field_index>"
+    api.add_resource(Regression, ts_path(regression_url))
