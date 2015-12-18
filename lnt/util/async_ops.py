@@ -57,25 +57,28 @@ def async_run_job(job, ts, func_args):
     except TimeoutError:
         pass
 
+
 def async_wrapper(job, ts_args, func_args):
-    """Setup test-suite in this subprocess and run something."""
+    """Setup test-suite in this subprocess and run something.
+    
+    Because of multipocessing, capture excptions and log messages,
+    and return them.
+    """
     try:
         print >>sys.stderr,"Test"
         h = logging.handlers.MemoryHandler(1024 * 1024)
         h.setLevel(logging.DEBUG)
         logging.getLogger('LNT').addHandler(h)
-        note("Running async wrapper")
-        note(str(job))
+        note("Running async wrapper: {}".format(job.__name__))
         _v4db = lnt.server.db.v4db.V4DB(**ts_args['db'])
         ts = _v4db.testsuite[ts_args['tsname']]
-        note("Calculating field changes for ")
         job(ts, **func_args)
-        note("Done calculating field changes")
     except:
         # Put all exception text into an exception and raise that for our
         # parent process.
         return Exception("".join(traceback.format_exception(*sys.exc_info())))
     return h.buffer
+
 
 def async_job_finished(arg):
     if isinstance(arg, Exception):

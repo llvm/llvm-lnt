@@ -14,7 +14,8 @@ from flask import redirect
 from flask import render_template
 from flask import request
 from flask import url_for
-
+from flask import flash
+from lnt.testing.util.commands import warning, error, note
 import sqlalchemy.sql
 from sqlalchemy.orm.exc import NoResultFound
 
@@ -1171,4 +1172,5 @@ def rules():
 
 @frontend.route('/log')
 def log():
+    note("Showing log page.")
     return render_template("log.html")

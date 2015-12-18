@@ -17,7 +17,7 @@
     </tr>
   </thead>
   <tbody class="searchable">
-{% for item in old_config.mem_logger.buffer %}
+{% for item in config.mem_logger.buffer[::-1] %}
     {% if item.levelname|string() == 'WARNING' %}
     <tr class="warning">
     {% elif item.levelname|string() == 'ERROR' %}

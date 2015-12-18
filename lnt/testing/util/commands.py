@@ -7,11 +7,19 @@ import inspect
 import os
 import sys
 import logging
+from flask import current_app
 # FIXME: Find a better place for this code.
 
-note = lambda message: logging.getLogger('LNT').info(message)
-warning = lambda message: logging.getLogger('LNT').warning(message)
-error = lambda message: logging.getLogger('LNT').error(message)
+def getLogger():
+    try:
+         logger = current_app.logger
+    except RuntimeError:
+        print "Using other logger."
+        logger = logging.getLogger("LNT")
+    return logger
+note = lambda message: getLogger().info(message)
+warning = lambda message: getLogger().warning(message)
+error = lambda message: getLogger().error(message)
 
 
 def fatal(message):

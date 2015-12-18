@@ -35,6 +35,7 @@ def regression_evolution(ts, run_id):
 
     """
     note("Running regression evolution")
+    changed = 0
     regressions = ts.query(ts.Regression).all()
     detects = [r for r in regressions if r.state == RegressionState.DETECTED]
     
@@ -43,6 +44,7 @@ def regression_evolution(ts, run_id):
             note("Detected fixed regression" + str(regression))
             regression.state = RegressionState.IGNORED
             regression.title = regression.title + " [Detected Fixed]"
+            changed += 1
     ts.commit()
 
     staged = [r for r in regressions if r.state == RegressionState.STAGED]
@@ -52,6 +54,7 @@ def regression_evolution(ts, run_id):
             note("Staged fixed regression" + str(regression))
             regression.state = RegressionState.DETECTED_FIXED
             regression.title = regression.title + " [Detected Fixed]"
+            changed += 1
     ts.commit()
     
     active = [r for r in regressions if r.state == RegressionState.ACTIVE]
@@ -61,6 +64,8 @@ def regression_evolution(ts, run_id):
             note("Active fixed regression" + str(regression))
             regression.state = RegressionState.DETECTED_FIXED
             regression.title = regression.title + " [Detected Fixed]"
+            changed += 1
     ts.commit()
+    note("Changed the state of {} regressions".format(changed))
     
 post_submission_hook = regression_evolution

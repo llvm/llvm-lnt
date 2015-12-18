@@ -20,7 +20,7 @@ import lnt.server.instance
 import lnt.server.ui.filters
 import lnt.server.ui.globals
 import lnt.server.ui.views
-
+from lnt.testing.util.commands import warning
 import lnt.server.ui.regression_views
 from lnt.server.ui.api import load_api_resources
 import lnt.server.db.rules_manager
@@ -89,6 +89,9 @@ class Request(flask.Request):
         return self.testsuite
 
     def close(self):
+        t = self.elapsed_time()
+        if t > 10:
+            warning("Request {} took {}s".format(self.url, t))
         db = getattr(self, 'db', None)
         if db is not None:
             db.close()
@@ -138,9 +141,8 @@ class App(flask.Flask):
         # Inject a fix for missing slashes on the root URL (see Flask issue
         # #169).
         self.wsgi_app = RootSlashPatchMiddleware(self.wsgi_app)
-        
-        self.lnt_logger = logging.getLogger('LNT')
-        self.lnt_logger.setLevel(logging.DEBUG)
+        self.logger.setLevel(logging.DEBUG)
+
         
     def load_config(self, instance):
         self.instance = instance
@@ -163,14 +165,14 @@ class App(flask.Flask):
         # Print to screen.
         ch = logging.StreamHandler()
         ch.setLevel(logging.DEBUG)
-        self.lnt_logger.addHandler(ch)
+        self.logger.addHandler(ch)
         
         # Log to mem for the /log view.
         h = logging.handlers.MemoryHandler(1024 * 1024)
         h.setLevel(logging.DEBUG)
-        self.lnt_logger.addHandler(h)
         self.logger.addHandler(h)
-        self.old_config.mem_logger = h
+        # Also store the logger, so we can render the buffer in it.
+        self.config['mem_logger'] = h
         
         if not self.debug:
             LOG_FILENAME = "lnt.log"
@@ -182,7 +184,7 @@ class App(flask.Flask):
                     '[in %(pathname)s:%(lineno)d]'
                 ))
                 rotating.setLevel(logging.DEBUG)
-                self.lnt_logger.addHandler(rotating)                
+                self.logger.addHandler(rotating)                
             except (OSError, IOError) as e:
                 print >> sys.stderr, "Error making log file", LOG_FILENAME, str(e)
                 print >> sys.stderr, "Will not log to file."
