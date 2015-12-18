@@ -167,6 +167,9 @@ def main():
 
     # Fetch the index page.
     check_code(client, '/')
+    
+    # Rules the index page.
+    check_code(client, '/rules')
 
     # Get the V4 overview page.
     check_code(client, '/v4/nts/')

@@ -28,6 +28,7 @@ from lnt.server.ui.decorators import frontend, db_route, v4_route
 import lnt.server.ui.util
 import lnt.server.reporting.dailyreport
 import lnt.server.reporting.summaryreport
+import lnt.server.db.rules
 from collections import namedtuple
 
 integral_rex = re.compile(r"[\d]+")
@@ -1161,3 +1162,10 @@ You must define a summary report configuration first.""")
         return flask.jsonify(**json_obj)
 
     return render_template("v4_summary_report.html", report=report)
+
+
+@frontend.route('/rules')
+def rules():
+    lnt.server.db.rules.register_hooks()
+    discovered_rules = lnt.server.db.rules.DESCRIPTIONS
+    return render_template("rules.html",rules=discovered_rules)
