@@ -30,11 +30,6 @@
 <a href="{{bug}}">{{bug}}</a>
 {%- endmacro %}
 
-{% macro render_order_link(order) -%}
-<a href="{{v4_url_for('v4_order', id=order.id)}}">m{{order.llvm_project_revision}}</a> <a href="https://smooshbase.apple.com/am/r/{{order.llvm_project_revision}}">
-<i class="icon-share-alt"></i></a>
-{%- endmacro %}
-
 
 {% macro regex_filter_box(input_id, selector, placeholder,
                           selector_part_to_search=None) -%}

@@ -1,0 +1,24 @@
+{# A file for putting site specific customizations. Ex 1234 #}
+
+{# This is what to draw before an order. #}
+{% set prefix = "" %}
+
+{% macro render_order_link(order) -%}
+    <a href="{{v4_url_for('v4_order', id=order.id)}}">{{ prefix }}{{order.llvm_project_revision}}</a> 
+{%- endmacro %}
+
+{# Some example settings from llvm.org. #}
+{#
+    <!---On llvm.org we use SVN, so put an r in front. Ex. r1234 -->
+
+    {% set prefix = "r" %}
+
+
+    <!-- And link the the llvm.org viewvc. -->
+
+    {% macro render_order_link(order) -%}
+        <a href="{{v4_url_for('v4_order', id=order.id)}}">{{prefix}}{{order.llvm_project_revision}}</a> 
+        <a href="http://llvm.org/viewvc/llvm-project?view=revision&revision={{order.llvm_project_revision}}">
+            <i class="icon-share-alt"></i></a>
+    {%- endmacro %}
+#}
