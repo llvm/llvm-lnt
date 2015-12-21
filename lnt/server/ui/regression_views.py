@@ -150,9 +150,6 @@ class MergeRegressionForm(Form):
 
 @v4_route("/regressions/", methods=["GET", "POST"])
 def v4_regression_list():
-    warning("regression list")
-    error("regression list")
-    note("regression list")
 
     ts = request.get_testsuite()
     form = MergeRegressionForm(request.form)
