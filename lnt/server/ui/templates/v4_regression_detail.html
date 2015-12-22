@@ -218,7 +218,7 @@ function register_checkboxes() {
               var color = color_codes[index % color_codes.length];
               var prev_cell = $(this).closest('td').prev();
               prev_cell.css("background-color", color);
-              add_data_to_graph(changes[index]["url"], index);
+              add_data_to_graph(changes[index]["url"], index, update_graph);
           } else {
               is_checked[index] = false;
               var prev_cell = $(this).closest('td').prev();

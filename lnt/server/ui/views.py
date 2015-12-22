@@ -537,10 +537,10 @@ def v4_graph():
             field = ts.sample_fields[field_index]
         except NoResultFound:
             return abort(404)
-        graph_parameters.append((machine, test, field))
+        graph_parameters.append((machine, test, field, field_index))
 
     # Order the plots by machine name, test name and then field.
-    graph_parameters.sort(key = lambda (m,t,f): (m.name, t.name, f.name))
+    graph_parameters.sort(key = lambda (m,t,f,_): (m.name, t.name, f.name, _))
 
     # Extract requested mean trend.
     mean_parameter = None
@@ -626,10 +626,11 @@ def v4_graph():
     overview_plots = []
     baseline_plots = []
     num_plots = len(graph_parameters)
-    for i,(machine,test,field) in enumerate(graph_parameters):
+    for i,(machine,test,field, field_index) in enumerate(graph_parameters):
         # Determine the base plot color.
         col = list(util.makeDarkColor(float(i) / num_plots))
-        legend.append((machine, test.name, field.name, tuple(col)))
+        url = "/".join([str(machine.id), str(test.id), str(field_index)])
+        legend.append((machine, test.name, field.name, tuple(col), url))
 
         # Load all the field values for this test on the same machine.
         #

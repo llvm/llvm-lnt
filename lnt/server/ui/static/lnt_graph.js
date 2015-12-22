@@ -234,7 +234,7 @@ function get_regression_id() {
 }
 
 
-function new_graph_regression_callback(data, index) {
+function new_graph_regression_callback(data, index, update_func) {
     "use strict";
     $.each(data, function (i, d) {
 
@@ -253,7 +253,7 @@ function new_graph_regression_callback(data, index) {
                     'state': STATE_NAMES[d.state]};
         regression_cache[index].push([parseInt(d.end_point[0], 10), d.end_point[1], metadata]);
     });
-    update_graph();
+    update_func();
 }
 
 
@@ -362,7 +362,25 @@ function init_graph () {
     
     
 }
-
+/* On the normal graph page, data is loaded during page load.
+This function takes the plots from page load and adds the regressions
+that are asynchrounusly fetched.
+*/
+function update_graphplots(old_plot) {
+    "use strict";
+    // Regressions.
+    var regressions = null;
+    var i = 0;
+    var new_plot = $.extend([], old_plot);
+    for (i = 0; i < regression_cache.length; i++) {
+        if (regression_cache[i]) {
+            regressions = regression_cache[i];
+            new_plot.push(make_graph_point_entry(regressions, "#000000", true));
+        }
+    }
+    return new_plot;
+}
+    
 
 function init(data, start_highlight, end_highlight) {
     "use strict";
@@ -398,5 +416,6 @@ function init(data, start_highlight, end_highlight) {
     graph.bind("plotclick", function (e, p, i) {
         update_tooltip(e, p, i, show_tooltip, graph_plots);
     });
+    
     bind_zoom_bar(main_plot);
 }
