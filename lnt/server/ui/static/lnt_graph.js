@@ -21,6 +21,26 @@ var STATE_NAMES = {0: 'Detected',
 var regression_cache = [];
 var lnt_graph = {};
 
+
+// Grab the graph API url for this line.
+function get_api_url(kind, db, ts, mtf) {
+    "use strict";
+    return [prefix, "api", "db_" + db, "v4", ts, kind, mtf].join('/');
+}
+
+// Grab the URL for a regression by id.
+function get_regression_url(db, ts, regression) {
+    "use strict";
+    return [prefix, "db_" + db, "v4", ts, "regressions", regression].join('/');
+}
+
+// Grab the URL for a run by id.
+function get_run_url(db, ts, runID) {
+    "use strict";
+    return [prefix, "db_" + db, "v4", ts, runID].join('/');
+}
+
+
 /* Bind events to the zoom bar buttons, so that 
  * the zoom buttons work, then position them
  * over top of the main graph.
@@ -36,8 +56,9 @@ function bind_zoom_bar(my_plot) {
         e.preventDefault();
         my_plot.zoom();
     });
+
     // Now move the bottons onto the graph.
-    $('#graphbox').css('position','relative')
+    $('#graphbox').css('position', 'relative');
     $('#zoombar').css('position', 'absolute');
 
     $('#zoombar').css('left', '40px');
@@ -140,23 +161,6 @@ function update_tooltip(event, pos, item, show_fn, graph_data) {
     }
 }
 
-// Grab the graph API url for this line.
-function get_api_url(kind, db, ts, mtf) {
-    "use strict";
-    return [prefix, "api", "db_" + db, "v4", ts, kind, mtf].join('/');
-}
-
-// Grab the URL for a regression by id.
-function get_regression_url(db, ts, regression) {
-    "use strict";
-    return [prefix, "db_" + db, "v4", ts, "regressions", regression].join('/');
-}
-
-// Grab the URL for a run by id.
-function get_run_url(db, ts, runID) {
-    "use strict";
-    return [prefix, "db_" + db, "v4", ts, runID].join('/');
-}
 
 // Normalize this data to the element in index
 function normalize_data(data_array, index) {
@@ -324,25 +328,26 @@ function add_data_to_graph(URL, index) {
         new_graph_data_callback(data, index);
     });
     $.getJSON(get_api_url("regression", db_name, test_suite_name, URL), function (data) {
-        new_graph_regression_callback(data, index);
+        new_graph_regression_callback(data, index, update_graph);
     });
     is_checked[index] = true;
 }
 
 
-function init_axis (prefix_url) {
-    function onlyUnique(value, index, self) { 
+function init_axis(prefix_url) {
+    "use strict";
+    function onlyUnique(value, index, self) {
         return self.indexOf(value) === index;
     }
     prefix = prefix_url;
-    var metrics = $('.metric').map( function() {
+    var metrics = $('.metric').map(function () {
         return $(this).text();
     }).get();
     metrics = metrics.filter(onlyUnique);
-    
+
     var yaxis_name = metrics.join(", ");
-    yaxis_name = yaxis_name.replace("_"," ");
-    
+    yaxis_name = yaxis_name.replace("_", " ");
+
     $('#yaxis').text(yaxis_name);
 
     $('#normalize').click(function (e) {
@@ -351,16 +356,13 @@ function init_axis (prefix_url) {
             $('#normalize').toggleClass("btn-default btn-primary");
             $('#normalize').text("x1");
             $('#yaxis').text("Normalized (%)");
-            
-
         } else {
             $('#normalize').toggleClass("btn-primary btn-default");
             $('#normalize').text("%");
             $('#yaxis').text(yaxis_name);
-
         }
         update_graph();
-    }); 
+    });
 
     $('#xaxis').css('position', 'absolute');
     $('#xaxis').css('left', '50%');
@@ -373,8 +375,6 @@ function init_axis (prefix_url) {
     $('#yaxis').css('top', '50%');
     $('#yaxis').css('-webkit-transform', 'rotate(-90deg)');
     $('#yaxis').css('-moz-transform', 'rotate(-90deg)');
-    
-    
 }
 /* On the normal graph page, data is loaded during page load.
 This function takes the plots from page load and adds the regressions
@@ -394,7 +394,7 @@ function update_graphplots(old_plot) {
     }
     return new_plot;
 }
-    
+
 
 function init(data, start_highlight, end_highlight) {
     "use strict";
@@ -430,6 +430,6 @@ function init(data, start_highlight, end_highlight) {
     graph.bind("plotclick", function (e, p, i) {
         update_tooltip(e, p, i, show_tooltip, graph_plots);
     });
-    
+
     bind_zoom_bar(main_plot);
 }
