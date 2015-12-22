@@ -40,6 +40,19 @@ function get_run_url(db, ts, runID) {
     return [prefix, "db_" + db, "v4", ts, runID].join('/');
 }
 
+// Create a new regression manually URL.
+function get_manual_regression_url(db, ts, url, runID) {
+    "use strict";
+    return [prefix,
+        "db_" + db,
+        "v4",
+        ts,
+        "regressions/new_from_graph",
+        url,
+        runID].join('/');
+}
+
+
 
 /* Bind events to the zoom bar buttons, so that 
  * the zoom buttons work, then position them
@@ -106,6 +119,12 @@ function show_tooltip(x, y, item, pos, graph_data) {
         tip_body += "<b>Run:</b> <a href=\"" +
             get_run_url(db_name, test_suite_name, meta_data.runID) +
             "\">" + meta_data.runID + "<br>";
+    }
+    
+    if (meta_data.runID &&  item.series.url) {
+        tip_body += "<a href=\"" +
+            get_manual_regression_url(db_name, test_suite_name, item.series.url, meta_data.runID) +
+            "\">Mark Change.<br>";
     }
 
     tip_body += "</div>";
@@ -299,7 +318,7 @@ function update_graph() {
             color = color_codes[i % color_codes.length];
             data = try_normal(data_cache[i], changes[i].start);
             to_draw.push(make_graph_point_entry(data, color, false));
-            to_draw.push({"color": color, "data": data});
+            to_draw.push({"color": color, "data": data, "url": changes[i].url});
         }
     }
     // Regressions.

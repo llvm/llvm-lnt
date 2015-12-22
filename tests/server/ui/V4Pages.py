@@ -42,6 +42,7 @@ def check_json(client, url, expected_code=200, data_to_send=None):
 
 
 def check_redirect(client, url, expected_redirect_regex):
+    """Check the client returns the expected redirect on this URL."""
     resp = client.get(url, follow_redirects=False)
     assert resp.status_code == 302, \
         "Call to %s returned: %d, not the expected %d"%(url, resp.status_code, 302)
@@ -323,6 +324,13 @@ def main():
     # Check some variations of the daily report work.
     check_code(client, '/v4/compile/daily_report/2014/6/5?day_start=16')
     check_code(client, '/v4/compile/daily_report/2014/6/4')
+    
+    check_redirect(client, '/v4/nts/regressions/new_from_graph/1/1/1/1', '/v4/nts/regressions/1')
+    check_code(client, '/v4/nts/regressions/')
+    
+    check_code(client, '/v4/nts/regressions/1')
+    
+    
 
 
 if __name__ == '__main__':

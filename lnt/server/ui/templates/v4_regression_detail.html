@@ -37,7 +37,7 @@
 {% block javascript %}
 var g = {};
 var test_suite_name = "{{ testsuite_name }}";
-var db_name = "{{ request.view_args.db_name }}";
+var db_name = "{{ request.view_args.get('db_name','') }}";
 
 var changes = [
 {% for form_change in form.field_changes%}

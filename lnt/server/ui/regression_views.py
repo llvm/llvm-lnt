@@ -17,6 +17,7 @@ from lnt.server.ui.globals import db_url_for, v4_url_for
 
 from random import randint
 from sqlalchemy import desc, asc
+import sqlalchemy
 from lnt.server.ui.util import FLASH_DANGER, FLASH_INFO, FLASH_SUCCESS
 from lnt.server.reporting.analysis import REGRESSED
 from wtforms import SelectMultipleField, StringField, widgets, SelectField
@@ -135,12 +136,13 @@ def calc_impact(ts, fcs):
             cr = PrecomputedCR(fc.old_value, fc.new_value, fc.field.bigger_is_better)
         crs.append(cr)
     if crs:
-        olds = sum([x.previous for x in crs])
-        news = sum([x.current for x in crs])
-        new_cr = PrecomputedCR(olds, news, crs[0].bigger_is_better) # TODO both directions
-        return new_cr
-    else:
-        return PrecomputedCR(1, 1, True)
+        olds = sum([x.previous for x in crs if x.previous])
+        news = sum([x.current for x in crs if x.current])
+        if olds and news:
+            new_cr = PrecomputedCR(olds, news, crs[0].bigger_is_better) # TODO both directions
+            return new_cr
+    
+    return PrecomputedCR(1, 1, True)
 
 
 class MergeRegressionForm(Form):
@@ -266,15 +268,7 @@ def v4_regression_detail(id):
     regression_indicators = ts.query(ts.RegressionIndicator) \
         .filter(ts.RegressionIndicator.regression_id == id) \
         .all()
-    # indicators = []
-    # for regression in regression_indicators:
-    #     fc = regression.field_change
-    #     cr, key_run = get_cr_for_field_change(ts, fc)
-    #     latest_cr, _ = get_cr_for_field_change(ts, fc, current=True)
-    #     indicators.append(ChangeData(fc, cr, key_run, latest_cr))
-    
-    
-    ######
+
     crs = []
 
     form.field_changes.choices = list()
@@ -301,3 +295,78 @@ def v4_hook():
     ts = request.get_testsuite()
     rule_hooks.post_submission_hooks(ts, 0)
     abort(400)
+
+
+@v4_route("/regressions/new_from_graph/<int:machine_id>/<int:test_id>/<int:field_index>/<int:run_id>", methods=["GET"])
+def v4_make_regression(machine_id, test_id, field_index, run_id):
+    """This function is called to make a new regression from a graph data point.
+    
+    It is not nessessarly the case that there will be a real change there,
+    so we must create a regression, bypassing the normal analysis.
+    
+    """
+    ts = request.get_testsuite()
+    field = ts.sample_fields[field_index]
+    new_regression_id = 0
+    run = ts.query(ts.Run).get(run_id)
+    
+    runs = ts.query(ts.Run). \
+        filter(ts.Run.order_id == run.order_id). \
+        filter(ts.Run.machine_id == run.machine_id). \
+        all()
+        
+    previous_runs = ts.get_previous_runs_on_machine(run, 1)
+    
+    # Find our start/end order.
+    if previous_runs != []:
+        start_order = previous_runs[0].order
+    else:
+        start_order = run.order
+    end_order = run.order
+
+    # Load our run data for the creation of the new fieldchanges.
+    runs_to_load = [r.id for r in (runs + previous_runs)]
+
+    runinfo = lnt.server.reporting.analysis.RunInfo(ts, runs_to_load)
+
+    result = runinfo.get_comparison_result(runs, previous_runs,
+                                                   test_id, field)
+
+    # Try and find a matching FC and update, else create one.
+    f = None
+
+    try:
+        f = ts.query(ts.FieldChange) \
+            .filter(ts.FieldChange.start_order == start_order) \
+            .filter(ts.FieldChange.end_order == end_order) \
+            .filter(ts.FieldChange.test_id == test_id) \
+            .filter(ts.FieldChange.machine == run.machine) \
+            .filter(ts.FieldChange.field == field) \
+            .one()
+    except sqlalchemy.orm.exc.NoResultFound:
+            f = None
+    
+    if not f:
+        test = ts.query(ts.Test).filter(ts.Test.id == test_id).one()
+        f = ts.FieldChange(start_order=start_order,
+                        end_order=run.order,
+                        machine=run.machine,
+                        test=test,
+                        field=field)
+        ts.add(f)
+    # Always update FCs with new values.
+    if f:
+        f.old_value = result.previous
+        f.new_value = result.current
+        f.run = run
+    ts.commit()
+    
+    # Make new regressions.
+    regression = new_regression(ts, [f.id])
+    regression.state = RegressionState.ACTIVE
+    
+    ts.commit()
+    note("Manually created new regressions: {}".format(regression.id))
+    flash("Created " + regression.title, FLASH_SUCCESS)
+
+    return redirect(v4_url_for("v4_regression_detail", id=regression.id))

@@ -638,7 +638,7 @@ def v4_graph():
         # we want to load. Actually, we should just make this a single query.
         #
         # FIXME: Don't hard code field name.
-        q = ts.query(field.column, ts.Order.llvm_project_revision, ts.Run.start_time).\
+        q = ts.query(field.column, ts.Order.llvm_project_revision, ts.Run.start_time, ts.Run.id).\
             join(ts.Run).join(ts.Order).\
             filter(ts.Run.machine_id == machine.id).\
             filter(ts.Sample.test == test).\
@@ -651,10 +651,10 @@ def v4_graph():
                              (field.status_field.column == None))
 
         # Aggregate by revision.
-        data = util.multidict((rev, (val, date)) for val,rev,date in q).items()
+        data = util.multidict((rev, (val, date, run_id)) for val,rev,date,run_id in q).items()
         data.sort(key=lambda sample: convert_revision(sample[0]))
 
-        graph_datum.append((test.name, data, col, field))
+        graph_datum.append((test.name, data, col, field, url))
 
         # Get baselines for this line
         num_baselines = len(baseline_parameters)
@@ -709,9 +709,9 @@ def v4_graph():
         # Sort data points according to revision number.
         data.sort(key=lambda sample: convert_revision(sample[0]))
 
-        graph_datum.append((test_name, data, col, field))
+        graph_datum.append((test_name, data, col, field, None))
 
-    for name, data, col, field in graph_datum:
+    for name, data, col, field, url in graph_datum:
         # Compute the graph points.
         errorbar_data = []
         points_data = []
@@ -730,6 +730,8 @@ def v4_graph():
             data = [data_date[0] for data_date in datapoints]
             # And the date on which they were taken.
             dates = [data_date[1] for data_date in datapoints]
+            # Run where this point was collected.
+            runs = [data_pts[2] for data_pts in datapoints if len(data_pts)==3]
 
             # When we can, map x-axis to revisions, but when that is too hard
             # use the position of the sample instead.
@@ -745,8 +747,11 @@ def v4_graph():
                                for (index, value) in enumerate(values))
 
             # Generate metadata.
-            metadata = {"label":point_label}
+            metadata = {"label": point_label}
             metadata["date"] = str(dates[agg_index])
+            if runs:
+                metadata["runID"] = str(runs[agg_index])
+            
             if len(graph_datum) > 1:
                 # If there are more than one plot in the graph, also label the
                 # test name.
@@ -808,10 +813,12 @@ def v4_graph():
 
         # Add the minimum line plot, if requested.
         if show_lineplot:
-            graph_plots.append({
-                    "data" : pts,
-                    "color" : util.toColorString(col) })
-
+            plot = {"data" : pts,
+                    "color" : util.toColorString(col)
+                    }
+            if url:
+                plot["url"] = url
+            graph_plots.append(plot)
         # Add regression line, if requested.
         if show_linear_regression:
             xs = [t for t,v,_ in pts]
@@ -848,15 +855,18 @@ def v4_graph():
         # Add the points plot, if used.
         if points_data:
             pts_col = (0,0,0)
-            graph_plots.append({
-                    "data" : points_data,
+            plot = {"data" : points_data,
                     "color" : util.toColorString(pts_col),
-                    "lines" : {
-                        "show" : False },
+                    "lines" : {"show" : False },
                     "points" : {
                         "show" : True,
                         "radius" : .25,
-                        "fill" : True } })
+                        "fill" : True
+                        }
+                    }
+            if url:
+                plot['url'] = url
+            graph_plots.append(plot)
 
         # Add the error bar plot, if used.
         if errorbar_data:
