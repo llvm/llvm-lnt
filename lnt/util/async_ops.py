@@ -81,7 +81,8 @@ def check_workers(is_logged):
         else:
             logging.getLogger("lnt.server.ui.app").info("Job queue empty.")
     return len(JOBS)
-        
+
+
 def async_run_job(job, db_name, ts, func_args):
     """Send a job to the async wrapper in the subprocess."""
     # If the run is not in the database, we can't do anything more.
