@@ -691,7 +691,7 @@ def v4_graph():
         test_name = 'Geometric Mean'
 
         col = (0,0,0)
-        legend.append((machine, test_name, field.name, col))
+        legend.append((machine, test_name, field.name, col, None))
 
         q = ts.query(sqlalchemy.sql.func.min(field.column),
                 ts.Order.llvm_project_revision,
@@ -897,7 +897,8 @@ def v4_graph():
             new_entry = {'name': machine.name,
                          'test': test,
                          'unit': unit,
-                         'color': util.toColorString(color),}
+                         'color': util.toColorString(color),
+                         'url': None}
             simple_type_legend.append(new_entry)
         json_obj['legend'] = simple_type_legend
         json_obj['revision_range'] = revision_range

@@ -40,7 +40,7 @@
 {% block javascript %}
 var g = {};
 var test_suite_name = "{{ request.view_args.testsuite_name }}";
-var db_name = "{{ request.view_args.db_name }}";
+var db_name = "{{ request.view_args.get('db_name','') }}";
 var graph_plots = {{graph_plots|tojson|safe}};
 var baseline_plots = {{baseline_plots|tojson|safe}};
 
