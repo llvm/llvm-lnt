@@ -13,9 +13,9 @@
   <script language="javascript" type="text/javascript"
           src="{{ url_for('.static',
                           filename='flot/jquery.flot.min.js') }}"> </script>
-                          <script language="javascript" type="text/javascript"
-                                  src="{{ url_for('.static',
-                                                  filename='flot/jquery.flot.symbol.min.js') }}"> </script>  
+  <script language="javascript" type="text/javascript"
+          src="{{ url_for('.static',
+                         filename='flot/jquery.flot.symbol.min.js') }}"> </script>  
   <script language="javascript" type="text/javascript"
           src="{{ url_for('.static',
                           filename='flot/jquery.flot.errorbars.min.js') }}"> </script>
@@ -63,9 +63,10 @@ var changes = [
         <br>
         <button id="normalize" type="button" class="btn btn-default" style="width:100%; text-align:center;">%</button>
     </div>
+    <div id="yaxis">Metric</div>
+    <div id="xaxis">Order</div>
 </div>
-<div id="yaxis">Metric</div>
-<div id="xaxis">Order</div>
+
 
 <a href="{{regression.bug}}">{{regression.bug}}</a>
 
@@ -107,7 +108,7 @@ var changes = [
                 </tr>
             </table>
         <td>{{utils.render_machine(fc.ri.machine)}}</td>
-        <td> {{ fc.ri.field.name }} </td>
+        <td class="metric"> {{ fc.ri.field.name }} </td>
          {% set graph_base=v4_url_for('v4_graph', highlight_run=fc.run.id) %}
         <td><a href="{{graph_base}}&amp;plot.{{fc.ri.test.id}}={{ fc.ri.machine.id}}.{{fc.ri.test.id}}.{{fc.ri.field.index}}">{{ fc.ri.test.name }}</a></td>
         <td>{{local.prefix}}{{ fc.ri.start_order.llvm_project_revision }}, {{local.render_order_link(fc.ri.end_order)}}</td>

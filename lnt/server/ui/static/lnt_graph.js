@@ -347,16 +347,15 @@ function init_graph () {
         update_graph();
     }); 
 
-    $('#xaxis').css('position', 'relative');
+    $('#xaxis').css('position', 'absolute');
     $('#xaxis').css('left', '50%');
-    $('#xaxis').css('bottom', '100px');
+    $('#xaxis').css('bottom', '-15px');
     $('#xaxis').css('width', '100px');
     $('#xaxis').css('margin-left', '-50px');
 
-    $('#yaxis').css('position', 'relative');
-    $('#yaxis').css('left', '-60px');
-    $('#yaxis').css('float', 'left');
-    $('#yaxis').css('top', '-250px');
+    $('#yaxis').css('position', 'absolute');
+    $('#yaxis').css('left', '-55px');
+    $('#yaxis').css('top', '50%');
     $('#yaxis').css('-webkit-transform', 'rotate(-90deg)');
     $('#yaxis').css('-moz-transform', 'rotate(-90deg)');
     
