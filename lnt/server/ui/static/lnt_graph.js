@@ -35,9 +35,11 @@ function bind_zoom_bar(my_plot) {
         my_plot.zoom();
     });
     // Now move the bottons onto the graph.
-    $('#zoombar').css('position', 'relative');
+    $('#graphbox').css('position','relative')
+    $('#zoombar').css('position', 'absolute');
+
     $('#zoombar').css('left', '40px');
-    $('#zoombar').css('top', '-235px');
+    $('#zoombar').css('top', '15px');
 
 }
 

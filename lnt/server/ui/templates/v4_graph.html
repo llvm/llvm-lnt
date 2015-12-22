@@ -24,6 +24,9 @@
   <script language="javascript" type="text/javascript"
           src="{{ url_for('.static',
                           filename='flot/jquery.flot.touch.min.js') }}"></script>
+  <script language="javascript" type="text/javascript"
+          src="{{ url_for('.static',
+                        filename='lnt_graph.js') }}"></script>
 {% endblock %}
 
 {% block title %}Graph{% endblock %}
@@ -32,28 +35,10 @@
 {% block onload %}init(){% endblock %}
 
 {% block javascript %}
-var g = {}
+var g = {};
+var test_suite_name = "{{ request.view_args.testsuite_name }}";
+var db_name = "{{ request.view_args.db_name }}";
 
-/* Bind events to the zoom bar buttons, so that 
- * the zoom buttons work, then position them
- * over top of the main graph.
- */
-function bind_zoom_bar(my_plot) {
-
-	$('#out').click(function (e) {
-        e.preventDefault(); 
-        my_plot.zoomOut(); 
-    }); 
-
-    $('#in').click(function (e) {
-        e.preventDefault(); 
-        my_plot.zoom(); 
-    }); 
-	// Now move the bottons onto the graph.
-	$('#zoombar').css('position', 'relative');
-	$('#zoombar').css('left', '60px');
-	$('#zoombar').css('top', '-470px');
-}
 
 function init() {
   // Set up the primary graph.
@@ -86,7 +71,8 @@ function init() {
   
   // Add tooltips.
   graph.bind("plothover", function(e,p,i) {
-    update_tooltip(e, p, i, show_tooltip, graph_plots); });
+    update_tooltip(e, p, i, show_tooltip, graph_plots);
+  });
 
   // Set up the overview graph.
   var overview = $("#overview")
@@ -124,84 +110,7 @@ function init() {
 	
 }
 
-// Show our overlay tooltip.
-g.current_tip_point = null;
-function show_tooltip(x, y, item, pos, graph_data) {
 
-    // Given the event handler item, get the graph metadata.
-    function extract_metadata(item, graph_data) {
-        var index = item.dataIndex;
-        var series_index = item.seriesIndex;
-        // Graph data is formatted as [x, y, meta_data].
-        var meta_data = graph_data[series_index].data[index][2];
-        return meta_data;
-
-    }
-    var data = item.datapoint;
-    var meta_data = extract_metadata(item, graph_data);
-    var tip_body = '<div id="tooltip">';
-
-    if ("test_name" in meta_data) {
-        tip_body += "<b>Test:</b> " + meta_data.test_name + "<br>";
-    }
-
-    if ("label" in meta_data) {
-        tip_body += "<b>Revision:</b> " + meta_data.label + "<br>";
-    }
-    tip_body += "<b>Value:</b> " + data[1].toFixed(4) + "<br>";
-
-    if ("date" in meta_data) {
-        tip_body += "<b>Date:</b> " + meta_data.date;
-    }
-    tip_body += "</div>";
-    var tooltip_div = $(tip_body).css( {
-        position: 'absolute',
-        display: 'none',
-        top: y + 5,
-        left: x + 5,
-        border: '1px solid #fdd',
-        padding: '2px',
-        'background-color': '#fee',
-        opacity: 0.80
-    }).appendTo("body").fadeIn(200);
-
-    // Now make sure the tool tip is on the graph canvas.
-    var tt_position = tooltip_div.position();
-    var tt_offset = tooltip_div.offset();
-
-    var graph_div = $("#graph");
-    var graph_position = graph_div.position();
-
-    // The right edge of the graph.
-    var max_width = graph_position.left + graph_div.width();
-    // The right edge of the tool tip.
-    var tt_right = tt_position.left + tooltip_div.width();
-
-    if (tt_right > max_width) {
-        var diff = tt_right - max_width
-        var GRAPH_BORDER = 10;
-        var VISUAL_APPEAL = 10;
-        tooltip_div.css({'left' : tt_position.left - diff 
-                         - GRAPH_BORDER - VISUAL_APPEAL});
-    }
-
-}
-
-// Event handler function to update the tooltop.
-function update_tooltip(event, pos, item, show_fn, graph_data) {
-    if (!item) {
-        $("#tooltip").remove();
-        g.current_tip_point = null;
-        return;
-    }
-        
-    if (!g.current_tip_point || (g.current_tip_point[0] != item.datapoint[0] ||
-                                 g.current_tip_point[1] != item.datapoint[1])) {
-        $("#tooltip").remove();
-        g.current_tip_point = item.datapoint;
-        show_fn(pos.pageX, pos.pageY, item, pos, graph_data);
-    }
-}
 {% endblock %}
 
 {% block sidebar %}
@@ -308,8 +217,24 @@ function update_tooltip(event, pos, item, show_fn, graph_data) {
     </td>
   </tr>
 
-	<tr><td colspan="2"><div id="graph" style="height:500px"></div><div id="zoombar" style="width:40px;"><button id="in" type="button" class="btn btn-default" style="width:100%;text-align:center;">+</button><br><button id="out" type="button" class="btn btn-default" style="width:100%; text-align:center;">-</button></div></td></tr>
-  <tr><td colspan="2"><div id="overview" style="width:100%;height:80px;"></div></td></td>
+	<tr>
+        <td colspan="2">
+            <div id="graphbox">
+                <div id="graph" style="height:500px"></div>
+                <div id="zoombar" style="width:40px;">
+                    <button id="in" type="button" class="btn btn-default" style="width:100%;text-align:center;">+</button>
+                    <br>
+                    <button id="out" type="button" class="btn btn-default" style="width:100%; text-align:center;">-</button>
+                </div>
+            </div>
+        </td>
+    </tr>
+  
+    <tr>
+        <td colspan="2">
+            <div id="overview" style="width:100%;height:80px;"></div>
+        </td>
+    </td>
 
 </table>
   

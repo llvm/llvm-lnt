@@ -54,14 +54,15 @@ var changes = [
 {% block body %}
 <section id="Regression Detail" />
 <h3>Regression: {{regression.title}}</h3>
-
-<div id="graph" style="height:250px"></div>
-<div id="zoombar" style="width:40px;z-index: 999;">
-    <button id="in" type="button" class="btn btn-default" style="width:100%;text-align:center;">+</button>
-    <br>
-    <button id="out" type="button" class="btn btn-default" style="width:100%; text-align:center;">-</button>
-    <br>
-    <button id="normalize" type="button" class="btn btn-default" style="width:100%; text-align:center;">%</button>
+<div id="graphbox">
+    <div id="graph" style="height:250px"></div>
+    <div id="zoombar" style="width:40px;z-index: 999;">
+        <button id="in" type="button" class="btn btn-default" style="width:100%;text-align:center;">+</button>
+        <br>
+        <button id="out" type="button" class="btn btn-default" style="width:100%; text-align:center;">-</button>
+        <br>
+        <button id="normalize" type="button" class="btn btn-default" style="width:100%; text-align:center;">%</button>
+    </div>
 </div>
 <div id="yaxis">Metric</div>
 <div id="xaxis">Order</div>
