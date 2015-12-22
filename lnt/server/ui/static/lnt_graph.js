@@ -316,7 +316,7 @@ function add_data_to_graph(URL, index) {
     is_checked[index] = true;
 }
 
-function init_graph () {
+function init_axis () {
     function onlyUnique(value, index, self) { 
         return self.indexOf(value) === index;
     }

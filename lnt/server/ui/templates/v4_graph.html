@@ -130,6 +130,7 @@ function init_page() {
     });
 
     init_graph();
+    init_axis();
 }
 
 {% endblock %}
@@ -240,20 +241,22 @@ function init_page() {
 
 	<tr>
         <td colspan="2">
-            <div id="graphbox">
+            <div id="graphbox" style="margin-left:20px">
                 <div id="graph" style="height:500px"></div>
                 <div id="zoombar" style="width:40px;">
                     <button id="in" type="button" class="btn btn-default" style="width:100%;text-align:center;">+</button>
                     <br>
                     <button id="out" type="button" class="btn btn-default" style="width:100%; text-align:center;">-</button>
                 </div>
+                <div id="yaxis">Metric</div>
+                <div id="xaxis">Order</div>
             </div>
         </td>
     </tr>
   
     <tr>
         <td colspan="2">
-            <div id="overview" style="width:100%;height:80px;"></div>
+            <div id="overview" style="height:80px;margin-top:20px;margin-left:20px"></div>
         </td>
     </td>
 
@@ -272,7 +275,7 @@ function init_page() {
       <td style="background-color: #{{ '%02x%02x%02x' % (255*col[0], 255*col[1], 255*col[2]) }}">&nbsp;</td>
       <td>{{ utils.render_machine(machine) }}</td>
       <td>{{ test_name }}</td>
-      <td>{{ field_name }}</td>
+      <td class="metric">{{ field_name }}</td>
     </tr>
     {% endfor %}
   </table>
