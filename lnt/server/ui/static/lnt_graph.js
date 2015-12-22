@@ -6,6 +6,8 @@
 var data_cache = [];
 var is_checked = []; // The current list of lines to plot.
 var normalize = false;
+var prefix = "";
+
 var MAX_TO_DRAW = 10;
 
 var STATE_NAMES = {0: 'Detected',
@@ -141,19 +143,19 @@ function update_tooltip(event, pos, item, show_fn, graph_data) {
 // Grab the graph API url for this line.
 function get_api_url(kind, db, ts, mtf) {
     "use strict";
-    return ["/api", "db_" + db, "v4", ts, kind, mtf].join('/');
+    return [prefix, "api", "db_" + db, "v4", ts, kind, mtf].join('/');
 }
 
 // Grab the URL for a regression by id.
 function get_regression_url(db, ts, regression) {
     "use strict";
-    return ["", "db_" + db, "v4", ts, "regressions", regression].join('/');
+    return [prefix, "db_" + db, "v4", ts, "regressions", regression].join('/');
 }
 
 // Grab the URL for a run by id.
 function get_run_url(db, ts, runID) {
     "use strict";
-    return ["", "db_" + db, "v4", ts, runID].join('/');
+    return [prefix, "db_" + db, "v4", ts, runID].join('/');
 }
 
 // Normalize this data to the element in index
@@ -327,10 +329,12 @@ function add_data_to_graph(URL, index) {
     is_checked[index] = true;
 }
 
-function init_axis () {
+
+function init_axis (prefix_url) {
     function onlyUnique(value, index, self) { 
         return self.indexOf(value) === index;
     }
+    prefix = prefix_url;
     var metrics = $('.metric').map( function() {
         return $(this).text();
     }).get();

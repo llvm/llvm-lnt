@@ -298,7 +298,9 @@ $(document).ready( function () {
     }
       
     register_checkboxes();
-    init_axis();
+
+    init_axis("{{base_url}}");
+
     all_checks();
 
     update_graph();

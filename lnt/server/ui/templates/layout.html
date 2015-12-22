@@ -91,6 +91,8 @@
   </script>
 </head>
 
+{% set base_url=old_config.zorgURL %}
+
 {% if self.onload is defined %}
 <body onload="{{ self.onload() }}">
 {% else %}
