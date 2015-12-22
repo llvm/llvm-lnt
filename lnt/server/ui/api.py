@@ -174,7 +174,7 @@ class Graph(Resource):
         except NoResultFound:
             return abort(404)
 
-        q = ts.query(field.column, ts.Order.llvm_project_revision, ts.Run.start_time) \
+        q = ts.query(field.column, ts.Order.llvm_project_revision, ts.Run.start_time, ts.Run.id) \
             .join(ts.Run) \
             .join(ts.Order) \
             .filter(ts.Run.machine_id == machine.id) \
@@ -185,7 +185,7 @@ class Graph(Resource):
         if field.status_field:
             q = q.filter((field.status_field.column == PASS) |
                          (field.status_field.column == None))
-        samples = [[rev, val, {'label': rev, 'date': str(time)}] for val, rev, time in q.all()]
+        samples = [[rev, val, {'label': rev, 'date': str(time), 'runID': str(rid)}] for val, rev, time, rid in q.all()]
 
         return samples
 

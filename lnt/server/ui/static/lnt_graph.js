@@ -74,10 +74,15 @@ function show_tooltip(x, y, item, pos, graph_data) {
     tip_body += "<b>Value:</b> " + data[1].toFixed(4) + "<br>";
 
     if (meta_data.date) {
-        tip_body += "<b>Date:</b> " + meta_data.date;
+        tip_body += "<b>Date:</b> " + meta_data.date + "<br>";
     }
     if (meta_data.state) {
-        tip_body += "<b>State:</b> " + meta_data.state;
+        tip_body += "<b>State:</b> " + meta_data.state + "<br>";
+    }
+    if (meta_data.runID) {
+        tip_body += "<b>Run:</b> <a href=\"" +
+            get_run_url(db_name, test_suite_name, meta_data.runID) +
+            "\">" + meta_data.runID + "<br>";
     }
 
     tip_body += "</div>";
@@ -143,6 +148,12 @@ function get_api_url(kind, db, ts, mtf) {
 function get_regression_url(db, ts, regression) {
     "use strict";
     return ["", "db_" + db, "v4", ts, "regressions", regression].join('/');
+}
+
+// Grab the URL for a run by id.
+function get_run_url(db, ts, runID) {
+    "use strict";
+    return ["", "db_" + db, "v4", ts, runID].join('/');
 }
 
 // Normalize this data to the element in index
