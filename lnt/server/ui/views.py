@@ -902,13 +902,13 @@ def v4_graph():
         json_obj['data'] = graph_plots
         # Flatten ORM machine objects to their string names.
         simple_type_legend = []
-        for machine, test, unit, color in legend:
+        for machine, test, unit, color, url in legend:
             # Flatten name, make color a dict.
             new_entry = {'name': machine.name,
                          'test': test,
                          'unit': unit,
                          'color': util.toColorString(color),
-                         'url': None}
+                         'url': url}
             simple_type_legend.append(new_entry)
         json_obj['legend'] = simple_type_legend
         json_obj['revision_range'] = revision_range

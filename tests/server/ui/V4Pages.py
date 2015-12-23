@@ -219,7 +219,7 @@ def main():
                expected_code=HTTP_NOT_FOUND)
     check_code(client, '/v4/nts/graph?plot.0=1.3.9999',
                expected_code=HTTP_NOT_FOUND)
-
+    check_code(client, '/v4/nts/graph?plot.9999=1.3.2&json=True')
     # Get the mean graph page.
     check_code(client, '/v4/nts/graph?mean=1.2')
     # Don't crash when requesting non-existing data
