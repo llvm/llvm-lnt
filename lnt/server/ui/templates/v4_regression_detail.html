@@ -107,7 +107,7 @@ var changes = [
                     <td style="background:transparent;"></td><td>{{ form_change }}</td>
                 </tr>
             </table>
-        <td>{{utils.render_machine(fc.ri.machine)}}</td>
+        <td class="machine">{{utils.render_machine(fc.ri.machine)}}</td>
         <td class="metric"> {{ fc.ri.field.name }} </td>
          {% set graph_base=v4_url_for('v4_graph', highlight_run=fc.run.id) %}
         <td><a href="{{graph_base}}&amp;plot.{{fc.ri.test.id}}={{ fc.ri.machine.id}}.{{fc.ri.test.id}}.{{fc.ri.field.index}}">{{ fc.ri.test.name }}</a></td>
