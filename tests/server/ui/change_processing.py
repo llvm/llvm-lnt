@@ -17,6 +17,7 @@ from lnt.server.db import v4db
 from lnt.server.db.fieldchange import is_overlaping, identify_related_changes
 from lnt.server.db.regression import rebuild_title, RegressionState
 from lnt.server.db.rules import rule_update_fixed_regressions
+from lnt.server.db.fieldchange import delete_fieldchange
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -191,6 +192,11 @@ class ChangeProcessingTests(unittest.TestCase):
     def test_regression_evolution(self):
         ts_db = self.ts_db
         rule_update_fixed_regressions.regression_evolution(ts_db, self.regressions)
+        
+    def test_fc_deletion(self):
+        delete_fieldchange(self.ts_db, self.field_change)
+        delete_fieldchange(self.ts_db, self.field_change2)
+        delete_fieldchange(self.ts_db, self.field_change3)
 
 
 if __name__ == '__main__':

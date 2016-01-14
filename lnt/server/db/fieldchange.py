@@ -18,6 +18,36 @@ def post_submit_tasks(ts, run_id):
     regenerate_fieldchanges_for_run(ts, run_id)
 
 
+def delete_fieldchange(ts, change):
+    """Delete this field change.  Since it might be attahed to a regression
+    via regression indicators, fix those up too.  If this orphans a regression
+    delete it as well."""
+    # Find the indicators.
+    indicators = ts.query(ts.RegressionIndicator). \
+        filter(ts.RegressionIndicator.field_change_id == change.id). \
+        all()
+    # And all the related regressions.
+    regression_ids = [r.regression_id for r in indicators]
+
+    # Remove the idicators that point to this change.
+    for ind in indicators:
+        ts.delete(ind)
+    
+    # Now we can remove the change, itself.
+    ts.delete(change)
+    
+    # We might have just created a regression with no changes.
+    # If so, delete it as well.
+    for r in regression_ids:
+        remaining = ts.query(ts.RegressionIndicator). \
+            filter(ts.RegressionIndicator.regression_id == r). \
+            all()
+        if len(remaining) == 0:
+            r = ts.query(ts.Regression).get(r)
+            note("Deleting regression because it has not changes:" + repr(r))
+            ts.delete(r)
+    ts.commit()
+
 
 @timed
 def regenerate_fieldchanges_for_run(ts, run_id):
@@ -79,7 +109,7 @@ def regenerate_fieldchanges_for_run(ts, run_id):
             if not result.is_result_performance_change() and f:
                 # With more data, its not a regression. Kill it!
                 note("Removing field change: {}".format(f.id))
-                ts.delete(f)
+                delete_fieldchange(ts, f)
                 continue
 
             if result.is_result_performance_change() and not f:
