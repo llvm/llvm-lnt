@@ -22,7 +22,8 @@ def action_updatedb(name, args):
     parser.add_option("", "--delete-machine", dest="delete_machines",
                       action="append", default=[])
     parser.add_option("", "--delete-run", dest="delete_runs",
-                      action="append", default=[], type=int)
+                      action="append", default=[], type=int)    
+    parser.add_option("", "--delete-order", dest="delete_order", default=[], type=int)
     (opts, args) = parser.parse_args(args)
 
     if len(args) != 1:
@@ -40,9 +41,15 @@ def action_updatedb(name, args):
     with contextlib.closing(instance.get_database(opts.database,
                                                   echo=opts.show_sql)) as db:
         ts = db.testsuite[opts.testsuite]
-
+        order = None
         # Compute a list of all the runs to delete.
-        runs_to_delete = list(opts.delete_runs)
+        if opts.delete_order:
+            order = ts.query(ts.Order).filter(ts.Order.id == opts.delete_order).one()
+            runs_to_delete = ts.query(ts.Run.id).filter(ts.Run.order_id == order.id).all()
+            runs_to_delete = [r[0] for r in runs_to_delete]
+        else:
+            runs_to_delete = list(opts.delete_runs)
+        
         if opts.delete_machines:
             runs_to_delete.extend(
                 id
@@ -54,7 +61,17 @@ def action_updatedb(name, args):
         ts.query(ts.Sample).\
             filter(ts.Sample.run_id.in_(runs_to_delete)).\
             delete(synchronize_session=False)
-
+        
+        # Delete all FieldChanges and RegressionIndicators
+        for r in runs_to_delete:
+            fcs = ts.query(ts.FieldChange). \
+                filter(ts.FieldChange.run_id == r).all()
+            for f in fcs:
+                ris = ts.query(ts.RegressionIndicator). \
+                                filter(ts.RegressionIndicator.field_change_id == f.id).all()
+                for r in ris:
+                    ts.delete(r)
+                ts.delete(f)
         # Delete all those runs.
         ts.query(ts.Run).\
             filter(ts.Run.id.in_(runs_to_delete)).\
@@ -72,6 +89,8 @@ def action_updatedb(name, args):
             num_deletes = ts.query(ts.Machine).filter_by(name=name).delete()
             if num_deletes == 0:
                 warning("unable to find machine named: %r" % name)
+        if order:
+            ts.delete(order)
 
         if opts.commit:
             db.commit()
