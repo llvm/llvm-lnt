@@ -6,6 +6,7 @@ from logging import Formatter
 import os
 import time
 import StringIO
+import traceback
 
 import flask
 from flask import current_app
@@ -21,7 +22,7 @@ import lnt.server.instance
 import lnt.server.ui.filters
 import lnt.server.ui.globals
 import lnt.server.ui.views
-from lnt.testing.util.commands import warning
+from lnt.testing.util.commands import warning, error
 import lnt.server.ui.regression_views
 from lnt.server.ui.api import load_api_resources
 import lnt.server.db.rules_manager
@@ -100,7 +101,14 @@ class Request(flask.Request):
         return super(Request, self).close()
 
 
-class App(flask.Flask):
+class LNTExceptionLoggerFlask(flask.Flask):
+        def log_exception(self, exc_info):
+            # We need to stringify the traceback, since logs are sent via
+            # pickle.
+            error("Exception: " + traceback.format_exc())
+            
+
+class App(LNTExceptionLoggerFlask):
     @staticmethod
     def create_with_instance(instance):
         # Construct the application.
