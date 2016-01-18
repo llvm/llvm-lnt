@@ -1,4 +1,4 @@
-import subprocess, tempfile, json, os, shlex
+import subprocess, tempfile, json, os, shlex, platform
 
 from optparse import OptionParser, OptionGroup
 
@@ -123,6 +123,9 @@ class TestSuiteTest(BuiltinTest):
         parser.add_option_group(group)
 
         group = OptionGroup(parser, "Output Options")
+        group.add_option("", "--no-auto-name", dest="auto_name",
+                         help="Don't automatically derive submission name",
+                         action="store_false", default=True)
         group.add_option("", "--submit", dest="submit_url", metavar="URLORPATH",
                          help=("autosubmit the test result to the given server"
                                " (or local instance) [%default]"),
@@ -155,8 +158,12 @@ class TestSuiteTest(BuiltinTest):
 
         (opts, args) = parser.parse_args(args)
         self.opts = opts
-        
-        if args:
+
+        if len(args) == 0:
+            self.nick = platform.uname()[1]
+        elif len(args) == 1:
+            self.nick = args[0]
+        else:
             parser.error("Expected no positional arguments (got: %r)" % (args,))
 
         for a in ['cross_compiling', 'cross_compiling_system_name', 'llvm_arch',
@@ -227,13 +234,21 @@ class TestSuiteTest(BuiltinTest):
             note("Increasing number of execution samples to %d" %
                  opts.compile_multisample)
             opts.exec_multisample = opts.compile_multisample
-        
+
+        if opts.auto_name:
+            # Construct the nickname from a few key parameters.
+            cc_info = self._get_cc_info()
+            cc_nick = '%s_%s' % (cc_info['cc_name'], cc_info['cc_build'])
+            self.nick += "__%s__%s" % (cc_nick,
+                                       cc_info['cc_target'].split('-')[0])
+        note('Using nickname: %r' % self.nick)
+            
         # Now do the actual run.
         reports = []
         for i in range(max(opts.exec_multisample, opts.compile_multisample)):
             c = i < opts.compile_multisample
             e = i < opts.exec_multisample
-            reports.append(self.run("FIXME: nick", compile=c, test=e))
+            reports.append(self.run(self.nick, compile=c, test=e))
             
         report = self._create_merged_report(reports)
 
@@ -433,7 +448,7 @@ class TestSuiteTest(BuiltinTest):
         machine_info = {
         }
         
-        machine = lnt.testing.Machine("jm", machine_info)
+        machine = lnt.testing.Machine(self.nick, machine_info)
         run = lnt.testing.Run(self.start_time, timestamp(), info=run_info)
         report = lnt.testing.Report(machine, run, test_samples)
         return report
