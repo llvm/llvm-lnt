@@ -177,7 +177,7 @@ class TestSuiteTest(BuiltinTest):
         if opts.cxx is None:
             opts.cxx = lnt.testing.util.compilers.infer_cxx_compiler(opts.cc)
             if opts.cxx is not None:
-                note("inferred C++ compiler under test as: %r" % (opts.cxx,))
+                note("Inferred C++ compiler under test as: %r" % (opts.cxx,))
             else:
                 parser.error("unable to infer --cxx - set it manually.")
 
@@ -312,6 +312,7 @@ class TestSuiteTest(BuiltinTest):
             'CMAKE_CXX_FLAGS': ' '.join([self.opts.cppflags, self.opts.cxxflags])
         }
 
+        note('Configuring...')
         subprocess.check_call([cmake_cmd, self._test_suite_dir()] +
                               ['-D%s=%s' % (k,v) for k,v in defs.items()],
                               cwd=path)
@@ -323,7 +324,8 @@ class TestSuiteTest(BuiltinTest):
         if self._only_test():
             components = [path] + self._only_test().split('/')
             subdir = os.path.join(*components)
-        
+
+        note('Building...')
         subprocess.check_call([make_cmd,
                                '-j', str(self._build_threads())],
                               cwd=subdir)
@@ -345,7 +347,8 @@ class TestSuiteTest(BuiltinTest):
         extra_args = []
         if not test:
             extra_args = ['--no-execute']
-        
+
+        note('Testing...')
         subprocess.check_call([lit_cmd,
                                '-sv',
                                '-j', str(self._test_threads()),

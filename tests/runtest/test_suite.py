@@ -23,6 +23,37 @@
 # CHECK-STDOUT: Added Runs    : 1
 # CHECK-STDOUT: Added Tests   : 1
 #
-# CHECK-BASIC: inferred C++ compiler under test
+# CHECK-BASIC: Inferred C++ compiler under test
+# CHECK-BASIC: Configuring
+# CHECK-BASIC: Building
+# CHECK-BASIC: Testing
 # CHECK-BASIC: submitting result to dummy instance
 # CHECK-BASIC: Successfully created db_None/v4/nts/1
+
+# Use the same sandbox again with --no-configure
+# RUN: lnt runtest test-suite \
+# RUN:     --sandbox %t.SANDBOX \
+# RUN:     --no-timestamp \
+# RUN:     --no-configure \
+# RUN:     --test-suite %S/Inputs/test-suite-cmake \
+# RUN:     --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
+# RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
+# RUN:     --use-make %S/Inputs/test-suite-cmake/fake-make \
+# RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit \
+# RUN:     > %t.log 2> %t.err
+# RUN: FileCheck --check-prefix CHECK-NOCONF < %t.err %s
+# CHECK-NOCONF-NOT: Configuring
+
+# Use a different sandbox with --no-configure
+# RUN: lnt runtest test-suite \
+# RUN:     --sandbox %t.SANDBOX2 \
+# RUN:     --no-timestamp \
+# RUN:     --no-configure \
+# RUN:     --test-suite %S/Inputs/test-suite-cmake \
+# RUN:     --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
+# RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
+# RUN:     --use-make %S/Inputs/test-suite-cmake/fake-make \
+# RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit \
+# RUN:     > %t.log 2> %t.err
+# RUN: FileCheck --check-prefix CHECK-NOCONF2 < %t.err %s
+# CHECK-NOCONF2: Configuring
