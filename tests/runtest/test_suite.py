@@ -60,6 +60,20 @@
 # RUN: FileCheck --check-prefix CHECK-NOCONF2 < %t.err %s
 # CHECK-NOCONF2: Configuring
 
+# Manually set a run order.
+# RUN: lnt runtest test-suite \
+# RUN:     --sandbox %t.SANDBOX \
+# RUN:     --no-timestamp \
+# RUN:     --no-configure \
+# RUN:     --test-suite %S/Inputs/test-suite-cmake \
+# RUN:     --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
+# RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
+# RUN:     --use-make %S/Inputs/test-suite-cmake/fake-make \
+# RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit \
+# RUN:     --run-order=123 > %t.log 2> %t.err
+# RUN: FileCheck --check-prefix CHECK-RESULTS < %t.SANDBOX/build/report.json %s
+# CHECK-RESULTS: "run_order": "123"
+
 # Change the machine name. Don't use LLVM.
 # RUN: lnt runtest test-suite \
 # RUN:     --sandbox %t.SANDBOX \

@@ -126,6 +126,9 @@ class TestSuiteTest(BuiltinTest):
         group.add_option("", "--no-auto-name", dest="auto_name",
                          help="Don't automatically derive submission name",
                          action="store_false", default=True)
+        group.add_option("", "--run-order", dest="run_order", metavar="STR",
+                         help="String to use to identify and order this run",
+                         action="store", type=str, default=None)
         group.add_option("", "--submit", dest="submit_url", metavar="URLORPATH",
                          help=("autosubmit the test result to the given server"
                                " (or local instance) [%default]"),
@@ -444,6 +447,8 @@ class TestSuiteTest(BuiltinTest):
         }
         run_info.update(self._get_cc_info())
         run_info['run_order'] = run_info['inferred_run_order']
+        if self.opts.run_order:
+            run_info['run_order'] = self.opts.run_order
         
         machine_info = {
         }
