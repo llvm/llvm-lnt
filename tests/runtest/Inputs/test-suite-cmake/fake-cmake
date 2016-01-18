@@ -1,0 +1,8 @@
+#!/bin/bash
+
+if [[ ! -f $1/CMakeLists.txt ]]; then
+  exit 1
+else
+  cp $1/fake-test $1/fake-results.json .
+  exit 0
+fi

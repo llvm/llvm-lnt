@@ -1,0 +1,11 @@
+{
+    "tests": [
+        {
+            "name": "test-suite :: foo",
+            "code": "PASS",
+            "metrics": {
+                "compile_time": 1.3
+            }
+        }
+    ]
+}
