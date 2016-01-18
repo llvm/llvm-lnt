@@ -1,4 +1,4 @@
-import subprocess, tempfile, json, os, shlex, platform
+import subprocess, tempfile, json, os, shlex, platform, pipes
 
 from optparse import OptionParser, OptionGroup
 
@@ -326,11 +326,19 @@ class TestSuiteTest(BuiltinTest):
             # FIXME: Support ARCH, SMALL/LARGE etc
             'CMAKE_C_COMPILER': self.opts.cc,
             'CMAKE_CXX_COMPILER': self.opts.cxx,
-            'CMAKE_C_FLAGS': ' '.join([self.opts.cppflags, self.opts.cflags]),
-            'CMAKE_CXX_FLAGS': ' '.join([self.opts.cppflags, self.opts.cxxflags])
+            'CMAKE_C_FLAGS': self._unix_quote_args(' '.join([self.opts.cppflags,
+                                                             self.opts.cflags])),
+            'CMAKE_CXX_FLAGS': self._unix_quote_args(' '.join([self.opts.cppflags,
+                                                               self.opts.cxxflags]))
         }
 
-        note('Configuring...')
+        lines = ['Configuring with {']
+        for k,v in defs.items():
+            lines.append("  %s: '%s'" % (k,v))
+        lines.append('}')
+
+        for l in lines:
+            note(l)
         subprocess.check_call([cmake_cmd, self._test_suite_dir()] +
                               ['-D%s=%s' % (k,v) for k,v in defs.items()],
                               cwd=path)
@@ -457,7 +465,11 @@ class TestSuiteTest(BuiltinTest):
         run = lnt.testing.Run(self.start_time, timestamp(), info=run_info)
         report = lnt.testing.Report(machine, run, test_samples)
         return report
-        
+
+    def _unix_quote_args(self, s):
+        return ' '.join(map(pipes.quote, shlex.split(s)))
+
+    
 def create_instance():
     return TestSuiteTest()
 
