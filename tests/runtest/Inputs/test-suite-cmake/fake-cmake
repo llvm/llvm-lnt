@@ -5,5 +5,7 @@ if [[ ! -f $1/CMakeLists.txt ]]; then
 else
   cp $1/fake-test $1/fake-results.json .
   echo "Dummy" > CMakeCache.txt
+  mkdir subtest
+  cp $1/fake-test $1/fake-results.json subtest
   exit 0
 fi
