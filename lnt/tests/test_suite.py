@@ -113,6 +113,9 @@ class TestSuiteTest(BuiltinTest):
                          help=("Use perf to obtain high accuracy timing"
                                "[%default]"),
                          type=str, default=None)
+        group.add_option("", "--run-under", dest="run_under",
+                         help="Wrapper to run tests under ['%default']",
+                         type=str, default="")
         group.add_option("", "--exec-multisample", dest="exec_multisample",
                          help="Accumulate execution test data from multiple runs",
                          type=int, default=1, metavar="N")
@@ -215,6 +218,11 @@ class TestSuiteTest(BuiltinTest):
         opts.lit = resolve_command_path(opts.lit)
         if not isexecfile(opts.lit):
             parser.error("LIT tool not found (looked for %s)" % opts.lit)
+        if opts.run_under:
+            opts.run_under = resolve_command_path(opts.run_under)
+            if not isexecfile(opts.run_under):
+                parser.error("Run under wrapper not found (looked for %s)" %
+                             opts.run_under)
                 
         opts.cppflags = ' '.join(opts.cppflags)
         opts.cflags = ' '.join(opts.cflags)
@@ -331,6 +339,8 @@ class TestSuiteTest(BuiltinTest):
             'CMAKE_CXX_FLAGS': self._unix_quote_args(' '.join([self.opts.cppflags,
                                                                self.opts.cxxflags]))
         }
+        if self.opts.run_under:
+            defs['TEST_SUITE_RUN_UNDER'] = self._unix_quote_args(self.opts.run_under)
 
         lines = ['Configuring with {']
         for k,v in defs.items():
