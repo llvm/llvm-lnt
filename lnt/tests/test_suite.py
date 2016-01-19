@@ -313,19 +313,23 @@ class TestSuiteTest(BuiltinTest):
     def _test_threads(self):
         return self.opts.threads
 
-    def _only_test(self):
-        return self.opts.only_test
-
+    def _check_call(self, *args, **kwargs):
+        if self.opts.verbose:
+            note('Execute: %s' % ' '.join(args[0]))
+            if 'cwd' in kwargs:
+                note('          (In %s)' % kwargs['cwd'])
+        return subprocess.check_call(*args, **kwargs)
+    
     def _clean(self, path):
         make_cmd = self.opts.make
 
         subdir = path
-        if self._only_test():
-            components = [path] + self._only_test().split('/')
+        if self.opts.only_test:
+            components = [path] + self.opts.only_test.split('/')
             subdir = os.path.join(*components)
 
-        subprocess.check_call([make_cmd, 'clean'],
-                              cwd=subdir)
+        self._check_call([make_cmd, 'clean'],
+                         cwd=subdir)
         
     def _configure(self, path):
         cmake_cmd = self.opts.cmake
@@ -349,22 +353,22 @@ class TestSuiteTest(BuiltinTest):
 
         for l in lines:
             note(l)
-        subprocess.check_call([cmake_cmd, self._test_suite_dir()] +
-                              ['-D%s=%s' % (k,v) for k,v in defs.items()],
-                              cwd=path)
+        self._check_call([cmake_cmd, self._test_suite_dir()] +
+                         ['-D%s=%s' % (k,v) for k,v in defs.items()],
+                         cwd=path)
 
     def _make(self, path):
         make_cmd = self.opts.make
         
         subdir = path
-        if self._only_test():
-            components = [path] + self._only_test().split('/')
+        if self.opts.only_test:
+            components = [path] + self.opts.only_test.split('/')
             subdir = os.path.join(*components)
 
         note('Building...')
-        subprocess.check_call([make_cmd,
-                               '-j', str(self._build_threads())],
-                              cwd=subdir)
+        self._check_call([make_cmd,
+                          '-j', str(self._build_threads())],
+                         cwd=subdir)
 
     def _lit(self, path, test):
         lit_cmd = self.opts.lit
@@ -376,8 +380,8 @@ class TestSuiteTest(BuiltinTest):
         output_json_path.close()
         
         subdir = path
-        if self._only_test():
-            components = [path] + self._only_test().split('/')
+        if self.opts.only_test:
+            components = [path] + self.opts.only_test.split('/')
             subdir = os.path.join(*components)
 
         extra_args = []
@@ -385,11 +389,11 @@ class TestSuiteTest(BuiltinTest):
             extra_args = ['--no-execute']
 
         note('Testing...')
-        subprocess.check_call([lit_cmd,
-                               '-sv',
-                               '-j', str(self._test_threads()),
-                               subdir,
-                               '-o', output_json_path.name] + extra_args)
+        self._check_call([lit_cmd,
+                          '-sv',
+                          '-j', str(self._test_threads()),
+                          subdir,
+                          '-o', output_json_path.name] + extra_args)
 
         return json.loads(open(output_json_path.name).read())
 
