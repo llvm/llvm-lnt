@@ -61,22 +61,24 @@
 {%- endfor %}
     </tr>
   </thead>
+  <tbody>
 {%- for machine in report.reporting_machines %}
-  <tr class="searchable">
-    <td class="machine-name" style="{{ styles.td }}">{{machine.name}}</td>
+    <tr class="searchable">
+      <td class="machine-name" style="{{ styles.td }}">{{machine.name}}</td>
 {%- for i in range(report.num_prior_days_to_include)|reverse %}
 {%-   set key_run = report.get_key_run(machine, i) -%}
 {%-   if key_run -%}
-    {# FIXME: Don't hard code field name. #}
-    <td style="{{ styles.td }}">
-      <a href="{{ ts_url }}/{{ key_run.id }}">{{
-        key_run.order.llvm_project_revision}}</a></td>
+      {# FIXME: Don't hard code field name. #}
+      <td style="{{ styles.td }}">
+        <a href="{{ ts_url }}/{{ key_run.id }}">{{
+          key_run.order.llvm_project_revision}}</a></td>
 {%-   else -%}
-    <td style="{{ styles.td }}; background-color:#FF0000">N/A</td>
+      <td style="{{ styles.td }}; background-color:#FF0000">N/A</td>
 {%-   endif -%}
 {%- endfor %}
-  </tr>
+    </tr>
 {% endfor %}
+  </tbody>
 </table>
 
 {% macro get_initial_cell_value(day_result) %}
@@ -192,9 +194,9 @@
 
 {% for field,field_results in report.result_table|reverse %}
 <h3>Result Table ({{ field.name }})</h3>
-{{ result_header() if not report.for_mail }}
+{{ result_header()+"\n  <tbody>" if not report.for_mail }}
 {%- for test,visible_results in field_results -%}
-{{ result_header() if report.for_mail }}
+{{ result_header()+"\n  <tbody>" if report.for_mail }}
   <tr>
     <td style="{{ styles.td }}" colspan="2"> <b>{{test.name}}</b></td>
     <td style="{{ styles.td }}" colspan="{{report.num_prior_days_to_include + 1}}">&nbsp;</td>
@@ -223,10 +225,39 @@
     <td>{{ spark_plot(day_results) }}</td>
   </tr>
 {%-  endfor %}
-{{ "</table><p>" if report.for_mail }}
+{{ "</tbody></table><p>" if report.for_mail }}
 {%- endfor %}
-{{ "</table>" if not report.for_mail }}
+{{ "</tbody></table>" if not report.for_mail }}
 {%- endfor -%}
+
+<h3>Number of Tests Seen</h3>
+<table border="1" style="{{ styles.table }}; width: {{
+                            400 + report.num_prior_days_to_include*80}}px;">
+  <thead>
+    <tr>
+      <th style="{{ styles.th }}; width: 300px;">Machine Name</th>
+    {% for i in range(report.num_prior_days_to_include)|reverse %}
+      <th style="{{ styles.th }}">Day - {{i}}</th>
+    {% endfor %}
+    </tr>
+  </thead>
+  <tbody>
+  {% for machine, nr_tests_for_machine in report.nr_tests_table %}
+  <tr class="searchable">
+    <td class="machine-name" style="{{ styles.td }}">{{machine.name}}</td>
+    {% set nr_tests_prev = None %}
+    {% for nr_tests in nr_tests_for_machine|reverse %}
+        <td style="{{ styles.td }}"
+        {%- if nr_tests_prev is not none and nr_tests_prev != nr_tests %}
+            bgcolor="#dfaf5f"
+        {% endif -%}
+            >{{nr_tests}}</td>
+        {% set nr_tests_prev = nr_tests %}
+    {% endfor %}
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
 
 {% endif %}
 

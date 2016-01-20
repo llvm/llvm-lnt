@@ -96,7 +96,7 @@ def check_nr_machines_reported(client, url, expected_nr_machines):
     if reported_machine_order_table is None:
         nr_machines = 0
     else:
-        nr_machines = len(reported_machine_order_table.findall("./tr"))
+        nr_machines = len(reported_machine_order_table.findall("./tbody/tr"))
     assert expected_nr_machines == nr_machines
 
 
@@ -104,39 +104,51 @@ def convert_html_to_text(element):
     return ("".join(element.itertext()))
 
 
-def get_results_table(client, url, fieldname):
+def get_table_by_header(client, url, table_header):
     resp = check_code(client, url)
     html = resp.data
     tree = get_xml_tree(html)
-    table_header = "Result Table (%s)" % fieldname
     table = find_table_with_heading(tree, table_header)
     assert table is not None, \
         "Couldn't find table with header '%s'" % table_header
     return table
 
 
-def check_body_result_table(client, url, fieldname,
-                            expected_table_body_content):
-    table = get_results_table(client, url, fieldname)
+def get_results_table(client, url, fieldname):
+    table_header = "Result Table (%s)" % fieldname
+    return get_table_by_header(client, url, table_header)
+
+
+def check_table_content(table, expected_content):
     body_content = [[convert_html_to_text(cell).strip()
                      for cell in row.findall("./td")]
-                    for row in table.findall("./tr")]
-    assert expected_table_body_content == body_content, \
+                    for row in table.findall("./tbody/tr")]
+    assert expected_content == body_content, \
         "Expected table content %s, found %s" % \
-        (expected_table_body_content, body_content)
+        (expected_content, body_content)
+
+
+def check_body_result_table(client, url, fieldname, expected_content):
+    table = get_results_table(client, url, fieldname)
+    check_table_content(table, expected_content)
+
+
+def check_body_nr_tests_table(client, url, expected_content):
+    table_header = "Number of Tests Seen"
+    table = get_table_by_header(client, url, table_header)
+    check_table_content(table, expected_content)
 
 
 def get_sparkline(client, url, fieldname, testname, machinename):
     table = get_results_table(client, url, fieldname)
     body_content = [[cell
                      for cell in row.findall("./td")]
-                    for row in table.findall("./tr")]
+                    for row in table.findall("./tbody/tr")]
     txt_body_content = [[convert_html_to_text(cell).strip()
                          for cell in row.findall("./td")]
-                        for row in table.findall("./tr")]
+                        for row in table.findall("./tbody/tr")]
     cur_test_name = ""
     for rownr, row_content in enumerate(txt_body_content):
-        nr_columns = len(row_content)
         for colnr, col_content in enumerate(row_content):
             if colnr == 0 and col_content != "":
                 cur_test_name = col_content
@@ -284,6 +296,13 @@ def main():
     nr_sample_points = len(extract_sample_points(sparkline_xml))
     assert 2 == nr_sample_points, \
         "Expected 2 sample points, found %d" % nr_sample_points
+
+    check_body_nr_tests_table(
+        client, '/v4/nts/daily_report/2012/5/04',
+        [['machine2', '2', '0', '1']])
+
+
+
 
     # Now check the compile report
     # Get the V4 overview page.

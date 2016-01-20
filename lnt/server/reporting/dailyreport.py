@@ -94,6 +94,7 @@ class DailyReport(object):
         self.reporting_machines = None
         self.reporting_tests = None
         self.result_table = None
+        self.nr_tests_table = None
 
     def get_query_parameters_string(self):
         query_params = [
@@ -283,6 +284,7 @@ class DailyReport(object):
             return (-int(had_failures), -sum_abs_day0_deltas, test.name)
 
         self.result_table = []
+        self.nr_tests_table = []
         for field in self.fields:
             field_results = []
             for test in self.reporting_tests:
@@ -297,7 +299,7 @@ class DailyReport(object):
                     day_has_samples = []
                     for i in range(0, self.num_prior_days_to_include):
                         runs = self.machine_past_runs.get((machine.id, i), ())
-                        samples = sri.get_samples(runs, test.id, field)
+                        samples = sri.get_samples(runs, test.id)
                         day_has_samples.append(len(samples) > 0)
 
                     def find_most_recent_run_with_samples(day_nr):
@@ -346,8 +348,20 @@ class DailyReport(object):
 
             # Order the field results by "priority".
             field_results.sort(key=compute_visible_results_priority)
-
             self.result_table.append((field, field_results))
+
+        for machine in self.reporting_machines:
+            nr_tests_for_machine = []
+            for i in range(0, self.num_prior_days_to_include):
+                # get all runs with the same largest "order" on a given day
+                day_runs = machine_runs.get((machine.id, i), ())
+                nr_tests_seen = 0
+                for test in self.reporting_tests:
+                    samples = sri.get_samples(day_runs, test.id)
+                    if len(samples)>0:
+                        nr_tests_seen += 1
+                nr_tests_for_machine.append(nr_tests_seen)
+            self.nr_tests_table.append((machine, nr_tests_for_machine))
 
     def render(self, ts_url, only_html_body=True):
         # Strip any trailing slash on the testsuite URL.

@@ -273,7 +273,7 @@ class RunInfo(object):
             compare_to = []
         return self.get_comparison_result([run], compare_to, test_id, field)
 
-    def get_samples(self, runs, test_id, field):
+    def get_samples(self, runs, test_id):
         all_samples = []
         for run in runs:
             samples = self.sample_map.get((run.id, test_id))
@@ -287,8 +287,8 @@ class RunInfo(object):
 
         # Load the sample data for the current and previous runs and the
         # comparison window.
-        run_samples = self.get_samples(runs, test_id, field)
-        prev_samples = self.get_samples(compare_runs, test_id, field)
+        run_samples = self.get_samples(runs, test_id)
+        prev_samples = self.get_samples(compare_runs, test_id)
 
         # Determine whether this (test,pset) passed or failed in the current and
         # previous runs.
