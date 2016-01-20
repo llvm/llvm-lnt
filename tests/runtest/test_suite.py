@@ -180,7 +180,7 @@
 # RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
 # RUN:     --use-make %S/Inputs/test-suite-cmake/fake-make \
 # RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit \
-# RUN:     --run-under i_do_not_exit \
+# RUN:     --run-under i_do_not_exist \
 # RUN:     > %t.log 2> %t.err
 # RUN: FileCheck --check-prefix CHECK-RUNUNDER1 < %t.err %s
 # CHECK-RUNUNDER1: Run under wrapper not found (looked for i_do_not_exist)
