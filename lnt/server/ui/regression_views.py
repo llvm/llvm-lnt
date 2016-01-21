@@ -18,6 +18,7 @@ from lnt.server.ui.globals import db_url_for, v4_url_for
 from random import randint
 from sqlalchemy import desc, asc
 import sqlalchemy
+from sqlalchemy.orm.exc import NoResultFound
 from lnt.server.ui.util import FLASH_DANGER, FLASH_INFO, FLASH_SUCCESS
 from lnt.server.reporting.analysis import REGRESSED
 from wtforms import SelectMultipleField, StringField, widgets, SelectField
@@ -217,10 +218,12 @@ def v4_regression_detail(id):
     ts = request.get_testsuite()
     form = EditRegressionForm(request.form)
 
-    regression_info = ts.query(ts.Regression) \
-        .filter(ts.Regression.id == id) \
-        .one()
-
+    try:
+        regression_info = ts.query(ts.Regression) \
+            .filter(ts.Regression.id == id) \
+            .one()
+    except NoResultFound as e:
+        abort(404)
     if request.method == 'POST' and request.form['save_btn'] == "Save Changes":
         regression_info.title = form.title.data
         regression_info.bug = form.bug.data
@@ -314,6 +317,9 @@ def v4_make_regression(machine_id, test_id, field_index, run_id):
         filter(ts.Run.order_id == run.order_id). \
         filter(ts.Run.machine_id == run.machine_id). \
         all()
+        
+    if len(runs) == 0:
+        abort(404)
         
     previous_runs = ts.get_previous_runs_on_machine(run, 1)
     
