@@ -6,6 +6,8 @@ from flask import request
 from flask import make_response
 from flask import flash
 from flask import redirect
+import flask
+import json
 
 # import sqlalchemy.sql
 # from sqlalchemy.orm.exc import NoResultFound
@@ -75,6 +77,10 @@ class PrecomputedCR():
 
     def get_value_status(self, ignore_small=True):
         return REGRESSED
+    
+    def __json__(self):
+        return self.__dict__
+
 
 
 @v4_route("/regressions/new", methods=["GET", "POST"])
@@ -211,6 +217,25 @@ class EditRegressionForm(Form):
     field_changes = MultiCheckboxField("Changes", coerce=int)
     choices = RegressionState.names.items()
     state = SelectField(u'State', choices=choices)
+
+
+def name(cls):
+    """Get a nice name for this object."""
+    return cls.__class__.__name__
+
+
+class LNTEncoder(flask.json.JSONEncoder):
+     """Encode all the common LNT objects."""
+     def default(self, obj):
+        # Most of our objects have a __json__ defined. 
+        if hasattr(obj, "__json__"):
+            return obj.__json__()
+        # From sqlalchemy, when we encounter ignore.
+        if name(obj) == "InstanceState":
+            return
+        if name(obj) == "SampleField":
+            return obj.name
+        return flask.json.JSONEncoder.default(self, obj)
 
 
 @v4_route("/regressions/<int:id>",  methods=["GET", "POST"])

@@ -122,6 +122,11 @@ class ComparisonResult:
                           self.prev_samples,
                           self.confidence_lv,
                           bool(self.bigger_is_better))
+                          
+    def __json__(self):
+        simple_dict = self.__dict__
+        simple_dict['aggregation_fn'] = self.aggregation_fn.__name__
+        return simple_dict
 
     def is_result_performance_change(self):
         """Check if we think there was a performance change."""

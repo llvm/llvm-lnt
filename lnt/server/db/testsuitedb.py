@@ -14,6 +14,13 @@ from sqlalchemy import *
 import testsuite
 
 
+def strip(obj):
+    """Give back a dict without sqlalchemy stuff."""
+    new_dict = dict(obj)
+    new_dict.pop('_sa_instance_state', None)
+    return new_dict
+
+
 class TestSuiteDB(object):
     """
     Wrapper object for an individual test suites database tables.
@@ -140,6 +147,9 @@ class TestSuiteDB(object):
                         .order_by(ts.Run.start_time.desc()).first()
                 
                 return closest_run
+            
+            def __json__(self):
+                return strip(self.__dict__) # {u'name': self.name, u'MachineID': self.id}
 
         class Order(self.base, ParameterizedMixin):
             __tablename__ = db_key_name + '_Order'
@@ -231,7 +241,14 @@ class TestSuiteDB(object):
                                  for item in self.fields),
                            tuple(convert_field(b.get_field(item))
                                  for item in self.fields))
-
+                                 
+            def __json__(self):
+                order = dict((item.name, self.get_field(item))
+                              for item in self.fields)
+                order[u'id'] = self.id
+                return strip(order)
+                
+                
         class Run(self.base, ParameterizedMixin):
             __tablename__ = db_key_name + '_Run'
 
@@ -288,7 +305,12 @@ class TestSuiteDB(object):
             @parameters.setter
             def parameters(self, data):
                 self.parameters_data = json.dumps(sorted(data.items()))
-
+                
+            def __json__(self):
+                self.machine
+                self.order
+                return strip(self.__dict__)
+                         
         class Test(self.base, ParameterizedMixin):
             __tablename__ = db_key_name + '_Test'
 
@@ -301,6 +323,9 @@ class TestSuiteDB(object):
             def __repr__(self):
                 return '%s_%s%r' % (db_key_name, self.__class__.__name__,
                                     (self.name,))
+                                    
+            def __json__(self):
+                return strip(self.__dict__)
 
         class Sample(self.base, ParameterizedMixin):
             __tablename__ = db_key_name + '_Sample'
@@ -434,6 +459,16 @@ class TestSuiteDB(object):
                 return '%s_%s%r' % (db_key_name, self.__class__.__name__,
                                     (self.start_order, self.end_order,
                                      self.test, self.machine, self.field))
+            
+            def __json__(self):
+                self.machine
+                self.test
+                self.field
+                self.run
+                self.start_order
+                self.end_order
+                return strip(self.__dict__) 
+                        
 
         class Regression(self.base, ParameterizedMixin):
             """Regession hold data about a set of RegressionIndicies."""
@@ -452,6 +487,9 @@ class TestSuiteDB(object):
             def __repr__(self):
                 return '%s_%s:"%s"' % (db_key_name, self.__class__.__name__,
                                     self.title)
+            
+            def __json__(self):
+                 return strip(self.__dict__)
 
         class RegressionIndicator(self.base, ParameterizedMixin):
             """"""
@@ -474,6 +512,11 @@ class TestSuiteDB(object):
             def __repr__(self):
                 return '%s_%s%r' % (db_key_name, self.__class__.__name__,(
                         self.id, self.regression, self.field_change))
+            
+            def __json__(self):
+                return {u'RegressionIndicatorID': self.id,
+                        u'Regression': self.regression,
+                        u'FieldChange': self.field_change}
 
         class ChangeIgnore(self.base, ParameterizedMixin):
             """Changes to ignore in the web interface."""
