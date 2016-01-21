@@ -318,7 +318,6 @@ def v4_regression_detail(id):
             if ts_rev and ts_rev != u'None':
                 test_suite_versions.add(ts_rev)
     
-    print test_suite_versions
     if len(test_suite_versions) > 1:
         revs = ', '.join(list(test_suite_versions))
         flash("More than one test-suite version: " + revs,
