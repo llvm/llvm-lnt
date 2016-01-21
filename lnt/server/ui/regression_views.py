@@ -119,11 +119,11 @@ def v4_new_regressions():
     form.field_changes.choices = list()
     for fc in recent_fieldchange:
         if fc.old_value is None:
-            cr, key_run = get_cr_for_field_change(ts, fc)
+            cr, key_run, _ = get_cr_for_field_change(ts, fc)
         else:
             cr = PrecomputedCR(fc.old_value, fc.new_value, fc.field.bigger_is_better)
             key_run = get_first_runs_of_fieldchange(ts, fc)
-        current_cr, _ = get_cr_for_field_change(ts, fc, current=True)
+        current_cr, _, _ = get_cr_for_field_change(ts, fc, current=True)
         crs.append(ChangeData(fc, cr, key_run, current_cr))
         form.field_changes.choices.append((fc.id, 1,))
     return render_template("v4_new_regressions.html",
@@ -138,7 +138,7 @@ def calc_impact(ts, fcs):
         if fc == None:
             continue
         if fc.old_value is None:
-            cr, _ = get_cr_for_field_change(ts, fc)
+            cr, _, _ = get_cr_for_field_change(ts, fc)
         else:
             cr = PrecomputedCR(fc.old_value, fc.new_value, fc.field.bigger_is_better)
         crs.append(cr)
@@ -299,20 +299,30 @@ def v4_regression_detail(id):
 
     crs = []
 
+    test_suite_versions = set()
     form.field_changes.choices = list()
     for regression in regression_indicators:
         fc = regression.field_change
         if fc is None:
             continue
         if fc.old_value is None:
-            cr, key_run = get_cr_for_field_change(ts, fc)
+            cr, key_run, all_runs = get_cr_for_field_change(ts, fc)
         else:
             cr = PrecomputedCR(fc.old_value, fc.new_value, fc.field.bigger_is_better)
             key_run = get_first_runs_of_fieldchange(ts, fc)
-        current_cr, _ = get_cr_for_field_change(ts, fc, current=True)
+        current_cr, _, all_runs = get_cr_for_field_change(ts, fc, current=True)
         crs.append(ChangeData(fc, cr, key_run, current_cr))
         form.field_changes.choices.append((fc.id, 1,))
-
+        for run in all_runs:
+            ts_rev = key_run.parameters.get('test_suite_revision')
+            if ts_rev:
+                test_suite_versions.add(ts_rev)
+    
+    print test_suite_versions
+    if len(test_suite_versions) > 1:
+        flash("More than one test-suite version" + str(test_suite_versions),
+            FLASH_WARNING)
+            
     if request.args.get('json'):
         return json.dumps({u'Regression': regression_info,
                            u'Changes':crs},

@@ -11,7 +11,7 @@ def _fixed_rind(ts, rind):
     fc = rind.field_change
     if fc is None:
         return False
-    current_cr, _ = get_cr_for_field_change(ts, fc, current=True)
+    current_cr, _, _ = get_cr_for_field_change(ts, fc, current=True)
     if current_cr.pct_delta < 0.01:
         return True
     else:
