@@ -320,7 +320,7 @@ def v4_regression_detail(id):
     
     print test_suite_versions
     if len(test_suite_versions) > 1:
-        revs = ','.join(list(test_suite_versions))
+        revs = ', '.join(list(test_suite_versions))
         flash("More than one test-suite version: " + revs,
             FLASH_DANGER)
             
