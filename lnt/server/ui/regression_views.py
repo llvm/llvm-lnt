@@ -313,6 +313,12 @@ def v4_regression_detail(id):
         crs.append(ChangeData(fc, cr, key_run, current_cr))
         form.field_changes.choices.append((fc.id, 1,))
 
+    if request.args.get('json'):
+        return json.dumps({u'Regression': regression_info,
+                           u'Changes':crs},
+                          cls=LNTEncoder)
+        
+
     return render_template("v4_regression_detail.html",
                            testsuite_name=g.testsuite_name,
                            regression=regression_info, changes=crs,
@@ -323,7 +329,7 @@ def v4_hook():
     ts = request.get_testsuite()
     rule_hooks.post_submission_hooks(ts, 0)
     abort(400)
-
+  
 
 @v4_route("/regressions/new_from_graph/<int:machine_id>/<int:test_id>/<int:field_index>/<int:run_id>", methods=["GET"])
 def v4_make_regression(machine_id, test_id, field_index, run_id):
