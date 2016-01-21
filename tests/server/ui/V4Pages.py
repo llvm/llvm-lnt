@@ -349,6 +349,8 @@ def main():
     
     check_code(client, '/v4/nts/regressions/1')
     
+    check_json(client, '/v4/nts/regressions/1?json=True')
+    
     
 
 
