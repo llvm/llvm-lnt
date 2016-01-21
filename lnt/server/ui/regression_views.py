@@ -315,13 +315,13 @@ def v4_regression_detail(id):
         form.field_changes.choices.append((fc.id, 1,))
         for run in all_runs:
             ts_rev = key_run.parameters.get('test_suite_revision')
-            if ts_rev:
+            if ts_rev and ts_rev != u'None':
                 test_suite_versions.add(ts_rev)
     
     print test_suite_versions
     if len(test_suite_versions) > 1:
         flash("More than one test-suite version" + str(test_suite_versions),
-            FLASH_WARNING)
+            FLASH_DANGER)
             
     if request.args.get('json'):
         return json.dumps({u'Regression': regression_info,
