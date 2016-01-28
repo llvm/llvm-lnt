@@ -114,7 +114,8 @@ class ComparisonResultTest(unittest.TestCase):
         """Test a real example."""
         curr_samples = [0.0887, 0.0919, 0.0903]
         prev = [0.0858]
-        uninteresting = ComparisonResult(min, False, False, curr_samples, prev)
+        uninteresting = ComparisonResult(
+            min, False, False, curr_samples, prev, None, None)
 
         self.assertFalse(uninteresting.is_result_interesting())
         self.assertEquals(uninteresting.get_test_status(), UNCHANGED_PASS)
@@ -122,187 +123,200 @@ class ComparisonResultTest(unittest.TestCase):
 
     def test_slower(self):
         """Test getting a simple regression."""
-        slower = ComparisonResult(min, False, False, [10.], [5.])
+        slower = ComparisonResult(min, False, False, [10.], [5.], None, None)
         self.assertEquals(slower.get_value_status(), REGRESSED)
         self.assertTrue(slower.is_result_interesting())
 
     def test_faster(self):
         """Test getting a simple improvement."""
 
-        faster = ComparisonResult(min, False, False, [5.], [10.])
+        faster = ComparisonResult(min, False, False, [5.], [10.], None, None)
         self.assertEquals(faster.get_value_status(), IMPROVED)
         self.assertTrue(faster.is_result_interesting())
 
     def test_really_faster(self):
         """Test getting a simple improvement."""
 
-        faster = ComparisonResult(min, False, False, [5., 6.], [10., 10., 10.])
+        faster = ComparisonResult(
+            min, False, False, [5., 6.], [10., 10., 10.], None, None)
         self.assertEquals(faster.get_value_status(), IMPROVED)
         self.assertTrue(faster.is_result_interesting())
 
     def test_improved_status(self):
         """Test getting a test status improvement."""
-        improved = ComparisonResult(min, False, True, [1.], None)
+        improved = ComparisonResult(min, False, True, [1.], None, None, None)
         self.assertEquals(improved.get_test_status(), IMPROVED)
 
     def test_regressed_status(self):
         """Test getting a test status improvement."""
-        improved = ComparisonResult(min, True, False, None, [10.])
+        improved = ComparisonResult(min, True, False, None, [10.], None, None)
         self.assertEquals(improved.get_test_status(), REGRESSED)
 
     def test_keep_on_failing_status(self):
         """Test getting a repeated fail."""
-        improved = ComparisonResult(min, True, True, None, None)
+        improved = ComparisonResult(min, True, True, None, None, None, None)
         self.assertEquals(improved.get_test_status(), UNCHANGED_FAIL)
 
     def test_noticeable_regression(self):
         """Test a big looking jump."""
-        regressed = ComparisonResult(min, False, False, [10.0, 10.1],
-                                     [5.0, 5.1, 4.9, 5.0])
+        regressed = ComparisonResult(
+            min, False, False, [10.0, 10.1], [5.0, 5.1, 4.9, 5.0], None, None)
         self.assertEquals(regressed.get_value_status(), REGRESSED)
 
     def test_no_regression_flat_line(self):
         """This is a flat line, it should have no changes."""
-        flat = ComparisonResult(min, False, False, [1.0], FLAT_LINE[0:10])
+        flat = ComparisonResult(
+            min, False, False, [1.0], FLAT_LINE[0:10], None, None)
         self.assertEquals(flat.get_value_status(), UNCHANGED_PASS)
 
     def test_no_regression_flat_line_noise(self):
         """Now 4% noise."""
-        flat = ComparisonResult(min, False, False, [1.020], FLAT_NOISE[0:10])
+        flat = ComparisonResult(
+            min, False, False, [1.020], FLAT_NOISE[0:10], None, None)
         ret = flat.get_value_status()
         self.assertEquals(ret, UNCHANGED_PASS)
 
     def test_big_no_regression_flat_line_noise(self):
         """Same data, but bigger 10 + 5% variation."""
-        flat = ComparisonResult(min, False, False, [10.25], FLAT_NOISE2[0:10])
+        flat = ComparisonResult(
+            min, False, False, [10.25], FLAT_NOISE2[0:10], None, None)
         ret = flat.get_value_status()
         self.assertEquals(ret, UNCHANGED_PASS)
 
     def test_big_no_regression_flat_line_multi(self):
         """Same data, but bigger 10 + 5% variation, multisample current."""
-        flat = ComparisonResult(min, False, False, [10.0606, 10.4169, 10.1859],
-                                BIG_NUMBERS_FLAT[0:10])
+        flat = ComparisonResult(
+            min, False, False, [10.0606, 10.4169, 10.1859],
+            BIG_NUMBERS_FLAT[0:10], None, None)
         ret = flat.get_value_status()
         self.assertEquals(ret, UNCHANGED_PASS)
 
     def test_simple_regression(self):
         """Flat line that jumps to another flat line."""
         flat = ComparisonResult(
-            min, False, False, [SIMPLE_REGRESSION[10]], SIMPLE_REGRESSION[0:9])
+            min, False, False, [SIMPLE_REGRESSION[10]], SIMPLE_REGRESSION[0:9],
+            None, None)
         self.assertEquals(flat.get_value_status(), REGRESSED)
 
     def test_noisy_regression_5(self):
         """A regression in 5% noise."""
-        flat = ComparisonResult(min, False, False, [12.2821], REGRESS_5[0:9])
+        flat = ComparisonResult(min, False, False, [12.2821], REGRESS_5[0:9],
+                                None, None)
         self.assertEquals(flat.get_value_status(), REGRESSED)
 
     def test_noisy_regression_5_multi(self):
         """A regression in 5% noise, more current samples."""
         flat = ComparisonResult(min, False, False, [12.2821, 12.2141, 12.3077],
-                                MS_5_REG[0:9])
+                                MS_5_REG[0:9], None, None)
         ret = flat.get_value_status()
         self.assertEquals(ret, REGRESSED)
 
     def test_simple_improvement(self):
         """An improvement without noise."""
-        flat = ComparisonResult(min, False, False, [IMP[10]], IMP[0:9])
+        flat = ComparisonResult(min, False, False, [IMP[10]], IMP[0:9], None,
+                                None)
         self.assertEquals(flat.get_value_status(), IMPROVED)
 
     def test_noise_improvement(self):
         """An improvement with 5% noise."""
         flat = ComparisonResult(min, False, False, [IMP_NOISE[10]],
-                                IMP_NOISE[0:9])
+                                IMP_NOISE[0:9], None, None)
         self.assertEquals(flat.get_value_status(), IMPROVED)
 
     def test_bimodal(self):
         """A bimodal line, with no regressions."""
         bimodal = ComparisonResult(min, False, False, [BIMODAL[10]],
-                                   BIMODAL[0:9])
+                                   BIMODAL[0:9], None, None)
         self.assertEquals(bimodal.get_value_status(), UNCHANGED_PASS)
 
     def test_noise_bimodal(self):
         """Bimodal line with 5% noise."""
         bimodal = ComparisonResult(min, False, False, [BIMODAL_NOISE[10]],
-                                   BIMODAL_NOISE[0:9])
+                                   BIMODAL_NOISE[0:9], None, None)
         self.assertEquals(bimodal.get_value_status(), UNCHANGED_PASS)
 
     def test_bimodal_alternating(self):
         """Bimodal which sticks in a mode for a while."""
         bimodal = ComparisonResult(min, False, False, [BM_ALTERNATE[10]],
-                                   BM_ALTERNATE[0:9])
+                                   BM_ALTERNATE[0:9], None, None)
         self.assertEquals(bimodal.get_value_status(), UNCHANGED_PASS)
 
     def test_noise_bimodal_alternating(self):
         """Bimodal alternating with 5% noise."""
         bimodal = ComparisonResult(min, False, False, [BM_AL_NOISE[10]],
-                                   BM_AL_NOISE[0:9])
+                                   BM_AL_NOISE[0:9], None, None)
         self.assertEquals(bimodal.get_value_status(), UNCHANGED_PASS)
 
     def test_bimodal_alternating_regression(self):
         """Bimodal alternating regression."""
         bimodal = ComparisonResult(min, False, False, [BM_AL_REG[11]],
-                                   BM_AL_REG[0:10])
+                                   BM_AL_REG[0:10], None, None)
         self.assertEquals(bimodal.get_value_status(), REGRESSED)
 
     def test_bimodal_regression(self):
         """A regression in a bimodal line."""
         bimodal = ComparisonResult(min, False, False, [BM_REGRESSION[12]],
-                                   BM_REGRESSION[0:11])
+                                   BM_REGRESSION[0:11], None, None)
         self.assertEquals(bimodal.get_value_status(), REGRESSED)
 
     def test_noise_bimodal_regression(self):
         bimodal = ComparisonResult(
-            min, False, False, [BM_REGS_NOISE[12]], BM_REGS_NOISE[0:11])
+            min, False, False, [BM_REGS_NOISE[12]], BM_REGS_NOISE[0:11], None,
+            None)
         self.assertEquals(bimodal.get_value_status(), REGRESSED)
 
     def test_bimodal_overlapping_regression(self):
         bimodal = ComparisonResult(min, False, False, [BM_REG_OVERLAP[12]],
-                                   BM_REG_OVERLAP[0:11])
+                                   BM_REG_OVERLAP[0:11], None, None)
         self.assertEquals(bimodal.get_value_status(), REGRESSED)
 
     def test_noise_bimodal_overlapping_regression(self):
         bimodal = ComparisonResult(
             min, False, False, [BM_REG_OVER_NOISE[12]],
-            BM_REG_OVER_NOISE[0:11])
+            BM_REG_OVER_NOISE[0:11], None, None)
         self.assertEquals(bimodal.get_value_status(), REGRESSED)
 
     def test_single_spike(self):
-        spike = ComparisonResult(min, False, False, [SPIKE[11]], SPIKE[0:10])
+        spike = ComparisonResult(
+            min, False, False, [SPIKE[11]], SPIKE[0:10], None, None)
         # Fixme
         # self.assertEquals(spike.get_value_status(), UNCHANGED_PASS)
 
     def test_noise_single_spike(self):
-        spike = ComparisonResult(min, False, False,
-                                 [NOISE_SPIKE[8]], NOISE_SPIKE[0:7])
+        spike = ComparisonResult(
+            min, False, False, [NOISE_SPIKE[8]], NOISE_SPIKE[0:7], None, None)
         # Fixme
         # self.assertEquals(spike.get_value_status(), UNCHANGED_PASS)
 
     def test_slow_regression(self):
-        slow = ComparisonResult(min, False, False,
-                                [SLOW_REG[12]], SLOW_REG[0:11])
+        slow = ComparisonResult(
+            min, False, False, [SLOW_REG[12]], SLOW_REG[0:11], None, None)
         self.assertEquals(slow.get_value_status(), REGRESSED)
 
     def test_noise_slow_regression(self):
         slow = ComparisonResult(
-            min, False, False, [SLOW_REG_NOISE[12]], SLOW_REG_NOISE[0:11])
+            min, False, False, [SLOW_REG_NOISE[12]], SLOW_REG_NOISE[0:11],
+            None, None)
         self.assertEquals(slow.get_value_status(), REGRESSED)
 
     def test_slow_improvement(self):
         slow = ComparisonResult(
-            min, False, False, [SLOW_IMP[12]], SLOW_IMP[0:11])
+            min, False, False, [SLOW_IMP[12]], SLOW_IMP[0:11], None, None)
         # Fixme
         # self.assertEquals(slow.get_value_status(), IMPROVED)
 
     def test_noise_slow_improvement(self):
         slow = ComparisonResult(
-            min, False, False, [SLOW_IMP_NOISE[12]], SLOW_IMP_NOISE[0:11])
+            min, False, False, [SLOW_IMP_NOISE[12]], SLOW_IMP_NOISE[0:11],
+            None, None)
         # Fixme
         # self.assertEquals(slow.get_value_status(), IMPROVED)
 
     def test_handle_zero_sample(self):
         for agfn in (min, median):
             zeroSample = ComparisonResult(
-                agfn, False, False, [0.005, 0.0047, 0.0048], [0.0, 0.01, 0.01])
+                agfn, False, False, [0.005, 0.0047, 0.0048], [0.0, 0.01, 0.01],
+                None, None)
             self.assertEquals(zeroSample.get_value_status(), UNCHANGED_PASS)
 
 

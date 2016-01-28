@@ -76,13 +76,15 @@ def generate_run_report(run, baseurl, only_html_body=False,
     # Gather the run-over-run changes to report, organized by field and then
     # collated by change type.
     run_to_run_info, test_results = _get_changes_by_type(
-        run, compare_to, metric_fields, test_names, num_comparison_runs, sri)
+        ts, run, compare_to, metric_fields, test_names, num_comparison_runs,
+        sri)
 
     # If we have a baseline, gather the run-over-baseline results and
     # changes.
     if baseline:
         run_to_baseline_info, baselined_results = _get_changes_by_type(
-            run, baseline, metric_fields, test_names, num_comparison_runs, sri)
+            ts, run, baseline, metric_fields, test_names, num_comparison_runs,
+            sri)
     else:
         run_to_baseline_info = baselined_results = None
 
@@ -223,7 +225,7 @@ def generate_run_report(run, baseurl, only_html_body=False,
     return subject, text_report, html_report, sri
 
 
-def _get_changes_by_type(run_a, run_b, metric_fields, test_names,
+def _get_changes_by_type(ts, run_a, run_b, metric_fields, test_names,
                          num_comparison_runs, sri):
     comparison_results = {}
     results_by_type = []
@@ -236,9 +238,11 @@ def _get_changes_by_type(run_a, run_b, metric_fields, test_names,
         added_tests = []
         existing_failures = []
         unchanged_tests = []
-        for name,test_id in test_names:
-            cr = sri.get_run_comparison_result(run_a, run_b, test_id, field)
-            comparison_results[(name,field)] = cr
+        for name, test_id in test_names:
+            cr = sri.get_run_comparison_result(
+                run_a, run_b, test_id, field,
+                ts.Sample.get_hash_of_binary_field())
+            comparison_results[(name, field)] = cr
             test_status = cr.get_test_status()
             perf_status = cr.get_value_status()
             if test_status == lnt.server.reporting.analysis.REGRESSED:

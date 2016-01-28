@@ -135,7 +135,8 @@ def get_cr_for_field_change(ts, field_change, current=False):
     runs_all.extend(runs.after)
     ri = RunInfo(ts, [r.id for r in runs_all], only_tests=[field_change.test_id])
     cr = ri.get_comparison_result(runs.after, runs.before,
-                                  field_change.test.id, field_change.field)
+                                  field_change.test.id, field_change.field,
+                                  ts.Sample.get_hash_of_binary_field())
     return cr, runs.after[0], runs_all
 
 

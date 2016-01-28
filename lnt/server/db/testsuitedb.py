@@ -368,6 +368,23 @@ class TestSuiteDB(object):
                     if field.type.name == 'Real':
                         yield field
 
+            @staticmethod
+            def get_hash_of_binary_field():
+                """
+                get_hash_of_binary_field() -> SampleField
+
+                Get the sample field which represents a hash of the binary
+                being tested. This field will compare equal iff two binaries
+                are considered to be identical, e.g. two different compilers
+                producing identical code output.
+
+                Returns None if such a field isn't available.
+                """
+                for field in self.Sample.fields:
+                    if field.name == 'hash':
+                        return field
+                return None
+
             # Dynamically create fields for all of the test suite defined
             # sample fields.
             #

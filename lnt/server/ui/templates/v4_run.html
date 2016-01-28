@@ -4,6 +4,7 @@
 {% set compare_to = request_info.compare_to %}
 {% set baseline = request_info.baseline %}
 {% set ts = request_info.ts %}
+{% set hash_field = ts.Sample.get_hash_of_binary_field() %}
 {% set machine = run.machine %}
 {% set neighboring_runs = request_info.neighboring_runs %}
 {% set comparison_neighboring_runs = request_info.comparison_neighboring_runs %}
@@ -328,7 +329,8 @@
           {% set tests = [] %}
           {% set (runs, compare_runs) = request_info.sri.get_sliding_runs(run, compare_to, request_info.num_comparison_runs) %}
           {% for test_name,test_id in test_info %}
-            {% set cr = request_info.sri.get_comparison_result(runs, compare_runs, test_id, field) %}
+            {% set cr = request_info.sri.get_comparison_result(
+                runs, compare_runs, test_id, field, hash_field) %}
             {% if cr.previous is not none or cr.current is not none %}
               {% if cr.current is none or cr.current >= test_min_value_filter %}
                 {% if tests.append((test_name, test_id, cr)) %}{% endif %}
@@ -383,7 +385,8 @@
         <tr>
           <td class="benchmark-name">{{ test_name }}</td>
           {% for field in metric_fields %}
-		    {% set cr = request_info.sri.get_run_comparison_result(run, compare_to, test_id, field) %}
+              {% set cr = request_info.sri.get_run_comparison_result(
+                     run, compare_to, test_id, field, hash_field) %}
             <td>{{cr.previous}}</td>
             <td>{{cr.current}}</td>
             <td>{{cr.pct_delta}}</td>

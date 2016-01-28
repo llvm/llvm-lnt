@@ -21,6 +21,7 @@ OrderAndHistory = namedtuple('OrderAndHistory', ['max_order', 'recent_orders'])
 class DayResult:
     def __init__(self, comparisonResult):
         self.cr = comparisonResult
+        self.hash = self.cr.cur_hash
         self.samples = self.cr.samples
         if self.samples is None:
             self.samples = []
@@ -70,6 +71,7 @@ class DailyReport(object):
                  day_start_offset_hours=16, for_mail=False,
                  filter_machine_regex=None):
         self.ts = ts
+        self.hash_of_binary_field = self.ts.Sample.get_hash_of_binary_field()
         self.num_prior_days_to_include = num_prior_days_to_include
         self.year = year
         self.month = month
@@ -314,7 +316,8 @@ class DailyReport(object):
                     prev_runs = self.machine_past_runs.get(
                         (machine.id, prev_day_index), ())
                     cr = sri.get_comparison_result(
-                        day_runs, prev_runs, test.id, field)
+                        day_runs, prev_runs, test.id, field,
+                        self.hash_of_binary_field)
 
                     # If the result is not "interesting", ignore this machine.
                     if not cr.is_result_interesting():
@@ -332,8 +335,9 @@ class DailyReport(object):
                         prev_day_index = find_most_recent_run_with_samples(i)
                         prev_runs = self.machine_past_runs.get(
                                        (machine.id, prev_day_index), ())
-                        cr = sri.get_comparison_result(day_runs, prev_runs,
-                                                       test.id, field)
+                        cr = sri.get_comparison_result(
+                            day_runs, prev_runs, test.id, field,
+                            self.hash_of_binary_field)
                         day_results.append(DayResult(cr))
 
                     day_results.complete()

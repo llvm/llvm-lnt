@@ -92,8 +92,9 @@ def regenerate_fieldchanges_for_run(ts, run_id):
     for field in list(ts.Sample.get_metric_fields()):
         for test_id in runinfo.test_ids:
             f = None
-            result = runinfo.get_comparison_result(runs, previous_runs,
-                                                   test_id, field)
+            result = runinfo.get_comparison_result(
+                runs, previous_runs, test_id, field,
+                ts.Sample.get_hash_of_binary_field())
             # Try and find a matching FC and update, else create one.
             try:
                 f = ts.query(ts.FieldChange) \

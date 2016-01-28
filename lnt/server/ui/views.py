@@ -395,7 +395,9 @@ def v4_run(id):
             test = {}
             test['name'] = test_name
             for sample_field in ts.sample_fields:
-                res = sri.get_run_comparison_result(run, None, test_id, sample_field)
+                res = sri.get_run_comparison_result(
+                    run, None, test_id, sample_field,
+                    ts.Sample.get_hash_of_binary_field())
                 test[sample_field.name] = res.current
             json_obj['tests'][test_id] = test
 
@@ -1005,18 +1007,20 @@ def v4_global_status():
     # Build the test matrix. This is a two dimensional table index by
     # (machine-index, test-index), where each entry is the percent change.
     test_table = []
-    for i,(test_id,test_name) in enumerate(reported_tests):
+    for i, (test_id, test_name) in enumerate(reported_tests):
         # Create the row, starting with the test name and worst entry.
         row = [(test_id, test_name), None]
 
         # Compute comparison results for each machine.
-        row.extend((runinfo.get_run_comparison_result(run, baseline, test_id,
-                                                     field), run.id)
-                   for baseline,run in machine_run_info)
+        row.extend((runinfo.get_run_comparison_result(
+                        run, baseline, test_id, field,
+                        ts.Sample.get_hash_of_Binary_field),
+                    run.id)
+                   for baseline, run in machine_run_info)
 
         # Compute the worst cell value.
         row[1] = max(cr.pct_delta
-                     for cr,_ in row[2:])
+                     for cr, _ in row[2:])
 
         test_table.append(row)
 

@@ -2,9 +2,14 @@
 Utilities for helping with the analysis of data, for reporting purposes.
 """
 
+import logging
+
 from lnt.util import stats
 from lnt.server.ui import util
 from lnt.testing import FAIL
+
+LOGGER_NAME = "lnt.server.ui.app"
+logger = logging.getLogger(LOGGER_NAME)
 
 REGRESSED = 'REGRESSED'
 IMPROVED = 'IMPROVED'
@@ -55,6 +60,7 @@ class ComparisonResult:
 
     def __init__(self, aggregation_fn,
                  cur_failed, prev_failed, samples, prev_samples,
+                 cur_hash, prev_hash,
                  confidence_lv=0.05, bigger_is_better=False):
         self.aggregation_fn = aggregation_fn
 
@@ -62,6 +68,9 @@ class ComparisonResult:
         # if bigger_is_better.
         if aggregation_fn == stats.safe_min and bigger_is_better:
             aggregation_fn = stats.safe_max
+
+        self.cur_hash = cur_hash
+        self.prev_hash = prev_hash
 
         if samples:
             self.current = aggregation_fn(samples)
@@ -113,11 +122,13 @@ class ComparisonResult:
         """Print this ComparisonResult's constructor.
 
         Handy for generating test cases for comparisons doing odd things."""
-        fmt = "{}(" + "{}, " * 7 + ")"
+        fmt = "{}(" + "{}, " * 9 + ")"
         return fmt.format(self.__class__.__name__,
                           self.aggregation_fn.__name__,
                           self.failed,
                           self.prev_failed,
+                          self.cur_hash,
+                          self.prev_hash,
                           self.samples,
                           self.prev_samples,
                           self.confidence_lv,
@@ -271,12 +282,14 @@ class RunInfo(object):
 
         return runs, compare_runs
 
-    def get_run_comparison_result(self, run, compare_to, test_id, field):
+    def get_run_comparison_result(self, run, compare_to, test_id, field,
+                                  hash_of_binary_field):
         if compare_to is not None:
             compare_to = [compare_to]
         else:
             compare_to = []
-        return self.get_comparison_result([run], compare_to, test_id, field)
+        return self.get_comparison_result([run], compare_to, test_id, field,
+                                          hash_of_binary_field)
 
     def get_samples(self, runs, test_id):
         all_samples = []
@@ -286,7 +299,8 @@ class RunInfo(object):
                 all_samples.extend(samples)
         return all_samples
 
-    def get_comparison_result(self, runs, compare_runs, test_id, field):
+    def get_comparison_result(self, runs, compare_runs, test_id, field,
+                              hash_of_binary_field):
         # Get the field which indicates the requested field's status.
         status_field = field.status_field
 
@@ -312,31 +326,63 @@ class RunInfo(object):
                       if s[field.index] is not None]
         prev_values = [s[field.index] for s in prev_samples
                        if s[field.index] is not None]
+        if hash_of_binary_field:
+            hash_values = [s[hash_of_binary_field.index] for s in run_samples
+                           if s[field.index] is not None]
+            prev_hash_values = [s[hash_of_binary_field.index]
+                                for s in prev_samples
+                                if s[field.index] is not None]
 
+            # All hash_values and all prev_hash_values should all be the same.
+            # Warn in the log when the hash wasn't the same for all samples.
+            cur_hash_set = set(hash_values)
+            prev_hash_set = set(prev_hash_values)
+            if len(cur_hash_set) > 1:
+                logger.warning("Found different hashes for multiple samples " +
+                               "in the same run %r: %r",
+                               runs, hash_values)
+            if len(prev_hash_set) > 1:
+                logger.warning("Found different hashes for multiple samples " +
+                               "in the same run %r: %r",
+                               compare_runs, prev_hash_values)
+            cur_hash = hash_values[0] if len(hash_values) > 0 else None
+            prev_hash = prev_hash_values[0] \
+                if len(prev_hash_values) > 0 else None
+        else:
+            cur_hash = None
+            prev_hash = None
         r = ComparisonResult(self.aggregation_fn,
                              run_failed, prev_failed, run_values,
-                             prev_values, self.confidence_lv,
+                             prev_values, cur_hash, prev_hash,
+                             self.confidence_lv,
                              bigger_is_better=field.bigger_is_better)
         return r
 
     def get_geomean_comparison_result(self, run, compare_to, field, tests):
         if tests:
-            prev_values,run_values = zip(
-                *[(cr.previous, cr.current) for _,_,cr in tests
+            prev_values, run_values, prev_hash, cur_hash = zip(
+                *[(cr.previous, cr.current, cr.prev_hash, cr.cur_hash)
+                  for _, _, cr in tests
                   if cr.get_test_status() == UNCHANGED_PASS])
             prev_values = [x for x in prev_values if x is not None]
             run_values = [x for x in run_values if x is not None]
+            prev_hash = [x for x in prev_hash if x is not None]
+            cur_hash = [x for x in cur_hash if x is not None]
+            prev_hash = prev_hash[0] if len(prev_hash) > 0 else None
+            cur_hash = cur_hash[0] if len(cur_hash) > 0 else None
             prev_geo = calc_geomean(prev_values)
             prev_values = [prev_geo] if prev_geo else []
             run_values = [calc_geomean(run_values)]
         else:
-            prev_values, run_values = [], []
+            prev_values, run_values, prev_hash, cur_hash = [], [], None, None
 
         return ComparisonResult(self.aggregation_fn,
                                 cur_failed=not bool(run_values),
                                 prev_failed=not bool(prev_values),
                                 samples=run_values,
                                 prev_samples=prev_values,
+                                cur_hash=cur_hash,
+                                prev_hash=prev_hash,
                                 confidence_lv=0,
                                 bigger_is_better=field.bigger_is_better)
 
