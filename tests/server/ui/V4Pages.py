@@ -139,8 +139,7 @@ def check_body_nr_tests_table(client, url, expected_content):
     check_table_content(table, expected_content)
 
 
-def get_sparkline(client, url, fieldname, testname, machinename):
-    table = get_results_table(client, url, fieldname)
+def get_sparkline(table, testname, machinename):
     body_content = [[cell
                      for cell in row.findall("./td")]
                     for row in table.findall("./tbody/tr")]
@@ -164,6 +163,33 @@ def extract_sample_points(sparkline_svg):
     # assume all svg:circle elements are exactly all the sample points
     samples = sparkline_svg.findall(".//circle")
     return samples
+
+
+fillStyleRegex = re.compile("fill: *(?P<fill>[^;]+);")
+
+
+def extract_background_colors(sparkline_svg, nr_days):
+    rects = sparkline_svg.findall(".//rect")
+    # The first rectangle returned is the default background, so remove that
+    # one.
+    assert len(rects) >= 1
+    rects = rects[1:]
+    result = []
+    for rect in rects:
+        style = rect.get("style", None)
+        if style is None:
+            result.append(None)
+            continue
+        m = fillStyleRegex.search(style)
+        if m is None:
+            result.append(None)
+            continue
+        fill = m.group('fill')
+        if fill == 'none':
+            result.append(None)
+        else:
+            result.append(fill)
+    return result
 
 
 def main():
@@ -289,11 +315,17 @@ def main():
                             '/v4/nts/daily_report/2012/5/13?num_days=3',
                             "execution_time",
                             [["test6", ""],
-                             ["", "machine2", "1.0000", "FAIL", "PASS", ""]])
-    sparkline_xml = get_sparkline(client,
-                                  '/v4/nts/daily_report/2012/5/13?num_days=3',
-                                  "execution_time", "test6", "machine2")
-    nr_sample_points = len(extract_sample_points(sparkline_xml))
+                             ["", "machine2", "1.0000", "FAIL", "PASS", ""],
+                             ["test_hash1", ""],
+                             ["", "machine2", "1.0000", '-', '20.00%', ""],
+                             ["test_hash2", ""],
+                             ["", "machine2", "1.0000", '-', '20.00%', ""],
+                             ["test_mhash_on_run", ""],
+                             ["", "machine2", "1.0000", '-', '20.00%', ""], ])
+    result_table = get_results_table(
+        client, '/v4/nts/daily_report/2012/5/13?num_days=3', "execution_time")
+    sparkline_test6_xml = get_sparkline(result_table, "test6", "machine2")
+    nr_sample_points = len(extract_sample_points(sparkline_test6_xml))
     assert 2 == nr_sample_points, \
         "Expected 2 sample points, found %d" % nr_sample_points
 
@@ -301,8 +333,52 @@ def main():
         client, '/v4/nts/daily_report/2012/5/04',
         [['machine2', '2', '0', '1']])
 
+    # Check that a different background color is used in the sparkline
+    # when the hash values recorded are different. At the same time,
+    # check that no background color is drawn on missing hash values,
+    # using a sequence of (hash1, no hash, hash2) over 3 consecutive
+    # days.
+    sparkline_hash1_xml = get_sparkline(result_table, "test_hash1", "machine2")
+    nr_sample_points = len(extract_sample_points(sparkline_hash1_xml))
+    assert 3 == nr_sample_points, \
+        "Expected 3 sample points, found %d" % nr_sample_points
+    background_colors = extract_background_colors(sparkline_hash1_xml, 3)
+    assert len(background_colors) == 3
+    color1, color2, color3 = background_colors
+    assert color1 is not None
+    assert color3 is not None
+    assert color1 != color3
+    assert color2 is None
 
+    # Check that the same background color is used in the sparkline
+    # when the hash values recorded are the same, using a
+    # (hash1, hash2, hash1) sequence.
+    sparkline_hash2_xml = get_sparkline(result_table, "test_hash2", "machine2")
+    nr_sample_points = len(extract_sample_points(sparkline_hash2_xml))
+    assert 3 == nr_sample_points, \
+        "Expected 3 sample points, found %d" % nr_sample_points
+    background_colors = extract_background_colors(sparkline_hash2_xml, 3)
+    assert len(background_colors) == 3
+    color1, color2, color3 = background_colors
+    assert color1 is not None
+    assert color1 == color3
+    assert color1 != color2
+    assert color2 is not None
 
+    # Check that we don't crash if a single run produces multiple
+    # samples with different hash values for the same run. This could
+    # happen e.g. when the compiler under test doesn't produce
+    # object code deterministically.
+    sparkline_mhashonrun_xml = get_sparkline(
+        result_table, "test_mhash_on_run", "machine2")
+    nr_sample_points = len(extract_sample_points(sparkline_mhashonrun_xml))
+    assert 4 == nr_sample_points, \
+        "Expected 4 sample points, found %d" % nr_sample_points
+    background_colors = extract_background_colors(sparkline_mhashonrun_xml, 3)
+    assert len(background_colors) == 3
+    color1, color2, color3 = background_colors
+    assert color2 is None
+    assert color1 != color3
 
     # Now check the compile report
     # Get the V4 overview page.

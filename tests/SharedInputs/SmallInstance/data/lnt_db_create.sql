@@ -5,7 +5,7 @@ CREATE TABLE "SchemaVersion" (
 	PRIMARY KEY ("Name"), 
 	UNIQUE ("Name")
 );
-INSERT INTO "SchemaVersion" VALUES('__core__',6);
+INSERT INTO "SchemaVersion" VALUES('__core__',7);
 CREATE TABLE "TestSuite" (
 	"ID" INTEGER PRIMARY KEY NOT NULL, 
 	"Name" VARCHAR(256), 
@@ -31,6 +31,7 @@ CREATE TABLE "SampleType" (
 );
 INSERT INTO "SampleType" ("Name") VALUES('Real');   -- ID 1
 INSERT INTO "SampleType" ("Name") VALUES('Status'); -- ID 2
+INSERT INTO "SampleType" ("Name") VALUES('Hash');   -- ID 3
 CREATE TABLE "TestSuiteRunFields" (
 	"ID" INTEGER PRIMARY KEY NOT NULL, 
 	"TestSuiteID" INTEGER, 
@@ -109,6 +110,12 @@ INSERT INTO "TestSuiteSampleFields" ("TestSuiteID", "Name", "Type", "InfoKey",
 INSERT INTO "TestSuiteSampleFields" ("TestSuiteID", "Name", "Type", "InfoKey",
                                      "status_field", "bigger_is_better")
  VALUES(1,'mem_bytes',1,'.mem',NULL,0);                 -- ID 16
+INSERT INTO "TestSuiteSampleFields" ("TestSuiteID", "Name", "Type", "InfoKey",
+                                     "status_field", "bigger_is_better")
+ VALUES(1,'hash_status',2,'.hash.status',NULL,0);       -- ID 17
+INSERT INTO "TestSuiteSampleFields" ("TestSuiteID", "Name", "Type", "InfoKey",
+                                     "status_field", "bigger_is_better")
+ VALUES(1,'hash',3,'.hash',NULL,0);                     -- ID 18
 CREATE TABLE "TestSuiteMachineFields" (
 	"ID" INTEGER PRIMARY KEY NOT NULL, 
 	"TestSuiteID" INTEGER, 
@@ -188,10 +195,12 @@ CREATE TABLE "NT_Sample" (
 	execution_status INTEGER, 
 	compile_time FLOAT, 
 	execution_time FLOAT, score FLOAT, "mem_bytes" FLOAT, 
+        hash_status INTEGER, hash VARCHAR(32),
 	FOREIGN KEY("RunID") REFERENCES "NT_Run" ("ID"), 
 	FOREIGN KEY("TestID") REFERENCES "NT_Test" ("ID"), 
 	FOREIGN KEY(compile_status) REFERENCES "StatusKind" ("ID"), 
-	FOREIGN KEY(execution_status) REFERENCES "StatusKind" ("ID")
+	FOREIGN KEY(execution_status) REFERENCES "StatusKind" ("ID"),
+	FOREIGN KEY(hash_status) REFERENCES "StatusKind" ("ID")
 );
 INSERT INTO "NT_Sample" ("RunID", "TestID", "compile_status",
                          "execution_status", "compile_time", "execution_time",

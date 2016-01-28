@@ -64,6 +64,16 @@ class DayResults:
         if len(all_samples) > 0:
             self.min_sample = min(all_samples)
             self.max_sample = max(all_samples)
+        hashes = []
+        for dr in self.day_results:
+            if dr is None:
+                hashes.append(None)
+            else:
+                hashes.append(dr.hash)
+        rgb_colors = util.get_rgb_colors_for_hashes(hashes)
+        for i, dr in enumerate(self.day_results):
+            if dr is not None:
+                dr.hash_rgb_color = rgb_colors[i]
 
 
 class DailyReport(object):

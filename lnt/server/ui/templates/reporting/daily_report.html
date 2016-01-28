@@ -156,15 +156,25 @@
 {%- macro spark_x_coord(day_nr) -%}
   {{ (nr_days - day_nr) * x_day_spacing + x_border_size }}
 {%- endmacro -%}
+{%- macro spark_hash_background(day_nr, dr) -%}
+  {%- if dr.cr.cur_hash is not none -%}
+    {%- set style = "fill: "+dr.hash_rgb_color+";" -%}
+  {%- else -%}
+    {%- set style = "fill: none;" -%}
+  {%- endif -%}
+    <rect x="{{(nr_days-day_nr-0.5) * x_day_spacing + x_border_size}}" y="0"
+          width="{{x_day_spacing}}" height="{{full_height}}" style="{{style}}"/>
+{%- endmacro -%}
     <span>
       <svg width="{{width}}" height="{{full_height}}">
-      <rect width="{{width}}" height="{{full_height}}" fill="beige"/>
+      <rect width="{{width}}" height="{{full_height}}" fill="#f7f7f7"/>
 {#- Make y-axis go upwards instead of downwards: #}
       <g transform="translate(0, {{full_height}}) scale(1, -1) ">
 {%- for dr in day_results -%}
   {%- if dr is not none and not dr.cr.failed -%}
     {%- set day_nr = loop.index %}
     {%- set nr_samples_for_day = dr.samples|length %}
+        {{ spark_hash_background(day_nr, dr) }}
     {%- for sample in dr.samples -%}
       {# fuzz the x-coordinate slightly so that multiple samples with the same
          value can be noticed #}

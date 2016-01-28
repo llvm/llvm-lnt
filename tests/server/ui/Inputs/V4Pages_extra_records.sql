@@ -99,5 +99,56 @@ INSERT INTO "NT_Sample" ("RunID", "TestID", "compile_status",
  VALUES(9,6,0,0,0.001,1.2,NULL,NULL); -- ID 11: passing result; 20% bigger,
                                       -- so shown in daily report page.
 
+-- check background colors being produced correctly, corresponding to recorded
+-- hashes of the binary.
+INSERT INTO "NT_Test" VALUES(7,'test_hash1'); -- ID 7
+INSERT INTO "NT_Sample" ("RunID", "TestID", "compile_status",
+                         "execution_status", "compile_time", "execution_time",
+                         "score", "mem_bytes", "hash_status", "hash")
+ VALUES(7,7,0,0,0.001,1.0,NULL,NULL,0,'hash1'); -- ID 11: hash1
+INSERT INTO "NT_Sample" ("RunID", "TestID", "compile_status",
+                         "execution_status", "compile_time", "execution_time",
+                         "score", "mem_bytes", "hash_status", "hash")
+ VALUES(8,7,0,0,0.001,1.0,NULL,NULL,NULL,NULL); -- ID 12: no hash
+INSERT INTO "NT_Sample" ("RunID", "TestID", "compile_status",
+                         "execution_status", "compile_time", "execution_time",
+                         "score", "mem_bytes", "hash_status", "hash")
+ VALUES(9,7,0,0,0.001,1.2,NULL,NULL,0,'hash2'); -- ID 13: hash2; 20% bigger,
+                                      -- so shown in daily report page.
+
+INSERT INTO "NT_Test" VALUES(8,'test_hash2'); -- ID 8
+INSERT INTO "NT_Sample" ("RunID", "TestID", "compile_status",
+                         "execution_status", "compile_time", "execution_time",
+                         "score", "mem_bytes", "hash_status", "hash")
+ VALUES(7,8,0,0,0.001,1.0,NULL,NULL,0,'hash1'); -- ID 14: hash1
+INSERT INTO "NT_Sample" ("RunID", "TestID", "compile_status",
+                         "execution_status", "compile_time", "execution_time",
+                         "score", "mem_bytes", "hash_status", "hash")
+ VALUES(8,8,0,0,0.001,1.0,NULL,NULL,0,'hash2'); -- ID 15: hash2
+INSERT INTO "NT_Sample" ("RunID", "TestID", "compile_status",
+                         "execution_status", "compile_time", "execution_time",
+                         "score", "mem_bytes", "hash_status", "hash")
+ VALUES(9,8,0,0,0.001,1.2,NULL,NULL,0,'hash1'); -- ID 16: hash1; 20% bigger,
+                                      -- so shown in daily report page.
+
+INSERT INTO "NT_Test" VALUES(9,'test_mhash_on_run'); -- ID 9
+INSERT INTO "NT_Sample" ("RunID", "TestID", "compile_status",
+                         "execution_status", "compile_time", "execution_time",
+                         "score", "mem_bytes", "hash_status", "hash")
+ VALUES(7,9,0,0,0.001,1.0,NULL,NULL,0,'hash1'); -- ID 15: hash1
+INSERT INTO "NT_Sample" ("RunID", "TestID", "compile_status",
+                         "execution_status", "compile_time", "execution_time",
+                         "score", "mem_bytes", "hash_status", "hash")
+ VALUES(7,9,0,0,0.001,1.0,NULL,NULL,0,'hash2'); -- ID 16: hash2, same day
+INSERT INTO "NT_Sample" ("RunID", "TestID", "compile_status",
+                         "execution_status", "compile_time", "execution_time",
+                         "score", "mem_bytes", "hash_status", "hash")
+ VALUES(8,9,0,0,0.001,1.0,NULL,NULL,1,NULL); -- ID 17: no hash the next day
+INSERT INTO "NT_Sample" ("RunID", "TestID", "compile_status",
+                         "execution_status", "compile_time", "execution_time",
+                         "score", "mem_bytes", "hash_status", "hash")
+ VALUES(9,9,0,0,0.001,1.2,NULL,NULL,0,'hash3'); -- ID 18: hash3; 20% bigger,
+                                      -- so shown in daily report page.
+
 
 COMMIT;
