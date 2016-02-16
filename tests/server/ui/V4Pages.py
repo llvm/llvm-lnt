@@ -302,43 +302,45 @@ def main():
 
     # check that a regression seen between 2 consecutive runs that are
     # more than a day apart gets reported
-    check_body_result_table(client, '/v4/nts/daily_report/2012/5/04',
-                            "execution_time",
-                            [["test1", ""],
-                             ["", "machine2", "1.0000", "-", "900.00%", ""],
-                             ["test2", ""],
-                             ["", "machine2", "FAIL", "-", "PASS", ""]])
-
-    # Check that a failing result does not show up in the spark line
-    # as a dot with value 0.
-    check_body_result_table(client,
-                            '/v4/nts/daily_report/2012/5/13?num_days=3',
-                            "execution_time",
-                            [["test6", ""],
-                             ["", "machine2", "1.0000", "FAIL", "PASS", ""],
-                             ["test_hash1", ""],
-                             ["", "machine2", "1.0000", '-', '20.00%', ""],
-                             ["test_hash2", ""],
-                             ["", "machine2", "1.0000", '-', '20.00%', ""],
-                             ["test_mhash_on_run", ""],
-                             ["", "machine2", "1.0000", '-', '20.00%', ""], ])
-    result_table = get_results_table(
-        client, '/v4/nts/daily_report/2012/5/13?num_days=3', "execution_time")
-    sparkline_test6_xml = get_sparkline(result_table, "test6", "machine2")
-    nr_sample_points = len(extract_sample_points(sparkline_test6_xml))
-    assert 2 == nr_sample_points, \
-        "Expected 2 sample points, found %d" % nr_sample_points
+    result_table_20120504 = get_results_table(
+        client, '/v4/nts/daily_report/2012/5/04', "execution_time")
+    check_table_content(result_table_20120504,
+                        [["test1", ""],
+                         ["", "machine2", "1.0000", "-", "900.00%", ""],
+                         ["test2", ""],
+                         ["", "machine2", "FAIL", "-", "PASS", ""]])
 
     check_body_nr_tests_table(
         client, '/v4/nts/daily_report/2012/5/04',
         [['machine2', '2', '0', '1']])
+
+    # Check that a failing result does not show up in the spark line
+    # as a dot with value 0.
+    result_table_20120513 = get_results_table(
+        client, '/v4/nts/daily_report/2012/5/13?num_days=3', "execution_time")
+    check_table_content(result_table_20120513,
+                        [["test6", ""],
+                         ["", "machine2", "1.0000", "FAIL", "PASS", ""],
+                         ["test_hash1", ""],
+                         ["", "machine2", "1.0000", '-', '20.00%', ""],
+                         ["test_hash2", ""],
+                         ["", "machine2", "1.0000", '-', '20.00%', ""],
+                         ["test_mhash_on_run", ""],
+                         ["", "machine2", "1.0000", '-', '20.00%', ""], ])
+
+    sparkline_test6_xml = \
+        get_sparkline(result_table_20120513, "test6", "machine2")
+    nr_sample_points = len(extract_sample_points(sparkline_test6_xml))
+    assert 2 == nr_sample_points, \
+        "Expected 2 sample points, found %d" % nr_sample_points
 
     # Check that a different background color is used in the sparkline
     # when the hash values recorded are different. At the same time,
     # check that no background color is drawn on missing hash values,
     # using a sequence of (hash1, no hash, hash2) over 3 consecutive
     # days.
-    sparkline_hash1_xml = get_sparkline(result_table, "test_hash1", "machine2")
+    sparkline_hash1_xml = \
+        get_sparkline(result_table_20120513, "test_hash1", "machine2")
     nr_sample_points = len(extract_sample_points(sparkline_hash1_xml))
     assert 3 == nr_sample_points, \
         "Expected 3 sample points, found %d" % nr_sample_points
@@ -353,7 +355,8 @@ def main():
     # Check that the same background color is used in the sparkline
     # when the hash values recorded are the same, using a
     # (hash1, hash2, hash1) sequence.
-    sparkline_hash2_xml = get_sparkline(result_table, "test_hash2", "machine2")
+    sparkline_hash2_xml = \
+        get_sparkline(result_table_20120513, "test_hash2", "machine2")
     nr_sample_points = len(extract_sample_points(sparkline_hash2_xml))
     assert 3 == nr_sample_points, \
         "Expected 3 sample points, found %d" % nr_sample_points
@@ -370,7 +373,7 @@ def main():
     # happen e.g. when the compiler under test doesn't produce
     # object code deterministically.
     sparkline_mhashonrun_xml = get_sparkline(
-        result_table, "test_mhash_on_run", "machine2")
+        result_table_20120513, "test_mhash_on_run", "machine2")
     nr_sample_points = len(extract_sample_points(sparkline_mhashonrun_xml))
     assert 4 == nr_sample_points, \
         "Expected 4 sample points, found %d" % nr_sample_points
