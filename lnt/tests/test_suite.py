@@ -220,8 +220,9 @@ class TestSuiteTest(BuiltinTest):
         if not isexecfile(opts.lit):
             parser.error("LIT tool not found (looked for %s)" % opts.lit)
         if opts.run_under:
-            opts.run_under = resolve_command_path(opts.run_under)
-            if not isexecfile(opts.run_under):
+            split = shlex.split(opts.run_under)
+            split[0] = resolve_command_path(split[0])
+            if not isexecfile(split[0]):
                 parser.error("Run under wrapper not found (looked for %s)" %
                              opts.run_under)
                 
