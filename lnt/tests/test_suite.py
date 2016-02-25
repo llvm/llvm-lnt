@@ -173,7 +173,7 @@ class TestSuiteTest(BuiltinTest):
             parser.error("Expected no positional arguments (got: %r)" % (args,))
 
         for a in ['cross_compiling', 'cross_compiling_system_name', 'llvm_arch',
-                  'benchmarking_only', 'use_perf']:
+                  'use_perf']:
             if getattr(opts, a):
                 parser.error('option "%s" is not yet implemented!' % a)
             
@@ -347,6 +347,8 @@ class TestSuiteTest(BuiltinTest):
         }
         if self.opts.run_under:
             defs['TEST_SUITE_RUN_UNDER'] = self._unix_quote_args(self.opts.run_under)
+        if self.opts.benchmarking_only:
+            defs['TEST_SUITE_BENCHMARKING_ONLY'] = 'ON'
 
         lines = ['Configuring with {']
         for k,v in defs.items():

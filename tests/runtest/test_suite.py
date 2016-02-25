@@ -215,3 +215,19 @@
 # CHECK-ONLYTEST: Execute: {{.*}}/fake-make -j 1
 # CHECK-ONLYTEST:            (In {{.*}}/subtest)
 
+# Check --benchmarking-only
+# RUN: lnt runtest test-suite \
+# RUN:     --sandbox %t.SANDBOX \
+# RUN:     --no-timestamp \
+# RUN:     --test-suite %S/Inputs/test-suite-cmake \
+# RUN:     --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
+# RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
+# RUN:     --use-make %S/Inputs/test-suite-cmake/fake-make \
+# RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit \
+# RUN:     --benchmarking-only \
+# RUN:     --verbose \
+# RUN:     > %t.log 2> %t.err
+# RUN: FileCheck --check-prefix CHECK-BENCHONLY < %t.err %s
+# CHECK-BENCHONLY: Configuring with {
+# CHECK-BENCHONLY:   TEST_SUITE_BENCHMARKING_ONLY: 'ON'
+
