@@ -231,3 +231,19 @@
 # CHECK-BENCHONLY: Configuring with {
 # CHECK-BENCHONLY:   TEST_SUITE_BENCHMARKING_ONLY: 'ON'
 
+# Check --use-perf
+# RUN: lnt runtest test-suite \
+# RUN:     --sandbox %t.SANDBOX \
+# RUN:     --no-timestamp \
+# RUN:     --test-suite %S/Inputs/test-suite-cmake \
+# RUN:     --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
+# RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
+# RUN:     --use-make %S/Inputs/test-suite-cmake/fake-make \
+# RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit \
+# RUN:     --use-perf \
+# RUN:     --verbose \
+# RUN:     > %t.log 2> %t.err
+# RUN: FileCheck --check-prefix CHECK-USE-PERF < %t.err %s
+# CHECK-USE-PERF: Configuring with {
+# CHECK-USE-PERF:   TEST_SUITE_USE_PERF: 'ON'
+

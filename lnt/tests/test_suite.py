@@ -112,7 +112,7 @@ class TestSuiteTest(BuiltinTest):
         group.add_option("", "--use-perf", dest="use_perf",
                          help=("Use perf to obtain high accuracy timing"
                                "[%default]"),
-                         type=str, default=None)
+                         action='store_true', default=False)
         group.add_option("", "--run-under", dest="run_under",
                          help="Wrapper to run tests under ['%default']",
                          type=str, default="")
@@ -172,8 +172,7 @@ class TestSuiteTest(BuiltinTest):
         else:
             parser.error("Expected no positional arguments (got: %r)" % (args,))
 
-        for a in ['cross_compiling', 'cross_compiling_system_name', 'llvm_arch',
-                  'use_perf']:
+        for a in ['cross_compiling', 'cross_compiling_system_name', 'llvm_arch']:
             if getattr(opts, a):
                 parser.error('option "%s" is not yet implemented!' % a)
             
@@ -349,7 +348,9 @@ class TestSuiteTest(BuiltinTest):
             defs['TEST_SUITE_RUN_UNDER'] = self._unix_quote_args(self.opts.run_under)
         if self.opts.benchmarking_only:
             defs['TEST_SUITE_BENCHMARKING_ONLY'] = 'ON'
-
+        if self.opts.use_perf:
+            defs['TEST_SUITE_USE_PERF'] = 'ON'
+            
         lines = ['Configuring with {']
         for k,v in defs.items():
             lines.append("  %s: '%s'" % (k,v))
