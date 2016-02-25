@@ -193,7 +193,9 @@ class TestSuiteTest(BuiltinTest):
                 note("Inferred C++ compiler under test as: %r" % (opts.cxx,))
             else:
                 parser.error("unable to infer --cxx - set it manually.")
-
+        else:
+            opts.cxx = resolve_command_path(opts.cxx)
+                
         if not os.path.exists(opts.cxx):
             parser.error("invalid --cxx argument %r, does not exist" % (opts.cxx))
 
