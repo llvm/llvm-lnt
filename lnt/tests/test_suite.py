@@ -353,7 +353,7 @@ class TestSuiteTest(BuiltinTest):
             defs['TEST_SUITE_USE_PERF'] = 'ON'
             
         lines = ['Configuring with {']
-        for k,v in defs.items():
+        for k,v in sorted(defs.items()):
             lines.append("  %s: '%s'" % (k,v))
         lines.append('}')
 
