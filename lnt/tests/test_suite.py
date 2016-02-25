@@ -396,7 +396,7 @@ class TestSuiteTest(BuiltinTest):
 
         note('Testing...')
         self._check_call([lit_cmd,
-                          '-sv',
+                          '-v',
                           '-j', str(self._test_threads()),
                           subdir,
                           '-o', output_json_path.name] + extra_args)
