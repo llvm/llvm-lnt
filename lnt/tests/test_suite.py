@@ -15,7 +15,7 @@ from lnt.tests.builtintest import BuiltinTest
 # test-suite/cmake/modules/DetectArchitecture.cmake. If you update this list,
 # make sure that cmake file is updated too.
 TEST_SUITE_KNOWN_ARCHITECTURES = ['ARM', 'AArch64', 'Mips', 'X86']
-KNOWN_SAMPLE_KEYS = ['compile', 'exec', 'hash']
+KNOWN_SAMPLE_KEYS = ['compile', 'exec', 'hash', 'score']
 
 
 class TestSuiteTest(BuiltinTest):
@@ -150,7 +150,7 @@ class TestSuiteTest(BuiltinTest):
                          dest="exclude_stat_from_submission",
                          help="Do not submit the stat of this type [%default]",
                          action='append', choices=KNOWN_SAMPLE_KEYS,
-                         type='choice', default=['hash'])
+                         type='choice', default=[])
         parser.add_option_group(group)
 
         group = OptionGroup(parser, "Test tools")
@@ -441,7 +441,15 @@ class TestSuiteTest(BuiltinTest):
     def _parse_lit_output(self, path, data, only_test=False):
         LIT_METRIC_TO_LNT = {
             'compile_time': 'compile',
-            'exec_time': 'exec'
+            'exec_time': 'exec',
+            'score': 'score',
+            'hash': 'hash'
+        }
+        LIT_METRIC_CONV_FN = {
+            'compile_time': float,
+            'exec_time': float,
+            'score': float,
+            'hash': str
         }
         
         # We don't use the test info, currently.
@@ -464,7 +472,8 @@ class TestSuiteTest(BuiltinTest):
                     test_samples.append(
                         lnt.testing.TestSamples(name + '.' + LIT_METRIC_TO_LNT[k],
                                                 [v],
-                                                test_info))
+                                                test_info,
+                                                LIT_METRIC_CONV_FN[k]))
 
             if self._test_failed_to_compile(raw_name, path):
                 test_samples.append(
