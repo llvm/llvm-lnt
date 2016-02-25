@@ -50,6 +50,9 @@ class TestSuiteTest(BuiltinTest):
         group.add_option("", "--test-externals", dest="test_suite_externals",
                          type=str, metavar="PATH",
                          help="Path to the LLVM test-suite externals")
+        group.add_option("", "--cmake-define", dest="cmake_defines",
+                         action="append",
+                         help="Defines to pass to cmake.")
         parser.add_option_group(group)
                          
         group = OptionGroup(parser, "Test compiler")
@@ -351,6 +354,10 @@ class TestSuiteTest(BuiltinTest):
             defs['TEST_SUITE_BENCHMARKING_ONLY'] = 'ON'
         if self.opts.use_perf:
             defs['TEST_SUITE_USE_PERF'] = 'ON'
+        if self.opts.cmake_defines:
+            for item in self.opts.cmake_defines:
+                k, v = item.split('=', 1)
+                defs[k] = v
             
         lines = ['Configuring with {']
         for k,v in sorted(defs.items()):
@@ -372,6 +379,9 @@ class TestSuiteTest(BuiltinTest):
             subdir = os.path.join(*components)
 
         note('Building...')
+        self._check_call([make_cmd, 'timeit-host',
+                          '-j', str(self._build_threads())],
+                         cwd=path)
         self._check_call([make_cmd,
                           '-j', str(self._build_threads())],
                          cwd=subdir)

@@ -223,9 +223,16 @@
 # RUN:     --use-make %S/Inputs/test-suite-cmake/fake-make \
 # RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit \
 # RUN:     --only-test subtest \
+# RUN:     --cmake-define one=two \
+# RUN:     --cmake-define three=four \
 # RUN:     --verbose \
 # RUN:     > %t.log 2> %t.err
 # RUN: FileCheck --check-prefix CHECK-ONLYTEST < %t.err %s
+# CHECK-ONLYTEST: Configuring with {
+# CHECK-ONLYTEST:   one: 'two'
+# CHECK-ONLYTEST:   three: 'four'
+# CHECK-ONLYTEST: Execute: {{.*}}/fake-make timeit-host -j 1 
+# CHECK-ONLYTEST:            (In {{.*}})
 # CHECK-ONLYTEST: Execute: {{.*}}/fake-make -j 1
 # CHECK-ONLYTEST:            (In {{.*}}/subtest)
 
