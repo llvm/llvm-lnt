@@ -231,8 +231,6 @@
 # CHECK-ONLYTEST: Configuring with {
 # CHECK-ONLYTEST:   one: 'two'
 # CHECK-ONLYTEST:   three: 'four'
-# CHECK-ONLYTEST: Execute: {{.*}}/fake-make timeit-host -j 1 
-# CHECK-ONLYTEST:            (In {{.*}})
 # CHECK-ONLYTEST: Execute: {{.*}}/fake-make -j 1
 # CHECK-ONLYTEST:            (In {{.*}}/subtest)
 

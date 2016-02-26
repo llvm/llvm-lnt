@@ -379,9 +379,6 @@ class TestSuiteTest(BuiltinTest):
             subdir = os.path.join(*components)
 
         note('Building...')
-        self._check_call([make_cmd, 'timeit-host',
-                          '-j', str(self._build_threads())],
-                         cwd=path)
         self._check_call([make_cmd,
                           '-j', str(self._build_threads())],
                          cwd=subdir)
