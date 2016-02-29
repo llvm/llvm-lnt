@@ -404,12 +404,16 @@ class TestSuiteTest(BuiltinTest):
             extra_args = ['--no-execute']
 
         note('Testing...')
-        self._check_call([lit_cmd,
-                          '-v',
-                          '-j', str(self._test_threads()),
-                          subdir,
-                          '-o', output_json_path.name] + extra_args)
-
+        try:
+            self._check_call([lit_cmd,
+                              '-v',
+                              '-j', str(self._test_threads()),
+                              subdir,
+                              '-o', output_json_path.name] + extra_args)
+        except subprocess.CalledProcessError:
+            # LIT is expected to exit with code 1 if there were test
+            # failures!
+            pass
         return json.loads(open(output_json_path.name).read())
 
     def _is_pass_code(self, code):

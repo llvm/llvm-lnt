@@ -286,3 +286,17 @@
 # CHECK-METRICS-DAG: foo.hash
 # CHECK-METRICS2-NOT: foo.unknown
 
+# Check that with a failing test, a report is still produced.
+# RUN: rm -f %t.SANDBOX/build/report.json
+# RUN: lnt runtest test-suite \
+# RUN:     --sandbox %t.SANDBOX \
+# RUN:     --no-timestamp \
+# RUN:     --no-configure \
+# RUN:     --test-suite %S/Inputs/test-suite-cmake \
+# RUN:     --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
+# RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
+# RUN:     --use-make %S/Inputs/test-suite-cmake/fake-make \
+# RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit-fails \
+# RUN:     --run-order=123 > %t.log 2> %t.err
+# RUN: FileCheck --check-prefix CHECK-RESULTS-FAIL < %t.SANDBOX/build/report.json %s
+# CHECK-RESULTS-FAIL: "run_order": "123"
