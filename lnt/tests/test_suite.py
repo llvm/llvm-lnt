@@ -52,7 +52,9 @@ class TestSuiteTest(BuiltinTest):
                          help="Path to the LLVM test-suite externals")
         group.add_option("", "--cmake-define", dest="cmake_defines",
                          action="append",
-                         help="Defines to pass to cmake.")
+                         help=("Defines to pass to cmake. These do not require the "
+                               "-D prefix and can be given multiple times. e.g.: "
+                               "--cmake-define A=B => -DA=B"))
         parser.add_option_group(group)
                          
         group = OptionGroup(parser, "Test compiler")
