@@ -382,7 +382,8 @@ class TestSuiteTest(BuiltinTest):
 
         note('Building...')
         self._check_call([make_cmd,
-                          '-j', str(self._build_threads())],
+                          '-j', str(self._build_threads()),
+                          "VERBOSE=1"],
                          cwd=subdir)
 
     def _lit(self, path, test):
