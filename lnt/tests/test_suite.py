@@ -109,11 +109,11 @@ class TestSuiteTest(BuiltinTest):
 
         group = OptionGroup(parser, "Test Execution")
         group.add_option("-j", "--threads", dest="threads",
-                         help="Number of testing threads",
-                         type=int, default=1, metavar="N")
+                         help="Number of testing (and optionally build) "
+                         "threads", type=int, default=1, metavar="N")
         group.add_option("", "--build-threads", dest="build_threads",
-                         help="Number of compilation threads",
-                         type=int, default=0, metavar="N")
+                         help="Number of compilation threads, defaults to "
+                         "--threads", type=int, default=0, metavar="N")
         group.add_option("", "--use-perf", dest="use_perf",
                          help=("Use perf to obtain high accuracy timing"
                                "[%default]"),
