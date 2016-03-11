@@ -59,8 +59,8 @@ following tools for working with built-in tests are available:
 Built-in Tests
 --------------
 
-LLVM test-suite (aka LLVM nightly test)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+LLVM Makefile test-suite (aka LLVM Nightly Test)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The ``nt`` built-in test runs the LLVM test-suite execution and performance
 tests, in the "nightly test" configuration. This test allows running many
@@ -225,3 +225,30 @@ environment to use for various commands:
 
 For more information, see the example tests in the LLVM test-suite repository
 under the ``LNT/Examples`` directory.
+
+
+
+LLVM CMake test-suite
+~~~~~~~~~~~~~~~~~~~~~
+
+The LLVM test-suite also has a new CMake driver.  It can run more tests in
+more configurations than the Make based system. It also collects more
+metrics than the Make system, for example code size.
+
+Running the test-suite via CMake and lit uses a different LNT test::
+
+$ rm -rf /tmp/BAR
+$ lnt runtest test-suite \
+     --sandbox /tmp/BAR \
+     --cc ~/llvm.obj.64/Release+Asserts/bin/clang \
+     --cxx ~/llvm.obj.64/Release+Asserts/bin/clang++ \
+     --use-cmake=/usr/local/bin/cmake \
+     --use-lit=~/llvm/utils/lit/lit.py \
+     --test-suite ~/llvm-test-suite \
+     --cmake-cache Release
+     
+Since the CMake test-suite uses lit to run the tests and compare their output,
+LNT needs to know the path to your LLVM lit installation.  The test-suite Holds
+some common common configurations in CMake caches. The ``--cmake-cache`` flag
+and the ``--cmake-define`` flag allow you to change how LNT configures cmake
+for the test-suite run.
