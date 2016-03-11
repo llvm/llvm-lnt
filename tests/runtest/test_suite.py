@@ -300,3 +300,33 @@
 # RUN:     --run-order=123 > %t.log 2> %t.err
 # RUN: FileCheck --check-prefix CHECK-RESULTS-FAIL < %t.SANDBOX/build/report.json %s
 # CHECK-RESULTS-FAIL: "run_order": "123"
+
+# Check a run of test-suite using a cmake cache
+# RUN: lnt runtest test-suite \
+# RUN:     --sandbox %t.SANDBOX \
+# RUN:     --no-timestamp \
+# RUN:     --test-suite %S/Inputs/test-suite-cmake \
+# RUN:     --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
+# RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
+# RUN:     --use-make %S/Inputs/test-suite-cmake/fake-make \
+# RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit \
+# RUN:     --cmake-cache Release \
+# RUN:     &> %t.cmake-cache.log
+# RUN: FileCheck  --check-prefix CHECK-CACHE < %t.cmake-cache.log %s
+# CHECK-CACHE: Cmake Cache
+# CHECK-CACHE: Release
+
+
+# Check a run of test-suite using a invalid cmake cache
+# RUN: lnt runtest test-suite \
+# RUN:     --sandbox %t.SANDBOX \
+# RUN:     --no-timestamp \
+# RUN:     --test-suite %S/Inputs/test-suite-cmake \
+# RUN:     --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
+# RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
+# RUN:     --use-make %S/Inputs/test-suite-cmake/fake-make \
+# RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit \
+# RUN:     --cmake-cache Debug \
+# RUN:     &> %t.cmake-cache2.err || true
+# RUN: FileCheck  --check-prefix CHECK-CACHE2 < %t.cmake-cache2.err %s
+# CHECK-CACHE2: Could not find CMake cache file

@@ -1,5 +1,11 @@
 #!/bin/bash
 
+# If we passed a cache, just drop it and look like cmake.
+if [[ $1 == "-C" ]]; then
+    echo "Cmake Cache $2"
+    shift
+    shift    
+fi    
 if [[ ! -f $1/CMakeLists.txt ]]; then
   exit 1
 else
