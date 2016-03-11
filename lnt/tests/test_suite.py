@@ -348,11 +348,15 @@ class TestSuiteTest(BuiltinTest):
             # FIXME: Support ARCH, SMALL/LARGE etc
             'CMAKE_C_COMPILER': self.opts.cc,
             'CMAKE_CXX_COMPILER': self.opts.cxx,
-            'CMAKE_C_FLAGS': self._unix_quote_args(' '.join([self.opts.cppflags,
-                                                             self.opts.cflags])),
-            'CMAKE_CXX_FLAGS': self._unix_quote_args(' '.join([self.opts.cppflags,
-                                                               self.opts.cxxflags]))
         }
+        if self.opts.cppflags or self.opts.cflags:
+            all_cflags = ' '.join([self.opts.cppflags, self.opts.cflags])
+            defs['CMAKE_C_FLAGS'] = self._unix_quote_args(all_cflags)
+        
+        if self.opts.cppflags or self.opts.cxxflags:
+            all_cxx_flags = ' '.join([self.opts.cppflags, self.opts.cxxflags])
+            defs['CMAKE_CXX_FLAGS'] = self._unix_quote_args(all_cxx_flags)
+        
         if self.opts.run_under:
             defs['TEST_SUITE_RUN_UNDER'] = self._unix_quote_args(self.opts.run_under)
         if self.opts.benchmarking_only:
