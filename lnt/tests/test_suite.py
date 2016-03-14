@@ -1,4 +1,4 @@
-import subprocess, tempfile, json, os, shlex, platform, pipes
+import subprocess, tempfile, json, os, shlex, platform, pipes, sys
 
 from optparse import OptionParser, OptionGroup
 
@@ -156,6 +156,15 @@ class TestSuiteTest(BuiltinTest):
                          help="Do not submit the stat of this type [%default]",
                          action='append', choices=KNOWN_SAMPLE_KEYS,
                          type='choice', default=[])
+        group.add_option("", "--single-result", dest="single_result",
+                         help=("only execute this single test and apply "
+                               "--single-result-predicate to calculate the "
+                               "exit status"))
+        group.add_option("", "--single-result-predicate",
+                         dest="single_result_predicate",
+                         help=("the predicate to apply to calculate the exit "
+                               "status (with --single-result)"),
+                         default="status")
         parser.add_option_group(group)
 
         group = OptionGroup(parser, "Test tools")
@@ -217,7 +226,7 @@ class TestSuiteTest(BuiltinTest):
                 parser.error(
                     "invalid --test-externals argument, does not exist: %r" % (
                         opts.test_suite_externals,))
-
+                
         opts.cmake = resolve_command_path(opts.cmake)
         if not isexecfile(opts.cmake):
             parser.error("CMake tool not found (looked for %s)" % opts.cmake)
@@ -234,6 +243,10 @@ class TestSuiteTest(BuiltinTest):
                 parser.error("Run under wrapper not found (looked for %s)" %
                              opts.run_under)
 
+        if opts.single_result:
+            # --single-result implies --only-test
+            opts.only_test = opts.single_result
+                
         if opts.only_test:
             # --only-test can either point to a particular test or a directory.
             # Therefore, test_suite_root + opts.only_test or
@@ -248,6 +261,10 @@ class TestSuiteTest(BuiltinTest):
             else:
                 parser.error("--only-test argument not understood (must be a " +
                              " test or directory name)")
+
+        if opts.single_result and not opts.only_test[1]:
+            parser.error("--single-result must be given a single test name, not a " +
+                         "directory name")
                 
         opts.cppflags = ' '.join(opts.cppflags)
         opts.cflags = ' '.join(opts.cflags)
@@ -506,6 +523,19 @@ class TestSuiteTest(BuiltinTest):
             raw_name = test_data['name'].split(' :: ', 1)[1]
             name = 'nts.' + raw_name.rsplit('.test', 1)[0]
             is_pass = self._is_pass_code(test_data['code'])
+
+            # If --single-result is given, exit based on --single-result-predicate
+            if self.opts.single_result and \
+               raw_name == self.opts.single_result+'.test':
+                env = {'status': is_pass}
+                if 'metrics' in test_data:
+                    for k,v in test_data['metrics'].items():
+                        env[k] = v
+                        if k in LIT_METRIC_TO_LNT:
+                            env[LIT_METRIC_TO_LNT[k]] = v
+                status = eval(self.opts.single_result_predicate, {}, env)
+                sys.exit(0 if status else 1)
+
             if 'metrics' in test_data:
                 for k,v in test_data['metrics'].items():
                     if k not in LIT_METRIC_TO_LNT or LIT_METRIC_TO_LNT[k] in ignore:
@@ -528,6 +558,10 @@ class TestSuiteTest(BuiltinTest):
                                             [self._get_lnt_code(test_data['code'])],
                                             test_info))
 
+        if self.opts.single_result:
+            # If we got this far, the result we were looking for didn't exist.
+            raise RuntimeError("Result %s did not exist!" %
+                               self.opts.single_result)
 
         # FIXME: Add more machine info!
         run_info = {

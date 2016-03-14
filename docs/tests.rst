@@ -237,18 +237,50 @@ metrics than the Make system, for example code size.
 
 Running the test-suite via CMake and lit uses a different LNT test::
 
-$ rm -rf /tmp/BAR
-$ lnt runtest test-suite \
-     --sandbox /tmp/BAR \
-     --cc ~/llvm.obj.64/Release+Asserts/bin/clang \
-     --cxx ~/llvm.obj.64/Release+Asserts/bin/clang++ \
-     --use-cmake=/usr/local/bin/cmake \
-     --use-lit=~/llvm/utils/lit/lit.py \
-     --test-suite ~/llvm-test-suite \
-     --cmake-cache Release
+  $ rm -rf /tmp/BAR
+  $ lnt runtest test-suite \
+       --sandbox /tmp/BAR \
+       --cc ~/llvm.obj.64/Release+Asserts/bin/clang \
+       --cxx ~/llvm.obj.64/Release+Asserts/bin/clang++ \
+       --use-cmake=/usr/local/bin/cmake \
+       --use-lit=~/llvm/utils/lit/lit.py \
+       --test-suite ~/llvm-test-suite \
+       --cmake-cache Release
      
 Since the CMake test-suite uses lit to run the tests and compare their output,
 LNT needs to know the path to your LLVM lit installation.  The test-suite Holds
 some common common configurations in CMake caches. The ``--cmake-cache`` flag
 and the ``--cmake-define`` flag allow you to change how LNT configures cmake
 for the test-suite run.
+
+Bisecting: ``--single-result`` and ``--single-result-predicate``
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+The LNT driver for the CMake-based test suite comes with helpers for bisecting conformance and performance changes with ``llvmlab bisect``.
+
+``llvmlab bisect`` is part of the ``zorg`` repository and allows easy bisection of some predicate through a build cache. The key to using ``llvmlab`` effectively is to design a good predicate command - one which exits with zero on 'pass' and nonzero on 'fail'.
+
+LNT normally runs one or more tests then produces a test report. It always exits with status zero unless an internal error occurred. The ``--single-result`` argument changes LNT's behaviour - it will only run one specific test and will apply a predicate to the result of that test to determine LNT's exit status.
+
+The ``--single-result-predicate`` argument defines the predicate to use. This is a Python expression that is executed in a context containing several pre-set variables:
+
+  * ``status`` - Boolean passed or failed (True for passed, False for failed).
+  * ``exec_time`` - Execution time (note that ``exec`` is a reserved keyword in Python!)
+  * ``compile`` (or ``compile_time``) - Compilation time
+
+Any metrics returned from the test, such as "score" or "hash" are also added to the context.
+
+The default predicate is simply ``status`` - so this can be used to debug correctness regressions out of the box. More complex predicates are possible; for example ``exec_time < 3.0`` would bisect assuming that a 'good' result takes less than 3 seconds.
+
+Full example using ``llvmlab`` to debug a performance improvement::
+
+  $ llvmlab bisect --min-rev=261265 --max-rev=261369 \
+    lnt runtest test-suite \
+      --cc '%(path)s/bin/clang' \
+      --sandbox SANDBOX \
+      --test-suite /work/llvm-test-suite \
+      --use-lit lit \
+      --run-under 'taskset -c 5' \
+      --cflags '-O3 -mthumb -mcpu=cortex-a57' \
+      --single-result MultiSource/Benchmarks/TSVC/Expansion-flt/Expansion-flt \
+      --single-result-predicate 'exec_time > 8.0'
