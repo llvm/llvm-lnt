@@ -233,6 +233,21 @@ class TestSuiteTest(BuiltinTest):
             if not isexecfile(split[0]):
                 parser.error("Run under wrapper not found (looked for %s)" %
                              opts.run_under)
+
+        if opts.only_test:
+            # --only-test can either point to a particular test or a directory.
+            # Therefore, test_suite_root + opts.only_test or
+            # test_suite_root + dirname(opts.only_test) must be a directory.
+            path = os.path.join(self.test_suite_root, opts.only_test)
+            parent_path = os.path.dirname(path)
+
+            if os.path.isdir(path):
+                opts.only_test = (path, None)
+            elif os.path.isdir(parent_path):
+                opts.only_test = (parent_path, os.path.basename(path))
+            else:
+                parser.error("--only-test argument not understood (must be a " +
+                             " test or directory name)")
                 
         opts.cppflags = ' '.join(opts.cppflags)
         opts.cflags = ' '.join(opts.cflags)
@@ -335,7 +350,7 @@ class TestSuiteTest(BuiltinTest):
 
         subdir = path
         if self.opts.only_test:
-            components = [path] + self.opts.only_test.split('/')
+            components = [path] + self.opts.only_test[0]
             subdir = os.path.join(*components)
 
         self._check_call([make_cmd, 'clean'],
@@ -394,14 +409,18 @@ class TestSuiteTest(BuiltinTest):
         make_cmd = self.opts.make
         
         subdir = path
+        target = 'all'
         if self.opts.only_test:
-            components = [path] + self.opts.only_test.split('/')
+            components = [path] + self.opts.only_test[0]
+            if self.opts.only_test[1]:
+                target = self.opts.only_test[1]:
             subdir = os.path.join(*components)
 
         note('Building...')
         self._check_call([make_cmd,
                           '-j', str(self._build_threads()),
-                          "VERBOSE=1"],
+                          "VERBOSE=1",
+                          target],
                          cwd=subdir)
 
     def _lit(self, path, test):
@@ -415,7 +434,7 @@ class TestSuiteTest(BuiltinTest):
         
         subdir = path
         if self.opts.only_test:
-            components = [path] + self.opts.only_test.split('/')
+            components = [path] + self.opts.only_test[0]
             subdir = os.path.join(*components)
 
         extra_args = []
