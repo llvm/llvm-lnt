@@ -430,7 +430,7 @@ class TestSuiteTest(BuiltinTest):
         if self.opts.only_test:
             components = [path] + self.opts.only_test[0]
             if self.opts.only_test[1]:
-                target = self.opts.only_test[1]:
+                target = self.opts.only_test[1]
             subdir = os.path.join(*components)
 
         note('Building...')
