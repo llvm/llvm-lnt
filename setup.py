@@ -1,13 +1,18 @@
 import lnt
 import os
 
-from setuptools import setup, find_packages
+from setuptools import setup, find_packages, Extension
 
 # setuptools expects to be invoked from within the directory of setup.py, but it
 # is nice to allow:
 #   python path/to/setup.py install
 # to work (for scripts, etc.)
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
+cPerf = Extension('lnt.testing.profile.cPerf',
+                  sources = ['lnt/testing/profile/cPerf.cpp'],
+                  extra_compile_args = ['-std=c++11'],
+                  optional = True)
 
 setup(
     name = "LNT",
@@ -95,4 +100,6 @@ http://llvm.org/svn/llvm-project/lnt/trunk
                       'Flask-RESTful',
                       'SQLAlchemy',
                       'Flask'],
+
+    ext_modules = [cPerf],
 )
