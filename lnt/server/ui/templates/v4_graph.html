@@ -270,7 +270,7 @@ function init_page() {
       <th>Test</th>
       <th>Type</th>
     </tr>
-    {% for machine,test_name,field_name,col, url in legend %}
+    {% for machine, test_name, field_name, col, url in legend %}
     <tr class="data-row" data-url="{{url}}">
       <td style="background-color: #{{ '%02x%02x%02x' % (255*col[0], 255*col[1], 255*col[2]) }}">&nbsp;</td>
       <td>{{ utils.render_machine(machine) }}</td>

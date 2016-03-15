@@ -265,7 +265,9 @@ def main():
                expected_code=HTTP_NOT_FOUND)
     check_code(client, '/v4/nts/graph?mean=1.9999',
                expected_code=HTTP_NOT_FOUND)
-
+    #  Check baselines work.
+    check_code(client, '/v4/nts/graph?plot.0=1.3.2&baseline.60=3')
+    
     # Check some variations of the daily report work.
     check_code(client, '/v4/nts/daily_report/2012/4/12')
     check_code(client, '/v4/nts/daily_report/2012/4/11')
