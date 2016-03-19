@@ -32,6 +32,9 @@ tmp_dir = %(tmp_dir)r
 # paths are resolved relative to the config path + this path.
 db_dir = %(db_dir)r
 
+# Profile directory, where profiles are kept.
+profile_dir = %(profile_dir)r
+
 # Secret key for this server instance.
 secret_key = %(secret_key)r
 
@@ -98,6 +101,8 @@ def action_create(name, args):
                       help="name of the temp file directory [%default]")
     parser.add_option("", "--db-dir", dest="db_dir", default="data",
                       help="name of the directory to hold databases")
+    parser.add_option("", "--profile-dir", dest="profile_dir", default="data/profiles",
+                      help="name of the directory to hold databases")    
     parser.add_option("", "--default-db", dest="default_db", default="lnt.db",
                       help="name for the default db [%default]", metavar="NAME")
     parser.add_option("", "--secret-key", dest="secret_key", default=None,
@@ -139,6 +144,7 @@ def action_create(name, args):
     wsgi = opts.wsgi
     tmp_dir = opts.tmp_dir
     db_dir = opts.db_dir
+    profile_dir = opts.profile_dir
     default_db = opts.default_db
     hostname = opts.hostname
     hostsuffix = opts.hostsuffix

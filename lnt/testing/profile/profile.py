@@ -1,4 +1,5 @@
 import os, tempfile, base64
+import lnt.testing.profile
 
 class Profile(object):
     """Profile objects hold a performance profile.
@@ -76,7 +77,7 @@ class Profile(object):
         self.impl.serialize(tf.name)
 
         # FIXME: make the returned filepath relative to baseDir?
-        return tf.name
+        return os.path.relpath(tf.name, profileDir)
 
     def render(self):
         """

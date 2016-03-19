@@ -7,12 +7,13 @@ suite metadata, so we only create the classes at runtime.
 
 import datetime
 import json
+import os
 
 import sqlalchemy
 from sqlalchemy import *
 
 import testsuite
-
+import lnt.testing.profile.profile as profile
 
 def strip(obj):
     """Give back a dict without sqlalchemy stuff."""
@@ -327,6 +328,38 @@ class TestSuiteDB(object):
             def __json__(self):
                 return strip(self.__dict__)
 
+        class Profile(self.base):
+            __tablename__ = db_key_name + '_Profile'
+
+            id = Column("ID", Integer, primary_key=True)
+            created_time = Column("CreatedTime", DateTime)
+            accessed_time = Column("AccessedTime", DateTime)
+            filename = Column("Filename", String(256))
+            counters = Column("Counters", String(512))
+
+            def __init__(self, encoded, config, testid):
+                self.created_time = datetime.datetime.now()
+                self.accessed_time = datetime.datetime.now()
+                
+                p = profile.Profile.fromRendered(encoded)
+                if config is not None:
+                    self.filename = p.save(profileDir=config.config.profileDir,
+                                           prefix='t-%s-s-' % testid)
+
+                s = ','.join('%s=%s' % (k,v)
+                             for k,v in p.getTopLevelCounters().items())
+                self.counters = s[:512]
+
+            def getTopLevelCounters(self):
+                d = dict()
+                for i in self.counters.split('='):
+                    k, v = i.split(',')
+                    d[k] = v
+                return d
+
+            def load(self, profileDir):
+                return profile.Profile.fromFile(os.path.join(self.filename))
+            
         class Sample(self.base, ParameterizedMixin):
             __tablename__ = db_key_name + '_Sample'
 
@@ -336,9 +369,11 @@ class TestSuiteDB(object):
             # (Run(ID),Test(ID)) index we create below.
             run_id = Column("RunID", Integer, ForeignKey(Run.id))
             test_id = Column("TestID", Integer, ForeignKey(Test.id), index=True)
-
+            profile_id = Column("ProfileID", Integer, ForeignKey(Profile.id))
+            
             run = sqlalchemy.orm.relation(Run)
             test = sqlalchemy.orm.relation(Test)
+            profile = sqlalchemy.orm.relation(Profile)
 
             @staticmethod
             def get_primary_fields():
@@ -556,6 +591,7 @@ class TestSuiteDB(object):
         self.Machine = Machine
         self.Run = Run
         self.Test = Test
+        self.Profile = Profile
         self.Sample = Sample
         self.Order = Order
         self.FieldChange = FieldChange

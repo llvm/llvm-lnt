@@ -99,7 +99,8 @@ class Config:
             default_email_config = EmailConfig(False, '', '', [])
 
         dbDir = data.get('db_dir', '.')
-
+        profileDir = data.get('profile_dir', 'data/profiles')
+        
         # If the path does not contain database type, assume relative path.
         dbDirPath = dbDir if "://" in dbDir else os.path.join(baseDir, dbDir)
 
@@ -109,7 +110,8 @@ class Config:
         secretKey = data.get('secret_key', None)
 
         return Config(data.get('name', 'LNT'), data['zorgURL'],
-                      dbDir, os.path.join(baseDir, tempDir), secretKey,
+                      dbDir, os.path.join(baseDir, tempDir),
+                      os.path.join(baseDir, profileDir), secretKey,
                       dict([(k,DBInfo.fromData(dbDirPath, v,
                                                default_email_config,
                                                0))
@@ -120,18 +122,20 @@ class Config:
         baseDir = tempfile.mkdtemp()        
         dbDir = '.'
         dbDirPath = os.path.join(baseDir, dbDir)
+        profileDirPath = os.path.join(baseDir, 'profiles')
         tempDir = os.path.join(baseDir, 'tmp')        
         secretKey = None
         dbInfo = {'dummy': DBInfo.dummyInstance()}
         
-        return Config('LNT', 'http://localhost:8000', dbDir, tempDir, secretKey, dbInfo)
+        return Config('LNT', 'http://localhost:8000', dbDir, tempDir, profileDirPath, secretKey, dbInfo)
     
-    def __init__(self, name, zorgURL, dbDir, tempDir, secretKey, databases):
+    def __init__(self, name, zorgURL, dbDir, tempDir, profileDir, secretKey, databases):
         self.name = name
         self.zorgURL = zorgURL
         self.dbDir = dbDir
         self.tempDir = tempDir
         self.secretKey = secretKey
+        self.profileDir = profileDir
         while self.zorgURL.endswith('/'):
             self.zorgURL = zorgURL[:-1]
         self.databases = databases
