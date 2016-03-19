@@ -1,0 +1,103 @@
+
+/***********************************************************************/
+/* "Addon" support for placing an icon inside an input box
+
+/* enable absolute positioning */
+.inner-addon { 
+    position: relative; 
+}
+
+/* style icon */
+.inner-addon .icon {
+ position: absolute;
+/*  padding: 10px;
+  width: 12px;
+  height: 12px;*/
+  pointer-events: none;
+}
+
+/* align icon */
+.left-addon .icon {
+  left: 4px;
+  top: 50%;
+  margin-top: -12px;
+}
+.right-addon .icon {
+  right: 4px;
+  top: 50%;
+  margin-top: -12px;
+}
+
+/* add padding  */
+.left-addon input  { padding-left:  22px; }
+.right-addon input { padding-right: 22px; }
+
+/***********************************************************************/
+/* Throbber ("Loading...") image/text */
+
+#throbber {
+    font-size: 10pt;
+    font-weight: normal;
+    color: gray;
+    display: none;
+}
+
+/***********************************************************************/
+/* Stats table (underneath the run/fn dropdowns) */
+
+#stats th, td {
+    padding-left: 10px;
+    padding-right: 10px;
+}
+
+/* Dropdown */
+.fn-box-holder ul {
+    max-height: 200px;
+    overflow: scroll;
+    text-align: left;
+}
+
+/***********************************************************************/
+/* All rows (runs, stats and function) */
+
+.runrow {
+    border-top: 1px solid #ddd;
+    padding-top: 10px;
+    padding-bottom: 5px;
+}
+
+.statsrow {
+    background-color: #fafafa;
+    border: 1px solid #ddd;
+    border-left: none;
+    border-right: none;
+    padding-top: 10px;
+    padding-bottom: 5px;
+}
+
+.fnrow {
+    border-bottom: 1px solid #ddd;
+    padding-top: 10px;
+    padding-bottom: 5px;
+}
+
+/***********************************************************************/
+/* Profiles themselves */
+
+#profile1, #profile2 {
+    white-space: pre;
+    font-family: monospace;
+    overflow: scroll;
+}
+
+.address {
+    color: gray;
+    font-size: small;
+}
+
+.address a {
+    color: gray;
+}
+.address a:hover {
+    text-decoration: none;
+}

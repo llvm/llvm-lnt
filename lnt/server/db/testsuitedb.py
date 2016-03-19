@@ -358,7 +358,7 @@ class TestSuiteDB(object):
                 return d
 
             def load(self, profileDir):
-                return profile.Profile.fromFile(os.path.join(self.filename))
+                return profile.Profile.fromFile(os.path.join(profileDir, self.filename))
             
         class Sample(self.base, ParameterizedMixin):
             __tablename__ = db_key_name + '_Sample'
