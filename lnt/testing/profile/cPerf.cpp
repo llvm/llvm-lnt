@@ -36,7 +36,7 @@
 //
 //   for each mmap:
 //       if the mmap's event total is < 1% of the total in all counters,
-//         then discard the mmap.
+//         then discard the mmap [1].
 //
 //       load symbol data by calling "nm" and parsing the result.
 //       for all PCs we have events for, in sorted order:
@@ -44,7 +44,17 @@
 //           look up all PCs between Sym.Start and Sym.End and emit data
 //
 // The output of this module (cPerf.importPerf) is a dictionary in (almost)
-// ProfileV1 form. The only difference is that all counters are absolute.
+// ProfileV1 form (see profile.py and profilev1impl.py). The only difference is
+// that all counters are absolute.
+//
+// [1]: Perf will start sampling from the moment the perf wrapper tool is
+// invoked, and its samples will continue until the perf wrapper tool exits.
+// This means that it will often take one or two samples in intermediate
+// binaries like "perf", "bash", or libaries such as libdl. We don't care about
+// these, and these binaries and libraries are very large to nm and objdump.
+//
+// So we have a threshold - if a binary contains < 1% of all samples, don't
+// bother importing it.
 //
 //===----------------------------------------------------------------------===//
 
@@ -81,35 +91,6 @@
 #define assert(expr) Assert((expr), #expr, __FILE__, __LINE__)
 
 #endif
-
-// From http://stackoverflow.com/questions/2417588/escaping-a-c-string
-template<class OutIter>
-OutIter write_escaped(std::string const& s, OutIter out) {
-  *out++ = '"';
-  for (std::string::const_iterator i = s.begin(), end = s.end(); i != end; ++i) {
-    unsigned char c = *i;
-    if (' ' <= c and c <= '~' and c != '\\' and c != '"') {
-      *out++ = c;
-    }
-    else {
-      *out++ = '\\';
-      switch(c) {
-      case '"':  *out++ = '"';  break;
-      case '\\': *out++ = '\\'; break;
-      case '\t': *out++ = 't';  break;
-      case '\r': *out++ = 'r';  break;
-      case '\n': *out++ = 'n';  break;
-      default:
-        char const* const hexdig = "0123456789ABCDEF";
-        *out++ = 'x';
-        *out++ = hexdig[c >> 4];
-        *out++ = hexdig[c & 0xF];
-      }
-    }
-  }
-  *out++ = '"';
-  return out;
-}
 
 // Remove a uint32_t from a byte stream
 uint32_t TakeU32(unsigned char *&Buf) {
