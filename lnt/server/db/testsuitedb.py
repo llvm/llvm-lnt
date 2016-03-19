@@ -344,7 +344,7 @@ class TestSuiteDB(object):
                 p = profile.Profile.fromRendered(encoded)
                 if config is not None:
                     self.filename = p.save(profileDir=config.config.profileDir,
-                                           prefix='t-%s-s-' % testid)
+                                           prefix='t-%s-s-' % os.path.basename(testid))
 
                 s = ','.join('%s=%s' % (k,v)
                              for k,v in p.getTopLevelCounters().items())
@@ -793,7 +793,7 @@ supplied run is missing required run parameter: %r""" % (
 
             return run,True
 
-    def _importSampleValues(self, tests_data, run, tag, commit):
+    def _importSampleValues(self, tests_data, run, tag, commit, config):
         # We now need to transform the old schema data (composite samples split
         # into multiple tests with mangling) into the V4DB format where each
         # sample is a complete record.
@@ -834,20 +834,25 @@ test %r is misnamed for reporting under schema %r""" % (
         # values, which we cannot properly aggregate. We handle this by keying
         # off of the test name and the sample index.
         sample_records = {}
+        profiles = {}
         for name,test_samples in tests_values.items():
             # Map this reported test name into a test name and a sample field.
             #
             # FIXME: This is really slow.
-            for item in self.sample_fields:
-                if name.endswith(item.info_key):
-                    test_name = name[:-len(item.info_key)]
-                    sample_field = item
-                    break
+            if name.endswith('.profile'):
+                test_name = name[:-len('.profile')]
+                sample_field = 'profile'
             else:
-                # Disallow tests which do not map to a sample field.
-                raise ValueError,"""\
-test %r does not map to a sample field in the reported suite""" % (
-                    name)
+                for item in self.sample_fields:
+                    if name.endswith(item.info_key):
+                        test_name = name[:-len(item.info_key)]
+                        sample_field = item
+                        break
+                else:
+                    # Disallow tests which do not map to a sample field.
+                    raise ValueError,"""\
+    test %r does not map to a sample field in the reported suite""" % (
+                        name)
 
             # Get or create the test.
             test = test_cache.get(test_name)
@@ -862,7 +867,12 @@ test %r does not map to a sample field in the reported suite""" % (
                     sample_records[record_key] = sample = self.Sample(run, test)
                     self.add(sample)
 
-                sample.set_field(sample_field, value)
+                if sample_field != 'profile':
+                    sample.set_field(sample_field, value)
+                else:
+                    sample.profile = profiles.get(hash(value),
+                                                  self.Profile(value, config,
+                                                               test_name))
 
     def importDataFromDict(self, data, commit, config=None):
         """
@@ -889,7 +899,7 @@ test %r does not map to a sample field in the reported suite""" % (
         if not inserted:
             return False, run
         
-        self._importSampleValues(data['Tests'], run, tag, commit)
+        self._importSampleValues(data['Tests'], run, tag, commit, config)
 
         return True, run
 
