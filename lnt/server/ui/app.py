@@ -24,6 +24,7 @@ import lnt.server.ui.globals
 import lnt.server.ui.views
 from lnt.testing.util.commands import warning, error
 import lnt.server.ui.regression_views
+import lnt.server.ui.profile_views
 from lnt.server.ui.api import load_api_resources
 import lnt.server.db.rules_manager
 

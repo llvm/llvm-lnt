@@ -1,0 +1,55 @@
+{% set nosidebar = True %}
+{% import "utils.html" as utils %}
+
+{% extends "layout.html" %}
+{% set components = [] %}
+
+{% block head %}
+  <script language="javascript" type="text/javascript"
+          src="{{ url_for('.static',
+                          filename='flot/jquery.flot.min.js') }}"> </script>
+
+{% endblock %}
+
+{% block title %}Profile admin{% endblock %}
+
+{% block onload %}init_page(){% endblock %}
+
+  {% block javascript %}
+function byteFormatter(val, axis) {
+  if (val > 1000000)
+    return (val / 1000000).toFixed(axis.tickDecimals) + " GB";
+  else if (val > 1000)
+    return (val / 1000).toFixed(axis.tickDecimals) + " MB";
+  else
+    return val.toFixed(axis.tickDecimals) + " kB";
+}
+
+function init_page() {
+  $.plot('#history', [ {{ history|tojson }} ], {
+  xaxis: {mode: 'time'},
+  yaxis: {
+    tickDecimals: 1,
+    tickFormatter: byteFormatter
+  },
+  lines: {steps: true}
+  });
+
+  $.plot('#age', [ {{ age|tojson }} ], {
+    bars: {show: true, barWidth: {{bucket_size}} },
+    xaxis: {mode: 'time'},
+    yaxis: {tickDecimals:1, tickFormatter: byteFormatter}
+  });
+
+}
+{% endblock %}
+
+{% block body %}
+  <h1>Profiles</h1>
+  <h3>Disk space utilization</h3>
+  <div id="history" style="width:80%;height:300px;"></div>
+
+  <h3>Age profile</h3>
+  <div id="age" style="width:80%;height:300px;"></div>
+{% endblock %}
+  
