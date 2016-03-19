@@ -4,6 +4,7 @@ import logging
 import os
 import sys
 import tempfile
+import json
 from optparse import OptionParser, OptionGroup
 import contextlib
 
@@ -15,6 +16,7 @@ import lnt.util.multitool
 import lnt.util.ImportData
 from lnt import testing
 from lnt.testing.util.commands import note, warning, error, fatal, LOGGER_NAME
+import lnt.testing.profile.profile as profile
 
 def action_runserver(name, args):
     """start a new development server"""
@@ -451,6 +453,62 @@ def action_send_run_comparison(name, args):
             s.sendmail(opts.from_address, [opts.to_address],
                        msg.as_string())
             s.quit()
+
+def action_profile(name, args):
+    if len(args) < 1 or args[0] not in ('upgrade', 'getVersion', 'getTopLevelCounters',
+                                        'getFunctions', 'getCodeForFunction'):
+        print >>sys.stderr, """lnt profile - available actions:
+  upgrade        - Upgrade a profile to the latest version
+  getVersion     - Print the version of a profile
+  getTopLevelCounters - Print the whole-profile counter values
+  getFunctions   - Print an overview of the functions in a profile
+  getCodeForFunction - Print the code/instruction information for a function
+"""
+        return
+
+    if args[0] == 'upgrade':
+        parser = OptionParser("lnt profile upgrade <input> <output>")
+        opts, args = parser.parse_args(args)
+        if len(args) < 3:
+            parser.error('Expected 2 arguments')
+
+        profile.Profile.fromFile(args[1]).upgrade().toFile(args[2])
+        return
+
+    if args[0] == 'getVersion':
+        parser = OptionParser("lnt profile getVersion <input>")
+        opts, args = parser.parse_args(args)
+        if len(args) < 2:
+            parser.error('Expected 1 argument')
+        print profile.Profile.fromFile(args[1]).getVersion()
+        return
+
+    if args[0] == 'getTopLevelCounters':
+        parser = OptionParser("lnt profile getTopLevelCounters <input>")
+        opts, args = parser.parse_args(args)
+        if len(args) < 2:
+            parser.error('Expected 1 argument')
+        print json.dumps(profile.Profile.fromFile(args[1]).getTopLevelCounters())
+        return
+
+    if args[0] == 'getFunctions':
+        parser = OptionParser("lnt profile getTopLevelCounters <input>")
+        opts, args = parser.parse_args(args)
+        if len(args) < 2:
+            parser.error('Expected 1 argument')
+        print json.dumps(profile.Profile.fromFile(args[1]).getFunctions())
+        return
+    
+    if args[0] == 'getCodeForFunction':
+        parser = OptionParser("lnt profile getTopLevelCounters <input> <fn>")
+        opts, args = parser.parse_args(args)
+        if len(args) < 3:
+            parser.error('Expected 2 arguments')
+        print json.dumps(
+            list(profile.Profile.fromFile(args[1]).getCodeForFunction(args[2])))
+        return
+
+    assert False
 
 ###
 

@@ -1,5 +1,5 @@
 # RUN: python %s
-import unittest, sys, os, tempfile, time, threading
+import unittest, sys, os, tempfile, time, threading, json
 
 try:
     import lnt.testing.profile.cPerf as cPerf
