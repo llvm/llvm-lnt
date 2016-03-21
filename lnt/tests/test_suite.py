@@ -254,7 +254,7 @@ class TestSuiteTest(BuiltinTest):
             # --only-test can either point to a particular test or a directory.
             # Therefore, test_suite_root + opts.only_test or
             # test_suite_root + dirname(opts.only_test) must be a directory.
-            path = os.path.join(self.test_suite_root, opts.only_test)
+            path = os.path.join(self.opts.test_suite_root, opts.only_test)
             parent_path = os.path.dirname(path)
 
             if os.path.isdir(path):
@@ -370,7 +370,7 @@ class TestSuiteTest(BuiltinTest):
 
         subdir = path
         if self.opts.only_test:
-            components = [path] + self.opts.only_test[0]
+            components = [path] + [self.opts.only_test[0]]
             subdir = os.path.join(*components)
 
         self._check_call([make_cmd, 'clean'],
