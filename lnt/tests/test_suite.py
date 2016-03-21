@@ -1,8 +1,10 @@
 import subprocess, tempfile, json, os, shlex, platform, pipes, sys
+import multiprocessing
 
 from optparse import OptionParser, OptionGroup
 
 import lnt.testing
+import lnt.testing.profile
 import lnt.testing.util.compilers
 from lnt.testing.util.misc import timestamp
 from lnt.testing.util.commands import note, warning, fatal
@@ -17,6 +19,25 @@ from lnt.tests.builtintest import BuiltinTest
 TEST_SUITE_KNOWN_ARCHITECTURES = ['ARM', 'AArch64', 'Mips', 'X86']
 KNOWN_SAMPLE_KEYS = ['compile', 'exec', 'hash', 'score']
 
+# _importProfile imports a single profile. It must be at the top level (and
+# not within TestSuiteTest) so that multiprocessing can import it correctly.
+def _importProfile(name_filename):
+    name, filename = name_filename
+
+    if not os.path.exists(filename):
+        warning('Profile %s does not exist' % filename)
+        return None
+    
+    pf = lnt.testing.profile.profile.Profile.fromFile(filename)
+    if not pf:
+        return None
+
+    pf.upgrade()
+    profilefile = pf.render()
+    return lnt.testing.TestSamples(name + '.profile',
+                                   [profilefile],
+                                   {},
+                                   str)
 
 class TestSuiteTest(BuiltinTest):
     def __init__(self):
@@ -118,9 +139,11 @@ class TestSuiteTest(BuiltinTest):
                          help="Number of compilation threads, defaults to "
                          "--threads", type=int, default=0, metavar="N")
         group.add_option("", "--use-perf", dest="use_perf",
-                         help=("Use perf to obtain high accuracy timing"
-                               "[%default]"),
-                         action='store_true', default=False)
+                         help=("Use Linux perf for high accuracy timing, profile "
+                               "information or both"),
+                         type='choice',
+                         choices=['none', 'time', 'profile', 'all'],
+                         default='none')
         group.add_option("", "--run-under", dest="run_under",
                          help="Wrapper to run tests under ['%default']",
                          type=str, default="")
@@ -396,7 +419,7 @@ class TestSuiteTest(BuiltinTest):
             defs['TEST_SUITE_RUN_UNDER'] = self._unix_quote_args(self.opts.run_under)
         if self.opts.benchmarking_only:
             defs['TEST_SUITE_BENCHMARKING_ONLY'] = 'ON'
-        if self.opts.use_perf:
+        if self.opts.use_perf in ('time', 'all'):
             defs['TEST_SUITE_USE_PERF'] = 'ON'
         if self.opts.cmake_defines:
             for item in self.opts.cmake_defines:
@@ -456,13 +479,15 @@ class TestSuiteTest(BuiltinTest):
         
         subdir = path
         if self.opts.only_test:
-            components = [path] + self.opts.only_test[0]
+            components = [path] + [self.opts.only_test[0]]
             subdir = os.path.join(*components)
 
         extra_args = []
         if not test:
             extra_args = ['--no-execute']
-
+        if self.opts.use_perf in ('profile', 'all'):
+            extra_args += ['--param', 'profile=perf']
+            
         note('Testing...')
         try:
             self._check_call([lit_cmd,
@@ -524,6 +549,8 @@ class TestSuiteTest(BuiltinTest):
         if only_test:
             ignore.append('compile')
 
+        profiles_to_import = []
+            
         for test_data in data['tests']:
             raw_name = test_data['name'].split(' :: ', 1)[1]
             name = 'nts.' + raw_name.rsplit('.test', 1)[0]
@@ -543,6 +570,10 @@ class TestSuiteTest(BuiltinTest):
 
             if 'metrics' in test_data:
                 for k,v in test_data['metrics'].items():
+                    if k == 'profile':
+                        profiles_to_import.append( (name, v) )
+                        continue
+                    
                     if k not in LIT_METRIC_TO_LNT or LIT_METRIC_TO_LNT[k] in ignore:
                         continue
                     test_samples.append(
@@ -562,6 +593,23 @@ class TestSuiteTest(BuiltinTest):
                     lnt.testing.TestSamples(name + '.exec.status',
                                             [self._get_lnt_code(test_data['code'])],
                                             test_info))
+
+        # Now import the profiles in parallel.
+        if profiles_to_import:
+            note('Importing %d profiles with %d threads...' %
+                 (len(profiles_to_import), multiprocessing.cpu_count()))
+            TIMEOUT = 800
+            try:
+                pool = multiprocessing.Pool()
+                waiter = pool.map_async(_importProfile, profiles_to_import)
+                samples = waiter.get(TIMEOUT)
+                test_samples.extend([sample
+                                     for sample in samples
+                                     if sample is not None])
+            except multiprocessing.TimeoutError:
+                warning('Profiles had not completed importing after %s seconds.'
+                        % TIMEOUT)
+                note('Aborting profile import and continuing')
 
         if self.opts.single_result:
             # If we got this far, the result we were looking for didn't exist.
