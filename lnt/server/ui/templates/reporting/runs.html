@@ -43,6 +43,12 @@
          <tr>
            <td class="benchmark-name" style="{{ styles['td'] }}">
              <a href="{{ run_url }}/graph?{{ [('test.%d' % test_id, field_index)] | urlencode }}">{{ name }}</a>
+             {% if compare_to %}
+             {% set compare_to_id = compare_to.id %}
+             {% else %}
+             {% set compare_to_id = None %}
+             {% endif %}
+             {{ utils.render_profile_link(cr.profile, cr.prev_profile, run.id, compare_to_id, test_id) }}
            </td>
            {{ cr.pct_delta|aspctcell(style=styles['td'],reverse=cr.bigger_is_better)|safe }}
            <td style="{{ styles['td'] }}">{{ "%.4f" | format(cr.previous) }}</td>
