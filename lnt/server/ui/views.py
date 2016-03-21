@@ -282,12 +282,26 @@ class V4RequestInfo(object):
         # Gather the runs to use for statistical data.
         comparison_start_run = self.compare_to or self.run
 
+        # We're going to render this on a real webpage with CSS support, so
+        # override the default styles and provide bootstrap class names for
+        # the tables.
+        styles = {
+            'body': '', 'td': '',
+            'h1': 'font-size: 14pt',
+            'table': 'width: initial; font-size: 9pt;',
+            'th': 'text-align: center;'
+        }
+        classes = {
+            'table': 'table table-striped table-condensed table-hover'
+        }
+        
         reports = lnt.server.reporting.runs.generate_run_report(
             self.run, baseurl=db_url_for('index', _external=True),
             only_html_body=only_html_body, result=None,
             compare_to=self.compare_to, baseline=self.baseline,
             num_comparison_runs=self.num_comparison_runs,
-            aggregation_fn=self.aggregation_fn, confidence_lv=confidence_lv)
+            aggregation_fn=self.aggregation_fn, confidence_lv=confidence_lv,
+            styles=styles, classes=classes)
         _, self.text_report, self.html_report, self.sri = reports
 
 @v4_route("/<int:id>/report")

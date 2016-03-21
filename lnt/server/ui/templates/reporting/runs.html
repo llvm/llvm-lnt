@@ -7,16 +7,19 @@
 {%
   macro add_report_changes_detail_for_field_and_bucket(
     field, show_perf, run_url, field_index, field_display_name, bucket_name, bucket, test_names,
-    metric_name, metric_field_suffix, secondary_field_suffix, secondary_info, styles
+    metric_name, metric_field_suffix, secondary_field_suffix, secondary_info, styles, classes
   )
 %}
 
 {% if bucket and bucket_name != 'Unchanged Tests' %}
    <p>
-     <table style="{{ styles['table'] }}">
+     <table style="{{ styles['table'] }}" class="{{ classes['table'] }}">
+       <thead>
        <tr>
          <th style="{{ styles['th'] }}; width:500px">{{ bucket_name }} - {{ field_display_name }}</th>
        {% if not show_perf %}
+         </tr>
+         </thead>
          <tbody class="searchable">
          {% for name in test_names %}
            <tr><td class="benchmark-name" style="{{ styles['td'] }}">
@@ -33,6 +36,7 @@
          <th style="{{ styles['th'] }}">&sigma; {{ secondary_field_suffix }}</th>
          {% endif %}
          </tr>
+         </thead>
          <tbody class="searchable">
          
          {% for name, cr, test_id in bucket %}
@@ -70,7 +74,7 @@
 </h1>
 
 <p>
-<table style="{{ styles['table'] }}">
+<table style="{{ styles['table'] }}" class="{{ classes['table'] }}">
   <thead>
     <tr>
       <th style="{{ styles['th'] }}">Run</th>
@@ -108,7 +112,7 @@
 
 <hr>
 <h3>Tests Summary</h3>
-<table style="{{ styles['table'] }}">
+<table style="{{ styles['table'] }}" class="{{ classes['table'] }}">
   <thead>
     <tr>
       <th style="{{ styles['th'] }}">Status Group</th>
@@ -151,7 +155,7 @@
   {{
     add_report_changes_detail_for_field_and_bucket(field, show_perf, run_url, field_index, field_display_name,
                                                    bucket_name, sorted_bucket, test_names,
-                                                   'Previous', '', ' (B)', run_to_baseline_info, styles)
+                                                   'Previous', '', ' (B)', run_to_baseline_info, styles, classes)
   }}
 {% endfor %}
 <p>
@@ -164,7 +168,7 @@
   {{
     add_report_changes_detail_for_field_and_bucket(field, show_perf, run_url, field_index, field_display_name,
                                                    bucket_name, sorted_bucket, test_names,
-                                                   'Baseline', '(B)', '', run_to_run_info, styles)
+                                                   'Baseline', '(B)', '', run_to_run_info, styles, classes)
   }}
 {% endfor %}
 {% endif %}

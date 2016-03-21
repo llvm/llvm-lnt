@@ -11,7 +11,8 @@ import lnt.util.stats
 def generate_run_report(run, baseurl, only_html_body=False,
                         num_comparison_runs=0, result=None,
                         compare_to=None, baseline=None,
-                        aggregation_fn=lnt.util.stats.safe_min, confidence_lv=.05):
+                        aggregation_fn=lnt.util.stats.safe_min, confidence_lv=.05,
+                        styles=dict(), classes=dict()):
     """
     generate_run_report(...) -> (str: subject, str: text_report,
                                  str: html_report)
@@ -164,7 +165,10 @@ def generate_run_report(run, baseurl, only_html_body=False,
     # Gmail) which can't deal with embedded style sheets.
     #
     # These are derived from the static style.css file we use elsewhere.
-    styles = {
+    #
+    # These are just defaults however, and the caller can override them with the
+    # 'styles' and 'classes' kwargs.
+    styles_ = {
         "body" : ("color:#000000; background-color:#ffffff; "
                   "font-family: Helvetica, sans-serif; font-size:9pt"),
         "h1" : ("font-size: 14pt"),
@@ -174,7 +178,12 @@ def generate_run_report(run, baseurl, only_html_body=False,
             "cursor: default; text-align:center; font-weight: bold; "
             "font-family: Verdana; padding:5px; padding-left:8px"),
         "td" : "padding:5px; padding-left:8px",
-        }
+    }
+    classes_ = {
+    }
+
+    styles_.update(styles)
+    classes_.update(classes)
 
     # Create an environment for rendering the reports.
     env = lnt.server.ui.app.create_jinja_environment()
@@ -219,7 +228,7 @@ def generate_run_report(run, baseurl, only_html_body=False,
         prioritized_buckets_run_over_run=prioritized_buckets_run_over_run,
         run_to_baseline_info=run_to_baseline_info,
         prioritized_buckets_run_over_baseline=prioritized_buckets_run_over_baseline,
-        styles=styles,
+        styles=styles_, classes=classes_,
         start_time=start_time)
 
     return subject, text_report, html_report, sri
