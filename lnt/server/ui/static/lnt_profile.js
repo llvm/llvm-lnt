@@ -348,11 +348,14 @@ FunctionTypeahead.prototype = {
 
                 if (this_.options.sourceRunUpdated)
                     this_.options.sourceRunUpdated(data);
+            },
+            error: function(xhr, textStatus, errorThrown) {
+                pf_flash_error('accessing URL ' + g_urls.getFunctions +
+                               '; ' + errorThrown);
             }
         });
     },
     _source: function () {
-        console.log(this.$element.data('functionTypeahead').data);
         return this.$element.data('functionTypeahead').data;
     },
     _renderItem: function (fn, query) {
@@ -507,14 +510,14 @@ function pf_init(run1, run2, testid, urls) {
                 $('#stats')
                     .statsBar({testid: testid})
                     .go(ids);
-                $('#profile2').profile({runid: r1,
+                $('#profile2').profile({runid: r2,
                                         testid: testid,
                                         uniqueid: 'r'});
 
             }
         });
     
-    $('#run1_box')
+    var r1 = $('#run1_box')
         .runTypeahead({
             searchURL: g_urls.search,
             updated: function(name, id) {
@@ -528,8 +531,7 @@ function pf_init(run1, run2, testid, urls) {
                 $('#fn1_box').val('').prop('disabled', true);
                 $('#profile1').profile().reset();
             }
-        })
-        .update(pf_make_stub(run1.machine, run1.order), run1.id);
+        });
 
     var r2 = $('#run2_box')
         .runTypeahead({
@@ -546,6 +548,8 @@ function pf_init(run1, run2, testid, urls) {
                 $('#profile2').profile().reset();
             }
         });
+
+    r1.update(pf_make_stub(run1.machine, run1.order), run1.id);
     if (!$.isEmptyObject(run2))
         r2.update(pf_make_stub(run2.machine, run2.order), run2.id);
 
@@ -666,18 +670,19 @@ function pf_get_counter() {
 // pf_update_history - Push a new history entry, as we've just navigated
 // to what could be a new bookmarkable page.
 function pf_update_history() {
-    var url;
-    if (g_runids[1]) {
-        url = g_urls.comparison_template
-            .replace('<testid>', g_testid)
-            .replace('<run1id>', g_runids[0])
-            .replace('<run2id>', g_runids[1]);
-    } else {
-        url = g_urls.singlerun_template
-            .replace('<testid>', g_testid)
-            .replace('<run1id>', g_runids[0]);
-    }
-    history.pushState({}, document.title, url);
+    // FIXME: g_runids is no longer available.
+    // var url;
+    // if (g_runids[1]) {
+    //     url = g_urls.comparison_template
+    //         .replace('<testid>', g_testid)
+    //         .replace('<run1id>', g_runids[0])
+    //         .replace('<run2id>', g_runids[1]);
+    // } else {
+    //     url = g_urls.singlerun_template
+    //         .replace('<testid>', g_testid)
+    //         .replace('<run1id>', g_runids[0]);
+    // }
+    // history.pushState({}, document.title, url);
 }
 
 //////////////////////////////////////////////////////////////////////

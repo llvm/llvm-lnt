@@ -350,7 +350,7 @@ $('.profile-prev-only').tooltip();
                 <a href="{{graph_base}}&amp;plot.{{test_id}}={{ machine.id}}.{{test_id}}.{{field.index}}">
                   {{ test_name }}
                 </a>
-                {{ utils.render_profile_link(cr.profile, cr.prev_profile, run.id, compare_to.id, test_id) }}
+                {{ utils.render_profile_link(cr.cur_profile, cr.prev_profile, run.id, compare_to.id, test_id) }}
               </td>
               {{ get_cell_value(cr) }}
             </tr>
