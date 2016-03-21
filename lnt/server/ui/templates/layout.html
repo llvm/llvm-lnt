@@ -75,6 +75,16 @@
       }
     }
 
+    /* Make profile buttons invisible by default */
+    tr .profile-btn {
+      visibility: hidden;
+    }
+
+    /* But appear when their parent table rows are hovered. */
+    tr:hover .profile-btn {
+      visibility: visible;
+    }
+    
   </style>
 
   <link rel="icon" type="image/png" href="{{ url_for('.static', filename='favicon.ico') }}"/>

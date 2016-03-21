@@ -30,6 +30,28 @@
 <a href="{{bug}}">{{bug}}</a>
 {%- endmacro %}
 
+{% macro render_profile_link(profile, compare_profile, run_id, compare_run_id, test_id) -%}
+  {% if v4_url_available() %}
+    {% if compare_profile and profile %}
+
+      <a href="{{ v4_url_for('v4_profile_fwd2', run1_id=run_id, run2_id=compare_run_id, testid=test_id) }}"
+         class="profile-btn btn btn-mini pull-right">Profile<i class="icon-eye-open"></i></a>
+ 
+    {% elif profile %}
+      
+      <a href="{{ v4_url_for('v4_profile_fwd', run1_id=run_id, testid=test_id) }}"
+         class="profile-btn btn btn-mni pull-right profile-but-no-prev" data-toggle="tooltip"
+         title="This run has a profile, but the run being compared to does not">Profile<i class="icon-exclamation-sign"></i></a>
+      
+    {% elif compare_profile %}
+      
+      <a href="{{ v4_url_for('v4_profile_fwd', run1_id=compare_run_id, testid=test_id) }}"
+         class="profile-btn bt btn-mini pull-right profile-prev-only" data-toggle="tooltip"
+         title="This run does not have a profile, but the run being compared to does">Profile<i class="icon-exclamation-sign"></i></a>
+      
+    {% endif %}
+  {% endif %}
+{%- endmacro %}
 
 {% macro regex_filter_box(input_id, selector, placeholder,
                           selector_part_to_search=None) -%}

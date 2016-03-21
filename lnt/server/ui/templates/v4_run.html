@@ -24,6 +24,11 @@
   </script>
 {% endblock %}
 
+{% block onload %}
+$('.profile-but-no-prev').tooltip();
+$('.profile-prev-only').tooltip();
+{% endblock %}
+  
 {% block title %}Run Results{% endblock %}
 
 {% macro get_cell_value(cr) %}
@@ -341,7 +346,12 @@
           {% for test_name,test_id,cr in tests %}
             <tr>
               <td><input type="checkbox" name="plot.{{test_id}}" value="{{machine.id}}.{{test_id}}.{{field.index}}"></td>
-              <td class="benchmark-name"><a href="{{graph_base}}&amp;plot.{{test_id}}={{ machine.id}}.{{test_id}}.{{field.index}}">{{ test_name }}</a></td>
+              <td class="benchmark-name">
+                <a href="{{graph_base}}&amp;plot.{{test_id}}={{ machine.id}}.{{test_id}}.{{field.index}}">
+                  {{ test_name }}
+                </a>
+                {{ utils.render_profile_link(cr.profile, cr.prev_profile, run.id, compare_to.id, test_id) }}
+              </td>
               {{ get_cell_value(cr) }}
             </tr>
           {% endfor %}

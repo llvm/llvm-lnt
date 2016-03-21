@@ -60,7 +60,7 @@ class ComparisonResult:
 
     def __init__(self, aggregation_fn,
                  cur_failed, prev_failed, samples, prev_samples,
-                 cur_hash, prev_hash,
+                 cur_hash, prev_hash, cur_profile=None, prev_profile=None,
                  confidence_lv=0.05, bigger_is_better=False):
         self.aggregation_fn = aggregation_fn
 
@@ -71,6 +71,8 @@ class ComparisonResult:
 
         self.cur_hash = cur_hash
         self.prev_hash = prev_hash
+        self.cur_profile = cur_profile
+        self.prev_profile = prev_profile
 
         if samples:
             self.current = aggregation_fn(samples)
@@ -256,6 +258,7 @@ class RunInfo(object):
         self.confidence_lv = confidence_lv
 
         self.sample_map = util.multidict()
+        self.profile_map = dict()
         self.loaded_run_ids = set()
 
         self._load_samples_for_runs(runs_to_load, only_tests)
@@ -309,6 +312,12 @@ class RunInfo(object):
         run_samples = self.get_samples(runs, test_id)
         prev_samples = self.get_samples(compare_runs, test_id)
 
+        cur_profile = prev_profile = None
+        if runs:
+            cur_profile = self.profile_map.get((runs[0].id, test_id), None)
+        if compare_runs:
+            prev_profile = self.profile_map.get((compare_runs[0].id, test_id), None)
+        
         # Determine whether this (test,pset) passed or failed in the current and
         # previous runs.
         #
@@ -354,6 +363,7 @@ class RunInfo(object):
         r = ComparisonResult(self.aggregation_fn,
                              run_failed, prev_failed, run_values,
                              prev_values, cur_hash, prev_hash,
+                             cur_profile, prev_profile,
                              self.confidence_lv,
                              bigger_is_better=field.bigger_is_better)
         return r
@@ -397,7 +407,8 @@ class RunInfo(object):
         # We speed things up considerably by loading the column data directly
         # here instead of requiring SA to materialize Sample objects.
         columns = [self.testsuite.Sample.run_id,
-                   self.testsuite.Sample.test_id]
+                   self.testsuite.Sample.test_id,
+                   self.testsuite.Sample.profile_id]
         columns.extend(f.column for f in self.testsuite.sample_fields)
         q = self.testsuite.query(*columns)
         if only_tests:
@@ -406,7 +417,10 @@ class RunInfo(object):
         for data in q:
             run_id = data[0]
             test_id = data[1]
-            sample_values = data[2:]
+            profile_id = data[2]
+            sample_values = data[3:]
             self.sample_map[(run_id, test_id)] = sample_values
+            if profile_id is not None:
+                self.profile_map[(run_id, test_id)] = profile_id
 
         self.loaded_run_ids |= to_load
