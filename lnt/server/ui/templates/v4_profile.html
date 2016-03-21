@@ -1,0 +1,78 @@
+{% set nosidebar = True %}
+{% import "utils.html" as utils %}
+
+{% extends "layout.html" %}
+{% set components = [(ts.name, v4_url_for("v4_recent_activity"))] %}
+
+{% block head %}
+  <script language="javascript" type="text/javascript"
+          src="{{ url_for('.static',
+                        filename='lnt_profile.js') }}"></script>
+  <link rel="stylesheet" href="{{ url_for('.static',
+                               filename='lnt_profile.css') }}">
+  <script>
+    g_run1 = {{run1|tojson|safe}};
+    g_run2 = {{run2|tojson|safe}};
+    g_test = {{test.id|tojson|safe}};
+    g_urls = {{urls|tojson|safe}};
+  </script>
+{% endblock %}
+
+{% block onload %}
+  pf_init(g_run1, g_run2, g_test, g_urls);
+{% endblock %}
+
+{% block title %}Profile{% endblock %}
+
+{% block body %}
+  <div class="row">
+    <div class="span12">
+      <h3>Performance profile: {{ test.name }}
+        <span id="throbber" class="pull-right">Loading...</span>
+      </h3>
+      <div id="flashes"></div>
+    </div>
+  </div>
+  <div class="row runrow">
+    <div class="span6 text-center">
+      <span class="inner-addon left-addon">
+        <input id="run1_box" class="input-xlarge" type="text" placeholder="Select a run to profile">
+        <span class="icon icon-search"></span>
+      </span>
+    </div>
+    <div class="span6 text-center">
+      <span class="inner-addon left-addon">
+        <input id="run2_box" class="input-xlarge" type="text" placeholder="Select a run to compare with">
+        <span class="icon icon-search"></span>
+      </span>
+    </div>
+  </div>
+  <div class="row statsrow">
+    <div class="span9" id="stats">
+    </div>
+    <div class="span3">
+      <select id="counters" class="input-medium">
+      </select>
+    </div>
+  </div>
+  <div class="row fnrow">
+    <div class="span6 text-center">
+      <span class="inner-addon left-addon fn-box-holder">
+        <input id="fn1_box" style="width:85%;" type="text" placeholder="Function">
+        <span class="icon icon-folder-open"></span>
+      </span>
+    </div>
+    <div class="span6 text-center">
+      <span class="inner-addon left-addon fn-box-holder">
+        <input id="fn2_box" style="width:85%;" type="text" placeholder="Function">
+        <span class="icon icon-folder-open"></span>
+      </span>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="span6" id="profile1"></div>
+    <div class="span6" id="profile2"></div>
+  </div>
+
+{% endblock %}
