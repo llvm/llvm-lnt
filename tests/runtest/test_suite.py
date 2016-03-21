@@ -244,11 +244,13 @@
 # RUN:     --use-make %S/Inputs/test-suite-cmake/fake-make \
 # RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit \
 # RUN:     --benchmarking-only \
+# RUN:     --succinct-compile-output \
 # RUN:     --verbose \
 # RUN:     > %t.log 2> %t.err
 # RUN: FileCheck --check-prefix CHECK-BENCHONLY < %t.err %s
 # CHECK-BENCHONLY: Configuring with {
 # CHECK-BENCHONLY:   TEST_SUITE_BENCHMARKING_ONLY: 'ON'
+# CHECK-BENCHONLY-NOT: VERBOSE=1
 
 # Check --use-perf
 # RUN: lnt runtest test-suite \

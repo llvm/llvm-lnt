@@ -151,6 +151,9 @@ class TestSuiteTest(BuiltinTest):
         group.add_option("-v", "--verbose", dest="verbose",
                          help="show verbose test results",
                          action="store_true", default=False)
+        group.add_option("", "--succinct-compile-output",
+                         help="run Make without VERBOSE=1",
+                         action="store_true", dest="succinct")
         group.add_option("", "--exclude-stat-from-submission",
                          dest="exclude_stat_from_submission",
                          help="Do not submit the stat of this type [%default]",
@@ -428,16 +431,18 @@ class TestSuiteTest(BuiltinTest):
         subdir = path
         target = 'all'
         if self.opts.only_test:
-            components = [path] + self.opts.only_test[0]
+            components = [path] + [self.opts.only_test[0]]
             if self.opts.only_test[1]:
                 target = self.opts.only_test[1]
             subdir = os.path.join(*components)
 
         note('Building...')
+        if not self.opts.succinct:
+            args = ["VERBOSE=1", target]
+        else:
+            args = [target]
         self._check_call([make_cmd,
-                          '-j', str(self._build_threads()),
-                          "VERBOSE=1",
-                          target],
+                          '-j', str(self._build_threads())] + args,
                          cwd=subdir)
 
     def _lit(self, path, test):
