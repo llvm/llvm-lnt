@@ -279,11 +279,12 @@ class TestSuiteTest(BuiltinTest):
             # test_suite_root + dirname(opts.only_test) must be a directory.
             path = os.path.join(self.opts.test_suite_root, opts.only_test)
             parent_path = os.path.dirname(path)
-
+            
             if os.path.isdir(path):
-                opts.only_test = (path, None)
+                opts.only_test = (opts.only_test, None)
             elif os.path.isdir(parent_path):
-                opts.only_test = (parent_path, os.path.basename(path))
+                opts.only_test = (os.path.dirname(opts.only_test),
+                                  os.path.basename(opts.only_test))
             else:
                 parser.error("--only-test argument not understood (must be a " +
                              " test or directory name)")
