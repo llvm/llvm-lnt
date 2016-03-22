@@ -223,6 +223,9 @@ struct Symbol {
   std::string Name;
 
   bool operator<(const Symbol &Other) const { return Start < Other.Start; }
+  bool operator==(const Symbol &Other) const {
+    return Start == Other.Start && End == Other.End && Name == Other.Name;
+  }
 };
 
 class NmOutput : public std::vector<Symbol> {
@@ -231,10 +234,12 @@ public:
 
   NmOutput(std::string Nm) : Nm(Nm) {}
 
-  void reset(Map *M) {
-    clear();
-
-    std::string Cmd = Nm + " -D -S --defined-only " + std::string(M->Filename) +
+  void fetchSymbols(Map *M, bool Dynamic) {
+    std::string D = "-D";
+    if (!Dynamic)
+      // Don't fetch the dynamic symbols - instead fetch static ones.
+      D = "";
+    std::string Cmd = Nm + " " + D + " -S --defined-only " + std::string(M->Filename) +
                       " 2>/dev/null";
     auto Stream = ForkAndExec(Cmd);
 
@@ -279,7 +284,17 @@ public:
 
     fclose(Stream);
     wait(NULL);
+  }
+
+  void reset(Map *M) {
+    clear();
+    // Fetch both dynamic and static symbols, sort and unique them.
+    fetchSymbols(M, true);
+    fetchSymbols(M, false);
+    
     std::sort(begin(), end());
+    auto NewEnd = std::unique(begin(), end());
+    erase(NewEnd, end());
   }
 };
 

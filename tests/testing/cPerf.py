@@ -22,9 +22,12 @@ class CPerfTest(unittest.TestCase):
 
         
         
-    def _getNm(self, perf_data_fname):
+    def _getNm(self, perf_data_fname, non_dynamic=False):
         stub = perf_data_fname.rsplit('.perf_data', 1)[0]
-        return 'python %s/fake-nm.py %s.nm.out' % (self.inputs, stub)
+        s = 'python %s/fake-nm.py %s.nm.out' % (self.inputs, stub)
+        if non_dynamic:
+            s += ' --fake-nm-be-non-dynamic'
+        return s
 
     def _getObjdump(self, perf_data_fname):
         stub = perf_data_fname.rsplit('.perf_data', 1)[0]
@@ -53,7 +56,16 @@ class CPerfTest(unittest.TestCase):
                                         propagateExceptions=True)
 
        self.assertEqual(p.data, self.expected_data['fib2-aarch64'])
-       
+
+    def test_aarch64_fib2_nondynamic(self):
+       perf_data = self._getInput('fib2-aarch64.perf_data')
+       p = LinuxPerfProfile.deserialize(open(perf_data),
+                                        nm=self._getNm(perf_data, True),
+                                        objdump=self._getObjdump(perf_data),
+                                        propagateExceptions=True)
+
+       self.assertEqual(p.data, self.expected_data['fib2-aarch64'])
+
     def test_random_guff(self):
         # Create complete rubbish and throw it at cPerf, expecting an
         # AssertionError.
