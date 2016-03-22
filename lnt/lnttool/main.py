@@ -472,7 +472,7 @@ def action_profile(name, args):
         if len(args) < 3:
             parser.error('Expected 2 arguments')
 
-        profile.Profile.fromFile(args[1]).upgrade().toFile(args[2])
+        profile.Profile.fromFile(args[1]).upgrade().save(filename=args[2])
         return
 
     if args[0] == 'getVersion':

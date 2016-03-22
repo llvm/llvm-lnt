@@ -133,6 +133,30 @@ void Assert(bool Expr, const char *ExprStr, const char *File, int Line) {
   throw std::logic_error(Str);
 }
 
+// Returns true if the ELF file given by filename
+// is a shared object (DYN).
+bool IsSharedObject(std::string Fname) {
+  // We replicate the first part of an ELF header here
+  // so as not to rely on <elf.h>.
+  struct PartialElfHeader {
+    unsigned char e_ident[16];
+    uint16_t e_type;
+  };
+  const int ET_DYN = 3;
+
+  FILE *stream = fopen(Fname.c_str(), "r");
+  if (stream == NULL)
+    return false;
+
+  PartialElfHeader H;
+  auto NumRead = fread(&H, 1, sizeof(H), stream);
+  assert(NumRead == sizeof(H));
+
+  fclose(stream);
+
+  return H.e_type == ET_DYN;
+}
+
 //===----------------------------------------------------------------------===//
 // Perf structures. Taken from https://lwn.net/Articles/644919/
 //===----------------------------------------------------------------------===//
@@ -386,8 +410,8 @@ public:
   unsigned char *readEvent(unsigned char *);
   perf_event_sample parseEvent(unsigned char *Buf, uint64_t Layout);
   void emitLine(uint64_t PC, std::map<const char *, uint64_t> *Counters,
-                const std::string &Text, bool First);
-  void emitFunctionStart(std::string &Name, bool First);
+                const std::string &Text);
+  void emitFunctionStart(std::string &Name);
   void emitFunctionEnd(std::string &Name,
                        std::map<const char *, uint64_t> &Counters);
   void emitTopLevelCounters();
@@ -395,7 +419,7 @@ public:
   void emitSymbol(
       Symbol &Sym, Map &M,
       std::map<uint64_t, std::map<const char *, uint64_t>>::iterator &Event,
-      bool FirstSym);
+      uint64_t Adjust);
   PyObject *complete();
 
 private:
@@ -565,7 +589,7 @@ perf_event_sample PerfReader::parseEvent(unsigned char *Buf, uint64_t Layout) {
   return E;
 }
 
-void PerfReader::emitFunctionStart(std::string &Name, bool First) {
+void PerfReader::emitFunctionStart(std::string &Name) {
   Lines.clear();
 }
 
@@ -590,7 +614,7 @@ void PerfReader::emitFunctionEnd(std::string &Name,
 
 void PerfReader::emitLine(uint64_t PC,
                           std::map<const char *, uint64_t> *Counters,
-                          const std::string &Text, bool First) {
+                          const std::string &Text) {
   auto *CounterDict = PyDict_New();
   if (Counters)
     for (auto &KV : *Counters)
@@ -614,7 +638,6 @@ void PerfReader::emitTopLevelCounters() {
 }
 
 void PerfReader::emitMaps() {
-  bool FirstSym = true;
   for (auto &KV : Events) {
     auto MapID = KV.first;
     auto &MapEvents = KV.second;
@@ -640,13 +663,19 @@ void PerfReader::emitMaps() {
     if (AllUnderThreshold)
       continue;
 
+    // EXEC ELF objects aren't relocated. DYN ones are,
+    // so if it's a DYN object adjust by subtracting the
+    // map base.
+    bool IsSO = IsSharedObject(Maps[MapID].Filename);
+    uint64_t Adjust = IsSO ? Maps[MapID].Start : 0;
+    Adjust = 0;
     NmOutput Syms(Nm);
     Syms.reset(&Maps[MapID]);
     auto Sym = Syms.begin();
 
     auto Event = MapEvents.begin();
     while (Event != MapEvents.end() && Sym != Syms.end()) {
-      auto PC = Event->first;
+      auto PC = Event->first - Adjust;
       if (PC < Sym->Start) {
         ++Event;
         continue;
@@ -658,8 +687,7 @@ void PerfReader::emitMaps() {
         continue;
       }
 
-      emitSymbol(*Sym++, Maps[MapID], Event, FirstSym);
-      FirstSym = false;
+      emitSymbol(*Sym++, Maps[MapID], Event, Adjust);
     }
   }
 }
@@ -667,27 +695,27 @@ void PerfReader::emitMaps() {
 void PerfReader::emitSymbol(
     Symbol &Sym, Map &M,
     std::map<uint64_t, std::map<const char *, uint64_t>>::iterator &Event,
-    bool FirstSym) {
+    uint64_t Adjust) {
   ObjdumpOutput Dump(Objdump);
   Dump.reset(&M, Sym.Start, Sym.End);
   Dump.next();
 
   std::map<const char *, uint64_t> SymEvents;
 
-  emitFunctionStart(Sym.Name, FirstSym);
+  emitFunctionStart(Sym.Name);
   for (uint64_t I = Sym.Start; I < Sym.End; I = Dump.next()) {
-    auto PC = Event->first;
+    auto PC = Event->first - Adjust;
 
     auto Text = Dump.getText();
     if (PC == I) {
-      emitLine(I, &Event->second, Text, I == Sym.Start);
+      emitLine(I, &Event->second, Text);
 
       for (auto &KV : Event->second)
         SymEvents[KV.first] += KV.second;
 
       ++Event;
     } else {
-      emitLine(I, nullptr, Text, I == Sym.Start);
+      emitLine(I, nullptr, Text);
     }
   }
   emitFunctionEnd(Sym.Name, SymEvents);
