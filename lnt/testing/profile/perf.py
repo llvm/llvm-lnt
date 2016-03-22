@@ -1,7 +1,8 @@
-
-import json, os
+import json, os, traceback
 from profile import ProfileImpl
 from profilev1impl import ProfileV1
+from lnt.testing.util.commands import warning
+
 try:
     import cPerf
 except:
@@ -30,8 +31,8 @@ class LinuxPerfProfile(ProfileImpl):
             for f in data['functions'].values():
                 fc = f['counters']
                 for l in f['data']:
-                    for k,v in l[1].items():
-                        l[1][k] = 100.0 * float(v) / fc[k]
+                    for k,v in l[0].items():
+                        l[0][k] = 100.0 * float(v) / fc[k]
                 for k,v in fc.items():
                     fc[k] = 100.0 * v / data['counters'][k]
 
@@ -40,6 +41,5 @@ class LinuxPerfProfile(ProfileImpl):
         except:
             if propagateExceptions:
                 raise
-            # FIXME: import warning!
             warning(traceback.format_exc())
             return None

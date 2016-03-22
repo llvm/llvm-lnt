@@ -597,9 +597,9 @@ void PerfReader::emitLine(uint64_t PC,
       PyDict_SetItemString(CounterDict, KV.first,
                            PyLong_FromUnsignedLongLong((unsigned long long)KV.second));
   
-  auto *Line = Py_BuildValue("[KNs]",
-                             (unsigned long long) PC,
+  auto *Line = Py_BuildValue("[NKs]",
                              CounterDict,
+                             (unsigned long long) PC,
                              (char*) Text.c_str());
   Lines.push_back(Line);
 }
