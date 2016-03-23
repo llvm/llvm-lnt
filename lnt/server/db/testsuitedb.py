@@ -342,7 +342,7 @@ class TestSuiteDB(object):
                 self.accessed_time = datetime.datetime.now()
 
                 if config is not None:
-                    self.filename = Profile.saveFromRendered(encoded,
+                    self.filename = profile.Profile.saveFromRendered(encoded,
                                                              profileDir=config.config.profileDir,
                                                              prefix='t-%s-s-' % os.path.basename(testid))
 
