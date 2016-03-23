@@ -1,7 +1,7 @@
 # RUN: python %s
 import unittest, logging, sys, copy, tempfile, io
 from lnt.testing.profile.profilev1impl import ProfileV1
-
+from lnt.testing.profile.profile import Profile
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -40,6 +40,16 @@ class ProfileV1Test(unittest.TestCase):
         self.assertEqual(p.getFunctions(),
                          {'fn1': {'counters': {'cycles': 45.0, 'branch-misses': 10.0},
                                   'length': 2}})
+
+    def test_saveFromRendered(self):
+        p = ProfileV1(copy.deepcopy(self.test_data))
+        s = Profile(p).render()
+
+        with tempfile.NamedTemporaryFile() as f:
+            Profile.saveFromRendered(s, filename=f.name)
+            p2 = ProfileV1.deserialize(open(f.name))
+
+        self.assertEqual(p2.data, self.test_data)
 
 if __name__ == '__main__':
     unittest.main(argv=[sys.argv[0], ])

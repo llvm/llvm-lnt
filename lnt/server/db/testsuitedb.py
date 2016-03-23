@@ -340,12 +340,13 @@ class TestSuiteDB(object):
             def __init__(self, encoded, config, testid):
                 self.created_time = datetime.datetime.now()
                 self.accessed_time = datetime.datetime.now()
-                
-                p = profile.Profile.fromRendered(encoded)
-                if config is not None:
-                    self.filename = p.save(profileDir=config.config.profileDir,
-                                           prefix='t-%s-s-' % os.path.basename(testid))
 
+                if config is not None:
+                    self.filename = Profile.saveFromRendered(encoded,
+                                                             profileDir=config.config.profileDir,
+                                                             prefix='t-%s-s-' % os.path.basename(testid))
+
+                p = profile.Profile.fromRendered(encoded)
                 s = ','.join('%s=%s' % (k,v)
                              for k,v in p.getTopLevelCounters().items())
                 self.counters = s[:512]

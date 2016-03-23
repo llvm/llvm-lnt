@@ -54,6 +54,32 @@ class Profile(object):
                         return None
         raise RuntimeError('No profile implementations could read this file!')
 
+    @staticmethod
+    def saveFromRendered(s, filename=None, profileDir=None, prefix=''):
+        """
+        Load a profile from a string, which must have been produced
+        with Profile.render(), and save it immediately in filename.
+
+        This is equivalent to Profile.fromRendered(s).save(filename=filename)
+        but it avoids the intermediate deserialize/serialize steps.
+        """
+        s = base64.b64decode(s)
+
+        if not filename:
+            assert profileDir is not None
+            if not os.path.exists(profileDir):
+                os.makedirs(profileDir)
+            tf = tempfile.NamedTemporaryFile(prefix=prefix,
+                                             suffix='.lntprof',
+                                             dir=profileDir,
+                                             delete=False)
+            tf.write(s)
+            return tf.name
+
+        else:
+            open(filename, 'w').write(s)
+            return filename
+    
     def save(self, filename=None, profileDir=None, prefix=''):
         """
         Save a profile. One of 'filename' or 'profileDir' must be given.
