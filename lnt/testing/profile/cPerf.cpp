@@ -668,7 +668,7 @@ void PerfReader::emitMaps() {
     // map base.
     bool IsSO = IsSharedObject(Maps[MapID].Filename);
     uint64_t Adjust = IsSO ? Maps[MapID].Start : 0;
-    Adjust = 0;
+
     NmOutput Syms(Nm);
     Syms.reset(&Maps[MapID]);
     auto Sym = Syms.begin();
