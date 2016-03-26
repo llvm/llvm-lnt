@@ -87,6 +87,10 @@
       <th style="{{ styles['th'] }}">Order</th>
       <th style="{{ styles['th'] }}">Start Time</th>
       <th style="{{ styles['th'] }}">Duration</th>
+      {%- set show_producers = (run and run.parameters.producer) or(compare_to and compare_to.parameters.producer) or (baseline and baseline.parameters.producer) %}
+      {% if show_producers %}
+        <th style="{{ styles['th'] }}">Produced by</th>
+      {% endif %}
     </tr>
   </thead>
   <tbody>
@@ -97,9 +101,12 @@
       <td style="{{ styles['td'] }}"><a href="{{ ts_url }}/order/{{ r.order.id }}">{{ r.order.llvm_project_revision }}</a></td>
       <td style="{{ styles['td'] }}"><span class="utctime">{{ r.start_time.isoformat() }}</span></td>
       <td style="{{ styles['td'] }}">{{ r.end_time - r.start_time }}</td>
+      {% if show_producers %}
+        <td style="{{ styles['td'] }}">{{ r.parameters.producer|producerAsHTML }}</td>
+      {% endif %}
     </tr>
     {% else %}
-      <tr><td style="{{ styles['td'] }}" colspan=4>No {{ title }} Run</td></tr>
+      <tr><td style="{{ styles['td'] }}" colspan="5">No {{ title }} Run</td></tr>
     {% endif %}
   {% endfor %}
  </tbody>

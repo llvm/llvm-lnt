@@ -36,6 +36,11 @@ def filter_urlencode(args):
 def filter_timedelta(start_time):
     return "%.2fs" % (time.time() - start_time)
 
+def filter_producerAsHTML(producer):
+    if not producer:
+        return ""
+    return util.renderProducerAsHTML(producer)
+
 def register(env):
     for name,object in globals().items():
         if name.startswith('filter_'):

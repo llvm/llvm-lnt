@@ -1,5 +1,6 @@
 import colorsys
 import math
+import re
 
 def toColorString(col):
     r,g,b = [clamp(int(v*255), 0, 255)
@@ -268,6 +269,24 @@ def sorted(l, *args, **kwargs):
     l = list(l)
     l.sort(*args, **kwargs)
     return l
+
+def renderProducerAsHTML(producer):
+    # If the string looks like a buildbot link, render it prettily.
+    m = re.match(r'http://(.*)/builders/(.*)/builds/(\d+)', producer)
+    if m:
+        url = m.group(1)
+        builder = m.group(2)
+        build = m.group(3)
+
+        png_url = 'http://%(url)s/png?builder=%(builder)s&number=%(build)s' % locals()
+        img = '<img src="%(png_url)s">' % locals()
+        return '<a href="%(producer)s">%(builder)s #%(build)s %(img)s</a>' % locals()
+    
+    elif producer.startswith('http://'):
+        return '<a href="' + producer + '">Producer</a>'
+    
+    else:
+        return producer
 
 FLASH_DANGER = "alert alert-danger"
 FLASH_INFO = "alert alert-info"
