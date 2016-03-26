@@ -595,6 +595,15 @@ void PerfReader::emitFunctionStart(std::string &Name) {
 
 void PerfReader::emitFunctionEnd(std::string &Name,
                                  std::map<const char *, uint64_t> &Counters) {
+  // If the function only took up < 0.5% of any counter, don't bother with it.
+  bool Keep = false;
+  for (auto &KV : Counters) {
+    if ((double)KV.second / (double)TotalEvents[KV.first] > 0.005)
+      Keep = true;
+  }
+  if (!Keep)
+    return;
+
   auto *CounterDict = PyDict_New();
   for (auto &KV : Counters)
     PyDict_SetItemString(CounterDict, KV.first,
