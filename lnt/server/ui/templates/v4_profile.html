@@ -7,7 +7,16 @@
 {% block head %}
   <script language="javascript" type="text/javascript"
           src="{{ url_for('.static',
-                        filename='lnt_profile.js') }}"></script>
+               filename='lnt_profile.js') }}"></script>
+  <script language="javascript" type="text/javascript"
+          src="{{ url_for('.static',
+               filename='flot/jquery.flot.min.js') }}"> </script>
+  <script language="javascript" type="text/javascript"
+          src="{{ url_for('.static',
+               filename='jquery/1.7.2/jquery-ui-1.8.22.custom.min.js') }}"> </script>
+  <script language="javascript" type="text/javascript"
+          src="{{ url_for('.static',
+               filename='jquery/jquery.scrolltofixed/jquery-scrolltofixed.js') }}"> </script>
   <link rel="stylesheet" href="{{ url_for('.static',
                                filename='lnt_profile.css') }}">
   <script>
@@ -20,6 +29,7 @@
 
 {% block onload %}
   pf_init(g_run1, g_run2, g_test, g_urls);
+  $('.tooltip').tooltip();
 {% endblock %}
 
 {% block title %}Profile{% endblock %}
@@ -50,9 +60,7 @@
   <div class="row statsrow">
     <div class="span9" id="stats">
     </div>
-    <div class="span3">
-      <select id="counters" class="input-medium">
-      </select>
+    <div class="span3" id="stats-graph">
     </div>
   </div>
   <div class="row fnrow">
@@ -68,6 +76,24 @@
         <span class="icon icon-folder-open"></span>
       </span>
     </div>
+  </div>
+
+  <div class="anchor"></div>
+  <div class="row toolbarrow" id="toolbar">
+
+        <div class="span4">
+          <b>Hottest instructions:</b>
+          <button class="btn btn-small prev-btn-l"><i class="icon-backward"></i> Prev</button>
+          <button class="btn btn-small next-btn-l">Next <i class="icon-forward"></i></button>
+        </div>
+        <div class="span6">
+          <b>Counter:</b>
+          <select id="counters" class="input-medium"></select>
+          <select class="input-medium" id="absolute">
+            <option value="relative">Relative (%)</option>
+            <option value="absolute">Absolute numbers</option>
+          </select>
+        </div>
   </div>
 
   <div class="row">

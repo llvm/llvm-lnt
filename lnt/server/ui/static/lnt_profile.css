@@ -67,7 +67,6 @@
 }
 
 .statsrow {
-    background-color: #fafafa;
     border: 1px solid #ddd;
     border-left: none;
     border-right: none;
@@ -75,8 +74,32 @@
     padding-bottom: 5px;
 }
 
-.fnrow {
+.toolbarrow {
+    border-top: 1px solid #ddd;
     border-bottom: 1px solid #ddd;
+    padding-top: 5px;
+    padding-bottom: 0px;
+    background-color: #eee;
+
+    font-size: small;
+}
+
+.toolbarrow select {
+    font-size: small;
+    height: 25px;
+}
+
+.toolbarrow table {
+    margin-left: 20px;
+}
+
+.toolbarrow td {
+    vertical-align: center;
+    padding-right: 20px;
+}
+
+.fnrow {
+    background-color: #fafafa;
     padding-top: 10px;
     padding-bottom: 5px;
 }

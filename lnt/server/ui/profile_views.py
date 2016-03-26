@@ -94,7 +94,7 @@ def v4_profile_ajax_getTopLevelCounters():
         idx += 1
 
     # If the 1'th counter is None for all keys, truncate the list.
-    if all(k[1] is None for k in tlc.values()):
+    if all(len(k) > 1 and k[1] is None for k in tlc.values()):
         tlc = {k: [v[0]] for k,v in tlc.items()}
 
     return json.dumps(tlc)

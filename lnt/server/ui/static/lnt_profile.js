@@ -19,8 +19,10 @@ Profile.prototype = {
         $(this.element).html('<center><i>Select a run and function above<br> ' +
                              'to view a performance profile</i></center>');
     },
-    go: function(function_name, counter_name) {
+    go: function(function_name, counter_name, absolute, total_ctr_for_fn) {
         this.counter_name = counter_name
+        this.absolute = absolute;
+        this.total_ctr = total_ctr_for_fn;
         if (this.function_name != function_name)
             this._fetch_and_go(function_name);
         else
@@ -68,6 +70,7 @@ Profile.prototype = {
     },
 
     _labelTd: function(value) {
+        var this_ = this;
         var labelPct = function(value) {
             // Colour scheme: Black up until 1%, then yellow fading to red at 10%
             var bg = '#fff';
@@ -82,10 +85,22 @@ Profile.prototype = {
             }
             return $('<td style="background-color:' + bg + '; border-right: 1px solid ' + hl + ';"></td>')
                 .text(value.toFixed(2) + '%');
-        }
+        };
+        
+        var labelAbs = function(value) {
+            var hue = lerp(50.0, 0.0, value / 100.0);
+            var bg = 'hsl(' + hue.toFixed(0) + ', 100%, 50%)';
+            var hl = 'hsl(' + hue.toFixed(0) + ', 100%, 30%)';
 
-        // FIXME: Implement absolute numbering.
-        return labelPct(value);
+            var absVal = (value / 100.0) * this_.total_ctr;
+            return $('<td style="background-color:' + bg + '; border-right: 1px solid ' + hl + ';"></td>')
+                .text(currencyify(absVal))
+                .append($('<span></span>')
+                        .text(value.toFixed(2) + '%')
+                        .hide());
+        };
+
+        return this.absolute ? labelAbs(value) : labelPct(value);
     },
 };
 
@@ -110,21 +125,69 @@ StatsBar.prototype = {
             dataType: "json",
             data: {'runids': this.runids.join(), 'testid': this.testid},
             success: function(data) {
-                var t = $('<table align="center" valign="middle"></table>');
-                var r = $('<tr></tr>');
+                this_.data = data;
+                var t = $('<table></table>').addClass('table table-striped table-condensed table-hover');
+                this_.element.html(t);
+
+                var gdata = [];
+                var ticks = [];
                 var i = 0;
+                var n = 0;
+                for (counter in data)
+                    ++n;
                 for (counter in data) {
-                    if (i > 0 && i % 4 == 0) {
-                        t.append(r);
-                        r = $('<tr></tr>');
+                    var barvalue = data[counter][0] - data[counter][1];
+                    var percent = (barvalue / data[counter][0]) * 100;
+                    
+                    var r = $('<tr></tr>');
+                 
+                    r.append($('<th>' + counter + '</th>').addClass('span2'));
+                    r.append($('<td></td>').append(this_._formatValue(data[counter][0]))
+                             .addClass('span4')
+                             .css({'text-align': 'right'}));
+                    r.append($('<td></td>').append(this_._formatValue(data[counter][1]))
+                             .addClass('span2')
+                             .css({'text-align': 'left'}));
+                    r.append($('<td></td>').append(this_._formatPercentage(percent))
+                             .addClass('span1')
+                             .css({'text-align': 'right'}));
+                    t.append(r);
+
+                    var color = 'red';
+                    if (barvalue < 0)
+                        color = 'green';
+
+                    gdata.push({data: [[percent, n - i]], color: color});
+                    ticks.push([i, counter]);
+                    ++i;
+                }
+
+                $('#stats-graph').height(this_.element.height());
+                $.plot('#stats-graph', gdata, {
+                    series: {
+                        bars: {
+                            show: true,
+                            barWidth: 0.6,
+                            align: "center",
+                            horizontal: true,
+                        },
+                    },
+                    xaxis: {
+                        tickFormatter: function(f) {
+                            return this_._percentageify(f);
+                        },
+                        autoscaleMargin: 0.05,
+                    },
+                    yaxis: {
+                        show: false
+                    },
+                    grid: {
+                        borderWidth: 0,
                     }
 
-                    var cell = this_._formatCell(counter, data[counter]);
-                    r.append(cell);
-                }
-                if (r.children().length > 0)
-                    t.append(r);
-                this_.element.html(t);
+                });
+
+                $('#toolbar').toolBar().triggerResize();
             },
             error: function(xhr, textStatus, errorThrown) {
                 pf_flash_error('accessing URL ' + g_urls.getTopLevelCounters +
@@ -134,30 +197,155 @@ StatsBar.prototype = {
 
     },
 
-    _formatCell: function(counter, values) {
-        if (values.length > 1) {
-            // We have both counters, so we can compare them.
-            var data1 = values[0];
-            var data2 = values[1];
-            percent = (data2 * 100.0 / data1) - 100.0;
-            if (percent > 0.0) {
-                // Make sure 2% is formatted as +2%.
-                percent = '+' + percent.toFixed(2);
-            } else if (percent < 0.0) {
-                percent = percent.toFixed(2);
-            }
-            // FIXME: Add colors here.
-            var element = '<th>'+counter+':</th>';
-            element += '<td>' + add_commas(data1) + '<br>' + add_commas(data2);
-            if (percent != 0.0)
-                element += ' (' + percent + '%)';
-            element += '</td>';
-            return $(element);
-        } else {
-            var element = '<th>'+counter+':</th>';
-            return $(element + '<td>' + add_commas(values[0]) + '</td>');
-        }
+    getCounterValue: function(counter) {
+        return this.data[counter];
     },
+
+    _percentageify: function(value) {
+        return value.toFixed(0) + '%';
+    },
+    
+    _formatPercentage: function(value) {
+        if (!value)
+            return "";
+
+        var color;
+        if (value > 0)
+            color = 'red';
+        else
+            color = 'green';
+
+        var f = value.toFixed(2);
+        if (f > 0)
+            f = '+' + f;
+        
+        var s = $('<span></span>').text(f + '%');
+        s.css({color: color});
+        return s;
+    },
+    
+    _formatValue: function(value) {
+        if (!value)
+            return "";
+        var s = '<span data-toggle="tooltip" title="' + add_commas(value) + '">';
+        s += currencyify(value);
+        s += '</span>';
+
+        return $(s).tooltip();
+    },
+};
+
+function ToolBar(element) {
+    this.element = $(element);
+    var this_ = this;
+
+    // We want the toolbar to "stick" just below the main nav, which is fixed.
+    // However, on narrow screens the main nav is not fixed. So detect that here.
+    if ($('#header').css('position') == 'fixed') {
+        // There is some weird padding issue where $(#header).height() is not the
+        // same as $(#header ul).top + $(#header ul).height. The header height
+        // somehow has about 4px more. Use the ul here.
+        var obj = $('#header .breadcrumb');
+        this.marginTop = obj.position().top + obj.innerHeight();
+    } else {
+        this.marginTop = 0;
+    }
+    
+    var marginLeft;
+    var marginRight;
+    // We use the jQuery plugin "scrollToFixed" which can do everything we want.
+    $(element).scrollToFixed({
+        marginTop: this.marginTop,
+        // But, our toolbar is a row inside a container-fluid, and depending on the
+        // screen width this can contain negative margins. These margins differ too
+        // on the screen size. Once the element is fixed, those negative margins no longer
+        // just cancel out the padding in #container-fluid, and the bar appears off
+        // the screen.
+        //
+        // So here, first save the current margins...
+        preFixed: function() {
+            marginLeft = parseInt(element.css('marginLeft'));
+            marginRight = parseInt(element.css('marginRight'));
+        },
+        // ... Then set the left margin back to zero, and the width to 100% AFTER
+        // position: fixed has been set! (because width is overridden by scrollToFixed).
+        fixed: function() {
+            element.css({marginLeft: 0, width: '100%'});
+        },
+        // Then when we revert to relative positioning, restore the correct margins.
+        postFixed: function() {
+            element.css({marginLeft: marginLeft, marginRight: marginRight});
+        },
+    });
+    
+    var this_ = this;
+    element.find('.next-btn-l').click(function() {this_._findNextInstruction(this_, false);});
+    element.find('.prev-btn-l').click(function() {this_._findNextInstruction(this_, true);});
+}
+
+ToolBar.prototype = {
+    _findNearestInstructionInProfile: function(this_, profile_elem_name) {
+        var windowTop = $(window).scrollTop();
+        var offset = this_.marginTop + this.element.innerHeight();
+
+        var y = windowTop + offset;
+        var ret = null;
+        $('#' + profile_elem_name + ' a').each(function(idx, obj) {
+            var objY = $(obj).position().top;
+            if (objY > y) {
+                ret = obj;
+                return false;
+            }
+        });
+        return ret;
+    },
+
+    _findNextInstructionInProfile: function(this_, profile_elem_name, isPrev) {
+        var inst_a = this_._findNearestInstructionInProfile(this_, profile_elem_name);
+        var inst_tr = $(inst_a).closest('tr');
+
+        var ret = null;
+        var selector = isPrev ? inst_tr.prevAll('tr') : inst_tr.nextAll('tr');
+        selector.each(function(idx, obj) {
+            var counter = $(obj).children('td').first().text();
+            var s = $(obj).children('td').first().children('span');
+            if (s.length)
+                counter = s.first().text();
+
+            if (counter.length == 0)
+                return;
+            var c = parseFloat(counter);
+            if (!c || c < 5.0)
+                return;
+
+            ret = obj;
+            return false;
+        });
+        return ret;
+    },
+
+    _findNextInstruction: function(this_, isPrev) {
+        var offset = this_.marginTop + this.element.innerHeight();
+
+        var ret1 = this_._findNextInstructionInProfile(this_, 'profile1', isPrev);
+        var ret2 = this_._findNextInstructionInProfile(this_, 'profile2', isPrev);
+
+        var obj = ret1;
+        if (ret1 && ret2 && $(ret2).position().top < $(ret1).position().top)
+            obj = ret2;
+        else if (!ret1)
+            obj = ret2;
+        
+        $('html, body').animate({
+            scrollTop: $(obj).position().top - offset
+        }, 500);
+        
+        $(obj).effect("highlight", {}, 1500);        
+    },
+
+    triggerResize: function() {
+        $(window).trigger('resize.ScrollToFixed');
+    }
 };
 
 function RunTypeahead(element, options) {
@@ -355,6 +543,15 @@ FunctionTypeahead.prototype = {
             }
         });
     },
+    getFunctionPercentage: function(fname) {
+        var this_ = this;
+        var ret = null;
+        $.each(this.data, function(idx, obj) {
+            if (obj[0] == fname)
+                ret = obj[1].counters[this_.options.getCounter()];
+        });
+        return ret;
+    },
     _source: function () {
         return this.$element.data('functionTypeahead').data;
     },
@@ -397,9 +594,9 @@ FunctionTypeahead.prototype = {
 
 $(document).ready(function () {
     jQuery.fn.extend({
-        profile: function(arg1, arg2, arg3) {
+        profile: function(arg1, arg2, arg3, arg4, arg5) {
             if (arg1 == 'go')
-                this.data('profile').go(arg2, arg3);
+                this.data('profile').go(arg2, arg3, arg4, arg5);
             else if (arg1 && !arg2)
                 this.data('profile',
                           new Profile(this,
@@ -418,6 +615,13 @@ $(document).ready(function () {
                                       arg1.testid));
             
             return this.data('statsBar');
+        },
+        toolBar: function() {
+            if (!this.data('toolBar'))
+                this.data('toolBar',
+                          new ToolBar(this));
+            
+            return this.data('toolBar');
         },
         runTypeahead: function(options) {
             if (options)
@@ -463,7 +667,11 @@ function pf_init(run1, run2, testid, urls) {
                 return pf_get_counter();
             },
             updated: function(fname) {
-                 $('#profile1').profile('go', fname, pf_get_counter());
+                var fn_percentage = $('#fn1_box').functionTypeahead().getFunctionPercentage(fname);
+                var ctr_value = $('#stats').statsBar().getCounterValue(pf_get_counter());
+                $('#profile1').profile('go', fname,
+                                       pf_get_counter(), pf_get_absolute(),
+                                       fn_percentage * ctr_value);
             },
             sourceRunUpdated: function(data) {
                 pf_set_default_counter(data);
@@ -493,7 +701,11 @@ function pf_init(run1, run2, testid, urls) {
                 return pf_get_counter();
             },
             updated: function(fname) {
-                 $('#profile2').profile('go', fname, pf_get_counter());
+                var fn_percentage = $('#fn2_box').functionTypeahead().getFunctionPercentage(fname);
+                var ctr_value = $('#stats').statsBar().getCounterValue(pf_get_counter());
+                $('#profile2').profile('go', fname,
+                                       pf_get_counter(), pf_get_absolute(),
+                                       fn_percentage * ctr_value);
             },
             sourceRunUpdated: function(data) {
                 pf_set_default_counter(data);
@@ -553,14 +765,26 @@ function pf_init(run1, run2, testid, urls) {
     if (!$.isEmptyObject(run2))
         r2.update(pf_make_stub(run2.machine, run2.order), run2.id);
 
+    $('#toolbar')
+        .toolBar();
+
+    
     // Bind change events for the counter dropdown so that profiles are
     // updated when it is modified.
-    $('#counters').change(function () {
+    $('#counters, #absolute').change(function () {
         g_counter = $('#counters').val();
-        if ($('#fn1_box').val())
-            $('#profile1').profile('go', $('#fn1_box').val(), g_counter);
-        if ($('#fn2_box').val())
-            $('#profile2').profile('go', $('#fn2_box').val(), g_counter);
+        if ($('#fn1_box').val()) {
+            var fn_percentage = $('#fn1_box').functionTypeahead().getFunctionPercentage(fname);
+            var ctr_value = $('#stats').statsBar().getCounterValue(pf_get_counter());
+            $('#profile1').profile('go', $('#fn1_box').val(), g_counter, pf_get_absolute(),
+                                   fn_percentage * ctr_value);
+        }
+        if ($('#fn2_box').val()) {
+            var fn_percentage = $('#fn2_box').functionTypeahead().getFunctionPercentage(fname);
+            var ctr_value = $('#stats').statsBar().getCounterValue(pf_get_counter());
+            $('#profile2').profile('go', $('#fn2_box').val(), g_counter, pf_get_absolute(),
+                                   fn_percentage * ctr_value);
+        }
     });
 
     // FIXME: Implement navigating to an address properly.
@@ -667,6 +891,11 @@ function pf_get_counter() {
     return g_counter;
 }
 
+// pf_get_absolute - Whether we should display absolute values or percentages.
+function pf_get_absolute() {
+    return $('#absolute').val() == "absolute";
+}
+
 // pf_update_history - Push a new history entry, as we've just navigated
 // to what could be a new bookmarkable page.
 function pf_update_history() {
@@ -710,6 +939,22 @@ function add_commas(nStr) {
     return x1 + x2;
 }
 
+function currencyify(value, significant_figures) {
+    if (!significant_figures)
+        significant_figures = 3;
+    value = value.toPrecision(significant_figures);
+
+    var SI = ["K", "M", "Bn", "Tn"];
+    SI.reverse();
+
+    for (i in SI) {
+        var multiplier = Math.pow(10, 3 * (SI.length - i));
+        if (Math.abs(value) > multiplier)
+            return (value / multiplier) + " " + SI[i];
+    }
+    return "" + value;
+}
+    
 function lerp(s, e, x) {
     return s + (e - s) * x;
 }
