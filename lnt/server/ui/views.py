@@ -4,6 +4,7 @@ import re
 import tempfile
 import time
 import copy
+import json
 
 import flask
 from flask import abort
@@ -30,6 +31,7 @@ import lnt.server.ui.util
 import lnt.server.reporting.dailyreport
 import lnt.server.reporting.summaryreport
 import lnt.server.db.rules_manager
+import lnt.server.db.search
 from collections import namedtuple
 from lnt.util import async_ops
 
@@ -417,12 +419,16 @@ def v4_run(id):
 
         return flask.jsonify(**json_obj)
 
+    urls = {
+        'search': v4_url_for('v4_search')
+    }
     return render_template(
         "v4_run.html", ts=ts, options=options,
         metric_fields=list(ts.Sample.get_metric_fields()),
         test_info=test_info, analysis=lnt.server.reporting.analysis,
         test_min_value_filter=test_min_value_filter,
-        request_info=info)
+        request_info=info, urls=urls
+)
 
 @v4_route("/order/<int:id>")
 def v4_order(id):
@@ -1233,3 +1239,26 @@ def health():
     if explode:
         return msg, 500
     return msg, 200
+
+@v4_route("/search")
+def v4_search():
+    def _isint(i):
+        try:
+            int(i)
+            return True
+        except:
+            return False
+
+    ts = request.get_testsuite()
+    query = request.args.get('q')
+    l = request.args.get('l', 8)
+    default_machine = request.args.get('m', None)
+
+    assert query
+    results = lnt.server.db.search.search(ts, query, num_results=l,
+                                          default_machine=default_machine)
+
+    return json.dumps(
+        [('%s #%s' % (r.machine.name, r.order.llvm_project_revision),
+          r.id)
+         for r in results])

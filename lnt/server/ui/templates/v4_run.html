@@ -15,8 +15,16 @@
                      v4_url_for("v4_machine", id=machine.id))] %}
 
 {% block head %}
+  <script>
+    g_urls = {{urls|tojson|safe}};
+    g_machine = {{run.machine.id}};
+  </script>
+
   <script src="{{ url_for('.static', filename='popup.js') }}"></script>
   <script src="{{ url_for('.static', filename='sorttable.js') }}"></script>
+  <script src="{{ url_for('.static', filename='lnt_run.js') }}"></script>
+  <link href="{{ url_for('.static', filename='lnt_run.css') }}" rel="stylesheet" media="screen"/>
+
   <script type="text/javascript">
   function selectAll(source) {
     $(source).closest("table").find("input:checkbox").prop("checked", source.checked);

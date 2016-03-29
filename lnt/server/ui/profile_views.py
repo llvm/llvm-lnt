@@ -173,7 +173,7 @@ def v4_profile(testid, run1_id, run2_id=None):
     else:
         json_run2 = {}
     urls = {
-        'search': v4_url_for('v4_profile_search'),
+        'search': v4_url_for('v4_search'),
         'singlerun_template': v4_url_for('v4_profile_fwd',
                                           testid=1111,
                                           run1_id=2222) \
@@ -194,64 +194,3 @@ def v4_profile(testid, run1_id, run2_id=None):
                            ts=ts, test=test,
                            run1=json_run1, run2=json_run2,
                            urls=urls)
-
-@v4_route("/profile/search")
-def v4_profile_search():
-    def _isint(i):
-        try:
-            int(i)
-            return True
-        except:
-            return False
-
-    ts = request.get_testsuite()
-    query = request.args.get('q')
-    l = request.args.get('l', 8)
-    #default_machine = request.args.get('m')
-
-    machine_queries = []
-    order_query = None
-    for q in query.split(' '):
-        if not q:
-            continue
-        if q.startswith('#'):
-            order_query = q[1:]
-        elif _isint(q):
-            order_query = q
-        else:
-            machine_queries.append(q)
-
-    if not machine_queries and order_query is None:
-        return "{}"
-
-    if machine_queries:
-        machines = []
-        for m in ts.query(ts.Machine).all():
-            if all(q in m.name for q in machine_queries):
-                machines.append(m.id)
-        if not machines:
-            return "{}"
-    else:
-        # FIXME:
-        return "{}"
-
-    q = ts.query(ts.Run).filter(ts.Run.machine_id.in_(machines))
-    if order_query:
-        # FIXME: Is this generating a million billion queries under my feet?
-        # I hate ORMs :( I know this column exists, but because it's
-        # dynamically generated SQLAlchemy can't filter on it.
-        # Perhaps there's a way to provide it a manual column name?
-        # I want to do this:
-        # filter(ts.Run.order.llvm_project_revision.like('%' + order_query + '%'))
-        oq = str(order_query)
-        data = [i
-                for i in q.all()
-                if oq in str(i.order.llvm_project_revision)]
-
-    else:
-        data = q.limit(l).all()
-
-    return json.dumps(
-        [('%s #%s' % (r.machine.name, r.order.llvm_project_revision),
-          r.id)
-         for r in data])

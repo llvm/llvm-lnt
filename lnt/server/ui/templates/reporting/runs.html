@@ -96,7 +96,7 @@
   <tbody>
   {% for title, r in (('Current', run), ('Previous', compare_to), ('Baseline', baseline)) %}
     {% if r %}
-    <tr>
+    <tr id="run-table-{{ title }}">
       <td style="{{ styles['td'] }}"><a href="{{ ts_url }}/{{ r.id }}">{{ title }}</a></td>
       <td style="{{ styles['td'] }}"><a href="{{ ts_url }}/order/{{ r.order.id }}">{{ r.order.llvm_project_revision }}</a></td>
       <td style="{{ styles['td'] }}"><span class="utctime">{{ r.start_time.isoformat() }}</span></td>
@@ -106,7 +106,9 @@
       {% endif %}
     </tr>
     {% else %}
-      <tr><td style="{{ styles['td'] }}" colspan="5">No {{ title }} Run</td></tr>
+    <tr id="run-table-{{ title }}">
+      <td style="{{ styles['td'] }}" colspan="5">No {{ title }} Run</td>
+    </tr>
     {% endif %}
   {% endfor %}
  </tbody>

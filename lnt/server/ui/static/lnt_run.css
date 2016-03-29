@@ -1,0 +1,20 @@
+.editable {
+    position: absolute;
+    background-color: black;
+    right: 0px;
+    top: 0px;
+    bottom: 0px;
+    width: 25px;
+    opacity: 0.5;
+    text-align: center;
+    visibility: hidden;
+}
+
+tr:hover > td > .editable {
+    visibility: visible;
+    cursor: pointer;
+}
+
+.editable span {
+    position: relative;
+}
