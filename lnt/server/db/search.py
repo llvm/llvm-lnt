@@ -1,6 +1,6 @@
 import re
 
-def _naive_search_for_run(ts, query, num_results, default_machine, default_order):
+def _naive_search_for_run(ts, query, num_results, default_machine):
     """
     This 'naive' search doesn't rely on any indexes so can be used without
     full-text search enabled. This does make it less clever however.
@@ -32,9 +32,6 @@ def _naive_search_for_run(ts, query, num_results, default_machine, default_order
         # doing a full table scan and that is not scalable.
         return []
 
-    if default_order:
-        order_queries.append(default_order)
-
     machines = []
     if not machine_queries:
         machines = [default_machine]
@@ -62,9 +59,18 @@ def _naive_search_for_run(ts, query, num_results, default_machine, default_order
         
         
 def search(ts, query,
-           num_results=8, default_machine=None, default_order=None):
+           num_results=8, default_machine=None):
     """
+    Performs a textual search for a run. The exact syntax supported depends on the engine
+    used to perform the search; see _naive_search_for_run for the minimum supported syntax.
+
+    ts: TestSuite object
+    query: Textual query string
+    num_results: Number of results to return
+    default_machine: If no machines were specified (only orders), return results from this machine.
+
+    Returns a list of Run objects.
     """
 
     return _naive_search_for_run(ts, query,
-                                 num_results, default_machine, default_order)
+                                 num_results, default_machine)
