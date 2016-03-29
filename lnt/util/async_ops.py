@@ -50,9 +50,9 @@ def sigHandler(signo, frame):
 
 
 def cleanup():
-    print "Running process cleanup."
+    note("Running process cleanup.")
     for p in JOBS:
-        print "Waiting for", p.name, p.pid
+        note("Waiting for %s %s" % (p.name, p.pid))
         if p.is_alive:
             p.join()
 
