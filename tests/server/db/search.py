@@ -1,4 +1,4 @@
-# RUN: python %s
+# RUN: python %s %S
 
 import unittest, tempfile, shutil, logging, sys, os, contextlib
 import lnt.util.ImportData
@@ -7,10 +7,12 @@ from lnt.server.db.search import search
 
 #logging.basicConfig(level=logging.DEBUG)
 
+base_path = ''
+
 class SearchTest(unittest.TestCase):
     def setUp(self):
 
-        master_path = 'Inputs/lnt_v0.4.0_filled_instance'
+        master_path = os.path.join(base_path, 'Inputs/lnt_v0.4.0_filled_instance')
         slave_path = os.path.join(tempfile.mkdtemp(), 'lnt')
         shutil.copytree(master_path, slave_path)
         instance = lnt.server.instance.Instance.frompath(slave_path)
@@ -29,7 +31,7 @@ class SearchTest(unittest.TestCase):
         success = True
         for r in imported_runs:
             with tempfile.NamedTemporaryFile() as f:
-                data = open('Inputs/report.json.in') \
+                data = open(os.path.join(base_path, 'Inputs/report.json.in')) \
                     .read() \
                     .replace('@@MACHINE@@', r[0]) \
                     .replace('@@ORDER@@', r[1])
@@ -99,4 +101,7 @@ class SearchTest(unittest.TestCase):
         ])
 
 if __name__ == '__main__':
+    global base_path
+    if len(sys.argv) > 1:
+        base_path = sys.argv[1]
     unittest.main(argv=[sys.argv[0], ])
