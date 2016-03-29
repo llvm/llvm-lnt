@@ -6,7 +6,7 @@
 #}
 {%
   macro add_report_changes_detail_for_field_and_bucket(
-    field, show_perf, run_url, field_index, field_display_name, bucket_name, bucket, test_names,
+    compare_to, field, show_perf, run_url, field_index, field_display_name, bucket_name, bucket, test_names,
     metric_name, metric_field_suffix, secondary_field_suffix, secondary_info, styles, classes
   )
 %}
@@ -166,7 +166,7 @@
   {% set field_display_name = {"compile_time":"Compile Time",
                                "execution_time":"Execution Time"}.get(field.name, field.name) %}
   {{
-    add_report_changes_detail_for_field_and_bucket(field, show_perf, run_url, field_index, field_display_name,
+    add_report_changes_detail_for_field_and_bucket(compare_to, field, show_perf, run_url, field_index, field_display_name,
                                                    bucket_name, sorted_bucket, test_names,
                                                    'Previous', '', ' (B)', run_to_baseline_info, styles, classes)
   }}
@@ -179,7 +179,7 @@
   {% set field_display_name = {"compile_time":"Compile Time",
                                "execution_time":"Execution Time"}.get(field.name, field.name) %}
   {{
-    add_report_changes_detail_for_field_and_bucket(field, show_perf, run_url, field_index, field_display_name,
+    add_report_changes_detail_for_field_and_bucket(baseline, field, show_perf, run_url, field_index, field_display_name,
                                                    bucket_name, sorted_bucket, test_names,
                                                    'Baseline', '(B)', '', run_to_run_info, styles, classes)
   }}
