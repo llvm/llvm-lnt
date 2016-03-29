@@ -27,10 +27,7 @@ def _naive_search_for_run(ts, query, num_results, default_machine, default_order
         else:
             machine_queries.append(q)
 
-    # If we didn't have any machines queries but we do have a default, query that.
-    if not machine_queries and default_machine:
-        machine_queries = [default_machine]
-    elif not machine_queries:
+    if not machine_queries and not default_machine:
         # No machines to query: no matches. We can't query all machines, we'd end up
         # doing a full table scan and that is not scalable.
         return []
@@ -39,9 +36,13 @@ def _naive_search_for_run(ts, query, num_results, default_machine, default_order
         order_queries.append(default_order)
 
     machines = []
-    for m in ts.query(ts.Machine).all():
-        if all(q in m.name for q in machine_queries):
-            machines.append(m.id)
+    if not machine_queries:
+        machines = [default_machine]
+    else:
+        for m in ts.query(ts.Machine).all():
+            if all(q in m.name for q in machine_queries):
+                machines.append(m.id)
+
     if not machines:
         return []
 
@@ -66,4 +67,4 @@ def search(ts, query,
     """
 
     return _naive_search_for_run(ts, query,
-    num_results, default_machine, default_order)
+                                 num_results, default_machine, default_order)

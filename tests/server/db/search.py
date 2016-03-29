@@ -93,7 +93,7 @@ class SearchTest(unittest.TestCase):
     def test_default_machine(self):
         ts = self.db.testsuite.get('nts')
 
-        results = self._mangleResults(search(ts, '65', default_machine='machine2'))
+        results = self._mangleResults(search(ts, '65', default_machine=3))
         self.assertEqual(results, [
             ('machine2', '6512')
         ])
