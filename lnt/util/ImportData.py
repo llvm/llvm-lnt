@@ -109,6 +109,7 @@ def import_and_report(config, db_name, db, file, format, commit=False,
         result['added_samples'] = db.getNumSamples() - numSamples
 
     result['committed'] = commit
+    result['run_id'] = run.id
     ts_name = data['Run']['Info'].get('tag')
     if commit:
         db.commit()
