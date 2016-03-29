@@ -668,7 +668,7 @@ function pf_init(run1, run2, testid, urls) {
             },
             updated: function(fname) {
                 var fn_percentage = $('#fn1_box').functionTypeahead().getFunctionPercentage(fname);
-                var ctr_value = $('#stats').statsBar().getCounterValue(pf_get_counter());
+                var ctr_value = $('#stats').statsBar().getCounterValue(pf_get_counter())[0];
                 $('#profile1').profile('go', fname,
                                        pf_get_counter(), pf_get_absolute(),
                                        fn_percentage * ctr_value);
@@ -702,7 +702,7 @@ function pf_init(run1, run2, testid, urls) {
             },
             updated: function(fname) {
                 var fn_percentage = $('#fn2_box').functionTypeahead().getFunctionPercentage(fname);
-                var ctr_value = $('#stats').statsBar().getCounterValue(pf_get_counter());
+                var ctr_value = $('#stats').statsBar().getCounterValue(pf_get_counter())[1];
                 $('#profile2').profile('go', fname,
                                        pf_get_counter(), pf_get_absolute(),
                                        fn_percentage * ctr_value);
@@ -775,13 +775,13 @@ function pf_init(run1, run2, testid, urls) {
         g_counter = $('#counters').val();
         if ($('#fn1_box').val()) {
             var fn_percentage = $('#fn1_box').functionTypeahead().getFunctionPercentage(fname);
-            var ctr_value = $('#stats').statsBar().getCounterValue(pf_get_counter());
+            var ctr_value = $('#stats').statsBar().getCounterValue(pf_get_counter())[0];
             $('#profile1').profile('go', $('#fn1_box').val(), g_counter, pf_get_absolute(),
                                    fn_percentage * ctr_value);
         }
         if ($('#fn2_box').val()) {
             var fn_percentage = $('#fn2_box').functionTypeahead().getFunctionPercentage(fname);
-            var ctr_value = $('#stats').statsBar().getCounterValue(pf_get_counter());
+            var ctr_value = $('#stats').statsBar().getCounterValue(pf_get_counter())[1];
             $('#profile2').profile('go', $('#fn2_box').val(), g_counter, pf_get_absolute(),
                                    fn_percentage * ctr_value);
         }
