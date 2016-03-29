@@ -3,7 +3,7 @@ function RunTypeahead(element, options) {
     this.options = options;
     this.id = null;
 
-    this_ = this;
+    var this_ = this;
     element.typeahead({
         source: function(query, process) {
             $.ajax(options.searchURL, {
@@ -34,7 +34,6 @@ function RunTypeahead(element, options) {
             name = item.split(',')[0];
             id = item.split(',')[1];
             this_.id = id;
-            
             if (options.updated)
                 options.updated(name, id);
             return name;
@@ -137,7 +136,6 @@ function makeEditable(type, td) {
                 document.location.href = url;
             },
             cleared: function()  {
-                console.log("jjg");
             }
         });
         title.children('span').first().click(function() {
