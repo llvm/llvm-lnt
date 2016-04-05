@@ -27,16 +27,12 @@ from lnt.util import stats
 # For each test, compile with all these combinations of flags.
 DEFAULT_FLAGS_TO_TEST = [('-O0',),
                          ('-O0', '-g',),
-                         ('-O0', '-gmodules',),
                          ('-Os'),
                          ('-Os', '-g'),
-                         ('-Os', '-gmodules'),
                          ('-O3',),
                          ('-O3', '-g'),
-                         ('-O3', '-gmodules'),
                          ('-Oz',),
-                         ('-Oz', '-g'),
-                         ('-Oz', '-gmodules')]
+                         ('-Oz', '-g')]
 
 
 def args_to_quoted_string(args):
