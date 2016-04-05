@@ -72,15 +72,14 @@ def runN(args, N, cwd, preprocess_cmd=None, env=None, sample_mem=False,
     cmd.extend(args)
 
     if opts.verbose:
-        g_log.info("running: %s" % " ".join("'%s'" % arg
-                                               for arg in cmd))
+        g_log.info("running: %s" % " ".join("'%s'" % arg for arg in cmd))
     p = subprocess.Popen(args=cmd,
                          stdin=None,
                          stdout=subprocess.PIPE,
                          stderr=subprocess.PIPE,
                          env=env,
                          cwd=cwd)
-    stdout,stderr = p.communicate()
+    stdout, stderr = p.communicate()
     res = p.returncode
 
     # If the runN command failed, or it had stderr when we didn't expect it,
@@ -90,7 +89,7 @@ def runN(args, N, cwd, preprocess_cmd=None, env=None, sample_mem=False,
         return None
     elif not ignore_stderr and stderr.strip():
         g_log.error("command had unexpected output on stderr:\n--\n%s\n--" % (
-                stderr.strip(),))
+                    stderr.strip(),))
         return None
 
     # Otherwise, parse the timing data from runN.
@@ -99,19 +98,22 @@ def runN(args, N, cwd, preprocess_cmd=None, env=None, sample_mem=False,
     except:
         fatal("failed to parse output: %s\n" % stdout)
 
+
 # Test functions.
 def get_input_path(opts, *names):
     return os.path.join(opts.test_suite_externals, opts.test_subdir,
                         *names)
 
+
 def get_output_path(*names):
     return os.path.join(g_output_dir, *names)
+
 
 def get_runN_test_data(name, variables, cmd, ignore_stderr=False,
                        sample_mem=False, only_mem=False,
                        stdout=None, stderr=None, preprocess_cmd=None, env=None):
     if only_mem and not sample_mem:
-        raise ArgumentError,"only_mem doesn't make sense without sample_mem"
+        raise ArgumentError("only_mem doesn't make sense without sample_mem")
 
     data = runN(cmd, variables.get('run_count'), cwd='/tmp',
                 ignore_stderr=ignore_stderr, sample_mem=sample_mem,
@@ -119,15 +121,15 @@ def get_runN_test_data(name, variables, cmd, ignore_stderr=False,
                 env=env)
     if data is not None:
         if data.get('version') != 0:
-            raise ValueError,'unknown runN data format'
+            raise ValueError('unknown runN data format')
         data_samples = data.get('samples')
     keys = []
     if not only_mem:
-        keys.extend([('user',1),('sys',2),('wall',3)])
+        keys.extend([('user', 1,), ('sys', 2,), ('wall', 3,)])
     if sample_mem:
-        keys.append(('mem',4))
-    for key,idx in keys:
-        tname = '%s.%s' % (name,key)
+        keys.append(('mem', 4))
+    for key, idx in keys:
+        tname = '%s.%s' % (name, key)
         success = False
         samples = []
         if data is not None:
@@ -135,10 +137,11 @@ def get_runN_test_data(name, variables, cmd, ignore_stderr=False,
             samples = [sample[idx] for sample in data_samples]
         yield (success, tname, samples)
 
+
 # FIXME: Encode dependency on output automatically, for simpler test execution.
 def test_cc_command(base_name, run_info, variables, input, output, flags,
                     extra_flags, has_output=True, ignore_stderr=False):
-    name = '%s/(%s)' % (base_name,' '.join(flags),)
+    name = '%s/(%s)' % (base_name, ' '.join(flags),)
     input = get_input_path(opts, input)
     output = get_output_path(output)
 
@@ -158,18 +161,19 @@ def test_cc_command(base_name, run_info, variables, input, output, flags,
     if opts.memory_profiling:
         # Find the cc1 command, which we use to do memory profiling. To do this
         # we execute the compiler with '-###' to figure out what it wants to do.
-        cc_output = commands.capture(cmd + ['-o','/dev/null','-###'],
+        cc_output = commands.capture(cmd + ['-o', '/dev/null', '-###'],
                                      include_stderr=True).strip()
         cc_commands = []
         for ln in cc_output.split('\n'):
             # Filter out known garbage.
-            if (ln == 'Using built-in specs.' or
-                ln.startswith('Configured with:') or
-                ln.startswith('Target:') or
-                ln.startswith('Thread model:') or
-                ln.startswith('InstalledDir:') or
-                ' version ' in ln):
-                continue
+            is_garbage = bool(ln == 'Using built-in specs.' or
+                              ln.startswith('Configured with:') or
+                              ln.startswith('Target:') or
+                              ln.startswith('Thread model:') or
+                              ln.startswith('InstalledDir:') or
+                              ' version ' in ln)
+            if is_garbage:
+                    continue
             cc_commands.append(ln)
 
         if len(cc_commands) != 1:
@@ -182,7 +186,7 @@ def test_cc_command(base_name, run_info, variables, input, output, flags,
             yield res
 
     commands.rm_f(output)
-    for res in get_runN_test_data(name, variables, cmd + ['-o',output],
+    for res in get_runN_test_data(name, variables, cmd + ['-o', output],
                                   ignore_stderr=ignore_stderr):
         yield res
 
@@ -309,7 +313,7 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs,
         # appear to preserve permissions properly.
         commands.mkdir_p(source_path)
         g_log.info('extracting sources for %r' % name)
-        
+
         if archive_path[-6:] == "tar.gz":
             p = subprocess.Popen(args=['tar', '-xzf', archive_path],
                                  stdin=None,
@@ -321,8 +325,8 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs,
                                  stdin=None,
                                  stdout=subprocess.PIPE,
                                  stderr=subprocess.PIPE,
-                                 cwd=source_path)            
-        stdout,stderr = p.communicate()
+                                 cwd=source_path)
+        stdout, stderr = p.communicate()
         if p.wait() != 0:
             fatal(("unable to extract archive %r at %r\n"
                    "-- stdout --\n%s\n"
@@ -342,7 +346,7 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs,
                                  stdout=subprocess.PIPE,
                                  stderr=subprocess.PIPE,
                                  cwd=source_path)
-            stdout,stderr = p.communicate()
+            stdout, stderr = p.communicate()
             if p.wait() != 0:
                 fatal(("unable to apply patch file %r in %r\n"
                        "-- stdout --\n%s\n"
@@ -355,21 +359,21 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs,
 
     # Create an env dict in case the user wants to use it.
     env = dict(os.environ)
-    
+
     # Form the test build command.
     build_info = project['build_info']
-    
+
     # Add arguments to ensure output files go into our build directory.
-    dir_name = '%s_%s_j%d' % (base_name, build_config, num_jobs)    
+    dir_name = '%s_%s_j%d' % (base_name, build_config, num_jobs)
     output_base = get_output_path(dir_name)
     build_base = os.path.join(output_base, 'build', build_config)
-        
+
     # Create the build base directory and by extension output base directory.
     commands.mkdir_p(build_base)
 
     cmd = []
     preprocess_cmd = None
-    
+
     if build_info['style'].startswith('xcode-'):
         file_path = os.path.join(source_path, build_info['file'])
         cmd.extend(['xcodebuild'])
@@ -398,7 +402,7 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs,
 
         # We need to force this variable here because Xcode has some completely
         # broken logic for deriving this variable from the compiler
-        # name. <rdar://problem/7989147>        
+        # name. <rdar://problem/7989147>
         cmd.append('LD=%s' % (opts.ld,))
         cmd.append('LDPLUSPLUS=%s' % (opts.ldxx,))
 
@@ -416,21 +420,21 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs,
         # If the user specifies any additional options to be included on the command line,
         # append them here.
         cmd.extend(build_info.get('extra_args', []))
-        
+
         # If the user specifies any extra environment variables, put
         # them in our env dictionary.
         env_format = {
-            'build_base' : build_base
+            'build_base': build_base
         }
-        extra_env = build_info.get('extra_env', {})        
+        extra_env = build_info.get('extra_env', {})
         for k in extra_env:
             extra_env[k] = extra_env[k] % env_format
         env.update(extra_env)
 
         # Create preprocess cmd
         preprocess_cmd = 'rm -rf "%s"' % (build_base,)
-        
-    elif build_info['style'] == 'make':        
+
+    elif build_info['style'] == 'make':
         # Get the subdirectory in Source where our sources exist.
         src_dir = os.path.dirname(os.path.join(source_path, build_info['file']))
         # Grab our config from build_info. This is config is currently only used in
@@ -438,33 +442,33 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs,
         # handles changing configuration through the configuration type variables.
         # Make does not do this so we have to use more brute force to get it right.
         config = build_info.get('config', {}).get(build_config, {})
-        
+
         # Copy our source directory over to build_base.
         # We do this since we assume that we are processing a make project which
         # has already been configured and so that we do not need to worry about
         # make install or anything like that. We can just build the project and
-        # use the user supplied path to its location in the build directory.        
+        # use the user supplied path to its location in the build directory.
         copied_src_dir = os.path.join(build_base, os.path.basename(dir_name))
         shutil.copytree(src_dir, copied_src_dir)
-        
+
         # Create our make command.
         cmd.extend(['make', '-C', copied_src_dir, build_info['target'], "-j",
                     str(num_jobs)])
-        
+
         # If the user specifies any additional options to be included on the command line,
         # append them here.
         cmd.extend(config.get('extra_args', []))
-        
+
         # If the user specifies any extra environment variables, put
         # them in our env dictionary.
-        
+
         # We create a dictionary for build_base so that users can use
         # it optionally in an environment variable via the python
         # format %(build_base)s.
         env_format = {
-            'build_base' : build_base
+            'build_base': build_base
         }
-        
+
         extra_env = config.get('extra_env', {})
         for k in extra_env:
             extra_env[k] = extra_env[k] % env_format
@@ -475,7 +479,7 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs,
         build_base = copied_src_dir
     else:
         fatal("unknown build style in project: %r" % project)
-    
+
     # Collect the samples.
     g_log.info('executing full build: %s' % args_to_quoted_string(cmd))
     stdout_path = os.path.join(output_base, "stdout.log")
@@ -492,19 +496,19 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs,
         tname = "%s.size" % (name,)
         success = False
         samples = []
-        
+
         try:
             # We use a dictionary here for our formatted processing of binary_path so
             # that if the user needs our build config he can get it via %(build_config)s
             # in his string and if he does not, an error is not thrown.
-            format_args = {"build_config":build_config}
+            format_args = {"build_config": build_config}
             cmd = codesize_util + [os.path.join(build_base,
                                                 binary_path % format_args)]
             result = subprocess.check_output(cmd).strip()
             if result != "fail":
                 bytes = long(result)
                 success = True
-                
+
                 # For now, the way the software is set up things are going to get
                 # confused if we don't report the same number of samples as reported
                 # for other variables. So we just report the size N times.
@@ -689,6 +693,7 @@ We run each of the compile time tests in various stages:
  - c (assembly time and size)
 """
 
+
 class CompileTest(builtintest.BuiltinTest):
     def describe(self):
         return 'Single file compile-time performance testing'
@@ -768,7 +773,7 @@ class CompileTest(builtintest.BuiltinTest):
         group.add_option("", "--config-to-test", dest="configs_to_test",
                          help="Add build configuration to test (full builds)",
                          metavar="NAME", action="append", default=[],
-                         choices=('Debug','Release'))
+                         choices=('Debug', 'Release'))
         parser.add_option_group(group)
 
         group = OptionGroup(parser, "Output Options")
@@ -780,23 +785,23 @@ class CompileTest(builtintest.BuiltinTest):
                          help="Machine name to use in submission [%default]",
                          action="store", default=platform.uname()[1])
         group.add_option("", "--submit", dest="submit_url", metavar="URLORPATH",
-                          help=("autosubmit the test result to the given server "
-                                "(or local instance) [%default]"),
-                          type=str, default=None)
+                         help=("autosubmit the test result to the given server "
+                               "(or local instance) [%default]"),
+                         type=str, default=None)
         group.add_option("", "--commit", dest="commit",
-                          help=("whether the autosubmit result should be committed "
-                                "[%default]"),
-                          type=int, default=True)
+                         help=("whether the autosubmit result should be committed "
+                               "[%default]"),
+                         type=int, default=True)
         group.add_option("", "--output", dest="output", metavar="PATH",
-                          help="write raw report data to PATH (or stdout if '-')",
-                          action="store", default=None)
+                         help="write raw report data to PATH (or stdout if '-')",
+                         action="store", default=None)
         group.add_option("-v", "--verbose", dest="verbose",
-                          help="show verbose test results",
-                          action="store_true", default=False)
+                         help="show verbose test results",
+                         action="store_true", default=False)
 
         parser.add_option_group(group)
 
-        opts,args = parser.parse_args(args)
+        opts, args = parser.parse_args(args)
 
         if len(args) != 0:
             parser.error("invalid number of arguments")
@@ -809,7 +814,6 @@ class CompileTest(builtintest.BuiltinTest):
 
         if not lnt.testing.util.compilers.is_valid(opts.cc):
             parser.error('--cc does not point to a valid executable.')
-
 
         # Attempt to infer the cxx compiler if not given.
         if opts.cc and opts.cxx is None:
@@ -830,13 +834,13 @@ class CompileTest(builtintest.BuiltinTest):
         # Force the CC and CXX variables to be absolute paths.
         cc_abs = os.path.abspath(commands.which(opts.cc))
         cxx_abs = os.path.abspath(commands.which(opts.cxx))
-        
+
         if not os.path.exists(cc_abs):
             parser.error("unable to determine absolute path for --cc: %r" % (
-                    opts.cc,))
+                         opts.cc,))
         if not os.path.exists(cxx_abs):
             parser.error("unable to determine absolute path for --cc: %r" % (
-                    opts.cc,))
+                         opts.cc,))
         opts.cc = cc_abs
         opts.cxx = cxx_abs
 
@@ -846,7 +850,7 @@ class CompileTest(builtintest.BuiltinTest):
         # If no ldxx was set, set ldxx to opts.cxx
         if opts.ldxx is None:
             opts.ldxx = opts.cxx
-        
+
         # Set up the sandbox.
         global g_output_dir
         if not os.path.exists(opts.sandbox_path):
@@ -854,22 +858,25 @@ class CompileTest(builtintest.BuiltinTest):
                 timestamp(), opts.sandbox_path)
             os.mkdir(opts.sandbox_path)
         if opts.timestamp_build:
-            report_name = "test-%s" % (timestamp().replace(' ','_').replace(':','-'))
+            fmt_timestamp = timestamp().replace(' ', '_').replace(':', '-')
+            report_name = "test-%s" % (fmt_timestamp)
         else:
             report_name = "build"
-        g_output_dir = os.path.join(os.path.abspath(opts.sandbox_path),report_name)
-            
+        g_output_dir = os.path.join(os.path.abspath(opts.sandbox_path),
+                                    report_name)
+
         try:
             os.mkdir(g_output_dir)
-        except OSError,e:
+        except OSError(e):
             if e.errno == errno.EEXIST:
                 parser.error("sandbox output directory %r already exists!" % (
-                        g_output_dir,))
+                             g_output_dir,))
             else:
                 raise
 
         # Setup log file
         global g_log
+
         def setup_log(output_dir):
             def stderr_log_handler():
                 h = logging.StreamHandler()
@@ -877,6 +884,7 @@ class CompileTest(builtintest.BuiltinTest):
                                       "%Y-%m-%d %H:%M:%S")
                 h.setFormatter(f)
                 return h
+
             def file_log_handler(path):
                 h = logging.FileHandler(path, mode='w')
                 f = logging.Formatter("%(asctime)-7s: %(levelname)s: %(message)s",
@@ -889,7 +897,7 @@ class CompileTest(builtintest.BuiltinTest):
             l.addHandler(stderr_log_handler())
             return l
         g_log = setup_log(g_output_dir)
-        
+
         # Collect machine and run information.
         machine_info, run_info = machineinfo.get_machine_information(
             opts.use_machdep_info)
@@ -898,20 +906,20 @@ class CompileTest(builtintest.BuiltinTest):
         #
         # FIXME: Get more machine information? Cocoa.h hash, for example.
 
-        for name,cmd in (('sys_cc_version', ('/usr/bin/gcc','-v')),
-                         ('sys_as_version', ('/usr/bin/as','-v','/dev/null')),
-                         ('sys_ld_version', ('/usr/bin/ld','-v')),
-                         ('sys_xcodebuild', ('xcodebuild','-version'))):
+        for name, cmd in (('sys_cc_version', ('/usr/bin/gcc', '-v')),
+                          ('sys_as_version', ('/usr/bin/as', '-v', '/dev/null')),
+                          ('sys_ld_version', ('/usr/bin/ld', '-v')),
+                          ('sys_xcodebuild', ('xcodebuild', '-version'))):
             run_info[name] = commands.capture(cmd, include_stderr=True).strip()
 
         # Set command line machine and run information.
-        for info,params in ((machine_info, opts.machine_parameters),
-                            (run_info, opts.run_parameters)):
+        for info, params in ((machine_info, opts.machine_parameters),
+                             (run_info, opts.run_parameters)):
             for entry in params:
                 if '=' not in entry:
-                    name,value = entry,''
+                    name, value = entry, ''
                 else:
-                    name,value = entry.split('=', 1)
+                    name, value = entry.split('=', 1)
                 info[name] = value
 
         # Set user variables.
@@ -946,7 +954,7 @@ class CompileTest(builtintest.BuiltinTest):
 
         # Compute the set of flags to test.
         if not opts.flags_to_test:
-            flags_to_test = [('-O0',), ('-O0','-g',), ('-Os','-g'), ('-O3',)]
+            flags_to_test = DEFAULT_FLAGS_TO_TEST
         else:
             flags_to_test = [string.split(' ')
                              for string in opts.flags_to_test]
@@ -971,7 +979,7 @@ class CompileTest(builtintest.BuiltinTest):
         # Show the tests, if requested.
         if opts.show_tests:
             print >>sys.stderr, 'Available Tests'
-            for name in sorted(set(name for name,_ in all_tests)):
+            for name in sorted(set(name for name, _ in all_tests)):
                 print >>sys.stderr, '  %s' % (name,)
             print
             raise SystemExit
@@ -987,8 +995,8 @@ class CompileTest(builtintest.BuiltinTest):
             missing_tests = requested_tests - all_test_names
             if missing_tests:
                     parser.error(("invalid test names %s, use --show-tests to "
-                                  "see available tests") % (
-                            ", ".join(map(repr, missing_tests)),))
+                                  "see available tests") %
+                                 (", ".join(map(repr, missing_tests)), ))
 
             # Validate the test filters.
             test_filters = [re.compile(pattern)
@@ -1008,7 +1016,7 @@ class CompileTest(builtintest.BuiltinTest):
         # Ensure output directory is available.
         if not os.path.exists(g_output_dir):
             os.mkdir(g_output_dir)
-        
+
         # Execute the run.
         run_info.update(variables)
         run_info['tag'] = tag = 'compile'
@@ -1018,9 +1026,9 @@ class CompileTest(builtintest.BuiltinTest):
         g_log.info('run started')
         g_log.info('using CC: %r' % opts.cc)
         g_log.info('using CXX: %r' % opts.cxx)
-        for basename,test_fn in tests_to_run:
-            for success,name,samples in test_fn(basename, run_info,
-                                                     variables):
+        for basename, test_fn in tests_to_run:
+            for success, name, samples in test_fn(basename, run_info,
+                                                  variables):
                 g_log.info('collected samples: %r' % name)
                 num_samples = len(samples)
                 if num_samples:
@@ -1034,17 +1042,18 @@ class CompileTest(builtintest.BuiltinTest):
                 test_name = '%s.%s' % (tag, name)
                 if not success:
                     testsamples.append(lnt.testing.TestSamples(
-                            test_name + '.status', [lnt.testing.FAIL]))
+                                       test_name + '.status',
+                                       [lnt.testing.FAIL]))
                 if samples:
                     testsamples.append(lnt.testing.TestSamples(
-                            test_name, samples))
+                                       test_name, samples))
         end_time = datetime.utcnow()
 
         g_log.info('run complete')
-        
+
         # Package up the report.
         machine = lnt.testing.Machine(opts.machine_name, machine_info)
-        run = lnt.testing.Run(start_time, end_time, info = run_info)
+        run = lnt.testing.Run(start_time, end_time, info=run_info)
 
         # Write out the report.
         lnt_report_path = os.path.join(g_output_dir, 'report.json')
