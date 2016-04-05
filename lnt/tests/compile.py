@@ -9,16 +9,35 @@ import shlex
 import shutil
 import subprocess
 import sys
-import zipfile
 import logging
 from datetime import datetime
+import collections
+
+import builtintest
+from optparse import OptionParser, OptionGroup
 
 import lnt.testing
 import lnt.testing.util.compilers
-from lnt.testing.util.commands import note, error, fatal, resolve_command_path
-from lnt.testing.util.misc import TeeStream, timestamp
+from lnt.testing.util.commands import note, fatal, resolve_command_path
+from lnt.testing.util.misc import timestamp
 from lnt.testing.util import commands, machineinfo
 from lnt.util import stats
+
+
+# For each test, compile with all these combinations of flags.
+DEFAULT_FLAGS_TO_TEST = [('-O0',),
+                         ('-O0', '-g',),
+                         ('-O0', '-gmodules',),
+                         ('-Os'),
+                         ('-Os', '-g'),
+                         ('-Os', '-gmodules'),
+                         ('-O3',),
+                         ('-O3', '-g'),
+                         ('-O3', '-gmodules'),
+                         ('-Oz',),
+                         ('-Oz', '-g'),
+                         ('-Oz', '-gmodules')]
+
 
 def args_to_quoted_string(args):
     def quote_arg(arg):
@@ -30,14 +49,14 @@ def args_to_quoted_string(args):
     return ' '.join([quote_arg(a)
                      for a in args])
 
-# Interface to runN.
-#
-# FIXME: Simplify.
-#
-# FIXME: Figure out a better way to deal with need to run as root. Maybe farm
-# memory sampling process out into something we can setuid? Eek.
+
 def runN(args, N, cwd, preprocess_cmd=None, env=None, sample_mem=False,
          ignore_stderr=False, stdout=None, stderr=None):
+    """Interface to runN.
+
+    FIXME: Figure out a better way to deal with need to run as root. Maybe farm
+    memory sampling process out into something we can setuid? Eek.
+    """
     cmd = ['runN', '-a']
     if sample_mem:
         cmd = ['sudo'] + cmd + ['-m']
@@ -183,10 +202,38 @@ def test_cc_command(base_name, run_info, variables, input, output, flags,
             # FIXME: We should resolve this, eventually.
             for i in range(variables.get('run_count')):
                 samples.append(stat.st_size)
-        except OSError,e:
+        except OSError as e:
             if e.errno != errno.ENOENT:
                 raise
         yield (success, tname, samples)
+
+
+Stage = collections.namedtuple("Stage", ['flags', 'has_output'])
+
+PCH_GEN = "pch-gen"
+DRIVER = "driver"
+INIT = "init"
+SYNTAX = "syntax"
+IRGEN_ONLY = "irgen_only"
+IRGEN = "irgen"
+CODEGEN = "codegen"
+ASSEMBLY = "assembly"
+
+STAGE_TO_FLAG_MAP = {PCH_GEN: Stage(flags=['-x', 'objective-c-header'], has_output=True),
+                     DRIVER: Stage(flags=['-###', '-fsyntax-only'], has_output=False),
+                     INIT: Stage(flags=['-fsyntax-only',
+                                        '-Xclang', '-init-only'],
+                                 has_output=False),
+                     SYNTAX: Stage(flags=['-fsyntax-only'], has_output=False),
+                     IRGEN_ONLY: Stage(flags=['-emit-llvm', '-c',
+                                              '-Xclang', '-emit-llvm-only'],
+                                       has_output=False),
+                     IRGEN: Stage(flags=['-emit-llvm', '-c'], has_output=True),
+                     CODEGEN: Stage(flags=['-c', '-Xclang', '-emit-codegen-only'],
+                                    has_output=False),
+                     # Object would be better name. Keep for backwards compat.
+                     ASSEMBLY: Stage(flags=['-c'], has_output=True)}
+
 
 def test_compile(name, run_info, variables, input, output, pch_input,
                  flags, stage, extra_flags=[]):
@@ -197,35 +244,22 @@ def test_compile(name, run_info, variables, input, output, pch_input,
     is_clang = not (cc_name in ('gcc', 'llvm-gcc'))
 
     # Ignore irgen stages for non-LLVM compilers.
-    if not is_llvm and stage in ('irgen', 'irgen_only'):
+    if not is_llvm and stage in (IRGEN, IRGEN_ONLY):
         return ()
 
     # Ignore 'init', 'irgen_only', and 'codegen' stages for non-Clang.
-    if not is_clang and stage in ('init', 'irgen_only', 'codegen'):
+    if not is_clang and stage in (INIT, IRGEN_ONLY, CODEGEN):
         return ()
 
     # Force gnu99 mode for all compilers.
     if not is_clang:
         extra_flags.append('-std=gnu99')
 
-    stage_flags,has_output = { 'pch-gen' : (('-x','objective-c-header'),True),
-                               'driver' : (('-###','-fsyntax-only'), False),
-                               'init' : (('-fsyntax-only',
-                                          '-Xclang','-init-only'),
-                                         False),
-                               'syntax' : (('-fsyntax-only',), False),
-                               'irgen_only' : (('-emit-llvm','-c',
-                                                '-Xclang','-emit-llvm-only'),
-                                               False),
-                               'irgen' : (('-emit-llvm','-c'), True),
-                               'codegen' : (('-c',
-                                             '-Xclang', '-emit-codegen-only'),
-                                            False),
-                               'assembly' : (('-c',), True), }[stage]
+    stage_flags, has_output = STAGE_TO_FLAG_MAP[stage]
 
     # Ignore stderr output (instead of failing) in 'driver' stage, -### output
     # goes to stderr by default.
-    ignore_stderr = stage == 'driver'
+    ignore_stderr = stage == DRIVER
 
     extra_flags.extend(stage_flags)
     if pch_input is not None:
@@ -237,10 +271,11 @@ def test_compile(name, run_info, variables, input, output, pch_input,
     return test_cc_command(name, run_info, variables, input, output, flags,
                            extra_flags, has_output, ignore_stderr)
 
+
 def test_build(base_name, run_info, variables, project, build_config, num_jobs,
                codesize_util=None):
     name = '%s(config=%r,j=%d)' % (base_name, build_config, num_jobs)
-        
+
     # Check if we need to expand the archive into the sandbox.
     archive_path = get_input_path(opts, project['archive'])
     with open(archive_path) as f:
@@ -507,10 +542,10 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs,
 
     if len(set(stdout_sizes)) != 1:
         g_log.warning(('test command had stdout files with '
-                          'different sizes: %r') % stdout_sizes)
+                       'different sizes: %r') % stdout_sizes)
     if len(set(stderr_sizes)) != 1:
         g_log.warning(('test command had stderr files with '
-                          'different sizes: %r') % stderr_sizes)
+                       'different sizes: %r') % stderr_sizes)
 
     # Unless cleanup is disabled, rerun the preprocessing command.
     if not opts.save_temps and preprocess_cmd:
@@ -518,10 +553,10 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs,
         if os.system(preprocess_cmd) != 0:
             g_log.warning("cleanup command returned a non-zero exit status")
 
-###
 
 def curry(fn, **kw_args):
     return lambda *args: fn(*args, **kw_args)
+
 
 def get_single_file_tests(flags_to_test, test_suite_externals,
                           subdir):
@@ -533,17 +568,17 @@ def get_single_file_tests(flags_to_test, test_suite_externals,
 
         if len(config) == 0:
             g_log.warning("config file %s has no data." % path)
-        
+
         all_pch = config.get("pch", [])
-        all_inputs = config.get("tests", [])        
-    
-    stages_to_test = ['driver', 'init', 'syntax', 'irgen_only', 'irgen',
-                      'codegen', 'assembly']
+        all_inputs = config.get("tests", [])
+
+    stages_to_test = [DRIVER, INIT, SYNTAX, IRGEN_ONLY, IRGEN,
+                      CODEGEN, ASSEMBLY]
     base_path = os.path.join(test_suite_externals, subdir, 'single-file')
-    
+
     if not os.access(base_path, os.F_OK | os.R_OK):
-        g_log.warning('single-file directory does not exist. Dir: %s' \
-                         % base_path)
+        g_log.warning('single-file directory does not exist. Dir: %s'
+                      % base_path)
     else:
         # I did not want to handle the control flow in this manner, but due to
         # the nature of python generators I can not just return in the previous
@@ -554,17 +589,17 @@ def get_single_file_tests(flags_to_test, test_suite_externals,
             # testing infrastructure would just handle this.
             for pch in all_pch:
                 path, name, output = pch['path'], pch['name'], pch['output']
-                
+
                 yield (os.path.join('pch-gen', name),
                        curry(test_compile,
                              input=os.path.join(base_path, path),
                              output=output, pch_input=None,
                              flags=f, stage='pch-gen'))
-                
+
             for input in all_inputs:
                 path, pch_input = input['path'], input.get('pch_input', None)
                 extra_flags = input['extra_flags']
-                
+
                 name = path
                 output = os.path.splitext(os.path.basename(path))[0] + '.o'
                 for stage in stages_to_test:
@@ -574,18 +609,19 @@ def get_single_file_tests(flags_to_test, test_suite_externals,
                                  output=output, pch_input=pch_input, flags=f,
                                  stage=stage, extra_flags=extra_flags))
 
+
 def get_full_build_tests(jobs_to_test, configs_to_test,
                          test_suite_externals, test_suite_externals_subdir):
     # Load the project description file from the externals.
     path = os.path.join(test_suite_externals, test_suite_externals_subdir,
-                           "project_list.json")
+                        "project_list.json")
 
     g_log.info("Loading config file: %s" % path)
     with open(path) as f:
         data = json.load(f)
 
     codesize_util = data.get('codesize_util', None)
-    
+
     for jobs in jobs_to_test:
         for project in data['projects']:
             for config in configs_to_test:
@@ -593,6 +629,7 @@ def get_full_build_tests(jobs_to_test, configs_to_test,
                 yield ('build/%s' % (project['name'],),
                        curry(test_build, project=project, build_config=config,
                              num_jobs=jobs, codesize_util=codesize_util))
+
 
 def get_tests(test_suite_externals, test_suite_externals_subdir, flags_to_test,
               jobs_to_test, configs_to_test):
@@ -605,10 +642,6 @@ def get_tests(test_suite_externals, test_suite_externals_subdir, flags_to_test,
                                      test_suite_externals_subdir):
         yield item
 
-###
-
-import builtintest
-from optparse import OptionParser, OptionGroup
 
 g_output_dir = None
 g_log = None
