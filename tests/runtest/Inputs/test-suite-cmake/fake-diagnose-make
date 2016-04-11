@@ -1,0 +1,36 @@
+#!/bin/bash
+if [ "$2" == "help" ]
+then
+    echo "The following are some of the valid targets for this Makefile:
+... all (the default if no target is provided)
+... short_circuit_dtor
+... pointer_method2
+... pointer_member
+... 2003-08-20-EnumSizeProblem
+... BuiltinTypeInfo
+... ofstream_ctor
+... 2003-05-14-expr_stmt
+... 2011-03-28-Bitfield
+... 2008-01-29-ParamAliasesReturn
+... pointer_method
+... global_ctor
+... 2003-06-08-VirtualFunctions
+... Shootout-C++-hash
+... Bubblesort
+... lists
+"
+elif [ "$2" == "Bubblesort" ]
+then
+    #  Look like we ran the test and made outputs
+    mkdir -p SingleSource/Benchmarks/Stanford/
+    touch SingleSource/Benchmarks/Stanford/${2}
+    echo "RUN: Bubblesort | grep test" > SingleSource/Benchmarks/Stanford/${2}.test
+    echo "output file" > SingleSource/Benchmarks/Stanford/${2}.s
+    echo "output file" > SingleSource/Benchmarks/Stanford/${2}.i
+    echo "output file" > SingleSource/Benchmarks/Stanford/${2}.bc
+    echo "output file" > SingleSource/Benchmarks/Stanford/${2}.o
+
+else
+    echo "Unexpected Argument"
+    exit 1
+fi

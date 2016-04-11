@@ -6,6 +6,9 @@ import shlex
 import platform
 import pipes
 import sys
+import shutil
+import glob
+import re
 import multiprocessing
 
 from optparse import OptionParser, OptionGroup
@@ -161,6 +164,11 @@ class TestSuiteTest(BuiltinTest):
         group.add_option("", "--compile-multisample", dest="compile_multisample",
                          help="Accumulate compile test data from multiple runs",
                          type=int, default=1, metavar="N")
+        group.add_option("-d", "--diagnose", dest="diagnose",
+                         help="Produce a diagnostic report for a particular "
+                              "test, this will not run all the tests.  Must be"
+                              " used in conjunction with --only-test.",
+                         action="store_true", default=False,)
 
         parser.add_option_group(group)
 
@@ -305,6 +313,10 @@ class TestSuiteTest(BuiltinTest):
         opts.cflags = ' '.join(opts.cflags)
         opts.cxxflags = ' '.join(opts.cxxflags)
         
+        if opts.diagnose:
+            if not opts.only_test:
+                parser.error("--diagnose requires --only-test")
+        
         self.start_time = timestamp()
 
         # Work out where to put our build stuff
@@ -330,7 +342,10 @@ class TestSuiteTest(BuiltinTest):
             self.nick += "__%s__%s" % (cc_nick,
                                        cc_info['cc_target'].split('-')[0])
         note('Using nickname: %r' % self.nick)
-            
+
+        #  If we are doing diagnostics, skip the usual run and do them now.
+        if opts.diagnose:
+            return self.diagnose()
         # Now do the actual run.
         reports = []
         for i in range(max(opts.exec_multisample, opts.compile_multisample)):
@@ -408,7 +423,7 @@ class TestSuiteTest(BuiltinTest):
         self._check_call([make_cmd, 'clean'],
                          cwd=subdir)
         
-    def _configure(self, path):
+    def _configure(self, path, execute=True):
         cmake_cmd = self.opts.cmake
 
         defs = {
@@ -453,9 +468,13 @@ class TestSuiteTest(BuiltinTest):
 
         for l in lines:
             note(l)
-        self._check_call([cmake_cmd] + cache + [self._test_suite_dir()] +
-                         ['-D%s=%s' % (k,v) for k,v in defs.items()],
-                         cwd=path)
+        
+        cmake_cmd = [cmake_cmd] + cache + [self._test_suite_dir()] + \
+                         ['-D%s=%s' % (k,v) for k,v in defs.items()]
+        if execute:
+            self._check_call(cmake_cmd, cwd=path)
+        
+        return cmake_cmd
 
     def _make(self, path):
         make_cmd = self.opts.make
@@ -645,7 +664,88 @@ class TestSuiteTest(BuiltinTest):
     def _unix_quote_args(self, s):
         return ' '.join(map(pipes.quote, shlex.split(s)))
 
-    
+    def _cp_artifacts(self, src, dest, patts):
+        """Copy artifacts out of the build """
+        for patt in patts:
+            for file in glob.glob(src + patt):
+                shutil.copy(file, dest)
+                note(file + " --> " + dest)
+
+    def diagnose(self):
+        """Build a triage report that contains information about a test.
+
+        This is an alternate top level target for running the test-suite.  It
+        will produce a triage report for a benchmark instead of running the
+        test-suite normally. The report has stuff in it that will be useful
+        for reproducing and diagnosing a performance change.
+        """
+        assert self.opts.only_test, "We don't have a benchmark to diagenose."
+        bm_path, short_name = self.opts.only_test
+        assert bm_path, "The benchmark path is empty?"
+
+        report_name = "{}.report".format(short_name)
+        # Make a place for the report.
+        report_path = os.path.abspath(report_name)
+
+        # Overwrite the report.
+        if os.path.exists(report_path):
+            shutil.rmtree(report_path)
+        os.mkdir(report_path)
+
+        path = self._base_path
+        if not os.path.exists(path):
+            mkdir_p(path)
+        os.chdir(path)
+
+        # Run with -save-temps
+        cmd = self._configure(path, execute=False)
+        cmd_temps = cmd + ['-DTEST_SUITE_DIAGNOSE=On',
+                           '-DTEST_SUITE_DIAGNOSE_FLAGS=-save-temps']
+
+        note(' '.join(cmd_temps))
+
+        out = subprocess.check_output(cmd_temps)
+        note(out)
+
+        # Figure out our test's target.
+        make_cmd = [self.opts.make, "VERBOSE=1", 'help']
+
+        make_targets = subprocess.check_output(make_cmd)
+        matcher = re.compile(r"^\.\.\.\s{}$".format(short_name),
+                             re.MULTILINE | re.IGNORECASE)
+        if not matcher.search(make_targets):
+            assert False, "did not find benchmark, must be nestsed? Unimplemented."
+
+        local_path = os.path.join(path, bm_path)
+
+        make_save_temps = [self.opts.make, "VERBOSE=1", short_name]
+        note(" ".join(make_save_temps))
+        out = subprocess.check_output(make_save_temps)
+        note(out)
+        # Executable(s) and test file:
+        shutil.copy(os.path.join(local_path, short_name), report_path)
+        shutil.copy(os.path.join(local_path, short_name + ".test"), report_path)
+        # Temp files are in:
+        temp_files = os.path.join(local_path, "CMakeFiles",
+                                  short_name + ".dir")
+
+        save_temps_file = ["/*.s", "/*.ii", "/*.i", "/*.bc"]
+        build_files = ["/*.o", "/*.time", "/*.cmake", "/*.make",
+                       "/*.includecache", "/*.txt"]
+        self._cp_artifacts(local_path, report_path, save_temps_file)
+        self._cp_artifacts(temp_files, report_path, build_files)
+
+        note("Report produced in: " + report_path)
+
+        # Run through the rest of LNT, but don't allow this to be submitted
+        # because there is no data.
+        class DontSubmitResults(object):
+            def get(self, url):
+                return None
+
+        return DontSubmitResults()
+
+
 def create_instance():
     return TestSuiteTest()
 
