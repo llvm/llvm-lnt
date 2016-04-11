@@ -27,7 +27,7 @@ from lnt.util import stats
 # For each test, compile with all these combinations of flags.
 DEFAULT_FLAGS_TO_TEST = [('-O0',),
                          ('-O0', '-g',),
-                         ('-Os'),
+                         ('-Os',),
                          ('-Os', '-g'),
                          ('-O3',),
                          ('-O3', '-g'),
