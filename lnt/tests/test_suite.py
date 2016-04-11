@@ -1,4 +1,11 @@
-import subprocess, tempfile, json, os, shlex, platform, pipes, sys
+import subprocess
+import tempfile
+import json
+import os
+import shlex
+import platform
+import pipes
+import sys
 import multiprocessing
 
 from optparse import OptionParser, OptionGroup
@@ -7,8 +14,8 @@ import lnt.testing
 import lnt.testing.profile
 import lnt.testing.util.compilers
 from lnt.testing.util.misc import timestamp
-from lnt.testing.util.commands import note, warning, fatal
-from lnt.testing.util.commands import capture, mkdir_p, which
+from lnt.testing.util.commands import note, fatal
+from lnt.testing.util.commands import mkdir_p, which
 from lnt.testing.util.commands import resolve_command_path, isexecfile
 
 from lnt.tests.builtintest import BuiltinTest
@@ -18,6 +25,7 @@ from lnt.tests.builtintest import BuiltinTest
 # make sure that cmake file is updated too.
 TEST_SUITE_KNOWN_ARCHITECTURES = ['ARM', 'AArch64', 'Mips', 'X86']
 KNOWN_SAMPLE_KEYS = ['compile', 'exec', 'hash', 'score']
+
 
 # _importProfile imports a single profile. It must be at the top level (and
 # not within TestSuiteTest) so that multiprocessing can import it correctly.
