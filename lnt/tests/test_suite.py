@@ -17,7 +17,7 @@ import lnt.testing
 import lnt.testing.profile
 import lnt.testing.util.compilers
 from lnt.testing.util.misc import timestamp
-from lnt.testing.util.commands import note, fatal
+from lnt.testing.util.commands import note, fatal, warning
 from lnt.testing.util.commands import mkdir_p, which
 from lnt.testing.util.commands import resolve_command_path, isexecfile
 
