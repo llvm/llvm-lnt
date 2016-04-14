@@ -61,15 +61,11 @@ and code size.  Other test suites can be added to LNT if these sets of metrics
 don't mactch your needs.
 
 Any program can submit results data to LNT, and specify any test suite.  The
-data format is a simple JSON file, and that file needs to be HTTP POSTed to the
-submitRun URL.
+data format is a simple JSON file, and that file needs to be submitted to the
+server using either the lnt import or submit commands, see :ref:`tools`, or
+HTTP POSTed to the submitRun URL.
 
 The most common program to submit data to LNT is the LNT client application
 itself.  The ``lnt runtest nt`` command can run the LLVM test suite, and submit
 data under the NTS test suite. Likewise the ``lnt runtest compile`` command
 can run a set of compile time benchmarks and submit to the Compile test suite.
-
-Given how simple it is to make your own results and send them to LNT,
-it is common to not use the LNT client application at all, and just have a
-custom script run your tests and submit the data to the LNT server. Details
-on how to do this are in :mod:`lnt.testing`
