@@ -1,5 +1,6 @@
 import re
 import sqlalchemy.sql
+from sqlalchemy.orm.exc import ObjectDeletedError
 import lnt.server.reporting.analysis
 from lnt.testing.util.commands import warning
 from lnt.testing.util.commands import note, timed
@@ -122,7 +123,14 @@ def regenerate_fieldchanges_for_run(ts, run_id):
                                    field=field)
                 ts.add(f)
                 ts.commit()
-                found, new_reg = identify_related_changes(ts, regressions, f)
+                try:
+                    found, new_reg = identify_related_changes(ts, regressions, f)
+                except ObjectDeletedError:
+                    # This can happen from time to time.
+                    # So, lets retry once.
+                    regressions = ts.query(ts.Regression).all()[::-1]
+                    found, new_reg = identify_related_changes(ts, regressions, f)
+                    
                 if found:
                     regressions.append(new_reg)
                     note("Found field change: {}".format(run.machine))
