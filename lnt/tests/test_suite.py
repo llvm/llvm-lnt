@@ -713,19 +713,24 @@ class TestSuiteTest(BuiltinTest):
         matcher = re.compile(r"^\.\.\.\s{}$".format(short_name),
                              re.MULTILINE | re.IGNORECASE)
         if not matcher.search(make_targets):
-            assert False, "did not find benchmark, must be nestsed? Unimplemented."
+            assert False, "did not find benchmark, nestsed? Unimplemented."
 
         local_path = os.path.join(path, bm_path)
 
-        make_deps = [self.opts.make, "VERBOSE=1", "timeit-target", "timeit-host", "fpcmp-host"]
+        make_deps = [self.opts.make, "VERBOSE=1", "timeit-target",
+                     "timeit-host", "fpcmp-host"]
         note(" ".join(make_deps))
-        p = subprocess.Popen(make_deps, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        p = subprocess.Popen(make_deps,
+                             stdout=subprocess.PIPE,
+                             stderr=subprocess.STDOUT)
         std_out, std_err = p.communicate()
         note(std_out)
 
         make_save_temps = [self.opts.make, "VERBOSE=1", short_name]
         note(" ".join(make_save_temps))
-        p = subprocess.Popen(make_save_temps, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        p = subprocess.Popen(make_save_temps,
+                             stdout=subprocess.PIPE,
+                             stderr=subprocess.STDOUT)
         std_out, std_err = p.communicate()
         note(std_out)
         with open(report_path + "/build.log", 'w') as f:
@@ -753,7 +758,9 @@ class TestSuiteTest(BuiltinTest):
         note(out)
 
         make_time_report = [self.opts.make, "VERBOSE=1", short_name]
-        p = subprocess.Popen(make_time_report, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        p = subprocess.Popen(make_time_report,
+                             stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE)
         std_out, std_err = p.communicate()
 
         with open(report_path + "/time-report.txt", 'w') as f:
