@@ -50,6 +50,7 @@ def _importProfile(name_filename):
                                    {},
                                    str)
 
+
 class TestSuiteTest(BuiltinTest):
     def __init__(self):
         self.configured = False
@@ -185,8 +186,8 @@ class TestSuiteTest(BuiltinTest):
                          type=str, default=None)
         group.add_option("", "--commit", dest="commit",
                          help=("whether the autosubmit result should be committed "
-                                "[%default]"),
-                          type=int, default=True)
+                               "[%default]"),
+                         type=int, default=True)
         group.add_option("-v", "--verbose", dest="verbose",
                          help="show verbose test results",
                          action="store_true", default=False)
@@ -219,7 +220,6 @@ class TestSuiteTest(BuiltinTest):
         group.add_option("", "--use-lit", dest="lit", metavar="PATH",
                          type=str, default="llvm-lit",
                          help="Path to the LIT test runner [llvm-lit]")
-
 
         (opts, args) = parser.parse_args(args)
         self.opts = opts
@@ -451,26 +451,26 @@ class TestSuiteTest(BuiltinTest):
                 defs[k] = v
             
         lines = ['Configuring with {']
-        for k,v in sorted(defs.items()):
-            lines.append("  %s: '%s'" % (k,v))
+        for k, v in sorted(defs.items()):
+            lines.append("  %s: '%s'" % (k, v))
         lines.append('}')
         
         # Prepare cmake cache if requested:
         cache = []
         if self.opts.cmake_cache:
-            cache_path = os.path.join(self._test_suite_dir(), 
+            cache_path = os.path.join(self._test_suite_dir(),
                                       "cmake/caches/", self.opts.cmake_cache + ".cmake")
             if os.path.exists(cache_path):
                 cache = ['-C', cache_path]
             else:
-                fatal("Could not find CMake cache file: " + 
+                fatal("Could not find CMake cache file: " +
                       self.opts.cmake_cache + " in " + cache_path)
 
         for l in lines:
             note(l)
         
         cmake_cmd = [cmake_cmd] + cache + [self._test_suite_dir()] + \
-                         ['-D%s=%s' % (k,v) for k,v in defs.items()]
+                    ['-D%s=%s' % (k, v) for k, v in defs.items()]
         if execute:
             self._check_call(cmake_cmd, cwd=path)
         
@@ -533,13 +533,12 @@ class TestSuiteTest(BuiltinTest):
         return code in ('PASS', 'XPASS', 'XFAIL')
 
     def _get_lnt_code(self, code):
-        return {
-            'PASS': lnt.testing.PASS,
-            'FAIL': lnt.testing.FAIL,
-            'XFAIL': lnt.testing.XFAIL,
-            'XPASS': lnt.testing.FAIL,
-            'UNRESOLVED': lnt.testing.FAIL
-            }[code]
+        return {'PASS': lnt.testing.PASS,
+                'FAIL': lnt.testing.FAIL,
+                'XFAIL': lnt.testing.XFAIL,
+                'XPASS': lnt.testing.FAIL,
+                'UNRESOLVED': lnt.testing.FAIL
+                }[code]
     
     def _test_failed_to_compile(self, raw_name, path):
         # FIXME: Do we need to add ".exe" in windows?
@@ -553,7 +552,6 @@ class TestSuiteTest(BuiltinTest):
         return lnt.testing.util.compilers.get_cc_info(self.opts.cc,
                                                       self._get_target_flags())
 
-    
     def _parse_lit_output(self, path, data, only_test=False):
         LIT_METRIC_TO_LNT = {
             'compile_time': 'compile',
@@ -586,10 +584,10 @@ class TestSuiteTest(BuiltinTest):
 
             # If --single-result is given, exit based on --single-result-predicate
             if self.opts.single_result and \
-               raw_name == self.opts.single_result+'.test':
+               raw_name == self.opts.single_result + '.test':
                 env = {'status': is_pass}
                 if 'metrics' in test_data:
-                    for k,v in test_data['metrics'].items():
+                    for k, v in test_data['metrics'].items():
                         env[k] = v
                         if k in LIT_METRIC_TO_LNT:
                             env[LIT_METRIC_TO_LNT[k]] = v
@@ -597,9 +595,9 @@ class TestSuiteTest(BuiltinTest):
                 sys.exit(0 if status else 1)
 
             if 'metrics' in test_data:
-                for k,v in test_data['metrics'].items():
+                for k, v in test_data['metrics'].items():
                     if k == 'profile':
-                        profiles_to_import.append( (name, v) )
+                        profiles_to_import.append((name, v))
                         continue
                     
                     if k not in LIT_METRIC_TO_LNT or LIT_METRIC_TO_LNT[k] in ignore:
