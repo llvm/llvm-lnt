@@ -781,8 +781,12 @@ class TestSuiteTest(BuiltinTest):
         # Run through the rest of LNT, but don't allow this to be submitted
         # because there is no data.
         class DontSubmitResults(object):
+            
             def get(self, url):
-                return None
+                return report_path
+
+            def __getitem__(self, key):
+                return report_path
 
         return DontSubmitResults()
 
