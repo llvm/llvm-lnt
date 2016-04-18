@@ -716,10 +716,19 @@ class TestSuiteTest(BuiltinTest):
 
         local_path = os.path.join(path, bm_path)
 
+        make_deps = [self.opts.make, "VERBOSE=1", "timeit-target", "timeit-host", "fpcmp-host"]
+        note(" ".join(make_deps))
+        p = subprocess.Popen(make_deps, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        std_out, std_err = p.communicate()
+        note(std_out)
+
         make_save_temps = [self.opts.make, "VERBOSE=1", short_name]
         note(" ".join(make_save_temps))
-        out = subprocess.check_output(make_save_temps)
-        note(out)
+        p = subprocess.Popen(make_save_temps, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        std_out, std_err = p.communicate()
+        note(std_out)
+        with open(report_path + "/build.log", 'w') as f:
+            f.write(std_out)
         # Executable(s) and test file:
         shutil.copy(os.path.join(local_path, short_name), report_path)
         shutil.copy(os.path.join(local_path, short_name + ".test"), report_path)
