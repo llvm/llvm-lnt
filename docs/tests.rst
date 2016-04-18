@@ -284,3 +284,24 @@ Full example using ``llvmlab`` to debug a performance improvement::
       --cflags '-O3 -mthumb -mcpu=cortex-a57' \
       --single-result MultiSource/Benchmarks/TSVC/Expansion-flt/Expansion-flt \
       --single-result-predicate 'exec_time > 8.0'
+
+
+Producing Diagnositic Reports
++++++++++++++++++++++++++++++
+
+The test-suite module can produce a diagnostic report which might be useful
+for figuring out what is going on with a benchmark::
+
+  $ lnt runtest test-suite \
+         --sandbox /tmp/BAR \
+         --cc ~/llvm.obj.64/Release+Asserts/bin/clang \
+         --cxx ~/llvm.obj.64/Release+Asserts/bin/clang++ \
+         --use-cmake=/usr/local/bin/cmake \
+         --use-lit=~/llvm/utils/lit/lit.py \
+         --test-suite ~/llvm-test-suite \
+         --cmake-cache Release \
+         --diagnose --only-test SingleSource/Benchmarks/Stanford/Bubblesort
+
+This will run the test-suite many times over, collecting useful information
+in a report directory. The report collects many things like execution profiles,
+compiler time reports, intermediate files, binary files, and build information.
