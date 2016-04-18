@@ -759,6 +759,23 @@ class TestSuiteTest(BuiltinTest):
             f.write(std_err)
         note("Wrote: " + report_path + "/time-report.txt")
 
+        # Now lets do -llvm -stats.
+        cmd_stats_report = cmd + ['-DTEST_SUITE_DIAGNOSE=On',
+                                  '-DTEST_SUITE_DIAGNOSE_FLAGS=-mllvm -stats']
+
+        note(' '.join(cmd_stats_report))
+        
+        out = subprocess.check_output(cmd_stats_report)
+        note(out)
+
+        make_stats_report = [self.opts.make, "VERBOSE=1", short_name]
+        p = subprocess.Popen(make_stats_report, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        std_out, std_err = p.communicate()
+
+        with open(report_path + "/stats-report.txt", 'w') as f:
+            f.write(std_err)
+        note("Wrote: " + report_path + "/stats-report.txt")
+
         note("Report produced in: " + report_path)
 
         # Run through the rest of LNT, but don't allow this to be submitted
