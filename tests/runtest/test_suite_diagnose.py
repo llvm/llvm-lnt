@@ -32,3 +32,11 @@
 
 # CHECK-DIAGNOSE: Report produced in:
 # CHECK-DIAGNOSE: Bubblesort.report
+# RUN: stat Bubblesort.report
+# RUN: stat Bubblesort.report/Bubblesort
+# RUN: stat Bubblesort.report/Bubblesort.bc
+# RUN: stat Bubblesort.report/Bubblesort.o
+# RUN: stat Bubblesort.report/Bubblesort.i
+# RUN: stat Bubblesort.report/Bubblesort.s
+# RUN: stat Bubblesort.report/Bubblesort.test
+# RUN: stat Bubblesort.report/time-report.txt

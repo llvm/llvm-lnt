@@ -22,14 +22,14 @@ then
 elif [ "$2" == "Bubblesort" ]
 then
     #  Look like we ran the test and made outputs
-    mkdir -p SingleSource/Benchmarks/Stanford/
+    mkdir -p SingleSource/Benchmarks/Stanford/CMakeFiles/Bubblesort.dir/
     touch SingleSource/Benchmarks/Stanford/${2}
     echo "RUN: Bubblesort | grep test" > SingleSource/Benchmarks/Stanford/${2}.test
     echo "output file" > SingleSource/Benchmarks/Stanford/${2}.s
     echo "output file" > SingleSource/Benchmarks/Stanford/${2}.i
     echo "output file" > SingleSource/Benchmarks/Stanford/${2}.bc
-    echo "output file" > SingleSource/Benchmarks/Stanford/${2}.o
-
+    echo "output file" > SingleSource/Benchmarks/Stanford/CMakeFiles/Bubblesort.dir/${2}.o
+    (>&2 echo "ftime-report data")
 else
     echo "Unexpected Argument"
     exit 1

@@ -742,6 +742,22 @@ class TestSuiteTest(BuiltinTest):
         self._cp_artifacts(local_path, report_path, save_temps_file)
         self._cp_artifacts(temp_files, report_path, build_files)
 
+        # Now lets do -ftime-report.
+        cmd_time_report = cmd + ['-DTEST_SUITE_DIAGNOSE_FLAGS=-ftime-report']
+
+        note(' '.join(cmd_time_report))
+        
+        out = subprocess.check_output(cmd_time_report)
+        note(out)
+
+        make_time_report = [self.opts.make, "VERBOSE=1", short_name]
+        p = subprocess.Popen(make_time_report, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        std_out, std_err = p.communicate()
+
+        with open(report_path + "/time-report.txt", 'w') as f:
+            f.write(std_err)
+        note("Wrote: " + report_path + "/time-report.txt")
+
         note("Report produced in: " + report_path)
 
         # Run through the rest of LNT, but don't allow this to be submitted
