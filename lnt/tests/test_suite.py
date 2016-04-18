@@ -743,7 +743,8 @@ class TestSuiteTest(BuiltinTest):
         self._cp_artifacts(temp_files, report_path, build_files)
 
         # Now lets do -ftime-report.
-        cmd_time_report = cmd + ['-DTEST_SUITE_DIAGNOSE_FLAGS=-ftime-report']
+        cmd_time_report = cmd + ['-DTEST_SUITE_DIAGNOSE=On',
+                                 '-DTEST_SUITE_DIAGNOSE_FLAGS=-ftime-report']
 
         note(' '.join(cmd_time_report))
         
