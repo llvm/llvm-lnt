@@ -195,7 +195,7 @@ def v4_regression_list():
         [ts.delete(x) for x in reg_inds]
         
         ts.commit()
-        flash("Created" + new_regress.title, FLASH_SUCCESS)
+        flash("Created: " + new_regress.title, FLASH_SUCCESS)
         return redirect(v4_url_for("v4_regression_detail", id=new_regress.id))
 
     state_filter = int(request.args.get('state', RegressionState.ACTIVE))
