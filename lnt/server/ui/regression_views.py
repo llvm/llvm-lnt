@@ -177,10 +177,23 @@ def v4_regression_list():
             .filter(ts.RegressionIndicator.regression_id.in_(
                     regressions_id_to_merge)) \
             .all()
+        links = []
+        target = 0
+        for i, r in enumerate(regressions):
+            if r.bug:
+                target = i
+                links.append(r.bug)
+                
         new_regress = new_regression(ts, [x.field_change_id for x in reg_inds])
-        new_regress.state = regressions[0].state
+        new_regress.state = regressions[target].state
+        new_regress.title = regressions[target].title
+        new_regress.bug = ' '.join(links)
+        for r in regressions:
+            r.bug = v4_url_for("v4_regression_detail", id=new_regress.id)
+            r.title = "Merged into Regression " + str(new_regress.id)
+            r.state = RegressionState.IGNORED
         [ts.delete(x) for x in reg_inds]
-        [ts.delete(x) for x in regressions]
+        
         ts.commit()
         flash("Created" + new_regress.title, FLASH_SUCCESS)
         return redirect(v4_url_for("v4_regression_detail", id=new_regress.id))
