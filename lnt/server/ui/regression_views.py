@@ -205,11 +205,10 @@ def v4_regression_list():
         regression_sizes.append(len(reg_inds))
         impacts.append(calc_impact(ts, [x.field_change for x in reg_inds]))
         # Now guess the regression age:
-        run = reg_inds[0].field_change.run
-        if run is not None:
-            age = run.end_time
+        if len(reg_inds) and reg_inds[0].field_change and reg_inds[0].field_change.run:
+                age = reg_inds[0].field_change.run.end_time
         else:
-            age = EmptyDate()
+                age = EmptyDate()
         ages.append(age)
         
     return render_template("v4_regression_list.html",
