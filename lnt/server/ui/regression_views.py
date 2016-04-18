@@ -23,7 +23,7 @@ import sqlalchemy
 from sqlalchemy.orm.exc import NoResultFound
 from lnt.server.ui.util import FLASH_DANGER, FLASH_INFO, FLASH_SUCCESS
 from lnt.server.reporting.analysis import REGRESSED
-from wtforms import SelectMultipleField, StringField, widgets, SelectField
+from wtforms import SelectMultipleField, StringField, widgets, SelectField, HiddenField
 from flask_wtf import Form
 from wtforms.validators import DataRequired
 import lnt.server.ui.util as util
@@ -231,6 +231,8 @@ class EditRegressionForm(Form):
     field_changes = MultiCheckboxField("Changes", coerce=int)
     choices = RegressionState.names.items()
     state = SelectField(u'State', choices=choices)
+    edit_state = HiddenField(u'EditState', validators=[DataRequired()])
+
 
 
 def name(cls):
@@ -271,7 +273,7 @@ def v4_regression_detail(id):
         flash("Updated " + regression_info.title, FLASH_SUCCESS)
         return redirect(v4_url_for("v4_regression_list",
                         highlight=regression_info.id,
-                        state=regression_info.state))
+                        state=int(form.edit_state.data)))
     if request.method == 'POST' and request.form['save_btn'] == "Split Regression":
         # For each of the regression indicators, grab their field ids.
         res_inds = ts.query(ts.RegressionIndicator) \
@@ -288,7 +290,8 @@ def v4_regression_detail(id):
         ts.commit()
         flash("Split " + second_regression.title, FLASH_SUCCESS)
         return redirect(v4_url_for("v4_regression_list",
-                        highlight=second_regression.id))
+                        highlight=second_regression.id,
+                        state=int(form.edit_state.data)))
     if request.method == 'POST' and request.form['save_btn'] == "Delete":
         # For each of the regression indicators, grab their field ids.
         title = regression_info.title
@@ -297,14 +300,17 @@ def v4_regression_detail(id):
             .all()
         # Now remove our links to this regression.
         for res_ind in res_inds:
-            ts.delete(res_ind)
-        ts.delete(regression_info)
+            pass
+            #ts.delete(res_ind)
+        #ts.delete(regression_info)
         ts.commit()
         flash("Deleted " + title, FLASH_SUCCESS)
-        return redirect(v4_url_for("v4_regression_list"))
+        return redirect(v4_url_for("v4_regression_list",
+                        state=int(form.edit_state.data)))
     form.field_changes.choices = list()
     form.state.default = regression_info.state
     form.process()
+    form.edit_state.data = regression_info.state
     form.title.data = regression_info.title
     form.bug.data = regression_info.bug
     regression_indicators = ts.query(ts.RegressionIndicator) \
