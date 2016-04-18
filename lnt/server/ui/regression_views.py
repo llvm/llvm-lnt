@@ -191,6 +191,7 @@ def v4_regression_list():
     form.regression_checkboxes.choices = list()
     regression_sizes = []
     impacts = []
+    ages = []
     for regression in regression_info:
         form.regression_checkboxes.choices.append((regression.id, 1,))
         reg_inds = ts.query(ts.RegressionIndicator) \
@@ -199,6 +200,9 @@ def v4_regression_list():
             .all()
         regression_sizes.append(len(reg_inds))
         impacts.append(calc_impact(ts, [x.field_change for x in reg_inds]))
+        # Now guess the regression age:
+        ages.append(reg_inds[0].field_change.run.end_time)
+        
     return render_template("v4_regression_list.html",
                            testsuite_name=g.testsuite_name,
                            regressions=regression_info,
@@ -208,6 +212,7 @@ def v4_regression_list():
                            form=form,
                            sizes=regression_sizes,
                            impacts=impacts,
+                           ages=ages,
                            analysis=lnt.server.reporting.analysis)
 
 

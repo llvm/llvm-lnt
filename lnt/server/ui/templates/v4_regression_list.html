@@ -20,6 +20,7 @@
     <th>X</th>
     <th>Title</th>
     <th>State</th>
+    <th>Age</th>
     <th>Size</th>
     <th>Old</th>
     <th>New</th>
@@ -33,11 +34,13 @@
           {% set regress = regressions[loop.index -1] %}
           {% set size = sizes[loop.index -1] %}
           {% set impact = impacts[loop.index -1] %}
+          {% set age = ages[loop.index -1] %}
 
     <tr>
         <td>{{ form_regression }}</td>
         <td>{{utils.render_regression(regress)}} {% if regress.id|int == highlight|int %} <span class="label label-success">Updated</span> {% endif %} </td>
         <td>{{RegressionState.names.get(regress.state,"Missing")}}</td>
+        <td><span class="reltime" data-time="{{age.isoformat()}}" data-toggle="tooltip" title="{{age}}">{{ age.isoformat() }}</td>
         <th>{{ size }}</th>
         <td>{{ impact.previous }}</td><td>{{ impact.current }}</td>
         {{ utils.get_regression_cell_value(impact, analysis)}}
