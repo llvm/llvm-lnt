@@ -10,6 +10,7 @@ import shutil
 import glob
 import re
 import multiprocessing
+import getpass
 
 from optparse import OptionParser, OptionGroup
 
@@ -747,7 +748,7 @@ class TestSuiteTest(BuiltinTest):
                                  '-DTEST_SUITE_DIAGNOSE_FLAGS=-ftime-report']
 
         note(' '.join(cmd_time_report))
-        
+
         out = subprocess.check_output(cmd_time_report)
         note(out)
 
@@ -769,13 +770,48 @@ class TestSuiteTest(BuiltinTest):
         note(out)
 
         make_stats_report = [self.opts.make, "VERBOSE=1", short_name]
-        p = subprocess.Popen(make_stats_report, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        p = subprocess.Popen(make_stats_report,
+                             stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE)
         std_out, std_err = p.communicate()
 
         with open(report_path + "/stats-report.txt", 'w') as f:
             f.write(std_err)
         note("Wrote: " + report_path + "/stats-report.txt")
 
+        #  Collect Profile:
+        if "Darwin" in platform.platform():
+            cmd_iprofiler = cmd + ['-DTEST_SUITE_RUN_UNDER=iprofiler '
+                                   '-timeprofiler -I 40u']
+            print ' '.join(cmd_iprofiler)
+
+            out = subprocess.check_output(cmd_iprofiler)
+
+            os.chdir(local_path)
+            make_iprofiler_temps = [self.opts.make, "VERBOSE=1", short_name]
+            p = subprocess.Popen(make_iprofiler_temps,
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE)
+            std_out, std_err = p.communicate()
+            warning("Using sudo to collect execution trace.")
+            make_save_temps = ["sudo", self.opts.lit, short_name + ".test"]
+            p = subprocess.Popen(make_save_temps,
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE)
+            std_out, std_err = p.communicate()
+            sys.stdout.write(std_out)
+            sys.stderr.write(std_err)
+            warning("Tests may fail because of iprofiler's output.")
+            # The dtps file will be saved as root, make it so
+            # that we can read it.
+            chmod = ["sudo", "chown", "-R", getpass.getuser(),
+                     short_name + ".dtps"]
+            subprocess.call(chmod)
+            profile = local_path + "/" + short_name + ".dtps"
+            shutil.copytree(profile, report_path + "/" + short_name + ".dtps")
+            note(profile + "-->" + report_path)
+        else:
+            warning("Skipping execution profiling because this is not Darwin.")
         note("Report produced in: " + report_path)
 
         # Run through the rest of LNT, but don't allow this to be submitted

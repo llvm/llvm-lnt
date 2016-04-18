@@ -23,6 +23,8 @@ elif [ "$2" == "Bubblesort" ]
 then
     #  Look like we ran the test and made outputs
     mkdir -p SingleSource/Benchmarks/Stanford/CMakeFiles/Bubblesort.dir/
+    mkdir -p SingleSource/Benchmarks/Stanford/Bubblesort.dtps
+    touch SingleSource/Benchmarks/Stanford/Bubblesort.dtps/data
     touch SingleSource/Benchmarks/Stanford/${2}
     echo "RUN: Bubblesort | grep test" > SingleSource/Benchmarks/Stanford/${2}.test
     echo "output file" > SingleSource/Benchmarks/Stanford/${2}.s
