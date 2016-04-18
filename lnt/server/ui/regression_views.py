@@ -313,9 +313,8 @@ def v4_regression_detail(id):
             .all()
         # Now remove our links to this regression.
         for res_ind in res_inds:
-            pass
-            #ts.delete(res_ind)
-        #ts.delete(regression_info)
+            ts.delete(res_ind)
+        ts.delete(regression_info)
         ts.commit()
         flash("Deleted " + title, FLASH_SUCCESS)
         return redirect(v4_url_for("v4_regression_list",
