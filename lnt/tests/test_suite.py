@@ -698,8 +698,7 @@ class TestSuiteTest(BuiltinTest):
 
         # Run with -save-temps
         cmd = self._configure(path, execute=False)
-        cmd_temps = cmd + ['-DTEST_SUITE_DIAGNOSE=On',
-                           '-DTEST_SUITE_DIAGNOSE_FLAGS=-save-temps']
+        cmd_temps = cmd + ['-DTEST_SUITE_DIAGNOSE_FLAGS=-save-temps']
 
         note(' '.join(cmd_temps))
 
@@ -749,8 +748,7 @@ class TestSuiteTest(BuiltinTest):
         self._cp_artifacts(temp_files, report_path, build_files)
 
         # Now lets do -ftime-report.
-        cmd_time_report = cmd + ['-DTEST_SUITE_DIAGNOSE=On',
-                                 '-DTEST_SUITE_DIAGNOSE_FLAGS=-ftime-report']
+        cmd_time_report = cmd + ['-DTEST_SUITE_DIAGNOSE_FLAGS=-ftime-report']
 
         note(' '.join(cmd_time_report))
 
@@ -768,8 +766,7 @@ class TestSuiteTest(BuiltinTest):
         note("Wrote: " + report_path + "/time-report.txt")
 
         # Now lets do -llvm -stats.
-        cmd_stats_report = cmd + ['-DTEST_SUITE_DIAGNOSE=On',
-                                  '-DTEST_SUITE_DIAGNOSE_FLAGS=-mllvm -stats']
+        cmd_stats_report = cmd + ['-DTEST_SUITE_DIAGNOSE_FLAGS=-mllvm -stats']
 
         note(' '.join(cmd_stats_report))
         
