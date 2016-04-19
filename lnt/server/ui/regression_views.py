@@ -33,7 +33,7 @@ from lnt.server.db.regression import RegressionState, new_regression
 from lnt.server.db.regression import get_all_orders_for_machine
 from lnt.server.db.regression import ChangeRuns
 from lnt.server.db.regression import get_first_runs_of_fieldchange
-from lnt.server.db.regression import get_cr_for_field_change 
+from lnt.server.db.regression import get_cr_for_field_change
 from lnt.server.db.regression import ChangeData
 from lnt.server.db import rules_manager as rule_hooks
 
@@ -80,7 +80,6 @@ class PrecomputedCR():
     
     def __json__(self):
         return self.__dict__
-
 
 
 @v4_route("/regressions/new", methods=["GET", "POST"])
@@ -146,7 +145,7 @@ def calc_impact(ts, fcs):
         olds = sum([x.previous for x in crs if x.previous])
         news = sum([x.current for x in crs if x.current])
         if olds and news:
-            new_cr = PrecomputedCR(olds, news, crs[0].bigger_is_better) # TODO both directions
+            new_cr = PrecomputedCR(olds, news, crs[0].bigger_is_better)  # TODO both directions
             return new_cr
     
     return PrecomputedCR(1, 1, True)
@@ -247,16 +246,15 @@ class EditRegressionForm(Form):
     edit_state = HiddenField(u'EditState', validators=[DataRequired()])
 
 
-
 def name(cls):
     """Get a nice name for this object."""
     return cls.__class__.__name__
 
 
 class LNTEncoder(flask.json.JSONEncoder):
-     """Encode all the common LNT objects."""
-     def default(self, obj):
-        # Most of our objects have a __json__ defined. 
+    """Encode all the common LNT objects."""
+    def default(self, obj):
+        # Most of our objects have a __json__ defined.
         if hasattr(obj, "__json__"):
             return obj.__json__()
         # From sqlalchemy, when we encounter ignore.
@@ -267,7 +265,7 @@ class LNTEncoder(flask.json.JSONEncoder):
         return flask.json.JSONEncoder.default(self, obj)
 
 
-@v4_route("/regressions/<int:id>",  methods=["GET", "POST"])
+@v4_route("/regressions/<int:id>", methods=["GET", "POST"])
 def v4_regression_detail(id):
     ts = request.get_testsuite()
     form = EditRegressionForm(request.form)
@@ -353,20 +351,20 @@ def v4_regression_detail(id):
     if len(test_suite_versions) > 1:
         revs = ', '.join(list(test_suite_versions))
         flash("More than one test-suite version: " + revs,
-            FLASH_DANGER)
-            
+              FLASH_DANGER)
+
     if request.args.get('json'):
         return json.dumps({u'Regression': regression_info,
-                           u'Changes':crs},
+                           u'Changes': crs},
                           cls=LNTEncoder)
-        
 
     return render_template("v4_regression_detail.html",
                            testsuite_name=g.testsuite_name,
                            regression=regression_info, changes=crs,
                            form=form, analysis=lnt.server.reporting.analysis)
 
-@v4_route("/hook",  methods=["GET"])
+
+@v4_route("/hook", methods=["GET"])
 def v4_hook():
     ts = request.get_testsuite()
     rule_hooks.post_submission_hooks(ts, 0)
@@ -428,10 +426,10 @@ def v4_make_regression(machine_id, test_id, field_index, run_id):
     if not f:
         test = ts.query(ts.Test).filter(ts.Test.id == test_id).one()
         f = ts.FieldChange(start_order=start_order,
-                        end_order=run.order,
-                        machine=run.machine,
-                        test=test,
-                        field=field)
+                           end_order=run.order,
+                           machine=run.machine,
+                           test=test,
+                           field=field)
         ts.add(f)
     # Always update FCs with new values.
     if f:
