@@ -1,37 +1,28 @@
-import datetime
+import flask
+import sqlalchemy
+import json
 from flask import g
 from flask import abort
 from flask import render_template
 from flask import request
-from flask import make_response
 from flask import flash
 from flask import redirect
-import flask
-import json
-
-# import sqlalchemy.sql
-# from sqlalchemy.orm.exc import NoResultFound
+from sqlalchemy import desc
+from sqlalchemy.orm.exc import NoResultFound
+from wtforms import SelectMultipleField, StringField, widgets, SelectField
+from wtforms import HiddenField
+from flask_wtf import Form
+from wtforms.validators import DataRequired
 
 from lnt.server.ui.decorators import v4_route
 import lnt.server.reporting.analysis
-from lnt.server.ui.globals import db_url_for, v4_url_for
+from lnt.server.ui.globals import v4_url_for
 
-
-from random import randint
-from sqlalchemy import desc, asc
-import sqlalchemy
-from sqlalchemy.orm.exc import NoResultFound
-from lnt.server.ui.util import FLASH_DANGER, FLASH_INFO, FLASH_SUCCESS
+from lnt.server.ui.util import FLASH_DANGER, FLASH_SUCCESS
 from lnt.server.reporting.analysis import REGRESSED
-from wtforms import SelectMultipleField, StringField, widgets, SelectField, HiddenField
-from flask_wtf import Form
-from wtforms.validators import DataRequired
-import lnt.server.ui.util as util
-from lnt.testing.util.commands import warning, error, note
+from lnt.testing.util.commands import note
 import lnt.server.db.fieldchange
 from lnt.server.db.regression import RegressionState, new_regression
-from lnt.server.db.regression import get_all_orders_for_machine
-from lnt.server.db.regression import ChangeRuns
 from lnt.server.db.regression import get_first_runs_of_fieldchange
 from lnt.server.db.regression import get_cr_for_field_change
 from lnt.server.db.regression import ChangeData
