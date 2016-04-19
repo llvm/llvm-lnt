@@ -1,7 +1,8 @@
 # Testing for the 'lnt runtest test-suite --diagnose' feature.
 #
 # RUN: rm -rf  %t.SANDBOX  %t.SANDBOX2 || true
-#
+# RUN: export SUDO_CMD=""
+# RUN: export IPROFILER_CMD=%S/Inputs/test-suite-cmake/fake-iprofiler
 
 # Check --diagnose requires --only-test
 # RUN: lnt runtest test-suite \

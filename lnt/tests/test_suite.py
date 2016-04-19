@@ -788,8 +788,19 @@ class TestSuiteTest(BuiltinTest):
 
         #  Collect Profile:
         if "Darwin" in platform.platform():
-            cmd_iprofiler = cmd + ['-DTEST_SUITE_RUN_UNDER=iprofiler '
-                                   '-timeprofiler -I 40u']
+            # For testing and power users, lets allow overrides of how sudo
+            # and iprofiler are called.
+            sudo = os.getenv("SUDO_CMD", "sudo")
+            if " " in sudo:
+                sudo = sudo.split(" ")
+            if not sudo:
+                sudo = []
+            else:
+                sudo = [sudo]
+            iprofiler = os.getenv("IPROFILER_CMD",
+                                  "iprofiler -timeprofiler -I 40u")
+            
+            cmd_iprofiler = cmd + ['-DTEST_SUITE_RUN_UNDER=' + iprofiler]
             print ' '.join(cmd_iprofiler)
 
             out = subprocess.check_output(cmd_iprofiler)
@@ -801,7 +812,7 @@ class TestSuiteTest(BuiltinTest):
                                  stderr=subprocess.PIPE)
             std_out, std_err = p.communicate()
             warning("Using sudo to collect execution trace.")
-            make_save_temps = ["sudo", self.opts.lit, short_name + ".test"]
+            make_save_temps = sudo + [self.opts.lit, short_name + ".test"]
             p = subprocess.Popen(make_save_temps,
                                  stdout=subprocess.PIPE,
                                  stderr=subprocess.PIPE)
@@ -811,7 +822,7 @@ class TestSuiteTest(BuiltinTest):
             warning("Tests may fail because of iprofiler's output.")
             # The dtps file will be saved as root, make it so
             # that we can read it.
-            chmod = ["sudo", "chown", "-R", getpass.getuser(),
+            chmod = sudo + ["chown", "-R", getpass.getuser(),
                      short_name + ".dtps"]
             subprocess.call(chmod)
             profile = local_path + "/" + short_name + ".dtps"
