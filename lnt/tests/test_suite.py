@@ -90,6 +90,7 @@ class TestSuiteTest(BuiltinTest):
                                "-D prefix and can be given multiple times. e.g.: "
                                "--cmake-define A=B => -DA=B"))
         group.add_option("-C", "--cmake-cache", dest="cmake_cache",
+                         action="append", default=[],
                          help=("Use one of the test-suite's cmake configurations."
                                " Ex: Release, Debug"))
         parser.add_option_group(group)
@@ -457,24 +458,24 @@ class TestSuiteTest(BuiltinTest):
         lines.append('}')
         
         # Prepare cmake cache if requested:
-        cache = []
-        if self.opts.cmake_cache:
-            cache_path = os.path.join(self._test_suite_dir(),
-                                      "cmake/caches/", self.opts.cmake_cache + ".cmake")
-            if os.path.exists(cache_path):
-                cache = ['-C', cache_path]
-            else:
-                fatal("Could not find CMake cache file: " +
-                      self.opts.cmake_cache + " in " + cache_path)
+        cmake_flags = []
+        for cache in self.opts.cmake_cache:
+            # Shortcut for the common case.
+            if not cache.endswith(".cmake") and "/" not in cache:
+                cache = os.path.join(self._test_suite_dir(),
+                                     "cmake/caches", cache + ".cmake")
+            if not os.path.exists(cache):
+                fatal("Could not find CMake cache file: " + cache)
+            cmake_flags += ['-C', cache]
 
         for l in lines:
             note(l)
-        
-        cmake_cmd = [cmake_cmd] + cache + [self._test_suite_dir()] + \
+
+        cmake_cmd = [cmake_cmd] + cmake_flags + [self._test_suite_dir()] + \
                     ['-D%s=%s' % (k, v) for k, v in defs.items()]
         if execute:
             self._check_call(cmake_cmd, cwd=path)
-        
+
         return cmake_cmd
 
     def _make(self, path):
