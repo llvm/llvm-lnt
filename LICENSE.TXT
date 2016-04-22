@@ -71,3 +71,4 @@ jQuery.scrolltofixed lnt/server/ui/static/jquery/jquery.scrolltofixed
 Flot                 lnt/server/ui/static/flot
 JSON2                lnt/server/ui/static/json2.js
 Bootstrap            lnt/server/ui/static/bootstrap
+D3                   lnt/server/ui/static/d3
