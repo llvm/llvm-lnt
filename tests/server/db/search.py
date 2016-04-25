@@ -15,6 +15,7 @@ class SearchTest(unittest.TestCase):
         master_path = os.path.join(base_path, 'Inputs/lnt_v0.4.0_filled_instance')
         slave_path = os.path.join(tempfile.mkdtemp(), 'lnt')
         shutil.copytree(master_path, slave_path)
+
         instance = lnt.server.instance.Instance.frompath(slave_path)
         config = instance.config
 
@@ -22,6 +23,10 @@ class SearchTest(unittest.TestCase):
                          ('machine1', '5625'),
                          ('machine2', '6512'),
                          ('machine2', '7623'),
+                         ('machine3', '65'),
+                         ('machine3', '6512'),
+                         ('machine3', '7623'),
+                         ('machine3', '11324'),
                          ('supermachine', '1324'),
                          ('supermachine', '7623')]
         
@@ -87,9 +92,12 @@ class SearchTest(unittest.TestCase):
     def test_default_order(self):
         ts = self.db.testsuite.get('nts')
 
-        results = self._mangleResults(search(ts, 'machi ne2'))
+        results = self._mangleResults(search(ts, 'machi ne3'))
         self.assertEqual(results, [
-            ('machine2', '7623'), ('machine2', '6512')
+            ('machine3', '11324'),
+            ('machine3', '7623'),
+            ('machine3', '6512'),
+            ('machine3', '65')
         ])
         
     def test_default_machine(self):

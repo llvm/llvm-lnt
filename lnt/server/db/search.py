@@ -50,13 +50,13 @@ def _naive_search_for_run(ts, query, num_results, default_machine):
     
     q = ts.query(ts.Run) \
           .filter(ts.Run.machine_id.in_(machines)) \
-          .filter(ts.Run.order_id == ts.Order.id)
+          .filter(ts.Run.order_id == ts.Order.id) \
+          .filter(llvm_project_revision_col != None)
     if order_queries:
         oq = '%' + str(order_queries[0]) + '%'
-        q = q.filter(llvm_project_revision_col.like(oq))            
+        q = q.filter(llvm_project_revision_col.like(oq))
 
-    return q.order_by(llvm_project_revision_col.desc()).limit(num_results).all()
-        
+    return q.order_by(ts.Run.id.desc()).limit(num_results).all()
         
 def search(ts, query,
            num_results=8, default_machine=None):
