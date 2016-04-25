@@ -19,9 +19,9 @@ Profile.prototype = {
         $(this.element).html('<center><i>Select a run and function above<br> ' +
                              'to view a performance profile</i></center>');
     },
-    go: function(function_name, counter_name, absolute, total_ctr_for_fn) {
+    go: function(function_name, counter_name, displayType, total_ctr_for_fn) {
         this.counter_name = counter_name
-        this.absolute = absolute;
+        this.displayType = displayType;
         this.total_ctr = total_ctr_for_fn;
         if (this.function_name != function_name)
             this._fetch_and_go(function_name);
@@ -31,7 +31,7 @@ Profile.prototype = {
 
     _fetch_and_go: function(fname, then) {
         this.function_name = fname;
-        this_ = this;
+        var this_ = this;
         $.ajax(g_urls.getCodeForFunction, {
             dataType: "json",
             data: {'runid': this.runid, 'testid': this.testid,
@@ -49,6 +49,7 @@ Profile.prototype = {
 
     _go: function() {
         this.element.empty();
+        this.cumulative = 0;
         for (i in this.data) {
             line = this.data[i];
 
@@ -100,7 +101,38 @@ Profile.prototype = {
                         .hide());
         };
 
-        return this.absolute ? labelAbs(value) : labelPct(value);
+        var labelCumAbs = function(value) {
+            this_.cumulative += value;
+
+            var hue = lerp(50.0, 0.0, this_.cumulative / 100.0);
+            var bg = 'hsl(' + hue.toFixed(0) + ', 100%, 50%)';
+            var hl = 'hsl(' + hue.toFixed(0) + ', 100%, 40%)';
+
+            var absVal = (this_.cumulative / 100.0) * this_.total_ctr;
+            return $('<td style="border-right: 1px solid ' + hl + ';"></td>')
+                .css({color: 'gray', position: 'relative'})
+                .text(currencyify(absVal))
+                .append($('<span></span>')
+                        .text(value.toFixed(2) + '%')
+                        .hide())
+                .append($('<span></span>')
+                        .css({
+                            position: 'absolute',
+                            bottom: '0px',
+                            left: '0px',
+                            width: this_.cumulative + '%',
+                            height: '2px',
+                            border: '1px solid ' + hl,
+                            backgroundColor: bg
+                        }));
+        }
+
+        if (this.displayType == 'cumulative')
+            return labelCumAbs(value);
+        else if (this.displayType == 'absolute')
+            return labelAbs(value);
+        else
+            return labelPct(value);
     },
 };
 
@@ -566,10 +598,10 @@ function pf_init(run1, run2, testid, urls) {
                 return pf_get_counter();
             },
             updated: function(fname) {
-                var fn_percentage = $('#fn1_box').functionTypeahead().getFunctionPercentage(fname);
+                var fn_percentage = $('#fn1_box').functionTypeahead().getFunctionPercentage(fname) / 100.0;
                 var ctr_value = $('#stats').statsBar().getCounterValue(pf_get_counter())[0];
                 $('#profile1').profile('go', fname,
-                                       pf_get_counter(), pf_get_absolute(),
+                                       pf_get_counter(), pf_get_display_type(),
                                        fn_percentage * ctr_value);
             },
             sourceRunUpdated: function(data) {
@@ -600,10 +632,10 @@ function pf_init(run1, run2, testid, urls) {
                 return pf_get_counter();
             },
             updated: function(fname) {
-                var fn_percentage = $('#fn2_box').functionTypeahead().getFunctionPercentage(fname);
+                var fn_percentage = $('#fn2_box').functionTypeahead().getFunctionPercentage(fname) / 100.0;
                 var ctr_value = $('#stats').statsBar().getCounterValue(pf_get_counter())[1];
                 $('#profile2').profile('go', fname,
-                                       pf_get_counter(), pf_get_absolute(),
+                                       pf_get_counter(), pf_get_display_type(),
                                        fn_percentage * ctr_value);
             },
             sourceRunUpdated: function(data) {
@@ -673,15 +705,15 @@ function pf_init(run1, run2, testid, urls) {
     $('#counters, #absolute').change(function () {
         g_counter = $('#counters').val();
         if ($('#fn1_box').val()) {
-            var fn_percentage = $('#fn1_box').functionTypeahead().getFunctionPercentage(fname);
+            var fn_percentage = $('#fn1_box').functionTypeahead().getFunctionPercentage(fname) / 100.0;
             var ctr_value = $('#stats').statsBar().getCounterValue(pf_get_counter())[0];
-            $('#profile1').profile('go', $('#fn1_box').val(), g_counter, pf_get_absolute(),
+            $('#profile1').profile('go', $('#fn1_box').val(), g_counter, pf_get_display_type(),
                                    fn_percentage * ctr_value);
         }
         if ($('#fn2_box').val()) {
-            var fn_percentage = $('#fn2_box').functionTypeahead().getFunctionPercentage(fname);
+            var fn_percentage = $('#fn2_box').functionTypeahead().getFunctionPercentage(fname) / 100.0;
             var ctr_value = $('#stats').statsBar().getCounterValue(pf_get_counter())[1];
-            $('#profile2').profile('go', $('#fn2_box').val(), g_counter, pf_get_absolute(),
+            $('#profile2').profile('go', $('#fn2_box').val(), g_counter, pf_get_display_type(),
                                    fn_percentage * ctr_value);
         }
     });
@@ -790,9 +822,9 @@ function pf_get_counter() {
     return g_counter;
 }
 
-// pf_get_absolute - Whether we should display absolute values or percentages.
-function pf_get_absolute() {
-    return $('#absolute').val() == "absolute";
+// pf_get_display_type - Whether we should display absolute values or percentages.
+function pf_get_display_type() {
+    return $('#absolute').val();
 }
 
 // pf_update_history - Push a new history entry, as we've just navigated
