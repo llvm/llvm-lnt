@@ -1,7 +1,5 @@
-
 /***********************************************************************/
-/* "Addon" support for placing an icon inside an input box
-
+/* "Addon" support for placing an icon inside an input box */
 /* enable absolute positioning */
 .inner-addon { 
     position: relative; 
