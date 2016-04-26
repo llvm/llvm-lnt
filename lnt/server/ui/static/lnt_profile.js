@@ -9,13 +9,13 @@ function CFGInstruction (weight, address, text) {
     this.weight = weight;
 };
 
-function CFGBasicBlock (instructions, cfg) {
+function CFGBasicBlock (instructions, fallThruInstruction, cfg) {
     this.cfg = cfg;
     this.instructionParser = this.cfg.instructionParser;
     this.instructions = instructions;
     this.address = instructions[0].address;
     var gjt = this.instructionParser
-        .getJumpTargets(instructions[instructions.length-1], this.cfg);
+        .getJumpTargets(instructions[instructions.length-1], fallThruInstruction, this.cfg);
     this.targets = gjt[1];
     this.noFallThru = gjt[0];
     this.weight = this.instructions
@@ -71,15 +71,11 @@ function CFG (disassembly, instructionParser) {
     }
 };
 
-function AArch64InstructionSetParser () {
+function InstructionSetParser (regexps) {
+    this.jumpTargetRegexps = regexps;
 };
 
-AArch64InstructionSetParser.prototype = {
-    getNextInstructionAddress: function(instruction) {
-        // AArch64: all instructions are 4 bytes:
-        return instruction.address + 4;
-    },
-
+InstructionSetParser.prototype = {
     AArch64JumpTargetRegexps: [
         // (regexp, noFallThru?)
         // branch conditional:
@@ -93,15 +89,26 @@ AArch64InstructionSetParser.prototype = {
         // FIXME: also add tbz, ...
     ],
 
-    getJumpTargets: function(instruction, cfg) {
-        for(var i=0; i<this.AArch64JumpTargetRegexps.length; ++i) {
-            var regexp = this.AArch64JumpTargetRegexps[i][0];
-            var noFallThru = this.AArch64JumpTargetRegexps[i][1];
+    AArch32T32JumpTargetRegexps: [
+        // (regexp, noFallThru?)
+        // branch conditional:
+        [new RegExp("^\\s*b(?:(?:ne)|(?:eq)|(?:cs)|(?:cc)|(?:mi)|(?:pl)|(?:vs)|(?:vc)|(?:hi)|(?:ls)|(?:ge)|(?:lt)|(?:gt)|(?:le))(?:\\.[nw])?\\s+([^\\s]+)"), false],
+        // branch unconditional:
+        [new RegExp("^\\s*b(?:\\.[nw])?\\s+([^\\s]+)"), true],
+        // cb(n)z
+        [new RegExp("^\\s*cbn?z\\s+[^,]+,\\s*([^\\s]+)"), false]
+        // TODO: add all control-flow-changing instructions.
+    ],
+
+    getJumpTargets: function(instruction, nextInstruction, cfg) {
+        for(var i=0; i<this.jumpTargetRegexps.length; ++i) {
+            var regexp = this.jumpTargetRegexps[i][0];
+            var noFallThru = this.jumpTargetRegexps[i][1];
             var match = instruction.text.match(regexp);
             if (match) {
                 var targets = [];
-                if (!noFallThru)
-                    targets.push(this.getNextInstructionAddress(instruction));
+                if (!noFallThru && nextInstruction)
+                    targets.push(nextInstruction.address);
                 if (match.length > 1)
                     targets.push(cfg.convertToAddress(match[1]));
                 return [noFallThru, targets];
@@ -110,6 +117,7 @@ AArch64InstructionSetParser.prototype = {
         return [false, []];
     },
 };
+
 
 CFG.prototype = {
     // The following method will have different implementations depending
@@ -139,16 +147,18 @@ CFG.prototype = {
         var bbstarts = {};
         for (var i=0; i<instructions.length; ++i) {
             var instruction = instructions[i];
+            var nextInstruction = (i+1<instructions.length)?instructions[i+1]:null;
             var gjt = this.instructionParser
-                .getJumpTargets(instruction, this);
+                .getJumpTargets(instruction, nextInstruction, this);
             var jumpTargets=gjt[1], noFallThru=gjt[0];
             if (jumpTargets.length > 0) {
                 for(var j=0; j<jumpTargets.length; ++j) {
                     var jumpTarget = jumpTargets[j];
                     bbstarts[jumpTarget] = true;
                 }
-                bbstarts[this.instructionParser
-                         .getNextInstructionAddress(instruction)] = true;
+                if (nextInstruction) {
+                    bbstarts[nextInstruction.address] = true;
+                }
             }
         }
         // start creating basic blocks now:
@@ -157,12 +167,12 @@ CFG.prototype = {
         for (var i=0; i<instructions.length; ++i) {
             var instruction = instructions[i];
             if (bbstarts[instruction.address] && i > 0) {
-                bbs.push(new CFGBasicBlock(instructionsInCurrentBB, this));
+                bbs.push(new CFGBasicBlock(instructionsInCurrentBB, instruction, this));
                 instructionsInCurrentBB = [];
             }
             instructionsInCurrentBB.push(instruction);
         }
-        bbs.push(new CFGBasicBlock(instructionsInCurrentBB,
+        bbs.push(new CFGBasicBlock(instructionsInCurrentBB, null,
                                    this));
         return bbs;
     },
@@ -171,7 +181,7 @@ CFG.prototype = {
         var i = new CFGInstruction(0.0 /* weight */,
                                    "" /* address */,
                                    "UNKNOWN");
-        return new CFGBasicBlock([i], this);
+        return new CFGBasicBlock([i], null, this);
     }
 };
 
@@ -455,10 +465,11 @@ Profile.prototype = {
 
     _display: function() {
         try {
-            if (this.displayType != 'cfg')
+            if (this.displayType.startsWith('cfg')) {
+                var instructionSet = this.displayType.split('-')[1];
+                this._display_cfg(instructionSet);
+            } else
                 this._display_straightline();
-            else
-                this._display_cfg();
         }
         catch (err) {
             $(this.element).html(
@@ -469,10 +480,26 @@ Profile.prototype = {
         }
     },
 
-    _display_cfg: function() {
+    _display_cfg: function(instructionSet) {
+        this.instructionSet = instructionSet; 
         this.element.empty();
         var profiledDisassembly = this.data;
-        var instructionParser = new AArch64InstructionSetParser();
+        var instructionParser;
+        if (this.instructionSet == 'aarch64') 
+            instructionParser = new InstructionSetParser(
+                InstructionSetParser.prototype.AArch64JumpTargetRegexps);
+        else if (this.instructionSet == 'aarch32t32')
+            instructionParser = new InstructionSetParser(
+                InstructionSetParser.prototype.AArch32T32JumpTargetRegexps);
+        else {
+            // Do not try to continue if we don't have support for
+            // the requested instruction set.
+            $(this.element).html(
+                '<center><i>There is no support (yet?) for reconstructing ' +
+                'the CFG for the<br>' +
+                this.instructionSet+' instruction set. :(.</i></center>');
+            return;
+        }
         var cfg = new CFG(profiledDisassembly, instructionParser);
         var d3cfg = new D3CFG(cfg);
         d3cfg.compute_layout();
