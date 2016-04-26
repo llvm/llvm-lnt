@@ -20,6 +20,9 @@
   <script language="javascript" type="text/javascript"
           src="{{ url_for('.static',
                filename='jquery/jquery.scrolltofixed/jquery-scrolltofixed.js') }}"> </script>
+  <script language="javascript" type="text/javascript"
+          src="{{ url_for('.static',
+               filename='d3/d3.min.js') }}"> </script>
   <link rel="stylesheet" href="{{ url_for('.static',
                                filename='lnt_profile.css') }}">
   <script>
@@ -83,21 +86,27 @@
 
   <div class="anchor"></div>
   <div class="row toolbarrow" id="toolbar">
-
-        <div class="span4">
-          <b>Hottest instructions:</b>
-          <button class="btn btn-small prev-btn-l"><i class="icon-backward"></i> Prev</button>
-          <button class="btn btn-small next-btn-l">Next <i class="icon-forward"></i></button>
-        </div>
-        <div class="span6">
-          <b>Counter:</b>
-          <select id="counters" class="input-medium"></select>
-          <select class="input-medium" id="absolute">
-            <option value="relative">Relative (%)</option>
-            <option value="absolute">Absolute numbers</option>
-            <option value="cumulative">Cumulative absolute numbers</option>
-          </select>
-        </div>
+    <div class="span4">
+      <b>View:</b>
+      <select class="input-medium" id="view">
+        <option value="cfg">Control-Flow Graph</option>
+        <option value="straight">Straight</option>
+      </select>
+    </div>
+    <div class="span4">
+      <b>Hottest instructions:</b>
+      <button class="btn btn-small prev-btn-l"><i class="icon-backward"></i> Prev</button>
+      <button class="btn btn-small next-btn-l">Next <i class="icon-forward"></i></button>
+    </div>
+    <div class="span4">
+      <b>Counter:</b>
+      <select id="counters" class="input-medium"></select>
+      <select class="input-medium" id="absolute">
+        <option value="relative">Relative (%)</option>
+        <option value="absolute">Absolute numbers</option>
+        <option value="cumulative">Cumulative absolute numbers</option>
+      </select>
+    </div>
   </div>
 
   <div class="row">

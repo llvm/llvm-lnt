@@ -3,6 +3,410 @@
 // (v4_profile.html).
 
 
+function CFGInstruction (weight, address, text) {
+    this.address = address;
+    this.text = text;
+    this.weight = weight;
+};
+
+function CFGBasicBlock (instructions, cfg) {
+    this.cfg = cfg;
+    this.instructionParser = this.cfg.instructionParser;
+    this.instructions = instructions;
+    this.address = instructions[0].address;
+    var gjt = this.instructionParser
+        .getJumpTargets(instructions[instructions.length-1], this.cfg);
+    this.targets = gjt[1];
+    this.noFallThru = gjt[0];
+    this.weight = this.instructions
+        .reduce(function (a,b) {
+            var weight_a = (a.weight === undefined)?a:a.weight;
+            var weight_b = (b.weight === undefined)?b:b.weight;
+            return weight_a+weight_b;
+        }, 0);
+};
+
+function CFGEdge (bb_from, bb_to) {
+    this.from = bb_from;
+    this.to = bb_to;
+};
+
+function CFG (disassembly, instructionParser) {
+    this.disassembly = disassembly;
+    this.instructionParser = instructionParser;
+    var instructions = this.parseDisassembly(this.disassembly);
+    this.bbs = this.createBasicBlocks(instructions);
+    // The special "UNKNOWN" basic block is used to represent jump targets for
+    // which no corresponding basic block can be found. So, edges jumping to a
+    // target that has no associated basic block will go to this "UNKNOWN"
+    // basic block.
+    this.UNKNOWN_BB = this.createUnknownBB();
+    this.bbs.push(this.UNKNOWN_BB);
+    this.address2bb = {};
+    this.bb_incoming_edges = {};
+    this.bb_outgoing_edges = {};
+    this.edges = [];
+    for (var i=0; i<this.bbs.length; ++i) {
+        var bb = this.bbs[i];
+        this.address2bb[bb.address] = bb;
+    }
+    var address2bb = this.address2bb;
+    for (var i=0; i<this.bbs.length; ++i) {
+        var bb = this.bbs[i];
+        var target_bbs = bb.targets.map(function (a) { return address2bb[a]; });
+        if (target_bbs.length == 0 &&
+            !bb.noFallThru) {
+            // this is a fall-thru-only BB.
+            if (i+1<this.bbs.length)
+                target_bbs = [this.bbs[i+1]];
+        }
+        for (var j=0; j<target_bbs.length; ++j) {
+            var target_bb = target_bbs[j];
+            // Jump to special "unknown bb" for jumps to an unknown basic block. 
+            if (!target_bb)
+                target_bb = this.UNKNOWN_BB;
+            var edge = new CFGEdge(this.bbs[i], target_bb);
+            this.edges.push(edge);
+        }
+    }
+};
+
+function AArch64InstructionSetParser () {
+};
+
+AArch64InstructionSetParser.prototype = {
+    getNextInstructionAddress: function(instruction) {
+        // AArch64: all instructions are 4 bytes:
+        return instruction.address + 4;
+    },
+
+    AArch64JumpTargetRegexps: [
+        // (regexp, noFallThru?)
+        // branch conditional:
+        [new RegExp("^\\s*b\\.[a-z]+\\s+([^\\s]+)"), false],
+        // branch unconditional:
+        [new RegExp("^\\s*b\\s+([^\\s]+)"), true],
+        // cb(n)z
+        [new RegExp("^\\s*cbn?z\\s+[^,]+,\\s*([^\\s]+)"), false],
+        // ret
+        [new RegExp("^\\s*ret"), true]
+        // FIXME: also add tbz, ...
+    ],
+
+    getJumpTargets: function(instruction, cfg) {
+        for(var i=0; i<this.AArch64JumpTargetRegexps.length; ++i) {
+            var regexp = this.AArch64JumpTargetRegexps[i][0];
+            var noFallThru = this.AArch64JumpTargetRegexps[i][1];
+            var match = instruction.text.match(regexp);
+            if (match) {
+                var targets = [];
+                if (!noFallThru)
+                    targets.push(this.getNextInstructionAddress(instruction));
+                if (match.length > 1)
+                    targets.push(cfg.convertToAddress(match[1]));
+                return [noFallThru, targets];
+            }
+        }
+        return [false, []];
+    },
+};
+
+CFG.prototype = {
+    // The following method will have different implementations depending
+    // on the profiler, or kind of profiling input.
+    convertToAddress: function (addressString) {
+      return parseInt(addressString, 16);
+    },
+
+    parseDisassembly: function() {
+        var instructions = [];
+        for (var i=0; i<this.disassembly.length; ++i) {
+            var profiled_instruction = this.disassembly[i];
+            var counter2weight = profiled_instruction[0];
+            var address = profiled_instruction[1];
+            var text = profiled_instruction[2];
+            // FIXME: strip leading white space from text?
+            var cfgInstruction =
+                new CFGInstruction(counter2weight['cycles'],
+                                   address,
+                                   text);
+            instructions.push(cfgInstruction);
+        }
+        return instructions;
+    },
+
+    createBasicBlocks: function(instructions) {
+        var bbstarts = {};
+        for (var i=0; i<instructions.length; ++i) {
+            var instruction = instructions[i];
+            var gjt = this.instructionParser
+                .getJumpTargets(instruction, this);
+            var jumpTargets=gjt[1], noFallThru=gjt[0];
+            if (jumpTargets.length > 0) {
+                for(var j=0; j<jumpTargets.length; ++j) {
+                    var jumpTarget = jumpTargets[j];
+                    bbstarts[jumpTarget] = true;
+                }
+                bbstarts[this.instructionParser
+                         .getNextInstructionAddress(instruction)] = true;
+            }
+        }
+        // start creating basic blocks now:
+        var bbs = [];
+        var instructionsInCurrentBB = [];
+        for (var i=0; i<instructions.length; ++i) {
+            var instruction = instructions[i];
+            if (bbstarts[instruction.address] && i > 0) {
+                bbs.push(new CFGBasicBlock(instructionsInCurrentBB, this));
+                instructionsInCurrentBB = [];
+            }
+            instructionsInCurrentBB.push(instruction);
+        }
+        bbs.push(new CFGBasicBlock(instructionsInCurrentBB,
+                                   this));
+        return bbs;
+    },
+
+    createUnknownBB: function() {
+        var i = new CFGInstruction(0.0 /* weight */,
+                                   "" /* address */,
+                                   "UNKNOWN");
+        return new CFGBasicBlock([i], this);
+    }
+};
+
+
+function D3CFG (cfg) {
+    this.cfg = cfg;
+    this.d3bbs = [];
+    this.bb2d3bb = new Map();
+    this.d3edges = [];
+    this.d3bbTopSlots = [];
+    this.d3bbBotSlots = [];
+    this.d3vlanes = [];
+    this.vlane_occupancies = [];
+    for (var bbi=0; bbi<this.cfg.bbs.length; ++bbi) {
+        var bb = this.cfg.bbs[bbi];
+        var d3bb = new D3BB(bb, bbi);
+        this.d3bbs.push(d3bb);
+        this.bb2d3bb.set(bb, d3bb);
+    }
+    for (var ei=0; ei<this.cfg.edges.length; ++ei) {
+        var e = this.cfg.edges[ei];
+        this.d3edges.push(new D3Edge(e, this));
+    }
+};
+
+D3CFG.prototype = {
+    compute_layout: function() {
+        var offset = 0;
+        for(var i=0; i<this.d3bbs.length; ++i) {
+            var d3bb = this.d3bbs[i];
+            d3bb.compute_layout(this);
+            d3bb.y = d3bb.y + offset;
+            offset += d3bb.height + this.bbgap;
+        }
+        for(var i=0; i<this.d3edges.length; ++i) {
+            var d3e = this.d3edges[i];
+            d3e.compute_layout_part1(this);
+        }
+        // heuristic: layout shorter edges first, so they remain closer to
+        // the basic blocks.
+        this.d3edges.sort(function (e1,e2) {
+            var e1_length = Math.abs(e1.start_bb_index - e1.end_bb_index);
+            var e2_length = Math.abs(e2.start_bb_index - e2.end_bb_index);
+            return e1_length - e2_length;
+        });
+        for(var i=0; i<this.d3edges.length; ++i) {
+            var d3e = this.d3edges[i];
+            d3e.compute_layout_part2(this);
+        }
+        this.height = offset;
+        this.vlane_width = this.vlane_gap * this.vlane_occupancies.length;
+        this.vlane_offset = Math.max.apply(Math,
+            this.d3bbs.map(function(i){return i.width;})) + this.vlane_gap;
+        this.width = this.vlane_offset + this.vlane_width;
+    },
+
+    // layout parameters:
+    vlane_gap: 10,
+    bbgap: 15,
+    instructionTextSize: 10,
+    avgCharacterWidth: 6,
+    bb_weight_width: 20,
+    x_offset_instruction_text: 100+20/*bb_weight_width*/,
+    slot_gap: 0
+};
+
+function D3BB (bb, index) {
+    this.bb = bb;
+    this.index = index;
+    this.d3instructions = [];
+    this.free_top_slot = 0;
+    this.free_bottom_slot = 0;
+    for (var i=0; i<this.bb.instructions.length; ++i) {
+        var instr = this.bb.instructions[i];
+        this.d3instructions.push(new D3Instruction(instr));
+    }
+};
+
+D3BB.prototype = {
+    compute_layout: function(d3cfg) {
+        var offset = 0;
+        this.d3instructions.forEach(function(d3i) {
+            d3i.compute_layout(d3cfg);
+            d3i.y = d3i.y + offset;
+            offset += d3i.height + 1;
+        });
+        this.x = 0;
+        this.y = 0;
+        this.height = offset;
+        this.width = Math.max.apply(Math,
+            this.d3instructions.map(function(i){return i.width;}))
+                                  + d3cfg.x_offset_instruction_text;
+    },
+
+    reserve_bottom_slot: function(d3cfg) {
+        var offset = this.free_bottom_slot++;
+        y_coord = this.y + this.height - (d3cfg.slot_gap*offset);
+        return y_coord;
+    },
+    reserve_top_slot: function(d3cfg) {
+        var offset = this.free_top_slot++;
+        y_coord = this.y + (d3cfg.slot_gap*offset);
+        return y_coord;
+    },
+};
+
+function D3Edge (edge, d3cfg) {
+    this.edge = edge;
+    this.d3cfg = d3cfg;
+};
+
+D3Edge.prototype = {
+    compute_layout_part1: function (d3cfg) {
+        var bb_from = this.edge.from;
+        var bb_to = this.edge.to;
+        d3bb_from = this.d3cfg.bb2d3bb.get(bb_from);
+        d3bb_to = this.d3cfg.bb2d3bb.get(bb_to);
+        this.downward = d3bb_from.y < d3bb_to.y;
+        if (this.downward) {
+            this.start_bb_index = d3bb_from.index;
+            this.end_bb_index = d3bb_to.index;
+        } else {
+            this.start_bb_index = d3bb_to.index;
+            this.end_bb_index = d3bb_from.index;
+        }
+        this.fallthru = this.start_bb_index+1 == this.end_bb_index;
+        if (this.fallthru) {
+            this.start_y = d3bb_from.y + d3bb_from.height;
+            this.end_y = d3bb_to.y;
+            var x = Math.min(d3bb_from.width/2, d3bb_to.width/2);
+            this.start_x = this.end_x = x;
+            return;
+        }
+        this.start_y = d3bb_from.reserve_bottom_slot(d3cfg);
+        this.end_y = d3bb_to.reserve_top_slot(d3cfg);
+        this.start_x = d3bb_from.width;
+        this.end_x = d3bb_to.width;
+    },
+
+    reserve_lane: function (lanenr) {
+        var vlane_occupancy = this.d3cfg.vlane_occupancies[lanenr];
+        if (this.downward) {
+            vlane_occupancy[this.start_bb_index].bottom = this;
+        } else {
+            vlane_occupancy[this.start_bb_index].top = this;
+        }
+        for(var i=this.start_bb_index+1; i<this.end_bb_index; ++i) {
+            vlane_occupancy[i].top = this;
+            vlane_occupancy[i].bottom = this;
+        }
+        if (this.downward) {
+            vlane_occupancy[this.end_bb_index].top = this;
+        } else {
+            vlane_occupancy[this.end_bb_index].bottom = this;
+        }
+        this.vlane = lanenr;
+    },
+
+    compute_layout_part2: function() {
+        // special case for fall-thru: just draw a direct line.
+        // reserve an edge connection slot at the top bb and the end bb
+        // look for first vertical lane that's free across all basic blocks
+        // this edge will cross, and reserve that.
+        if (this.fall_thru)
+            return;
+        var available=false;
+        iterate_vlanes_loop:
+        for(var j=0; j<this.d3cfg.vlane_occupancies.length; ++j) {
+            var vlane_occupancy = this.d3cfg.vlane_occupancies[j];
+            available=true;
+            if (this.downward) {
+                if (vlane_occupancy[this.start_bb_index].bottom) {
+                    available=false;
+                    continue iterate_vlanes_loop;
+                }
+            } else {
+                if (vlane_occupancy[this.start_bb_index].top) {
+                    available=false;
+                    continue iterate_vlanes_loop;
+                }
+            }
+            for(var i=this.start_bb_index+1; i<this.end_bb_index; ++i) {
+                if (vlane_occupancy[i].top || vlane_occupancy[i].bottom) {
+                    // this vlane slot is already taken - continue looking
+                    // in next vlane.
+                    available = false;
+                    continue iterate_vlanes_loop;
+                }
+            }
+            if (this.downward) {
+                if (vlane_occupancy[this.end_bb_index].top) {
+                    available=false;
+                    continue iterate_vlanes_loop;
+                }
+            } else {
+                if (vlane_occupancy[this.end_bb_index].bottom) {
+                    available=false;
+                    continue iterate_vlanes_loop;
+                }
+            }
+            // lane j is available for this edge:
+            if (available) {
+                this.reserve_lane(j);
+                this.vlane=j;
+                break iterate_vlanes_loop;
+            }
+        }
+        if (!available) {
+            // no vlane found, create a new one.
+            this.d3cfg.vlane_occupancies.push(
+                Array.apply(null,
+                    Array(this.d3cfg.d3bbs.length)).map(function () {
+                        o = new Object;
+                        o.top = null;
+                        o.bottom = null;
+                        return o;
+                    }));
+            this.reserve_lane(this.d3cfg.vlane_occupancies.length-1);
+        }
+    }
+};
+
+function D3Instruction (cfgInstruction) {
+    this.instruction = cfgInstruction;
+};
+
+D3Instruction.prototype = {
+    compute_layout: function(d3cfg) {
+        this.x = 0;
+        this.y = 0;
+        this.height = d3cfg.instructionTextSize;
+        this.width = d3cfg.avgCharacterWidth*this.instruction.text.length;
+    }
+}
+
 function Profile(element, runid, testid, unique_id) {
     this.element = $(element);
     this.runid = runid;
@@ -19,17 +423,19 @@ Profile.prototype = {
         $(this.element).html('<center><i>Select a run and function above<br> ' +
                              'to view a performance profile</i></center>');
     },
-    go: function(function_name, counter_name, displayType, total_ctr_for_fn) {
+    go: function(function_name, counter_name, displayType, counterDisplayType,
+                 total_ctr_for_fn) {
         this.counter_name = counter_name
         this.displayType = displayType;
+        this.counterDisplayType = counterDisplayType;
         this.total_ctr = total_ctr_for_fn;
         if (this.function_name != function_name)
-            this._fetch_and_go(function_name);
+            this._fetch_and_display(function_name);
         else
-            this._go();
+            this._display();
     },
 
-    _fetch_and_go: function(fname, then) {
+    _fetch_and_display: function(fname, then) {
         this.function_name = fname;
         var this_ = this;
         $.ajax(g_urls.getCodeForFunction, {
@@ -38,7 +444,7 @@ Profile.prototype = {
                    'f': fname},
             success: function(data) {
                 this_.data = data;
-                this_._go();
+                this_._display();
             },
             error: function(xhr, textStatus, errorThrown) {
                 pf_flash_error('accessing URL ' + g_urls.getCodeForFunction +
@@ -47,10 +453,147 @@ Profile.prototype = {
         });
     },
 
-    _go: function() {
+    _display: function() {
+        try {
+            if (this.displayType != 'cfg')
+                this._display_straightline();
+            else
+                this._display_cfg();
+        }
+        catch (err) {
+            $(this.element).html(
+                '<center><i>The javascript on this page to<br> ' +
+                'analyze and visualize the profile has crashed:<br>'+
+                +err.message+'</i></center>'+
+                err.stack);
+        }
+    },
+
+    _display_cfg: function() {
+        this.element.empty();
+        var profiledDisassembly = this.data;
+        var instructionParser = new AArch64InstructionSetParser();
+        var cfg = new CFG(profiledDisassembly, instructionParser);
+        var d3cfg = new D3CFG(cfg);
+        d3cfg.compute_layout();
+        var d3data = [d3cfg];
+        var d3cfg_dom = d3.select(this.element.get(0))
+            .selectAll("svg")
+            .data(d3data)
+            .enter().append("svg");
+        var profile = this;
+
+        // add circle and arrow marker definitions
+        var svg_defs = d3cfg_dom.append("defs");
+        svg_defs.append("marker")
+            .attr("id", "markerCircle")
+            .attr("markerWidth", "7").attr("markerHeight", "7")
+            .attr("refX", "3").attr("refY", "3")
+            .append("circle")
+            .attr("cx","3").attr("cy", "3").attr("r","3")
+            .attr("style","stroke: none; fill: #000000;");
+        svg_defs.append("marker")
+            .attr("id", "markerArrow")
+            .attr("markerWidth", "11").attr("markerHeight", "7")
+            .attr("refX", "10").attr("refY", "3")
+            .attr("orient", "auto")
+            .append("path")
+            .attr("d","M0,0 L0,6 L10,3 L0,0")
+            .attr("style","fill: #000000;");
+        d3cfg_dom
+            .attr('width', d3data[0].width)
+            .attr('height', d3data[0].height);
+        var d3bbs_dom = d3cfg_dom.selectAll("g .bbgroup")
+            .data(function (d,i) { return d.d3bbs; })
+            .enter().append("g").attr('class', 'bbgroup');
+        d3bbs_dom
+            .attr("transform", function (d) {
+              return "translate(" + d.x + "," + d.y + ")"});
+        d3bbs_dom.append("rect")
+            .attr('class', 'basicblock')
+            .attr("x", function(d) { return d3cfg.bb_weight_width; })
+            .attr("y", function (d) { return 0; })
+            .attr("height", function (d) { return d.height; })
+            .attr("width", function (d) {
+                return d.width-d3cfg.bb_weight_width; });
+        // draw weight of basic block in a rectangle on the left.
+        d3bbs_dom.append("rect")
+            .attr('class', 'basicblocksidebar')
+            .attr("x", function(d) { return 0; })
+            .attr("y", function (d) { return 0; })
+            .attr("height", function (d) { return d.height; })
+            .attr("width", function (d) { return d3cfg.bb_weight_width; })
+            .attr("style", function (d) {
+                var lData = profile._label(d.bb.weight, true /*littleSpace*/);
+                return "fill: "+lData.background_color;
+            });
+        d3bbs_dom.append("g")
+            .attr('transform', function (d) {
+                return "translate("
+                    +(d.x+d3cfg.bb_weight_width-3)
+                    +","
+                    +(d.height/2)
+                    +")"; })
+            .append("text")
+            .attr('class', 'basicblockweight')
+            .attr("transform", "rotate(-90)")
+            .attr("text-anchor", "middle")
+            .text(function (d,i) {
+                var lData = profile._label(d.bb.weight, true /*littleSpace*/);
+                return lData.text; //d.bb.weight.toFixed(0)+"%"; 
+            });
+        var d3inst_dom = d3bbs_dom.selectAll("text:root")
+            .data(function (d,i) { return d.d3instructions; })
+            .enter();
+        // draw disassembly text
+        d3inst_dom.append("text")
+            .attr('class', 'instruction instructiontext')
+            .attr("x", function (d,i) { return d.x+d3cfg.x_offset_instruction_text; })
+            .attr("y", function (d,i) { return d.y+10; })
+            .text(function (d,i) { return d.instruction.text; });
+        // draw address of instruction
+        d3inst_dom.append("text")
+            .attr('class', 'instruction instructionaddress')
+            .attr("x", function (d,i) { return d.x+d3cfg.bb_weight_width+50; })
+            .attr("y", function (d,i) { return d.y+10; })
+            .text(function (d,i) { return d.instruction.address.toString(16); });
+        // draw profile weight of instruction
+        d3inst_dom.append("text")
+            .attr('class', 'instruction instructionweight')
+            .attr("x", function (d,i) { return d.x+d3cfg.bb_weight_width+0; })
+            .attr("y", function (d,i) { return d.y+10; })
+            .text(function (d,i) {
+                if (d.instruction.weight == 0)
+                    return "";
+                else
+                    return d.instruction.weight.toFixed(2)+"%";
+                });
+        var d3edges_dom = d3cfg_dom.selectAll("g .edgegroup")
+            .data(function (d,i) { return d.d3edges; })
+            .enter().append("g").attr('class', 'edgegroup');
+        d3edges_dom.append("polyline")
+            .attr("points", function (d,i) {
+                if (d.fallthru) {
+                    return d.start_x+","+d.start_y+" "+
+                           d.end_x+","+d.end_y;
+                }
+                var lane_x = d.d3cfg.vlane_offset + d.d3cfg.vlane_gap*d.vlane;
+                return d.start_x+","+d.start_y+" "+
+                       lane_x+","+d.start_y+" "+
+                       lane_x+","+d.end_y+" "+
+                       d.end_x+","+d.end_y; })
+            .attr('class', function (d) {
+                return d.downward?'edge':'backedge';
+            })
+            .attr('style',
+                  'marker-start: url(#markerCircle); '+
+                  'marker-end: url(#markerArrow);');
+    },
+
+    _display_straightline: function() {
         this.element.empty();
         this.cumulative = 0;
-        for (i in this.data) {
+        for (var i=0; i<this.data.length; ++i) {
             line = this.data[i];
 
             row = $('<tr></tr>');
@@ -70,7 +613,7 @@ Profile.prototype = {
         }
     },
 
-    _labelTd: function(value) {
+    _label: function(value, littleSpace) {
         var this_ = this;
         var labelPct = function(value) {
             // Colour scheme: Black up until 1%, then yellow fading to red at 10%
@@ -84,21 +627,33 @@ Profile.prototype = {
                 bg = 'hsl(0, 100%, 50%)';
                 hl = 'hsl(0, 100%, 30%)';
             }
-            return $('<td style="background-color:' + bg + '; border-right: 1px solid ' + hl + ';"></td>')
-                .text(value.toFixed(2) + '%');
+            return {
+              background_color: bg,
+              border_right_color: hl,
+              text: (value.toFixed(littleSpace?0:2) + '%')
+            };
         };
         
         var labelAbs = function(value) {
-            var hue = lerp(50.0, 0.0, value / 100.0);
-            var bg = 'hsl(' + hue.toFixed(0) + ', 100%, 50%)';
-            var hl = 'hsl(' + hue.toFixed(0) + ', 100%, 30%)';
+            // Colour scheme: Black up until 1%, then yellow fading to red at 10%
+            var bg = '#fff';
+            var hl = '#fff';
+            if (value > 1.0 && value < 10.0) {
+                hue = lerp(50.0, 0.0, (value - 1.0) / 9.0);
+                bg = 'hsl(' + hue.toFixed(0) + ', 100%, 50%)';
+                hl = 'hsl(' + hue.toFixed(0) + ', 100%, 30%)';
+            } else if (value >= 10.0) {
+                bg = 'hsl(0, 100%, 50%)';
+                hl = 'hsl(0, 100%, 30%)';
+            }
 
             var absVal = (value / 100.0) * this_.total_ctr;
-            return $('<td style="background-color:' + bg + '; border-right: 1px solid ' + hl + ';"></td>')
-                .text(currencyify(absVal))
-                .append($('<span></span>')
-                        .text(value.toFixed(2) + '%')
-                        .hide());
+            return {
+              background_color: bg,
+              border_right_color: hl,
+              text: (currencyify(absVal)),
+              absVal: absVal
+            };
         };
 
         var labelCumAbs = function(value) {
@@ -109,9 +664,42 @@ Profile.prototype = {
             var hl = 'hsl(' + hue.toFixed(0) + ', 100%, 40%)';
 
             var absVal = (this_.cumulative / 100.0) * this_.total_ctr;
+            return {
+              background_color: bg,
+              border_right_color: hl,
+              text: (currencyify(absVal)),
+              cumulative: this_.cumulative,
+              absVal: absVal
+            };
+        }
+
+        if (this.counterDisplayType == 'cumulative')
+            return labelCumAbs(value);
+        else if (this.counterDisplayType == 'absolute')
+            return labelAbs(value);
+        else
+            return labelPct(value);
+    },
+
+    _labelTd: function(value) {
+        var this_ = this;
+        var labelPct = function(value, bg, hl, text) {
+            return $('<td style="background-color:' + bg + '; border-right: 1px solid ' + hl + ';"></td>')
+                .text(text);
+        };
+        
+        var labelAbs = function(value, bg, hl, text, absVal) {
+            return $('<td style="background-color:' + bg + '; border-right: 1px solid ' + hl + ';"></td>')
+                .text(currencyify(absVal))
+                .append($('<span></span>')
+                        .text(value.toFixed(2) + '%')
+                        .hide());
+        };
+
+        var labelCumAbs = function(value, bg, hl, text, cumulative) {
             return $('<td style="border-right: 1px solid ' + hl + ';"></td>')
                 .css({color: 'gray', position: 'relative'})
-                .text(currencyify(absVal))
+                .text(text)
                 .append($('<span></span>')
                         .text(value.toFixed(2) + '%')
                         .hide())
@@ -120,19 +708,31 @@ Profile.prototype = {
                             position: 'absolute',
                             bottom: '0px',
                             left: '0px',
-                            width: this_.cumulative + '%',
+                            width: cumulative + '%',
                             height: '2px',
                             border: '1px solid ' + hl,
                             backgroundColor: bg
                         }));
         }
 
-        if (this.displayType == 'cumulative')
-            return labelCumAbs(value);
-        else if (this.displayType == 'absolute')
-            return labelAbs(value);
+        var lData = this._label(value, false /*littleSpace*/);
+        if (this.counterDisplayType == 'cumulative')
+            return labelCumAbs(value,
+                               lData.background_color,
+                               lData.border_right_color,
+                               lData.text,
+                               lData.cumulative);
+        else if (this.counterDisplayType == 'absolute')
+            return labelAbs(value,
+                            lData.background_color,
+                            lData.border_right_color,
+                            lData.text,
+                            lData.absVal);
         else
-            return labelPct(value);
+            return labelPct(value,
+                            lData.background_color,
+                            lData.border_right_color,
+                            lData.text);
     },
 };
 
@@ -311,8 +911,12 @@ function ToolBar(element) {
     });
     
     var this_ = this;
-    element.find('.next-btn-l').click(function() {this_._findNextInstruction(this_, false);});
-    element.find('.prev-btn-l').click(function() {this_._findNextInstruction(this_, true);});
+    element.find('.next-btn-l').click(function() {
+      this_._findNextInstruction(this_, false);
+    });
+    element.find('.prev-btn-l').click(function() {
+      this_._findNextInstruction(this_, true);
+    });
 }
 
 ToolBar.prototype = {
@@ -531,9 +1135,9 @@ FunctionTypeahead.prototype = {
 
 $(document).ready(function () {
     jQuery.fn.extend({
-        profile: function(arg1, arg2, arg3, arg4, arg5) {
+        profile: function(arg1, arg2, arg3, arg4, arg5, arg6) {
             if (arg1 == 'go')
-                this.data('profile').go(arg2, arg3, arg4, arg5);
+                this.data('profile').go(arg2, arg3, arg4, arg5, arg6);
             else if (arg1 && !arg2)
                 this.data('profile',
                           new Profile(this,
@@ -602,6 +1206,7 @@ function pf_init(run1, run2, testid, urls) {
                 var ctr_value = $('#stats').statsBar().getCounterValue(pf_get_counter())[0];
                 $('#profile1').profile('go', fname,
                                        pf_get_counter(), pf_get_display_type(),
+                                       pf_get_counter_display_type(),
                                        fn_percentage * ctr_value);
             },
             sourceRunUpdated: function(data) {
@@ -636,6 +1241,7 @@ function pf_init(run1, run2, testid, urls) {
                 var ctr_value = $('#stats').statsBar().getCounterValue(pf_get_counter())[1];
                 $('#profile2').profile('go', fname,
                                        pf_get_counter(), pf_get_display_type(),
+                                       pf_get_counter_display_type(),
                                        fn_percentage * ctr_value);
             },
             sourceRunUpdated: function(data) {
@@ -702,18 +1308,22 @@ function pf_init(run1, run2, testid, urls) {
     
     // Bind change events for the counter dropdown so that profiles are
     // updated when it is modified.
-    $('#counters, #absolute').change(function () {
+    $('#view, #counters, #absolute').change(function () {
         g_counter = $('#counters').val();
         if ($('#fn1_box').val()) {
             var fn_percentage = $('#fn1_box').functionTypeahead().getFunctionPercentage(fname) / 100.0;
             var ctr_value = $('#stats').statsBar().getCounterValue(pf_get_counter())[0];
-            $('#profile1').profile('go', $('#fn1_box').val(), g_counter, pf_get_display_type(),
+            $('#profile1').profile('go', $('#fn1_box').val(), g_counter,
+                                   pf_get_display_type(),
+                                   pf_get_counter_display_type(),
                                    fn_percentage * ctr_value);
         }
         if ($('#fn2_box').val()) {
             var fn_percentage = $('#fn2_box').functionTypeahead().getFunctionPercentage(fname) / 100.0;
             var ctr_value = $('#stats').statsBar().getCounterValue(pf_get_counter())[1];
-            $('#profile2').profile('go', $('#fn2_box').val(), g_counter, pf_get_display_type(),
+            $('#profile2').profile('go', $('#fn2_box').val(), g_counter, 
+                                   pf_get_display_type(),
+                                   pf_get_counter_display_type(),
                                    fn_percentage * ctr_value);
         }
     });
@@ -822,9 +1432,15 @@ function pf_get_counter() {
     return g_counter;
 }
 
-// pf_get_display_type - Whether we should display absolute values or percentages.
-function pf_get_display_type() {
+// pf_get_counter_display_type - Whether we should display absolute values or percentages.
+function pf_get_counter_display_type() {
     return $('#absolute').val();
+}
+
+// pf_get_display_type - Whether we should display straight-line profiles
+// or control flow graphs.
+function pf_get_display_type() {
+    return $('#view').val();
 }
 
 // pf_update_history - Push a new history entry, as we've just navigated

@@ -124,3 +124,43 @@
 .address a:hover {
     text-decoration: none;
 }
+
+/***********************************************************************/
+/* CFG view of the profiles themselves */
+.instruction {
+    fill: black;
+    font-family: sans-serif;
+    font-size: 10px;
+}
+.basicblockweight {
+    fill: black;
+    font-family: sans-serif;
+    font-size: 14px;
+}
+.instructiontext {
+}
+.instructionaddress {
+    font-family: monospace;
+    font-size: 10px;
+}
+.instructionweight {
+}
+.basicblock {
+    fill: #F2F3F4;
+    stroke: black;
+}
+.basicblocksidebar {
+    fill: #F2F3F4;
+    stroke: none;
+}
+.edge {
+    stroke-width: 1px;
+    stroke: black;
+    fill: none;
+}
+.backedge {
+    stroke-width: 1px;
+    stroke: #D35400;
+    fill: none;
+}
+
