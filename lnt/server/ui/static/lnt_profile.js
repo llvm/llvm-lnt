@@ -427,6 +427,10 @@ function Profile(element, runid, testid, unique_id) {
                     'to view a performance profile</i></center>');
 }
 
+function startsWith(string, startString) {
+    return string.substr(0, startString.length) === startString;
+}
+
 Profile.prototype = {
     reset: function() {
         $(this.element).empty();
@@ -465,7 +469,7 @@ Profile.prototype = {
 
     _display: function() {
         try {
-            if (this.displayType.startsWith('cfg')) {
+            if (startsWith(this.displayType, 'cfg')) {
                 var instructionSet = this.displayType.split('-')[1];
                 this._display_cfg(instructionSet);
             } else
