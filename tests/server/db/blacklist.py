@@ -4,7 +4,6 @@
 import unittest
 import logging
 import sys
-import datetime
 from lnt.server.config import Config
 from lnt.server.db import v4db
 
@@ -29,12 +28,8 @@ class BlacklistProcessingTest(unittest.TestCase):
         ts_db = self.ts_db = self.db.testsuite['nts']
         
         order1234 = self.order1234 = self._mkorder(ts_db, "1234")
-        order1235 = self.order1235 = self._mkorder(ts_db, "1235")
         order1236 = self.order1236 = self._mkorder(ts_db, "1236")
-        order1237 = self.order1237 = self._mkorder(ts_db, "1237")
-        order1238 = self.order1238 = self._mkorder(ts_db, "1238")
 
-        start_time = end_time = datetime.datetime.utcnow()
         machine = self.machine = ts_db.Machine("test-machine")
         ts_db.add(machine)
         
@@ -76,7 +71,7 @@ class BlacklistProcessingTest(unittest.TestCase):
 
         valid = blacklist.filter_by_benchmark_name(ts, fc1)
         self.assertTrue(valid, "Expect this to not be filtered.")
-        valid = blacklist.filter_by_benchmark_name(ts ,fc2)
+        valid = blacklist.filter_by_benchmark_name(ts, fc2)
         self.assertTrue(valid, "Expect this to not be filtered.")
         bad = blacklist.filter_by_benchmark_name(ts, fc3)
         self.assertFalse(bad, "Expect this to be filtered by regex.")

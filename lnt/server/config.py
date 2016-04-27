@@ -84,6 +84,7 @@ class DBInfo:
     def __str__(self):
         return "DBInfo(" + self.path + ")"
 
+
 class Config:
     @staticmethod
     def fromData(path, data):
@@ -119,18 +120,17 @@ class Config:
                       dict([(k, DBInfo.fromData(dbDirPath, v,
                                                 default_email_config,
                                                 0))
-                                     for k, v in data['databases'].items()]),
+                           for k, v in data['databases'].items()]),
                       blacklist)
     
     @staticmethod
     def dummyInstance():
-        baseDir = tempfile.mkdtemp()        
+        baseDir = tempfile.mkdtemp()
         dbDir = '.'
-        dbDirPath = os.path.join(baseDir, dbDir)
         profileDirPath = os.path.join(baseDir, 'profiles')
-        tempDir = os.path.join(baseDir, 'tmp')        
+        tempDir = os.path.join(baseDir, 'tmp')
         secretKey = None
-        dbInfo = {'dummy': DBInfo.dummyInstance(),}
+        dbInfo = {'dummy': DBInfo.dummyInstance()}
         blacklist = None
         
         return Config('LNT', 'http://localhost:8000', dbDir, tempDir, profileDirPath, secretKey, dbInfo, blacklist)

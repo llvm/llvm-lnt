@@ -50,6 +50,7 @@ HOOKS = {'post_test_hook':[],
          'is_useful_change': []}
 DESCRIPTIONS = {}
 
+
 def register_hooks():
     """Exec all the rules files.  Gather the hooks from them
     and load them into the hook dict for later use.

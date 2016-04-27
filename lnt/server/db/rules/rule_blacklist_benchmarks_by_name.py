@@ -12,7 +12,8 @@ from flask import current_app
 ignored = None
 
 
-# Try and find the blacklist. 
+# Try and find the blacklist.
+
 def populate_blacklist():
     global ignored
     ignored = []
