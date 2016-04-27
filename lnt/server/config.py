@@ -106,16 +106,21 @@ class Config:
 
         # FIXME: Remove this default.
         tempDir = data.get('tmp_dir', 'viewer/resources/graphs')
-
+        blacklist = data.get('blacklist', None)
+        if blacklist and baseDir:
+            blacklist = os.path.join(baseDir, blacklist)
+        else:
+            blacklist = None
         secretKey = data.get('secret_key', None)
 
         return Config(data.get('name', 'LNT'), data['zorgURL'],
                       dbDir, os.path.join(baseDir, tempDir),
                       os.path.join(baseDir, profileDir), secretKey,
-                      dict([(k,DBInfo.fromData(dbDirPath, v,
-                                               default_email_config,
-                                               0))
-                                     for k,v in data['databases'].items()]))
+                      dict([(k, DBInfo.fromData(dbDirPath, v,
+                                                default_email_config,
+                                                0))
+                                     for k, v in data['databases'].items()]),
+                      blacklist)
     
     @staticmethod
     def dummyInstance():
@@ -125,16 +130,18 @@ class Config:
         profileDirPath = os.path.join(baseDir, 'profiles')
         tempDir = os.path.join(baseDir, 'tmp')        
         secretKey = None
-        dbInfo = {'dummy': DBInfo.dummyInstance()}
+        dbInfo = {'dummy': DBInfo.dummyInstance(),}
+        blacklist = None
         
-        return Config('LNT', 'http://localhost:8000', dbDir, tempDir, profileDirPath, secretKey, dbInfo)
+        return Config('LNT', 'http://localhost:8000', dbDir, tempDir, profileDirPath, secretKey, dbInfo, blacklist)
     
-    def __init__(self, name, zorgURL, dbDir, tempDir, profileDir, secretKey, databases):
+    def __init__(self, name, zorgURL, dbDir, tempDir, profileDir, secretKey, databases, blacklist):
         self.name = name
         self.zorgURL = zorgURL
         self.dbDir = dbDir
         self.tempDir = tempDir
         self.secretKey = secretKey
+        self.blacklist = blacklist
         self.profileDir = profileDir
         while self.zorgURL.endswith('/'):
             self.zorgURL = zorgURL[:-1]

@@ -46,8 +46,8 @@ def load_rules():
 # Places our rules can hook to.
 HOOKS = {'post_test_hook':[],
          'post_submission_hook':[],
-         'post_regression_create_hook':[]}
-
+         'post_regression_create_hook':[],
+         'is_useful_change': []}
 DESCRIPTIONS = {}
 
 def register_hooks():
@@ -67,3 +67,15 @@ def post_submission_hooks(ts, run_id):
     """Run all the post submission hooks on the submitted run."""
     for func in HOOKS['post_submission_hook']:
         func(ts, run_id)
+
+def is_useful_change(ts, field_change):
+    """Run all the change filters. If any are false, drop this change."""
+    all_filters = []
+    for func in HOOKS['is_useful_change']:
+        decision = func(ts, field_change)
+        all_filters.append(decision)
+    if len(all_filters) == 0:
+        return True
+    else:
+        #  If any filter ignores, we ignore.
+        return all(all_filters)

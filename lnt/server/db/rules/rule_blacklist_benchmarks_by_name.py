@@ -1,0 +1,49 @@
+"""Given a set of filed changes - figure out if we really care.
+
+This can be used to implement server side black lists.
+
+"""
+import re
+import os
+import sys
+from lnt.testing.util.commands import note, warning
+from flask import current_app
+
+ignored = None
+
+
+# Try and find the blacklist. 
+def populate_blacklist():
+    global ignored
+    ignored = []
+    try:
+        path = current_app.old_config.blacklist
+    except RuntimeError:
+        path = os.path.join(os.path.dirname(sys.argv[0]), "blacklist")
+    
+    if path and os.path.isfile(path):
+        note("Loading blacklist file: {}".format(path))
+        with open(path, 'r') as f:
+            for l in f.readlines():
+                ignored.append(re.compile(l.strip()))
+    else:
+        warning("Ignoring blacklist file: {}".format(path))
+
+
+def filter_by_benchmark_name(ts, field_change):
+    """Is this a fieldchanges we care about?
+    """
+    if ignored is None:
+        populate_blacklist()
+    benchmark_name = field_change.test.name
+    ts_name = ts.name
+    full_name = ts_name + "." + benchmark_name
+
+    for regex in ignored:
+        if regex.match(full_name):
+            note("Dropping field change {} because it matches {}".format(full_name,
+                                                                         regex.pattern))
+            return False
+    return True
+    
+is_useful_change = filter_by_benchmark_name

@@ -121,19 +121,21 @@ def regenerate_fieldchanges_for_run(ts, run_id):
                                    machine=run.machine,
                                    test=test,
                                    field=field)
-                ts.add(f)
-                ts.commit()
-                try:
-                    found, new_reg = identify_related_changes(ts, regressions, f)
-                except ObjectDeletedError:
-                    # This can happen from time to time.
-                    # So, lets retry once.
-                    regressions = ts.query(ts.Regression).all()[::-1]
-                    found, new_reg = identify_related_changes(ts, regressions, f)
-                    
-                if found:
-                    regressions.append(new_reg)
-                    note("Found field change: {}".format(run.machine))
+                # Check the rules to see if this change matters.
+                if rules.is_useful_change(ts, f):
+                    ts.add(f)
+                    ts.commit()
+                    try:
+                        found, new_reg = identify_related_changes(ts, regressions, f)
+                    except ObjectDeletedError:
+                        # This can happen from time to time.
+                        # So, lets retry once.
+                        regressions = ts.query(ts.Regression).all()[::-1]
+                        found, new_reg = identify_related_changes(ts, regressions, f)
+                        
+                    if found:
+                        regressions.append(new_reg)
+                        note("Found field change: {}".format(run.machine))
 
             # Always update FCs with new values.
             if f:
