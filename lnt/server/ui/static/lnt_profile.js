@@ -480,7 +480,7 @@ Profile.prototype = {
                 '<center><i>The javascript on this page to<br> ' +
                 'analyze and visualize the profile has crashed:<br>'+
                 +err.message+'</i></center>'+
-                err.stack);
+                err.stack + '</br>' + err);
         }
     },
 
