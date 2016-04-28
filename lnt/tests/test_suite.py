@@ -190,9 +190,6 @@ class TestSuiteTest(BuiltinTest):
                          help=("whether the autosubmit result should be committed "
                                "[%default]"),
                          type=int, default=True)
-        group.add_option("-v", "--verbose", dest="verbose",
-                         help="show verbose test results",
-                         action="store_true", default=False)
         group.add_option("", "--succinct-compile-output",
                          help="run Make without VERBOSE=1",
                          action="store_true", dest="succinct")
@@ -408,10 +405,9 @@ class TestSuiteTest(BuiltinTest):
         return self.opts.threads
 
     def _check_call(self, *args, **kwargs):
-        if self.opts.verbose:
-            note('Execute: %s' % ' '.join(args[0]))
-            if 'cwd' in kwargs:
-                note('          (In %s)' % kwargs['cwd'])
+        note('Execute: %s' % ' '.join(args[0]))
+        if 'cwd' in kwargs:
+            note('          (In %s)' % kwargs['cwd'])
         return subprocess.check_call(*args, **kwargs)
     
     def _clean(self, path):
