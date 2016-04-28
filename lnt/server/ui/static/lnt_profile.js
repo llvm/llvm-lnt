@@ -115,7 +115,7 @@ InstructionSetParser.prototype = {
             }
         }
         return [false, []];
-    },
+    }
 };
 
 
@@ -285,7 +285,7 @@ D3BB.prototype = {
         var offset = this.free_top_slot++;
         y_coord = this.y + (d3cfg.slot_gap*offset);
         return y_coord;
-    },
+    }
 };
 
 function D3Edge (edge, d3cfg) {
@@ -764,7 +764,7 @@ Profile.prototype = {
                             lData.background_color,
                             lData.border_right_color,
                             lData.text);
-    },
+    }
 };
 
 function StatsBar(element, testid) {
@@ -832,22 +832,21 @@ StatsBar.prototype = {
                             show: true,
                             barWidth: 0.6,
                             align: "center",
-                            horizontal: true,
-                        },
+                            horizontal: true
+                        }
                     },
                     xaxis: {
                         tickFormatter: function(f) {
                             return this_._percentageify(f);
                         },
-                        autoscaleMargin: 0.05,
+                        autoscaleMargin: 0.05
                     },
                     yaxis: {
                         show: false
                     },
                     grid: {
-                        borderWidth: 0,
+                        borderWidth: 0
                     }
-
                 });
 
                 $('#toolbar').toolBar().triggerResize();
@@ -895,7 +894,7 @@ StatsBar.prototype = {
         s += '</span>';
 
         return $(s).tooltip();
-    },
+    }
 };
 
 function ToolBar(element) {
@@ -938,7 +937,7 @@ function ToolBar(element) {
         // Then when we revert to relative positioning, restore the correct margins.
         postFixed: function() {
             element.css({marginLeft: marginLeft, marginRight: marginRight});
-        },
+        }
     });
     
     var this_ = this;
