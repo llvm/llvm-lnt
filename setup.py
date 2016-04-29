@@ -1,7 +1,13 @@
 import lnt
 import os
-
+from sys import platform as _platform
 from setuptools import setup, find_packages, Extension
+
+
+if _platform == "darwin":
+    os.environ["CC"] = "xcrun clang"
+    os.environ["CXX"] = "xcrun clang"
+
 
 # setuptools expects to be invoked from within the directory of setup.py, but it
 # is nice to allow:
