@@ -3,11 +3,12 @@ import os
 from sys import platform as _platform
 from setuptools import setup, find_packages, Extension
 
+cflags = []
 
 if _platform == "darwin":
     os.environ["CC"] = "xcrun clang"
     os.environ["CXX"] = "xcrun clang"
-
+    cflags += ['-stdlib=libc++', '-mmacosx-version-min=10.7']
 
 # setuptools expects to be invoked from within the directory of setup.py, but it
 # is nice to allow:
@@ -16,9 +17,9 @@ if _platform == "darwin":
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 cPerf = Extension('lnt.testing.profile.cPerf',
-                  sources = ['lnt/testing/profile/cPerf.cpp'],
-                  extra_compile_args = ['-std=c++11'],
-                  optional = True)
+                  sources=['lnt/testing/profile/cPerf.cpp'],
+                  extra_compile_args=['-std=c++11'] + cflags,
+                  optional=True)
 
 setup(
     name = "LNT",
