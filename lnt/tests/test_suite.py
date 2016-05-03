@@ -446,6 +446,8 @@ class TestSuiteTest(BuiltinTest):
             defs['TEST_SUITE_BENCHMARKING_ONLY'] = 'ON'
         if self.opts.use_perf in ('time', 'all'):
             defs['TEST_SUITE_USE_PERF'] = 'ON'
+        if self.opts.test_suite_externals:
+            defs['TEST_SUITE_EXTERNALS_DIR'] = self.opts.test_suite_externals
         if self.opts.cmake_defines:
             for item in self.opts.cmake_defines:
                 k, v = item.split('=', 1)
