@@ -240,6 +240,9 @@ class TestSuiteTest(BuiltinTest):
         if self.opts.sandbox_path is None:
             parser.error('--sandbox is required')
 
+        if self.opts.cc is None:
+            parser.error('--cc is required')
+
         # Option validation.
         opts.cc = resolve_command_path(opts.cc)
 
