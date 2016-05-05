@@ -563,13 +563,15 @@ class TestSuiteTest(BuiltinTest):
             'compile_time': 'compile',
             'exec_time': 'exec',
             'score': 'score',
-            'hash': 'hash'
+            'hash': 'hash',
+            'link_time': 'compile'
         }
         LIT_METRIC_CONV_FN = {
             'compile_time': float,
             'exec_time': float,
             'score': float,
-            'hash': str
+            'hash': str,
+            'link_time': float
         }
         
         # We don't use the test info, currently.
@@ -605,11 +607,17 @@ class TestSuiteTest(BuiltinTest):
                     if k == 'profile':
                         profiles_to_import.append((name, v))
                         continue
-                    
+
                     if k not in LIT_METRIC_TO_LNT or LIT_METRIC_TO_LNT[k] in ignore:
                         continue
+                    server_name = name + '.' + LIT_METRIC_TO_LNT[k]
+
+                    if k == 'link_time':
+                        # Move link time into a second benchmark's compile-time.
+                        server_name =  name + '-link.' + LIT_METRIC_TO_LNT[k]
+    
                     test_samples.append(
-                        lnt.testing.TestSamples(name + '.' + LIT_METRIC_TO_LNT[k],
+                        lnt.testing.TestSamples(server_name,
                                                 [v],
                                                 test_info,
                                                 LIT_METRIC_CONV_FN[k]))
