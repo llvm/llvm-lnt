@@ -56,6 +56,7 @@ class TestSuiteTest(BuiltinTest):
     def __init__(self):
         self.configured = False
         self.compiled = False
+        self.trained = False
 
     def describe(self):
         return "LLVM test-suite"
@@ -171,6 +172,11 @@ class TestSuiteTest(BuiltinTest):
                          help="Produce a diagnostic report for a particular "
                               "test, this will not run all the tests.  Must be"
                               " used in conjunction with --only-test.",
+                         action="store_true", default=False,)
+        group.add_option("", "--pgo", dest="pgo",
+                         help="Run the test-suite in training mode first and"
+                         " collect PGO data, then rerun with that training "
+                         "data.",
                          action="store_true", default=False,)
 
         parser.add_option_group(group)
@@ -373,6 +379,10 @@ class TestSuiteTest(BuiltinTest):
         if not os.path.exists(path):
             mkdir_p(path)
             
+        if self.opts.pgo:
+            self._collect_pgo(path)
+            self.trained = True
+            
         if not self.configured and self._need_to_configure(path):
             self._configure(path)
             self._clean(path)
@@ -427,7 +437,7 @@ class TestSuiteTest(BuiltinTest):
         self._check_call([make_cmd, 'clean'],
                          cwd=subdir)
         
-    def _configure(self, path, execute=True):
+    def _configure(self, path, extra_flags=[], execute=True):
         cmake_cmd = self.opts.cmake
 
         defs = {
@@ -451,10 +461,19 @@ class TestSuiteTest(BuiltinTest):
             defs['TEST_SUITE_USE_PERF'] = 'ON'
         if self.opts.test_suite_externals:
             defs['TEST_SUITE_EXTERNALS_DIR'] = self.opts.test_suite_externals
+        if self.opts.pgo and self.trained:
+            defs['TEST_SUITE_PROFILE_USE'] = "On"
+            defs['TEST_SUITE_PROFILE_GENERATE'] = "Off"
+            # This could be redefined by user defines.
+            defs['TEST_SUITE_RUN_TYPE'] = "test"
+        
         if self.opts.cmake_defines:
             for item in self.opts.cmake_defines:
                 k, v = item.split('=', 1)
                 defs[k] = v
+        for item in extra_flags:
+            k, v = item.split('=', 1)
+            defs[k] = v
             
         lines = ['Configuring with {']
         for k, v in sorted(defs.items()):
@@ -481,6 +500,12 @@ class TestSuiteTest(BuiltinTest):
             self._check_call(cmake_cmd, cwd=path)
 
         return cmake_cmd
+        
+    def _collect_pgo(self, path):
+        flags = ["TEST_SUITE_PROFILE_GENERATE=On", "TEST_SUITE_RUN_TYPE=train"]
+        self._configure(path, extra_flags=flags)
+        self._make(path)
+        self._lit(path, True)
 
     def _make(self, path):
         make_cmd = self.opts.make
