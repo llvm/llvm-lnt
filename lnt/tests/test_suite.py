@@ -437,7 +437,7 @@ class TestSuiteTest(BuiltinTest):
         self._check_call([make_cmd, 'clean'],
                          cwd=subdir)
         
-    def _configure(self, path, extra_flags=[], execute=True):
+    def _configure(self, path, extra_cmake_defs=[], execute=True):
         cmake_cmd = self.opts.cmake
 
         defs = {
@@ -471,7 +471,7 @@ class TestSuiteTest(BuiltinTest):
             for item in self.opts.cmake_defines:
                 k, v = item.split('=', 1)
                 defs[k] = v
-        for item in extra_flags:
+        for item in extra_cmake_defs:
             k, v = item.split('=', 1)
             defs[k] = v
             
@@ -502,8 +502,9 @@ class TestSuiteTest(BuiltinTest):
         return cmake_cmd
         
     def _collect_pgo(self, path):
-        flags = ["TEST_SUITE_PROFILE_GENERATE=On", "TEST_SUITE_RUN_TYPE=train"]
-        self._configure(path, extra_flags=flags)
+        extra_defs = ["TEST_SUITE_PROFILE_GENERATE=On",
+                      "TEST_SUITE_RUN_TYPE=train"]
+        self._configure(path, extra_cmake_defs=extra_defs)
         self._make(path)
         self._lit(path, True)
 
