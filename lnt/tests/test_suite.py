@@ -464,8 +464,8 @@ class TestSuiteTest(BuiltinTest):
         if self.opts.pgo and self.trained:
             defs['TEST_SUITE_PROFILE_USE'] = "On"
             defs['TEST_SUITE_PROFILE_GENERATE'] = "Off"
-            # This could be redefined by user defines.
-            defs['TEST_SUITE_RUN_TYPE'] = "test"
+            if 'TEST_SUITE_RUN_TYPE' not in defs:
+                defs['TEST_SUITE_RUN_TYPE'] = 'ref'
         
         if self.opts.cmake_defines:
             for item in self.opts.cmake_defines:
