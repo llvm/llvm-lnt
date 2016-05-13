@@ -322,6 +322,11 @@ def v4_regression_detail(id):
 
     test_suite_versions = set()
     form.field_changes.choices = list()
+    # If we have more than 10 regressions, don't graph any by default.
+    checkbox_state = 1
+    if len(regression_indicators) >= 10:
+        checkbox_state = 0
+
     for regression in regression_indicators:
         fc = regression.field_change
         if fc is None:
@@ -333,7 +338,7 @@ def v4_regression_detail(id):
             key_run = get_first_runs_of_fieldchange(ts, fc)
         current_cr, _, all_runs = get_cr_for_field_change(ts, fc, current=True)
         crs.append(ChangeData(fc, cr, key_run, current_cr))
-        form.field_changes.choices.append((fc.id, 1,))
+        form.field_changes.choices.append((fc.id, checkbox_state,))
         for run in all_runs:
             ts_rev = key_run.parameters.get('test_suite_revision')
             if ts_rev and ts_rev != u'None':
