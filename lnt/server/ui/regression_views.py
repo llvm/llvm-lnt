@@ -357,7 +357,8 @@ def v4_regression_detail(id):
     return render_template("v4_regression_detail.html",
                            testsuite_name=g.testsuite_name,
                            regression=regression_info, changes=crs,
-                           form=form, analysis=lnt.server.reporting.analysis)
+                           form=form, analysis=lnt.server.reporting.analysis,
+                           check_all=checkbox_state)
 
 
 @v4_route("/hook", methods=["GET"])

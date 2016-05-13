@@ -301,8 +301,10 @@ $(document).ready( function () {
 
     init_axis("{{base_url}}");
 
-    all_checks();
-
+    /* Only check boxes if we don't have lots of regressions. */
+    if ({{check_all}}) {
+        all_checks();
+    }
     update_graph();
     update_order_summary();
   
