@@ -88,4 +88,5 @@ Make sure that:
      used to detect if between compiler versions, the generated code has
      changed.
    * ".compile": represents the compile time of the program.
-   All of these metrics are optional.
+
+ All of these metrics are optional.

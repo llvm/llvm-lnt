@@ -22,6 +22,8 @@ Contents
 
    developer_guide
 
+   profiles
+   
    todo
 
 Indices and tables
@@ -39,3 +41,4 @@ Module Listing
    :maxdepth: 2
 
    modules/testing
+   

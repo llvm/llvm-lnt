@@ -7,23 +7,23 @@ ProfileV1 files not clever in any way. They are simple Python objects with
 the profile data layed out in the most obvious way for production/consumption
 that are then pickled and compressed.
 
-They are expected to be created by simply storing into the self.data member.
+They are expected to be created by simply storing into the ``self.data`` member.
 
-The self.data member has this format:
+The ``self.data`` member has this format::
 
-{
- counters: {'cycles': 12345.0, 'branch-misses': 200.0}, # Counter values are absolute.
- disassembly-format: 'raw',
- functions: {
-   name: {
-     counters: {'cycles': 45.0, ...}, # Note counters are now percentages.
-     data: [
-       [463464, {'cycles': 23.0, ...}, '\tadd r0, r0, r1'}],
-       ...
-     ]
-   }
+  {
+   counters: {'cycles': 12345.0, 'branch-misses': 200.0}, # Counter values are absolute.
+   disassembly-format: 'raw',
+   functions: {
+     name: {
+       counters: {'cycles': 45.0, ...}, # Note counters are now percentages.
+       data: [
+         [463464, {'cycles': 23.0, ...}, '\tadd r0, r0, r1'}],
+         ...
+       ]
+     }
+    }
   }
-}
     """
 
     def __init__(self, data):

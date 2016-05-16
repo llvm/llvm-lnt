@@ -1,12 +1,226 @@
 <!DOCTYPE html>
-<html>
-    <head>
-        <meta charset="utf-8">
-        <title>Missing Docs</title>
-    </head>
-    <body>
-        <h1>Docs are missing</h1>
-        <p>LNT documentation must be installed using the makefile in /docs
-        inside the LNT source tree.  Until then, this page is displayed.</p>
-    </body>
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>LNT &mdash; LNT 0.4.1dev documentation</title>
+    
+    <link rel="stylesheet" href="_static/basic.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="_static/bootstrap-3.3.6/css/bootstrap.min.css" type="text/css" />
+    <link rel="stylesheet" href="_static/bootstrap-3.3.6/css/bootstrap-theme.min.css" type="text/css" />
+    <link rel="stylesheet" href="_static/bootstrap-sphinx.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '0.4.1dev',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="_static/js/jquery-1.11.0.min.js"></script>
+    <script type="text/javascript" src="_static/js/jquery-fix.js"></script>
+    <script type="text/javascript" src="_static/bootstrap-3.3.6/js/bootstrap.min.js"></script>
+    <script type="text/javascript" src="_static/bootstrap-sphinx.js"></script>
+    <link rel="top" title="LNT 0.4.1dev documentation" href="contents.html" />
+<style type="text/css">
+  table.right { float: right; margin-left: 20px; }
+  table.right td { border: 1px solid #ccc; }
+</style>
+
+  </head>
+  <body role="document">
+
+  <div id="navbar" class="navbar navbar-inverse navbar-default navbar-fixed-top">
+    <div class="container">
+      <div class="navbar-header">
+        <!-- .btn-navbar is used as the toggle for collapsed navbar content -->
+        <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".nav-collapse">
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+        </button>
+        <a class="navbar-brand" href="contents.html">
+          LNT</a>
+        <span class="navbar-text navbar-version pull-left"><b>0.4.1dev</b></span>
+      </div>
+
+        <div class="collapse navbar-collapse nav-collapse">
+          <ul class="nav navbar-nav">
+            
+                <li><a href="/">Back</a></li>
+            
+            
+              <li class="dropdown globaltoc-container">
+  <a role="button"
+     id="dLabelGlobalToc"
+     data-toggle="dropdown"
+     data-target="#"
+     href="contents.html">Sections <b class="caret"></b></a>
+  <ul class="dropdown-menu globaltoc"
+      role="menu"
+      aria-labelledby="dLabelGlobalToc"><ul>
+<li class="toctree-l1"><a class="reference internal" href="intro.html">Introduction</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#installation">Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#development">Development</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#architecture">Architecture</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quickstart Guide</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#installation">Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#running-tests">Running Tests</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#viewing-results">Viewing Results</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="tools.html">The <code class="docutils literal"><span class="pre">lnt</span></code> Tool</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="tools.html#client-side-tools">Client-Side Tools</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tools.html#server-side-tools">Server-Side Tools</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="tests.html">Test Producers</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="tests.html#running-a-local-server">Running a Local Server</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tests.html#running-tests">Running Tests</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tests.html#built-in-tests">Built-in Tests</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="changes.html">Changelog</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="changes.html#id1">0.4.1</a></li>
+<li class="toctree-l2"><a class="reference internal" href="changes.html#id2">0.4.0</a></li>
+<li class="toctree-l2"><a class="reference internal" href="changes.html#id3">0.3.0</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="concepts.html">Concepts</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="concepts.html#orders-machines-and-tests">Orders Machines and Tests</a></li>
+<li class="toctree-l2"><a class="reference internal" href="concepts.html#runs-and-samples">Runs and Samples</a></li>
+<li class="toctree-l2"><a class="reference internal" href="concepts.html#test-suites">Test Suites</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="importing_data.html">Importing Data from Other Test Systems</a></li>
+<li class="toctree-l1"><a class="reference internal" href="developer_guide.html">Developer Guide</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="developer_guide.html#installation">Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="developer_guide.html#running-lnt-s-regression-tests">Running LNT&#8217;s Regression Tests</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="profiles.html">Performance profiles</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="profiles.html#principles-of-profiles-in-lnt">Principles of profiles in LNT</a></li>
+<li class="toctree-l2"><a class="reference internal" href="profiles.html#producing-profile-data">Producing profile data</a></li>
+<li class="toctree-l2"><a class="reference internal" href="profiles.html#supported-formats">Supported formats</a></li>
+<li class="toctree-l2"><a class="reference internal" href="profiles.html#viewing-profiles">Viewing profiles</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="todo.html">TODO</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="todo.html#major-features">Major Features</a></li>
+<li class="toctree-l2"><a class="reference internal" href="todo.html#minor-features">Minor Features</a></li>
+<li class="toctree-l2"><a class="reference internal" href="todo.html#v0-4-redesign">v0.4 Redesign</a></li>
+</ul>
+</li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="modules/testing.html"><code class="docutils literal"><span class="pre">lnt.testing</span></code> &#8211; Test Data Creation</a></li>
+</ul>
+</ul>
+</li>
+              
+                <li class="dropdown">
+  <a role="button"
+     id="dLabelLocalToc"
+     data-toggle="dropdown"
+     data-target="#"
+     href="#">Page <b class="caret"></b></a>
+  <ul class="dropdown-menu localtoc"
+      role="menu"
+      aria-labelledby="dLabelLocalToc"></ul>
+</li>
+              
+            
+            
+              
+                
+              
+            
+            
+            
+            
+              <li class="hidden-sm"></li>
+            
+          </ul>
+
+          
+            
+<form class="navbar-form navbar-right" action="search.html" method="get">
+ <div class="form-group">
+  <input type="text" name="q" class="form-control" placeholder="Search" />
+ </div>
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+          
+        </div>
+    </div>
+  </div>
+
+<div class="container">
+  <div class="row">
+    <div class="col-md-12 content">
+      
+<h1>LNT - LLVM Performance Tracking Software</h1>
+
+<p>
+  LNT is LLVM's performance tracking software. This is the web page for the LNT
+  software itself, the current online version of the server is available
+  at <a href="http://llvm.org/perf/">http://llvm.org/perf/</a>.
+</p>
+
+<h2>Documentation</h2>
+<table class="contentstable" align="center" style="margin-left: 30px">
+  <tr>
+    <td width="50%">
+      <p class="biglink"><a class="biglink" href="contents.html">
+          Contents</a><br/>
+        <span class="linkdescr">for a complete overview</span></p>
+      <p class="biglink"><a class="biglink" href="search.html">
+          Search page</a><br/>
+        <span class="linkdescr">search the documentation</span></p>
+    </td><td width="50%">
+      <p class="biglink"><a class="biglink" href="genindex.html">
+          General Index</a><br/>
+        <span class="linkdescr">all functions, classes, terms</span></p>
+      <p class="biglink"><a class="biglink" href="modindex.html">
+          Module Index</a><br/>
+        <span class="linkdescr">quick access to all documented modules</span></p>
+  </td></tr>
+</table>
+
+<h2>Source</h2>
+<p>LNT is available in the LLVM SVN repository:
+  <tt>svn co
+    <a href="http://llvm.org/svn/llvm-project/lnt/trunk">
+      http://llvm.org/svn/llvm-project/lnt/trunk</a></tt>.</p>
+
+
+    </div>
+      
+  </div>
+</div>
+<footer class="footer">
+  <div class="container">
+    <p class="pull-right">
+      <a href="#">Back to top</a>
+      
+    </p>
+    <p>
+        &copy; Copyright 2016, Daniel Dunbar.<br/>
+      Last updated on 2016-05-16.<br/>
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3.1.<br/>
+    </p>
+  </div>
+</footer>
+  </body>
 </html>

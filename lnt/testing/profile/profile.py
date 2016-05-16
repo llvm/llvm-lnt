@@ -188,7 +188,7 @@ class ProfileImpl(object):
     def getTopLevelCounters(self):
         """
         Return a dict containing the counters for the entire profile. These will
-        be absolute numbers: {'cycles': 5000.0} for example.
+        be absolute numbers: ``{'cycles': 5000.0}`` for example.
         """
         raise NotImplementedError("Abstract class")
 
@@ -196,8 +196,9 @@ class ProfileImpl(object):
         """
         Return the format for the disassembly strings returned by getCodeForFunction().
         Possible values are:
-          'raw'                   - No interpretation available - pure strings.
-          'marked-up-disassembly' - LLVM marked up disassembly format.
+
+        * ``raw``                   - No interpretation available - pure strings.
+        * ``marked-up-disassembly`` - LLVM marked up disassembly format.
         """
         raise NotImplementedError("Abstract class")
     
@@ -206,25 +207,27 @@ class ProfileImpl(object):
         Return a dict containing function names to information about that function.
 
         The information dict contains:
-          - 'counters' - counter values for the function.
-          - 'length' - number of times to call getCodeForFunction to obtain all
-                       instructions.
+
+        * ``counters`` - counter values for the function.
+        * ``length`` - number of times to call getCodeForFunction to obtain all instructions.
 
         The dict should *not* contain disassembly / function contents.
         The counter values must be percentages, not absolute numbers.
 
-        E.g. {'main': {'counters': {'cycles': 50.0, 'branch-misses': 0}, 'length': 200},
-              'dotest': {'counters': {'cycles': 50.0, 'branch-misses': 0}, 'length': 4}}
+        E.g.::
+
+          {'main': {'counters': {'cycles': 50.0, 'branch-misses': 0}, 'length': 200},
+           'dotest': {'counters': {'cycles': 50.0, 'branch-misses': 0}, 'length': 4}}
         """
         raise NotImplementedError("Abstract class")
 
     def getCodeForFunction(self, fname):
         """
-        Return a *generator* which will return, for every invocation, a three-tuple:
+        Return a *generator* which will return, for every invocation, a three-tuple::
 
           (counters, address, text)
 
-        Where counters is a dict : (e.g.) {'cycles': 50.0}, text is in the
+        Where counters is a dict : (e.g.) ``{'cycles': 50.0}``, text is in the
         format as returned by getDisassemblyFormat(), and address is an integer.
 
         The counter values must be percentages (of the function total), not

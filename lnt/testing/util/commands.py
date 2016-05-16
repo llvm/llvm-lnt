@@ -8,7 +8,12 @@ import os
 import sys
 import logging
 import time
-from flask import current_app
+try:
+    from flask import current_app
+except:
+    # We may be imported from Sphinx. Don't error if current_app isn't available here -
+    # instead error when it is used.
+    pass
 # FIXME: Find a better place for this code.
 
 LOGGER_NAME = "lnt.server.ui.app"
