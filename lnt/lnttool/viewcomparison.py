@@ -7,11 +7,12 @@ import thread
 import time
 import urllib
 import webbrowser
-from optparse import OptionParser, OptionGroup
+from optparse import OptionParser
 import contextlib
 
-import lnt.util.ImportData
-from lnt.testing.util.commands import note, warning, error, fatal
+from lnt.util.ImportData import import_and_report
+from lnt.testing.util.commands import note, warning
+
 
 def start_browser(url, debug=False):
     def url_is_up(url):
@@ -39,6 +40,7 @@ def start_browser(url, debug=False):
         note('opening webbrowser...')
     webbrowser.open(url)
 
+
 def action_view_comparison(name, args):
     """view a report comparison using a temporary server"""
 
@@ -60,15 +62,15 @@ def action_view_comparison(name, args):
     if len(args) != 2:
         parser.error("invalid number of arguments")
 
-    report_a_path,report_b_path = args
+    report_a_path, report_b_path = args
 
     # Set up the default logger.
     logger = logging.getLogger("lnt")
     logger.setLevel(logging.ERROR)
     handler = logging.StreamHandler(sys.stderr)
     handler.setFormatter(logging.Formatter(
-            '%(asctime)s %(levelname)s: %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S'))
+        '%(asctime)s %(levelname)s: %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'))
     logger.addHandler(handler)
 
     # Create a temporary directory to hold the instance.
@@ -93,10 +95,10 @@ def action_view_comparison(name, args):
 
         # Import the two reports.
         with contextlib.closing(config.get_database('default')) as db:
-            result = lnt.util.ImportData.import_and_report(
+            import_and_report(
                 config, 'default', db, report_a_path,
                 '<auto>', commit=True)
-            result = lnt.util.ImportData.import_and_report(
+            import_and_report(
                 config, 'default', db, report_b_path,
                 '<auto>', commit=True)
 
