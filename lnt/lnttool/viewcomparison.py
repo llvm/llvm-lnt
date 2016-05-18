@@ -52,6 +52,9 @@ def action_view_comparison(name, args):
                       default='localhost')
     parser.add_option("", "--port", dest="port", type=int, metavar="N",
                       help="local port to use [%default]", default=8000)
+    parser.add_option("", "--dry-run", dest="dry_run",
+                      help="Do a dry run through the comparison. [%default]"
+                      " [%default]", action="store_true", default=False)
     (opts, args) = parser.parse_args(args)
 
     if len(args) != 2:
@@ -78,9 +81,11 @@ def action_view_comparison(name, args):
         db_info = lnt.server.config.DBInfo(
             'sqlite:///%s' % (db_path,), '0.4', None,
             lnt.server.config.EmailConfig(False, '', '', []), "0")
-        config = lnt.server.config.Config(
-            'LNT', url, db_path, tmpdir,
-            None, { 'default' : db_info })
+        # _(self, name, zorgURL, dbDir, tempDir,
+        # profileDir, secretKey, databases, blacklist):
+        config = lnt.server.config.Config('LNT', url, db_path, tmpdir,
+                                          None, None, {'default': db_info},
+                                          None)
         instance = lnt.server.instance.Instance(None, config)
 
         # Create the database.
@@ -98,11 +103,22 @@ def action_view_comparison(name, args):
             # Dispatch another thread to start the webbrowser.
             comparison_url = '%s/v4/nts/2?compare_to=1' % (url,)
             note("opening comparison view: %s" % (comparison_url,))
-            thread.start_new_thread(start_browser, (comparison_url, True))
+            
+            if not opts.dry_run:
+                thread.start_new_thread(start_browser, (comparison_url, True))
 
             # Run the webserver.
             app = lnt.server.ui.app.App.create_with_instance(instance)
             app.debug = True
-            app.run(opts.hostname, opts.port, use_reloader=False)
+            
+            if opts.dry_run:
+                # Don't catch out exceptions.
+                app.testing = True
+                # Create a test client.
+                client = app.test_client()
+                response = client.get(comparison_url)
+                assert response.status_code == 200, "Page did not return 200."
+            else:
+                app.run(opts.hostname, opts.port, use_reloader=False)
     finally:
         shutil.rmtree(tmpdir)
