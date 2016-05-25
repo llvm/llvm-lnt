@@ -31,10 +31,11 @@ function CFGEdge (bb_from, bb_to) {
     this.to = bb_to;
 };
 
-function CFG (disassembly, instructionParser) {
+function CFG (disassembly, instructionParser, counter) {
+    this.counter = counter;
     this.disassembly = disassembly;
     this.instructionParser = instructionParser;
-    var instructions = this.parseDisassembly(this.disassembly);
+    var instructions = this.parseDisassembly(this.counter);
     this.bbs = this.createBasicBlocks(instructions);
     // The special "UNKNOWN" basic block is used to represent jump targets for
     // which no corresponding basic block can be found. So, edges jumping to a
@@ -126,7 +127,7 @@ CFG.prototype = {
       return parseInt(addressString, 16);
     },
 
-    parseDisassembly: function() {
+    parseDisassembly: function(counter) {
         var instructions = [];
         for (var i=0; i<this.disassembly.length; ++i) {
             var profiled_instruction = this.disassembly[i];
@@ -135,7 +136,7 @@ CFG.prototype = {
             var text = profiled_instruction[2];
             // FIXME: strip leading white space from text?
             var cfgInstruction =
-                new CFGInstruction(counter2weight['cycles'],
+                new CFGInstruction(counter2weight[counter],
                                    address,
                                    text);
             instructions.push(cfgInstruction);
@@ -504,7 +505,7 @@ Profile.prototype = {
                 this.instructionSet+' instruction set. :(.</i></center>');
             return;
         }
-        var cfg = new CFG(profiledDisassembly, instructionParser);
+        var cfg = new CFG(profiledDisassembly, instructionParser, this.counter_name);
         var d3cfg = new D3CFG(cfg);
         d3cfg.compute_layout();
         var d3data = [d3cfg];
