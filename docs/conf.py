@@ -11,8 +11,18 @@
 # All configuration values have a default; values that are commented out
 # serve to show the default.
 
-import datetime, sys, os
-import sphinx_bootstrap_theme
+import datetime
+import sys
+import os
+
+# When we build in readthedocs, we can't have this package.
+use_bootstrap = True
+try:
+    import sphinx_bootstrap_theme
+except ImportError:
+    print "Warning: Sphinx Bootstrap Theme package is not installed!"
+    use_bootstrap = False
+
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
@@ -96,11 +106,18 @@ pygments_style = 'sphinx'
 
 # The theme to use for HTML and HTML Help pages.  Major themes that come with
 # Sphinx are currently 'default' and 'sphinxdoc'.
-html_theme = 'bootstrap'
-html_theme_path = sphinx_bootstrap_theme.get_html_theme_path()
+if use_bootstrap:
+    html_theme = 'bootstrap'
+    html_theme_path = sphinx_bootstrap_theme.get_html_theme_path()
+else:
+    html_theme = 'default'
 
-
+# Global theme options.
 html_theme_options = {
+}
+
+# Extra options for bootstrap theme (if used).
+bootstrap_options = {
     # Navigation bar title. (Default: ``project`` value)
     'navbar_title': "LNT",
 
@@ -117,20 +134,6 @@ html_theme_options = {
     'navbar_links': [
         ("Back", "/", True),
     ],
-
-    # Render the next and previous page links in navbar. (Default: true)
-    'navbar_sidebarrel': True,
-
-    # Render the current pages TOC in the navbar. (Default: true)
-    'navbar_pagenav': True,
-
-    # Tab name for the current pages TOC. (Default: "Page")
-    'navbar_pagenav_name': "Page",
-
-    # Global TOC depth for "site" navbar tab. (Default: 1)
-    # Switching to -1 shows all levels.
-    'globaltoc_depth': 2,
-
     # Include hidden TOCs in Site navbar?
     #
     # Note: If this is "false", you cannot have mixed ``:hidden:`` and
@@ -140,6 +143,22 @@ html_theme_options = {
     # Values: "true" (default) or "false"
     'globaltoc_includehidden': "true",
 
+    # Options are "nav" (default), "footer" or anything else to exclude.
+    'source_link_position': "nav",
+
+    # Global TOC depth for "site" navbar tab. (Default: 1)
+    # Switching to -1 shows all levels.
+    'globaltoc_depth': 2,
+    
+    # Render the next and previous page links in navbar. (Default: true)
+    'navbar_sidebarrel': True,
+
+    # Render the current pages TOC in the navbar. (Default: true)
+    'navbar_pagenav': True,
+
+    # Tab name for the current pages TOC. (Default: "Page")
+    'navbar_pagenav_name': "Page",
+    
     # HTML navbar class (Default: "navbar") to attach to <div> element.
     # For black navbar, do "navbar navbar-inverse"
     'navbar_class': "navbar navbar-inverse",
@@ -147,16 +166,15 @@ html_theme_options = {
     # Fix navigation bar to top of page?
     # Values: "true" (default) or "false"
     'navbar_fixed_top': "true",
-
-    # Location of link to source.
-    # Options are "nav" (default), "footer" or anything else to exclude.
-    'source_link_position': "nav",
-
     # Choose Bootstrap version.
     # Values: "3" (default) or "2" (in quotes)
     'bootstrap_version': "3",
+    
 }
 
+if use_bootstrap:
+    html_theme_options.update(bootstrap_options)
+    
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
 # documentation.
