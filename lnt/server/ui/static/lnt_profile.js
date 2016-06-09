@@ -86,8 +86,9 @@ InstructionSetParser.prototype = {
         // cb(n)z
         [new RegExp("^\\s*cbn?z\\s+[^,]+,\\s*([^\\s]+)"), false],
         // ret
-        [new RegExp("^\\s*ret"), true]
-        // FIXME: also add tbz, ...
+        [new RegExp("^\\s*ret"), true],
+        // tb(n)z
+        [new RegExp("^\\s*tbn?z\\s+[^,]+,\\s*([^\\s]+)"), false]
     ],
 
     AArch32T32JumpTargetRegexps: [
