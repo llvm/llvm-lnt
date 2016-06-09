@@ -88,7 +88,7 @@ InstructionSetParser.prototype = {
         // ret
         [new RegExp("^\\s*ret"), true],
         // tb(n)z
-        [new RegExp("^\\s*tbn?z\\s+[^,]+,\\s*([^\\s]+)"), false]
+        [new RegExp("^\\s*tbn?z\\s+[^,]+,\\s+[^,]+,\\s*([^\\s]+)"), false]
     ],
 
     AArch32T32JumpTargetRegexps: [
