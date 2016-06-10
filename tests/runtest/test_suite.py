@@ -377,4 +377,6 @@
 # RUN:     --pgo \
 # RUN:     > %t.pgo.log 2> %t.pgo.err
 # RUN: FileCheck --check-prefix CHECK-PGO < %t.pgo.err %s
-# CHECK-PGO: pass
+# CHECK-PGO: TEST_SUITE_PROFILE_GENERATE: 'On'
+# CHECK-PGO: TEST_SUITE_PROFILE_GENERATE: 'Off'
+# CHECK-PGO: TEST_SUITE_PROFILE_USE: 'On'
