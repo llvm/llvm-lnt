@@ -317,7 +317,7 @@ $('.profile-prev-only').tooltip();
   {{ utils.render_popup_end() }}
 
   {% set graph_base=v4_url_for('v4_graph', highlight_run=run.id) %}
-  <form method="GET" action="{{ graph_base }}">
+  <form id="graph_selection_form" method="GET" action="{{ graph_base }}">
 
     {# Report one table for each primary field. #}
     {% for field in metric_fields %}
@@ -377,7 +377,7 @@ $('.profile-prev-only').tooltip();
       {{ utils.render_popup_end() }}
       </section>
     {% endfor %}
-    <p><input type="submit" value="Graph">
+    <p><input type="submit" value="Graph"> <input id="matrix_button" type="submit" value="Matrix">
   </form>
   </section>
 
@@ -414,5 +414,16 @@ $('.profile-prev-only').tooltip();
       </tbody>
     </table>
   {% endif %}
+<script type="text/javascript" language="Javascript">
 
+$("#matrix_button").on("click", function(e){
+    e.preventDefault();
+    {% set matrix_base=v4_url_for('v4_matrix') %}
+    $('#graph_selection_form').attr('action', "{{ matrix_base }}").submit();
+});
+
+</script>
+
+
+</script>
 {% endblock %}

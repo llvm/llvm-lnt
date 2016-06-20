@@ -20,21 +20,26 @@ from lnt.testing.util.commands import warning, error, note
 import sqlalchemy.sql
 from sqlalchemy.orm.exc import NoResultFound
 
+from flask_wtf import Form
+from wtforms import SelectField
+
 import lnt.util
 import lnt.util.ImportData
 import lnt.util.stats
 from lnt.server.ui.globals import db_url_for, v4_url_for
 import lnt.server.reporting.analysis
+from lnt.server.reporting.analysis import ComparisonResult, calc_geomean
 import lnt.server.reporting.runs
 from lnt.server.ui.decorators import frontend, db_route, v4_route
 import lnt.server.ui.util
+from lnt.server.ui.util import mean
 import lnt.server.reporting.dailyreport
 import lnt.server.reporting.summaryreport
 import lnt.server.db.rules_manager
 import lnt.server.db.search
-from collections import namedtuple
+from lnt.server.ui.regression_views import PrecomputedCR
+from collections import namedtuple, defaultdict
 from lnt.util import async_ops
-
 integral_rex = re.compile(r"[\d]+")
 
 ###
@@ -1262,3 +1267,214 @@ def v4_search():
         [('%s #%s' % (r.machine.name, r.order.llvm_project_revision),
           r.id)
          for r in results])
+
+
+class MatrixDataRequest(object):
+    def __init__(self, machine, test, field):
+        self.machine = machine
+        self.test = test
+        self.field = field
+    def __repr__(self):
+        return "{}:{}({} samples)" \
+            .format(self.machine.name,
+                    self.test.name,
+                    len(self.samples) if self.samples else "No")
+
+
+# How much data to render in the Matrix view.
+MATRIX_LIMITS = [('12', 'Small'),
+                 ('50', 'Medium'),
+                 ('250', 'Large'),
+                 ('-1', 'All')]
+
+class MatrixOptions(Form):
+    limit = SelectField('Size', choices=MATRIX_LIMITS)
+
+
+@v4_route("/matrix", methods=['GET', 'POST'])
+def v4_matrix():
+    """A table view for Run sample data, because *some* people really
+    like to be able to see results textually.
+    request.args.limit limits the number of samples.
+    for each dataset to add, there will be a "plot.n=.m.b.f" where m is machine
+    ID, b is benchmark ID and f os field kind offset. "n" is used to unique
+    the paramters, and is ignored.
+    
+    """
+    ts = request.get_testsuite()
+    # Load the matrix request parameters.
+    form = MatrixOptions(request.form)
+    if request.method == 'POST':
+        post_limit = form.limit.data
+    else:
+        post_limit = MATRIX_LIMITS[0][0]
+    data_parameters = []
+    for name, value in request.args.items():
+        #  plot.<unused>=<machine id>.<test id>.<field index>
+        if not name.startswith(str('plot.')):
+            continue
+
+        # Ignore the extra part of the key, it is unused.
+        machine_id_str, test_id_str, field_index_str = value.split('.')
+        try:
+            machine_id = int(machine_id_str)
+            test_id = int(test_id_str)
+            field_index = int(field_index_str)
+        except:
+            err_msg = "data {} was malformed. {} must be int.int.int"
+            return abort(400, err_msg.format(name, value))
+
+        if not (0 <= field_index < len(ts.sample_fields)):
+            return abort(404, "Invalid field index: {}".format(field_index))
+
+        try:
+            machine = \
+                ts.query(ts.Machine).filter(ts.Machine.id == machine_id).one()
+        except NoResultFound:
+            return abort(404, "Invalid machine ID: {}".format(machine_id))
+        try:
+            test = ts.query(ts.Test).filter(ts.Test.id == test_id).one()
+        except NoResultFound:
+            return abort(404, "Invalid test ID: {}".format(test_id))
+        try:
+            field = ts.sample_fields[field_index]
+        except NoResultFound:
+            return abort(404, "Invalid field_index: {}".format(field_index))
+
+        valid_request = MatrixDataRequest(machine, test, field)
+        data_parameters.append(valid_request)
+
+    if not data_parameters:
+        abort(404, "Request requires some data arguments.")
+
+    # Feature: if all of the results are from the same machine, hide the name to
+    # make the headers more compact.
+    dedup = True
+    for r in data_parameters:
+        if r.machine.id != data_parameters[0].machine.id:
+            dedup = False
+    if dedup:
+        machine_name_common = data_parameters[0].machine.name
+        machine_id_common = data_parameters[0].machine.id
+    else:
+        machine_name_common = machine_id_common = None
+
+    # It is nice for the columns to be sorted by name.
+    data_parameters.sort(key=lambda x: x.test.name),
+
+    # Now lets get the data.
+    all_orders = set()
+    order_to_id = {}
+    for req in data_parameters:
+        q = ts.query(req.field.column, ts.Order.llvm_project_revision, ts.Order.id) \
+            .join(ts.Run) \
+            .join(ts.Order) \
+            .filter(ts.Run.machine_id == req.machine.id) \
+            .filter(ts.Sample.test == req.test) \
+            .filter(req.field.column != None) \
+            .order_by(ts.Order.llvm_project_revision.desc())
+
+        limit = request.args.get('limit', post_limit)
+        if limit or post_limit:
+            limit = int(limit)
+            if limit != -1:
+                q = q.limit(limit)
+            
+        req.samples = defaultdict(list)
+        
+        for s in q.all():
+            req.samples[s[1]].append(s[0])
+            all_orders.add(s[1])
+            order_to_id[s[1]] = s[2]
+        req.derive_stat = {}
+        for order, samples in req.samples.items():
+            req.derive_stat[order] = mean(samples)
+    if not all_orders:
+        abort(404, "No data found.")
+    # Now grab the baseline data.
+    baseline_rev = machine.DEFAULT_BASELINE_REVISION
+    if baseline_rev:
+        all_orders.add(baseline_rev)
+    else:
+        baseline_rev = next(iter(all_orders))
+        
+    for req in data_parameters:
+        q_baseline = ts.query(req.field.column, ts.Order.llvm_project_revision, ts.Order.id) \
+                       .join(ts.Run) \
+                       .join(ts.Order) \
+                       .filter(ts.Run.machine_id == req.machine.id) \
+                       .filter(ts.Sample.test == req.test) \
+                       .filter(req.field.column != None) \
+                       .filter(ts.Order.llvm_project_revision == baseline_rev)
+        for s in q_baseline.all():
+            req.samples[s[1]].append(s[0])
+            all_orders.add(s[1])
+            order_to_id[s[1]] = s[2]
+
+    all_orders = list(all_orders)
+    all_orders.sort()
+    # Now calculate Changes between each run.
+
+    for req in data_parameters:
+        req.change = {}
+        for order in all_orders:
+            cur_samples = req.samples[order]
+            prev_samples = req.samples.get(baseline_rev, None)
+            cr = ComparisonResult(mean,
+                                  False, False,
+                                  cur_samples,
+                                  prev_samples,
+                                  None, None,
+                                  confidence_lv=0.05,
+                                  bigger_is_better=False)
+            req.change[order] = cr
+
+    # Calculate Geomean for each order.
+    order_to_geomean = {}
+    curr_geomean = None
+    for order in all_orders:
+        curr_samples = []
+        prev_samples = []
+        for req in data_parameters:
+            curr_samples.extend(req.samples[order])
+            prev_samples.extend(req.samples[baseline_rev])
+        prev_geomean = calc_geomean(prev_samples)
+        curr_geomean = calc_geomean(curr_samples)
+        if prev_geomean:
+            cr = ComparisonResult(mean,
+                                  False, False,
+                                  [curr_geomean],
+                                  [prev_geomean],
+                                  None, None,
+                                  confidence_lv=0.05,
+                                  bigger_is_better=False)
+            order_to_geomean[order] = cr
+        else:
+            # There will be no change here, but display current val.
+            if curr_geomean:
+                order_to_geomean[order] = PrecomputedCR(curr_geomean,
+                                                        curr_geomean,
+                                                        False)
+
+    class FakeOptions(object):
+        show_small_diff = False
+        show_previous = False
+        show_all = True
+        show_delta = False
+        show_stddev = False
+        show_mad = False
+        show_all_samples = False
+        show_sample_counts = False
+        
+    return render_template("v4_matrix.html",
+                           testsuite_name=g.testsuite_name,
+                           associated_runs=data_parameters,
+                           orders=all_orders,
+                           options=FakeOptions(),
+                           analysis=lnt.server.reporting.analysis,
+                           geomeans=order_to_geomean,
+                           order_to_id=order_to_id,
+                           form=form,
+                           baseline_rev=baseline_rev,
+                           machine_name_common=machine_name_common,
+                           machine_id_common=machine_id_common)

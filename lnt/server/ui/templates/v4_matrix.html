@@ -1,0 +1,81 @@
+{% set nosidebar = True %}
+{% import "utils.html" as utils %}
+{% import "local.html" as local %}
+{% set ts = request.get_testsuite() %}
+
+{% extends "layout.html" %}{
+{% set components = [(testsuite_name, v4_url_for("v4_recent_activity"))] %}
+{% block head %}
+{% endblock %}
+
+
+
+{% macro get_cell_value(cr) %}
+  {% set test_status = cr.get_test_status() %}
+  {% set value_status = cr.get_value_status(ignore_small=not options.show_small_diff) %}
+  {% set run_cell_value = "-" if cr.current is none else "%.4f" % cr.current %}
+
+  {% if value_status != analysis.UNCHANGED_PASS and value_status != analysis.UNCHANGED_FAIL %}
+     {{ cr.pct_delta|aspctcell(reverse=cr.bigger_is_better, data=run_cell_value)|safe }}
+  {% else %}
+    <td>{{ run_cell_value }}</td>
+  {% endif%}
+ 
+  
+{% endmacro %}
+
+
+{% block title %}Matrix View{% endblock %}
+
+{% block sidebar %}
+  <ul class="nav nav-list bs-docs-sidenav">
+  </ul>
+  {% endblock %}
+
+
+{% block body %}
+<h2>Matrix View</h2>
+<form method="POST" action="">
+{{ form.hidden_tag() }}
+{{ form.limit(class="auto_submit_item") }}
+<h3>Baseline: {{baseline_rev}}</h3>
+<div id="matrix_div">
+    {% if machine_name_common %}
+        <p>Machine: <a href="{{ v4_url_for('v4_machine', id=machine_id_common) }}">{{ machine_name_common }}</a></p>
+    {% endif %}
+    <table class="table table-hover" style="width:auto">
+    <tr>
+        <th>Order</th>
+        {% for r in associated_runs: %}
+            <th>
+                {% if not machine_name_common %}
+                <a href="{{ v4_url_for('v4_machine', id=r.machine.id) }}">{{ r.machine.name }}</a>
+                {% endif %}
+                {{ r.test.name | shortname }}</th>
+        {% endfor %}
+        <th>Geomean</th>
+    </tr>
+        {% for order in orders: %}
+            {% set baseline_class = "info" if order == baseline_rev else "" %}
+            <tr class="{{baseline_class}}">
+                <td><a href="{{v4_url_for('v4_order', id=order_to_id[order])}}">{{order}}</a></td>
+                {% for req in associated_runs: %}
+                    {{ get_cell_value(req.change.get(order)) }}
+                {% endfor %}
+                {{ get_cell_value(geomeans[order]) }}
+            </tr>
+        {% endfor %}
+
+</table>
+
+</div>
+
+<script type="text/javascript">
+    $(function() {
+        $(".auto_submit_item").change(function() {
+        $("form").submit();
+   });
+ });
+</script>
+
+ {% endblock %}

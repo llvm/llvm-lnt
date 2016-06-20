@@ -199,6 +199,8 @@ def lerp(a,b,t):
     t_ = 1. - t
     return tuple([av*t_ + bv*t for av,bv in zip(a,b)])
 
+
+
 class PctCell:
     # Color levels
     kNeutralColor = (1,1,1)
@@ -208,12 +210,13 @@ class PctCell:
     kNANColor = (.86,.86,.86)
     kInvalidColor = (0,0,1)
 
-    def __init__(self, value, reverse=False, precision=2, delta=False):
+    def __init__(self, value, reverse=False, precision=2, delta=False, data=None):
         if delta and isinstance(value, float):
             value -= 1
         self.value = value
         self.reverse = reverse
         self.precision = precision
+        self.data = data
 
     def getColor(self):
         v = self.value
@@ -263,7 +266,10 @@ class PctCell:
             for key, value in attributes.items():
                 attrs.append('%s="%s"' % (key, value))
         attr_string = ' '.join(attrs)
-        return '<td %s>%s</td>' % (attr_string, self.getValue())
+        if self.data:
+            return '<td %s>%s (%s)</td>' % (attr_string, self.data, self.getValue())
+        else:
+            return '<td %s>%s</td>' % (attr_string, self.getValue())
 
 
 def sorted(l, *args, **kwargs):
