@@ -297,6 +297,15 @@ FLASH_WARNING = "alert alert-warning"
 
 
 def guess_test_short_name(test_name):
-    """In some places the fully qualified test name is too long, 
-    try to make a shorter one."""
-    return test_name.split("/")[-1]
+    """In some places the fully qualified test name is too long,
+    try to make a shorter one.
+    """
+    split_name = test_name.split("/")
+    last_path_name = split_name[-1]
+    
+    # LNT Compile tests are stragely named:
+    # compile/TestName/phase/(opt level)
+    if last_path_name.startswith("("):
+        return split_name[-3]
+    else:
+        return last_path_name
