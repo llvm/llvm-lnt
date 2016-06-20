@@ -265,10 +265,12 @@ class PctCell:
         attr_string = ' '.join(attrs)
         return '<td %s>%s</td>' % (attr_string, self.getValue())
 
+
 def sorted(l, *args, **kwargs):
     l = list(l)
     l.sort(*args, **kwargs)
     return l
+
 
 def renderProducerAsHTML(producer):
     # If the string looks like a buildbot link, render it prettily.
@@ -292,6 +294,7 @@ FLASH_DANGER = "alert alert-danger"
 FLASH_INFO = "alert alert-info"
 FLASH_SUCCESS = "alert alert-success"
 FLASH_WARNING = "alert alert-warning"
+
 
 def guess_test_short_name(test_name):
     """In some places the fully qualified test name is too long, 
