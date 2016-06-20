@@ -3,6 +3,8 @@ import datetime
 import re
 from collections import namedtuple
 from lnt.server.reporting.analysis import RunInfo
+from lnt.server.ui.util import guess_test_short_name as shortname
+
 
 class RegressionState:
     # A new regression, not approved by the user yet.
@@ -47,11 +49,6 @@ def new_regression(ts, field_changes):
     rebuild_title(ts, regression)
     ts.commit()
     return regression
-    
-    
-def shortname(benchmark):
-    """Given a benchmarks full name, make a short version"""
-    return benchmark.split("/")[-1]
 
 
 def rebuild_title(ts, regression):

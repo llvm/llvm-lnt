@@ -41,6 +41,9 @@ def filter_producerAsHTML(producer):
         return ""
     return util.renderProducerAsHTML(producer)
 
+def filter_shortname(test_name):
+    return util.guess_test_short_name(test_name)
+
 def register(env):
     for name,object in globals().items():
         if name.startswith('filter_'):

@@ -292,3 +292,8 @@ FLASH_DANGER = "alert alert-danger"
 FLASH_INFO = "alert alert-info"
 FLASH_SUCCESS = "alert alert-success"
 FLASH_WARNING = "alert alert-warning"
+
+def guess_test_short_name(test_name):
+    """In some places the fully qualified test name is too long, 
+    try to make a shorter one."""
+    return test_name.split("/")[-1]
