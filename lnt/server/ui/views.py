@@ -16,6 +16,7 @@ from flask import render_template
 from flask import request
 from flask import url_for
 from flask import flash
+from lnt.server.ui.util import FLASH_DANGER
 from lnt.testing.util.commands import warning, error, note
 import sqlalchemy.sql
 from sqlalchemy.orm.exc import NoResultFound
@@ -1393,11 +1394,12 @@ def v4_matrix():
         abort(404, "No data found.")
     # Now grab the baseline data.
     baseline_rev = machine.DEFAULT_BASELINE_REVISION
+    backup_baseline = next(iter(all_orders))
     if baseline_rev:
         all_orders.add(baseline_rev)
     else:
-        baseline_rev = next(iter(all_orders))
-        
+        baseline_rev = backup_baseline
+
     for req in data_parameters:
         q_baseline = ts.query(req.field.column, ts.Order.llvm_project_revision, ts.Order.id) \
                        .join(ts.Run) \
@@ -1406,10 +1408,19 @@ def v4_matrix():
                        .filter(ts.Sample.test == req.test) \
                        .filter(req.field.column != None) \
                        .filter(ts.Order.llvm_project_revision == baseline_rev)
-        for s in q_baseline.all():
-            req.samples[s[1]].append(s[0])
-            all_orders.add(s[1])
-            order_to_id[s[1]] = s[2]
+        baseline_data = q_baseline.all()
+        if baseline_data:
+            for s in baseline_data:
+                req.samples[s[1]].append(s[0])
+                all_orders.add(s[1])
+                order_to_id[s[1]] = s[2]
+        else:
+            # Well, there is a baseline, but we did not find data for it...
+            # So lets revert back to the first run.
+            print "Did not find baseline, switching to", backup_baseline
+            flash("Did not find data for baseline. Switching to " +
+                  backup_baseline, FLASH_DANGER)
+            baseline_rev = backup_baseline
 
     all_orders = list(all_orders)
     all_orders.sort()
