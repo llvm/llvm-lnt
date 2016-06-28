@@ -1,6 +1,8 @@
+from pip.req import parse_requirements
 import lnt
 import os
 from sys import platform as _platform
+import sys
 from setuptools import setup, find_packages, Extension
 
 cflags = []
@@ -20,6 +22,16 @@ cPerf = Extension('lnt.testing.profile.cPerf',
                   sources=['lnt/testing/profile/cPerf.cpp'],
                   extra_compile_args=['-std=c++11'] + cflags,
                   optional=True)
+
+if "--server" in sys.argv:
+    sys.argv.remove("--server")
+    req_file = "requirements.server.txt"
+else:
+    req_file = "requirements.client.txt"
+
+install_reqs = parse_requirements(req_file, session=False)
+
+reqs = [str(ir.req) for ir in install_reqs]
 
 setup(
     name = "LNT",
@@ -103,11 +115,7 @@ http://llvm.org/svn/llvm-project/lnt/trunk
             'lnt = lnt.lnttool:main',
             ],
         },
-    install_requires=['WTForms',
-                      'Flask-WTF',
-                      'Flask-RESTful',
-                      'SQLAlchemy',
-                      'Flask<0.11'],
+    install_requires=reqs,
 
     ext_modules = [cPerf],
 )

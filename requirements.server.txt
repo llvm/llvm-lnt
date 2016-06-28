@@ -1,3 +1,7 @@
+# These requirements are what you would install on a production server.
+
+psycopg2==2.5.3
+# Flask 0.11 does not work yet.
 Flask==0.10.1
 Flask-RESTful==0.3.4
 Jinja2==2.7.2
@@ -11,7 +15,6 @@ gunicorn==18.0
 heroku==0.1.4
 itsdangerous==0.24
 progressbar==2.3
-psycopg2==2.5.3
 python-dateutil==1.5
 python-gnupg==0.3.7
 pytz==2015.4
