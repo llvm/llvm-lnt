@@ -1418,8 +1418,9 @@ def v4_matrix():
             # Well, there is a baseline, but we did not find data for it...
             # So lets revert back to the first run.
             print "Did not find baseline, switching to", backup_baseline
-            flash("Did not find data for baseline. Switching to " +
-                  backup_baseline, FLASH_DANGER)
+            msg = "Did not find data for baseline {}. Switching to {}."
+            flash(msg.format(baseline_rev, backup_baseline), FLASH_DANGER)
+            all_orders.remove(baseline_rev)
             baseline_rev = backup_baseline
 
     all_orders = list(all_orders)
