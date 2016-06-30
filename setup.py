@@ -29,7 +29,7 @@ if "--server" in sys.argv:
 else:
     req_file = "requirements.client.txt"
 
-install_reqs = parse_requirements(req_file)
+install_reqs = parse_requirements(req_file, session=False)
 
 reqs = [str(ir.req) for ir in install_reqs]
 
