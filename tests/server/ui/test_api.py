@@ -62,9 +62,18 @@ order_expected_response = {u'id': 1,
                            u'previous_order_id': 2}
 
 graph_data = [[u'152292', 1.0,
-               {u'date': u'2012-05-01 16:28:23', u'label': u'152292', u'runID': u'5'}],
+               {u'date': u'2012-05-01 16:28:23',
+                u'label': u'152292',
+                u'runID': u'5'}],
               [u'152293', 10.0,
-               {u'date': u'2012-05-03 16:28:24', u'label': u'152293', u'runID': u'6'}]]
+               {u'date': u'2012-05-03 16:28:24',
+                u'label': u'152293',
+                u'runID': u'6'}]]
+
+graph_data2 = [[u'152293', 10.0,
+               {u'date': u'2012-05-03 16:28:24',
+                u'label': u'152293',
+                u'runID': u'6'}]]
 
 
 class JSONAPITester(unittest.TestCase):
@@ -108,8 +117,13 @@ class JSONAPITester(unittest.TestCase):
     def test_graph_api(self):
         """Check that /graph/x/y/z returns what we expect."""
         client = self.client
+
         j = check_json(client, 'api/db_default/v4/nts/graph/2/4/3')
         self.assertEqual(graph_data, j)
+        
+        # Now check that limit works.
+        j2 = check_json(client, 'api/db_default/v4/nts/graph/2/4/3?limit=1')
+        self.assertEqual(graph_data2, j2)
 
 if __name__ == '__main__':
     unittest.main(argv=[sys.argv[0], ])

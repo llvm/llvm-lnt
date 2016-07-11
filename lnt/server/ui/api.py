@@ -180,12 +180,18 @@ class Graph(Resource):
             .filter(ts.Run.machine_id == machine.id) \
             .filter(ts.Sample.test == test) \
             .filter(field.column != None) \
-            .order_by(ts.Order.llvm_project_revision)
+            .order_by(ts.Order.llvm_project_revision.desc())
 
         if field.status_field:
             q = q.filter((field.status_field.column == PASS) |
                          (field.status_field.column == None))
-        samples = [[rev, val, {'label': rev, 'date': str(time), 'runID': str(rid)}] for val, rev, time, rid in q.all()]
+        
+        limit = request.args.get('limit', None)
+        if limit:
+            limit = int(limit)
+            q = q.limit(limit)
+        
+        samples = [[rev, val, {'label': rev, 'date': str(time), 'runID': str(rid)}] for val, rev, time, rid in q.all()[::-1]]
 
         return samples
 
