@@ -38,7 +38,7 @@
 var g = {};
 var test_suite_name = "{{ testsuite_name }}";
 var db_name = "{{ request.view_args.get('db_name','') }}";
-
+var max_samples = {{ request.args.get('limit', 350) }};
 var changes = [
 {% for form_change in form.field_changes%}
     {% set fc = changes[loop.index -1] %}
@@ -221,7 +221,7 @@ function register_checkboxes() {
               var color = color_codes[index % color_codes.length];
               var prev_cell = $(this).closest('td').prev();
               prev_cell.css("background-color", color);
-              add_data_to_graph(changes[index]["url"], index, update_graph);
+              add_data_to_graph(changes[index]["url"], index, max_samples);
           } else {
               is_checked[index] = false;
               var prev_cell = $(this).closest('td').prev();
@@ -280,7 +280,9 @@ function update_order_summary() {
     } else {
         $(SIDE_BAR).append("<b>No intersection</b></br>");
     }
-    
+
+     $(SIDE_BAR).append("<br><b><a href=\"?limit=1000\">More data</a></b></br>");
+     $(SIDE_BAR).append("<b><a href=\"?limit=0\">All data</a></b></br>");
 }
 var dt = null;
 

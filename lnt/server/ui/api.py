@@ -189,7 +189,8 @@ class Graph(Resource):
         limit = request.args.get('limit', None)
         if limit:
             limit = int(limit)
-            q = q.limit(limit)
+            if limit:
+                q = q.limit(limit)
         
         samples = [[rev, val, {'label': rev, 'date': str(time), 'runID': str(rid)}] for val, rev, time, rid in q.all()[::-1]]
 
