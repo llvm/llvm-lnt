@@ -23,9 +23,11 @@ var lnt_graph = {};
 
 
 // Grab the graph API url for this line.
-function get_api_url(kind, db, ts, mtf) {
+function get_api_url(kind, db, ts, mtf, limit) {
     "use strict";
-    return [prefix, "api", "db_" + db, "v4", ts, kind, mtf].join('/');
+    var url = [prefix, "api", "db_" + db, "v4", ts, kind, mtf].join('/');
+    url += "?limit=" + limit;
+    return url;
 }
 
 // Grab the URL for a regression by id.
@@ -343,10 +345,10 @@ function update_graph() {
 // To be called by main page. It will fetch data and make graph ready.
 function add_data_to_graph(URL, index) {
     "use strict";
-    $.getJSON(get_api_url("graph", db_name, test_suite_name, URL), function (data) {
+    $.getJSON(get_api_url("graph", db_name, test_suite_name, URL, 350), function (data) {
         new_graph_data_callback(data, index);
     });
-    $.getJSON(get_api_url("regression", db_name, test_suite_name, URL), function (data) {
+    $.getJSON(get_api_url("regression", db_name, test_suite_name, URL, 350), function (data) {
         new_graph_regression_callback(data, index, update_graph);
     });
     is_checked[index] = true;
