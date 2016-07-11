@@ -80,7 +80,8 @@ var changes = [
   
   <thead>
   <tr>
-    <th>X</th>
+    <th></th>
+    <th>&Delta; ID</th>
     <th>Machine</th>
     <th>Metric</th>
     <th>Test</th>
@@ -107,6 +108,7 @@ var changes = [
                     <td style="background:transparent;"></td><td>{{ form_change }}</td>
                 </tr>
             </table>
+        <td class="change_id">{{fc.ri.id}}</td>
         <td class="machine">{{utils.render_machine(fc.ri.machine)}}</td>
         <td class="metric"> {{ fc.ri.field.name }} </td>
          {% set graph_base=v4_url_for('v4_graph', highlight_run=fc.run.id) %}
