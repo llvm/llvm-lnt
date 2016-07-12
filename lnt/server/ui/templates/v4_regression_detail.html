@@ -1,8 +1,8 @@
+{% extends "layout.html" %}
 {% import "utils.html" as utils %}
 {% import "local.html" as local %}
 {% set db = request.get_db() %}
 
-{% extends "layout.html" %}
 {% set components = [(testsuite_name, v4_url_for("v4_recent_activity")),
                       ("Tracking", v4_url_for("v4_regression_list"))] %}
 {% block title %}Regression Details{% endblock %}
