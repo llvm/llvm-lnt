@@ -38,8 +38,9 @@ order3.llvm_project_revision = "1236"
 run = ts_db.Run(machine, order, start_time, end_time)
 test = ts_db.Test("test-a")
 
-sample = ts_db.Sample(run, test, compile_time=1.0, score=4.2)
+sample = ts_db.Sample(run, test, compile_time=1.0, score=4.2, code_size=100)
 sample.mem_bytes = 58093568
+
 # Add and commit.
 ts_db.add(machine)
 ts_db.add(order)
@@ -94,6 +95,8 @@ test = tests[0]
 samples = ts_db.query(ts_db.Sample).all()
 assert len(samples) == 1
 sample = samples[0]
+
+assert sample.code_size == 100
 
 regression_indicators = ts_db.query(ts_db.RegressionIndicator).all()
 assert len(regression_indicators) == 2

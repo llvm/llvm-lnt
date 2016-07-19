@@ -590,14 +590,16 @@ class TestSuiteTest(BuiltinTest):
             'exec_time': 'exec',
             'score': 'score',
             'hash': 'hash',
-            'link_time': 'compile'
+            'link_time': 'compile',
+            'size': 'code_size'
         }
         LIT_METRIC_CONV_FN = {
             'compile_time': float,
             'exec_time': float,
             'score': float,
             'hash': str,
-            'link_time': float
+            'link_time': float,
+            'size': float,
         }
         
         # We don't use the test info, currently.
