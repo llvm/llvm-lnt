@@ -1285,6 +1285,8 @@ SERVER_EXEC_RESULT = "execution_time"
 SERVER_SCORE_RESULT = "score"
 SERVER_MEM_RESULT = "mem"
 SERVER_HASH_RESULT = "hash"
+SERVER_CODESIZE_RESULT = "code_size"
+
 
 
 class PastRunData(object):
@@ -1424,6 +1426,9 @@ def _process_reruns(config, server_reply, local_results):
                 else:
                     derived_perf_status = perf_status
                 new_entry.execution_status = derived_perf_status
+        elif SERVER_CODESIZE_RESULT in test_type:
+            # NT suite can't do code size, so don't rerun.
+            pass
         else:
             assert False, "Unexpected server result type." + test_type
         collated_results[test_name] = new_entry
