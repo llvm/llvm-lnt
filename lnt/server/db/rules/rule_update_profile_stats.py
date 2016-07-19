@@ -21,7 +21,7 @@ def update_profile_stats(ts, run_id):
     age = []
 
     dt = time.time()
-    blocks = subprocess.check_output("du -s -B 1024 %s" % profile_path,
+    blocks = subprocess.check_output("du -s -k %s" % profile_path,
                                      shell=True).split('\t')[0]
     kb = float(blocks) # 1024 byte blocks.
 
