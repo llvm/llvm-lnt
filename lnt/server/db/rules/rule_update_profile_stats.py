@@ -11,6 +11,9 @@ def update_profile_stats(ts, run_id):
     age_path = os.path.join(config.profileDir, '_profile-age.json')
     profile_path = config.profileDir
 
+    if not os.path.exists(profile_path):
+        return
+
     try:
         history = json.loads(open(history_path).read())
     except:
