@@ -147,6 +147,9 @@ class TestSuiteTest(BuiltinTest):
         parser.add_option_group(group)
 
         group = OptionGroup(parser, "Test Execution")
+        group.add_option("", "--only-compile", dest="only_compile",
+                         help="Don't run the tests, just compile them.",
+                         action="store_true", default=False, )
         group.add_option("-j", "--threads", dest="threads",
                          help="Number of testing (and optionally build) "
                          "threads", type=int, default=1, metavar="N")
@@ -457,6 +460,8 @@ class TestSuiteTest(BuiltinTest):
             defs['TEST_SUITE_RUN_UNDER'] = self._unix_quote_args(self.opts.run_under)
         if self.opts.benchmarking_only:
             defs['TEST_SUITE_BENCHMARKING_ONLY'] = 'ON'
+        if self.opts.only_compile:
+            defs['TEST_SUITE_RUN_BENCHMARKS'] = 'Off'
         if self.opts.use_perf in ('time', 'all'):
             defs['TEST_SUITE_USE_PERF'] = 'ON'
         if self.opts.test_suite_externals:
