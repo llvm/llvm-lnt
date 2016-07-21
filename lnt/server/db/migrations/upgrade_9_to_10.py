@@ -11,11 +11,10 @@ import lnt.server.db.migrations.upgrade_0_to_1 as upgrade_0_to_1
 
 def upgrade(engine):
     # Create a session.
-    print "Running my upgrade"
     session = sqlalchemy.orm.sessionmaker(engine)()
 
     real_sample_type = session.query(upgrade_0_to_1.SampleType).\
-        filter_by(name = "Real").first()
+        filter_by(name="Real").first()
 
     ts = session.query(upgrade_0_to_1.TestSuite).filter_by(name='nts').first()
     code_size = upgrade_0_to_1.SampleField(name="code_size",
@@ -38,6 +37,3 @@ ALTER TABLE "NT_Sample"
 ADD COLUMN "code_size" FLOAT
 """)
     session.commit()
-    print "Finished my upgrade."
-
-
