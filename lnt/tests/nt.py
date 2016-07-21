@@ -1288,7 +1288,6 @@ SERVER_HASH_RESULT = "hash"
 SERVER_CODESIZE_RESULT = "code_size"
 
 
-
 class PastRunData(object):
     """To decide if we need to rerun, we must know
     what happened on each test in the first runs.
