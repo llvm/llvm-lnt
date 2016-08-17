@@ -18,6 +18,8 @@ from lnt import testing
 from lnt.testing.util.commands import note, warning, error, fatal, LOGGER_NAME
 import lnt.testing.profile.profile as profile
 
+import code
+
 def action_runserver(name, args):
     """start a new development server"""
 
@@ -52,6 +54,8 @@ view the results.\
                       default=None)
     parser.add_option("", "--profiler", dest="profiler", default=False,
                       action="store_true", help="enable WSGI profiler")
+    parser.add_option("", "--shell", dest="shell", default=False,
+                      action="store_true", help="Load in shell.")
     parser.add_option("", "--show-sql", dest="show_sql", default=False,
                       action="store_true", help="show all SQL queries")
     parser.add_option("", "--threaded", dest="threaded", default=False,
@@ -97,7 +101,18 @@ view the results.\
         app.wsgi_app = werkzeug.contrib.profiler.ProfilerMiddleware(
             app.wsgi_app, stream = open(opts.profiler_file, 'w'),
             profile_dir = opts.profiler_dir)
-    app.run(opts.hostname, opts.port,
+    if opts.shell:
+        from flask import current_app
+        from flask import g
+        ctx = app.test_request_context()
+        ctx.push()
+
+        vars = globals().copy()
+        vars.update(locals())
+        shell = code.InteractiveConsole(vars)
+        shell.interact()
+    else:
+        app.run(opts.hostname, opts.port,
             use_reloader = opts.reloader,
             use_debugger = opts.debugger,
             threaded = opts.threaded,
