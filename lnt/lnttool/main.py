@@ -123,6 +123,7 @@ from convert import action_convert
 from import_data import action_import
 from updatedb import action_updatedb
 from viewcomparison import action_view_comparison
+from import_report import action_importreport
 
 def action_checkformat(name, args):
     """check the format of an LNT test report file"""
