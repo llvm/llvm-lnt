@@ -402,7 +402,7 @@ class TestConfiguration(object):
                 llvm_arch = 'x86'
             elif arch in ('x86_64', 'amd64'):
                 llvm_arch = 'x86_64'
-            elif arch in ('powerpc', 'powerpc64', 'ppu'):
+            elif arch in ('powerpc', 'powerpc64', 'powerpc64le', 'ppu'):
                 llvm_arch = 'PowerPC'
             elif (arch == 'arm' or arch.startswith('armv') or
                   arch == 'thumb' or arch.startswith('thumbv') or
