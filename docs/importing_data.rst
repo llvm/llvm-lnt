@@ -1,7 +1,31 @@
 .. _importing_data:
 
+Importing Data in a Text File
+=============================
+
+The LNT importreport command will import data in a simple text file format. The
+command takes a space separated key value file and creates an LNT report file,
+which can be submitted to a LNT server.  Example input file::
+
+    foo.exec 123
+    bar.size 456
+    foo/bar/baz.size 789
+
+The format is "test-name.metric", so exec and size are valid metrics for the
+test suite you are submitting to.
+
+Example::
+
+    echo -n "foo.exec 25\nbar.score 24.2\nbar/baz.size 110.0\n" > results.txt
+    lnt importreport --machine=my-machine-name --order=1234 --testsuite=nts results.txt report.json
+    lnt submit http://mylnt.com/default/submitRun --commit=1 report.json
+
+
 Importing Data from Other Test Systems
 ======================================
+
+The lnt importreport tool is an easy way to import data into LNTs test format.
+Or you can write your own importer.
 
 First, make sure you've understood the underlying :ref:`concepts` used by LNT.
 
@@ -90,3 +114,44 @@ Make sure that:
    * ".compile": represents the compile time of the program.
 
  All of these metrics are optional.
+
+
+.. _custom_testsuites:
+
+Custom Test Suites
+==================
+
+LNTs test suites are derived from a set of metadata definitions for each suite.
+Simply put, suites are a collections of metrics that are collected for each run.
+You can define your own test-suites if the schema in a different suite does not
+already meet your needs.
+
+Creating a suite requires database access, and shell access to the machine.
+First create the metadata tables, then tell LNT to build the suites tables from
+the new metadata you have added.
+
+ * Open the database you want to add the suite to.
+ * Add a new row to the TestSite table, note the ID.
+ * Add machine and run fields to TestSuiteMachineFields and TestSuiteRunFields.
+ * Add an Order to TestSuiteOrderFields.  The only order name that is regularly
+   tested is llvm_project_revision, so you may want to use that name.
+ * Add new entries to the TestSuiteSampleFields for each metric you want to
+   collect.
+ * Now create the new LNT tables via the shell interface. In this example
+   we make a tables for the size testsuite in the ecc database::
+
+    $ lnt runserver --shell ./foo
+    Started file logging.
+    Logging to : lnt.log
+    Python 2.7.5 (default, Mar  9 2014, 22:15:05)
+    [GCC 4.2.1 Compatible Apple LLVM 5.0 (clang-500.0.68)] on darwin
+    Type "help", "copyright", "credits" or "license" for more information.
+    (InteractiveConsole)
+    >>> g.db_name = "ecc"
+    >>> db = ctx.request.get_db()
+    >>> db
+    <lnt.server.db.v4db.V4DB object at 0x10ac4afd0>
+    >>> import lnt.server.db.migrations.new_suite as ns
+    >>> ns.init_new_testsuite(db.engine, db.session, "size")
+    >>> db.session.commit()
+

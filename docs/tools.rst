@@ -24,6 +24,9 @@ Client-Side Tools
     the property list format. You can use ``-`` for either the input (to read
     from ``stdin) or the output (to write to ``stdout``).
 
+ ``lnt importreport <input path> [<output path>]``
+    Convert text based key value pairs into a LNT json report file.
+
   ``lnt submit [--commit=1] <server url> <file>+``
     Submits one or more files to the given server. The ``<server url>`` should
     be the url to the actual ``submitRun`` page on the server; the database
