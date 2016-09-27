@@ -1467,6 +1467,16 @@ def v4_matrix():
                 order_to_geomean[order] = PrecomputedCR(curr_geomean,
                                                         curr_geomean,
                                                         False)
+    # Calculate the date of each order.
+    order_to_date = {}
+
+    runs = ts.query(ts.Run.start_time, ts.Order.llvm_project_revision) \
+            .join(ts.Order) \
+            .filter(ts.Order.llvm_project_revision.in_(all_orders)) \
+            .all()
+
+    order_to_date = dict([(x[1],x[0]) for x in runs])
+    print order_to_date
 
     class FakeOptions(object):
         show_small_diff = False
@@ -1489,4 +1499,5 @@ def v4_matrix():
                            form=form,
                            baseline_rev=baseline_rev,
                            machine_name_common=machine_name_common,
-                           machine_id_common=machine_id_common)
+                           machine_id_common=machine_id_common,
+                           order_to_date=order_to_date)

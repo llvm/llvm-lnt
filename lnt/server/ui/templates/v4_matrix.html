@@ -61,7 +61,10 @@
         {% for order in orders: %}
             {% set baseline_class = "info" if order == baseline_rev else "" %}
             <tr class="{{baseline_class}}">
-                <td><a href="{{v4_url_for('v4_order', id=order_to_id[order])}}">{{order}}</a></td>
+                <td><a href="{{v4_url_for('v4_order', id=order_to_id[order])}}">{{order}}</a>
+                    <br>
+                <span class="shortDateFormat" data-toggle="tooltip" title="{{order_to_date[order]}}">{{ order_to_date[order].isoformat() }}</span>
+                </td>
                 {% for req in associated_runs: %}
                     {{ get_cell_value(req.change.get(order)) }}
                 {% endfor %}
@@ -79,8 +82,6 @@
             $("form").submit();
         });
     });
-
-
 
 
 </script>
