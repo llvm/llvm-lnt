@@ -863,7 +863,7 @@ class CompileTest(builtintest.BuiltinTest):
 
         try:
             os.mkdir(g_output_dir)
-        except OSError(e):
+        except OSError as e:
             if e.errno == errno.EEXIST:
                 parser.error("sandbox output directory %r already exists!" % (
                              g_output_dir,))
