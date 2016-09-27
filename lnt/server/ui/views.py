@@ -1476,7 +1476,6 @@ def v4_matrix():
             .all()
 
     order_to_date = dict([(x[1],x[0]) for x in runs])
-    print order_to_date
 
     class FakeOptions(object):
         show_small_diff = False
