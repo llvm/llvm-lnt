@@ -43,8 +43,10 @@
     {% if machine_name_common %}
         <p>Machine: <a href="{{ v4_url_for('v4_machine', id=machine_id_common) }}">{{ machine_name_common }}</a></p>
     {% endif %}
-    <table class="table table-hover" style="width:auto">
-    <tr>
+    <table class="table table-hover floating_header" style="width:auto">
+    <thead>
+        <tr>
+
         <th>Order</th>
         {% for r in associated_runs: %}
             <th>
@@ -55,6 +57,7 @@
         {% endfor %}
         <th>Geomean</th>
     </tr>
+        </thead>
         {% for order in orders: %}
             {% set baseline_class = "info" if order == baseline_rev else "" %}
             <tr class="{{baseline_class}}">
@@ -71,11 +74,15 @@
 </div>
 
 <script type="text/javascript">
-    $(function() {
-        $(".auto_submit_item").change(function() {
-        $("form").submit();
-   });
- });
+      $(function() {
+           $(".auto_submit_item").change(function() {
+            $("form").submit();
+        });
+    });
+
+
+
+
 </script>
 
  {% endblock %}

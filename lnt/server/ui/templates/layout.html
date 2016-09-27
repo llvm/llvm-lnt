@@ -1,32 +1,33 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"/>
-  <link href="{{ url_for('.static', filename='bootstrap/css/bootstrap.min.css')
-              }}" rel="stylesheet" media="screen"/>
-  <link href="{{ url_for('.static', filename='bootstrap/css/bootstrap-responsive.min.css')
-              }}" rel="stylesheet"/>
-  <link href="{{ url_for('.static', filename='narrow.css')
-              }}" rel="stylesheet" media='screen and (max-width: 750px)'/>
-  <link href="{{ url_for('.static', filename='wide.css')
-              }}" rel="stylesheet" media='screen and (min-width: 750px)'/>
-  <script src="{{ url_for('.static', filename='jquery/1.7.2/jquery-1.7.2.min.js')
-               }}"> </script>
-  <script src="{{ url_for('.static', filename='jquery/jquery.dateFormat/jquery-dateFormat.min.js')
-               }}"> </script>
+    <meta charset="UTF-8"/>
+    <link href="{{ url_for('.static', filename='bootstrap/css/bootstrap.min.css')
+                }}" rel="stylesheet" media="screen"/>
+    <link href="{{ url_for('.static', filename='bootstrap/css/bootstrap-responsive.min.css')
+                }}" rel="stylesheet"/>
+    <link href="{{ url_for('.static', filename='narrow.css')
+                }}" rel="stylesheet" media='screen and (max-width: 750px)'/>
+    <link href="{{ url_for('.static', filename='wide.css')
+                }}" rel="stylesheet" media='screen and (min-width: 750px)'/>
+    <script src="{{ url_for('.static', filename='jquery/1.7.2/jquery-1.7.2.min.js')
+                 }}"> </script>
+    <script src="{{ url_for('.static', filename='jquery/jquery.dateFormat/jquery-dateFormat.min.js')
+                 }}"> </script>
 
-  <script src="{{ url_for('.static', filename='bootstrap/js/bootstrap.min.js')
-               }}"></script>
-  <script src="{{ url_for('.static', filename='timedate.js')
-               }}"></script>
+    <script src="{{ url_for('.static', filename='bootstrap/js/bootstrap.min.js')
+                 }}"></script>
+    <script src="{{ url_for('.static', filename='timedate.js')
+                 }}"></script>
 
-  <!-- DataTables CSS -->
-  <link rel="stylesheet" type="text/css" href="//cdn.datatables.net/1.10.8/css/jquery.dataTables.css" />
-                 
-   <!-- DataTables -->
-   <script type="text/javascript" charset="UTF-8" src="//cdn.datatables.net/1.10.8/js/jquery.dataTables.js">
-   </script>
+    <!-- DataTables CSS -->
+    <link rel="stylesheet" type="text/css" href="//cdn.datatables.net/1.10.8/css/jquery.dataTables.css" />
 
+    <!-- DataTables -->
+    <script type="text/javascript" charset="UTF-8" src="//cdn.datatables.net/1.10.8/js/jquery.dataTables.js">
+    </script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/floatthead/1.4.2/jquery.floatThead.min.js"></script>
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
@@ -84,6 +85,11 @@
     tr:hover .profile-btn {
       visibility: visible;
     }
+
+    /* Floating headers can't have clear backgrounds. */
+    .floating_header thead {
+        background-color: #FFFFFF;
+    }
     
   </style>
 
@@ -99,6 +105,19 @@
   <script type='text/javascript'>
     {% block javascript %}
     {% endblock %}
+
+   $( function () {
+        // For each floating header table, start the floatingTHead.
+        var table = $('table.floating_header');
+        $.each(table,
+                function (k, e) {
+                    $(e).floatThead({
+                        position: 'absolute',
+                        top: $('#header').height()-15,
+                    })
+                }
+        );
+    });
   </script>
 </head>
 
@@ -187,9 +206,6 @@
                         </ul>
                     </li>
                 </ul>
-
-                
-
             </div>
             <div>
                 {# Navigation Breadcrumbs #}

@@ -323,7 +323,7 @@ $('.profile-prev-only').tooltip();
     {% for field in metric_fields %}
       <section id="{{ field.name }}">
       {{ utils.render_popup_begin('test_data-' + field.name, field.name, false) }}
-      <table class="table table-striped table-hover table-condensed sortable">
+      <table class="table table-striped table-hover table-condensed sortable floating_header">
         <thead>
           <tr>
             <th rowspan="1" class="sorttable_nosort"><input type="checkbox" id="select-all-{{ field.name }}" onClick="selectAll(this)"></th>
