@@ -1468,14 +1468,12 @@ def v4_matrix():
                                                         curr_geomean,
                                                         False)
     # Calculate the date of each order.
-    order_to_date = {}
-
     runs = ts.query(ts.Run.start_time, ts.Order.llvm_project_revision) \
-            .join(ts.Order) \
-            .filter(ts.Order.llvm_project_revision.in_(all_orders)) \
-            .all()
+             .join(ts.Order) \
+             .filter(ts.Order.llvm_project_revision.in_(all_orders)) \
+             .all()
 
-    order_to_date = dict([(x[1],x[0]) for x in runs])
+    order_to_date = dict([(x[1], x[0]) for x in runs])
 
     class FakeOptions(object):
         show_small_diff = False
