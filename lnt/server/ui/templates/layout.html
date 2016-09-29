@@ -29,6 +29,9 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/floatthead/1.4.2/jquery.floatThead.min.js"></script>
 
+    <script src="{{ url_for('.static', filename='lnt.js') }}"></script>
+
+
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
 
@@ -106,37 +109,6 @@
     {% block javascript %}
     {% endblock %}
 
-   $( function () {
-        // For each floating header table, start the floatingTHead.
-        var table = $('table.floating_header');
-        $.each(table,
-                function (k, e) {
-                    $(e).floatThead({
-                        position: 'absolute',
-                        top: $('#header').height()-15,
-                    })
-                }
-        );
-
-        // Support for long and short dates.
-        var shortDateFormat = 'MMM dd yyyy';
-        var longDateFormat  = 'MMM dd yyyy HH:mm:ss';
-
-        $(".shortDateFormat").each(function (idx, elem) {
-            if ($(elem).is(":input")) {
-                $(elem).val($.format.date($(elem).val(), shortDateFormat));
-            } else {
-                $(elem).text($.format.date($(elem).text(), shortDateFormat));
-            }
-        });
-        $(".longDateFormat").each(function (idx, elem) {
-            if ($(elem).is(":input")) {
-                $(elem).val($.format.date($(elem).val(), longDateFormat));
-            } else {
-                $(elem).text($.format.date($(elem).text(), longDateFormat));
-            }
-        });
-    });
 
   </script>
 </head>
