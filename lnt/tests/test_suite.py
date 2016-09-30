@@ -56,7 +56,7 @@ XML_REPORT_TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
             </error>
         {% endif %}
         {% if test.code == "FAIL"%}
-            <failure type={{test.code}}>
+            <failure type="{{test.code}}">
             {{ test.output }}
             </failure>
         {% endif %}
