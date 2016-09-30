@@ -69,7 +69,7 @@ def _importProfile(name_filename):
     if not os.path.exists(filename):
         warning('Profile %s does not exist' % filename)
         return None
-    
+
     pf = lnt.testing.profile.profile.Profile.fromFile(filename)
     if not pf:
         return None
@@ -151,7 +151,7 @@ class TestSuiteTest(BuiltinTest):
                          help="Don't run CMake if CMakeCache.txt is present"
                               " (only useful with --no-timestamp")
         parser.add_option_group(group)
-        
+
         group = OptionGroup(parser, "Inputs")
         group.add_option("", "--test-suite", dest="test_suite_root",
                          type=str, metavar="PATH", default=None,
@@ -319,7 +319,7 @@ class TestSuiteTest(BuiltinTest):
         for a in ['cross_compiling', 'cross_compiling_system_name', 'llvm_arch']:
             if getattr(opts, a):
                 parser.error('option "%s" is not yet implemented!' % a)
-            
+
         if self.opts.sandbox_path is None:
             parser.error('--sandbox is required')
 
@@ -341,7 +341,7 @@ class TestSuiteTest(BuiltinTest):
                 parser.error("unable to infer --cxx - set it manually.")
         else:
             opts.cxx = resolve_command_path(opts.cxx)
-                
+
         if not os.path.exists(opts.cxx):
             parser.error("invalid --cxx argument %r, does not exist" % (opts.cxx))
 
@@ -356,7 +356,7 @@ class TestSuiteTest(BuiltinTest):
                 parser.error(
                     "invalid --test-externals argument, does not exist: %r" % (
                         opts.test_suite_externals,))
-                
+
         opts.cmake = resolve_command_path(opts.cmake)
         if not isexecfile(opts.cmake):
             parser.error("CMake tool not found (looked for %s)" % opts.cmake)
@@ -376,14 +376,14 @@ class TestSuiteTest(BuiltinTest):
         if opts.single_result:
             # --single-result implies --only-test
             opts.only_test = opts.single_result
-                
+
         if opts.only_test:
             # --only-test can either point to a particular test or a directory.
             # Therefore, test_suite_root + opts.only_test or
             # test_suite_root + dirname(opts.only_test) must be a directory.
             path = os.path.join(self.opts.test_suite_root, opts.only_test)
             parent_path = os.path.dirname(path)
-            
+
             if os.path.isdir(path):
                 opts.only_test = (opts.only_test, None)
             elif os.path.isdir(parent_path):
@@ -396,15 +396,15 @@ class TestSuiteTest(BuiltinTest):
         if opts.single_result and not opts.only_test[1]:
             parser.error("--single-result must be given a single test name, not a " +
                          "directory name")
-                
+
         opts.cppflags = ' '.join(opts.cppflags)
         opts.cflags = ' '.join(opts.cflags)
         opts.cxxflags = ' '.join(opts.cxxflags)
-        
+
         if opts.diagnose:
             if not opts.only_test:
                 parser.error("--diagnose requires --only-test")
-        
+
         self.start_time = timestamp()
 
         # Work out where to put our build stuff
@@ -512,7 +512,7 @@ class TestSuiteTest(BuiltinTest):
         if 'cwd' in kwargs:
             note('          (In %s)' % kwargs['cwd'])
         return subprocess.check_call(*args, **kwargs)
-    
+
     def _clean(self, path):
         make_cmd = self.opts.make
 
@@ -523,7 +523,7 @@ class TestSuiteTest(BuiltinTest):
 
         self._check_call([make_cmd, 'clean'],
                          cwd=subdir)
-        
+
     def _configure(self, path, extra_cmake_defs=[], execute=True):
         cmake_cmd = self.opts.cmake
 
@@ -535,11 +535,11 @@ class TestSuiteTest(BuiltinTest):
         if self.opts.cppflags or self.opts.cflags:
             all_cflags = ' '.join([self.opts.cppflags, self.opts.cflags])
             defs['CMAKE_C_FLAGS'] = self._unix_quote_args(all_cflags)
-        
+
         if self.opts.cppflags or self.opts.cxxflags:
             all_cxx_flags = ' '.join([self.opts.cppflags, self.opts.cxxflags])
             defs['CMAKE_CXX_FLAGS'] = self._unix_quote_args(all_cxx_flags)
-        
+
         if self.opts.run_under:
             defs['TEST_SUITE_RUN_UNDER'] = self._unix_quote_args(self.opts.run_under)
         if self.opts.benchmarking_only:
@@ -555,7 +555,7 @@ class TestSuiteTest(BuiltinTest):
             defs['TEST_SUITE_PROFILE_GENERATE'] = "Off"
             if 'TEST_SUITE_RUN_TYPE' not in defs:
                 defs['TEST_SUITE_RUN_TYPE'] = 'ref'
-        
+
         if self.opts.cmake_defines:
             for item in self.opts.cmake_defines:
                 k, v = item.split('=', 1)
@@ -563,12 +563,12 @@ class TestSuiteTest(BuiltinTest):
         for item in extra_cmake_defs:
             k, v = item.split('=', 1)
             defs[k] = v
-            
+
         lines = ['Configuring with {']
         for k, v in sorted(defs.items()):
             lines.append("  %s: '%s'" % (k, v))
         lines.append('}')
-        
+
         # Prepare cmake cache if requested:
         cmake_flags = []
         for cache in self.opts.cmake_cache:
@@ -589,7 +589,7 @@ class TestSuiteTest(BuiltinTest):
             self._check_call(cmake_cmd, cwd=path)
 
         return cmake_cmd
-        
+
     def _collect_pgo(self, path):
         extra_defs = ["TEST_SUITE_PROFILE_GENERATE=On",
                       "TEST_SUITE_RUN_TYPE=train"]
@@ -599,7 +599,7 @@ class TestSuiteTest(BuiltinTest):
 
     def _make(self, path):
         make_cmd = self.opts.make
-        
+
         subdir = path
         target = 'all'
         if self.opts.only_test:
@@ -625,7 +625,7 @@ class TestSuiteTest(BuiltinTest):
                                                        dir=path,
                                                        delete=False)
         output_json_path.close()
-        
+
         subdir = path
         if self.opts.only_test:
             components = [path] + [self.opts.only_test[0]]
@@ -636,7 +636,7 @@ class TestSuiteTest(BuiltinTest):
             extra_args = ['--no-execute']
         if self.opts.use_perf in ('profile', 'all'):
             extra_args += ['--param', 'profile=perf']
-            
+
         note('Testing...')
         try:
             self._check_call([lit_cmd,
@@ -660,7 +660,7 @@ class TestSuiteTest(BuiltinTest):
                 'XPASS': lnt.testing.FAIL,
                 'UNRESOLVED': lnt.testing.FAIL
                 }[code]
-    
+
     def _test_failed_to_compile(self, raw_name, path):
         # FIXME: Do we need to add ".exe" in windows?
         name = raw_name.rsplit('.test', 1)[0]
@@ -668,7 +668,7 @@ class TestSuiteTest(BuiltinTest):
 
     def _get_target_flags(self):
         return shlex.split(self.opts.cppflags + self.opts.cflags)
-    
+
     def _get_cc_info(self):
         return lnt.testing.util.compilers.get_cc_info(self.opts.cc,
                                                       self._get_target_flags())
@@ -690,7 +690,7 @@ class TestSuiteTest(BuiltinTest):
             'link_time': float,
             'size.__text': float,
         }
-        
+
         # We don't use the test info, currently.
         test_info = {}
         test_samples = []
@@ -701,7 +701,7 @@ class TestSuiteTest(BuiltinTest):
             ignore.append('compile')
 
         profiles_to_import = []
-            
+
         for test_data in data['tests']:
             raw_name = test_data['name'].split(' :: ', 1)[1]
             name = 'nts.' + raw_name.rsplit('.test', 1)[0]
@@ -732,7 +732,7 @@ class TestSuiteTest(BuiltinTest):
                     if k == 'link_time':
                         # Move link time into a second benchmark's compile-time.
                         server_name =  name + '-link.' + LIT_METRIC_TO_LNT[k]
-    
+
                     test_samples.append(
                         lnt.testing.TestSamples(server_name,
                                                 [v],
@@ -743,7 +743,8 @@ class TestSuiteTest(BuiltinTest):
                 test_samples.append(
                     lnt.testing.TestSamples(name + '.compile.status',
                                             [lnt.testing.FAIL],
-                                            test_info))
+                                            test_info),
+                                            )
 
             elif not is_pass:
                 test_samples.append(
@@ -781,10 +782,10 @@ class TestSuiteTest(BuiltinTest):
         run_info['run_order'] = run_info['inferred_run_order']
         if self.opts.run_order:
             run_info['run_order'] = self.opts.run_order
-        
+
         machine_info = {
         }
-        
+
         machine = lnt.testing.Machine(self.nick, machine_info)
         run = lnt.testing.Run(self.start_time, timestamp(), info=run_info)
         report = lnt.testing.Report(machine, run, test_samples)
@@ -899,7 +900,7 @@ class TestSuiteTest(BuiltinTest):
         cmd_stats_report = cmd + ['-DTEST_SUITE_DIAGNOSE_FLAGS=-mllvm -stats']
 
         note(' '.join(cmd_stats_report))
-        
+
         out = subprocess.check_output(cmd_stats_report)
         note(out)
 
@@ -926,7 +927,7 @@ class TestSuiteTest(BuiltinTest):
                 sudo = [sudo]
             iprofiler = os.getenv("IPROFILER_CMD",
                                   "iprofiler -timeprofiler -I 40u")
-            
+
             cmd_iprofiler = cmd + ['-DTEST_SUITE_RUN_UNDER=' + iprofiler]
             print ' '.join(cmd_iprofiler)
 
@@ -962,7 +963,7 @@ class TestSuiteTest(BuiltinTest):
         # Run through the rest of LNT, but don't allow this to be submitted
         # because there is no data.
         class DontSubmitResults(object):
-            
+
             def get(self, url):
                 return report_path
 
