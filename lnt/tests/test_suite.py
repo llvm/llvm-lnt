@@ -54,6 +54,7 @@ def _importProfile(name_filename):
 
 class TestSuiteTest(BuiltinTest):
     def __init__(self):
+        super(TestSuiteTest, self).__init__()
         self.configured = False
         self.compiled = False
         self.trained = False
