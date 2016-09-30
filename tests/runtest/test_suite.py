@@ -38,7 +38,6 @@
 # CHECK-XML:            tests="{{[0-9]+}}"
 # CHECK-XML:            errors="0"
 # CHECK-XML:            failures="0"
-# CHECK-XML:            skip=""
 # CHECK-XML:            timestamp="2
 # CHECK-XML:     <testcase classname=""
 # CHECK-XML:               name="foo" time="1.0">
