@@ -36,29 +36,37 @@ KNOWN_SAMPLE_KEYS = ['compile', 'exec', 'hash', 'score']
 
 XML_REPORT_TEMPLATE = """
 <?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
 {%  for suite in suites %}
 <testsuite name="{{ suite.name }}"
            tests="{{ suite.num_tests }}"
            errors="{{ suite.num_errors }}"
            failures="{{ suite.num_failures }}"
-           skip="{{ suite.num_skipped }}"
-           timestamp="{{suite.timestamp}}">
+           timestamp="{{suite.timestamp}}"
+           hostname="localhost"
+           time="0"
+           package="{{suite.name}}"
+           id="{{suite.id}}">
+    <properties></properties>
     {% for test in suite.tests %}
     <testcase classname="{{ test.path }}"
               name="{{ test.name }}" time="{{ test.time }}">
         {% if test.code == "NOEXE"%}
-            <error>
+            <error type="{{test.code}}">
             {{ test.output }}
             </error>
         {% endif %}
         {% if test.code == "FAIL"%}
-            <failure>
+            <failure type={{test.code}}>
             {{ test.output }}
             </failure>
         {% endif %}
     </testcase>
     {% endfor %}
+    <system-out></system-out>
+    <system-err></system-err>
 </testsuite>
+</testsuites>
 {% endfor %}"""
 
 # _importProfile imports a single profile. It must be at the top level (and
@@ -86,7 +94,7 @@ def _lit_json_to_xunit_xml(json_reports):
     # type: (list) -> str
     """Take the lit report jason dicts and convert them
     to an xunit xml report for CI to digest."""
-    template_engine = jinja2.Template(XML_REPORT_TEMPLATE)
+    template_engine = jinja2.Template(XML_REPORT_TEMPLATE, autoescape=True)
     # For now, only show first runs report.
     json_report = json_reports[0]
     tests_by_suite = defaultdict(list)
@@ -110,11 +118,12 @@ def _lit_json_to_xunit_xml(json_reports):
 
         tests_by_suite[suite_name].append(entry)
     suites = []
-    for suite in tests_by_suite:
+    for id, suite in enumerate(tests_by_suite):
         tests = tests_by_suite[suite]
         entry = {'name': suite,
+                 'id': id,
                  'tests': tests,
-                 'timestamp': datetime.datetime.now().isoformat(),
+                 'timestamp': datetime.datetime.now().replace(microsecond=0).isoformat(),
                  'num_tests': len(tests),
                  'num_failures': len(
                      [x for x in tests if x['code'] == 'FAIL']),
