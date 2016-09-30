@@ -35,7 +35,7 @@
 
 # CHECK-XML: <?xml version="1.0" encoding="UTF-8"?>
 # CHECK-XML: <testsuite name="foo"
-# CHECK-XML:            tests="{{\d+}}"
+# CHECK-XML:            tests="{{[0-9]+}}"
 # CHECK-XML:            errors="0"
 # CHECK-XML:            failures="0"
 # CHECK-XML:            skip=""
