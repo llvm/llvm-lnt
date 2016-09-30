@@ -65,8 +65,9 @@ XML_REPORT_TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
     <system-out></system-out>
     <system-err></system-err>
 </testsuite>
+{% endfor %}
 </testsuites>
-{% endfor %}"""
+"""
 
 # _importProfile imports a single profile. It must be at the top level (and
 # not within TestSuiteTest) so that multiprocessing can import it correctly.
