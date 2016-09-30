@@ -2,6 +2,7 @@
     "tests": [
         {
             "name": "test-suite :: foo",
+            "elapsed": "1.0",
             "code": "PASS",
             "metrics": {
                 "compile_time": 1.3,

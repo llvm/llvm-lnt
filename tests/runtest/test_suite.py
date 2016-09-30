@@ -15,6 +15,7 @@
 # RUN: FileCheck  --check-prefix CHECK-STDOUT < %t.log %s
 # RUN: FileCheck  --check-prefix CHECK-BASIC < %t.err %s
 # RUN: FileCheck  --check-prefix CHECK-REPORT < %t.SANDBOX/build/report.json %s
+# RUN: FileCheck  --check-prefix CHECK-XML < %t.SANDBOX/build/test-results.xunit.xml %s
 
 # CHECK-REPORT: "run_order": "154331"
 # CHECK-REPORT: "Name": "nts.{{[^.]+}}.compile"
@@ -31,6 +32,18 @@
 # CHECK-BASIC: Testing
 # CHECK-BASIC: submitting result to dummy instance
 # CHECK-BASIC: Successfully created db_None/v4/nts/1
+
+# CHECK-XML: <?xml version="1.0" encoding="UTF-8"?>
+# CHECK-XML: <testsuite name="foo"
+# CHECK-XML:            tests="{{\d+}}"
+# CHECK-XML:            errors="0"
+# CHECK-XML:            failures="0"
+# CHECK-XML:            skip=""
+# CHECK-XML:            timestamp="2
+# CHECK-XML:     <testcase classname=""
+# CHECK-XML:               name="foo" time="1.0">
+# CHECK-XML:     </testcase>
+# CHECK-XML: </testsuite>
 
 # Use the same sandbox again with --no-configure
 # RUN: lnt runtest test-suite \

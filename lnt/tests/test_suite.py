@@ -12,6 +12,10 @@ import re
 import multiprocessing
 import getpass
 
+import datetime
+import jinja2
+from collections import defaultdict
+
 from optparse import OptionParser, OptionGroup
 
 import lnt.testing
@@ -30,6 +34,32 @@ from lnt.tests.builtintest import BuiltinTest
 TEST_SUITE_KNOWN_ARCHITECTURES = ['ARM', 'AArch64', 'Mips', 'X86']
 KNOWN_SAMPLE_KEYS = ['compile', 'exec', 'hash', 'score']
 
+XML_REPORT_TEMPLATE = """
+<?xml version="1.0" encoding="UTF-8"?>
+{%  for suite in suites %}
+<testsuite name="{{ suite.name }}"
+           tests="{{ suite.num_tests }}"
+           errors="{{ suite.num_errors }}"
+           failures="{{ suite.num_failures }}"
+           skip="{{ suite.num_skipped }}"
+           timestamp="{{suite.timestamp}}">
+    {% for test in suite.tests %}
+    <testcase classname="{{ test.path }}"
+              name="{{ test.name }}" time="{{ test.time }}">
+        {% if test.code == "NOEXE"%}
+            <error>
+            {{ test.output }}
+            </error>
+        {% endif %}
+        {% if test.code == "FAIL"%}
+            <failure>
+            {{ test.output }}
+            </failure>
+        {% endif %}
+    </testcase>
+    {% endfor %}
+</testsuite>
+{% endfor %}"""
 
 # _importProfile imports a single profile. It must be at the top level (and
 # not within TestSuiteTest) so that multiprocessing can import it correctly.
@@ -50,6 +80,49 @@ def _importProfile(name_filename):
                                    [profilefile],
                                    {},
                                    str)
+
+
+def _lit_json_to_xunit_xml(json_reports):
+    # type: (list) -> str
+    """Take the lit report jason dicts and convert them
+    to an xunit xml report for CI to digest."""
+    template_engine = jinja2.Template(XML_REPORT_TEMPLATE)
+    # For now, only show first runs report.
+    json_report = json_reports[0]
+    tests_by_suite = defaultdict(list)
+    for tests in json_report['tests']:
+        name = tests['name']
+        code = tests['code']
+        time = tests['elapsed']
+        output = tests.get('output', 'No output collected for this test.')
+
+        x = name.split("::")
+        suite_name = x[1].strip().split("/")[0]
+        test_name = x[1].strip().split("/")[-1]
+        path = x[1].strip().split("/")[:-1]
+
+        entry = {'name': test_name,
+                 'path': '.'.join(path),
+                 'time': time,
+                 'code': code}
+        if code != "PASS":
+            entry['output'] = output
+
+        tests_by_suite[suite_name].append(entry)
+    suites = []
+    for suite in tests_by_suite:
+        tests = tests_by_suite[suite]
+        entry = {'name': suite,
+                 'tests': tests,
+                 'timestamp': datetime.datetime.now().isoformat(),
+                 'num_tests': len(tests),
+                 'num_failures': len(
+                     [x for x in tests if x['code'] == 'FAIL']),
+                 'num_errors': len(
+                     [x for x in tests if x['code'] == 'NOEXE'])}
+        suites.append(entry)
+    str_template = template_engine.render(suites=suites)
+    return str_template
 
 
 class TestSuiteTest(BuiltinTest):
@@ -363,11 +436,14 @@ class TestSuiteTest(BuiltinTest):
             return self.diagnose()
         # Now do the actual run.
         reports = []
+        json_reports = []
         for i in range(max(opts.exec_multisample, opts.compile_multisample)):
             c = i < opts.compile_multisample
             e = i < opts.exec_multisample
-            reports.append(self.run(self.nick, compile=c, test=e))
-            
+            run_report, json_data = self.run(self.nick, compile=c, test=e)
+            reports.append(run_report)
+            json_reports.append(json_data)
+
         report = self._create_merged_report(reports)
 
         # Write the report out so it can be read by the submission tool.
@@ -375,23 +451,30 @@ class TestSuiteTest(BuiltinTest):
         with open(report_path, 'w') as fd:
             fd.write(report.render())
 
+        xml_report_path = os.path.join(self._base_path,
+                                       'test-results.xunit.xml')
+
+        str_template = _lit_json_to_xunit_xml(json_reports)
+        with open(xml_report_path, 'w') as fd:
+            fd.write(str_template)
+
         return self.submit(report_path, self.opts, commit=True)
-    
+
     def run(self, nick, compile=True, test=True):
         path = self._base_path
-        
+
         if not os.path.exists(path):
             mkdir_p(path)
-            
+
         if self.opts.pgo:
             self._collect_pgo(path)
             self.trained = True
-            
+
         if not self.configured and self._need_to_configure(path):
             self._configure(path)
             self._clean(path)
             self.configured = True
-            
+
         if self.compiled and compile:
             self._clean(path)
         if not self.compiled or compile:
@@ -399,7 +482,7 @@ class TestSuiteTest(BuiltinTest):
             self.compiled = True
 
         data = self._lit(path, test)
-        return self._parse_lit_output(path, data)
+        return self._parse_lit_output(path, data), data
 
     def _create_merged_report(self, reports):
         if len(reports) == 1:
