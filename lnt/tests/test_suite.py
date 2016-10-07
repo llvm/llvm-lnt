@@ -440,6 +440,15 @@ class TestSuiteTest(BuiltinTest):
                                        cc_info['cc_target'].split('-')[0])
         note('Using nickname: %r' % self.nick)
 
+        #  When we can't detect the clang version we use 0 instead. That
+        # is a horrible failure mode because all of our data ends up going
+        # to order 0.  The user needs to give an order if we can't detect!
+        if opts.run_order is None:
+            cc_info = self._get_cc_info()
+            if cc_info['inferred_run_order'] == 0:
+                fatal("Cannot detect compiler version. Specify --run-order"
+                      " to manually define it.")
+
         #  If we are doing diagnostics, skip the usual run and do them now.
         if opts.diagnose:
             return self.diagnose()
