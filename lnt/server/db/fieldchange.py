@@ -1,4 +1,3 @@
-import re
 import sqlalchemy.sql
 from sqlalchemy.orm.exc import ObjectDeletedError
 import lnt.server.reporting.analysis
