@@ -1,3 +1,4 @@
+import difflib
 import sqlalchemy.sql
 from sqlalchemy.orm.exc import ObjectDeletedError
 import lnt.server.reporting.analysis
@@ -158,35 +159,52 @@ def is_overlaping(fc1, fc2):
     return (r1_min == r2_min and r1_max == r2_max) or \
            (r1_min < r2_max and r2_min < r1_max)
 
+
+def percent_similar(a, b):
+    """
+    Percent similar: are these strings similar to each other?
+    :param a: first string
+    :param b: second string
+    """
+    # type: (str, str) -> float
+    s = difflib.SequenceMatcher(lambda x: x.isdigit(), a, b)
+    return s.ratio()
+
+
 @timed
 def identify_related_changes(ts, regressions, fc):
-    """Can we find a home for this change in some existing regression? """
+    """Can we find a home for this change in some existing regression? If a
+    match is found add a regression indicator adding this change to that
+    regression, otherwise create a new regression for this change.
+
+    Regression matching looks for regressions that happen in overlapping order
+    ranges. Then looks for changes that are similar.
+
+    """
     for regression in regressions:
         regression_indicators = get_ris(ts, regression)
         for change in regression_indicators:
             regression_change = change.field_change
             if is_overlaping(regression_change, fc):
-                confidence = 0
-                relation = ["Revision"]
-                if regression_change.machine == fc.machine:
-                    confidence += 1
-                    relation.append("Machine")
-                if regression_change.test == fc.test:
-                    confidence += 1
-                    relation.append("Test")
-                if regression_change.field == fc.field:
-                    confidence += 1
-                    relation.append("Field")
+                confidence = 0.0
 
-                if confidence >= 2:
+                confidence += percent_similar(regression_change.machine.name,
+                                              fc.machine.name)
+                confidence += percent_similar(regression_change.test.name, fc.test.name)
+
+                if regression_change.field == fc.field:
+                    confidence += 1.0
+
+                if confidence >= 2.0:
                     # Matching
-                    note("Found a match:" + str(regression)  + " On " +
-                         ', '.join(relation))
+                    MSG = "Found a match: {} with score {}."
+                    note(MSG.format(str(regression),
+                                    confidence))
                     ri = ts.RegressionIndicator(regression, fc)
                     ts.add(ri)
                     # Update the default title if needed.
                     rebuild_title(ts, regression)
-                    return (True, regression)
+                    return True, regression
     note("Could not find a partner, creating new Regression for change")
     new_reg = new_regression(ts, [fc.id])
-    return (False, new_reg)
+    return False, new_reg

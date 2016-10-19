@@ -43,13 +43,13 @@ class ChangeProcessingTests(unittest.TestCase):
         machine = self.machine = ts_db.Machine("test-machine")
         ts_db.add(machine)
         
-        test = self.test = ts_db.Test("test-a")
+        test = self.test = ts_db.Test("foo")
         ts_db.add(test)
         
         machine2 = self.machine2 = ts_db.Machine("test-machine2")
         ts_db.add(machine2)
         
-        test2 = self.test2 = ts_db.Test("test-b")
+        test2 = self.test2 = ts_db.Test("bar")
         ts_db.add(test2)
         
         run = self.run = ts_db.Run(machine, order1235,  start_time,
@@ -120,13 +120,9 @@ class ChangeProcessingTests(unittest.TestCase):
     def test_startup(self):
         pass
 
-    #def test_rebuild_title(self):
-    #    ts = self.ts_db
-    #    
     def test_change_grouping_criteria(self):
         ts_db = self.ts_db
 
-        
         # Check simple overlap checks work.
         self.assertTrue(is_overlaping(self.field_change, self.field_change2),
                         "Should be overlapping")
@@ -152,7 +148,7 @@ class ChangeProcessingTests(unittest.TestCase):
         ts_db.add(field_change7)
         ret, reg = identify_related_changes(ts_db, self.regressions, field_change7)
         self.assertNotEquals(self.regression, reg)
-        self.assertFalse(ret, "Should not match with differnt machine and tests.")
+        self.assertFalse(ret, "No match with different machine and tests.")
         self.regressions.append(reg)
         field_change4 = ts_db.FieldChange(self.order1234,
                                           self.order1235,
@@ -162,7 +158,7 @@ class ChangeProcessingTests(unittest.TestCase):
 
         # Check a regression matches if all fields match.
         ret, _ = identify_related_changes(ts_db, self.regressions, field_change4)
-        self.assertTrue(ret, "Should Match with differnt machine.")
+        self.assertTrue(ret, "Should Match with different machine.")
 
         field_change5 = ts_db.FieldChange(self.order1234,
                                           self.order1235,
@@ -172,7 +168,7 @@ class ChangeProcessingTests(unittest.TestCase):
 
         # Check a regression matches if all fields match.
         ret, _ = identify_related_changes(ts_db, self.regressions, field_change5)
-        self.assertTrue(ret, "Should Match with differnt tests.")
+        self.assertTrue(ret, "Should Match with different tests.")
         field_change6 = ts_db.FieldChange(self.order1234,
                                           self.order1235,
                                           self.machine,
@@ -181,12 +177,12 @@ class ChangeProcessingTests(unittest.TestCase):
 
         # Check a regression matches if all fields match.
         ret, _ = identify_related_changes(ts_db, self.regressions, field_change6)
-        self.assertTrue(ret, "Should Match with differnt fields.")
+        self.assertTrue(ret, "Should Match with different fields.")
 
         ts_db.commit()
         
         r2 = rebuild_title(ts_db, self.regression)
-        EXPECTED_TITLE = "Regression of 6 benchmarks: test-a, test-b"
+        EXPECTED_TITLE = "Regression of 6 benchmarks: foo, bar"
         self.assertEquals(r2.title, EXPECTED_TITLE)
 
     def test_regression_evolution(self):
