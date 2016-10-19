@@ -21,7 +21,7 @@ def is_fixed(ts, regression):
     """Comparing the current value to the regression, is this regression now
     fixed?
     """
-    r_inds = get_ris(ts, regression)
+    r_inds = get_ris(ts, regression.id)
     fixes = [_fixed_rind(ts, x) for x in r_inds]
     return all(fixes)
 

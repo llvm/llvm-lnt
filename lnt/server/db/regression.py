@@ -80,9 +80,9 @@ def get_all_orders_for_machine(ts, machine):
         .all()
 
 
-def get_ris(ts, regression):
+def get_ris(ts, regression_id):
     return ts.query(ts.RegressionIndicator) \
-        .filter(ts.RegressionIndicator.regression_id == regression.id) \
+        .filter(ts.RegressionIndicator.regression_id == regression_id) \
         .all()
 
 

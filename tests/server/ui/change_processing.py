@@ -130,14 +130,12 @@ class ChangeProcessingTests(unittest.TestCase):
                          "Should not be overlapping")
 
         # Check non-overlapping changes are always False.
-        ret, reg = identify_related_changes(ts_db, self.regressions,
-                                            self.field_change3)
-                                            
+        ret, reg = identify_related_changes(ts_db, self.field_change3)
+
         self.assertFalse(ret, "Ranges don't overlap, should not match")
         self.regressions.append(reg)
         # Check a regression matches if all fields match.
-        ret, _ = identify_related_changes(ts_db, self.regressions,
-                                          self.field_change)
+        ret, _ = identify_related_changes(ts_db, self.field_change)
         self.assertTrue(ret, "Should Match.")
 
         field_change7 = ts_db.FieldChange(self.order1234,
@@ -146,7 +144,7 @@ class ChangeProcessingTests(unittest.TestCase):
                                           self.test2,
                                           self.a_field)
         ts_db.add(field_change7)
-        ret, reg = identify_related_changes(ts_db, self.regressions, field_change7)
+        ret, reg = identify_related_changes(ts_db, field_change7)
         self.assertNotEquals(self.regression, reg)
         self.assertFalse(ret, "No match with different machine and tests.")
         self.regressions.append(reg)
@@ -157,7 +155,7 @@ class ChangeProcessingTests(unittest.TestCase):
                                           self.a_field)
 
         # Check a regression matches if all fields match.
-        ret, _ = identify_related_changes(ts_db, self.regressions, field_change4)
+        ret, _ = identify_related_changes(ts_db, field_change4)
         self.assertTrue(ret, "Should Match with different machine.")
 
         field_change5 = ts_db.FieldChange(self.order1234,
@@ -167,7 +165,7 @@ class ChangeProcessingTests(unittest.TestCase):
                                           self.a_field)
 
         # Check a regression matches if all fields match.
-        ret, _ = identify_related_changes(ts_db, self.regressions, field_change5)
+        ret, _ = identify_related_changes(ts_db, field_change5)
         self.assertTrue(ret, "Should Match with different tests.")
         field_change6 = ts_db.FieldChange(self.order1234,
                                           self.order1235,
@@ -176,7 +174,7 @@ class ChangeProcessingTests(unittest.TestCase):
                                           self.a_field2)
 
         # Check a regression matches if all fields match.
-        ret, _ = identify_related_changes(ts_db, self.regressions, field_change6)
+        ret, _ = identify_related_changes(ts_db, field_change6)
         self.assertTrue(ret, "Should Match with different fields.")
 
         ts_db.commit()

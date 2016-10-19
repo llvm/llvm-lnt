@@ -7,7 +7,7 @@ from lnt.testing.util.commands import note, timed
 from lnt.server.db.regression import new_regression, RegressionState
 from lnt.server.db.regression import get_ris
 from lnt.server.db.regression import rebuild_title
-
+from sqlalchemy import or_
 from lnt.server.db import rules_manager as rules
 # How many runs backwards to use in the previous run set.
 # More runs are slower (more DB access), but may provide
@@ -39,6 +39,7 @@ def delete_fieldchange(ts, change):
     
     # We might have just created a regression with no changes.
     # If so, delete it as well.
+    deleted_ids = []
     for r in regression_ids:
         remaining = ts.query(ts.RegressionIndicator). \
             filter(ts.RegressionIndicator.regression_id == r). \
@@ -47,7 +48,9 @@ def delete_fieldchange(ts, change):
             r = ts.query(ts.Regression).get(r)
             note("Deleting regression because it has not changes:" + repr(r))
             ts.delete(r)
+            deleted_ids.append(r)
     ts.commit()
+    return deleted_ids
 
 
 @timed
@@ -62,7 +65,7 @@ def regenerate_fieldchanges_for_run(ts, run_id):
         filter(ts.Run.order_id == run.order_id). \
         filter(ts.Run.machine_id == run.machine_id). \
         all()
-    regressions = ts.query(ts.Regression).all()[::-1]
+
     previous_runs = ts.get_previous_runs_on_machine(run, FIELD_CHANGE_LOOKBACK)
     next_runs = ts.get_next_runs_on_machine(run, FIELD_CHANGE_LOOKBACK)
 
@@ -111,7 +114,7 @@ def regenerate_fieldchanges_for_run(ts, run_id):
             if not result.is_result_performance_change() and f:
                 # With more data, its not a regression. Kill it!
                 note("Removing field change: {}".format(f.id))
-                delete_fieldchange(ts, f)
+                deleted = delete_fieldchange(ts, f)
                 continue
 
             if result.is_result_performance_change() and not f:
@@ -126,15 +129,13 @@ def regenerate_fieldchanges_for_run(ts, run_id):
                     ts.add(f)
                     ts.commit()
                     try:
-                        found, new_reg = identify_related_changes(ts, regressions, f)
+                        found, new_reg = identify_related_changes(ts, f)
                     except ObjectDeletedError:
                         # This can happen from time to time.
                         # So, lets retry once.
-                        regressions = ts.query(ts.Regression).all()[::-1]
-                        found, new_reg = identify_related_changes(ts, regressions, f)
+                        found, new_reg = identify_related_changes(ts, f)
                         
                     if found:
-                        regressions.append(new_reg)
                         note("Found field change: {}".format(run.machine))
 
             # Always update FCs with new values.
@@ -143,6 +144,8 @@ def regenerate_fieldchanges_for_run(ts, run_id):
                 f.new_value = result.current
                 f.run = run
     ts.commit()
+
+    regressions = ts.query(ts.Regression).all()[::-1]
     rules.post_submission_hooks(ts, regressions)
 
 
@@ -172,7 +175,7 @@ def percent_similar(a, b):
 
 
 @timed
-def identify_related_changes(ts, regressions, fc):
+def identify_related_changes(ts, fc):
     """Can we find a home for this change in some existing regression? If a
     match is found add a regression indicator adding this change to that
     regression, otherwise create a new regression for this change.
@@ -181,8 +184,15 @@ def identify_related_changes(ts, regressions, fc):
     ranges. Then looks for changes that are similar.
 
     """
-    for regression in regressions:
-        regression_indicators = get_ris(ts, regression)
+    regressions = ts.query(ts.Regression.id) \
+        .filter(or_(ts.Regression.state == RegressionState.DETECTED,
+                ts.Regression.state == RegressionState.DETECTED_FIXED)) \
+        .all()
+
+    for regression_packed in regressions:
+        regression_id = regression_packed[0]
+        regression_indicators = get_ris(ts, regression_id)
+        print "RIs:", regression_indicators
         for change in regression_indicators:
             regression_change = change.field_change
             if is_overlaping(regression_change, fc):
@@ -198,12 +208,14 @@ def identify_related_changes(ts, regressions, fc):
                 if confidence >= 2.0:
                     # Matching
                     MSG = "Found a match: {} with score {}."
+                    regression = ts.query(ts.Regression).get(regression_id)
                     note(MSG.format(str(regression),
                                     confidence))
                     ri = ts.RegressionIndicator(regression, fc)
                     ts.add(ri)
                     # Update the default title if needed.
                     rebuild_title(ts, regression)
+                    ts.commit()
                     return True, regression
     note("Could not find a partner, creating new Regression for change")
     new_reg = new_regression(ts, [fc.id])
