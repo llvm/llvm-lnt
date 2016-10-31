@@ -64,6 +64,7 @@ def get_cc_info(path, cc_flags=[]):
     # Parse out the compiler's version line and the path to the "cc1" binary.
     cc1_binary = None
     version_ln = None
+    cc_name = cc_version_num = cc_build_string = cc_extra = ""
     for ln in cc_version.split('\n'):
         if ' version ' in ln:
             version_ln = ln
@@ -90,12 +91,10 @@ def get_cc_info(path, cc_flags=[]):
             m = re.match(r'(.*) version ([^ ]*)', version_ln)
             if m is not None:
                 cc_name,cc_version_num = m.groups()
-                cc_build_string = cc_extra = ""
             else:
                 error("unable to determine compiler version: %r: %r" % (
                         cc, version_ln))
                 cc_name = "unknown"
-                cc_version_num = cc_build_string = cc_extra = ""
 
     # Compute normalized compiler name and type. We try to grab source
     # revisions, branches, and tags when possible.
