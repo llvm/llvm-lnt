@@ -1321,7 +1321,7 @@ def v4_matrix():
             machine_id = int(machine_id_str)
             test_id = int(test_id_str)
             field_index = int(field_index_str)
-        except:
+        except ValueError:
             err_msg = "data {} was malformed. {} must be int.int.int"
             return abort(400, err_msg.format(name, value))
 
