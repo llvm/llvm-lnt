@@ -1424,7 +1424,8 @@ def v4_matrix():
             baseline_rev = backup_baseline
 
     all_orders = list(all_orders)
-    all_orders.sort()
+    all_orders.sort(reverse=True)
+    all_orders.insert(0, baseline_rev)
     # Now calculate Changes between each run.
 
     for req in data_parameters:
