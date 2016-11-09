@@ -27,7 +27,7 @@
     {% endif %}
       <td>{{ item.levelname}}</td>
       <td>{{item.filename}}:{{item.lineno}}</td>
-      <td>{{ item.msg }}</td>
+      <td><pre>{{ item.msg }}</pre></td>
     </tr>
 {% endfor %}
 
