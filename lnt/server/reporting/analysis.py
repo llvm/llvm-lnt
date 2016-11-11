@@ -348,12 +348,15 @@ class RunInfo(object):
             prev_hash_set = set(prev_hash_values)
             if len(cur_hash_set) > 1:
                 logger.warning(("Found different hashes for multiple samples " +
-                                "in the same run {0}: {1}").format(
-                               runs, hash_values))
+                                "in the same run {0}: {1}\nTestID:{2}").format(
+                               runs, hash_values, test_id))
             if len(prev_hash_set) > 1:
+                import pprint
                 logger.warning(("Found different hashes for multiple samples " +
-                                "in the same run {0}: {1}").format(
-                               compare_runs, prev_hash_values))
+                                "in the same run {0}\n{1}\nTestID:{2}").format(
+                               pprint.pformat(compare_runs),
+                               prev_hash_values,
+                               test_id))
             cur_hash = hash_values[0] if len(hash_values) > 0 else None
             prev_hash = prev_hash_values[0] \
                 if len(prev_hash_values) > 0 else None
