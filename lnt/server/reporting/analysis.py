@@ -342,21 +342,14 @@ class RunInfo(object):
                                 for s in prev_samples
                                 if s[field.index] is not None]
 
-            # All hash_values and all prev_hash_values should all be the same.
+            # All current hash_values should all be the same.
             # Warn in the log when the hash wasn't the same for all samples.
             cur_hash_set = set(hash_values)
-            prev_hash_set = set(prev_hash_values)
             if len(cur_hash_set) > 1:
                 logger.warning(("Found different hashes for multiple samples " +
                                 "in the same run {0}: {1}\nTestID:{2}").format(
                                runs, hash_values, test_id))
-            if len(prev_hash_set) > 1:
-                import pprint
-                logger.warning(("Found different hashes for multiple samples " +
-                                "in the same run {0}\n{1}\nTestID:{2}").format(
-                               pprint.pformat(compare_runs),
-                               prev_hash_values,
-                               test_id))
+
             cur_hash = hash_values[0] if len(hash_values) > 0 else None
             prev_hash = prev_hash_values[0] \
                 if len(prev_hash_values) > 0 else None
