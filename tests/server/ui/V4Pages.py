@@ -427,7 +427,9 @@ def main():
     
     check_redirect(client, '/v4/nts/regressions/new_from_graph/1/1/1/1', '/v4/nts/regressions/1')
     check_code(client, '/v4/nts/regressions/')
-    
+    check_code(client, '/v4/nts/regressions/?machine_filter=machine2')
+    check_code(client, '/v4/nts/regressions/?machine_filter=machine0')
+
     check_code(client, '/v4/nts/regressions/1')
     
     check_json(client, '/v4/nts/regressions/1?json=True')

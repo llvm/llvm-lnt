@@ -157,7 +157,7 @@ def v4_regression_list():
 
     ts = request.get_testsuite()
     form = MergeRegressionForm(request.form)
-
+    machine_filter = request.args.get('machine_filter')
     if request.method == 'POST' and \
        request.form['merge_btn'] == "Merge Regressions":
         regressions_id_to_merge = form.regression_checkboxes.data
@@ -200,12 +200,23 @@ def v4_regression_list():
     regression_sizes = []
     impacts = []
     ages = []
+
+    filtered_regressions = []
     for regression in regression_info:
-        form.regression_checkboxes.choices.append((regression.id, 1,))
         reg_inds = ts.query(ts.RegressionIndicator) \
             .filter(ts.RegressionIndicator.regression_id ==
                     regression.id) \
             .all()
+        if machine_filter:
+            machine_names = set([x.field_change.machine.name for x in reg_inds])
+            if machine_filter in machine_names:
+                filtered_regressions.append(regression)
+            else:
+                continue
+        else:
+            filtered_regressions.append(regression)
+        form.regression_checkboxes.choices.append((regression.id, 1,))
+
         regression_sizes.append(len(reg_inds))
         impacts.append(calc_impact(ts, [x.field_change for x in reg_inds]))
         # Now guess the regression age:
@@ -214,10 +225,10 @@ def v4_regression_list():
         else:
                 age = EmptyDate()
         ages.append(age)
-        
+
     return render_template("v4_regression_list.html",
                            testsuite_name=g.testsuite_name,
-                           regressions=regression_info,
+                           regressions=filtered_regressions,
                            highlight=request.args.get('highlight'),
                            title=title,
                            RegressionState=RegressionState,
