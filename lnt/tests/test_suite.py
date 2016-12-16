@@ -314,6 +314,7 @@ class TestSuiteTest(BuiltinTest):
         group.add_option("", "--use-lit", dest="lit", metavar="PATH",
                          type=str, default="llvm-lit",
                          help="Path to the LIT test runner [llvm-lit]")
+        parser.add_option_group(group)
 
         (opts, args) = parser.parse_args(args)
         self.opts = opts
