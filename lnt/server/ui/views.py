@@ -1217,7 +1217,6 @@ def rules():
 @frontend.route('/log')
 def log():
     async_ops.check_workers(True)
-    note("Showing log page.")
     return render_template("log.html")
 
 @frontend.route('/debug')
