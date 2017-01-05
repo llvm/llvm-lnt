@@ -42,6 +42,7 @@ def filter_by_benchmark_name(ts, field_change):
                           field_change.machine.name,
                           benchmark_name,
                           field_change.field])
+    note(full_name)
     for regex in ignored:
         if regex.match(full_name):
             note("Dropping field change {} because it matches {}".format(full_name,
