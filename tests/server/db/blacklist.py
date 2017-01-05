@@ -42,22 +42,22 @@ class BlacklistProcessingTest(unittest.TestCase):
 
         self.field_change1 = ts_db.FieldChange(order1234,
                                                order1236,
-                                               None,
+                                               machine,
                                                test,
                                                a_field)
         self.field_change2 = ts_db.FieldChange(order1234,
                                                order1236,
-                                               None,
+                                               machine,
                                                test2,
                                                a_field)
         self.field_change3 = ts_db.FieldChange(order1234,
                                                order1236,
-                                               None,
+                                               machine,
                                                test3,
                                                a_field)
         self.field_change4 = ts_db.FieldChange(order1234,
                                                order1236,
-                                               None,
+                                               machine,
                                                test4,
                                                a_field)
         
