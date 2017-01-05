@@ -13,8 +13,7 @@ ignored = None
 
 
 # Try and find the blacklist.
-
-def populate_blacklist():
+def _populate_blacklist():
     global ignored
     ignored = []
     try:
@@ -35,7 +34,7 @@ def filter_by_benchmark_name(ts, field_change):
     """Is this a fieldchanges we care about?
     """
     if ignored is None:
-        populate_blacklist()
+        _populate_blacklist()
     benchmark_name = field_change.test.name
     ts_name = ts.name
     full_name = '.'.join([ts_name,
