@@ -309,7 +309,11 @@ function update_graph() {
     var color = null;
     var data = null;
     var regressions = null;
-    // Data.
+    // We need to find the x bounds of the data, sine regressions may be
+    // outside that range.
+    var mins = [];
+    var maxs = [];
+    // Data processing.
     for (i = 0; i < changes.length; i++) {
         if (is_checked[i] && data_cache[i]) {
             lines_to_draw++;
@@ -317,10 +321,29 @@ function update_graph() {
             ends.push(changes[i].end);
             color = color_codes[i % color_codes.length];
             data = try_normal(data_cache[i], changes[i].start);
+            // Find local x-axis min and max.
+            var local_min = parseFloat(data[0][0]);
+            var local_max = parseFloat(data[0][0]);
+            for (var j = 0; j < data.length; j++) {
+                var datum = data[j];
+                var d = parseFloat(datum[0]);
+                if (d < local_min) {
+                    local_min = d;
+                }
+                if (d > local_max) {
+                    local_max = d;
+                }
+            }
+            mins.push(local_min);
+            maxs.push(local_max);
+
             to_draw.push(make_graph_point_entry(data, color, false));
             to_draw.push({"color": color, "data": data, "url": changes[i].url});
         }
     }
+    // Zoom the graph to only the data sets, not the regressions.
+    var min_x = Math.min.apply(Math, mins);
+    var max_x = Math.max.apply(Math, maxs);
     // Regressions.
     for (i = 0; i < changes.length; i++) {
         if (is_checked[i] && data_cache[i]) {
@@ -337,7 +360,7 @@ function update_graph() {
     }
     var lowest_rev = Math.min.apply(Math, starts);
     var highest_rev = Math.max.apply(Math, ends);
-    init(to_draw, lowest_rev, highest_rev);
+    init(to_draw, lowest_rev, highest_rev, min_x, max_x);
 }
 
 // To be called by main page. It will fetch data and make graph ready.
@@ -415,7 +438,7 @@ function update_graphplots(old_plot) {
 }
 
 
-function init(data, start_highlight, end_highlight) {
+function init(data, start_highlight, end_highlight, x_min, x_max) {
     "use strict";
     // First, set up the primary graph.
     var graph = $("#graph");
@@ -425,6 +448,10 @@ function init(data, start_highlight, end_highlight) {
         line_width = 2;
     }
     var graph_options = {
+        xaxis: {
+          min: x_min,
+          max: x_max
+        },
         series : {
             lines : {lineWidth : line_width},
             shadowSize : 0
