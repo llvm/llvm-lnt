@@ -32,6 +32,7 @@ class BlacklistProcessingTest(unittest.TestCase):
 
         machine = self.machine = ts_db.Machine("test-machine")
         ts_db.add(machine)
+        ts_db.commit()
         
         test = self.test = ts_db.Test("Foo")
         test2 = self.test2 = ts_db.Test("SingleSource/Foo/Bar/baz")
@@ -60,7 +61,13 @@ class BlacklistProcessingTest(unittest.TestCase):
                                                machine,
                                                test4,
                                                a_field)
-        
+        ts_db.add(self.field_change1)
+        ts_db.add(self.field_change2)
+        ts_db.add(self.field_change3)
+        ts_db.add(self.field_change4)
+
+        ts_db.commit()
+
     def test_blacklist(self):
         """Check we filter by benchmark name correctly."""
         ts = self.ts_db
