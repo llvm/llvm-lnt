@@ -8,15 +8,15 @@
 
 {% block body %}
 
-<table class="table table-striped table-hover table-condensed">
+<table id="logs" class="table">
   <thead>
     <tr>
-      <th>Kind</th>
-      <th>Location</th>
-      <th>Message<th>
+      <th style="width:130px">Kind</th>
+      <th style="width:130px">Location</th>
+      <th>Message</th>
     </tr>
   </thead>
-  <tbody class="searchable">
+  <tbody>
 {% for item in config.mem_logger.buffer[::-1] %}
     {% if item.levelname|string() == 'WARNING' %}
     <tr class="warning">
@@ -30,5 +30,20 @@
       <td><pre>{{ item.msg }}</pre></td>
     </tr>
 {% endfor %}
+    </tbody>
+    </table>
+
+
+<script type="text/javascript">
+$(document).ready( function () {
+    var settings = {"dom": '<"top"if>rt<"bottom"Flp>',
+                    "aLengthMenu": [[50, -1],
+                                    [50, "All"]]};
+    dt = $('#logs').DataTable(settings);
+
+});
+
+</script>
+
 
 {% endblock %}
