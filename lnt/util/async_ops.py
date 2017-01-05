@@ -18,6 +18,7 @@ import lnt.server.db.fieldchange as fieldchange
 import lnt.server.db.v4db
 import traceback
 import signal
+from time import sleep
 import contextlib
 import multiprocessing
 from multiprocessing import Pool, TimeoutError, Manager, Process
@@ -119,7 +120,7 @@ def async_wrapper(job, ts_args, func_args):
         if not clean_db:
             lnt.server.db.v4db.V4DB.close_all_engines()
             clean_db = True
-        
+        sleep(3)
         note("Running async wrapper: {} ".format(job.__name__)+ str(os.getpid()))
 
         _v4db = current_app.old_config.get_database(ts_args['db'])
