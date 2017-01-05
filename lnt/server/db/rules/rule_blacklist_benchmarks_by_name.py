@@ -38,8 +38,10 @@ def filter_by_benchmark_name(ts, field_change):
         populate_blacklist()
     benchmark_name = field_change.test.name
     ts_name = ts.name
-    full_name = ts_name + "." + benchmark_name
-
+    full_name = '.'.join([ts_name,
+                          field_change.machine.name,
+                          benchmark_name,
+                          field_change.field])
     for regex in ignored:
         if regex.match(full_name):
             note("Dropping field change {} because it matches {}".format(full_name,
