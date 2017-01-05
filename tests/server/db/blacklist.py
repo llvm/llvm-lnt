@@ -32,14 +32,15 @@ class BlacklistProcessingTest(unittest.TestCase):
 
         machine = self.machine = ts_db.Machine("test-machine")
         ts_db.add(machine)
+
+        a_field = ts_db.Sample.fields[0]
+
         ts_db.commit()
         
         test = self.test = ts_db.Test("Foo")
         test2 = self.test2 = ts_db.Test("SingleSource/Foo/Bar/baz")
         test3 = self.test3 = ts_db.Test("SingleSource/UnitTests/Bar/baz")
         test4 = self.test4 = ts_db.Test("MultiSource/Benchmarks/Ptrdist/ks/ks")
-        
-        a_field = None
 
         self.field_change1 = ts_db.FieldChange(order1234,
                                                order1236,
