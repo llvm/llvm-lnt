@@ -40,7 +40,7 @@ def filter_by_benchmark_name(ts, field_change):
     full_name = '.'.join([ts_name,
                           field_change.machine.name,
                           benchmark_name,
-                          field_change.field])
+                          field_change.field.name])
     note(full_name)
     for regex in ignored:
         if regex.match(full_name):
