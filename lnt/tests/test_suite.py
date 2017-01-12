@@ -69,6 +69,25 @@ XML_REPORT_TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
 </testsuites>
 """
 
+CSV_REPORT_TEMPLATE = \
+"""Program;CC;CC_Time;CC_Hash;Exec;Exec_Time;Score
+{%- for suite in suites -%}
+    {%- for test in suite.tests %}
+{{ suite.name }}/{{ test.path }}/{{ test.name }};
+        {%- if test.code == "NOEXE" -%}
+            fail;*;*;
+        {%- else -%}
+            pass;{{ test.metrics.compile_time if test.metrics }};{{ test.metrics.hash if test.metrics }};
+        {%- endif -%}
+        {%- if test.code == "FAIL" or test.code == "NOEXE" -%}
+            fail;*;*;
+        {%- else -%}
+            pass;{{ test.metrics.exec_time if test.metrics }};{{ test.metrics.score if test.metrics }};
+        {%- endif -%}
+    {% endfor %}
+{%- endfor -%}
+"""
+
 # _importProfile imports a single profile. It must be at the top level (and
 # not within TestSuiteTest) so that multiprocessing can import it correctly.
 def _importProfile(name_filename):
@@ -90,11 +109,7 @@ def _importProfile(name_filename):
                                    str)
 
 
-def _lit_json_to_xunit_xml(json_reports):
-    # type: (list) -> str
-    """Take the lit report jason dicts and convert them
-    to an xunit xml report for CI to digest."""
-    template_engine = jinja2.Template(XML_REPORT_TEMPLATE, autoescape=True)
+def _lit_json_to_template(json_reports, template_engine):
     # For now, only show first runs report.
     json_report = json_reports[0]
     tests_by_suite = defaultdict(list)
@@ -112,7 +127,8 @@ def _lit_json_to_xunit_xml(json_reports):
         entry = {'name': test_name,
                  'path': '.'.join(path),
                  'time': time,
-                 'code': code}
+                 'code': code,
+                 'metrics': tests.get('metrics', None)}
         if code != "PASS":
             entry['output'] = output
 
@@ -132,6 +148,23 @@ def _lit_json_to_xunit_xml(json_reports):
         suites.append(entry)
     str_template = template_engine.render(suites=suites)
     return str_template
+
+
+def _lit_json_to_xunit_xml(json_reports):
+    # type: (list) -> str
+    """Take the lit report jason dicts and convert them
+    to an xunit xml report for CI to digest."""
+    template_engine = jinja2.Template(XML_REPORT_TEMPLATE, autoescape=True)
+    return _lit_json_to_template(json_reports, template_engine)
+
+
+def _lit_json_to_csv(json_reports):
+    # type: (list) -> str
+    """Take the lit report json dicts and convert them
+    to a csv report, similar to the old test-suite make-based
+    *.report.simple.csv files."""
+    template_engine = jinja2.Template(CSV_REPORT_TEMPLATE, autoescape=True)
+    return _lit_json_to_template(json_reports, template_engine)
 
 
 class TestSuiteTest(BuiltinTest):
@@ -475,6 +508,12 @@ class TestSuiteTest(BuiltinTest):
 
         str_template = _lit_json_to_xunit_xml(json_reports)
         with open(xml_report_path, 'w') as fd:
+            fd.write(str_template)
+
+        csv_report_path = os.path.join(self._base_path,
+                                       'test-results.csv')
+        str_template = _lit_json_to_csv(json_reports)
+        with open(csv_report_path, 'w') as fd:
             fd.write(str_template)
 
         return self.submit(report_path, self.opts, commit=True)

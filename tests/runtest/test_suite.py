@@ -2,7 +2,7 @@
 #
 # RUN: rm -rf  %t.SANDBOX  %t.SANDBOX2 || true
 #
-# Check a basic nt run.
+# Check a basic test-suite run.
 # RUN: lnt runtest test-suite \
 # RUN:     --sandbox %t.SANDBOX \
 # RUN:     --no-timestamp \
@@ -16,6 +16,7 @@
 # RUN: FileCheck  --check-prefix CHECK-BASIC < %t.err %s
 # RUN: FileCheck  --check-prefix CHECK-REPORT < %t.SANDBOX/build/report.json %s
 # RUN: FileCheck  --check-prefix CHECK-XML < %t.SANDBOX/build/test-results.xunit.xml %s
+# RUN: FileCheck  --check-prefix CHECK-CSV < %t.SANDBOX/build/test-results.csv %s
 
 # CHECK-REPORT: "run_order": "154331"
 # CHECK-REPORT: "Name": "nts.{{[^.]+}}.compile"
@@ -43,6 +44,9 @@
 # CHECK-XML:               name="foo" time="1.0">
 # CHECK-XML:     </testcase>
 # CHECK-XML: </testsuite>
+
+# CHECK-CSV: Program;CC;CC_Time;CC_Hash;Exec;Exec_Time;Score
+# CHECK-CSV-NEXT: foo//foo;pass;1.3;xyz;pass;1.4;1.5
 
 # Use the same sandbox again with --no-configure
 # RUN: lnt runtest test-suite \
