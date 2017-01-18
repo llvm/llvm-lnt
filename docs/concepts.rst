@@ -11,12 +11,13 @@ most out of LNT.
 Orders Machines and Tests
 -------------------------
 
-LNT's data model was designed to track the performance of a system in many configurations
-over its evolution.  In LNT, and Order is the x-axis of your performance graphs.  It is 
-the thing that is changing.  Examples of common orders are software versions, 
-Subversion revisions, and time stamps. Orders can also be used to represent
-treatments, such as a/b.  You can put anything you want into LNT as an order,
-as long as it can be sorted by Python's sort function.
+LNT's data model was designed to track the performance of a system in many
+configurations over its evolution.  In LNT, an Order is the x-axis of your
+performance graphs.  It is the thing that is changing.  Examples of common
+orders are software versions, Subversion revisions, and time stamps. Orders can
+also be used to represent treatments, such as a/b.  You can put anything you
+want into LNT as an order, as long as it can be sorted by Python's sort
+function.
 
 A Machine in LNT is the logical bucket which results are categorized by. 
 Comparing results from the same machine is easy, across machines is harder.
@@ -58,7 +59,7 @@ collects 6 metrics per test: compile time, compile status, execution time, execu
 status, score and size.  The Compile (compile) Test Suite, is focused on metrics
 for compile quality: wall, system and user compile time, compile memory usage
 and code size.  Other test suites can be added to LNT if these sets of metrics
-don't mactch your needs.
+don't match your needs.
 
 Any program can submit results data to LNT, and specify any test suite.  The
 data format is a simple JSON file, and that file needs to be submitted to the
