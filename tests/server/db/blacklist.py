@@ -23,6 +23,7 @@ here = os.path.dirname(__file__)
 
 logging.basicConfig(level=logging.DEBUG)
 
+
 class BlacklistProcessingTest(unittest.TestCase):
     """Test the Rules facility."""
 
@@ -44,7 +45,7 @@ class BlacklistProcessingTest(unittest.TestCase):
             app.preprocess_request()
             r.g.db_name = "default"
             r.g.testsuite_name = "nts"
-            self.ts =  r.request.get_testsuite()
+            self.ts = r.request.get_testsuite()
             self.ts_db = self.ts
         ts_db = self.ts_db
         order1234 = self.order1234 = self._mkorder(ts_db, "1234")
