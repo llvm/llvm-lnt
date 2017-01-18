@@ -1,16 +1,27 @@
 # Check the blacklist.
-# RUN: python %s
+# RUN: rm -rf %t.instance
+# RUN: python %{shared_inputs}/create_temp_instance.py \
+# RUN:   %s %{shared_inputs}/SmallInstance %t.instance \
+# RUN:   %S/Inputs/V4Pages_extra_records.sql
+#
+# RUN: python %s %t.instance
+
 """Test the blacklist module"""
 import unittest
+import os
 import logging
 import sys
+
+import lnt
 from lnt.server.config import Config
 from lnt.server.db import v4db
 
 import lnt.server.db.rules.rule_blacklist_benchmarks_by_name as blacklist
+import lnt.server.ui.app
+
+here = os.path.dirname(__file__)
 
 logging.basicConfig(level=logging.DEBUG)
-
 
 class BlacklistProcessingTest(unittest.TestCase):
     """Test the Rules facility."""
@@ -22,11 +33,20 @@ class BlacklistProcessingTest(unittest.TestCase):
         return order
         
     def setUp(self):
-        self.db = v4db.V4DB("sqlite:///:memory:", Config.dummyInstance(), echo=False)
+        _, instance_path = sys.argv
 
+        # Create the application instance.
+        app = lnt.server.ui.app.App.create_standalone(instance_path)
+        app.old_config.blacklist = here + "/blacklist"
+        app.app_context().push()
         # Get the test suite wrapper.
-        ts_db = self.ts_db = self.db.testsuite['nts']
-        
+        with app.test_request_context('/db_default/nts/foo') as r:
+            app.preprocess_request()
+            r.g.db_name = "default"
+            r.g.testsuite_name = "nts"
+            self.ts =  r.request.get_testsuite()
+            self.ts_db = self.ts
+        ts_db = self.ts_db
         order1234 = self.order1234 = self._mkorder(ts_db, "1234")
         order1236 = self.order1236 = self._mkorder(ts_db, "1236")
 

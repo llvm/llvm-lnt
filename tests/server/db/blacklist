@@ -1,2 +1,2 @@
-nts\..*\/UnitTests\/.*
-nts.MultiSource/Benchmarks/Ptrdist/ks/ks
+nts\.test-machine\..*\/UnitTests\/.*
+nts\.test-machine\.MultiSource\/Benchmarks\/Ptrdist\/ks\/ks.*
