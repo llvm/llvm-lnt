@@ -53,6 +53,7 @@ def runN(args, N, cwd, preprocess_cmd=None, env=None, sample_mem=False,
     FIXME: Figure out a better way to deal with need to run as root. Maybe farm
     memory sampling process out into something we can setuid? Eek.
     """
+    g_log.info("preprocess_cmd at top of runN: %s:", preprocess_cmd)
     cmd = ['runN', '-a']
     if sample_mem:
         cmd = ['sudo'] + cmd + ['-m']
@@ -473,6 +474,9 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs,
         # Set build base to copied_src_dir so that if codesize_util
         # is not None, we pass it the correct path.
         build_base = copied_src_dir
+        preprocess_cmd = 'rm -rf "%s"/build' % (build_base,)
+        g_log.info('preprocess_cmd: %s' % preprocess_cmd)
+
     else:
         fatal("unknown build style in project: %r" % project)
 
