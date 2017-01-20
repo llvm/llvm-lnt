@@ -25,6 +25,23 @@ def mean(l):
     else:
         return None
 
+def agg_mean(pairs):
+    """Aggregation function in views.py receives input via enumerate and
+       produces a tuple.
+       Input: (value, index)
+       Output: (mean, 0), or (None, None) on invalid input.
+    """
+    if not pairs:
+        return (None, None)
+    my_sum = 0.0
+    counter = 0
+    for item in pairs:
+        my_sum += item[0]
+        counter += 1
+    if counter > 0:
+        return (my_sum / counter, 0)
+    return (None, None)
+
 
 def median(l):
     if not l:

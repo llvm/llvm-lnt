@@ -206,7 +206,7 @@ def main():
 
     # Fetch the index page.
     check_code(client, '/')
-    
+
     # Rules the index page.
     check_code(client, '/rules')
 
@@ -267,7 +267,7 @@ def main():
                expected_code=HTTP_NOT_FOUND)
     #  Check baselines work.
     check_code(client, '/v4/nts/graph?plot.0=1.3.2&baseline.60=3')
-    
+
     # Check some variations of the daily report work.
     check_code(client, '/v4/nts/daily_report/2012/4/12')
     check_code(client, '/v4/nts/daily_report/2012/4/11')
@@ -424,18 +424,21 @@ def main():
     # Check some variations of the daily report work.
     check_code(client, '/v4/compile/daily_report/2014/6/5?day_start=16')
     check_code(client, '/v4/compile/daily_report/2014/6/4')
-    
+
     check_redirect(client, '/v4/nts/regressions/new_from_graph/1/1/1/1', '/v4/nts/regressions/1')
     check_code(client, '/v4/nts/regressions/')
     check_code(client, '/v4/nts/regressions/?machine_filter=machine2')
     check_code(client, '/v4/nts/regressions/?machine_filter=machine0')
 
     check_code(client, '/v4/nts/regressions/1')
-    
-    check_json(client, '/v4/nts/regressions/1?json=True')
-    
-    
 
+    check_json(client, '/v4/nts/regressions/1?json=True')
+
+    # Make sure the new option does not break anything
+    check_code(client, '/db_default/v4/nts/graph?switch_min_mean=yes&plot.0=1.3.2&submit=Update')
+    check_json(client, '/db_default/v4/nts/graph?switch_min_mean=yes&plot.0=1.3.2&json=true&submit=Update')
+    check_code(client, '/db_default/v4/nts/graph?switch_min_mean=yes&plot.0=1.3.2')
+    check_json(client, '/db_default/v4/nts/graph?switch_min_mean=yes&plot.0=1.3.2&json=true')
 
 if __name__ == '__main__':
     main()

@@ -7,6 +7,7 @@ import copy
 import json
 
 import flask
+from flask import session
 from flask import abort
 from flask import current_app
 from flask import g
@@ -220,7 +221,7 @@ def v4_machine(id):
                            associated_runs=associated_runs)
     except NoResultFound as e:
         abort(404)
-        
+
 class V4RequestInfo(object):
     def __init__(self, run_id, only_html_body=True):
         self.db = request.get_db()
@@ -302,7 +303,7 @@ class V4RequestInfo(object):
         classes = {
             'table': 'table table-striped table-condensed table-hover'
         }
-        
+
         reports = lnt.server.reporting.runs.generate_run_report(
             self.run, baseurl=db_url_for('index', _external=True),
             only_html_body=only_html_body, result=None,
@@ -505,9 +506,25 @@ def v4_graph():
     from lnt.external.stats import stats as ext_stats
 
     ts = request.get_testsuite()
+    switch_min_mean_local = False
 
+    if 'switch_min_mean_session' not in session:
+        session['switch_min_mean_session'] = False
     # Parse the view options.
-    options = {}
+    options = {'min_mean_checkbox': 'min()'}
+    if 'submit' in request.args:  # user pressed a button
+        if 'switch_min_mean' in request.args:  # user checked mean() checkbox
+            session['switch_min_mean_session'] = options['switch_min_mean'] = \
+                bool(request.args.get('switch_min_mean'))
+            switch_min_mean_local = session['switch_min_mean_session']
+        else:  # mean() check box is not checked
+            session['switch_min_mean_session'] = options['switch_min_mean'] = \
+                bool(request.args.get('switch_min_mean'))
+            switch_min_mean_local = session['switch_min_mean_session']
+    else:  # new page was loaded by clicking link, not submit button
+        options['switch_min_mean'] = switch_min_mean_local = \
+            session['switch_min_mean_session']
+
     options['hide_lineplot'] = bool(request.args.get('hide_lineplot'))
     show_lineplot = not options['hide_lineplot']
     options['show_mad'] = show_mad = bool(request.args.get('show_mad'))
@@ -769,8 +786,12 @@ def v4_graph():
 
             values = [v*normalize_by for v in data]
             aggregation_fn = min
+
+            if switch_min_mean_local:
+                aggregation_fn = lnt.util.stats.agg_mean
             if field.bigger_is_better:
                 aggregation_fn = max
+
             agg_value, agg_index = \
                 aggregation_fn((value, index)
                                for (index, value) in enumerate(values))
@@ -780,7 +801,7 @@ def v4_graph():
             metadata["date"] = str(dates[agg_index])
             if runs:
                 metadata["runID"] = str(runs[agg_index])
-            
+
             if len(graph_datum) > 1:
                 # If there are more than one plot in the graph, also label the
                 # test name.
@@ -795,7 +816,7 @@ def v4_graph():
                     point_metadata = dict(metadata)
                     point_metadata["date"] = str(dates[i])
                     points_data.append((x, v, point_metadata))
-            
+
             # Add the standard deviation error bar, if requested.
             if show_stddev:
                 mean = stats.mean(values)
@@ -1234,7 +1255,7 @@ def health():
     if queue_length > 10:
         explode = True
         msg = "Queue too long."
-    
+
     import resource
     stats = resource.getrusage(resource.RUSAGE_SELF)
     mem = stats.ru_maxrss
@@ -1299,7 +1320,7 @@ def v4_matrix():
     for each dataset to add, there will be a "plot.n=.m.b.f" where m is machine
     ID, b is benchmark ID and f os field kind offset. "n" is used to unique
     the paramters, and is ignored.
-    
+
     """
     ts = request.get_testsuite()
     # Load the matrix request parameters.
@@ -1379,9 +1400,9 @@ def v4_matrix():
             limit = int(limit)
             if limit != -1:
                 q = q.limit(limit)
-            
+
         req.samples = defaultdict(list)
-        
+
         for s in q.all():
             req.samples[s[1]].append(s[0])
             all_orders.add(s[1])
@@ -1484,7 +1505,7 @@ def v4_matrix():
         show_mad = False
         show_all_samples = False
         show_sample_counts = False
-        
+
     return render_template("v4_matrix.html",
                            testsuite_name=g.testsuite_name,
                            associated_runs=data_parameters,
