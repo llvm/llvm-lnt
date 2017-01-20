@@ -671,9 +671,15 @@ class TestSuiteTest(BuiltinTest):
             args = ["VERBOSE=1", target]
         else:
             args = [target]
-        self._check_call([make_cmd,
-                          '-j', str(self._build_threads())] + args,
-                         cwd=subdir)
+        try:
+            self._check_call([make_cmd,
+                              '-k', '-j', str(self._build_threads())] + args,
+                             cwd=subdir)
+        except subprocess.CalledProcessError:
+            # make is expected to exit with code 1 if there was any build
+            # failure. Build failures are not unexpected when testing an
+            # experimental compiler.
+            pass
 
     def _lit(self, path, test):
         lit_cmd = self.opts.lit

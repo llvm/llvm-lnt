@@ -247,7 +247,7 @@
 # CHECK-ONLYTEST: Configuring with {
 # CHECK-ONLYTEST:   one: 'two'
 # CHECK-ONLYTEST:   three: 'four'
-# CHECK-ONLYTEST: Execute: {{.*}}/fake-make -j 1 VERBOSE=1 subtest
+# CHECK-ONLYTEST: Execute: {{.*}}/fake-make -k -j 1 VERBOSE=1 subtest
 
 # Check --benchmarking-only
 # RUN: lnt runtest test-suite \
