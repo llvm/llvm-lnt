@@ -85,8 +85,8 @@ class TestSuiteDB(object):
             class_dict = locals()
             for item in fields:
                 if item.name in class_dict:
-                    raise ValueError,"test suite defines reserved key %r" % (
-                        name,)
+                    raise ValueError("test suite defines reserved key %r" % (
+                        name))
 
                 class_dict[item.name] = item.column = Column(
                     item.name, String(256))
