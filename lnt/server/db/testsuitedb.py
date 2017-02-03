@@ -91,8 +91,8 @@ class TestSuiteDB(object):
                 class_dict[item.name] = item.column = Column(
                     item.name, String(256))
 
-            def __init__(self, name):
-                self.name = name
+            def __init__(self, name_value):
+                self.name = name_value
 
             def __repr__(self):
                 return '%s_%s%r' % (db_key_name, self.__class__.__name__,
