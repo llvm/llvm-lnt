@@ -8,6 +8,7 @@ import tempfile
 
 import lnt.server.db.v4db
 
+
 class EmailConfig:
     @staticmethod
     def fromData(data):
@@ -15,7 +16,7 @@ class EmailConfig:
         # the form [(accept-regexp-pattern, to-address)].
         to_address = data.get('to')
         if not isinstance(to_address, str):
-            to_address = [(str(a),str(b)) for a,b in to_address]
+            to_address = [(str(a), str(b)) for a, b in to_address]
         return EmailConfig(bool(data.get('enabled')), str(data.get('host')),
                            str(data.get('from')), to_address)
         
@@ -31,9 +32,10 @@ class EmailConfig:
         if isinstance(self.to_address, str):
             return self.to_address
 
-        for pattern,addr in self.to_address:
+        for pattern, address in self.to_address:
             if re.match(pattern, machine_name):
-                return addr
+                return address
+
 
 class DBInfo:
     @staticmethod
@@ -133,8 +135,15 @@ class Config:
         dbInfo = {'dummy': DBInfo.dummyInstance()}
         blacklist = None
         
-        return Config('LNT', 'http://localhost:8000', dbDir, tempDir, profileDirPath, secretKey, dbInfo, blacklist)
-    
+        return Config('LNT',
+                      'http://localhost:8000',
+                      dbDir,
+                      tempDir,
+                      profileDirPath,
+                      secretKey,
+                      dbInfo,
+                      blacklist)
+
     def __init__(self, name, zorgURL, dbDir, tempDir, profileDir, secretKey, databases, blacklist):
         self.name = name
         self.zorgURL = zorgURL
