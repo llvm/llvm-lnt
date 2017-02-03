@@ -2011,7 +2011,7 @@ class NTTest(builtintest.BuiltinTest):
             import lnt.server.db.v4db
             import lnt.server.config
             db = lnt.server.db.v4db.V4DB("sqlite:///:memory:",
-                                         lnt.server.config.Config.dummyInstance())
+                                         lnt.server.config.Config.dummy_instance())
             result = lnt.util.ImportData.import_and_report(
                 None, None, db, report_path, 'json', commit)
 

@@ -11,7 +11,7 @@ import lnt.server.db.v4db
 
 class EmailConfig:
     @staticmethod
-    def fromData(data):
+    def from_data(data):
         # The email to field can either be a string, or a list of tuples of
         # the form [(accept-regexp-pattern, to-address)].
         to_address = data.get('to')
@@ -39,8 +39,8 @@ class EmailConfig:
 
 class DBInfo:
     @staticmethod
-    def fromData(baseDir, dict, default_email_config, default_baseline_revision):
-        dbPath = dict.get('path')
+    def from_data(baseDir, config_data, default_email_config, default_baseline_revision):
+        dbPath = config_data.get('path')
 
         # If the path does not contain a database specifier, assume it is a
         # relative path.
@@ -56,20 +56,20 @@ class DBInfo:
 
         # Support per-database email configurations.
         email_config = default_email_config
-        if 'emailer' in dict:
-            email_config = EmailConfig.fromData(dict['emailer'])
+        if 'emailer' in config_data:
+            email_config = EmailConfig.from_data(config_data['emailer'])
 
-        baseline_revision = dict.get('baseline_revision',
-                                     default_baseline_revision)
+        baseline_revision = config_data.get('baseline_revision',
+                                            default_baseline_revision)
 
         return DBInfo(dbPath,
-                      str(dict.get('db_version', '0.4')),
-                      dict.get('shadow_import', None),
+                      str(config_data.get('db_version', '0.4')),
+                      config_data.get('shadow_import', None),
                       email_config,
                       baseline_revision)
     
     @staticmethod
-    def dummyInstance():
+    def dummy_instance():
         return DBInfo("sqlite:///:memory:", "0.4", None,
                       EmailConfig(False, '', '', []), 0)
     
@@ -89,7 +89,7 @@ class DBInfo:
 
 class Config:
     @staticmethod
-    def fromData(path, data):
+    def from_data(path, data):
         # Paths are resolved relative to the absolute real path of the
         # config file.
         baseDir = os.path.dirname(os.path.abspath(path))
@@ -97,7 +97,7 @@ class Config:
         # Get the default email config.
         emailer = data.get('nt_emailer')
         if emailer:
-            default_email_config = EmailConfig.fromData(emailer)
+            default_email_config = EmailConfig.from_data(emailer)
         else:
             default_email_config = EmailConfig(False, '', '', [])
 
@@ -119,20 +119,20 @@ class Config:
         return Config(data.get('name', 'LNT'), data['zorgURL'],
                       dbDir, os.path.join(baseDir, tempDir),
                       os.path.join(baseDir, profileDir), secretKey,
-                      dict([(k, DBInfo.fromData(dbDirPath, v,
-                                                default_email_config,
-                                                0))
+                      dict([(k, DBInfo.from_data(dbDirPath, v,
+                                                 default_email_config,
+                                                 0))
                            for k, v in data['databases'].items()]),
                       blacklist)
     
     @staticmethod
-    def dummyInstance():
+    def dummy_instance():
         baseDir = tempfile.mkdtemp()
         dbDir = '.'
         profileDirPath = os.path.join(baseDir, 'profiles')
         tempDir = os.path.join(baseDir, 'tmp')
         secretKey = None
-        dbInfo = {'dummy': DBInfo.dummyInstance()}
+        dbInfo = {'dummy': DBInfo.dummy_instance()}
         blacklist = None
         
         return Config('LNT',

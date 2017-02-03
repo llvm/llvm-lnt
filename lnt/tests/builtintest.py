@@ -74,7 +74,7 @@ class BuiltinTest(object):
             self.log("submitting result to dummy instance")
 
             db = lnt.server.db.v4db.V4DB("sqlite:///:memory:",
-                                         server_config.Config.dummyInstance())
+                                         server_config.Config.dummy_instance())
             server_report = ImportData.import_and_report(
                 None, None, db, report_path, 'json', commit)
 

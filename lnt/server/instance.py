@@ -55,7 +55,7 @@ class Instance(object):
 
         config_data = {}
         exec open(config_path) in config_data
-        config = lnt.server.config.Config.fromData(config_path, config_data)
+        config = lnt.server.config.Config.from_data(config_path, config_data)
 
         return Instance(config_path, config, tmpdir)
 

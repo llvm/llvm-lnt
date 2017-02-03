@@ -28,7 +28,7 @@ class ChangeProcessingTests(unittest.TestCase):
     def setUp(self):
         """Bind to the LNT test instance."""
         
-        self.db = v4db.V4DB("sqlite:///:memory:", Config.dummyInstance(), echo=False)
+        self.db = v4db.V4DB("sqlite:///:memory:", Config.dummy_instance(), echo=False)
 
         # Get the test suite wrapper.
         ts_db = self.ts_db = self.db.testsuite['nts']

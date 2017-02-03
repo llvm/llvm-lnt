@@ -11,7 +11,7 @@ from lnt.server.db import testsuite
 from lnt.server.db import v4db
 
 # Create an in memory database.
-db = v4db.V4DB("sqlite:///:memory:", Config.dummyInstance(), echo=True)
+db = v4db.V4DB("sqlite:///:memory:", Config.dummy_instance(), echo=True)
 
 # We expect exactly two test suites, one for NTS and one for Compile.
 test_suites = list(db.query(testsuite.TestSuite))

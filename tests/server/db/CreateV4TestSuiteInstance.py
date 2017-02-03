@@ -11,7 +11,7 @@ from lnt.server.db import v4db
 from lnt.server.db.fieldchange import RegressionState
 
 # Create an in memory database.
-db = v4db.V4DB("sqlite:///:memory:", Config.dummyInstance(), echo=True)
+db = v4db.V4DB("sqlite:///:memory:", Config.dummy_instance(), echo=True)
 
 # Get the test suite wrapper.
 ts_db = db.testsuite['nts']
