@@ -267,8 +267,8 @@ class V4RequestInfo(object):
         self.confidence_lv = confidence_lv
 
         # Find the neighboring runs, by order.
-        prev_runs = list(ts.get_previous_runs_on_machine(run, N = 3))
-        next_runs = list(ts.get_next_runs_on_machine(run, N = 3))
+        prev_runs = list(ts.get_previous_runs_on_machine(run, N=3))
+        next_runs = list(ts.get_next_runs_on_machine(run, N=3))
         self.neighboring_runs = next_runs[::-1] + [self.run] + prev_runs
 
         # Select the comparison run as either the previous run, or a user
@@ -377,6 +377,7 @@ Invalid URL for version %r database.""" % (g.db_info.db_version,))
     return render_template("error.html", message="""\
 Unable to find a v0.4 run for this ID. Please use the native v0.4 URL interface
 (instead of the /simple/... URL schema).""")
+
 
 @v4_route("/<int:id>")
 def v4_run(id):
@@ -519,6 +520,7 @@ def v4_order(id):
 
 @v4_route("/set_baseline/<int:id>")
 def v4_set_baseline(id):
+    """Update the baseline stored in the user's session."""
     ts = request.get_testsuite()
     base = ts.query(ts.Baseline).get(id)
     if not base:
