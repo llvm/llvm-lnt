@@ -66,6 +66,7 @@ class TestSuiteDB(object):
                 return setattr(self, field.name, value)
 
         db_key_name = self.test_suite.db_key_name
+
         class Machine(self.base, ParameterizedMixin):
             __tablename__ = db_key_name + '_Machine'
 
@@ -184,8 +185,8 @@ class TestSuiteDB(object):
             class_dict = locals()
             for item in self.order_fields:
                 if item.name in class_dict:
-                    raise ValueError,"test suite defines reserved key %r" % (
-                        name,)
+                    raise ValueError("test suite defines reserved key %r" % (
+                        name,))
 
                 class_dict[item.name] = item.column = Column(
                     item.name, String(256))
