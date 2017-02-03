@@ -28,8 +28,11 @@ if "--server" in sys.argv:
     req_file = "requirements.server.txt"
 else:
     req_file = "requirements.client.txt"
-
-install_reqs = parse_requirements(req_file, session=False)
+try:
+    install_reqs = parse_requirements(req_file, session=False)
+except TypeError:
+    # In old PIP the session flag cannot be passed.
+    install_reqs = parse_requirements(req_file)
 
 reqs = [str(ir.req) for ir in install_reqs]
 
