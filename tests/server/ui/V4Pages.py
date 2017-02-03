@@ -24,9 +24,11 @@ logging.basicConfig(level=logging.DEBUG)
 
 HTTP_BAD_REQUEST = 400
 HTTP_NOT_FOUND = 404
+HTTP_REDIRECT = 302
+HTTP_OK = 200
 
 
-def check_code(client, url, expected_code=200, data_to_send=None):
+def check_code(client, url, expected_code=HTTP_OK, data_to_send=None):
     """Call a flask url, and make sure the return code is good."""
     resp = client.get(url, follow_redirects=False, data=data_to_send)
     assert resp.status_code == expected_code, \
@@ -34,7 +36,7 @@ def check_code(client, url, expected_code=200, data_to_send=None):
     return resp
 
 
-def check_json(client, url, expected_code=200, data_to_send=None):
+def check_json(client, url, expected_code=HTTP_OK, data_to_send=None):
     """Call a flask url, make sure the return code is good,
     and grab reply data from the json payload."""
     return json.loads(check_code(client, url, expected_code,
@@ -44,8 +46,9 @@ def check_json(client, url, expected_code=200, data_to_send=None):
 def check_redirect(client, url, expected_redirect_regex):
     """Check the client returns the expected redirect on this URL."""
     resp = client.get(url, follow_redirects=False)
-    assert resp.status_code == 302, \
-        "Call to %s returned: %d, not the expected %d"%(url, resp.status_code, 302)
+    assert resp.status_code == HTTP_REDIRECT, \
+        "Call to %s returned: %d, not the expected %d" % (url, resp.status_code,
+                                                          HTTP_REDIRECT)
     regex = re.compile(expected_redirect_regex)
     assert regex.search(resp.location), \
         "Call to %s redirects to: %s, not matching the expected regex %s" \
@@ -56,6 +59,7 @@ def check_redirect(client, url, expected_redirect_regex):
 def dump_html(html_string):
    for linenr, line in enumerate(html_string.split('\n')):
       print "%4d:%s" % (linenr+1, line)
+
 
 def get_xml_tree(html_string):
     try:
