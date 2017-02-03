@@ -10,6 +10,7 @@ import json
 import os
 
 import sqlalchemy
+from flask import session
 from sqlalchemy import *
 
 import testsuite
@@ -109,27 +110,27 @@ class TestSuiteDB(object):
                 self.parameters_data = json.dumps(sorted(data.items()))
             
             def get_baseline_run(self):
-                baseline = Machine.DEFAULT_BASELINE_REVISION
-                return self.get_closest_previously_reported_run(baseline)
-            
-            def get_closest_previously_reported_run(self, revision):
+                ts = Machine.testsuite
+                user_baseline = ts.get_users_baseline()
+                if user_baseline:
+                    return self.get_closest_previously_reported_run(
+                        user_baseline.order)
+                else:
+                    mach_base = Machine.DEFAULT_BASELINE_REVISION
+                    # If we have an int, convert it to a proper string.
+                    if isinstance(mach_base, int):
+                        mach_base = '% 7d' % mach_base
+                    return self.get_closest_previously_reported_run(
+                        ts.Order(llvm_project_revision=mach_base))
+
+            def get_closest_previously_reported_run(self, order_to_find):
                 """
                 Find the closest previous run to the requested order, for which
                 this machine also reported.
                 """
                 
-                # FIXME: Scalability! Pretty fast in practice, but
-                # still pretty lame.
-                
+                # FIXME: Scalability! Pretty fast in practice, but still.
                 ts = Machine.testsuite
-                
-                # If we have an int, convert it to a proper string.
-                if isinstance(revision, int):
-                    revision = '% 7d' % revision
-
-                # Grab order for revision.
-                order_to_find = ts.Order(llvm_project_revision = revision)
-
                 # Search for best order.
                 best_order = None
                 for order in ts.query(ts.Order).\
@@ -635,8 +636,20 @@ class TestSuiteDB(object):
         self.query = self.v4db.query
         self.rollback = self.v4db.rollback
 
-    def _getBaselines(self):
+    def get_baselines(self):
         return self.query(self.Baseline).all()
+
+    def get_users_baseline(self):
+        try:
+            session_baseline = session.get('baseline')
+        except RuntimeError:
+            # Sometimes this is called from outside the app context.
+            # In that case, don't get the user's session baseline.
+            return None
+        if session_baseline:
+            return self.query(self.Baseline).get(session_baseline)
+
+        return None
 
     def _getOrCreateMachine(self, machine_data):
         """
