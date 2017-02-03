@@ -279,13 +279,13 @@ class V4RequestInfo(object):
             self.compare_to = ts.query(ts.Run).\
                 filter_by(id=compare_to_id).first()
             if self.compare_to is None:
-                # FIXME: Need better way to report this error.
-                abort(404)
-
-            self.comparison_neighboring_runs = (
-                list(ts.get_next_runs_on_machine(self.compare_to, N=3))[::-1] +
-                [self.compare_to] +
-                list(ts.get_previous_runs_on_machine(self.compare_to, N=3)))
+                flash("Comparison Run is invalid: " + compare_to_str,
+                      FLASH_DANGER)
+            else:
+                self.comparison_neighboring_runs = (
+                    list(ts.get_next_runs_on_machine(self.compare_to, N=3))[::-1] +
+                    [self.compare_to] +
+                    list(ts.get_previous_runs_on_machine(self.compare_to, N=3)))
         else:
             if prev_runs:
                 self.compare_to = prev_runs[0]
@@ -306,8 +306,7 @@ class V4RequestInfo(object):
             self.baseline = ts.query(ts.Run).\
                 filter_by(id=baseline_id).first()
             if self.baseline is None:
-                # FIXME: Need better way to report this error.
-                abort(404)
+                flash("Could not find baseline " + baseline_str, FLASH_DANGER)
         else:
             self.baseline = None
 
