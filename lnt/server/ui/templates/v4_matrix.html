@@ -48,7 +48,7 @@
         <tr>
 
         <th>Order</th>
-        {% for r in associated_runs: %}
+        {% for r in associated_runs %}
             <th>
                 {% if not machine_name_common %}
                 <a href="{{ v4_url_for('v4_machine', id=r.machine.id) }}">{{ r.machine.name }}</a>
@@ -58,13 +58,21 @@
         <th>Geomean</th>
     </tr>
         </thead>
-        {% for order in orders: %}
+        {% for order in orders %}
             {% set baseline_class = "info" if order == baseline_rev else "" %}
+            {% set name = baseline_name if order == baseline_rev else order %}
+
             {% set baseline_rev = None if order == baseline_rev else "" %}
+
             <tr class="{{baseline_class}}">
-                <td><a href="{{v4_url_for('v4_order', id=order_to_id[order])}}">{{order}}</a>
+                <td>
+                    <a href="{{v4_url_for('v4_order', id=order_to_id[order])}}">
+                        {{name}}
+                    </a>
                     <br>
-                <span class="shortDateFormat" data-toggle="tooltip" title="{{order_to_date[order]}}">{{ order_to_date[order].isoformat() }}</span>
+                    <span class="shortDateFormat" data-toggle="tooltip" title="{{order_to_date[order]}}">
+                        {{ order_to_date[order].isoformat() }}
+                    </span>
                 </td>
                 {% for req in associated_runs: %}
                     {{ get_cell_value(req.change.get(order)) }}

@@ -35,30 +35,82 @@
     <thead>
       <tr>
         <th>Name</th>
-        <th>Value</th>
+        <th>ID</th>
+        {% for field in order.fields %}
+           <th>{{field.name}}</th>
+        {% endfor %}
       </tr>
     </thead>
     <tbody>
       <tr>
-        <td>ID</td>
+        <td>Current Order</td>
         <td>{{order.id}}</td>
+        {% for field in order.fields %}
+                <td>{{order.get_field(field)}}</td>
+        {% endfor %}
       </tr>
+     {% if order.previous_order_id %}
       <tr>
-        <td>Previous Order ID</td>
-        <td>{{order.previous_order_id}}</td>
+        <td>Previous Order</td>
+          <td>
+              <a href="{{ v4_url_for("v4_order", id=order.previous_order_id) }}">
+                  {{order.previous_order_id}}
+              </a>
+          </td>
+          {% set previous_order = ts.query(ts.Order).filter(ts.Order.id == order.previous_order_id).one() %}
+            {% for field in previous_order.fields %}
+                <td>
+                    {{previous_order.get_field(field)}}
+                </td>
+          {% endfor %}
       </tr>
+      {% endif %}
+
+      {% if order.next_order_id %}
       <tr>
-        <td>Next ID</td>
-        <td>{{order.next_order_id}}</td>
+        <td>Next Order</td>
+          <td><a href="{{ v4_url_for("v4_order", id=order.next_order_id) }}">{{order.next_order_id}}</a></td>
+          {% set next_order = ts.query(ts.Order).filter(ts.Order.id == order.next_order_id).one() %}
+          {% for field in next_order.fields %}
+                <td>{{next_order.get_field(field)}}</td>
+          {% endfor %}
       </tr>
-      {% for field in order.fields %}
-      <tr>
-        <td>{{field.name}}</td>
-        <td>{{order.get_field(field)}}</td>
-      </tr>
-      {% endfor %}
+     {%  endif %}
     </tbody>
   </table>
+
+  <section id="baseline">
+  <div class="accordion" id="accordion">
+  <div class="accordion-group">
+    <div class="accordion-heading">
+      <a class="accordion-toggle" data-toggle="collapse" data-parent="#accordion" href="#collapseOne">
+         {% if form.name.data %}
+             Baseline - {{ form.name.data }}
+          {% else %}
+             Configure as a baseline
+          {% endif %}
+      </a>
+    </div>
+    <div id="collapseOne" class="accordion-body collapse">
+      <div class="accordion-inner">
+              <form method="POST" action="">
+          <div class="form-group">
+       {{ form.hidden_tag() }}
+          {{ utils.render_field(form.name) }}
+          {{ utils.render_field(form.description) }}
+         {% if form.name.data %}
+              {{ form.update }}
+              {{ form.demote }}
+              {% else %}
+              {{ form.promote }}
+        {% endif %}
+          </div>
+      </form>
+      </div>
+    </div>
+  </div>
+
+  </section>
 
   <section id="submissions" />
   {# List all submissions which reported for this order. #}

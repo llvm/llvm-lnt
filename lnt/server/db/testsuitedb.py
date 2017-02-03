@@ -162,7 +162,6 @@ class TestSuiteDB(object):
             fields = sorted(self.order_fields,
                             key = lambda of: of.ordinal)
 
-
             id = Column("ID", Integer, primary_key=True)
 
             # Define two common columns which are used to store the previous and
@@ -590,6 +589,21 @@ class TestSuiteDB(object):
                 return '%s_%s%r' % (db_key_name, self.__class__.__name__,(
                                     self.id, self.field_change))
 
+        class Baseline(self.base, ParameterizedMixin):
+            """Baselines to compare runs to."""
+            __tablename__ = db_key_name + '_Baseline'
+
+            id = Column("ID", Integer, primary_key=True)
+            name = Column("Name", String(32), unique=True)
+            comment = Column("Comment", String(256))
+            order_id = Column("OrderID", Integer,
+                              ForeignKey("%s_Order.ID" % db_key_name),
+                              index=True)
+            order = sqlalchemy.orm.relation(Order)
+
+            def __str__(self):
+                return "Baseline({})".format(self.name)
+
         self.Machine = Machine
         self.Run = Run
         self.Test = Test
@@ -600,6 +614,7 @@ class TestSuiteDB(object):
         self.Regression = Regression
         self.RegressionIndicator = RegressionIndicator
         self.ChangeIgnore = ChangeIgnore
+        self.Baseline = Baseline
 
         # Create the compound index we cannot declare inline.
         sqlalchemy.schema.Index("ix_%s_Sample_RunID_TestID" % db_key_name,
@@ -619,6 +634,9 @@ class TestSuiteDB(object):
         self.commit = self.v4db.commit
         self.query = self.v4db.query
         self.rollback = self.v4db.rollback
+
+    def _getBaselines(self):
+        return self.query(self.Baseline).all()
 
     def _getOrCreateMachine(self, machine_data):
         """

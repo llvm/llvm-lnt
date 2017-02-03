@@ -15,7 +15,7 @@ import re
 import sys
 import xml.etree.ElementTree as ET
 from htmlentitydefs import name2codepoint
-
+from flask import session
 import lnt.server.db.migrate
 import lnt.server.ui.app
 import json
@@ -32,7 +32,8 @@ def check_code(client, url, expected_code=HTTP_OK, data_to_send=None):
     """Call a flask url, and make sure the return code is good."""
     resp = client.get(url, follow_redirects=False, data=data_to_send)
     assert resp.status_code == expected_code, \
-        "Call to %s returned: %d, not the expected %d"%(url, resp.status_code, expected_code)
+        "Call to %s returned: %d, not the expected %d" % (url, resp.status_code,
+                                                          expected_code)
     return resp
 
 
@@ -204,6 +205,7 @@ def main():
 
     # Don't catch out exceptions.
     app.testing = True
+    app.config['WTF_CSRF_ENABLED'] = False
 
     # Create a test client.
     client = app.test_client()
@@ -231,6 +233,41 @@ def main():
     check_code(client, '/v4/nts/order/3')
     # Check invalid order gives error.
     check_code(client, '/v4/nts/order/9999', expected_code=HTTP_NOT_FOUND)
+
+    # Check that we can promote a baseline, then demote.
+    form_data = dict(name="foo_baseline",
+                     description="foo_descrimport iption",
+                     prmote=True)
+    r = client.post('/v4/nts/order/3', data=form_data)
+    # We should redirect to the last page and flash.
+    assert r.status_code == HTTP_REDIRECT
+
+    # Try with redirect.
+    r = client.post('/v4/nts/order/3',
+                    data=form_data,
+                    follow_redirects=True)
+    assert r.status_code == HTTP_OK
+    # Should see baseline displayed in page body.
+    assert "Baseline - foo_baseline" in r.data
+
+    # Now demote it.
+    data2 = dict(name="foo_baseline",
+                 description="foo_description",
+                 update=False,
+                 promote=False,
+                 demote=True)
+    r = client.post('/v4/nts/order/3', data=data2, follow_redirects=True)
+    assert r.status_code == HTTP_OK
+    # Baseline should no longer be shown in page baseline.
+    assert "Baseline - foo_baseline" not in r.data
+
+    # Leave a baseline in place for the rest of the tests.
+    client.post('/v4/nts/order/3', data=form_data)
+
+    check_code(client, '/v4/nts/set_baseline/1', expected_code=HTTP_REDIRECT)
+    with app.test_client() as c:
+        c.get('/v4/nts/set_baseline/1')
+        session.get('baseline') == 1
 
     # Get a run result page (and associated views).
     check_code(client, '/v4/nts/1')

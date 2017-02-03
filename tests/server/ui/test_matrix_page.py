@@ -15,16 +15,8 @@ import lnt.server.db.migrate
 import lnt.server.ui.app
 
 from V4Pages import check_json, check_code
+from V4Pages import HTTP_REDIRECT, HTTP_OK, HTTP_BAD_REQUEST, HTTP_NOT_FOUND
 logging.basicConfig(level=logging.DEBUG)
-
-import json
-
-logging.basicConfig(level=logging.DEBUG)
-
-HTTP_BAD_REQUEST = 400
-HTTP_NOT_FOUND = 404
-HTTP_OK = 200
-
 
 class MatrixViewTester(unittest.TestCase):
     """Test the Matrix view."""
@@ -34,6 +26,7 @@ class MatrixViewTester(unittest.TestCase):
         _, instance_path = sys.argv
         app = lnt.server.ui.app.App.create_standalone(instance_path)
         app.testing = True
+        app.config['WTF_CSRF_ENABLED'] = False
         self.client = app.test_client()
 
     def test_config_errors(self):
@@ -66,6 +59,16 @@ class MatrixViewTester(unittest.TestCase):
         """Does the page load with the data as expected.
         """
         client = self.client
+        reply = check_code(client, '/v4/nts/matrix?plot.0=2.6.3')
+        # Set a baseline and run again.
+        form_data = dict(name="foo_baseline",
+                         description="foo_description",
+                         prmote=True)
+        rc = client.post('/v4/nts/order/6', data=form_data)
+        self.assertEquals(rc.status_code, HTTP_REDIRECT)
+        check_code(client, '/v4/nts/set_baseline/1',
+                   expected_code=HTTP_REDIRECT)
+
         reply = check_code(client, '/v4/nts/matrix?plot.0=2.6.3')
         # Make sure the data is in the page.
         self.assertIn("test6", reply.data)

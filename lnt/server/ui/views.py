@@ -5,6 +5,7 @@ import tempfile
 import time
 import copy
 import json
+from typing import List, Optional
 
 import flask
 from flask import session
@@ -17,13 +18,15 @@ from flask import render_template
 from flask import request
 from flask import url_for
 from flask import flash
-from lnt.server.ui.util import FLASH_DANGER
+
+from lnt.server.ui.util import FLASH_DANGER, FLASH_SUCCESS
 from lnt.testing.util.commands import warning, error, note
 import sqlalchemy.sql
 from sqlalchemy.orm.exc import NoResultFound
 
 from flask_wtf import Form
-from wtforms import SelectField
+from wtforms import SelectField, StringField, SubmitField
+from wtforms.validators import DataRequired, Length
 
 import lnt.util
 import lnt.util.ImportData
@@ -42,7 +45,26 @@ import lnt.server.db.search
 from lnt.server.ui.regression_views import PrecomputedCR
 from collections import namedtuple, defaultdict
 from lnt.util import async_ops
+from urlparse import urlparse, urljoin
+from flask import request, url_for
+
 integral_rex = re.compile(r"[\d]+")
+
+
+# http://flask.pocoo.org/snippets/62/
+def is_safe_url(target):
+    ref_url = urlparse(request.host_url)
+    test_url = urlparse(urljoin(request.host_url, target))
+    return test_url.scheme in ('http', 'https') and \
+        ref_url.netloc == test_url.netloc
+
+
+def get_redirect_target():
+    for target in request.values.get('next'), request.referrer:
+        if not target:
+            continue
+        if is_safe_url(target):
+            return target
 
 ###
 # Root-Only Routes
@@ -173,7 +195,8 @@ def v4_recent_activity():
     return render_template("v4_recent_activity.html",
                            testsuite_name=g.testsuite_name,
                            active_machines=active_machines,
-                           active_submissions=active_submissions)
+                           active_submissions=active_submissions,
+                           ts=ts)
 
 @v4_route("/machine/")
 def v4_machines():
@@ -437,17 +460,75 @@ def v4_run(id):
         request_info=info, urls=urls
 )
 
-@v4_route("/order/<int:id>")
+
+class PromoteOrderToBaseline(Form):
+    name = StringField('Name', validators=[DataRequired(), Length(max=32)])
+    description = StringField('Description', validators=[Length(max=256)])
+    promote = SubmitField('Promote')
+    update = SubmitField('Update')
+    demote = SubmitField('Demote')
+
+
+@v4_route("/order/<int:id>", methods=['GET', 'POST'])
 def v4_order(id):
-    # Get the testsuite.
+    """Order page details order information, as well as runs that are in this
+    order as well setting this run as a baseline."""
     ts = request.get_testsuite()
+    form = PromoteOrderToBaseline()
+
+    if form.validate_on_submit():
+        try:
+            baseline = ts.query(ts.Baseline) \
+                .filter(ts.Baseline.order_id == id) \
+                .one()
+        except NoResultFound:
+            baseline = ts.Baseline()
+
+        if form.demote.data:
+            ts.session.delete(baseline)
+            ts.session.commit()
+
+            flash("Baseline demoted.", FLASH_SUCCESS)
+        else:
+            baseline.name = form.name.data
+            baseline.comment = form.description.data
+            baseline.order_id = id
+            ts.session.add(baseline)
+            ts.session.commit()
+
+            flash("Baseline {} updated.".format(baseline.name), FLASH_SUCCESS )
+        return redirect(v4_url_for("v4_order", id=id))
+    else:
+        print form.errors
+
+    try:
+        baseline = ts.query(ts.Baseline) \
+            .filter(ts.Baseline.order_id == id) \
+            .one()
+        form.name.data = baseline.name
+        form.description.data = baseline.comment
+    except NoResultFound:
+        pass
 
     # Get the order.
     order = ts.query(ts.Order).filter(ts.Order.id == id).first()
     if order is None:
         abort(404)
 
-    return render_template("v4_order.html", ts=ts, order=order)
+    return render_template("v4_order.html", ts=ts, order=order, form=form)
+
+
+@v4_route("/set_baseline/<int:id>")
+def v4_set_baseline(id):
+    ts = request.get_testsuite()
+    base = ts.query(ts.Baseline).get(id)
+    if not base:
+        return abort(404)
+    flash("Baseline set to " + base.name, FLASH_SUCCESS)
+    session['baseline'] = id
+
+    return redirect(get_redirect_target())
+
 
 @v4_route("/all_orders")
 def v4_all_orders():
@@ -1309,8 +1390,25 @@ MATRIX_LIMITS = [('12', 'Small'),
                  ('250', 'Large'),
                  ('-1', 'All')]
 
+
 class MatrixOptions(Form):
     limit = SelectField('Size', choices=MATRIX_LIMITS)
+
+
+def baseline():
+    # type: () -> Optional[testsuitedb.Baseline]
+    """Get the baseline object from the user's current session baseline value
+    or None if one is not defined.
+    """
+    ts = request.get_testsuite()
+    base_id = session.get('baseline')
+    if not base_id:
+        return None
+    try:
+        base = ts.query(ts.Baseline).get(base_id)
+    except NoResultFound:
+        return None
+    return base
 
 
 @v4_route("/matrix", methods=['GET', 'POST'])
@@ -1330,7 +1428,7 @@ def v4_matrix():
         post_limit = form.limit.data
     else:
         post_limit = MATRIX_LIMITS[0][0]
-    data_parameters = []
+    data_parameters = []  # type: List[MatrixDataRequest]
     for name, value in request.args.items():
         #  plot.<unused>=<machine id>.<test id>.<field index>
         if not name.startswith(str('plot.')):
@@ -1413,12 +1511,15 @@ def v4_matrix():
     if not all_orders:
         abort(404, "No data found.")
     # Now grab the baseline data.
-    baseline_rev = machine.DEFAULT_BASELINE_REVISION
+    user_baseline = baseline()
     backup_baseline = next(iter(all_orders))
-    if baseline_rev:
-        all_orders.add(baseline_rev)
+    if user_baseline:
+        all_orders.add(user_baseline.order.llvm_project_revision)
+        baseline_rev = user_baseline.order.llvm_project_revision
+        baseline_name = user_baseline.name
     else:
         baseline_rev = backup_baseline
+        baseline_name = backup_baseline
 
     for req in data_parameters:
         q_baseline = ts.query(req.field.column, ts.Order.llvm_project_revision, ts.Order.id) \
@@ -1437,11 +1538,11 @@ def v4_matrix():
         else:
             # Well, there is a baseline, but we did not find data for it...
             # So lets revert back to the first run.
-            print "Did not find baseline, switching to", backup_baseline
-            msg = "Did not find data for baseline {}. Switching to {}."
-            flash(msg.format(baseline_rev, backup_baseline), FLASH_DANGER)
+            msg = "Did not find data for {}. Showing {}."
+            flash(msg.format(user_baseline, backup_baseline), FLASH_DANGER)
             all_orders.remove(baseline_rev)
             baseline_rev = backup_baseline
+            baseline_name = backup_baseline
 
     all_orders = list(all_orders)
     all_orders.sort(reverse=True)
@@ -1516,6 +1617,7 @@ def v4_matrix():
                            order_to_id=order_to_id,
                            form=form,
                            baseline_rev=baseline_rev,
+                           baseline_name=baseline_name,
                            machine_name_common=machine_name_common,
                            machine_id_common=machine_id_common,
                            order_to_date=order_to_date)
