@@ -37,7 +37,7 @@ class MatrixViewTester(unittest.TestCase):
         self.client = app.test_client()
 
     def test_config_errors(self):
-        """Does passing bad arugments to matrix view error correctly.
+        """Does passing bad arguments to matrix view error correctly.
         """
         client = self.client
         reply = check_code(client, '/v4/nts/matrix',
@@ -49,7 +49,7 @@ class MatrixViewTester(unittest.TestCase):
         self.assertIn("No data found.", reply.data)
         
         reply = check_code(client, '/v4/nts/matrix?plot.0=a.2.0',
-                            expected_code=HTTP_BAD_REQUEST)
+                           expected_code=HTTP_BAD_REQUEST)
         self.assertIn("malformed", reply.data)
 
         reply = check_code(client, '/v4/nts/matrix?plot.0=999.0.0',

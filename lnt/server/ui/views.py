@@ -1295,6 +1295,7 @@ class MatrixDataRequest(object):
         self.machine = machine
         self.test = test
         self.field = field
+
     def __repr__(self):
         return "{}:{}({} samples)" \
             .format(self.machine.name,
@@ -1367,7 +1368,6 @@ def v4_matrix():
 
     if not data_parameters:
         abort(404, "Request requires some data arguments.")
-
     # Feature: if all of the results are from the same machine, hide the name to
     # make the headers more compact.
     dedup = True
