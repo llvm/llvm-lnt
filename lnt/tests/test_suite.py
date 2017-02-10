@@ -492,7 +492,7 @@ class TestSuiteTest(BuiltinTest):
         for i in range(max(opts.exec_multisample, opts.compile_multisample)):
             c = i < opts.compile_multisample
             e = i < opts.exec_multisample
-            run_report, json_data = self.run(self.nick, compile=c, test=e)
+            run_report, json_data = self.run(compile=c, test=e)
             reports.append(run_report)
             json_reports.append(json_data)
 
@@ -518,7 +518,7 @@ class TestSuiteTest(BuiltinTest):
 
         return self.submit(report_path, self.opts, commit=True)
 
-    def run(self, nick, compile=True, test=True):
+    def run(self, compile=True, test=True):
         path = self._base_path
 
         if not os.path.exists(path):
