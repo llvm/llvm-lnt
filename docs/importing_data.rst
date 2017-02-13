@@ -107,7 +107,9 @@ Make sure that:
    Currently accepted extensions in the NTS database are:
 
    * ".exec": represents execution time - a lower number is better.
+   * ".exec.status": a non zero value represents a program failure.
    * ".score": represent a benchmark score - a higher number is better.
+   * ".code_size": represents the code size of a program.
    * ".hash": represents a hash of the binary program being executed. This is
      used to detect if between compiler versions, the generated code has
      changed.
