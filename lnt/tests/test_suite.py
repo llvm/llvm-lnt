@@ -459,6 +459,18 @@ class TestSuiteTest(BuiltinTest):
         basedir = os.path.join(self.opts.sandbox_path, build_dir_name)
         self._base_path = basedir
 
+        cmakecache = os.path.join(self._base_path, 'CMakeCache.txt')
+        self.configured = not self.opts.run_configure and \
+            os.path.exists(cmakecache)
+
+        #  If we are doing diagnostics, skip the usual run and do them now.
+        if opts.diagnose:
+            return self.diagnose()
+
+        # configure, so we can extract toolchain information from the cmake
+        # output.
+        self._configure_if_needed()
+
         # We don't support compiling without testing as we can't get compile-
         # time numbers from LIT without running the tests.
         if opts.compile_multisample > opts.exec_multisample:
@@ -483,9 +495,6 @@ class TestSuiteTest(BuiltinTest):
                 fatal("Cannot detect compiler version. Specify --run-order"
                       " to manually define it.")
 
-        #  If we are doing diagnostics, skip the usual run and do them now.
-        if opts.diagnose:
-            return self.diagnose()
         # Now do the actual run.
         reports = []
         json_reports = []
@@ -518,29 +527,31 @@ class TestSuiteTest(BuiltinTest):
 
         return self.submit(report_path, self.opts, commit=True)
 
-    def run(self, compile=True, test=True):
-        path = self._base_path
-
-        if not os.path.exists(path):
-            mkdir_p(path)
-
-        if self.opts.pgo:
-            self._collect_pgo(path)
-            self.trained = True
-
-        if not self.configured and self._need_to_configure(path):
-            self._configure(path)
-            self._clean(path)
+    def _configure_if_needed(self):
+        mkdir_p(self._base_path)
+        if not self.configured:
+            self._configure(self._base_path)
+            self._clean(self._base_path)
             self.configured = True
 
+    def run(self, compile=True, test=True):
+        mkdir_p(self._base_path)
+
+        if self.opts.pgo:
+            self._collect_pgo(self._base_path)
+            self.trained = True
+            self.configured = False
+
+        self._configure_if_needed()
+
         if self.compiled and compile:
-            self._clean(path)
+            self._clean(self._base_path)
         if not self.compiled or compile:
-            self._make(path)
+            self._make(self._base_path)
             self.compiled = True
 
-        data = self._lit(path, test)
-        return self._parse_lit_output(path, data), data
+        data = self._lit(self._base_path, test)
+        return self._parse_lit_output(self._base_path, data), data
 
     def _create_merged_report(self, reports):
         if len(reports) == 1:
@@ -551,10 +562,6 @@ class TestSuiteTest(BuiltinTest):
         run.end_time = reports[-1].run.end_time
         test_samples = sum([r.tests for r in reports], [])
         return lnt.testing.Report(machine, run, test_samples)
-
-    def _need_to_configure(self, path):
-        cmakecache = os.path.join(path, 'CMakeCache.txt')
-        return self.opts.run_configure or not os.path.exists(cmakecache)
 
     def _test_suite_dir(self):
         return self.opts.test_suite_root
@@ -731,9 +738,11 @@ class TestSuiteTest(BuiltinTest):
         return not os.path.exists(os.path.join(path, name))
 
     def _get_target_flags(self):
+        assert self.configured is True
         return shlex.split(self.opts.cppflags + self.opts.cflags)
 
     def _get_cc_info(self):
+        assert self.configured is True
         return lnt.testing.util.compilers.get_cc_info(self.opts.cc,
                                                       self._get_target_flags())
 
@@ -887,8 +896,7 @@ class TestSuiteTest(BuiltinTest):
         os.mkdir(report_path)
 
         path = self._base_path
-        if not os.path.exists(path):
-            mkdir_p(path)
+        mkdir_p(path)
         os.chdir(path)
 
         # Run with -save-temps
