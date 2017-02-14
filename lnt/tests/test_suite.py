@@ -202,7 +202,7 @@ class TestSuiteTest(BuiltinTest):
                          type=str, metavar="PATH",
                          help="Path to the LLVM test-suite externals")
         group.add_option("", "--cmake-define", dest="cmake_defines",
-                         action="append",
+                         action="append", default=[],
                          help=("Defines to pass to cmake. These do not require the "
                                "-D prefix and can be given multiple times. e.g.: "
                                "--cmake-define A=B => -DA=B"))
@@ -578,6 +578,14 @@ class TestSuiteTest(BuiltinTest):
             note('          (In %s)' % kwargs['cwd'])
         return subprocess.check_call(*args, **kwargs)
 
+    def _check_output(self, *args, **kwargs):
+        note('Execute: %s' % ' '.join(args[0]))
+        if 'cwd' in kwargs:
+            note('          (In %s)' % kwargs['cwd'])
+        output = subprocess.check_output(*args, **kwargs)
+        sys.stdout.write(output)
+        return output
+
     def _clean(self, path):
         make_cmd = self.opts.make
 
@@ -621,13 +629,27 @@ class TestSuiteTest(BuiltinTest):
             if 'TEST_SUITE_RUN_TYPE' not in defs:
                 defs['TEST_SUITE_RUN_TYPE'] = 'ref'
 
-        if self.opts.cmake_defines:
-            for item in self.opts.cmake_defines:
-                k, v = item.split('=', 1)
-                defs[k] = v
-        for item in extra_cmake_defs:
+        for item in self.opts.cmake_defines + extra_cmake_defs:
             k, v = item.split('=', 1)
+            # make sure the overriding of the settings above also works
+            # when the cmake-define-defined variable has a datatype
+            # specified.
+            key_no_datatype = k.split(':', 1)[0]
+            if key_no_datatype in defs:
+                del defs[key_no_datatype]
             defs[k] = v
+
+        # We use 'cmake -LAH -N' later to find out the value of the
+        # CMAKE_C_COMPILER and CMAKE_CXX_COMPILER variables.
+        # 'cmake -LAH -N' will only return variables in the cache that have
+        # a cmake type set. Therefore, explicitly set a 'FILEPATH' type on
+        # these variables here, if they were untyped so far.
+        if 'CMAKE_C_COMPILER' in defs:
+            defs['CMAKE_C_COMPILER:FILEPATH'] = defs['CMAKE_C_COMPILER']
+            del defs['CMAKE_C_COMPILER']
+        if 'CMAKE_CXX_COMPILER' in defs:
+            defs['CMAKE_CXX_COMPILER:FILEPATH'] = defs['CMAKE_CXX_COMPILER']
+            del defs['CMAKE_CXX_COMPILER']
 
         lines = ['Configuring with {']
         for k, v in sorted(defs.items()):
@@ -737,14 +759,42 @@ class TestSuiteTest(BuiltinTest):
         name = raw_name.rsplit('.test', 1)[0]
         return not os.path.exists(os.path.join(path, name))
 
-    def _get_target_flags(self):
-        assert self.configured is True
-        return shlex.split(self.opts.cppflags + self.opts.cflags)
+    def _get_target_flags(self, cmake_vars):
+        build_type = cmake_vars["build_type"]
+        cflags = cmake_vars["c_flags"]
+        if build_type != "":
+            cflags = \
+                " ".join(cflags.split(" ") +
+                         cmake_vars["c_flags_"+build_type.lower()].split(" "))
+        return shlex.split(cflags)
 
     def _get_cc_info(self):
         assert self.configured is True
-        return lnt.testing.util.compilers.get_cc_info(self.opts.cc,
-                                                      self._get_target_flags())
+        cmake_lah_output = self._check_output(
+            [self.opts.cmake] + ['-LAH', '-N'] + [self._base_path])
+        pattern2var = [
+            (re.compile("^%s:[^=]*=(.*)$" % cmakevar), var)
+            for cmakevar, var in (
+                ("CMAKE_C_COMPILER", "cc"),
+                ("CMAKE_BUILD_TYPE", "build_type"),
+                ("CMAKE_CXX_FLAGS", "cxx_flags"),
+                ("CMAKE_CXX_FLAGS_DEBUG", "cxx_flags_debug"),
+                ("CMAKE_CXX_FLAGS_MINSIZEREL", "cxx_flags_minsizerel"),
+                ("CMAKE_CXX_FLAGS_RELEASE", "cxx_flags_release"),
+                ("CMAKE_CXX_FLAGS_RELWITHDEBINFO", "cxx_flags_relwithdebinfo"),
+                ("CMAKE_C_FLAGS", "c_flags"),
+                ("CMAKE_C_FLAGS_DEBUG", "c_flags_debug"),
+                ("CMAKE_C_FLAGS_MINSIZEREL", "c_flags_minsizerel"),
+                ("CMAKE_C_FLAGS_RELEASE", "c_flags_release"),
+                ("CMAKE_C_FLAGS_RELWITHDEBINFO", "c_flags_relwithdebinfo"),)]
+        cmake_vars = {}
+        for line in cmake_lah_output.split("\n"):
+            for pattern, varname in pattern2var:
+                m = re.match(pattern, line)
+                if m:
+                    cmake_vars[varname] = m.group(1)
+        return lnt.testing.util.compilers.get_cc_info(
+            cmake_vars["cc"], self._get_target_flags(cmake_vars))
 
     def _parse_lit_output(self, path, data, only_test=False):
         LIT_METRIC_TO_LNT = {

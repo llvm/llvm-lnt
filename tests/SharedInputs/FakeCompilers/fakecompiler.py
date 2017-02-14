@@ -80,6 +80,20 @@ InstalledDir: /home/foo/bin
  "%s" "-cc1" "-E" ... more boring stuff here ...""" % (
             g_program,)
 
+class Clang_r154332(LLVMCompiler):
+    compiler_name = "clang-r154332"
+
+    def print_verbose_info(self):
+        print >>sys.stderr, """\
+clang version 3.1 (trunk 154332) (llvm/trunk 154329)
+Target: x86_64-apple-darwin11.3.0
+Thread model: posix
+InstalledDir: /home/foo/bin
+"""
+        print >>sys.stderr, """\
+ "%s" "-cc1" "-E" ... more boring stuff here ...""" % (
+            g_program,)
+
 # Clang build from a git repository.
 class Clang_git(LLVMCompiler):
     compiler_name = "clang-git"

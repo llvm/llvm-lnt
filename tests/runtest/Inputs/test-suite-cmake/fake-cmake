@@ -1,17 +1,56 @@
 #!/bin/bash
 
-# If we passed a cache, just drop it and look like cmake.
-if [[ $1 == "-C" ]]; then
+CMAKE_SRC_DIR="notfound"
+DUMP_VARS=false
+CMAKE_C_COMPILER=""
+CMAKE_CXX_COMPILER=""
+
+while test $# -gt 0
+do
+  if [[ $1 == "-C" ]]; then
+    # If we passed a cache, just drop it and look like cmake.
     echo "Cmake Cache $2"
     shift
-    shift    
-fi    
-if [[ ! -f $1/CMakeLists.txt ]]; then
-  exit 1
+    shift
+  elif [[ $1 == -D* ]]; then
+    # handle -D arguments to cmake.
+    if [[ $1 == -DCMAKE_C_COMPILER:* ]]; then CMAKE_C_COMPILER=${1#*=}; fi
+    if [[ $1 == -DCMAKE_CXX_COMPILER:* ]]; then CMAKE_CXX_COMPILER=${1#*=}; fi
+    shift
+  elif [[ $1 == -LAH && $2 == -N ]]; then
+    DUMP_VARS=true
+    shift
+    shift
+  elif [[ ! -f $1/CMakeLists.txt && ! -f $1/CMakeCache.txt ]]; then
+    # arguments not starting with -D or -C are assumed to point to the cmake
+    # src or build dir
+    exit 1
+  else
+    CMAKE_SRC_DIR=$1
+    # if CMakeCache.txt exists, read in value for compiler
+    if [[ -f $1/CMakeCache.txt ]]; then
+        CMAKE_C_COMPILER=`grep CMAKE_C_COMPILER:FILEPATH= $1/CMakeCache.txt | cut -f2 -d'='`
+        CMAKE_CXX_COMPILER=`grep CMAKE_CXX_COMPILER:FILEPATH= $1/CMakeCache.txt | cut -f2 -d'='`
+    fi
+    shift
+  fi
+done
+
+if [[ $DUMP_VARS == "true" ]]
+then
+  echo CMAKE_C_COMPILER:FILEPATH=$CMAKE_C_COMPILER
+  echo CMAKE_CXX_COMPILER:FILEPATH=$CMAKE_CXX_COMPILER
+  echo CMAKE_BUILD_TYPE:STRING=RelWithDebInfo
+  echo CMAKE_C_FLAGS:STRING=-O0
+  echo CMAKE_CXX_FLAGS:STRING=
+  echo CMAKE_C_FLAGS_RELWITHDEBINFO:STRING=-O2 -g
+  echo CMAKE_CXX_FLAGS_RELWITHDEBINFO:STRING=-O2 -g
 else
-  cp $1/fake-test $1/fake-results.json $1/fake-results-profile.json .
+  cp $CMAKE_SRC_DIR/fake-test $CMAKE_SRC_DIR/fake-results.json $CMAKE_SRC_DIR/fake-results-profile.json .
   echo "Dummy" > CMakeCache.txt
+  echo CMAKE_C_COMPILER:FILEPATH=$CMAKE_C_COMPILER >> CMakeCache.txt
+  echo CMAKE_CXX_COMPILER:FILEPATH=$CMAKE_CXX_COMPILER >> CMakeCache.txt
   mkdir subtest
-  cp $1/fake-test $1/fake-results.json subtest
-  exit 0
+  cp $CMAKE_SRC_DIR/fake-test $CMAKE_SRC_DIR/fake-results.json subtest
 fi
+exit 0
