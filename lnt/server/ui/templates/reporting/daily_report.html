@@ -81,6 +81,35 @@
   </tbody>
 </table>
 
+<h3>Number of Tests Seen</h3>
+<table border="1" style="{{ styles.table }}; width: {{
+                            400 + report.num_prior_days_to_include*80}}px;">
+  <thead>
+    <tr>
+      <th style="{{ styles.th }}; width: 300px;">Machine Name</th>
+    {% for i in range(report.num_prior_days_to_include)|reverse %}
+      <th style="{{ styles.th }}">Day - {{i}}</th>
+    {% endfor %}
+    </tr>
+  </thead>
+  <tbody>
+  {% for machine, nr_tests_for_machine in report.nr_tests_table %}
+  <tr class="searchable">
+    <td class="machine-name" style="{{ styles.td }}">{{machine.name}}</td>
+    {% set nr_tests_prev = None %}
+    {% for nr_tests in nr_tests_for_machine|reverse %}
+        <td style="{{ styles.td }}"
+        {%- if nr_tests_prev is not none and nr_tests_prev != nr_tests %}
+            bgcolor="#dfaf5f"
+        {% endif -%}
+            >{{nr_tests}}</td>
+        {% set nr_tests_prev = nr_tests %}
+    {% endfor %}
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+
 {% macro get_initial_cell_value(day_result) %}
 {%- set cr = day_result.cr -%}
 {%- set test_status = cr.get_test_status() -%}
@@ -239,35 +268,6 @@
 {%- endfor %}
 {{ "</tbody></table>" if not report.for_mail }}
 {%- endfor -%}
-
-<h3>Number of Tests Seen</h3>
-<table border="1" style="{{ styles.table }}; width: {{
-                            400 + report.num_prior_days_to_include*80}}px;">
-  <thead>
-    <tr>
-      <th style="{{ styles.th }}; width: 300px;">Machine Name</th>
-    {% for i in range(report.num_prior_days_to_include)|reverse %}
-      <th style="{{ styles.th }}">Day - {{i}}</th>
-    {% endfor %}
-    </tr>
-  </thead>
-  <tbody>
-  {% for machine, nr_tests_for_machine in report.nr_tests_table %}
-  <tr class="searchable">
-    <td class="machine-name" style="{{ styles.td }}">{{machine.name}}</td>
-    {% set nr_tests_prev = None %}
-    {% for nr_tests in nr_tests_for_machine|reverse %}
-        <td style="{{ styles.td }}"
-        {%- if nr_tests_prev is not none and nr_tests_prev != nr_tests %}
-            bgcolor="#dfaf5f"
-        {% endif -%}
-            >{{nr_tests}}</td>
-        {% set nr_tests_prev = nr_tests %}
-    {% endfor %}
-  </tr>
-  {% endfor %}
-  </tbody>
-</table>
 
 {% endif %}
 
