@@ -232,6 +232,7 @@
 {%- endmacro %}
 
 {% for field,field_results in report.result_table|reverse %}
+{%- if field_results -%}
 <h3>Result Table ({{ field.name }})</h3>
 {{ result_header()+"\n  <tbody>" if not report.for_mail }}
 {%- for test,visible_results in field_results -%}
@@ -267,6 +268,9 @@
 {{ "</tbody></table><p>" if report.for_mail }}
 {%- endfor %}
 {{ "</tbody></table>" if not report.for_mail }}
+{%- else -%}
+<h3>No significant {{ field.name }} changes found.</h3>
+{%- endif -%}
 {%- endfor -%}
 
 {% endif %}
