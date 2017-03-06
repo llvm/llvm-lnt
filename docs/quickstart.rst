@@ -70,6 +70,29 @@ command. The information below should be enough to get you started, but see the
    The ``SANDBOX`` value is a path to where the test suite build products and
    results will be stored (inside a timestamped directory, by default).
 
+#. On most systems, the execution time results will be a bit noisy. There are
+   a range of things you can do to reduce noisiness (with LNT runtest nt
+   command line options when available between brackets):
+
+   * Only build the benchmarks in parallel, but do the actual running of the
+     benchmark code at most one at a time. (``--threads 1 --build-threads 6``).
+     Of course, when you're also interested in the measured compile time,
+     you should also build sequentially. (``--threads 1 --build-threads 1``).
+   * When running under linux: Make lnt use linux perf to get more accurate
+     timing for short-running benchmarks (``--use-perf=1``)
+   * Pin the running benchmark to a specific core, so the OS doesn't move the
+     benchmark process from core to core. (Under linux:
+     ``--make-param="RUNUNDER=taskset -c 1"``)
+   * Only run the programs that are marked as a benchmark; some of the tests
+     in the test-suite are not intended to be used as a benchmark.
+     (``--benchmarking-only``)
+   * Make sure each program gets run multiple times, so that LNT has a higher
+     chance of recognizing which programs are inherently noisy
+     (``--multisample=5``)
+   * Disable frequency scaling / turbo boost. In case of thermal throttling it
+     can skew the results.
+   * Disable as many processes or services as possible on the target system.
+
 
 Viewing Results
 ---------------
