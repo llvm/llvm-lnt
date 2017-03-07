@@ -595,7 +595,7 @@ class TestSuiteTest(BuiltinTest):
         if self.opts.cc:
             defs['CMAKE_C_COMPILER'] = self.opts.cc
         if self.opts.cxx:
-            defs['CMAKE_CXX_COMPILER'] = self.opts.cxx,
+            defs['CMAKE_CXX_COMPILER'] = self.opts.cxx
 
         if self.opts.cppflags or self.opts.cflags:
             all_cflags = ' '.join([self.opts.cppflags, self.opts.cflags])
