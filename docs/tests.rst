@@ -305,3 +305,49 @@ for figuring out what is going on with a benchmark::
 This will run the test-suite many times over, collecting useful information
 in a report directory. The report collects many things like execution profiles,
 compiler time reports, intermediate files, binary files, and build information.
+
+
+Cross-compiling
++++++++++++++++
+
+The best way to run the test-suite in a cross-compiling setup with the
+cmake driver is to use cmake's built-in support for cross-compiling as much as
+possible. In practice, the recommended way to cross-compile is to use a cmake
+toolchain file (see
+https://cmake.org/cmake/help/v3.0/manual/cmake-toolchains.7.html#cross-compiling)
+
+An example command line for cross-compiling on an X86 machine, targeting
+AArch64 linux, is::
+
+  $ lnt runtest test-suite \
+         --sandbox SANDBOX \
+         --test-suite /work/llvm-test-suite \
+         --use-lit lit \
+         --cppflags="-O3" \
+         --run-under=$HOME/dev/aarch64-emu/aarch64-qemu.sh \
+         --cmake-define=CMAKE_TOOLCHAIN_FILE:FILEPATH=$HOME/clang_aarch64_linux.cmake
+
+The key part here is the CMAKE_TOOLCHAIN_FILE define. As you're
+cross-compiling, you may need a --run-under command as the produced binaries
+probably won't run natively on your development machine, but something extra
+needs to be done (e.g. running under a qemu simulator, or transferring the
+binaries to a development board). This isn't explained further here.
+
+In your toolchain file, it's important to specify that the cmake variables
+defining the toolchain must be cached in CMakeCache.txt, as that's where lnt
+reads them from to figure out which compiler was used when needing to construct
+metadata for the json report. An example is below. The important keywords to
+make the variables appear in the CMakeCache.txt are "CACHE STRING "" FORCE"::
+
+  $ cat clang_aarch64_linux.cmake
+  set(CMAKE_SYSTEM_NAME Linux )
+  set(triple aarch64-linux-gnu )
+  set(CMAKE_C_COMPILER /home/user/build/bin/clang CACHE STRING "" FORCE)
+  set(CMAKE_C_COMPILER_TARGET ${triple} CACHE STRING "" FORCE)
+  set(CMAKE_CXX_COMPILER /home/user/build/bin/clang++ CACHE STRING "" FORCE)
+  set(CMAKE_CXX_COMPILER_TARGET ${triple} CACHE STRING "" FORCE)
+  set(CMAKE_SYSROOT /home/user/aarch64-emu/sysroot-glibc-linaro-2.23-2016.11-aarch64-linux-gnu )
+  set(CMAKE_C_COMPILER_EXTERNAL_TOOLCHAIN /home/user/aarch64-emu/gcc-linaro-6.2.1-2016.11-x86_64_aarch64-linux-gnu )
+  set(CMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN /home/user/aarch64-emu/gcc-linaro-6.2.1-2016.11-x86_64_aarch64-linux-gnu )
+
+

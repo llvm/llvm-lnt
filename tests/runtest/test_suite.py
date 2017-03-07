@@ -378,7 +378,7 @@
 # RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit \
 # RUN:     > %t.log 2> %t.err || true
 # RUN: FileCheck  --check-prefix CHECK-MISSING-CC < %t.err %s
-# CHECK-MISSING-CC: error: --cc is required
+# CHECK-MISSING-CC: error: Couldn't find C compiler (). Maybe you should specify --cc?
 
 # Check on conflicting -cc and -cmake-define=CMAKE_C_COMPILER
 # options, the right compiler gets stored in the json report
@@ -395,6 +395,20 @@
 # RUN: FileCheck --check-prefix CHECK-CC-CONFL-CMAKEDEFINE < %t.SANDBOX/build/report.json %s
 # CHECK-CC-CONFL-CMAKEDEFINE: "run_order": "154332"
 
+# Check that while cross-compiling, the target architecture is recognized
+# correctly.
+# RUN: lnt runtest test-suite \
+# RUN:     --sandbox %t.SANDBOX \
+# RUN:     --no-timestamp \
+# RUN:     --test-suite %S/Inputs/test-suite-cmake \
+# RUN:     --cmake-define=CMAKE_C_COMPILER_TARGET:STRING=targetarch-linux-gnu \
+# RUN:     --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
+# RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
+# RUN:     --use-make %S/Inputs/test-suite-cmake/fake-make \
+# RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit \
+# RUN:     > %t.log 2> %t.err || true
+# RUN: FileCheck --check-prefix CHECK-CROSS-TARGET < %t.SANDBOX/build/report.json %s
+# CHECK-CROSS-TARGET: "cc_target": "targetarch-linux-gnu"
 
 # Check running with PGO
 # RUN: lnt runtest test-suite \

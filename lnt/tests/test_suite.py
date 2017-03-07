@@ -220,19 +220,6 @@ class TestSuiteTest(BuiltinTest):
                          type=str, default=None,
                          help="Path to the C++ compiler to test (inferred from"
                               " --cc where possible")
-        group.add_option("", "--llvm-arch", dest="llvm_arch",
-                         type='choice', default=None,
-                         help="Override the CMake-inferred architecture",
-                         choices=TEST_SUITE_KNOWN_ARCHITECTURES)
-        group.add_option("", "--cross-compiling", dest="cross_compiling",
-                         action="store_true", default=False,
-                         help="Inform CMake that it should be cross-compiling")
-        group.add_option("", "--cross-compiling-system-name", type=str,
-                         default=None, dest="cross_compiling_system_name",
-                         help="The parameter to pass to CMAKE_SYSTEM_NAME when"
-                              " cross-compiling. By default this is 'Linux' "
-                              "unless -arch is in the cflags, in which case "
-                              "it is 'Darwin'")
         group.add_option("", "--cppflags", type=str, action="append",
                          dest="cppflags", default=[],
                          help="Extra flags to pass the compiler in C or C++ mode. "
@@ -359,34 +346,30 @@ class TestSuiteTest(BuiltinTest):
         else:
             parser.error("Expected no positional arguments (got: %r)" % (args,))
 
-        for a in ['cross_compiling', 'cross_compiling_system_name', 'llvm_arch']:
-            if getattr(opts, a):
-                parser.error('option "%s" is not yet implemented!' % a)
-
         if self.opts.sandbox_path is None:
             parser.error('--sandbox is required')
 
-        if self.opts.cc is None:
-            parser.error('--cc is required')
+        if self.opts.cc is not None:
+            self.opts.cc = resolve_command_path(self.opts.cc)
 
-        # Option validation.
-        opts.cc = resolve_command_path(opts.cc)
+            if not lnt.testing.util.compilers.is_valid(self.opts.cc):
+                parser.error('--cc does not point to a valid executable.')
 
-        if not lnt.testing.util.compilers.is_valid(opts.cc):
-            parser.error('--cc does not point to a valid executable.')
-
-        # If there was no --cxx given, attempt to infer it from the --cc.
-        if opts.cxx is None:
-            opts.cxx = lnt.testing.util.compilers.infer_cxx_compiler(opts.cc)
-            if opts.cxx is not None:
-                note("Inferred C++ compiler under test as: %r" % (opts.cxx,))
+            # If there was no --cxx given, attempt to infer it from the --cc.
+            if self.opts.cxx is None:
+                self.opts.cxx = \
+                    lnt.testing.util.compilers.infer_cxx_compiler(self.opts.cc)
+                if self.opts.cxx is not None:
+                    note("Inferred C++ compiler under test as: %r"
+                         % (self.opts.cxx,))
+                else:
+                    parser.error("unable to infer --cxx - set it manually.")
             else:
-                parser.error("unable to infer --cxx - set it manually.")
-        else:
-            opts.cxx = resolve_command_path(opts.cxx)
+                self.opts.cxx = resolve_command_path(self.opts.cxx)
 
-        if not os.path.exists(opts.cxx):
-            parser.error("invalid --cxx argument %r, does not exist" % (opts.cxx))
+            if not os.path.exists(self.opts.cxx):
+                parser.error("invalid --cxx argument %r, does not exist"
+                             % (self.opts.cxx))
 
         if opts.test_suite_root is None:
             parser.error('--test-suite is required')
@@ -471,6 +454,14 @@ class TestSuiteTest(BuiltinTest):
         # output.
         self._configure_if_needed()
 
+        # Verify that we can actually find a compiler before continuing
+        cmake_vars = self._extract_cmake_vars_from_cache()
+        if "CMAKE_C_COMPILER" not in cmake_vars or \
+                not os.path.exists(cmake_vars["CMAKE_C_COMPILER"]):
+            parser.error(
+                "Couldn't find C compiler (%s). Maybe you should specify --cc?"
+                % cmake_vars.get("CMAKE_C_COMPILER"))
+
         # We don't support compiling without testing as we can't get compile-
         # time numbers from LIT without running the tests.
         if opts.compile_multisample > opts.exec_multisample:
@@ -480,7 +471,7 @@ class TestSuiteTest(BuiltinTest):
 
         if opts.auto_name:
             # Construct the nickname from a few key parameters.
-            cc_info = self._get_cc_info()
+            cc_info = self._get_cc_info(cmake_vars)
             cc_nick = '%s_%s' % (cc_info['cc_name'], cc_info['cc_build'])
             self.nick += "__%s__%s" % (cc_nick,
                                        cc_info['cc_target'].split('-')[0])
@@ -490,7 +481,7 @@ class TestSuiteTest(BuiltinTest):
         # is a horrible failure mode because all of our data ends up going
         # to order 0.  The user needs to give an order if we can't detect!
         if opts.run_order is None:
-            cc_info = self._get_cc_info()
+            cc_info = self._get_cc_info(cmake_vars)
             if cc_info['inferred_run_order'] == 0:
                 fatal("Cannot detect compiler version. Specify --run-order"
                       " to manually define it.")
@@ -501,7 +492,7 @@ class TestSuiteTest(BuiltinTest):
         for i in range(max(opts.exec_multisample, opts.compile_multisample)):
             c = i < opts.compile_multisample
             e = i < opts.exec_multisample
-            run_report, json_data = self.run(compile=c, test=e)
+            run_report, json_data = self.run(cmake_vars, compile=c, test=e)
             reports.append(run_report)
             json_reports.append(json_data)
 
@@ -534,7 +525,7 @@ class TestSuiteTest(BuiltinTest):
             self._clean(self._base_path)
             self.configured = True
 
-    def run(self, compile=True, test=True):
+    def run(self, cmake_vars, compile=True, test=True):
         mkdir_p(self._base_path)
 
         if self.opts.pgo:
@@ -551,7 +542,7 @@ class TestSuiteTest(BuiltinTest):
             self.compiled = True
 
         data = self._lit(self._base_path, test)
-        return self._parse_lit_output(self._base_path, data), data
+        return self._parse_lit_output(self._base_path, data, cmake_vars), data
 
     def _create_merged_report(self, reports):
         if len(reports) == 1:
@@ -600,11 +591,12 @@ class TestSuiteTest(BuiltinTest):
     def _configure(self, path, extra_cmake_defs=[], execute=True):
         cmake_cmd = self.opts.cmake
 
-        defs = {
-            # FIXME: Support ARCH, SMALL/LARGE etc
-            'CMAKE_C_COMPILER': self.opts.cc,
-            'CMAKE_CXX_COMPILER': self.opts.cxx,
-        }
+        defs = {}
+        if self.opts.cc:
+            defs['CMAKE_C_COMPILER'] = self.opts.cc
+        if self.opts.cxx:
+            defs['CMAKE_CXX_COMPILER'] = self.opts.cxx,
+
         if self.opts.cppflags or self.opts.cflags:
             all_cflags = ' '.join([self.opts.cppflags, self.opts.cflags])
             defs['CMAKE_C_FLAGS'] = self._unix_quote_args(all_cflags)
@@ -759,44 +751,55 @@ class TestSuiteTest(BuiltinTest):
         name = raw_name.rsplit('.test', 1)[0]
         return not os.path.exists(os.path.join(path, name))
 
-    def _get_target_flags(self, cmake_vars):
-        build_type = cmake_vars["build_type"]
-        cflags = cmake_vars["c_flags"]
-        if build_type != "":
-            cflags = \
-                " ".join(cflags.split(" ") +
-                         cmake_vars["c_flags_"+build_type.lower()].split(" "))
-        return shlex.split(cflags)
-
-    def _get_cc_info(self):
+    def _extract_cmake_vars_from_cache(self):
         assert self.configured is True
         cmake_lah_output = self._check_output(
             [self.opts.cmake] + ['-LAH', '-N'] + [self._base_path])
         pattern2var = [
-            (re.compile("^%s:[^=]*=(.*)$" % cmakevar), var)
-            for cmakevar, var in (
-                ("CMAKE_C_COMPILER", "cc"),
-                ("CMAKE_BUILD_TYPE", "build_type"),
-                ("CMAKE_CXX_FLAGS", "cxx_flags"),
-                ("CMAKE_CXX_FLAGS_DEBUG", "cxx_flags_debug"),
-                ("CMAKE_CXX_FLAGS_MINSIZEREL", "cxx_flags_minsizerel"),
-                ("CMAKE_CXX_FLAGS_RELEASE", "cxx_flags_release"),
-                ("CMAKE_CXX_FLAGS_RELWITHDEBINFO", "cxx_flags_relwithdebinfo"),
-                ("CMAKE_C_FLAGS", "c_flags"),
-                ("CMAKE_C_FLAGS_DEBUG", "c_flags_debug"),
-                ("CMAKE_C_FLAGS_MINSIZEREL", "c_flags_minsizerel"),
-                ("CMAKE_C_FLAGS_RELEASE", "c_flags_release"),
-                ("CMAKE_C_FLAGS_RELWITHDEBINFO", "c_flags_relwithdebinfo"),)]
+            (re.compile("^%s:[^=]*=(.*)$" % cmakevar), cmakevar)
+            for cmakevar in (
+                "CMAKE_C_COMPILER",
+                "CMAKE_BUILD_TYPE",
+                "CMAKE_CXX_FLAGS",
+                "CMAKE_CXX_FLAGS_DEBUG",
+                "CMAKE_CXX_FLAGS_MINSIZEREL",
+                "CMAKE_CXX_FLAGS_RELEASE",
+                "CMAKE_CXX_FLAGS_RELWITHDEBINFO",
+                "CMAKE_C_FLAGS",
+                "CMAKE_C_FLAGS_DEBUG",
+                "CMAKE_C_FLAGS_MINSIZEREL",
+                "CMAKE_C_FLAGS_RELEASE",
+                "CMAKE_C_FLAGS_RELWITHDEBINFO",
+                "CMAKE_C_COMPILER_TARGET",
+                "CMAKE_CXX_COMPILER_TARGET",
+                )]
         cmake_vars = {}
         for line in cmake_lah_output.split("\n"):
             for pattern, varname in pattern2var:
                 m = re.match(pattern, line)
                 if m:
                     cmake_vars[varname] = m.group(1)
-        return lnt.testing.util.compilers.get_cc_info(
-            cmake_vars["cc"], self._get_target_flags(cmake_vars))
+        return cmake_vars
 
-    def _parse_lit_output(self, path, data, only_test=False):
+    def _get_cc_info(self, cmake_vars):
+        build_type = cmake_vars["CMAKE_BUILD_TYPE"]
+        cflags = cmake_vars["CMAKE_C_FLAGS"]
+        if build_type != "":
+            cflags = \
+                " ".join(cflags.split(" ") +
+                         cmake_vars["CMAKE_C_FLAGS_" + build_type.upper()]
+                         .split(" "))
+        # FIXME: this probably needs to be conditionalized on the compiler
+        # being clang. Or maybe we need an
+        # lnt.testing.util.compilers.get_cc_info uses cmake somehow?
+        if "CMAKE_C_COMPILER_TARGET" in cmake_vars:
+            cflags += " --target=" + cmake_vars["CMAKE_C_COMPILER_TARGET"]
+        target_flags = shlex.split(cflags)
+
+        return lnt.testing.util.compilers.get_cc_info(
+            cmake_vars["CMAKE_C_COMPILER"], target_flags)
+
+    def _parse_lit_output(self, path, data, cmake_vars, only_test=False):
         LIT_METRIC_TO_LNT = {
             'compile_time': 'compile',
             'exec_time': 'exec',
@@ -901,7 +904,7 @@ class TestSuiteTest(BuiltinTest):
         run_info = {
             'tag': 'nts'
         }
-        run_info.update(self._get_cc_info())
+        run_info.update(self._get_cc_info(cmake_vars))
         run_info['run_order'] = run_info['inferred_run_order']
         if self.opts.run_order:
             run_info['run_order'] = self.opts.run_order

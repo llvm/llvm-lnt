@@ -4,6 +4,7 @@ CMAKE_SRC_DIR="notfound"
 DUMP_VARS=false
 CMAKE_C_COMPILER=""
 CMAKE_CXX_COMPILER=""
+CMAKE_C_COMPILER_TARGET="notfound"
 
 while test $# -gt 0
 do
@@ -16,6 +17,7 @@ do
     # handle -D arguments to cmake.
     if [[ $1 == -DCMAKE_C_COMPILER:* ]]; then CMAKE_C_COMPILER=${1#*=}; fi
     if [[ $1 == -DCMAKE_CXX_COMPILER:* ]]; then CMAKE_CXX_COMPILER=${1#*=}; fi
+    if [[ $1 == -DCMAKE_C_COMPILER_TARGET:* ]]; then CMAKE_C_COMPILER_TARGET=${1#*=}; fi
     shift
   elif [[ $1 == -LAH && $2 == -N ]]; then
     DUMP_VARS=true
@@ -31,6 +33,7 @@ do
     if [[ -f $1/CMakeCache.txt ]]; then
         CMAKE_C_COMPILER=`grep CMAKE_C_COMPILER:FILEPATH= $1/CMakeCache.txt | cut -f2 -d'='`
         CMAKE_CXX_COMPILER=`grep CMAKE_CXX_COMPILER:FILEPATH= $1/CMakeCache.txt | cut -f2 -d'='`
+        CMAKE_C_COMPILER_TARGET=`grep CMAKE_C_COMPILER_TARGET:STRING= $1/CMakeCache.txt | cut -f2 -d'='`
     fi
     shift
   fi
@@ -40,6 +43,9 @@ if [[ $DUMP_VARS == "true" ]]
 then
   echo CMAKE_C_COMPILER:FILEPATH=$CMAKE_C_COMPILER
   echo CMAKE_CXX_COMPILER:FILEPATH=$CMAKE_CXX_COMPILER
+  if [[ $CMAKE_C_COMPILER_TARGET != "notfound" ]]; then
+    echo CMAKE_C_COMPILER_TARGET:STRING=$CMAKE_C_COMPILER_TARGET
+  fi
   echo CMAKE_BUILD_TYPE:STRING=RelWithDebInfo
   echo CMAKE_C_FLAGS:STRING=-O0
   echo CMAKE_CXX_FLAGS:STRING=
@@ -50,6 +56,9 @@ else
   echo "Dummy" > CMakeCache.txt
   echo CMAKE_C_COMPILER:FILEPATH=$CMAKE_C_COMPILER >> CMakeCache.txt
   echo CMAKE_CXX_COMPILER:FILEPATH=$CMAKE_CXX_COMPILER >> CMakeCache.txt
+  if [[ $CMAKE_C_COMPILER_TARGET != "notfound" ]]; then
+    echo CMAKE_C_COMPILER_TARGET:STRING=$CMAKE_C_COMPILER_TARGET >> CMakeCache.txt
+  fi
   mkdir subtest
   cp $CMAKE_SRC_DIR/fake-test $CMAKE_SRC_DIR/fake-results.json subtest
 fi
