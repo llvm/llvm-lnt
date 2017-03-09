@@ -86,7 +86,7 @@ def action_view_comparison(name, args):
         # _(self, name, zorgURL, dbDir, tempDir,
         # profileDir, secretKey, databases, blacklist):
         config = lnt.server.config.Config('LNT', url, db_path, tmpdir,
-                                          None, None, {'default': db_info},
+                                          None, "Not secret key.", {'default': db_info},
                                           None)
         instance = lnt.server.instance.Instance(None, config)
 
