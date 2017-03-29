@@ -10,6 +10,7 @@ import traceback
 
 import flask
 from flask import current_app
+from flask import session
 from flask import request
 from flask import g
 from flask import url_for
@@ -131,6 +132,11 @@ class App(LNTExceptionLoggerFlask):
         app.api = Api(app)
         load_api_resources(app.api)
 
+        @app.before_request
+        def set_session():
+            """Make our session cookies last."""
+            session.permanent = True
+
         return app
 
     @staticmethod
@@ -154,7 +160,6 @@ class App(LNTExceptionLoggerFlask):
         self.wsgi_app = RootSlashPatchMiddleware(self.wsgi_app)
         self.logger.setLevel(logging.DEBUG)
 
-        
     def load_config(self, instance):
         self.instance = instance
         self.old_config = self.instance.config
