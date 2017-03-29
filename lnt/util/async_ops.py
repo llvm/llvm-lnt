@@ -100,6 +100,9 @@ def async_run_job(job, db_name, ts, func_args):
     job = Process(target=async_wrapper,
                   args=[job, args, func_args])
 
+    # Set this to make sure when parent dies, children are killed.
+    job.daemon = True
+
     job.start()
     JOBS.append(job)
 
