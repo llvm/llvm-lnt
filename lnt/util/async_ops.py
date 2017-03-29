@@ -42,7 +42,7 @@ def launch_workers():
         except RuntimeError:
             #  It might be the case that we are not running in the app.
             #  In this case, don't bother memory logging, stdout should
-            #  sufficent for console mode.
+            #  sufficient for console mode.
             pass
 
 
