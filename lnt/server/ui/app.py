@@ -1,35 +1,31 @@
-import sys
-import jinja2
+import StringIO
 import logging
 import logging.handlers
-from logging import Formatter
-import os
+import sys
 import time
-import StringIO
 import traceback
+from logging import Formatter
 
 import flask
+import jinja2
 from flask import current_app
-from flask import session
-from flask import request
 from flask import g
-from flask import url_for
-from flask import Flask
-from flask_restful import Resource, Api
+from flask import session
+from flask_restful import Api
+from sqlalchemy.exc import DatabaseError
 
 import lnt
+import lnt.server.db.rules_manager
 import lnt.server.db.v4db
 import lnt.server.instance
 import lnt.server.ui.filters
 import lnt.server.ui.globals
-import lnt.server.ui.views
-from lnt.testing.util.commands import warning, error
-import lnt.server.ui.regression_views
 import lnt.server.ui.profile_views
+import lnt.server.ui.regression_views
+import lnt.server.ui.views
 from lnt.server.ui.api import load_api_resources
-import lnt.server.db.rules_manager
+from lnt.testing.util.commands import warning, error
 
-from sqlalchemy.exc import DatabaseError
 
 class RootSlashPatchMiddleware(object):
     def __init__(self, app):
@@ -40,6 +36,7 @@ class RootSlashPatchMiddleware(object):
             return flask.redirect(environ['SCRIPT_NAME'] + '/')(
                 environ, start_response)
         return self.app(environ, start_response)
+
 
 class Request(flask.Request):
     def __init__(self, *args, **kwargs):
@@ -104,11 +101,11 @@ class Request(flask.Request):
 
 
 class LNTExceptionLoggerFlask(flask.Flask):
-        def log_exception(self, exc_info):
-            # We need to stringify the traceback, since logs are sent via
-            # pickle.
-            error("Exception: " + traceback.format_exc())
-            
+    def log_exception(self, exc_info):
+        # We need to stringify the traceback, since logs are sent via
+        # pickle.
+        error("Exception: " + traceback.format_exc())
+
 
 class App(LNTExceptionLoggerFlask):
     @staticmethod
@@ -142,10 +139,10 @@ class App(LNTExceptionLoggerFlask):
     @staticmethod
     def create_standalone(config_path):
         instance = lnt.server.instance.Instance.frompath(config_path)
-        app =  App.create_with_instance(instance)
+        app = App.create_with_instance(instance)
         app.start_file_logging()
         return app
-    
+
     def __init__(self, name):
         super(App, self).__init__(name)
         self.start_time = time.time()
@@ -170,7 +167,7 @@ class App(LNTExceptionLoggerFlask):
 
         # Set the application secret key.
         self.secret_key = self.old_config.secretKey
-        
+
         lnt.server.db.rules_manager.register_hooks()
 
     def start_file_logging(self):
@@ -182,17 +179,17 @@ class App(LNTExceptionLoggerFlask):
         ch = logging.StreamHandler()
         ch.setLevel(logging.DEBUG)
         self.logger.addHandler(ch)
-        
+
         # Log to mem for the /log view.
         h = logging.handlers.MemoryHandler(1024 * 1024, flushLevel=logging.CRITICAL)
         h.setLevel(logging.DEBUG)
         self.logger.addHandler(h)
         # Also store the logger, so we can render the buffer in it.
         self.config['mem_logger'] = h
-        
+
         if not self.debug:
             LOG_FILENAME = "lnt.log"
-            try:    
+            try:
                 rotating = logging.handlers.RotatingFileHandler(
                     LOG_FILENAME, maxBytes=1048576, backupCount=5)
                 rotating.setFormatter(Formatter(
@@ -200,14 +197,14 @@ class App(LNTExceptionLoggerFlask):
                     '[in %(pathname)s:%(lineno)d]'
                 ))
                 rotating.setLevel(logging.DEBUG)
-                self.logger.addHandler(rotating)                
+                self.logger.addHandler(rotating)
             except (OSError, IOError) as e:
                 print >> sys.stderr, "Error making log file", LOG_FILENAME, str(e)
                 print >> sys.stderr, "Will not log to file."
             else:
                 self.logger.info("Started file logging.")
                 print "Logging to :", LOG_FILENAME
-            
+
 
 def create_jinja_environment(env=None):
     """
@@ -219,7 +216,7 @@ def create_jinja_environment(env=None):
 
     if env is None:
         env = jinja2.Environment(loader=jinja2.PackageLoader(
-                'lnt.server.ui', 'templates'))
+            'lnt.server.ui', 'templates'))
     lnt.server.ui.globals.register(env)
     lnt.server.ui.filters.register(env)
 

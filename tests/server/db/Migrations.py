@@ -14,6 +14,7 @@ import lnt.server.ui.app
 
 logging.basicConfig(level=logging.DEBUG)
 
+
 def sanity_check_instance(instance_path):
     # Create an application instance.
     app = lnt.server.ui.app.App.create_standalone(instance_path)
