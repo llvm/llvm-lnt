@@ -3,7 +3,7 @@ Miscellaneous utilities for running "scripts".
 """
 
 import errno
-import inspect
+
 import os
 import sys
 import logging
@@ -56,6 +56,7 @@ def timed(func):
 
     return timed
 
+
 def fatal(message):
     get_logger().critical(message)
     sys.exit(1)
@@ -64,9 +65,10 @@ def fatal(message):
 def rm_f(path):
     try:
         os.remove(path)
-    except OSError,e:
+    except OSError as e:
         if e.errno != errno.ENOENT:
             raise
+
 
 def mkdir_p(path):
     """mkdir_p(path) - Make the "path" directory, if it does not exist; this
