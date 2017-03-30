@@ -63,13 +63,13 @@ atexit.register(cleanup)
 signal.signal(signal.SIGTERM, sig_handler)
 
 
-def async_fieldchange_calc(db_name, ts, run):
+def async_fieldchange_calc(db_name, ts, run, db_config):
     """Run regenerate field changes in the background."""
     func_args = {'run_id': run.id}
     #  Make sure this run is in the database!
     async_run_job(fieldchange.post_submit_tasks,
                   db_name, ts,
-                  func_args)
+                  func_args, db_config)
 
 
 def check_workers(is_logged):
@@ -89,7 +89,7 @@ def check_workers(is_logged):
     return len(JOBS)
 
 
-def async_run_job(job, db_name, ts, func_args):
+def async_run_job(job, db_name, ts, func_args, db_config):
     """Send a job to the async wrapper in the subprocess."""
     # If the run is not in the database, we can't do anything more.
     note("Queuing background job to process fieldchanges " + str(os.getpid()))
@@ -97,7 +97,8 @@ def async_run_job(job, db_name, ts, func_args):
     check_workers(True)
 
     args = {'tsname': ts.name,
-            'db': db_name}
+            'db': db_name,
+            'db_info': db_config}
     job = Process(target=async_wrapper,
                   args=[job, args, func_args])
 
@@ -110,6 +111,7 @@ def async_run_job(job, db_name, ts, func_args):
 # Flag to track if we have disposed of the parents database connections in
 # this subprocess.
 clean_db = False
+
 
 def async_wrapper(job, ts_args, func_args):
     """Setup test-suite in this subprocess and run something.
@@ -126,8 +128,8 @@ def async_wrapper(job, ts_args, func_args):
             clean_db = True
         sleep(3)
         note("Running async wrapper: {} ".format(job.__name__)+ str(os.getpid()))
-
-        _v4db = current_app.old_config.get_database(ts_args['db'])
+        config = ts_args['db_info']
+        _v4db = config.get_database(ts_args['db'])
         #with contextlib.closing(_v4db) as db:
         ts = _v4db.testsuite[ts_args['tsname']]
         nothing = job(ts, **func_args)
