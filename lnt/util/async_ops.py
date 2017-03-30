@@ -46,7 +46,8 @@ def launch_workers():
             pass
 
 
-def sigHandler(signo, frame):
+def sig_handler(signo, frame):
+    cleanup()
     sys.exit(0)
 
 
@@ -59,7 +60,7 @@ def cleanup():
 
 
 atexit.register(cleanup)
-signal.signal(signal.SIGTERM, sigHandler)
+signal.signal(signal.SIGTERM, sig_handler)
 
 
 def async_fieldchange_calc(db_name, ts, run):
