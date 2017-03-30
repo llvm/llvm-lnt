@@ -377,7 +377,7 @@ $('.profile-prev-only').tooltip();
       {{ utils.render_popup_end() }}
       </section>
     {% endfor %}
-    <p><input type="submit" value="Graph"> <input id="matrix_button" type="submit" value="Matrix">
+    <p><input id="graph_button" type="submit" value="Graph"> <input id="matrix_button" type="submit" value="Matrix">
   </form>
   </section>
 
@@ -421,6 +421,13 @@ $("#matrix_button").on("click", function(e){
     {% set matrix_base=v4_url_for('v4_matrix') %}
     $('#graph_selection_form').attr('action', "{{ matrix_base }}").submit();
 });
+
+$("#graph_button").on("click", function(e){
+    e.preventDefault();
+    {% set graph_base=v4_url_for('v4_graph') %}
+    $('#graph_selection_form').attr('action', "{{ graph_base }}").submit();
+});
+
 
 </script>
 
