@@ -6,8 +6,8 @@ import time
 import lnt.server.reporting.analysis
 import lnt.server.ui.app
 import lnt.util.stats
-from flask import flash
-from lnt.server.ui.util import FLASH_INFO
+from lnt.testing.util.commands import visible_note
+
 
 
 def generate_run_report(run, baseurl, only_html_body=False,
@@ -39,8 +39,7 @@ def generate_run_report(run, baseurl, only_html_body=False,
     
     # If the baseline is the same as the comparison run, ignore it.
     if baseline is compare_to:
-        flash("Baseline and compare_to are the same: disabling baseline.",
-              FLASH_INFO)
+        visible_note("Baseline and compare_to are the same: disabling baseline.")
         baseline = None
 
     # Gather the runs to use for statistical data.

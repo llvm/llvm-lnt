@@ -9,22 +9,34 @@ import sys
 import logging
 import time
 try:
-    from flask import current_app
+    from flask import current_app, flash
 except:
     # We may be imported from Sphinx. Don't error if current_app isn't available here -
     # instead error when it is used.
     pass
 # FIXME: Find a better place for this code.
-
+from lnt.server.ui.util import FLASH_INFO
 LOGGER_NAME = "lnt.server.ui.app"
 
-def getLogger():
+
+def get_logger():
     logger = logging.getLogger(LOGGER_NAME)
     return logger
 
-note = lambda message: getLogger().info(message)
-warning = lambda message: getLogger().warning(message)
-error = lambda message: getLogger().error(message)
+note = lambda message: get_logger().info(message)
+warning = lambda message: get_logger().warning(message)
+error = lambda message: get_logger().error(message)
+
+
+def visible_note(message):
+    """Log a note to the logger as well as page with a flash."""
+    get_logger().info(message)
+    try:
+        flash(message, FLASH_INFO)
+    except RuntimeError:
+        # We are not in a Flask environment right now (command line).
+        pass
+
 
 def timed(func):
     def timed(*args, **kw):
@@ -45,7 +57,7 @@ def timed(func):
     return timed
 
 def fatal(message):
-    getLogger().critical(message)
+    get_logger().critical(message)
     sys.exit(1)
 
 
