@@ -15,6 +15,8 @@ from sqlalchemy import *
 
 import testsuite
 import lnt.testing.profile.profile as profile
+import lnt
+
 
 def strip(obj):
     """Give back a dict without sqlalchemy stuff."""
@@ -641,7 +643,7 @@ class TestSuiteDB(object):
 
     def get_users_baseline(self):
         try:
-            session_baseline = session.get('baseline')
+            session_baseline = session.get(lnt.server.ui.util.baseline_key(self.name))
         except RuntimeError:
             # Sometimes this is called from outside the app context.
             # In that case, don't get the user's session baseline.

@@ -2,6 +2,8 @@ import colorsys
 import math
 import re
 
+from flask import g
+
 
 def toColorString(col):
     r, g, b = [clamp(int(v * 255), 0, 255)
@@ -348,3 +350,16 @@ def guess_test_short_name(test_name):
         return split_name[-3]
     else:
         return last_path_name
+
+
+def baseline_key(ts_name=None):
+    """A unique name for baseline session keys per DB and suite.
+    
+    Optionally, get the test-suite name from a parameter, when this is called during
+    submission the global context does not know which test-suite we are in until too late.
+    """
+    if ts_name:
+        name = ts_name
+    else:
+        name = g.db_name
+    return "baseline-{}-{}".format(name, g.db_name)

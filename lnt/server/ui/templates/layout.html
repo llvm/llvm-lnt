@@ -194,7 +194,7 @@
                             <ul class="dropdown-menu">
                                 <li class="nav-header">Select baseline:</li>
                                 {% for b in ts.query(ts.Baseline).all() %}
-                                {% set is_bold = b.id == session.get('baseline') %}
+                                {% set is_bold = b.id == session.get(baseline_key()) %}
                               <li><a href="{{ v4_url_for('v4_set_baseline', id=b.id) }}">
                                   {% if is_bold %}
                                       <b>{{ b.name }}</b>

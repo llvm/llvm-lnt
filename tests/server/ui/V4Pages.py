@@ -267,7 +267,7 @@ def main():
     check_code(client, '/v4/nts/set_baseline/1', expected_code=HTTP_REDIRECT)
     with app.test_client() as c:
         c.get('/v4/nts/set_baseline/1')
-        session.get('baseline') == 1
+        session.get('baseline-default-nts') == 1
 
     # Get a run result page (and associated views).
     check_code(client, '/v4/nts/1')
