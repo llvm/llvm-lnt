@@ -102,67 +102,72 @@ def index():
 ###
 # Database Actions
 
+
 @db_route('/submitRun', only_v3=False, methods=('GET', 'POST'))
 def submit_run():
-    if request.method == 'POST':
-        input_file = request.files.get('file')
-        input_data = request.form.get('input_data')
-        commit = int(request.form.get('commit', 0))
+    if request.method == 'GET':
+        return render_template("submit_run.html")
 
-	if input_file and not input_file.content_length:
-            input_file = None
+    assert request.method == 'POST'
+    input_file = request.files.get('file')
+    input_data = request.form.get('input_data')
+    commit = int(request.form.get('commit', 0))
 
-        if not input_file and not input_data:
-            return render_template(
-                "submit_run.html", error="must provide input file or data")
-        if input_file and input_data:
-            return render_template(
-                "submit_run.html", error="cannot provide input file *and* data")
+    if input_file and not input_file.content_length:
+        input_file = None
 
-        if input_file:
-            data_value = input_file.read()
-        else:
-            data_value = input_data
+    if not input_file and not input_data:
+        return render_template(
+            "submit_run.html", error="must provide input file or data")
+    if input_file and input_data:
+        return render_template(
+            "submit_run.html", error="cannot provide input file *and* data")
 
-        # Stash a copy of the raw submission.
-        #
-        # To keep the temporary directory organized, we keep files in
-        # subdirectories organized by (database, year-month).
-        utcnow = datetime.datetime.utcnow()
-        tmpdir = os.path.join(current_app.old_config.tempDir, g.db_name,
-                              "%04d-%02d" % (utcnow.year, utcnow.month))
-        try:
-            os.makedirs(tmpdir)
-        except OSError,e:
-            pass
+    if input_file:
+        data_value = input_file.read()  
+    else:
+        data_value = input_data
 
-        # Save the file under a name prefixed with the date, to make it easier
-        # to use these files in cases we might need them for debugging or data
-        # recovery.
-        prefix = utcnow.strftime("data-%Y-%m-%d_%H-%M-%S")
-        fd,path = tempfile.mkstemp(prefix=prefix, suffix='.plist',
-                                   dir=str(tmpdir))
-        os.write(fd, data_value)
-        os.close(fd)
+    # Stash a copy of the raw submission.
+    #
+    # To keep the temporary directory organized, we keep files in
+    # subdirectories organized by (database, year-month).
+    utcnow = datetime.datetime.utcnow()
+    tmpdir = os.path.join(current_app.old_config.tempDir, g.db_name,
+                          "%04d-%02d" % (utcnow.year, utcnow.month))
+    try:
+        os.makedirs(tmpdir)
+    except OSError,e:
+        pass
 
-        # Get a DB connection.
-        db = request.get_db()
+    # Save the file under a name prefixed with the date, to make it easier
+    # to use these files in cases we might need them for debugging or data
+    # recovery.
+    prefix = utcnow.strftime("data-%Y-%m-%d_%H-%M-%S")
+    fd,path = tempfile.mkstemp(prefix=prefix, suffix='.plist',
+                               dir=str(tmpdir))
+    os.write(fd, data_value)
+    os.close(fd)
 
-        # Import the data.
-        #
-        # FIXME: Gracefully handle formats failures and DOS attempts. We
-        # should at least reject overly large inputs.
-        result = lnt.util.ImportData.import_and_report(
-            current_app.old_config, g.db_name, db, path, '<auto>', commit)
+    # Get a DB connection.
+    db = request.get_db()
 
-        # It is nice to have a full URL to the run, so fixup the request URL
-        # here were we know more about the flask instance.
-        if result.get('result_url'):
-            result['result_url'] = request.url_root + result['result_url']
+    # Import the data.
+    #
+    # FIXME: Gracefully handle formats failures and DOS attempts. We
+    # should at least reject overly large inputs.
 
-        return flask.jsonify(**result)
+    result = lnt.util.ImportData.import_and_report(
+        current_app.old_config, g.db_name, db, path, '<auto>', commit)
 
-    return render_template("submit_run.html")
+    # It is nice to have a full URL to the run, so fixup the request URL
+    # here were we know more about the flask instance.
+    if result.get('result_url'):
+        result['result_url'] = request.url_root + result['result_url']
+
+    return flask.jsonify(**result)
+
+
 
 ###
 # V4 Schema Viewer
