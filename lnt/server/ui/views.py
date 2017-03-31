@@ -207,8 +207,22 @@ def v4_machines():
     return render_template("all_machines.html",
                        ts=ts)
 
+
+@v4_route("/machine/<int:machine_id>/latest")
+def v4_machine_latest(machine_id):
+    """Return the most recent run on this machine."""
+    ts = request.get_testsuite()
+
+    run = ts.query(ts.Run) \
+        .filter(ts.Run.machine_id == machine_id) \
+        .order_by(ts.Run.start_time.desc()) \
+        .first()
+    return redirect(v4_url_for('v4_run', id=run.id))
+
+
 @v4_route("/machine/<int:id>")
 def v4_machine(id):
+
     # Compute the list of associated runs, grouped by order.
     from lnt.server.ui import util
 

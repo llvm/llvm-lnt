@@ -9,6 +9,7 @@
 
 {% block sidebar %}
   <ul class="nav nav-list bs-docs-sidenav">
+    <li><a href="{{ v4_url_for("v4_machine_latest", machine_id=machine.id) }}"><i class="icon-time"></i> Latest Run</a></li>
     <li><a href="#fields"><i class="icon-chevron-right"></i> Fields</a></li>
     <li><a href="#parameters"><i class="icon-chevron-right"></i> Parameters</a></li>
     <li><a href="#submissions"><i class="icon-chevron-right"></i> Submissions</a></li>

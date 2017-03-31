@@ -433,6 +433,7 @@ def main():
     # Get a machine overview page.
     check_code(client, '/v4/compile/machine/1')
     check_code(client, '/v4/compile/machine/2')
+    check_code(client, '/v4/compile/machine/2/latest', expected_code=HTTP_REDIRECT)
     # Don't crash when requesting non-existing data
     check_code(client, '/v4/compile/machine/9999',
                expected_code=HTTP_NOT_FOUND)
