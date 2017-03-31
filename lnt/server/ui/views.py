@@ -1,52 +1,45 @@
 import datetime
+import json
 import os
 import re
 import tempfile
-import time
-import copy
-import json
-from typing import List, Optional
+from collections import namedtuple, defaultdict
+from urlparse import urlparse, urljoin
 
 import flask
-from flask import session
+import sqlalchemy.sql
 from flask import abort
 from flask import current_app
+from flask import flash
 from flask import g
 from flask import make_response
 from flask import redirect
 from flask import render_template
-from flask import request
-from flask import url_for
-from flask import flash
-
-from lnt.server.ui.util import FLASH_DANGER, FLASH_SUCCESS
-from lnt.testing.util.commands import warning, error, note
-import sqlalchemy.sql
-from sqlalchemy.orm.exc import NoResultFound
-
+from flask import request, url_for
+from flask import session
 from flask_wtf import Form
+from sqlalchemy.orm.exc import NoResultFound
+from typing import List, Optional
 from wtforms import SelectField, StringField, SubmitField
 from wtforms.validators import DataRequired, Length
 
+import lnt.server.db.rules_manager
+import lnt.server.db.search
+import lnt.server.reporting.analysis
+import lnt.server.reporting.dailyreport
+import lnt.server.reporting.runs
+import lnt.server.reporting.summaryreport
+import lnt.server.ui.util
 import lnt.util
 import lnt.util.ImportData
 import lnt.util.stats
-from lnt.server.ui.globals import db_url_for, v4_url_for
-import lnt.server.reporting.analysis
 from lnt.server.reporting.analysis import ComparisonResult, calc_geomean
-import lnt.server.reporting.runs
 from lnt.server.ui.decorators import frontend, db_route, v4_route
-import lnt.server.ui.util
-from lnt.server.ui.util import mean
-import lnt.server.reporting.dailyreport
-import lnt.server.reporting.summaryreport
-import lnt.server.db.rules_manager
-import lnt.server.db.search
+from lnt.server.ui.globals import db_url_for, v4_url_for
 from lnt.server.ui.regression_views import PrecomputedCR
-from collections import namedtuple, defaultdict
+from lnt.server.ui.util import FLASH_DANGER, FLASH_SUCCESS
+from lnt.server.ui.util import mean
 from lnt.util import async_ops
-from urlparse import urlparse, urljoin
-from flask import request, url_for
 from lnt.server.ui.util import baseline_key
 
 integral_rex = re.compile(r"[\d]+")
@@ -207,7 +200,6 @@ def v4_recent_activity():
 @v4_route("/machine/")
 def v4_machines():
     # Compute the list of associated runs, grouped by order.
-    from lnt.server.ui import util
 
     # Gather all the runs on this machine.
     ts = request.get_testsuite()
