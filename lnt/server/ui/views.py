@@ -205,7 +205,7 @@ def v4_machines():
     ts = request.get_testsuite()
 
     return render_template("all_machines.html",
-                       ts=ts)
+                           ts=ts)
 
 
 @v4_route("/machine/<int:machine_id>/latest")
