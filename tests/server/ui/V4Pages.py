@@ -440,6 +440,12 @@ def main():
     check_code(client, '/v4/compile/machine/-1', expected_code=HTTP_NOT_FOUND)
     check_code(client, '/v4/compile/machine/a', expected_code=HTTP_NOT_FOUND)
 
+    # Check the compare machine form gives correct redirects.
+    resp = check_code(client, '/v4/nts/machine/2/compare?compare_to_id=3', expected_code=HTTP_REDIRECT)
+    assert resp.headers['Location'] == "http://localhost/db_default/v4/nts/9?compare_to=4"
+    resp = check_code(client, '/v4/nts/machine/3/compare?compare_to_id=2', expected_code=HTTP_REDIRECT)
+    assert resp.headers['Location'] == "http://localhost/db_default/v4/nts/4?compare_to=9"
+    
     # Get the order summary page.
     check_code(client, '/v4/compile/all_orders')
 
