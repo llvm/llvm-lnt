@@ -40,7 +40,7 @@
         <td>{{ form_regression }}</td>
         <td>{{utils.render_regression(regress)}} {% if regress.id|int == highlight|int %} <span class="label label-success">Updated</span> {% endif %} </td>
         <td>{{RegressionState.names.get(regress.state,"Missing")}}</td>
-        <td><span class="reltime" data-time="{{age.isoformat()}}" data-toggle="tooltip" title="{{age}}">{{ age.isoformat() }}</td>
+        <td data-order="{{ age.strftime("%s") }}"><span class="reltime" data-time="{{age.isoformat()}}" data-toggle="tooltip" title="{{age}}">{{ age.isoformat() }}</td>
         <th>{{ size }}</th>
         <td>{{ impact.previous }}</td><td>{{ impact.current }}</td>
         {{ utils.get_regression_cell_value(impact, analysis)}}
