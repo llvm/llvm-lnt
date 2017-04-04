@@ -158,15 +158,11 @@ def v4_regression_list():
     ts = request.get_testsuite()
     form = MergeRegressionForm(request.form)
     machine_filter = request.args.get('machine_filter')
+    state_filter = int(request.args.get('state', RegressionState.ACTIVE))
+    # Merge requested regressions.
     if request.method == 'POST' and \
        request.form['merge_btn'] == "Merge Regressions":
-        regressions_id_to_merge = form.regression_checkboxes.data
-        regressions = ts.query(ts.Regression) \
-            .filter(ts.Regression.id.in_(regressions_id_to_merge)).all()
-        reg_inds = ts.query(ts.RegressionIndicator) \
-            .filter(ts.RegressionIndicator.regression_id.in_(
-                    regressions_id_to_merge)) \
-            .all()
+        reg_inds, regressions = _get_regressions_from_selected_form(form, ts)
         links = []
         target = 0
         for i, r in enumerate(regressions):
@@ -187,8 +183,19 @@ def v4_regression_list():
         ts.commit()
         flash("Created: " + new_regress.title, FLASH_SUCCESS)
         return redirect(v4_url_for("v4_regression_detail", id=new_regress.id))
+    # Delete requested regressions.
+    if request.method == 'POST' and \
+            request.form['merge_btn'] == "Delete Regressions":
+        reg_inds, regressions = _get_regressions_from_selected_form(form, ts)
+        titles = [r.title for r in regressions]
+        for res_ind in reg_inds:
+            ts.delete(res_ind)
+        for reg in regressions:
+            ts.delete(reg)
+        ts.commit()
+        flash(' Deleted: '.join(titles), FLASH_SUCCESS)
+        return redirect(v4_url_for("v4_regression_list", state=state_filter))
 
-    state_filter = int(request.args.get('state', RegressionState.ACTIVE))
     q = ts.query(ts.Regression)
     title = "All Regressions"
     if state_filter != -1:
@@ -232,11 +239,23 @@ def v4_regression_list():
                            highlight=request.args.get('highlight'),
                            title=title,
                            RegressionState=RegressionState,
+                           state_filter=state_filter,
                            form=form,
                            sizes=regression_sizes,
                            impacts=impacts,
                            ages=ages,
                            analysis=lnt.server.reporting.analysis)
+
+
+def _get_regressions_from_selected_form(form, ts):
+    regressions_id_to_merge = form.regression_checkboxes.data
+    regressions = ts.query(ts.Regression) \
+        .filter(ts.Regression.id.in_(regressions_id_to_merge)).all()
+    reg_inds = ts.query(ts.RegressionIndicator) \
+        .filter(ts.RegressionIndicator.regression_id.in_(
+        regressions_id_to_merge)) \
+        .all()
+    return reg_inds, regressions
 
 
 class EditRegressionForm(Form):
