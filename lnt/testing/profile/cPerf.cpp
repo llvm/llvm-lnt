@@ -232,6 +232,12 @@ struct perf_trace_event_type {
   char str[64];
 };
 
+struct perf_sample_id {
+  uint32_t pid, tid;
+  uint64_t time;
+  uint64_t id;
+};
+
 //===----------------------------------------------------------------------===//
 // Readers for nm and objdump output
 //===----------------------------------------------------------------------===//
@@ -433,7 +439,7 @@ private:
   std::map<const char *, uint64_t> TotalEvents;
   std::map<uint64_t, std::map<const char *, uint64_t>> TotalEventsPerMap;
   std::vector<Map> Maps;
-  std::map<uint64_t, size_t> CurrentMaps;
+  std::map<uint64_t, std::map<uint64_t, size_t>> CurrentMaps;
 
   PyObject *Functions, *TopLevelCounters;
   std::vector<PyObject*> Lines;
@@ -519,36 +525,54 @@ unsigned char *PerfReader::readEvent(unsigned char *Buf) {
     auto MapID = Maps.size();
     Maps.push_back({E->start, E->start + E->extent, E->filename});
 
-    // Clear out the current range if applicable.
-    auto L = CurrentMaps.lower_bound(E->start);
-    auto H = CurrentMaps.upper_bound(E->start + E->extent);
-    CurrentMaps.erase(L, H);
-
-    CurrentMaps.insert({E->start, MapID});
+    // FIXME: use EventLayouts.begin()->second!
+    perf_sample_id *ID =
+        (perf_sample_id *)(Buf + E->header.size - sizeof(perf_sample_id));
+    auto &CurrentMap = CurrentMaps[ID->time];
+    CurrentMap.insert({E->start, MapID});
   }
   if (E->header.type == PERF_RECORD_MMAP2) {
     perf_event_mmap2 *E = (perf_event_mmap2 *)Buf;
     auto MapID = Maps.size();
     Maps.push_back({E->start, E->start + E->extent, E->filename});
 
-    // Clear out the current range if applicable.
-    auto L = CurrentMaps.lower_bound(E->start);
-    auto H = CurrentMaps.upper_bound(E->start + E->extent);
-    CurrentMaps.erase(L, H);
-
-    CurrentMaps.insert({E->start, MapID});
+    // FIXME: use EventLayouts.begin()->second!
+    perf_sample_id *ID =
+        (perf_sample_id *)(Buf + E->header.size - sizeof(perf_sample_id));
+    auto &CurrentMap = CurrentMaps[ID->time];
+    CurrentMap.insert({E->start, MapID});
   }
 
   if (E->header.type != PERF_RECORD_SAMPLE)
     return &Buf[E->header.size];
-
   
   auto NewE = parseEvent(((unsigned char*)E) + sizeof(perf_event_header),
                          EventLayouts.begin()->second);
   auto EventID = NewE.id;
   auto PC = NewE.ip;
-  auto MapID = std::prev(CurrentMaps.upper_bound(PC))->second;
 
+  // Search for the map corresponding to this sample. Search backwards through
+  // time, discarding any maps created after our timestamp.
+  size_t MapID = ~0UL;
+  for (auto I = CurrentMaps.rbegin(), E = CurrentMaps.rend();
+       I != E; ++I) {
+    if (I->first > NewE.time)
+      continue;
+    
+    auto NewI = I->second.upper_bound(PC);
+    if (NewI == I->second.begin())
+      continue;
+    --NewI;
+
+    if (NewI->first > PC)
+      continue;
+    MapID = NewI->second;
+    break;
+  }
+  if (MapID == ~0UL)
+    return &Buf[E->header.size];
+  assert(MapID != ~0UL);
+  
   assert(EventIDs.count(EventID));
   Events[MapID][PC][EventIDs[EventID]] += NewE.period;
 
