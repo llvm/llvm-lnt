@@ -359,13 +359,19 @@
 # RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit-profile \
 # RUN:     --use-perf=all \
 # RUN:     -j2 \
+# RUN:     --exec-multisample=2 \
 # RUN:     --verbose \
 # RUN:     > %t.log 2> %t.err
 # RUN: FileCheck --check-prefix CHECK-USE-PERF-ALL < %t.err %s
 # CHECK-USE-PERF-ALL: Configuring with {
 # CHECK-USE-PERF-ALL:   TEST_SUITE_USE_PERF: 'ON'
+# Verify that tests get run sequentially when perf profile gathering is enabled:
 # CHECK-USE-PERF-ALL: Overriding -j 2 to -j 1
 # CHECK-USE-PERF-ALL: fake-lit-profile -v -j 1 {{.*--param profile=perf}}
+# Verify that lit gets invoked twice (--exec-multisample=2), but on the second
+# run, no perf profile is gathered:
+# CHECK-USE-PERF-ALL: fake-lit-profile -v -j 2
+# CHECK-USE-PERF-ALL-NOT: --param profile=perf
 # CHECK-USE-PERF-ALL: Importing 1 profiles with
 # CHECK-USE-PERF-ALL: Profile /tmp/I/Do/Not/Exist.perf_data does not exist
 

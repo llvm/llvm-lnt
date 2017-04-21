@@ -492,7 +492,10 @@ class TestSuiteTest(BuiltinTest):
         for i in range(max(opts.exec_multisample, opts.compile_multisample)):
             c = i < opts.compile_multisample
             e = i < opts.exec_multisample
-            run_report, json_data = self.run(cmake_vars, compile=c, test=e)
+            # only gather perf profiles on a single run.
+            p = i == 0 and self.opts.use_perf in ('profile', 'all')
+            run_report, json_data = self.run(cmake_vars, compile=c, test=e,
+                                             profile=p)
             reports.append(run_report)
             json_reports.append(json_data)
 
@@ -525,7 +528,7 @@ class TestSuiteTest(BuiltinTest):
             self._clean(self._base_path)
             self.configured = True
 
-    def run(self, cmake_vars, compile=True, test=True):
+    def run(self, cmake_vars, compile=True, test=True, profile=False):
         mkdir_p(self._base_path)
 
         if self.opts.pgo:
@@ -541,7 +544,7 @@ class TestSuiteTest(BuiltinTest):
             self._make(self._base_path)
             self.compiled = True
 
-        data = self._lit(self._base_path, test)
+        data = self._lit(self._base_path, test, profile)
         return self._parse_lit_output(self._base_path, data, cmake_vars), data
 
     def _create_merged_report(self, reports):
@@ -674,7 +677,7 @@ class TestSuiteTest(BuiltinTest):
                       "TEST_SUITE_RUN_TYPE=train"]
         self._configure(path, extra_cmake_defs=extra_defs)
         self._make(path)
-        self._lit(path, True)
+        self._lit(path, True, False)
 
     def _make(self, path):
         make_cmd = self.opts.make
@@ -702,7 +705,7 @@ class TestSuiteTest(BuiltinTest):
             # experimental compiler.
             pass
 
-    def _lit(self, path, test):
+    def _lit(self, path, test, profile):
         lit_cmd = self.opts.lit
 
         output_json_path = tempfile.NamedTemporaryFile(prefix='output',
@@ -721,7 +724,7 @@ class TestSuiteTest(BuiltinTest):
             extra_args = ['--no-execute']
 
         nr_threads = self._test_threads()
-        if self.opts.use_perf in ('profile', 'all'):
+        if profile:
             if nr_threads != 1:
                 warning('Gathering profiles with perf requires -j 1 as ' +
                         'perf record cannot be run multiple times ' +
