@@ -265,6 +265,9 @@ class TestSuiteTest(BuiltinTest):
                          type='choice',
                          choices=['none', 'time', 'profile', 'all'],
                          default='none')
+        group.add_option("", "--perf-events", dest="perf_events",
+                         help=("Define which linux perf events to measure"),
+                         type=str, default=None)
         group.add_option("", "--run-under", dest="run_under",
                          help="Wrapper to run tests under ['%default']",
                          type=str, default="")
@@ -731,6 +734,9 @@ class TestSuiteTest(BuiltinTest):
                         'simultaneously. Overriding -j %s to -j 1' % nr_threads)
                 nr_threads = 1
             extra_args += ['--param', 'profile=perf']
+            if self.opts.perf_events:
+                extra_args += ['--param',
+                               'perf_profile_events=%s' % self.opts.perf_events]
 
         note('Testing...')
         try:

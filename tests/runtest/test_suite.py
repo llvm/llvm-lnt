@@ -375,6 +375,21 @@
 # CHECK-USE-PERF-ALL: Importing 1 profiles with
 # CHECK-USE-PERF-ALL: Profile /tmp/I/Do/Not/Exist.perf_data does not exist
 
+# Check specifying which linux perf events to measure
+# RUN: lnt runtest test-suite \
+# RUN:     --sandbox %t.SANDBOX \
+# RUN:     --no-timestamp \
+# RUN:     --test-suite %S/Inputs/test-suite-cmake \
+# RUN:     --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
+# RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
+# RUN:     --use-make %S/Inputs/test-suite-cmake/fake-make \
+# RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit-profile \
+# RUN:     --use-perf=profile \
+# RUN:     --perf-events=cycles,cache_misses \
+# RUN:     --verbose \
+# RUN:     > %t.log 2> %t.err
+# RUN: FileCheck --check-prefix CHECK-USE-PERF-EVENT < %t.err %s
+# CHECK-USE-PERF-EVENT: fake-lit-profile -v -j 1 {{.*--param profile=perf --param perf_profile_events=cycles,cache_misses}}
 
 # Check a missing --cc on the command line
 # RUN: lnt runtest test-suite \
