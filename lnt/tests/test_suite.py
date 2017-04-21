@@ -719,14 +719,21 @@ class TestSuiteTest(BuiltinTest):
         extra_args = []
         if not test:
             extra_args = ['--no-execute']
+
+        nr_threads = self._test_threads()
         if self.opts.use_perf in ('profile', 'all'):
+            if nr_threads != 1:
+                warning('Gathering profiles with perf requires -j 1 as ' +
+                        'perf record cannot be run multiple times ' +
+                        'simultaneously. Overriding -j %s to -j 1' % nr_threads)
+                nr_threads = 1
             extra_args += ['--param', 'profile=perf']
 
         note('Testing...')
         try:
             self._check_call([lit_cmd,
                               '-v',
-                              '-j', str(self._test_threads()),
+                              '-j', str(nr_threads),
                               subdir,
                               '-o', output_json_path.name] + extra_args)
         except subprocess.CalledProcessError:
