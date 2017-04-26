@@ -253,6 +253,33 @@ some common common configurations in CMake caches. The ``--cmake-cache`` flag
 and the ``--cmake-define`` flag allow you to change how LNT configures cmake
 for the test-suite run.
 
+
+Capturing Linux perf profile info
++++++++++++++++++++++++++++++++++
+
+When using the CMake driver in the test-suite, LNT can also capture profile
+information using linux perf. This can then be explored through the LNT webUI
+as demonstrated at
+http://blog.llvm.org/2016/06/using-lnt-to-track-performance.html .
+
+To capture these profiles, use command line option ``--use-perf=all``. A
+typical command line using this for evaluating the performance of generated
+code looks something like the following::
+
+  $ lnt runtest test-suite \
+       --sandbox SANDBOX \
+       --cc ~/bin/clang \
+       --use-cmake=/usr/local/bin/cmake \
+       --use-lit=~/llvm/utils/lit/lit.py \
+       --test-suite ~/llvm-test-suite \
+       --benchmarking-only \
+       --build-threads 8 \
+       --threads 1 \
+       --use-perf=all \
+       --exec-multisample=5 \
+       --run-under 'taskset -c 1'
+
+
 Bisecting: ``--single-result`` and ``--single-result-predicate``
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
