@@ -39,10 +39,13 @@ def profile_admin():
 
     # Calculate a histogram bucket size that shows ~20 bars on the screen
     num_buckets = 20
-    
-    range = max(a[0] for a in age) - min(a[0] for a in age)
+
+    if len(age) > 0:
+        range = max(a[0] for a in age) - min(a[0] for a in age)
+    else:
+        range = 0
     bucket_size = float(range) / float(num_buckets)
-    
+
     # Construct the histogram.
     hist = {}
     for x,y in age:
