@@ -603,13 +603,22 @@ class TestSuiteTest(BuiltinTest):
         if self.opts.cxx:
             defs['CMAKE_CXX_COMPILER'] = self.opts.cxx
 
+        cmake_build_types = ('DEBUG','MINSIZEREL', 'RELEASE', 'RELWITHDEBINFO')
         if self.opts.cppflags or self.opts.cflags:
             all_cflags = ' '.join([self.opts.cppflags, self.opts.cflags])
             defs['CMAKE_C_FLAGS'] = self._unix_quote_args(all_cflags)
+            # Ensure that no flags get added based on build type when the user
+            # explicitly specifies flags to use.
+            for build_type in cmake_build_types:
+                defs['CMAKE_C_FLAGS_'+build_type] = ""
 
         if self.opts.cppflags or self.opts.cxxflags:
             all_cxx_flags = ' '.join([self.opts.cppflags, self.opts.cxxflags])
             defs['CMAKE_CXX_FLAGS'] = self._unix_quote_args(all_cxx_flags)
+            # Ensure that no flags get added based on build type when the user
+            # explicitly specifies flags to use.
+            for build_type in cmake_build_types:
+                defs['CMAKE_CXX_FLAGS_'+build_type] = ""
 
         if self.opts.run_under:
             defs['TEST_SUITE_RUN_UNDER'] = self._unix_quote_args(self.opts.run_under)

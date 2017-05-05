@@ -121,6 +121,12 @@
 # RUN: FileCheck --check-prefix CHECK-CFLAG1 < %t.err %s
 # CHECK-CFLAG1: Inferred C++ compiler under test
 # CHECK-CFLAG1: CMAKE_C_FLAGS: '-Wall
+# Ensure that default c flags for build configurations are made empty to avoid
+# surprises:
+# CHECK-CFLAG1: CMAKE_C_FLAGS_DEBUG: ''
+# CHECK-CFLAG1: CMAKE_C_FLAGS_MINSIZEREL: ''
+# CHECK-CFLAG1: CMAKE_C_FLAGS_RELEASE: ''
+# CHECK-CFLAG1: CMAKE_C_FLAGS_RELWITHDEBINFO: ''
 
 ## With a couple of cflags
 # RUN: lnt runtest test-suite \
