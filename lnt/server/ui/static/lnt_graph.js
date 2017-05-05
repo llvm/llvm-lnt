@@ -6,7 +6,6 @@
 var data_cache = [];
 var is_checked = []; // The current list of lines to plot.
 var normalize = false;
-var prefix = "";
 
 var MAX_TO_DRAW = 10;
 
@@ -25,25 +24,25 @@ var lnt_graph = {};
 // Grab the graph API url for this line.
 function get_api_url(kind, db, ts, mtf) {
     "use strict";
-    return [prefix, "api", "db_" + db, "v4", ts, kind, mtf].join('/');
+    return [lnt_url_base, "api", "db_" + db, "v4", ts, kind, mtf].join('/');
 }
 
 // Grab the URL for a regression by id.
 function get_regression_url(db, ts, regression) {
     "use strict";
-    return [prefix, "db_" + db, "v4", ts, "regressions", regression].join('/');
+    return [lnt_url_base, "db_" + db, "v4", ts, "regressions", regression].join('/');
 }
 
 // Grab the URL for a run by id.
 function get_run_url(db, ts, runID) {
     "use strict";
-    return [prefix, "db_" + db, "v4", ts, runID].join('/');
+    return [lnt_url_base, "db_" + db, "v4", ts, runID].join('/');
 }
 
 // Create a new regression manually URL.
 function get_manual_regression_url(db, ts, url, runID) {
     "use strict";
-    return [prefix,
+    return [lnt_url_base,
         "db_" + db,
         "v4",
         ts,
