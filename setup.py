@@ -8,8 +8,8 @@ from setuptools import setup, find_packages, Extension
 cflags = []
 
 if _platform == "darwin":
-    os.environ["CC"] = "xcrun clang"
-    os.environ["CXX"] = "xcrun clang"
+    os.environ["CC"] = "xcrun --sdk macosx clang"
+    os.environ["CXX"] = "xcrun --sdk macosx clang"
     cflags += ['-stdlib=libc++', '-mmacosx-version-min=10.7']
 
 # setuptools expects to be invoked from within the directory of setup.py, but it
