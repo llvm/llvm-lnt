@@ -26,6 +26,7 @@ from threading import Lock
 from lnt.testing.util.commands import note, warning, timed, error
 NUM_WORKERS = 4  # The number of subprocesses to spawn per LNT process.
 WORKERS = None  # The worker pool.
+WORKERS_LOCK = Lock()
 
 JOBS = []
 
@@ -33,18 +34,23 @@ JOBS = []
 def launch_workers():
     """Make sure we have a worker pool ready to queue."""
     global WORKERS
-    if not WORKERS:
-        note("Starting workers")
-        manager = Manager()
-        try:
-            current_app.config['mem_logger'].buffer = \
-                manager.list(current_app.config['mem_logger'].buffer)
-        except RuntimeError:
-            #  It might be the case that we are not running in the app.
-            #  In this case, don't bother memory logging, stdout should
-            #  sufficient for console mode.
-            pass
-
+    global WORKERS_LOCK
+    WORKERS_LOCK.acquire()
+    try:
+        if not WORKERS:
+            note("Starting workers")
+            manager = Manager()
+            WORKERS = True
+            try:
+                current_app.config['mem_logger'].buffer = \
+                    manager.list(current_app.config['mem_logger'].buffer)
+            except RuntimeError:
+                #  It might be the case that we are not running in the app.
+                #  In this case, don't bother memory logging, stdout should
+                #  sufficient for console mode.
+                pass
+    finally:
+        WORKERS_LOCK.release()
 
 def sig_handler(signo, frame):
     cleanup()
