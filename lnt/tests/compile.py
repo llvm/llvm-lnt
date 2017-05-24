@@ -382,6 +382,7 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs,
         elif build_info['style'] == 'xcode-workspace':
             cmd.extend(('-scheme', build_info['scheme'],
                         '-workspace', file_path))
+            cmd.extend(('-derivedDataPath', build_base))
         else:
             fatal("unknown build style in project: %r" % project)
 
