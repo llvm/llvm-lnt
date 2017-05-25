@@ -311,8 +311,10 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs,
         commands.mkdir_p(source_path)
         g_log.info('extracting sources for %r' % name)
 
-        if archive_path[-6:] == "tar.gz":
-            p = subprocess.Popen(args=['tar', '-xzf', archive_path],
+        if archive_path.endswith(".tar.gz") or \
+           archive_path.endswith(".tar.bz2") or \
+           archive_path.endswith(".tar.lzma"):
+            p = subprocess.Popen(args=['tar', '-xf', archive_path],
                                  stdin=None,
                                  stdout=subprocess.PIPE,
                                  stderr=subprocess.PIPE,
