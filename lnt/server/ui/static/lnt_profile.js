@@ -102,6 +102,16 @@ InstructionSetParser.prototype = {
         // TODO: add all control-flow-changing instructions.
     ],
 
+    X86_64JumpTargetRegexps: [
+        // (regexp, noFallThru?)
+        // branch conditional:
+        [new RegExp("^\\s*j(?:(?:a)|(?:ae)|(?:b)|(?:be)|(?:c)|(?:ecxz)|(?:rcxz)|(?:e)|(?:g)|(?:ge)|(?:l)|(?:le)|(?:na)|(?:nae)|(?:nb)|(?:nbe)|(?:nc)|(?:ne)|(?:ng)|(?:nge)|(?:nl)|(?:nle)|(?:no)|(?:np)|(?:ns)|(?:nz)|(?:o)|(?:p)|(?:pe)|(?:po)|(?:s)|(?:z))\\s+([^\\s]+)"), false],
+        // branch unconditional:
+        [new RegExp("^\\s*jmp\\s+([^\\s]+)"), true],
+        // ret
+        [new RegExp("^\\s*retq"), true]
+    ],
+
     getJumpTargets: function(instruction, nextInstruction, cfg) {
         for(var i=0; i<this.jumpTargetRegexps.length; ++i) {
             var regexp = this.jumpTargetRegexps[i][0];
@@ -497,6 +507,9 @@ Profile.prototype = {
         else if (this.instructionSet == 'aarch32t32')
             instructionParser = new InstructionSetParser(
                 InstructionSetParser.prototype.AArch32T32JumpTargetRegexps);
+        else if (this.instructionSet == 'x86_64')
+            instructionParser = new InstructionSetParser(
+                InstructionSetParser.prototype.X86_64JumpTargetRegexps);
         else {
             // Do not try to continue if we don't have support for
             // the requested instruction set.
