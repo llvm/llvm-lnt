@@ -217,7 +217,7 @@ def v4_machine_latest(machine_id):
         .filter(ts.Run.machine_id == machine_id) \
         .order_by(ts.Run.start_time.desc()) \
         .first()
-    return redirect(v4_url_for('v4_run', id=run.id))
+    return redirect(v4_url_for('v4_run', id=run.id, **request.args))
 
 
 @v4_route("/machine/<int:machine_id>/compare")
