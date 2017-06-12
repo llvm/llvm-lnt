@@ -469,17 +469,17 @@ def v4_run(id):
         reported_tests = ts.query(ts.Test.name, ts.Test.id).\
             filter(ts.Run.id == id).\
             filter(ts.Test.id.in_(sri.test_ids)).all()
+        order = run.order.as_ordered_string()
 
-        json_obj['tests'] = {}
         for test_name, test_id in reported_tests:
-            test = {}
-            test['name'] = test_name
+            test = dict(test_name=test_name, test_id=test_id,
+                        order=order, machine=run.machine.name)
             for sample_field in ts.sample_fields:
                 res = sri.get_run_comparison_result(
                     run, None, test_id, sample_field,
                     ts.Sample.get_hash_of_binary_field())
                 test[sample_field.name] = res.current
-            json_obj['tests'][test_id] = test
+            json_obj[test_name] = test
 
         return flask.jsonify(**json_obj)
 
