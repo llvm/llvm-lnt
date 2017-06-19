@@ -41,9 +41,7 @@ from lnt.server.ui.regression_views import PrecomputedCR
 from lnt.server.ui.util import FLASH_DANGER, FLASH_SUCCESS
 from lnt.server.ui.util import mean
 from lnt.util import async_ops
-from lnt.server.ui.util import baseline_key
-
-integral_rex = re.compile(r"[\d]+")
+from lnt.server.ui.util import baseline_key, convert_revision
 
 
 # http://flask.pocoo.org/snippets/62/
@@ -667,14 +665,6 @@ def v4_graph():
     options['hide_highlight'] = bool(
         request.args.get('hide_highlight'))
     show_highlight = not options['hide_highlight']
-
-    def convert_revision(dotted):
-        """Turn a version number like 489.2.10 into something
-        that is ordered and sortable.
-        For now 489.2.10 will be returned as a tuple of ints.
-        """
-        dotted = integral_rex.findall(dotted)
-        return tuple([int(d) for d in dotted])
 
     # Load the graph parameters.
     graph_parameters = []

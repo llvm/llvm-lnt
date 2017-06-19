@@ -7,6 +7,7 @@ from sqlalchemy.orm import joinedload
 from sqlalchemy.orm.exc import NoResultFound
 
 from lnt.testing import PASS
+from lnt.server.ui.util import convert_revision
 
 parser = reqparse.RequestParser()
 parser.add_argument('db', type=str)
@@ -215,7 +216,7 @@ class Graph(Resource):
             if limit:
                 q = q.limit(limit)
 
-        samples = [[rev, val, {'label': rev, 'date': str(time), 'runID': str(rid)}] for val, rev, time, rid in
+        samples = [[convert_revision(rev), val, {'label': rev, 'date': str(time), 'runID': str(rid)}] for val, rev, time, rid in
                    q.all()[::-1]]
 
         return samples

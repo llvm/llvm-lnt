@@ -363,3 +363,16 @@ def baseline_key(ts_name=None):
     else:
         name = g.db_name
     return "baseline-{}-{}".format(name, g.db_name)
+
+
+integral_rex = re.compile(r"[\d]+")
+
+
+def convert_revision(dotted):
+    """Turn a version number like 489.2.10 into something
+    that is ordered and sortable.
+    For now 489.2.10 will be returned as a tuple of ints.
+    """
+    dotted = integral_rex.findall(dotted)
+    return tuple([int(d) for d in dotted])
+
