@@ -1,3 +1,4 @@
+from lnt.testing.util.commands import fatal
 
 try:
     import threading
@@ -13,6 +14,7 @@ import lnt.server.db.migrate
 
 from lnt.server.db import testsuite
 import lnt.server.db.util
+
 
 class V4DB(object):
     """
@@ -107,26 +109,22 @@ class V4DB(object):
         self.SampleField = testsuite.SampleField
 
         # Resolve or create the known status kinds.
-        self.pass_status_kind = self.query(testsuite.StatusKind)\
-            .filter_by(id = lnt.testing.PASS).first()
-        self.fail_status_kind = self.query(testsuite.StatusKind)\
-            .filter_by(id = lnt.testing.FAIL).first()
-        self.xfail_status_kind = self.query(testsuite.StatusKind)\
-            .filter_by(id = lnt.testing.XFAIL).first()
-        assert (self.pass_status_kind and self.fail_status_kind and
-                self.xfail_status_kind), \
-                "status kinds not initialized!"
+        kinds = {k.id: k for k in self.query(testsuite.StatusKind).all()}
+        try:
+            self.pass_status_kind = kinds[lnt.testing.PASS]
+            self.fail_status_kind = kinds[lnt.testing.FAIL]
+            self.xfail_status_kind = kinds[lnt.testing.XFAIL]
+        except KeyError:
+                fatal("status kinds not initialized!")
 
+        sample_types = {st.name: st for st in self.query(testsuite.SampleType).all()}
         # Resolve or create the known sample types.
-        self.real_sample_type = self.query(testsuite.SampleType)\
-            .filter_by(name="Real").first()
-        self.status_sample_type = self.query(testsuite.SampleType)\
-            .filter_by(name="Status").first()
-        self.hash_sample_type = self.query(testsuite.SampleType)\
-            .filter_by(name="Hash").first()
-        assert (self.real_sample_type and self.status_sample_type and
-                self.hash_sample_type), \
-            "sample types not initialized!"
+        try:
+            self.real_sample_type = sample_types["Real"]
+            self.status_sample_type = sample_types["Status"]
+            self.hash_sample_type = sample_types["Hash"]
+        except KeyError:
+            fatal("sample types not initialized!")
 
     def close(self):
         if self.session is not None:
