@@ -18,6 +18,7 @@ from flask import render_template
 from flask import request, url_for
 from flask import session
 from flask_wtf import Form
+from sqlalchemy.orm import joinedload
 from sqlalchemy.orm.exc import NoResultFound
 from typing import List, Optional
 from wtforms import SelectField, StringField, SubmitField
@@ -176,9 +177,13 @@ def v4_recent_activity():
 
     # Get the most recent runs in this tag, we just arbitrarily limit to looking
     # at the last 100 submission.
-    recent_runs = ts.query(ts.Run).\
-        order_by(ts.Run.start_time.desc()).limit(100)
-    recent_runs = list(recent_runs)
+    recent_runs = ts.query(ts.Run) \
+        .join(ts.Order) \
+        .join(ts.Machine) \
+        .options(joinedload(ts.Run.order)) \
+        .options(joinedload(ts.Run.machine)) \
+        .order_by(ts.Run.start_time.desc()).limit(100)
+    recent_runs = recent_runs.all()
 
     # Compute the active machine list.
     active_machines = dict((run.machine.name, run)
