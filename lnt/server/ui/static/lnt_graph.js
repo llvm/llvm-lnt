@@ -375,12 +375,12 @@ function add_data_to_graph(URL, index, max_samples) {
 }
 
 
-function init_axis(prefix_url) {
+function init_axis() {
     "use strict";
     function onlyUnique(value, index, self) {
         return self.indexOf(value) === index;
     }
-    prefix = prefix_url;
+
     var metrics = $('.metric').map(function () {
         return $(this).text();
     }).get();
