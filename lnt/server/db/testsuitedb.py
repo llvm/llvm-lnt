@@ -223,6 +223,10 @@ class TestSuiteDB(object):
                     ', '.join(self.get_field(field)
                               for field in self.fields),)
 
+            @property
+            def name(self):
+                return self.as_ordered_string()
+
             def __cmp__(self, b):
                 # SA occassionally uses comparison to check model instances
                 # verse some sentinels, so we ensure we support comparison
@@ -250,6 +254,7 @@ class TestSuiteDB(object):
                 order = dict((item.name, self.get_field(item))
                               for item in self.fields)
                 order[u'id'] = self.id
+                order[u'name'] = self.as_ordered_string()
                 return strip(order)
                 
                 

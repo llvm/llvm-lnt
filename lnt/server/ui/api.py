@@ -1,9 +1,13 @@
+import json
+
 from flask import current_app, g
 from flask import request
-from sqlalchemy.orm.exc import NoResultFound
 from flask_restful import Resource, reqparse, fields, marshal_with, abort
+from sqlalchemy.orm import joinedload
+from sqlalchemy.orm.exc import NoResultFound
+
 from lnt.testing import PASS
-import json
+
 parser = reqparse.RequestParser()
 parser.add_argument('db', type=str)
 
@@ -11,6 +15,7 @@ parser.add_argument('db', type=str)
 def in_db(func):
     """Extract the database information off the request and attach to
     particular test suite and database."""
+
     def wrap(*args, **kwargs):
         db = kwargs.pop('db')
         ts = kwargs.pop('ts')
@@ -25,6 +30,7 @@ def in_db(func):
         # Make sure that any transactions begun by this request are finished.
         request.get_db().rollback()
         return result
+
     return wrap
 
 
@@ -55,7 +61,6 @@ def with_ts(obj):
 # This date format is what the JavaScript in the LNT frontend likes.
 DATE_FORMAT = "iso8601"
 
-
 machines_fields = {
     'id': fields.Integer,
     'name': fields.String,
@@ -75,13 +80,61 @@ class Machines(Resource):
         return changes
 
 
+order_fields = {
+    'id': fields.Integer,
+    'name': fields.String,
+    'next_order_id': fields.Integer,
+    'previous_order_id': fields.Integer,
+}
+
+
+class ParameterItem(fields.Raw):
+    def output(self, key, value):
+        return dict(json.loads(value['parameters_data']))
+
+
+run_fields = {
+    'id': fields.Integer,
+    'start_time': fields.DateTime(dt_format=DATE_FORMAT),
+    'end_time': fields.DateTime(dt_format=DATE_FORMAT),
+    'machine_id': fields.Integer,
+    'machine': fields.Url("machine"),
+    'order_id': fields.Integer,
+    'order_url': fields.Url("order"),
+    'parameters': ParameterItem
+}
+
+run_fields['order'] = fields.Nested(order_fields)
+
 machine_fields = {
     'id': fields.Integer,
     'name': fields.String,
     'os': fields.String,
     'hardware': fields.String,
-    'runs': fields.List(fields.Url('runs')),
+    'runs': fields.List(fields.Nested(run_fields)),
+    'parameters': ParameterItem
 }
+
+
+class Runs(Resource):
+    method_decorators = [in_db]
+
+    @marshal_with(run_fields)
+    def get(self, run_id):
+        ts = request.get_testsuite()
+        try:
+            run = ts.query(ts.Run) \
+                .join(ts.Machine) \
+                .join(ts.Order) \
+                .filter(ts.Run.id == run_id) \
+                .options(joinedload('order')) \
+                .options(joinedload('machine')) \
+                .one()
+        except NoResultFound:
+            abort(404, message="Invalid run.")
+
+        run = with_ts(run)
+        return run
 
 
 class Machine(Resource):
@@ -94,52 +147,22 @@ class Machine(Resource):
         ts = request.get_testsuite()
         try:
             machine = ts.query(ts.Machine).filter(
-                    ts.Machine.id == machine_id).one()
+                ts.Machine.id == machine_id).one()
         except NoResultFound:
             abort(404, message="Invalid machine.")
 
         machine = with_ts(machine)
-        machine_runs = ts.query(ts.Run.id).join(ts.Machine).filter(
-                ts.Machine.id == machine_id).all()
+        machine_runs = ts.query(ts.Run) \
+            .join(ts.Machine) \
+            .join(ts.Order) \
+            .filter(ts.Machine.id == machine_id) \
+            .options(joinedload('order')) \
+            .all()
 
-        machine['runs'] = with_ts([dict(run_id=x[0]) for x in machine_runs])
-        print machine['runs']
+        machine['runs'] = with_ts(machine_runs)
+        machine['a'] = [m.parameters for m in machine_runs]
+
         return machine
-
-
-run_fields = {
-    'id': fields.Integer,
-    'start_time': fields.DateTime(dt_format=DATE_FORMAT),
-    'end_time': fields.DateTime(dt_format=DATE_FORMAT),
-    'machine_id': fields.Integer,
-    'machine': fields.Url("machine"),
-    'order_id': fields.Integer,
-    'order': fields.Url("order"),
-}
-
-
-class Runs(Resource):
-    method_decorators = [in_db]
-
-    @marshal_with(run_fields)
-    def get(self, run_id):
-        ts = request.get_testsuite()
-        try:
-            changes = ts.query(ts.Run).join(ts.Machine).filter(
-                ts.Run.id == run_id).one()
-        except NoResultFound:
-            abort(404, message="Invalid run.")
-
-        changes = with_ts(changes)
-        return changes
-
-
-order_fields = {
-    'id': fields.Integer,
-    'llvm_project_revision': fields.String,
-    'next_order_id': fields.Integer,
-    'previous_order_id': fields.Integer,
-}
 
 
 class Order(Resource):
@@ -149,10 +172,10 @@ class Order(Resource):
     def get(self, order_id):
         ts = request.get_testsuite()
         try:
-            changes = ts.query(ts.Order).filter(ts.Order.id == order_id).one()
+            order = ts.query(ts.Order).filter(ts.Order.id == order_id).one()
         except NoResultFound:
             abort(404, message="Invalid order.")
-        return changes
+        return order
 
 
 class Graph(Resource):
@@ -185,14 +208,15 @@ class Graph(Resource):
         if field.status_field:
             q = q.filter((field.status_field.column == PASS) |
                          (field.status_field.column == None))
-        
+
         limit = request.args.get('limit', None)
         if limit:
             limit = int(limit)
             if limit:
                 q = q.limit(limit)
-        
-        samples = [[rev, val, {'label': rev, 'date': str(time), 'runID': str(rid)}] for val, rev, time, rid in q.all()[::-1]]
+
+        samples = [[rev, val, {'label': rev, 'date': str(time), 'runID': str(rid)}] for val, rev, time, rid in
+                   q.all()[::-1]]
 
         return samples
 
@@ -228,13 +252,14 @@ class Regression(Resource):
                 return abort(404)
             # I think we found nothing.
             return []
-        regressions = ts.query(ts.Regression.title, ts.Regression.id, ts.RegressionIndicator.field_change_id, ts.Regression.state) \
+        regressions = ts.query(ts.Regression.title, ts.Regression.id, ts.RegressionIndicator.field_change_id,
+                               ts.Regression.state) \
             .join(ts.RegressionIndicator) \
             .filter(ts.RegressionIndicator.field_change_id.in_(fc_ids)) \
             .all()
         results = [{'title': r.title,
-                    'id': r.id, 
-                    'state': r.state, 
+                    'id': r.id,
+                    'state': r.state,
                     'end_point': fc_mappings[r.field_change_id]} for r in regressions]
         return results
 
