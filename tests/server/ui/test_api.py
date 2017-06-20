@@ -33,7 +33,8 @@ machines_expected_response = [{u'hardware': u'x86_64',
 order_expected_response = {u'id': 1,
                            u'name': "154331",
                            u'next_order_id': 0,
-                           u'previous_order_id': 2}
+                           u'previous_order_id': 2,
+                           u'parts': [154331]}
 
 graph_data = [[[152292], 1.0,
                {u'date': u'2012-05-01 16:28:23',
@@ -68,7 +69,8 @@ class JSONAPITester(unittest.TestCase):
         j = check_json(client, 'api/db_default/v4/nts/machines')
         self.assertEquals(j, machines_expected_response)
         j = check_json(client, 'api/db_default/v4/nts/machine/1')
-        self.assertEqual(j.keys(), [u'runs', u'name', u'parameters', u'hardware', u'os', u'id'])
+        self.assertEqual(j.keys(), [u'runs', u'name', u'parameters',
+                                    u'hardware', u'os', u'id'])
         expected = {"hardware": "x86_64", "os": "Darwin 11.3.0", "id": 1}
         self.assertDictContainsSubset(expected, j)
 
@@ -79,25 +81,25 @@ class JSONAPITester(unittest.TestCase):
         expected = {"machine": "/api/db_default/v4/nts/machine/1",
                     "order_url": "/api/db_default/v4/nts/order/1",
                     "end_time": "2012-04-11T16:28:58",
-
                     "order_id": 1,
                     "start_time": "2012-04-11T16:28:23",
                     "machine_id": 1,
                     "id": 1,
-                    "order": {
-                        "previous_order_id": 2,
-                        "next_order_id": 0,
-                        "id": 1,
-                        "name": "154331"
+                    "order": {u'previous_order_id': 2, u'next_order_id': 0,
+                              u'parts': [154331], u'name': u'154331', u'id': 1}
+
                     }
-                    }
-        self.assertDictContainsSubset(expected, j)
+        self.assertDictContainsSubset(expected, j['run'])
+        self.assertEqual(len(j['samples']), 2)
+        # This should not be a run.
+        check_json(client, 'api/db_default/v4/nts/run/100', expected_code=404)
 
     def test_order_api(self):
         """ Check /order/n returns the expected order information."""
         client = self.client
         j = check_json(client, 'api/db_default/v4/nts/order/1')
         self.assertEquals(j, order_expected_response)
+        check_json(client, 'api/db_default/v4/nts/order/100', expected_code=404)
 
     def test_graph_api(self):
         """Check that /graph/x/y/z returns what we expect."""
@@ -109,6 +111,43 @@ class JSONAPITester(unittest.TestCase):
         # Now check that limit works.
         j2 = check_json(client, 'api/db_default/v4/nts/graph/2/4/3?limit=1')
         self.assertEqual(graph_data2, j2)
+
+    def test_samples_api(self):
+        """Samples API."""
+        client = self.client
+        # Run IDs must be passed, so 400 if they are not.
+        check_json(client, 'api/db_default/v4/nts/samples',
+                   expected_code=400)
+
+        # Simple single run.
+        j = check_json(client, 'api/db_default/v4/nts/samples?runid=1')
+        expected = [
+            {u'compile_time': 0.007, u'llvm_project_revision': u'154331',
+             u'hash': None,
+             u'name': u'SingleSource/UnitTests/2006-12-01-float_varg',
+             u'run_id': 1, u'execution_time': 0.0003,
+             u'mem_bytes': None, u'compile_status': None,
+             u'execution_status': None, u'score': None,
+             u'hash_status': None, u'code_size': None, u'id': 1},
+            {u'compile_time': 0.0072, u'llvm_project_revision': u'154331',
+             u'hash': None,
+             u'name': u'SingleSource/UnitTests/2006-12-04-DynAllocAndRestore',
+             u'run_id': 1,
+             u'execution_time': 0.0003, u'mem_bytes': None,
+             u'compile_status': None, u'execution_status': None,
+             u'score': None, u'hash_status': None, u'code_size': None,
+             u'id': 2}]
+
+        self.assertEqual(j, expected)
+
+        # Check that other args are ignored.
+        extra_param = check_json(client,
+                                 'api/db_default/v4/nts/samples?runid=1&foo=bar')
+        self.assertEqual(j, extra_param)
+        # There is only one run in the DB.
+        two_runs = check_json(client,
+                              'api/db_default/v4/nts/samples?runid=1&runid=2')
+        self.assertEqual(j, two_runs)
 
 
 if __name__ == '__main__':

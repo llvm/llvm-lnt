@@ -1,13 +1,14 @@
 import json
 
+import sqlalchemy
 from flask import current_app, g
 from flask import request
 from flask_restful import Resource, reqparse, fields, marshal_with, abort
 from sqlalchemy.orm import joinedload
 from sqlalchemy.orm.exc import NoResultFound
 
-from lnt.testing import PASS
 from lnt.server.ui.util import convert_revision
+from lnt.testing import PASS
 
 parser = reqparse.RequestParser()
 parser.add_argument('db', type=str)
@@ -56,6 +57,9 @@ def with_ts(obj):
 
     new_obj['db'] = g.db_name
     new_obj['ts'] = g.testsuite_name
+    for key in ['machine', 'order']:
+        if new_obj.get(key):
+            new_obj[key] = with_ts(new_obj[key])
     return new_obj
 
 
@@ -86,6 +90,7 @@ order_fields = {
     'name': fields.String,
     'next_order_id': fields.Integer,
     'previous_order_id': fields.Integer,
+    'parts': fields.List(fields.Integer),
 }
 
 
@@ -94,27 +99,29 @@ class ParameterItem(fields.Raw):
         return dict(json.loads(value['parameters_data']))
 
 
-run_fields = {
-    'id': fields.Integer,
-    'start_time': fields.DateTime(dt_format=DATE_FORMAT),
-    'end_time': fields.DateTime(dt_format=DATE_FORMAT),
-    'machine_id': fields.Integer,
-    'machine': fields.Url("machine"),
-    'order_id': fields.Integer,
-    'order_url': fields.Url("order"),
-    'parameters': ParameterItem
-}
+machine_run_fields = {'id': fields.Integer,
+                      'start_time': fields.DateTime(dt_format=DATE_FORMAT),
+                      'end_time': fields.DateTime(dt_format=DATE_FORMAT),
+                      'machine_id': fields.Integer,
+                      'machine': fields.Url("machine"),
+                      'order_id': fields.Integer,
+                      'order_name': fields.String,
+                      'order_url': fields.Url("order"),
+                      'parameters': ParameterItem}
 
-run_fields['order'] = fields.Nested(order_fields)
+machine_run_fields['order'] = fields.Nested(order_fields)
 
 machine_fields = {
     'id': fields.Integer,
     'name': fields.String,
     'os': fields.String,
     'hardware': fields.String,
-    'runs': fields.List(fields.Nested(run_fields)),
+    'runs': fields.List(fields.Nested(machine_run_fields)),
     'parameters': ParameterItem
 }
+
+run_fields = {'run': fields.Nested(machine_run_fields),
+              'samples': fields.List(fields.Raw)}
 
 
 class Runs(Resource):
@@ -123,19 +130,38 @@ class Runs(Resource):
     @marshal_with(run_fields)
     def get(self, run_id):
         ts = request.get_testsuite()
+        full_run = dict()
+
         try:
             run = ts.query(ts.Run) \
                 .join(ts.Machine) \
                 .join(ts.Order) \
                 .filter(ts.Run.id == run_id) \
                 .options(joinedload('order')) \
-                .options(joinedload('machine')) \
                 .one()
-        except NoResultFound:
-            abort(404, message="Invalid run.")
+        except sqlalchemy.orm.exc.NoResultFound:
+            abort(404, msg="Did not find run " + str(run_id))
 
-        run = with_ts(run)
-        return run
+        full_run['run'] = with_ts(run)
+        full_run['run']['order']['parts'] = convert_revision(run.order.name)
+        full_run['run']['order']['name'] = run.order.name
+        full_run['run']['parts'] = run.order.name
+
+        to_get = [ts.Sample.id, ts.Sample.run_id, ts.Test.name,
+                  ts.Order.fields[0].column]
+        for f in ts.sample_fields:
+            to_get.append(f.column)
+
+        q = ts.query(*to_get) \
+            .join(ts.Test) \
+            .join(ts.Run) \
+            .join(ts.Order) \
+            .filter(ts.Sample.run_id.is_(run_id))
+
+        ret = [sample._asdict() for sample in q.all()]
+        print ret
+        full_run['samples'] = ret
+        return with_ts(full_run)
 
 
 class Machine(Resource):
@@ -161,7 +187,6 @@ class Machine(Resource):
             .all()
 
         machine['runs'] = with_ts(machine_runs)
-        machine['a'] = [m.parameters for m in machine_runs]
 
         return machine
 
@@ -176,7 +201,44 @@ class Order(Resource):
             order = ts.query(ts.Order).filter(ts.Order.id == order_id).one()
         except NoResultFound:
             abort(404, message="Invalid order.")
-        return order
+        order_output = with_ts(order)
+        order_output['parts'] = convert_revision(order.name)
+        order_output['name'] = order.name
+        return order_output
+
+
+class SampleData(Resource):
+    """List all the machines and give summary information."""
+    method_decorators = [in_db]
+
+    def get(self):
+        """Get the data for a particular line in a graph."""
+        ts = request.get_testsuite()
+        args = request.args.to_dict(flat=False)
+        # Maybe we don't need to do this?
+        run_ids = [int(r) for r in args.get('runid', [])]
+
+        if not run_ids:
+            abort(400,
+                  msg='No runids found in args. Should be "samples?runid=1&runid=2" etc.')
+
+        to_get = [ts.Sample.id,
+                  ts.Sample.run_id,
+                  ts.Test.name,
+                  ts.Order.fields[0].column]
+
+        for f in ts.sample_fields:
+            to_get.append(f.column)
+
+        q = ts.query(*to_get) \
+            .join(ts.Test) \
+            .join(ts.Run) \
+            .join(ts.Order) \
+            .filter(ts.Sample.run_id.in_(run_ids))
+
+        ret = [sample._asdict() for sample in q.all()]
+
+        return ret
 
 
 class Graph(Resource):
@@ -216,7 +278,8 @@ class Graph(Resource):
             if limit:
                 q = q.limit(limit)
 
-        samples = [[convert_revision(rev), val, {'label': rev, 'date': str(time), 'runID': str(rid)}] for val, rev, time, rid in
+        samples = [[convert_revision(rev), val, {'label': rev, 'date': str(time), 'runID': str(rid)}] for
+                   val, rev, time, rid in
                    q.all()[::-1]]
         samples.sort(key=lambda x: x[0])
         return samples
@@ -269,6 +332,7 @@ def load_api_resources(api):
     api.add_resource(Machines, ts_path("machines"))
     api.add_resource(Machine, ts_path("machine/<int:machine_id>"))
     api.add_resource(Runs, ts_path("run/<int:run_id>"))
+    api.add_resource(SampleData, ts_path("samples"))
     api.add_resource(Order, ts_path("order/<int:order_id>"))
     graph_url = "graph/<int:machine_id>/<int:test_id>/<int:field_index>"
     api.add_resource(Graph, ts_path(graph_url))
