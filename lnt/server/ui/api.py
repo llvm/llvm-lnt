@@ -51,7 +51,7 @@ def with_ts(obj):
         # If already a dict, just add the fields.
         new_obj = obj
     else:
-        # Sqlalcamey objects are read-only and store their attributes in a
+        # SQLAlchemy objects are read-only and store their attributes in a
         # sub-dict.  Make a copy so we can edit it.
         new_obj = obj.__dict__.copy()
 
@@ -140,7 +140,7 @@ class Runs(Resource):
                 .options(joinedload('order')) \
                 .one()
         except sqlalchemy.orm.exc.NoResultFound:
-            abort(404, msg="Did not find run " + str(run_id))
+            return abort(404, msg="Did not find run " + str(run_id))
 
         full_run['run'] = with_ts(run)
         full_run['run']['order']['parts'] = convert_revision(run.order.name)
@@ -158,8 +158,9 @@ class Runs(Resource):
             .join(ts.Order) \
             .filter(ts.Sample.run_id.is_(run_id))
 
+        # noinspection PyProtectedMember
         ret = [sample._asdict() for sample in q.all()]
-        print ret
+
         full_run['samples'] = ret
         return with_ts(full_run)
 
@@ -176,7 +177,7 @@ class Machine(Resource):
             machine = ts.query(ts.Machine).filter(
                 ts.Machine.id == machine_id).one()
         except NoResultFound:
-            abort(404, message="Invalid machine.")
+            return abort(404, message="Invalid machine.")
 
         machine = with_ts(machine)
         machine_runs = ts.query(ts.Run) \
@@ -200,7 +201,7 @@ class Order(Resource):
         try:
             order = ts.query(ts.Order).filter(ts.Order.id == order_id).one()
         except NoResultFound:
-            abort(404, message="Invalid order.")
+            return abort(404, message="Invalid order.")
         order_output = with_ts(order)
         order_output['parts'] = convert_revision(order.name)
         order_output['name'] = order.name
@@ -236,6 +237,7 @@ class SampleData(Resource):
             .join(ts.Order) \
             .filter(ts.Sample.run_id.in_(run_ids))
 
+        # noinspection PyProtectedMember
         ret = [sample._asdict() for sample in q.all()]
 
         return ret
@@ -265,12 +267,12 @@ class Graph(Resource):
             .join(ts.Order) \
             .filter(ts.Run.machine_id == machine.id) \
             .filter(ts.Sample.test == test) \
-            .filter(field.column != None) \
+            .filter(field.column.isnot(None)) \
             .order_by(ts.Order.llvm_project_revision.desc())
 
         if field.status_field:
             q = q.filter((field.status_field.column == PASS) |
-                         (field.status_field.column == None))
+                         (field.status_field.column.is_(None)))
 
         limit = request.args.get('limit', None)
         if limit:
@@ -305,14 +307,14 @@ class Regression(Resource):
             # If we don't find anything, lets see if we are even looking
             # for a valid thing to provide a nice error.
             try:
-                machine = ts.query(ts.Machine) \
+                ts.query(ts.Machine) \
                     .filter(ts.Machine.id == machine_id) \
                     .one()
-                test = ts.query(ts.Test) \
+                ts.query(ts.Test) \
                     .filter(ts.Test.id == test_id) \
                     .one()
-                field = ts.sample_fields[field_index]
-            except NoResultFound:
+                _ = ts.sample_fields[field_index]
+            except (NoResultFound, IndexError):
                 return abort(404)
             # I think we found nothing.
             return []
