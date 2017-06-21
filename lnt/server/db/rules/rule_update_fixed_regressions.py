@@ -36,7 +36,9 @@ def regression_evolution(ts, run_id):
     """
     note("Running regression evolution")
     changed = 0
-    regressions = ts.query(ts.Regression).all()
+    evolve_states = [RegressionState.DETECTED, RegressionState.STAGED, RegressionState.ACTIVE]
+    regressions = ts.query(ts.Regression).filter(ts.Regression.state.in_(evolve_states)).all()
+
     detects = [r for r in regressions if r.state == RegressionState.DETECTED]
     staged = [r for r in regressions if r.state == RegressionState.STAGED]
     active = [r for r in regressions if r.state == RegressionState.ACTIVE]
