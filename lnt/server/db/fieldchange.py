@@ -127,7 +127,6 @@ def regenerate_fieldchanges_for_run(ts, run_id):
                 # Check the rules to see if this change matters.
                 if rules.is_useful_change(ts, f):
                     ts.add(f)
-                    ts.commit()
                     try:
                         found, new_reg = identify_related_changes(ts, f)
                     except ObjectDeletedError:
