@@ -49,7 +49,6 @@ def regression_evolution(ts, run_id):
             regression.state = RegressionState.IGNORED
             regression.title = regression.title + " [Detected Fixed]"
             changed += 1
-    ts.commit()
 
     for regression in staged:
         if is_fixed(ts, regression):
@@ -57,7 +56,6 @@ def regression_evolution(ts, run_id):
             regression.state = RegressionState.DETECTED_FIXED
             regression.title = regression.title + " [Detected Fixed]"
             changed += 1
-    ts.commit()
 
     for regression in active:
         if is_fixed(ts, regression):
