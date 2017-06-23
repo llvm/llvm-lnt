@@ -108,7 +108,7 @@ $('.profile-prev-only').tooltip();
     <li><a href="#view_options"><i class="icon-chevron-right"></i>View Options</a></li>
     <li><a href="#report"><i class="icon-chevron-right"></i>Report</a></li>
     {% for field in metric_fields %}
-      <li><a href="#{{ field.name }}"><i class="icon-chevron-right"></i>{{ field.name }}</a></li>
+      <li id="link_{{ field.name }}"><a href="#{{ field.name }}"><i class="icon-chevron-right"></i>{{ field.name }}</a></li>
     {% endfor %}
   </ul>
 
@@ -322,6 +322,18 @@ $('.profile-prev-only').tooltip();
     {# Report one table for each primary field. #}
     {% for field in metric_fields %}
       <section id="{{ field.name }}">
+          {% set tests = [] %}
+          {% set (runs, compare_runs) = request_info.sri.get_sliding_runs(run, compare_to, request_info.num_comparison_runs) %}
+          {% for test_name,test_id in test_info %}
+            {% set cr = request_info.sri.get_comparison_result(
+                runs, compare_runs, test_id, field, hash_field) %}
+            {% if cr.previous is not none or cr.current is not none %}
+              {% if cr.current is none or cr.current >= test_min_value_filter %}
+                {% if tests.append((test_name, test_id, cr)) %}{% endif %}
+              {% endif %}
+            {% endif %}
+          {% endfor %}
+        {%  if tests %}
       {{ utils.render_popup_begin('test_data-' + field.name, field.name, false) }}
       <table class="table table-striped table-hover table-condensed floating_header datatable">
         <thead>
@@ -339,18 +351,6 @@ $('.profile-prev-only').tooltip();
           </tr>
         </thead>
         <tbody class="searchable">
-          {% set tests = [] %}
-          {% set (runs, compare_runs) = request_info.sri.get_sliding_runs(run, compare_to, request_info.num_comparison_runs) %}
-          {% for test_name,test_id in test_info %}
-            {% set cr = request_info.sri.get_comparison_result(
-                runs, compare_runs, test_id, field, hash_field) %}
-            {% if cr.previous is not none or cr.current is not none %}
-              {% if cr.current is none or cr.current >= test_min_value_filter %}
-                {% if tests.append((test_name, test_id, cr)) %}{% endif %}
-              {% endif %}
-            {% endif %}
-          {% endfor %}
-
           {% for test_name,test_id,cr in tests %}
             <tr>
               <td><input type="checkbox" name="plot.{{test_id}}" value="{{machine.id}}.{{test_id}}.{{field.index}}"></td>
@@ -375,6 +375,9 @@ $('.profile-prev-only').tooltip();
         </tfoot>
       </table>
       {{ utils.render_popup_end() }}
+        {% else %}
+            <script>$('#link_{{ field.name }}').hide();</script>
+        {% endif %}
       </section>
     {% endfor %}
     <p><input id="graph_button" type="submit" value="Graph"> <input id="matrix_button" type="submit" value="Matrix">
