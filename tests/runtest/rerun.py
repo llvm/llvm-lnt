@@ -7,8 +7,9 @@
 # RUN: rsync -av --exclude .svn %S/Inputs/rerun_server_instance/ \
 # RUN:   %{test_exec_root}/runtest/rerun_server_instance
 # RUN: rm -f CHECK-STDOUT CHECK-STDOUT2 CHECK-STDERR CHECK-STDERR2
-# RUN: %S/Inputs/runtest_server_wrapper.sh \
-# RUN:   %{test_exec_root}/runtest/rerun_server_instance nt yes 9090 \
+# RUN: %{shared_inputs}/server_wrapper.sh \
+# RUN:   %{test_exec_root}/runtest/rerun_server_instance 9090 \
+# RUN:   lnt runtest nt --submit "http://localhost:9090/db_default/submitRun" \
 # RUN:   --sandbox %t.SANDBOX \
 # RUN:   --test-suite %S/Inputs/rerun-test-suite1 \
 # RUN:   --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
@@ -32,8 +33,9 @@
 # CHECK-STDERR: submitting result to
 # CHECK-STDERR: Rerunning 0 of 69 benchmarks.
 
-# RUN: %S/Inputs/runtest_server_wrapper.sh \
-# RUN:   %{test_exec_root}/runtest/rerun_server_instance nt yes 9090 \
+# RUN: %{shared_inputs}/server_wrapper.sh \
+# RUN:   %{test_exec_root}/runtest/rerun_server_instance 9090 \
+# RUN:   lnt runtest nt --submit "http://localhost:9090/db_default/submitRun" \
 # RUN:   --sandbox %t.SANDBOX2 \
 # RUN:   --test-suite %S/Inputs/rerun-test-suite2 \
 # RUN:   --cc %{shared_inputs}/FakeCompilers/clang-r154331 \

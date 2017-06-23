@@ -1,0 +1,55 @@
+{
+    "Machine": {
+        "Info": {
+            "os": "SAMPLE OS",
+            "hardware": "x86_64"
+        },
+        "Name": "LNT SAMPLE MACHINE"
+    },
+    "Run": {
+        "Start Time": "2009-11-17 02:12:25",
+        "End Time": "2009-11-17 03:44:48",
+        "Info": {
+            "run_order": "1",
+            "tag": "nts",
+            "__report_version__": "1"
+        }
+    },
+    "Tests": [
+        {
+            "Data": [
+                0.6995
+            ],
+            "Info": {},
+            "Name": "nts.SingleSource/Benchmarks/Adobe-C++/functionobjects.compile"
+        },
+        {
+            "Data": [
+                "49333a87d501b0aea2191830b66b5eec"
+            ],
+            "Info": {},
+            "Name": "nts.SingleSource/Benchmarks/Adobe-C++/functionobjects.hash"
+        },
+        {
+            "Data": [
+                2.2521
+            ],
+            "Info": {},
+            "Name": "nts.SingleSource/Benchmarks/Adobe-C++/functionobjects.exec"
+        },
+        {
+            "Data": [
+                0.1234
+            ],
+            "Info": {},
+            "Name": "nts.SingleSource/Benchmarks/Adobe-C++/functionobjects-link.compile"
+        },
+        {
+            "Data": [
+                12432.0
+            ],
+            "Info": {},
+            "Name": "nts.SingleSource/Benchmarks/Adobe-C++/functionobjects.code_size"
+        }
+    ]
+}

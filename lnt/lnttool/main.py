@@ -151,6 +151,18 @@ def action_checkformat(name, args):
     lnt.util.ImportData.print_report_result(result, sys.stdout, sys.stderr,
                                             verbose = True)
 
+
+def _print_result_url(results, verbose):
+    result_url = results.get('result_url')
+    if result_url is not None:
+        if verbose:
+            print "Results available at:", result_url
+        else:
+            print result_url
+    elif verbose:
+        print "Results available at: no URL available"
+
+
 def action_runtest(name, args):
     """run a builtin test application"""
 
@@ -193,10 +205,7 @@ def action_runtest(name, args):
         parser.error('invalid test name %r' % test_name)
 
     server_results = test_instance.run_test('%s %s' % (name, test_name), args)
-    if server_results.get('result_url'):
-        print "Results available at:", server_results['result_url']
-    else:
-        print "Results available at: no URL available"
+    _print_result_url(server_results, verbose=True)
 
 
 def action_showtests(name, args):
@@ -239,10 +248,12 @@ def action_submit(name, args):
     from lnt.util import ServerUtil
     files = ServerUtil.submitFiles(args[0], args[1:],
                                    opts.commit, opts.verbose)
-    if opts.verbose:
-        for f in files:
+    for f in files:
+        if opts.verbose:
             lnt.util.ImportData.print_report_result(f, sys.stdout,
                                                     sys.stderr, True)
+        _print_result_url(f, opts.verbose)
+
 
 def action_update(name, args):
     """create and or auto-update the given database"""

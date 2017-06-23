@@ -151,8 +151,9 @@
 # Check submission to a server through url works:
 # RUN: rsync -av --exclude .svn %S/Inputs/rerun_server_instance/ \
 # RUN:   %{test_exec_root}/runtest/nt_server_instance
-# RUN: %S/Inputs/runtest_server_wrapper.sh \
-# RUN:   %{test_exec_root}/runtest/nt_server_instance nt yes 9089 \
+# RUN: %{shared_inputs}/server_wrapper.sh \
+# RUN:   %{test_exec_root}/runtest/nt_server_instance 9089 \
+# RUN:   lnt runtest nt --submit "http://localhost:9089/db_default/submitRun" \
 # RUN:   --sandbox %t.SANDBOX \
 # RUN:   --test-suite %S/Inputs/rerun-test-suite1 \
 # RUN:   --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
@@ -179,8 +180,9 @@
 # Check submission to a server through server instance works:
 # RUN: rsync -av --exclude .svn %S/Inputs/rerun_server_instance/ \
 # RUN:   %{test_exec_root}/runtest/nt_server_instance
-# RUN: %S/Inputs/runtest_server_wrapper.sh \
-# RUN:   %{test_exec_root}/runtest/nt_server_instance nt no 9089 \
+# RUN: %{shared_inputs}/server_wrapper.sh \
+# RUN:   %{test_exec_root}/runtest/nt_server_instance 9089 \
+# RUN:   lnt runtest nt --submit "http://localhost:9089/db_default/submitRun" \
 # RUN:   --sandbox %t.SANDBOX \
 # RUN:   --test-suite %S/Inputs/rerun-test-suite1 \
 # RUN:   --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
