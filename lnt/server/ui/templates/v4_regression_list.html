@@ -51,6 +51,9 @@
 </table>
 
 <!-- Button to trigger modal -->
+<a role="button" onclick="toggle_checks()" class="btn">Toggle</a>
+
+<!-- Button to trigger modal -->
 <a href="#mergeRegressionModal" role="button" class="btn" data-toggle="modal">Merge</a>
  <!-- Button to trigger modal -->
 <a href="#delRegressionModal" role="button" class="btn" data-toggle="modal">Delete</a>
@@ -104,6 +107,16 @@ $(document).ready( function () {
     $('input[type=search]').attr('spellcheck', 'off');
 
 });
+
+/** Toggle the checkbox state of all the visible checkboxes.
+ *
+ */
+function toggle_checks() {
+     var checkBoxes = $('input:checkbox');
+     checkBoxes.prop("checked", !checkBoxes.prop("checked"));
+     checkBoxes.trigger('change');
+}
+
 
 </script>
 
