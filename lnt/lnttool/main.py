@@ -1,24 +1,27 @@
 """Implement the command line 'lnt' tool."""
-
+from convert import action_convert
+from create import action_create
+from import_data import action_import
+from import_report import action_importreport
+from lnt import testing
+from lnt.testing.util.commands import note, warning, error, fatal, LOGGER_NAME
+from optparse import OptionParser, OptionGroup
+from updatedb import action_updatedb
+from viewcomparison import action_view_comparison
+import StringIO
+import code
+import contextlib
+import json
+import lnt
+import lnt.testing.profile.profile as profile
+import lnt.util.ImportData
+import lnt.util.multitool
 import logging
 import os
 import sys
 import tempfile
-import json
-from optparse import OptionParser, OptionGroup
-import contextlib
-
 import werkzeug.contrib.profiler
 
-import StringIO
-import lnt
-import lnt.util.multitool
-import lnt.util.ImportData
-from lnt import testing
-from lnt.testing.util.commands import note, warning, error, fatal, LOGGER_NAME
-import lnt.testing.profile.profile as profile
-
-import code
 
 def action_runserver(name, args):
     """start a new development server"""
@@ -26,12 +29,12 @@ def action_runserver(name, args):
     parser = OptionParser("""\
 %s [options] <instance path>
 
-Start the LNT server using a development WSGI server. Additional options can be
-used to control the server host and port, as well as useful development features
-such as automatic reloading.
+Start the LNT server using a development WSGI server. Additional options can
+be used to control the server host and port, as well as useful development
+features such as automatic reloading.
 
-The command has built-in support for running the server on an instance which has
-been packed into a (compressed) tarball. The tarball will be automatically
+The command has built-in support for running the server on an instance which
+has been packed into a (compressed) tarball. The tarball will be automatically
 unpacked into a temporary directory and removed on exit. This is useful for
 passing database instances back and forth, when others only need to be able to
 view the results.\
@@ -49,8 +52,8 @@ view the results.\
                       help="file to dump profile info to [%default]",
                       default="profiler.log")
     parser.add_option("", "--profiler-dir", dest="profiler_dir",
-                      help="pstat.Stats files are saved to this directory " \
-                          +"[%default]",
+                      help="pstat.Stats files are saved to this directory " +
+                           "[%default]",
                       default=None)
     parser.add_option("", "--profiler", dest="profiler", default=False,
                       action="store_true", help="enable WSGI profiler")
@@ -61,8 +64,8 @@ view the results.\
     parser.add_option("", "--threaded", dest="threaded", default=False,
                       action="store_true", help="use a threaded server")
     parser.add_option("", "--processes", dest="processes", type=int,
-                      metavar="N", help="number of processes to use [%default]",
-                      default=1)
+                      metavar="N",
+                      help="number of processes to use [%default]", default=1)
 
     (opts, args) = parser.parse_args(args)
     if len(args) != 1:
@@ -99,8 +102,8 @@ view the results.\
             if not os.path.isdir(opts.profiler_dir):
                 os.mkdir(opts.profiler_dir)
         app.wsgi_app = werkzeug.contrib.profiler.ProfilerMiddleware(
-            app.wsgi_app, stream = open(opts.profiler_file, 'w'),
-            profile_dir = opts.profiler_dir)
+            app.wsgi_app, stream=open(opts.profiler_file, 'w'),
+            profile_dir=opts.profiler_dir)
     if opts.shell:
         from flask import current_app
         from flask import g
@@ -113,17 +116,11 @@ view the results.\
         shell.interact()
     else:
         app.run(opts.hostname, opts.port,
-            use_reloader = opts.reloader,
-            use_debugger = opts.debugger,
-            threaded = opts.threaded,
-            processes = opts.processes)
+                use_reloader=opts.reloader,
+                use_debugger=opts.debugger,
+                threaded=opts.threaded,
+                processes=opts.processes)
 
-from create import action_create
-from convert import action_convert
-from import_data import action_import
-from updatedb import action_updatedb
-from viewcomparison import action_view_comparison
-from import_report import action_importreport
 
 def action_checkformat(name, args):
     """check the format of an LNT test report file"""
@@ -146,10 +143,10 @@ def action_checkformat(name, args):
     import lnt.server.config
     db = lnt.server.db.v4db.V4DB('sqlite:///:memory:',
                                  lnt.server.config.Config.dummy_instance())
-    result = lnt.util.ImportData.import_and_report(
-        None, None, db, input, 'json', commit = True)
+    result = lnt.util.ImportData.import_and_report(None, None, db, input,
+                                                   'json', commit=True)
     lnt.util.ImportData.print_report_result(result, sys.stdout, sys.stderr,
-                                            verbose = True)
+                                            verbose=True)
 
 
 def _print_result_url(results, verbose):
@@ -187,8 +184,8 @@ def action_runtest(name, args):
                 args.insert(0, val)
             args.insert(0, "--" + key)
 
-            warning("--{} should be passed directly to the"
-                        " test suite.".format(key))
+            warning("--{} should be passed directly to the test suite."
+                    .format(key))
 
     logger = logging.getLogger(LOGGER_NAME)
     logger.setLevel(logging.INFO)
@@ -224,6 +221,7 @@ def action_showtests(name, args):
     for name in test_names:
         print '  %-*s - %s' % (max_name, name,
                                lnt.tests.get_test_description(name))
+
 
 def action_submit(name, args):
     """submit a test report to the server"""
@@ -307,7 +305,8 @@ def action_send_daily_report(name, args):
     parser.add_option("", "--from", dest="from_address", default=None,
                       help="from email address (required)")
     parser.add_option("", "--today", dest="today", action="store_true",
-                      help="send the report for today (instead of most recent)")
+                      help="send the report for today " +
+                           "(instead of most recent)")
     parser.add_option("", "--subject-prefix", dest="subject_prefix",
                       help="add a subject prefix")
     parser.add_option("-n", "--dry-run", dest="dry_run", default=False,
@@ -315,8 +314,8 @@ def action_send_daily_report(name, args):
                       " Used for testing.")
     parser.add_option("", "--days", dest="days", default=3, type="int",
                       help="Number of days to show in report.")
-    parser.add_option("", "--filter-machine-regex", dest="filter_machine_regex",
-                      default=None,
+    parser.add_option("", "--filter-machine-regex",
+                      dest="filter_machine_regex", default=None,
                       help="only show machines that contain the regex.")
 
     (opts, args) = parser.parse_args(args)
@@ -394,10 +393,9 @@ def action_send_run_comparison(name, args):
     import smtplib
 
     import lnt.server.reporting.dailyreport
-    
+
     parser = OptionParser("%s [options] <instance path> "
-                          "<run A ID> <run B ID>" % (
-            name,))
+                          "<run A ID> <run B ID>" % (name,))
     parser.add_option("", "--database", dest="database", default="default",
                       help="database to use [%default]")
     parser.add_option("", "--testsuite", dest="testsuite", default="nts",
@@ -481,8 +479,10 @@ def action_send_run_comparison(name, args):
                        msg.as_string())
             s.quit()
 
+
 def action_profile(name, args):
-    if len(args) < 1 or args[0] not in ('upgrade', 'getVersion', 'getTopLevelCounters',
+    if len(args) < 1 or args[0] not in ('upgrade', 'getVersion',
+                                        'getTopLevelCounters',
                                         'getFunctions', 'getCodeForFunction'):
         print >>sys.stderr, """lnt profile - available actions:
   upgrade        - Upgrade a profile to the latest version
@@ -515,7 +515,8 @@ def action_profile(name, args):
         opts, args = parser.parse_args(args)
         if len(args) < 2:
             parser.error('Expected 1 argument')
-        print json.dumps(profile.Profile.fromFile(args[1]).getTopLevelCounters())
+        counters = profile.Profile.fromFile(args[1]).getTopLevelCounters()
+        print json.dumps(counters)
         return
 
     if args[0] == 'getFunctions':
@@ -525,19 +526,20 @@ def action_profile(name, args):
             parser.error('Expected 1 argument')
         print json.dumps(profile.Profile.fromFile(args[1]).getFunctions())
         return
-    
+
     if args[0] == 'getCodeForFunction':
         parser = OptionParser("lnt profile getTopLevelCounters <input> <fn>")
         opts, args = parser.parse_args(args)
         if len(args) < 3:
             parser.error('Expected 2 arguments')
-        print json.dumps(
-            list(profile.Profile.fromFile(args[1]).getCodeForFunction(args[2])))
+        code = profile.Profile.fromFile(args[1]).getCodeForFunction(args[2])
+        print json.dumps(list(code))
         return
 
     assert False
 
 ###
+
 
 def _version_check():
     """
@@ -556,13 +558,14 @@ def _version_check():
                                      installed_dist.version)
     current_dist_name = "LNT %s" % (lnt.__version__,)
     if pkg_resources.parse_version(installed_dist_name) != \
-         pkg_resources.parse_version(current_dist_name):
+       pkg_resources.parse_version(current_dist_name):
         raise SystemExit("""\
 error: installed distribution %s is not current (%s), you may need to reinstall
 LNT or rerun 'setup.py develop' if using development mode.""" % (
                 installed_dist_name, current_dist_name))
 
 tool = lnt.util.multitool.MultiTool(locals(), "LNT %s" % (lnt.__version__,))
+
 
 def main(*args, **kwargs):
     _version_check()
