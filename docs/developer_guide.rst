@@ -54,14 +54,6 @@ on at least sqlite and postgres database engines.  By default the regression
 tests uses sqlite. To run the regression tests against a postgress database,
 use a command like the following::
 
-     PATH=$LLVMBUILD/bin:$PATH llvm-lit -sv -Dpostgres='postgresql://lnt:lnt@127.0.0.1' ../lnt/tests
-
-The argument to -Dpostgres needs to be a postgres URI for a postgres role
-that is allowed to create databases. One example to set up such a user is::
-
-     sudo -u postgres psql
-     CREATE USER lnt_test PASSWORD 'lnt_test';
-     CREATE DATABASE lnt_test OWNER = lnt_test;
-     ALTER USER lnt_test CREATEDB;
+     PATH=$LLVMBUILD/bin:$PATH llvm-lit -sv -Dpostgres=1 ../lnt/tests
 
 You'll need to use at least postgres version 9.2 to run the regression tests.
