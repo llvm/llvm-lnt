@@ -148,6 +148,10 @@ def update_schema(engine, session, versions, available_migrations, schema_name):
         execfile(upgrade_script, globals)
         upgrade_method = globals['upgrade']
 
+        # Make sure we don't have any transactions lingering when executing
+        # the upgrade script.
+        session.close_all()
+
         # Execute the upgrade.
         #
         # FIXME: Backup the database here.
