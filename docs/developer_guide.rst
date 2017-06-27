@@ -33,9 +33,10 @@ sub-projects.
 The LNT regression tests make use of lit and other tools like FileCheck. At
 the moment, probably the easiest way to get them installed is to compile LLVM
 and use the binaries that are generated there. Assuming you've build LLVM
-into $LLVMBUILD, you can run the regression tests using the following command::
+into $LLVMBUILD, and installed lnt in $LNTINSTALL you can run the regression
+tests using the following command::
 
-     PATH=$LLVMBUILD/bin:$PATH llvm-lit -sv ./tests
+     PATH=$LLVMBUILD/bin:$LNTINSTALL/bin:$PATH llvm-lit -sv ./tests
 
 If you don't like temporary files being created in your LNT source directory,
 you can run the tests in a different directory too::
