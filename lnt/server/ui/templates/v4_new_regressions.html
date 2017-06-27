@@ -124,13 +124,13 @@ function show_tooltip(x, y, item, pos, graph_data) {
     var tip_body = '<div id="tooltip">';
 
     if ("test_name" in meta_data) {
-        tip_body += "<b>Test:</b> " + meta_data.test_name + "<br>";
+        tip_body += "<b>Test:</b> " + meta_data.test_name + "<br/>";
     }
 
     if ("label" in meta_data) {
-        tip_body += "<b>Revision:</b> " + meta_data.label + "<br>";
+        tip_body += "<b>Revision:</b> " + meta_data.label + "<br/>";
     }
-    tip_body += "<b>Value:</b> " + data[1].toFixed(4) + "<br>";
+    tip_body += "<b>Value:</b> " + data[1].toFixed(4) + "<br/>";
 
     if ("date" in meta_data) {
         tip_body += "<b>Date:</b> " + meta_data.date;
@@ -195,9 +195,9 @@ function update_tooltip(event, pos, item, show_fn, graph_data) {
 <div id="graph" style="height:250px"></div>
 <div id="zoombar" style="width:40px;z-index: 999;">
     <button id="in" type="button" class="btn btn-default" style="width:100%;text-align:center;">+</button>
-    <br>
+    <br/>
     <button id="out" type="button" class="btn btn-default" style="width:100%; text-align:center;">-</button>
-    <br>
+    <br/>
     <button id="normalize" type="button" class="btn btn-default" style="width:100%; text-align:center;">%</button>
 </div>
 
@@ -215,7 +215,7 @@ function update_tooltip(event, pos, item, show_fn, graph_data) {
     <th>Test</th>
     <th>Good, Bad</th>
     <th>Old</th><th>New</th>
-    <th>%&Delta;</th>
+    <th>Δ</th>
     <th>Now</th>
     <th>Curernt</th>
     <th>Age</th>

@@ -191,7 +191,7 @@ $('.profile-prev-only').tooltip();
         {% if '\n' in value %}
           <td>
           {% for ln in value.split('\n') %}
-            {{ ln }}<br>
+            {{ ln }}<br/>
           {% endfor %}
           </td>
         {% else %}
@@ -209,67 +209,67 @@ $('.profile-prev-only').tooltip();
     <table class="table table-striped table-condensed table-hover">
     <tr>
       <td>Show Delta</td>
-      <td><input type="checkbox" name="show_delta" value="yes" {{ "checked" if options.show_delta else "" }}></td>
+      <td><input type="checkbox" name="show_delta" value="yes" {{ "checked" if options.show_delta else "" }}/></td>
     </tr>
     <tr>
       <td>Show Previous Value:</td>
-      <td><input type="checkbox" name="show_previous" value="yes" {{ "checked" if options.show_previous else "" }}></td>
+      <td><input type="checkbox" name="show_previous" value="yes" {{ "checked" if options.show_previous else "" }}/></td>
     </tr>
     <tr>
       <td>Show Standard Deviation:</td>
-      <td><input type="checkbox" name="show_stddev" value="yes" {{ "checked" if options.show_stddev else "" }}></td>
+      <td><input type="checkbox" name="show_stddev" value="yes" {{ "checked" if options.show_stddev else "" }}/></td>
     </tr>
     <tr>
       <td>Show Median Absolute Deviation:</td>
-      <td><input type="checkbox" name="show_mad" value="yes" {{ "checked" if options.show_mad else "" }}></td>
+      <td><input type="checkbox" name="show_mad" value="yes" {{ "checked" if options.show_mad else "" }}/></td>
     </tr>
     <tr>
       <td>Show All Values:</td>
-      <td><input type="checkbox" name="show_all" value="yes" {{ "checked" if options.show_all else "" }}></td>
+      <td><input type="checkbox" name="show_all" value="yes" {{ "checked" if options.show_all else "" }}/></td>
     </tr>
     <tr>
       <td>Show All Samples:</td>
-      <td><input type="checkbox" name="show_all_samples" value="yes" {{ "checked" if options.show_all_samples else "" }}></td>
+      <td><input type="checkbox" name="show_all_samples" value="yes" {{ "checked" if options.show_all_samples else "" }}/></td>
     </tr>
     <tr>
       <td>Show Sample Counts:</td>
-      <td><input type="checkbox" name="show_sample_counts" value="yes" {{ "checked" if options.show_sample_counts else "" }}></td>
+      <td><input type="checkbox" name="show_sample_counts" value="yes" {{ "checked" if options.show_sample_counts else "" }}/></td>
     </tr>
     <tr>
       <td>Show Small Differences:</td>
-      <td><input type="checkbox" name="show_small_diff" value="yes" {{ "checked" if options.show_small_diff else "" }}></td>
+      <td><input type="checkbox" name="show_small_diff" value="yes" {{ "checked" if options.show_small_diff else "" }}/></td>
     </tr>
     <tr>
       <td>Number of Comparison Runs:</td>
-      <td><input type="text" name="num_comparison_runs" value="{{ options.num_comparison_runs }}"></td>
+      <td><input type="text" name="num_comparison_runs" value="{{ options.num_comparison_runs }}"/></td>
     </tr>
     <tr>
       <td>Show Report Graphs:</td>
-      <td><input type="checkbox" name="show_graphs" value="yes" {{ "checked" if options.show_graphs else "" }}></td>
+      <td><input type="checkbox" name="show_graphs" value="yes" {{ "checked" if options.show_graphs else "" }}/></td>
     </tr>
     <tr>
       <td>Show Data Table:</td>
-      <td><input type="checkbox" name="show_data_table" value="yes" {{ "checked" if options.show_data_table else ""}}></td>
+      <td><input type="checkbox" name="show_data_table" value="yes" {{ "checked" if options.show_data_table else ""}}/></td>
     </tr>
     <tr>
       <td>Hide Report By Default:</td>
-      <td><input type="checkbox" name="hide_report_by_default" value="yes" {{ "checked" if options.hide_report_by_default else ""}}></td>
+      <td><input type="checkbox" name="hide_report_by_default" value="yes" {{ "checked" if options.hide_report_by_default else ""}}/></td>
     </tr>
     <tr>
       <td>Test Filter (regexp):</td>
-      <td><input type="text" name="test_filter" value="{{ options.test_filter }}"></td>
+      <td><input type="text" name="test_filter" value="{{ options.test_filter }}"/></td>
     </tr>
     <tr>
       <td>Test Min. Value Filter:</td>
-      <td><input type="text" name="test_min_value_filter" value="{{ options.test_min_value_filter }}"></td>
+      <td><input type="text" name="test_min_value_filter" value="{{ options.test_min_value_filter }}"/></td>
     </tr>
     <tr>
       <td>Aggregation Function</td>
       <td>
         <select name="aggregation_fn">
-        <option value="min" {{ " selected" if "min" == options.aggregation_fn else ""}}>
+        <option value="min" {{ ('selected="selected"' if "min" == options.aggregation_fn else '')|safe}}>
           Minimum</option>
-        <option value="median" {{ " selected" if "median" == options.aggregation_fn else ""}}>
+        <option value="median" {{ ('selected="selected"' if "median" == options.aggregation_fn else '')|safe}}>
           Median</option>
         </select>
       </td>
@@ -278,11 +278,11 @@ $('.profile-prev-only').tooltip();
       <td>Mann-Whitney test confidence level:</td>
       <td>
         <select name="MW_confidence_lv">
-          <option value="0.10" {{ "selected" if options.MW_confidence_lv == 0.10 else ""}}>
+          <option value="0.10" {{ ('selected="selected"' if options.MW_confidence_lv == 0.10 else '')|safe}}>
             10%</option>
-          <option value="0.05" {{ "selected" if options.MW_confidence_lv == 0.05 else ""}}>
+          <option value="0.05" {{ ('selected="selected"' if options.MW_confidence_lv == 0.05 else '')|safe}}>
             5%</option>
-          <option value="0.01" {{ "selected" if options.MW_confidence_lv == 0.01 else ""}}>
+          <option value="0.01" {{ ('selected="selected"' if options.MW_confidence_lv == 0.01 else '')|safe}}>
             1%</option>
         </select>
       </td>
@@ -290,13 +290,13 @@ $('.profile-prev-only').tooltip();
     <tr>
       <td colspan="2">
         {% if compare_to %}
-          <input type="hidden" name="compare_to" value="{{compare_to.id}}">
+          <input type="hidden" name="compare_to" value="{{compare_to.id}}"/>
         {% endif %}
         {% if baseline %}
-          <input type="hidden" name="baseline" value="{{baseline.id}}">
+          <input type="hidden" name="baseline" value="{{baseline.id}}"/>
         {% endif %}
 
-        <input type="submit" name="submit" value="Update">
+        <input type="submit" name="submit" value="Update"/>
       </td>
     </tr>
     </table>
@@ -338,13 +338,13 @@ $('.profile-prev-only').tooltip();
       <table class="table table-striped table-hover table-condensed floating_header datatable">
         <thead>
           <tr>
-            <th rowspan="1" class="sorttable_nosort"><input type="checkbox" id="select-all-{{ field.name }}" onClick="selectAll(this)"></th>
+            <th rowspan="1" class="sorttable_nosort"><input type="checkbox" id="select-all-{{ field.name }}" onClick="selectAll(this)"/></th>
             <th rowspan="1">Name</th>
             {% if options.show_previous %}<th>Prev</th>{% endif %}
             <th>Current</th>
             <th>%</th>
-            {% if options.show_delta %}<th>&Delta;</th>{% endif %}
-            {% if options.show_stddev %}<th>&sigma;</th>{% endif %}
+            {% if options.show_delta %}<th>Δ</th>{% endif %}
+            {% if options.show_stddev %}<th>σ</th>{% endif %}
             {% if options.show_mad %}<th>MAD</th>{% endif %}
             {% if options.show_all_samples %}<th>Samples</th>{% endif %}
             {% if options.show_sample_counts %}<th>N</th>{% endif %}
@@ -353,7 +353,7 @@ $('.profile-prev-only').tooltip();
         <tbody class="searchable">
           {% for test_name,test_id,cr in tests %}
             <tr>
-              <td><input type="checkbox" name="plot.{{test_id}}" value="{{machine.id}}.{{test_id}}.{{field.index}}"></td>
+              <td><input type="checkbox" name="plot.{{test_id}}" value="{{machine.id}}.{{test_id}}.{{field.index}}"/></td>
               <td class="benchmark-name">
                 <a href="{{graph_base}}&amp;plot.{{test_id}}={{ machine.id}}.{{test_id}}.{{field.index}}">
                   {{ test_name }}
@@ -368,7 +368,7 @@ $('.profile-prev-only').tooltip();
           <tr>
             {% set cr = request_info.sri.get_geomean_comparison_result(
                         run, compare_to, field, tests) %}
-            <td><input type="checkbox" name="mean" value="{{machine.id}}.{{field.index}}"></td>
+            <td><input type="checkbox" name="mean" value="{{machine.id}}.{{field.index}}"/></td>
             <td><a href="{{graph_base}}&amp;mean={{machine.id}}.{{field.index}}">Geometric Mean</a></td>
             {{ get_cell_value(cr) }}
           </tr>
@@ -380,7 +380,10 @@ $('.profile-prev-only').tooltip();
         {% endif %}
       </section>
     {% endfor %}
-    <p><input id="graph_button" type="submit" value="Graph"> <input id="matrix_button" type="submit" value="Matrix">
+    <p>
+      <input id="graph_button" type="submit" value="Graph"/>
+      <input id="matrix_button" type="submit" value="Matrix"/>
+    </p>
   </form>
   </section>
 
@@ -430,9 +433,6 @@ $("#graph_button").on("click", function(e){
     {% set graph_base=v4_url_for('v4_graph') %}
     $('#graph_selection_form').attr('action', "{{ graph_base }}").submit();
 });
-
-
-</script>
 
 
 </script>

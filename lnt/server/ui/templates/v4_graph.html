@@ -159,53 +159,52 @@ function init_page() {
               <tr>
                 <td>Mean() as Aggregation</td>
                 <td><input type="checkbox" name="switch_min_mean" value="yes"
-                    {{ 'checked' if options.switch_min_mean else ""}}></td>
+                    {{ 'checked' if options.switch_min_mean else ""}}/></td>
               </tr>
               <tr>
                 <td>Hide Line Plot:</td>
                 <td><input type="checkbox" name="hide_lineplot" value="yes"
-                     {{ 'checked' if options.hide_lineplot else ""}}></td>
+                     {{ 'checked' if options.hide_lineplot else ""}}/></td>
               </tr>
               <tr>
                 <td>Show Median Absolute Deviation:</td>
                 <td><input type="checkbox" name="show_mad" value="yes"
-                     {{ 'checked' if options.show_mad else ""}}></td>
+                     {{ 'checked' if options.show_mad else ""}}/></td>
               </tr>
               <tr>
                 <td>Show Standard Deviation:</td>
                 <td><input type="checkbox" name="show_stddev" value="yes"
-                     {{ 'checked' if options.show_stddev else ""}}></td>
+                     {{ 'checked' if options.show_stddev else ""}}/></td>
               </tr>
               <tr>
                 <td>Show Linear Regression:</td>
                 <td><input type="checkbox" name="show_linear_regression" value="yes"
-                     {{ 'checked' if options.show_linear_regression else ""}}></td>
+                     {{ 'checked' if options.show_linear_regression else ""}}/></td>
               </tr>
               <tr>
                 <td>Show Points For Failures:</td>
                 <td><input type="checkbox" name="show_failures" value="yes"
-                     {{ 'checked' if options.show_failures else ""}}></td>
+                     {{ 'checked' if options.show_failures else ""}}/></td>
               </tr>
-              <tr>
               <tr>
                 <td>Hide Sample Points:</td>
                 <td><input type="checkbox" name="hide_all_points" value="yes"
-                     {{ 'checked' if options.hide_all_points else ""}}></td>
+                     {{ 'checked' if options.hide_all_points else ""}}/></td>
               </tr>
               <tr>
                 <td>Normalize By Median:</td>
                 <td><input type="checkbox" name="normalize_by_median" value="yes"
-                     {{ 'checked' if options.normalize_by_median else ""}}></td>
+                     {{ 'checked' if options.normalize_by_median else ""}}/></td>
               </tr>
               <tr>
                 <td>Show Moving Average</td>
                 <td><input type="checkbox" name="show_moving_average" value="yes"
-                     {{ 'checked' if options.show_moving_average else ""}}></td>
+                     {{ 'checked' if options.show_moving_average else ""}}/></td>
               </tr>
               <tr>
                 <td>Show Moving Median</td>
                 <td><input type="checkbox" name="show_moving_median" value="yes"
-                     {{ 'checked' if options.show_moving_median else ""}}></td>
+                     {{ 'checked' if options.show_moving_median else ""}}/></td>
               </tr>
               <tr>
                 <td>Moving Average/Median Window Size</td>
@@ -218,7 +217,7 @@ function init_page() {
               <tr>
                 <td>Hide Revision Comparison Region Highlight</td>
                 <td><input type="checkbox" name="hide_highlight" value="yes"
-                     {{ 'checked' if options.hide_highlight else ""}}></td>
+                     {{ 'checked' if options.hide_highlight else ""}}/></td>
               </tr>
             </tbody>
           </table>
@@ -226,13 +225,13 @@ function init_page() {
           {# Add all the hidden fields. #}
           {% for name,value in request.args.items() %}
           {% if name.startswith('plot.') %}
-          <input type="hidden" name="{{name}}" value="{{value}}">
+          <input type="hidden" name="{{name}}" value="{{value}}"/>
           {% endif %}
           {% if name.startswith('baseline.') %}
-          <input type="hidden" name="{{name}}" value="{{value}}">
+          <input type="hidden" name="{{name}}" value="{{value}}"/>
           {% endif %}
           {% if name == 'mean' %}
-          <input type="hidden" name="{{name}}" value="{{value}}">
+          <input type="hidden" name="{{name}}" value="{{value}}"/>
           {% endif %}
           {% endfor %}
 
@@ -250,7 +249,7 @@ function init_page() {
                 <div id="graph" style="height:500px"></div>
                 <div id="zoombar" style="width:40px;">
                     <button id="in" type="button" class="btn btn-default" style="width:100%;text-align:center;">+</button>
-                    <br>
+                    <br/>
                     <button id="out" type="button" class="btn btn-default" style="width:100%; text-align:center;">-</button>
                 </div>
                 <div id="yaxis">Metric</div>
@@ -263,7 +262,7 @@ function init_page() {
         <td colspan="2">
             <div id="overview" style="height:80px;margin-top:20px;margin-left:20px"></div>
         </td>
-    </td>
+    </tr>
 
 </table>
 

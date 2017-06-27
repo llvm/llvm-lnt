@@ -27,13 +27,13 @@
          {% endfor %}
          </tbody>
        {% else %}
-         <th style="{{ styles['th'] }}">&Delta; {{ metric_field_suffix }}</th>
+         <th style="{{ styles['th'] }}">Δ {{ metric_field_suffix }}</th>
          <th style="{{ styles['th'] }}">{{ metric_name }}</th>
          <th style="{{ styles['th'] }}">Current</th>
-         <th style="{{ styles['th'] }}">&sigma; {{ metric_field_suffix }}</th>
+         <th style="{{ styles['th'] }}">σ {{ metric_field_suffix }}</th>
          {% if secondary_info %}
-         <th style="{{ styles['th'] }}">&Delta; {{ secondary_field_suffix }}</th>
-         <th style="{{ styles['th'] }}">&sigma; {{ secondary_field_suffix }}</th>
+         <th style="{{ styles['th'] }}">Δ {{ secondary_field_suffix }}</th>
+         <th style="{{ styles['th'] }}">σ {{ secondary_field_suffix }}</th>
          {% endif %}
          </tr>
          </thead>
@@ -64,6 +64,7 @@
          </tbody>
        {% endif %}
      </table>
+   </p>
 {% endif %}
 {% endmacro %}
 
@@ -113,6 +114,7 @@
   {% endfor %}
  </tbody>
 </table>
+</p>
 
 {% if compare_to and run.machine != compare_to.machine %}
 <p><b>
@@ -125,7 +127,7 @@
 </b></p>
 {% endif %}
 
-<hr>
+<hr/>
 <h3>Tests Summary</h3>
 <table style="{{ styles['table'] }}" class="{{ classes['table'] }}">
   <thead>
@@ -173,7 +175,7 @@
                                                    'Previous', '', ' (B)', run_to_baseline_info, styles, classes)
   }}
 {% endfor %}
-<p>
+</p>
 {% if baseline %}
 <h3>Run-Over-Baseline Changes Detail</h3>
 {% for _, field, bucket_name, sorted_bucket, test_names, show_perf in prioritized_buckets_run_over_baseline %}

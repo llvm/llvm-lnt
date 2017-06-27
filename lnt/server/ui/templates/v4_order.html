@@ -19,17 +19,17 @@
     {% else %}
       <li class="previous disabled"><a href="#">
     {% endif %}
-    &larr; Previous</a></li>
+    ← Previous</a></li>
 
     {% if order.next_order_id is not none %}
       <li class="next" ><a href="{{v4_url_for('v4_order', id=order.next_order_id)}}">
     {% else %}
       <li class="next disabled"><a href="#">
     {% endif %}
-    Next &rarr;</a></li>
+    Next →</a></li>
   </ul>
 
-  <section id="fields" />
+  <section id="fields">
   <h3>Order Fields</h3>
   <table class="table table-striped table-hover table-condensed">
     <thead>
@@ -78,41 +78,43 @@
      {%  endif %}
     </tbody>
   </table>
+  </section>
 
   <section id="baseline">
   <div class="accordion" id="accordion">
-  <div class="accordion-group">
-    <div class="accordion-heading">
-      <a class="accordion-toggle" data-toggle="collapse" data-parent="#accordion" href="#collapseOne">
-         {% if form.name.data %}
-             Baseline - {{ form.name.data }}
-          {% else %}
-             Configure as a baseline
+    <div class="accordion-group">
+      <div class="accordion-heading">
+        <a class="accordion-toggle" data-toggle="collapse" data-parent="#accordion" href="#collapseOne">
+           {% if form.name.data %}
+               Baseline - {{ form.name.data }}
+            {% else %}
+               Configure as a baseline
+            {% endif %}
+        </a>
+      </div>
+      <div id="collapseOne" class="accordion-body collapse">
+        <div class="accordion-inner">
+          <form method="POST" action="">
+            <div class="form-group">
+         {{ form.hidden_tag() }}
+            {{ utils.render_field(form.name) }}
+            {{ utils.render_field(form.description) }}
+           {% if form.name.data %}
+                {{ form.update }}
+                {{ form.demote }}
+                {% else %}
+                {{ form.promote }}
           {% endif %}
-      </a>
-    </div>
-    <div id="collapseOne" class="accordion-body collapse">
-      <div class="accordion-inner">
-              <form method="POST" action="">
-          <div class="form-group">
-       {{ form.hidden_tag() }}
-          {{ utils.render_field(form.name) }}
-          {{ utils.render_field(form.description) }}
-         {% if form.name.data %}
-              {{ form.update }}
-              {{ form.demote }}
-              {% else %}
-              {{ form.promote }}
-        {% endif %}
-          </div>
-      </form>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   </div>
 
   </section>
 
-  <section id="submissions" />
+  <section id="submissions">
   {# List all submissions which reported for this order. #}
   <h3>Submissions</h3>
   <b>Num. Submissions:</b> {{ts.query(ts.Run).filter_by(order_id = order.id).count()}}
@@ -137,4 +139,5 @@
       {% endfor %}
     </tbody>
   </table>
+  </section>
 {% endblock %}

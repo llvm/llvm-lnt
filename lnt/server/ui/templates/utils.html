@@ -107,9 +107,9 @@ $(document).ready(function() {
 
 {% macro render_field(field) %}
     {%  if field.errors %}
-        <div class="control-group error">
+    <div class="control-group error">
     {% else %}
-        <div>
+    <div>
     {% endif %}
 
     <dt>
@@ -118,7 +118,7 @@ $(document).ready(function() {
         </div>
     </dt>
     <div class="controls">
-        <dd>{{ field(**kwargs)|safe }}
+      <dd>{{ field(**kwargs)|safe }}</dd>
     </div>
     <ul class="help-inline">
     {% for error in field.errors %}
@@ -127,5 +127,4 @@ $(document).ready(function() {
     </ul>
 
     </div>
-    </dd>
 {% endmacro %}

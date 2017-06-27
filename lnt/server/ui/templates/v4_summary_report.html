@@ -115,7 +115,7 @@ g.current_tip_point = null;
 function show_tooltip(x, y, item, pos) {
     var data = item.datapoint;
     var tip_body = '<div id="tooltip">';
-    tip_body += "<b><u>" + item.series.label + "</u></b><br>";
+    tip_body += "<b><u>" + item.series.label + "</u></b><br/>";
     tip_body += "<b>" + g.tick_list[data[0]][1].toString() + "</b>: ";
     tip_body += data[1].toFixed(2) + "%" + "</div>";
 
@@ -133,7 +133,7 @@ function show_tooltip(x, y, item, pos) {
 
 function show_pie_tooltip(x, y, item, pos) {
     var tip_body = '<div id="tooltip">';
-    tip_body += "<b><u>" + item.series.label + "</u></b><br>";
+    tip_body += "<b><u>" + item.series.label + "</u></b><br/>";
     tip_body += item.series.percent.toFixed(2) + "%" + "</div>";
 
     $(tip_body).css( {

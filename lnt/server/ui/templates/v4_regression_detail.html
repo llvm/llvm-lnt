@@ -57,9 +57,9 @@ var changes = [
     <div id="graph" style="height:250px"></div>
     <div id="zoombar" style="width:40px;z-index: 999;">
         <button id="in" type="button" class="btn btn-default" style="width:100%;text-align:center;">+</button>
-        <br>
+        <br/>
         <button id="out" type="button" class="btn btn-default" style="width:100%; text-align:center;">-</button>
-        <br>
+        <br/>
         <button id="normalize" type="button" class="btn btn-default" style="width:100%; text-align:center;">%</button>
     </div>
     <div id="yaxis">Metric</div>
@@ -80,13 +80,13 @@ var changes = [
   <thead>
   <tr>
     <th></th>
-    <th>&Delta; ID</th>
+    <th>Δ ID</th>
     <th>Machine</th>
     <th>Metric</th>
     <th>Test</th>
     <th>Good, Bad</th>
     <th>Old</th><th>New</th>
-    <th>%&Delta;</th>
+    <th>%Δ</th>
     <th>Now</th>
     <th>Current</th>
     <th>Age</th>
@@ -251,37 +251,37 @@ function update_order_summary() {
     
     // Now print all these things.
     var SIDE_BAR = '#side-bar'
-    $(SIDE_BAR).append("<h3>Summary</h3></br>")
+    $(SIDE_BAR).append("<h3>Summary</h3><br/>")
     
     $(SIDE_BAR).append("<h4>Found</h4>");
     var change = " changes.";
     if (start_orders.length == 1) {
             change = " change."
     }
-    $(SIDE_BAR).append(start_orders.length + change + "</br>");
+    $(SIDE_BAR).append(start_orders.length + change + "<br/>");
 
     $(SIDE_BAR).append($.format.prettyDate(new Date(min_time).toISOString()));
-    $(SIDE_BAR).append(".</br>");
+    $(SIDE_BAR).append(".<br/>");
     
     $(SIDE_BAR).append(new Date(min_time).toLocaleString());
-    $(SIDE_BAR).append(".</br>");
+    $(SIDE_BAR).append(".<br/>");
     $(SIDE_BAR).append("<h4>Orders</h4>");
     
-    $(SIDE_BAR).append("<b>Union (" + (max_order - min_order) + " commits):</b></br>");
-    $(SIDE_BAR).append("<b>Min Order:</b> " + min_order + "</br>");
-    $(SIDE_BAR).append("<b>Max Order:</b> " + max_order + "</br></br>");
+    $(SIDE_BAR).append("<b>Union (" + (max_order - min_order) + " commits):</b><br/>");
+    $(SIDE_BAR).append("<b>Min Order:</b> " + min_order + "<br/>");
+    $(SIDE_BAR).append("<b>Max Order:</b> " + max_order + "<br/><br/>");
     
     var intersection_size = min_order_end - max_order_start;
     if (intersection_size > 0) {
-        $(SIDE_BAR).append("<b>Intersection ("+ intersection_size +"): </b></br>");
-        $(SIDE_BAR).append("<b>Min Order:</b> " + max_order_start + "</br>");
-        $(SIDE_BAR).append("<b>Max Order:</b> " + min_order_end + "</br></br>");
+        $(SIDE_BAR).append("<b>Intersection ("+ intersection_size +"): </b><br/>");
+        $(SIDE_BAR).append("<b>Min Order:</b> " + max_order_start + "<br/>");
+        $(SIDE_BAR).append("<b>Max Order:</b> " + min_order_end + "<br/><br/>");
     } else {
-        $(SIDE_BAR).append("<b>No intersection</b></br>");
+        $(SIDE_BAR).append("<b>No intersection</b><br/>");
     }
 
-     $(SIDE_BAR).append("<br><b><a href=\"?limit=1000\">More data</a></b></br>");
-     $(SIDE_BAR).append("<b><a href=\"?limit=0\">All data</a></b></br>");
+     $(SIDE_BAR).append("<br/><b><a href=\"?limit=1000\">More data</a></b><br/>");
+     $(SIDE_BAR).append("<b><a href=\"?limit=0\">All data</a></b><br/>");
 }
 var dt = null;
 
