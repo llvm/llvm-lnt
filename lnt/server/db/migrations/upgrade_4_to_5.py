@@ -27,21 +27,19 @@ def upgrade(engine):
     session.add(ts)
 
     session.commit()
+    session.close()
+
     # upgrade_3_to_4.py added this column, so it is not in the ORM.
-    session.connection().execute("""
+    with engine.begin() as trans:
+        trans.execute("""
 UPDATE "TestSuiteSampleFields"
 SET bigger_is_better=1
 WHERE "Name"='score'
-                                 """)
-    session.commit()
-
-    # FIXME: This is obviously not the right way to do this, but I gave up
-    # trying to find out how to do it properly in SQLAlchemy without
-    # SQLAlchemy-migrate installed.
-    session.connection().execute("""
+""")
+        # FIXME: This is obviously not the right way to do this, but I gave up
+        # trying to find out how to do it properly in SQLAlchemy without
+        # SQLAlchemy-migrate installed.
+        trans.execute("""
 ALTER TABLE "NT_Sample"
 ADD COLUMN "score" FLOAT
 """)
-    session.commit()
-
-    

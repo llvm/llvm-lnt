@@ -36,33 +36,23 @@ def add_baselines(test_suite):
     return base
 
 
-def upgrade_testsuite(engine, session, name):
+def upgrade_testsuite(engine, name):
     # Grab Test Suite.
+    session = sqlalchemy.orm.sessionmaker(engine)()
     test_suite = session.query(upgrade_0_to_1.TestSuite). \
         filter_by(name=name).first()
     assert (test_suite is not None)
 
     # Add FieldChange to the test suite.
     base = add_baselines(test_suite)
-
-    # Create tables. We commit now since databases like Postgres run
-    # into deadlocking issues due to previous queries that we have run
-    # during the upgrade process. The commit closes all of the
-    # relevant transactions allowing us to then perform our upgrade.
-    session.commit()
     base.metadata.create_all(engine)
     # Commit changes (also closing all relevant transactions with
     # respect to Postgres like databases).
     session.commit()
-
-
-
+    session.close()
 
 
 def upgrade(engine):
-    # Create a session.
-    session = sqlalchemy.orm.sessionmaker(engine)()
-
     # Create our FieldChangeField table and commit.
-    upgrade_testsuite(engine, session, 'nts')
-    upgrade_testsuite(engine, session, 'compile')
+    upgrade_testsuite(engine, 'nts')
+    upgrade_testsuite(engine, 'compile')

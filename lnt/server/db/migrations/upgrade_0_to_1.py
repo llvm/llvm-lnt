@@ -319,3 +319,4 @@ def upgrade(engine):
     # Materialize the test suite tables.
     initialize_testsuite(engine, session, "nts")
     initialize_testsuite(engine, session, "compile")
+    session.close()

@@ -22,18 +22,17 @@ def upgrade(engine):
                                            info_key=".code_size",)
     ts.sample_fields.append(code_size)
     session.add(ts)
-
     session.commit()
+    session.close()
+
     # upgrade_3_to_4.py added this column, so it is not in the ORM.
-    session.connection().execute("""
+    with engine.begin() as trans:
+        trans.execute("""
 UPDATE "TestSuiteSampleFields"
 SET bigger_is_better=0
 WHERE "Name"='code_size'
-                                 """)
-    session.commit()
-
-    session.connection().execute("""
+""")
+        trans.execute("""
 ALTER TABLE "NT_Sample"
 ADD COLUMN "code_size" FLOAT
 """)
-    session.commit()

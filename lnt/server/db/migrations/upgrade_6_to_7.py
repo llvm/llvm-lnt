@@ -39,16 +39,17 @@ def upgrade(engine):
     ts.sample_fields.append(hash_field)
     session.add(ts)
     session.commit()
+    session.close()
 
-    session.connection().execute("""
+    with engine.begin() as trans:
+        trans.execute("""
 ALTER TABLE "NT_Sample"
 ADD COLUMN "hash_status" INTEGER
 """)
-    # For MD5 hashes, 32 characters is enough to store the full has.
-    # Assume that for hashing schemes producing longer hashes, storing
-    # just the first 32 characters is good enough for our use case.
-    session.connection().execute("""
-ALTER TABLE "NT_Sample"
-ADD COLUMN "hash" VARCHAR(32)
-""")
-    session.commit()
+        # For MD5 hashes, 32 characters is enough to store the full has.
+        # Assume that for hashing schemes producing longer hashes, storing
+        # just the first 32 characters is good enough for our use case.
+        trans.execute("""
+    ALTER TABLE "NT_Sample"
+    ADD COLUMN "hash" VARCHAR(32)
+    """)

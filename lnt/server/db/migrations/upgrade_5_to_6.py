@@ -26,23 +26,21 @@ def upgrade(engine):
                                            info_key=".mem",)
     ts.sample_fields.append(mem_bytes)
     session.add(ts)
-
     session.commit()
+    session.close()
+
     # upgrade_3_to_4.py added this column, so it is not in the ORM.
-    session.connection().execute("""
+    with engine.begin() as trans:
+        trans.execute("""
 UPDATE "TestSuiteSampleFields"
 SET bigger_is_better=0
 WHERE "Name"='mem_bytes'
-                                 """)
-    session.commit()
+""")
 
-    # FIXME: This is obviously not the right way to do this, but I gave up
-    # trying to find out how to do it properly in SQLAlchemy without
-    # SQLAlchemy-migrate installed.
-    session.connection().execute("""
+        # FIXME: This is obviously not the right way to do this, but I gave up
+        # trying to find out how to do it properly in SQLAlchemy without
+        # SQLAlchemy-migrate installed.
+        trans.execute("""
 ALTER TABLE "NT_Sample"
 ADD COLUMN "mem_bytes" FLOAT
 """)
-    session.commit()
-
-

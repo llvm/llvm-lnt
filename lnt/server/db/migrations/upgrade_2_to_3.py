@@ -70,3 +70,4 @@ def upgrade(engine):
     # Create our FieldChangeField table and commit.
     upgrade_testsuite(engine, session, 'nts')
     upgrade_testsuite(engine, session, 'compile')
+    session.close()

@@ -145,3 +145,4 @@ def upgrade(engine):
     
     # Commit the results.
     session.commit()
+    session.close()
