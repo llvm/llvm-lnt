@@ -331,11 +331,11 @@ class Regression(Resource):
 
 
 def load_api_resources(api):
-    api.add_resource(Machines, ts_path("machines"))
-    api.add_resource(Machine, ts_path("machine/<int:machine_id>"))
-    api.add_resource(Runs, ts_path("run/<int:run_id>"))
+    api.add_resource(Machines, ts_path("machines/"))
+    api.add_resource(Machine, ts_path("machines/<machine_id>"))
+    api.add_resource(Runs, ts_path("runs/<int:run_id>"))
     api.add_resource(SampleData, ts_path("samples"))
-    api.add_resource(Order, ts_path("order/<int:order_id>"))
+    api.add_resource(Order, ts_path("orders/<int:order_id>"))
     graph_url = "graph/<int:machine_id>/<int:test_id>/<int:field_index>"
     api.add_resource(Graph, ts_path(graph_url))
     regression_url = "regression/<int:machine_id>/<int:test_id>/<int:field_index>"
