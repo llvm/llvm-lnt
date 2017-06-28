@@ -298,6 +298,13 @@ def action_send_daily_report(instance_path, address, database, testsuite, host,
             s.sendmail(from_address, [address],
                        msg.as_string())
             s.quit()
+        else:
+            out = sys.stdout
+            out.write("From: %s\n" % msg['From'])
+            out.write("To: %s\n" % msg['To'])
+            out.write("Subject: %s\n" % msg['Subject'])
+            out.write("=== html report\n")
+            out.write(html_report + "\n")
 
 
 @click.command("send-run-comparison")
@@ -381,6 +388,15 @@ def action_send_run_comparison(instance_path, run_a_id, run_b_id, database,
                 [to_address],
                 msg.as_string())
             mail_client.quit()
+        else:
+            out = sys.stdout
+            out.write("From: %s\n" % from_address)
+            out.write("To: %s\n" % to_address)
+            out.write("Subject: %s\n" % subject)
+            out.write("=== text/plain report\n")
+            out.write(text_report + "\n")
+            out.write("=== html report\n")
+            out.write(html_report + "\n")
 
 
 @click.group("profile")
