@@ -18,6 +18,8 @@ Contents
 
    concepts
 
+   api
+
    importing_data
 
    developer_guide
