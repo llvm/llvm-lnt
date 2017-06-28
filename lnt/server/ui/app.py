@@ -1,4 +1,5 @@
 import StringIO
+import json
 import logging
 import logging.handlers
 import sys
@@ -6,6 +7,7 @@ import time
 import traceback
 from logging import Formatter
 
+import datetime
 import flask
 import jinja2
 from flask import current_app
@@ -13,6 +15,7 @@ from flask import g
 from flask import session
 from flask_restful import Api
 from sqlalchemy.exc import DatabaseError
+from sqlalchemy.ext.declarative import DeclarativeMeta
 
 import lnt
 import lnt.server.db.rules_manager
@@ -36,6 +39,34 @@ class RootSlashPatchMiddleware(object):
             return flask.redirect(environ['SCRIPT_NAME'] + '/')(
                 environ, start_response)
         return self.app(environ, start_response)
+
+
+class LNTObjectJSONEncoder(json.JSONEncoder):
+    """Take SQLAlchemy objects and jsonify them. If the object has an __json__ method, use that instead."""
+    def default(self, obj):
+        if hasattr(obj, '__json__'):
+            return obj.__json__()
+        if type(obj) is datetime.datetime:
+            return obj.isoformat()
+        if isinstance(obj.__class__, DeclarativeMeta):
+            fields = {}
+            for field in [x for x in dir(obj) if not x.startswith('_') and x != 'metadata']:
+                data = obj.__getattribute__(field)
+                if isinstance(data, datetime.datetime):
+                    fields[field] = data.isoformat()
+                else:
+                    try:
+                        json.dumps(data)
+                        fields[field] = data
+                    except TypeError:
+                        fields[field] = None
+
+            return fields
+
+        return json.JSONEncoder.default(self, obj)
+
+
+
 
 
 class Request(flask.Request):
@@ -113,6 +144,7 @@ class App(LNTExceptionLoggerFlask):
         # Construct the application.
         app = App(__name__)
 
+        app.json_encoder = LNTObjectJSONEncoder
         # Register additional filters.
         create_jinja_environment(app.jinja_env)
 

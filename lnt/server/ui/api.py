@@ -1,17 +1,13 @@
-import json
-
 import sqlalchemy
 from flask import current_app, g
+from flask import jsonify
 from flask import request
-from flask_restful import Resource, reqparse, fields, marshal_with, abort
+from flask_restful import Resource, abort
 from sqlalchemy.orm import joinedload
 from sqlalchemy.orm.exc import NoResultFound
 
 from lnt.server.ui.util import convert_revision
 from lnt.testing import PASS
-
-parser = reqparse.RequestParser()
-parser.add_argument('db', type=str)
 
 
 def in_db(func):
@@ -36,11 +32,6 @@ def in_db(func):
     return wrap
 
 
-def ts_path(path):
-    """Make a URL path with a database and test suite embedded in them."""
-    return "/api/db_<string:db>/v4/<string:ts>/" + path
-
-
 def with_ts(obj):
     """For Url type fields to work, the objects we return must have a test-suite
     and database attribute set, the function attempts to set them."""
@@ -63,74 +54,91 @@ def with_ts(obj):
     return new_obj
 
 
-# This date format is what the JavaScript in the LNT frontend likes.
-DATE_FORMAT = "iso8601"
+def common_fields_factory():
+    """Get a dict with all the common fields filled in."""
+    common_data = {'generated_by': 'LNT Server v{}'.format(current_app.version)}
+    return common_data
 
-machines_fields = {
-    'id': fields.Integer,
-    'name': fields.String,
-    'os': fields.String,
-    'hardware': fields.String,
-}
+
+def add_common_fields(to_update):
+    """Update a dict with the common fields."""
+    to_update.update(common_fields_factory())
+
+
+def common_machine_format(machine):
+    serializable = machine.__json__()
+    del serializable['parameters_data']
+    final = machine.parameters.copy()
+    final.update(serializable)
+    return final
 
 
 class Machines(Resource):
     """List all the machines and give summary information."""
     method_decorators = [in_db]
 
-    @marshal_with(machines_fields)
-    def get(self):
+    @staticmethod
+    def get():
         ts = request.get_testsuite()
-        changes = ts.query(ts.Machine).all()
-        return changes
+        machine_infos = ts.query(ts.Machine).all()
+
+        serializable_machines = []
+
+        for machine in machine_infos:
+            serializable_machines.append(common_machine_format(machine))
+
+        machines = common_fields_factory()
+        machines['machines'] = serializable_machines
+        return jsonify(machines)
 
 
-order_fields = {
-    'id': fields.Integer,
-    'name': fields.String,
-    'next_order_id': fields.Integer,
-    'previous_order_id': fields.Integer,
-    'parts': fields.List(fields.Integer),
-}
+def common_run_format(run):
+    serializable_run = run.__json__()
+    # Replace orders with text order.
+    serializable_run['order'] = run.order.name
+    # Embed the parameters right into the run dict.
+    serializable_run.update(run.parameters)
+    del serializable_run['machine']
+    del serializable_run['parameters_data']
+    return serializable_run
 
 
-class ParameterItem(fields.Raw):
-    def output(self, key, value):
-        return dict(json.loads(value['parameters_data']))
+class Machine(Resource):
+    """Detailed results about a particular machine, including runs on it."""
+    method_decorators = [in_db]
 
+    @staticmethod
+    def get(machine_id):
+        ts = request.get_testsuite()
+        try:
+            this_machine = ts.query(ts.Machine).filter(
+                ts.Machine.id == machine_id).one()
+        except NoResultFound:
+            return abort(404, message="Invalid machine: {}".format(machine_id))
+        machine = common_fields_factory()
+        machine['machines'] = [common_machine_format(this_machine)]
+        machine_runs = ts.query(ts.Run) \
+            .join(ts.Machine) \
+            .join(ts.Order) \
+            .filter(ts.Machine.id == machine_id) \
+            .options(joinedload('order')) \
+            .all()
 
-machine_run_fields = {'id': fields.Integer,
-                      'start_time': fields.DateTime(dt_format=DATE_FORMAT),
-                      'end_time': fields.DateTime(dt_format=DATE_FORMAT),
-                      'machine_id': fields.Integer,
-                      'machine': fields.Url("machine"),
-                      'order_id': fields.Integer,
-                      'order_name': fields.String,
-                      'order_url': fields.Url("order"),
-                      'parameters': ParameterItem}
+        runs = []
+        for run in machine_runs:
+            runs.append(common_run_format(run))
+        machine['runs'] = runs
 
-machine_run_fields['order'] = fields.Nested(order_fields)
-
-machine_fields = {
-    'id': fields.Integer,
-    'name': fields.String,
-    'os': fields.String,
-    'hardware': fields.String,
-    'runs': fields.List(fields.Nested(machine_run_fields)),
-    'parameters': ParameterItem
-}
-
-run_fields = {'run': fields.Nested(machine_run_fields),
-              'samples': fields.List(fields.Raw)}
+        return jsonify(machine)
 
 
 class Runs(Resource):
     method_decorators = [in_db]
 
-    @marshal_with(run_fields)
-    def get(self, run_id):
+    @staticmethod
+    def get(run_id):
         ts = request.get_testsuite()
-        full_run = dict()
+        full_run = common_fields_factory()
 
         try:
             run = ts.query(ts.Run) \
@@ -142,10 +150,7 @@ class Runs(Resource):
         except sqlalchemy.orm.exc.NoResultFound:
             return abort(404, msg="Did not find run " + str(run_id))
 
-        full_run['run'] = with_ts(run)
-        full_run['run']['order']['parts'] = convert_revision(run.order.name)
-        full_run['run']['order']['name'] = run.order.name
-        full_run['run']['parts'] = run.order.name
+        full_run['runs'] = [common_run_format(run)]
 
         to_get = [ts.Sample.id, ts.Sample.run_id, ts.Test.name,
                   ts.Order.fields[0].column]
@@ -162,57 +167,30 @@ class Runs(Resource):
         ret = [sample._asdict() for sample in q.all()]
 
         full_run['samples'] = ret
-        return with_ts(full_run)
-
-
-class Machine(Resource):
-    """Detailed results about a particular machine, including runs on it."""
-    method_decorators = [in_db]
-
-    @marshal_with(machine_fields)
-    def get(self, machine_id):
-
-        ts = request.get_testsuite()
-        try:
-            machine = ts.query(ts.Machine).filter(
-                ts.Machine.id == machine_id).one()
-        except NoResultFound:
-            return abort(404, message="Invalid machine.")
-
-        machine = with_ts(machine)
-        machine_runs = ts.query(ts.Run) \
-            .join(ts.Machine) \
-            .join(ts.Order) \
-            .filter(ts.Machine.id == machine_id) \
-            .options(joinedload('order')) \
-            .all()
-
-        machine['runs'] = with_ts(machine_runs)
-
-        return machine
+        return jsonify(full_run)
 
 
 class Order(Resource):
     method_decorators = [in_db]
 
-    @marshal_with(order_fields)
-    def get(self, order_id):
+    @staticmethod
+    def get(order_id):
         ts = request.get_testsuite()
         try:
             order = ts.query(ts.Order).filter(ts.Order.id == order_id).one()
         except NoResultFound:
             return abort(404, message="Invalid order.")
-        order_output = with_ts(order)
-        order_output['parts'] = convert_revision(order.name)
-        order_output['name'] = order.name
-        return order_output
+        order_output = common_fields_factory()
+        order_output['orders'] = [order]
+        return jsonify(order_output)
 
 
 class SampleData(Resource):
     """List all the machines and give summary information."""
     method_decorators = [in_db]
 
-    def get(self):
+    @staticmethod
+    def get():
         """Get the data for a particular line in a graph."""
         ts = request.get_testsuite()
         args = request.args.to_dict(flat=False)
@@ -236,18 +214,19 @@ class SampleData(Resource):
             .join(ts.Run) \
             .join(ts.Order) \
             .filter(ts.Sample.run_id.in_(run_ids))
-
+        output_samples = common_fields_factory()
         # noinspection PyProtectedMember
-        ret = [sample._asdict() for sample in q.all()]
+        output_samples['samples'] = [sample._asdict() for sample in q.all()]
 
-        return ret
+        return output_samples
 
 
 class Graph(Resource):
     """List all the machines and give summary information."""
     method_decorators = [in_db]
 
-    def get(self, machine_id, test_id, field_index):
+    @staticmethod
+    def get(machine_id, test_id, field_index):
         """Get the data for a particular line in a graph."""
         ts = request.get_testsuite()
         # Maybe we don't need to do this?
@@ -291,7 +270,8 @@ class Regression(Resource):
     """List all the machines and give summary information."""
     method_decorators = [in_db]
 
-    def get(self, machine_id, test_id, field_index):
+    @staticmethod
+    def get(machine_id, test_id, field_index):
         """Get the regressions for a particular line in a graph."""
         ts = request.get_testsuite()
         field = ts.sample_fields[field_index]
@@ -328,6 +308,11 @@ class Regression(Resource):
                     'state': r.state,
                     'end_point': fc_mappings[r.field_change_id]} for r in regressions]
         return results
+
+
+def ts_path(path):
+    """Make a URL path with a database and test suite embedded in them."""
+    return "/api/db_<string:db>/v4/<string:ts>/" + path
 
 
 def load_api_resources(api):
