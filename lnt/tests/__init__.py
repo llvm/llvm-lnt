@@ -23,9 +23,9 @@ def get_test_instance(name):
     # Allow hyphens instead of underscores when specifying the test on the command
     # line. (test-suite instead of test_suite).
     name = name.replace('-', '_')
-    
+
     if name not in known_tests:
-        raise KeyError,name
+        raise KeyError, name
 
     module = getattr(__import__('lnt.tests.%s' % name, level=0).tests,
                      name)

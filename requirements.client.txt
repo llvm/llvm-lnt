@@ -16,3 +16,4 @@ wsgiref==0.1.2
 WTForms==2.0.2
 Flask-WTF==0.12
 typing
+click==6.7

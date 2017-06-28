@@ -13,10 +13,9 @@ import multiprocessing
 import getpass
 
 import datetime
-import jinja2
 from collections import defaultdict
-
-from optparse import OptionParser, OptionGroup
+import jinja2
+import click
 
 import lnt.testing
 import lnt.testing.profile
@@ -177,186 +176,158 @@ class TestSuiteTest(BuiltinTest):
     def describe(self):
         return "LLVM test-suite"
 
-    def run_test(self, name, args):
-        # FIXME: Add more detailed usage information
-        parser = OptionParser("%s [options] test-suite" % name)
+    @staticmethod
+    @click.command("test-suite")
+    @click.argument("label", default=platform.uname()[1], required=False,
+                    type=click.UNPROCESSED)
+    # Sandbox options
+    @click.option("-S", "--sandbox", "sandbox_path", required=True,
+                  help="Parent directory to build and run tests in",
+                  type=click.UNPROCESSED, metavar="PATH")
+    @click.option("--no-timestamp", "timestamp_build",
+                  flag_value=False, default=True,
+                  help="Don't timestamp build directory (for testing)")
+    @click.option("--no-configure", "run_configure",
+                  flag_value=False, default=True,
+                  help="Don't run CMake if CMakeCache.txt is present"
+                       " (only useful with --no-timestamp")
+    # Inputs
+    @click.option("--test-suite", "test_suite_root",
+                  type=click.UNPROCESSED, metavar="PATH",
+                  help="Path to the LLVM test-suite sources")
+    @click.option("--test-externals", "test_suite_externals",
+                  type=click.UNPROCESSED, metavar="PATH",
+                  help="Path to the LLVM test-suite externals")
+    @click.option("--cmake-define", "cmake_defines",
+                  multiple=True,
+                  help="Defines to pass to cmake. These do not require the "
+                       "-D prefix and can be given multiple times. e.g.: "
+                       "--cmake-define A=B => -DA=B")
+    @click.option("-C", "--cmake-cache", "cmake_cache", multiple=True,
+                  default=[],
+                  help="Use one of the test-suite's cmake configurations."
+                       " Ex: Release, Debug")
+    # Test compiler
+    @click.option("--cc", "cc", metavar="CC", type=click.UNPROCESSED,
+                  default=None,
+                  help="Path to the C compiler to test")
+    @click.option("--cxx", "cxx", metavar="CXX", type=click.UNPROCESSED,
+                  default=None,
+                  help="Path to the C++ compiler to test (inferred from"
+                       " --cc where possible")
+    @click.option("--cppflags", "cppflags", type=click.UNPROCESSED,
+                  multiple=True, default=[],
+                  help="Extra flags to pass the compiler in C or C++ mode. "
+                       "Can be given multiple times")
+    @click.option("--cflags", "--cflag", "cflags", type=click.UNPROCESSED,
+                  multiple=True, default=[],
+                  help="Extra CFLAGS to pass to the compiler. Can be "
+                       "given multiple times")
+    @click.option("--cxxflags", "cxxflags", type=click.UNPROCESSED,
+                  multiple=True, default=[],
+                  help="Extra CXXFLAGS to pass to the compiler. Can be "
+                       "given multiple times")
+    # Test selection
+    @click.option("--test-size", "test_size",
+                  type=click.Choice(['small', 'regular', 'large']),
+                  default='regular', help="The size of test inputs to use")
+    @click.option("--benchmarking-only", "benchmarking_only", is_flag=True,
+                  help="Benchmarking-only mode. Disable unit tests and "
+                       "other flaky or short-running tests")
+    @click.option("--only-test", "only_test", metavar="PATH",
+                  type=click.UNPROCESSED, default=None,
+                  help="Only run tests under PATH")
+    # Test Execution
+    @click.option("--only-compile", "only_compile",
+                  help="Don't run the tests, just compile them.", is_flag=True)
+    @click.option("-j", "--threads", "threads",
+                  help="Number of testing (and optionally build) "
+                  "threads", type=int, default=1, metavar="N")
+    @click.option("--build-threads", "build_threads",
+                  help="Number of compilation threads, defaults to --threads",
+                  type=int, default=0, metavar="N")
+    @click.option("--use-perf", "use_perf",
+                  help="Use Linux perf for high accuracy timing, profile "
+                       "information or both",
+                  type=click.Choice(['none', 'time', 'profile', 'all']),
+                  default='none')
+    @click.option("--perf-events", "perf_events",
+                  help=("Define which linux perf events to measure"),
+                  type=click.UNPROCESSED, default=None)
+    @click.option("--run-under", "run_under", default="",
+                  help="Wrapper to run tests under", type=click.UNPROCESSED)
+    @click.option("--exec-multisample", "exec_multisample",
+                  help="Accumulate execution test data from multiple runs",
+                  type=int, default=1, metavar="N")
+    @click.option("--compile-multisample", "compile_multisample",
+                  help="Accumulate compile test data from multiple runs",
+                  type=int, default=1, metavar="N")
+    @click.option("-d", "--diagnose", "diagnose",
+                  help="Produce a diagnostic report for a particular "
+                       "test, this will not run all the tests.  Must be"
+                       " used in conjunction with --only-test.",
+                  is_flag=True, default=False,)
+    @click.option("--pgo", "pgo",
+                  help="Run the test-suite in training mode first and"
+                       " collect PGO data, then rerun with that training "
+                       "data.",
+                  is_flag=True, default=False,)
+    # Output Options
+    @click.option("--no-auto-name", "auto_name",
+                  help="Don't automatically derive submission name",
+                  flag_value=False, default=True)
+    @click.option("--run-order", "run_order", metavar="STR",
+                  help="String to use to identify and order this run")
+    @click.option("--submit", "submit_url", metavar="URLORPATH",
+                  help="autosubmit the test result to the given server"
+                       " (or local instance)",
+                  type=click.UNPROCESSED, default=None)
+    @click.option("--commit", "commit",
+                  help="whether the autosubmit result should be committed",
+                  type=int, default=True)
+    @click.option("--succinct-compile-output", "succinct",
+                  help="run Make without VERBOSE=1", is_flag=True)
+    @click.option("-v", "--verbose", "verbose", is_flag=True, default=False,
+                  help="show verbose test results")
+    @click.option("--exclude-stat-from-submission",
+                  "exclude_stat_from_submission",
+                  help="Do not submit the stat of this type",
+                  multiple=True, default=[],
+                  type=click.Choice(KNOWN_SAMPLE_KEYS))
+    @click.option("--single-result", "single_result",
+                  help="only execute this single test and apply "
+                       "--single-result-predicate to calculate the exit "
+                       "status")
+    @click.option("--single-result-predicate", "single_result_predicate",
+                  help="the predicate to apply to calculate the exit "
+                       "status (with --single-result)", default="status")
+    # Test tools
+    @click.option("--use-cmake", "cmake", metavar="PATH",
+                  type=click.UNPROCESSED, default="cmake",
+                  help="Path to CMake [cmake]")
+    @click.option("--use-make", "make", metavar="PATH",
+                  type=click.UNPROCESSED, default="make",
+                  help="Path to Make [make]")
+    @click.option("--use-lit", "lit", metavar="PATH", type=click.UNPROCESSED,
+                  default="llvm-lit",
+                  help="Path to the LIT test runner [llvm-lit]")
+    def cli_wrapper(*args, **kwargs):
+        """LLVM test-suite"""
+        test_suite = TestSuiteTest()
 
-        group = OptionGroup(parser, "Sandbox options")
-        group.add_option("-S", "--sandbox", dest="sandbox_path",
-                         help="Parent directory to build and run tests in",
-                         type=str, default=None, metavar="PATH")
-        group.add_option("", "--no-timestamp", dest="timestamp_build",
-                         action="store_false", default=True,
-                         help="Don't timestamp build directory (for testing)")
-        group.add_option("", "--no-configure", dest="run_configure",
-                         action="store_false", default=True,
-                         help="Don't run CMake if CMakeCache.txt is present"
-                              " (only useful with --no-timestamp")
-        parser.add_option_group(group)
+        for key, value in kwargs.items():
+            setattr(test_suite.opts, key, value)
 
-        group = OptionGroup(parser, "Inputs")
-        group.add_option("", "--test-suite", dest="test_suite_root",
-                         type=str, metavar="PATH", default=None,
-                         help="Path to the LLVM test-suite sources")
-        group.add_option("", "--test-externals", dest="test_suite_externals",
-                         type=str, metavar="PATH",
-                         help="Path to the LLVM test-suite externals")
-        group.add_option("", "--cmake-define", dest="cmake_defines",
-                         action="append", default=[],
-                         help=("Defines to pass to cmake. These do not require the "
-                               "-D prefix and can be given multiple times. e.g.: "
-                               "--cmake-define A=B => -DA=B"))
-        group.add_option("-C", "--cmake-cache", dest="cmake_cache",
-                         action="append", default=[],
-                         help=("Use one of the test-suite's cmake configurations."
-                               " Ex: Release, Debug"))
-        parser.add_option_group(group)
+        results = test_suite.run_test(test_suite.opts)
+        test_suite.show_results_url(results)
 
-        group = OptionGroup(parser, "Test compiler")
-        group.add_option("", "--cc", dest="cc", metavar="CC",
-                         type=str, default=None,
-                         help="Path to the C compiler to test")
-        group.add_option("", "--cxx", dest="cxx", metavar="CXX",
-                         type=str, default=None,
-                         help="Path to the C++ compiler to test (inferred from"
-                              " --cc where possible")
-        group.add_option("", "--cppflags", type=str, action="append",
-                         dest="cppflags", default=[],
-                         help="Extra flags to pass the compiler in C or C++ mode. "
-                              "Can be given multiple times")
-        group.add_option("", "--cflags", type=str, action="append",
-                         dest="cflags", default=[],
-                         help="Extra CFLAGS to pass to the compiler. Can be "
-                              "given multiple times")
-        group.add_option("", "--cxxflags", type=str, action="append",
-                         dest="cxxflags", default=[],
-                         help="Extra CXXFLAGS to pass to the compiler. Can be "
-                              "given multiple times")
-        parser.add_option_group(group)
-
-        group = OptionGroup(parser, "Test selection")
-        group.add_option("", "--test-size", type='choice', dest="test_size",
-                         choices=['small', 'regular', 'large'], default='regular',
-                         help="The size of test inputs to use")
-        group.add_option("", "--benchmarking-only",
-                         dest="benchmarking_only", action="store_true",
-                         default=False,
-                         help="Benchmarking-only mode. Disable unit tests and "
-                              "other flaky or short-running tests")
-        group.add_option("", "--only-test", dest="only_test", metavar="PATH",
-                         type=str, default=None,
-                         help="Only run tests under PATH")
-
-        parser.add_option_group(group)
-
-        group = OptionGroup(parser, "Test Execution")
-        group.add_option("", "--only-compile", dest="only_compile",
-                         help="Don't run the tests, just compile them.",
-                         action="store_true", default=False, )
-        group.add_option("-j", "--threads", dest="threads",
-                         help="Number of testing (and optionally build) "
-                         "threads", type=int, default=1, metavar="N")
-        group.add_option("", "--build-threads", dest="build_threads",
-                         help="Number of compilation threads, defaults to "
-                         "--threads", type=int, default=0, metavar="N")
-        group.add_option("", "--use-perf", dest="use_perf",
-                         help=("Use Linux perf for high accuracy timing, profile "
-                               "information or both"),
-                         type='choice',
-                         choices=['none', 'time', 'profile', 'all'],
-                         default='none')
-        group.add_option("", "--perf-events", dest="perf_events",
-                         help=("Define which linux perf events to measure"),
-                         type=str, default=None)
-        group.add_option("", "--run-under", dest="run_under",
-                         help="Wrapper to run tests under ['%default']",
-                         type=str, default="")
-        group.add_option("", "--exec-multisample", dest="exec_multisample",
-                         help="Accumulate execution test data from multiple runs",
-                         type=int, default=1, metavar="N")
-        group.add_option("", "--compile-multisample", dest="compile_multisample",
-                         help="Accumulate compile test data from multiple runs",
-                         type=int, default=1, metavar="N")
-        group.add_option("-d", "--diagnose", dest="diagnose",
-                         help="Produce a diagnostic report for a particular "
-                              "test, this will not run all the tests.  Must be"
-                              " used in conjunction with --only-test.",
-                         action="store_true", default=False,)
-        group.add_option("", "--pgo", dest="pgo",
-                         help="Run the test-suite in training mode first and"
-                         " collect PGO data, then rerun with that training "
-                         "data.",
-                         action="store_true", default=False,)
-
-        parser.add_option_group(group)
-
-        group = OptionGroup(parser, "Output Options")
-        group.add_option("", "--no-auto-name", dest="auto_name",
-                         help="Don't automatically derive submission name",
-                         action="store_false", default=True)
-        group.add_option("", "--run-order", dest="run_order", metavar="STR",
-                         help="String to use to identify and order this run",
-                         action="store", type=str, default=None)
-        group.add_option("", "--submit", dest="submit_url", metavar="URLORPATH",
-                         help=("autosubmit the test result to the given server"
-                               " (or local instance) [%default]"),
-                         type=str, default=None)
-        group.add_option("", "--commit", dest="commit",
-                         help=("whether the autosubmit result should be committed "
-                               "[%default]"),
-                         type=int, default=True)
-        group.add_option("", "--succinct-compile-output",
-                         help="run Make without VERBOSE=1",
-                         action="store_true", dest="succinct")
-        group.add_option("-v", "--verbose", dest="verbose",
-                         help="show verbose test results",
-                         action="store_true", default=False)
-        group.add_option("", "--exclude-stat-from-submission",
-                         dest="exclude_stat_from_submission",
-                         help="Do not submit the stat of this type [%default]",
-                         action='append', choices=KNOWN_SAMPLE_KEYS,
-                         type='choice', default=[])
-        group.add_option("", "--single-result", dest="single_result",
-                         help=("only execute this single test and apply "
-                               "--single-result-predicate to calculate the "
-                               "exit status"))
-        group.add_option("", "--single-result-predicate",
-                         dest="single_result_predicate",
-                         help=("the predicate to apply to calculate the exit "
-                               "status (with --single-result)"),
-                         default="status")
-        parser.add_option_group(group)
-
-        group = OptionGroup(parser, "Test tools")
-        group.add_option("", "--use-cmake", dest="cmake", metavar="PATH",
-                         type=str, default="cmake",
-                         help="Path to CMake [cmake]")
-        group.add_option("", "--use-make", dest="make", metavar="PATH",
-                         type=str, default="make",
-                         help="Path to Make [make]")
-        group.add_option("", "--use-lit", dest="lit", metavar="PATH",
-                         type=str, default="llvm-lit",
-                         help="Path to the LIT test runner [llvm-lit]")
-        parser.add_option_group(group)
-
-        (opts, args) = parser.parse_args(args)
-        self.opts = opts
-
-        if len(args) == 0:
-            self.nick = platform.uname()[1]
-        elif len(args) == 1:
-            self.nick = args[0]
-        else:
-            parser.error("Expected no positional arguments (got: %r)" % (args,))
-
-        if self.opts.sandbox_path is None:
-            parser.error('--sandbox is required')
+    def run_test(self, opts):
 
         if self.opts.cc is not None:
             self.opts.cc = resolve_command_path(self.opts.cc)
 
             if not lnt.testing.util.compilers.is_valid(self.opts.cc):
-                parser.error('--cc does not point to a valid executable.')
+                self._fatal('--cc does not point to a valid executable.')
 
             # If there was no --cxx given, attempt to infer it from the --cc.
             if self.opts.cxx is None:
@@ -366,41 +337,41 @@ class TestSuiteTest(BuiltinTest):
                     note("Inferred C++ compiler under test as: %r"
                          % (self.opts.cxx,))
                 else:
-                    parser.error("unable to infer --cxx - set it manually.")
+                    self._fatal("unable to infer --cxx - set it manually.")
             else:
                 self.opts.cxx = resolve_command_path(self.opts.cxx)
 
             if not os.path.exists(self.opts.cxx):
-                parser.error("invalid --cxx argument %r, does not exist"
-                             % (self.opts.cxx))
+                self._fatal("invalid --cxx argument %r, does not exist"
+                            % (self.opts.cxx))
 
         if opts.test_suite_root is None:
-            parser.error('--test-suite is required')
+            self._fatal('--test-suite is required')
         if not os.path.exists(opts.test_suite_root):
-            parser.error("invalid --test-suite argument, does not exist: %r" % (
+            self._fatal("invalid --test-suite argument, does not exist: %r" % (
                 opts.test_suite_root))
 
         if opts.test_suite_externals:
             if not os.path.exists(opts.test_suite_externals):
-                parser.error(
+                self._fatal(
                     "invalid --test-externals argument, does not exist: %r" % (
                         opts.test_suite_externals,))
 
         opts.cmake = resolve_command_path(opts.cmake)
         if not isexecfile(opts.cmake):
-            parser.error("CMake tool not found (looked for %s)" % opts.cmake)
+            self._fatal("CMake tool not found (looked for %s)" % opts.cmake)
         opts.make = resolve_command_path(opts.make)
         if not isexecfile(opts.make):
-            parser.error("Make tool not found (looked for %s)" % opts.make)
+            self._fatal("Make tool not found (looked for %s)" % opts.make)
         opts.lit = resolve_command_path(opts.lit)
         if not isexecfile(opts.lit):
-            parser.error("LIT tool not found (looked for %s)" % opts.lit)
+            self._fatal("LIT tool not found (looked for %s)" % opts.lit)
         if opts.run_under:
             split = shlex.split(opts.run_under)
             split[0] = resolve_command_path(split[0])
             if not isexecfile(split[0]):
-                parser.error("Run under wrapper not found (looked for %s)" %
-                             opts.run_under)
+                self._fatal("Run under wrapper not found (looked for %s)" %
+                            opts.run_under)
 
         if opts.single_result:
             # --single-result implies --only-test
@@ -419,12 +390,12 @@ class TestSuiteTest(BuiltinTest):
                 opts.only_test = (os.path.dirname(opts.only_test),
                                   os.path.basename(opts.only_test))
             else:
-                parser.error("--only-test argument not understood (must be a " +
-                             " test or directory name)")
+                self._fatal("--only-test argument not understood (must be a " +
+                            " test or directory name)")
 
         if opts.single_result and not opts.only_test[1]:
-            parser.error("--single-result must be given a single test name, not a " +
-                         "directory name")
+            self._fatal("--single-result must be given a single test name, not a " +
+                        "directory name")
 
         opts.cppflags = ' '.join(opts.cppflags)
         opts.cflags = ' '.join(opts.cflags)
@@ -432,7 +403,7 @@ class TestSuiteTest(BuiltinTest):
 
         if opts.diagnose:
             if not opts.only_test:
-                parser.error("--diagnose requires --only-test")
+                self._fatal("--diagnose requires --only-test")
 
         self.start_time = timestamp()
 
@@ -461,7 +432,7 @@ class TestSuiteTest(BuiltinTest):
         cmake_vars = self._extract_cmake_vars_from_cache()
         if "CMAKE_C_COMPILER" not in cmake_vars or \
                 not os.path.exists(cmake_vars["CMAKE_C_COMPILER"]):
-            parser.error(
+            self._fatal(
                 "Couldn't find C compiler (%s). Maybe you should specify --cc?"
                 % cmake_vars.get("CMAKE_C_COMPILER"))
 
@@ -476,9 +447,8 @@ class TestSuiteTest(BuiltinTest):
             # Construct the nickname from a few key parameters.
             cc_info = self._get_cc_info(cmake_vars)
             cc_nick = '%s_%s' % (cc_info['cc_name'], cc_info['cc_build'])
-            self.nick += "__%s__%s" % (cc_nick,
-                                       cc_info['cc_target'].split('-')[0])
-        note('Using nickname: %r' % self.nick)
+            opts.label += "__%s__%s" % (cc_nick, cc_info['cc_target'].split('-')[0])
+        note('Using nickname: %r' % opts.label)
 
         #  When we can't detect the clang version we use 0 instead. That
         # is a horrible failure mode because all of our data ends up going
@@ -636,7 +606,7 @@ class TestSuiteTest(BuiltinTest):
             if 'TEST_SUITE_RUN_TYPE' not in defs:
                 defs['TEST_SUITE_RUN_TYPE'] = 'ref'
 
-        for item in self.opts.cmake_defines + extra_cmake_defs:
+        for item in tuple(self.opts.cmake_defines) + tuple(extra_cmake_defs):
             k, v = item.split('=', 1)
             # make sure the overriding of the settings above also works
             # when the cmake-define-defined variable has a datatype
@@ -769,7 +739,7 @@ class TestSuiteTest(BuiltinTest):
                 'XFAIL': lnt.testing.XFAIL,
                 'XPASS': lnt.testing.FAIL,
                 'UNRESOLVED': lnt.testing.FAIL
-                }[code]
+               }[code]
 
     def _test_failed_to_compile(self, raw_name, path):
         # FIXME: Do we need to add ".exe" in windows?
@@ -882,7 +852,7 @@ class TestSuiteTest(BuiltinTest):
 
                     if k == 'link_time':
                         # Move link time into a second benchmark's compile-time.
-                        server_name =  name + '-link.' + LIT_METRIC_TO_LNT[k]
+                        server_name = name + '-link.' + LIT_METRIC_TO_LNT[k]
 
                     test_samples.append(
                         lnt.testing.TestSamples(server_name,
@@ -894,8 +864,7 @@ class TestSuiteTest(BuiltinTest):
                 test_samples.append(
                     lnt.testing.TestSamples(name + '.compile.status',
                                             [lnt.testing.FAIL],
-                                            test_info),
-                                            )
+                                            test_info))
 
             elif not is_pass:
                 test_samples.append(
@@ -937,7 +906,7 @@ class TestSuiteTest(BuiltinTest):
         machine_info = {
         }
 
-        machine = lnt.testing.Machine(self.nick, machine_info)
+        machine = lnt.testing.Machine(self.opts.label, machine_info)
         run = lnt.testing.Run(self.start_time, timestamp(), info=run_info)
         report = lnt.testing.Report(machine, run, test_samples)
         return report
@@ -1100,8 +1069,7 @@ class TestSuiteTest(BuiltinTest):
             warning("Tests may fail because of iprofiler's output.")
             # The dtps file will be saved as root, make it so
             # that we can read it.
-            chmod = sudo + ["chown", "-R", getpass.getuser(),
-                     short_name + ".dtps"]
+            chmod = sudo + ["chown", "-R", getpass.getuser(), short_name + ".dtps"]
             subprocess.call(chmod)
             profile = local_path + "/" + short_name + ".dtps"
             shutil.copytree(profile, report_path + "/" + short_name + ".dtps")
@@ -1121,9 +1089,3 @@ class TestSuiteTest(BuiltinTest):
                 return report_path
 
         return DontSubmitResults()
-
-
-def create_instance():
-    return TestSuiteTest()
-
-__all__ = ['create_instance']

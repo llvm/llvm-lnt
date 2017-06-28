@@ -1,72 +1,61 @@
-import os, pprint, sys, time
+import contextlib
+import pprint
+import sys
+
+import click
 
 import lnt.formats
 import lnt.util.ImportData
 import lnt.server.instance
-import contextlib
 
 
-def action_import(name, args):
+@click.command("import")
+@click.argument("instance_path", type=click.UNPROCESSED)
+@click.argument("files", nargs=-1, type=click.Path(exists=True), required=True)
+@click.option("--database", default="default", show_default=True,
+              help="database to modify")
+@click.option("--format", "output_format", show_default=True,
+              type=click.Choice(lnt.formats.format_names + ['<auto>']),
+              default='<auto>', help="input format")
+@click.option("--commit", type=int, help="commit changes to the database")
+@click.option("--show-sql", is_flag=True, help="show SQL statements")
+@click.option("--show-sample-count", is_flag=True)
+@click.option("--show-raw-result", is_flag=True)
+@click.option("--verbose", "-v", is_flag=True,
+              help="show verbose test results")
+@click.option("--quiet", "-q", is_flag=True, help="don't show test results")
+@click.option("--no-email", is_flag=True, help="don't send e-mail")
+@click.option("--no-report", is_flag=True, help="don't generate report")
+def action_import(instance_path, files, database, output_format, commit,
+                  show_sql, show_sample_count, show_raw_result, verbose,
+                  quiet, no_email, no_report):
     """import test data into a database"""
 
-    from optparse import OptionParser, OptionGroup
-
-    parser = OptionParser("%s [options] <instance path> <file>+"%name)
-    parser.add_option("", "--database", dest="database", default="default",
-                      help="database to write to [%default]")
-    parser.add_option("", "--format", dest="format",
-                      choices=lnt.formats.format_names + ['<auto>'],
-                      default='<auto>')
-    parser.add_option("", "--commit", dest="commit", type=int,
-                      default=False)
-    parser.add_option("", "--show-sql", dest="show_sql", action="store_true",
-                      default=False)
-    parser.add_option("", "--show-sample-count", dest="show_sample_count",
-                      action="store_true", default=False)
-    parser.add_option("", "--show-raw-result", dest="show_raw_result",
-                      action="store_true", default=False)
-    parser.add_option("-v", "--verbose", dest="verbose",
-                      help="show verbose test results",
-                      action="store_true", default=False)
-    parser.add_option("-q", "--quiet", dest="quiet",
-                      help="don't show test results",
-                      action="store_true", default=False)
-    parser.add_option("", "--no-email", dest="no_email",
-                      action="store_true", default=False)
-    parser.add_option("", "--no-report", dest="no_report",
-                      action="store_true", default=False)
-    (opts, args) = parser.parse_args(args)
-
-    if len(args) < 2:
-        parser.error("invalid number of arguments")
-
-    path = args.pop(0)
-
     # Load the LNT instance.
-    instance = lnt.server.instance.Instance.frompath(path)
+    instance = lnt.server.instance.Instance.frompath(instance_path)
     config = instance.config
 
     # Get the database.
-    with contextlib.closing(config.get_database(opts.database,
-                                                echo=opts.show_sql)) as db:
+    with contextlib.closing(config.get_database(database,
+                                                echo=show_sql)) as db:
         # Load the database.
         success = True
-        for file in args:
+        for file_name in files:
             result = lnt.util.ImportData.import_and_report(
-                config, opts.database, db, file,
-                opts.format, opts.commit, opts.show_sample_count,
-                opts.no_email, opts.no_report)
+                config, database, db, file_name,
+                output_format, commit, show_sample_count,
+                no_email, no_report)
 
             success &= result.get('success', False)
-            if opts.quiet:
+            if quiet:
                 continue
 
-            if opts.show_raw_result:
+            if show_raw_result:
                 pprint.pprint(result)
             else:
                 lnt.util.ImportData.print_report_result(result, sys.stdout,
                                                         sys.stderr,
-                                                        opts.verbose)
+                                                        verbose)
 
         if not success:
             raise SystemExit, 1

@@ -11,12 +11,22 @@ import lnt.util.ServerUtil as ServerUtil
 import lnt.util.ImportData as ImportData
 import lnt.server.config as server_config
 import lnt.server.db.v4db
-import lnt.server.config
+
+
+class OptsContainer(object):
+    pass
 
 
 class BuiltinTest(object):
     def __init__(self):
+        self.opts = OptsContainer()
         pass
+
+    def _fatal(self, msg):
+        """This simulate the output provided by OptionParser.error"""
+        prog_name = os.path.basename(sys.argv[0])
+        sys.stderr.write("%s error: %s\n" % (prog_name, msg))
+        sys.exit(2)
 
     def describe(self):
         """"describe() -> str
@@ -24,7 +34,7 @@ class BuiltinTest(object):
         Return a short description of the test.
         """
 
-    def run_test(self, name, args):
+    def run_test(self, opts):
         """run_test(name, args) -> lnt.testing.Report
 
         Execute the test (accessed via name, for use in the usage message) with
@@ -83,3 +93,11 @@ class BuiltinTest(object):
         ImportData.print_report_result(server_report, sys.stdout, sys.stderr,
                                        config.verbose)
         return server_report
+
+    @staticmethod
+    def show_results_url(server_results):
+        """Print the result URL"""
+        if server_results.get('result_url'):
+            print "Results available at:", server_results['result_url']
+        else:
+            print "Results available at: no URL available"

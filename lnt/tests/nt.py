@@ -8,12 +8,12 @@ import sys
 import glob
 import time
 import traceback
-from datetime import datetime
-from optparse import OptionParser, OptionGroup
 import urllib2
 import shlex
 import pipes
 import resource
+
+import click
 
 import lnt.testing
 import lnt.testing.util.compilers
@@ -206,7 +206,7 @@ class TestConfiguration(object):
     def qemu_user_mode_command(self):
         """ The command used for qemu user mode """
         assert self.qemu_user_mode
-        qemu_cmd_line = [self.qemu_user_mode] + self.qemu_flags
+        qemu_cmd_line = [self.qemu_user_mode] + list(self.qemu_flags)
         if self.qemu_string:
             qemu_cmd_line += _unix_quote_args(self.qemu_string)
         return ' '.join(qemu_cmd_line)
@@ -293,10 +293,10 @@ class TestConfiguration(object):
 
         while build_mode:
             for (name, key) in (('+Asserts', 'ENABLE_ASSERTIONS'),
-                               ('+Checks', 'ENABLE_EXPENSIVE_CHECKS'),
-                               ('+Coverage', 'ENABLE_COVERAGE'),
-                               ('+Debug', 'DEBUG_SYMBOLS'),
-                               ('+Profile', 'ENABLE_PROFILING')):
+                                ('+Checks', 'ENABLE_EXPENSIVE_CHECKS'),
+                                ('+Coverage', 'ENABLE_COVERAGE'),
+                                ('+Debug', 'DEBUG_SYMBOLS'),
+                                ('+Profile', 'ENABLE_PROFILING')):
                 if build_mode.startswith(name):
                     build_mode = build_mode[len(name):]
                     make_variables[key] = '1'
@@ -1372,7 +1372,7 @@ def _process_reruns(config, server_reply, local_results):
         test_name = '.'.join(fields[1:test_type_size])
 
         updating_entry = collated_results.get(test_name,
-                                               PastRunData(test_name))
+                                              PastRunData(test_name))
 
         # Filter out "LNTBased" benchmarks for rerun, they
         # won't work. LNTbased look like nts.module.test
@@ -1404,7 +1404,7 @@ def _process_reruns(config, server_reply, local_results):
         test_name = '.'.join(fields[:-1])
         test_type = fields[-1]
 
-        new_entry = collated_results.get(test_name,  None)
+        new_entry = collated_results.get(test_name, None)
         # Some tests will come from the server, which we did not run locally.
         # Drop them.
         if new_entry is None:
@@ -1459,6 +1459,7 @@ def _process_reruns(config, server_reply, local_results):
 
 
 usage_info = """
+
 Script for running the tests in LLVM's test-suite repository.
 
 This script expects to run against a particular LLVM source tree, build, and
@@ -1467,7 +1468,8 @@ repository, and formatting the results for submission to an LNT server.
 
 Basic usage:
 
-  %(name)s \\
+\b
+  lnt runtest nt \\
     --sandbox FOO \\
     --cc ~/llvm.obj.64/Release/bin/clang \\
     --test-suite ~/llvm-test-suite
@@ -1496,288 +1498,241 @@ class NTTest(builtintest.BuiltinTest):
     def describe(self):
         return 'LLVM test-suite compile and execution tests'
 
-    def run_test(self, name, args):
-        parser = OptionParser(
-            ("%(name)s [options] tester-name\n" + usage_info) % locals())
+    # FIXME: an equivalent to argparse's add_argument_group is not implemented
+    #        on click. Need to review it when such functionality is available.
+    #        https://github.com/pallets/click/issues/373
+    @staticmethod
+    @click.command("nt", help=usage_info,
+                   short_help="LLVM test-suite compile and execution tests")
+    @click.argument("label", default=platform.uname()[1], required=False,
+                    type=click.UNPROCESSED)
+    #  Sandbox
+    @click.option("-s", "--sandbox", "sandbox_path", required=True,
+                  help="parent directory to build and run tests in",
+                  type=click.UNPROCESSED)
+    @click.option("--no-timestamp", "timestamp_build", flag_value=False,
+                  default=True, show_default=True,
+                  help="don't timestamp build directory (for testing)")
+    @click.option("--no-configure", "run_configure", flag_value=False,
+                  default=True, show_default=True,
+                  help="don't run configure if Makefile.config is "
+                       "present (only useful with --no-timestamp)")
+    #  Inputs
+    @click.option("--without-llvm", is_flag=True, show_default=True,
+                  help="don't use any LLVM source or build products")
+    @click.option("--llvm-src", "llvm_src_root",
+                  help="path to the LLVM source tree",
+                  type=click.UNPROCESSED)
+    @click.option("--llvm-obj", "llvm_obj_root", metavar="PATH",
+                  help="path to the LLVM source tree",
+                  type=click.UNPROCESSED)
+    @click.option("--test-suite", "test_suite_root", metavar="PATH",
+                  help="path to the LLVM test-suite sources",
+                  type=click.UNPROCESSED)
+    @click.option("--test-externals", "test_suite_externals",
+                  show_default=True,
+                  help="path to the LLVM test-suite externals",
+                  default='/dev/null', metavar="PATH",
+                  type=click.UNPROCESSED)
+    #  Test Compiler
+    @click.option("--cc", "cc_under_test", metavar="CC",
+                  help="path to the C compiler to test",
+                  type=click.UNPROCESSED)
+    @click.option("--cxx", "cxx_under_test", metavar="CXX",
+                  help="path to the C++ compiler to test",
+                  type=click.UNPROCESSED)
+    @click.option("--cc-reference",
+                  help="path to the reference C compiler",
+                  type=click.UNPROCESSED)
+    @click.option("--cxx-reference",
+                  help="path to the reference C++ compiler",
+                  type=click.UNPROCESSED)
+    #  Test Options
+    @click.option("--arch", help="Set -arch in TARGET_FLAGS")
+    @click.option("--llvm-arch",
+                  help="Set the ARCH value used in the makefiles to",
+                  type=click.UNPROCESSED)
+    @click.option("--make-param", "make_parameters", multiple=True,
+                  help="Add 'NAME' = 'VAL' to the makefile parameters",
+                  type=click.UNPROCESSED)
+    @click.option("--isysroot", "isysroot", metavar="PATH",
+                  help="Set -isysroot in TARGET_FLAGS",
+                  type=click.UNPROCESSED)
+    @click.option("--liblto-path", metavar="PATH",
+                  help="Specify the path to the libLTO library",
+                  type=click.UNPROCESSED)
+    @click.option("--mcpu", metavar="CPU",
+                  help="Set -mcpu in TARGET_LLCFLAGS",
+                  type=click.UNPROCESSED)
+    @click.option("--relocation-model", metavar="MODEL",
+                  help="Set -relocation-model in TARGET_LLCFLAGS",
+                  type=click.UNPROCESSED)
+    @click.option("--disable-fp-elim", is_flag=True,
+                  help="Set -disable-fp-elim in TARGET_LLCFLAGS")
+    @click.option("--optimize-option", show_default=True,
+                  help="Set optimization level for {LLC_,LLI_,}OPTFLAGS",
+                  type=click.Choice(['-O0', '-O1', '-O2',
+                                     '-O3', '-Os', '-Oz']),
+                  default='-O3')
+    @click.option("--cflag", "cflags", multiple=True,
+                  help="Additional flags to set in TARGET_FLAGS",
+                  type=click.UNPROCESSED, default=[], metavar="FLAG")
+    @click.option("--cflags", "cflag_string", multiple=True,
+                  help="Additional flags to set in TARGET_FLAGS, space "
+                       "separated string. These flags are appended after "
+                       "*all* the individual --cflag arguments.",
+                  type=click.UNPROCESSED, default='', metavar="FLAG")
+    @click.option("--mllvm", multiple=True,
+                  help="Add -mllvm FLAG to TARGET_FLAGS",
+                  type=click.UNPROCESSED, default=[], metavar="FLAG")
+    @click.option("--spec-with-pgo", is_flag=True, help="Use PGO with SPEC")
+    @click.option("--build-mode", metavar="NAME", show_default=True,
+                  default='Release+Asserts',
+                  help="Select the LLVM build mode to use",
+                  type=click.UNPROCESSED)
+    @click.option("--simple", "test_simple", is_flag=True,
+                  help="Use TEST=simple instead of TEST=nightly")
+    @click.option("--test-style", type=click.Choice(['nightly', 'simple']),
+                  default='simple', help="Set the test style to run")
+    @click.option("--test-time-stat", type=click.Choice(['user', 'real']),
+                  default='user', show_default=True,
+                  help="Set the test timing statistic to gather")
+    @click.option("--disable-cxx", "test_cxx", flag_value=False, default=True,
+                  show_default=True, help="Disable C++ tests")
+    @click.option("--disable-externals", "test_externals", flag_value=False,
+                  default=True, show_default=True,
+                  help="Disable test suite externals (if configured)")
+    @click.option("--enable-integrated-as", "test_integrated_as", is_flag=True,
+                  help="Enable TEST_INTEGRATED_AS tests")
+    @click.option("--enable-jit", "test_jit", is_flag=True,
+                  help="Enable JIT tests")
+    @click.option("--disable-llc", "test_llc",
+                  help="Disable LLC tests",
+                  flag_value=False, show_default=True, default=True)
+    @click.option("--enable-llcbeta", "test_llcbeta",
+                  help="Enable LLCBETA tests", is_flag=True)
+    @click.option("--disable-lto", "test_lto",
+                  help="Disable use of link-time optimization",
+                  flag_value=False, show_default=True, default=True)
+    @click.option("--small", "test_small",
+                  help="Use smaller test inputs and disable large tests",
+                  is_flag=True)
+    @click.option("--large", "test_large",
+                  help="Use larger test inputs", is_flag=True)
+    @click.option("--spec-with-ref", "test_spec_ref",
+                  help="Use reference test inputs for SPEC.  "
+                  "This is currently experimental", is_flag=True)
+    @click.option("--benchmarking-only", "test_benchmarking_only",
+                  help="Benchmarking-only mode", is_flag=True)
+    @click.option("--only-test", "only_test", metavar="PATH",
+                  help="Only run tests under PATH",
+                  type=click.UNPROCESSED, default=None)
+    @click.option("--include-test-examples",
+                  help="Include test module examples",
+                  is_flag=True)
+    #  Test Execution
+    @click.option("-j", "--threads", "threads",
+                  help="Number of testing threads",
+                  type=int, default=1, metavar="N")
+    @click.option("--build-threads", "build_threads",
+                  help="Number of compilation threads",
+                  type=int, default=0, metavar="N")
+    @click.option("--use-perf", type=click.UNPROCESSED, default=None,
+                  help="Use perf to obtain high accuracy timing")
+    @click.option("--rerun", help="Rerun tests that have regressed.",
+                  is_flag=True)
+    @click.option("--remote", is_flag=True,
+                  help="Execute remotely, see "
+                       "--remote-{host,port,user,client}")
+    @click.option("--remote-host", default="localhost", metavar="HOST",
+                  help="Set remote execution host", type=click.UNPROCESSED)
+    @click.option("--remote-port", type=int, default=None,
+                  metavar="PORT", help="Set remote execution port")
+    @click.option("--remote-user", help="Set remote execution user",
+                  type=click.UNPROCESSED, default=None, metavar="USER",)
+    @click.option("--remote-client", type=click.UNPROCESSED, default="ssh",
+                  help="Set remote execution client", metavar="RSH")
+    @click.option("--use-ios-simulator", "ios_simulator_sdk",
+                  help=("Execute using an iOS simulator SDK (using "
+                        "environment overrides)"),
+                  type=click.UNPROCESSED, default=None, metavar="SDKPATH")
+    @click.option("--use-isolation", "use_isolation",
+                  help=("Execute using a sandboxing profile to limit "
+                        "OS access (e.g., to the network or "
+                        "non-test directories)"),
+                  is_flag=True)
+    @click.option("--qemu-user-mode", "qemu_user_mode",
+                  help=("Enable qemu user mode emulation using this "
+                        "qemu executable"),
+                  type=click.UNPROCESSED, default=None)
+    @click.option("--qemu-flag", "qemu_flags",
+                  help="Additional flags to pass to qemu", multiple=True,
+                  type=click.UNPROCESSED, metavar="FLAG")
+    @click.option("--qemu-flags", "qemu_string",
+                  help="Additional flags to pass to qemu, space "
+                       "separated string. These flags are appended after "
+                       "*all* the individual --qemu-flag arguments.",
+                  type=click.UNPROCESSED, default='', metavar="FLAG")
+    @click.option("--multisample", "multisample",
+                  help="Accumulate test data from multiple runs",
+                  type=int, default=None, metavar="N")
+    #  Output Options
+    @click.option("--no-auto-name", "auto_name",
+                  help="Don't automatically derive submission name",
+                  flag_value=False, show_default=True, default=True)
+    @click.option("--no-machdep-info", "use_machdep_info",
+                  help=("Don't put machine (instance) dependent "
+                        "variables with machine info"),
+                  flag_value=False, show_default=True, default=True)
+    @click.option("--run-order", "run_order", metavar="STR",
+                  help="String to use to identify and order this run",
+                  type=click.UNPROCESSED, default=None)
+    @click.option("--machine-param", "machine_parameters",
+                  metavar="NAME=VAL",
+                  help="Add 'NAME' = 'VAL' to the machine parameters",
+                  type=click.UNPROCESSED, multiple=True, default=[])
+    @click.option("--run-param", "run_parameters",
+                  metavar="NAME=VAL",
+                  help="Add 'NAME' = 'VAL' to the run parameters",
+                  type=click.UNPROCESSED, multiple=True, default=[])
+    @click.option("--submit", "submit_url", metavar="URLORPATH",
+                  help=("autosubmit the test result to the given server"
+                        " (or local instance)"),
+                  type=click.UNPROCESSED, default=[], multiple=True)
+    @click.option("--commit", "commit",
+                  help="whether the autosubmit result should be committed",
+                  type=int, default=True)
+    @click.option("--output", "output", metavar="PATH",
+                  help="write raw report data to PATH (or stdout if '-')",
+                  default=None)
+    @click.option("-v", "--verbose", "verbose",
+                  help="show verbose test results", is_flag=True)
+    @click.option("--exclude-stat-from-submission",
+                  "exclude_stat_from_submission",
+                  help="Do not submit the stat of this type ",
+                  multiple=True, type=click.Choice(KNOWN_SAMPLE_KEYS),
+                  default=['hash'])
+    def cli_wrapper(*args, **kwargs):
+        """LLVM test-suite compile and execution tests"""
+        _tools_check()
+        nt = NTTest()
 
-        group = OptionGroup(parser, "Sandbox Options")
-        group.add_option("-s", "--sandbox", dest="sandbox_path",
-                         help="Parent directory to build and run tests in",
-                         type=str, default=None, metavar="PATH")
-        group.add_option("", "--no-timestamp", dest="timestamp_build",
-                         help="Don't timestamp build directory (for testing)",
-                         action="store_false", default=True)
-        group.add_option("", "--no-configure", dest="run_configure",
-                         help=("Don't run configure if Makefile.config is "
-                               "present (only useful with --no-timestamp)"),
-                         action="store_false", default=True)
-        parser.add_option_group(group)
+        for key, value in kwargs.items():
+            setattr(nt.opts, key, value)
 
-        group = OptionGroup(parser, "Inputs")
-        group.add_option("", "--without-llvm", dest="without_llvm",
-                         help="Don't use any LLVM source or build products",
-                         action="store_true", default=False)
-        group.add_option("", "--llvm-src", dest="llvm_src_root",
-                         help="Path to the LLVM source tree",
-                         type=str, default=None, metavar="PATH")
-        group.add_option("", "--llvm-obj", dest="llvm_obj_root",
-                         help="Path to the LLVM source tree",
-                         type=str, default=None, metavar="PATH")
-        group.add_option("", "--test-suite", dest="test_suite_root",
-                         help="Path to the LLVM test-suite sources",
-                         type=str, default=None, metavar="PATH")
-        group.add_option("", "--test-externals", dest="test_suite_externals",
-                         help="Path to the LLVM test-suite externals",
-                         type=str, default='/dev/null', metavar="PATH")
-        parser.add_option_group(group)
+        results = nt.run_test(nt.opts)
+        nt.show_results_url(results)
 
-        group = OptionGroup(parser, "Test Compiler")
-        group.add_option("", "--cc", dest="cc_under_test", metavar="CC",
-                         help="Path to the C compiler to test",
-                         type=str, default=None)
-        group.add_option("", "--cxx", dest="cxx_under_test", metavar="CXX",
-                         help="Path to the C++ compiler to test",
-                         type=str, default=None)
-        group.add_option("", "--cc-reference", dest="cc_reference",
-                         help="Path to the reference C compiler",
-                         type=str, default=None)
-        group.add_option("", "--cxx-reference", dest="cxx_reference",
-                         help="Path to the reference C++ compiler",
-                         type=str, default=None)
-        parser.add_option_group(group)
 
-        group = OptionGroup(parser, "Test Options")
-        group.add_option("", "--arch", dest="arch",
-                         help="Set -arch in TARGET_FLAGS [%default]",
-                         type=str, default=None)
-        group.add_option("", "--llvm-arch", dest="llvm_arch",
-                         help="Set the ARCH value used in the makefiles to "
-                             "[%default]",
-                         type=str, default=None)
-        group.add_option("", "--make-param", dest="make_parameters",
-                         metavar="NAME=VAL",
-                         help="Add 'NAME' = 'VAL' to the makefile parameters",
-                         type=str, action="append", default=[])
-        group.add_option("", "--isysroot", dest="isysroot", metavar="PATH",
-                         help="Set -isysroot in TARGET_FLAGS [%default]",
-                         type=str, default=None)
-        group.add_option("", "--liblto-path", dest="liblto_path",
-                         metavar="PATH",
-                         help=("Specify the path to the libLTO library "
-                               "[%default]"),
-                         type=str, default=None)
+    def run_test(self, opts):
 
-        group.add_option("", "--mcpu", dest="mcpu",
-                         help="Set -mcpu in TARGET_LLCFLAGS [%default]",
-                         type=str, default=None, metavar="CPU")
-        group.add_option("", "--relocation-model", dest="relocation_model",
-                         help=("Set -relocation-model in TARGET_LLCFLAGS "
-                               "[%default]"),
-                         type=str, default=None, metavar="MODEL")
-        group.add_option("", "--disable-fp-elim", dest="disable_fp_elim",
-                         help=("Set -disable-fp-elim in TARGET_LLCFLAGS"),
-                         action="store_true", default=False)
-
-        group.add_option("", "--optimize-option", dest="optimize_option",
-                         help="Set optimization level for {LLC_,LLI_,}OPTFLAGS",
-                         choices=('-O0', '-O1', '-O2', '-O3', '-Os', '-Oz'),
-                         default='-O3')
-        group.add_option("", "--cflag", dest="cflags",
-                         help="Additional flags to set in TARGET_FLAGS",
-                         action="append", type=str, default=[], metavar="FLAG")
-        group.add_option("", "--cflags", dest="cflag_string",
-                         help="Additional flags to set in TARGET_FLAGS, space separated string. "
-                         "These flags are appended after *all* the individual --cflag arguments.",
-                         type=str, default='', metavar="FLAG")
-        group.add_option("", "--mllvm", dest="mllvm",
-                         help="Add -mllvm FLAG to TARGET_FLAGS",
-                         action="append", type=str, default=[], metavar="FLAG")
-        group.add_option("", "--spec-with-pgo", help="Use PGO with SPEC",
-                         action="store_true")
-        parser.add_option_group(group)
-
-        group = OptionGroup(parser, "Test Selection")
-        group.add_option("", "--build-mode", dest="build_mode", metavar="NAME",
-                         help="Select the LLVM build mode to use [%default]",
-                         type=str, action="store", default='Release+Asserts')
-
-        group.add_option("", "--simple", dest="test_simple",
-                         help="Use TEST=simple instead of TEST=nightly",
-                         action="store_true", default=False)
-        group.add_option("", "--test-style", dest="test_style",
-                         help="Set the test style to run [%default]",
-                         choices=('nightly', 'simple'), default='simple')
-
-        group.add_option("", "--test-time-stat", dest="test_time_stat",
-                         help="Set the test timing statistic to gather "
-                             "[%default]",
-                         choices=('user', 'real'), default='user')
-
-        group.add_option("", "--disable-cxx", dest="test_cxx",
-                         help="Disable C++ tests",
-                         action="store_false", default=True)
-
-        group.add_option("", "--disable-externals", dest="test_externals",
-                         help="Disable test suite externals (if configured)",
-                         action="store_false", default=True)
-        group.add_option("", "--enable-integrated-as",
-                         dest="test_integrated_as",
-                         help="Enable TEST_INTEGRATED_AS tests",
-                         action="store_true", default=False)
-        group.add_option("", "--enable-jit", dest="test_jit",
-                         help="Enable JIT tests",
-                         action="store_true", default=False)
-        group.add_option("", "--disable-llc", dest="test_llc",
-                         help="Disable LLC tests",
-                         action="store_false", default=True)
-        group.add_option("", "--enable-llcbeta", dest="test_llcbeta",
-                         help="Enable LLCBETA tests",
-                         action="store_true", default=False)
-        group.add_option("", "--disable-lto", dest="test_lto",
-                         help="Disable use of link-time optimization",
-                         action="store_false", default=True)
-
-        group.add_option("", "--small", dest="test_small",
-                         help="Use smaller test inputs and disable large tests",
-                         action="store_true", default=False)
-        group.add_option("", "--large", dest="test_large",
-                         help="Use larger test inputs",
-                         action="store_true", default=False)
-        group.add_option("", "--spec-with-ref", dest="test_spec_ref",
-                         help="Use reference test inputs for SPEC.  "
-                         "This is currently experimental",
-                         action="store_true", default=False)
-        group.add_option("", "--benchmarking-only", dest="test_benchmarking_only",
-                         help="Benchmarking-only mode",
-                         action="store_true", default=False)
-
-        group.add_option("", "--only-test", dest="only_test", metavar="PATH",
-                         help="Only run tests under PATH",
-                         type=str, default=None)
-        group.add_option("", "--include-test-examples",
-                         dest="include_test_examples",
-                         help="Include test module examples [%default]",
-                         action="store_true", default=False)
-        parser.add_option_group(group)
-
-        group = OptionGroup(parser, "Test Execution")
-        group.add_option("-j", "--threads", dest="threads",
-                         help="Number of testing threads",
-                         type=int, default=1, metavar="N")
-        group.add_option("", "--build-threads", dest="build_threads",
-                         help="Number of compilation threads",
-                         type=int, default=0, metavar="N")
-        group.add_option("", "--use-perf", dest="use_perf",
-                         help=("Use perf to obtain high accuracy timing"
-                               "[%default]"),
-                         type=str, default=None)
-        group.add_option("", "--rerun", dest="rerun",
-                         help="Rerun tests that have regressed.",
-                         action="store_true", default=False)
-        group.add_option("", "--remote", dest="remote",
-                         help=("Execute remotely, see "
-                               "--remote-{host,port,user,client} [%default]"),
-                         action="store_true", default=False)
-        group.add_option("", "--remote-host", dest="remote_host",
-                         help="Set remote execution host [%default]",
-                         type=str, default="localhost", metavar="HOST")
-        group.add_option("", "--remote-port", dest="remote_port",
-                         help="Set remote execution port [%default] ",
-                         type=int, default=None, metavar="PORT",)
-        group.add_option("", "--remote-user", dest="remote_user",
-                         help="Set remote execution user [%default]",
-                         type=str, default=None, metavar="USER",)
-        group.add_option("", "--remote-client", dest="remote_client",
-                         help="Set remote execution client [%default]",
-                         type=str, default="ssh", metavar="RSH",)
-
-        group.add_option("", "--use-ios-simulator", dest="ios_simulator_sdk",
-                         help=("Execute using an iOS simulator SDK (using "
-                               "environment overrides)"),
-                         type=str, default=None, metavar="SDKPATH")
-        group.add_option("", "--use-isolation", dest="use_isolation",
-                         help=("Execute using a sandboxing profile to limit "
-                               "OS access (e.g., to the network or "
-                               "non-test directories)"),
-                         action="store_true", default=False)
-
-        group.add_option("", "--qemu-user-mode", dest="qemu_user_mode",
-                         help=("Enable qemu user mode emulation using this "
-                               "qemu executable [%default]"),
-                         type=str, default=None)
-        group.add_option("", "--qemu-flag", dest="qemu_flags",
-                         help="Additional flags to pass to qemu",
-                         action="append", type=str, default=[], metavar="FLAG")
-        group.add_option("", "--qemu-flags", dest="qemu_string",
-                         help="Additional flags to pass to qemu, space separated string. "
-                         "These flags are appended after *all* the individual "
-                         "--qemu-flag arguments.",
-                         type=str, default='', metavar="FLAG")
-
-        group.add_option("", "--multisample", dest="multisample",
-                         help="Accumulate test data from multiple runs",
-                         type=int, default=None, metavar="N")
-        parser.add_option_group(group)
-
-        group = OptionGroup(parser, "Output Options")
-        group.add_option("", "--no-auto-name", dest="auto_name",
-                         help="Don't automatically derive submission name",
-                         action="store_false", default=True)
-        group.add_option("", "--no-machdep-info", dest="use_machdep_info",
-                         help=("Don't put machine (instance) dependent "
-                               "variables with machine info"),
-                         action="store_false", default=True)
-        group.add_option("", "--run-order", dest="run_order", metavar="STR",
-                         help="String to use to identify and order this run",
-                         action="store", type=str, default=None)
-        group.add_option("", "--machine-param", dest="machine_parameters",
-                         metavar="NAME=VAL",
-                         help="Add 'NAME' = 'VAL' to the machine parameters",
-                         type=str, action="append", default=[])
-        group.add_option("", "--run-param", dest="run_parameters",
-                         metavar="NAME=VAL",
-                         help="Add 'NAME' = 'VAL' to the run parameters",
-                         type=str, action="append", default=[])
-        group.add_option("", "--submit", dest="submit_url", metavar="URLORPATH",
-                         help=("autosubmit the test result to the given server"
-                               " (or local instance) [%default]"),
-                         type=str, default=[], action="append")
-        group.add_option("", "--commit", dest="commit",
-                         help=("whether the autosubmit result should be committed "
-                                "[%default]"),
-                          type=int, default=True)
-        group.add_option("", "--output", dest="output", metavar="PATH",
-                         help="write raw report data to PATH (or stdout if '-')",
-                         action="store", default=None)
-        group.add_option("-v", "--verbose", dest="verbose",
-                         help="show verbose test results",
-                         action="store_true", default=False)
-        group.add_option("", "--exclude-stat-from-submission", dest="exclude_stat_from_submission",
-                         help="Do not submit the stat of this type "
-                             "[%default]",
-                         action='append',
-                         choices=KNOWN_SAMPLE_KEYS,
-                         default=['hash'])
-        parser.add_option_group(group)
-
-        (opts, args) = parser.parse_args(args)
-        if len(args) == 0:
-            nick = platform.uname()[1]
-        elif len(args) == 1:
-            nick, = args
-        else:
-            parser.error("invalid number of arguments")
+        opts.cflag_string = ' '.join(opts.cflag_string)
 
         # The --without--llvm option is the default if no LLVM paths are given.
         if opts.llvm_src_root is None and opts.llvm_obj_root is None:
             opts.without_llvm = True
 
-        # Validate options.
-
-        if opts.sandbox_path is None:
-            parser.error('--sandbox is required')
-
-        # Deprecate --simple.
+        # Deprecate --simple
         if opts.test_simple:
             warning("--simple is deprecated, it is the default.")
         del opts.test_simple
@@ -1785,40 +1740,40 @@ class NTTest(builtintest.BuiltinTest):
         if opts.test_style == "simple":
             # TEST=simple doesn't use a reference compiler.
             if opts.cc_reference is not None:
-                parser.error('--cc-reference is unused with --simple')
+                self._fatal('--cc-reference is unused with --simple')
             if opts.cxx_reference is not None:
-                parser.error('--cxx-reference is unused with --simple')
+                self._fatal('--cxx-reference is unused with --simple')
             # TEST=simple doesn't use a llc options.
             if opts.mcpu is not None:
-                parser.error('--mcpu is unused with --simple (use --cflag)')
+                self._fatal('--mcpu is unused with --simple (use --cflag)')
             if opts.relocation_model is not None:
-                parser.error('--relocation-model is unused with --simple '
-                             '(use --cflag)')
+                self._fatal('--relocation-model is unused with --simple '
+                            '(use --cflag)')
             if opts.disable_fp_elim:
-                parser.error('--disable-fp-elim is unused with --simple '
-                             '(use --cflag)')
+                self._fatal('--disable-fp-elim is unused with --simple '
+                            '(use --cflag)')
         else:
             if opts.without_llvm:
-                parser.error('--simple is required with --without-llvm')
+                self._fatal('--simple is required with --without-llvm')
 
             # Attempt to infer cc_reference and cxx_reference if not given.
             if opts.cc_reference is None:
                 opts.cc_reference = which('gcc') or which('cc')
                 if opts.cc_reference is None:
-                    parser.error('unable to infer --cc-reference (required)')
+                    self._fatal('unable to infer --cc-reference (required)')
             if opts.cxx_reference is None:
                 opts.cxx_reference = which('g++') or which('c++')
                 if opts.cxx_reference is None:
-                    parser.error('unable to infer --cxx-reference (required)')
+                    self._fatal('unable to infer --cxx-reference (required)')
 
         if opts.cc_under_test is None:
-            parser.error('--cc is required')
+            self._fatal('--cc is required')
 
         # Resolve the cc_under_test path.
         opts.cc_under_test = resolve_command_path(opts.cc_under_test)
 
         if not lnt.testing.util.compilers.is_valid(opts.cc_under_test):
-            parser.error('--cc does not point to a valid executable.')
+            self._fatal('--cc does not point to a valid executable.')
 
         # If there was no --cxx given, attempt to infer it from the --cc.
         if opts.cxx_under_test is None:
@@ -1830,7 +1785,7 @@ class NTTest(builtintest.BuiltinTest):
 
         # The cxx_under_test option is required if we are testing C++.
         if opts.test_cxx and opts.cxx_under_test is None:
-            parser.error('--cxx is required')
+            self._fatal('--cxx is required')
 
         if opts.cxx_under_test is not None:
             opts.cxx_under_test = resolve_command_path(opts.cxx_under_test)
@@ -1842,11 +1797,11 @@ class NTTest(builtintest.BuiltinTest):
 
         # Validate that the compilers under test exist.
         if not os.path.exists(opts.cc_under_test):
-            parser.error("invalid --cc argument %r, does not exist" % (
-                         opts.cc_under_test))
+            self._fatal("invalid --cc argument %r, does not exist" % (
+                opts.cc_under_test))
         if not os.path.exists(opts.cxx_under_test):
-            parser.error("invalid --cxx argument %r, does not exist" % (
-                         opts.cxx_under_test))
+            self._fatal("invalid --cxx argument %r, does not exist" % (
+                opts.cxx_under_test))
 
         # FIXME: As a hack to allow sampling old Clang revisions, if we are
         # given a C++ compiler that doesn't exist, reset it to just use the
@@ -1857,55 +1812,55 @@ class NTTest(builtintest.BuiltinTest):
 
         if opts.without_llvm:
             if opts.llvm_src_root is not None:
-                parser.error('--llvm-src is not allowed with --without-llvm')
+                self._fatal('--llvm-src is not allowed with --without-llvm')
             if opts.llvm_obj_root is not None:
-                parser.error('--llvm-obj is not allowed with --without-llvm')
+                self._fatal('--llvm-obj is not allowed with --without-llvm')
         else:
             if opts.llvm_src_root is None:
-                parser.error('--llvm-src is required')
+                self._fatal('--llvm-src is required')
             if opts.llvm_obj_root is None:
-                parser.error('--llvm-obj is required')
+                self._fatal('--llvm-obj is required')
 
             # Make LLVM source and object paths absolute, this is required.
             opts.llvm_src_root = os.path.abspath(opts.llvm_src_root)
             opts.llvm_obj_root = os.path.abspath(opts.llvm_obj_root)
             if not os.path.exists(opts.llvm_src_root):
-                parser.error('--llvm-src argument does not exist')
+                self._fatal('--llvm-src argument does not exist')
             if not os.path.exists(opts.llvm_obj_root):
-                parser.error('--llvm-obj argument does not exist')
+                self._fatal('--llvm-obj argument does not exist')
 
         if opts.test_suite_root is None:
-            parser.error('--test-suite is required')
+            self._fatal('--test-suite is required')
         elif not os.path.exists(opts.test_suite_root):
-            parser.error("invalid --test-suite argument, does not exist: %r" % (
-                         opts.test_suite_root))
+            self._fatal("invalid --test-suite argument, does not exist: %r" % (
+                opts.test_suite_root))
 
         if opts.remote:
             if opts.remote_port is None:
-                parser.error('--remote-port is required with --remote')
+                self._fatal('--remote-port is required with --remote')
             if opts.remote_user is None:
-                parser.error('--remote-user is required with --remote')
+                self._fatal('--remote-user is required with --remote')
         else:
             if opts.remote_port is not None:
-                parser.error('--remote is required with --remote-port')
+                self._fatal('--remote is required with --remote-port')
             if opts.remote_user is not None:
-                parser.error('--remote is required with --remote-user')
+                self._fatal('--remote is required with --remote-user')
 
         if opts.spec_with_pgo and not opts.test_spec_ref:
-            parser.error('--spec-with-pgo is only supported with --spec-with-ref')
+            self._fatal('--spec-with-pgo is only supported with --spec-with-ref')
 
         # libLTO should exist, if given.
         if opts.liblto_path:
             if not os.path.exists(opts.liblto_path):
-                parser.error('invalid --liblto-path argument %r' % (
-                        opts.liblto_path,))
+                self._fatal('invalid --liblto-path argument %r' % (
+                    opts.liblto_path,))
 
         # Support disabling test suite externals separately from providing path.
         if not opts.test_externals:
             opts.test_suite_externals = '/dev/null'
         else:
             if not os.path.exists(opts.test_suite_externals):
-                parser.error(
+                self._fatal(
                     "invalid --test-externals argument, does not exist: %r" % (
                         opts.test_suite_externals))
 
@@ -1936,7 +1891,7 @@ class NTTest(builtintest.BuiltinTest):
             for i in range(opts.multisample):
                 print >>sys.stderr, "%s: (multisample) running iteration %d" % (
                     timestamp(), i)
-                report = run_test(nick, i, config)
+                report = run_test(opts.label, i, config)
                 reports.append(report)
 
             # Create the merged report.
@@ -1958,7 +1913,7 @@ class NTTest(builtintest.BuiltinTest):
             lnt_report_file.close()
 
         else:
-            test_results = run_test(nick, None, config)
+            test_results = run_test(opts.label, None, config)
             if opts.rerun:
                 self.log("Performing any needed reruns.")
                 server_report = self.submit_helper(config, commit=False)
@@ -2001,8 +1956,8 @@ class NTTest(builtintest.BuiltinTest):
                     result = ServerUtil.submitFile(server, report_path,
                                                    commit, False)
                 except (urllib2.HTTPError, urllib2.URLError) as e:
-                    warning("submitting to {} failed with {}".format(server,
-                            e))
+                    warning("submitting to {} failed with {}".format(
+                        server, e))
         else:
             # Simulate a submission to retrieve the results report.
             # Construct a temporary database and import the result.
@@ -2053,10 +2008,3 @@ def _tools_check():
     status = call(["which", "tclsh"], stdout=FNULL, stderr=FNULL)
     if status > 0:
         raise SystemExit("""error: tclsh not available on your system.""")
-
-
-def create_instance():
-    _tools_check()
-    return NTTest()
-
-__all__ = ['create_instance']

@@ -1,6 +1,10 @@
 import os
 import sys
 
+import click
+from lnt import formats
+
+
 def convert_data(input, output, inFormat, outFormat):
     from lnt import formats
 
@@ -13,50 +17,25 @@ def convert_data(input, output, inFormat, outFormat):
     out['write'](data, output)
     output.flush()
 
-def action_convert(name, args):
+@click.command("convert")
+@click.argument("input", type=click.File('rb'), default="-", required=False)
+@click.argument("output", type=click.File('wb'), default="-", required=False)
+@click.option("--from", "input_format", show_default=True,
+              type=click.Choice(formats.format_names + ['<auto>']),
+              default='<auto>', help="input format")
+@click.option("--to", "output_format", show_default=True,
+              type=click.Choice(formats.format_names + ['<auto>']),
+              default='plist', help="output format")
+def action_convert(input, output, input_format, output_format):
     """convert between input formats"""
-
-    from optparse import OptionParser, OptionGroup
-    from lnt import formats
-    parser = OptionParser("%s [options] [<input>, [<output>]]" % name)
-    parser.add_option("", "--from", dest="inputFormat", metavar="NAME",
-                      help="input format name [%default]", default='<auto>',
-                      choices=formats.format_names + ['<auto>'])
-    parser.add_option("", "--to", dest="outputFormat", metavar="NAME",
-                      help="output format name [%default]", default='plist',
-                      choices=formats.format_names + ['<auto>'])
-    (opts, args) = parser.parse_args(args)
-
-    input = output = '-'
-    if len(args) == 0:
-        pass
-    elif len(args) == 1:
-        input, = args
-    elif len(args) == 2:
-        input,output = args
-    else:
-        parser.error("invalid number of arguments")
-
-    if input == '-':
-        # Guarantee that we can seek.
-        import StringIO
-        data = sys.stdin.read()
-        inf = StringIO.StringIO(data)
-    else:
-        inf = input
-
-    if output == '-':
-        outf = sys.stdout
-    else:
-        outf = open(output, 'wb')
 
     try:
         try:
-            convert_data(inf, outf, opts.inputFormat, opts.outputFormat)
+            convert_data(input, output, input_format, output_format)
         finally:
-            if outf != sys.stdout:
-                outf.close()
+            if output != sys.stdout:
+                output.close()
     except:
-        if outf != sys.stdout:
+        if output != sys.stdout:
             os.remove(output)
         raise
