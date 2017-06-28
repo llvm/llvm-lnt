@@ -884,6 +884,7 @@ def v4_graph():
         else:
             normalize_by = 1.0
 
+        using_ints = True
         for pos, (point_label, datapoints) in enumerate(data):
             # Get the samples.
             data = [data_date[0] for data_date in datapoints]
@@ -895,7 +896,9 @@ def v4_graph():
             # When we can, map x-axis to revisions, but when that is too hard
             # use the position of the sample instead.
             rev_x = convert_revision(point_label)
-            x = rev_x[0] if len(rev_x)==1 else pos
+            if using_ints and len(rev_x) != 1:
+                using_ints = False
+            x = rev_x[0] if using_ints else pos
 
             values = [v*normalize_by for v in data]
             aggregation_fn = min
