@@ -1,3 +1,9 @@
+0.4.2
+=====
+
+We did a really bad job of incrementing this number for years. Lots of changes!
+
+
 0.4.1
 =====
 
