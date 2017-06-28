@@ -44,11 +44,16 @@ def emailReport(result, db, run, baseurl, email_config, to, was_added=True,
     s.quit()
 
 def getReport(result, db, run, baseurl, was_added, will_commit,
-              only_html_body = False, compare_to = None):
+              compare_to=None):
     assert isinstance(db, lnt.server.db.v4db.V4DB)
-    report = StringIO.StringIO()
 
-    reports = lnt.server.reporting.runs.generate_run_report(
-        run, baseurl=baseurl, only_html_body=only_html_body,
+    data = lnt.server.reporting.runs.generate_run_data(run, baseurl=baseurl,
         result=result, compare_to=compare_to, num_comparison_runs=10)
-    return reports[:3]
+
+    env = lnt.server.ui.app.create_jinja_environment()
+    text_template = env.get_template('reporting/runs.txt')
+    text_report = text_template.render(data)
+    data['only_html_body'] = False
+    html_template = env.get_template('reporting/runs.html')
+    html_report = html_template.render(data)
+    return data['subject'], text_report, html_report

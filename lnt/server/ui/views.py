@@ -283,7 +283,7 @@ def v4_machine(id):
         abort(404)
 
 class V4RequestInfo(object):
-    def __init__(self, run_id, only_html_body=True):
+    def __init__(self, run_id):
         self.db = request.get_db()
         self.ts = ts = request.get_testsuite()
         self.run = run = ts.query(ts.Run).filter_by(id=run_id).first()
@@ -363,26 +363,26 @@ class V4RequestInfo(object):
             'table': 'table table-striped table-condensed table-hover'
         }
 
-        reports = lnt.server.reporting.runs.generate_run_report(
+        self.data = lnt.server.reporting.runs.generate_run_data(
             self.run, baseurl=db_url_for('index', _external=True),
-            only_html_body=only_html_body, result=None,
-            compare_to=self.compare_to, baseline=self.baseline,
+            result=None, compare_to=self.compare_to, baseline=self.baseline,
             num_comparison_runs=self.num_comparison_runs,
             aggregation_fn=self.aggregation_fn, confidence_lv=confidence_lv,
             styles=styles, classes=classes)
-        _, self.text_report, self.html_report, self.sri = reports
+        self.sri = self.data['sri']
 
 @v4_route("/<int:id>/report")
 def v4_report(id):
-    info = V4RequestInfo(id, only_html_body=False)
-
-    return make_response(info.html_report)
+    info = V4RequestInfo(id)
+    return render_template('reporting/runs.html', only_html_body=False,
+                           **info.data)
 
 @v4_route("/<int:id>/text_report")
 def v4_text_report(id):
-    info = V4RequestInfo(id, only_html_body=False)
+    info = V4RequestInfo(id)
 
-    response = make_response(info.text_report)
+    text_report = render_template('reporting/runs.txt', **info.data)
+    response = make_response(text_report)
     response.mimetype = "text/plain"
     return response
 
@@ -489,6 +489,8 @@ def v4_run(id):
     urls = {
         'search': v4_url_for('v4_search')
     }
+    info.html_report = render_template('reporting/runs.html',
+                                       only_html_body=True, **info.data)
     return render_template(
         "v4_run.html", ts=ts, options=options,
         metric_fields=list(ts.Sample.get_metric_fields()),

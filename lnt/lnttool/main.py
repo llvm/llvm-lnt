@@ -363,12 +363,18 @@ def action_send_run_comparison(instance_path, run_a_id, run_b_id, database,
             error("invalid run ID %r (not in database)" % (run_b_id,))
 
         # Generate the report.
-        reports = lnt.server.reporting.runs.generate_run_report(
-            run_b, baseurl=config.zorgURL, only_html_body=False, result=None,
-            compare_to=run_a, baseline=None,
-            aggregation_fn=min)
-        subject, text_report, html_report, _ = reports
+        data = lnt.server.reporting.runs.generate_run_data(
+            run_b, baseurl=config.zorgURL, result=None, compare_to=run_a,
+            baseline=None, aggregation_fn=min)
 
+        env = lnt.server.ui.app.create_jinja_environment()
+        text_template = env.get_template('reporting/runs.txt')
+        text_report = text_template.render(data)
+        data['only_html_body'] = False
+        html_template = env.get_template('reporting/runs.html')
+        html_report = html_template.render(data)
+
+        subject = data['subject']
         if subject_prefix is not None:
             subject = "%s %s" % (subject_prefix, subject)
 

@@ -88,7 +88,7 @@
       <th style="{{ styles['th'] }}">Order</th>
       <th style="{{ styles['th'] }}">Start Time</th>
       <th style="{{ styles['th'] }}">Duration</th>
-      {%- set show_producers = (run and run.parameters.producer) or(compare_to and compare_to.parameters.producer) or (baseline and baseline.parameters.producer) %}
+      {%- set show_producers = (run and 'producer' in run.parameters) or(compare_to and 'producer' in compare_to.parameters) or (baseline and 'producer' in baseline.parameters) %}
       {% if show_producers %}
         <th style="{{ styles['th'] }}">Produced by</th>
       {% endif %}
