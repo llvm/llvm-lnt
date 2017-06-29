@@ -37,6 +37,20 @@ order_expected_response = {u'llvm_project_revision': u'154331',
                            u'id': 1,
                            u'name': u'154331'}
 
+sample_expected_response = {u'run_id': 1,
+                            u'mem_bytes': None,
+                            u'profile_id': None,
+                            u'id': 1,
+                            u'compile_status': None,
+                            u'score': None,
+                            u'hash': None,
+                            u'execution_time': 0.0003,
+                            u'execution_status': None,
+                            u'test_id': 1,
+                            u'compile_time': 0.007,
+                            u'hash_status': None,
+                            u'code_size': None}
+
 graph_data = [[[152292], 1.0,
                {u'date': u'2012-05-01 16:28:23',
                 u'label': u'152292',
@@ -174,6 +188,14 @@ class JSONAPITester(unittest.TestCase):
         self.assertEquals(j['orders'][0], order_expected_response)
         self._check_response_is_well_formed(j)
         check_json(client, 'api/db_default/v4/nts/orders/100', expected_code=404)
+
+    def test_single_sample_api(self):
+        """ Check /samples/n returns the expected sample information."""
+        client = self.client
+        j = check_json(client, 'api/db_default/v4/nts/samples/1')
+        self._check_response_is_well_formed(j)
+        self.assertEquals(sample_expected_response, j['samples'][0])
+        check_json(client, 'api/db_default/v4/nts/samples/1000', expected_code=404)
 
     def test_graph_api(self):
         """Check that /graph/x/y/z returns what we expect."""

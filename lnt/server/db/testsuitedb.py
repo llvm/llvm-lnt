@@ -471,6 +471,9 @@ class TestSuiteDB(object):
                 return '%s_%s(%r, %r, **%r)' % (
                     db_key_name, self.__class__.__name__,
                     self.run, self.test, fields)
+
+            def __json__(self):
+                return strip(self.__dict__)
         
         class FieldChange(self.base, ParameterizedMixin):
             """FieldChange represents a change in between the values

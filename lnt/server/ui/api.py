@@ -186,6 +186,21 @@ class Order(Resource):
 
 
 class SampleData(Resource):
+    method_decorators = [in_db]
+
+    @staticmethod
+    def get(sample_id):
+        ts = request.get_testsuite()
+        try:
+            sample = ts.query(ts.Sample).filter(ts.Sample.id == sample_id).one()
+        except NoResultFound:
+            return abort(404, message="Invalid order.")
+        sample_output = common_fields_factory()
+        sample_output['samples'] = [sample]
+        return jsonify(sample_output)
+
+
+class SamplesData(Resource):
     """List all the machines and give summary information."""
     method_decorators = [in_db]
 
@@ -319,7 +334,8 @@ def load_api_resources(api):
     api.add_resource(Machines, ts_path("machines/"))
     api.add_resource(Machine, ts_path("machines/<machine_id>"))
     api.add_resource(Runs, ts_path("runs/<int:run_id>"))
-    api.add_resource(SampleData, ts_path("samples"))
+    api.add_resource(SamplesData, ts_path("samples"))
+    api.add_resource(SampleData, ts_path("samples/<sample_id>"))
     api.add_resource(Order, ts_path("orders/<int:order_id>"))
     graph_url = "graph/<int:machine_id>/<int:test_id>/<int:field_index>"
     api.add_resource(Graph, ts_path(graph_url))

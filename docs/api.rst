@@ -34,6 +34,8 @@ once.
 |                           | Will return sample data in the samples section, as a list of dicts, with a key for       |
 |                           | each metric type.                                                                        |
 +---------------------------+------------------------------------------------------------------------------------------+
+| /samples/`id`             | Get all sample info for Sample `id`.                                                       |
++---------------------------+------------------------------------------------------------------------------------------+
 
 Examples
 --------
