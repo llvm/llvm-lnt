@@ -728,7 +728,11 @@ class TestSuiteTest(BuiltinTest):
             # LIT is expected to exit with code 1 if there were test
             # failures!
             pass
-        return json.loads(open(output_json_path.name).read())
+        try:
+            return json.loads(open(output_json_path.name).read())
+        except ValueError as e:
+            fatal("Running test-suite did not create valid json report in {}: {}".format(
+                output_json_path.name, e.message))
 
     def _is_pass_code(self, code):
         return code in ('PASS', 'XPASS', 'XFAIL')
