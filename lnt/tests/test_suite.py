@@ -492,7 +492,7 @@ class TestSuiteTest(BuiltinTest):
         with open(csv_report_path, 'w') as fd:
             fd.write(str_template)
 
-        return self.submit(report_path, self.opts, commit=True)
+        return self.submit(report_path, self.opts, 'nts', commit=True)
 
     def _configure_if_needed(self):
         mkdir_p(self._base_path)

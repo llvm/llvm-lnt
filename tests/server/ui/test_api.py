@@ -21,6 +21,7 @@ machines_expected_response = [{u'hardware': u'x86_64',
                                u'os': u'Darwin 11.3.0',
                                u'id': 1,
                                u'name': u'localhost__clang_DEV__x86_64',
+                               u'hostname': u'localhost',
                                u'uname': u'Darwin localhost 11.3.0 Darwin Kernel Version 11.3.0: Thu Jan 12'
                                          u' 18:47:41 PST 2012; root:xnu-1699.24.23~1/RELEASE_X86_64 x86_64'},
                               {u'hardware': u'AArch64',
@@ -95,6 +96,7 @@ possible_run_keys = {u'__report_version__',
                      }
 
 possible_machine_keys = {u'name',
+                         u'hostname',
                          u'hardware',
                          u'os',
                          u'id',

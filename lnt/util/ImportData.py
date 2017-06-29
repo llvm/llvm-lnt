@@ -7,11 +7,11 @@ from lnt.testing.util.commands import note
 from lnt.util import NTEmailReport
 from lnt.util import async_ops
 
-def import_and_report(config, db_name, db, file, format, commit=False,
-                      show_sample_count=False, disable_email=False,
-                      disable_report=False):
+def import_and_report(config, db_name, db, file, format, ts_name,
+                      commit=False, show_sample_count=False,
+                      disable_email=False, disable_report=False):
     """
-    import_and_report(config, db_name, db, file, format,
+    import_and_report(config, db_name, db, file, format, ts_name,
                       [commit], [show_sample_count],
                       [disable_email]) -> ... object ...
 
@@ -49,7 +49,7 @@ def import_and_report(config, db_name, db, file, format, commit=False,
     result['load_time'] = time.time() - startTime
 
     # Auto-upgrade the data, if necessary.
-    lnt.testing.upgrade_report(data)
+    data = lnt.testing.upgrade_report(data, ts_name)
 
     # Find the database config, if we have a configuration object.
     if config:
@@ -72,7 +72,8 @@ def import_and_report(config, db_name, db, file, format, commit=False,
 
     importStartTime = time.time()
     try:
-        success, run = db.importDataFromDict(data, commit, config=db_config)
+        success, run = db.importDataFromDict(data, commit, ts_name,
+                                             config=db_config)
     except KeyboardInterrupt:
         raise
     except:
@@ -110,7 +111,6 @@ def import_and_report(config, db_name, db, file, format, commit=False,
 
     result['committed'] = commit
     result['run_id'] = run.id
-    ts_name = data['Run']['Info'].get('tag')
     if commit:
         db.commit()
         if db_config:
@@ -141,9 +141,9 @@ def import_and_report(config, db_name, db, file, format, commit=False,
 
             # Perform the shadow import.
             shadow_result = import_and_report(config, shadow_name,
-                                              shadow_db, file, format, commit,
-                                              show_sample_count, disable_email,
-                                              disable_report)
+                                              shadow_db, file, format, ts_name,
+                                              commit, show_sample_count,
+                                              disable_email, disable_report)
 
             # Append the shadow result to the result.
             result['shadow_result'] = shadow_result

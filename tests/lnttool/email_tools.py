@@ -19,7 +19,7 @@
 # CHECK0: === text/plain report
 # CHECK0: http://localhost/perf/v4/nts/2?compare_to=1&amp;baseline=2
 # CHECK0: Nickname: localhost__clang_DEV__x86_64:1
-# CHECK0: Name: localhost
+# CHECK0: Hostname: localhost
 # CHECK0: Comparing:
 # CHECK0:      Run: 2, Order: 152289, Start Time: 2012-04-11 21:13:53, End Time: 2012-04-11 21:14:49
 # CHECK0:      To: 1, Order: 154331, Start Time: 2012-04-11 16:28:23, End Time: 2012-04-11 16:28:58

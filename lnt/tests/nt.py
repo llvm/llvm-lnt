@@ -1968,7 +1968,7 @@ class NTTest(builtintest.BuiltinTest):
             db = lnt.server.db.v4db.V4DB("sqlite:///:memory:",
                                          lnt.server.config.Config.dummy_instance())
             result = lnt.util.ImportData.import_and_report(
-                None, None, db, report_path, 'json', commit)
+                None, None, db, report_path, 'json', 'nts', commit)
 
         if result is None:
             fatal("Results were not obtained from submission.")

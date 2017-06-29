@@ -20,103 +20,76 @@ Example::
     lnt importreport --machine=my-machine-name --order=1234 --testsuite=nts results.txt report.json
     lnt submit http://mylnt.com/default/submitRun --commit=1 report.json
 
+.. _json_format:
 
-Importing Data from Other Test Systems
-======================================
+LNT Report File Format
+======================
 
 The lnt importreport tool is an easy way to import data into LNTs test format.
-Or you can write your own importer.
+You can also create LNTs report data directly for additional flexibility.
 
 First, make sure you've understood the underlying :ref:`concepts` used by LNT.
+
+.. code-block:: none
+
+  {
+      "format_version": "2",
+      "machine": {
+          "name": _String_      // machine name, mandatory
+          (_String_: _String_)* // optional extra info
+      },
+      "run": {
+          "start_time": "%Y-%m-%d %H:%M:%S", // mandatory
+          "end_time": "%Y-%m-%d %H:%M:%S",   // mandatory
+          (_String_: _String_)* // optional extra info about the run.
+          // At least one of the extra fields is used as ordering and is
+          // mandatory. For the 'nts' and 'Compile' schemas this is the
+          // 'llvm_project_revision' field.
+      },
+      "tests": [
+          {
+              "name": _String_,   // test name mandatory
+              (_String_: _Data_)* // List of metrics, _Data_ allows:
+                                  // number, string or list of numbers
+          }+
+      ]
+  }
+
+A concrete small example is
+
+.. literalinclude:: report-example.json
+    :language: json
+
 
 Given how simple it is to make your own results and send them to LNT,
 it is common to not use the LNT client application at all, and just have a
 custom script run your tests and submit the data to the LNT server. Details
 on how to do this are in :mod:`lnt.testing`
 
-If for some reason you prefer to generate the json file more directly, the
-current format looks like below. It remains recommended to use the APIs in
-:mod:`lnt.testing` to be better protected against future changes to the json
-format::
+.. _nts_suite:
 
-  {
-     "Machine": {
-        "Info": {
-          (_String_: _String_)* // optional extra info about the machine.
-        },
-        "Name": _String_ // machine name, mandatory
-     },
-     "Run": {
-        "End Time": "%Y-%m-%d %H:%M:%S", // mandatory
-        "Start Time": "%Y-%m-%d %H:%M:%S", // mandatory
-        "Info": {
-          "run_order": _String_, // mandatory
-          "tag": "nts" // mandatory
-          (_String_: _String_)* // optional extra info about the run.
-        }
-     },
-     "Tests": [
-          {
-              "Data": [ (float+) ],
-              "Info": {},
-              "Name": "nts._ProgramName_._metric_"
-          }+
-      ]
-   }
+Default Test Suite (NTS)
+========================
 
+The default test-suite schema is called NTS. It was originally designed for
+nightly test runs of the llvm test-suite. However it should fit many other
+benchmark suites as well. The following metrics are supported for a test:
 
-A concrete small example is::
+* ``execution_time``: Execution time in seconds; lower is better.
+* ``score``: Benchmarking score; higher is better.
+* ``compile_time``: Compiling time in seconds; lower is better.
+* ``execution_status``: A non zero value represents an execution failure.
+* ``compilation_status``: A non zero value represents a compilation failure.
+* ``hash_status``: A non zero value represents a failure computing the
+  executable hash.
+* ``mem_byts``: Memory usage in bytes during execution; lower is better.
+* ``code_size``: Code size (usually the size of the text segment) in bytes;
+  lower is better.
 
-  {
-     "Machine": {
-        "Info": {
-        },
-        "Name": "LNT-AArch64-A53-O3__clang_DEV__aarch64"
-     },
-     "Run": {
-        "End Time": "2016-04-07 14:25:52",
-        "Start Time": "2016-04-07 09:33:48",
-        "Info": {
-          "run_order": "265649",
-          "tag": "nts"
-        }
-     },
-     "Tests": [
-          {
-              "Data": [
-                  0.1056,
-                  0.1055
-              ],
-              "Info": {},
-              "Name": "nts.suite1/program1.exec"
-          },
-          {
-              "Data": [
-                  0.2136
-              ],
-              "Info": {},
-              "Name": "nts.suite2/program1.exec"
-          }
-      ]
-   }
+The `run` information is expected to contain this:
 
-Make sure that:
- * The Run.Info.tag value is "nts".
- * The test names always start with "nts.".
- * The extension of the test name indicate what kind of data is recorded.
-   Currently accepted extensions in the NTS database are:
-
-   * ".exec": represents execution time - a lower number is better.
-   * ".exec.status": a non zero value represents a program failure.
-   * ".score": represent a benchmark score - a higher number is better.
-   * ".code_size": represents the code size of a program.
-   * ".hash": represents a hash of the binary program being executed. This is
-     used to detect if between compiler versions, the generated code has
-     changed.
-   * ".compile": represents the compile time of the program.
-
- All of these metrics are optional.
-
+* ``llvm_project_revision``: The revision or version of the compiler
+  used for the tests. Used to sort runs.
 
 .. _custom_testsuites:
 

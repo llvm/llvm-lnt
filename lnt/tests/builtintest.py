@@ -56,7 +56,7 @@ class BuiltinTest(object):
         if output_stream is not sys.stdout:
             output_stream.close()
 
-    def submit(self, report_path, config, commit=True):
+    def submit(self, report_path, config, ts_name=None, commit=True):
         """Submit the results file to the server.  If no server
         was specified, use a local mock server.
 
@@ -69,6 +69,7 @@ class BuiltinTest(object):
         """
         assert os.path.exists(report_path), "Failed report should have" \
             " never gotten here!"
+        assert ts_name is not None
 
         server_report = None
         if config.submit_url is not None:
@@ -86,7 +87,7 @@ class BuiltinTest(object):
             db = lnt.server.db.v4db.V4DB("sqlite:///:memory:",
                                          server_config.Config.dummy_instance())
             server_report = ImportData.import_and_report(
-                None, None, db, report_path, 'json', commit)
+                None, None, db, report_path, 'json', ts_name, commit)
 
         assert server_report is not None, "Results were not submitted."
 

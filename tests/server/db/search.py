@@ -44,7 +44,7 @@ class SearchTest(unittest.TestCase):
     
                 result = lnt.util.ImportData.import_and_report(
                     None, 'default', self.db, f.name,
-                    '<auto>', True, False,
+                    '<auto>', 'nts', True, False,
                     True, True)
 
                 success &= result.get('success', False)

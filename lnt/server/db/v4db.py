@@ -178,17 +178,16 @@ class V4DB(object):
         return sum([ts.query(ts.Test).count()
                     for ts in self.testsuite.values()])
 
-    def importDataFromDict(self, data, commit, config=None):
+    def importDataFromDict(self, data, commit, testsuite_schema, config=None):
         # Select the database to import into.
-        #
-        # FIXME: Promote this to a top-level field in the data.
-        db_name = data['Run']['Info'].get('tag')
-        if db_name is None:
-            raise ValueError, "unknown database target (no tag field)"
+        data_schema = data.get('schema')
+        if data_schema is not None and data_schema != testsuite_schema:
+            raise ValueError, "Tried to import '%s' data into schema '%s'" % \
+                              (data_schema, testsuite_schema)
 
-        db = self.testsuite.get(db_name)
+        db = self.testsuite.get(testsuite_schema)
         if db is None:
             raise ValueError, "test suite %r not present in this database!" % (
-                db_name)
+                db_schema)
 
         return db.importDataFromDict(data, commit, config)

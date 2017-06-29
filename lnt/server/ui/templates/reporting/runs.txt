@@ -19,8 +19,8 @@
 
 {{ report_url }}
 Nickname: {{ machine.name }}:{{ machine.id }}
-{% if 'name' in machine_parameters -%}
-{{ "Name: %s" | format(machine_parameters['name']) }}
+{% if 'hostname' in machine_parameters -%}
+{{ "Hostname: %s" | format(machine_parameters['hostname']) }}
 {%- endif %}
 Comparing:
      Run: {{ run.id }}, Order: {{ run.order.llvm_project_revision }}, Start Time: {{ run.start_time }}, End Time: {{ run.end_time }}

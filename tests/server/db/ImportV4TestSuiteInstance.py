@@ -98,10 +98,8 @@ assert run_a.imported_from.endswith("sample-a-small.plist")
 assert run_b.imported_from.endswith("sample-b-small.plist")
 assert run_a.start_time == datetime.datetime(2009, 11, 17, 2, 12, 25)
 assert run_a.end_time == datetime.datetime(2009, 11, 17, 3, 44, 48)
-assert tuple(sorted(run_a.parameters.items())) == \
-    (('__report_version__', '1'), ('inferred_run_order', '1'))
-assert tuple(sorted(run_b.parameters.items())) == \
-    (('__report_version__', '1'), ('inferred_run_order', '2'))
+assert sorted(run_a.parameters.items()) == [('inferred_run_order', '1')]
+assert sorted(run_b.parameters.items()) == [('inferred_run_order', '2')]
 
 # Validate the samples.
 samples = list(ts.query(ts.Sample))

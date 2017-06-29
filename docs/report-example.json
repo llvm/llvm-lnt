@@ -1,0 +1,26 @@
+{
+    "format_version": "2",
+    "machine": {
+       "name": "LNT-AArch64-A53-O3__clang_DEV__aarch64",
+       "hardware": "HAL 9000"
+    },
+    "run": {
+       "end_time": "2016-04-07 14:25:52",
+       "start_time": "2016-04-07 09:33:48",
+       "llvm_project_revision": "265649",
+       "compiler_version": "clang 4.0"
+    },
+    "tests": [
+       {
+           "name": "benchmark1",
+           "execution_time": [ 0.1056, 0.1055 ],
+           "hash": "49333a87d501b0aea2191830b66b5eec"
+       },
+       {
+           "name": "benchmark2",
+           "compile_time": 13.12,
+           "execution_time": 0.2135,
+           "hash": "c321727e7e0dfef279548efdb8ab2ea6"
+       }
+    ]
+}

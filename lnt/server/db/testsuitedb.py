@@ -675,20 +675,23 @@ class TestSuiteDB(object):
         #
         # FIXME: This feels inelegant, can't SA help us out here?
         query = self.query(self.Machine).\
-            filter(self.Machine.name == machine_data['Name'])
-        machine = self.Machine(machine_data['Name'])
-        machine_parameters = machine_data['Info'].copy()
+            filter(self.Machine.name == machine_data['name'])
+        machine = self.Machine(machine_data['name'])
+        machine_parameters = machine_data.copy()
+        machine_parameters.pop('name')
+        # Ignore incoming ids; we will create our own.
+        # TODO: Add some API/result so we can send a warning back to the user
+        # that we ignore the id.
+        machine_parameters.pop('id', None)
 
         # First, extract all of the specified machine fields.
         for item in self.machine_fields:
-            if item.info_key in machine_parameters:
-                value = machine_parameters.pop(item.info_key)
-            else:
-                # For now, insert empty values for any missing fields. We don't
-                # want to insert NULLs, so we should probably allow the test
-                # suite to define defaults.
-                value = ''
+            # For now, insert empty values for any missing fields. We don't
+            # want to insert NULLs, so we should probably allow the test
+            # suite to define defaults.
+            default_value = ''
 
+            value = machine_parameters.pop(item.name, default_value)
             query = query.filter(item.column == value)
             machine.set_field(item, value)
 
@@ -727,13 +730,12 @@ class TestSuiteDB(object):
 
         # First, extract all of the specified order fields.
         for item in self.order_fields:
-            if item.info_key in run_parameters:
-                value = run_parameters.pop(item.info_key)
-            else:
+            value = run_parameters.pop(item.name, None)
+            if value is None:
                 # We require that all of the order fields be present.
                 raise ValueError,"""\
 supplied run is missing required run parameter: %r""" % (
-                    item.info_key)
+                    item.name)
 
             query = query.filter(item.column == value)
             order.set_field(item, value)
@@ -783,17 +785,18 @@ supplied run is missing required run parameter: %r""" % (
         """
 
         # Extra the run parameters that define the order.
-        run_parameters = run_data['Info'].copy()
-
-        # The tag has already been used to dispatch to the appropriate database.
-        run_parameters.pop('tag')
+        run_parameters = run_data.copy()
+        # Ignore incoming ids; we will create our own
+        run_parameters.pop('id', None)
 
         # Find the order record.
         order,inserted = self._getOrCreateOrder(run_parameters)
-        start_time = datetime.datetime.strptime(run_data['Start Time'],
+        start_time = datetime.datetime.strptime(run_data['start_time'],
                                                 "%Y-%m-%d %H:%M:%S")
-        end_time = datetime.datetime.strptime(run_data['End Time'],
+        end_time = datetime.datetime.strptime(run_data['end_time'],
                                               "%Y-%m-%d %H:%M:%S")
+        run_parameters.pop('start_time')
+        run_parameters.pop('end_time')
 
         # Convert the rundata into a run record. As with Machines, we construct
         # the query to look for any existingrun at the same time as we build up
@@ -809,14 +812,12 @@ supplied run is missing required run parameter: %r""" % (
 
         # First, extract all of the specified run fields.
         for item in self.run_fields:
-            if item.info_key in run_parameters:
-                value = run_parameters.pop(item.info_key)
-            else:
-                # For now, insert empty values for any missing fields. We don't
-                # want to insert NULLs, so we should probably allow the test
-                # suite to define defaults.
-                value = ''
+            # For now, insert empty values for any missing fields. We don't
+            # want to insert NULLs, so we should probably allow the test
+            # suite to define defaults.
+            default_value = ''
 
+            value = run_parameters.pop(item.name, default_value)
             query = query.filter(item.column == value)
             run.set_field(item, value)
 
@@ -833,86 +834,44 @@ supplied run is missing required run parameter: %r""" % (
 
             return run,True
 
-    def _importSampleValues(self, tests_data, run, tag, commit, config):
-        # We now need to transform the old schema data (composite samples split
-        # into multiple tests with mangling) into the V4DB format where each
-        # sample is a complete record.
-        tag_dot = "%s." % tag
-        tag_dot_len = len(tag_dot)
-
+    def _importSampleValues(self, tests_data, run, commit, config):
         # Load a map of all the tests, which we will extend when we find tests
         # that need to be added.
         test_cache = dict((test.name, test)
                           for test in self.query(self.Test))
 
-        # First, we aggregate all of the samples by test name. The schema allows
-        # reporting multiple values for a test in two ways, one by multiple
-        # samples and the other by multiple test entries with the same test
-        # name. We need to handle both.
-        tests_values = {}
+        profiles = dict()
+        field_dict = dict([(f.name, f) for f in self.sample_fields])
         for test_data in tests_data:
-            if test_data['Info']:
-                raise ValueError,"""\
-test parameter sets are not supported by V4DB databases"""
-
-            name = test_data['Name']
-            if not name.startswith(tag_dot):
-                raise ValueError,"""\
-test %r is misnamed for reporting under schema %r""" % (
-                    name, tag)
-            name = name[tag_dot_len:]
-
-            # Add all the values.
-            values = tests_values.get(name)
-            if values is None:
-                tests_values[name] = values = []
-
-            values.extend(test_data['Data'])
-
-        # Next, build a map of test name to sample values, by scanning all the
-        # tests. This is complicated by the interchange's support of multiple
-        # values, which we cannot properly aggregate. We handle this by keying
-        # off of the test name and the sample index.
-        sample_records = {}
-        profiles = {}
-        for name,test_samples in tests_values.items():
-            # Map this reported test name into a test name and a sample field.
-            #
-            # FIXME: This is really slow.
-            if name.endswith('.profile'):
-                test_name = name[:-len('.profile')]
-                sample_field = 'profile'
-            else:
-                for item in self.sample_fields:
-                    if name.endswith(item.info_key):
-                        test_name = name[:-len(item.info_key)]
-                        sample_field = item
-                        break
-                else:
-                    # Disallow tests which do not map to a sample field.
-                    raise ValueError,"""\
-    test %r does not map to a sample field in the reported suite""" % (
-                        name)
-
-            # Get or create the test.
-            test = test_cache.get(test_name)
+            name = test_data['name']
+            test = test_cache.get(name)
             if test is None:
-                test_cache[test_name] = test = self.Test(test_name)
+                test = self.Test(test_data['name'])
+                test_cache[name] = test
                 self.add(test)
 
-            for i, value in enumerate(test_samples):
-                record_key = (test_name, i)
-                sample = sample_records.get(record_key)
-                if sample is None:
-                    sample_records[record_key] = sample = self.Sample(run, test)
-                    self.add(sample)
+            samples = []
+            for key, values in test_data.items():
+                if key == 'name':
+                    continue
+                field = field_dict.get(key)
+                if field is None and key != 'profile':
+                    raise ValueError, \
+    "test %r metric %r does not map to a sample field in the reported suite" % \
+                    (name, key)
 
-                if sample_field != 'profile':
-                    sample.set_field(sample_field, value)
-                else:
-                    sample.profile = profiles.get(hash(value),
-                                                  self.Profile(value, config,
-                                                               test_name))
+                if not isinstance(values, list):
+                    values = [values]
+                while len(samples) < len(values):
+                    sample = self.Sample(run, test)
+                    self.add(sample)
+                    samples.append(sample)
+                for sample, value in zip(samples, values):
+                    if key == 'profile':
+                        sample.profile = profiles.get(hash(value),
+                                            self.Profile(value, config, name))
+                    else:
+                        sample.set_field(field, value)
 
     def importDataFromDict(self, data, commit, config=None):
         """
@@ -926,20 +885,17 @@ test %r is misnamed for reporting under schema %r""" % (
         """
 
         # Construct the machine entry.
-        machine,inserted = self._getOrCreateMachine(data['Machine'])
+        machine, inserted = self._getOrCreateMachine(data['machine'])
 
         # Construct the run entry.
-        run,inserted = self._getOrCreateRun(data['Run'], machine)
+        run, inserted = self._getOrCreateRun(data['run'], machine)
 
-        # Get the schema tag.
-        tag = data['Run']['Info']['tag']
-        
         # If we didn't construct a new run, this is a duplicate
         # submission. Return the prior Run.
         if not inserted:
             return False, run
         
-        self._importSampleValues(data['Tests'], run, tag, commit, config)
+        self._importSampleValues(data['tests'], run, commit, config)
 
         return True, run
 

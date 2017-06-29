@@ -1070,6 +1070,6 @@ class CompileTest(builtintest.BuiltinTest):
         if opts.output is not None:
             self.print_report(report, opts.output)
 
-        server_report = self.submit(lnt_report_path, opts)
+        server_report = self.submit(lnt_report_path, opts, ts_name='compile')
 
         return server_report

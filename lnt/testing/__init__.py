@@ -8,6 +8,7 @@ data suitable for submitting to the server.
 
 import datetime
 import re
+import logging
 
 try:
     import json
@@ -36,7 +37,7 @@ class Report:
         self.machine = machine
         self.run = run
         self.tests = list(tests)
-        self.report_version = current_version
+        self.report_version = '1'
         self.check()
 
     def check(self):
@@ -107,7 +108,8 @@ class Run:
                          for key,value in info.items())
         if '__report_version__' in self.info:
             raise ValueError("'__report_version__' key is reserved")
-        self.info['__report_version__'] = str(current_version)
+        # TODO: Convert to version 2
+        self.info['__report_version__'] = '1'
 
     def update_endtime(self, end_time=None):
         if end_time is None:
@@ -164,7 +166,7 @@ class TestSamples:
                                                 self.data,
                                                 self.info)
 ###
-# Report Versioning
+# Format Versioning
 
 # We record information on the report "version" to allow the server to support
 # some level of auto-upgrading data from submissions of older reports.
@@ -176,7 +178,27 @@ class TestSamples:
 #
 # Version 1 -- 2012-04-12: run_order was changed to not be padded, and allow
 # non-integral values.
-current_version = 1
+#
+# Version 2 -- 2017-06:  Revamped json format
+#    - Directly uses lnt names (no 'info_key' names anymore)
+#    - Flatten Machine.Info and Run.Info into the Machine and Run records
+#    - One record for each test (not one record for test+metric) with one entry
+#      for each metric.
+def _get_format_version(data):
+    format_version = data.get('format_version')
+    if format_version is not None:
+        return int(format_version)
+
+    # Older versions had a Run.Info.__report_version__ field
+    run = data.get('Run')
+    if run is not None:
+        info = run.get('Info')
+        if info is not None:
+            report_version = info.get('__report_version__', '0')
+            return int(report_version)
+
+    return None
+
 
 def upgrade_0_to_1(data):
     # We recompute the run_order here if it looks like this run_order was
@@ -222,24 +244,170 @@ def upgrade_0_to_1(data):
         if m:
             run_info['run_order'] = run_info['inferred_run_order'] = \
                 run_info['cc_src_tag'] = m.group(1)
+    data['Run']['Info']['__report_version__'] = "1"
+    return data
 
-def upgrade_report(data):
-    # Get the report version.
-    report_version = int(data['Run']['Info'].get('__report_version__', 0))
 
-    # Check if the report is current.
-    if report_version == current_version:
-        return data
+# Upgrading from version 1 to version 2 needs some schema in place
+class _UpgradeSchema(object):
+    def __init__(self, metric_rename, machine_param_rename, run_param_rename):
+        self.metric_rename = metric_rename
+        self.machine_param_rename = machine_param_rename
+        self.run_param_rename = run_param_rename
 
-    # Check if the version is out-of-range.
-    if report_version > current_version:
-        raise ValueError("unknown report version: %r" % (report_version,))
+_nts_upgrade = _UpgradeSchema(
+    metric_rename={
+        '.code_size': 'code_size',
+        '.compile': 'compile_time',
+        '.compile.status': 'compile_status',
+        '.exec': 'execution_time',
+        '.exec.status': 'execution_status',
+        '.hash': 'hash',
+        '.hash.status': 'hash_status',
+        '.mem': 'mem_bytes',
+        '.score': 'score',
+    }, machine_param_rename = {
+        'name': 'hostname', # Avoid name clash with actual machine name.
+    }, run_param_rename = {
+        'run_order': 'llvm_project_revision',
+    }
+)
+_compile_upgrade = _UpgradeSchema(
+    metric_rename={
+        '.mem.bytes': 'mem_bytes',
+        '.mem.status': 'mem_status',
+        '.size.bytes': 'size_bytes',
+        '.size.status': 'size_status',
+        '.sys.status': 'sys_status',
+        '.user.status': 'user_status',
+        '.user.time': 'sys_time',
+        '.user.time': 'user_time',
+        '.wall.status': 'wall_status',
+        '.wall.time': 'wall_time',
+    }, machine_param_rename = {
+        'hw.model': 'hardware',
+        'kern.version': 'os_version',
+    }, run_param_rename = {
+        'run_order': 'llvm_project_revision',
+    }
+)
+_upgrades = {
+    'nts': _nts_upgrade,
+    'compile': _compile_upgrade
+}
 
-    # Otherwise, we need to upgrade it.
-    for version in range(report_version, current_version):
-        upgrade_method = globals().get('upgrade_%d_to_%d' % (
-                version, version+1))
-        upgrade_method(data)
-        data['Run']['Info']['__report_version__'] = str(version + 1)
+def upgrade_1_to_2(data, ts_name):
+    result = dict()
+
+    # Pull version and database schema to toplevel
+    result['format_version'] = '2'
+    report_version = data['Run']['Info'].pop('__report_version__', '1')
+    # We should not be in upgrade_1_to_2 for other versions
+    assert(report_version == '1')
+    tag = data['Run']['Info'].pop('tag', None)
+    if tag is not None and tag != ts_name:
+        raise ValueError("Importing '%s' data into '%s' testsuite" %
+                         (tag, ts_name))
+
+    upgrade = _upgrades.get(tag)
+    if upgrade is None:
+        logging.warn("No upgrade schema known for '%s'\n" % tag)
+        upgrade = _UpgradeSchema({}, {}, {})
+
+    # Flatten Machine.Info into machine
+    Machine = data['Machine']
+    result_machine = {'name': Machine['Name']}
+    for key, value in Machine['Info'].items():
+        newname = upgrade.machine_param_rename.get(key, key)
+        if newname in result_machine:
+            raise ValueError("Name clash for machine info '%s'" % newname)
+        result_machine[newname] = value
+    result['machine'] = result_machine
+
+    # Flatten Result.Info into result
+    Run = data['Run']
+    result_run = {
+        'end_time': Run['End Time'],
+        'start_time': Run['Start Time'],
+    }
+    for key, value in Run['Info'].items():
+        newname = upgrade.run_param_rename.get(key, key)
+        if newname in result_run:
+            raise ValueError("Name clash for run info '%s'" % newname)
+        result_run[newname] = value
+    result['run'] = result_run
+
+    # Merge tests
+    result_tests = list()
+    result_tests_dict = dict()
+    Tests = data['Tests']
+    for test in Tests:
+        test_Name = test['Name']
+
+        # Old testnames always started with 'tag.', split that part.
+        if len(test['Info']) != 0:
+            # The Info record didn't work with the v4 database anyway...
+            raise ValueError("Tests/%s: cannot convert non-empty Info record" %
+                             test_Name)
+        tag_dot = '%s.' % ts_name
+        if not test_Name.startswith(tag_dot):
+            raise ValueError("Tests/%s: test name does not start with '%s'" %
+                             (test_Name, tag_dot))
+        name_metric = test_Name[len(tag_dot):]
+
+        found_metric = False
+        for oldname, newname in upgrade.metric_rename.items():
+            assert(oldname.startswith('.'))
+            if name_metric.endswith(oldname):
+                name = name_metric[:-len(oldname)]
+                metric = newname
+                found_metric = True
+                break
+        if not found_metric:
+            # Fallback logic for unknown metrics: Assume they are '.xxxx'
+            name, dot, metric = name_metric.rpartition('.')
+            if dot != '.':
+                raise ValueError("Tests/%s: test name does not end in .metric" %
+                                 test_Name)
+            logging.warning("Found unknown metric '%s'" % metric)
+            upgrade.metric_rename['.'+metric] = '.'+metric
+
+        result_test = result_tests_dict.get(name)
+        if result_test is None:
+            result_test = {'name': name}
+            result_tests_dict[name] = result_test
+            result_tests.append(result_test)
+
+        data = test['Data']
+        if metric not in result_test:
+            # Do not construct a list for the very common case of just a
+            # single datum.
+            if len(data) == 1:
+                data = data[0]
+            result_test[metric] = data
+        elif len(data) > 0:
+            # Transform the test data into a list
+            if not isinstance(result_test[metric], list):
+                result_test[metric] = [ result_test[metric] ]
+            result_test[metric] += data
+
+    result['tests'] = result_tests
+    return result
+
+def upgrade_report(data, ts_name):
+    # Get the report version. V2 has it at the top level, older version
+    # in Run.Info.
+    format_version = _get_format_version(data)
+    if format_version is None:
+        format_version = 2
+
+    if format_version==0:
+        data = upgrade_0_to_1(data)
+        format_version=1
+    if format_version==1:
+        data = upgrade_1_to_2(data, ts_name)
+        format_version=2
+    assert(format_version==2)
+    return data
 
 __all__ = ['Report', 'Machine', 'Run', 'TestSamples']

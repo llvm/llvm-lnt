@@ -94,9 +94,7 @@ def index():
 ###
 # Database Actions
 
-
-@db_route('/submitRun', only_v3=False, methods=('GET', 'POST'))
-def submit_run():
+def _do_submit():
     if request.method == 'GET':
         return render_template("submit_run.html")
 
@@ -150,7 +148,8 @@ def submit_run():
     # should at least reject overly large inputs.
 
     result = lnt.util.ImportData.import_and_report(
-        current_app.old_config, g.db_name, db, path, '<auto>', commit)
+        current_app.old_config, g.db_name, db, path, '<auto>',
+        ts_name=g.testsuite_name, commit=commit)
 
     # It is nice to have a full URL to the run, so fixup the request URL
     # here were we know more about the flask instance.
@@ -160,6 +159,16 @@ def submit_run():
     return flask.jsonify(**result)
 
 
+@db_route('/submitRun', only_v3=False, methods=('GET', 'POST'))
+def submit_run():
+    """Compatibility url that hardcodes testsuite to 'nts'"""
+    g.testsuite_name = 'nts'
+    return _do_submit()
+
+
+@v4_route('/submitRun', methods=('GET', 'POST'))
+def submit_run_ts():
+    return _do_submit()
 
 ###
 # V4 Schema Viewer

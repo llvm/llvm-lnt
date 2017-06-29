@@ -29,3 +29,25 @@
 # CHECK-VERBOSE: ----------------
 # CHECK-VERBOSE: PASS : 10
 # CHECK-VERBOSE: Results available at: http://localhost:9091/db_default/v4/nts/3
+
+# RUN: rm -rf %t.instance
+# RUN: python %{shared_inputs}/create_temp_instance.py \
+# RUN:   %s %{shared_inputs}/SmallInstance %t.instance
+# RUN: %{shared_inputs}/server_wrapper.sh %t.instance 9091 \
+# RUN:    lnt submit "http://localhost:9091/db_default/submitRun" --commit=1 \
+# RUN:       %{src_root}/docs/report-example.json -v | \
+# RUN:    FileCheck %s --check-prefix=CHECK-NEWFORMAT
+#
+# CHECK-NEWFORMAT: Import succeeded.
+# CHECK-NEWFORMAT: --- Tested: 10 tests --
+#
+# CHECK-NEWFORMAT: Imported Data
+# CHECK-NEWFORMAT: -------------
+# CHECK-NEWFORMAT: Added Machines: 1
+# CHECK-NEWFORMAT: Added Runs    : 1
+# CHECK-NEWFORMAT: Added Tests   : 2
+#
+# CHECK-NEWFORMAT: Results
+# CHECK-NEWFORMAT: ----------------
+# CHECK-NEWFORMAT: PASS : 10
+# CHECK-NEWFORMAT: Results available at: http://localhost:9091/db_default/v4/nts/3

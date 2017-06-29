@@ -21,14 +21,15 @@ import lnt.server.instance
 @click.option("--show-sql", is_flag=True, help="show SQL statements")
 @click.option("--show-sample-count", is_flag=True)
 @click.option("--show-raw-result", is_flag=True)
+@click.option("--testsuite", "-s", default='nts')
 @click.option("--verbose", "-v", is_flag=True,
               help="show verbose test results")
 @click.option("--quiet", "-q", is_flag=True, help="don't show test results")
 @click.option("--no-email", is_flag=True, help="don't send e-mail")
 @click.option("--no-report", is_flag=True, help="don't generate report")
 def action_import(instance_path, files, database, output_format, commit,
-                  show_sql, show_sample_count, show_raw_result, verbose,
-                  quiet, no_email, no_report):
+                  show_sql, show_sample_count, show_raw_result, testsuite,
+                  verbose, quiet, no_email, no_report):
     """import test data into a database"""
 
     # Load the LNT instance.
@@ -43,7 +44,7 @@ def action_import(instance_path, files, database, output_format, commit,
         for file_name in files:
             result = lnt.util.ImportData.import_and_report(
                 config, database, db, file_name,
-                output_format, commit, show_sample_count,
+                output_format, testsuite, commit, show_sample_count,
                 no_email, no_report)
 
             success &= result.get('success', False)

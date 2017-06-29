@@ -50,7 +50,8 @@ def submitFileToInstance(path, file, commit):
         if db is None:
             raise ValueError("no default database in instance: %r" % (path,))
         return lnt.util.ImportData.import_and_report(
-            config, db_name, db, file, format='<auto>', commit=commit)
+            config, db_name, db, file, format='<auto>', ts_name='nts',
+            commit=commit)
 
 
 def submitFile(url, file, commit, verbose):

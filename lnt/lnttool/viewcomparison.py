@@ -51,7 +51,9 @@ def start_browser(url, debug=False):
               help="local port to use")
 @click.option("--dry-run", is_flag=True,
               help="do a dry run through the comparison")
-def action_view_comparison(report_a, report_b, hostname, port, dry_run):
+@click.option("--testsuite", "-s", default='nts')
+def action_view_comparison(report_a, report_b, hostname, port, dry_run,
+                           testsuite):
     """view a report comparison using a temporary server"""
 
     import lnt.server.instance
@@ -90,10 +92,10 @@ def action_view_comparison(report_a, report_b, hostname, port, dry_run):
 
         # Import the two reports.
         with contextlib.closing(config.get_database('default')) as db:
-            r = import_and_report(
-                config, 'default', db, report_a, '<auto>', commit=True)
-            import_and_report(
-                config, 'default', db, report_b, '<auto>', commit=True)
+            r = import_and_report(config, 'default', db, report_a, '<auto>',
+                                  testsuite, commit=True)
+            import_and_report(config, 'default', db, report_b, '<auto>',
+                              testsuite, commit=True)
 
             # Dispatch another thread to start the webbrowser.
             comparison_url = '%s/v4/nts/2?compare_to=1' % (url,)
