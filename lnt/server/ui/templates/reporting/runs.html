@@ -1,4 +1,3 @@
-
 {% import "utils.html" as utils %}
 
 {#
@@ -67,14 +66,6 @@
    </p>
 {% endif %}
 {% endmacro %}
-
-{% if not only_html_body %}
-<html>
-<head>
-   <title>{{ subject }}</title>
-</head>
-<body style="{{ styles['body'] }}">
-{% endif %}
 
 <h1 style="{{ styles['h1'] }}">
   <a href="{{ report_url }}">{{ subject }}</a>
@@ -191,7 +182,3 @@
 {% endif %}
 <hr/>
 <b>Report Time</b>: {{ start_time | timedelta }}
-{% if not only_html_body %}
-</body>
-</html>
-{% endif %}

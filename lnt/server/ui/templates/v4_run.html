@@ -1,9 +1,5 @@
 {% import "utils.html" as utils %}
 
-{% set run = request_info.run %}
-{% set compare_to = request_info.compare_to %}
-{% set baseline = request_info.baseline %}
-{% set ts = request_info.ts %}
 {% set hash_field = ts.Sample.get_hash_of_binary_field() %}
 {% set machine = run.machine %}
 {% set neighboring_runs = request_info.neighboring_runs %}
@@ -313,7 +309,8 @@ $('.profile-prev-only').tooltip();
                             placeholder="Benchmark name regex...",
                             selector_part_to_search=".benchmark-name") }}
 
-  {{request_info.html_report|safe}}
+  {% include "reporting/runs.html" %}
+
   {{ utils.render_popup_end() }}
 
   {% set graph_base=v4_url_for('v4_graph', highlight_run=run.id) %}

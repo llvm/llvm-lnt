@@ -322,21 +322,20 @@ class V4RequestInfo(object):
         compare_to_str = request.args.get('compare_to')
         if compare_to_str:
             compare_to_id = int(compare_to_str)
-            self.compare_to = ts.query(ts.Run).\
-                filter_by(id=compare_to_id).first()
-            if self.compare_to is None:
+            compare_to = ts.query(ts.Run).filter_by(id=compare_to_id).first()
+            if compare_to is None:
                 flash("Comparison Run is invalid: " + compare_to_str,
                       FLASH_DANGER)
             else:
                 self.comparison_neighboring_runs = (
-                    list(ts.get_next_runs_on_machine(self.compare_to, N=3))[::-1] +
-                    [self.compare_to] +
-                    list(ts.get_previous_runs_on_machine(self.compare_to, N=3)))
+                    list(ts.get_next_runs_on_machine(compare_to, N=3))[::-1] +
+                    [compare_to] +
+                    list(ts.get_previous_runs_on_machine(compare_to, N=3)))
         else:
             if prev_runs:
-                self.compare_to = prev_runs[0]
+                compare_to = prev_runs[0]
             else:
-                self.compare_to = None
+                compare_to = None
             self.comparison_neighboring_runs = self.neighboring_runs
 
         try:
@@ -349,15 +348,14 @@ class V4RequestInfo(object):
         baseline_str = request.args.get('baseline')
         if baseline_str:
             baseline_id = int(baseline_str)
-            self.baseline = ts.query(ts.Run).\
-                filter_by(id=baseline_id).first()
-            if self.baseline is None:
+            baseline = ts.query(ts.Run).filter_by(id=baseline_id).first()
+            if baseline is None:
                 flash("Could not find baseline " + baseline_str, FLASH_DANGER)
         else:
-            self.baseline = None
+            baseline = None
 
         # Gather the runs to use for statistical data.
-        comparison_start_run = self.compare_to or self.run
+        comparison_start_run = compare_to or self.run
 
         # We're going to render this on a real webpage with CSS support, so
         # override the default styles and provide bootstrap class names for
@@ -374,7 +372,7 @@ class V4RequestInfo(object):
 
         self.data = lnt.server.reporting.runs.generate_run_data(
             self.run, baseurl=db_url_for('index', _external=True),
-            result=None, compare_to=self.compare_to, baseline=self.baseline,
+            result=None, compare_to=compare_to, baseline=baseline,
             num_comparison_runs=self.num_comparison_runs,
             aggregation_fn=self.aggregation_fn, confidence_lv=confidence_lv,
             styles=styles, classes=classes)
@@ -383,14 +381,13 @@ class V4RequestInfo(object):
 @v4_route("/<int:id>/report")
 def v4_report(id):
     info = V4RequestInfo(id)
-    return render_template('reporting/runs.html', only_html_body=False,
-                           **info.data)
+    return render_template('reporting/run_report.html', **info.data)
 
 @v4_route("/<int:id>/text_report")
 def v4_text_report(id):
     info = V4RequestInfo(id)
 
-    text_report = render_template('reporting/runs.txt', **info.data)
+    text_report = render_template('reporting/run_report.txt', **info.data)
     response = make_response(text_report)
     response.mimetype = "text/plain"
     return response
@@ -498,15 +495,17 @@ def v4_run(id):
     urls = {
         'search': v4_url_for('v4_search')
     }
-    info.html_report = render_template('reporting/runs.html',
-                                       only_html_body=True, **info.data)
-    return render_template(
-        "v4_run.html", ts=ts, options=options,
-        metric_fields=list(ts.Sample.get_metric_fields()),
-        test_info=test_info, analysis=lnt.server.reporting.analysis,
-        test_min_value_filter=test_min_value_filter,
-        request_info=info, urls=urls
-)
+    data = info.data
+    data.update({
+        'analysis': lnt.server.reporting.analysis,
+        'metric_fields': list(ts.Sample.get_metric_fields()),
+        'options': options,
+        'request_info': info,
+        'test_info': test_info,
+        'test_min_value_filter': test_min_value_filter,
+        'urls': urls,
+    })
+    return render_template("v4_run.html", **data)
 
 
 class PromoteOrderToBaseline(Form):
