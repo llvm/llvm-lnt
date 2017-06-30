@@ -110,6 +110,7 @@ class Config:
         # FIXME: Remove this default.
         tempDir = data.get('tmp_dir', 'viewer/resources/graphs')
         blacklist = data.get('blacklist', None)
+        api_auth_token = data.get('api_auth_token', None)
         if blacklist and baseDir:
             blacklist = os.path.join(baseDir, blacklist)
         else:
@@ -123,7 +124,7 @@ class Config:
                                                  default_email_config,
                                                  0))
                            for k, v in data['databases'].items()]),
-                      blacklist)
+                      blacklist, api_auth_token)
     
     @staticmethod
     def dummy_instance():
@@ -142,9 +143,10 @@ class Config:
                       profileDirPath,
                       secretKey,
                       dbInfo,
-                      blacklist)
+                      blacklist,
+                      "test_key")
 
-    def __init__(self, name, zorgURL, dbDir, tempDir, profileDir, secretKey, databases, blacklist):
+    def __init__(self, name, zorgURL, dbDir, tempDir, profileDir, secretKey, databases, blacklist, api_auth_token=None):
         self.name = name
         self.zorgURL = zorgURL
         self.dbDir = dbDir
@@ -157,6 +159,7 @@ class Config:
         self.databases = databases
         for db in self.databases.values():
             db.config = self
+        self.api_auth_token = api_auth_token
 
     def get_database(self, name, echo=False):
         """

@@ -8,6 +8,7 @@ from sqlalchemy.orm.exc import NoResultFound
 
 from lnt.server.ui.util import convert_revision
 from lnt.testing import PASS
+from functools import wraps
 
 
 def in_db(func):
@@ -30,6 +31,16 @@ def in_db(func):
         return result
 
     return wrap
+
+
+def requires_auth_token(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = request.headers.get("AuthToken", None)
+        if not current_app.old_config.api_auth_token or token != current_app.old_config.api_auth_token:
+            return abort(401, msg="Auth Token must be passed in AuthToken header, and included in LNT config.")
+        return f(*args, **kwargs)
+    return decorated
 
 
 def with_ts(obj):
@@ -168,6 +179,23 @@ class Runs(Resource):
 
         full_run['samples'] = ret
         return jsonify(full_run)
+
+    @staticmethod
+    @requires_auth_token
+    def delete(run_id):
+        ts = request.get_testsuite()
+
+        try:
+            run = ts.query(ts.Run) \
+                .join(ts.Machine) \
+                .join(ts.Order) \
+                .filter(ts.Run.id == run_id) \
+                .options(joinedload('order')) \
+                .one()
+        except sqlalchemy.orm.exc.NoResultFound:
+            return abort(404, msg="Did not find run " + str(run_id))
+        ts.delete_runs([run_id], commit=True)
+        return
 
 
 class Order(Resource):

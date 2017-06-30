@@ -72,6 +72,7 @@ class ChangeProcessingTests(unittest.TestCase):
                                          machine,
                                          test,
                                          a_field)
+        field_change.run = run
         ts_db.add(field_change)
 
         fc_mach2 = ts_db.FieldChange(order1234,
@@ -79,12 +80,15 @@ class ChangeProcessingTests(unittest.TestCase):
                                          machine2,
                                          test,
                                          a_field)
+        fc_mach2.run = run2
         ts_db.add(fc_mach2)
 
 
         field_change2 = self.field_change2 = ts_db.FieldChange(order1235, order1236, machine,
                                           test,
                                           a_field)
+
+        field_change2.run = run
         ts_db.add(field_change2)
 
         field_change3 = self.field_change3 = ts_db.FieldChange(order1237, order1238, machine,
@@ -191,6 +195,30 @@ class ChangeProcessingTests(unittest.TestCase):
         delete_fieldchange(self.ts_db, self.field_change)
         delete_fieldchange(self.ts_db, self.field_change2)
         delete_fieldchange(self.ts_db, self.field_change3)
+
+    def test_run_deletion(self):
+        """Do the FC and RIs get cleaned up when runs are deleted?"""
+        ts_db = self.ts_db
+        run_ids = ts_db.query(ts_db.Run.id).all()
+        fc_ids = ts_db.query(ts_db.FieldChange.id).all()
+        ri_ids = ts_db.query(ts_db.RegressionIndicator.id).all()
+
+        ts_db.delete_runs([r[0] for r in run_ids])
+        run_ids_new = ts_db.query(ts_db.Run.id).all()
+        fc_ids_new = ts_db.query(ts_db.FieldChange.id).all()
+        ri_ids_new = ts_db.query(ts_db.RegressionIndicator.id).all()
+        # Make sure there was some runs.
+        self.assertNotEqual(len(run_ids), 0)
+        self.assertNotEqual(len(fc_ids), 0)
+        self.assertNotEqual(len(ri_ids), 0)
+
+        # Now make sure there were all deleted.
+        self.assertEqual(len(run_ids_new), 0)
+
+        # Not all the FCs are covered by the runs.
+        self.assertEqual(len(fc_ids_new), 1)
+
+        self.assertEqual(len(ri_ids_new), 0)
 
 
 if __name__ == '__main__':
