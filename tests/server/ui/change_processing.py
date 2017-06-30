@@ -7,17 +7,17 @@
 #
 # RUN: python %s %t.instance
 
-import unittest
+import datetime
 import logging
 import sys
-import datetime
+import unittest
 
 from lnt.server.config import Config
 from lnt.server.db import v4db
+from lnt.server.db.fieldchange import delete_fieldchange
 from lnt.server.db.fieldchange import is_overlaping, identify_related_changes
 from lnt.server.db.regression import rebuild_title, RegressionState
 from lnt.server.db.rules import rule_update_fixed_regressions
-from lnt.server.db.fieldchange import delete_fieldchange
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -52,12 +52,12 @@ class ChangeProcessingTests(unittest.TestCase):
         test2 = self.test2 = ts_db.Test("bar")
         ts_db.add(test2)
 
-        run = self.run = ts_db.Run(machine, order1235,  start_time,
-                        end_time)
+        run = self.run = ts_db.Run(machine, order1235, start_time,
+                                   end_time)
         ts_db.add(run)
 
-        run2 = self.run2 = ts_db.Run(machine2, order1235,  start_time,
-                        end_time)
+        run2 = self.run2 = ts_db.Run(machine2, order1235, start_time,
+                                     end_time)
         ts_db.add(run2)
 
         sample = ts_db.Sample(run, test, compile_time=1.0,
@@ -68,41 +68,41 @@ class ChangeProcessingTests(unittest.TestCase):
         a_field2 = self.a_field2 = list(sample.get_primary_fields())[1]
 
         field_change = self.field_change = ts_db.FieldChange(order1234,
-                                         order1236,
-                                         machine,
-                                         test,
-                                         a_field)
+                                                             order1236,
+                                                             machine,
+                                                             test,
+                                                             a_field)
         field_change.run = run
         ts_db.add(field_change)
 
         fc_mach2 = ts_db.FieldChange(order1234,
-                                         order1236,
-                                         machine2,
-                                         test,
-                                         a_field)
+                                     order1236,
+                                     machine2,
+                                     test,
+                                     a_field)
         fc_mach2.run = run2
         ts_db.add(fc_mach2)
 
         field_change2 = self.field_change2 = ts_db.FieldChange(order1235, order1236, machine,
-                                          test,
-                                          a_field)
+                                                               test,
+                                                               a_field)
 
         field_change2.run = run
         ts_db.add(field_change2)
 
         field_change3 = self.field_change3 = ts_db.FieldChange(order1237, order1238, machine,
-                                          test,
-                                          a_field)
+                                                               test,
+                                                               a_field)
         ts_db.add(field_change3)
 
         regression = self.regression = ts_db.Regression("Regression of 1 benchmarks:", "PR1234",
-                                      RegressionState.DETECTED)
+                                                        RegressionState.DETECTED)
         ts_db.add(self.regression)
 
         self.regression_indicator1 = ts_db.RegressionIndicator(regression,
-                                                          field_change)
+                                                               field_change)
         self.regression_indicator2 = ts_db.RegressionIndicator(regression,
-                                                          field_change2)
+                                                               field_change2)
 
         ts_db.add(self.regression_indicator1)
         ts_db.add(self.regression_indicator2)
