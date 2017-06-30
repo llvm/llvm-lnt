@@ -22,6 +22,13 @@ from lnt.server.db.rules import rule_update_fixed_regressions
 logging.basicConfig(level=logging.DEBUG)
 
 
+def _mkorder(ts, rev):
+    order = ts.Order()
+    order.llvm_project_revision = rev
+    ts.add(order)
+    return order
+
+
 class ChangeProcessingTests(unittest.TestCase):
     """Test fieldchange and regression building."""
 
@@ -33,11 +40,11 @@ class ChangeProcessingTests(unittest.TestCase):
         # Get the test suite wrapper.
         ts_db = self.ts_db = self.db.testsuite['nts']
 
-        order1234 = self.order1234 = self._mkorder(ts_db, "1234")
-        order1235 = self.order1235 = self._mkorder(ts_db, "1235")
-        order1236 = self.order1236 = self._mkorder(ts_db, "1236")
-        order1237 = self.order1237 = self._mkorder(ts_db, "1237")
-        order1238 = self.order1238 = self._mkorder(ts_db, "1238")
+        order1234 = self.order1234 = _mkorder(ts_db, "1234")
+        order1235 = self.order1235 = _mkorder(ts_db, "1235")
+        order1236 = self.order1236 = _mkorder(ts_db, "1236")
+        order1237 = self.order1237 = _mkorder(ts_db, "1237")
+        order1238 = self.order1238 = _mkorder(ts_db, "1238")
 
         start_time = end_time = datetime.datetime.utcnow()
         machine = self.machine = ts_db.Machine("test-machine")
@@ -65,7 +72,7 @@ class ChangeProcessingTests(unittest.TestCase):
         ts_db.add(sample)
 
         a_field = self.a_field = list(sample.get_primary_fields())[0]
-        a_field2 = self.a_field2 = list(sample.get_primary_fields())[1]
+        self.a_field2 = list(sample.get_primary_fields())[1]
 
         field_change = self.field_change = ts_db.FieldChange(order1234,
                                                              order1236,
@@ -113,12 +120,6 @@ class ChangeProcessingTests(unittest.TestCase):
 
     def tearDown(self):
         self.db.close_all_engines()
-
-    def _mkorder(self, ts, rev):
-        order = ts.Order()
-        order.llvm_project_revision = rev
-        ts.add(order)
-        return order
 
     def test_startup(self):
         pass
@@ -183,8 +184,8 @@ class ChangeProcessingTests(unittest.TestCase):
         ts_db.commit()
 
         r2 = rebuild_title(ts_db, self.regression)
-        EXPECTED_TITLE = "Regression of 6 benchmarks: foo, bar"
-        self.assertEquals(r2.title, EXPECTED_TITLE)
+        expected_title = "Regression of 6 benchmarks: foo, bar"
+        self.assertEquals(r2.title, expected_title)
 
     def test_regression_evolution(self):
         ts_db = self.ts_db
