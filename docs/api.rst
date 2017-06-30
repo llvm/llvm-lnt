@@ -32,9 +32,9 @@ once.
 +---------------------------+------------------------------------------------------------------------------------------+
 | /samples?runid=1&runid=2  | Retrieve all the sample data for a list of run ids.  Run IDs should be pass as args.     |
 |                           | Will return sample data in the samples section, as a list of dicts, with a key for       |
-|                           | each metric type.                                                                        |
+|                           | each metric type. Empty samples are not sent.                                            |
 +---------------------------+------------------------------------------------------------------------------------------+
-| /samples/`id`             | Get all sample info for Sample `id`.                                                       |
+| /samples/`id`             | Get all non-empty sample info for Sample `id`.                                           |
 +---------------------------+------------------------------------------------------------------------------------------+
 
 Examples

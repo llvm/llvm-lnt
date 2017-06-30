@@ -196,7 +196,7 @@ class SampleData(Resource):
         except NoResultFound:
             return abort(404, message="Invalid order.")
         sample_output = common_fields_factory()
-        sample_output['samples'] = [sample]
+        sample_output['samples'] = [{k: v for k, v in sample.__json__().items() if v is not None}]
         return jsonify(sample_output)
 
 
@@ -231,7 +231,8 @@ class SamplesData(Resource):
             .filter(ts.Sample.run_id.in_(run_ids))
         output_samples = common_fields_factory()
         # noinspection PyProtectedMember
-        output_samples['samples'] = [sample._asdict() for sample in q.all()]
+        output_samples['samples'] = [{k: v for k, v in sample.items() if v is not None}
+                                     for sample in [sample._asdict() for sample in q.all()]]
 
         return output_samples
 
