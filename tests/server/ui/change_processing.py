@@ -27,12 +27,12 @@ class ChangeProcessingTests(unittest.TestCase):
 
     def setUp(self):
         """Bind to the LNT test instance."""
-        
+
         self.db = v4db.V4DB("sqlite:///:memory:", Config.dummy_instance(), echo=False)
 
         # Get the test suite wrapper.
         ts_db = self.ts_db = self.db.testsuite['nts']
-        
+
         order1234 = self.order1234 = self._mkorder(ts_db, "1234")
         order1235 = self.order1235 = self._mkorder(ts_db, "1235")
         order1236 = self.order1236 = self._mkorder(ts_db, "1236")
@@ -42,28 +42,28 @@ class ChangeProcessingTests(unittest.TestCase):
         start_time = end_time = datetime.datetime.utcnow()
         machine = self.machine = ts_db.Machine("test-machine")
         ts_db.add(machine)
-        
+
         test = self.test = ts_db.Test("foo")
         ts_db.add(test)
-        
+
         machine2 = self.machine2 = ts_db.Machine("test-machine2")
         ts_db.add(machine2)
-        
+
         test2 = self.test2 = ts_db.Test("bar")
         ts_db.add(test2)
-        
+
         run = self.run = ts_db.Run(machine, order1235,  start_time,
                         end_time)
         ts_db.add(run)
-        
+
         run2 = self.run2 = ts_db.Run(machine2, order1235,  start_time,
                         end_time)
         ts_db.add(run2)
-        
+
         sample = ts_db.Sample(run, test, compile_time=1.0,
                               score=4.2)
         ts_db.add(sample)
-        
+
         a_field = self.a_field = list(sample.get_primary_fields())[0]
         a_field2 = self.a_field2 = list(sample.get_primary_fields())[1]
 
@@ -82,7 +82,6 @@ class ChangeProcessingTests(unittest.TestCase):
                                          a_field)
         fc_mach2.run = run2
         ts_db.add(fc_mach2)
-
 
         field_change2 = self.field_change2 = ts_db.FieldChange(order1235, order1236, machine,
                                           test,
@@ -120,7 +119,7 @@ class ChangeProcessingTests(unittest.TestCase):
         order.llvm_project_revision = rev
         ts.add(order)
         return order
-    
+
     def test_startup(self):
         pass
 
@@ -182,7 +181,7 @@ class ChangeProcessingTests(unittest.TestCase):
         self.assertTrue(ret, "Should Match with different fields.")
 
         ts_db.commit()
-        
+
         r2 = rebuild_title(ts_db, self.regression)
         EXPECTED_TITLE = "Regression of 6 benchmarks: foo, bar"
         self.assertEquals(r2.title, EXPECTED_TITLE)
@@ -190,7 +189,7 @@ class ChangeProcessingTests(unittest.TestCase):
     def test_regression_evolution(self):
         ts_db = self.ts_db
         rule_update_fixed_regressions.regression_evolution(ts_db, self.regressions)
-        
+
     def test_fc_deletion(self):
         delete_fieldchange(self.ts_db, self.field_change)
         delete_fieldchange(self.ts_db, self.field_change2)
