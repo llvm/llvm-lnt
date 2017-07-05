@@ -172,7 +172,7 @@ class Runs(Resource):
             .join(ts.Test) \
             .join(ts.Run) \
             .join(ts.Order) \
-            .filter(ts.Sample.run_id.is_(run_id))
+            .filter(ts.Sample.run_id == run_id)
 
         # noinspection PyProtectedMember
         ret = [sample._asdict() for sample in q.all()]
