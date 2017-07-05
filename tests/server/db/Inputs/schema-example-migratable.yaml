@@ -1,0 +1,28 @@
+# This adds a new metric "newfield", as well as a new run and machine field
+# over the default example schema. Migration should succeed as this only
+# requires the create of new columns.
+format_version: "2"
+name: size
+metrics:
+  - name: text_size
+    bigger_is_better: false
+    type: Integer
+  - name: data_size
+    bigger_is_better: false
+    type: Integer
+  - name: score
+    bigger_is_better: true
+    type: Real
+  - name: hash
+    type: Hash
+  - name: newfield
+    bigger_is_better: true
+    type: Real
+run_fields:
+  - name: llvm_project_revision
+    order: true
+  - name: new_run_field
+machine_fields:
+  - name: new_machine_field
+  - name: hardware
+  - name: os

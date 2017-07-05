@@ -5,11 +5,53 @@
 
 # CHECK: Import succeeded.
 # CHECK: Imported Data
-# CHECK: -------------
-# CHECK: Added Machines: 1
-# CHECK: Added Runs    : 1
-# CHECK: Added Tests   : 1
+# CHECK-NEXT: -------------
+# CHECK-NEXT: Added Machines: 1
+# CHECK-NEXT: Added Runs    : 1
+# CHECK-NEXT: Added Tests   : 1
 #
 # CHECK: Results
 # CHECK: ----------------
 # CHECK: PASS : 3
+
+
+# Migration Tests
+# ===============
+#
+# Inserting with an extra field shouldn't work just yet
+# RUN: not lnt import "%t.install" -s size "%S/Inputs/customschema-report2.json" --commit=1 2>&1 | FileCheck %s --check-prefix=NOTUPGRADED
+# NOTUPGRADED: Metric u'newfield' unknown in suite
+
+# Upgrading to a schema with metrics/fields removed should fail
+# RUN: rm -f "%t.install/schemas/size.yaml"
+# RUN: ln -sf "%S/Inputs/schema-example-nomigration0.yaml" "%t.install/schemas/size.yaml"
+# RUN: not lnt import "%t.install" -s size "%S/Inputs/customschema-report.json" --commit=1 2>&1 | FileCheck %s --check-prefix=NOMIGRATION0
+# NOMIGRATION0: Cannot automatically migrate database: Metrics removed: data_size
+#
+# RUN: rm -f "%t.install/schemas/size.yaml"
+# RUN: ln -sf "%S/Inputs/schema-example-nomigration1.yaml" "%t.install/schemas/size.yaml"
+# RUN: not lnt import "%t.install" -s size "%S/Inputs/customschema-report.json" --commit=1 2>&1 | FileCheck %s --check-prefix=NOMIGRATION1
+# NOMIGRATION1: Cannot automatically migrate database: Machine fields removed: os
+#
+# RUN: rm -f "%t.install/schemas/size.yaml"
+# RUN: ln -sf "%S/Inputs/schema-example-nomigration2.yaml" "%t.install/schemas/size.yaml"
+# RUN: not lnt import "%t.install" -s size "%S/Inputs/customschema-report.json" --commit=1 2>&1 | FileCheck %s --check-prefix=NOMIGRATION2
+# NOMIGRATION2: Cannot automatically migrate database: Type mismatch in metric 'data_size'
+
+
+# This upgrade should finally work
+# RUN: rm -f "%t.install/schemas/size.yaml"
+# RUN: ln -sf "%S/Inputs/schema-example-migratable.yaml" "%t.install/schemas/size.yaml"
+# RUN: lnt import "%t.install" "%S/Inputs/customschema-report2.json" -s size --commit=1 --show-sql 2>&1 | FileCheck %s --check-prefix=MIGRATION
+#
+# MIGRATION: ALTER TABLE "size_Sample" ADD COLUMN newfield FLOAT
+# MIGRATION: ALTER TABLE "size_Run" ADD COLUMN new_run_field VARCHAR(256)
+# MIGRATION: ALTER TABLE "size_Machine" ADD COLUMN new_machine_field VARCHAR(256)
+#
+# MIGRATION: Import succeeded.
+# MIGRATION: Imported Data
+# MIGRATION-NEXT: -------------
+# MIGRATION-NEXT: Added Runs    : 1
+#
+# MIGRATION: Results
+# MIGRATION: PASS : 4

@@ -27,6 +27,32 @@ def strip(obj):
     return new_dict
 
 
+_sample_type_to_sql = {
+    'Real': Float,
+    'Integer': Integer,
+    'Hash': String,
+    'Status': Integer
+}
+
+
+def make_sample_column(name, type):
+    sqltype = _sample_type_to_sql.get(type)
+    if sqltype is None:
+        raise ValueError("test suite defines unknown sample type %r" % type)
+    options = []
+    if type == 'Status':
+        options.append(ForeignKey(testsuite.StatusKind.id))
+    return Column(name, sqltype, *options)
+
+
+def make_run_column(name):
+    return Column(name, String(256))
+
+
+def make_machine_column(name):
+    return Column(name, String(256))
+
+
 class TestSuiteDB(object):
     """
     Wrapper object for an individual test suites database tables.
@@ -90,12 +116,12 @@ class TestSuiteDB(object):
             # machine fields.
             class_dict = locals()
             for item in fields:
-                if item.name in class_dict:
+                iname = item.name
+                if iname in class_dict:
                     raise ValueError("test suite defines reserved key %r" % (
-                        name))
+                        iname))
 
-                class_dict[item.name] = item.column = Column(
-                    item.name, String(256))
+                class_dict[iname] = item.column = make_machine_column(iname)
 
             def __init__(self, name_value):
                 self.name = name_value
@@ -289,12 +315,12 @@ class TestSuiteDB(object):
             # but need a bit for that in the test suite definition.
             class_dict = locals()
             for item in fields:
-                if item.name in class_dict:
+                iname = item.name
+                if iname in class_dict:
                     raise ValueError("test suite defines reserved key %r" %
-                                     (name,))
+                                     (iname,))
 
-                class_dict[item.name] = item.column = Column(
-                    item.name, String(256))
+                class_dict[iname] = item.column = make_run_column(iname)
 
             def __init__(self, machine, order, start_time, end_time):
                 self.machine = machine
@@ -445,24 +471,13 @@ class TestSuiteDB(object):
             # the new UI is up.
             class_dict = locals()
             for item in self.sample_fields:
-                if item.name in class_dict:
+                iname = item.name
+                if iname in class_dict:
                     raise ValueError("test suite defines reserved key %r" %
-                                     (name,))
+                                     (iname,))
 
-                if item.type.name == 'Real':
-                    item.column = Column(item.name, Float)
-                elif item.type.name == 'Integer':
-                    item.column = Column(item.name, Integer)
-                elif item.type.name == 'Status':
-                    item.column = Column(item.name, Integer, ForeignKey(
-                            testsuite.StatusKind.id))
-                elif item.type.name == 'Hash':
-                    item.column = Column(item.name, String)
-                else:
-                    raise ValueError("Unknown sample type %r" %
-                                     (item.type.name,))
-
-                class_dict[item.name] = item.column
+                item.column = make_sample_column(iname, item.type.name)
+                class_dict[iname] = item.column
 
             def __init__(self, run, test, **kwargs):
                 self.run = run
@@ -701,11 +716,9 @@ class TestSuiteDB(object):
         # Convert the machine data into a machine record. We construct the
         # query to look for any existing machine at the same time as we build
         # up the record to possibly add.
-        #
-        # FIXME: This feels inelegant, can't SA help us out here?
-        query = self.query(self.Machine).\
-            filter(self.Machine.name == machine_data['name'])
-        machine = self.Machine(machine_data['name'])
+        name = machine_data['name']
+        query = self.query(self.Machine).filter(self.Machine.name == name)
+        machine = self.Machine(name)
         machine_parameters = machine_data.copy()
         machine_parameters.pop('name')
         # Ignore incoming ids; we will create our own.
@@ -715,12 +728,7 @@ class TestSuiteDB(object):
 
         # First, extract all of the specified machine fields.
         for item in self.machine_fields:
-            # For now, insert empty values for any missing fields. We don't
-            # want to insert NULLs, so we should probably allow the test
-            # suite to define defaults.
-            default_value = ''
-
-            value = machine_parameters.pop(item.name, default_value)
+            value = machine_parameters.pop(item.name, None)
             query = query.filter(item.column == value)
             machine.set_field(item, value)
 
@@ -732,12 +740,11 @@ class TestSuiteDB(object):
                              machine.parameters_data)
 
         # Execute the query to see if we already have this machine.
-        try:
-            return query.one(), False
-        except sqlalchemy.orm.exc.NoResultFound:
-            # If not, add the machine.
+        existing_machine = query.first()
+        if existing_machine is not None:
+            return existing_machine, False
+        else:
             self.add(machine)
-
             return machine, True
 
     def _getOrCreateOrder(self, run_parameters):
@@ -840,12 +847,7 @@ class TestSuiteDB(object):
 
         # First, extract all of the specified run fields.
         for item in self.run_fields:
-            # For now, insert empty values for any missing fields. We don't
-            # want to insert NULLs, so we should probably allow the test
-            # suite to define defaults.
-            default_value = ''
-
-            value = run_parameters.pop(item.name, default_value)
+            value = run_parameters.pop(item.name, None)
             query = query.filter(item.column == value)
             run.set_field(item, value)
 

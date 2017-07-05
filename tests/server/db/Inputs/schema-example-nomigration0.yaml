@@ -1,0 +1,22 @@
+# We cannot automatically migrate this as the metric "data_size" metric
+# disappears.
+format_version: "2"
+name: size
+metrics:
+  - name: text_size
+    bigger_is_better: false
+    type: Integer
+  - name: hash
+    type: Hash
+  - name: score
+    bigger_is_better: true
+    type: Real
+  - name: newfield
+    bigger_is_better: true
+    type: Real
+run_fields:
+  - name: llvm_project_revision
+    order: true
+machine_fields:
+  - name: hardware
+  - name: os

@@ -2,7 +2,12 @@
 Database models for the TestSuites abstraction.
 """
 
+import json
 import lnt
+import logging
+import sys
+import testsuitedb
+import util
 
 import sqlalchemy
 import sqlalchemy.ext.declarative
@@ -54,6 +59,106 @@ class StatusKind(Base):
 
     def __repr__(self):
         return '%s%r' % (self.__class__.__name__, (self.name,))
+
+
+class _MigrationError(Exception):
+    def __init__(self, message):
+        full_message = \
+            "Cannot automatically migrate database: %s" % message
+        super(_MigrationError, self).__init__(full_message)
+
+
+class TestSuiteJSONSchema(Base):
+    """
+    Saves the json schema used when creating a testsuite. Only used for suites
+    created with a json schema description.
+    """
+    __tablename__ = 'TestSuiteJSONSchemas'
+    testsuite_name = Column("TestSuiteName", String(256), primary_key=True)
+    jsonschema = Column("JSONSchema", Binary)
+
+    def __init__(self, testsuite_name, data):
+        self.testsuite_name = testsuite_name
+        self.jsonschema = json.dumps(data, encoding='utf-8', sort_keys=True)
+
+    def upgrade_to(self, engine, new_schema, dry_run=False):
+        new = json.loads(new_schema.jsonschema)
+        old = json.loads(self.jsonschema)
+        ts_name = new['name']
+        if old['name'] != ts_name:
+            raise _MigrationError("Schema names differ?!?")
+
+        old_metrics = {}
+        for metric_desc in old.get('metrics', []):
+            old_metrics[metric_desc['name']] = metric_desc
+
+        for metric_desc in new.get('metrics', []):
+            name = metric_desc['name']
+            old_metric = old_metrics.pop(name, None)
+            type = metric_desc['type']
+            if old_metric is not None:
+                if old_metric['type'] != type:
+                    raise _MigrationError("Type mismatch in metric '%s'" % name)
+            elif not dry_run:
+                # Add missing columns
+                column = testsuitedb.make_sample_column(name, type)
+                util.add_sqlalchemy_column(engine, '%s_Sample' % ts_name,
+                                           column)
+
+        if len(old_metrics) != 0:
+            raise _MigrationError("Metrics removed: %s" %
+                                  ", ".join(old_metrics.keys()))
+
+        old_run_fields = {}
+        old_order_fields = {}
+        for field_desc in old.get('run_fields', []):
+            if field_desc.get('order', False):
+                old_order_fields[field_desc['name']] = field_desc
+                continue
+            old_run_fields[field_desc['name']] = field_desc
+
+        for field_desc in new.get('run_fields', []):
+            name = field_desc['name']
+            if field_desc.get('order', False):
+                old_order_field = old_order_fields.pop(name, None)
+                if old_order_field is None:
+                    raise _MigrationError("Cannot add order field '%s'" %
+                                          name)
+                continue
+
+            old_field = old_run_fields.pop(name, None)
+            # Add missing columns
+            if old_field is None and not dry_run:
+                column = testsuitedb.make_run_column(name)
+                util.add_sqlalchemy_column(engine, '%s_Run' % ts_name, column)
+
+        if len(old_run_fields) > 0:
+            raise _MigrationError("Run fields removed: %s" %
+                                  ", ".join(old_run_fields.keys()))
+        if len(old_order_fields) > 0:
+            raise _MigrationError("Order fields removed: %s" %
+                                  ", ".join(old_order_fields.keys()))
+
+
+        old_machine_fields = {}
+        for field_desc in old.get('machine_fields', []):
+            name = field_desc['name']
+            old_machine_fields[name] = field_desc
+
+        for field_desc in new.get('machine_fields', []):
+            name = field_desc['name']
+            old_field = old_machine_fields.pop(name, None)
+            # Add missing columns
+            if old_field is None and not dry_run:
+                column = testsuitedb.make_machine_column(name)
+                util.add_sqlalchemy_column(engine, '%s_Machine' % ts_name,
+                                           column)
+
+        if len(old_machine_fields) > 0:
+            raise _MigrationError("Machine fields removed: %s" %
+                                  ", ".join(old_machine_fields.keys()))
+         # The rest should just be metadata that we can upgrade
+        return True
 
 
 class TestSuite(Base):
@@ -140,7 +245,31 @@ class TestSuite(Base):
                                 bigger_is_better=bigger_is_better_int)
             sample_fields.append(field)
         ts.sample_fields = sample_fields
+        ts.jsonschema = data
         return ts
+
+    def check_json_schema_changes(self, v4db):
+        name = self.name
+        schema = TestSuiteJSONSchema(name, self.jsonschema)
+        prev_schema = v4db.query(TestSuiteJSONSchema) \
+                .filter(TestSuiteJSONSchema.testsuite_name == name) \
+                .first()
+        if prev_schema is not None:
+            if prev_schema.jsonschema != schema.jsonschema:
+                logging.info("Previous Schema:")
+                logging.info(json.dumps(json.loads(prev_schema.jsonschema),
+                                        indent=2))
+                # New schema? Save it in the database and we are good.
+                engine = v4db.engine
+                prev_schema.upgrade_to(engine, schema, dry_run=True)
+                prev_schema.upgrade_to(engine, schema)
+
+                prev_schema.jsonschema = schema.jsonschema
+                v4db.add(prev_schema)
+                v4db.commit()
+        else:
+            v4db.add(schema)
+            v4db.commit()
 
 
 class FieldMixin(object):
