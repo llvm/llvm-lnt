@@ -1,4 +1,7 @@
 from lnt.testing.util.commands import fatal
+import glob
+import yaml
+import logging
 
 try:
     import threading
@@ -28,11 +31,18 @@ class V4DB(object):
     class TestSuiteAccessor(object):
         def __init__(self, v4db):
             self.v4db = v4db
+            self._extra_suites = {}
             self._cache = {}
 
         def __iter__(self):
             for name, in self.v4db.query(testsuite.TestSuite.name):
                 yield name
+            for name in self._extra_suites.keys():
+                yield name
+
+        def add_suite(self, suite):
+            name = suite.name
+            self._extra_suites[name] = suite
 
         def get(self, name, default = None):
             # Check the test suite cache, to avoid gratuitous reinstantiation.
@@ -41,15 +51,20 @@ class V4DB(object):
             if name in self._cache:
                 return self._cache[name]
 
-            # Get the test suite object.
-            ts = self.v4db.query(testsuite.TestSuite).\
-                filter(testsuite.TestSuite.name == name).first()
-            if ts is None:
-                return default
+            create_tables = False
+            ts = self._extra_suites.get(name)
+            if ts:
+                create_tables = True
+            else:
+                # Get the test suite object.
+                ts = self.v4db.query(testsuite.TestSuite).\
+                    filter(testsuite.TestSuite.name == name).first()
+                if ts is None:
+                    return default
 
             # Instantiate the per-test suite wrapper object for this test suite.
             self._cache[name] = ts = lnt.server.db.testsuitedb.TestSuiteDB(
-                self.v4db, name, ts)
+                self.v4db, name, ts, create_tables=create_tables)
             return ts
 
         def __getitem__(self, name):
@@ -68,6 +83,23 @@ class V4DB(object):
         def items(self):
             for name in self:
                 yield name,self[name]
+
+    def _load_schema_file(self, schema_file):
+        with open(schema_file) as schema_fd:
+            data = yaml.load(schema_fd)
+        suite = testsuite.TestSuite.from_json(data)
+        self.testsuite.add_suite(suite)
+        logging.info("External TestSuite '%s' loaded from '%s'" %
+                     (suite.name, schema_file))
+
+    def _load_shemas(self):
+        schemasDir = self.config.schemasDir
+        for schema_file in glob.glob('%s/*.yaml' % schemasDir):
+            try:
+                self._load_schema_file(schema_file)
+            except:
+                logging.error("Could not load schema '%s'" % schema_file,
+                              exc_info=True)
 
     def __init__(self, path, config, baseline_revision=0, echo=False):
         # If the path includes no database type, assume sqlite.
@@ -125,6 +157,8 @@ class V4DB(object):
             self.hash_sample_type = sample_types["Hash"]
         except KeyError:
             fatal("sample types not initialized!")
+
+        self._load_shemas()
 
     def close(self):
         if self.session is not None:

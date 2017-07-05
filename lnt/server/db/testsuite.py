@@ -84,6 +84,64 @@ class TestSuite(Base):
         return '%s%r' % (self.__class__.__name__, (self.name, self.db_key_name,
                                                    self.version))
 
+    @staticmethod
+    def from_json(data):
+        if data.get('format_version') != '2':
+            raise ValueError("Expected \"format_version\": \"2\" in schema")
+        name = data['name']
+        ts = TestSuite(data['name'], data['name'])
+
+        machine_fields = []
+        for field_desc in data.get('machine_fields', []):
+            name = field_desc['name']
+            field = MachineField(name, info_key=None)
+            machine_fields.append(field)
+        ts.machine_fields = machine_fields
+
+        run_fields = []
+        order_fields = []
+        for field_desc in data.get('run_fields', []):
+            name = field_desc['name']
+            is_order = field_desc.get('order', False)
+            if is_order:
+                field = OrderField(name, info_key=None, ordinal=0)
+                order_fields.append(field)
+            else:
+                field = RunField(name, info_key=None)
+                run_fields.append(field)
+        ts.run_fields = run_fields
+        ts.order_fields = order_fields
+        assert(len(order_fields) > 0)
+
+        # Hardcode some sample types. I wonder whether we should rather query
+        # them from the core database?
+        # This needs to be kept in sync with testsuitedb.py
+        metric_types = {
+            'Real': SampleType('Real'),
+            'Integer': SampleType('Integer'),
+            'Status': SampleType('Status'),
+            'Hash': SampleType('Hash')
+        }
+
+        sample_fields = []
+        for metric_desc in data['metrics']:
+            name = metric_desc['name']
+            bigger_is_better = metric_desc.get('bigger_is_better', False)
+            metric_type_name = metric_desc.get('type', 'Real')
+            metric_type = metric_types.get(metric_type_name)
+            if metric_type is None:
+                raise ValueError("Unknown metric type '%s' (not in %s)" %
+                                 (metric_type_name,
+                                  metric_types.keys().join(",")))
+
+            bigger_is_better_int = 1 if bigger_is_better else 0
+            field = SampleField(name, metric_type, info_key=None,
+                                status_field = None,
+                                bigger_is_better=bigger_is_better_int)
+            sample_fields.append(field)
+        ts.sample_fields = sample_fields
+        return ts
+
 
 class FieldMixin(object):
     @property

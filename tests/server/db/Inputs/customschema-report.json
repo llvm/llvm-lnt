@@ -1,0 +1,20 @@
+{
+	"format_version": "2",
+	"machine": {
+		"name": "sizetester0",
+		"hostname": "mymachine.local"
+	},
+	"run": {
+		"llvm_project_revision": "642040",
+	    "end_time": "2017-04-18 23:31:18",
+		"start_time": "2017-04-18 23:01:34"
+	},
+	"tests": [
+		{
+			"name": "/obj/Debug/src/lib/embUnit~armv7_cortex-r5_Oz_floatabisoft/embUnit/AssertImpl_c~armv7_cortex-r5_Oz_floatabisoft_o",
+			"text_size": 402,
+			"data_size": 568,
+			"score": 42.42
+		}
+	]
+}

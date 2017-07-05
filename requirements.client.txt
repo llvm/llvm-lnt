@@ -17,3 +17,4 @@ WTForms==2.0.2
 Flask-WTF==0.12
 typing
 click==6.7
+pyyaml==3.12

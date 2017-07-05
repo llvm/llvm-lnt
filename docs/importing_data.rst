@@ -101,32 +101,20 @@ Simply put, suites are a collections of metrics that are collected for each run.
 You can define your own test-suites if the schema in a different suite does not
 already meet your needs.
 
-Creating a suite requires database access, and shell access to the machine.
-First create the metadata tables, then tell LNT to build the suites tables from
-the new metadata you have added.
+To create a schema place a yaml file into the schemas directory of your lnt
+instance. Example:
 
- * Open the database you want to add the suite to.
- * Add a new row to the TestSite table, note the ID.
- * Add machine and run fields to TestSuiteMachineFields and TestSuiteRunFields.
- * Add an Order to TestSuiteOrderFields.  The only order name that is regularly
-   tested is llvm_project_revision, so you may want to use that name.
- * Add new entries to the TestSuiteSampleFields for each metric you want to
-   collect.
- * Now create the new LNT tables via the shell interface. In this example
-   we make a tables for the size testsuite in the ecc database::
+.. literalinclude:: schema-example.yaml
+    :language: yaml
 
-    $ lnt runserver --shell ./foo
-    Started file logging.
-    Logging to : lnt.log
-    Python 2.7.5 (default, Mar  9 2014, 22:15:05)
-    [GCC 4.2.1 Compatible Apple LLVM 5.0 (clang-500.0.68)] on darwin
-    Type "help", "copyright", "credits" or "license" for more information.
-    (InteractiveConsole)
-    >>> g.db_name = "ecc"
-    >>> db = ctx.request.get_db()
-    >>> db
-    <lnt.server.db.v4db.V4DB object at 0x10ac4afd0>
-    >>> import lnt.server.db.migrations.new_suite as ns
-    >>> ns.init_new_testsuite(db.engine, db.session, "size")
-    >>> db.session.commit()
+* LNT currently supports the following metric types:
 
+  - ``Integer``: Integer values; postgres limits this to 4 bytes,
+    sqlite support up to 8 bytes.
+  - ``Real``: 8-byte IEEE floating point values.
+  - ``Hash``: String values; limited to 256, sqlite is not enforcing the limit.
+  - ``Status``: StatusKind enum values (limited to 'PASS', 'FAIL', 'XFAIL' right
+    now).
+
+* You need to mark at least 1 of the run fields as ``order: true`` so LNT knows
+  how to sort runs.

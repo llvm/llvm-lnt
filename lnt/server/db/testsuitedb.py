@@ -38,7 +38,7 @@ class TestSuiteDB(object):
     through the model classes constructed by this wrapper object.
     """
 
-    def __init__(self, v4db, name, test_suite):
+    def __init__(self, v4db, name, test_suite, create_tables=False):
         testsuitedb = self
         self.v4db = v4db
         self.name = name
@@ -416,7 +416,7 @@ class TestSuiteDB(object):
                 worse than other potential values for this field.
                 """
                 for field in self.Sample.fields:
-                    if field.type.name == 'Real':
+                    if field.type.name in ['Real', 'Integer']:
                         yield field
 
             @staticmethod
@@ -451,6 +451,8 @@ class TestSuiteDB(object):
 
                 if item.type.name == 'Real':
                     item.column = Column(item.name, Float)
+                elif item.type.name == 'Integer':
+                    item.column = Column(item.name, Integer)
                 elif item.type.name == 'Status':
                     item.column = Column(item.name, Integer, ForeignKey(
                             testsuite.StatusKind.id))
@@ -665,6 +667,9 @@ class TestSuiteDB(object):
         self.commit = self.v4db.commit
         self.query = self.v4db.query
         self.rollback = self.v4db.rollback
+
+        if create_tables:
+            self.base.metadata.create_all(v4db.engine)
 
     def get_baselines(self):
         return self.query(self.Baseline).all()

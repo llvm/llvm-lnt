@@ -104,7 +104,7 @@ class Config:
 
         dbDir = data.get('db_dir', '.')
         profileDir = data.get('profile_dir', 'data/profiles')
-
+        schemasDir = os.path.join(baseDir, 'schemas')
         # If the path does not contain database type, assume relative path.
         dbDirPath = dbDir if "://" in dbDir else os.path.join(baseDir, dbDir)
 
@@ -125,7 +125,7 @@ class Config:
                                                  default_email_config,
                                                  0))
                            for k, v in data['databases'].items()]),
-                      blacklist, api_auth_token)
+                      blacklist, schemasDir, api_auth_token)
 
     @staticmethod
     def dummy_instance():
@@ -133,6 +133,7 @@ class Config:
         dbDir = '.'
         profileDirPath = os.path.join(baseDir, 'profiles')
         tempDir = os.path.join(baseDir, 'tmp')
+        schemasDir = os.path.join(baseDir, 'schemas')
         secretKey = None
         dbInfo = {'dummy': DBInfo.dummy_instance()}
         blacklist = None
@@ -145,6 +146,7 @@ class Config:
                       secretKey,
                       dbInfo,
                       blacklist,
+                      schemasDir,
                       "test_key")
 
     def __init__(self,
@@ -156,6 +158,7 @@ class Config:
                  secretKey,
                  databases,
                  blacklist,
+                 schemasDir,
                  api_auth_token=None):
         self.name = name
         self.zorgURL = zorgURL
@@ -164,6 +167,7 @@ class Config:
         self.secretKey = secretKey
         self.blacklist = blacklist
         self.profileDir = profileDir
+        self.schemasDir = schemasDir
         while self.zorgURL.endswith('/'):
             self.zorgURL = zorgURL[:-1]
         self.databases = databases

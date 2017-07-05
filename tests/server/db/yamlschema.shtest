@@ -1,0 +1,15 @@
+# RUN: rm -rf "%t.install"
+# RUN: lnt create "%t.install"
+# RUN: ln -sf %{src_root}/docs/schema-example.yaml "%t.install/schemas/size.yaml"
+# RUN: lnt import "%t.install" -s size %S/Inputs/customschema-report.json --commit=1 | FileCheck %s
+
+# CHECK: Import succeeded.
+# CHECK: Imported Data
+# CHECK: -------------
+# CHECK: Added Machines: 1
+# CHECK: Added Runs    : 1
+# CHECK: Added Tests   : 1
+#
+# CHECK: Results
+# CHECK: ----------------
+# CHECK: PASS : 3

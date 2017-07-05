@@ -145,11 +145,13 @@ LNT configuration.
     cfg_path = os.path.join(basepath, config)
     tmp_path = os.path.join(basepath, tmp_dir)
     wsgi_path = os.path.join(basepath, wsgi)
+    schemas_path = os.path.join(basepath, "schemas")
     secret_key = (secret_key or
                   hashlib.sha1(str(random.getrandbits(256))).hexdigest())
 
     os.mkdir(instance_path)
     os.mkdir(tmp_path)
+    os.mkdir(schemas_path)
 
     # If the path does not contain database type, assume relative path.
     if "://" not in db_dir:
