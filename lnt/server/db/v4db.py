@@ -188,6 +188,6 @@ class V4DB(object):
         db = self.testsuite.get(testsuite_schema)
         if db is None:
             raise ValueError, "test suite %r not present in this database!" % (
-                db_schema)
+                testsuite_schema)
 
         return db.importDataFromDict(data, commit, config)
