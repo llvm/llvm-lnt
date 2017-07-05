@@ -272,7 +272,10 @@ def v4_machine(id):
 
     if request.args.get('json'):
         json_obj = dict()
-        machine_obj = ts.query(ts.Machine).filter(ts.Machine.id == id).one()
+        try:
+            machine_obj = ts.query(ts.Machine).filter(ts.Machine.id == id).one()
+        except NoResultFound:
+            abort(404)
         json_obj['name'] = machine_obj.name
         json_obj['id'] = machine_obj.id
         json_obj['runs'] = []
