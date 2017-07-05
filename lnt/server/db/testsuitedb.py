@@ -49,7 +49,7 @@ class TestSuiteDB(object):
         self.order_fields = list(self.test_suite.order_fields)
         self.run_fields = list(self.test_suite.run_fields)
         self.sample_fields = list(self.test_suite.sample_fields)
-        for i,field in enumerate(self.sample_fields):
+        for i, field in enumerate(self.sample_fields):
             field.index = i
 
         self.base = sqlalchemy.ext.declarative.declarative_base()
@@ -82,8 +82,8 @@ class TestSuiteDB(object):
             name = Column("Name", String(256), index=True)
 
             # The parameters blob is used to store any additional information
-            # reported by the run but not promoted into the machine record. Such
-            # data is stored as a JSON encoded blob.
+            # reported by the run but not promoted into the machine record.
+            # Such data is stored as a JSON encoded blob.
             parameters_data = Column("Parameters", Binary)
 
             # Dynamically create fields for all of the test suite defined
@@ -112,7 +112,7 @@ class TestSuiteDB(object):
             @parameters.setter
             def parameters(self, data):
                 self.parameters_data = json.dumps(sorted(data.items()))
-            
+
             def get_baseline_run(self):
                 ts = Machine.testsuite
                 user_baseline = ts.get_users_baseline()
@@ -132,7 +132,7 @@ class TestSuiteDB(object):
                 Find the closest previous run to the requested order, for which
                 this machine also reported.
                 """
-                
+
                 # FIXME: Scalability! Pretty fast in practice, but still.
                 ts = Machine.testsuite
                 # Search for best order.
@@ -143,7 +143,7 @@ class TestSuiteDB(object):
                     if order >= order_to_find and \
                           (best_order is None or order < best_order):
                         best_order = order
-                
+
                 # Find the most recent run on this machine that used
                 # that order.
                 closest_run = None
@@ -152,11 +152,12 @@ class TestSuiteDB(object):
                         .filter(ts.Run.machine_id == self.id)\
                         .filter(ts.Run.order_id == best_order.id)\
                         .order_by(ts.Run.start_time.desc()).first()
-                
+
                 return closest_run
-            
+
             def __json__(self):
-                return strip(self.__dict__) # {u'name': self.name, u'MachineID': self.id}
+                # {u'name': self.name, u'MachineID': self.id}
+                return strip(self.__dict__)
 
         class Order(self.base, ParameterizedMixin):
             __tablename__ = db_key_name + '_Order'
@@ -165,25 +166,25 @@ class TestSuiteDB(object):
             # supposed to be lexicographically compared, the __cmp__ method
             # relies on this.
             fields = sorted(self.order_fields,
-                            key = lambda of: of.ordinal)
+                            key=lambda of: of.ordinal)
 
             id = Column("ID", Integer, primary_key=True)
 
-            # Define two common columns which are used to store the previous and
-            # next links for the total ordering amongst run orders.
+            # Define two common columns which are used to store the previous
+            # and next links for the total ordering amongst run orders.
             next_order_id = Column("NextOrder", Integer, ForeignKey(
                     "%s.ID" % __tablename__))
             previous_order_id = Column("PreviousOrder", Integer, ForeignKey(
                     "%s.ID" % __tablename__))
 
             # This will implicitly create the previous_order relation.
-            next_order = sqlalchemy.orm.relation("Order",
-                                                 backref=sqlalchemy.orm.backref('previous_order',
-                                                                                uselist=False,
-                                                                                remote_side=id),
-                                                 primaryjoin='Order.previous_order_id==Order.id',
+            backref = sqlalchemy.orm.backref('previous_order', uselist=False,
+                                             remote_side=id)
+            join = 'Order.previous_order_id==Order.id'
+            next_order = sqlalchemy.orm.relation("Order", backref=backref,
+                                                 primaryjoin=join,
                                                  uselist=False)
-            
+
             # Dynamically create fields for all of the test suite defined order
             # fields.
             class_dict = locals()
@@ -195,7 +196,7 @@ class TestSuiteDB(object):
                 class_dict[item.name] = item.column = Column(
                     item.name, String(256))
 
-            def __init__(self, previous_order_id = None, next_order_id = None,
+            def __init__(self, previous_order_id=None, next_order_id=None,
                          **kwargs):
                 self.previous_order_id = previous_order_id
                 self.next_order_id = next_order_id
@@ -241,7 +242,7 @@ class TestSuiteDB(object):
                 # separated component to an integer if is is numeric.
                 def convert_field(value):
                     items = value.strip().split('.')
-                    for i,item in enumerate(items):
+                    for i, item in enumerate(items):
                         if item.isdigit():
                             items[i] = int(item, 10)
                     return tuple(items)
@@ -251,15 +252,14 @@ class TestSuiteDB(object):
                                  for item in self.fields),
                            tuple(convert_field(b.get_field(item))
                                  for item in self.fields))
-                                 
+
             def __json__(self):
                 order = dict((item.name, self.get_field(item))
-                              for item in self.fields)
+                             for item in self.fields)
                 order[u'id'] = self.id
                 order[u'name'] = self.as_ordered_string()
                 return strip(order)
-                
-                
+
         class Run(self.base, ParameterizedMixin):
             __tablename__ = db_key_name + '_Run'
 
@@ -275,8 +275,8 @@ class TestSuiteDB(object):
             simple_run_id = Column("SimpleRunID", Integer)
 
             # The parameters blob is used to store any additional information
-            # reported by the run but not promoted into the machine record. Such
-            # data is stored as a JSON encoded blob.
+            # reported by the run but not promoted into the machine record.
+            # Such data is stored as a JSON encoded blob.
             parameters_data = Column("Parameters", Binary)
 
             machine = sqlalchemy.orm.relation(Machine)
@@ -290,8 +290,8 @@ class TestSuiteDB(object):
             class_dict = locals()
             for item in fields:
                 if item.name in class_dict:
-                    raise ValueError,"test suite defines reserved key %r" % (
-                        name,)
+                    raise ValueError("test suite defines reserved key %r" %
+                                     (name,))
 
                 class_dict[item.name] = item.column = Column(
                     item.name, String(256))
@@ -316,12 +316,12 @@ class TestSuiteDB(object):
             @parameters.setter
             def parameters(self, data):
                 self.parameters_data = json.dumps(sorted(data.items()))
-                
+
             def __json__(self):
                 self.machine
                 self.order
                 return strip(self.__dict__)
-                         
+
         class Test(self.base, ParameterizedMixin):
             __tablename__ = db_key_name + '_Test'
 
@@ -334,7 +334,7 @@ class TestSuiteDB(object):
             def __repr__(self):
                 return '%s_%s%r' % (db_key_name, self.__class__.__name__,
                                     (self.name,))
-                                    
+
             def __json__(self):
                 return strip(self.__dict__)
 
@@ -352,13 +352,16 @@ class TestSuiteDB(object):
                 self.accessed_time = datetime.datetime.now()
 
                 if config is not None:
-                    self.filename = profile.Profile.saveFromRendered(encoded,
-                                                             profileDir=config.config.profileDir,
-                                                             prefix='t-%s-s-' % os.path.basename(testid))
+                    profileDir = config.config.profileDir
+                    prefix = 't-%s-s-' % os.path.basename(testid)
+                    self.filename = \
+                        profile.Profile.saveFromRendered(encoded,
+                                                         profileDir=profileDir,
+                                                         prefix=prefix)
 
                 p = profile.Profile.fromRendered(encoded)
-                s = ','.join('%s=%s' % (k,v)
-                             for k,v in p.getTopLevelCounters().items())
+                s = ','.join('%s=%s' % (k, v)
+                             for k, v in p.getTopLevelCounters().items())
                 self.counters = s[:512]
 
             def getTopLevelCounters(self):
@@ -369,19 +372,21 @@ class TestSuiteDB(object):
                 return d
 
             def load(self, profileDir):
-                return profile.Profile.fromFile(os.path.join(profileDir, self.filename))
-            
+                return profile.Profile.fromFile(os.path.join(profileDir,
+                                                             self.filename))
+
         class Sample(self.base, ParameterizedMixin):
             __tablename__ = db_key_name + '_Sample'
 
             fields = self.sample_fields
             id = Column("ID", Integer, primary_key=True)
-            # We do not need an index on run_id, this is covered by the compound
-            # (Run(ID),Test(ID)) index we create below.
+            # We do not need an index on run_id, this is covered by the
+            # compound (Run(ID),Test(ID)) index we create below.
             run_id = Column("RunID", Integer, ForeignKey(Run.id))
-            test_id = Column("TestID", Integer, ForeignKey(Test.id), index=True)
+            test_id = Column("TestID", Integer, ForeignKey(Test.id),
+                             index=True)
             profile_id = Column("ProfileID", Integer, ForeignKey(Profile.id))
-            
+
             run = sqlalchemy.orm.relation(Run)
             test = sqlalchemy.orm.relation(Test)
             profile = sqlalchemy.orm.relation(Profile)
@@ -441,8 +446,8 @@ class TestSuiteDB(object):
             class_dict = locals()
             for item in self.sample_fields:
                 if item.name in class_dict:
-                    raise ValueError,"test suite defines reserved key %r" % (
-                        name,)
+                    raise ValueError("test suite defines reserved key %r" %
+                                     (name,))
 
                 if item.type.name == 'Real':
                     item.column = Column(item.name, Float)
@@ -452,9 +457,8 @@ class TestSuiteDB(object):
                 elif item.type.name == 'Hash':
                     item.column = Column(item.name, String)
                 else:
-                    raise ValueError,(
-                        "test suite defines unknown sample type %r" (
-                            item.type.name,))
+                    raise ValueError("Unknown sample type %r" %
+                                     (item.type.name,))
 
                 class_dict[item.name] = item.column
 
@@ -468,7 +472,7 @@ class TestSuiteDB(object):
 
             def __repr__(self):
                 fields = dict((item.name, self.get_field(item))
-                             for item in self.fields)
+                              for item in self.fields)
 
                 return '%s_%s(%r, %r, **%r)' % (
                     db_key_name, self.__class__.__name__,
@@ -476,13 +480,14 @@ class TestSuiteDB(object):
 
             def __json__(self):
                 return strip(self.__dict__)
-        
+
         class FieldChange(self.base, ParameterizedMixin):
             """FieldChange represents a change in between the values
-            of the same field belonging to two samples from consecutive runs."""
-            
+            of the same field belonging to two samples from consecutive runs.
+            """
+
             __tablename__ = db_key_name + '_FieldChangeV2'
-            id = Column("ID", Integer, primary_key = True)
+            id = Column("ID", Integer, primary_key=True)
             old_value = Column("OldValue", Float)
             new_value = Column("NewValue", Float)
             start_order_id = Column("StartOrderID", Integer,
@@ -497,20 +502,20 @@ class TestSuiteDB(object):
                               ForeignKey(self.v4db.SampleField.id))
             # Could be from many runs, but most recent one is interesting.
             run_id = Column("RunID", Integer,
-                                ForeignKey("%s_Run.ID" % db_key_name))
-            
+                            ForeignKey("%s_Run.ID" % db_key_name))
+
             start_order = sqlalchemy.orm.relation(Order,
-                                                  primaryjoin='FieldChange.'\
+                                                  primaryjoin='FieldChange.'
                                                   'start_order_id==Order.id')
             end_order = sqlalchemy.orm.relation(Order,
-                                                primaryjoin='FieldChange.'\
+                                                primaryjoin='FieldChange.'
                                                 'end_order_id==Order.id')
             test = sqlalchemy.orm.relation(Test)
             machine = sqlalchemy.orm.relation(Machine)
             field = sqlalchemy.orm.relation(self.v4db.SampleField,
-                                            primaryjoin= \
-                                              self.v4db.SampleField.id == \
-                                              field_id)
+                                            primaryjoin=(
+                                              self.v4db.SampleField.id ==
+                                              field_id))
             run = sqlalchemy.orm.relation(Run)
 
             def __init__(self, start_order, end_order, machine,
@@ -525,7 +530,7 @@ class TestSuiteDB(object):
                 return '%s_%s%r' % (db_key_name, self.__class__.__name__,
                                     (self.start_order, self.end_order,
                                      self.test, self.machine, self.field))
-            
+
             def __json__(self):
                 self.machine
                 self.test
@@ -533,7 +538,7 @@ class TestSuiteDB(object):
                 self.run
                 self.start_order
                 self.end_order
-                return strip(self.__dict__) 
+                return strip(self.__dict__)
 
         class Regression(self.base, ParameterizedMixin):
             """Regressions hold data about a set of RegressionIndices."""
@@ -552,13 +557,15 @@ class TestSuiteDB(object):
             def __repr__(self):
                 """String representation of the Regression for debugging.
 
-                Sometimes we try to print deleted regressions: in this case don't die, and return
-                a deleted """
+                Sometimes we try to print deleted regressions: in this case
+                don't die, and return a deleted """
                 try:
-                    return '{}_{}:"{}"'.format(db_key_name, self.__class__.__name__,
+                    return '{}_{}:"{}"'.format(db_key_name,
+                                               self.__class__.__name__,
                                                self.title)
                 except ObjectDeletedError:
-                    return '{}_{}:"{}"'.format(db_key_name, self.__class__.__name__,
+                    return '{}_{}:"{}"'.format(db_key_name,
+                                               self.__class__.__name__,
                                                "<Deleted>")
             
             def __json__(self):
@@ -570,10 +577,12 @@ class TestSuiteDB(object):
             __tablename__ = db_key_name + '_RegressionIndicator'
             id = Column("ID", Integer, primary_key=True)
             regression_id = Column("RegressionID", Integer,
-                                   ForeignKey("%s_Regression.ID" % db_key_name))
+                                   ForeignKey("%s_Regression.ID" %
+                                              db_key_name))
 
             field_change_id = Column("FieldChangeID", Integer,
-                            ForeignKey("%s_FieldChangeV2.ID" % db_key_name))
+                                     ForeignKey("%s_FieldChangeV2.ID" %
+                                                db_key_name))
 
             regression = sqlalchemy.orm.relation(Regression)
             field_change = sqlalchemy.orm.relation(FieldChange)
@@ -583,9 +592,10 @@ class TestSuiteDB(object):
                 self.field_change = field_change
 
             def __repr__(self):
-                return '%s_%s%r' % (db_key_name, self.__class__.__name__,(
-                        self.id, self.regression, self.field_change))
-            
+                return '%s_%s%r' % (db_key_name, self.__class__.__name__,
+                                    (self.id, self.regression,
+                                     self.field_change))
+
             def __json__(self):
                 return {u'RegressionIndicatorID': self.id,
                         u'Regression': self.regression,
@@ -598,7 +608,8 @@ class TestSuiteDB(object):
             id = Column("ID", Integer, primary_key=True)
 
             field_change_id = Column("ChangeIgnoreID", Integer,
-                                     ForeignKey("%s_FieldChangeV2.ID" % db_key_name))
+                                     ForeignKey("%s_FieldChangeV2.ID" %
+                                                db_key_name))
 
             field_change = sqlalchemy.orm.relation(FieldChange)
 
@@ -606,8 +617,8 @@ class TestSuiteDB(object):
                 self.field_change = field_change
 
             def __repr__(self):
-                return '%s_%s%r' % (db_key_name, self.__class__.__name__,(
-                                    self.id, self.field_change))
+                return '%s_%s%r' % (db_key_name, self.__class__.__name__,
+                                    (self.id, self.field_change))
 
         class Baseline(self.base, ParameterizedMixin):
             """Baselines to compare runs to."""
@@ -645,7 +656,7 @@ class TestSuiteDB(object):
         for item in self.machine_fields:
             args.append(item.column)
         sqlalchemy.schema.Index("ix_%s_Machine_Unique" % db_key_name,
-                                *args, unique = True)
+                                *args, unique=True)
 
         # Add several shortcut aliases, similar to the ones on the v4db.
         self.session = self.v4db.session
@@ -660,7 +671,8 @@ class TestSuiteDB(object):
 
     def get_users_baseline(self):
         try:
-            session_baseline = session.get(lnt.server.ui.util.baseline_key(self.name))
+            baseline_key = lnt.server.ui.util.baseline_key(self.name)
+            session_baseline = session.get(baseline_key)
         except RuntimeError:
             # Sometimes this is called from outside the app context.
             # In that case, don't get the user's session baseline.
@@ -677,13 +689,13 @@ class TestSuiteDB(object):
         Add or create (and insert) a Machine record from the given machine data
         (as recorded by the test interchange format).
 
-        The boolean result indicates whether the returned record was constructed
-        or not.
+        The boolean result indicates whether the returned record was
+        constructed or not.
         """
 
-        # Convert the machine data into a machine record. We construct the query
-        # to look for any existing machine at the same time as we build up the
-        # record to possibly add.
+        # Convert the machine data into a machine record. We construct the
+        # query to look for any existing machine at the same time as we build
+        # up the record to possibly add.
         #
         # FIXME: This feels inelegant, can't SA help us out here?
         query = self.query(self.Machine).\
@@ -716,12 +728,12 @@ class TestSuiteDB(object):
 
         # Execute the query to see if we already have this machine.
         try:
-            return query.one(),False
+            return query.one(), False
         except sqlalchemy.orm.exc.NoResultFound:
             # If not, add the machine.
             self.add(machine)
 
-            return machine,True
+            return machine, True
 
     def _getOrCreateOrder(self, run_parameters):
         """
@@ -733,8 +745,8 @@ class TestSuiteDB(object):
         The run parameters that define the order will be removed from the
         provided ddata argument.
 
-        The boolean result indicates whether the returned record was constructed
-        or not.
+        The boolean result indicates whether the returned record was
+        constructed or not.
         """
 
         query = self.query(self.Order)
@@ -745,16 +757,15 @@ class TestSuiteDB(object):
             value = run_parameters.pop(item.name, None)
             if value is None:
                 # We require that all of the order fields be present.
-                raise ValueError,"""\
-supplied run is missing required run parameter: %r""" % (
-                    item.name)
+                raise ValueError("Supplied run is missing parameter: %r" %
+                                 (item.name))
 
             query = query.filter(item.column == value)
             order.set_field(item, value)
 
         # Execute the query to see if we already have this order.
         try:
-            return query.one(),False
+            return query.one(), False
         except sqlalchemy.orm.exc.NoResultFound:
             # If not, then we need to insert this order into the total ordering
             # linked list.
@@ -783,7 +794,7 @@ supplied run is missing required run parameter: %r""" % (
                 next_order.previous_order_id = order.id
                 order.next_order_id = next_order.id
 
-            return order,True
+            return order, True
 
     def _getOrCreateRun(self, run_data, machine):
         """
@@ -792,8 +803,8 @@ supplied run is missing required run parameter: %r""" % (
         Add a new Run record from the given data (as recorded by the test
         interchange format).
 
-        The boolean result indicates whether the returned record was constructed
-        or not.
+        The boolean result indicates whether the returned record was
+        constructed or not.
         """
 
         # Extra the run parameters that define the order.
@@ -802,7 +813,7 @@ supplied run is missing required run parameter: %r""" % (
         run_parameters.pop('id', None)
 
         # Find the order record.
-        order,inserted = self._getOrCreateOrder(run_parameters)
+        order, inserted = self._getOrCreateOrder(run_parameters)
         start_time = datetime.datetime.strptime(run_data['start_time'],
                                                 "%Y-%m-%d %H:%M:%S")
         end_time = datetime.datetime.strptime(run_data['end_time'],
@@ -839,12 +850,12 @@ supplied run is missing required run parameter: %r""" % (
 
         # Execute the query to see if we already have this run.
         try:
-            return query.one(),False
+            return query.one(), False
         except sqlalchemy.orm.exc.NoResultFound:
             # If not, add the run.
             self.add(run)
 
-            return run,True
+            return run, True
 
     def _importSampleValues(self, tests_data, run, commit, config):
         # Load a map of all the tests, which we will extend when we find tests
@@ -868,9 +879,8 @@ supplied run is missing required run parameter: %r""" % (
                     continue
                 field = field_dict.get(key)
                 if field is None and key != 'profile':
-                    raise ValueError, \
-    "test %r metric %r does not map to a sample field in the reported suite" % \
-                    (name, key)
+                    raise ValueError("test %r: Metric %r unknown in suite " %
+                                     (name, key))
 
                 if not isinstance(values, list):
                     values = [values]
@@ -880,8 +890,8 @@ supplied run is missing required run parameter: %r""" % (
                     samples.append(sample)
                 for sample, value in zip(samples, values):
                     if key == 'profile':
-                        sample.profile = profiles.get(hash(value),
-                                            self.Profile(value, config, name))
+                        profile = self.Profile(value, config, name)
+                        sample.profile = profiles.get(hash(value), profile)
                     else:
                         sample.set_field(field, value)
 
@@ -889,11 +899,11 @@ supplied run is missing required run parameter: %r""" % (
         """
         importDataFromDict(data) -> bool, Run
 
-        Import a new run from the provided test interchange data, and return the
-        constructed Run record.
+        Import a new run from the provided test interchange data, and return
+        the constructed Run record.
 
-        The boolean result indicates whether the returned record was constructed
-        or not (i.e., whether the data was a duplicate submission).
+        The boolean result indicates whether the returned record was
+        constructed or not (i.e., whether the data was a duplicate submission).
         """
 
         # Construct the machine entry.
@@ -906,7 +916,7 @@ supplied run is missing required run parameter: %r""" % (
         # submission. Return the prior Run.
         if not inserted:
             return False, run
-        
+
         self._importSampleValues(data['tests'], run, commit, config)
 
         return True, run
@@ -925,9 +935,9 @@ supplied run is missing required run parameter: %r""" % (
     def getRun(self, id):
         return self.query(self.Run).filter_by(id=id).one()
 
-    def get_adjacent_runs_on_machine(self, run, N, direction = -1):
+    def get_adjacent_runs_on_machine(self, run, N, direction=-1):
         """
-        get_adjacent_runs_on_machine(run, N, direction = -1) -> [Run*]
+        get_adjacent_runs_on_machine(run, N, direction=-1) -> [Run*]
 
         Return the N runs which have been submitted to the same machine and are
         adjacent to the given run.
@@ -944,7 +954,7 @@ supplied run is missing required run parameter: %r""" % (
         assert N >= 0, "invalid count"
         assert direction in (-1, 1), "invalid direction"
 
-        if N==0:
+        if N == 0:
             return []
 
         # The obvious algorithm here is to step through the run orders in the
@@ -958,16 +968,16 @@ supplied run is missing required run parameter: %r""" % (
         # order and the last order the machine reported at.
         #
         # In such cases, we could end up executing a large number of individual
-        # SA object materializations in traversing the order list, which is very
-        # bad.
+        # SA object materializations in traversing the order list, which is
+        # very bad.
         #
         # We currently solve this by instead finding all the orders reported on
         # this machine, ordering those programatically, and then iterating over
         # that. This performs worse (O(N) instead of O(1)) than the obvious
-        # algorithm in the common case but more uniform and significantly better
-        # in the worst cast, and I prefer that response times be uniform. In
-        # practice, this appears to perform fine even for quite large (~1GB,
-        # ~20k runs) databases.
+        # algorithm in the common case but more uniform and significantly
+        # better in the worst cast, and I prefer that response times be
+        # uniform. In practice, this appears to perform fine even for quite
+        # large (~1GB, ~20k runs) databases.
 
         # Find all the orders on this machine, then sort them.
         #
@@ -1002,19 +1012,20 @@ supplied run is missing required run parameter: %r""" % (
         #
         # Even though we already know the right order, this is faster than
         # issueing separate queries.
-        runs.sort(key = lambda r: r.order, reverse = (direction==-1))
+        runs.sort(key=lambda r: r.order, reverse=(direction == -1))
 
         return runs
 
     def get_previous_runs_on_machine(self, run, N):
-        return self.get_adjacent_runs_on_machine(run, N, direction = -1)
+        return self.get_adjacent_runs_on_machine(run, N, direction=-1)
 
     def get_next_runs_on_machine(self, run, N):
-        return self.get_adjacent_runs_on_machine(run, N, direction = 1)
+        return self.get_adjacent_runs_on_machine(run, N, direction=1)
 
     def delete_runs(self, run_ids, commit=False):
         # type: (object, List[int], bool) -> None
-        """Delete the following Runs, their Samples, Field Changes and Regression Indicators.
+        """Delete the following Runs, their Samples, Field Changes and
+        Regression Indicators.
 
         :param run_ids: list of the run ids to delete.
         :param commit: commit now?
@@ -1030,8 +1041,9 @@ supplied run is missing required run parameter: %r""" % (
             fcs = self.query(self.FieldChange). \
                 filter(self.FieldChange.run_id == r).all()
             for f in fcs:
-                ris = self.query(self.RegressionIndicator). \
-                    filter(self.RegressionIndicator.field_change_id == f.id).all()
+                ris = self.query(self.RegressionIndicator) \
+                    .filter(self.RegressionIndicator.field_change_id == f.id) \
+                    .all()
                 for ri in ris:
                     self.delete(ri)
                 self.delete(f)

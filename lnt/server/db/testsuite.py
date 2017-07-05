@@ -13,10 +13,11 @@ from sqlalchemy.orm import relation
 
 Base = sqlalchemy.ext.declarative.declarative_base()
 
+
 class SampleType(Base):
     """
-    The SampleType table describes an enumeration for the possible types clients
-    can configure for different sample fields.
+    The SampleType table describes an enumeration for the possible types
+    clients can configure for different sample fields.
     """
     __tablename__ = 'SampleType'
 
@@ -33,6 +34,7 @@ class SampleType(Base):
     def __repr__(self):
         return '%s%r' % (self.__class__.__name__, (self.name,))
 
+
 class StatusKind(Base):
     """
     The StatusKind table describes an enumeration for the possible values
@@ -45,13 +47,14 @@ class StatusKind(Base):
 
     id = Column("ID", Integer, primary_key=True)
     name = Column("Name", String(256), unique=True)
-    
+
     def __init__(self, id, name):
         self.id = id
         self.name = name
 
     def __repr__(self):
         return '%s%r' % (self.__class__.__name__, (self.name,))
+
 
 class TestSuite(Base):
     __tablename__ = 'TestSuite'
@@ -62,8 +65,8 @@ class TestSuite(Base):
     # The name we use to prefix the per-testsuite databases.
     db_key_name = Column("DBKeyName", String(256))
 
-    # The version of the schema used for the per-testsuite databases (encoded as
-    # the LNT version).
+    # The version of the schema used for the per-testsuite databases (encoded
+    # as the LNT version).
     version = Column("Version", String(16))
 
     machine_fields = relation('MachineField', backref='test_suite')
@@ -81,14 +84,15 @@ class TestSuite(Base):
         return '%s%r' % (self.__class__.__name__, (self.name, self.db_key_name,
                                                    self.version))
 
+
 class FieldMixin(object):
-    
     @property
     def title(self):
         """ Return a title for the given field by replacing all _ with
             spaces and that has every word capitalized.
         """
         return self.name.replace("_", " ").title()
+
 
 class MachineField(FieldMixin, Base):
     __tablename__ = 'TestSuiteMachineFields'
@@ -113,6 +117,7 @@ class MachineField(FieldMixin, Base):
 
     def __repr__(self):
         return '%s%r' % (self.__class__.__name__, (self.name, self.info_key))
+
 
 class OrderField(FieldMixin, Base):
     __tablename__ = 'TestSuiteOrderFields'
@@ -146,6 +151,7 @@ class OrderField(FieldMixin, Base):
         return '%s%r' % (self.__class__.__name__, (self.name, self.info_key,
                                                    self.ordinal))
 
+
 class RunField(FieldMixin, Base):
     __tablename__ = 'TestSuiteRunFields'
 
@@ -169,6 +175,7 @@ class RunField(FieldMixin, Base):
 
     def __repr__(self):
         return '%s%r' % (self.__class__.__name__, (self.name, self.info_key))
+
 
 class SampleField(FieldMixin, Base):
     __tablename__ = 'TestSuiteSampleFields'
@@ -197,9 +204,9 @@ class SampleField(FieldMixin, Base):
     # Most real type samples assume lower values are better than higher values.
     # This assumption can be inverted by setting this column to nonzero.
     bigger_is_better = Column("bigger_is_better", Integer)
-    
-    def __init__(self, name, type, info_key, status_field = None,
-                 bigger_is_better = 0):
+
+    def __init__(self, name, type, info_key, status_field=None,
+                 bigger_is_better=0):
         self.name = name
         self.type = type
         self.info_key = info_key
