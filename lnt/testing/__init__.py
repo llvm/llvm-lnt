@@ -210,7 +210,7 @@ def upgrade_0_to_1(data):
     # If the run order is missing, or wasn't the inferred one, do nothing.
     if run_order is None or (run_order != inferred_run_order and
                              inferred_run_order is not None):
-        return
+        return data
 
     # Otherwise, assume this run order was derived.
 
@@ -231,13 +231,13 @@ def upgrade_0_to_1(data):
                 break
         else:
             # We are done if we didn't find one.
-            return
+            return data
 
         # Extract the build string.
         m = re.match(r'(.*) version ([^ ]*) (\([^(]*\))(.*)',
                      version_ln)
         if not m:
-            return
+            return data
 
         cc_name,cc_version_num,cc_build_string,cc_extra = m.groups()
         m = re.search('clang-([0-9.]*)', cc_build_string)
