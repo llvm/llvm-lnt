@@ -12,6 +12,7 @@ import os
 import sqlalchemy
 from flask import session
 from sqlalchemy import *
+from sqlalchemy.orm.exc import ObjectDeletedError
 from typing import List
 
 import testsuite
@@ -533,10 +534,9 @@ class TestSuiteDB(object):
                 self.start_order
                 self.end_order
                 return strip(self.__dict__) 
-                        
 
         class Regression(self.base, ParameterizedMixin):
-            """Regession hold data about a set of RegressionIndicies."""
+            """Regressions hold data about a set of RegressionIndices."""
 
             __tablename__ = db_key_name + '_Regression'
             id = Column("ID", Integer, primary_key=True)
@@ -550,11 +550,19 @@ class TestSuiteDB(object):
                 self.state = state
 
             def __repr__(self):
-                return '%s_%s:"%s"' % (db_key_name, self.__class__.__name__,
-                                    self.title)
+                """String representation of the Regression for debugging.
+
+                Sometimes we try to print deleted regressions: in this case don't die, and return
+                a deleted """
+                try:
+                    return '{}_{}:"{}"'.format(db_key_name, self.__class__.__name__,
+                                               self.title)
+                except ObjectDeletedError:
+                    return '{}_{}:"{}"'.format(db_key_name, self.__class__.__name__,
+                                               "<Deleted>")
             
             def __json__(self):
-                 return strip(self.__dict__)
+                return strip(self.__dict__)
 
         class RegressionIndicator(self.base, ParameterizedMixin):
             """"""
