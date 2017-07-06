@@ -7,9 +7,9 @@ import sys
 import urllib
 import urllib2
 import contextlib
+import json
 
 import lnt.server.instance
-from lnt.util import json
 from lnt.util import ImportData
 
 # FIXME: I used to maintain this file in such a way that it could be used

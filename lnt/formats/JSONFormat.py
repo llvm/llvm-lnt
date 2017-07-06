@@ -1,4 +1,4 @@
-from lnt.util import json
+import json
 
 def _matches_format(path_or_file):
     if isinstance(path_or_file, str):
