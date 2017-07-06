@@ -287,6 +287,7 @@ _compile_upgrade = _UpgradeSchema(
     }, machine_param_rename = {
         'hw.model': 'hardware',
         'kern.version': 'os_version',
+        'name': 'hostname',
     }, run_param_rename = {
         'run_order': 'llvm_project_revision',
     }
