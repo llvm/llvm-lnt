@@ -291,6 +291,13 @@ _compile_upgrade = _UpgradeSchema(
         'run_order': 'llvm_project_revision',
     }
 )
+_default_upgrade = _UpgradeSchema(
+    metric_rename={},
+    machine_param_rename={},
+    run_param_rename = {
+        'run_order': 'llvm_project_revision',
+    }
+)
 _upgrades = {
     'nts': _nts_upgrade,
     'compile': _compile_upgrade
@@ -312,7 +319,7 @@ def upgrade_1_to_2(data, ts_name):
     upgrade = _upgrades.get(tag)
     if upgrade is None:
         logging.warn("No upgrade schema known for '%s'\n" % tag)
-        upgrade = _UpgradeSchema({}, {}, {})
+        upgrade = _default_upgrade
 
     # Flatten Machine.Info into machine
     Machine = data['Machine']
