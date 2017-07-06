@@ -377,7 +377,7 @@ def upgrade_1_to_2(data, ts_name):
                 raise ValueError("Tests/%s: test name does not end in .metric" %
                                  test_Name)
             logging.warning("Found unknown metric '%s'" % metric)
-            upgrade.metric_rename['.'+metric] = '.'+metric
+            upgrade.metric_rename['.'+metric] = metric
 
         result_test = result_tests_dict.get(name)
         if result_test is None:
