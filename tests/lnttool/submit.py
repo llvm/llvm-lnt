@@ -51,3 +51,24 @@
 # CHECK-NEWFORMAT: ----------------
 # CHECK-NEWFORMAT: PASS : 10
 # CHECK-NEWFORMAT: Results available at: http://localhost:9091/db_default/v4/nts/3
+#
+# RUN: rm -rf %t.instance
+# RUN: python %{shared_inputs}/create_temp_instance.py \
+# RUN:   %s %{shared_inputs}/SmallInstance %t.instance
+# RUN: %{shared_inputs}/server_wrapper.sh %t.instance 9091 \
+# RUN:   lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" \
+# RUN:   --commit=1 %S/Inputs/compile_submission.json -v \
+# RUN:   | FileCheck %s --check-prefix=CHECK-OLDFORMAT-COMPILE
+#
+# CHECK-OLDFORMAT-COMPILE: --- Tested: 10 tests --
+#
+# CHECK-OLDFORMAT-COMPILE: Imported Data
+# CHECK-OLDFORMAT-COMPILE: -------------
+# CHECK-OLDFORMAT-COMPILE: Added Machines: 1
+# CHECK-OLDFORMAT-COMPILE: Added Runs    : 1
+# CHECK-OLDFORMAT-COMPILE: Added Tests   : 2
+#
+# CHECK-OLDFORMAT-COMPILE: Results
+# CHECK-OLDFORMAT-COMPILE: ----------------
+# CHECK-OLDFORMAT-COMPILE: PASS : 10
+# CHECK-OLDFORMAT-COMPILE: Results available at: http://localhost:9091/db_default/v4/compile/5

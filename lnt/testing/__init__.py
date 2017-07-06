@@ -274,16 +274,16 @@ _nts_upgrade = _UpgradeSchema(
 )
 _compile_upgrade = _UpgradeSchema(
     metric_rename={
-        '.mem.bytes': 'mem_bytes',
+        '.mem': 'mem_bytes',
         '.mem.status': 'mem_status',
-        '.size.bytes': 'size_bytes',
+        '.size': 'size_bytes',
         '.size.status': 'size_status',
+        '.sys': 'sys_time',
         '.sys.status': 'sys_status',
+        '.user': 'user_time',
         '.user.status': 'user_status',
-        '.user.time': 'sys_time',
-        '.user.time': 'user_time',
+        '.wall': 'wall_time',
         '.wall.status': 'wall_status',
-        '.wall.time': 'wall_time',
     }, machine_param_rename = {
         'hw.model': 'hardware',
         'kern.version': 'os_version',
