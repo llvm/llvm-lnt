@@ -139,6 +139,24 @@ def _do_submit():
     os.write(fd, data_value)
     os.close(fd)
 
+    # The following accomodates old submitters. Note that we explicitely removed
+    # the tag field from the new submission format, this is only here for old
+    # submission jobs. The better way of doing it is mentioning the correct
+    # test-suite in the URL. So when submitting to suite YYYY use
+    # db_XXX/v4/YYYY/submitRun instead of db_XXXX/submitRun!
+    if g.testsuite_name is None:
+        try:
+            data = json.loads(data_value)
+            Run = data.get('Run')
+            if Run is not None:
+                Info = Run.get('Info')
+                if Info is not None:
+                    g.testsuite_name = Info.get('tag')
+        except Exception as e:
+            pass
+    if g.testsuite_name is None:
+        g.testsuite_name = 'nts'
+
     # Get a DB connection.
     db = request.get_db()
 
@@ -162,7 +180,10 @@ def _do_submit():
 @db_route('/submitRun', only_v3=False, methods=('GET', 'POST'))
 def submit_run():
     """Compatibility url that hardcodes testsuite to 'nts'"""
-    g.testsuite_name = 'nts'
+    # This route doesn't know the testsuite to use. We have some defaults/
+    # autodetection for old submissions, but really you should use the full
+    # db_XXX/v4/YYYY/submitRun URL when using non-nts suites.
+    g.testsuite_name = None
     return _do_submit()
 
 

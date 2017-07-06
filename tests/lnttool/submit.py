@@ -60,6 +60,18 @@
 # RUN:   --commit=1 %S/Inputs/compile_submission.json -v \
 # RUN:   | FileCheck %s --check-prefix=CHECK-OLDFORMAT-COMPILE
 #
+# For the old format we have some detection logic to determine the test-suite
+# based on the Info.Run.tag field instead of the URL. The result should be the
+# same as using the "correct" URL.
+#
+# RUN: rm -rf %t.instance
+# RUN: python %{shared_inputs}/create_temp_instance.py \
+# RUN:   %s %{shared_inputs}/SmallInstance %t.instance
+# RUN: %{shared_inputs}/server_wrapper.sh %t.instance 9091 \
+# RUN:   lnt submit "http://localhost:9091/db_default/submitRun" \
+# RUN:   --commit=1 %S/Inputs/compile_submission.json -v \
+# RUN:   | FileCheck %s --check-prefix=CHECK-OLDFORMAT-COMPILE
+#
 # CHECK-OLDFORMAT-COMPILE: --- Tested: 10 tests --
 #
 # CHECK-OLDFORMAT-COMPILE: Imported Data
