@@ -17,13 +17,26 @@ from lnt.util import ImportData
 # system to report to LNT, for example. It might be nice to factor the
 # simplified submit code into a separate utility.
 
+def _show_json_error(reply):
+    try:
+        error = json.loads(reply)
+    except ValueError:
+        print "error: {}".format(reply)
+        return
+    print "lnt server error: {}".format(error.get('error'))
+    print "error: {}".format(error.get('message'))
+
 def submitFileToServer(url, file, commit):
     with open(file, 'rb') as f:
         values = { 'input_data' : f.read(),
                    'commit' : ("0","1")[not not commit] }
-
+    headers = {'Accept': 'application/json'}
     data = urllib.urlencode(values)
-    response = urllib2.urlopen(urllib2.Request(url, data))
+    try:
+        response = urllib2.urlopen(urllib2.Request(url, data, headers=headers))
+    except urllib2.HTTPError as e:
+        _show_json_error(e.read())
+        return
     result_data = response.read()
 
     # The result is expected to be a JSON object.
@@ -37,8 +50,11 @@ def submitFileToServer(url, file, commit):
         traceback.print_exc()
         print
         print "Result:"
-        print result_data
+        print "error:", result_data
         return
+
+    return reply
+
 
 def submitFileToInstance(path, file, commit):
     # Otherwise, assume it is a local url and submit to the default database
@@ -64,9 +80,11 @@ def submitFile(url, file, commit, verbose):
         result = submitFileToInstance(url, file, commit)
     return result
 
+
 def submitFiles(url, files, commit, verbose):
     results = []
     for file in files:
         result = submitFile(url, file, commit, verbose)
-        results.append(result)
+        if result:
+            results.append(result)
     return results

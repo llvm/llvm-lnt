@@ -13,6 +13,9 @@ import jinja2
 from flask import current_app
 from flask import g
 from flask import session
+from flask import request
+from flask import jsonify
+from flask import render_template
 from flask_restful import Api
 from sqlalchemy.exc import DatabaseError
 from sqlalchemy.ext.declarative import DeclarativeMeta
@@ -64,9 +67,6 @@ class LNTObjectJSONEncoder(json.JSONEncoder):
             return fields
 
         return json.JSONEncoder.default(self, obj)
-
-
-
 
 
 class Request(flask.Request):
@@ -165,6 +165,25 @@ class App(LNTExceptionLoggerFlask):
         def set_session():
             """Make our session cookies last."""
             session.permanent = True
+
+        @app.errorhandler(404)
+        def page_not_found(e):
+            message = "{}: {}".format(e.name, e.description)
+            if request.accept_mimetypes.accept_json and \
+                    not request.accept_mimetypes.accept_html:
+                response = jsonify({'error': 'The page you are looking for does not exist.'})
+                response.status_code = 404
+                return response
+            return render_template('error.html', message=message), 404
+
+        @app.errorhandler(500)
+        def internal_server_error(e):
+            if request.accept_mimetypes.accept_json and \
+                    not request.accept_mimetypes.accept_html:
+                response = jsonify({'error': 'internal server error', 'message': repr(e)})
+                response.status_code = 500
+                return response
+            return render_template('error.html', message=e), 500
 
         return app
 

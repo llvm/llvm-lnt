@@ -1,10 +1,18 @@
-{% extends "layout.html" %}
-{% set components = [] %}
-{% block title %}Error{% endblock %}
-{% block body %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
 
+    <link href="{{ url_for('.static', filename='bootstrap/css/bootstrap.min.css')
+                }}" rel="stylesheet" media="screen"/>
+    <link href="{{ url_for('.static', filename='bootstrap/css/bootstrap-responsive.min.css')
+                }}" rel="stylesheet"/>
+</head>
+<body>
+
+<h1>LNT Error</h1>
 <div class="alert alert-error">
-Error: {{ message }}
+{{ message }}
 </div>
 
-{% endblock %}
+</body>

@@ -1688,3 +1688,15 @@ def v4_matrix():
                            machine_name_common=machine_name_common,
                            machine_id_common=machine_id_common,
                            order_to_date=order_to_date)
+
+
+@frontend.route("/explode")
+def explode():
+    """This route is going to exception. Used for testing 500 page."""
+    return 1/0
+
+
+@frontend.route("/gone")
+def gone():
+    """This route returns 404. Used for testing 404 page."""
+    abort(404, "test")
