@@ -54,7 +54,7 @@ class V4DB(object):
             create_tables = False
             ts = self._extra_suites.get(name)
             if ts:
-                ts.check_json_schema_changes(self.v4db)
+                ts.check_schema_changes(self.v4db)
                 create_tables = True
             else:
                 # Get the test suite object.

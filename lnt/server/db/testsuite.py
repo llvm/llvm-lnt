@@ -248,7 +248,7 @@ class TestSuite(Base):
         ts.jsonschema = data
         return ts
 
-    def check_json_schema_changes(self, v4db):
+    def check_schema_changes(self, v4db):
         name = self.name
         schema = TestSuiteJSONSchema(name, self.jsonschema)
         prev_schema = v4db.query(TestSuiteJSONSchema) \
