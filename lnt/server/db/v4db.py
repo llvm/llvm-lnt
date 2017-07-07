@@ -197,32 +197,3 @@ class V4DB(object):
         if self._testsuite_proxy is None:
             self._testsuite_proxy = V4DB.TestSuiteAccessor(self)
         return self._testsuite_proxy
-
-    # FIXME: The getNum...() methods below should be phased out once we can
-    # eliminate the v0.3 style databases.
-    def getNumMachines(self):
-        return sum([ts.query(ts.Machine).count()
-                    for ts in self.testsuite.values()])
-    def getNumRuns(self):
-        return sum([ts.query(ts.Run).count()
-                    for ts in self.testsuite.values()])
-    def getNumSamples(self):
-        return sum([ts.query(ts.Sample).count()
-                    for ts in self.testsuite.values()])
-    def getNumTests(self):
-        return sum([ts.query(ts.Test).count()
-                    for ts in self.testsuite.values()])
-
-    def importDataFromDict(self, data, commit, testsuite_schema, config=None):
-        # Select the database to import into.
-        data_schema = data.get('schema')
-        if data_schema is not None and data_schema != testsuite_schema:
-            raise ValueError, "Tried to import '%s' data into schema '%s'" % \
-                              (data_schema, testsuite_schema)
-
-        db = self.testsuite.get(testsuite_schema)
-        if db is None:
-            raise ValueError, "test suite %r not present in this database!" % (
-                testsuite_schema)
-
-        return db.importDataFromDict(data, commit, config)

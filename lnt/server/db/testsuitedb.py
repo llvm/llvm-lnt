@@ -1065,3 +1065,15 @@ class TestSuiteDB(object):
 
     def __repr__(self):
         return "{} (on {})".format(self.name, self.v4db.path)
+
+    def getNumMachines(self):
+        return self.query(self.Machine).count()
+
+    def getNumRuns(self):
+        return self.query(self.Run).count()
+
+    def getNumSamples(self):
+        return self.query(self.Sample).count()
+
+    def getNumTests(self):
+        return self.query(self.Test).count()

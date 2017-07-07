@@ -23,18 +23,23 @@ def import_and_report(config, db_name, db, file, format, ts_name,
     The result object is a dictionary containing information on the imported run
     and its comparison to the previous run.
     """
-    numMachines = db.getNumMachines()
-    numRuns = db.getNumRuns()
-    numTests = db.getNumTests()
+    result = {
+        'success': False,
+        'error': None,
+        'import_file': file,
+    }
+
+    ts = db.testsuite.get(ts_name)
+    if ts is None:
+        result['error'] = "Unknown test suite '%s'!" % ts_name
+        return result
+    numMachines = ts.getNumMachines()
+    numRuns = ts.getNumRuns()
+    numTests = ts.getNumTests()
 
     # If the database gets fragmented, count(*) in SQLite can get really slow!?!
     if show_sample_count:
-        numSamples = db.getNumSamples()
-
-    result = {}
-    result['success'] = False
-    result['error'] = None
-    result['import_file'] = file
+        numSamples = ts.getNumSamples()
 
     startTime = time.time()
     try:
@@ -72,8 +77,12 @@ def import_and_report(config, db_name, db, file, format, ts_name,
 
     importStartTime = time.time()
     try:
-        success, run = db.importDataFromDict(data, commit, ts_name,
-                                             config=db_config)
+        data_schema = data.get('schema')
+        if data_schema is not None and data_schema != ts_name:
+            raise ValueError("Importing '%s' data into test suite '%s'" %
+                             (data_schema, ts_name))
+
+        success, run = ts.importDataFromDict(data, commit, config=db_config)
     except KeyboardInterrupt:
         raise
     except:
@@ -103,25 +112,24 @@ def import_and_report(config, db_name, db, file, format, ts_name,
         NTEmailReport.emailReport(result, db, run, report_url,
                                   email_config, toAddress, success, commit)
 
-    result['added_machines'] = db.getNumMachines() - numMachines
-    result['added_runs'] = db.getNumRuns() - numRuns
-    result['added_tests'] = db.getNumTests() - numTests
+    result['added_machines'] = ts.getNumMachines() - numMachines
+    result['added_runs'] = ts.getNumRuns() - numRuns
+    result['added_tests'] = ts.getNumTests() - numTests
     if show_sample_count:
-        result['added_samples'] = db.getNumSamples() - numSamples
+        result['added_samples'] = ts.getNumSamples() - numSamples
 
     result['committed'] = commit
     result['run_id'] = run.id
     if commit:
-        db.commit()
+        ts.commit()
         if db_config:
             #  If we are not in a dummy instance, also run background jobs.
             #  We have to have a commit before we run, so subprocesses can
             #  see the submitted data.
-            ts = db.testsuite.get(ts_name)
             async_ops.async_fieldchange_calc(db_name, ts, run, config)
 
     else:
-        db.rollback()
+        ts.rollback()
     # Add a handy relative link to the submitted run.
 
     result['result_url'] = "db_{}/v4/{}/{}".format(db_name, ts_name, run.id)
