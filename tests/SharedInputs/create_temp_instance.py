@@ -128,9 +128,5 @@ def main():
                  dest_dir)
     if extra_sql:
         run_sql_file(lnt_db, extra_sql, dest_dir)
-    os.mkdir(os.path.join(dest_dir, 'schemas'))
-    filedir = os.path.dirname(__file__)
-    os.symlink(os.path.join(filedir, '..', '..', 'schemas', 'compile.yaml'),
-               os.path.join(dest_dir, 'schemas', 'compile.yaml'))
 
 main()
