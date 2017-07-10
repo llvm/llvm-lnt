@@ -13,9 +13,9 @@ from lnt.server.db import v4db
 # Create an in memory database.
 db = v4db.V4DB("sqlite:///:memory:", Config.dummy_instance(), echo=True)
 
-# We expect exactly two test suites, one for NTS and one for Compile.
+# We expect exactly the NTS test suite.
 test_suites = list(db.query(testsuite.TestSuite))
-assert len(test_suites) == 2
+assert len(test_suites) == 1
 
 # Check the NTS test suite.
 ts = db.query(testsuite.TestSuite).filter_by(name="nts").first()
