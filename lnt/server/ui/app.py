@@ -1,5 +1,8 @@
 import StringIO
-import json
+try:
+    import simplejson as json
+except ImportError:
+    import json
 import logging
 import logging.handlers
 import sys
