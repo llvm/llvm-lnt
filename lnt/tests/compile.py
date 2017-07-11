@@ -333,8 +333,6 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs,
                    "-- stdout --\n%s\n"
                    "-- stderr --\n%s\n") % (archive_path, source_path,
                                             stdout, stderr))
-        if p.wait() != 0:
-            fatal
 
         # Apply the patch file, if necessary.
         patch_files = project.get('patch_files', [])
