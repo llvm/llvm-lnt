@@ -372,7 +372,7 @@ class DailyReport(object):
                 nr_tests_seen = 0
                 for test in self.reporting_tests:
                     samples = sri.get_samples(day_runs, test.id)
-                    if len(samples)>0:
+                    if len(samples) > 0:
                         nr_tests_seen += 1
                 nr_tests_for_machine.append(nr_tests_seen)
             self.nr_tests_table.append((machine, nr_tests_for_machine))

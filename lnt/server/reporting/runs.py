@@ -9,7 +9,6 @@ import lnt.util.stats
 from lnt.testing.util.commands import visible_note
 
 
-
 def generate_run_data(run, baseurl, num_comparison_runs=0, result=None,
                       compare_to=None, baseline=None,
                       aggregation_fn=lnt.util.stats.safe_min,
@@ -32,10 +31,11 @@ def generate_run_data(run, baseurl, num_comparison_runs=0, result=None,
         # the default baseline revision for which this machine also
         # reported.
         baseline = machine.get_baseline_run()
-    
+
     # If the baseline is the same as the comparison run, ignore it.
     if baseline is compare_to:
-        visible_note("Baseline and compare_to are the same: disabling baseline.")
+        visible_note("Baseline and compare_to are the same: "
+                     "disabling baseline.")
         baseline = None
 
     # Gather the runs to use for statistical data.
@@ -92,10 +92,10 @@ def generate_run_data(run, baseurl, num_comparison_runs=0, result=None,
     # Collect the simplified results, if desired, for sending back to clients.
     if result is not None:
         pset_results = []
-        result['test_results'] = [{ 'pset' : (), 'results' : pset_results}]
-        for field,field_results in test_results:
-            for _,bucket,_ in field_results:
-                for name,cr,_ in bucket:
+        result['test_results'] = [{'pset': (), 'results': pset_results}]
+        for field, field_results in test_results:
+            for _, bucket, _ in field_results:
+                for name, cr, _ in bucket:
                     # FIXME: Include additional information about performance
                     # changes.
                     pset_results.append(("%s.%s" % (name, field.name),
@@ -106,40 +106,43 @@ def generate_run_data(run, baseurl, num_comparison_runs=0, result=None,
     # display
     def aggregate_counts_across_all_bucket_types(i, name):
         num_items = sum(len(field_results[i][1])
-                        for _,field_results in test_results)
+                        for _, field_results in test_results)
         if baseline:
             num_items_vs_baseline = sum(
                 len(field_results[i][1])
-                for _,field_results in baselined_results)
+                for _, field_results in baselined_results)
         else:
             num_items_vs_baseline = None
 
         return i, name, num_items, num_items_vs_baseline
 
-    num_item_buckets = [aggregate_counts_across_all_bucket_types(x[0], x[1][0])\
-                            for x in enumerate(test_results[0][1])]
+    num_item_buckets = [aggregate_counts_across_all_bucket_types(x[0], x[1][0])
+                        for x in enumerate(test_results[0][1])]
 
     def maybe_sort_bucket(bucket, bucket_name, show_perf):
         if not bucket or bucket_name == 'Unchanged Test' or not show_perf:
             return bucket
         else:
-            return sorted(bucket, key=lambda (_,cr,__): -abs(cr.pct_delta))
+            return sorted(bucket, key=lambda (_, cr, __): -abs(cr.pct_delta))
+
     def prioritize_buckets(test_results):
-        prioritized = [(priority, field, bucket_name, maybe_sort_bucket(bucket, bucket_name, show_perf),
+        prioritized = [(priority, field, bucket_name,
+                        maybe_sort_bucket(bucket, bucket_name, show_perf),
                         [name for name, _, __ in bucket], show_perf)
-                       for field,field_results in test_results
-                       for priority,(bucket_name, bucket,
-                                     show_perf) in enumerate(field_results)]
-        prioritized.sort(key = lambda item: (item[0], item[1].name))
+                       for field, field_results in test_results
+                       for priority, (bucket_name, bucket,
+                                      show_perf) in enumerate(field_results)]
+        prioritized.sort(key=lambda item: (item[0], item[1].name))
         return prioritized
 
     # Generate prioritized buckets for run over run and run over baseline data.
     prioritized_buckets_run_over_run = prioritize_buckets(test_results)
     if baseline:
-        prioritized_buckets_run_over_baseline = prioritize_buckets(baselined_results)
+        prioritized_buckets_run_over_baseline = \
+            prioritize_buckets(baselined_results)
     else:
         prioritized_buckets_run_over_baseline = None
-    
+
     # Prepare auxillary variables for rendering.
     # Create Subject
     subject = """%s test results""" % (machine.name,)
@@ -155,8 +158,8 @@ def generate_run_data(run, baseurl, num_comparison_runs=0, result=None,
         url_fields.append(('compare_to', str(compare_to.id)))
     if baseline:
         url_fields.append(('baseline', str(baseline.id)))
-    report_url = "%s?%s" % (run_url, "&amp;".join("%s=%s" % (k,v)
-                                              for k,v in url_fields))
+    report_url = "%s?%s" % (run_url, "&amp;".join("%s=%s" % (k, v)
+                                                  for k, v in url_fields))
 
     # Compute static CSS styles for elemenets. We use the style directly on
     # elements instead of via a stylesheet to support major email clients (like
@@ -164,18 +167,17 @@ def generate_run_data(run, baseurl, num_comparison_runs=0, result=None,
     #
     # These are derived from the static style.css file we use elsewhere.
     #
-    # These are just defaults however, and the caller can override them with the
-    # 'styles' and 'classes' kwargs.
+    # These are just defaults however, and the caller can override them with
+    # the 'styles' and 'classes' kwargs.
     styles_ = {
-        "body" : ("color:#000000; background-color:#ffffff; "
-                  "font-family: Helvetica, sans-serif; font-size:9pt"),
-        "h1" : ("font-size: 14pt"),
-        "table" : "font-size:9pt; border-spacing: 0px; border: 1px solid black",
-        "th" : (
-            "background-color:#eee; color:#666666; font-weight: bold; "
-            "cursor: default; text-align:center; font-weight: bold; "
-            "font-family: Verdana; padding:5px; padding-left:8px"),
-        "td" : "padding:5px; padding-left:8px",
+        "body": ("color:#000000; background-color:#ffffff; "
+                 "font-family: Helvetica, sans-serif; font-size:9pt"),
+        "h1": ("font-size: 14pt"),
+        "table": "font-size:9pt; border-spacing: 0px; border: 1px solid black",
+        "th": ("background-color:#eee; color:#666666; font-weight: bold; "
+               "cursor: default; text-align:center; font-weight: bold; "
+               "font-family: Verdana; padding:5px; padding-left:8px"),
+        "td": "padding:5px; padding-left:8px",
     }
     classes_ = {
     }
@@ -199,7 +201,8 @@ def generate_run_data(run, baseurl, num_comparison_runs=0, result=None,
         'run_to_run_info': run_to_run_info,
         'prioritized_buckets_run_over_run': prioritized_buckets_run_over_run,
         'run_to_baseline_info': run_to_baseline_info,
-        'prioritized_buckets_run_over_baseline': prioritized_buckets_run_over_baseline,
+        'prioritized_buckets_run_over_baseline':
+            prioritized_buckets_run_over_baseline,
         'styles': styles_,
         'classes': classes_,
         'start_time': start_time,

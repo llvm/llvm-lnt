@@ -6,6 +6,7 @@ import lnt.util.stats
 ###
 # Aggregation Function
 
+
 class Aggregation(object):
     def __init__(self):
         self.is_initialized = False
@@ -22,6 +23,7 @@ class Aggregation(object):
             self._initialize(values)
         self._append(values)
 
+
 class Sum(Aggregation):
     def __init__(self):
         Aggregation.__init__(self)
@@ -34,8 +36,9 @@ class Sum(Aggregation):
         self.sum = [0.] * len(values)
 
     def _append(self, values):
-        for i,value in enumerate(values):
+        for i, value in enumerate(values):
             self.sum[i] += value
+
 
 class Mean(Aggregation):
     def __init__(self):
@@ -50,9 +53,10 @@ class Mean(Aggregation):
         self.sum = [0.] * len(values)
 
     def _append(self, values):
-        for i,value in enumerate(values):
+        for i, value in enumerate(values):
             self.sum[i] += value
         self.count += 1
+
 
 class GeometricMean(Aggregation):
     def __init__(self):
@@ -70,9 +74,10 @@ class GeometricMean(Aggregation):
         self.product = [1.] * len(values)
 
     def _append(self, values):
-        for i,value in enumerate(values):
+        for i, value in enumerate(values):
             self.product[i] *= value
         self.count += 1
+
 
 class NormalizedMean(Mean):
     def _append(self, values):
@@ -82,18 +87,20 @@ class NormalizedMean(Mean):
 
 ###
 
+
 class SummaryReport(object):
     def __init__(self, db, report_orders, report_machine_names,
                  report_machine_patterns):
         self.db = db
         self.testsuites = list(db.testsuite.values())
-        self.report_orders = list((name,orders)
-                                  for name,orders in report_orders)
+        self.report_orders = list((name, orders)
+                                  for name, orders in report_orders)
         self.report_machine_names = set(report_machine_names)
         self.report_machine_patterns = list(report_machine_patterns)
         self.report_machine_rexes = [
             re.compile(pattern)
-            for pattern in self.report_machine_patterns]
+            for pattern in self.report_machine_patterns
+        ]
 
         self.data_table = None
         self.requested_machine_ids = None
@@ -116,12 +123,13 @@ class SummaryReport(object):
                                        for ts in self.testsuites)
         self.requested_machine_ids = dict(
             (ts, [m.id for m in machines])
-            for ts,machines in self.requested_machines.items())
+            for ts, machines in self.requested_machines.items()
+        )
 
         # First, collect all the runs to summarize on, for each index in the
         # report orders.
         self.runs_at_index = []
-        for _,orders in self.report_orders:
+        for _, orders in self.report_orders:
             # For each test suite...
             runs = []
             for ts in self.testsuites:
@@ -144,7 +152,7 @@ class SummaryReport(object):
                     self.warnings.append(
                         'no runs for test suite %r in orders %r' % (
                             ts.name, orders))
-                        
+
                 runs.append((ts_runs, ts_order_ids))
             self.runs_at_index.append(runs)
 
@@ -156,11 +164,12 @@ class SummaryReport(object):
         # Compute the base table for aggregation.
         #
         # The table is indexed by a test name and test features, which are
-        # either extracted from the test name or from the test run (depending on
-        # the suite).
+        # either extracted from the test name or from the test run (depending
+        # on the suite).
         #
         # Each value in the table contains a array with one item for each
-        # report_order entry, which contains all of the samples for that entry..
+        # report_order entry, which contains all of the samples for that
+        # entry..
         #
         # The table keys are tuples of:
         #  (<test name>,
@@ -236,7 +245,7 @@ class SummaryReport(object):
             test = ts_tests[sample[1]]
 
             # Extract the compile flags from the test name.
-            base_name,flags = test.name.split('(')
+            base_name, flags = test.name.split('(')
             assert flags[-1] == ')'
             other_flags = []
             build_mode = None
@@ -333,7 +342,7 @@ class SummaryReport(object):
                 for sample in samples:
                     run = run_id_map[sample[0]]
                     datapoints = list()
-                    for key,value in get_datapoints_for_sample(ts, sample):
+                    for key, value in get_datapoints_for_sample(ts, sample):
                         items = self.data_table.get(key)
                         if items is None:
                             items = [[]
@@ -349,7 +358,7 @@ class SummaryReport(object):
                     return True
 
         def compute_index_name(key):
-            test_name,metric,arch,build_mode,machine_id = key
+            test_name, metric, arch, build_mode, machine_id = key
 
             # If this is a nightly test..
             if test_name.startswith('SingleSource/') or \
@@ -377,7 +386,7 @@ class SummaryReport(object):
 
             # Index full builds across all job sizes.
             if test_name.startswith('build/'):
-                project_name,subtest_name = re.match(
+                project_name, subtest_name = re.match(
                     r'build/(.*)\(j=[0-9]+\)\.(.*)', str(test_name)).groups()
                 return (('Full Build (%s)' % (project_name,),
                          metric, build_mode, arch, machine_id),
@@ -385,7 +394,7 @@ class SummaryReport(object):
 
             # Index single file tests across all inputs.
             if test_name.startswith('compile/'):
-                file_name,stage_name,subtest_name = re.match(
+                file_name, stage_name, subtest_name = re.match(
                     r'compile/(.*)/(.*)/\(\)\.(.*)', str(test_name)).groups()
                 return (('Single File (%s)' % (stage_name,),
                          metric, build_mode, arch, machine_id),
@@ -393,7 +402,7 @@ class SummaryReport(object):
 
             # Index PCH generation tests by input.
             if test_name.startswith('pch-gen/'):
-                file_name,subtest_name = re.match(
+                file_name, subtest_name = re.match(
                     r'pch-gen/(.*)/\(\)\.(.*)', str(test_name)).groups()
                 return (('PCH Generation (%s)' % (file_name,),
                          metric, build_mode, arch, machine_id),
@@ -408,7 +417,7 @@ class SummaryReport(object):
                     return True
 
         self.indexed_data_table = {}
-        for key,values in self.data_table.items():
+        for key, values in self.data_table.items():
             # Ignore any test which is missing some data.
             if is_missing_samples(values):
                 self.warnings.append("missing values for %r" % (key,))
@@ -423,15 +432,15 @@ class SummaryReport(object):
             if result is None:
                 continue
 
-            index_name,index_class = result
+            index_name, index_class = result
             item = self.indexed_data_table.get(index_name)
             if item is None:
                 self.indexed_data_table[index_name] = item = index_class()
             item.append(medians)
-            
+
     def _build_normalized_data_table(self):
         self.normalized_data_table = {}
-        for key,indexed_value in self.indexed_data_table.items():
+        for key, indexed_value in self.indexed_data_table.items():
             test_name, metric, build_mode, arch, machine_id = key
             if test_name.startswith('Single File'):
                 aggr = Mean
@@ -446,10 +455,11 @@ class SummaryReport(object):
 
     single_file_stage_order = [
         'init', 'driver', 'syntax', 'irgen_only', 'codegen', 'assembly']
+
     def _build_final_data_tables(self):
         self.grouped_table = {}
         self.single_file_table = {}
-        for key,normalized_value in self.normalized_data_table.items():
+        for key, normalized_value in self.normalized_data_table.items():
             test_name, metric, build_mode, arch = key
 
             # If this isn't a single file test, add a plot for it grouped by
@@ -469,7 +479,7 @@ class SummaryReport(object):
                 stack_index = self.single_file_stage_order.index(stage_name)
             except ValueError:
                 stack_index = None
-            
+
             # If we don't have an index for this stage, ignore it.
             if stack_index is None:
                 continue
