@@ -3,9 +3,9 @@ import collections
 import lnt.testing
 import lnt.formats
 import lnt.server.reporting.analysis
-from lnt.testing.util.commands import note
 from lnt.util import NTEmailReport
 from lnt.util import async_ops
+from lnt.util import logger
 
 def import_and_report(config, db_name, db, file, format, ts_name,
                       commit=False, show_sample_count=False,
@@ -135,7 +135,7 @@ def import_and_report(config, db_name, db, file, format, ts_name,
     result['result_url'] = "db_{}/v4/{}/{}".format(db_name, ts_name, run.id)
     result['report_time'] = time.time() - importStartTime
     result['total_time'] = time.time() - startTime
-    note("Successfully created {}".format(result['result_url']))
+    logger.info("Successfully created {}".format(result['result_url']))
     # If this database has a shadow import configured, import the run into that
     # database as well.
     if config and config.databases[db_name].shadow_import:

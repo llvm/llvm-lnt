@@ -7,7 +7,6 @@ Define facilities for automatically upgrading databases.
 # version'. This was done in case we need to add some kind of migration
 # functionality for the individual test suites, which is not unreasonable.
 
-import logging
 import os
 import re
 
@@ -16,6 +15,7 @@ import sqlalchemy.ext.declarative
 import sqlalchemy.orm
 from sqlalchemy import Column, String, Integer
 
+from lnt.util import logger
 import lnt.server.db.util
 
 ###
@@ -111,8 +111,6 @@ def _load_migrations():
 
 ###
 # Auto-upgrading support.
-
-logger = logging.getLogger(__name__)
 
 def _set_schema_version(engine, schema_name, new_version):
     # Keep the updating to a single transaction that is immediately committed.

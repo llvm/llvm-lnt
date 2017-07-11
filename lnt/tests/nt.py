@@ -19,7 +19,7 @@ import lnt.testing
 import lnt.testing.util.compilers
 import lnt.util.ImportData as ImportData
 
-from lnt.testing.util.commands import note, warning, fatal
+from lnt.testing.util.commands import fatal
 from lnt.testing.util.commands import capture, mkdir_p, which
 from lnt.testing.util.commands import resolve_command_path
 
@@ -29,6 +29,7 @@ from lnt.testing.util.misc import timestamp
 
 from lnt.server.reporting.analysis import UNCHANGED_PASS, UNCHANGED_FAIL
 from lnt.server.reporting.analysis import REGRESSED, IMPROVED
+from lnt.util import logger
 from lnt.util import ImportData
 import builtintest
 
@@ -420,7 +421,8 @@ class TestConfiguration(object):
         if llvm_arch is not None:
             make_variables['ARCH'] = llvm_arch
         else:
-            warning("unable to infer ARCH, some tests may not run correctly!")
+            logger.warning("unable to infer ARCH, " +
+                           "some tests may not run correctly!")
 
         # Add in any additional make flags passed in via --make-param.
         for entry in self.make_parameters:
@@ -1117,8 +1119,8 @@ def run_test(nick_prefix, iteration, config):
             else:
                 name,value = entry.split('=', 1)
             if name in target:
-                warning("user parameter %r overwrote existing value: %r" % (
-                        name, target.get(name)))
+                logger.warning("parameter %r overwrote existing value: %r" %
+                               (name, target.get(name)))
             print target,name,value
             target[name] = value
 
@@ -1351,8 +1353,7 @@ def _process_reruns(config, server_reply, local_results):
     except KeyError:
         # Server might send us back an error.
         if server_reply.get('error', None):
-            warning("Server returned an error:" +
-                server_reply['error'])
+            logger.warning("Server returned an error:" + server_reply['error'])
         fatal("No Server results. Cannot do reruns.")
         logging.fatal()
     # Holds the combined local and server results.
@@ -1442,13 +1443,13 @@ def _process_reruns(config, server_reply, local_results):
     # Now lets do the reruns.
     rerun_results = []
     summary = "Rerunning {} of {} benchmarks."
-    note(summary.format(len(rerunable_benches),
-                        len(collated_results.values())))
+    logger.info(summary.format(len(rerunable_benches),
+                               len(collated_results.values())))
 
     for i, bench in enumerate(rerunable_benches):
-        note("Rerunning: {} [{}/{}]".format(bench.name,
-                                            i + 1,
-                                            len(rerunable_benches)))
+        logger.info("Rerunning: {} [{}/{}]".format(bench.name,
+                                                   i + 1,
+                                                   len(rerunable_benches)))
 
         fresh_samples = rerun_test(config,
                                    bench.name,
@@ -1734,7 +1735,7 @@ class NTTest(builtintest.BuiltinTest):
 
         # Deprecate --simple
         if opts.test_simple:
-            warning("--simple is deprecated, it is the default.")
+            logger.warning("--simple is deprecated, it is the default.")
         del opts.test_simple
 
         if opts.test_style == "simple":
@@ -1780,8 +1781,8 @@ class NTTest(builtintest.BuiltinTest):
             opts.cxx_under_test = lnt.testing.util.compilers.infer_cxx_compiler(
                 opts.cc_under_test)
             if opts.cxx_under_test is not None:
-                note("inferred C++ compiler under test as: %r" % (
-                    opts.cxx_under_test,))
+                logger.info("inferred C++ compiler under test as: %r" %
+                            (opts.cxx_under_test,))
 
         # The cxx_under_test option is required if we are testing C++.
         if opts.test_cxx and opts.cxx_under_test is None:
@@ -1807,7 +1808,8 @@ class NTTest(builtintest.BuiltinTest):
         # given a C++ compiler that doesn't exist, reset it to just use the
         # given C compiler.
         if not os.path.exists(opts.cxx_under_test):
-            warning("invalid cxx_under_test, falling back to cc_under_test")
+            logger.warning("invalid cxx_under_test, " + 
+                           "falling back to cc_under_test")
             opts.cxx_under_test = opts.cc_under_test
 
         if opts.without_llvm:
@@ -1869,8 +1871,8 @@ class NTTest(builtintest.BuiltinTest):
             # Warn if the user asked to run under an iOS simulator SDK, but
             # didn't set an isysroot for compilation.
             if opts.isysroot is None:
-                warning('expected --isysroot when executing with '
-                        '--ios-simulator-sdk')
+                logger.warning('expected --isysroot when executing with '
+                               '--ios-simulator-sdk')
 
         config = TestConfiguration(vars(opts), timestamp())
         # FIXME: We need to validate that there is no configured output in the
@@ -1879,9 +1881,10 @@ class NTTest(builtintest.BuiltinTest):
 
         # These notes are used by the regression tests to check if we've handled
         # flags correctly.
-        note('TARGET_FLAGS: {}'.format(' '.join(config.target_flags)))
+        logger.info('TARGET_FLAGS: {}'.format(' '.join(config.target_flags)))
         if config.qemu_user_mode:
-            note('QEMU_USER_MODE_COMMAND: {}'.format(config.qemu_user_mode_command))
+            logger.info('QEMU_USER_MODE_COMMAND: {}'
+                        .format(config.qemu_user_mode_command))
 
         # Multisample, if requested.
         if opts.multisample is not None:
@@ -1956,8 +1959,8 @@ class NTTest(builtintest.BuiltinTest):
                     result = ServerUtil.submitFile(server, report_path,
                                                    commit, False)
                 except (urllib2.HTTPError, urllib2.URLError) as e:
-                    warning("submitting to {} failed with {}".format(
-                        server, e))
+                    logger.warning("submitting to {} failed with {}"
+                                   .format(server, e))
         else:
             # Simulate a submission to retrieve the results report.
             # Construct a temporary database and import the result.

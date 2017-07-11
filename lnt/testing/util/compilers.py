@@ -3,8 +3,8 @@ import os
 import re
 import tempfile
 
+from lnt.util import logger
 from commands import capture
-from commands import error
 from commands import fatal
 from commands import rm_f
 
@@ -79,9 +79,11 @@ def get_cc_info(path, cc_flags=[]):
                 fatal("unable to determine cc1 binary: %r: %r" % (cc, ln))
             cc1_binary, = m.groups()
     if cc1_binary is None:
-        error("unable to find compiler cc1 binary: %r: %r" % (cc, cc_version))
+        logger.error("unable to find compiler cc1 binary: %r: %r" %
+                     (cc, cc_version))
     if version_ln is None:
-        error("unable to find compiler version: %r: %r" % (cc, cc_version))
+        logger.error("unable to find compiler version: %r: %r" %
+                     (cc, cc_version))
     else:
         m = re.match(r'(.*) version ([^ ]*) +(\([^(]*\))(.*)', version_ln)
         if m is not None:
@@ -92,8 +94,8 @@ def get_cc_info(path, cc_flags=[]):
             if m is not None:
                 cc_name,cc_version_num = m.groups()
             else:
-                error("unable to determine compiler version: %r: %r" % (
-                        cc, version_ln))
+                logger.error("unable to determine compiler version: %r: %r" %
+                             (cc, version_ln))
                 cc_name = "unknown"
 
     # Compute normalized compiler name and type. We try to grab source
@@ -118,7 +120,8 @@ def get_cc_info(path, cc_flags=[]):
             cc_build = 'PROD'
             cc_src_tag, = m.groups()
         else:
-            error('unable to determine gcc build version: %r' % cc_build_string)
+            logger.error('unable to determine gcc build version: %r' %
+                         cc_build_string)
     elif (cc_name in ('clang', 'LLVM', 'Debian clang', 'Apple clang', 'Apple LLVM') and
           (cc_extra == '' or 'based on LLVM' in cc_extra or
            (cc_extra.startswith('(') and cc_extra.endswith(')')))):
@@ -147,8 +150,9 @@ def get_cc_info(path, cc_flags=[]):
             if m:
                 cc_src_branch,cc_src_revision = m.groups()
             else:
-                error('unable to determine Clang development build info: %r' % (
-                        (cc_name, cc_build_string, cc_extra),))
+                logger.error('unable to determine '
+                             'Clang development build info: %r' %
+                             ((cc_name, cc_build_string, cc_extra),))
                 cc_src_branch = ""
 
         m = re.search('clang-([0-9.]*)', cc_src_branch)
@@ -175,8 +179,9 @@ def get_cc_info(path, cc_flags=[]):
                     cc_alt_src_branch = ""
                 
             else:
-                error('unable to determine Clang development build info: %r' % (
-                        (cc_name, cc_build_string, cc_extra),))
+                logger.error('unable to determine '
+                             'Clang development build info: %r' % (
+                             (cc_name, cc_build_string, cc_extra),))
 
     elif cc_name == 'gcc' and 'LLVM build' in cc_extra:
         llvm_capable = True
@@ -190,11 +195,11 @@ def get_cc_info(path, cc_flags=[]):
         else:
             cc_build = 'DEV'
     else:
-        error("unable to determine compiler name: %r" % ((cc_name,
-                                                          cc_build_string),))
+        logger.error("unable to determine compiler name: %r" %
+                     ((cc_name, cc_build_string),))
 
     if cc_build is None:
-        error("unable to determine compiler build: %r" % cc_version)
+        logger.error("unable to determine compiler build: %r" % cc_version)
 
     # If LLVM capable, fetch the llvm target instead.
     if llvm_capable:
@@ -202,8 +207,8 @@ def get_cc_info(path, cc_flags=[]):
         if m:
             cc_target, = m.groups()
         else:
-            error("unable to determine LLVM compiler target: %r: %r" %
-                  (cc, cc_target_assembly))
+            logger.error("unable to determine LLVM compiler target: %r: %r" %
+                         (cc, cc_target_assembly))
 
     cc_exec_hash = hashlib.sha1()
     cc_exec_hash.update(open(cc,'rb').read())

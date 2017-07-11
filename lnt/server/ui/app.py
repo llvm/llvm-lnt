@@ -29,7 +29,7 @@ import lnt.server.ui.profile_views
 import lnt.server.ui.regression_views
 import lnt.server.ui.views
 from lnt.server.ui.api import load_api_resources
-from lnt.testing.util.commands import warning, error
+from lnt.util import logger
 
 
 class RootSlashPatchMiddleware(object):
@@ -127,7 +127,7 @@ class Request(flask.Request):
     def close(self):
         t = self.elapsed_time()
         if t > 10:
-            warning("Request {} took {}s".format(self.url, t))
+            logger.warning("Request {} took {}s".format(self.url, t))
         db = getattr(self, 'db', None)
         if db is not None:
             db.close()
@@ -138,7 +138,7 @@ class LNTExceptionLoggerFlask(flask.Flask):
     def log_exception(self, exc_info):
         # We need to stringify the traceback, since logs are sent via
         # pickle.
-        error("Exception: " + traceback.format_exc())
+        logger.error("Exception: " + traceback.format_exc())
 
 
 class App(LNTExceptionLoggerFlask):

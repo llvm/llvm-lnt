@@ -8,12 +8,13 @@ import code
 import click
 
 import lnt
-from lnt.testing.util.commands import note, warning, error, LOGGER_NAME
+from lnt.util import logger
 import lnt.testing.profile.profile as profile
 from lnt.tests.nt import NTTest
 from lnt.tests.compile import CompileTest
 from lnt.tests.test_suite import TestSuiteTest
 
+from .common import init_logger
 from .create import action_create
 from .convert import action_convert
 from .import_data import action_import
@@ -57,24 +58,7 @@ view the results.
     """
     import lnt.server.ui.app
 
-    # Setup the base LNT logger.
-    # Root logger in debug.
-    logger = logging.getLogger(LOGGER_NAME)
-    if debugger:
-        logger.setLevel(logging.DEBUG)
-    handler = logging.StreamHandler()
-    handler.setLevel(logging.DEBUG)
-    handler.setFormatter(logging.Formatter(
-        '%(asctime)s %(levelname)s: %(message)s', datefmt='%Y-%m-%d %H:%M:%S'))
-    logger.addHandler(handler)
-
-    # Enable full SQL logging, if requested.
-    if show_sql:
-        sa_logger = logging.getLogger("sqlalchemy")
-        if debugger:
-            sa_logger.setLevel(logging.DEBUG)
-        sa_logger.setLevel(logging.INFO)
-        sa_logger.addHandler(handler)
+    init_logger(logging.DEBUG, show_sql=show_sql)
 
     app = lnt.server.ui.app.App.create_standalone(instance_path,)
     if debugger:
@@ -137,14 +121,7 @@ def _print_result_url(results, verbose):
     ignore_unknown_options=True, allow_extra_args=True,))
 def action_runtest():
     """run a builtin test application"""
-    logger = logging.getLogger(LOGGER_NAME)
-    logger.setLevel(logging.INFO)
-    handler = logging.StreamHandler()
-    handler.setLevel(logging.INFO)
-    handler.setFormatter(logging.Formatter(
-        '%(asctime)s %(levelname)s: %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'))
-    logger.addHandler(handler)
+    init_logger(logging.INFO)
 
 
 action_runtest.add_command(NTTest.cli_wrapper)
@@ -177,8 +154,8 @@ def action_submit(url, files, commit, verbose):
     """submit a test report to the server"""
 
     if not commit:
-        warning("submit called with --commit=0, your results will not be saved"
-                " at the server.")
+        logger.warning("submit called with --commit=0, " +
+                       "your results will not be saved at the server.")
 
     from lnt.util import ServerUtil
     import lnt.util.ImportData
@@ -196,20 +173,7 @@ def action_submit(url, files, commit, verbose):
 def action_update(db_path, show_sql):
     """create and or auto-update the given database"""
 
-    # Setup the base LNT logger.
-    logger = logging.getLogger("lnt")
-    logger.setLevel(logging.INFO)
-    handler = logging.StreamHandler(sys.stderr)
-    handler.setFormatter(logging.Formatter(
-        '%(asctime)s %(levelname)s: %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'))
-    logger.addHandler(handler)
-
-    # Enable full SQL logging, if requested.
-    if show_sql:
-        sa_logger = logging.getLogger("sqlalchemy")
-        sa_logger.setLevel(logging.INFO)
-        sa_logger.addHandler(handler)
+    init_logger(logging.INFO, show_sql=show_sql, stream=sys.stderr)
 
     # Update the database.
     lnt.server.db.migrate.update_path(db_path)
@@ -271,7 +235,7 @@ def action_send_daily_report(instance_path, address, database, testsuite, host,
                 date = datetime.datetime.utcnow()
 
         # Generate the daily report.
-        note("building report data...")
+        logger.info("building report data...")
         report = lnt.server.reporting.dailyreport.DailyReport(
             ts, year=date.year, month=date.month, day=date.day,
             day_start_offset_hours=date.hour, for_mail=True,
@@ -279,7 +243,7 @@ def action_send_daily_report(instance_path, address, database, testsuite, host,
             filter_machine_regex=filter_machine_regex)
         report.build()
 
-        note("generating HTML report...")
+        logger.info("generating HTML report...")
         ts_url = "%s/db_%s/v4/%s" \
             % (config.zorgURL, database, testsuite)
         subject = "Daily Report: %04d-%02d-%02d" % (
@@ -336,13 +300,7 @@ def action_send_run_comparison(instance_path, run_a_id, run_b_id, database,
     import smtplib
     import lnt.server.reporting.dailyreport
 
-    # Setup the base LNT logger.
-    logger = logging.getLogger("lnt")
-    logger.setLevel(logging.ERROR)
-    handler = logging.StreamHandler(sys.stderr)
-    handler.setFormatter(logging.Formatter(
-        '%(asctime)s %(levelname)s: %(message)s', datefmt='%Y-%m-%d %H:%M:%S'))
-    logger.addHandler(handler)
+    init_logger(logging.ERROR)
 
     # Load the LNT instance.
     instance = lnt.server.instance.Instance.frompath(instance_path)
@@ -362,9 +320,9 @@ def action_send_run_comparison(instance_path, run_a_id, run_b_id, database,
         run_b = ts.query(ts.Run).\
             filter_by(id=run_b_id).first()
         if run_a is None:
-            error("invalid run ID %r (not in database)" % (run_a_id,))
+            logger.error("invalid run ID %r (not in database)" % (run_a_id,))
         if run_b is None:
-            error("invalid run ID %r (not in database)" % (run_b_id,))
+            logger.error("invalid run ID %r (not in database)" % (run_b_id,))
 
         # Generate the report.
         data = lnt.server.reporting.runs.generate_run_data(

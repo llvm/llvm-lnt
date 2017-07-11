@@ -1,15 +1,10 @@
 """
 Utilities for helping with the analysis of data, for reporting purposes.
 """
-
-import logging
-
+from lnt.util import logger
 from lnt.util import stats
 from lnt.server.ui import util
 from lnt.testing import FAIL
-
-LOGGER_NAME = "lnt.server.ui.app"
-logger = logging.getLogger(LOGGER_NAME)
 
 REGRESSED = 'REGRESSED'
 IMPROVED = 'IMPROVED'

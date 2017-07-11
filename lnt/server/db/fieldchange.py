@@ -2,8 +2,8 @@ import difflib
 import sqlalchemy.sql
 from sqlalchemy.orm.exc import ObjectDeletedError
 import lnt.server.reporting.analysis
-from lnt.testing.util.commands import warning
-from lnt.testing.util.commands import note, timed
+from lnt.testing.util.commands import timed
+from lnt.util import logger
 from lnt.server.db.regression import new_regression, RegressionState
 from lnt.server.db.regression import get_ris
 from lnt.server.db.regression import rebuild_title
@@ -46,7 +46,8 @@ def delete_fieldchange(ts, change):
             all()
         if len(remaining) == 0:
             r = ts.query(ts.Regression).get(r)
-            note("Deleting regression because it has not changes:" + repr(r))
+            logger.info("Deleting regression because it has not changes:" +
+                        repr(r))
             ts.delete(r)
             deleted_ids.append(r)
     ts.commit()
@@ -87,8 +88,8 @@ def regenerate_fieldchanges_for_run(ts, run_id):
     # be used in so many runs.
     run_size = len(runs_to_load)
     if run_size > 50:
-        warning("Generating field changes for {} runs."
-                "That will be very slow.".format(run_size))
+        logger.warning("Generating field changes for {} runs."
+                       "That will be very slow.".format(run_size))
     runinfo = lnt.server.reporting.analysis.RunInfo(ts, runs_to_load)
 
     # Only store fieldchanges for "metric" samples like execution time;
@@ -113,7 +114,7 @@ def regenerate_fieldchanges_for_run(ts, run_id):
 
             if not result.is_result_performance_change() and f:
                 # With more data, its not a regression. Kill it!
-                note("Removing field change: {}".format(f.id))
+                logger.info("Removing field change: {}".format(f.id))
                 deleted = delete_fieldchange(ts, f)
                 continue
 
@@ -135,7 +136,8 @@ def regenerate_fieldchanges_for_run(ts, run_id):
                         found, new_reg = identify_related_changes(ts, f)
                         
                     if found:
-                        note("Found field change: {}".format(run.machine))
+                        logger.info("Found field change: {}".format(
+                                    run.machine))
 
             # Always update FCs with new values.
             if f:
@@ -208,14 +210,14 @@ def identify_related_changes(ts, fc):
                     # Matching
                     MSG = "Found a match: {} with score {}."
                     regression = ts.query(ts.Regression).get(regression_id)
-                    note(MSG.format(str(regression),
-                                    confidence))
+                    logger.info(MSG.format(str(regression),
+                                           confidence))
                     ri = ts.RegressionIndicator(regression, fc)
                     ts.add(ri)
                     # Update the default title if needed.
                     rebuild_title(ts, regression)
                     ts.commit()
                     return True, regression
-    note("Could not find a partner, creating new Regression for change")
+    logger.info("Could not find a partner, creating new Regression for change")
     new_reg = new_regression(ts, [fc.id])
     return False, new_reg

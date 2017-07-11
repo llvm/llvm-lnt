@@ -17,11 +17,12 @@ from collections import defaultdict
 import jinja2
 import click
 
+from lnt.util import logger
 import lnt.testing
 import lnt.testing.profile
 import lnt.testing.util.compilers
 from lnt.testing.util.misc import timestamp
-from lnt.testing.util.commands import note, fatal, warning
+from lnt.testing.util.commands import fatal
 from lnt.testing.util.commands import mkdir_p
 from lnt.testing.util.commands import resolve_command_path, isexecfile
 
@@ -93,7 +94,7 @@ def _importProfile(name_filename):
     name, filename = name_filename
 
     if not os.path.exists(filename):
-        warning('Profile %s does not exist' % filename)
+        logger.warning('Profile %s does not exist' % filename)
         return None
 
     pf = lnt.testing.profile.profile.Profile.fromFile(filename)
@@ -334,8 +335,8 @@ class TestSuiteTest(BuiltinTest):
                 self.opts.cxx = \
                     lnt.testing.util.compilers.infer_cxx_compiler(self.opts.cc)
                 if self.opts.cxx is not None:
-                    note("Inferred C++ compiler under test as: %r"
-                         % (self.opts.cxx,))
+                    logger.info("Inferred C++ compiler under test as: %r"
+                                % (self.opts.cxx,))
                 else:
                     self._fatal("unable to infer --cxx - set it manually.")
             else:
@@ -439,8 +440,8 @@ class TestSuiteTest(BuiltinTest):
         # We don't support compiling without testing as we can't get compile-
         # time numbers from LIT without running the tests.
         if opts.compile_multisample > opts.exec_multisample:
-            note("Increasing number of execution samples to %d" %
-                 opts.compile_multisample)
+            logger.info("Increasing number of execution samples to %d" %
+                        opts.compile_multisample)
             opts.exec_multisample = opts.compile_multisample
 
         if opts.auto_name:
@@ -448,7 +449,7 @@ class TestSuiteTest(BuiltinTest):
             cc_info = self._get_cc_info(cmake_vars)
             cc_nick = '%s_%s' % (cc_info['cc_name'], cc_info['cc_build'])
             opts.label += "__%s__%s" % (cc_nick, cc_info['cc_target'].split('-')[0])
-        note('Using nickname: %r' % opts.label)
+        logger.info('Using nickname: %r' % opts.label)
 
         #  When we can't detect the clang version we use 0 instead. That
         # is a horrible failure mode because all of our data ends up going
@@ -540,15 +541,15 @@ class TestSuiteTest(BuiltinTest):
         return self.opts.threads
 
     def _check_call(self, *args, **kwargs):
-        note('Execute: %s' % ' '.join(args[0]))
+        logger.info('Execute: %s' % ' '.join(args[0]))
         if 'cwd' in kwargs:
-            note('          (In %s)' % kwargs['cwd'])
+            logger.info('          (In %s)' % kwargs['cwd'])
         return subprocess.check_call(*args, **kwargs)
 
     def _check_output(self, *args, **kwargs):
-        note('Execute: %s' % ' '.join(args[0]))
+        logger.info('Execute: %s' % ' '.join(args[0]))
         if 'cwd' in kwargs:
-            note('          (In %s)' % kwargs['cwd'])
+            logger.info('          (In %s)' % kwargs['cwd'])
         output = subprocess.check_output(*args, **kwargs)
         sys.stdout.write(output)
         return output
@@ -645,7 +646,7 @@ class TestSuiteTest(BuiltinTest):
             cmake_flags += ['-C', cache]
 
         for l in lines:
-            note(l)
+            logger.info(l)
 
         cmake_cmd = [cmake_cmd] + cmake_flags + [self._test_suite_dir()] + \
                     ['-D%s=%s' % (k, v) for k, v in defs.items()]
@@ -672,7 +673,7 @@ class TestSuiteTest(BuiltinTest):
                 target = self.opts.only_test[1]
             subdir = os.path.join(*components)
 
-        note('Building...')
+        logger.info('Building...')
         if not self.opts.succinct:
             args = ["VERBOSE=1", target]
         else:
@@ -708,16 +709,17 @@ class TestSuiteTest(BuiltinTest):
         nr_threads = self._test_threads()
         if profile:
             if nr_threads != 1:
-                warning('Gathering profiles with perf requires -j 1 as ' +
-                        'perf record cannot be run multiple times ' +
-                        'simultaneously. Overriding -j %s to -j 1' % nr_threads)
+                logger.warning('Gathering profiles with perf requires -j 1 ' +
+                               'as perf record cannot be run multiple times ' +
+                               'simultaneously. Overriding -j %s to -j 1' % \
+                               nr_threads)
                 nr_threads = 1
             extra_args += ['--param', 'profile=perf']
             if self.opts.perf_events:
                 extra_args += ['--param',
                                'perf_profile_events=%s' % self.opts.perf_events]
 
-        note('Testing...')
+        logger.info('Testing...')
         try:
             self._check_call([lit_cmd,
                               '-v',
@@ -878,8 +880,8 @@ class TestSuiteTest(BuiltinTest):
 
         # Now import the profiles in parallel.
         if profiles_to_import:
-            note('Importing %d profiles with %d threads...' %
-                 (len(profiles_to_import), multiprocessing.cpu_count()))
+            logger.info('Importing %d profiles with %d threads...' %
+                        (len(profiles_to_import), multiprocessing.cpu_count()))
             TIMEOUT = 800
             try:
                 pool = multiprocessing.Pool()
@@ -889,9 +891,9 @@ class TestSuiteTest(BuiltinTest):
                                      for sample in samples
                                      if sample is not None])
             except multiprocessing.TimeoutError:
-                warning('Profiles had not completed importing after %s seconds.'
-                        % TIMEOUT)
-                note('Aborting profile import and continuing')
+                logger.warning('Profiles had not completed importing after ' +
+                               '%s seconds.' % TIMEOUT)
+                logger.info('Aborting profile import and continuing')
 
         if self.opts.single_result:
             # If we got this far, the result we were looking for didn't exist.
@@ -923,7 +925,7 @@ class TestSuiteTest(BuiltinTest):
         for patt in patts:
             for file in glob.glob(src + patt):
                 shutil.copy(file, dest)
-                note(file + " --> " + dest)
+                logger.info(file + " --> " + dest)
 
     def diagnose(self):
         """Build a triage report that contains information about a test.
@@ -954,10 +956,10 @@ class TestSuiteTest(BuiltinTest):
         cmd = self._configure(path, execute=False)
         cmd_temps = cmd + ['-DTEST_SUITE_DIAGNOSE_FLAGS=-save-temps']
 
-        note(' '.join(cmd_temps))
+        logger.info(' '.join(cmd_temps))
 
         out = subprocess.check_output(cmd_temps)
-        note(out)
+        logger.info(out)
 
         # Figure out our test's target.
         make_cmd = [self.opts.make, "VERBOSE=1", 'help']
@@ -972,20 +974,20 @@ class TestSuiteTest(BuiltinTest):
 
         make_deps = [self.opts.make, "VERBOSE=1", "timeit-target",
                      "timeit-host", "fpcmp-host"]
-        note(" ".join(make_deps))
+        logger.info(" ".join(make_deps))
         p = subprocess.Popen(make_deps,
                              stdout=subprocess.PIPE,
                              stderr=subprocess.STDOUT)
         std_out, std_err = p.communicate()
-        note(std_out)
+        logger.info(std_out)
 
         make_save_temps = [self.opts.make, "VERBOSE=1", short_name]
-        note(" ".join(make_save_temps))
+        logger.info(" ".join(make_save_temps))
         p = subprocess.Popen(make_save_temps,
                              stdout=subprocess.PIPE,
                              stderr=subprocess.STDOUT)
         std_out, std_err = p.communicate()
-        note(std_out)
+        logger.info(std_out)
         with open(report_path + "/build.log", 'w') as f:
             f.write(std_out)
         # Executable(s) and test file:
@@ -1004,10 +1006,10 @@ class TestSuiteTest(BuiltinTest):
         # Now lets do -ftime-report.
         cmd_time_report = cmd + ['-DTEST_SUITE_DIAGNOSE_FLAGS=-ftime-report']
 
-        note(' '.join(cmd_time_report))
+        logger.info(' '.join(cmd_time_report))
 
         out = subprocess.check_output(cmd_time_report)
-        note(out)
+        logger.info(out)
 
         make_time_report = [self.opts.make, "VERBOSE=1", short_name]
         p = subprocess.Popen(make_time_report,
@@ -1017,15 +1019,15 @@ class TestSuiteTest(BuiltinTest):
 
         with open(report_path + "/time-report.txt", 'w') as f:
             f.write(std_err)
-        note("Wrote: " + report_path + "/time-report.txt")
+        logger.info("Wrote: " + report_path + "/time-report.txt")
 
         # Now lets do -llvm -stats.
         cmd_stats_report = cmd + ['-DTEST_SUITE_DIAGNOSE_FLAGS=-mllvm -stats']
 
-        note(' '.join(cmd_stats_report))
+        logger.info(' '.join(cmd_stats_report))
 
         out = subprocess.check_output(cmd_stats_report)
-        note(out)
+        logger.info(out)
 
         make_stats_report = [self.opts.make, "VERBOSE=1", short_name]
         p = subprocess.Popen(make_stats_report,
@@ -1035,7 +1037,7 @@ class TestSuiteTest(BuiltinTest):
 
         with open(report_path + "/stats-report.txt", 'w') as f:
             f.write(std_err)
-        note("Wrote: " + report_path + "/stats-report.txt")
+        logger.info("Wrote: " + report_path + "/stats-report.txt")
 
         #  Collect Profile:
         if "Darwin" in platform.platform():
@@ -1062,7 +1064,7 @@ class TestSuiteTest(BuiltinTest):
                                  stdout=subprocess.PIPE,
                                  stderr=subprocess.PIPE)
             std_out, std_err = p.communicate()
-            warning("Using sudo to collect execution trace.")
+            logger.warning("Using sudo to collect execution trace.")
             make_save_temps = sudo + [self.opts.lit, short_name + ".test"]
             p = subprocess.Popen(make_save_temps,
                                  stdout=subprocess.PIPE,
@@ -1070,17 +1072,18 @@ class TestSuiteTest(BuiltinTest):
             std_out, std_err = p.communicate()
             sys.stdout.write(std_out)
             sys.stderr.write(std_err)
-            warning("Tests may fail because of iprofiler's output.")
+            logger.warning("Tests may fail because of iprofiler's output.")
             # The dtps file will be saved as root, make it so
             # that we can read it.
             chmod = sudo + ["chown", "-R", getpass.getuser(), short_name + ".dtps"]
             subprocess.call(chmod)
             profile = local_path + "/" + short_name + ".dtps"
             shutil.copytree(profile, report_path + "/" + short_name + ".dtps")
-            note(profile + "-->" + report_path)
+            logger.info(profile + "-->" + report_path)
         else:
-            warning("Skipping execution profiling because this is not Darwin.")
-        note("Report produced in: " + report_path)
+            logger.warning("Skipping execution profiling because " +
+                           "this is not Darwin.")
+        logger.info("Report produced in: " + report_path)
 
         # Run through the rest of LNT, but don't allow this to be submitted
         # because there is no data.

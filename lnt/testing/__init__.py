@@ -8,7 +8,7 @@ data suitable for submitting to the server.
 
 import datetime
 import re
-import logging
+from lnt.util import logger
 
 try:
     import json
@@ -328,7 +328,7 @@ def upgrade_1_to_2(data, ts_name):
 
     upgrade = _upgrades.get(tag)
     if upgrade is None:
-        logging.warn("No upgrade schema known for '%s'\n" % tag)
+        logger.warning("No upgrade schema known for '%s'\n" % tag)
         upgrade = _default_upgrade
 
     # Flatten Machine.Info into machine
@@ -386,7 +386,7 @@ def upgrade_1_to_2(data, ts_name):
             if dot != '.':
                 raise ValueError("Tests/%s: name does not end in .metric" %
                                  test_Name)
-            logging.warning("Found unknown metric '%s'" % metric)
+            logger.warning("Found unknown metric '%s'" % metric)
             upgrade.metric_rename['.'+metric] = metric
 
         result_test = result_tests_dict.get(name)

@@ -5,7 +5,8 @@ import tempfile
 
 import lnt.server.config
 
-from lnt.testing.util.commands import note, warning, error, fatal
+from lnt.util import logger
+from lnt.testing.util.commands import fatal
 
 class Instance(object):
     """
@@ -33,7 +34,7 @@ class Instance(object):
             # into a temporary directory.
             tmpdir = tempfile.mkdtemp(suffix='lnt')
 
-            note("extracting input tarfile %r to %r" % (path, tmpdir))
+            logger.info("extracting input tarfile %r to %r" % (path, tmpdir))
             tf = tarfile.open(path)
             tf.extractall(tmpdir)
 

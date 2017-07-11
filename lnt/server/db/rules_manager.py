@@ -4,7 +4,8 @@ Define facilities for automatically applying rules to data.
 
 import os
 import re
-from lnt.testing.util.commands import note, warning, timed, error
+from lnt.util import logger
+from lnt.testing.util.commands import timed
 
 def load_rules():
     """
@@ -31,7 +32,8 @@ def load_rules():
         # Ignore non-matching files.
         m = rule_script_rex.match(item)
         if m is None:
-            warning("ignoring item {} in rule  directory: {}".format(item, rules_path))
+            logger.warning("ignoring item {} in rule  directory: {}"
+                           .format(item, rules_path))
             continue
 
         name = m.groups()[0]

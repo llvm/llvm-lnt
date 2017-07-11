@@ -1,5 +1,6 @@
 import re
 import os
+from lnt.util import logger
 from lnt.testing.util import commands
 
 _git_svn_id_re = re.compile("^    git-svn-id: [^@]*@([0-9]+) .*$")
@@ -22,7 +23,7 @@ def get_source_version(path):
         last_line = res.split("\n")[-1]
         m = _git_svn_id_re.match(last_line)
         if not m:
-            commands.warning("unable to understand git svn log: %r" % res)
+            logger.warning("unable to understand git svn log: %r" % res)
             return
         return m.group(1)
     elif os.path.exists(os.path.join(path, ".git")):

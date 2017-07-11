@@ -11,7 +11,6 @@ suite that we need inside each subprocess before we execute the work job.
 import atexit
 import os
 import time
-import logging
 from flask import current_app, g
 import sys
 import lnt.server.db.fieldchange as fieldchange
@@ -23,7 +22,7 @@ import contextlib
 import multiprocessing
 from multiprocessing import Pool, TimeoutError, Manager, Process
 from threading import Lock
-from lnt.testing.util.commands import note, warning, timed, error
+from lnt.util import logger
 NUM_WORKERS = 4  # The number of subprocesses to spawn per LNT process.
 WORKERS = None  # The worker pool.
 WORKERS_LOCK = Lock()
@@ -38,7 +37,7 @@ def launch_workers():
     WORKERS_LOCK.acquire()
     try:
         if not WORKERS:
-            note("Starting workers")
+            logger.info("Starting workers")
             manager = Manager()
             WORKERS = True
             try:
@@ -58,9 +57,9 @@ def sig_handler(signo, frame):
 
 
 def cleanup():
-    note("Running process cleanup.")
+    logger.info("Running process cleanup.")
     for p in JOBS:
-        note("Waiting for %s %s" % (p.name, p.pid))
+        logger.info("Waiting for %s %s" % (p.name, p.pid))
         if p.is_alive:
             p.join()
 
@@ -87,18 +86,19 @@ def check_workers(is_logged):
         if still_running > 5:
             # This could be run outside of the application context, so use
             # full logger name.
-            logging.getLogger("lnt.server.ui.app").warning(msg)
+            logger.warning(msg)
         elif still_running > 0:
-            logging.getLogger("lnt.server.ui.app").info(msg)
+            logger.info(msg)
         else:
-            logging.getLogger("lnt.server.ui.app").info("Job queue empty.")
+            logger.info("Job queue empty.")
     return len(JOBS)
 
 
 def async_run_job(job, db_name, ts, func_args, db_config):
     """Send a job to the async wrapper in the subprocess."""
     # If the run is not in the database, we can't do anything more.
-    note("Queuing background job to process fieldchanges " + str(os.getpid()))
+    logger.info("Queuing background job to process fieldchanges " +
+                str(os.getpid()))
     launch_workers()
     check_workers(True)
 
@@ -133,7 +133,8 @@ def async_wrapper(job, ts_args, func_args):
             lnt.server.db.v4db.V4DB.close_all_engines()
             clean_db = True
         sleep(3)
-        note("Running async wrapper: {} ".format(job.__name__)+ str(os.getpid()))
+        logger.info("Running async wrapper: {} ".format(job.__name__) +
+                    str(os.getpid()))
         config = ts_args['db_info']
         _v4db = config.get_database(ts_args['db'])
         #with contextlib.closing(_v4db) as db:
@@ -145,13 +146,14 @@ def async_wrapper(job, ts_args, func_args):
         msg = "Finished: {name} in {time:.2f}s ".format(name=job.__name__,
                                                 time=delta)
         if delta < 100:
-            note(msg)
+            logger.info(msg)
         else:
-            warning(msg)
+            logger.warning(msg)
     except:
         # Put all exception text into an exception and raise that for our
         # parent process.
-        error("Subprocess failed with:" + "".join(traceback.format_exception(*sys.exc_info())))
+        logger.error("Subprocess failed with:" +
+                     "".join(traceback.format_exception(*sys.exc_info())))
         sys.exit(1)
     sys.exit(0)
 
@@ -160,10 +162,10 @@ def make_callback():
     app = current_app
     def async_job_finished(arg):
         if isinstance(arg, Exception):
-            logging.getLogger("lnt.server.ui.app").error(str(arg))
+            logger.error(str(arg))
             raise arg
         if isinstance(arg, list):
             for log_entry in arg:
-                logging.getLogger("lnt.server.ui.app").handle(log_entry)
+                logger.handle(log_entry)
         check_workers()
     return async_job_finished

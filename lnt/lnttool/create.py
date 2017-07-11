@@ -9,6 +9,7 @@ import click
 
 import lnt.testing
 import lnt.server.db.migrate
+from .common import init_logger
 
 kConfigVersion = (0, 1, 0)
 kConfigTemplate = """\
@@ -119,19 +120,8 @@ def action_create(instance_path, name, config, wsgi, tmp_dir, db_dir,
 LNT configuration.
     """
 
-    # Setup the base LNT logger.
-    logger = logging.getLogger("lnt")
-    logger.setLevel(logging.WARNING)
-    handler = logging.StreamHandler(sys.stderr)
-    handler.setFormatter(logging.Formatter(
-        '%(asctime)s %(levelname)s: %(message)s', datefmt='%Y-%m-%d %H:%M:%S'))
-    logger.addHandler(handler)
-
-    # Enable full SQL logging, if requested.
-    if show_sql:
-        sa_logger = logging.getLogger("sqlalchemy")
-        sa_logger.setLevel(logging.INFO)
-        sa_logger.addHandler(handler)
+    init_logger(logging.INFO if show_sql else logging.WARNING,
+                show_sql=show_sql)
 
     default_db_version = "0.4"
 

@@ -1,7 +1,6 @@
 from lnt.testing.util.commands import fatal
 import glob
 import yaml
-import logging
 
 try:
     import threading
@@ -15,6 +14,7 @@ import lnt.testing
 import lnt.server.db.testsuitedb
 import lnt.server.db.migrate
 
+from lnt.util import logger
 from lnt.server.db import testsuite
 import lnt.server.db.util
 
@@ -90,8 +90,8 @@ class V4DB(object):
             data = yaml.load(schema_fd)
         suite = testsuite.TestSuite.from_json(data)
         self.testsuite.add_suite(suite)
-        logging.info("External TestSuite '%s' loaded from '%s'" %
-                     (suite.name, schema_file))
+        logger.info("External TestSuite '%s' loaded from '%s'" %
+                    (suite.name, schema_file))
 
     def _load_shemas(self):
         schemasDir = self.config.schemasDir
@@ -99,8 +99,8 @@ class V4DB(object):
             try:
                 self._load_schema_file(schema_file)
             except:
-                logging.error("Could not load schema '%s'" % schema_file,
-                              exc_info=True)
+                logger.error("Could not load schema '%s'" % schema_file,
+                             exc_info=True)
 
     def __init__(self, path, config, baseline_revision=0, echo=False):
         # If the path includes no database type, assume sqlite.

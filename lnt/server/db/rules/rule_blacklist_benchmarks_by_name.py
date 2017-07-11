@@ -6,7 +6,7 @@ This can be used to implement server side black lists.
 import re
 import os
 import sys
-from lnt.testing.util.commands import note, warning
+from lnt.util import logger
 from flask import current_app
 
 ignored = None
@@ -22,12 +22,12 @@ def _populate_blacklist():
         path = os.path.join(os.path.dirname(sys.argv[0]), "blacklist")
     
     if path and os.path.isfile(path):
-        note("Loading blacklist file: {}".format(path))
+        logger.info("Loading blacklist file: {}".format(path))
         with open(path, 'r') as f:
             for l in f.readlines():
                 ignored.append(re.compile(l.strip()))
     else:
-        warning("Ignoring blacklist file: {}".format(path))
+        logger.warning("Ignoring blacklist file: {}".format(path))
 
 
 def filter_by_benchmark_name(ts, field_change):
@@ -41,11 +41,11 @@ def filter_by_benchmark_name(ts, field_change):
                           field_change.machine.name,
                           benchmark_name,
                           field_change.field.name])
-    note(full_name)
+    logger.info(full_name)
     for regex in ignored:
         if regex.match(full_name):
-            note("Dropping field change {} because it matches {}".format(full_name,
-                                                                         regex.pattern))
+            logger.info("Dropping field change {} because it matches {}"
+                        .format(full_name, regex.pattern))
             return False
     return True
     

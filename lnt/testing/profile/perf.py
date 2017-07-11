@@ -1,7 +1,7 @@
 import json, os, traceback
 from profile import ProfileImpl
 from profilev1impl import ProfileV1
-from lnt.testing.util.commands import warning
+from lnt.util import logger
 
 try:
     import cPerf
@@ -41,5 +41,5 @@ class LinuxPerfProfile(ProfileImpl):
         except:
             if propagateExceptions:
                 raise
-            warning(traceback.format_exc())
+            logger.warning(traceback.format_exc())
             return None

@@ -18,10 +18,11 @@ import click
 import lnt.testing
 import lnt.testing.util.compilers
 from lnt.testing.util import commands, machineinfo
-from lnt.testing.util.commands import note, fatal, resolve_command_path
+from lnt.testing.util.commands import fatal, resolve_command_path
 from lnt.testing.util.misc import timestamp
 from lnt.tests import builtintest
 from lnt.util import stats
+from lnt.util import logger
 
 
 # For each test, compile with all these combinations of flags.
@@ -828,7 +829,8 @@ class CompileTest(builtintest.BuiltinTest):
         if opts.cc and opts.cxx is None:
             opts.cxx = lnt.testing.util.compilers.infer_cxx_compiler(opts.cc)
             if opts.cxx is not None:
-                note("inferred C++ compiler under test as: %r" % (opts.cxx,))
+                logger.info("inferred C++ compiler under test as: %r" %
+                            (opts.cxx,))
 
         if opts.cxx is None:
             self._fatal('--cxx is required (and could not be inferred)')
@@ -940,20 +942,21 @@ class CompileTest(builtintest.BuiltinTest):
         else:
             # Otherwise, use the inferred run order.
             variables['run_order'] = cc_info['inferred_run_order']
-            note("inferred run order to be: %r" % (variables['run_order'],))
+            logger.info("inferred run order to be: %r" %
+                        (variables['run_order'],))
 
         if opts.verbose:
             format = pprint.pformat(variables)
             msg = '\n\t'.join(['using variables:'] + format.splitlines())
-            note(msg)
+            logger.info(msg)
 
             format = pprint.pformat(machine_info)
             msg = '\n\t'.join(['using machine info:'] + format.splitlines())
-            note(msg)
+            logger.info(msg)
 
             format = pprint.pformat(run_info)
             msg = '\n\t'.join(['using run info:'] + format.splitlines())
-            note(msg)
+            logger.info(msg)
 
         # Compute the set of flags to test.
         if not opts.flags_to_test:

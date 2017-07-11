@@ -4,7 +4,6 @@ Database models for the TestSuites abstraction.
 
 import json
 import lnt
-import logging
 import sys
 import testsuitedb
 import util
@@ -15,6 +14,7 @@ import sqlalchemy.orm
 from sqlalchemy import *
 from sqlalchemy.schema import Index
 from sqlalchemy.orm import relation
+from lnt.util import logger
 
 Base = sqlalchemy.ext.declarative.declarative_base()
 
@@ -256,9 +256,9 @@ class TestSuite(Base):
                 .first()
         if prev_schema is not None:
             if prev_schema.jsonschema != schema.jsonschema:
-                logging.info("Previous Schema:")
-                logging.info(json.dumps(json.loads(prev_schema.jsonschema),
-                                        indent=2))
+                logger.info("Previous Schema:")
+                logger.info(json.dumps(json.loads(prev_schema.jsonschema),
+                                       indent=2))
                 # New schema? Save it in the database and we are good.
                 engine = v4db.engine
                 prev_schema.upgrade_to(engine, schema, dry_run=True)

@@ -18,9 +18,9 @@ from lnt.server.ui.decorators import v4_route
 import lnt.server.reporting.analysis
 from lnt.server.ui.globals import v4_url_for
 
+from lnt.util import logger
 from lnt.server.ui.util import FLASH_DANGER, FLASH_SUCCESS
 from lnt.server.reporting.analysis import REGRESSED
-from lnt.testing.util.commands import note
 import lnt.server.db.fieldchange
 from lnt.server.db.regression import RegressionState, new_regression
 from lnt.server.db.regression import get_first_runs_of_fieldchange
@@ -476,7 +476,7 @@ def v4_make_regression(machine_id, test_id, field_index, run_id):
     regression.state = RegressionState.ACTIVE
     
     ts.commit()
-    note("Manually created new regressions: {}".format(regression.id))
+    logger.info("Manually created new regressions: {}".format(regression.id))
     flash("Created " + regression.title, FLASH_SUCCESS)
 
     return redirect(v4_url_for("v4_regression_detail", id=regression.id))

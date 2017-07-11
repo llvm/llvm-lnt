@@ -6,8 +6,9 @@ import errno
 
 import os
 import sys
-import logging
 import time
+from lnt.util import logger
+
 try:
     from flask import current_app, flash
 except:
@@ -16,21 +17,11 @@ except:
     pass
 # FIXME: Find a better place for this code.
 from lnt.server.ui.util import FLASH_INFO
-LOGGER_NAME = "lnt.server.ui.app"
-
-
-def get_logger():
-    logger = logging.getLogger(LOGGER_NAME)
-    return logger
-
-note = lambda message: get_logger().info(message)
-warning = lambda message: get_logger().warning(message)
-error = lambda message: get_logger().error(message)
 
 
 def visible_note(message):
     """Log a note to the logger as well as page with a flash."""
-    get_logger().info(message)
+    logger.info(message)
     try:
         flash(message, FLASH_INFO)
     except RuntimeError:
@@ -49,16 +40,16 @@ def timed(func):
         delta = t_end - t_start
         msg = '%r (%s, %r) %2.2f sec' % (func.__name__, short_args, kw, delta)
         if delta > 10:
-            warning(msg)
+            logger.warning(msg)
         else:
-            note(msg)
+            logger.info(msg)
         return result
 
     return timed
 
 
 def fatal(message):
-    get_logger().critical(message)
+    logger.critical(message)
     sys.exit(1)
 
 
@@ -146,7 +137,7 @@ def resolve_command_path(name):
     # Otherwise we most likely have a command name, try to look it up.
     path = which(name)
     if path is not None:
-        note("resolved command %r to path %r" % (name, path))
+        logger.info("resolved command %r to path %r" % (name, path))
         return path
 
     # If that failed just return the original name.

@@ -11,8 +11,9 @@ import contextlib
 
 import click
 
+from lnt.util import logger
 from lnt.util.ImportData import import_and_report
-from lnt.testing.util.commands import note, warning
+from .common import init_logger
 
 
 def start_browser(url, debug=False):
@@ -26,7 +27,7 @@ def start_browser(url, debug=False):
 
     # Wait for server to start...
     if debug:
-        note('waiting for server to start...')
+        logger.info('waiting for server to start...')
     for i in range(10000):
         if url_is_up(url):
             break
@@ -35,10 +36,10 @@ def start_browser(url, debug=False):
             sys.stderr.flush()
         time.sleep(.01)
     else:
-        warning('unable to detect that server started')
+        logger.warning('unable to detect that server started')
 
     if debug:
-        note('opening webbrowser...')
+        logger.info('opening webbrowser...')
     webbrowser.open(url)
 
 
@@ -60,14 +61,7 @@ def action_view_comparison(report_a, report_b, hostname, port, dry_run,
     import lnt.server.ui.app
     import lnt.server.db.migrate
 
-    # Set up the default logger.
-    logger = logging.getLogger("lnt")
-    logger.setLevel(logging.ERROR)
-    handler = logging.StreamHandler(sys.stderr)
-    handler.setFormatter(logging.Formatter(
-        '%(asctime)s %(levelname)s: %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'))
-    logger.addHandler(handler)
+    init_logger(logging.ERROR)
 
     # Create a temporary directory to hold the instance.
     tmpdir = tempfile.mkdtemp(suffix='lnt')
@@ -99,7 +93,7 @@ def action_view_comparison(report_a, report_b, hostname, port, dry_run,
 
             # Dispatch another thread to start the webbrowser.
             comparison_url = '%s/v4/nts/2?compare_to=1' % (url,)
-            note("opening comparison view: %s" % (comparison_url,))
+            logger.info("opening comparison view: %s" % (comparison_url,))
 
             if not dry_run:
                 thread.start_new_thread(start_browser, (comparison_url, True))

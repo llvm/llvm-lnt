@@ -2,7 +2,7 @@ import contextlib
 import click
 
 import lnt.server.instance
-from lnt.testing.util.commands import warning
+from lnt.util import logger
 
 
 @click.command("updatedb")
@@ -84,7 +84,7 @@ def action_updatedb(instance_path, database, testsuite, tmp_dir, commit,
 
             num_deletes = ts.query(ts.Machine).filter_by(name=name).delete()
             if num_deletes == 0:
-                warning("unable to find machine named: %r" % name)
+                logger.warning("unable to find machine named: %r" % name)
         if order:
             ts.delete(order)
 

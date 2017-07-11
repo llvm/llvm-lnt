@@ -1,8 +1,7 @@
 """
 Utilities for working with Valgrind.
 """
-
-from lnt.testing.util.commands import warning
+from lnt.util import logger
 
 # See:
 #   http://valgrind.org/docs/manual/cl-format.html#cl-format.overview
@@ -40,19 +39,22 @@ class CalltreeData(object):
                 description_lines.append(value.strip())
             elif key == 'cmd':
                 if command is not None:
-                    warning("unexpected multiple 'cmd' keys in %r" % (path,))
+                    logger.warning("unexpected multiple 'cmd' keys in %r" %
+                                   (path,))
                 command = value.strip()
             elif key == 'events':
                 if events is not None:
-                    warning("unexpected multiple 'events' keys in %r" % (path,))
+                    logger.warning("unexpected multiple 'events' keys in %r" %
+                                   (path,))
                 events = value.split()
             elif key == 'positions':
                 if positions is not initial_positions:
-                    warning("unexpected multiple 'positions' keys in %r" % (
-                            path,))
+                    logger.warning(
+                        "unexpected multiple 'positions' keys in %r" %
+                        (path,))
                 positions = value.split()
             else:
-                warning("found unknown key %r in %r" % (key, path))
+                logger.warning("found unknown key %r in %r" % (key, path))
 
         # Validate that required fields were present.
         if events is None:
