@@ -33,10 +33,10 @@ def delete_fieldchange(ts, change):
     # Remove the idicators that point to this change.
     for ind in indicators:
         ts.delete(ind)
-    
+
     # Now we can remove the change, itself.
     ts.delete(change)
-    
+
     # We might have just created a regression with no changes.
     # If so, delete it as well.
     deleted_ids = []
@@ -134,7 +134,7 @@ def regenerate_fieldchanges_for_run(ts, run_id):
                         # This can happen from time to time.
                         # So, lets retry once.
                         found, new_reg = identify_related_changes(ts, f)
-                        
+
                     if found:
                         logger.info("Found field change: {}".format(
                                     run.machine))
@@ -201,7 +201,8 @@ def identify_related_changes(ts, fc):
 
                 confidence += percent_similar(regression_change.machine.name,
                                               fc.machine.name)
-                confidence += percent_similar(regression_change.test.name, fc.test.name)
+                confidence += percent_similar(regression_change.test.name,
+                                              fc.test.name)
 
                 if regression_change.field == fc.field:
                     confidence += 1.0

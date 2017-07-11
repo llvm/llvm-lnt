@@ -23,6 +23,7 @@ import lnt.server.db.util
 
 Base = sqlalchemy.ext.declarative.declarative_base()
 
+
 class SchemaVersion(Base):
     __tablename__ = 'SchemaVersion'
 
@@ -38,6 +39,7 @@ class SchemaVersion(Base):
 
 ###
 # Migrations auto-discovery.
+
 
 def _load_migrations():
     """
@@ -77,7 +79,7 @@ def _load_migrations():
                 continue
 
             # Check the version numbers for validity.
-            version,next_version = map(int, m.groups())
+            version, next_version = map(int, m.groups())
             if next_version != version + 1:
                 logger.error(
                     "invalid script name %r in schema migration directory: %r",
@@ -111,6 +113,7 @@ def _load_migrations():
 
 ###
 # Auto-upgrading support.
+
 
 def _set_schema_version(engine, schema_name, new_version):
     # Keep the updating to a single transaction that is immediately committed.
@@ -176,6 +179,7 @@ def update_schema(engine, versions, available_migrations, schema_name):
 
     return True
 
+
 def update(engine):
     any_changed = False
 
@@ -221,8 +225,9 @@ def update(engine):
     if any_changed:
         logger.info("database auto-upgraded")
 
+
 def update_path(path):
-    # If the path includes no database type, assume sqlite.    
+    # If the path includes no database type, assume sqlite.
     if lnt.server.db.util.path_has_no_database_type(path):
         path = 'sqlite:///' + path
 

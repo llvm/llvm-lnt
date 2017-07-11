@@ -44,7 +44,7 @@ class V4DB(object):
             name = suite.name
             self._extra_suites[name] = suite
 
-        def get(self, name, default = None):
+        def get(self, name, default=None):
             # Check the test suite cache, to avoid gratuitous reinstantiation.
             #
             # FIXME: Invalidation?
@@ -63,7 +63,8 @@ class V4DB(object):
                 if ts is None:
                     return default
 
-            # Instantiate the per-test suite wrapper object for this test suite.
+            # Instantiate the per-test suite wrapper object for this test
+            # suite.
             self._cache[name] = ts = lnt.server.db.testsuitedb.TestSuiteDB(
                 self.v4db, name, ts, create_tables=create_tables)
             return ts
@@ -73,7 +74,7 @@ class V4DB(object):
             if ts is None:
                 raise IndexError(name)
             return ts
-            
+
         def keys(self):
             return iter(self)
 
@@ -83,7 +84,7 @@ class V4DB(object):
 
         def items(self):
             for name in self:
-                yield name,self[name]
+                yield name, self[name]
 
     def _load_schema_file(self, schema_file):
         with open(schema_file) as schema_fd:
@@ -150,7 +151,9 @@ class V4DB(object):
         except KeyError:
                 fatal("status kinds not initialized!")
 
-        sample_types = {st.name: st for st in self.query(testsuite.SampleType).all()}
+        sample_types = {
+            st.name: st for st in self.query(testsuite.SampleType).all()
+        }
         # Resolve or create the known sample types.
         try:
             self.real_sample_type = sample_types["Real"]
@@ -164,8 +167,8 @@ class V4DB(object):
     def close(self):
         if self.session is not None:
             self.session.close()
-    
-    @staticmethod    
+
+    @staticmethod
     def close_engine(db_path):
         """Rip down everything about this path, so we can make it
         new again. This is used for tests that need to make a fresh
@@ -173,7 +176,7 @@ class V4DB(object):
         V4DB._engine[db_path].dispose()
         V4DB._engine.pop(db_path)
         V4DB._db_updated.remove(db_path)
-    
+
     @staticmethod
     def close_all_engines():
         for key in V4DB._engine.keys():
@@ -189,8 +192,8 @@ class V4DB(object):
     @property
     def testsuite(self):
         # This is the start of "magic" part of V4DB, which allows us to get
-        # fully bound SA instances for databases which are effectively described
-        # by the TestSuites table.
+        # fully bound SA instances for databases which are effectively
+        # described by the TestSuites table.
 
         # The magic starts by returning a object which will allow us to use
         # dictionary like access to get the per-test suite database wrapper.

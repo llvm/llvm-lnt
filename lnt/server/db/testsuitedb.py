@@ -584,7 +584,7 @@ class TestSuiteDB(object):
                     return '{}_{}:"{}"'.format(db_key_name,
                                                self.__class__.__name__,
                                                "<Deleted>")
-            
+
             def __json__(self):
                 return strip(self.__dict__)
 

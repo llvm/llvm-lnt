@@ -68,7 +68,6 @@ def rebuild_title(ts, regression):
         title = (title[:120] + '...') if len(title) > 120 else title
         regression.title = title
     return regression
-    
 
 
 def get_all_orders_for_machine(ts, machine):
@@ -107,7 +106,7 @@ def get_current_runs_of_fieldchange(ts, fc):
     before_runs = get_runs_for_order_and_machine(ts, fc.start_order_id,
                                                  fc.machine_id)
     newest_order = get_all_orders_for_machine(ts, fc.machine_id)[-1]
-        
+
     after_runs = get_runs_for_order_and_machine(ts, newest_order.id,
                                                 fc.machine_id)
     return ChangeRuns(before_runs, after_runs)
@@ -122,7 +121,7 @@ def get_first_runs_of_fieldchange(ts, fc):
 
 
 def get_cr_for_field_change(ts, field_change, current=False):
-    """Given a filed_change, calculate a comparison result for that change. 
+    """Given a filed_change, calculate a comparison result for that change.
     And the last run."""
     if current:
         runs = get_current_runs_of_fieldchange(ts, field_change)
@@ -130,7 +129,8 @@ def get_cr_for_field_change(ts, field_change, current=False):
         runs = get_runs_of_fieldchange(ts, field_change)
     runs_all = list(runs.before)
     runs_all.extend(runs.after)
-    ri = RunInfo(ts, [r.id for r in runs_all], only_tests=[field_change.test_id])
+    ri = RunInfo(ts, [r.id for r in runs_all],
+                 only_tests=[field_change.test_id])
     cr = ri.get_comparison_result(runs.after, runs.before,
                                   field_change.test.id, field_change.field,
                                   ts.Sample.get_hash_of_binary_field())

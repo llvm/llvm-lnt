@@ -1,11 +1,11 @@
 """
 Define facilities for automatically applying rules to data.
 """
-
 import os
 import re
 from lnt.util import logger
 from lnt.testing.util.commands import timed
+
 
 def load_rules():
     """
@@ -22,8 +22,7 @@ def load_rules():
         r'^rule_(.*)\.py$')
     rule_scripts = {}
 
-    rules_path = os.path.join(os.path.dirname(__file__),
-                                              'rules')
+    rules_path = os.path.join(os.path.dirname(__file__), 'rules')
     for item in os.listdir(rules_path):
         # Ignore certain known non-scripts.
         if item in ('README.txt', '__init__.py') or item.endswith('.pyc'):
@@ -40,16 +39,18 @@ def load_rules():
         # Allow rules to be disabled by name
         if name.endswith("disabled"):
             continue
-            
+
         rule_scripts[name] = os.path.join(rules_path, item)
 
     return rule_scripts
 
 # Places our rules can hook to.
-HOOKS = {'post_test_hook':[],
-         'post_submission_hook':[],
-         'post_regression_create_hook':[],
-         'is_useful_change': []}
+HOOKS = {
+    'post_test_hook': [],
+    'post_submission_hook': [],
+    'post_regression_create_hook': [],
+    'is_useful_change': [],
+}
 DESCRIPTIONS = {}
 
 
@@ -66,10 +67,12 @@ def register_hooks():
                 HOOKS[hook_name].append(globals[hook_name])
     return HOOKS
 
+
 def post_submission_hooks(ts, run_id):
     """Run all the post submission hooks on the submitted run."""
     for func in HOOKS['post_submission_hook']:
         func(ts, run_id)
+
 
 def is_useful_change(ts, field_change):
     """Run all the change filters. If any are false, drop this change."""

@@ -98,7 +98,8 @@ class TestSuiteJSONSchema(Base):
             type = metric_desc['type']
             if old_metric is not None:
                 if old_metric['type'] != type:
-                    raise _MigrationError("Type mismatch in metric '%s'" % name)
+                    raise _MigrationError("Type mismatch in metric '%s'" %
+                                          name)
             elif not dry_run:
                 # Add missing columns
                 column = testsuitedb.make_sample_column(name, type)
@@ -139,7 +140,6 @@ class TestSuiteJSONSchema(Base):
             raise _MigrationError("Order fields removed: %s" %
                                   ", ".join(old_order_fields.keys()))
 
-
         old_machine_fields = {}
         for field_desc in old.get('machine_fields', []):
             name = field_desc['name']
@@ -157,7 +157,7 @@ class TestSuiteJSONSchema(Base):
         if len(old_machine_fields) > 0:
             raise _MigrationError("Machine fields removed: %s" %
                                   ", ".join(old_machine_fields.keys()))
-         # The rest should just be metadata that we can upgrade
+        # The rest should just be metadata that we can upgrade
         return True
 
 
@@ -241,7 +241,7 @@ class TestSuite(Base):
 
             bigger_is_better_int = 1 if bigger_is_better else 0
             field = SampleField(name, metric_type, info_key=None,
-                                status_field = None,
+                                status_field=None,
                                 bigger_is_better=bigger_is_better_int)
             sample_fields.append(field)
         ts.sample_fields = sample_fields
@@ -252,8 +252,8 @@ class TestSuite(Base):
         name = self.name
         schema = TestSuiteJSONSchema(name, self.jsonschema)
         prev_schema = v4db.query(TestSuiteJSONSchema) \
-                .filter(TestSuiteJSONSchema.testsuite_name == name) \
-                .first()
+            .filter(TestSuiteJSONSchema.testsuite_name == name) \
+            .first()
         if prev_schema is not None:
             if prev_schema.jsonschema != schema.jsonschema:
                 logger.info("Previous Schema:")
