@@ -1,8 +1,4 @@
 import StringIO
-try:
-    import simplejson as json
-except ImportError:
-    import json
 import logging
 import logging.handlers
 import sys
@@ -47,7 +43,7 @@ class RootSlashPatchMiddleware(object):
         return self.app(environ, start_response)
 
 
-class LNTObjectJSONEncoder(json.JSONEncoder):
+class LNTObjectJSONEncoder(flask.json.JSONEncoder):
     """Take SQLAlchemy objects and jsonify them. If the object has an __json__ method, use that instead."""
 
     def __init__(self,  *args, **kwargs):
@@ -66,14 +62,14 @@ class LNTObjectJSONEncoder(json.JSONEncoder):
                     fields[field] = data.isoformat()
                 else:
                     try:
-                        json.dumps(data)
+                        flask.json.dumps(data)
                         fields[field] = data
                     except TypeError:
                         fields[field] = None
 
             return fields
 
-        return json.JSONEncoder.default(self, obj)
+        return flask.json.JSONEncoder.default(self, obj)
 
 
 class Request(flask.Request):
