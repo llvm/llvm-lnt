@@ -46,6 +46,10 @@ class RootSlashPatchMiddleware(object):
 
 class LNTObjectJSONEncoder(json.JSONEncoder):
     """Take SQLAlchemy objects and jsonify them. If the object has an __json__ method, use that instead."""
+
+    def __init__(self,  *args, **kwargs):
+        super(LNTObjectJSONEncoder, self).__init__(*args, **kwargs)
+
     def default(self, obj):
         if hasattr(obj, '__json__'):
             return obj.__json__()
