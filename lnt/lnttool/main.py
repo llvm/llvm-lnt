@@ -5,11 +5,9 @@ import sys
 import json
 import contextlib
 import code
-import werkzeug.contrib.profiler
 import click
 
 import lnt
-import lnt.util.ImportData
 from lnt.testing.util.commands import note, warning, error, LOGGER_NAME
 import lnt.testing.profile.profile as profile
 from lnt.tests.nt import NTTest
@@ -57,6 +55,7 @@ unpacked into a temporary directory and removed on exit. This is useful for
 passing database instances back and forth, when others only need to be able to
 view the results.
     """
+    import lnt.server.ui.app
 
     # Setup the base LNT logger.
     # Root logger in debug.
@@ -77,11 +76,11 @@ view the results.
         sa_logger.setLevel(logging.INFO)
         sa_logger.addHandler(handler)
 
-    import lnt.server.ui.app
     app = lnt.server.ui.app.App.create_standalone(instance_path,)
     if debugger:
         app.debug = True
     if profiler:
+        import werkzeug.contrib.profiler
         if profiler_dir:
             if not os.path.isdir(profiler_dir):
                 os.mkdir(profiler_dir)
@@ -114,6 +113,7 @@ def action_checkformat(input_file, testsuite):
 
     import lnt.server.db.v4db
     import lnt.server.config
+    import lnt.util.ImportData
     db = lnt.server.db.v4db.V4DB('sqlite:///:memory:',
                                  lnt.server.config.Config.dummy_instance())
     result = lnt.util.ImportData.import_and_report(
@@ -171,7 +171,8 @@ def action_showtests():
 @click.argument("files", nargs=-1, type=click.Path(exists=True), required=True)
 @click.option("--commit", show_default=True, type=int,
               help="number of days to show in report")
-@click.option("--verbose", "-v", is_flag=True, help="show verbose test results")
+@click.option("--verbose", "-v", is_flag=True,
+              help="show verbose test results")
 def action_submit(url, files, commit, verbose):
     """submit a test report to the server"""
 
@@ -180,12 +181,14 @@ def action_submit(url, files, commit, verbose):
                 " at the server.")
 
     from lnt.util import ServerUtil
+    import lnt.util.ImportData
     files = ServerUtil.submitFiles(url, files, commit, verbose)
     for submitted_file in files:
         if verbose:
             lnt.util.ImportData.print_report_result(
                 submitted_file, sys.stdout, sys.stderr, True)
         _print_result_url(submitted_file, verbose)
+
 
 @click.command("update")
 @click.argument("db_path")
@@ -471,6 +474,7 @@ def _version_check():
 error: installed distribution %s is not current (%s), you may need to reinstall
 LNT or rerun 'setup.py develop' if using development mode.""" % (
                          installed_dist_name, current_dist_name))
+
 
 def show_version(ctx, param, value):
     """print LNT version"""

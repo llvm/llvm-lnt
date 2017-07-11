@@ -17,6 +17,7 @@ def convert_data(input, output, inFormat, outFormat):
     out['write'](data, output)
     output.flush()
 
+
 @click.command("convert")
 @click.argument("input", type=click.File('rb'), default="-", required=False)
 @click.argument("output", type=click.File('wb'), default="-", required=False)

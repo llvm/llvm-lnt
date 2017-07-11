@@ -26,9 +26,8 @@ def action_importreport(input, output, suite, order, machine):
     bar.size 456
     foo/bar/baz.size 789
 
-    The format is "test-name.metric", so exec and size are valid metrics for the
-    test suite you are submitting to.
-    to.
+    The format is "test-name.metric", so exec and size are valid metrics for
+    the test suite you are submitting to.
     """
 
     machine_info = {}

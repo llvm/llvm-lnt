@@ -37,8 +37,10 @@ def action_updatedb(instance_path, database, testsuite, tmp_dir, commit,
         order = None
         # Compute a list of all the runs to delete.
         if delete_order:
-            order = ts.query(ts.Order).filter(ts.Order.id == delete_order).one()
-            runs_to_delete = ts.query(ts.Run.id).filter(ts.Run.order_id == order.id).all()
+            order = ts.query(ts.Order) \
+                .filter(ts.Order.id == delete_order).one()
+            runs_to_delete = ts.query(ts.Run.id) \
+                .filter(ts.Run.order_id == order.id).all()
             runs_to_delete = [r[0] for r in runs_to_delete]
         else:
             runs_to_delete = list(delete_runs)
@@ -46,9 +48,9 @@ def action_updatedb(instance_path, database, testsuite, tmp_dir, commit,
         if delete_machines:
             runs_to_delete.extend(
                 id
-                for id, in ts.query(ts.Run.id).\
-                    join(ts.Machine).\
-                    filter(ts.Machine.name.in_(delete_machines)))
+                for id, in (ts.query(ts.Run.id)
+                            .join(ts.Machine)
+                            .filter(ts.Machine.name.in_(delete_machines))))
 
         # Delete all samples associated with those runs.
         ts.query(ts.Sample).\
@@ -60,8 +62,9 @@ def action_updatedb(instance_path, database, testsuite, tmp_dir, commit,
             fcs = ts.query(ts.FieldChange). \
                 filter(ts.FieldChange.run_id == r).all()
             for f in fcs:
-                ris = ts.query(ts.RegressionIndicator). \
-                                filter(ts.RegressionIndicator.field_change_id == f.id).all()
+                ris = ts.query(ts.RegressionIndicator) \
+                    .filter(ts.RegressionIndicator.field_change_id == f.id) \
+                    .all()
                 for r in ris:
                     ts.delete(r)
                 ts.delete(f)

@@ -59,4 +59,4 @@ def action_import(instance_path, files, database, output_format, commit,
                                                         verbose)
 
         if not success:
-            raise SystemExit, 1
+            raise SystemExit(1)

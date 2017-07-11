@@ -27,12 +27,12 @@ name = %(name)r
 # provide an absolute URL to the server.
 zorgURL = %(hosturl)r
 
-# Temporary directory, for use by the web app. This must be writable by the user
-# the web app runs as.
+# Temporary directory, for use by the web app. This must be writable by the
+# user the web app runs as.
 tmp_dir = %(tmp_dir)r
 
-# Database directory, for easily rerooting the entire set of databases. Database
-# paths are resolved relative to the config path + this path.
+# Database directory, for easily rerooting the entire set of databases.
+# Database paths are resolved relative to the config path + this path.
 db_dir = %(db_dir)r
 
 # Profile directory, where profiles are kept.
@@ -137,7 +137,7 @@ LNT configuration.
 
     basepath = os.path.abspath(instance_path)
     if os.path.exists(basepath):
-        raise SystemExit,"error: invalid path: %r already exists" % basepath
+        raise SystemExit("error: invalid path: %r already exists" % basepath)
 
     hosturl = "http://%s/%s" % (hostname, hostsuffix)
 
