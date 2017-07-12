@@ -1497,232 +1497,6 @@ nightly test, but it should not be used for submissions."""
 
 
 class NTTest(builtintest.BuiltinTest):
-    # FIXME: an equivalent to argparse's add_argument_group is not implemented
-    #        on click. Need to review it when such functionality is available.
-    #        https://github.com/pallets/click/issues/373
-    @staticmethod
-    @click.command("nt", help=usage_info,
-                   short_help="LLVM test-suite compile and execution tests")
-    @click.argument("label", default=platform.uname()[1], required=False,
-                    type=click.UNPROCESSED)
-    #  Sandbox
-    @click.option("-s", "--sandbox", "sandbox_path", required=True,
-                  help="parent directory to build and run tests in",
-                  type=click.UNPROCESSED)
-    @click.option("--no-timestamp", "timestamp_build", flag_value=False,
-                  default=True, show_default=True,
-                  help="don't timestamp build directory (for testing)")
-    @click.option("--no-configure", "run_configure", flag_value=False,
-                  default=True, show_default=True,
-                  help="don't run configure if Makefile.config is "
-                       "present (only useful with --no-timestamp)")
-    #  Inputs
-    @click.option("--without-llvm", is_flag=True, show_default=True,
-                  help="don't use any LLVM source or build products")
-    @click.option("--llvm-src", "llvm_src_root",
-                  help="path to the LLVM source tree",
-                  type=click.UNPROCESSED)
-    @click.option("--llvm-obj", "llvm_obj_root", metavar="PATH",
-                  help="path to the LLVM source tree",
-                  type=click.UNPROCESSED)
-    @click.option("--test-suite", "test_suite_root", metavar="PATH",
-                  help="path to the LLVM test-suite sources",
-                  type=click.UNPROCESSED)
-    @click.option("--test-externals", "test_suite_externals",
-                  show_default=True,
-                  help="path to the LLVM test-suite externals",
-                  default='/dev/null', metavar="PATH",
-                  type=click.UNPROCESSED)
-    #  Test Compiler
-    @click.option("--cc", "cc_under_test", metavar="CC",
-                  help="path to the C compiler to test",
-                  type=click.UNPROCESSED)
-    @click.option("--cxx", "cxx_under_test", metavar="CXX",
-                  help="path to the C++ compiler to test",
-                  type=click.UNPROCESSED)
-    @click.option("--cc-reference",
-                  help="path to the reference C compiler",
-                  type=click.UNPROCESSED)
-    @click.option("--cxx-reference",
-                  help="path to the reference C++ compiler",
-                  type=click.UNPROCESSED)
-    #  Test Options
-    @click.option("--arch", help="Set -arch in TARGET_FLAGS")
-    @click.option("--llvm-arch",
-                  help="Set the ARCH value used in the makefiles to",
-                  type=click.UNPROCESSED)
-    @click.option("--make-param", "make_parameters", multiple=True,
-                  help="Add 'NAME' = 'VAL' to the makefile parameters",
-                  type=click.UNPROCESSED)
-    @click.option("--isysroot", "isysroot", metavar="PATH",
-                  help="Set -isysroot in TARGET_FLAGS",
-                  type=click.UNPROCESSED)
-    @click.option("--liblto-path", metavar="PATH",
-                  help="Specify the path to the libLTO library",
-                  type=click.UNPROCESSED)
-    @click.option("--mcpu", metavar="CPU",
-                  help="Set -mcpu in TARGET_LLCFLAGS",
-                  type=click.UNPROCESSED)
-    @click.option("--relocation-model", metavar="MODEL",
-                  help="Set -relocation-model in TARGET_LLCFLAGS",
-                  type=click.UNPROCESSED)
-    @click.option("--disable-fp-elim", is_flag=True,
-                  help="Set -disable-fp-elim in TARGET_LLCFLAGS")
-    @click.option("--optimize-option", show_default=True,
-                  help="Set optimization level for {LLC_,LLI_,}OPTFLAGS",
-                  type=click.Choice(['-O0', '-O1', '-O2',
-                                     '-O3', '-Os', '-Oz']),
-                  default='-O3')
-    @click.option("--cflag", "cflags", multiple=True,
-                  help="Additional flags to set in TARGET_FLAGS",
-                  type=click.UNPROCESSED, default=[], metavar="FLAG")
-    @click.option("--cflags", "cflag_string", multiple=True,
-                  help="Additional flags to set in TARGET_FLAGS, space "
-                       "separated string. These flags are appended after "
-                       "*all* the individual --cflag arguments.",
-                  type=click.UNPROCESSED, default='', metavar="FLAG")
-    @click.option("--mllvm", multiple=True,
-                  help="Add -mllvm FLAG to TARGET_FLAGS",
-                  type=click.UNPROCESSED, default=[], metavar="FLAG")
-    @click.option("--spec-with-pgo", is_flag=True, help="Use PGO with SPEC")
-    @click.option("--build-mode", metavar="NAME", show_default=True,
-                  default='Release+Asserts',
-                  help="Select the LLVM build mode to use",
-                  type=click.UNPROCESSED)
-    @click.option("--simple", "test_simple", is_flag=True,
-                  help="Use TEST=simple instead of TEST=nightly")
-    @click.option("--test-style", type=click.Choice(['nightly', 'simple']),
-                  default='simple', help="Set the test style to run")
-    @click.option("--test-time-stat", type=click.Choice(['user', 'real']),
-                  default='user', show_default=True,
-                  help="Set the test timing statistic to gather")
-    @click.option("--disable-cxx", "test_cxx", flag_value=False, default=True,
-                  show_default=True, help="Disable C++ tests")
-    @click.option("--disable-externals", "test_externals", flag_value=False,
-                  default=True, show_default=True,
-                  help="Disable test suite externals (if configured)")
-    @click.option("--enable-integrated-as", "test_integrated_as", is_flag=True,
-                  help="Enable TEST_INTEGRATED_AS tests")
-    @click.option("--enable-jit", "test_jit", is_flag=True,
-                  help="Enable JIT tests")
-    @click.option("--disable-llc", "test_llc",
-                  help="Disable LLC tests",
-                  flag_value=False, show_default=True, default=True)
-    @click.option("--enable-llcbeta", "test_llcbeta",
-                  help="Enable LLCBETA tests", is_flag=True)
-    @click.option("--disable-lto", "test_lto",
-                  help="Disable use of link-time optimization",
-                  flag_value=False, show_default=True, default=True)
-    @click.option("--small", "test_small",
-                  help="Use smaller test inputs and disable large tests",
-                  is_flag=True)
-    @click.option("--large", "test_large",
-                  help="Use larger test inputs", is_flag=True)
-    @click.option("--spec-with-ref", "test_spec_ref",
-                  help="Use reference test inputs for SPEC.  "
-                  "This is currently experimental", is_flag=True)
-    @click.option("--benchmarking-only", "test_benchmarking_only",
-                  help="Benchmarking-only mode", is_flag=True)
-    @click.option("--only-test", "only_test", metavar="PATH",
-                  help="Only run tests under PATH",
-                  type=click.UNPROCESSED, default=None)
-    @click.option("--include-test-examples",
-                  help="Include test module examples",
-                  is_flag=True)
-    #  Test Execution
-    @click.option("-j", "--threads", "threads",
-                  help="Number of testing threads",
-                  type=int, default=1, metavar="N")
-    @click.option("--build-threads", "build_threads",
-                  help="Number of compilation threads",
-                  type=int, default=0, metavar="N")
-    @click.option("--use-perf", type=click.UNPROCESSED, default=None,
-                  help="Use perf to obtain high accuracy timing")
-    @click.option("--rerun", help="Rerun tests that have regressed.",
-                  is_flag=True)
-    @click.option("--remote", is_flag=True,
-                  help="Execute remotely, see "
-                       "--remote-{host,port,user,client}")
-    @click.option("--remote-host", default="localhost", metavar="HOST",
-                  help="Set remote execution host", type=click.UNPROCESSED)
-    @click.option("--remote-port", type=int, default=None,
-                  metavar="PORT", help="Set remote execution port")
-    @click.option("--remote-user", help="Set remote execution user",
-                  type=click.UNPROCESSED, default=None, metavar="USER",)
-    @click.option("--remote-client", type=click.UNPROCESSED, default="ssh",
-                  help="Set remote execution client", metavar="RSH")
-    @click.option("--use-ios-simulator", "ios_simulator_sdk",
-                  help=("Execute using an iOS simulator SDK (using "
-                        "environment overrides)"),
-                  type=click.UNPROCESSED, default=None, metavar="SDKPATH")
-    @click.option("--use-isolation", "use_isolation",
-                  help=("Execute using a sandboxing profile to limit "
-                        "OS access (e.g., to the network or "
-                        "non-test directories)"),
-                  is_flag=True)
-    @click.option("--qemu-user-mode", "qemu_user_mode",
-                  help=("Enable qemu user mode emulation using this "
-                        "qemu executable"),
-                  type=click.UNPROCESSED, default=None)
-    @click.option("--qemu-flag", "qemu_flags",
-                  help="Additional flags to pass to qemu", multiple=True,
-                  type=click.UNPROCESSED, metavar="FLAG")
-    @click.option("--qemu-flags", "qemu_string",
-                  help="Additional flags to pass to qemu, space "
-                       "separated string. These flags are appended after "
-                       "*all* the individual --qemu-flag arguments.",
-                  type=click.UNPROCESSED, default='', metavar="FLAG")
-    @click.option("--multisample", "multisample",
-                  help="Accumulate test data from multiple runs",
-                  type=int, default=None, metavar="N")
-    #  Output Options
-    @click.option("--no-auto-name", "auto_name",
-                  help="Don't automatically derive submission name",
-                  flag_value=False, show_default=True, default=True)
-    @click.option("--no-machdep-info", "use_machdep_info",
-                  help=("Don't put machine (instance) dependent "
-                        "variables with machine info"),
-                  flag_value=False, show_default=True, default=True)
-    @click.option("--run-order", "run_order", metavar="STR",
-                  help="String to use to identify and order this run",
-                  type=click.UNPROCESSED, default=None)
-    @click.option("--machine-param", "machine_parameters",
-                  metavar="NAME=VAL",
-                  help="Add 'NAME' = 'VAL' to the machine parameters",
-                  type=click.UNPROCESSED, multiple=True, default=[])
-    @click.option("--run-param", "run_parameters",
-                  metavar="NAME=VAL",
-                  help="Add 'NAME' = 'VAL' to the run parameters",
-                  type=click.UNPROCESSED, multiple=True, default=[])
-    @click.option("--submit", "submit_url", metavar="URLORPATH",
-                  help=("autosubmit the test result to the given server"
-                        " (or local instance)"),
-                  type=click.UNPROCESSED, default=[], multiple=True)
-    @click.option("--commit", "commit",
-                  help="whether the autosubmit result should be committed",
-                  type=int, default=True)
-    @click.option("--output", "output", metavar="PATH",
-                  help="write raw report data to PATH (or stdout if '-')",
-                  default=None)
-    @click.option("-v", "--verbose", "verbose",
-                  help="show verbose test results", is_flag=True)
-    @click.option("--exclude-stat-from-submission",
-                  "exclude_stat_from_submission",
-                  help="Do not submit the stat of this type ",
-                  multiple=True, type=click.Choice(KNOWN_SAMPLE_KEYS),
-                  default=['hash'])
-    def cli_wrapper(*args, **kwargs):
-        """LLVM test-suite compile and execution tests"""
-        _tools_check()
-        nt = NTTest()
-
-        for key, value in kwargs.items():
-            setattr(nt.opts, key, value)
-
-        results = nt.run_test(nt.opts)
-        nt.show_results_url(results)
-
-
     def run_test(self, opts):
 
         opts.cflag_string = ' '.join(opts.cflag_string)
@@ -2009,3 +1783,225 @@ def _tools_check():
     status = call(["which", "tclsh"], stdout=FNULL, stderr=FNULL)
     if status > 0:
         raise SystemExit("""error: tclsh not available on your system.""")
+
+# FIXME: an equivalent to argparse's add_argument_group is not implemented
+#        on click. Need to review it when such functionality is available.
+#        https://github.com/pallets/click/issues/373
+@click.command("nt", help=usage_info, short_help=__doc__)
+@click.argument("label", default=platform.uname()[1], required=False,
+                type=click.UNPROCESSED)
+#  Sandbox
+@click.option("-s", "--sandbox", "sandbox_path", required=True,
+              help="parent directory to build and run tests in",
+              type=click.UNPROCESSED)
+@click.option("--no-timestamp", "timestamp_build", flag_value=False,
+              default=True, show_default=True,
+              help="don't timestamp build directory (for testing)")
+@click.option("--no-configure", "run_configure", flag_value=False,
+              default=True, show_default=True,
+              help="don't run configure if Makefile.config is "
+                   "present (only useful with --no-timestamp)")
+#  Inputs
+@click.option("--without-llvm", is_flag=True, show_default=True,
+              help="don't use any LLVM source or build products")
+@click.option("--llvm-src", "llvm_src_root",
+              help="path to the LLVM source tree",
+              type=click.UNPROCESSED)
+@click.option("--llvm-obj", "llvm_obj_root", metavar="PATH",
+              help="path to the LLVM source tree",
+              type=click.UNPROCESSED)
+@click.option("--test-suite", "test_suite_root", metavar="PATH",
+              help="path to the LLVM test-suite sources",
+              type=click.UNPROCESSED)
+@click.option("--test-externals", "test_suite_externals",
+              show_default=True,
+              help="path to the LLVM test-suite externals",
+              default='/dev/null', metavar="PATH",
+              type=click.UNPROCESSED)
+#  Test Compiler
+@click.option("--cc", "cc_under_test", metavar="CC",
+              help="path to the C compiler to test",
+              type=click.UNPROCESSED)
+@click.option("--cxx", "cxx_under_test", metavar="CXX",
+              help="path to the C++ compiler to test",
+              type=click.UNPROCESSED)
+@click.option("--cc-reference",
+              help="path to the reference C compiler",
+              type=click.UNPROCESSED)
+@click.option("--cxx-reference",
+              help="path to the reference C++ compiler",
+              type=click.UNPROCESSED)
+#  Test Options
+@click.option("--arch", help="Set -arch in TARGET_FLAGS")
+@click.option("--llvm-arch",
+              help="Set the ARCH value used in the makefiles to",
+              type=click.UNPROCESSED)
+@click.option("--make-param", "make_parameters", multiple=True,
+              help="Add 'NAME' = 'VAL' to the makefile parameters",
+              type=click.UNPROCESSED)
+@click.option("--isysroot", "isysroot", metavar="PATH",
+              help="Set -isysroot in TARGET_FLAGS",
+              type=click.UNPROCESSED)
+@click.option("--liblto-path", metavar="PATH",
+              help="Specify the path to the libLTO library",
+              type=click.UNPROCESSED)
+@click.option("--mcpu", metavar="CPU",
+              help="Set -mcpu in TARGET_LLCFLAGS",
+              type=click.UNPROCESSED)
+@click.option("--relocation-model", metavar="MODEL",
+              help="Set -relocation-model in TARGET_LLCFLAGS",
+              type=click.UNPROCESSED)
+@click.option("--disable-fp-elim", is_flag=True,
+              help="Set -disable-fp-elim in TARGET_LLCFLAGS")
+@click.option("--optimize-option", show_default=True,
+              help="Set optimization level for {LLC_,LLI_,}OPTFLAGS",
+              type=click.Choice(['-O0', '-O1', '-O2',
+                                 '-O3', '-Os', '-Oz']),
+              default='-O3')
+@click.option("--cflag", "cflags", multiple=True,
+              help="Additional flags to set in TARGET_FLAGS",
+              type=click.UNPROCESSED, default=[], metavar="FLAG")
+@click.option("--cflags", "cflag_string", multiple=True,
+              help="Additional flags to set in TARGET_FLAGS, space "
+                   "separated string. These flags are appended after "
+                   "*all* the individual --cflag arguments.",
+              type=click.UNPROCESSED, default='', metavar="FLAG")
+@click.option("--mllvm", multiple=True,
+              help="Add -mllvm FLAG to TARGET_FLAGS",
+              type=click.UNPROCESSED, default=[], metavar="FLAG")
+@click.option("--spec-with-pgo", is_flag=True, help="Use PGO with SPEC")
+@click.option("--build-mode", metavar="NAME", show_default=True,
+              default='Release+Asserts',
+              help="Select the LLVM build mode to use",
+              type=click.UNPROCESSED)
+@click.option("--simple", "test_simple", is_flag=True,
+              help="Use TEST=simple instead of TEST=nightly")
+@click.option("--test-style", type=click.Choice(['nightly', 'simple']),
+              default='simple', help="Set the test style to run")
+@click.option("--test-time-stat", type=click.Choice(['user', 'real']),
+              default='user', show_default=True,
+              help="Set the test timing statistic to gather")
+@click.option("--disable-cxx", "test_cxx", flag_value=False, default=True,
+              show_default=True, help="Disable C++ tests")
+@click.option("--disable-externals", "test_externals", flag_value=False,
+              default=True, show_default=True,
+              help="Disable test suite externals (if configured)")
+@click.option("--enable-integrated-as", "test_integrated_as", is_flag=True,
+              help="Enable TEST_INTEGRATED_AS tests")
+@click.option("--enable-jit", "test_jit", is_flag=True,
+              help="Enable JIT tests")
+@click.option("--disable-llc", "test_llc",
+              help="Disable LLC tests",
+              flag_value=False, show_default=True, default=True)
+@click.option("--enable-llcbeta", "test_llcbeta",
+              help="Enable LLCBETA tests", is_flag=True)
+@click.option("--disable-lto", "test_lto",
+              help="Disable use of link-time optimization",
+              flag_value=False, show_default=True, default=True)
+@click.option("--small", "test_small",
+              help="Use smaller test inputs and disable large tests",
+              is_flag=True)
+@click.option("--large", "test_large",
+              help="Use larger test inputs", is_flag=True)
+@click.option("--spec-with-ref", "test_spec_ref",
+              help="Use reference test inputs for SPEC.  "
+              "This is currently experimental", is_flag=True)
+@click.option("--benchmarking-only", "test_benchmarking_only",
+              help="Benchmarking-only mode", is_flag=True)
+@click.option("--only-test", "only_test", metavar="PATH",
+              help="Only run tests under PATH",
+              type=click.UNPROCESSED, default=None)
+@click.option("--include-test-examples",
+              help="Include test module examples",
+              is_flag=True)
+#  Test Execution
+@click.option("-j", "--threads", "threads",
+              help="Number of testing threads",
+              type=int, default=1, metavar="N")
+@click.option("--build-threads", "build_threads",
+              help="Number of compilation threads",
+              type=int, default=0, metavar="N")
+@click.option("--use-perf", type=click.UNPROCESSED, default=None,
+              help="Use perf to obtain high accuracy timing")
+@click.option("--rerun", help="Rerun tests that have regressed.",
+              is_flag=True)
+@click.option("--remote", is_flag=True,
+              help="Execute remotely, see "
+                   "--remote-{host,port,user,client}")
+@click.option("--remote-host", default="localhost", metavar="HOST",
+              help="Set remote execution host", type=click.UNPROCESSED)
+@click.option("--remote-port", type=int, default=None,
+              metavar="PORT", help="Set remote execution port")
+@click.option("--remote-user", help="Set remote execution user",
+              type=click.UNPROCESSED, default=None, metavar="USER",)
+@click.option("--remote-client", type=click.UNPROCESSED, default="ssh",
+              help="Set remote execution client", metavar="RSH")
+@click.option("--use-ios-simulator", "ios_simulator_sdk",
+              help=("Execute using an iOS simulator SDK (using "
+                    "environment overrides)"),
+              type=click.UNPROCESSED, default=None, metavar="SDKPATH")
+@click.option("--use-isolation", "use_isolation",
+              help=("Execute using a sandboxing profile to limit "
+                    "OS access (e.g., to the network or "
+                    "non-test directories)"),
+              is_flag=True)
+@click.option("--qemu-user-mode", "qemu_user_mode",
+              help=("Enable qemu user mode emulation using this "
+                    "qemu executable"),
+              type=click.UNPROCESSED, default=None)
+@click.option("--qemu-flag", "qemu_flags",
+              help="Additional flags to pass to qemu", multiple=True,
+              type=click.UNPROCESSED, metavar="FLAG")
+@click.option("--qemu-flags", "qemu_string",
+              help="Additional flags to pass to qemu, space "
+                   "separated string. These flags are appended after "
+                   "*all* the individual --qemu-flag arguments.",
+              type=click.UNPROCESSED, default='', metavar="FLAG")
+@click.option("--multisample", "multisample",
+              help="Accumulate test data from multiple runs",
+              type=int, default=None, metavar="N")
+#  Output Options
+@click.option("--no-auto-name", "auto_name",
+              help="Don't automatically derive submission name",
+              flag_value=False, show_default=True, default=True)
+@click.option("--no-machdep-info", "use_machdep_info",
+              help=("Don't put machine (instance) dependent "
+                    "variables with machine info"),
+              flag_value=False, show_default=True, default=True)
+@click.option("--run-order", "run_order", metavar="STR",
+              help="String to use to identify and order this run",
+              type=click.UNPROCESSED, default=None)
+@click.option("--machine-param", "machine_parameters",
+              metavar="NAME=VAL",
+              help="Add 'NAME' = 'VAL' to the machine parameters",
+              type=click.UNPROCESSED, multiple=True, default=[])
+@click.option("--run-param", "run_parameters",
+              metavar="NAME=VAL",
+              help="Add 'NAME' = 'VAL' to the run parameters",
+              type=click.UNPROCESSED, multiple=True, default=[])
+@click.option("--submit", "submit_url", metavar="URLORPATH",
+              help=("autosubmit the test result to the given server"
+                    " (or local instance)"),
+              type=click.UNPROCESSED, default=[], multiple=True)
+@click.option("--commit", "commit",
+              help="whether the autosubmit result should be committed",
+              type=int, default=True)
+@click.option("--output", "output", metavar="PATH",
+              help="write raw report data to PATH (or stdout if '-')",
+              default=None)
+@click.option("-v", "--verbose", "verbose",
+              help="show verbose test results", is_flag=True)
+@click.option("--exclude-stat-from-submission",
+              "exclude_stat_from_submission",
+              help="Do not submit the stat of this type ",
+              multiple=True, type=click.Choice(KNOWN_SAMPLE_KEYS),
+              default=['hash'])
+def cli_action(*args, **kwargs):
+    _tools_check()
+    nt = NTTest()
+
+    for key, value in kwargs.items():
+        setattr(nt.opts, key, value)
+
+    results = nt.run_test(nt.opts)
+    nt.show_results_url(results)

@@ -10,9 +10,6 @@ import click
 import lnt
 from lnt.util import logger
 import lnt.testing.profile.profile as profile
-from lnt.tests.nt import NTTest
-from lnt.tests.compile import CompileTest
-from lnt.tests.test_suite import TestSuiteTest
 
 from .common import init_logger
 from .create import action_create
@@ -117,16 +114,21 @@ def _print_result_url(results, verbose):
         print "Results available at: no URL available"
 
 
-@click.group("runtest", context_settings=dict(
+class RunTestCLI(click.MultiCommand):
+    def list_commands(self, ctx):
+        import lnt.tests
+        return lnt.tests.get_names()
+
+    def get_command(self, ctx, name):
+        import lnt.tests
+        return lnt.tests.get_module(name).cli_action
+
+
+@click.group("runtest", cls=RunTestCLI, context_settings=dict(
     ignore_unknown_options=True, allow_extra_args=True,))
 def action_runtest():
     """run a builtin test application"""
     init_logger(logging.INFO)
-
-
-action_runtest.add_command(NTTest.cli_wrapper)
-action_runtest.add_command(CompileTest.cli_wrapper)
-action_runtest.add_command(TestSuiteTest.cli_wrapper)
 
 
 @click.command("showtests")

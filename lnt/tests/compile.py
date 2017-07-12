@@ -703,118 +703,6 @@ We run each of the compile time tests in various stages:
 
 
 class CompileTest(builtintest.BuiltinTest):
-    # FIXME: an equivalent to argparse's add_argument_group is not implemented
-    #        on click. Need to review it when such functionality is available.
-    #        https://github.com/pallets/click/issues/373
-    @staticmethod
-    @click.command("compile", help=usage_info,
-                   short_help="Single file compile-time performance testing")
-    @click.argument("label", default=platform.uname()[1], required=False,
-                    type=click.UNPROCESSED)
-    @click.option("-s", "--sandbox", "sandbox_path", required=True,
-                  help="Parent directory to build and run tests in",
-                  type=click.UNPROCESSED, default=None, metavar="PATH")
-    #  Test Options
-    @click.option("--no-timestamp", "timestamp_build",
-                  help="Don't timestamp build directory (for testing)",
-                  flag_value=False, default=True)
-    @click.option("--cc", "cc", type=click.UNPROCESSED, required=True,
-                  help="Path to the compiler under test")
-    @click.option("--cxx", "cxx",
-                  help="Path to the C++ compiler to test",
-                  type=click.UNPROCESSED, default=None)
-    @click.option("--ld", "ld",
-                  help="Path to the c linker to use. (Xcode Distinction)",
-                  type=click.UNPROCESSED, default=None)
-    @click.option("--ldxx", "ldxx",
-                  help="Path to the cxx linker to use. (Xcode Distinction)",
-                  type=click.UNPROCESSED, default=None)
-    @click.option("--runn", "runn",
-                  help="Path to runN tool.",
-                  type=click.UNPROCESSED, default="runN")
-    @click.option("--test-externals", "test_suite_externals", required=True,
-                  help="Path to the LLVM test-suite externals",
-                  type=click.UNPROCESSED, default=None, metavar="PATH")
-    @click.option("--machine-param", "machine_parameters",
-                  metavar="NAME=VAL",
-                  help="Add 'NAME' = 'VAL' to the machine parameters",
-                  type=click.UNPROCESSED, multiple=True, default=[])
-    @click.option("--run-param", "run_parameters",
-                  metavar="NAME=VAL",
-                  help="Add 'NAME' = 'VAL' to the run parameters",
-                  type=click.UNPROCESSED, multiple=True, default=[])
-    @click.option("--run-order", "run_order", metavar="STR",
-                  help="String to use to identify and order this run",
-                  type=click.UNPROCESSED, default=None)
-    @click.option("--test-subdir", "test_subdir",
-                  help="Subdirectory of test external dir to look for "
-                       "tests in.",
-                  type=click.UNPROCESSED, default="lnt-compile-suite-src")
-    #  Test Selection
-    @click.option("--no-memory-profiling", "memory_profiling",
-                  help="Disable memory profiling",
-                  flag_value=False, default=True)
-    @click.option("--multisample", "run_count", metavar="N",
-                  help="Accumulate test data from multiple runs",
-                  type=int, default=3)
-    @click.option("--min-sample-time", "min_sample_time",
-                  help="Ensure all tests run for at least N seconds",
-                  metavar="N", type=float, default=.5)
-    @click.option("--save-temps", "save_temps",
-                  help="Save temporary build output files", is_flag=True)
-    @click.option("--show-tests", "show_tests",
-                  help="Only list the availables tests that will be run",
-                  is_flag=True)
-    @click.option("--test", "tests", metavar="NAME",
-                  help="Individual test to run",
-                  multiple=True, default=[], type=click.UNPROCESSED)
-    @click.option("--test-filter", "test_filters",
-                  help="Run tests matching the given pattern",
-                  metavar="REGEXP", multiple=True, default=[],
-                  type=click.UNPROCESSED)
-    @click.option("--flags-to-test", "flags_to_test",
-                  help="Add a set of flags to test (space separated)",
-                  metavar="FLAGLIST", multiple=True, default=[],
-                  type=click.UNPROCESSED)
-    @click.option("--jobs-to-test", "jobs_to_test",
-                  help="Add a job count to test (full builds)",
-                  metavar="NUM", multiple=True, default=[], type=int)
-    @click.option("--config-to-test", "configs_to_test",
-                  help="Add build configuration to test (full builds)",
-                  metavar="NAME", multiple=True, default=[],
-                  type=click.Choice(['Debug', 'Release']))
-    #  Output Options
-    @click.option("--no-machdep-info", "use_machdep_info",
-                  help=("Don't put machine (instance) dependent "
-                        "variables in machine info"),
-                  flag_value=False, default=True)
-    @click.option("--machine-name", "machine_name", type=click.UNPROCESSED,
-                  help="Machine name to use in submission",
-                  default=platform.uname()[1])
-    @click.option("--submit", "submit_url", metavar="URLORPATH",
-                  help=("autosubmit the test result to the given server "
-                        "(or local instance)"),
-                  type=click.UNPROCESSED, default=None)
-    @click.option("--commit", "commit",
-                  help="whether the autosubmit result should be committed",
-                  type=int, default=True)
-    @click.option("--output", "output", metavar="PATH",
-                  help="write raw report data to PATH (or stdout if '-')")
-    @click.option("-v", "--verbose", "verbose",
-                  help="show verbose test results", is_flag=True)
-    def cli_wrapper(*args, **kwargs):
-        """Single file compile-time performance testing"""
-        global opts
-
-        compile_test = CompileTest()
-        opts = compile_test.opts
-
-        for key, value in kwargs.items():
-            setattr(compile_test.opts, key, value)
-
-        results = compile_test.run_test(compile_test.opts)
-        compile_test.show_results_url(results)
-
     def run_test(self, opts):
 
         # Resolve the cc_under_test path.
@@ -1072,3 +960,112 @@ class CompileTest(builtintest.BuiltinTest):
         server_report = self.submit(lnt_report_path, opts, ts_name='compile')
 
         return server_report
+
+# FIXME: an equivalent to argparse's add_argument_group is not implemented
+#        on click. Need to review it when such functionality is available.
+#        https://github.com/pallets/click/issues/373
+@click.command("compile", help=usage_info, short_help=__doc__)
+@click.argument("label", default=platform.uname()[1], required=False,
+                type=click.UNPROCESSED)
+@click.option("-s", "--sandbox", "sandbox_path", required=True,
+              help="Parent directory to build and run tests in",
+              type=click.UNPROCESSED, default=None, metavar="PATH")
+#  Test Options
+@click.option("--no-timestamp", "timestamp_build",
+              help="Don't timestamp build directory (for testing)",
+              flag_value=False, default=True)
+@click.option("--cc", "cc", type=click.UNPROCESSED, required=True,
+              help="Path to the compiler under test")
+@click.option("--cxx", "cxx",
+              help="Path to the C++ compiler to test",
+              type=click.UNPROCESSED, default=None)
+@click.option("--ld", "ld",
+              help="Path to the c linker to use. (Xcode Distinction)",
+              type=click.UNPROCESSED, default=None)
+@click.option("--ldxx", "ldxx",
+              help="Path to the cxx linker to use. (Xcode Distinction)",
+              type=click.UNPROCESSED, default=None)
+@click.option("--runn", "runn",
+              help="Path to runN tool.",
+              type=click.UNPROCESSED, default="runN")
+@click.option("--test-externals", "test_suite_externals", required=True,
+              help="Path to the LLVM test-suite externals",
+              type=click.UNPROCESSED, default=None, metavar="PATH")
+@click.option("--machine-param", "machine_parameters",
+              metavar="NAME=VAL",
+              help="Add 'NAME' = 'VAL' to the machine parameters",
+              type=click.UNPROCESSED, multiple=True, default=[])
+@click.option("--run-param", "run_parameters",
+              metavar="NAME=VAL",
+              help="Add 'NAME' = 'VAL' to the run parameters",
+              type=click.UNPROCESSED, multiple=True, default=[])
+@click.option("--run-order", "run_order", metavar="STR",
+              help="String to use to identify and order this run",
+              type=click.UNPROCESSED, default=None)
+@click.option("--test-subdir", "test_subdir",
+              help="Subdirectory of test external dir to look for "
+                   "tests in.",
+              type=click.UNPROCESSED, default="lnt-compile-suite-src")
+#  Test Selection
+@click.option("--no-memory-profiling", "memory_profiling",
+              help="Disable memory profiling",
+              flag_value=False, default=True)
+@click.option("--multisample", "run_count", metavar="N",
+              help="Accumulate test data from multiple runs",
+              type=int, default=3)
+@click.option("--min-sample-time", "min_sample_time",
+              help="Ensure all tests run for at least N seconds",
+              metavar="N", type=float, default=.5)
+@click.option("--save-temps", "save_temps",
+              help="Save temporary build output files", is_flag=True)
+@click.option("--show-tests", "show_tests",
+              help="Only list the availables tests that will be run",
+              is_flag=True)
+@click.option("--test", "tests", metavar="NAME",
+              help="Individual test to run",
+              multiple=True, default=[], type=click.UNPROCESSED)
+@click.option("--test-filter", "test_filters",
+              help="Run tests matching the given pattern",
+              metavar="REGEXP", multiple=True, default=[],
+              type=click.UNPROCESSED)
+@click.option("--flags-to-test", "flags_to_test",
+              help="Add a set of flags to test (space separated)",
+              metavar="FLAGLIST", multiple=True, default=[],
+              type=click.UNPROCESSED)
+@click.option("--jobs-to-test", "jobs_to_test",
+              help="Add a job count to test (full builds)",
+              metavar="NUM", multiple=True, default=[], type=int)
+@click.option("--config-to-test", "configs_to_test",
+              help="Add build configuration to test (full builds)",
+              metavar="NAME", multiple=True, default=[],
+              type=click.Choice(['Debug', 'Release']))
+#  Output Options
+@click.option("--no-machdep-info", "use_machdep_info",
+              help=("Don't put machine (instance) dependent "
+                    "variables in machine info"),
+              flag_value=False, default=True)
+@click.option("--machine-name", "machine_name", type=click.UNPROCESSED,
+              help="Machine name to use in submission",
+              default=platform.uname()[1])
+@click.option("--submit", "submit_url", metavar="URLORPATH",
+              help=("autosubmit the test result to the given server "
+                    "(or local instance)"),
+              type=click.UNPROCESSED, default=None)
+@click.option("--commit", "commit",
+              help="whether the autosubmit result should be committed",
+              type=int, default=True)
+@click.option("--output", "output", metavar="PATH",
+              help="write raw report data to PATH (or stdout if '-')")
+@click.option("-v", "--verbose", "verbose",
+              help="show verbose test results", is_flag=True)
+def cli_action(*args, **kwargs):
+    global opts
+
+    compile_test = CompileTest()
+    opts = compile_test.opts
+
+    for key, value in kwargs.items():
+        setattr(compile_test.opts, key, value)
+
+    results = compile_test.run_test(compile_test.opts)
+    compile_test.show_results_url(results)

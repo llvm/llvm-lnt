@@ -175,151 +175,6 @@ class TestSuiteTest(BuiltinTest):
         self.compiled = False
         self.trained = False
 
-    @staticmethod
-    @click.command("test-suite")
-    @click.argument("label", default=platform.uname()[1], required=False,
-                    type=click.UNPROCESSED)
-    # Sandbox options
-    @click.option("-S", "--sandbox", "sandbox_path", required=True,
-                  help="Parent directory to build and run tests in",
-                  type=click.UNPROCESSED, metavar="PATH")
-    @click.option("--no-timestamp", "timestamp_build",
-                  flag_value=False, default=True,
-                  help="Don't timestamp build directory (for testing)")
-    @click.option("--no-configure", "run_configure",
-                  flag_value=False, default=True,
-                  help="Don't run CMake if CMakeCache.txt is present"
-                       " (only useful with --no-timestamp")
-    # Inputs
-    @click.option("--test-suite", "test_suite_root",
-                  type=click.UNPROCESSED, metavar="PATH",
-                  help="Path to the LLVM test-suite sources")
-    @click.option("--test-externals", "test_suite_externals",
-                  type=click.UNPROCESSED, metavar="PATH",
-                  help="Path to the LLVM test-suite externals")
-    @click.option("--cmake-define", "cmake_defines",
-                  multiple=True,
-                  help="Defines to pass to cmake. These do not require the "
-                       "-D prefix and can be given multiple times. e.g.: "
-                       "--cmake-define A=B => -DA=B")
-    @click.option("-C", "--cmake-cache", "cmake_cache", multiple=True,
-                  default=[],
-                  help="Use one of the test-suite's cmake configurations."
-                       " Ex: Release, Debug")
-    # Test compiler
-    @click.option("--cc", "cc", metavar="CC", type=click.UNPROCESSED,
-                  default=None,
-                  help="Path to the C compiler to test")
-    @click.option("--cxx", "cxx", metavar="CXX", type=click.UNPROCESSED,
-                  default=None,
-                  help="Path to the C++ compiler to test (inferred from"
-                       " --cc where possible")
-    @click.option("--cppflags", "cppflags", type=click.UNPROCESSED,
-                  multiple=True, default=[],
-                  help="Extra flags to pass the compiler in C or C++ mode. "
-                       "Can be given multiple times")
-    @click.option("--cflags", "--cflag", "cflags", type=click.UNPROCESSED,
-                  multiple=True, default=[],
-                  help="Extra CFLAGS to pass to the compiler. Can be "
-                       "given multiple times")
-    @click.option("--cxxflags", "cxxflags", type=click.UNPROCESSED,
-                  multiple=True, default=[],
-                  help="Extra CXXFLAGS to pass to the compiler. Can be "
-                       "given multiple times")
-    # Test selection
-    @click.option("--test-size", "test_size",
-                  type=click.Choice(['small', 'regular', 'large']),
-                  default='regular', help="The size of test inputs to use")
-    @click.option("--benchmarking-only", "benchmarking_only", is_flag=True,
-                  help="Benchmarking-only mode. Disable unit tests and "
-                       "other flaky or short-running tests")
-    @click.option("--only-test", "only_test", metavar="PATH",
-                  type=click.UNPROCESSED, default=None,
-                  help="Only run tests under PATH")
-    # Test Execution
-    @click.option("--only-compile", "only_compile",
-                  help="Don't run the tests, just compile them.", is_flag=True)
-    @click.option("-j", "--threads", "threads",
-                  help="Number of testing (and optionally build) "
-                  "threads", type=int, default=1, metavar="N")
-    @click.option("--build-threads", "build_threads",
-                  help="Number of compilation threads, defaults to --threads",
-                  type=int, default=0, metavar="N")
-    @click.option("--use-perf", "use_perf",
-                  help="Use Linux perf for high accuracy timing, profile "
-                       "information or both",
-                  type=click.Choice(['none', 'time', 'profile', 'all']),
-                  default='none')
-    @click.option("--perf-events", "perf_events",
-                  help=("Define which linux perf events to measure"),
-                  type=click.UNPROCESSED, default=None)
-    @click.option("--run-under", "run_under", default="",
-                  help="Wrapper to run tests under", type=click.UNPROCESSED)
-    @click.option("--exec-multisample", "exec_multisample",
-                  help="Accumulate execution test data from multiple runs",
-                  type=int, default=1, metavar="N")
-    @click.option("--compile-multisample", "compile_multisample",
-                  help="Accumulate compile test data from multiple runs",
-                  type=int, default=1, metavar="N")
-    @click.option("-d", "--diagnose", "diagnose",
-                  help="Produce a diagnostic report for a particular "
-                       "test, this will not run all the tests.  Must be"
-                       " used in conjunction with --only-test.",
-                  is_flag=True, default=False,)
-    @click.option("--pgo", "pgo",
-                  help="Run the test-suite in training mode first and"
-                       " collect PGO data, then rerun with that training "
-                       "data.",
-                  is_flag=True, default=False,)
-    # Output Options
-    @click.option("--no-auto-name", "auto_name",
-                  help="Don't automatically derive submission name",
-                  flag_value=False, default=True)
-    @click.option("--run-order", "run_order", metavar="STR",
-                  help="String to use to identify and order this run")
-    @click.option("--submit", "submit_url", metavar="URLORPATH",
-                  help="autosubmit the test result to the given server"
-                       " (or local instance)",
-                  type=click.UNPROCESSED, default=None)
-    @click.option("--commit", "commit",
-                  help="whether the autosubmit result should be committed",
-                  type=int, default=True)
-    @click.option("--succinct-compile-output", "succinct",
-                  help="run Make without VERBOSE=1", is_flag=True)
-    @click.option("-v", "--verbose", "verbose", is_flag=True, default=False,
-                  help="show verbose test results")
-    @click.option("--exclude-stat-from-submission",
-                  "exclude_stat_from_submission",
-                  help="Do not submit the stat of this type",
-                  multiple=True, default=[],
-                  type=click.Choice(KNOWN_SAMPLE_KEYS))
-    @click.option("--single-result", "single_result",
-                  help="only execute this single test and apply "
-                       "--single-result-predicate to calculate the exit "
-                       "status")
-    @click.option("--single-result-predicate", "single_result_predicate",
-                  help="the predicate to apply to calculate the exit "
-                       "status (with --single-result)", default="status")
-    # Test tools
-    @click.option("--use-cmake", "cmake", metavar="PATH",
-                  type=click.UNPROCESSED, default="cmake",
-                  help="Path to CMake [cmake]")
-    @click.option("--use-make", "make", metavar="PATH",
-                  type=click.UNPROCESSED, default="make",
-                  help="Path to Make [make]")
-    @click.option("--use-lit", "lit", metavar="PATH", type=click.UNPROCESSED,
-                  default="llvm-lit",
-                  help="Path to the LIT test runner [llvm-lit]")
-    def cli_wrapper(*args, **kwargs):
-        """LLVM test-suite"""
-        test_suite = TestSuiteTest()
-
-        for key, value in kwargs.items():
-            setattr(test_suite.opts, key, value)
-
-        results = test_suite.run_test(test_suite.opts)
-        test_suite.show_results_url(results)
-
     def run_test(self, opts):
 
         if self.opts.cc is not None:
@@ -1094,3 +949,146 @@ class TestSuiteTest(BuiltinTest):
                 return report_path
 
         return DontSubmitResults()
+
+@click.command("test-suite", short_help=__doc__)
+@click.argument("label", default=platform.uname()[1], required=False,
+                type=click.UNPROCESSED)
+# Sandbox options
+@click.option("-S", "--sandbox", "sandbox_path", required=True,
+              help="Parent directory to build and run tests in",
+              type=click.UNPROCESSED, metavar="PATH")
+@click.option("--no-timestamp", "timestamp_build",
+              flag_value=False, default=True,
+              help="Don't timestamp build directory (for testing)")
+@click.option("--no-configure", "run_configure",
+              flag_value=False, default=True,
+              help="Don't run CMake if CMakeCache.txt is present"
+                   " (only useful with --no-timestamp")
+# Inputs
+@click.option("--test-suite", "test_suite_root",
+              type=click.UNPROCESSED, metavar="PATH",
+              help="Path to the LLVM test-suite sources")
+@click.option("--test-externals", "test_suite_externals",
+              type=click.UNPROCESSED, metavar="PATH",
+              help="Path to the LLVM test-suite externals")
+@click.option("--cmake-define", "cmake_defines",
+              multiple=True,
+              help="Defines to pass to cmake. These do not require the "
+                   "-D prefix and can be given multiple times. e.g.: "
+                   "--cmake-define A=B => -DA=B")
+@click.option("-C", "--cmake-cache", "cmake_cache", multiple=True,
+              default=[],
+              help="Use one of the test-suite's cmake configurations."
+                   " Ex: Release, Debug")
+# Test compiler
+@click.option("--cc", "cc", metavar="CC", type=click.UNPROCESSED,
+              default=None,
+              help="Path to the C compiler to test")
+@click.option("--cxx", "cxx", metavar="CXX", type=click.UNPROCESSED,
+              default=None,
+              help="Path to the C++ compiler to test (inferred from"
+                   " --cc where possible")
+@click.option("--cppflags", "cppflags", type=click.UNPROCESSED,
+              multiple=True, default=[],
+              help="Extra flags to pass the compiler in C or C++ mode. "
+                   "Can be given multiple times")
+@click.option("--cflags", "--cflag", "cflags", type=click.UNPROCESSED,
+              multiple=True, default=[],
+              help="Extra CFLAGS to pass to the compiler. Can be "
+                   "given multiple times")
+@click.option("--cxxflags", "cxxflags", type=click.UNPROCESSED,
+              multiple=True, default=[],
+              help="Extra CXXFLAGS to pass to the compiler. Can be "
+                   "given multiple times")
+# Test selection
+@click.option("--test-size", "test_size",
+              type=click.Choice(['small', 'regular', 'large']),
+              default='regular', help="The size of test inputs to use")
+@click.option("--benchmarking-only", "benchmarking_only", is_flag=True,
+              help="Benchmarking-only mode. Disable unit tests and "
+                   "other flaky or short-running tests")
+@click.option("--only-test", "only_test", metavar="PATH",
+              type=click.UNPROCESSED, default=None,
+              help="Only run tests under PATH")
+# Test Execution
+@click.option("--only-compile", "only_compile",
+              help="Don't run the tests, just compile them.", is_flag=True)
+@click.option("-j", "--threads", "threads",
+              help="Number of testing (and optionally build) "
+              "threads", type=int, default=1, metavar="N")
+@click.option("--build-threads", "build_threads",
+              help="Number of compilation threads, defaults to --threads",
+              type=int, default=0, metavar="N")
+@click.option("--use-perf", "use_perf",
+              help="Use Linux perf for high accuracy timing, profile "
+                   "information or both",
+              type=click.Choice(['none', 'time', 'profile', 'all']),
+              default='none')
+@click.option("--perf-events", "perf_events",
+              help=("Define which linux perf events to measure"),
+              type=click.UNPROCESSED, default=None)
+@click.option("--run-under", "run_under", default="",
+              help="Wrapper to run tests under", type=click.UNPROCESSED)
+@click.option("--exec-multisample", "exec_multisample",
+              help="Accumulate execution test data from multiple runs",
+              type=int, default=1, metavar="N")
+@click.option("--compile-multisample", "compile_multisample",
+              help="Accumulate compile test data from multiple runs",
+              type=int, default=1, metavar="N")
+@click.option("-d", "--diagnose", "diagnose",
+              help="Produce a diagnostic report for a particular "
+                   "test, this will not run all the tests.  Must be"
+                   " used in conjunction with --only-test.",
+              is_flag=True, default=False,)
+@click.option("--pgo", "pgo",
+              help="Run the test-suite in training mode first and"
+                   " collect PGO data, then rerun with that training "
+                   "data.",
+              is_flag=True, default=False,)
+# Output Options
+@click.option("--no-auto-name", "auto_name",
+              help="Don't automatically derive submission name",
+              flag_value=False, default=True)
+@click.option("--run-order", "run_order", metavar="STR",
+              help="String to use to identify and order this run")
+@click.option("--submit", "submit_url", metavar="URLORPATH",
+              help="autosubmit the test result to the given server"
+                   " (or local instance)",
+              type=click.UNPROCESSED, default=None)
+@click.option("--commit", "commit",
+              help="whether the autosubmit result should be committed",
+              type=int, default=True)
+@click.option("--succinct-compile-output", "succinct",
+              help="run Make without VERBOSE=1", is_flag=True)
+@click.option("-v", "--verbose", "verbose", is_flag=True, default=False,
+              help="show verbose test results")
+@click.option("--exclude-stat-from-submission",
+              "exclude_stat_from_submission",
+              help="Do not submit the stat of this type",
+              multiple=True, default=[],
+              type=click.Choice(KNOWN_SAMPLE_KEYS))
+@click.option("--single-result", "single_result",
+              help="only execute this single test and apply "
+                   "--single-result-predicate to calculate the exit "
+                   "status")
+@click.option("--single-result-predicate", "single_result_predicate",
+              help="the predicate to apply to calculate the exit "
+                   "status (with --single-result)", default="status")
+# Test tools
+@click.option("--use-cmake", "cmake", metavar="PATH",
+              type=click.UNPROCESSED, default="cmake",
+              help="Path to CMake [cmake]")
+@click.option("--use-make", "make", metavar="PATH",
+              type=click.UNPROCESSED, default="make",
+              help="Path to Make [make]")
+@click.option("--use-lit", "lit", metavar="PATH", type=click.UNPROCESSED,
+              default="llvm-lit",
+              help="Path to the LIT test runner [llvm-lit]")
+def cli_action(*args, **kwargs):
+    test_suite = TestSuiteTest()
+
+    for key, value in kwargs.items():
+        setattr(test_suite.opts, key, value)
+
+    results = test_suite.run_test(test_suite.opts)
+    test_suite.show_results_url(results)
