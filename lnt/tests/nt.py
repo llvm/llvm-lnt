@@ -1,3 +1,4 @@
+"""LLVM test-suite compile and execution tests"""
 import csv
 import os
 import platform
@@ -1496,9 +1497,6 @@ nightly test, but it should not be used for submissions."""
 
 
 class NTTest(builtintest.BuiltinTest):
-    def describe(self):
-        return 'LLVM test-suite compile and execution tests'
-
     # FIXME: an equivalent to argparse's add_argument_group is not implemented
     #        on click. Need to review it when such functionality is available.
     #        https://github.com/pallets/click/issues/373

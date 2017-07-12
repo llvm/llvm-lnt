@@ -1,3 +1,4 @@
+"""LLVM test-suite"""
 import subprocess
 import tempfile
 import json
@@ -173,9 +174,6 @@ class TestSuiteTest(BuiltinTest):
         self.configured = False
         self.compiled = False
         self.trained = False
-
-    def describe(self):
-        return "LLVM test-suite"
 
     @staticmethod
     @click.command("test-suite")

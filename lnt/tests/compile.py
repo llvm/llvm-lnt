@@ -1,3 +1,4 @@
+"""Single file compile-time performance testing"""
 import errno
 import hashlib
 import json
@@ -702,9 +703,6 @@ We run each of the compile time tests in various stages:
 
 
 class CompileTest(builtintest.BuiltinTest):
-    def describe(self):
-        return 'Single file compile-time performance testing'
-
     # FIXME: an equivalent to argparse's add_argument_group is not implemented
     #        on click. Need to review it when such functionality is available.
     #        https://github.com/pallets/click/issues/373
