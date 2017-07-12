@@ -1,32 +1,12 @@
 """
 Miscellaneous utilities for running "scripts".
 """
-
 import errno
 
 import os
 import sys
 import time
 from lnt.util import logger
-
-try:
-    from flask import current_app, flash
-except:
-    # We may be imported from Sphinx. Don't error if current_app isn't available here -
-    # instead error when it is used.
-    pass
-# FIXME: Find a better place for this code.
-from lnt.server.ui.util import FLASH_INFO
-
-
-def visible_note(message):
-    """Log a note to the logger as well as page with a flash."""
-    logger.info(message)
-    try:
-        flash(message, FLASH_INFO)
-    except RuntimeError:
-        # We are not in a Flask environment right now (command line).
-        pass
 
 
 def timed(func):

@@ -38,7 +38,7 @@ from lnt.server.reporting.analysis import ComparisonResult, calc_geomean
 from lnt.server.ui.decorators import frontend, db_route, v4_route
 from lnt.server.ui.globals import db_url_for, v4_url_for
 from lnt.server.ui.regression_views import PrecomputedCR
-from lnt.server.ui.util import FLASH_DANGER, FLASH_SUCCESS
+from lnt.server.ui.util import FLASH_DANGER, FLASH_SUCCESS, FLASH_INFO
 from lnt.server.ui.util import mean
 from lnt.util import async_ops
 from lnt.server.ui.util import baseline_key, convert_revision
@@ -401,6 +401,9 @@ class V4RequestInfo(object):
             aggregation_fn=self.aggregation_fn, confidence_lv=confidence_lv,
             styles=styles, classes=classes)
         self.sri = self.data['sri']
+        note = self.data['visible_note']
+        if note:
+            flash(note, FLASH_INFO)
 
 @v4_route("/<int:id>/report")
 def v4_report(id):
