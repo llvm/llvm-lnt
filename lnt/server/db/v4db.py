@@ -114,7 +114,15 @@ class V4DB(object):
         self.echo = echo
         with V4DB._engine_lock:
             if path not in V4DB._engine:
-                V4DB._engine[path] = sqlalchemy.create_engine(path, echo=echo)
+                connect_args = {}
+                if path.startswith("sqlite://"):
+                    # Some of the background tasks keep database transactions
+                    # open for a long time. Make it less likely to hit
+                    # "(OperationalError) database is locked" because of that.
+                    connect_args['timeout'] = 30
+                engine = sqlalchemy.create_engine(path, echo=echo,
+                                                  connect_args=connect_args)
+                V4DB._engine[path] = engine
         self.engine = V4DB._engine[path]
 
         # Update the database to the current version, if necessary. Only check
