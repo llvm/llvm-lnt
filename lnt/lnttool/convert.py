@@ -1,13 +1,8 @@
-import os
-import sys
-
-import click
 from lnt import formats
+import click
 
 
-def convert_data(input, output, inFormat, outFormat):
-    from lnt import formats
-
+def _convert_data(input, output, inFormat, outFormat):
     out = formats.get_format(outFormat)
     if out is None or not out.get('write'):
         raise SystemExit("unknown output format: %r" % outFormat)
@@ -29,10 +24,12 @@ def convert_data(input, output, inFormat, outFormat):
               default='plist', help="output format")
 def action_convert(input, output, input_format, output_format):
     """convert between input formats"""
+    import os
+    import sys
 
     try:
         try:
-            convert_data(input, output, input_format, output_format)
+            _convert_data(input, output, input_format, output_format)
         finally:
             if output != sys.stdout:
                 output.close()

@@ -1,13 +1,5 @@
-import contextlib
-import pprint
-import sys
-
 import click
-
 import lnt.formats
-import lnt.util.ImportData
-import lnt.server.instance
-
 
 @click.command("import")
 @click.argument("instance_path", type=click.UNPROCESSED)
@@ -31,6 +23,11 @@ def action_import(instance_path, files, database, output_format, commit,
                   show_sql, show_sample_count, show_raw_result, testsuite,
                   verbose, quiet, no_email, no_report):
     """import test data into a database"""
+    import contextlib
+    import lnt.server.instance
+    import lnt.util.ImportData
+    import pprint
+    import sys
 
     # Load the LNT instance.
     instance = lnt.server.instance.Instance.frompath(instance_path)

@@ -1,23 +1,15 @@
 """Implement the command line 'lnt' tool."""
-import logging
-import os
-import sys
-import json
-import contextlib
-import code
-import click
-
-import lnt
-from lnt.util import logger
-import lnt.testing.profile.profile as profile
-
 from .common import init_logger
-from .create import action_create
 from .convert import action_convert
+from .create import action_create
 from .import_data import action_import
+from .import_report import action_importreport
 from .updatedb import action_updatedb
 from .viewcomparison import action_view_comparison
-from .import_report import action_importreport
+from lnt.util import logger
+import click
+import logging
+import sys
 
 
 @click.command("runserver", short_help="start a new development server")
@@ -54,6 +46,7 @@ passing database instances back and forth, when others only need to be able to
 view the results.
     """
     import lnt.server.ui.app
+    import os
 
     init_logger(logging.DEBUG, show_sql=show_sql)
 
@@ -71,6 +64,7 @@ view the results.
     if shell:
         from flask import current_app
         from flask import g
+        import code
         ctx = app.test_request_context()
         ctx.push()
 
@@ -91,9 +85,8 @@ view the results.
 @click.option("--testsuite", "-s", default='nts')
 def action_checkformat(input_file, testsuite):
     """check the format of an LNT test report file"""
-
-    import lnt.server.db.v4db
     import lnt.server.config
+    import lnt.server.db.v4db
     import lnt.util.ImportData
     db = lnt.server.db.v4db.V4DB('sqlite:///:memory:',
                                  lnt.server.config.Config.dummy_instance())
@@ -155,13 +148,13 @@ def action_showtests():
               help="show verbose test results")
 def action_submit(url, files, commit, verbose):
     """submit a test report to the server"""
+    from lnt.util import ServerUtil
+    import lnt.util.ImportData
 
     if not commit:
         logger.warning("submit called with --commit=0, " +
                        "your results will not be saved at the server.")
 
-    from lnt.util import ServerUtil
-    import lnt.util.ImportData
     files = ServerUtil.submitFiles(url, files, commit, verbose)
     for submitted_file in files:
         if verbose:
@@ -175,7 +168,6 @@ def action_submit(url, files, commit, verbose):
 @click.option("--show-sql", is_flag=True, help="show all SQL queries")
 def action_update(db_path, show_sql):
     """create and or auto-update the given database"""
-
     init_logger(logging.INFO, show_sql=show_sql, stream=sys.stderr)
 
     # Update the database.
@@ -205,12 +197,12 @@ def action_send_daily_report(instance_path, address, database, testsuite, host,
                              from_address, today, subject_prefix, dry_run,
                              days, filter_machine_regex):
     """send a daily report email"""
+    import contextlib
     import datetime
     import email.mime.multipart
     import email.mime.text
-    import smtplib
-
     import lnt.server.reporting.dailyreport
+    import smtplib
 
     # Load the LNT instance.
     instance = lnt.server.instance.Instance.frompath(instance_path)
@@ -298,10 +290,11 @@ def action_send_run_comparison(instance_path, run_a_id, run_b_id, database,
                                testsuite, host, from_address, to_address,
                                subject_prefix, dry_run):
     """send a run-vs-run comparison email"""
+    import contextlib
     import email.mime.multipart
     import email.mime.text
-    import smtplib
     import lnt.server.reporting.dailyreport
+    import smtplib
 
     init_logger(logging.ERROR)
 
@@ -380,6 +373,7 @@ def action_profile():
 @click.argument("output", type=click.Path(exists=True))
 def command_update(input, output):
     """upgrade a profile to the latest version"""
+    import lnt.testing.profile.profile as profile
     profile.Profile.fromFile(input).upgrade().save(filename=output)
 
 
@@ -387,6 +381,7 @@ def command_update(input, output):
 @click.argument("input", type=click.Path(exists=True))
 def command_get_version(input):
     """print the version of a profile"""
+    import lnt.testing.profile.profile as profile
     print profile.Profile.fromFile(input).getVersion()
 
 
@@ -394,6 +389,8 @@ def command_get_version(input):
 @click.argument("input", type=click.Path(exists=True))
 def command_top_level_counters(input):
     """print the whole-profile counter values"""
+    import json
+    import lnt.testing.profile.profile as profile
     print json.dumps(profile.Profile.fromFile(input).getTopLevelCounters())
 
 
@@ -401,6 +398,8 @@ def command_top_level_counters(input):
 @click.argument("input", type=click.Path(exists=True))
 def command_get_functions(input):
     """print the functions in a profile"""
+    import json
+    import lnt.testing.profile.profile as profile
     print json.dumps(profile.Profile.fromFile(input).getFunctions())
 
 
@@ -409,6 +408,8 @@ def command_get_functions(input):
 @click.argument('fn')
 def command_code_for_function(input, fn):
     """print the code/instruction for a function"""
+    import json
+    import lnt.testing.profile.profile as profile
     print json.dumps(
         list(profile.Profile.fromFile(input).getCodeForFunction(fn)))
 
@@ -423,6 +424,7 @@ def _version_check():
     requirements).
     """
     import pkg_resources
+    import lnt
 
     # Get the current distribution.
     installed_dist = pkg_resources.get_distribution("LNT")
@@ -439,6 +441,7 @@ LNT or rerun 'setup.py develop' if using development mode.""" % (
 
 def show_version(ctx, param, value):
     """print LNT version"""
+    import lnt
     if not value or ctx.resilient_parsing:
         return
     if lnt.__version__:

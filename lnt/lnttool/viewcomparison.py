@@ -1,22 +1,7 @@
-import logging
-import os
-import shutil
-import sys
-import tempfile
-import thread
-import time
-import urllib
-import webbrowser
-import contextlib
-
 import click
 
-from lnt.util import logger
-from lnt.util.ImportData import import_and_report
-from .common import init_logger
 
-
-def start_browser(url, debug=False):
+def _start_browser(url, debug=False):
     def url_is_up(url):
         try:
             o = urllib.urlopen(url)
@@ -56,10 +41,22 @@ def start_browser(url, debug=False):
 def action_view_comparison(report_a, report_b, hostname, port, dry_run,
                            testsuite):
     """view a report comparison using a temporary server"""
-
+    from .common import init_logger
+    from lnt.util import logger
+    from lnt.util.ImportData import import_and_report
+    import contextlib
+    import lnt.server.db.migrate
     import lnt.server.instance
     import lnt.server.ui.app
-    import lnt.server.db.migrate
+    import logging
+    import os
+    import shutil
+    import sys
+    import tempfile
+    import thread
+    import time
+    import urllib
+    import webbrowser
 
     init_logger(logging.ERROR)
 
@@ -96,7 +93,7 @@ def action_view_comparison(report_a, report_b, hostname, port, dry_run,
             logger.info("opening comparison view: %s" % (comparison_url,))
 
             if not dry_run:
-                thread.start_new_thread(start_browser, (comparison_url, True))
+                thread.start_new_thread(_start_browser, (comparison_url, True))
 
             # Run the webserver.
             app = lnt.server.ui.app.App.create_with_instance(instance)

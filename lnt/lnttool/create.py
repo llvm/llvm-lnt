@@ -1,15 +1,6 @@
-import hashlib
-import logging
-import os
-import platform
-import random
-import sys
-
 import click
+import platform
 
-import lnt.testing
-import lnt.server.db.migrate
-from .common import init_logger
 
 kConfigVersion = (0, 1, 0)
 kConfigTemplate = """\
@@ -119,6 +110,14 @@ def action_create(instance_path, name, config, wsgi, tmp_dir, db_dir,
 * INSTANCE_PATH should point to a directory that will keep
 LNT configuration.
     """
+    from .common import init_logger
+    import hashlib
+    import lnt.server.db.migrate
+    import lnt.testing
+    import logging
+    import os
+    import random
+    import sys
 
     init_logger(logging.INFO if show_sql else logging.WARNING,
                 show_sql=show_sql)

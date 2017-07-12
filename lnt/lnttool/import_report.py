@@ -1,8 +1,4 @@
-import os
-
 import click
-
-import lnt.testing
 
 
 @click.command("importreport", short_help="import simple space separated "
@@ -29,6 +25,8 @@ def action_importreport(input, output, suite, order, machine):
     The format is "test-name.metric", so exec and size are valid metrics for
     the test suite you are submitting to.
     """
+    import lnt.testing
+    import os
 
     machine_info = {}
     run_info = {'tag': suite}

@@ -1,8 +1,4 @@
-import contextlib
 import click
-
-import lnt.server.instance
-from lnt.util import logger
 
 
 @click.command("updatedb")
@@ -26,6 +22,9 @@ from lnt.util import logger
 def action_updatedb(instance_path, database, testsuite, tmp_dir, commit,
                     show_sql, delete_machines, delete_runs, delete_order):
     """modify a database"""
+    from lnt.util import logger
+    import contextlib
+    import lnt.server.instance
 
     # Load the instance.
     instance = lnt.server.instance.Instance.frompath(instance_path)
