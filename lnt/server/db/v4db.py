@@ -35,9 +35,13 @@ class V4DB(object):
             self._cache = {}
 
         def __iter__(self):
-            for name, in self.v4db.query(testsuite.TestSuite.name):
+            tsnames = [d[0] for d in
+                       self.v4db.query(testsuite.TestSuite.name).all()]
+            for name in tsnames:
                 yield name
             for name in self._extra_suites.keys():
+                if name in tsnames:
+                    continue
                 yield name
 
         def add_suite(self, suite):
@@ -52,13 +56,16 @@ class V4DB(object):
                 return self._cache[name]
 
             create_tables = False
+            v4db = self.v4db
             ts = self._extra_suites.get(name)
             if ts:
-                ts.check_schema_changes(self.v4db)
+                testsuite.check_testsuite_schema_changes(v4db, ts)
+                ts = testsuite.sync_testsuite_with_metatables(v4db.session, ts)
+                v4db.session.commit()
                 create_tables = True
             else:
                 # Get the test suite object.
-                ts = self.v4db.query(testsuite.TestSuite).\
+                ts = v4db.query(testsuite.TestSuite).\
                     filter(testsuite.TestSuite.name == name).first()
                 if ts is None:
                     return default
@@ -66,7 +73,7 @@ class V4DB(object):
             # Instantiate the per-test suite wrapper object for this test
             # suite.
             self._cache[name] = ts = lnt.server.db.testsuitedb.TestSuiteDB(
-                self.v4db, name, ts, create_tables=create_tables)
+                v4db, name, ts, create_tables=create_tables)
             return ts
 
         def __getitem__(self, name):
