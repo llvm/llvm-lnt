@@ -109,8 +109,6 @@ instance. Example:
 
 * LNT currently supports the following metric types:
 
-  - ``Integer``: Integer values; postgres limits this to 4 bytes,
-    sqlite support up to 8 bytes.
   - ``Real``: 8-byte IEEE floating point values.
   - ``Hash``: String values; limited to 256, sqlite is not enforcing the limit.
   - ``Status``: StatusKind enum values (limited to 'PASS', 'FAIL', 'XFAIL' right

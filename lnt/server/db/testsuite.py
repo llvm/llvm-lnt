@@ -218,27 +218,15 @@ class TestSuite(Base):
         ts.order_fields = order_fields
         assert(len(order_fields) > 0)
 
-        # Hardcode some sample types. I wonder whether we should rather query
-        # them from the core database?
-        # This needs to be kept in sync with testsuitedb.py
-        metric_types = {
-            'Real': SampleType('Real'),
-            'Integer': SampleType('Integer'),
-            'Status': SampleType('Status'),
-            'Hash': SampleType('Hash')
-        }
-
         sample_fields = []
         for metric_desc in data['metrics']:
             name = metric_desc['name']
             bigger_is_better = metric_desc.get('bigger_is_better', False)
             metric_type_name = metric_desc.get('type', 'Real')
-            metric_type = metric_types.get(metric_type_name)
-            if metric_type is None:
-                raise ValueError("Unknown metric type '%s' (not in %s)" %
-                                 (metric_type_name,
-                                  metric_types.keys().join(",")))
-
+            if not testsuitedb.is_known_sample_type(metric_type_name):
+                raise ValueError("Unknown metric type '%s'" %
+                                 metric_type_name)
+            metric_type = SampleType(metric_type_name)
             bigger_is_better_int = 1 if bigger_is_better else 0
             field = SampleField(name, metric_type, info_key=None,
                                 status_field=None,

@@ -5,10 +5,10 @@ name: size
 metrics:
   - name: text_size
     bigger_is_better: false
-    type: Integer
+    type: Real
   - name: data_size
     bigger_is_better: false
-    type: Integer
+    type: Real
   - name: score
     bigger_is_better: true
     type: Real

@@ -5,7 +5,7 @@ name: size
 metrics:
   - name: text_size
     bigger_is_better: false
-    type: Integer
+    type: Real
   - name: hash
     type: Hash
   - name: score

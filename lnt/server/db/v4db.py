@@ -159,17 +159,6 @@ class V4DB(object):
         except KeyError:
                 fatal("status kinds not initialized!")
 
-        sample_types = {
-            st.name: st for st in self.query(testsuite.SampleType).all()
-        }
-        # Resolve or create the known sample types.
-        try:
-            self.real_sample_type = sample_types["Real"]
-            self.status_sample_type = sample_types["Status"]
-            self.hash_sample_type = sample_types["Hash"]
-        except KeyError:
-            fatal("sample types not initialized!")
-
         self._load_shemas()
 
     def close(self):

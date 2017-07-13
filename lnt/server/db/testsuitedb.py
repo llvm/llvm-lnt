@@ -29,10 +29,13 @@ def strip(obj):
 
 _sample_type_to_sql = {
     'Real': Float,
-    'Integer': Integer,
     'Hash': String,
-    'Status': Integer
+    'Status': Integer,
 }
+
+
+def is_known_sample_type(name):
+    return name in _sample_type_to_sql
 
 
 def make_sample_column(name, type):
