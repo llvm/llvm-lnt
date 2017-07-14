@@ -410,7 +410,7 @@ class TestSuiteDB(object):
             id = Column("ID", Integer, primary_key=True)
             # We do not need an index on run_id, this is covered by the
             # compound (Run(ID),Test(ID)) index we create below.
-            run_id = Column("RunID", Integer, ForeignKey(Run.id))
+            run_id = Column("RunID", Integer, ForeignKey(Run.id), index=True)
             test_id = Column("TestID", Integer, ForeignKey(Test.id),
                              index=True)
             profile_id = Column("ProfileID", Integer, ForeignKey(Profile.id))
