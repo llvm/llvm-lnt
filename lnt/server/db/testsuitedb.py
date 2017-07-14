@@ -350,6 +350,11 @@ class TestSuiteDB(object):
                 self.order
                 return strip(self.__dict__)
 
+        Machine.runs = relation(Run, back_populates='machine',
+                                cascade="all, delete-orphan")
+        Order.runs = relation(Run, back_populates='order',
+                              cascade="all, delete-orphan")
+
         class Test(self.base, ParameterizedMixin):
             __tablename__ = db_key_name + '_Test'
 
@@ -500,6 +505,9 @@ class TestSuiteDB(object):
             def __json__(self):
                 return strip(self.__dict__)
 
+        Run.samples = relation(Sample, back_populates='run',
+                               cascade="all, delete-orphan")
+
         class FieldChange(self.base, ParameterizedMixin):
             """FieldChange represents a change in between the values
             of the same field belonging to two samples from consecutive runs.
@@ -551,6 +559,9 @@ class TestSuiteDB(object):
                 self.start_order
                 self.end_order
                 return strip(self.__dict__)
+
+        Run.fieldchanges = relation(FieldChange, back_populates='run',
+                                    cascade="all, delete-orphan")
 
         class Regression(self.base, ParameterizedMixin):
             """Regressions hold data about a set of RegressionIndices."""
@@ -609,6 +620,10 @@ class TestSuiteDB(object):
                 return {u'RegressionIndicatorID': self.id,
                         u'Regression': self.regression,
                         u'FieldChange': self.field_change}
+
+        FieldChange.regression_indicators = \
+            relation(RegressionIndicator, back_populates='field_change',
+                     cascade="all, delete-orphan")
 
         class ChangeIgnore(self.base, ParameterizedMixin):
             """Changes to ignore in the web interface."""
