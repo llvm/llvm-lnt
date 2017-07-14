@@ -36,56 +36,18 @@ def action_updatedb(instance_path, database, testsuite, tmp_dir, commit,
         order = None
         # Compute a list of all the runs to delete.
         if delete_order:
-            order = ts.query(ts.Order) \
-                .filter(ts.Order.id == delete_order).one()
-            runs_to_delete = ts.query(ts.Run.id) \
-                .filter(ts.Run.order_id == order.id).all()
-            runs_to_delete = [r[0] for r in runs_to_delete]
+            runs = ts.query(ts.Run).join(ts.Order) \
+                .filter(ts.Order.id == delete_order).all()
         else:
-            runs_to_delete = list(delete_runs)
+            runs = ts.query(ts.Run).filter(ts.Run.id.in_(delete_runs)).all()
+        for run in runs:
+            ts.delete(run)
 
         if delete_machines:
-            runs_to_delete.extend(
-                id
-                for id, in (ts.query(ts.Run.id)
-                            .join(ts.Machine)
-                            .filter(ts.Machine.name.in_(delete_machines))))
-
-        # Delete all samples associated with those runs.
-        ts.query(ts.Sample).\
-            filter(ts.Sample.run_id.in_(runs_to_delete)).\
-            delete(synchronize_session=False)
-
-        # Delete all FieldChanges and RegressionIndicators
-        for r in runs_to_delete:
-            fcs = ts.query(ts.FieldChange). \
-                filter(ts.FieldChange.run_id == r).all()
-            for f in fcs:
-                ris = ts.query(ts.RegressionIndicator) \
-                    .filter(ts.RegressionIndicator.field_change_id == f.id) \
-                    .all()
-                for r in ris:
-                    ts.delete(r)
-                ts.delete(f)
-        # Delete all those runs.
-        ts.query(ts.Run).\
-            filter(ts.Run.id.in_(runs_to_delete)).\
-            delete(synchronize_session=False)
-
-        # Delete the machines.
-        for name in delete_machines:
-            # Delete all FieldChanges associated with this machine.
-            ids = ts.query(ts.FieldChange.id).\
-                join(ts.Machine).filter(ts.Machine.name == name).all()
-            for i in ids:
-                ts.query(ts.FieldChange).filter(ts.FieldChange.id == i[0]).\
-                    delete()
-
-            num_deletes = ts.query(ts.Machine).filter_by(name=name).delete()
-            if num_deletes == 0:
-                logger.warning("unable to find machine named: %r" % name)
-        if order:
-            ts.delete(order)
+            machines = ts.query(ts.Machine) \
+                .filter(ts.Machine.name.in_(delete_machines)).all()
+            for machine in machines:
+                ts.delete(machine)
 
         if commit:
             db.commit()

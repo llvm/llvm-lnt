@@ -21,14 +21,17 @@ lnt import "${TESTDIR}/instance" "${SHARED_INPUTS}/sample-a-small.plist" --commi
 # default.
 #
 lnt updatedb "${TESTDIR}/instance" --testsuite nts --delete-run 1 \
-	--show-sql > "${TESTDIR}/runrm.out"
+	--commit=1 --show-sql > "${TESTDIR}/runrm.out"
 # RUN: FileCheck --check-prefix CHECK-RUNRM %s < "%t.install/runrm.out"
 
-# CHECK-RUNRM: DELETE FROM "NT_Sample" WHERE "NT_Sample"."RunID" IN (%(RunID_1)s)
-# CHECK-RUNRM-NEXT: {'RunID_1': 1}
-# CHECK-RUNRM: DELETE FROM "NT_Run" WHERE "NT_Run"."ID" IN (%(ID_1)s)
-# CHECK-RUNRM-NEXT: {'ID_1': 1}
-# CHECK-RUNRM: ROLLBACK
+# CHECK-RUNRM: DELETE FROM "NT_Sample" WHERE "NT_Sample"."ID" = %(ID)s
+# CHECK-RUNRM-NEXT: ({'ID': 1}, {'ID': 2})
+# CHECK-RUNRM: DELETE FROM "NT_Run" WHERE "NT_Run"."ID" = %(ID)s
+# CHECK-RUNRM-NEXT: {'ID': 1}
+# CHECK-RUNRM: COMMIT
+
+# Import a test set.
+lnt import "${TESTDIR}/instance" "${SHARED_INPUTS}/sample-a-small.plist" --commit=1 --show-sample-count
 
 # Check that we remove runs when we remove a machine.
 #
@@ -37,10 +40,10 @@ lnt updatedb "${TESTDIR}/instance" --testsuite nts \
 	--show-sql > "${TESTDIR}/machinerm.out"
 # RUN: FileCheck --check-prefix CHECK-MACHINERM %s < "%t.install/machinerm.out"
 
-# CHECK-MACHINERM: DELETE FROM "NT_Sample" WHERE "NT_Sample"."RunID" IN (%(RunID_1)s)
-# CHECK-MACHINERM-NEXT: {'RunID_1': 1}
-# CHECK-MACHINERM: DELETE FROM "NT_Run" WHERE "NT_Run"."ID" IN (%(ID_1)s)
-# CHECK-MACHINERM-NEXT: {'ID_1': 1}
-# CHECK-MACHINERM: DELETE FROM "NT_Machine" WHERE "NT_Machine"."Name" = %(Name_1)s
-# CHECK-MACHINERM-NEXT: {'Name_1': 'LNT SAMPLE MACHINE'}
+# CHECK-MACHINERM: DELETE FROM "NT_Sample" WHERE "NT_Sample"."ID" = %(ID)s
+# CHECK-MACHINERM-NEXT: ({'ID': 3}, {'ID': 4})
+# CHECK-MACHINERM: DELETE FROM "NT_Run" WHERE "NT_Run"."ID" = %(ID)s
+# CHECK-MACHINERM-NEXT: {'ID': 2}
+# CHECK-MACHINERM: DELETE FROM "NT_Machine" WHERE "NT_Machine"."ID" = %(ID)s
+# CHECK-MACHINERM-NEXT: {'ID': 1}
 # CHECK-MACHINERM: COMMIT

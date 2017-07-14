@@ -199,16 +199,20 @@ class ChangeProcessingTests(unittest.TestCase):
     def test_run_deletion(self):
         """Do the FC and RIs get cleaned up when runs are deleted?"""
         ts_db = self.ts_db
-        run_ids = ts_db.query(ts_db.Run.id).all()
+        run_idsq = ts_db.query(ts_db.Run.id).all()
         fc_ids = ts_db.query(ts_db.FieldChange.id).all()
         ri_ids = ts_db.query(ts_db.RegressionIndicator.id).all()
 
-        ts_db.delete_runs([r[0] for r in run_ids])
+        run_ids = [row[0] for row in run_idsq]
+        runs = ts_db.query(ts_db.Run).filter(ts_db.Run.id.in_(run_ids)).all()
+        for run in runs:
+            ts_db.delete(run)
+
         run_ids_new = ts_db.query(ts_db.Run.id).all()
         fc_ids_new = ts_db.query(ts_db.FieldChange.id).all()
         ri_ids_new = ts_db.query(ts_db.RegressionIndicator.id).all()
         # Make sure there was some runs.
-        self.assertNotEqual(len(run_ids), 0)
+        self.assertNotEqual(len(run_idsq), 0)
         self.assertNotEqual(len(fc_ids), 0)
         self.assertNotEqual(len(ri_ids), 0)
 

@@ -184,17 +184,11 @@ class Runs(Resource):
     @requires_auth_token
     def delete(run_id):
         ts = request.get_testsuite()
-
-        try:
-            run = ts.query(ts.Run) \
-                .join(ts.Machine) \
-                .join(ts.Order) \
-                .filter(ts.Run.id == run_id) \
-                .options(joinedload('order')) \
-                .one()
-        except sqlalchemy.orm.exc.NoResultFound:
+        run = ts.query(ts.Run).filter(ts.Run.id == run_id).first()
+        if run is None:
             return abort(404, msg="Did not find run " + str(run_id))
-        ts.delete_runs([run_id], commit=True)
+        ts.delete(run)
+        ts.commit()
         return
 
 

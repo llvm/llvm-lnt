@@ -1034,40 +1034,6 @@ class TestSuiteDB(object):
     def get_next_runs_on_machine(self, run, N):
         return self.get_adjacent_runs_on_machine(run, N, direction=1)
 
-    def delete_runs(self, run_ids, commit=False):
-        # type: (object, List[int], bool) -> None
-        """Delete the following Runs, their Samples, Field Changes and
-        Regression Indicators.
-
-        :param run_ids: list of the run ids to delete.
-        :param commit: commit now?
-        """
-
-        # Delete all samples associated with those runs.
-        self.query(self.Sample). \
-            filter(self.Sample.run_id.in_(run_ids)). \
-            delete(synchronize_session=False)
-
-        # Delete all FieldChanges and RegressionIndicators
-        for r in run_ids:
-            fcs = self.query(self.FieldChange). \
-                filter(self.FieldChange.run_id == r).all()
-            for f in fcs:
-                ris = self.query(self.RegressionIndicator) \
-                    .filter(self.RegressionIndicator.field_change_id == f.id) \
-                    .all()
-                for ri in ris:
-                    self.delete(ri)
-                self.delete(f)
-
-        # Delete all those runs.
-        self.query(self.Run). \
-            filter(self.Run.id.in_(run_ids)). \
-            delete(synchronize_session=False)
-
-        if commit:
-            self.commit()
-
     def __repr__(self):
         return "{} (on {})".format(self.name, self.v4db.path)
 
