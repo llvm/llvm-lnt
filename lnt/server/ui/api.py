@@ -142,6 +142,18 @@ class Machine(Resource):
 
         return jsonify(machine)
 
+    @staticmethod
+    @requires_auth_token
+    def delete(machine_id):
+        ts = request.get_testsuite()
+        machine = ts.query(ts.Machine).filter(ts.Machine.id == machine_id) \
+            .first()
+        if machine is None:
+            return abort(404, msg="Did not find machine " + str(machine_id))
+        ts.session.delete(machine)
+        ts.commit()
+        return
+
 
 class Runs(Resource):
     method_decorators = [in_db]

@@ -28,7 +28,7 @@ class JSONAPIDeleteTester(unittest.TestCase):
         app.testing = True
         self.client = app.test_client()
 
-    def test_run_api(self):
+    def test_runs_api(self):
         """Check /runs/n can be deleted."""
         client = self.client
 
@@ -42,14 +42,52 @@ class JSONAPIDeleteTester(unittest.TestCase):
         resp = client.delete('api/db_default/v4/nts/runs/1')
         self.assertEqual(resp.status_code, 401)
 
-        resp = client.delete('api/db_default/v4/nts/runs/1', headers={'AuthToken': 'wrong token'})
+        resp = client.delete('api/db_default/v4/nts/runs/1',
+                             headers={'AuthToken': 'wrong token'})
         self.assertEqual(resp.status_code, 401)
 
-        resp = client.delete('api/db_default/v4/nts/runs/1', headers={'AuthToken': 'test_token'})
+        resp = client.delete('api/db_default/v4/nts/runs/1',
+                             headers={'AuthToken': 'test_token'})
         self.assertEqual(resp.status_code, 200)
 
         resp = client.get('api/db_default/v4/nts/runs/1')
         self.assertEqual(resp.status_code, 404)
+
+        for sid in sample_ids:
+            resp = client.get('api/db_default/v4/nts/samples/{}'.format(sid))
+            self.assertEqual(resp.status_code, 404)
+
+    def test_machines_api(self):
+        """Check /machines/n can be deleted."""
+        client = self.client
+
+        j = check_json(client, 'api/db_default/v4/nts/machines/2')
+        run_ids = [s['id'] for s in j['runs']]
+        self.assertNotEqual(len(run_ids), 0)
+        sample_ids = []
+        for run_id in run_ids:
+            resp = check_json(client,
+                              'api/db_default/v4/nts/runs/{}'.format(run_id))
+            sample_ids.append([s['id'] for s in resp['samples']])
+        self.assertNotEqual(len(sample_ids), 0)
+
+        resp = client.delete('api/db_default/v4/nts/machines/2')
+        self.assertEqual(resp.status_code, 401)
+
+        resp = client.delete('api/db_default/v4/nts/machines/2',
+                             headers={'AuthToken': 'wrong token'})
+        self.assertEqual(resp.status_code, 401)
+
+        resp = client.delete('api/db_default/v4/nts/machines/2',
+                             headers={'AuthToken': 'test_token'})
+        self.assertEqual(resp.status_code, 200)
+
+        resp = client.get('api/db_default/v4/nts/machines/2')
+        self.assertEqual(resp.status_code, 404)
+
+        for run_id in run_ids:
+            resp = client.get('api/db_default/v4/nts/runs/{}'.format(run_id))
+            self.assertEqual(resp.status_code, 404)
 
         for sid in sample_ids:
             resp = client.get('api/db_default/v4/nts/samples/{}'.format(sid))
