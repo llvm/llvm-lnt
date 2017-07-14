@@ -12,6 +12,7 @@ import os
 import sqlalchemy
 from flask import session
 from sqlalchemy import *
+from sqlalchemy.orm import relation
 from sqlalchemy.orm.exc import ObjectDeletedError
 from typing import List
 
@@ -201,18 +202,16 @@ class TestSuiteDB(object):
 
             # Define two common columns which are used to store the previous
             # and next links for the total ordering amongst run orders.
-            next_order_id = Column("NextOrder", Integer, ForeignKey(
-                    "%s.ID" % __tablename__))
-            previous_order_id = Column("PreviousOrder", Integer, ForeignKey(
-                    "%s.ID" % __tablename__))
+            next_order_id = Column("NextOrder", Integer, ForeignKey(id))
+            previous_order_id = Column("PreviousOrder", Integer,
+                                       ForeignKey(id))
 
             # This will implicitly create the previous_order relation.
             backref = sqlalchemy.orm.backref('previous_order', uselist=False,
                                              remote_side=id)
             join = 'Order.previous_order_id==Order.id'
-            next_order = sqlalchemy.orm.relation("Order", backref=backref,
-                                                 primaryjoin=join,
-                                                 uselist=False)
+            next_order = relation("Order", backref=backref, primaryjoin=join,
+                                  uselist=False)
 
             # Dynamically create fields for all of the test suite defined order
             # fields.
@@ -308,8 +307,8 @@ class TestSuiteDB(object):
             # Such data is stored as a JSON encoded blob.
             parameters_data = Column("Parameters", Binary)
 
-            machine = sqlalchemy.orm.relation(Machine)
-            order = sqlalchemy.orm.relation(Order)
+            machine = relation(Machine)
+            order = relation(Order)
 
             # Dynamically create fields for all of the test suite defined run
             # fields.
@@ -416,9 +415,9 @@ class TestSuiteDB(object):
                              index=True)
             profile_id = Column("ProfileID", Integer, ForeignKey(Profile.id))
 
-            run = sqlalchemy.orm.relation(Run)
-            test = sqlalchemy.orm.relation(Test)
-            profile = sqlalchemy.orm.relation(Profile)
+            run = relation(Run)
+            test = relation(Test)
+            profile = relation(Profile)
 
             @staticmethod
             def get_primary_fields():
@@ -511,32 +510,25 @@ class TestSuiteDB(object):
             old_value = Column("OldValue", Float)
             new_value = Column("NewValue", Float)
             start_order_id = Column("StartOrderID", Integer,
-                                    ForeignKey("%s_Order.ID" % db_key_name))
-            end_order_id = Column("EndOrderID", Integer,
-                                  ForeignKey("%s_Order.ID" % db_key_name))
-            test_id = Column("TestID", Integer,
-                             ForeignKey("%s_Test.ID" % db_key_name))
-            machine_id = Column("MachineID", Integer,
-                                ForeignKey("%s_Machine.ID" % db_key_name))
+                                    ForeignKey(Order.id))
+            end_order_id = Column("EndOrderID", Integer, ForeignKey(Order.id))
+            test_id = Column("TestID", Integer, ForeignKey(Test.id))
+            machine_id = Column("MachineID", Integer, ForeignKey(Machine.id))
             field_id = Column("FieldID", Integer,
                               ForeignKey(self.v4db.SampleField.id))
             # Could be from many runs, but most recent one is interesting.
-            run_id = Column("RunID", Integer,
-                            ForeignKey("%s_Run.ID" % db_key_name))
+            run_id = Column("RunID", Integer, ForeignKey(Run.id))
 
-            start_order = sqlalchemy.orm.relation(Order,
-                                                  primaryjoin='FieldChange.'
-                                                  'start_order_id==Order.id')
-            end_order = sqlalchemy.orm.relation(Order,
-                                                primaryjoin='FieldChange.'
-                                                'end_order_id==Order.id')
-            test = sqlalchemy.orm.relation(Test)
-            machine = sqlalchemy.orm.relation(Machine)
-            field = sqlalchemy.orm.relation(self.v4db.SampleField,
-                                            primaryjoin=(
-                                              self.v4db.SampleField.id ==
-                                              field_id))
-            run = sqlalchemy.orm.relation(Run)
+            start_order = relation(Order, primaryjoin='FieldChange.'
+                                   'start_order_id==Order.id')
+            end_order = relation(Order, primaryjoin='FieldChange.'
+                                 'end_order_id==Order.id')
+            test = relation(Test)
+            machine = relation(Machine)
+            field = relation(self.v4db.SampleField,
+                             primaryjoin=(self.v4db.SampleField.id ==
+                                          field_id))
+            run = relation(Run)
 
             def __init__(self, start_order, end_order, machine,
                          test, field):
@@ -597,15 +589,12 @@ class TestSuiteDB(object):
             __tablename__ = db_key_name + '_RegressionIndicator'
             id = Column("ID", Integer, primary_key=True)
             regression_id = Column("RegressionID", Integer,
-                                   ForeignKey("%s_Regression.ID" %
-                                              db_key_name))
-
+                                   ForeignKey(Regression.id))
             field_change_id = Column("FieldChangeID", Integer,
-                                     ForeignKey("%s_FieldChangeV2.ID" %
-                                                db_key_name))
+                                     ForeignKey(FieldChange.id))
 
-            regression = sqlalchemy.orm.relation(Regression)
-            field_change = sqlalchemy.orm.relation(FieldChange)
+            regression = relation(Regression)
+            field_change = relation(FieldChange)
 
             def __init__(self, regression, field_change):
                 self.regression = regression
@@ -628,10 +617,9 @@ class TestSuiteDB(object):
             id = Column("ID", Integer, primary_key=True)
 
             field_change_id = Column("ChangeIgnoreID", Integer,
-                                     ForeignKey("%s_FieldChangeV2.ID" %
-                                                db_key_name))
+                                     ForeignKey(FieldChange.id))
 
-            field_change = sqlalchemy.orm.relation(FieldChange)
+            field_change = relation(FieldChange)
 
             def __init__(self, field_change):
                 self.field_change = field_change
@@ -647,10 +635,9 @@ class TestSuiteDB(object):
             id = Column("ID", Integer, primary_key=True)
             name = Column("Name", String(32), unique=True)
             comment = Column("Comment", String(256))
-            order_id = Column("OrderID", Integer,
-                              ForeignKey("%s_Order.ID" % db_key_name),
+            order_id = Column("OrderID", Integer, ForeignKey(Order.id),
                               index=True)
-            order = sqlalchemy.orm.relation(Order)
+            order = relation(Order)
 
             def __str__(self):
                 return "Baseline({})".format(self.name)
