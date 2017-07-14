@@ -40,7 +40,8 @@ INSERT INTO "NT_Order" ("NextOrder", "PreviousOrder", "llvm_project_revision")
 INSERT INTO "NT_Run" ("MachineID", "OrderID", "ImportedFrom", "StartTime",
                       "EndTime", "SimpleRunID", "Parameters")
  VALUES(2,5,'run5.json','2012-05-01 16:28:23.000000',
-        '2012-05-01 16:28:58.000000',NULL,'[]'); -- ID 5
+        '2012-05-01 16:28:58.000000',NULL,
+        '[["producer", "http://buildbot.server.url/builders/some-builder/builds/987"]]'); -- ID 5
 INSERT INTO "NT_Sample" ("RunID", "TestID", "compile_status",
                          "execution_status", "compile_time", "execution_time",
                          "score", "mem_bytes")
@@ -76,7 +77,8 @@ INSERT INTO "NT_Order" ("NextOrder", "PreviousOrder", "llvm_project_revision")
 INSERT INTO "NT_Run" ("MachineID", "OrderID", "ImportedFrom", "StartTime",
                       "EndTime", "SimpleRunID", "Parameters")
  VALUES(2,6,'run7.json','2012-05-10 16:28:23.000000',
-        '2012-05-10 16:28:58.000000',NULL,'[]'); -- ID 7
+        '2012-05-10 16:28:58.000000',NULL,
+        '[["producer", "http://my.build.server/buildResult"]]'); -- ID 7
 INSERT INTO "NT_Run" ("MachineID", "OrderID", "ImportedFrom", "StartTime",
                       "EndTime", "SimpleRunID", "Parameters")
  VALUES(2,7,'run8.json','2012-05-11 16:28:23.000000',

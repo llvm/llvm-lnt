@@ -94,7 +94,9 @@
       <td style="{{ styles['td'] }}"><span class="utctime">{{ r.start_time.isoformat() }}</span></td>
       <td style="{{ styles['td'] }}">{{ r.end_time - r.start_time }}</td>
       {% if show_producers %}
-        <td style="{{ styles['td'] }}">{{ r.parameters.producer|producerAsHTML }}</td>
+        <td style="{{ styles['td'] }}">
+          {{ r.parameters.producer|producerAsHTML|safe if 'producer' in r.parameters else "" }}
+        </td>
       {% endif %}
     </tr>
     {% else %}

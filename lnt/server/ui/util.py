@@ -298,8 +298,8 @@ def renderProducerAsHTML(producer):
         builder = m.group(2)
         build = m.group(3)
 
-        png_url = 'http://%(url)s/png?builder=%(builder)s&number=%(build)s' % locals()
-        img = '<img src="%(png_url)s">' % locals()
+        png_url = 'http://%(url)s/png?builder=%(builder)s&amp;number=%(build)s' % locals()
+        img = '<img src="%(png_url)s" />' % locals()
         return '<a href="%(producer)s">%(builder)s #%(build)s %(img)s</a>' % locals()
 
     elif producer.startswith('http://'):

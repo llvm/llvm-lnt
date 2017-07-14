@@ -74,6 +74,16 @@ def get_xml_tree(html_string):
     return tree
 
 
+def find_table_by_thead_content(tree, table_head_contents):
+    all_tables = tree.findall(".//thead/..")
+    found_header = False
+    for table in all_tables:
+        for child in table.findall('./thead/tr/th'):
+            if child.text == table_head_contents:
+                return table
+    return None
+
+
 def find_table_with_heading(tree, table_heading):
     table_parent_elements = tree.findall(".//table/..")
     found_header = False
@@ -124,10 +134,21 @@ def get_results_table(client, url, fieldname):
     return get_table_by_header(client, url, table_header)
 
 
+def get_table_body_content(table):
+    return [[convert_html_to_text(cell).strip()
+             for cell in row.findall("./td")]
+             for row in table.findall("./tbody/tr")]
+
+
+def check_row_is_in_table(table, expected_row_content):
+    body_content = get_table_body_content(table)
+    assert expected_row_content in body_content, \
+        "Expected row content %s not found in %s" % \
+        (expected_row_content, body_content)
+
+
 def check_table_content(table, expected_content):
-    body_content = [[convert_html_to_text(cell).strip()
-                     for cell in row.findall("./td")]
-                    for row in table.findall("./tbody/tr")]
+    body_content = get_table_body_content(table)
     assert expected_content == body_content, \
         "Expected table content %s, found %s" % \
         (expected_content, body_content)
@@ -142,6 +163,14 @@ def check_body_nr_tests_table(client, url, expected_content):
     table_header = "Number of Tests Seen"
     table = get_table_by_header(client, url, table_header)
     check_table_content(table, expected_content)
+
+
+def check_producer_label(client, url, label):
+    table_header = "Produced by"
+    resp = check_code(client, url)
+    tree = get_xml_tree(resp.data)
+    table = find_table_by_thead_content(tree, table_header)
+    check_row_is_in_table(table, label)
 
 
 def get_sparkline(table, testname, machinename):
@@ -287,6 +316,16 @@ def main():
     # Get a graph page. This has been changed to redirect.
     check_redirect(client, '/v4/nts/1/graph?test.3=2',
                    'v4/nts/graph\?plot\.0=1\.3\.2&highlight_run=1$')
+
+    # Get a run that contains generic producer information
+    check_producer_label(client, '/v4/nts/7',
+                         ['Current', '152293', '2012-05-10T16:28:23',
+                          '0:00:35', 'Producer'])
+
+    # Get a run that contains Buildbot producer information
+    check_producer_label(client, '/v4/nts/7',
+                         ['Previous', '152292', '2012-05-01T16:28:23',
+                          '0:00:35', 'some-builder #987'])
 
     # Get the new graph page.
     check_code(client, '/v4/nts/graph?plot.0=1.3.2')
