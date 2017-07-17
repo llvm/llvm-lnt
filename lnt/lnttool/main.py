@@ -370,7 +370,7 @@ def action_profile():
 
 @action_profile.command("upgrade")
 @click.argument("input", type=click.Path(exists=True))
-@click.argument("output", type=click.Path(exists=True))
+@click.argument("output", type=click.Path())
 def command_update(input, output):
     """upgrade a profile to the latest version"""
     import lnt.testing.profile.profile as profile
