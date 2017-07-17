@@ -186,7 +186,7 @@ class App(LNTExceptionLoggerFlask):
                 response = jsonify({'error': 'internal server error', 'message': repr(e)})
                 response.status_code = 500
                 return response
-            return render_template('error.html', message=e), 500
+            return render_template('error.html', message=repr(e)), 500
 
         return app
 
