@@ -38,7 +38,7 @@ def requires_auth_token(f):
     def decorated(*args, **kwargs):
         token = request.headers.get("AuthToken", None)
         if not current_app.old_config.api_auth_token or token != current_app.old_config.api_auth_token:
-            return abort(401, msg="Auth Token must be passed in AuthToken header, and included in LNT config.")
+            abort(401, msg="Auth Token must be passed in AuthToken header, and included in LNT config.")
         return f(*args, **kwargs)
     return decorated
 
@@ -125,7 +125,7 @@ class Machine(Resource):
             this_machine = ts.query(ts.Machine).filter(
                 ts.Machine.id == machine_id).one()
         except NoResultFound:
-            return abort(404, message="Invalid machine: {}".format(machine_id))
+            abort(404, message="Invalid machine: {}".format(machine_id))
         machine = common_fields_factory()
         machine['machines'] = [common_machine_format(this_machine)]
         machine_runs = ts.query(ts.Run) \
@@ -149,7 +149,7 @@ class Machine(Resource):
         machine = ts.query(ts.Machine).filter(ts.Machine.id == machine_id) \
             .first()
         if machine is None:
-            return abort(404, msg="Did not find machine " + str(machine_id))
+            abort(404, msg="Did not find machine " + str(machine_id))
         ts.session.delete(machine)
         ts.commit()
         return
@@ -171,7 +171,7 @@ class Runs(Resource):
                 .options(joinedload('order')) \
                 .one()
         except sqlalchemy.orm.exc.NoResultFound:
-            return abort(404, msg="Did not find run " + str(run_id))
+            abort(404, msg="Did not find run " + str(run_id))
 
         full_run['runs'] = [common_run_format(run)]
 
@@ -198,7 +198,7 @@ class Runs(Resource):
         ts = request.get_testsuite()
         run = ts.query(ts.Run).filter(ts.Run.id == run_id).first()
         if run is None:
-            return abort(404, msg="Did not find run " + str(run_id))
+            abort(404, msg="Did not find run " + str(run_id))
         ts.delete(run)
         ts.commit()
         return
@@ -213,7 +213,7 @@ class Order(Resource):
         try:
             order = ts.query(ts.Order).filter(ts.Order.id == order_id).one()
         except NoResultFound:
-            return abort(404, message="Invalid order.")
+            abort(404, message="Invalid order.")
         order_output = common_fields_factory()
         order_output['orders'] = [order]
         return jsonify(order_output)
@@ -228,7 +228,7 @@ class SampleData(Resource):
         try:
             sample = ts.query(ts.Sample).filter(ts.Sample.id == sample_id).one()
         except NoResultFound:
-            return abort(404, message="Invalid order.")
+            abort(404, message="Invalid order.")
         sample_output = common_fields_factory()
         sample_output['samples'] = [{k: v for k, v in sample.__json__().items() if v is not None}]
         return jsonify(sample_output)
@@ -289,7 +289,7 @@ class Graph(Resource):
                 .one()
             field = ts.sample_fields[field_index]
         except NoResultFound:
-            return abort(404)
+            abort(404)
 
         q = ts.query(field.column, ts.Order.llvm_project_revision, ts.Run.start_time, ts.Run.id) \
             .join(ts.Run) \
@@ -345,7 +345,7 @@ class Regression(Resource):
                     .one()
                 _ = ts.sample_fields[field_index]
             except (NoResultFound, IndexError):
-                return abort(404)
+                abort(404)
             # I think we found nothing.
             return []
         regressions = ts.query(ts.Regression.title, ts.Regression.id, ts.RegressionIndicator.field_change_id,
