@@ -28,7 +28,34 @@ class JSONAPIDeleteTester(unittest.TestCase):
         app.testing = True
         self.client = app.test_client()
 
-    def test_runs_api(self):
+    def test_00_rename_machine(self):
+        """Check rename POST request to /machines/n"""
+        client = self.client
+
+        # Make sure the environment is as expected.
+        j = check_json(client, 'api/db_default/v4/nts/machines/1')
+        self.assertEqual(j['machines'][0]['name'], 'localhost__clang_DEV__x86_64')
+
+        data = {
+            'action': 'rename',
+            'name': 'new_machine_name',
+        }
+        resp = client.post('api/db_default/v4/nts/machines/1', data=data)
+        self.assertEqual(resp.status_code, 401)
+
+        resp = client.post('api/db_default/v4/nts/machines/1', data=data,
+                           headers={'AuthToken': 'wrong token'})
+        self.assertEqual(resp.status_code, 401)
+
+        resp = client.post('api/db_default/v4/nts/machines/1', data=data,
+                           headers={'AuthToken': 'test_token'})
+        self.assertEqual(resp.status_code, 200)
+
+        # Machine should be renamed now.
+        j = check_json(client, 'api/db_default/v4/nts/machines/1')
+        self.assertEqual(j['machines'][0]['name'], 'new_machine_name')
+
+    def test_01_delete_run(self):
         """Check /runs/n can be deleted."""
         client = self.client
 
@@ -57,7 +84,7 @@ class JSONAPIDeleteTester(unittest.TestCase):
             resp = client.get('api/db_default/v4/nts/samples/{}'.format(sid))
             self.assertEqual(resp.status_code, 404)
 
-    def test_machines_api(self):
+    def test_02_delete_machine(self):
         """Check /machines/n can be deleted."""
         client = self.client
 
@@ -95,4 +122,5 @@ class JSONAPIDeleteTester(unittest.TestCase):
 
 
 if __name__ == '__main__':
+    unittest.TestLoader.sortTestMethodsUsing = lambda _, x, y: cmp(x, y)
     unittest.main(argv=[sys.argv[0], ])

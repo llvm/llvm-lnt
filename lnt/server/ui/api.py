@@ -119,13 +119,18 @@ class Machine(Resource):
     method_decorators = [in_db]
 
     @staticmethod
+    def _get_machine(machine_id):
+        ts = request.get_testsuite()
+        machine = ts.query(ts.Machine).filter(ts.Machine.id == machine_id) \
+            .first()
+        if machine is None:
+            abort(404, msg="Did not find machine " + str(machine_id))
+        return machine
+
+    @staticmethod
     def get(machine_id):
         ts = request.get_testsuite()
-        try:
-            this_machine = ts.query(ts.Machine).filter(
-                ts.Machine.id == machine_id).one()
-        except NoResultFound:
-            abort(404, message="Invalid machine: {}".format(machine_id))
+        this_machine = Machine._get_machine(machine_id)
         machine = common_fields_factory()
         machine['machines'] = [common_machine_format(this_machine)]
         machine_runs = ts.query(ts.Run) \
@@ -146,13 +151,31 @@ class Machine(Resource):
     @requires_auth_token
     def delete(machine_id):
         ts = request.get_testsuite()
-        machine = ts.query(ts.Machine).filter(ts.Machine.id == machine_id) \
-            .first()
-        if machine is None:
-            abort(404, msg="Did not find machine " + str(machine_id))
+        machine = Machine._get_machine(machine_id)
         ts.session.delete(machine)
         ts.commit()
-        return
+
+    @staticmethod
+    @requires_auth_token
+    def post(machine_id):
+        ts = request.get_testsuite()
+        machine = Machine._get_machine(machine_id)
+
+        action = request.values.get('action', None)
+        if action is None:
+            abort(400, msg="No 'action' specified")
+        elif action == 'rename':
+            name = request.values.get('name', None)
+            if name is None:
+                abort(400, msg="Expected 'name' for rename request")
+            existing = ts.query(ts.Machine).filter(ts.Machine.name == name) \
+                .first()
+            if existing is not None:
+                abort(400, msg="Machine with name '%s' already exists" % name)
+            machine.name = name
+            ts.session.commit()
+        else:
+            abort(400, msg="Unknown action '%s'" % action)
 
 
 class Runs(Resource):
@@ -303,7 +326,7 @@ class Graph(Resource):
             q = q.filter((field.status_field.column == PASS) |
                          (field.status_field.column.is_(None)))
 
-        limit = request.args.get('limit', None)
+        limit = request.values.get('limit', None)
         if limit:
             limit = int(limit)
             if limit:
