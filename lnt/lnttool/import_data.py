@@ -9,7 +9,7 @@ import lnt.formats
 @click.option("--format", "output_format", show_default=True,
               type=click.Choice(lnt.formats.format_names + ['<auto>']),
               default='<auto>', help="input format")
-@click.option("--commit", type=int, help="commit changes to the database")
+@click.option("--commit", is_flag=True, help="commit changes to the database")
 @click.option("--show-sql", is_flag=True, help="show SQL statements")
 @click.option("--show-sample-count", is_flag=True)
 @click.option("--show-raw-result", is_flag=True)

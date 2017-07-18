@@ -142,8 +142,7 @@ def action_showtests():
 @click.command("submit")
 @click.argument("url")
 @click.argument("files", nargs=-1, type=click.Path(exists=True), required=True)
-@click.option("--commit", show_default=True, type=int,
-              help="number of days to show in report")
+@click.option("--commit", is_flag=True, help="actually commit the data")
 @click.option("--verbose", "-v", is_flag=True,
               help="show verbose test results")
 def action_submit(url, files, commit, verbose):
@@ -151,8 +150,11 @@ def action_submit(url, files, commit, verbose):
     from lnt.util import ServerUtil
     import lnt.util.ImportData
 
-    if not commit:
-        logger.warning("submit called with --commit=0, " +
+    if commit:
+        commit = True
+    else:
+        commit = False
+        logger.warning("submit called without --commit, " +
                        "your results will not be saved at the server.")
 
     files = ServerUtil.submitFiles(url, files, commit, verbose)
@@ -452,30 +454,41 @@ def show_version(ctx, param, value):
 @click.group(invoke_without_command=True, no_args_is_help=True)
 @click.option('--version', is_flag=True, callback=show_version,
               expose_value=False, is_eager=True, help=show_version.__doc__)
-def main():
+def cli():
     """LNT command line tool
 
 \b
 Use ``lnt <command> --help`` for more information on a specific command.
     """
+cli.add_command(action_checkformat)
+cli.add_command(action_create)
+cli.add_command(action_convert)
+cli.add_command(action_import)
+cli.add_command(action_importreport)
+cli.add_command(action_profile)
+cli.add_command(action_runserver)
+cli.add_command(action_runtest)
+cli.add_command(action_send_daily_report)
+cli.add_command(action_send_run_comparison)
+cli.add_command(action_showtests)
+cli.add_command(action_submit)
+cli.add_command(action_update)
+cli.add_command(action_updatedb)
+cli.add_command(action_view_comparison)
+
+
+def main():
     _version_check()
+    # Change deprecated `--commit=1` and `--commit 1` options to new ones.
+    for i in range(1, len(sys.argv)):
+        arg = sys.argv[i]
+        if arg == '--commit=1':
+            sys.argv[i] = '--commit'
+        if arg == '--commit' and i+1 < len(sys.argv) and sys.argv[i+1] == '1':
+            del sys.argv[i+1]
+            break
+    cli()
 
-
-main.add_command(action_checkformat)
-main.add_command(action_create)
-main.add_command(action_convert)
-main.add_command(action_import)
-main.add_command(action_importreport)
-main.add_command(action_profile)
-main.add_command(action_runserver)
-main.add_command(action_runtest)
-main.add_command(action_send_daily_report)
-main.add_command(action_send_run_comparison)
-main.add_command(action_showtests)
-main.add_command(action_submit)
-main.add_command(action_update)
-main.add_command(action_updatedb)
-main.add_command(action_view_comparison)
 
 if __name__ == '__main__':
     main()

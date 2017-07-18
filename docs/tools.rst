@@ -27,7 +27,7 @@ Client-Side Tools
  ``lnt importreport <input path> [<output path>]``
     Convert text based key value pairs into a LNT json report file.
 
-  ``lnt submit [--commit=1] <server url> <file>+``
+  ``lnt submit [--commit] <server url> <file>+``
     Submits one or more files to the given server. The ``<server url>`` should
     be the url to the actual ``submitRun`` page on the server; the database
     being submitted to is effectively a part of this URL.
@@ -60,7 +60,7 @@ The following tools are used to interact with an LNT server:
   ``lnt createdb <path>``
     Creates a new LNT sqlite3 database at the specified path.
 
-  ``lnt import [--commit=1] <instance path> <file>+``
+  ``lnt import [--commit] <instance path> <file>+``
     Import an LNT data file into a database. You can use ``--database`` to
     select the database to write to. Note that by default this will also
     generate report emails if enabled in the configuration, you can use

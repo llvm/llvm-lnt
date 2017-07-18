@@ -2,17 +2,36 @@
 # RUN: python %{shared_inputs}/create_temp_instance.py \
 # RUN:   %s %{shared_inputs}/SmallInstance %t.instance
 # RUN: %{shared_inputs}/server_wrapper.sh %t.instance 9091 \
-# RUN:    lnt submit "http://localhost:9091/db_default/submitRun" --commit=1 \
+# RUN:    lnt submit "http://localhost:9091/db_default/submitRun" --commit \
 # RUN:       %{shared_inputs}/sample-report.json | \
 # RUN:    FileCheck %s --check-prefix=CHECK-DEFAULT
 #
 # CHECK-DEFAULT: http://localhost:9091/db_default/v4/nts/3
 #
+# Make sure the old --commit=1 style argument is still accepted.
 # RUN: rm -rf %t.instance
 # RUN: python %{shared_inputs}/create_temp_instance.py \
 # RUN:   %s %{shared_inputs}/SmallInstance %t.instance
 # RUN: %{shared_inputs}/server_wrapper.sh %t.instance 9091 \
 # RUN:    lnt submit "http://localhost:9091/db_default/submitRun" --commit=1 \
+# RUN:       %{shared_inputs}/sample-report.json | \
+# RUN:    FileCheck %s --check-prefix=CHECK-DEFAULT
+#
+# Make sure the old --commit 1 style argument is still accepted.
+# RUN: rm -rf %t.instance
+# RUN: python %{shared_inputs}/create_temp_instance.py \
+# RUN:   %s %{shared_inputs}/SmallInstance %t.instance
+# RUN: %{shared_inputs}/server_wrapper.sh %t.instance 9091 \
+# RUN:    lnt submit "http://localhost:9091/db_default/submitRun" --commit 1 \
+# RUN:       %{shared_inputs}/sample-report.json | \
+# RUN:    FileCheck %s --check-prefix=CHECK-DEFAULT
+#
+# Check submit with verbose flag
+# RUN: rm -rf %t.instance
+# RUN: python %{shared_inputs}/create_temp_instance.py \
+# RUN:   %s %{shared_inputs}/SmallInstance %t.instance
+# RUN: %{shared_inputs}/server_wrapper.sh %t.instance 9091 \
+# RUN:    lnt submit "http://localhost:9091/db_default/submitRun" --commit \
 # RUN:       %{shared_inputs}/sample-report.json -v | \
 # RUN:    FileCheck %s --check-prefix=CHECK-VERBOSE
 #
@@ -34,7 +53,7 @@
 # RUN: python %{shared_inputs}/create_temp_instance.py \
 # RUN:   %s %{shared_inputs}/SmallInstance %t.instance
 # RUN: %{shared_inputs}/server_wrapper.sh %t.instance 9091 \
-# RUN:    lnt submit "http://localhost:9091/db_default/submitRun" --commit=1 \
+# RUN:    lnt submit "http://localhost:9091/db_default/submitRun" --commit \
 # RUN:       %{src_root}/docs/report-example.json -v | \
 # RUN:    FileCheck %s --check-prefix=CHECK-NEWFORMAT
 #
@@ -57,7 +76,7 @@
 # RUN:   %s %{shared_inputs}/SmallInstance %t.instance
 # RUN: %{shared_inputs}/server_wrapper.sh %t.instance 9091 \
 # RUN:   lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" \
-# RUN:   --commit=1 %S/Inputs/compile_submission.json -v \
+# RUN:   --commit %S/Inputs/compile_submission.json -v \
 # RUN:   | FileCheck %s --check-prefix=CHECK-OLDFORMAT-COMPILE
 #
 # For the old format we have some detection logic to determine the test-suite
@@ -69,7 +88,7 @@
 # RUN:   %s %{shared_inputs}/SmallInstance %t.instance
 # RUN: %{shared_inputs}/server_wrapper.sh %t.instance 9091 \
 # RUN:   lnt submit "http://localhost:9091/db_default/submitRun" \
-# RUN:   --commit=1 %S/Inputs/compile_submission.json -v \
+# RUN:   --commit %S/Inputs/compile_submission.json -v \
 # RUN:   | FileCheck %s --check-prefix=CHECK-OLDFORMAT-COMPILE
 #
 # CHECK-OLDFORMAT-COMPILE: --- Tested: 10 tests --

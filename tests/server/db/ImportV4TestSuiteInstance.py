@@ -6,7 +6,7 @@
 
 # Import the first test set.
 # RUN: lnt import %t.install %{shared_inputs}/sample-a-small.plist \
-# RUN:     --commit=1 --show-sample-count > %t1.log
+# RUN:     --commit --show-sample-count > %t1.log
 # RUN: FileCheck -check-prefix=IMPORT-A-1 %s < %t1.log
 #
 # IMPORT-A-1: Added Machines: 1
@@ -16,7 +16,7 @@
 
 # Import the second test set.
 # RUN: lnt import %t.install %{shared_inputs}/sample-b-small.plist \
-# RUN:     --commit=1 --show-sample-count --show-sql > %t2.log
+# RUN:     --commit --show-sample-count --show-sql > %t2.log
 # RUN: FileCheck -check-prefix=IMPORT-B %s < %t2.log
 #
 # IMPORT-B: Added Runs : 1
@@ -24,7 +24,7 @@
 
 # Check that reimporting the first test set properly reports as a duplicate.
 # RUN: lnt import %t.install %{shared_inputs}/sample-a-small.plist \
-# RUN:     --commit=1 --show-sample-count > %t3.log
+# RUN:     --commit --show-sample-count > %t3.log
 # RUN: FileCheck -check-prefix=IMPORT-A-2 %s < %t3.log
 #
 # IMPORT-A-2: This submission is a duplicate of run 1

@@ -8,8 +8,7 @@ import click
 @click.option("--testsuite", required=True, help="testsuite to modify")
 @click.option("--tmp-dir", default="lnt_tmp", show_default=True,
               help="name of the temp file directory")
-@click.option("--commit", type=int,
-              help="commit changes to the database")
+@click.option("--commit", is_flag=True, help="commit changes to the database")
 @click.option("--show-sql", is_flag=True,
               help="show SQL statements")
 @click.option("--delete-machine", "delete_machines", default=[],

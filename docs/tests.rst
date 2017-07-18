@@ -131,7 +131,7 @@ The final test step was to generate a test report inside the test
 directory. This report can now be submitted directly to an LNT server. For
 example, if we have a local server running as described earlier, we can run::
 
-  $ lnt submit --commit=1 http://localhost:8000/submitRun \
+  $ lnt submit --commit http://localhost:8000/submitRun \
       /tmp/BAR/test-2010-04-17_23-46-40/report.json
   STATUS: 0
 

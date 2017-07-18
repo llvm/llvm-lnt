@@ -101,7 +101,7 @@ def _do_submit():
     assert request.method == 'POST'
     input_file = request.files.get('file')
     input_data = request.form.get('input_data')
-    commit = int(request.form.get('commit', 0))
+    commit = int(request.form.get('commit', 0)) != 0
 
     if input_file and not input_file.content_length:
         input_file = None
