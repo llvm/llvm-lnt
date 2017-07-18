@@ -91,9 +91,9 @@ def select_db():
 def index():
     return render_template("index.html")
 
+
 ###
 # Database Actions
-
 def _do_submit():
     if request.method == 'GET':
         return render_template("submit_run.html")
@@ -127,19 +127,19 @@ def _do_submit():
                           "%04d-%02d" % (utcnow.year, utcnow.month))
     try:
         os.makedirs(tmpdir)
-    except OSError,e:
+    except OSError:
         pass
 
     # Save the file under a name prefixed with the date, to make it easier
     # to use these files in cases we might need them for debugging or data
     # recovery.
     prefix = utcnow.strftime("data-%Y-%m-%d_%H-%M-%S")
-    fd,path = tempfile.mkstemp(prefix=prefix, suffix='.plist',
-                               dir=str(tmpdir))
+    fd, path = tempfile.mkstemp(prefix=prefix, suffix='.json',
+                                dir=str(tmpdir))
     os.write(fd, data_value)
     os.close(fd)
 
-    # The following accomodates old submitters. Note that we explicitely removed
+    # The following accommodates old submitters. Note that we explicitly removed
     # the tag field from the new submission format, this is only here for old
     # submission jobs. The better way of doing it is mentioning the correct
     # test-suite in the URL. So when submitting to suite YYYY use
@@ -152,7 +152,7 @@ def _do_submit():
                 Info = Run.get('Info')
                 if Info is not None:
                     g.testsuite_name = Info.get('tag')
-        except Exception as e:
+        except:
             pass
     if g.testsuite_name is None:
         g.testsuite_name = 'nts'
