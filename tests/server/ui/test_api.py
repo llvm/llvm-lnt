@@ -141,6 +141,11 @@ class JSONAPITester(unittest.TestCase):
         self.assertEquals(j['machines'], machines_expected_response)
         self.assertIsNone(j.get('runs'))
 
+        j = check_json(client, 'api/db_default/v4/nts/machines')
+        self._check_response_is_well_formed(j)
+        self.assertEquals(j['machines'], machines_expected_response)
+        self.assertIsNone(j.get('runs'))
+
         # Machine + properties + run information.
         j = check_json(client, 'api/db_default/v4/nts/machines/1')
         self._check_response_is_well_formed(j)

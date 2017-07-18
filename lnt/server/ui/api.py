@@ -389,10 +389,10 @@ def ts_path(path):
 
 
 def load_api_resources(api):
-    api.add_resource(Machines, ts_path("machines/"))
+    api.add_resource(Machines, ts_path("machines"), ts_path("machines/"))
     api.add_resource(Machine, ts_path("machines/<machine_id>"))
     api.add_resource(Runs, ts_path("runs/<int:run_id>"))
-    api.add_resource(SamplesData, ts_path("samples"))
+    api.add_resource(SamplesData, ts_path("samples"), ts_path("samples/"))
     api.add_resource(SampleData, ts_path("samples/<sample_id>"))
     api.add_resource(Order, ts_path("orders/<int:order_id>"))
     graph_url = "graph/<int:machine_id>/<int:test_id>/<int:field_index>"
