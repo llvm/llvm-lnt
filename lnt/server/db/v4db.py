@@ -98,8 +98,8 @@ class V4DB(object):
             data = yaml.load(schema_fd)
         suite = testsuite.TestSuite.from_json(data)
         self.testsuite.add_suite(suite)
-        logger.info("External TestSuite '%s' loaded from '%s'" %
-                    (suite.name, schema_file))
+        logger.debug("External TestSuite '%s' loaded from '%s'" %
+                     (suite.name, schema_file))
 
     def _load_shemas(self):
         schemasDir = self.config.schemasDir

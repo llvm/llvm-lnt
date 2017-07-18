@@ -231,7 +231,7 @@ class App(LNTExceptionLoggerFlask):
         """
         # Print to screen.
         ch = logging.StreamHandler()
-        ch.setLevel(logging.DEBUG)
+        ch.setLevel(logging.INFO)
         self.logger.addHandler(ch)
 
         # Log to mem for the /log view.

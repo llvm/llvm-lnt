@@ -48,7 +48,7 @@ view the results.
     import lnt.server.ui.app
     import os
 
-    init_logger(logging.DEBUG, show_sql=show_sql)
+    init_logger(logging.INFO, show_sql=show_sql)
 
     app = lnt.server.ui.app.App.create_standalone(instance_path,)
     if debugger:
