@@ -1,11 +1,15 @@
-import os, re, time
-import collections
-import lnt.testing
-import lnt.formats
-import lnt.server.reporting.analysis
 from lnt.util import NTEmailReport
 from lnt.util import async_ops
 from lnt.util import logger
+import collections
+import datetime
+import lnt.formats
+import lnt.server.reporting.analysis
+import lnt.testing
+import os
+import re
+import tempfile
+import time
 
 def import_and_report(config, db_name, db, file, format, ts_name,
                       commit=False, show_sample_count=False,
@@ -284,3 +288,35 @@ def print_report_result(result, out, err, verbose = True):
     print >>out, "----------------"
     for kind, count in result_kinds.items():
         print >>out, kind, ":", count
+
+
+def import_from_string(config, db_name, db, ts_name, data, commit=True):
+    # Stash a copy of the raw submission.
+    #
+    # To keep the temporary directory organized, we keep files in
+    # subdirectories organized by (database, year-month).
+    utcnow = datetime.datetime.utcnow()
+    tmpdir = os.path.join(config.tempDir, db_name,
+                          "%04d-%02d" % (utcnow.year, utcnow.month))
+    try:
+        os.makedirs(tmpdir)
+    except OSError,e:
+        pass
+
+    # Save the file under a name prefixed with the date, to make it easier
+    # to use these files in cases we might need them for debugging or data
+    # recovery.
+    prefix = utcnow.strftime("data-%Y-%m-%d_%H-%M-%S")
+    fd,path = tempfile.mkstemp(prefix=prefix, suffix='.json',
+                               dir=str(tmpdir))
+    os.write(fd, data)
+    os.close(fd)
+
+    # Import the data.
+    #
+    # FIXME: Gracefully handle formats failures and DOS attempts. We
+    # should at least reject overly large inputs.
+
+    result = lnt.util.ImportData.import_and_report(config, db_name, db,
+            path, '<auto>', ts_name, commit)
+    return result

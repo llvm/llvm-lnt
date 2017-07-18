@@ -2,7 +2,6 @@ import datetime
 import json
 import os
 import re
-import tempfile
 from collections import namedtuple, defaultdict
 from urlparse import urlparse, urljoin
 
@@ -118,28 +117,7 @@ def _do_submit():
     else:
         data_value = input_data
 
-    # Stash a copy of the raw submission.
-    #
-    # To keep the temporary directory organized, we keep files in
-    # subdirectories organized by (database, year-month).
-    utcnow = datetime.datetime.utcnow()
-    tmpdir = os.path.join(current_app.old_config.tempDir, g.db_name,
-                          "%04d-%02d" % (utcnow.year, utcnow.month))
-    try:
-        os.makedirs(tmpdir)
-    except OSError:
-        pass
-
-    # Save the file under a name prefixed with the date, to make it easier
-    # to use these files in cases we might need them for debugging or data
-    # recovery.
-    prefix = utcnow.strftime("data-%Y-%m-%d_%H-%M-%S")
-    fd, path = tempfile.mkstemp(prefix=prefix, suffix='.json',
-                                dir=str(tmpdir))
-    os.write(fd, data_value)
-    os.close(fd)
-
-    # The following accommodates old submitters. Note that we explicitly removed
+    # The following accomodates old submitters. Note that we explicitely removed
     # the tag field from the new submission format, this is only here for old
     # submission jobs. The better way of doing it is mentioning the correct
     # test-suite in the URL. So when submitting to suite YYYY use
@@ -160,14 +138,8 @@ def _do_submit():
     # Get a DB connection.
     db = request.get_db()
 
-    # Import the data.
-    #
-    # FIXME: Gracefully handle formats failures and DOS attempts. We
-    # should at least reject overly large inputs.
-
-    result = lnt.util.ImportData.import_and_report(
-        current_app.old_config, g.db_name, db, path, '<auto>',
-        ts_name=g.testsuite_name, commit=commit)
+    result = lnt.util.ImportData.import_from_string(current_app.old_config,
+        g.db_name, db, g.testsuite_name, data_value, commit=commit)
 
     # It is nice to have a full URL to the run, so fixup the request URL
     # here were we know more about the flask instance.
