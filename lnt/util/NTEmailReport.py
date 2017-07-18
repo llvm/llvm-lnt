@@ -7,13 +7,12 @@ import StringIO
 import lnt.server.db.v4db
 import lnt.server.reporting.runs
 
-def emailReport(result, db, run, baseurl, email_config, to, was_added=True,
-                will_commit=True):
+def emailReport(result, db, run, baseurl, email_config, to, was_added=True):
     import email.mime.multipart
     import email.mime.text
 
-    subject, report, html_report = getReport(result, db, run, baseurl,
-                                             was_added, will_commit)
+    subject, report, html_report = _getReport(result, db, run, baseurl,
+                                              was_added)
 
     # Ignore if no to address was given, we do things this way because of the
     # awkward way we collect result information as part of generating the email
@@ -43,8 +42,7 @@ def emailReport(result, db, run, baseurl, email_config, to, was_added=True,
     s.sendmail(email_config.from_address, [to], msg.as_string())
     s.quit()
 
-def getReport(result, db, run, baseurl, was_added, will_commit,
-              compare_to=None):
+def _getReport(result, db, run, baseurl, was_added, compare_to=None):
     assert isinstance(db, lnt.server.db.v4db.V4DB)
 
     data = lnt.server.reporting.runs.generate_run_data(run, baseurl=baseurl,
