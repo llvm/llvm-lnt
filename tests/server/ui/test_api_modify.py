@@ -5,8 +5,9 @@
 # RUN:     %s %{shared_inputs}/SmallInstance \
 # RUN:     %t.instance %S/Inputs/V4Pages_extra_records.sql
 #
-# RUN: python %s %t.instance
+# RUN: python %s %t.instance %{shared_inputs}
 
+import json
 import logging
 import sys
 import unittest
@@ -23,10 +24,11 @@ class JSONAPIDeleteTester(unittest.TestCase):
 
     def setUp(self):
         """Bind to the LNT test instance."""
-        _, instance_path = sys.argv
+        _, instance_path, shared_inputs = sys.argv
         app = lnt.server.ui.app.App.create_standalone(instance_path)
         app.testing = True
         self.client = app.test_client()
+        self.shared_inputs = shared_inputs
 
     def test_00_rename_machine(self):
         """Check rename POST request to /machines/n"""
@@ -119,6 +121,26 @@ class JSONAPIDeleteTester(unittest.TestCase):
         for sid in sample_ids:
             resp = client.get('api/db_default/v4/nts/samples/{}'.format(sid))
             self.assertEqual(resp.status_code, 404)
+
+    def test_03_post_run(self):
+        """Check POST to /runs."""
+        client = self.client
+
+        resp = client.get('api/db_default/v4/nts/runs/5')
+        self.assertEqual(resp.status_code, 404)
+
+        data = open('%s/sample-report.json' % self.shared_inputs).read()
+
+        resp = client.post('api/db_default/v4/nts/runs', data=data)
+        self.assertEqual(resp.status_code, 401)
+
+        resp = client.post('api/db_default/v4/nts/runs', data=data,
+                           headers={'AuthToken': 'test_token'})
+        self.assertEqual(resp.status_code, 301)
+        self.assertEqual(resp.headers['Location'],
+                         'http://localhost/api/db_default/v4/nts/runs/5')
+        resp_json = json.loads(resp.data)
+        self.assertEqual(resp_json['run_id'], 5)
 
 
 if __name__ == '__main__':

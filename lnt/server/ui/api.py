@@ -1,5 +1,6 @@
+import lnt.util.ImportData
 import sqlalchemy
-from flask import current_app, g
+from flask import current_app, g, Response
 from flask import jsonify
 from flask import request
 from flask_restful import Resource, abort
@@ -178,7 +179,7 @@ class Machine(Resource):
             abort(400, msg="Unknown action '%s'" % action)
 
 
-class Runs(Resource):
+class Run(Resource):
     method_decorators = [in_db]
 
     @staticmethod
@@ -225,6 +226,30 @@ class Runs(Resource):
         ts.delete(run)
         ts.commit()
         return
+
+
+class Runs(Resource):
+    """Detailed results about a particular machine, including runs on it."""
+    method_decorators = [in_db]
+
+    @staticmethod
+    @requires_auth_token
+    def post():
+        '''Add a new run into the lnt database'''
+        ts = request.get_testsuite()
+        db = request.get_db()
+        data = request.data
+        result = lnt.util.ImportData.import_from_string(current_app.old_config,
+            g.db_name, db, g.testsuite_name, data)
+
+        new_url = ('%sapi/db_%s/v4/%s/runs/%s' %
+                   (request.url_root, g.db_name, g.testsuite_name,
+                    result['run_id']))
+        result['result_url'] = new_url
+        response = jsonify(result)
+        response.status = '301'
+        response.headers.add('Location', new_url)
+        return response
 
 
 class Order(Resource):
@@ -391,7 +416,8 @@ def ts_path(path):
 def load_api_resources(api):
     api.add_resource(Machines, ts_path("machines"), ts_path("machines/"))
     api.add_resource(Machine, ts_path("machines/<machine_id>"))
-    api.add_resource(Runs, ts_path("runs/<int:run_id>"))
+    api.add_resource(Runs, ts_path("runs"), ts_path("runs/"))
+    api.add_resource(Run, ts_path("runs/<int:run_id>"))
     api.add_resource(SamplesData, ts_path("samples"), ts_path("samples/"))
     api.add_resource(SampleData, ts_path("samples/<sample_id>"))
     api.add_resource(Order, ts_path("orders/<int:order_id>"))
