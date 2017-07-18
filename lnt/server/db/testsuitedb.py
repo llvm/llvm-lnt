@@ -897,7 +897,7 @@ class TestSuiteDB(object):
 
             samples = []
             for key, values in test_data.items():
-                if key == 'name':
+                if key == 'name' or key == "id" or key.endswith("_id"):
                     continue
                 field = field_dict.get(key)
                 if field is None and key != 'profile':
