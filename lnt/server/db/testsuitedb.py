@@ -561,6 +561,8 @@ class TestSuiteDB(object):
                 self.end_order
                 return strip(self.__dict__)
 
+        Machine.fieldchanges = relation(FieldChange, back_populates='machine',
+                                        cascade="all, delete-orphan")
         Run.fieldchanges = relation(FieldChange, back_populates='run',
                                     cascade="all, delete-orphan")
 
