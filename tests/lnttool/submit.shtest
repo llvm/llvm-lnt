@@ -1,0 +1,87 @@
+# RUN: rm -rf %t.instance
+# RUN: python %{shared_inputs}/create_temp_instance.py \
+# RUN:   %s %{shared_inputs}/SmallInstance %t.instance
+# RUN: %{shared_inputs}/server_wrapper.sh %t.instance 9091 \
+# RUN:    /bin/sh %s %T %S/Inputs %{shared_inputs} %{src_root}
+
+OUTPUT_DIR="$1"
+INPUTS="$2"
+SHARED_INPUTS="$3"
+SRC_ROOT="$4"
+
+lnt submit "http://localhost:9091/db_default/submitRun" --commit 1 "${SHARED_INPUTS}/sample-report.json" -v > "${OUTPUT_DIR}/submit_verbose.txt"
+# RUN: FileCheck %s --check-prefix=CHECK-VERBOSE < %T/submit_verbose.txt
+#
+# CHECK-VERBOSE: Import succeeded.
+# CHECK-VERBOSE: --- Tested: 10 tests --
+#
+# CHECK-VERBOSE: Imported Data
+# CHECK-VERBOSE: -------------
+# CHECK-VERBOSE: Added Machines: 1
+# CHECK-VERBOSE: Added Runs    : 1
+# CHECK-VERBOSE: Added Tests   : 2
+#
+# CHECK-VERBOSE: Results
+# CHECK-VERBOSE: ----------------
+# CHECK-VERBOSE: PASS : 10
+# CHECK-VERBOSE: Results available at: http://localhost:9091/db_default/v4/nts/3
+
+
+lnt submit "http://localhost:9091/db_default/submitRun" --commit "${SHARED_INPUTS}/sample-report.json" > "${OUTPUT_DIR}/submit0.txt"
+# RUN: FileCheck %s --check-prefix=CHECK-DEFAULT < %T/submit0.txt
+#
+# Make sure the old --commit=1 style argument is still accepted.
+lnt submit "http://localhost:9091/db_default/submitRun" --commit=1 "${SHARED_INPUTS}/sample-report.json" > "${OUTPUT_DIR}/submit1.txt"
+# RUN: FileCheck %s --check-prefix=CHECK-DEFAULT < %T/submit1.txt
+
+lnt submit "http://localhost:9091/db_default/submitRun" --commit 1 "${SHARED_INPUTS}/sample-report.json" > "${OUTPUT_DIR}/submit2.txt"
+# RUN: FileCheck %s --check-prefix=CHECK-DEFAULT < %T/submit2.txt
+
+# CHECK-DEFAULT: http://localhost:9091/db_default/v4/nts/3
+
+
+lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" --commit "${INPUTS}/compile_submission.json" -v > "${OUTPUT_DIR}/submit_compile.txt"
+# RUN: FileCheck %s --check-prefix=CHECK-COMPILE0 < %T/submit_compile.txt
+#
+# CHECK-COMPILE0: --- Tested: 10 tests --
+#
+# CHECK-COMPILE0: Imported Data
+# CHECK-COMPILE0: -------------
+# CHECK-COMPILE0: Added Machines: 1
+# CHECK-COMPILE0: Added Runs    : 1
+# CHECK-COMPILE0: Added Tests   : 2
+#
+# CHECK-COMPILE0: Results
+# CHECK-COMPILE0: ----------------
+# CHECK-COMPILE0: PASS : 10
+# CHECK-COMPILE0: Results available at: http://localhost:9091/db_default/v4/compile/5
+
+lnt submit "http://localhost:9091/db_default/submitRun" --commit "${SRC_ROOT}/docs/report-example.json" -v > "${OUTPUT_DIR}/submit_newformat.txt"
+# RUN: FileCheck %s --check-prefix=CHECK-NEWFORMAT < %T/submit_newformat.txt
+#
+# CHECK-NEWFORMAT: Import succeeded.
+# CHECK-NEWFORMAT: --- Tested: 10 tests --
+#
+# CHECK-NEWFORMAT: Imported Data
+# CHECK-NEWFORMAT: -------------
+# CHECK-NEWFORMAT: Added Machines: 1
+# CHECK-NEWFORMAT: Added Runs    : 1
+# CHECK-NEWFORMAT: Added Tests   : 2
+#
+# CHECK-NEWFORMAT: Results
+# CHECK-NEWFORMAT: ----------------
+# CHECK-NEWFORMAT: PASS : 10
+# CHECK-NEWFORMAT: Results available at: http://localhost:9091/db_default/v4/nts/4
+
+# For the old submitters/formats we have some detection logic to determine the
+# test-suite based on the Info.Run.tag field instead of the URL. The result
+# should be the same as using the "correct" URL.
+lnt submit "http://localhost:9091/db_default/submitRun" --commit "${INPUTS}/compile_submission.json" -v > "${OUTPUT_DIR}/submit_compile1.txt"
+# RUN: FileCheck %s --check-prefix=CHECK-COMPILE1 < %T/submit_compile1.txt
+#
+# CHECK-COMPILE1: Import succeeded.
+#
+# CHECK-COMPILE1: Results
+# CHECK-COMPILE1: ----------------
+# CHECK-COMPILE1: PASS : 10
+# CHECK-COMPILE1: Results available at: http://localhost:9091/db_default/v4/compile/5
