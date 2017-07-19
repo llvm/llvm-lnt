@@ -146,7 +146,10 @@ def _do_submit():
     if result.get('result_url'):
         result['result_url'] = request.url_root + result['result_url']
 
-    return flask.jsonify(**result)
+    response = flask.jsonify(**result)
+    if result['error'] is not None:
+        response.status_code=400
+    return response
 
 
 @db_route('/submitRun', only_v3=False, methods=('GET', 'POST'))

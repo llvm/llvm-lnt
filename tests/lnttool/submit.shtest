@@ -85,3 +85,19 @@ lnt submit "http://localhost:9091/db_default/submitRun" --commit "${INPUTS}/comp
 # CHECK-COMPILE1: ----------------
 # CHECK-COMPILE1: PASS : 10
 # CHECK-COMPILE1: Results available at: http://localhost:9091/db_default/v4/compile/5
+
+# Check some error handling/reporting
+rm -f "${OUTPUT_DIR}/submit_errors.txt"
+lnt submit "http://localhost:9091/db_default/v4/badsuite/submitRun" --commit "${INPUTS}/compile_submission.json" >> "${OUTPUT_DIR}/submit_errors.txt" 2>&1
+# RUN: FileCheck %s --check-prefix=CHECK-ERRORS < %T/submit_errors.txt
+# CHECK-ERRORS: lnt server error: Unknown test suite 'badsuite'!
+lnt submit "http://localhost:9091/db_baddb/v4/compile/submitRun" --commit "${INPUTS}/compile_submission.json" >> "${OUTPUT_DIR}/submit_errors.txt" 2>&1
+# CHECK-ERRORS: lnt server error: The page you are looking for does not exist.
+lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" --commit "${INPUTS}/invalid_submission0.json" >> "${OUTPUT_DIR}/submit_errors.txt" 2>&1
+# CHECK-ERRORS: lnt server error: could not parse input format
+# ...
+# CHECK-ERRORS: SystemExit: unable to guess input format for
+lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" --commit "${INPUTS}/invalid_submission1.json" >> "${OUTPUT_DIR}/submit_errors.txt" 2>&1
+# CHECK-ERRORS: lnt server error: import failure: machine
+# ...
+# CHECK-ERRORS: KeyError: 'machine'

@@ -52,7 +52,8 @@ def import_and_report(config, db_name, db, file, format, ts_name,
         raise
     except:
         import traceback
-        result['error'] = "load failure: %s" % traceback.format_exc()
+        result['error'] = "could not parse input format"
+        result['message'] = traceback.format_exc()
         return result
 
     result['load_time'] = time.time() - startTime
@@ -83,16 +84,17 @@ def import_and_report(config, db_name, db, file, format, ts_name,
     try:
         data_schema = data.get('schema')
         if data_schema is not None and data_schema != ts_name:
-            raise ValueError("Importing '%s' data into test suite '%s'" %
-                             (data_schema, ts_name))
+            result['error'] = ("Importing '%s' data into test suite '%s'" %
+                               (data_schema, ts_name))
+            return result
 
         success, run = ts.importDataFromDict(data, commit, config=db_config)
     except KeyboardInterrupt:
         raise
-    except:
-        raise
+    except Exception as e:
         import traceback
-        result['error'] = "import failure: %s" % traceback.format_exc()
+        result['error'] = "import failure: %s" % e.message
+        result['message'] = traceback.format_exc()
         return result
 
     # If the import succeeded, save the import path.
@@ -180,6 +182,8 @@ def print_report_result(result, out, err, verbose = True):
         out.flush()
         print >>err, "Import Failed:"
         print >>err, "--\n%s--\n" % result['error']
+        if result['message']:
+            print >>err, "%s\n" % result['message']
         err.flush()
         return
         
