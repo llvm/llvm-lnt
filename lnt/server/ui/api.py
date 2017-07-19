@@ -158,6 +158,9 @@ class Machine(Resource):
         # running into OOM or timeout situations for machines with a hundreds
         # of runs. So instead remove machine runs in chunks.
         def perform_delete(ts, machine):
+            count = ts.query(ts.Run) \
+                .filter(ts.Run.machine_id == machine.id).count()
+            at = 0
             while True:
                 runs = ts.query(ts.Run) \
                     .filter(ts.Run.machine_id == machine.id) \
@@ -165,8 +168,9 @@ class Machine(Resource):
                     .order_by(ts.Run.id).limit(10).all()
                 if len(runs) == 0:
                     break
-                yield "Deleting runs %s\n" % \
-                    " ".join([str(run.id) for run in runs])
+                at += len(runs)
+                yield "Deleting runs %s (%d/%d)\n" % \
+                    (" ".join([str(run.id) for run in runs]), at, count)
                 for run in runs:
                     ts.session.delete(run)
                 ts.commit()
@@ -176,7 +180,8 @@ class Machine(Resource):
             yield "Deleted machine %s\n" % machine_id
 
         stream = stream_with_context(perform_delete(ts, machine))
-        return Response(stream, mimetype="text/plain")
+        return Response(stream, mimetype="text/plain",
+                        headers={'Transfer-Encoding': 'chunked'})
 
 
     @staticmethod
