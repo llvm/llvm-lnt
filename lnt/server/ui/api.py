@@ -181,8 +181,7 @@ class Machine(Resource):
             yield "Deleted machine %s\n" % machine_id
 
         stream = stream_with_context(perform_delete(ts, machine))
-        return Response(stream, mimetype="text/plain",
-                        headers={'Transfer-Encoding': 'chunked'})
+        return Response(stream, mimetype="text/plain")
 
 
     @staticmethod
