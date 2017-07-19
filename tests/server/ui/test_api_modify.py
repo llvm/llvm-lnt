@@ -110,6 +110,10 @@ class JSONAPIDeleteTester(unittest.TestCase):
         resp = client.delete('api/db_default/v4/nts/machines/2',
                              headers={'AuthToken': 'test_token'})
         self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.get_data(),
+'''Deleting runs 3 5 6 7 8 9
+Deleted machine 2
+''')
 
         resp = client.get('api/db_default/v4/nts/machines/2')
         self.assertEqual(resp.status_code, 404)

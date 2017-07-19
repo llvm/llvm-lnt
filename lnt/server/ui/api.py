@@ -1,6 +1,6 @@
 import lnt.util.ImportData
 import sqlalchemy
-from flask import current_app, g, Response
+from flask import current_app, g, Response, stream_with_context
 from flask import jsonify
 from flask import request
 from flask_restful import Resource, abort
@@ -153,8 +153,31 @@ class Machine(Resource):
     def delete(machine_id):
         ts = request.get_testsuite()
         machine = Machine._get_machine(machine_id)
-        ts.session.delete(machine)
-        ts.commit()
+
+        # Just saying ts.session.delete(machine) takes a long time and risks
+        # running into OOM or timeout situations for machines with a hundreds
+        # of runs. So instead remove machine runs in chunks.
+        def perform_delete(ts, machine):
+            while True:
+                runs = ts.query(ts.Run) \
+                    .filter(ts.Run.machine_id == machine.id) \
+                    .options(joinedload(ts.Run.samples)) \
+                    .order_by(ts.Run.id).limit(10).all()
+                if len(runs) == 0:
+                    break
+                yield "Deleting runs %s\n" % \
+                    " ".join([str(run.id) for run in runs])
+                for run in runs:
+                    ts.session.delete(run)
+                ts.commit()
+
+            ts.session.delete(machine)
+            ts.commit()
+            yield "Deleted machine %s\n" % machine_id
+
+        stream = stream_with_context(perform_delete(ts, machine))
+        return Response(stream, mimetype="text/plain")
+
 
     @staticmethod
     @requires_auth_token
