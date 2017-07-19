@@ -165,6 +165,7 @@ class Machine(Resource):
                 runs = ts.query(ts.Run) \
                     .filter(ts.Run.machine_id == machine.id) \
                     .options(joinedload(ts.Run.samples)) \
+                    .options(joinedload(ts.Run.fieldchanges)) \
                     .order_by(ts.Run.id).limit(10).all()
                 if len(runs) == 0:
                     break
