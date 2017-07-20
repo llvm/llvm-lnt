@@ -22,11 +22,12 @@ import lnt.testing.profile.profile as profile
 import lnt
 
 
-def strip(obj):
-    """Give back a dict without sqlalchemy stuff."""
-    new_dict = dict(obj)
-    new_dict.pop('_sa_instance_state', None)
-    return new_dict
+def _dict_update_abort_on_duplicates(base_dict, to_merge):
+    '''This behaves like base_dict.update(to_merge) but asserts that none
+    of the keys in to_merge is present in base_dict yet.'''
+    for key, value in to_merge.items():
+        assert base_dict.get(key, None) is None
+        base_dict[key] = value
 
 
 _sample_type_to_sql = {
@@ -100,6 +101,15 @@ class TestSuiteDB(object):
 
             def set_field(self, field, value):
                 return setattr(self, field.name, value)
+
+            def get_fields(self):
+                result = dict()
+                for field in self.fields:
+                    value = self.get_field(field)
+                    if value is None:
+                        continue
+                    result[field.name] = value
+                return result
 
         db_key_name = self.test_suite.db_key_name
 
@@ -187,8 +197,12 @@ class TestSuiteDB(object):
                 return closest_run
 
             def __json__(self):
-                # {u'name': self.name, u'MachineID': self.id}
-                return strip(self.__dict__)
+                result = dict()
+                result['name'] = self.name
+                result['id'] = self.id
+                _dict_update_abort_on_duplicates(result, self.get_fields())
+                _dict_update_abort_on_duplicates(result, self.parameters)
+                return result
 
         class Order(self.base, ParameterizedMixin):
             __tablename__ = db_key_name + '_Order'
@@ -282,12 +296,12 @@ class TestSuiteDB(object):
                            tuple(convert_field(b.get_field(item))
                                  for item in self.fields))
 
-            def __json__(self):
-                order = dict((item.name, self.get_field(item))
-                             for item in self.fields)
-                order[u'id'] = self.id
-                order[u'name'] = self.as_ordered_string()
-                return strip(order)
+            def __json__(self, include_id=True):
+                result = {}
+                if include_id:
+                    result['id'] = self.id
+                _dict_update_abort_on_duplicates(result, self.get_fields())
+                return result
 
         class Run(self.base, ParameterizedMixin):
             __tablename__ = db_key_name + '_Run'
@@ -346,10 +360,24 @@ class TestSuiteDB(object):
             def parameters(self, data):
                 self.parameters_data = json.dumps(sorted(data.items()))
 
-            def __json__(self):
-                self.machine
-                self.order
-                return strip(self.__dict__)
+            def __json__(self, flatten_order=True):
+                result = {
+                    'id': self.id,
+                    'start_time': self.start_time,
+                    'end_time': self.end_time,
+                }
+                # Leave out: machine_id, simple_run_id, imported_from
+                if flatten_order:
+                    _dict_update_abort_on_duplicates(result,
+                        self.order.__json__(include_id=False))
+                    result['order_by'] = \
+                        ', '.join([f.name for f in self.order.fields])
+                    result['order_id'] = self.order_id
+                else:
+                    result['order_id'] = self.order_id
+                _dict_update_abort_on_duplicates(result, self.get_fields())
+                _dict_update_abort_on_duplicates(result, self.parameters)
+                return result
 
         Machine.runs = relation(Run, back_populates='machine',
                                 cascade="all, delete-orphan")
@@ -369,8 +397,11 @@ class TestSuiteDB(object):
                 return '%s_%s%r' % (db_key_name, self.__class__.__name__,
                                     (self.name,))
 
-            def __json__(self):
-                return strip(self.__dict__)
+            def __json__(self, include_id=True):
+                result = {'name': self.name}
+                if include_id:
+                    result['id'] = self.id
+                return result
 
         class Profile(self.base):
             __tablename__ = db_key_name + '_Profile'
@@ -503,8 +534,19 @@ class TestSuiteDB(object):
                     db_key_name, self.__class__.__name__,
                     self.run, self.test, fields)
 
-            def __json__(self):
-                return strip(self.__dict__)
+            def __json__(self, flatten_test=False, include_id=True):
+                result = {}
+                if include_id:
+                    result['id'] = self.id
+                # Leave out: run_id
+                # TODO: What about profile/profile_id?
+                if flatten_test:
+                    _dict_update_abort_on_duplicates(result,
+                        self.test.__json__(include_id=False))
+                else:
+                    result['test_id'] = self.test_id
+                _dict_update_abort_on_duplicates(result, self.get_fields())
+                return result
 
         Run.samples = relation(Sample, back_populates='run',
                                cascade="all, delete-orphan")
@@ -553,13 +595,17 @@ class TestSuiteDB(object):
                                      self.test, self.machine, self.field))
 
             def __json__(self):
-                self.machine
-                self.test
-                self.field
-                self.run
-                self.start_order
-                self.end_order
-                return strip(self.__dict__)
+                return {
+                    'id': self.id,
+                    'old_value': self.old_value,
+                    'new_value': self.new_value,
+                    'start_order_id': self.start_order_id,
+                    'end_order_id': self.end_order_id,
+                    'test_id': self.test_id,
+                    'machine_id': self.machine_id,
+                    'field_id': self.field_id,
+                    'run_id': self.run_id,
+                }
 
         Machine.fieldchanges = relation(FieldChange, back_populates='machine',
                                         cascade="all, delete-orphan")
@@ -595,7 +641,12 @@ class TestSuiteDB(object):
                                                "<Deleted>")
 
             def __json__(self):
-                return strip(self.__dict__)
+                return {
+                    'id': self.id,
+                    'title': self.title,
+                    'bug': self.bug,
+                    'state': self.state,
+                }
 
         class RegressionIndicator(self.base, ParameterizedMixin):
             """"""
@@ -620,9 +671,11 @@ class TestSuiteDB(object):
                                      self.field_change))
 
             def __json__(self):
-                return {u'RegressionIndicatorID': self.id,
-                        u'Regression': self.regression,
-                        u'FieldChange': self.field_change}
+                return {
+                    'RegressionIndicatorID': self.id,
+                    'Regression': self.regression,
+                    'FieldChange': self.field_change
+                }
 
         FieldChange.regression_indicators = \
             relation(RegressionIndicator, back_populates='field_change',
@@ -834,6 +887,10 @@ class TestSuiteDB(object):
 
         # Added by REST API, we will replace as well.
         run_parameters.pop('order_by', None)
+        run_parameters.pop('order_id', None)
+        run_parameters.pop('machine_id', None)
+        run_parameters.pop('imported_from', None)
+        run_parameters.pop('simple_run_id', None)
 
         # Find the order record.
         order, inserted = self._getOrCreateOrder(run_parameters)

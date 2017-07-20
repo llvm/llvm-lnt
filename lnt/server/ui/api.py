@@ -1,7 +1,7 @@
 import lnt.util.ImportData
 import sqlalchemy
-from flask import current_app, g, Response, stream_with_context
-from flask import jsonify
+from flask import current_app, g, Response, make_response, stream_with_context
+from flask import json, jsonify
 from flask import request
 from flask_restful import Resource, abort
 from sqlalchemy.orm import joinedload
@@ -85,39 +85,11 @@ class Machines(Resource):
     @staticmethod
     def get():
         ts = request.get_testsuite()
-        machine_infos = ts.query(ts.Machine).all()
+        machines = ts.query(ts.Machine).all()
 
-        serializable_machines = []
-
-        for machine in machine_infos:
-            serializable_machines.append(common_machine_format(machine))
-
-        machines = common_fields_factory()
-        machines['machines'] = serializable_machines
-        return jsonify(machines)
-
-
-def common_run_format(run):
-    serializable_run = run.__json__()
-    del serializable_run['order']
-    # Replace orders with text order.
-
-    # Embed the parameters and order right into the run dict.
-    serializable_run.update(run.parameters)
-    serializable_run.update(dict((item.name, run.order.get_field(item))
-                                 for item in run.order.fields))
-    serializable_run['order_by'] = ', '.join([f.name for f in run.order.fields])
-    del serializable_run['machine']
-    del serializable_run['parameters_data']
-    return serializable_run
-
-
-def common_machine_format(machine):
-    serializable_machine = machine.__json__()
-    # Embed the parameters and order right into the run dict.
-    serializable_machine.update(machine.parameters)
-    del serializable_machine['parameters_data']
-    return serializable_machine
+        result = common_fields_factory()
+        result['machines'] = machines
+        return result
 
 
 class Machine(Resource):
@@ -137,8 +109,6 @@ class Machine(Resource):
     def get(machine_id):
         ts = request.get_testsuite()
         this_machine = Machine._get_machine(machine_id)
-        machine = common_fields_factory()
-        machine['machines'] = [common_machine_format(this_machine)]
         machine_runs = ts.query(ts.Run) \
             .join(ts.Machine) \
             .join(ts.Order) \
@@ -146,12 +116,12 @@ class Machine(Resource):
             .options(joinedload('order')) \
             .all()
 
-        runs = []
-        for run in machine_runs:
-            runs.append(common_run_format(run))
-        machine['runs'] = runs
+        runs = [run.__json__(flatten_order=True) for run in machine_runs]
 
-        return jsonify(machine)
+        result = common_fields_factory()
+        result['machine'] = this_machine
+        result['runs'] = runs
+        return result
 
     @staticmethod
     @requires_auth_token
@@ -230,24 +200,24 @@ class Run(Resource):
         except sqlalchemy.orm.exc.NoResultFound:
             abort(404, msg="Did not find run " + str(run_id))
 
-        full_run['run'] = common_run_format(run)
-        full_run['machine'] = common_machine_format(run.machine)
-
         to_get = [ts.Sample.id, ts.Sample.run_id, ts.Test.name]
         for f in ts.sample_fields:
             to_get.append(f.column)
 
-        q = ts.query(*to_get) \
+        sample_query = ts.query(*to_get) \
             .join(ts.Test) \
-            .join(ts.Run) \
-            .join(ts.Order) \
-            .filter(ts.Sample.run_id == run_id)
+            .filter(ts.Sample.run_id == run_id) \
+            .all()
+        # TODO: Handle multiple samples for a single test?
 
         # noinspection PyProtectedMember
-        ret = [sample._asdict() for sample in q.all()]
+        samples = [row._asdict() for row in sample_query]
 
-        full_run['tests'] = ret
-        return jsonify(full_run)
+        result = common_fields_factory()
+        result['run'] = run
+        result['machine'] = run.machine
+        result['tests'] = samples
+        return result
 
     @staticmethod
     @requires_auth_token
@@ -258,7 +228,6 @@ class Run(Resource):
             abort(404, msg="Did not find run " + str(run_id))
         ts.delete(run)
         ts.commit()
-        return
 
 
 class Runs(Resource):
@@ -272,7 +241,7 @@ class Runs(Resource):
         db = request.get_db()
         data = request.data
         result = lnt.util.ImportData.import_from_string(current_app.old_config,
-                                                        g.db_name, db, g.testsuite_name, data)
+            g.db_name, db, g.testsuite_name, data)
 
         new_url = ('%sapi/db_%s/v4/%s/runs/%s' %
                    (request.url_root, g.db_name, g.testsuite_name,
@@ -294,9 +263,9 @@ class Order(Resource):
             order = ts.query(ts.Order).filter(ts.Order.id == order_id).one()
         except NoResultFound:
             abort(404, message="Invalid order.")
-        order_output = common_fields_factory()
-        order_output['orders'] = [order]
-        return jsonify(order_output)
+        result = common_fields_factory()
+        result['orders'] = [order]
+        return result
 
 
 class SampleData(Resource):
@@ -306,12 +275,14 @@ class SampleData(Resource):
     def get(sample_id):
         ts = request.get_testsuite()
         try:
-            sample = ts.query(ts.Sample).filter(ts.Sample.id == sample_id).one()
+            sample = ts.query(ts.Sample) \
+                .filter(ts.Sample.id == sample_id) \
+                .one()
         except NoResultFound:
             abort(404, message="Invalid order.")
-        sample_output = common_fields_factory()
-        sample_output['samples'] = [{k: v for k, v in sample.__json__().items() if v is not None}]
-        return jsonify(sample_output)
+        result = common_fields_factory()
+        result['samples'] = [sample]
+        return result
 
 
 class SamplesData(Resource):
@@ -343,12 +314,12 @@ class SamplesData(Resource):
             .join(ts.Run) \
             .join(ts.Order) \
             .filter(ts.Sample.run_id.in_(run_ids))
-        output_samples = common_fields_factory()
+        result = common_fields_factory()
         # noinspection PyProtectedMember
-        output_samples['samples'] = [{k: v for k, v in sample.items() if v is not None}
-                                     for sample in [sample._asdict() for sample in q.all()]]
+        result['samples'] = [{k: v for k, v in sample.items() if v is not None}
+                             for sample in [sample._asdict() for sample in q.all()]]
 
-        return output_samples
+        return result
 
 
 class Graph(Resource):
@@ -446,6 +417,14 @@ def ts_path(path):
 
 
 def load_api_resources(api):
+    @api.representation('application/json')
+    def output_json(data, code, headers=None):
+        '''Override output_json() to use LNT json encoder'''
+        resp = make_response(json.dumps(data), code)
+        if headers is not None:
+            resp.headers.extend(headers)
+        return resp
+
     api.add_resource(Machines, ts_path("machines"), ts_path("machines/"))
     api.add_resource(Machine, ts_path("machines/<machine_id>"))
     api.add_resource(Runs, ts_path("runs"), ts_path("runs/"))

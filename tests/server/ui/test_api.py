@@ -34,11 +34,9 @@ machines_expected_response = [{u'hardware': u'x86_64',
                                u'name': u'machine3'}]
 
 order_expected_response = {u'llvm_project_revision': u'154331',
-                           u'id': 1,
-                           u'name': u'154331'}
+                           u'id': 1}
 
-sample_expected_response = {u'run_id': 1,
-                            u'id': 1,
+sample_expected_response = {u'id': 1,
                             u'execution_time': 0.0003,
                             u'test_id': 1,
                             u'compile_time': 0.007}
@@ -60,7 +58,6 @@ graph_data2 = [[[152293], 10.0,
 possible_run_keys = {u'__report_version__',
                      u'inferred_run_order',
                      u'test_suite_revision',
-                     u'simple_run_id',
                      u'cc_alt_src_revision',
                      u'USE_REFERENCE_OUTPUT',
                      u'cc_as_version',
@@ -88,7 +85,6 @@ possible_run_keys = {u'__report_version__',
                      u'cc_version',
                      u'OPTFLAGS',
                      u'cc_ld_version',
-                     u'imported_from',
                      u'TARGET_LLVMGCC',
                      u'LLI_OPTFLAGS',
                      u'cc_target',
@@ -97,7 +93,6 @@ possible_run_keys = {u'__report_version__',
                      u'end_time',
                      u'TEST',
                      u'LLC_OPTFLAGS',
-                     u'machine_id',
                      u'cc_exec_hash',
                      u'llvm_project_revision'
                      }
@@ -152,14 +147,11 @@ class JSONAPITester(unittest.TestCase):
         # Machine + properties + run information.
         j = check_json(client, 'api/db_default/v4/nts/machines/1')
         self._check_response_is_well_formed(j)
-        self.assertEqual(len(j['machines']), 1)
-        for machine in j['machines']:
-            self.assertSetEqual(set(machine.keys()), possible_machine_keys)
-        expected = {"hardware": "x86_64", "os": "Darwin 11.3.0", "id": 1}
-        self.assertDictContainsSubset(expected, j['machines'][0])
+        self.assertEqual(j['machine'], machines_expected_response[0])
 
         self.assertEqual(len(j['runs']), 2)
-        self.assertSetEqual(set(j['runs'][0].keys()), possible_run_keys)
+        for run in j['runs']:
+          self.assertSetEqual(set(run.keys()), possible_run_keys)
 
         # Invalid machine ids are 404.
         check_json(client, 'api/db_default/v4/nts/machines/99', expected_code=404)
@@ -171,9 +163,7 @@ class JSONAPITester(unittest.TestCase):
         j = check_json(client, 'api/db_default/v4/nts/runs/1')
         self._check_response_is_well_formed(j)
         expected = {"end_time": "2012-04-11T16:28:58",
-                    "order_id": 1,
                     "start_time": "2012-04-11T16:28:23",
-                    "machine_id": 1,
                     "id": 1,
                     "llvm_project_revision": u'154331'}
         self.assertDictContainsSubset(expected, j['run'])

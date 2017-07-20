@@ -36,7 +36,7 @@ class JSONAPIDeleteTester(unittest.TestCase):
 
         # Make sure the environment is as expected.
         j = check_json(client, 'api/db_default/v4/nts/machines/1')
-        self.assertEqual(j['machines'][0]['name'], 'localhost__clang_DEV__x86_64')
+        self.assertEqual(j['machine']['name'], 'localhost__clang_DEV__x86_64')
 
         data = {
             'action': 'rename',
@@ -55,7 +55,7 @@ class JSONAPIDeleteTester(unittest.TestCase):
 
         # Machine should be renamed now.
         j = check_json(client, 'api/db_default/v4/nts/machines/1')
-        self.assertEqual(j['machines'][0]['name'], 'new_machine_name')
+        self.assertEqual(j['machine']['name'], 'new_machine_name')
 
     def test_01_delete_run(self):
         """Check /runs/n can be deleted."""
