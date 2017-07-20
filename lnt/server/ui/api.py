@@ -78,14 +78,6 @@ def add_common_fields(to_update):
     to_update.update(common_fields_factory())
 
 
-def common_machine_format(machine):
-    serializable = machine.__json__()
-    del serializable['parameters_data']
-    final = machine.parameters.copy()
-    final.update(serializable)
-    return final
-
-
 class Machines(Resource):
     """List all the machines and give summary information."""
     method_decorators = [in_db]
@@ -107,13 +99,25 @@ class Machines(Resource):
 
 def common_run_format(run):
     serializable_run = run.__json__()
+    del serializable_run['order']
     # Replace orders with text order.
-    serializable_run['order'] = run.order.name
-    # Embed the parameters right into the run dict.
+
+    # Embed the parameters and order right into the run dict.
     serializable_run.update(run.parameters)
+    serializable_run.update(dict((item.name, run.order.get_field(item))
+                                 for item in run.order.fields))
+    serializable_run['order_by'] = ', '.join([f.name for f in run.order.fields])
     del serializable_run['machine']
     del serializable_run['parameters_data']
     return serializable_run
+
+
+def common_machine_format(machine):
+    serializable_machine = machine.__json__()
+    # Embed the parameters and order right into the run dict.
+    serializable_machine.update(machine.parameters)
+    del serializable_machine['parameters_data']
+    return serializable_machine
 
 
 class Machine(Resource):
@@ -226,10 +230,10 @@ class Run(Resource):
         except sqlalchemy.orm.exc.NoResultFound:
             abort(404, msg="Did not find run " + str(run_id))
 
-        full_run['runs'] = [common_run_format(run)]
+        full_run['run'] = common_run_format(run)
+        full_run['machine'] = common_machine_format(run.machine)
 
-        to_get = [ts.Sample.id, ts.Sample.run_id, ts.Test.name,
-                  ts.Order.fields[0].column]
+        to_get = [ts.Sample.id, ts.Sample.run_id, ts.Test.name]
         for f in ts.sample_fields:
             to_get.append(f.column)
 
@@ -242,7 +246,7 @@ class Run(Resource):
         # noinspection PyProtectedMember
         ret = [sample._asdict() for sample in q.all()]
 
-        full_run['samples'] = ret
+        full_run['tests'] = ret
         return jsonify(full_run)
 
     @staticmethod

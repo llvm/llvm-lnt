@@ -62,7 +62,7 @@ class JSONAPIDeleteTester(unittest.TestCase):
         client = self.client
 
         j = check_json(client, 'api/db_default/v4/nts/runs/1')
-        sample_ids = [s['id'] for s in j['samples']]
+        sample_ids = [s['id'] for s in j['tests']]
         self.assertNotEqual(len(sample_ids), 0)
         for sid in sample_ids:
             resp = client.get('api/db_default/v4/nts/samples/{}'.format(sid))
@@ -97,7 +97,9 @@ class JSONAPIDeleteTester(unittest.TestCase):
         for run_id in run_ids:
             resp = check_json(client,
                               'api/db_default/v4/nts/runs/{}'.format(run_id))
-            sample_ids.append([s['id'] for s in resp['samples']])
+            import pprint
+            pprint.pprint(resp['tests'])
+            sample_ids.append([s['id'] for s in resp['tests']])
         self.assertNotEqual(len(sample_ids), 0)
 
         resp = client.delete('api/db_default/v4/nts/machines/2')
@@ -130,7 +132,7 @@ Deleted machine 2
         """Check POST to /runs."""
         client = self.client
 
-        resp = client.get('api/db_default/v4/nts/runs/5')
+        resp = client.get('api/db_default/v4/nts/runs/999')
         self.assertEqual(resp.status_code, 404)
 
         data = open('%s/sample-report.json' % self.shared_inputs).read()
@@ -141,8 +143,7 @@ Deleted machine 2
         resp = client.post('api/db_default/v4/nts/runs', data=data,
                            headers={'AuthToken': 'test_token'})
         self.assertEqual(resp.status_code, 301)
-        self.assertEqual(resp.headers['Location'],
-                         'http://localhost/api/db_default/v4/nts/runs/5')
+        self.assertIn('http://localhost/api/db_default/v4/nts/runs/', resp.headers['Location'])
         resp_json = json.loads(resp.data)
         self.assertEqual(resp_json['run_id'], 5)
 
