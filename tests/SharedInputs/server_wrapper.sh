@@ -32,7 +32,7 @@ main() {
 
 	lnt runserver $serverinstance --hostname localhost --port $portnr >& $serverinstance/server_wrapper_runserver.log &
 	local pid=$!
-	sleep 1 # Give the server some time to start.
+	sleep 2 # Give the server some time to start.
 
 	# Execute command.
 	eval "$@"
