@@ -1,6 +1,6 @@
 import lnt.util.ImportData
 import sqlalchemy
-from flask import current_app, g, Response, stream_with_context
+from flask import current_app, g, stream_with_context
 from flask import jsonify
 from flask import request
 from flask_restful import Resource, abort
@@ -41,6 +41,7 @@ def requires_auth_token(f):
         if not current_app.old_config.api_auth_token or token != current_app.old_config.api_auth_token:
             abort(401, msg="Auth Token must be passed in AuthToken header, and included in LNT config.")
         return f(*args, **kwargs)
+
     return decorated
 
 
