@@ -132,7 +132,7 @@ Deleted machine 2
         """Check POST to /runs."""
         client = self.client
 
-        resp = client.get('api/db_default/v4/nts/runs/999')
+        resp = client.get('api/db_default/v4/nts/runs/5')
         self.assertEqual(resp.status_code, 404)
 
         data = open('%s/sample-report.json' % self.shared_inputs).read()
