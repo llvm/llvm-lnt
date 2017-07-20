@@ -81,19 +81,20 @@ view the results.
 
 
 @click.command("checkformat")
-@click.argument("file", "input_file", nargs=-1, type=click.Path(exists=True))
+@click.argument("files", nargs=-1, type=click.Path(exists=True))
 @click.option("--testsuite", "-s", default='nts')
-def action_checkformat(input_file, testsuite):
-    """check the format of an LNT test report file"""
+def action_checkformat(files, testsuite):
+    """check the format of LNT test report files"""
     import lnt.server.config
     import lnt.server.db.v4db
     import lnt.util.ImportData
     db = lnt.server.db.v4db.V4DB('sqlite:///:memory:',
                                  lnt.server.config.Config.dummy_instance())
-    result = lnt.util.ImportData.import_and_report(
-        None, None, db, input_file, 'json', testsuite, commit=True)
-    lnt.util.ImportData.print_report_result(result, sys.stdout, sys.stderr,
-                                            verbose=True)
+    for file in files:
+        result = lnt.util.ImportData.import_and_report(
+            None, None, db, file, '<auto>', testsuite, commit=True)
+        lnt.util.ImportData.print_report_result(result, sys.stdout,
+                                                sys.stderr, verbose=True)
 
 
 def _print_result_url(results, verbose):

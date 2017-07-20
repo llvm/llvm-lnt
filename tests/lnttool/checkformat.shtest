@@ -1,0 +1,50 @@
+# Check an old plist format
+# RUN: lnt checkformat %{shared_inputs}/sample-a-small.plist 2>&1 | FileCheck %s --check-prefix=CHECK0
+#
+# CHECK0: Import succeeded.
+# CHECK0: Imported Data
+# CHECK0: -------------
+# CHECK0: Added Machines: 1
+# CHECK0: Added Runs    : 1
+# CHECK0: Added Tests   : 1
+#
+# CHECK0: Results
+# CHECK0: ----------------
+# CHECK0: PASS : 5
+#
+#
+# Check an old json format
+# RUN: lnt checkformat %{shared_inputs}/sample-report.json 2>&1 | FileCheck %s --check-prefix=CHECK1
+#
+# CHECK1: Import succeeded.
+# CHECK1: Imported Data
+# CHECK1: -------------
+# CHECK1: Added Machines: 1
+# CHECK1: Added Runs    : 1
+# CHECK1: Added Tests   : 2
+#
+# CHECK1: Results
+# CHECK1: ----------------
+# CHECK1: PASS : 10
+#
+#
+# Check new-style json format
+# RUN: lnt checkformat %{src_root}/docs/report-example.json 2>&1 | FileCheck %s --check-prefix=CHECK2
+#
+# CHECK2: Import succeeded.
+# CHECK2: Imported Data
+# CHECK2: -------------
+# CHECK2: Added Machines: 1
+# CHECK2: Added Runs    : 1
+# CHECK2: Added Tests   : 2
+#
+# CHECK2: Results
+# CHECK2: ----------------
+# CHECK2: PASS : 10
+#
+#
+# Check invalid format
+# RUN: lnt checkformat %S/Inputs/invalid_submission0.json 2>&1 | FileCheck %s --check-prefix=CHECKFAIL0
+#
+# CHECKFAIL0: Import Failed:
+# CHECKFAIL0: could not parse input format
