@@ -268,12 +268,11 @@ class Runs(Resource):
     @staticmethod
     @requires_auth_token
     def post():
-        '''Add a new run into the lnt database'''
-        ts = request.get_testsuite()
+        """Add a new run into the lnt database"""
         db = request.get_db()
         data = request.data
         result = lnt.util.ImportData.import_from_string(current_app.old_config,
-            g.db_name, db, g.testsuite_name, data)
+                                                        g.db_name, db, g.testsuite_name, data)
 
         new_url = ('%sapi/db_%s/v4/%s/runs/%s' %
                    (request.url_root, g.db_name, g.testsuite_name,
