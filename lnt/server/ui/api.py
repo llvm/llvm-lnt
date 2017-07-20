@@ -1,6 +1,6 @@
 import lnt.util.ImportData
 import sqlalchemy
-from flask import current_app, g, stream_with_context
+from flask import current_app, g, Response, stream_with_context
 from flask import jsonify
 from flask import request
 from flask_restful import Resource, abort
