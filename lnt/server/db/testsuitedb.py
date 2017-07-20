@@ -260,7 +260,7 @@ class TestSuiteDB(object):
                 return self.as_ordered_string()
 
             def __cmp__(self, b):
-                # SA occassionally uses comparison to check model instances
+                # SA occasionally uses comparison to check model instances
                 # verse some sentinels, so we ensure we support comparison
                 # against non-instances.
                 if self.__class__ is not b.__class__:
