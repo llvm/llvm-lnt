@@ -371,7 +371,7 @@ class TestSuiteDB(object):
                     _dict_update_abort_on_duplicates(result,
                         self.order.__json__(include_id=False))
                     result['order_by'] = \
-                        ', '.join([f.name for f in self.order.fields])
+                        ','.join([f.name for f in self.order.fields])
                     result['order_id'] = self.order_id
                 else:
                     result['order_id'] = self.order_id

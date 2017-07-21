@@ -9,6 +9,7 @@ from sqlalchemy.orm.exc import NoResultFound
 
 from lnt.server.ui.util import convert_revision
 from lnt.testing import PASS
+from lnt.util import logger
 from functools import wraps
 
 
@@ -145,15 +146,20 @@ class Machine(Resource):
                 if len(runs) == 0:
                     break
                 at += len(runs)
-                yield "Deleting runs %s (%d/%d)\n" % \
+                msg = "Deleting runs %s (%d/%d)" % \
                     (" ".join([str(run.id) for run in runs]), at, count)
+                logger.info(msg)
+                yield msg + '\n'
                 for run in runs:
                     ts.session.delete(run)
                 ts.commit()
 
+            machine_name = machine.name
             ts.session.delete(machine)
             ts.commit()
-            yield "Deleted machine %s\n" % machine_id
+            msg = "Deleted machine %s:%s" % (machine_name, machine_id)
+            logger.info(msg)
+            yield msg + '\n'
 
         stream = stream_with_context(perform_delete(ts, machine))
         return Response(stream, mimetype="text/plain")
@@ -164,6 +170,7 @@ class Machine(Resource):
     def post(machine_id):
         ts = request.get_testsuite()
         machine = Machine._get_machine(machine_id)
+        previous_name = machine.name
 
         action = request.values.get('action', None)
         if action is None:
@@ -178,6 +185,8 @@ class Machine(Resource):
                 abort(400, msg="Machine with name '%s' already exists" % name)
             machine.name = name
             ts.session.commit()
+            logger.info("Renamed machine %s:%s to %s" %
+                        (previous_name, machine_id, name))
         else:
             abort(400, msg="Unknown action '%s'" % action)
 
@@ -228,6 +237,7 @@ class Run(Resource):
             abort(404, msg="Did not find run " + str(run_id))
         ts.delete(run)
         ts.commit()
+        logger.info("Deleted run %s" % (run_id,))
 
 
 class Runs(Resource):

@@ -114,7 +114,7 @@ class JSONAPIDeleteTester(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.get_data(),
 '''Deleting runs 3 5 6 7 8 9 (6/6)
-Deleted machine 2
+Deleted machine machine2:2
 ''')
 
         resp = client.get('api/db_default/v4/nts/machines/2')
