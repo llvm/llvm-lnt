@@ -68,7 +68,7 @@ class PrecomputedCR():
 
     def get_value_status(self, ignore_small=True):
         return REGRESSED
-    
+
     def __json__(self):
         return self.__dict__
 
@@ -77,7 +77,8 @@ class PrecomputedCR():
 def v4_new_regressions():
     form = TriagePageSelectedForm(request.form)
     ts = request.get_testsuite()
-    if request.method == 'POST' and request.form['btn'] == "Create New Regression":
+    if request.method == 'POST' and \
+            request.form['btn'] == "Create New Regression":
         regression = new_regression(ts, form.field_changes.data)
         flash("Created " + regression.title, FLASH_SUCCESS)
         return redirect(v4_url_for("v4_regression_list",
@@ -98,9 +99,9 @@ def v4_new_regressions():
     recent_fieldchange = ts.query(ts.FieldChange) \
         .join(ts.Test) \
         .outerjoin(ts.ChangeIgnore) \
-        .filter(ts.ChangeIgnore.id == None) \
+        .filter(ts.ChangeIgnore.id.is_(None)) \
         .outerjoin(ts.RegressionIndicator) \
-        .filter(ts.RegressionIndicator.id == None) \
+        .filter(ts.RegressionIndicator.id.is_(None)) \
         .order_by(desc(ts.FieldChange.id)) \
         .limit(500) \
         .all()
@@ -111,7 +112,8 @@ def v4_new_regressions():
         if fc.old_value is None:
             cr, key_run, _ = get_cr_for_field_change(ts, fc)
         else:
-            cr = PrecomputedCR(fc.old_value, fc.new_value, fc.field.bigger_is_better)
+            cr = PrecomputedCR(fc.old_value, fc.new_value,
+                               fc.field.bigger_is_better)
             key_run = get_first_runs_of_fieldchange(ts, fc)
         current_cr, _, _ = get_cr_for_field_change(ts, fc, current=True)
         crs.append(ChangeData(fc, cr, key_run, current_cr))
@@ -125,20 +127,22 @@ def v4_new_regressions():
 def calc_impact(ts, fcs):
     crs = []
     for fc in fcs:
-        if fc == None:
+        if fc is None:
             continue
         if fc.old_value is None:
             cr, _, _ = get_cr_for_field_change(ts, fc)
         else:
-            cr = PrecomputedCR(fc.old_value, fc.new_value, fc.field.bigger_is_better)
+            cr = PrecomputedCR(fc.old_value, fc.new_value,
+                               fc.field.bigger_is_better)
         crs.append(cr)
     if crs:
         olds = sum([x.previous for x in crs if x.previous])
         news = sum([x.current for x in crs if x.current])
         if olds and news:
-            new_cr = PrecomputedCR(olds, news, crs[0].bigger_is_better)  # TODO both directions
+            new_cr = PrecomputedCR(olds, news, crs[0].bigger_is_better)
+            # TODO both directions
             return new_cr
-    
+
     return PrecomputedCR(1, 1, True)
 
 
@@ -172,7 +176,7 @@ def v4_regression_list():
             if r.bug:
                 target = i
                 links.append(r.bug)
-                
+
         new_regress = new_regression(ts, [x.field_change_id for x in reg_inds])
         new_regress.state = regressions[target].state
         new_regress.title = regressions[target].title
@@ -182,7 +186,7 @@ def v4_regression_list():
             r.title = "Merged into Regression " + str(new_regress.id)
             r.state = RegressionState.IGNORED
         [ts.delete(x) for x in reg_inds]
-        
+
         ts.commit()
         flash("Created: " + new_regress.title, FLASH_SUCCESS)
         return redirect(v4_url_for("v4_regression_detail", id=new_regress.id))
@@ -218,7 +222,8 @@ def v4_regression_list():
                     regression.id) \
             .all()
         if machine_filter:
-            machine_names = set([x.field_change.machine.name for x in reg_inds])
+            machine_names = \
+                set([x.field_change.machine.name for x in reg_inds])
             if machine_filter in machine_names:
                 filtered_regressions.append(regression)
             else:
@@ -230,10 +235,11 @@ def v4_regression_list():
         regression_sizes.append(len(reg_inds))
         impacts.append(calc_impact(ts, [x.field_change for x in reg_inds]))
         # Now guess the regression age:
-        if len(reg_inds) and reg_inds[0].field_change and reg_inds[0].field_change.run:
-                age = reg_inds[0].field_change.run.end_time
+        if len(reg_inds) and reg_inds[0].field_change and \
+                reg_inds[0].field_change.run:
+            age = reg_inds[0].field_change.run.end_time
         else:
-                age = EmptyDate()
+            age = EmptyDate()
         ages.append(age)
 
     return render_template("v4_regression_list.html",
@@ -256,7 +262,7 @@ def _get_regressions_from_selected_form(form, ts):
         .filter(ts.Regression.id.in_(regressions_id_to_merge)).all()
     reg_inds = ts.query(ts.RegressionIndicator) \
         .filter(ts.RegressionIndicator.regression_id.in_(
-        regressions_id_to_merge)) \
+            regressions_id_to_merge)) \
         .all()
     return reg_inds, regressions
 
@@ -309,10 +315,12 @@ def v4_regression_detail(id):
         return redirect(v4_url_for("v4_regression_list",
                         highlight=regression_info.id,
                         state=int(form.edit_state.data)))
-    if request.method == 'POST' and request.form['save_btn'] == "Split Regression":
+    if request.method == 'POST' and \
+            request.form['save_btn'] == "Split Regression":
         # For each of the regression indicators, grab their field ids.
         res_inds = ts.query(ts.RegressionIndicator) \
-            .filter(ts.RegressionIndicator.field_change_id.in_(form.field_changes.data)) \
+            .filter(ts.RegressionIndicator.field_change_id.in_(
+                form.field_changes.data)) \
             .all()
         fc_ids = [x.field_change_id for x in res_inds]
         second_regression = new_regression(ts, fc_ids)
@@ -331,7 +339,8 @@ def v4_regression_detail(id):
         # For each of the regression indicators, grab their field ids.
         title = regression_info.title
         res_inds = ts.query(ts.RegressionIndicator) \
-            .filter(ts.RegressionIndicator.regression_id == regression_info.id) \
+            .filter(
+                ts.RegressionIndicator.regression_id == regression_info.id) \
             .all()
         # Now remove our links to this regression.
         for res_ind in res_inds:
@@ -367,7 +376,8 @@ def v4_regression_detail(id):
         if fc.old_value is None:
             cr, key_run, all_runs = get_cr_for_field_change(ts, fc)
         else:
-            cr = PrecomputedCR(fc.old_value, fc.new_value, fc.field.bigger_is_better)
+            cr = PrecomputedCR(fc.old_value, fc.new_value,
+                               fc.field.bigger_is_better)
             key_run = get_first_runs_of_fieldchange(ts, fc)
         current_cr, _, all_runs = get_cr_for_field_change(ts, fc, current=True)
         crs.append(ChangeData(fc, cr, key_run, current_cr))
@@ -376,7 +386,7 @@ def v4_regression_detail(id):
             ts_rev = key_run.parameters.get('test_suite_revision')
             if ts_rev and ts_rev != u'None':
                 test_suite_versions.add(ts_rev)
-    
+
     if len(test_suite_versions) > 1:
         revs = ', '.join(list(test_suite_versions))
         flash("More than one test-suite version: " + revs,
@@ -399,31 +409,32 @@ def v4_hook():
     ts = request.get_testsuite()
     rule_hooks.post_submission_hooks(ts, 0)
     abort(400)
-  
 
-@v4_route("/regressions/new_from_graph/<int:machine_id>/<int:test_id>/<int:field_index>/<int:run_id>", methods=["GET"])
+
+@v4_route("/regressions/new_from_graph/<int:machine_id>/<int:test_id>"
+          "/<int:field_index>/<int:run_id>", methods=["GET"])
 def v4_make_regression(machine_id, test_id, field_index, run_id):
     """This function is called to make a new regression from a graph data point.
-    
+
     It is not nessessarly the case that there will be a real change there,
     so we must create a regression, bypassing the normal analysis.
-    
+
     """
     ts = request.get_testsuite()
     field = ts.sample_fields[field_index]
     new_regression_id = 0
     run = ts.query(ts.Run).get(run_id)
-    
+
     runs = ts.query(ts.Run). \
         filter(ts.Run.order_id == run.order_id). \
         filter(ts.Run.machine_id == run.machine_id). \
         all()
-        
+
     if len(runs) == 0:
         abort(404)
-        
+
     previous_runs = ts.get_previous_runs_on_machine(run, 1)
-    
+
     # Find our start/end order.
     if previous_runs != []:
         start_order = previous_runs[0].order
@@ -436,11 +447,9 @@ def v4_make_regression(machine_id, test_id, field_index, run_id):
 
     runinfo = lnt.server.reporting.analysis.RunInfo(ts, runs_to_load)
 
-    result = runinfo.get_comparison_result(runs,
-                                           previous_runs,
-                                           test_id,
-                                           field,
-                                           ts.Sample.get_hash_of_binary_field())
+    result = runinfo.get_comparison_result(
+        runs, previous_runs, test_id, field,
+        ts.Sample.get_hash_of_binary_field())
 
     # Try and find a matching FC and update, else create one.
     f = None
@@ -455,7 +464,7 @@ def v4_make_regression(machine_id, test_id, field_index, run_id):
             .one()
     except sqlalchemy.orm.exc.NoResultFound:
             f = None
-    
+
     if not f:
         test = ts.query(ts.Test).filter(ts.Test.id == test_id).one()
         f = ts.FieldChange(start_order=start_order,
@@ -470,11 +479,11 @@ def v4_make_regression(machine_id, test_id, field_index, run_id):
         f.new_value = result.current
         f.run = run
     ts.commit()
-    
+
     # Make new regressions.
     regression = new_regression(ts, [f.id])
     regression.state = RegressionState.ACTIVE
-    
+
     ts.commit()
     logger.info("Manually created new regressions: {}".format(regression.id))
     flash("Created " + regression.title, FLASH_SUCCESS)

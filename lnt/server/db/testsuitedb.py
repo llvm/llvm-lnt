@@ -368,8 +368,8 @@ class TestSuiteDB(object):
                 }
                 # Leave out: machine_id, simple_run_id, imported_from
                 if flatten_order:
-                    _dict_update_abort_on_duplicates(result,
-                        self.order.__json__(include_id=False))
+                    _dict_update_abort_on_duplicates(
+                        result, self.order.__json__(include_id=False))
                     result['order_by'] = \
                         ','.join([f.name for f in self.order.fields])
                     result['order_id'] = self.order_id
@@ -541,8 +541,8 @@ class TestSuiteDB(object):
                 # Leave out: run_id
                 # TODO: What about profile/profile_id?
                 if flatten_test:
-                    _dict_update_abort_on_duplicates(result,
-                        self.test.__json__(include_id=False))
+                    _dict_update_abort_on_duplicates(
+                        result, self.test.__json__(include_id=False))
                 else:
                     result['test_id'] = self.test_id
                 _dict_update_abort_on_duplicates(result, self.get_fields())
@@ -906,13 +906,13 @@ class TestSuiteDB(object):
             end_time = aniso8601.parse_datetime(run_data['end_time'])
         except ValueError:
             end_time = datetime.datetime.strptime(run_data['end_time'],
-                                              "%Y-%m-%d %H:%M:%S")
+                                                  "%Y-%m-%d %H:%M:%S")
         run_parameters.pop('start_time')
         run_parameters.pop('end_time')
 
         # Convert the rundata into a run record. As with Machines, we construct
-        # the query to look for any existing run at the same time as we build up
-        # the record to possibly add.
+        # the query to look for any existing run at the same time as we build
+        # up the record to possibly add.
         #
         # FIXME: This feels inelegant, can't SA help us out here?
         query = self.query(self.Run).\

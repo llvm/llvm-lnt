@@ -44,7 +44,8 @@ class RootSlashPatchMiddleware(object):
 
 
 class LNTObjectJSONEncoder(flask.json.JSONEncoder):
-    """Take SQLAlchemy objects and jsonify them. If the object has an __json__ method, use that instead."""
+    """Take SQLAlchemy objects and jsonify them. If the object has an __json__
+    method, use that instead."""
 
     def __init__(self,  *args, **kwargs):
         super(LNTObjectJSONEncoder, self).__init__(*args, **kwargs)
@@ -56,7 +57,8 @@ class LNTObjectJSONEncoder(flask.json.JSONEncoder):
             return obj.isoformat()
         if isinstance(obj.__class__, DeclarativeMeta):
             fields = {}
-            for field in [x for x in dir(obj) if not x.startswith('_') and x != 'metadata']:
+            for field in [x for x in dir(obj)
+                          if not x.startswith('_') and x != 'metadata']:
                 data = obj.__getattribute__(field)
                 if isinstance(data, datetime.datetime):
                     fields[field] = data.isoformat()
@@ -88,16 +90,18 @@ class Request(flask.Request):
         """
         get_db() -> <db instance>
 
-        Get the active database and add a logging handler if part of the request
-        arguments.
+        Get the active database and add a logging handler if part of the
+        request arguments.
         """
 
         if self.db is None:
             echo = bool(self.args.get('db_log') or self.form.get('db_log'))
             try:
-                self.db = current_app.old_config.get_database(g.db_name, echo=echo)
+                self.db = current_app.old_config.get_database(g.db_name,
+                                                              echo=echo)
             except DatabaseError:
-                self.db = current_app.old_config.get_database(g.db_name, echo=echo)
+                self.db = current_app.old_config.get_database(g.db_name,
+                                                              echo=echo)
             # Enable SQL logging with db_log.
             #
             # FIXME: Conditionalize on an is_production variable.
@@ -174,7 +178,9 @@ class App(LNTExceptionLoggerFlask):
             message = "{}: {}".format(e.name, e.description)
             if request.accept_mimetypes.accept_json and \
                     not request.accept_mimetypes.accept_html:
-                response = jsonify({'error': 'The page you are looking for does not exist.'})
+                response = jsonify({
+                    'error': 'The page you are looking for does not exist.',
+                })
                 response.status_code = 404
                 return response
             return render_template('error.html', message=message), 404
@@ -183,7 +189,10 @@ class App(LNTExceptionLoggerFlask):
         def internal_server_error(e):
             if request.accept_mimetypes.accept_json and \
                     not request.accept_mimetypes.accept_html:
-                response = jsonify({'error': 'internal server error', 'message': repr(e)})
+                response = jsonify({
+                    'error': 'internal server error',
+                    'message': repr(e),
+                })
                 response.status_code = 500
                 return response
             return render_template('error.html', message=repr(e)), 500
@@ -235,7 +244,8 @@ class App(LNTExceptionLoggerFlask):
         self.logger.addHandler(ch)
 
         # Log to mem for the /log view.
-        h = logging.handlers.MemoryHandler(1024 * 1024, flushLevel=logging.CRITICAL)
+        h = logging.handlers.MemoryHandler(1024 * 1024,
+                                           flushLevel=logging.CRITICAL)
         h.setLevel(logging.DEBUG)
         self.logger.addHandler(h)
         # Also store the logger, so we can render the buffer in it.
@@ -253,7 +263,8 @@ class App(LNTExceptionLoggerFlask):
                 rotating.setLevel(logging.DEBUG)
                 self.logger.addHandler(rotating)
             except (OSError, IOError) as e:
-                print >> sys.stderr, "Error making log file", LOG_FILENAME, str(e)
+                print >> sys.stderr, "Error making log file", \
+                                     LOG_FILENAME, str(e)
                 print >> sys.stderr, "Will not log to file."
             else:
                 self.logger.info("Started file logging.")

@@ -278,8 +278,8 @@ class PctCell:
                 attrs.append('%s="%s"' % (key, value))
         attr_string = ' '.join(attrs)
         if self.data:
-            return '<td %s>%s (%s)</td>' % (
-            attr_string, self.data, self.getValue())
+            return '<td %s>%s (%s)</td>' % \
+                (attr_string, self.data, self.getValue())
         else:
             return '<td %s>%s</td>' % (attr_string, self.getValue())
 
@@ -298,9 +298,12 @@ def renderProducerAsHTML(producer):
         builder = m.group(2)
         build = m.group(3)
 
-        png_url = 'http://%(url)s/png?builder=%(builder)s&amp;number=%(build)s' % locals()
+        png_url = \
+            'http://%(url)s/png?builder=%(builder)s&amp;number=%(build)s' % \
+            locals()
         img = '<img src="%(png_url)s" />' % locals()
-        return '<a href="%(producer)s">%(builder)s #%(build)s %(img)s</a>' % locals()
+        return '<a href="%(producer)s">%(builder)s #%(build)s %(img)s</a>' % \
+            locals()
 
     elif producer.startswith('http://'):
         return '<a href="' + producer + '">Producer</a>'
@@ -332,9 +335,10 @@ def guess_test_short_name(test_name):
 
 def baseline_key(ts_name=None):
     """A unique name for baseline session keys per DB and suite.
-    
-    Optionally, get the test-suite name from a parameter, when this is called during
-    submission the global context does not know which test-suite we are in until too late.
+
+    Optionally, get the test-suite name from a parameter, when this is called
+    during submission the global context does not know which test-suite we are
+    in until too late.
     """
     if ts_name:
         name = ts_name
@@ -353,4 +357,3 @@ def convert_revision(dotted):
     """
     dotted = integral_rex.findall(dotted)
     return tuple([int(d) for d in dotted])
-

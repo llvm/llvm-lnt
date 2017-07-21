@@ -1,6 +1,7 @@
 import click
 import lnt.formats
 
+
 @click.command("import")
 @click.argument("instance_path", type=click.UNPROCESSED)
 @click.argument("files", nargs=-1, type=click.Path(exists=True), required=True)

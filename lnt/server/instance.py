@@ -8,6 +8,7 @@ import lnt.server.config
 from lnt.util import logger
 from lnt.testing.util.commands import fatal
 
+
 class Instance(object):
     """
     Wrapper object for representing an LNT instance.

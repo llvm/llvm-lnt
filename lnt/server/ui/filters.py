@@ -17,7 +17,8 @@ def filter_asisotime(time):
     return ts.isoformat()
 
 
-def filter_aspctcell(value, class_=None, style=None, attributes=None, *args, **kwargs):
+def filter_aspctcell(value, class_=None, style=None, attributes=None, *args,
+                     **kwargs):
     cell = util.PctCell(value, *args, **kwargs)
     return cell.render(class_, style, attributes)
 

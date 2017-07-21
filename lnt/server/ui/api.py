@@ -39,8 +39,10 @@ def requires_auth_token(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         token = request.headers.get("AuthToken", None)
-        if not current_app.old_config.api_auth_token or token != current_app.old_config.api_auth_token:
-            abort(401, msg="Auth Token must be passed in AuthToken header, and included in LNT config.")
+        if not current_app.old_config.api_auth_token or \
+           token != current_app.old_config.api_auth_token:
+            abort(401, msg="Auth Token must be passed in AuthToken header, "
+                           "and included in LNT config.")
         return f(*args, **kwargs)
 
     return decorated
@@ -70,7 +72,9 @@ def with_ts(obj):
 
 def common_fields_factory():
     """Get a dict with all the common fields filled in."""
-    common_data = {'generated_by': 'LNT Server v{}'.format(current_app.version)}
+    common_data = {
+        'generated_by': 'LNT Server v{}'.format(current_app.version),
+    }
     return common_data
 
 
@@ -163,7 +167,6 @@ class Machine(Resource):
 
         stream = stream_with_context(perform_delete(ts, machine))
         return Response(stream, mimetype="text/plain")
-
 
     @staticmethod
     @requires_auth_token
@@ -267,8 +270,8 @@ class Runs(Resource):
         """Add a new run into the lnt database"""
         db = request.get_db()
         data = request.data
-        result = lnt.util.ImportData.import_from_string(current_app.old_config,
-            g.db_name, db, g.testsuite_name, data)
+        result = lnt.util.ImportData.import_from_string(
+            current_app.old_config, g.db_name, db, g.testsuite_name, data)
 
         new_url = ('%sapi/db_%s/v4/%s/runs/%s' %
                    (request.url_root, g.db_name, g.testsuite_name,
@@ -325,8 +328,8 @@ class SamplesData(Resource):
         run_ids = [int(r) for r in args.get('runid', [])]
 
         if not run_ids:
-            abort(400,
-                  msg='No runids found in args. Should be "samples?runid=1&runid=2" etc.')
+            abort(400, msg='No runids found in args. '
+                           'Should be "samples?runid=1&runid=2" etc.')
 
         to_get = [ts.Sample.id,
                   ts.Sample.run_id,
@@ -344,7 +347,8 @@ class SamplesData(Resource):
         result = common_fields_factory()
         # noinspection PyProtectedMember
         result['samples'] = [{k: v for k, v in sample.items() if v is not None}
-                             for sample in [sample._asdict() for sample in q.all()]]
+                             for sample in [sample._asdict()
+                                            for sample in q.all()]]
 
         return result
 
@@ -369,7 +373,8 @@ class Graph(Resource):
         except NoResultFound:
             abort(404)
 
-        q = ts.query(field.column, ts.Order.llvm_project_revision, ts.Run.start_time, ts.Run.id) \
+        q = ts.query(field.column, ts.Order.llvm_project_revision,
+                     ts.Run.start_time, ts.Run.id) \
             .join(ts.Run) \
             .join(ts.Order) \
             .filter(ts.Run.machine_id == machine.id) \
@@ -387,9 +392,11 @@ class Graph(Resource):
             if limit:
                 q = q.limit(limit)
 
-        samples = [[convert_revision(rev), val, {'label': rev, 'date': str(time), 'runID': str(rid)}] for
-                   val, rev, time, rid in
-                   q.all()[::-1]]
+        samples = [
+            [convert_revision(rev), val,
+             {'label': rev, 'date': str(time), 'runID': str(rid)}]
+            for val, rev, time, rid in q.all()[::-1]
+        ]
         samples.sort(key=lambda x: x[0])
         return samples
 
@@ -410,7 +417,9 @@ class Regression(Resource):
             .filter(ts.FieldChange.field_id == field.id) \
             .all()
         fc_ids = [x.id for x in fcs]
-        fc_mappings = dict([(x.id, (x.end_order.as_ordered_string(), x.new_value)) for x in fcs])
+        fc_mappings = dict(
+            [(x.id, (x.end_order.as_ordered_string(), x.new_value))
+             for x in fcs])
         if len(fcs) == 0:
             # If we don't find anything, lets see if we are even looking
             # for a valid thing to provide a nice error.
@@ -426,15 +435,21 @@ class Regression(Resource):
                 abort(404)
             # I think we found nothing.
             return []
-        regressions = ts.query(ts.Regression.title, ts.Regression.id, ts.RegressionIndicator.field_change_id,
+        regressions = ts.query(ts.Regression.title, ts.Regression.id,
+                               ts.RegressionIndicator.field_change_id,
                                ts.Regression.state) \
             .join(ts.RegressionIndicator) \
             .filter(ts.RegressionIndicator.field_change_id.in_(fc_ids)) \
             .all()
-        results = [{'title': r.title,
-                    'id': r.id,
-                    'state': r.state,
-                    'end_point': fc_mappings[r.field_change_id]} for r in regressions]
+        results = [
+            {
+                'title': r.title,
+                'id': r.id,
+                'state': r.state,
+                'end_point': fc_mappings[r.field_change_id]
+            }
+            for r in regressions
+        ]
         return results
 
 
@@ -461,5 +476,6 @@ def load_api_resources(api):
     api.add_resource(Order, ts_path("orders/<int:order_id>"))
     graph_url = "graph/<int:machine_id>/<int:test_id>/<int:field_index>"
     api.add_resource(Graph, ts_path(graph_url))
-    regression_url = "regression/<int:machine_id>/<int:test_id>/<int:field_index>"
+    regression_url = \
+        "regression/<int:machine_id>/<int:test_id>/<int:field_index>"
     api.add_resource(Regression, ts_path(regression_url))

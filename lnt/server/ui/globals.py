@@ -20,7 +20,7 @@ def v4_url_for(*args, **kwargs):
     testsuite_name arguments.
     """
     return flask.url_for(*args, db_name=flask.g.db_name,
-                          testsuite_name=flask.g.testsuite_name, **kwargs)
+                         testsuite_name=flask.g.testsuite_name, **kwargs)
 
 
 def v4_url_available(*args, **kwargs):
@@ -45,5 +45,3 @@ def register(env):
         v4_url_for=v4_url_for,
         v4_url_available=v4_url_available,
         baseline_key=lnt.server.ui.util.baseline_key)
-
-
