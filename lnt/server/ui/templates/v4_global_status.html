@@ -1,7 +1,7 @@
 {% import "utils.html" as utils %}
 
 {% extends "layout.html" %}
-{% set components = [(ts.name, v4_url_for("v4_global_status"))] %}
+{% set components = [(ts.name, v4_url_for(".v4_global_status"))] %}
 {% block head %}
         <link type="text/css" rel="stylesheet"
               href="{{ url_for('.static', filename='v4_global_status.css') }}"></link>
@@ -47,7 +47,7 @@
 
 {% block page_header %}
         {# LNT Instance Title #}
-        <a href="{{url_for('index')}}" class="header-title">
+        <a href="{{url_for('.index')}}" class="header-title">
           <h2>{{old_config.name}}</h2>
         </a>
 
@@ -64,7 +64,7 @@
 
         {# Database Selector #}
         <span id="nav-dbselector">
-          <form method="get" action="{{ url_for('select_db') }}" class="nav">
+          <form method="get" action="{{ url_for('.select_db') }}" class="nav">
             <input type="hidden" name="path" value="{{ request.path }}"/>
             <label>Database:</label>
             <select name="db" onchange="submit()">

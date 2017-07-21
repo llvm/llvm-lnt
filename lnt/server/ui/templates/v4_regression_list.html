@@ -2,7 +2,7 @@
 {% set db = request.get_db() %}
 
 {% extends "layout.html" %}
-{% set components = [(testsuite_name, v4_url_for("v4_recent_activity"))] %}
+{% set components = [(testsuite_name, v4_url_for(".v4_recent_activity"))] %}
 {% block title %}Regression List: {{title}}{% endblock %}
 
 {% block body %}
@@ -10,7 +10,7 @@
 <h3>Regressions List: {{title}}</h3>
 
 
-<form method="POST" action="{{ v4_url_for("v4_regression_list", state=state_filter) }}">
+<form method="POST" action="{{ v4_url_for(".v4_regression_list", state=state_filter) }}">
     
     
 <table id="regression_list" class="table table-striped table-hover table-condensed">

@@ -1,7 +1,7 @@
 {% import "utils.html" as utils %}
 
 {% extends "layout.html" %}{
-{% set components = [(ts.name, v4_url_for("v4_recent_activity"))] %}
+{% set components = [(ts.name, v4_url_for(".v4_recent_activity"))] %}
 {% block head %}
         <script src="{{ url_for('.static', filename='popup.js') }}"></script>
 {% endblock %}
@@ -22,7 +22,7 @@
   </thead>
 {% for order in orders %}
   <tr>
-    <td><a href="{{v4_url_for('v4_order', id=order.id)}}">{{
+    <td><a href="{{v4_url_for('.v4_order', id=order.id)}}">{{
         order.id}}</a></td>
     <td>{{order.previous_order_id}}</td>
     <td>{{order.next_order_id}}</td>

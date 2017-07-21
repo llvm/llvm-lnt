@@ -3,8 +3,8 @@
 {% import "local.html" as local %}
 {% set db = request.get_db() %}
 
-{% set components = [(testsuite_name, v4_url_for("v4_recent_activity")),
-                      ("Tracking", v4_url_for("v4_regression_list"))] %}
+{% set components = [(testsuite_name, v4_url_for(".v4_recent_activity")),
+                      ("Tracking", v4_url_for(".v4_regression_list"))] %}
 {% block title %}Regression Details{% endblock %}
 
 {% block head %}
@@ -94,7 +94,7 @@ var changes = [
   </tr>
   </thead>
   <tbody>
-    {% set graph_base=v4_url_for('v4_graph') %}
+    {% set graph_base=v4_url_for('.v4_graph') %}
     {# Show the active submissions. #}
     {% for form_change in form.field_changes%}
         {% set fc = changes[loop.index -1] %}
@@ -110,7 +110,7 @@ var changes = [
         <td class="change_id">{{fc.ri.id}}</td>
         <td class="machine">{{utils.render_machine(fc.ri.machine)}}</td>
         <td class="metric"> {{ fc.ri.field.name }} </td>
-         {% set graph_base=v4_url_for('v4_graph', highlight_run=fc.run.id) %}
+         {% set graph_base=v4_url_for('.v4_graph', highlight_run=fc.run.id) %}
         <td><a href="{{graph_base}}&amp;plot.{{fc.ri.test.id}}={{ fc.ri.machine.id}}.{{fc.ri.test.id}}.{{fc.ri.field.index}}">{{ fc.ri.test.name }}</a></td>
         <td>{{local.prefix}}{{ fc.ri.start_order.llvm_project_revision }}, {{local.render_order_link(fc.ri.end_order)}}</td>
         <td>{{ fc.cr.previous }}</td><td>{{ fc.cr.current }}</td>

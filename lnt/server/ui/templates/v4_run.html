@@ -6,9 +6,9 @@
 {% set comparison_neighboring_runs = request_info.comparison_neighboring_runs %}
 
 {% extends "layout.html" %}
-{% set components = [(ts.name, v4_url_for("v4_recent_activity")),
+{% set components = [(ts.name, v4_url_for(".v4_recent_activity")),
                      ('%s:%s' % (machine.name, machine.id),
-                     v4_url_for("v4_machine", id=machine.id))] %}
+                     v4_url_for(".v4_machine", id=machine.id))] %}
 
 {% block head %}
   <script>
@@ -114,7 +114,7 @@ $('.profile-prev-only').tooltip();
   {% for r in neighboring_runs %}
     <li>
       {{ "<b>"|safe if r.id == run.id else "" }}
-      <a href="{{v4_url_for('v4_run', id=r.id)}}"><span class="utctime">{{ r.start_time.isoformat() }}</span></a>
+      <a href="{{v4_url_for('.v4_run', id=r.id)}}"><span class="utctime">{{ r.start_time.isoformat() }}</span></a>
       {{ "</b>"|safe if r.id == run.id else "" }}
     </li>
   {% endfor %}
@@ -126,7 +126,7 @@ $('.profile-prev-only').tooltip();
     {% for r in comparison_neighboring_runs %}
       <li>
         {{ "<b>"|safe if compare_to and r.id == compare_to.id else "" }}
-        <a href="{{v4_url_for('v4_run', id=run.id, compare_to=r.id)}}"><span class="utctime">{{ r.start_time.isoformat() }}</span></a>
+        <a href="{{v4_url_for('.v4_run', id=run.id, compare_to=r.id)}}"><span class="utctime">{{ r.start_time.isoformat() }}</span></a>
         {{ "</b>"|safe if compare_to and r.id == compare_to.id else "" }}
       </li>
     {% endfor %}
@@ -313,7 +313,7 @@ $('.profile-prev-only').tooltip();
 
   {{ utils.render_popup_end() }}
 
-  {% set graph_base=v4_url_for('v4_graph', highlight_run=run.id) %}
+  {% set graph_base=v4_url_for('.v4_graph', highlight_run=run.id) %}
   <form id="graph_selection_form" method="GET" action="{{ graph_base }}">
 
     {# Report one table for each primary field. #}
@@ -421,13 +421,13 @@ $('.profile-prev-only').tooltip();
 
 $("#matrix_button").on("click", function(e){
     e.preventDefault();
-    {% set matrix_base=v4_url_for('v4_matrix') %}
+    {% set matrix_base=v4_url_for('.v4_matrix') %}
     $('#graph_selection_form').attr('action', "{{ matrix_base }}").submit();
 });
 
 $("#graph_button").on("click", function(e){
     e.preventDefault();
-    {% set graph_base=v4_url_for('v4_graph') %}
+    {% set graph_base=v4_url_for('.v4_graph') %}
     $('#graph_selection_form').attr('action', "{{ graph_base }}").submit();
 });
 

@@ -4,7 +4,7 @@
 {% set ts = request.get_testsuite() %}
 
 {% extends "layout.html" %}{
-{% set components = [(testsuite_name, v4_url_for("v4_recent_activity"))] %}
+{% set components = [(testsuite_name, v4_url_for(".v4_recent_activity"))] %}
 {% block head %}
 {% endblock %}
 
@@ -41,7 +41,7 @@
 <h3>Baseline: {{baseline_rev}}</h3>
 <div id="matrix_div">
     {% if machine_name_common %}
-        <p>Machine: <a href="{{ v4_url_for('v4_machine', id=machine_id_common) }}">{{ machine_name_common }}</a></p>
+        <p>Machine: <a href="{{ v4_url_for('.v4_machine', id=machine_id_common) }}">{{ machine_name_common }}</a></p>
     {% endif %}
     <table class="table table-hover floating_header" style="width:auto">
     <thead>
@@ -51,7 +51,7 @@
         {% for r in associated_runs %}
             <th>
                 {% if not machine_name_common %}
-                <a href="{{ v4_url_for('v4_machine', id=r.machine.id) }}">{{ r.machine.name }}</a>
+                <a href="{{ v4_url_for('.v4_machine', id=r.machine.id) }}">{{ r.machine.name }}</a>
                 {% endif %}
                 {{ r.test.name | shortname }}</th>
         {% endfor %}
@@ -66,7 +66,7 @@
 
             <tr class="{{baseline_class}}">
                 <td>
-                    <a href="{{v4_url_for('v4_order', id=order_to_id[order])}}">
+                    <a href="{{v4_url_for('.v4_order', id=order_to_id[order])}}">
                         {{name}}
                     </a>
                     <br/>

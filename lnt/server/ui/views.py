@@ -232,7 +232,7 @@ def v4_machine_latest(machine_id):
         .filter(ts.Run.machine_id == machine_id) \
         .order_by(ts.Run.start_time.desc()) \
         .first()
-    return redirect(v4_url_for('v4_run', id=run.id, **request.args))
+    return redirect(v4_url_for('.v4_run', id=run.id, **request.args))
 
 
 @v4_route("/machine/<int:machine_id>/compare")
@@ -250,7 +250,7 @@ def v4_machine_compare(machine_id):
         .order_by(ts.Run.start_time.desc()) \
         .first()
 
-    return redirect(v4_url_for('v4_run', id=machine_1_run.id,
+    return redirect(v4_url_for('.v4_run', id=machine_1_run.id,
                                compare_to=machine_2_run.id))
 
 
@@ -382,7 +382,7 @@ class V4RequestInfo(object):
         }
 
         self.data = lnt.server.reporting.runs.generate_run_data(
-            self.run, baseurl=db_url_for('index', _external=True),
+            self.run, baseurl=db_url_for('.index', _external=True),
             result=None, compare_to=compare_to, baseline=baseline,
             num_comparison_runs=self.num_comparison_runs,
             aggregation_fn=self.aggregation_fn, confidence_lv=confidence_lv,
@@ -430,7 +430,7 @@ Invalid URL for version %r database.""" % (g.db_info.db_version,))
 
     # If we found one, redirect to it's report.
     if matched_run is not None:
-        return redirect(db_url_for("v4_run", testsuite_name=tag,
+        return redirect(db_url_for(".v4_run", testsuite_name=tag,
                                    id=matched_run.id))
 
     # Otherwise, report an error.
@@ -511,7 +511,7 @@ def v4_run(id):
         return flask.jsonify(**json_obj)
 
     urls = {
-        'search': v4_url_for('v4_search')
+        'search': v4_url_for('.v4_search')
     }
     data = info.data
     data.update({
@@ -562,7 +562,7 @@ def v4_order(id):
             ts.session.commit()
 
             flash("Baseline {} updated.".format(baseline.name), FLASH_SUCCESS)
-        return redirect(v4_url_for("v4_order", id=id))
+        return redirect(v4_url_for(".v4_order", id=id))
     else:
         print form.errors
 
@@ -641,7 +641,7 @@ def v4_run_graph(id):
             run.machine.id, test_id, value)
         plot_number += 1
 
-    return redirect(v4_url_for("v4_graph", **args))
+    return redirect(v4_url_for(".v4_graph", **args))
 
 BaselineLegendItem = namedtuple('BaselineLegendItem', 'name id')
 LegendItem = namedtuple('LegendItem', 'machine test_name field_name color url')
@@ -1288,7 +1288,7 @@ def v4_daily_report_overview():
     extra_args.pop("month", None)
     extra_args.pop("day", None)
 
-    return redirect(v4_url_for("v4_daily_report",
+    return redirect(v4_url_for(".v4_daily_report",
                                year=date.year, month=date.month, day=date.day,
                                **extra_args))
 
@@ -1347,7 +1347,7 @@ def v4_summary_report_ui():
             flask.json.dump(config, f, indent=2)
 
         # Redirect to the summary report.
-        return redirect(db_url_for("v4_summary_report"))
+        return redirect(db_url_for(".v4_summary_report"))
 
     config_path = get_summary_config_path()
     if os.path.exists(config_path):

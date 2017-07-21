@@ -2,7 +2,7 @@
 {% import "utils.html" as utils %}
 
 {% extends "layout.html" %}
-{% set components = [(ts.name, v4_url_for("v4_recent_activity"))] %}
+{% set components = [(ts.name, v4_url_for(".v4_recent_activity"))] %}
 {% block head %}
   <script src="{{ url_for('.static', filename='popup.js') }}"></script>
   <script src="{{ url_for('.static', filename='sorttable.js') }}"></script>

@@ -3,7 +3,8 @@ from flask import abort
 from flask import current_app, g, render_template
 from flask import request
 
-frontend = flask.Module(__name__)
+frontend = flask.Blueprint(__name__, template_folder="ui/templates/",
+                           static_folder="ui/static")
 
 
 # Decorator for implementing per-database routes.

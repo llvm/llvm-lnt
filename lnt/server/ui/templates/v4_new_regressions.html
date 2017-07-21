@@ -4,7 +4,7 @@
 
 
 {% extends "layout.html" %}
-{% set components = [(testsuite_name, v4_url_for("v4_recent_activity"))] %}
+{% set components = [(testsuite_name, v4_url_for(".v4_recent_activity"))] %}
 {% block title %}Regression Triage{% endblock %}
 
 {% block head %}
@@ -202,7 +202,7 @@ function update_tooltip(event, pos, item, show_fn, graph_data) {
 </div>
 
 
-<form method="POST" action="{{ v4_url_for("v4_new_regressions") }}">
+<form method="POST" action="{{ v4_url_for(".v4_new_regressions") }}">
     {{ form.hidden_tag() }}
 
 <table id="changes_table" class="display">
@@ -223,7 +223,7 @@ function update_tooltip(event, pos, item, show_fn, graph_data) {
   </tr>
   </thead>
   <tbody>
-    {% set graph_base=v4_url_for('v4_graph') %}
+    {% set graph_base=v4_url_for('.v4_graph') %}
     {# Show the active submissions. #}
     {% for form_change in form.field_changes%}
         {% set fc = changes[loop.index -1] %}
@@ -237,7 +237,7 @@ function update_tooltip(event, pos, item, show_fn, graph_data) {
             </table>
         <td>{{utils.render_machine(fc.ri.machine)}}</td>
         <td> {{ fc.ri.field.name }} </td>
-         {% set graph_base=v4_url_for('v4_graph', highlight_run=fc.run.id) %}
+         {% set graph_base=v4_url_for('.v4_graph', highlight_run=fc.run.id) %}
         <td><a href="{{graph_base}}&amp;plot.{{fc.ri.test.id}}={{ fc.ri.machine.id}}.{{fc.ri.test.id}}.{{fc.ri.field.index}}">{{ fc.ri.test.name }}</a></td>
         <td>m{{ fc.ri.start_order.llvm_project_revision }}, {{utils.render_order_link(fc.ri.end_order)}}</td>
         <td>{{ fc.cr.previous }}</td><td>{{ fc.cr.current }}</td>

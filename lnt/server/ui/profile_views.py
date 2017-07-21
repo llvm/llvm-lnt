@@ -185,20 +185,20 @@ def v4_profile(testid, run1_id, run2_id=None):
     else:
         json_run2 = {}
     urls = {
-        'search': v4_url_for('v4_search'),
+        'search': v4_url_for('.v4_search'),
         'singlerun_template':
-            v4_url_for('v4_profile_fwd', testid=1111, run1_id=2222)
+            v4_url_for('.v4_profile_fwd', testid=1111, run1_id=2222)
             .replace('1111', '<testid>').replace('2222', '<run1id>'),
         'comparison_template':
-            v4_url_for('v4_profile_fwd2', testid=1111, run1_id=2222,
+            v4_url_for('.v4_profile_fwd2', testid=1111, run1_id=2222,
                        run2_id=3333)
             .replace('1111', '<testid>').replace('2222', '<run1id>')
             .replace('3333', '<run2id>'),
         'getTopLevelCounters':
-            v4_url_for('v4_profile_ajax_getTopLevelCounters'),
-        'getFunctions': v4_url_for('v4_profile_ajax_getFunctions'),
+            v4_url_for('.v4_profile_ajax_getTopLevelCounters'),
+        'getFunctions': v4_url_for('.v4_profile_ajax_getFunctions'),
         'getCodeForFunction':
-            v4_url_for('v4_profile_ajax_getCodeForFunction'),
+            v4_url_for('.v4_profile_ajax_getCodeForFunction'),
     }
     return render_template("v4_profile.html",
                            ts=ts, test=test,

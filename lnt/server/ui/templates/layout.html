@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8"/>
 
-    <script>var lnt_url_base="{{ url_for('index', _external=True) }}".replace(/\/$/, "");</script>
+    <script>var lnt_url_base="{{ url_for('.index', _external=True) }}".replace(/\/$/, "");</script>
     <link href="{{ url_for('.static', filename='bootstrap/css/bootstrap.min.css')
                 }}" rel="stylesheet" media="screen"/>
     <link href="{{ url_for('.static', filename='bootstrap/css/bootstrap-responsive.min.css')
@@ -129,7 +129,7 @@
             <div class="navbar-inner">
             {# LNT Instance Title #}
                 <div id="lnt-instance">
-                    <a class="brand" href="{{url_for('index')}}">{{old_config.name}}</a>
+                    <a class="brand" href="{{url_for('.index')}}">{{old_config.name}}</a>
                 </div>
                 {# Database Selector #}
                 <ul class="nav">
@@ -138,7 +138,7 @@
                         <a href="#" class="dropdown-toggle" data-toggle="dropdown" id="dbselect" >Database <b class="caret"></b></a>
                         <ul class="dropdown-menu">
                             {% for name in old_config.databases.keys()|sort %}
-                                <li><a href="{{ url_for('select_db', db=name, path=request.path) }}">
+                                <li><a href="{{ url_for('.select_db', db=name, path=request.path) }}">
                                 {% if name == g.db_name %}
                                     <b>{{ name }}</b>
                                 {% else %}
@@ -156,7 +156,7 @@
                         <a href="#" class="dropdown-toggle" data-toggle="dropdown">Suite<b class="caret"></b></a>
                         <ul class="dropdown-menu">
                             {% for name in request.get_db().testsuite %}
-                                <li><a href="{{db_url_for('v4_recent_activity', testsuite_name=name)}}">{{name}}</a></li>
+                                <li><a href="{{db_url_for('.v4_recent_activity', testsuite_name=name)}}">{{name}}</a></li>
                             {% endfor %}
                         </ul>
                     </li>
@@ -168,23 +168,23 @@
                         <li class="dropdown">
                             <a href="#" class="dropdown-toggle" data-toggle="dropdown">{{g.testsuite_name}}<b class="caret"></b></a>
                             <ul class="dropdown-menu">
-                              <li><a href="{{ v4_url_for('v4_recent_activity') }}">Recent Activity</a></li>
-                              <li><a href="{{ v4_url_for('v4_global_status') }}">Global Status</a></li>
-                              <li><a href="{{ v4_url_for('v4_daily_report_overview') }}">Daily Report</a></li>
-                              <li><a href="{{ v4_url_for('v4_machines') }}">All Machines</a></li>
+                              <li><a href="{{ v4_url_for('.v4_recent_activity') }}">Recent Activity</a></li>
+                              <li><a href="{{ v4_url_for('.v4_global_status') }}">Global Status</a></li>
+                              <li><a href="{{ v4_url_for('.v4_daily_report_overview') }}">Daily Report</a></li>
+                              <li><a href="{{ v4_url_for('.v4_machines') }}">All Machines</a></li>
                                <li class="divider"></li>
                               <li class="disabled"><a href="#">Changes</a></li>
-                              <li><a href="{{ v4_url_for('v4_regression_list', state=0) }}">Detected</a></li>
-                              <li><a href="{{ v4_url_for('v4_regression_list', state=1) }}">Staged</a></li>
-                              <li><a href="{{ v4_url_for('v4_regression_list', state=10) }}">Active</a></li>
-                              <li><a href="{{ v4_url_for('v4_regression_list', state=20) }}">NTBF</a></li>
-                              <li><a href="{{ v4_url_for('v4_regression_list', state=21) }}">Ignored</a></li>
-                              <li><a href="{{ v4_url_for('v4_regression_list', state=23) }}">Verify</a></li>
-                              <li><a href="{{ v4_url_for('v4_regression_list', state=22) }}">Fixed</a></li>
-                              <li><a href="{{ v4_url_for('v4_regression_list', state=-1) }}">All</a></li>
+                              <li><a href="{{ v4_url_for('.v4_regression_list', state=0) }}">Detected</a></li>
+                              <li><a href="{{ v4_url_for('.v4_regression_list', state=1) }}">Staged</a></li>
+                              <li><a href="{{ v4_url_for('.v4_regression_list', state=10) }}">Active</a></li>
+                              <li><a href="{{ v4_url_for('.v4_regression_list', state=20) }}">NTBF</a></li>
+                              <li><a href="{{ v4_url_for('.v4_regression_list', state=21) }}">Ignored</a></li>
+                              <li><a href="{{ v4_url_for('.v4_regression_list', state=23) }}">Verify</a></li>
+                              <li><a href="{{ v4_url_for('.v4_regression_list', state=22) }}">Fixed</a></li>
+                              <li><a href="{{ v4_url_for('.v4_regression_list', state=-1) }}">All</a></li>
                               <li class="divider"></li>
                               <li class="disabled"><a href="#">Summary Report</a></li>
-                              {#"{{ v4_url_for('v4_summary_report') }}"#}
+                              {#"{{ v4_url_for('.v4_summary_report') }}"#}
                             </ul>
                         </li>
                     </ul>
@@ -197,7 +197,7 @@
                                 <li class="nav-header">Select baseline:</li>
                                 {% for b in ts.query(ts.Baseline).all() %}
                                 {% set is_bold = b.id == session.get(baseline_key()) %}
-                              <li><a href="{{ v4_url_for('v4_set_baseline', id=b.id) }}">
+                              <li><a href="{{ v4_url_for('.v4_set_baseline', id=b.id) }}">
                                   {% if is_bold %}
                                       <b>{{ b.name }}</b>
                                   {% else %}
@@ -214,9 +214,9 @@
                     <li class="dropdown">
                         <a href="#" class="dropdown-toggle" data-toggle="dropdown">System<b class="caret"></b></a>
                         <ul class="dropdown-menu">
-                          <li><a href="{{ url_for('log') }}">Logs</a></li>
-                          <li><a href="{{ url_for('rules') }}">Rules</a></li>
-                          <li><a href="{{ url_for('profile_admin') }}">Profiles</a></li>
+                          <li><a href="{{ url_for('.log') }}">Logs</a></li>
+                          <li><a href="{{ url_for('.rules') }}">Rules</a></li>
+                          <li><a href="{{ url_for('.profile_admin') }}">Profiles</a></li>
                           <li><a href="{{ url_for('.static', filename='docs/index.html') }}">Documentation</a></li>
                         </ul>
                     </li>

@@ -1,7 +1,7 @@
 {% set db = request.get_db() %}
 
 {% extends "layout.html" %}
-{% set components = [(testsuite_name, v4_url_for("v4_overview"))] %}
+{% set components = [(testsuite_name, v4_url_for(".v4_overview"))] %}
 {% block title %}Overview{% endblock %}
 
 {% block head %}
@@ -42,33 +42,33 @@ div .dashboard_box {
 
 <div id="dashboard_content" class="dashboard">
 
-<a href="{{ v4_url_for('v4_recent_activity') }}">
+<a href="{{ v4_url_for('.v4_recent_activity') }}">
   <div class="dashboard_box dashboard">
     <h2>Recent Activity</h2>
     <p>display recent runs and active machines</p>
   </div>
 </a>
-<a href="{{ v4_url_for('v4_global_status') }}">
+<a href="{{ v4_url_for('.v4_global_status') }}">
   <div class="dashboard_box dashboard">
     <h2>Global Status</h2>
     <p>show baseline comparison for all tests and machines</p>
   </div>
 </a>
 
-<a href="{{ v4_url_for('v4_daily_report_overview') }}">
+<a href="{{ v4_url_for('.v4_daily_report_overview') }}">
   <div class="dashboard_box dashboard">
     <h2>Daily Report</h2>
     <p>daily performance change report (WIP)</p>
   </div>
 </a>
 
-<a href="{{ v4_url_for('v4_summary_report') }}">
+<a href="{{ v4_url_for('.v4_summary_report') }}">
   <div class="dashboard_box dashboard">
     <h2>Summary Report</h2>
     <p>high-level performance summary charts (WIP)</p>
   </div>
 </a>
-<a href="{{ v4_url_for('v4_machines') }}">
+<a href="{{ v4_url_for('.v4_machines') }}">
   <div class="dashboard_box dashboard">
     <h2>All Machines</h2>
     <p>All the machines with runs on this server.</p>

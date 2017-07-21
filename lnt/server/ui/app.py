@@ -162,7 +162,7 @@ class App(LNTExceptionLoggerFlask):
         app.load_config(instance)
 
         # Load the application routes.
-        app.register_module(lnt.server.ui.views.frontend)
+        app.register_blueprint(lnt.server.ui.views.frontend)
 
         # Load the flaskRESTful API.
         app.api = Api(app)

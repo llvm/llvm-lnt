@@ -4,12 +4,12 @@
 {% set machine = ts.getMachine(id) %}
 
 {% extends "layout.html" %}{
-{% set components = [(testsuite_name, v4_url_for("v4_recent_activity"))] %}
+{% set components = [(testsuite_name, v4_url_for(".v4_recent_activity"))] %}
 {% block title %}{{machine.name}}:{{machine.id}}{% endblock %}
 
 {% block sidebar %}
   <ul class="nav nav-list bs-docs-sidenav">
-    <li><a href="{{ v4_url_for("v4_machine_latest", machine_id=machine.id) }}"><i class="icon-time"></i> Latest Run</a></li>
+    <li><a href="{{ v4_url_for(".v4_machine_latest", machine_id=machine.id) }}"><i class="icon-time"></i> Latest Run</a></li>
     <li><a href="#fields"><i class="icon-chevron-right"></i> Fields</a></li>
     <li><a href="#parameters"><i class="icon-chevron-right"></i> Parameters</a></li>
     <li><a href="#submissions"><i class="icon-chevron-right"></i> Submissions</a></li>
@@ -65,7 +65,7 @@
         <h3>Compare</h3>
             <p>Compare the latest run on this machine with the latest run on another.</p>
 
-            <form action="{{ v4_url_for("v4_machine_compare", machine_id=machine.id)}}" method="get">
+            <form action="{{ v4_url_for(".v4_machine_compare", machine_id=machine.id)}}" method="get">
                 <p>
                 Compare {{ machine.name }} to
                 <select name="compare_to_id">

@@ -1,5 +1,5 @@
 {% extends "layout.html" %}{
-{% set components = [("report", db_url_for("v4_summary_report"))] %}
+{% set components = [("report", db_url_for(".v4_summary_report"))] %}
 {% block head %}
   <script src="{{ url_for('.static', filename='popup.js') }}"></script>
   <script src="{{ url_for('.static',filename='json2.js')}}"></script>
@@ -13,7 +13,7 @@
   g.config = {{ config|tojson(indent=2)|safe }};
   g.all_orders = {{ all_orders|tojson(indent=2)|safe }};
   g.all_machines = {{ all_machines|tojson(indent=2)|safe }};
-  g.save_url = {{ db_url_for("v4_summary_report_ui")|tojson|safe }};
+  g.save_url = {{ db_url_for(".v4_summary_report_ui")|tojson|safe }};
 </script>
 
 <style>

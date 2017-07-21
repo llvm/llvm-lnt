@@ -2,7 +2,7 @@
 {% set db = request.get_db() %}
 
 {% extends "layout.html" %}
-{% set components = [(testsuite_name, v4_url_for("v4_recent_activity"))] %}
+{% set components = [(testsuite_name, v4_url_for(".v4_recent_activity"))] %}
 {% block title %}Recent Activity{% endblock %}
 
 
@@ -55,7 +55,7 @@
       {# Show the active submissions. #}
       {% for r,run_order in active_submissions %}
       <tr>
-        <td><a href="{{v4_url_for('v4_order', id=r.order.id)}}">{{run_order}}</a></td>
+        <td><a href="{{v4_url_for('.v4_order', id=r.order.id)}}">{{run_order}}</a></td>
         <td><span class="reltime" data-toggle="tooltip" title="{{r.start_time}}">{{ r.start_time.isoformat() }}</span></td>
         <td>{{ r.end_time - r.start_time }}</td>
         <td>{{ utils.render_machine(r.machine) }}</td>
