@@ -154,10 +154,10 @@ class Machine(Resource):
                     ts.session.delete(run)
                 ts.commit()
 
-            machine_name = machine.name
+            machine_name = "%s:%s" % (machine.name, machine.id)
             ts.session.delete(machine)
             ts.commit()
-            msg = "Deleted machine %s:%s" % (machine_name, machine_id)
+            msg = "Deleted machine %s" % machine_name
             logger.info(msg)
             yield msg + '\n'
 
@@ -170,7 +170,7 @@ class Machine(Resource):
     def post(machine_id):
         ts = request.get_testsuite()
         machine = Machine._get_machine(machine_id)
-        previous_name = machine.name
+        machine_name = "%s:%s" % (machine.name, machine.id)
 
         action = request.values.get('action', None)
         if action is None:
@@ -185,8 +185,25 @@ class Machine(Resource):
                 abort(400, msg="Machine with name '%s' already exists" % name)
             machine.name = name
             ts.session.commit()
-            logger.info("Renamed machine %s:%s to %s" %
-                        (previous_name, machine_id, name))
+            logger.info("Renamed machine %s to %s" % (machine_name, name))
+        elif action == 'merge':
+            into_id = request.values.get('into', None)
+            if into_id is None:
+                abort(400, msg="Expected 'into' for merge request")
+            into = Machine._get_machine(into_id)
+            into_name = "%s:%s" % (into.name, into.id)
+            ts.query(ts.Run) \
+                .filter(ts.Run.machine_id == machine.id) \
+                .update({ts.Run.machine_id: into.id},
+                        synchronize_session=False)
+            ts.session.expire_all()  # be safe after synchronize_session==False
+            # re-query Machine so we can delete it.
+            machine = Machine._get_machine(machine_id)
+            ts.delete(machine)
+            ts.session.commit()
+            logger.info("Merged machine %s into %s" %
+                        (machine_name, into_name))
+            logger.info("Deleted machine %s" % machine_name)
         else:
             abort(400, msg="Unknown action '%s'" % action)
 
