@@ -78,10 +78,13 @@ class JSONAPIRoundTripTester(unittest.TestCase):
         values. Check all the top level keys, then check the run and machine dicts
         match and the tests data is the same.
         """
-        before_submit_run['run']['id'] = 1234567
-        before_submit_run['machine']['id'] = 1234567
-        after_submit_run['run']['id'] = 1234567
-        after_submit_run['machine']['id'] = 1234567
+        an_id = 1234567
+        before_submit_run['run']['id'] = an_id
+        before_submit_run['machine']['id'] = an_id
+        after_submit_run['run']['id'] = an_id
+        after_submit_run['machine']['id'] = an_id
+        before_submit_run['run']['order_id'] = an_id
+        after_submit_run['run']['order_id'] = an_id
 
         self.assertEqual(before_submit_run.keys(), after_submit_run.keys())
         # Machine and run will be dicts, compare them directly.
