@@ -333,6 +333,10 @@ class TestSuiteTest(BuiltinTest):
         with open(report_path, 'w') as fd:
             fd.write(report.render())
 
+        if opts.output:
+            with open(opts.output, 'w') as fd:
+                fd.write(report.render())
+
         xml_report_path = os.path.join(self._base_path,
                                        'test-results.xunit.xml')
 
@@ -1058,6 +1062,9 @@ class TestSuiteTest(BuiltinTest):
 @click.option("--commit", "commit",
               help="whether the autosubmit result should be committed",
               type=int, default=True)
+@click.option("--output", "output", metavar="PATH",
+              help="write raw report data to PATH (or stdout if '-')",
+              default=None)
 @click.option("--succinct-compile-output", "succinct",
               help="run Make without VERBOSE=1", is_flag=True)
 @click.option("-v", "--verbose", "verbose", is_flag=True, default=False,
