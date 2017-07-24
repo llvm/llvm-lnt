@@ -1983,9 +1983,9 @@ def _tools_check():
               help=("autosubmit the test result to the given server"
                     " (or local instance)"),
               type=click.UNPROCESSED, default=[], multiple=True)
-@click.option("--commit", "commit",
+@click.option("--commit", "commit", is_flag=True,
               help="whether the autosubmit result should be committed",
-              type=int, default=True)
+              default=True)
 @click.option("--output", "output", metavar="PATH",
               help="write raw report data to PATH (or stdout if '-')",
               default=None)
