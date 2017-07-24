@@ -88,6 +88,7 @@ class BuiltinTest(object):
                                          server_config.Config.dummy_instance())
             server_report = ImportData.import_and_report(
                 None, None, db, report_path, 'json', ts_name, commit)
+            server_report['result_url'] = None
 
         assert server_report is not None, "Results were not submitted."
 
@@ -98,7 +99,6 @@ class BuiltinTest(object):
     @staticmethod
     def show_results_url(server_results):
         """Print the result URL"""
-        if server_results.get('result_url'):
+        result_url = server_results.get('result_url', None)
+        if result_url is not None:
             print "Results available at:", server_results['result_url']
-        else:
-            print "Results available at: no URL available"

@@ -942,17 +942,7 @@ class TestSuiteTest(BuiltinTest):
                            "this is not Darwin.")
         logger.info("Report produced in: " + report_path)
 
-        # Run through the rest of LNT, but don't allow this to be submitted
-        # because there is no data.
-        class DontSubmitResults(object):
-
-            def get(self, url):
-                return report_path
-
-            def __getitem__(self, key):
-                return report_path
-
-        return DontSubmitResults()
+        return lnt.util.ImportData.no_submit()
 
 @click.command("test-suite", short_help=__doc__)
 @click.argument("label", default=platform.uname()[1], required=False,
