@@ -463,6 +463,7 @@ def load_api_resources(api):
     def output_json(data, code, headers=None):
         '''Override output_json() to use LNT json encoder'''
         resp = make_response(json.dumps(data), code)
+        resp.headers.add('Access-Control-Allow-Origin', '*')
         if headers is not None:
             resp.headers.extend(headers)
         return resp
