@@ -1049,9 +1049,8 @@ class TestSuiteTest(BuiltinTest):
               help="autosubmit the test result to the given server"
                    " (or local instance)",
               type=click.UNPROCESSED, default=None)
-@click.option("--commit", "commit",
-              help="whether the autosubmit result should be committed",
-              type=int, default=True)
+@click.option("--commit", "commit", is_flag=True, default=True,
+              help="whether the autosubmit result should be committed")
 @click.option("--output", "output", metavar="PATH",
               help="write raw report data to PATH (or stdout if '-')",
               default=None)

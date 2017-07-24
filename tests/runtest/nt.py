@@ -149,6 +149,8 @@
 # CHECK-QEMU-FLAG1: QEMU_USER_MODE_COMMAND: TEST -soundhw gus -net nic -device gus,irq=5 '-test=escaped space' '-some-option=stay with me'
 
 # Check submission to a server through url works:
+# RUN: rm -rf %{test_exec_root}/runtest/nt_server_instance
+# RUN: mkdir -p %{test_exec_root}/runtest/nt_server_instance
 # RUN: rsync -av --exclude .svn %S/Inputs/rerun_server_instance/ \
 # RUN:   %{test_exec_root}/runtest/nt_server_instance
 # RUN: %{shared_inputs}/server_wrapper.sh \
@@ -183,6 +185,7 @@
 # RUN: %{shared_inputs}/server_wrapper.sh \
 # RUN:   %{test_exec_root}/runtest/nt_server_instance 9089 \
 # RUN:   lnt runtest nt --submit "http://localhost:9089/db_default/submitRun" \
+# RUN:   --commit 1 \
 # RUN:   --sandbox %t.SANDBOX \
 # RUN:   --test-suite %S/Inputs/rerun-test-suite1 \
 # RUN:   --cc %{shared_inputs}/FakeCompilers/clang-r154331 \

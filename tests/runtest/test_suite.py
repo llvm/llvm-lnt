@@ -367,6 +367,7 @@
 # RUN:     -j2 \
 # RUN:     --exec-multisample=2 \
 # RUN:     --verbose \
+# RUN:     --commit 1 \
 # RUN:     > %t.log 2> %t.err
 # RUN: FileCheck --check-prefix CHECK-USE-PERF-ALL < %t.err %s
 # CHECK-USE-PERF-ALL: Configuring with {
