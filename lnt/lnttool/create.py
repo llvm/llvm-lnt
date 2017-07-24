@@ -33,6 +33,9 @@ profile_dir = %(profile_dir)r
 # Secret key for this server instance.
 secret_key = %(secret_key)r
 
+# REST API authentication
+# api_auth_token = 'secret'
+
 # The list of available databases, and their properties. At a minimum, there
 # should be a 'default' entry for the default database.
 databases = {
