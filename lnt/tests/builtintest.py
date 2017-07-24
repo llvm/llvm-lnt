@@ -79,18 +79,7 @@ class BuiltinTest(object):
                                                   commit,
                                                   config.verbose)
         else:
-            # Simulate a submission to retrieve the results report.
-
-            # Construct a temporary database and import the result.
-            self.log("submitting result to dummy instance")
-
-            db = lnt.server.db.v4db.V4DB("sqlite:///:memory:",
-                                         server_config.Config.dummy_instance())
-            server_report = ImportData.import_and_report(
-                None, None, db, report_path, 'json', ts_name, commit)
-            server_report['result_url'] = None
-
-        assert server_report is not None, "Results were not submitted."
+            server_report = lnt.util.ImportData.no_submit()
 
         ImportData.print_report_result(server_report, sys.stdout, sys.stderr,
                                        config.verbose)

@@ -184,7 +184,8 @@ def print_report_result(result, out, err, verbose = True):
     """
 
     # Print the generic import information.
-    print >>out, "Importing %r" % os.path.basename(result['import_file'])
+    if 'import_file' in result:
+        print >>out, "Importing %r" % os.path.basename(result['import_file'])
     if result['success']:
         print >>out, "Import succeeded."
         print >>out

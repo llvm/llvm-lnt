@@ -11,28 +11,23 @@
 # RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
 # RUN:     --use-make %S/Inputs/test-suite-cmake/fake-make \
 # RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit \
-# RUN:     > %t.log 2> %t.err
-# RUN: FileCheck  --check-prefix CHECK-STDOUT < %t.log %s
+# RUN:     --output %t.report \
+# RUN:     > %t.out 2> %t.err
+# RUN: lnt checkformat %t.report > %t.checkformat
 # RUN: FileCheck  --check-prefix CHECK-BASIC < %t.err %s
 # RUN: FileCheck  --check-prefix CHECK-REPORT < %t.SANDBOX/build/report.json %s
 # RUN: FileCheck  --check-prefix CHECK-XML < %t.SANDBOX/build/test-results.xunit.xml %s
 # RUN: FileCheck  --check-prefix CHECK-CSV < %t.SANDBOX/build/test-results.csv %s
+# RUN: FileCheck  --check-prefix CHECK-CHECKFORMAT < %t.checkformat %s
 
 # CHECK-REPORT: "run_order": "154331"
 # CHECK-REPORT: "Name": "nts.{{[^.]+}}.compile"
 # CHECK-REPORT: "Name": "nts.{{[^.]+}}.compile.status"
 #
-# CHECK-STDOUT: Import succeeded.
-# CHECK-STDOUT: Added Machines: 1
-# CHECK-STDOUT: Added Runs    : 1
-# CHECK-STDOUT: Added Tests   : 1
-#
 # CHECK-BASIC: Inferred C++ compiler under test
 # CHECK-BASIC: Configuring
 # CHECK-BASIC: Building
 # CHECK-BASIC: Testing
-# CHECK-BASIC: submitting result to dummy instance
-# CHECK-BASIC: Successfully created db_None/v4/nts/1
 
 # CHECK-XML: <?xml version="1.0" encoding="UTF-8"?>
 # CHECK-XML: <testsuite name="foo"
@@ -47,6 +42,11 @@
 
 # CHECK-CSV: Program;CC;CC_Time;CC_Hash;Exec;Exec_Time;Score
 # CHECK-CSV-NEXT: foo//foo;pass;1.3;xyz;pass;1.4;1.5
+
+# CHECK-CHECKFORMAT: Import succeeded.
+# CHECK-CHECKFORMAT: Added Machines: 1
+# CHECK-CHECKFORMAT: Added Runs    : 1
+# CHECK-CHECKFORMAT: Added Tests   : 1
 
 # Use the same sandbox again with --no-configure
 # RUN: lnt runtest test-suite \
