@@ -187,8 +187,6 @@ def v4_recent_activity():
     # Get the most recent runs in this tag, we just arbitrarily limit to
     # looking at the last 100 submission.
     recent_runs = ts.query(ts.Run) \
-        .join(ts.Order) \
-        .join(ts.Machine) \
         .options(joinedload(ts.Run.order)) \
         .options(joinedload(ts.Run.machine)) \
         .order_by(ts.Run.start_time.desc()).limit(100)
@@ -781,7 +779,7 @@ def v4_graph():
 
         try:
             run = ts.query(ts.Run) \
-                .join(ts.Machine) \
+                .options(joinedload(ts.Run.machine)) \
                 .filter(ts.Run.id == run_id) \
                 .one()
         except:

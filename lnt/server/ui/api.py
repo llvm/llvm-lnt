@@ -113,18 +113,16 @@ class Machine(Resource):
     @staticmethod
     def get(machine_id):
         ts = request.get_testsuite()
-        this_machine = Machine._get_machine(machine_id)
+        machine = Machine._get_machine(machine_id)
         machine_runs = ts.query(ts.Run) \
-            .join(ts.Machine) \
-            .join(ts.Order) \
-            .filter(ts.Machine.id == machine_id) \
-            .options(joinedload('order')) \
+            .filter(ts.Run.machine_id == machine.id) \
+            .options(joinedload(ts.Run.order)) \
             .all()
 
         runs = [run.__json__(flatten_order=True) for run in machine_runs]
 
         result = common_fields_factory()
-        result['machine'] = this_machine
+        result['machine'] = machine
         result['runs'] = runs
         return result
 
@@ -221,10 +219,9 @@ class Run(Resource):
 
         try:
             run = ts.query(ts.Run) \
-                .join(ts.Machine) \
-                .join(ts.Order) \
                 .filter(ts.Run.id == run_id) \
-                .options(joinedload('order')) \
+                .options(joinedload(ts.Run.machine)) \
+                .options(joinedload(ts.Run.order)) \
                 .one()
         except sqlalchemy.orm.exc.NoResultFound:
             abort(404, msg="Did not find run " + str(run_id))
