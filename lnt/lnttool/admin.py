@@ -100,13 +100,23 @@ def _check_response(response):
     sys.exit(1)
 
 
+def _sorted_dict_items(dict, *args):
+    result = list()
+    for key in args:
+        if key in dict:
+            result.append((key, dict.pop(key)))
+    # Order rest alphabetically
+    result += sorted(dict.items())
+    return result
+
+
 def _print_machine_info(machine, indent=''):
-    for key, value in machine.items():
+    for key, value in _sorted_dict_items(machine, 'name', 'id'):
         sys.stdout.write('%s%s: %s\n' % (indent, key, value))
 
 
 def _print_run_info(run, indent=''):
-    for key, value in run.items():
+    for key, value in _sorted_dict_items(run, 'id'):
         sys.stdout.write('%s%s: %s\n' % (indent, key, value))
 
 
@@ -153,6 +163,19 @@ def action_get_machine(config, machine):
     with open(filename, "w") as destfile:
         json.dump(result, destfile, indent=2)
     sys.stdout.write("%s created.\n" % filename)
+
+
+@click.command("machine-info")
+@_pass_config
+@click.argument("machine")
+def action_machine_info(config, machine):
+    """Show machine information."""
+    url = ('{lnt_url}/api/db_{database}/v4/{testsuite}/machines/{machine}'
+           .format(machine=machine, **config.dict))
+    response = config.session.get(url)
+    _check_response(response)
+    data = json.loads(response.text)
+    _print_machine_info(data['machine'])
 
 
 @click.command("rm-machine")
@@ -331,6 +354,7 @@ class AdminCLI(click.MultiCommand):
         action_get_run,
         action_list_machines,
         action_list_runs,
+        action_machine_info,
         action_merge_machine_into,
         action_post_run,
         action_rename_machine,

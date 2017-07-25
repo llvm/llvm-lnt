@@ -62,8 +62,11 @@ an authentication mechanism specified in the `lntadmin.cfg` file.  See
   ``lnt admin list-machines``
   List machines and their id numbers
 
+  ``lnt admin machine-info <machine>``
+  Display information about the specified machine.
+
   ``lnt admin get-machine <machine>``
-  Download machine information and run list for a specific machine.
+  Download machine information and save data in a json file.
 
   ``lnt admin rm-machine <machine>``
   Removes the specified machine and related runs and samples.
