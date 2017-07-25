@@ -354,7 +354,7 @@ class AdminCLI(click.MultiCommand):
         for command in self._commands:
             if command.name == name:
                 return command
-        raise ValueError("Request unknown command '%s'" % name)
+        return None
 
 
 @click.group("admin", cls=AdminCLI, no_args_is_help=True)

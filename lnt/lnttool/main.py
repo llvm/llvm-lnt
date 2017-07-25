@@ -116,7 +116,10 @@ class RunTestCLI(click.MultiCommand):
 
     def get_command(self, ctx, name):
         import lnt.tests
-        return lnt.tests.get_module(name).cli_action
+        try:
+            return lnt.tests.get_module(name).cli_action
+        except KeyError:
+            return None
 
 
 @click.group("runtest", cls=RunTestCLI, context_settings=dict(
