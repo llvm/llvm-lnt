@@ -151,17 +151,8 @@ def action_get_machine(config, machine):
     response = config.session.get(url)
     _check_response(response)
     data = json.loads(response.text)
-    assert len(data['machines']) == 1
-    machine = data['machines'][0]
-
-    result = {
-        'machine': machine
-    }
-    runs = data.get('runs', None)
-    if runs is not None:
-        result['runs'] = runs
     with open(filename, "w") as destfile:
-        json.dump(result, destfile, indent=2)
+        json.dump(data, destfile, indent=2, sort_keys=True)
     sys.stdout.write("%s created.\n" % filename)
 
 
@@ -222,7 +213,6 @@ def action_merge_machine_into(config, machine, into):
 
     url = ('{lnt_url}/api/db_{database}/v4/{testsuite}/machines/{machine}'
            .format(machine=machine, **config.dict))
-    session = config['session']
     post_data = {
         'action': 'merge',
         'into': into
@@ -274,7 +264,7 @@ def action_get_run(config, runs):
         data = json.loads(response.text)
         filename = 'run_%s.json' % run
         with open(filename, "w") as destfile:
-            json.dump(data, destfile, indent=2)
+            json.dump(data, destfile, indent=2, sort_keys=True)
         sys.stdout.write("%s created.\n" % filename)
 
 
@@ -322,7 +312,8 @@ def action_post_run(config, datafiles, update_machine, merge):
         if config.verbose:
             try:
                 response_data = json.loads(response.text)
-                json.dump(response_data, sys.stderr, response_data, indent=2)
+                json.dump(response_data, sys.stderr, response_data, indent=2,
+                          sort_keys=True)
             except:
                 sys.stderr.write(response.text)
             sys.stderr.write('\n')
