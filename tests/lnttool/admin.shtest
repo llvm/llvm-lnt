@@ -1,0 +1,70 @@
+# RUN: rm -f %T/lntadmin.yaml
+# RUN: cd %T ; lnt admin create-config
+# RUN: FileCheck %s < %T/lntadmin.yaml --check-prefix=CREATE_CONFIG
+# CREATE_CONFIG: lnt_url: "http://localhost:8000"
+# CREATE_CONFIG-NEXT: database: default
+# CREATE_CONFIG-NEXT: testsuite: nts
+# CREATE_CONFIG-NEXT: # user: 'http_user'
+# CREATE_CONFIG-NEXT: # password: 'http_password'
+# CREATE_CONFIG-NEXT: # auth_token: 'secret'
+
+# RUN: rm -rf %t.instance
+# RUN: python %{shared_inputs}/create_temp_instance.py \
+# RUN:   %s %{shared_inputs}/SmallInstance %t.instance
+# RUN: %{shared_inputs}/server_wrapper.sh %t.instance 9092 /bin/sh %s %T %{shared_inputs}
+
+DIR="$1"
+SHARED_INPUTS="$2"
+cd "$DIR"
+cat > lntadmin.yaml << '__EOF__'
+lnt_url: "http://localhost:9092"
+database: default
+testsuite: nts
+auth_token: test_token
+__EOF__
+
+lnt admin post-run "${SHARED_INPUTS}/sample-a-small.plist" > post_run.stdout
+# RUN: FileCheck %s --check-prefix=POST_RN < %T/post_run.stdout
+# POST_RN: http://localhost:9092/api/db_default/v4/nts/runs/3
+
+rm -rf run_3.json
+lnt admin get-run 3
+# RUN: FileCheck %s --check-prefix=GET_RN < %T/run_3.json
+# GET_RN: {
+# GET_RN:   "machine": {
+# ...
+# GET_RN:   },
+# GET_RN:   "tests": [
+#...
+# GET_RN:   ],
+# GET_RN:   "run": {
+# GET_RN:     "start_time": "2009-11-17T02:12:25"
+# GET_RN:     "end_time": "2009-11-17T03:44:48"
+# GET_RN:     "id": 3
+#...
+# GET_RN:   },
+# GET_RN:   "generated_by": "LNT Server v0.4.2dev"
+# GET_RN: }
+
+lnt admin list-machines > list_machines.stdout
+# RUN: FileCheck %s --check-prefix=LIST_MACHINES < %T/list_machines.stdout
+# LIST_MACHINES: localhost__clang_DEV__x86_64:1
+# LIST_MACHINES-NEXT: LNT SAMPLE MACHINE:2
+
+lnt admin list-runs 1 > list_runs.stdout
+# RUN: FileCheck %s --check-prefix=LIST_RUNS < %T/list_runs.stdout
+# LIST_RUNS: llvm_project_revision=154331 1
+# LIST_RUNS: llvm_project_revision=152289 2
+
+lnt admin rm-machine 1
+
+lnt admin list-machines > list_machines2.stdout
+# RUN: FileCheck %s --check-prefix=LIST_MACHINES2 < %T/list_machines2.stdout
+# LIST_MACHINES2-NOT: localhost__clang_DEV__x86_64:1
+# LIST_MACHINES2: LNT SAMPLE MACHINE:2
+
+lnt admin rename-machine 2 hal9000
+
+lnt admin list-machines > list_machines3.stdout
+# RUN: FileCheck %s --check-prefix=LIST_MACHINES3 < %T/list_machines3.stdout
+# LIST_MACHINES3: hal9000:2

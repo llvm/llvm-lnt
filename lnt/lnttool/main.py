@@ -6,6 +6,7 @@ from .import_data import action_import
 from .import_report import action_importreport
 from .updatedb import action_updatedb
 from .viewcomparison import action_view_comparison
+from .admin import group_admin
 from lnt.util import logger
 import click
 import logging
@@ -120,7 +121,7 @@ class RunTestCLI(click.MultiCommand):
 
 @click.group("runtest", cls=RunTestCLI, context_settings=dict(
     ignore_unknown_options=True, allow_extra_args=True,))
-def action_runtest():
+def group_runtest():
     """run a builtin test application"""
     init_logger(logging.INFO)
 
@@ -462,13 +463,12 @@ def cli():
 Use ``lnt <command> --help`` for more information on a specific command.
     """
 cli.add_command(action_checkformat)
-cli.add_command(action_create)
 cli.add_command(action_convert)
+cli.add_command(action_create)
 cli.add_command(action_import)
 cli.add_command(action_importreport)
 cli.add_command(action_profile)
 cli.add_command(action_runserver)
-cli.add_command(action_runtest)
 cli.add_command(action_send_daily_report)
 cli.add_command(action_send_run_comparison)
 cli.add_command(action_showtests)
@@ -476,6 +476,8 @@ cli.add_command(action_submit)
 cli.add_command(action_update)
 cli.add_command(action_updatedb)
 cli.add_command(action_view_comparison)
+cli.add_command(group_admin)
+cli.add_command(group_runtest)
 
 
 def main():

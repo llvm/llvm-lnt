@@ -44,6 +44,49 @@ Client-Side Tools
     Run a built-in test. See the :ref:`tests` documentation for more
     details on this tool.
 
+
+Server Administration
+~~~~~~~~~~~~~~~~~~~~~
+
+The ``lnt admin`` tool allows connecting to a server through LNTs REST API and
+perform data queries and modifications. Data modification is only possible with
+an authentication mechanism specified in the `lntadmin.cfg` file.  See
+:ref:`auth_tokens` for details.
+
+  ``lnt admin create-config``
+  Create a `lntadmin.cfg` configuration file in the current directory. The file
+  describes the URL, authentication settings and default database and
+  test-suite settings for an LNT server. The other admin commands read this
+  file if it exists.
+
+  ``lnt admin list-machines``
+  List machines and their id numbers
+
+  ``lnt admin get-machine <machine>``
+  Download machine information and run list for a specific machine.
+
+  ``lnt admin rm-machine <machine>``
+  Removes the specified machine and related runs and samples.
+
+  ``lnt admin rename-machine <machine> <new-name>``
+  Renames the specified machine.
+
+  ``lnt admin merge-machine-into <machine> <merge-into-machine>``
+  Move all runs from one machine to another machine and delete the machine.
+
+  ``lnt admin list-runs <machine>``
+  List all runs for the specified machine.
+
+  ``lnt admin get-run <run>+``
+  Download the specified runs.
+
+  ``lnt admin post-run <filename>+``
+  Post the specified report files as a new runs to the server.
+
+  ``lnt admin rm-run <run>+``
+  Remove the specified runs and related samples.
+
+
 Server-Side Tools
 -----------------
 

@@ -37,6 +37,8 @@ once.
 | /samples/`id`             | Get all non-empty sample info for Sample `id`.                                           |
 +---------------------------+------------------------------------------------------------------------------------------+
 
+.. _auth_tokens:
+
 Write Operations
 ----------------
 
