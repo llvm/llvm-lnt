@@ -14,8 +14,6 @@ Contents
 
    tests
 
-   changes
-
    concepts
 
    api
@@ -26,8 +24,6 @@ Contents
 
    profiles
    
-   todo
-
 Indices and tables
 ==================
 

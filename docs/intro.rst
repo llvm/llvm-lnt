@@ -78,29 +78,6 @@ To create an LNT instance with PostgreSQL backend, you need to do this instead:
 
       lnt runserver path/to/install-dir
 
-Development
------------
-
-Developing LNT should be done under a virtualenv (most likely in 'develop'
-mode). Currently, the tests require:
-
- 1. 'lit', the LLVM test runner, is available.
-
- 2. If inside a virtualenv, the virtualenv will need to be activated because the
- tests want to run Python directly. This should be fixed to substitute in the
- Python that was used to run lit, so the venv doesn't have to be active.
-
-To run the tests use, e.g.::
-
-  lit -sv $ROOT/tests
-
-This requires the 'lit' testing tool be installed. You can also use::
-
-  python setup.py test
-
-if you prefer 'unittest' style output (this still requires that 'lit' be
-installed).
-
 Architecture
 ------------
 

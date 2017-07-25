@@ -1,7 +1,10 @@
 .. _importing_data:
 
+Importing Data
+==============
+
 Importing Data in a Text File
-=============================
+-----------------------------
 
 The LNT importreport command will import data in a simple text file format. The
 command takes a space separated key value file and creates an LNT report file,
@@ -23,7 +26,7 @@ Example::
 .. _json_format:
 
 LNT Report File Format
-======================
+----------------------
 
 The lnt importreport tool is an easy way to import data into LNTs test format.
 You can also create LNTs report data directly for additional flexibility.
@@ -69,7 +72,7 @@ on how to do this are in :mod:`lnt.testing`
 .. _nts_suite:
 
 Default Test Suite (NTS)
-========================
+------------------------
 
 The default test-suite schema is called NTS. It was originally designed for
 nightly test runs of the llvm test-suite. However it should fit many other
@@ -94,7 +97,7 @@ The `run` information is expected to contain this:
 .. _custom_testsuites:
 
 Custom Test Suites
-==================
+------------------
 
 LNTs test suites are derived from a set of metadata definitions for each suite.
 Simply put, suites are a collections of metrics that are collected for each run.

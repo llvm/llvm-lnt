@@ -13,12 +13,6 @@ Installation
 See :ref:`quickstart` for setting up an installation. Use the "develop" option
 when running ~/lnt/setup.py.
 
-You may have to install psycopg2 into your python virtualenv to run the
-unit tests against a postgres database:
-
-     pip install psycopg2
-
-
 Running LNT's Regression Tests
 ------------------------------
 
@@ -43,7 +37,7 @@ you can run the tests in a different directory too::
 
      mkdir ../run_lnt_tests
      cd ../run_lnt_tests
-     PATH=$LLVMBUILD/bin:$PATH llvm-lit -sv ../lnt/tests
+     PATH=$LLVMBUILD/bin:$LNTINSTALL/bin:$PATH llvm-lit -sv ../lnt/tests
 
 For simple changes, adding a regression test and making sure all regression
 tests pass, is often a good enough testing approach. For some changes, the
@@ -52,9 +46,9 @@ will be needed.
 
 For any changes that touch on the LNT database design, you'll need to run tests
 on at least sqlite and postgres database engines.  By default the regression
-tests uses sqlite. To run the regression tests against a postgress database,
-use a command like the following::
+tests uses sqlite. To enable additional regression tests against a postgress
+database, use a command like the following::
 
-     PATH=$LLVMBUILD/bin:$PATH llvm-lit -sv -Dpostgres=1 ../lnt/tests
+     PATH=$LLVMBUILD/bin:$LNTINSTALL/bin:$PATH llvm-lit -sv -Dpostgres=1 ../lnt/tests
 
 You'll need to use at least postgres version 9.2 to run the regression tests.
