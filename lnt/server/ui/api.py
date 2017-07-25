@@ -102,18 +102,28 @@ class Machine(Resource):
     method_decorators = [in_db]
 
     @staticmethod
-    def _get_machine(machine_id):
+    def _get_machine(machine_spec):
         ts = request.get_testsuite()
-        machine = ts.query(ts.Machine).filter(ts.Machine.id == machine_id) \
-            .first()
+        # Assume id number if machine_spec is numeric, otherwise a name.
+        if machine_spec.isdigit():
+            machine = ts.query(ts.Machine) \
+                .filter(ts.Machine.id == machine_spec).first()
+        else:
+            machines = ts.query(ts.Machine) \
+                .filter(ts.Machine.name == machine_spec).all()
+            if len(machines) == 0:
+                machine = None
+            elif len(machines) > 1:
+                abort(404, msg="Name '%s' is ambiguous; specify machine id" %
+                      (machine_spec))
         if machine is None:
-            abort(404, msg="Did not find machine " + str(machine_id))
+            abort(404, msg="Did not find machine '%s'" % (machine_spec,))
         return machine
 
     @staticmethod
-    def get(machine_id):
+    def get(machine_spec):
         ts = request.get_testsuite()
-        machine = Machine._get_machine(machine_id)
+        machine = Machine._get_machine(machine_spec)
         machine_runs = ts.query(ts.Run) \
             .filter(ts.Run.machine_id == machine.id) \
             .options(joinedload(ts.Run.order)) \
@@ -128,9 +138,9 @@ class Machine(Resource):
 
     @staticmethod
     @requires_auth_token
-    def delete(machine_id):
+    def delete(machine_spec):
         ts = request.get_testsuite()
-        machine = Machine._get_machine(machine_id)
+        machine = Machine._get_machine(machine_spec)
 
         # Just saying ts.session.delete(machine) takes a long time and risks
         # running into OOM or timeout situations for machines with a hundreds
@@ -168,9 +178,9 @@ class Machine(Resource):
 
     @staticmethod
     @requires_auth_token
-    def post(machine_id):
+    def post(machine_spec):
         ts = request.get_testsuite()
-        machine = Machine._get_machine(machine_id)
+        machine = Machine._get_machine(machine_spec)
         machine_name = "%s:%s" % (machine.name, machine.id)
 
         action = request.values.get('action', None)
@@ -199,7 +209,7 @@ class Machine(Resource):
                         synchronize_session=False)
             ts.session.expire_all()  # be safe after synchronize_session==False
             # re-query Machine so we can delete it.
-            machine = Machine._get_machine(machine_id)
+            machine = Machine._get_machine(machine_spec)
             ts.delete(machine)
             ts.session.commit()
             logger.info("Merged machine %s into %s" %
@@ -466,7 +476,7 @@ def load_api_resources(api):
         return resp
 
     api.add_resource(Machines, ts_path("machines"), ts_path("machines/"))
-    api.add_resource(Machine, ts_path("machines/<machine_id>"))
+    api.add_resource(Machine, ts_path("machines/<machine_spec>"))
     api.add_resource(Runs, ts_path("runs"), ts_path("runs/"))
     api.add_resource(Run, ts_path("runs/<int:run_id>"))
     api.add_resource(SamplesData, ts_path("samples"), ts_path("samples/"))
