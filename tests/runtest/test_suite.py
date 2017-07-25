@@ -325,6 +325,8 @@
 # CHECK-RESULTS-FAIL: "run_order": "123"
 
 # Check a run of test-suite using a cmake cache
+# Also make sure we get: compiler defines, cache, other defines on the cmake
+# commandline.
 # RUN: lnt runtest test-suite \
 # RUN:     --sandbox %t.SANDBOX \
 # RUN:     --no-timestamp \
@@ -334,10 +336,10 @@
 # RUN:     --use-make %S/Inputs/test-suite-cmake/fake-make \
 # RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit \
 # RUN:     --cmake-cache Release \
+# RUN:     --cmake-define FOO=BAR \
 # RUN:     &> %t.cmake-cache.log
 # RUN: FileCheck  --check-prefix CHECK-CACHE < %t.cmake-cache.log %s
-# CHECK-CACHE: Cmake Cache
-# CHECK-CACHE: Release
+# CHECK-CACHE: Execute: {{.*}}cmake -DCMAKE_CXX_COMPILER:FILEPATH={{.*}}/FakeCompilers/clang++-r154331 -DCMAKE_C_COMPILER:FILEPATH={{.*}}FakeCompilers/clang-r154331 -C {{.*}}/Release.cmake {{.*}}-DFOO=BAR
 
 
 # Check a run of test-suite using a invalid cmake cache

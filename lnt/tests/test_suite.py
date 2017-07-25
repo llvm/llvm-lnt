@@ -505,7 +505,17 @@ class TestSuiteTest(BuiltinTest):
         for l in lines:
             logger.info(l)
 
-        cmake_cmd = [cmake_cmd] + cmake_flags + [self._test_suite_dir()] + \
+        # Define compilers before specifying the cache files.
+        early_defs = {}
+        for key in ['CMAKE_C_COMPILER:FILEPATH',
+                    'CMAKE_CXX_COMPILER:FILEPATH']:
+            value = defs.pop(key, None)
+            if value is not None:
+                early_defs[key] = value
+
+        cmake_cmd = [cmake_cmd] + \
+                    ['-D%s=%s' % (k, v) for k, v in early_defs.items()] + \
+                    cmake_flags + [self._test_suite_dir()] + \
                     ['-D%s=%s' % (k, v) for k, v in defs.items()]
         if execute:
             self._check_call(cmake_cmd, cwd=path)
