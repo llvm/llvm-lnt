@@ -1,35 +1,35 @@
 import sqlalchemy
 from sqlalchemy import DDL
+from sqlalchemy.ext.compiler import compiles
+from sqlalchemy.schema import DDLElement
 
 
-def add_column(engine, table_to_alter, column_to_add):
+class _AddColumn(DDLElement):
+    def __init__(self, table, column):
+        self.table = table
+        self.column = column
+
+
+@compiles(_AddColumn)
+def _visit_add_column(element, compiler, **kw):
+    return ("ALTER TABLE %s ADD COLUMN %s" %
+        (compiler.preparer.format_table(element.table),
+         compiler.get_column_specification(element.column)))
+
+
+def add_column(engine, table, column):
     # type: (sqlalchemy.engine.Engine, sqlalchemy.Table, sqlalchemy.Column) -> None
     """Add this column to the table.
 
     This is a stopgap to a real migration system.  Inspect the Column pass
-    and try to issue an ALTER command to make the column.  Detect Column
-    default, and add that.
-
-    Be careful, this does not support corner cases like most Column keywords
-    or any fancy Column settings.
+    and try to issue an ALTER command to make the column.
 
     :param engine: to execute on.
-    :param table_to_alter: the Table to add the column to.
-    :param column_to_add: Column that does not have anything fancy like
-    autoincrement.
-
+    :param table: the Table to add the column to.
+    :param column: Column to add
     """
-    column_name = column_to_add.name
-    col_type = column_to_add.type
-    if not column_to_add.default:
-        default = ""
-    else:
-        default = "DEFAULT {}".format(column_to_add.default.arg)
-    add_score = DDL("ALTER TABLE %(table)s ADD COLUMN %(column_name)s %(col_type)s %(default)s",
-                    context=dict(column_name=column_name,
-                                 col_type=col_type,
-                                 default=default))
-    add_score.execute(bind=engine, target=table_to_alter)
+    add_column = _AddColumn(table, column)
+    add_column.execute(bind=engine)
 
 
 def introspect_table(engine, name):
