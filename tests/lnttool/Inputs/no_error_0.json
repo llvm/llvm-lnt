@@ -1,0 +1,7 @@
+{
+	"run": {
+		"foo": "bar",
+		"no_errors": true,
+		"Baz": 42
+	}
+}

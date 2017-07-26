@@ -770,6 +770,7 @@ def load_nt_report_file(report_path, config):
     # We don't use the test info, currently.
     test_info = {}
     test_samples = []
+    no_errors = True
     for row in reader_it:
         record = dict(zip(header, row))
 
@@ -819,6 +820,7 @@ def load_nt_report_file(report_path, config):
                 if is_subtest:
                     continue
                 status_value = lnt.testing.FAIL
+                no_errors = False
             elif success_value == 'xfail':
                 status_value = lnt.testing.XFAIL
             else:
@@ -842,7 +844,7 @@ def load_nt_report_file(report_path, config):
 
     report_file.close()
 
-    return test_samples
+    return test_samples, no_errors
 
 def prepare_report_dir(config):
     # Set up the sandbox.
@@ -1033,9 +1035,11 @@ def run_test(nick_prefix, iteration, config):
         if not os.path.exists(build_report_path):
             fatal('nightly test failed, no report generated')
 
-        test_samples = load_nt_report_file(build_report_path, config)
+        test_samples, no_errors = \
+            load_nt_report_file(build_report_path, config)
     else:
         test_samples = []
+        no_errors = True
 
     # Merge in the test samples from all of the test modules.
     existing_tests = set(s.name for s in test_samples)
@@ -1063,6 +1067,7 @@ def run_test(nick_prefix, iteration, config):
     # FIXME: We aren't getting the LLCBETA options.
     run_info = {}
     run_info['tag'] = test_namespace
+    run_info['no_errors'] = no_errors
     run_info.update(config.cc_info)
 
     # Capture sw_vers if this looks like Darwin.
@@ -1172,19 +1177,18 @@ def rerun_test(config, name, num_times):
         test_full_path
 
     results = []
+    no_errors = True
     for _ in xrange(0, num_times):
-        test_results = _execute_test_again(config,
-                                          test_name,
-                                          test_full_path,
-                                          relative_test_path,
-                                          logfile)
+        test_results, t_no_errors = _execute_test_again(
+            config, test_name, test_full_path, relative_test_path, logfile)
+        no_errors &= t_no_errors
         results.extend(test_results)
 
     # Check we got an exec and status from each run.
     assert len(results) >= num_times, "Did not get all the runs?" + str(results)
 
     logfile.close()
-    return results
+    return results, no_errors
 
 
 def _prepare_testsuite_for_rerun(test_name, test_full_path, config):
@@ -1258,9 +1262,9 @@ def _execute_test_again(config, test_name, test_path, test_relative_path, logfil
     assert returncode == 0, "command failed"
     assert os.path.exists(result_path), "Missing results file."
 
-    results = load_nt_report_file(result_path, config)
+    results, no_errors = load_nt_report_file(result_path, config)
     assert len(results) > 0
-    return results
+    return results, no_errors
 
 def _unix_quote_args(s):
     return map(pipes.quote, shlex.split(s))
@@ -1452,9 +1456,8 @@ def _process_reruns(config, server_reply, local_results):
                                                    i + 1,
                                                    len(rerunable_benches)))
 
-        fresh_samples = rerun_test(config,
-                                   bench.name,
-                                   NUMBER_OF_RERUNS)
+        fresh_samples, t_no_errors = rerun_test(config,
+                                                bench.name, NUMBER_OF_RERUNS)
         rerun_results.extend(fresh_samples)
 
     return rerun_results

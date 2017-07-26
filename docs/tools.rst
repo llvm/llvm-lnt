@@ -44,6 +44,12 @@ Client-Side Tools
     Run a built-in test. See the :ref:`tests` documentation for more
     details on this tool.
 
+  ``lnt check-no-errors <file>+``
+    Check that the report file contains `"no_errors": true` in their run section
+    otherwise end with returncode 1. This is useful for continuous integration
+    scripts which want to report an error if any of the benchmarks didn't
+    compile or run correctly.
+
 
 Server Administration
 ~~~~~~~~~~~~~~~~~~~~~

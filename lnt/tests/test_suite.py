@@ -695,6 +695,7 @@ class TestSuiteTest(BuiltinTest):
             ignore.append('compile')
 
         profiles_to_import = []
+        no_errors = True
 
         for test_data in data['tests']:
             raw_name = test_data['name'].split(' :: ', 1)[1]
@@ -738,12 +739,14 @@ class TestSuiteTest(BuiltinTest):
                     lnt.testing.TestSamples(name + '.compile.status',
                                             [lnt.testing.FAIL],
                                             test_info))
+                no_errors = False
 
             elif not is_pass:
                 test_samples.append(
                     lnt.testing.TestSamples(name + '.exec.status',
                                             [self._get_lnt_code(test_data['code'])],
                                             test_info))
+                no_errors = False
 
         # Now import the profiles in parallel.
         if profiles_to_import:
@@ -769,7 +772,8 @@ class TestSuiteTest(BuiltinTest):
 
         # FIXME: Add more machine info!
         run_info = {
-            'tag': 'nts'
+            'tag': 'nts',
+            'no_errors': no_errors,
         }
         run_info.update(self._get_cc_info(cmake_vars))
         run_info['run_order'] = run_info['inferred_run_order']

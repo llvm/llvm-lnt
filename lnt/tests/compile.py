@@ -918,6 +918,7 @@ class CompileTest(builtintest.BuiltinTest):
         g_log.info('run started')
         g_log.info('using CC: %r' % opts.cc)
         g_log.info('using CXX: %r' % opts.cxx)
+        no_errors = True
         for basename, test_fn in tests_to_run:
             for success, name, samples in test_fn(basename, run_info,
                                                   variables):
@@ -935,9 +936,11 @@ class CompileTest(builtintest.BuiltinTest):
                 if not success:
                     testsamples.append(lnt.testing.TestSamples(
                         test_name + '.status', [lnt.testing.FAIL]))
+                    no_errors = False
                 if samples:
                     testsamples.append(lnt.testing.TestSamples(
                         test_name, samples))
+        run_info['no_errors'] = no_errors
         end_time = datetime.utcnow()
 
         g_log.info('run complete')

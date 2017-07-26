@@ -1,0 +1,8 @@
+# RUN: lnt check-no-errors %S/Inputs/no_error_0.json
+# RUN: lnt check-no-errors %S/Inputs/no_error_1.json
+# RUN: not lnt check-no-errors %S/Inputs/error_0.json
+# RUN: not lnt check-no-errors %S/Inputs/error_1.json
+# RUN: not lnt check-no-errors %S/Inputs/error_2.json
+# RUN: not lnt check-no-errors %S/Inputs/error_3.json
+# RUN: not lnt check-no-errors %S/Inputs/error_4.json
+# RUN: not lnt check-no-errors %S/Inputs/error_5.json
