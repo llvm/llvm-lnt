@@ -1,45 +1,41 @@
 # Version 5 adds a "score" Sample type.
 
-import os
-import sys
-
-import sqlalchemy
-from sqlalchemy import *
-
-###
-# Upgrade TestSuite
-
 # Import the original schema from upgrade_0_to_1 since upgrade_4_to_5 does not
 # change the actual schema.
+from sqlalchemy import update, Column, Float
+from sqlalchemy.orm import sessionmaker
+
 import lnt.server.db.migrations.upgrade_0_to_1 as upgrade_0_to_1
+from lnt.server.db.migrations.util import add_column, introspect_table
+
 
 def upgrade(engine):
     # Create a session.
-    session = sqlalchemy.orm.sessionmaker(engine)()
+    session = sessionmaker(engine)()
 
-    real_sample_type = session.query(upgrade_0_to_1.SampleType).\
-        filter_by(name = "Real").first()
+    real_sample_type = session.query(upgrade_0_to_1.SampleType). \
+        filter_by(name="Real").first()
 
     ts = session.query(upgrade_0_to_1.TestSuite).filter_by(name='nts').first()
     score = upgrade_0_to_1.SampleField(name="score", type=real_sample_type,
-                                       info_key=".score",)
+                                       info_key=".score")
     ts.sample_fields.append(score)
     session.add(ts)
 
     session.commit()
     session.close()
 
-    # upgrade_3_to_4.py added this column, so it is not in the ORM.
+    test_suite_sample_fields = introspect_table(engine, 'TestSuiteSampleFields')
+
+    set_scores = update(test_suite_sample_fields) \
+        .where(test_suite_sample_fields.c.Name == "score") \
+        .values(bigger_is_better=1)
+
     with engine.begin() as trans:
-        trans.execute("""
-UPDATE "TestSuiteSampleFields"
-SET bigger_is_better=1
-WHERE "Name"='score'
-""")
-        # FIXME: This is obviously not the right way to do this, but I gave up
-        # trying to find out how to do it properly in SQLAlchemy without
-        # SQLAlchemy-migrate installed.
-        trans.execute("""
-ALTER TABLE "NT_Sample"
-ADD COLUMN "score" FLOAT
-""")
+        trans.execute(set_scores)
+
+    # Give the NT table a score column.
+
+    nt_sample = introspect_table(engine, 'NT_Sample')
+    score = Column('score', Float)
+    add_column(engine, nt_sample, score)

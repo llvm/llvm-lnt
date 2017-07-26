@@ -4,71 +4,86 @@
 # them if they are not empty, as previously the test-suite name was different
 # from the prefix used in the tables. In yaml schemas the name and prefix is
 # always the same so we have to rename from `Compile_XXXX` to `compile_XXX`.
-import sqlalchemy
+import collections
+
+from sqlalchemy import delete, select, update, func
+
+from lnt.server.db.migrations.util import introspect_table, rename_table
 
 
-def _drop_suite(trans, name):
-    trans.execute('''
-DELETE FROM "TestSuiteOrderFields"
-    WHERE "TestSuiteID" IN
-        (SELECT "ID" FROM "TestSuite" WHERE "Name" = \'compile\')
-''')
-    trans.execute('''
-DELETE FROM "TestSuiteMachineFields"
-    WHERE "TestSuiteID" IN
-        (SELECT "ID" FROM "TestSuite" WHERE "Name" = \'compile\')
-''')
-    trans.execute('''
-DELETE FROM "TestSuiteRunFields"
-    WHERE "TestSuiteID" IN
-        (SELECT "ID" FROM "TestSuite" WHERE "Name" = \'compile\')
-''')
-    trans.execute('''
-DELETE FROM "TestSuiteSampleFields"
-    WHERE "TestSuiteID" IN
-        (SELECT "ID" FROM "TestSuite" WHERE "Name" = \'compile\')
-''')
-    trans.execute('DELETE FROM "TestSuite" WHERE "Name" = \'compile\'')
+def _drop_suite(trans, name, engine):
+    """Drop the suite name.
+
+    This patches up the suite description tables for Order Fields,
+    Machine Fields, Run Fields and Sample Fields.
+
+    After than remove the suite directly from the TestSuite table.
+    """
+
+    test_suite = introspect_table(engine, 'TestSuite')
+
+    test_suite_id = trans.execute(
+        select([test_suite.c.ID]).where(test_suite.c.Name == name)) \
+        .scalar()
+
+    drop_fields(engine, test_suite_id, 'TestSuiteOrderFields', trans)
+    drop_fields(engine, test_suite_id, 'TestSuiteMachineFields', trans)
+    drop_fields(engine, test_suite_id, 'TestSuiteRunFields', trans)
+    drop_fields(engine, test_suite_id, 'TestSuiteSampleFields', trans)
+
+    trans.execute(delete(test_suite).where(test_suite.c.Name == name))
+
+
+def drop_fields(engine, test_suite_id, name, trans):
+    """In the *Fields Tables, drop entries related to the test_suite_id.
+    """
+    fields_table = introspect_table(engine, name)
+    order_files = delete(fields_table,
+                         fields_table.c.TestSuiteID == test_suite_id)
+    trans.execute(order_files)
+    return fields_table
+
+
+TableRename = collections.namedtuple('TableRename', 'old_name new_name')
 
 
 def upgrade(engine):
-    tablenames = [
-        ('Compile_Baseline', 'compile_Baseline'),
-        ('Compile_ChangeIgnore', 'compile_ChangeIgnore'),
-        ('Compile_RegressionIndicator', 'compile_RegressionIndicator'),
-        ('Compile_FieldChange', 'compile_FieldChange'),
-        ('Compile_FieldChangeV2', 'compile_FieldChangeV2'),
-        ('Compile_Profile', 'compile_Profile'),
-        ('Compile_Regression', 'compile_Regression'),
-        ('Compile_Sample', 'compile_Sample'),
-        ('Compile_Run', 'compile_Run'),
-        ('Compile_Order', 'compile_Order'),
-        ('Compile_Test', 'compile_Test'),
-        ('Compile_Machine', 'compile_Machine'),
+    table_renames = [
+        TableRename('Compile_Baseline', 'compile_Baseline'),
+        TableRename('Compile_ChangeIgnore', 'compile_ChangeIgnore'),
+        TableRename('Compile_RegressionIndicator', 'compile_RegressionIndicator'),
+        TableRename('Compile_FieldChange', 'compile_FieldChange'),
+        TableRename('Compile_FieldChangeV2', 'compile_FieldChangeV2'),
+        TableRename('Compile_Profile', 'compile_Profile'),
+        TableRename('Compile_Regression', 'compile_Regression'),
+        TableRename('Compile_Sample', 'compile_Sample'),
+        TableRename('Compile_Run', 'compile_Run'),
+        TableRename('Compile_Order', 'compile_Order'),
+        TableRename('Compile_Test', 'compile_Test'),
+        TableRename('Compile_Machine', 'compile_Machine'),
     ]
     all_empty = True
-    for name, _ in tablenames:
-        num = engine.execute('SELECT COUNT(*) FROM "%s"' % name).first()
-        if num[0] > 0:
+    for rename in table_renames:
+        tab = introspect_table(engine, rename.old_name)
+        size = select([func.count(tab.c.ID)])
+        num = engine.execute(size).scalar()
+
+        if num > 0:
             all_empty = False
             break
-
+    test_suite = introspect_table(engine, 'TestSuite')
     with engine.begin() as trans:
-        # If nobody ever put data into the compile suite drop it
+        # If nobody ever put data into the compile suite drop it.
         if all_empty:
-            for name, _ in tablenames:
-                trans.execute('DROP TABLE "%s"' % name)
-            _drop_suite(trans, 'compile')
+            for name, _ in table_renames:
+                tab = introspect_table(engine, name)
+                tab.drop()
+            _drop_suite(trans, 'compile', engine)
         else:
-            for old_name, new_name in tablenames:
-                env = {'old_name': old_name, 'new_name': new_name}
-                trans.execute('''
-ALTER TABLE "%(old_name)s" RENAME TO "%(new_name)s_x"
-''' % env)
-                trans.execute('''
-ALTER TABLE "%(new_name)s_x" RENAME TO \"%(new_name)s\"
-''' % env)
+            for rename in table_renames:
+                tab = introspect_table(engine, rename.old_name)
+                rename_table(engine, tab, rename.new_name)
             # Just change the DB_Key to match the name
-            trans.execute('''
-UPDATE "TestSuite" SET "DBKeyName" = \'compile\' WHERE "Name" = \'compile\'
-''')
+            trans.execute(update(test_suite)
+                          .where(test_suite.c.Name == 'compile')
+                          .values(DBKeyName='compile'))

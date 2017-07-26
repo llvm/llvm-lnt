@@ -6,7 +6,11 @@ import sqlalchemy
 ###
 # Import the original schema from upgrade_0_to_1 since upgrade_5_to_6 does not
 # change the actual schema.
+from sqlalchemy import update, Column, Float
+
 import lnt.server.db.migrations.upgrade_0_to_1 as upgrade_0_to_1
+
+from lnt.server.db.migrations.util import add_column, introspect_table
 
 
 def upgrade(engine):
@@ -25,14 +29,15 @@ def upgrade(engine):
     session.commit()
     session.close()
 
+    test_suite_sample_fields = introspect_table(engine, 'TestSuiteSampleFields')
+    update_code_size = update(test_suite_sample_fields) \
+        .where(test_suite_sample_fields.c.Name == "code_size") \
+        .values(bigger_is_better=0)
     # upgrade_3_to_4.py added this column, so it is not in the ORM.
+
     with engine.begin() as trans:
-        trans.execute("""
-UPDATE "TestSuiteSampleFields"
-SET bigger_is_better=0
-WHERE "Name"='code_size'
-""")
-        trans.execute("""
-ALTER TABLE "NT_Sample"
-ADD COLUMN "code_size" FLOAT
-""")
+        trans.execute(update_code_size)
+
+    nt_sample = introspect_table(engine, 'NT_Sample')
+    code_size = Column('code_size', Float)
+    add_column(engine, nt_sample, code_size)

@@ -1,9 +1,6 @@
 # Version 7 adds a "hash" Sample type & adds a sample field of
 # this type for the NTS test suite.
 
-import os
-import sys
-
 import sqlalchemy
 
 ###
@@ -13,6 +10,8 @@ import sqlalchemy
 # change the actual schema.
 from lnt.server.db.migrations.upgrade_0_to_1 \
   import SampleType, TestSuite, SampleField
+
+from lnt.server.db.migrations.util import add_column, introspect_table
 
 
 def upgrade(engine):
@@ -41,15 +40,8 @@ def upgrade(engine):
     session.commit()
     session.close()
 
-    with engine.begin() as trans:
-        trans.execute("""
-ALTER TABLE "NT_Sample"
-ADD COLUMN "hash_status" INTEGER
-""")
-        # For MD5 hashes, 32 characters is enough to store the full has.
-        # Assume that for hashing schemes producing longer hashes, storing
-        # just the first 32 characters is good enough for our use case.
-        trans.execute("""
-    ALTER TABLE "NT_Sample"
-    ADD COLUMN "hash" VARCHAR(32)
-    """)
+    nt_sample = introspect_table(engine, 'NT_Sample')
+    hash_status = sqlalchemy.Column('hash_status', sqlalchemy.Integer)
+    hash_string = sqlalchemy.Column('hash', sqlalchemy.String(32))
+    add_column(engine, nt_sample, hash_status)
+    add_column(engine, nt_sample, hash_string)
