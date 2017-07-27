@@ -13,7 +13,8 @@ import time
 
 def import_and_report(config, db_name, db, file, format, ts_name,
                       commit=False, show_sample_count=False,
-                      disable_email=False, disable_report=False):
+                      disable_email=False, disable_report=False,
+                      updateMachine=False):
     """
     import_and_report(config, db_name, db, file, format, ts_name,
                       [commit], [show_sample_count],
@@ -88,7 +89,8 @@ def import_and_report(config, db_name, db, file, format, ts_name,
                                (data_schema, ts_name))
             return result
 
-        success, run = ts.importDataFromDict(data, commit, config=db_config)
+        success, run = ts.importDataFromDict(data, commit, config=db_config,
+                                             updateMachine=updateMachine)
     except KeyboardInterrupt:
         raise
     except Exception as e:
@@ -157,7 +159,8 @@ def import_and_report(config, db_name, db, file, format, ts_name,
             shadow_result = import_and_report(config, shadow_name,
                                               shadow_db, file, format, ts_name,
                                               commit, show_sample_count,
-                                              disable_email, disable_report)
+                                              disable_email, disable_report,
+                                              updateMachine)
 
             # Append the shadow result to the result.
             result['shadow_result'] = shadow_result
@@ -306,7 +309,8 @@ def print_report_result(result, out, err, verbose = True):
         print >>out, kind, ":", count
 
 
-def import_from_string(config, db_name, db, ts_name, data, commit=True):
+def import_from_string(config, db_name, db, ts_name, data, commit=True,
+                       updateMachine=False):
     # Stash a copy of the raw submission.
     #
     # To keep the temporary directory organized, we keep files in
@@ -334,5 +338,5 @@ def import_from_string(config, db_name, db, ts_name, data, commit=True):
     # should at least reject overly large inputs.
 
     result = lnt.util.ImportData.import_and_report(config, db_name, db,
-            path, '<auto>', ts_name, commit)
+            path, '<auto>', ts_name, commit, updateMachine=updateMachine)
     return result

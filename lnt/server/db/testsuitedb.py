@@ -763,50 +763,71 @@ class TestSuiteDB(object):
 
         return None
 
-    def _getOrCreateMachine(self, machine_data):
+    def _getOrCreateMachine(self, machine_data, forceUpdate):
         """
-        _getOrCreateMachine(data) -> Machine, bool
+        _getOrCreateMachine(data, forceUpdate) -> Machine
 
         Add or create (and insert) a Machine record from the given machine data
         (as recorded by the test interchange format).
-
-        The boolean result indicates whether the returned record was
-        constructed or not.
         """
 
-        # Convert the machine data into a machine record. We construct the
-        # query to look for any existing machine at the same time as we build
-        # up the record to possibly add.
-        name = machine_data['name']
-        query = self.query(self.Machine).filter(self.Machine.name == name)
-        machine = self.Machine(name)
+        # Convert the machine data into a machine record.
         machine_parameters = machine_data.copy()
-        machine_parameters.pop('name')
-        # Ignore incoming ids; we will create our own.
-        # TODO: Add some API/result so we can send a warning back to the user
-        # that we ignore the id.
+        name = machine_parameters.pop('name')
+        machine = self.Machine(name)
         machine_parameters.pop('id', None)
-
-        # First, extract all of the specified machine fields.
         for item in self.machine_fields:
             value = machine_parameters.pop(item.name, None)
-            query = query.filter(item.column == value)
             machine.set_field(item, value)
-
-        # Convert any remaining machine_parameters into a JSON encoded blob. We
-        # encode this as an array to avoid a potential ambiguity on the key
-        # ordering.
         machine.parameters = machine_parameters
-        query = query.filter(self.Machine.parameters_data ==
-                             machine.parameters_data)
 
-        # Execute the query to see if we already have this machine.
-        existing_machine = query.first()
-        if existing_machine is not None:
-            return existing_machine, False
-        else:
+        # Look for an existing machine.
+        existing_machines = self.query(self.Machine) \
+            .filter(self.Machine.name == name) \
+            .order_by(self.Machine.id.desc()) \
+            .all()
+        if len(existing_machines) == 0:
             self.add(machine)
-            return machine, True
+            return machine
+
+        existing = existing_machines[0]
+
+        # Unfortunately previous LNT versions allowed multiple machines
+        # with the same name to exist, so we should choose the one that
+        # matches best.
+        if len(existing_machines) > 1:
+            for m in existing_machines:
+                if m.parameters == machine.parameters:
+                    existing = m
+                    break
+
+        # Check and potentially update existing machine.
+        # Parameters that were previously unset are added. If a parameter
+        # changed then we update or abort depending on `forceUpdate`.
+        for field in self.machine_fields:
+            existing_value = existing.get_field(field)
+            new_value = machine.get_field(field)
+            if existing_value is None:
+                existing.set_field(field, new_value)
+            elif existing_value != new_value:
+                if not forceUpdate:
+                    raise ValueError("'%s' on machine '%s' changed." %
+                                     (field.name, name))
+                else:
+                    existing.set_field(field, new_value)
+        existing_parameters = existing.parameters
+        for key, value in machine.parameters.items():
+            existing_value = existing_parameters.get(key, None)
+            if existing_value is None:
+                existing_parameters[key] = value
+            elif existing_value != value:
+                if not forceUpdate:
+                    raise ValueError("'%s' on machine '%s' changed." %
+                                     (key, name))
+                else:
+                    existing_parameters[key] = value
+        existing.parameters = existing_parameters
+        return existing
 
     def _getOrCreateOrder(self, run_parameters):
         """
@@ -979,7 +1000,8 @@ class TestSuiteDB(object):
                     else:
                         sample.set_field(field, value)
 
-    def importDataFromDict(self, data, commit, config=None):
+    def importDataFromDict(self, data, commit, config=None,
+                           updateMachine=False):
         """
         importDataFromDict(data) -> bool, Run
 
@@ -989,9 +1011,7 @@ class TestSuiteDB(object):
         The boolean result indicates whether the returned record was
         constructed or not (i.e., whether the data was a duplicate submission).
         """
-
-        # Construct the machine entry.
-        machine, inserted = self._getOrCreateMachine(data['machine'])
+        machine = self._getOrCreateMachine(data['machine'], updateMachine)
 
         # Construct the run entry.
         run, inserted = self._getOrCreateRun(data['run'], machine)

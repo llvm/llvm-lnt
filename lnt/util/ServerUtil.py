@@ -28,10 +28,11 @@ def _show_json_error(reply):
     if message:
         sys.stderr.write(message + '\n')
 
-def submitFileToServer(url, file, commit):
+def submitFileToServer(url, file, commit, updateMachine):
     with open(file, 'rb') as f:
-        values = { 'input_data' : f.read(),
-                   'commit' : ("0","1")[not not commit] }
+        values = {'input_data' : f.read(),
+                  'commit' : "1" if commit else "0",
+                  'update_machine': "1" if updateMachine else "0"}
     headers = {'Accept': 'application/json'}
     data = urllib.urlencode(values)
     try:
@@ -58,7 +59,7 @@ def submitFileToServer(url, file, commit):
     return reply
 
 
-def submitFileToInstance(path, file, commit):
+def submitFileToInstance(path, file, commit, updateMachine=False):
     # Otherwise, assume it is a local url and submit to the default database
     # in the instance.
     instance = lnt.server.instance.Instance.frompath(path)
@@ -69,24 +70,24 @@ def submitFileToInstance(path, file, commit):
             raise ValueError("no default database in instance: %r" % (path,))
         return lnt.util.ImportData.import_and_report(
             config, db_name, db, file, format='<auto>', ts_name='nts',
-            commit=commit)
+            commit=commit, updateMachine=updateMachine)
 
 
-def submitFile(url, file, commit, verbose):
+def submitFile(url, file, commit, verbose, updateMachine=False):
     # If this is a real url, submit it using urllib.
     if '://' in url:
-        result = submitFileToServer(url, file, commit)
+        result = submitFileToServer(url, file, commit, updateMachine)
         if result is None:
             return
     else:
-        result = submitFileToInstance(url, file, commit)
+        result = submitFileToInstance(url, file, commit, updateMachine)
     return result
 
 
-def submitFiles(url, files, commit, verbose):
+def submitFiles(url, files, commit, verbose, updateMachine=False):
     results = []
     for file in files:
-        result = submitFile(url, file, commit, verbose)
+        result = submitFile(url, file, commit, verbose, updateMachine)
         if result:
             results.append(result)
     return results

@@ -101,3 +101,39 @@ lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" --commit "${I
 # CHECK-ERRORS: lnt server error: import failure: machine
 # ...
 # CHECK-ERRORS: KeyError: 'machine'
+lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" --commit "${INPUTS}/compile_submission_machine_diff_reject.json" >> "${OUTPUT_DIR}/submit_errors.txt" 2>&1
+# CHECK-ERRORS: lnt server error: import failure: 'hw.activecpu' on machine 'some-compile-suite-machine' changed.
+# ...
+# ValueError: 'hw.activecpu' on machine 'some-compile-suite-machine' changed.
+
+
+
+# Adding extra fields to the machine in a submission is fine.
+lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" --commit "${INPUTS}/compile_submission_machine_diff_fine.json" -v > "${OUTPUT_DIR}/submit_compile_machine_diff.txt"
+# RUN: FileCheck %s --check-prefix=CHECK-MACHINEDIFF < %T/submit_compile_machine_diff.txt
+#
+# CHECK-MACHINEDIFF: Imported Data
+# CHECK-MACHINEDIFF: -------------
+# CHECK-MACHINEDIFF-NOT: Added Machines
+# CHECK-MACHINEDIFF: Added Runs    : 1
+# CHECK-MACHINEDIFF-NOT: Added Machines
+#
+# CHECK-MACHINEDIFF: Results
+# CHECK-MACHINEDIFF: ----------------
+# CHECK-MACHINEDIFF: PASS : 9
+# CHECK-MACHINEDIFF: Results available at: http://localhost:9091/db_default/v4/compile/6
+
+# Test updating existing machine
+lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" --commit "${INPUTS}/compile_submission_machine_diff_reject.json" --update-machine -v > "${OUTPUT_DIR}/submit_compile_machine_update.txt"
+# RUN: FileCheck %s --check-prefix=CHECK-UPDATEMACHINE < %T/submit_compile_machine_update.txt
+#
+# CHECK-UPDATEMACHINE: Imported Data
+# CHECK-UPDATEMACHINE: -------------
+# CHECK-UPDATEMACHINE-NOT: Added Machines
+# CHECK-UPDATEMACHINE: Added Runs    : 1
+# CHECK-UPDATEMACHINE-NOT: Added Machines
+#
+# CHECK-UPDATEMACHINE: Results
+# CHECK-UPDATEMACHINE: ----------------
+# CHECK-UPDATEMACHINE: PASS : 9
+# CHECK-UPDATEMACHINE: Results available at: http://localhost:9091/db_default/v4/compile/7

@@ -20,9 +20,10 @@ import lnt.formats
 @click.option("--quiet", "-q", is_flag=True, help="don't show test results")
 @click.option("--no-email", is_flag=True, help="don't send e-mail")
 @click.option("--no-report", is_flag=True, help="don't generate report")
+@click.option("--update-machine", is_flag=True, help="Update machine fields")
 def action_import(instance_path, files, database, output_format, commit,
                   show_sql, show_sample_count, show_raw_result, testsuite,
-                  verbose, quiet, no_email, no_report):
+                  verbose, quiet, no_email, no_report, update_machine):
     """import test data into a database"""
     import contextlib
     import lnt.server.instance
@@ -43,7 +44,7 @@ def action_import(instance_path, files, database, output_format, commit,
             result = lnt.util.ImportData.import_and_report(
                 config, database, db, file_name,
                 output_format, testsuite, commit, show_sample_count,
-                no_email, no_report)
+                no_email, no_report, updateMachine=update_machine)
 
             success &= result.get('success', False)
             if quiet:

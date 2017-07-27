@@ -178,9 +178,10 @@ def action_showtests():
 @click.argument("url")
 @click.argument("files", nargs=-1, type=click.Path(exists=True), required=True)
 @click.option("--commit", is_flag=True, help="actually commit the data")
+@click.option("--update-machine", is_flag=True, help="Update machine fields")
 @click.option("--verbose", "-v", is_flag=True,
               help="show verbose test results")
-def action_submit(url, files, commit, verbose):
+def action_submit(url, files, commit, update_machine, verbose):
     """submit a test report to the server"""
     from lnt.util import ServerUtil
     import lnt.util.ImportData
@@ -192,7 +193,8 @@ def action_submit(url, files, commit, verbose):
         logger.warning("submit called without --commit, " +
                        "your results will not be saved at the server.")
 
-    files = ServerUtil.submitFiles(url, files, commit, verbose)
+    files = ServerUtil.submitFiles(url, files, commit, verbose,
+                                   updateMachine=update_machine)
     for submitted_file in files:
         if verbose:
             lnt.util.ImportData.print_report_result(
