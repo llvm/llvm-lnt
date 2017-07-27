@@ -831,16 +831,13 @@ class TestSuiteDB(object):
 
     def _getOrCreateOrder(self, run_parameters):
         """
-        _getOrCreateOrder(data) -> Order, bool
+        _getOrCreateOrder(data) -> Order
 
         Add or create (and insert) an Order record based on the given run
         parameters (as recorded by the test interchange format).
 
         The run parameters that define the order will be removed from the
         provided ddata argument.
-
-        The boolean result indicates whether the returned record was
-        constructed or not.
         """
 
         query = self.query(self.Order)
@@ -858,44 +855,51 @@ class TestSuiteDB(object):
             order.set_field(item, value)
 
         # Execute the query to see if we already have this order.
-        try:
-            return query.one(), False
-        except sqlalchemy.orm.exc.NoResultFound:
-            # If not, then we need to insert this order into the total ordering
-            # linked list.
+        existing = query.first()
+        if existing is not None:
+            return existing
 
-            # Add the new order and commit, to assign an ID.
-            self.add(order)
-            self.v4db.session.commit()
+        # If not, then we need to insert this order into the total ordering
+        # linked list.
 
-            # Load all the orders.
-            orders = list(self.query(self.Order))
+        # Add the new order and commit, to assign an ID.
+        self.add(order)
+        self.v4db.session.commit()
 
-            # Sort the objects to form the total ordering.
-            orders.sort()
+        # Load all the orders.
+        orders = list(self.query(self.Order))
 
-            # Find the order we just added.
-            index = orders.index(order)
+        # Sort the objects to form the total ordering.
+        orders.sort()
 
-            # Insert this order into the linked list which forms the total
-            # ordering.
-            if index > 0:
-                previous_order = orders[index - 1]
-                previous_order.next_order_id = order.id
-                order.previous_order_id = previous_order.id
-            if index + 1 < len(orders):
-                next_order = orders[index + 1]
-                next_order.previous_order_id = order.id
-                order.next_order_id = next_order.id
+        # Find the order we just added.
+        index = orders.index(order)
 
-            return order, True
+        # Insert this order into the linked list which forms the total
+        # ordering.
+        if index > 0:
+            previous_order = orders[index - 1]
+            previous_order.next_order_id = order.id
+            order.previous_order_id = previous_order.id
+        if index + 1 < len(orders):
+            next_order = orders[index + 1]
+            next_order.previous_order_id = order.id
+            order.next_order_id = next_order.id
 
-    def _getOrCreateRun(self, run_data, machine):
+        return order
+
+    def _getOrCreateRun(self, run_data, machine, merge):
         """
-        _getOrCreateRun(data) -> Run, bool
+        _getOrCreateRun(run_data, machine, merge) -> Run, bool
 
         Add a new Run record from the given data (as recorded by the test
         interchange format).
+
+        merge comes into play when there is already a run with the same order
+        fields:
+        - 'reject': Reject submission (raise ValueError).
+        - 'replace': Remove the existing submission(s), then add the new one.
+        - 'append': Add new submission.
 
         The boolean result indicates whether the returned record was
         constructed or not.
@@ -914,7 +918,22 @@ class TestSuiteDB(object):
         run_parameters.pop('simple_run_id', None)
 
         # Find the order record.
-        order, inserted = self._getOrCreateOrder(run_parameters)
+        order = self._getOrCreateOrder(run_parameters)
+
+        if merge != 'append':
+            existing_runs = self.query(self.Run) \
+                .filter(self.Run.machine_id == machine.id) \
+                .filter(self.Run.order_id == order.id) \
+                .all()
+            if len(existing_runs) > 0:
+                if merge == 'reject':
+                    raise ValueError("Duplicate submission for '%s'" %
+                                     order.name)
+                elif merge == 'replace':
+                    for run in existing_runs:
+                        self.delete(run)
+                else:
+                    raise ValueError('Invalid Run mergeStrategy %r' % merge)
 
         # We'd like ISO8061 timestamps, but will also accept the old format.
         try:
@@ -922,45 +941,26 @@ class TestSuiteDB(object):
         except ValueError:
             start_time = datetime.datetime.strptime(run_data['start_time'],
                                                     "%Y-%m-%d %H:%M:%S")
+        run_parameters.pop('start_time')
 
         try:
             end_time = aniso8601.parse_datetime(run_data['end_time'])
         except ValueError:
             end_time = datetime.datetime.strptime(run_data['end_time'],
                                                   "%Y-%m-%d %H:%M:%S")
-        run_parameters.pop('start_time')
         run_parameters.pop('end_time')
 
-        # Convert the rundata into a run record. As with Machines, we construct
-        # the query to look for any existing run at the same time as we build
-        # up the record to possibly add.
-        #
-        # FIXME: This feels inelegant, can't SA help us out here?
-        query = self.query(self.Run).\
-            filter(self.Run.machine_id == machine.id).\
-            filter(self.Run.order_id == order.id).\
-            filter(self.Run.start_time == start_time).\
-            filter(self.Run.end_time == end_time)
         run = self.Run(machine, order, start_time, end_time)
 
         # First, extract all of the specified run fields.
         for item in self.run_fields:
             value = run_parameters.pop(item.name, None)
-            query = query.filter(item.column == value)
             run.set_field(item, value)
 
         # Any remaining parameters are saved as a JSON encoded array.
         run.parameters = run_parameters
-        query = query.filter(self.Run.parameters_data == run.parameters_data)
-
-        # Execute the query to see if we already have this run.
-        try:
-            return query.one(), False
-        except sqlalchemy.orm.exc.NoResultFound:
-            # If not, add the run.
-            self.add(run)
-
-            return run, True
+        self.add(run)
+        return run
 
     def _importSampleValues(self, tests_data, run, commit, config):
         # Load a map of all the tests, which we will extend when we find tests
@@ -1000,30 +1000,21 @@ class TestSuiteDB(object):
                     else:
                         sample.set_field(field, value)
 
-    def importDataFromDict(self, data, commit, config=None,
-                           updateMachine=False):
+    def importDataFromDict(self, data, commit, config, updateMachine,
+                           mergeRun):
         """
-        importDataFromDict(data) -> bool, Run
+        importDataFromDict(data, commit, config, updateMachine, mergeRun)
+            -> Run  (or throws ValueError exception)
 
         Import a new run from the provided test interchange data, and return
-        the constructed Run record.
-
-        The boolean result indicates whether the returned record was
-        constructed or not (i.e., whether the data was a duplicate submission).
+        the constructed Run record. May throw ValueError exceptions in cases
+        like mismatching machine data or duplicate run submission with
+        mergeRun == 'reject'.
         """
         machine = self._getOrCreateMachine(data['machine'], updateMachine)
-
-        # Construct the run entry.
-        run, inserted = self._getOrCreateRun(data['run'], machine)
-
-        # If we didn't construct a new run, this is a duplicate
-        # submission. Return the prior Run.
-        if not inserted:
-            return False, run
-
+        run = self._getOrCreateRun(data['run'], machine, mergeRun)
         self._importSampleValues(data['tests'], run, commit, config)
-
-        return True, run
+        return run
 
     # Simple query support (mostly used by templates)
 

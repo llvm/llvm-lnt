@@ -278,9 +278,10 @@ class Runs(Resource):
         db = request.get_db()
         data = request.data
         updateMachine = request.values.get('update_machine', False)
+        merge = request.values.get('merge', 'replace')
         result = lnt.util.ImportData.import_from_string(
             current_app.old_config, g.db_name, db, g.testsuite_name, data,
-            updateMachine=updateMachine)
+            updateMachine=updateMachine, mergeRun=merge)
 
         new_url = ('%sapi/db_%s/v4/%s/runs/%s' %
                    (request.url_root, g.db_name, g.testsuite_name,

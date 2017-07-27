@@ -33,7 +33,6 @@ class SearchTest(unittest.TestCase):
         # Get the database.
         self.db = config.get_database('default', echo=False)
         # Load the database.
-        success = True
         for r in imported_runs:
             with tempfile.NamedTemporaryFile() as f:
                 data = open(os.path.join(base_path, 'Inputs/report.json.in')) \
@@ -44,12 +43,12 @@ class SearchTest(unittest.TestCase):
     
                 result = lnt.util.ImportData.import_and_report(
                     None, 'default', self.db, f.name,
-                    '<auto>', 'nts', True, False,
-                    True, True)
+                    format='<auto>', ts_name='nts', commit=True,
+                    show_sample_count=False, disable_email=True,
+                    disable_report=True, updateMachine=False,
+                    mergeRun='reject')
 
-                success &= result.get('success', False)
-
-        assert success
+                assert result.get('success', False)
 
     def _mangleResults(self, rs):
         return [(r.machine.name, str(r.order.llvm_project_revision))

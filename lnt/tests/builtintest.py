@@ -74,10 +74,9 @@ class BuiltinTest(object):
         server_report = None
         if config.submit_url is not None:
             self.log("submitting result to %r" % (config.submit_url,))
-            server_report = ServerUtil.submitFile(config.submit_url,
-                                                  report_path,
-                                                  commit,
-                                                  config.verbose)
+            server_report = ServerUtil.submitFile(
+                config.submit_url, report_path, commit, config.verbose,
+                updateMachine=config.update_machine, mergeRun=config.merge)
         else:
             server_report = lnt.util.ImportData.no_submit()
 

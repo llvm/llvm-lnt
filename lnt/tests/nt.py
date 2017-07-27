@@ -30,8 +30,8 @@ from lnt.testing.util.misc import timestamp
 
 from lnt.server.reporting.analysis import UNCHANGED_PASS, UNCHANGED_FAIL
 from lnt.server.reporting.analysis import REGRESSED, IMPROVED
-from lnt.util import logger
-from lnt.util import ImportData
+from lnt.util import logger, ImportData
+from lnt.lnttool.common import submit_options
 import builtintest
 
 
@@ -1986,9 +1986,6 @@ def _tools_check():
               help=("autosubmit the test result to the given server"
                     " (or local instance)"),
               type=click.UNPROCESSED, default=[], multiple=True)
-@click.option("--commit", "commit", is_flag=True,
-              help="whether the autosubmit result should be committed",
-              default=True)
 @click.option("--output", "output", metavar="PATH",
               help="write raw report data to PATH (or stdout if '-')",
               default=None)
@@ -1999,6 +1996,7 @@ def _tools_check():
               help="Do not submit the stat of this type ",
               multiple=True, type=click.Choice(KNOWN_SAMPLE_KEYS),
               default=['hash'])
+@submit_options
 def cli_action(*args, **kwargs):
     _tools_check()
     nt = NTTest()

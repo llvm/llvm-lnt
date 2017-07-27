@@ -24,6 +24,7 @@ from lnt.testing.util.misc import timestamp
 from lnt.tests import builtintest
 from lnt.util import stats
 from lnt.util import logger
+from lnt.lnttool.common import submit_options
 
 
 # For each test, compile with all these combinations of flags.
@@ -1054,8 +1055,7 @@ class CompileTest(builtintest.BuiltinTest):
               help=("autosubmit the test result to the given server "
                     "(or local instance)"),
               type=click.UNPROCESSED, default=None)
-@click.option("--commit", "commit", is_flag=True, default=True,
-              help="whether the autosubmit result should be committed")
+@submit_options
 @click.option("--output", "output", metavar="PATH",
               help="write raw report data to PATH (or stdout if '-')")
 @click.option("-v", "--verbose", "verbose",

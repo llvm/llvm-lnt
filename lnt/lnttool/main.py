@@ -1,5 +1,6 @@
 """Implement the command line 'lnt' tool."""
 from .common import init_logger
+from .common import submit_options
 from .convert import action_convert
 from .create import action_create
 from .import_data import action_import
@@ -177,11 +178,10 @@ def action_showtests():
 @click.command("submit")
 @click.argument("url")
 @click.argument("files", nargs=-1, type=click.Path(exists=True), required=True)
-@click.option("--commit", is_flag=True, help="actually commit the data")
-@click.option("--update-machine", is_flag=True, help="Update machine fields")
+@submit_options
 @click.option("--verbose", "-v", is_flag=True,
               help="show verbose test results")
-def action_submit(url, files, commit, update_machine, verbose):
+def action_submit(url, files, commit, update_machine, merge, verbose):
     """submit a test report to the server"""
     from lnt.util import ServerUtil
     import lnt.util.ImportData
@@ -194,7 +194,8 @@ def action_submit(url, files, commit, update_machine, verbose):
                        "your results will not be saved at the server.")
 
     files = ServerUtil.submitFiles(url, files, commit, verbose,
-                                   updateMachine=update_machine)
+                                   updateMachine=update_machine,
+                                   mergeRun=merge)
     for submitted_file in files:
         if verbose:
             lnt.util.ImportData.print_report_result(

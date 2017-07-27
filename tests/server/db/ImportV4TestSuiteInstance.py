@@ -13,6 +13,8 @@
 # IMPORT-A-1: Added Runs : 1
 # IMPORT-A-1: Added Tests : 1
 # IMPORT-A-1: Added Samples : 2
+#
+# IMPORT-A-1: PASS : 5
 
 # Import the second test set.
 # RUN: lnt import %t.install %{shared_inputs}/sample-b-small.plist \
@@ -22,12 +24,36 @@
 # IMPORT-B: Added Runs : 1
 # IMPORT-B: Added Samples : 1
 
-# Check that reimporting the first test set properly reports as a duplicate.
+# Check appending to an existing order
 # RUN: lnt import %t.install %{shared_inputs}/sample-a-small.plist \
-# RUN:     --commit --show-sample-count > %t3.log
-# RUN: FileCheck -check-prefix=IMPORT-A-2 %s < %t3.log
+# RUN:     --commit --show-sample-count --merge=append >& %t_append.log
+# RUN: FileCheck -check-prefix=IMPORT-A-APPEND %s < %t_append.log
 #
-# IMPORT-A-2: This submission is a duplicate of run 1
+# IMPORT-A-APPEND-NOT: Added Machines
+# IMPORT-A-APPEND: Added Runs : 1
+# IMPORT-A-APPEND-NOT: Added Tests
+# IMPORT-A-APPEND: Added Samples : 2
+#
+# IMPORT-A-APPEND: PASS : 5
+
+# Check that reimporting replaces the existing run.
+# RUN: lnt import %t.install %{shared_inputs}/sample-a-small.plist \
+# RUN:     --commit --show-sample-count --merge=replace >& %t_replace.log
+# RUN: FileCheck -check-prefix=IMPORT-A-REPLACE %s < %t_replace.log
+#
+# IMPORT-A-REPLACE-NOT: Added Machines
+# IMPORT-A-REPLACE: Added Runs : -1
+# IMPORT-A-REPLACE-NOT: Added Tests
+# IMPORT-A-REPLACE: Added Samples : -2
+#
+# IMPORT-A-REPLACE: PASS : 5
+
+# Check that reimporting the first test set properly reports as a duplicate.
+# RUN: not lnt import %t.install %{shared_inputs}/sample-a-small.plist \
+# RUN:     --commit --show-sample-count --merge=reject >& %t_reject.log
+# RUN: FileCheck -check-prefix=IMPORT-A-REJECT %s < %t_reject.log
+#
+# IMPORT-A-REJECT: Duplicate submission for '1'
 
 # Dump a copy of the database, so it will show up in logs.
 # RUN: sqlite3 %t.install/data/lnt.db .dump
@@ -87,7 +113,7 @@ assert order_b.next_order_id is None
 assert order_b.llvm_project_revision == '2'
 
 # Validate the runs.
-runs = list(ts.query(ts.Run))
+runs = list(ts.query(ts.Run).order_by(ts.Run.order_id))
 assert len(runs) == 2
 run_a,run_b = runs
 assert run_a.machine is machine
@@ -102,7 +128,9 @@ assert sorted(run_a.parameters.items()) == [('inferred_run_order', '1')]
 assert sorted(run_b.parameters.items()) == [('inferred_run_order', '2')]
 
 # Validate the samples.
-samples = list(ts.query(ts.Sample))
+samples = list(ts.query(ts.Sample)\
+    .join(ts.Run) \
+    .order_by(ts.Run.order_id, ts.Sample.id))
 assert len(samples) == 3
 sample_a_0,sample_a_1,sample_b = samples
 assert sample_a_0.run is run_a

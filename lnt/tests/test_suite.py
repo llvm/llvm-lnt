@@ -18,6 +18,7 @@ from collections import defaultdict
 import jinja2
 import click
 
+from lnt.lnttool.common import submit_options
 from lnt.util import logger
 import lnt.testing
 import lnt.testing.profile
@@ -1063,8 +1064,6 @@ class TestSuiteTest(BuiltinTest):
               help="autosubmit the test result to the given server"
                    " (or local instance)",
               type=click.UNPROCESSED, default=None)
-@click.option("--commit", "commit", is_flag=True, default=True,
-              help="whether the autosubmit result should be committed")
 @click.option("--output", "output", metavar="PATH",
               help="write raw report data to PATH (or stdout if '-')",
               default=None)
@@ -1094,6 +1093,7 @@ class TestSuiteTest(BuiltinTest):
 @click.option("--use-lit", "lit", metavar="PATH", type=click.UNPROCESSED,
               default="llvm-lit",
               help="Path to the LIT test runner [llvm-lit]")
+@submit_options
 def cli_action(*args, **kwargs):
     test_suite = TestSuiteTest()
 

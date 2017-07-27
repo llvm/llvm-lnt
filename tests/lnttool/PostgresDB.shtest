@@ -15,7 +15,7 @@ lnt create "${TESTDIR}/instance" --db-dir ${PGURL} --default-db lnt_regr_test_Po
 lnt import "${TESTDIR}/instance" "${SHARED_INPUTS}/sample-a-small.plist" --commit --show-sample-count
 
 # Import a test set.
-lnt import "${TESTDIR}/instance" "${SHARED_INPUTS}/sample-a-small.plist" --commit --show-sample-count
+lnt import "${TESTDIR}/instance" "${SHARED_INPUTS}/sample-b-small.plist" --commit --show-sample-count
 
 # Check that we remove both the sample and the run, and that we don't commit by
 # default.
@@ -41,7 +41,7 @@ lnt updatedb "${TESTDIR}/instance" --testsuite nts \
 # RUN: FileCheck --check-prefix CHECK-MACHINERM %s < "%t.install/machinerm.out"
 
 # CHECK-MACHINERM: DELETE FROM "NT_Sample" WHERE "NT_Sample"."ID" = %(ID)s
-# CHECK-MACHINERM-NEXT: ({'ID': 3}, {'ID': 4})
+# CHECK-MACHINERM-NEXT: ({'ID': 3}, {'ID': 4}, {'ID': 5})
 # CHECK-MACHINERM: DELETE FROM "NT_Run" WHERE "NT_Run"."ID" = %(ID)s
 # CHECK-MACHINERM-NEXT: {'ID': 2}
 # CHECK-MACHINERM: DELETE FROM "NT_Machine" WHERE "NT_Machine"."ID" = %(ID)s
