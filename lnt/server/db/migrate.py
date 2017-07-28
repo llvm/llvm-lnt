@@ -188,33 +188,12 @@ def update(engine):
     # Load the available migrations.
     available_migrations = _load_migrations()
 
-    def will_not_handle_error(e):
-        message = e.orig.message
-        if 'no such table' in message:
-            return False
-        if 'relation' in message and 'does not exist' in message:
-            return False
-        return True
+    Base.metadata.create_all(engine)
 
-    # Load all the information from the versions tables. We just do the query
-    # and handle the exception if the table hasn't been defined yet (for
-    # databases before versioning started).
     session = sqlalchemy.orm.sessionmaker(engine)()
-    try:
-        version_list = session.query(SchemaVersion).all()
-    except (sqlalchemy.exc.OperationalError,
-            sqlalchemy.exc.ProgrammingError) as e:
-
-        # Filter on the DB-API error message. This is a bit flimsy, but works
-        # for SQLite and PostgresSQL at least.
-        if will_not_handle_error(e):
-            raise
-
-        # Create the SchemaVersion table.
-        Base.metadata.create_all(engine)
-
-        version_list = []
+    version_list = session.query(SchemaVersion).all()
     session.close()
+
     versions = dict((v.name, v.version)
                     for v in version_list)
 
