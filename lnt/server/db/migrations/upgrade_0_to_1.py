@@ -276,12 +276,6 @@ def get_base_for_testsuite(test_suite):
     sqlalchemy.schema.Index("ix_%s_Sample_RunID_TestID" % db_key_name,
                             Sample.run_id, Sample.test_id)
 
-    args = [Machine.name, Machine.parameters_data]
-    for item in test_suite.machine_fields:
-        args.append(item.column)
-    sqlalchemy.schema.Index("ix_%s_Machine_Unique" % db_key_name,
-                            *args, unique = True)
-
     return Base
 
 def initialize_testsuite(engine, session, name):

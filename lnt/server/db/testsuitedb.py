@@ -729,13 +729,6 @@ class TestSuiteDB(object):
         sqlalchemy.schema.Index("ix_%s_Sample_RunID_TestID" % db_key_name,
                                 Sample.run_id, Sample.test_id)
 
-        # Create the index we use to ensure machine uniqueness.
-        args = [Machine.name, Machine.parameters_data]
-        for item in self.machine_fields:
-            args.append(item.column)
-        sqlalchemy.schema.Index("ix_%s_Machine_Unique" % db_key_name,
-                                *args, unique=True)
-
         # Add several shortcut aliases, similar to the ones on the v4db.
         self.session = self.v4db.session
         self.add = self.v4db.add
