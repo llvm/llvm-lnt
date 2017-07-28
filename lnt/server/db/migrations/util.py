@@ -45,13 +45,13 @@ def add_column(engine, table, column):
     add_column.execute(bind=engine)
 
 
-def introspect_table(engine, name):
+def introspect_table(engine, name, autoload=True):
     # type: (sqlalchemy.engine.Engine, str) -> sqlalchemy.Table
     """Create a SQLAlchemy Table from the table name in the current DB.
 
     Used to make a Table object from something already in the DB."""
     md = sqlalchemy.MetaData(engine)
-    target_table = sqlalchemy.Table(name, md, autoload=True)
+    target_table = sqlalchemy.Table(name, md, autoload=autoload)
     return target_table
 
 
