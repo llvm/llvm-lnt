@@ -49,7 +49,7 @@ class StatusKind(Base):
 
     __tablename__ = 'StatusKind'
 
-    id = Column("ID", Integer, primary_key=True)
+    id = Column("ID", Integer, primary_key=True, autoincrement=False)
     name = Column("Name", String(256), unique=True)
 
     def __init__(self, id, name):
