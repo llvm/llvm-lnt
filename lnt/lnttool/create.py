@@ -116,6 +116,7 @@ LNT configuration.
     from .common import init_logger
     import hashlib
     import lnt.server.db.migrate
+    import lnt.server.db.util
     import lnt.testing
     import logging
     import os
@@ -146,7 +147,7 @@ LNT configuration.
     os.mkdir(schemas_path)
 
     # If the path does not contain database type, assume relative path.
-    if "://" not in db_dir:
+    if lnt.server.db.util.path_has_no_database_type(db_dir):
         db_dir_path = os.path.join(basepath, db_dir)
         db_path = os.path.join(db_dir_path, default_db)
         os.mkdir(db_dir_path)
