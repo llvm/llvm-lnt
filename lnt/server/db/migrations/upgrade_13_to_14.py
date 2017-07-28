@@ -81,8 +81,7 @@ def upgrade(engine):
             _drop_suite(trans, 'compile', engine)
         else:
             for rename in table_renames:
-                tab = introspect_table(engine, rename.old_name)
-                rename_table(engine, tab, rename.new_name)
+                rename_table(engine, rename.old_name, rename.new_name)
             # Just change the DB_Key to match the name
             trans.execute(update(test_suite)
                           .where(test_suite.c.Name == 'compile')
