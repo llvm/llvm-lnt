@@ -113,11 +113,7 @@ class Run:
         # Convert keys/values that are not json encodable to strings.
         for key, value in info.items():
             key = str(key)
-            # Keep True, False, None as they are trivially json encodable.
-            # I would love to do the same for numbers but I fear that will
-            # break compatibility...
-            if value is not True and value is not False and value is not None:
-                value = str(value)
+            value = str(value)
             self.info[key] = value
         if '__report_version__' in self.info:
             raise ValueError("'__report_version__' key is reserved")

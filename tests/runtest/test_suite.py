@@ -20,7 +20,7 @@
 # RUN: FileCheck  --check-prefix CHECK-CSV < %t.SANDBOX/build/test-results.csv %s
 # RUN: FileCheck  --check-prefix CHECK-CHECKFORMAT < %t.checkformat %s
 
-# CHECK-REPORT: "no_errors": false,
+# CHECK-REPORT: "no_errors": "False",
 # CHECK-REPORT: "run_order": "154331"
 # CHECK-REPORT: "Name": "nts.{{[^.]+}}.compile"
 # CHECK-REPORT: "Name": "nts.{{[^.]+}}.compile.status"
