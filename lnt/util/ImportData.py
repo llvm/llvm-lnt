@@ -98,6 +98,9 @@ def import_and_report(config, db_name, db, file, format, ts_name,
         import traceback
         result['error'] = "import failure: %s" % e.message
         result['message'] = traceback.format_exc()
+        if isinstance(e, lnt.server.db.testsuitedb.MachineInfoChanged):
+            result['message'] += '\n\nNote: Use --update-machine to update ' \
+                                 'the existing machine information.\n'
         return result
 
     # If the import succeeded, save the import path.

@@ -59,6 +59,10 @@ def make_machine_column(name):
     return Column(name, String(256))
 
 
+class MachineInfoChanged(ValueError):
+    pass
+
+
 class TestSuiteDB(object):
     """
     Wrapper object for an individual test suites database tables.
@@ -804,8 +808,8 @@ class TestSuiteDB(object):
                 existing.set_field(field, new_value)
             elif existing_value != new_value:
                 if not forceUpdate:
-                    raise ValueError("'%s' on machine '%s' changed." %
-                                     (field.name, name))
+                    raise MachineInfoChanged("'%s' on machine '%s' changed." %
+                                             (field.name, name))
                 else:
                     existing.set_field(field, new_value)
         existing_parameters = existing.parameters
@@ -815,8 +819,8 @@ class TestSuiteDB(object):
                 existing_parameters[key] = value
             elif existing_value != value:
                 if not forceUpdate:
-                    raise ValueError("'%s' on machine '%s' changed." %
-                                     (key, name))
+                    raise MachineInfoChanged("'%s' on machine '%s' changed." %
+                                             (key, name))
                 else:
                     existing_parameters[key] = value
         existing.parameters = existing_parameters

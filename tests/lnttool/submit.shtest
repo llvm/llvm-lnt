@@ -106,7 +106,8 @@ lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" --commit "${I
 lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" --commit "${INPUTS}/compile_submission_machine_diff_reject.json" >> "${OUTPUT_DIR}/submit_errors.txt" 2>&1
 # CHECK-ERRORS: lnt server error: import failure: 'hw.activecpu' on machine 'some-compile-suite-machine' changed.
 # ...
-# ValueError: 'hw.activecpu' on machine 'some-compile-suite-machine' changed.
+# CHECK-ERRORS: MachineInfoChanged: 'hw.activecpu' on machine 'some-compile-suite-machine' changed.
+# CHECK-ERRORS: Note: Use --update-machine to update the existing machine information.
 
 
 
