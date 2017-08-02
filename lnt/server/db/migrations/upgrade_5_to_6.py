@@ -28,7 +28,8 @@ def upgrade(engine):
     session.commit()
     session.close()
 
-    test_suite_sample_fields = introspect_table(engine, 'TestSuiteSampleFields')
+    test_suite_sample_fields = introspect_table(engine,
+                                                'TestSuiteSampleFields')
 
     set_mem = update(test_suite_sample_fields) \
         .where(test_suite_sample_fields.c.Name == "mem_bytes") \

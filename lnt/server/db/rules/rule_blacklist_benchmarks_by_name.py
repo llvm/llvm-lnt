@@ -20,7 +20,7 @@ def _populate_blacklist():
         path = current_app.old_config.blacklist
     except RuntimeError:
         path = os.path.join(os.path.dirname(sys.argv[0]), "blacklist")
-    
+
     if path and os.path.isfile(path):
         logger.info("Loading blacklist file: {}".format(path))
         with open(path, 'r') as f:
@@ -48,5 +48,6 @@ def filter_by_benchmark_name(ts, field_change):
                         .format(full_name, regex.pattern))
             return False
     return True
-    
+
+
 is_useful_change = filter_by_benchmark_name

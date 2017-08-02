@@ -4,6 +4,8 @@ from lnt.util import logger
 from lnt.testing.util import commands
 
 _git_svn_id_re = re.compile("^    git-svn-id: [^@]*@([0-9]+) .*$")
+
+
 def get_source_version(path):
     """get_source_version(path) -> str or None
 

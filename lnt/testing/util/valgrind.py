@@ -7,8 +7,10 @@ from lnt.util import logger
 #   http://valgrind.org/docs/manual/cl-format.html#cl-format.overview
 # for reference on the calltree data format specification.
 
+
 class CalltreeParseError(Exception):
     pass
+
 
 class CalltreeData(object):
     @staticmethod
@@ -34,7 +36,7 @@ class CalltreeData(object):
             if ':' not in ln:
                 break
 
-            key,value = ln.split(':', 1)
+            key, value = ln.split(':', 1)
             if key == 'desc':
                 description_lines.append(value.strip())
             elif key == 'cmd':
@@ -71,7 +73,7 @@ class CalltreeData(object):
         for ln in it:
             # Check if this is the closing summary line.
             if ln.startswith('summary'):
-                key,value = ln.split(':', 1)
+                key, value = ln.split(':', 1)
                 summary_samples = map(int, value.split())
                 break
 
@@ -96,7 +98,8 @@ class CalltreeData(object):
 
         # Validate that the summary line was present.
         if summary_samples is None:
-            raise CalltreeParseError("missing required 'summary' key in footer")
+            raise CalltreeParseError(
+                "missing required 'summary' key in footer")
 
         data.summary = summary_samples
 

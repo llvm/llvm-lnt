@@ -11,6 +11,7 @@ import re
 import tempfile
 import time
 
+
 def import_and_report(config, db_name, db, file, format, ts_name,
                       commit=False, show_sample_count=False,
                       disable_email=False, disable_report=False,
@@ -25,8 +26,8 @@ def import_and_report(config, db_name, db, file, format, ts_name,
     the value of commit, this merely changes whether the run (on success) is
     committed to the database.
 
-    The result object is a dictionary containing information on the imported run
-    and its comparison to the previous run.
+    The result object is a dictionary containing information on the imported
+    run and its comparison to the previous run.
     """
     result = {
         'success': False,
@@ -42,7 +43,8 @@ def import_and_report(config, db_name, db, file, format, ts_name,
     numRuns = ts.getNumRuns()
     numTests = ts.getNumTests()
 
-    # If the database gets fragmented, count(*) in SQLite can get really slow!?!
+    # If the database gets fragmented, count(*) in SQLite can get really
+    # slow!?!
     if show_sample_count:
         numSamples = ts.getNumSamples()
 
@@ -74,7 +76,7 @@ def import_and_report(config, db_name, db, file, format, ts_name,
         email_config = db_config.email_config
         if email_config.enabled:
             # Find the machine name.
-            machineName = str(data.get('Machine',{}).get('Name'))
+            machineName = str(data.get('Machine', {}).get('Name'))
             toAddress = email_config.get_to_address(machineName)
             if toAddress is None:
                 result['error'] = ("unable to match machine name "
@@ -153,8 +155,8 @@ def import_and_report(config, db_name, db, file, format, ts_name,
         shadow_name = db_config.shadow_import
         with closing(config.get_database(shadow_name)) as shadow_db:
             if shadow_db is None:
-                raise ValueError, ("invalid configuration, shadow import "
-                                   "database %r does not exist") % shadow_name
+                raise ValueError("invalid configuration, shadow import "
+                                 "database %r does not exist" % shadow_name)
 
             # Perform the shadow import.
             shadow_result = import_and_report(config, shadow_name,
@@ -179,7 +181,7 @@ def no_submit():
     }
 
 
-def print_report_result(result, out, err, verbose = True):
+def print_report_result(result, out, err, verbose=True):
     """
     print_report_result(result, out, [err], [verbose]) -> None
 
@@ -202,7 +204,7 @@ def print_report_result(result, out, err, verbose = True):
         print >>err, "--------------"
         err.flush()
         return
-        
+
     # Print the test results.
     test_results = result.get('test_results')
     if not test_results:
@@ -213,7 +215,7 @@ def print_report_result(result, out, err, verbose = True):
     if show_pset:
         print >>out, "Parameter Sets"
         print >>out, "--------------"
-        for i,info in enumerate(test_results):
+        for i, info in enumerate(test_results):
             print >>out, "P%d: %s" % (i, info['pset'])
         print >>out
 
@@ -222,18 +224,18 @@ def print_report_result(result, out, err, verbose = True):
     print >>out, "--- Tested: %d tests --" % total_num_tests
     test_index = 0
     result_kinds = collections.Counter()
-    for i,item in enumerate(test_results):
+    for i, item in enumerate(test_results):
         pset = item['pset']
         pset_results = item['results']
 
-        for name,test_status,perf_status in pset_results:
+        for name, test_status, perf_status in pset_results:
             test_index += 1
-            # FIXME: Show extended information for performance changes, previous
-            # samples, standard deviation, all that.
+            # FIXME: Show extended information for performance changes,
+            # previous samples, standard deviation, all that.
             #
             # FIXME: Think longer about mapping to test codes.
             result_info = None
-            
+
             if test_status == lnt.server.reporting.analysis.REGRESSED:
                 result_string = 'FAIL'
             elif test_status == lnt.server.reporting.analysis.UNCHANGED_FAIL:
@@ -241,7 +243,7 @@ def print_report_result(result, out, err, verbose = True):
             elif test_status == lnt.server.reporting.analysis.IMPROVED:
                 result_string = 'IMPROVED'
                 result_info = "Test started passing."
-            elif perf_status == None:
+            elif perf_status is None:
                 # Missing perf status means test was just added or removed.
                 result_string = 'PASS'
             elif perf_status == lnt.server.reporting.analysis.REGRESSED:
@@ -259,8 +261,8 @@ def print_report_result(result, out, err, verbose = True):
 
             if show_pset:
                 name = 'P%d :: %s' % (i, name)
-            print >>out, "%s: %s (%d of %d)" % (result_string, name, test_index,
-                                                total_num_tests)
+            print >>out, "%s: %s (%d of %d)" % (result_string, name,
+                                                test_index, total_num_tests)
 
             if result_info:
                 print >>out, "%s TEST '%s' %s" % ('*'*20, name, '*'*20)
@@ -321,15 +323,15 @@ def import_from_string(config, db_name, db, ts_name, data, commit=True,
                           "%04d-%02d" % (utcnow.year, utcnow.month))
     try:
         os.makedirs(tmpdir)
-    except OSError,e:
+    except OSError as e:
         pass
 
     # Save the file under a name prefixed with the date, to make it easier
     # to use these files in cases we might need them for debugging or data
     # recovery.
     prefix = utcnow.strftime("data-%Y-%m-%d_%H-%M-%S")
-    fd,path = tempfile.mkstemp(prefix=prefix, suffix='.json',
-                               dir=str(tmpdir))
+    fd, path = tempfile.mkstemp(prefix=prefix, suffix='.json',
+                                dir=str(tmpdir))
     os.write(fd, data)
     os.close(fd)
 
@@ -338,7 +340,7 @@ def import_from_string(config, db_name, db, ts_name, data, commit=True,
     # FIXME: Gracefully handle formats failures and DOS attempts. We
     # should at least reject overly large inputs.
 
-    result = lnt.util.ImportData.import_and_report(config, db_name, db,
-        path, '<auto>', ts_name, commit, updateMachine=updateMachine,
-        mergeRun=mergeRun)
+    result = lnt.util.ImportData.import_and_report(
+        config, db_name, db, path, '<auto>', ts_name, commit,
+        updateMachine=updateMachine, mergeRun=mergeRun)
     return result

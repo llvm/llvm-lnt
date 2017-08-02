@@ -2,7 +2,13 @@
 Post submission hook to write the current state of the profiles directory. This
 gets fed into the profile/admin page.
 """
-import json, datetime, os, subprocess, glob, time
+import datetime
+import glob
+import json
+import os
+import subprocess
+import time
+
 
 def update_profile_stats(ts, run_id):
     config = ts.v4db.config
@@ -23,7 +29,7 @@ def update_profile_stats(ts, run_id):
     dt = time.time()
     blocks = subprocess.check_output("du -s -k %s" % profile_path,
                                      shell=True).split('\t')[0]
-    kb = float(blocks) # 1024 byte blocks.
+    kb = float(blocks)  # 1024 byte blocks.
 
     history.append((dt, kb))
 
@@ -31,7 +37,7 @@ def update_profile_stats(ts, run_id):
         mtime = os.stat(f).st_mtime
         sz = os.stat(f).st_size / 1000
         age.append([mtime, sz])
-    
+
     open(history_path, 'w').write(json.dumps(history))
     open(age_path, 'w').write(json.dumps(age))
 

@@ -49,9 +49,10 @@ def mkdir_p(path):
     try:
         os.makedirs(path)
     except OSError as e:
-        # Ignore EEXIST, which may occur during a race condition.        
+        # Ignore EEXIST, which may occur during a race condition.
         if e.errno != errno.EEXIST:
             raise
+
 
 def capture_with_result(args, include_stderr=False):
     import subprocess
@@ -64,13 +65,14 @@ def capture_with_result(args, include_stderr=False):
         stderr = subprocess.STDOUT
     try:
         p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=stderr)
-    except OSError,e:
+    except OSError as e:
         if e.errno == errno.ENOENT:
-            fatal('no such file or directory: %r when running %s.' % (args[0], \
-                                                                     ' '.join(args)))
+            fatal('no such file or directory: %r when running %s.' %
+                  (args[0], ' '.join(args)))
         raise
-    out,_ = p.communicate()
-    return out,p.wait()
+    out, _ = p.communicate()
+    return out, p.wait()
+
 
 def capture(args, include_stderr=False):
     import subprocess
@@ -78,12 +80,13 @@ def capture(args, include_stderr=False):
     return the standard output."""
     return capture_with_result(args, include_stderr)[0]
 
-def which(command, paths = None):
+
+def which(command, paths=None):
     """which(command, [paths]) - Look up the given command in the paths string
     (or the PATH environment variable, if unspecified)."""
 
     if paths is None:
-        paths = os.environ.get('PATH','')
+        paths = os.environ.get('PATH', '')
 
     # Check for absolute match first.
     if os.path.exists(command):
@@ -105,6 +108,7 @@ def which(command, paths = None):
 
     return None
 
+
 def resolve_command_path(name):
     """Try to make the name/path given into an absolute path to an
     executable.
@@ -122,6 +126,7 @@ def resolve_command_path(name):
 
     # If that failed just return the original name.
     return name
+
 
 def isexecfile(path):
     """Does this path point to a valid executable?

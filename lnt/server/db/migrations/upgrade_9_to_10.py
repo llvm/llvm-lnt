@@ -29,7 +29,8 @@ def upgrade(engine):
     session.commit()
     session.close()
 
-    test_suite_sample_fields = introspect_table(engine, 'TestSuiteSampleFields')
+    test_suite_sample_fields = introspect_table(engine,
+                                                'TestSuiteSampleFields')
     update_code_size = update(test_suite_sample_fields) \
         .where(test_suite_sample_fields.c.Name == "code_size") \
         .values(bigger_is_better=0)

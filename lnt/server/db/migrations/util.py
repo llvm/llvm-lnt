@@ -13,8 +13,8 @@ class _AddColumn(DDLElement):
 @compiles(_AddColumn)
 def _visit_add_column(element, compiler, **kw):
     return ("ALTER TABLE %s ADD COLUMN %s" %
-        (compiler.preparer.format_table(element.table),
-         compiler.get_column_specification(element.column)))
+            (compiler.preparer.format_table(element.table),
+             compiler.get_column_specification(element.column)))
 
 
 class _RenameTable(DDLElement):
@@ -26,12 +26,13 @@ class _RenameTable(DDLElement):
 @compiles(_RenameTable)
 def _visite_rename_table(element, compiler, **kw):
     return ("ALTER TABLE %s RENAME TO %s" %
-        (compiler.preparer.quote(element.old_name),
-         compiler.preparer.quote(element.new_name)))
+            (compiler.preparer.quote(element.old_name),
+             compiler.preparer.quote(element.new_name)))
 
 
 def add_column(engine, table, column):
-    # type: (sqlalchemy.engine.Engine, sqlalchemy.Table, sqlalchemy.Column) -> None
+    # type: (sqlalchemy.engine.Engine, sqlalchemy.Table, sqlalchemy.Column)
+    #       -> None
     """Add this column to the table.
 
     This is a stopgap to a real migration system.  Inspect the Column pass

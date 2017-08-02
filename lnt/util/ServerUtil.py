@@ -1,7 +1,6 @@
 """
 Utility for submitting files to a web server over HTTP.
 """
-
 import plistlib
 import sys
 import urllib
@@ -13,9 +12,10 @@ import lnt.server.instance
 from lnt.util import ImportData
 
 # FIXME: I used to maintain this file in such a way that it could be used
-# separate from LNT to do submission. This could be useful for adapting an older
-# system to report to LNT, for example. It might be nice to factor the
+# separate from LNT to do submission. This could be useful for adapting an
+# older system to report to LNT, for example. It might be nice to factor the
 # simplified submit code into a separate utility.
+
 
 def _show_json_error(reply):
     try:
@@ -28,11 +28,12 @@ def _show_json_error(reply):
     if message:
         sys.stderr.write(message + '\n')
 
+
 def submitFileToServer(url, file, commit, updateMachine, mergeRun):
     with open(file, 'rb') as f:
         values = {
-            'input_data' : f.read(),
-            'commit' : "1" if commit else "0",
+            'input_data': f.read(),
+            'commit': "1" if commit else "0",
             'update_machine': "1" if updateMachine else "0",
             'merge': mergeRun,
         }

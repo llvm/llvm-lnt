@@ -30,14 +30,15 @@ def add_regressions(test_suite):
     db_key_name = test_suite.db_key_name
     # Replace the field change definition with a new one, the old table
     # is full of bad data.
-    Base.metadata.remove(Base.metadata.tables["{}_FieldChange".format(db_key_name)])
+    table_name = "{}_FieldChange".format(db_key_name)
+    Base.metadata.remove(Base.metadata.tables[table_name])
 
     class FieldChange(Base):
         """FieldChange represents a change in between the values
         of the same field belonging to two samples from consecutive runs."""
 
         __tablename__ = db_key_name + '_FieldChangeV2'
-        id = Column("ID", Integer, primary_key = True)
+        id = Column("ID", Integer, primary_key=True)
         old_value = Column("OldValue", Float)
         new_value = Column("NewValue", Float)
         start_order_id = Column("StartOrderID", Integer,
@@ -49,11 +50,10 @@ def add_regressions(test_suite):
         machine_id = Column("MachineID", Integer,
                             ForeignKey("%s_Machine.ID" % db_key_name))
         field_id = Column("FieldID", Integer,
-                           ForeignKey(upgrade_0_to_1.SampleField.id))
+                          ForeignKey(upgrade_0_to_1.SampleField.id))
         # Could be from many runs, but most recent one is interesting.
         run_id = Column("RunID", Integer,
-                            ForeignKey("%s_Run.ID" % db_key_name))
-
+                        ForeignKey("%s_Run.ID" % db_key_name))
 
     class Regression(Base):
         """Regession hold data about a set of RegressionIndicies."""
@@ -71,9 +71,9 @@ def add_regressions(test_suite):
         regression_id = Column("RegressionID", Integer,
                                ForeignKey("%s_Regression.ID" % db_key_name))
 
-        field_change_id = Column("FieldChangeID", Integer,
-                        ForeignKey("%s_FieldChangeV2.ID" % db_key_name))
-
+        field_change_id = Column(
+            "FieldChangeID", Integer,
+            ForeignKey("%s_FieldChangeV2.ID" % db_key_name))
 
     class ChangeIgnore(Base):
         """Changes to ignore in the web interface."""
@@ -81,11 +81,11 @@ def add_regressions(test_suite):
         __tablename__ = db_key_name + '_ChangeIgnore'
         id = Column("ID", Integer, primary_key=True)
 
-        field_change_id = Column("ChangeIgnoreID", Integer,
-                             ForeignKey("%s_FieldChangeV2.ID" % db_key_name))
+        field_change_id = Column(
+            "ChangeIgnoreID", Integer,
+            ForeignKey("%s_FieldChangeV2.ID" % db_key_name))
 
     return Base
-
 
 
 def upgrade_testsuite(engine, session, name):
@@ -93,7 +93,7 @@ def upgrade_testsuite(engine, session, name):
     test_suite = session.query(upgrade_0_to_1.TestSuite).\
                  filter_by(name=name).first()
     assert(test_suite is not None)
-    
+
     # Add FieldChange to the test suite.
     Base = add_regressions(test_suite)
 
@@ -106,13 +106,12 @@ def upgrade_testsuite(engine, session, name):
     # Commit changes (also closing all relevant transactions with
     # respect to Postgres like databases).
     session.commit()
-    
 
 
 def upgrade(engine):
     # Create a session.
     session = sqlalchemy.orm.sessionmaker(engine)()
-    
+
     # Create our FieldChangeField table and commit.
     upgrade_testsuite(engine, session, 'nts')
     upgrade_testsuite(engine, session, 'compile')

@@ -1,5 +1,4 @@
 # This code lifted from the mod_wsgi docs.
-
 import os
 import sys
 import time
@@ -16,12 +15,14 @@ _running = False
 _queue = Queue.Queue()
 _lock = threading.Lock()
 
+
 def _restart(path):
     _queue.put(True)
     prefix = 'monitor (pid=%d):' % os.getpid()
     print >> sys.stderr, '%s Change detected to \'%s\'.' % (prefix, path)
     print >> sys.stderr, '%s Triggering process restart.' % prefix
     os.kill(os.getpid(), signal.SIGINT)
+
 
 def _modified(path):
     try:
@@ -54,6 +55,7 @@ def _modified(path):
         return True
 
     return False
+
 
 def _monitor():
     while 1:
@@ -88,6 +90,7 @@ def _monitor():
 _thread = threading.Thread(target=_monitor)
 _thread.setDaemon(True)
 
+
 def _exiting():
     try:
         _queue.put(True)
@@ -97,9 +100,11 @@ def _exiting():
 
 atexit.register(_exiting)
 
+
 def track(path):
-    if not path in _files:
+    if path not in _files:
         _files.append(path)
+
 
 def start(interval=1.0):
     global _interval

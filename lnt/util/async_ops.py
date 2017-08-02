@@ -1,7 +1,7 @@
 """Asynchrounus operations for LNT.
 
 For big tasks it is nice to be able to run in the backgorund.  This module
-contains wrappers to run particular LNT tasks in subprocesess. 
+contains wrappers to run particular LNT tasks in subprocesess.
 
 Because multiprocessing cannot directly use the LNT test-suite objects in
 subprocesses (because they are not serializable because they don't have a fix
@@ -50,6 +50,7 @@ def launch_workers():
                 pass
     finally:
         WORKERS_LOCK.release()
+
 
 def sig_handler(signo, frame):
     cleanup()
@@ -121,14 +122,14 @@ clean_db = False
 
 def async_wrapper(job, ts_args, func_args):
     """Setup test-suite in this subprocess and run something.
-    
+
     Because of multipocessing, capture excptions and log messages,
     and return them.
     """
     global clean_db
     try:
         start_time = time.time()
-        
+
         if not clean_db:
             lnt.server.db.v4db.V4DB.close_all_engines()
             clean_db = True
@@ -137,14 +138,14 @@ def async_wrapper(job, ts_args, func_args):
                     str(os.getpid()))
         config = ts_args['db_info']
         _v4db = config.get_database(ts_args['db'])
-        #with contextlib.closing(_v4db) as db:
+        # with contextlib.closing(_v4db) as db:
         ts = _v4db.testsuite[ts_args['tsname']]
         nothing = job(ts, **func_args)
         assert nothing is None
         end_time = time.time()
         delta = end_time-start_time
         msg = "Finished: {name} in {time:.2f}s ".format(name=job.__name__,
-                                                time=delta)
+                                                        time=delta)
         if delta < 100:
             logger.info(msg)
         else:
@@ -160,6 +161,7 @@ def async_wrapper(job, ts_args, func_args):
 
 def make_callback():
     app = current_app
+
     def async_job_finished(arg):
         if isinstance(arg, Exception):
             logger.error(str(arg))

@@ -352,6 +352,7 @@ class AdminCLI(click.MultiCommand):
         action_rm_machine,
         action_rm_run,
     ]
+
     def list_commands(self, ctx):
         return [command.name for command in self._commands]
 

@@ -7,6 +7,7 @@ import StringIO
 import lnt.server.db.v4db
 import lnt.server.reporting.runs
 
+
 def emailReport(result, db, run, baseurl, email_config, to, was_added=True):
     import email.mime.multipart
     import email.mime.text
@@ -42,11 +43,13 @@ def emailReport(result, db, run, baseurl, email_config, to, was_added=True):
     s.sendmail(email_config.from_address, [to], msg.as_string())
     s.quit()
 
+
 def _getReport(result, db, run, baseurl, was_added, compare_to=None):
     assert isinstance(db, lnt.server.db.v4db.V4DB)
 
-    data = lnt.server.reporting.runs.generate_run_data(run, baseurl=baseurl,
-        result=result, compare_to=compare_to, num_comparison_runs=10)
+    data = lnt.server.reporting.runs.generate_run_data(
+        run, baseurl=baseurl, result=result, compare_to=compare_to,
+        num_comparison_runs=10)
 
     env = lnt.server.ui.app.create_jinja_environment()
     text_template = env.get_template('reporting/run_report.txt')

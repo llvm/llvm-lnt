@@ -55,13 +55,13 @@ sysctl_info_table = [
     ('hw.physicalcpu_max',                        'machine'),
     ('hw.physmem',                                'machine'),
     ('hw.tbfrequency',                            'machine'),
-    ('hw.usermem',                                'run'    ),
+    ('hw.usermem',                                'run'),
     ('hw.vectorunit',                             'machine'),
     ('kern.aiomax',                               'machine'),
     ('kern.aioprocmax',                           'machine'),
     ('kern.aiothreads',                           'machine'),
     ('kern.argmax',                               'machine'),
-    ('kern.boottime',                             'run'    ),
+    ('kern.boottime',                             'run'),
     ('kern.clockrate: hz',                        'machine'),
     ('kern.coredump',                             'machine'),
     ('kern.corefile',                             'machine'),
@@ -141,7 +141,8 @@ sysctl_info_table = [
     ('machdep.cpu.tlb.inst.large',                'machine'),
     ('machdep.cpu.tlb.inst.small',                'machine'),
     ('machdep.cpu.vendor',                        'machine'),
-    ]
+]
+
 
 def _get_mac_addresses():
     lines = capture(['ifconfig']).strip()
@@ -151,24 +152,25 @@ def _get_mac_addresses():
             if current_ifc is None:
                 fatal('unexpected ifconfig output')
             if ln.startswith('\tether '):
-                yield current_ifc,ln[len('\tether '):].strip()
+                yield current_ifc, ln[len('\tether '):].strip()
         else:
             current_ifc, = re.match(r'([A-Za-z0-9]*): .*', ln).groups()
 
-def get_machine_information(use_machine_dependent_info = False):
+
+def get_machine_information(use_machine_dependent_info=False):
     machine_info = {}
     run_info = {}
 
     info_targets = {
-        'machdep' : (run_info, machine_info)[
-            use_machine_dependent_info],
-        'machine' : machine_info,
-        'run' : run_info }
-    for name,target in sysctl_info_table:
-        info_targets[target][name] = capture(['sysctl','-n',name],
+        'machdep': (run_info, machine_info)[use_machine_dependent_info],
+        'machine': machine_info,
+        'run': run_info,
+    }
+    for name, target in sysctl_info_table:
+        info_targets[target][name] = capture(['sysctl', '-n', name],
                                              include_stderr=True).strip()
 
-    for ifc,addr in _get_mac_addresses():
+    for ifc, addr in _get_mac_addresses():
         # Ignore virtual machine mac addresses.
         if ifc.startswith('vmnet'):
             continue

@@ -51,7 +51,8 @@ def upgrade(engine):
     table_renames = [
         TableRename('Compile_Baseline', 'compile_Baseline'),
         TableRename('Compile_ChangeIgnore', 'compile_ChangeIgnore'),
-        TableRename('Compile_RegressionIndicator', 'compile_RegressionIndicator'),
+        TableRename('Compile_RegressionIndicator',
+                    'compile_RegressionIndicator'),
         TableRename('Compile_FieldChange', 'compile_FieldChange'),
         TableRename('Compile_FieldChangeV2', 'compile_FieldChangeV2'),
         TableRename('Compile_Profile', 'compile_Profile'),

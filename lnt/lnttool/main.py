@@ -121,7 +121,7 @@ def action_check_no_errors(files):
             error_msg = 'Could not find run section'
             break
         no_errors = run_info.get('no_errors', False)
-        if no_errors != True and no_errors != "True":
+        if no_errors is not True and no_errors != "True":
             error_msg = 'run section does not specify "no_errors": true'
             break
     if error_msg is not None:

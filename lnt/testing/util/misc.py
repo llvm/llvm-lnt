@@ -1,9 +1,10 @@
 import datetime
 
+
 class TeeStream(object):
     """File-like object for writing to multiple output streams."""
 
-    def __init__(self, a, b, noclose_b = False):
+    def __init__(self, a, b, noclose_b=False):
         self.a = a
         self.b = b
         self.noclose_b = noclose_b
@@ -25,6 +26,7 @@ class TeeStream(object):
     def flush(self):
         self.a.flush()
         self.b.flush()
+
 
 def timestamp():
     return datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')

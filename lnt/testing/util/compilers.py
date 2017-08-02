@@ -8,6 +8,7 @@ from commands import capture
 from commands import fatal
 from commands import rm_f
 
+
 def ishexhash(string):
     return len(string) == 40 and \
         len([c
@@ -23,8 +24,8 @@ def is_valid(path):
 def get_cc_info(path, cc_flags=[]):
     """get_cc_info(path) -> { ... }
 
-    Extract various information on the given compiler and return a dictionary of
-    the results."""
+    Extract various information on the given compiler and return a dictionary
+    of the results."""
 
     cc = path
 
@@ -34,8 +35,8 @@ def get_cc_info(path, cc_flags=[]):
                          include_stderr=True).strip()
 
     # Determine the assembler version, as found by the compiler.
-    cc_as_version = capture([cc, "-c", '-Wa,-v', '-o', '/dev/null'] + cc_flags +
-                            ['-x', 'assembler', '/dev/null'],
+    cc_as_version = capture([cc, "-c", '-Wa,-v', '-o', '/dev/null'] +
+                            cc_flags + ['-x', 'assembler', '/dev/null'],
                             include_stderr=True).strip()
 
     # Determine the linker version, as found by the compiler.
@@ -87,12 +88,12 @@ def get_cc_info(path, cc_flags=[]):
     else:
         m = re.match(r'(.*) version ([^ ]*) +(\([^(]*\))(.*)', version_ln)
         if m is not None:
-            cc_name,cc_version_num,cc_build_string,cc_extra = m.groups()
+            cc_name, cc_version_num, cc_build_string, cc_extra = m.groups()
         else:
             # If that didn't match, try a more basic pattern.
             m = re.match(r'(.*) version ([^ ]*)', version_ln)
             if m is not None:
-                cc_name,cc_version_num = m.groups()
+                cc_name, cc_version_num = m.groups()
             else:
                 logger.error("unable to determine compiler version: %r: %r" %
                              (cc, version_ln))
@@ -122,7 +123,8 @@ def get_cc_info(path, cc_flags=[]):
         else:
             logger.error('unable to determine gcc build version: %r' %
                          cc_build_string)
-    elif (cc_name in ('clang', 'LLVM', 'Debian clang', 'Apple clang', 'Apple LLVM') and
+    elif (cc_name in ('clang', 'LLVM', 'Debian clang', 'Apple clang',
+                      'Apple LLVM') and
           (cc_extra == '' or 'based on LLVM' in cc_extra or
            (cc_extra.startswith('(') and cc_extra.endswith(')')))):
         llvm_capable = True
@@ -133,10 +135,11 @@ def get_cc_info(path, cc_flags=[]):
 
         m = re.match(r'\(([^ ]*)( ([0-9]+))?\)', cc_build_string)
         if m:
-            cc_src_branch,_,cc_src_revision = m.groups()
+            cc_src_branch, _, cc_src_revision = m.groups()
 
             # With a CMake build, the branch is not emitted.
-            if cc_src_branch and not cc_src_revision and cc_src_branch.isdigit():
+            if cc_src_branch and not cc_src_revision and \
+                    cc_src_branch.isdigit():
                 cc_src_revision = cc_src_branch
                 cc_src_branch = ""
 
@@ -144,11 +147,11 @@ def get_cc_info(path, cc_flags=[]):
             if cc_src_branch == '$URL$':
                 cc_src_branch = ""
         else:
-            # Otherwise, see if we can match a branch and a tag name. That could
-            # be a git hash.
+            # Otherwise, see if we can match a branch and a tag name. That
+            # could be a git hash.
             m = re.match(r'\((.+) ([^ ]+)\)', cc_build_string)
             if m:
-                cc_src_branch,cc_src_revision = m.groups()
+                cc_src_branch, cc_src_revision = m.groups()
             else:
                 logger.error('unable to determine '
                              'Clang development build info: %r' %
@@ -171,17 +174,18 @@ def get_cc_info(path, cc_flags=[]):
         if cc_extra.startswith('(') and cc_extra.endswith(')'):
             m = re.match(r'\((.+) ([^ ]+)\)', cc_extra)
             if m:
-                cc_alt_src_branch,cc_alt_src_revision = m.groups()
+                cc_alt_src_branch, cc_alt_src_revision = m.groups()
 
                 # With a CMake build, the branch is not emitted.
-                if cc_src_branch and not cc_src_revision and cc_src_branch.isdigit():
+                if cc_src_branch and not cc_src_revision and \
+                        cc_src_branch.isdigit():
                     cc_alt_src_revision = cc_alt_src_branch
                     cc_alt_src_branch = ""
-                
+
             else:
                 logger.error('unable to determine '
-                             'Clang development build info: %r' % (
-                             (cc_name, cc_build_string, cc_extra),))
+                             'Clang development build info: %r' %
+                             ((cc_name, cc_build_string, cc_extra), ))
 
     elif cc_name == 'gcc' and 'LLVM build' in cc_extra:
         llvm_capable = True
@@ -211,22 +215,23 @@ def get_cc_info(path, cc_flags=[]):
                          (cc, cc_target_assembly))
 
     cc_exec_hash = hashlib.sha1()
-    cc_exec_hash.update(open(cc,'rb').read())
+    cc_exec_hash.update(open(cc, 'rb').read())
 
-    info = { 'cc_build' : cc_build,
-             'cc_name' : cc_norm_name,
-             'cc_version_number' : cc_version_num,
-             'cc_dumpmachine' : cc_dumpmachine,
-             'cc_target' : cc_target,
-             'cc_version' :cc_version,
-             'cc_exec_hash' : cc_exec_hash.hexdigest(),
-             'cc_as_version' : cc_as_version,
-             'cc_ld_version' : cc_ld_version,
-             'cc_target_assembly' : cc_target_assembly,
-             }
+    info = {
+        'cc_build': cc_build,
+        'cc_name': cc_norm_name,
+        'cc_version_number': cc_version_num,
+        'cc_dumpmachine': cc_dumpmachine,
+        'cc_target': cc_target,
+        'cc_version': cc_version,
+        'cc_exec_hash': cc_exec_hash.hexdigest(),
+        'cc_as_version': cc_as_version,
+        'cc_ld_version': cc_ld_version,
+        'cc_target_assembly': cc_target_assembly,
+    }
     if cc1_binary is not None and os.path.exists(cc1_binary):
         cc1_exec_hash = hashlib.sha1()
-        cc1_exec_hash.update(open(cc1_binary,'rb').read())
+        cc1_exec_hash.update(open(cc1_binary, 'rb').read())
         info['cc1_exec_hash'] = cc1_exec_hash.hexdigest()
     if cc_src_tag is not None:
         info['cc_src_tag'] = cc_src_tag
@@ -244,33 +249,34 @@ def get_cc_info(path, cc_flags=[]):
 
     return info
 
+
 def get_inferred_run_order(info):
     # If the CC has an integral src revision, use that.
     if info.get('cc_src_revision', '').isdigit():
         order = int(info['cc_src_revision'])
 
         # If the CC has an alt src revision, use that if it is greater:
-        if info.get('cc_alt_src_revision','').isdigit():
+        if info.get('cc_alt_src_revision', '').isdigit():
             order = max(order, int(info.get('cc_alt_src_revision')))
 
         return str(order)
 
     # Otherwise if we have a git hash, use that
-    if ishexhash(info.get('cc_src_revision','')):
+    if ishexhash(info.get('cc_src_revision', '')):
         # If we also have an alt src revision, combine them.
         #
         # We don't try and support a mix of integral and hash revisions.
-        if ishexhash(info.get('cc_alt_src_revision','')):
+        if ishexhash(info.get('cc_alt_src_revision', '')):
             return '%s,%s' % (info['cc_src_revision'],
                               info['cc_alt_src_revision'])
 
         return info['cc_src_revision']
 
-    # If this is a production compiler, look for a source tag. We don't accept 0
-    # or 9999 as valid source tag, since that is what llvm-gcc builds use when
-    # no build number is given.
+    # If this is a production compiler, look for a source tag. We don't accept
+    # 0 or 9999 as valid source tag, since that is what llvm-gcc builds use
+    # when no build number is given.
     if info.get('cc_build') == 'PROD':
-        m = re.match(r'^[0-9]+(.[0-9]+)*$', info.get('cc_src_tag',''))
+        m = re.match(r'^[0-9]+(.[0-9]+)*$', info.get('cc_src_tag', ''))
         if m:
             return m.group(0)
 
@@ -278,12 +284,13 @@ def get_inferred_run_order(info):
     #
     # FIXME: This is only used when using llvm source builds with 'lnt runtest
     # nt', which itself is deprecated. We should remove this eventually.
-    if info.get('llvm_revision','').isdigit():
+    if info.get('llvm_revision', '').isdigit():
         return info['llvm_revision']
 
-    # Otherwise, force at least some value for run_order, as it is now generally
-    # required by parts of the "simple" schema.
+    # Otherwise, force at least some value for run_order, as it is now
+    # generally required by parts of the "simple" schema.
     return '0'
+
 
 def infer_cxx_compiler(cc_path):
     # If this is obviously a compiler name, then try replacing with the '++'
@@ -317,7 +324,9 @@ def infer_cxx_compiler(cc_path):
 
 o__all__ = ['get_cc_info', 'infer_cxx_compiler']
 
+
 if __name__ == '__main__':
-    import pprint, sys
+    import pprint
+    import sys
     pprint.pprint(('get_cc_info', get_cc_info(sys.argv[1], sys.argv[2:])))
     pprint.pprint(('infer_cxx_compiler', infer_cxx_compiler(sys.argv[1])))
