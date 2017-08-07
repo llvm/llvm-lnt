@@ -183,8 +183,6 @@ def update_schema(engine, versions, available_migrations, schema_name):
 def update(engine):
     any_changed = False
 
-    logger.debug("checking database versions...")
-
     # Load the available migrations.
     available_migrations = _load_migrations()
 
