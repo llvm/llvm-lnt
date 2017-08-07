@@ -283,6 +283,13 @@ class Runs(Resource):
             current_app.old_config, g.db_name, db, g.testsuite_name, data,
             updateMachine=updateMachine, mergeRun=merge)
 
+        if result['error'] is not None:
+            response = jsonify(response)
+            response.status = '400'
+            logger.info("%s: Submission rejected: %s" %
+                        (request.url, result['error']))
+            return response
+
         new_url = ('%sapi/db_%s/v4/%s/runs/%s' %
                    (request.url_root, g.db_name, g.testsuite_name,
                     result['run_id']))
