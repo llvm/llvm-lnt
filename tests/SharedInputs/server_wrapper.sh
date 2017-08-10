@@ -36,7 +36,7 @@ main() {
 	# Poll the server until it is up and running
 	while ! curl http://localhost:${port_number}/ping -m1 -o/dev/null -s ; do
         # Maybe server is totally dead.
-        kill -0 ${pid} 2> /dev/null || { echo "Server exit detected"; break; }
+        kill -0 ${pid} 2> /dev/null || { echo "Server exit detected"; cat ${server_instance}/server_wrapper_runserver.log; break; }
         # If not sleep and keep trying.
         sleep 0.1
     done
