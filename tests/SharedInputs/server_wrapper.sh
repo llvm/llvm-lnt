@@ -26,25 +26,32 @@ main() {
 	[ $# -lt 2 ] &&
 		error "not enough arguments"
 
-	local serverinstance=$1
-	local portnr=$2
+	local server_instance=$1
+	local port_number=$2
 	shift 2
 
-	lnt runserver $serverinstance --hostname localhost --port $portnr >& $serverinstance/server_wrapper_runserver.log &
+	lnt runserver ${server_instance} --hostname localhost --port ${port_number} >& ${server_instance}/server_wrapper_runserver.log &
 	local pid=$!
-	sleep 2 # Give the server some time to start.
+
+	# Poll the server until it is up and running
+	while ! curl http://localhost:${port_number}/ping -m1 -o/dev/null -s ; do
+        # Maybe server is totally dead.
+        kill -0 ${pid} 2> /dev/null || { echo "Server exit detected"; break; }
+        # If not sleep and keep trying.
+        sleep 0.1
+    done
 
 	# Execute command.
 	eval "$@"
 	local rc=$?
 
-	kill -15 $pid
+	kill -15 ${pid}
 	local kill_rc=$?
-	[ $kill_rc -ne 0 ] &&
-	    error "wha happen??  $kill_rc"
+	[ ${kill_rc} -ne 0 ] &&
+	    error "wha happen??  ${kill_rc}"
 	
-	wait $pid
-	exit $rc
+	wait ${pid}
+	exit ${rc}
 }
 
 main "$@"

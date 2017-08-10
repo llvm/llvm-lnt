@@ -1749,3 +1749,11 @@ def explode():
 def gone():
     """This route returns 404. Used for testing 404 page."""
     abort(404, "test")
+
+
+@frontend.route("/ping")
+def ping():
+    """Simple route to see if server is alive.
+
+    Used by tests to poll on server creation."""
+    return "pong", 200
