@@ -14,7 +14,7 @@ import sqlalchemy
 import sqlalchemy.ext.declarative
 import sqlalchemy.orm
 from sqlalchemy import Column, String, Integer
-from sqlalchemy.exc import ProgrammingError, OperationalError
+
 
 from lnt.util import logger
 import lnt.server.db.util
