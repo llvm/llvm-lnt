@@ -6,7 +6,7 @@
 # always the same so we have to rename from `Compile_XXXX` to `compile_XXX`.
 import collections
 
-from sqlalchemy import delete, select, update, func
+from sqlalchemy import delete, select, update, func, and_
 
 from lnt.server.db.migrations.util import introspect_table, rename_table
 
@@ -29,7 +29,8 @@ def _drop_suite(trans, name, engine):
     drop_fields(engine, test_suite_id, 'TestSuiteOrderFields', trans)
     drop_fields(engine, test_suite_id, 'TestSuiteMachineFields', trans)
     drop_fields(engine, test_suite_id, 'TestSuiteRunFields', trans)
-    drop_fields(engine, test_suite_id, 'TestSuiteSampleFields', trans)
+
+    drop_samples_fields(engine, test_suite_id, trans)
 
     trans.execute(delete(test_suite).where(test_suite.c.Name == name))
 
@@ -42,6 +43,23 @@ def drop_fields(engine, test_suite_id, name, trans):
                          fields_table.c.TestSuiteID == test_suite_id)
     trans.execute(order_files)
     return fields_table
+
+
+def drop_samples_fields(engine, test_suite_id, trans):
+    """In the TestSuiteSampleFields, drop entries related to the test_suite_id.
+
+    This extra function is needed because in MySQL it can't sort out the forign
+    keys in the same table.
+    """
+    samples_table = introspect_table(engine, 'TestSuiteSampleFields')
+    order_files = delete(samples_table,
+                         and_(samples_table.c.TestSuiteID == test_suite_id,
+                              samples_table.c.status_field.isnot(None)))
+    trans.execute(order_files)
+    order_files = delete(samples_table,
+                         samples_table.c.TestSuiteID == test_suite_id)
+    trans.execute(order_files)
+    return samples_table
 
 
 TableRename = collections.namedtuple('TableRename', 'old_name new_name')

@@ -52,3 +52,12 @@ database, use a command like the following::
      PATH=$LLVMBUILD/bin:$LNTINSTALL/bin:$PATH llvm-lit -sv -Dpostgres=1 ../lnt/tests
 
 You'll need to use at least postgres version 9.2 to run the regression tests.
+
+LNT MySQL Support
+=================
+
+The lnt.llvm.org server runs on MySQL. Testing has been more limited than sqlite and Postgres.  To run the regression
+tests there needs to be MySQL installed in the local path. The LNT tests will create their own instance of a MySQL
+server and database to test in::
+
+    llvm-lit -sv -Dmysql=1 ../lnt/tests

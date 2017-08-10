@@ -1,0 +1,12 @@
+# REQUIRES: mysql
+# RUN: rm -rf "%t.install"
+# RUN: %{shared_inputs}/mysql_wrapper.sh "%t.install" 9109 /bin/sh %s "%t.install" "%{shared_inputs}"
+set -eux
+
+TESTDIR="$1"
+SHARED_INPUTS="$2"
+
+lnt create "${TESTDIR}/instance" --db-dir mysql://root@localhost:9109 --default-db testdb --show-sql
+
+# Import a test set.
+#lnt import "${TESTDIR}/instance" "${SHARED_INPUTS}/sample-a-small.plist" --commit --show-sample-count
