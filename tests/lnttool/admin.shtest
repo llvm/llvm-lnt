@@ -1,7 +1,8 @@
 # RUN: rm -rf %t.instance
+# RUN: rm -rf %t.tmp && mkdir -p %t.tmp
 # RUN: python %{shared_inputs}/create_temp_instance.py \
 # RUN:   %s %{shared_inputs}/SmallInstance %t.instance
-# RUN: %{shared_inputs}/server_wrapper.sh %t.instance 9092 /bin/sh %s %T %{shared_inputs}
+# RUN: %{shared_inputs}/server_wrapper.sh %t.instance 9092 /bin/sh %s %t.tmp %{shared_inputs}
 
 set -eux
 DIR="$1"
@@ -11,7 +12,7 @@ cd "$DIR"
 rm -rf lntadmin.yaml
 lnt admin create-config > create_config.stdout
 mv lntadmin.yaml create_config.txt
-# RUN: FileCheck %s --check-prefix=CREATE_CONFIG < %T/create_config.txt
+# RUN: FileCheck %s --check-prefix=CREATE_CONFIG < %t.tmp/create_config.txt
 # CREATE_CONFIG: lnt_url: "http://localhost:8000"
 # CREATE_CONFIG-NEXT: database: default
 # CREATE_CONFIG-NEXT: testsuite: nts
@@ -27,11 +28,11 @@ auth_token: test_token
 __EOF__
 
 lnt admin post-run "${SHARED_INPUTS}/sample-a-small.plist" > post_run.stdout
-# RUN: FileCheck %s --check-prefix=POST_RN < %T/post_run.stdout
+# RUN: FileCheck %s --check-prefix=POST_RN < %t.tmp/post_run.stdout
 # POST_RN: http://localhost:9092/api/db_default/v4/nts/runs/3
 
 lnt admin machine-info 1 > machine_info.stdout
-# RUN: FileCheck %s --check-prefix=MACHINE_INFO < %T/machine_info.stdout
+# RUN: FileCheck %s --check-prefix=MACHINE_INFO < %t.tmp/machine_info.stdout
 # MACHINE_INFO: name: localhost__clang_DEV__x86_64
 # MACHINE_INFO: id: 1
 # MACHINE_INFO: hardware: x86_64
@@ -41,7 +42,7 @@ lnt admin machine-info 1 > machine_info.stdout
 
 rm -rf run_3.json
 lnt admin get-run 3 > get_run.stdout
-# RUN: FileCheck %s --check-prefix=GET_RN < %T/run_3.json
+# RUN: FileCheck %s --check-prefix=GET_RN < %t.tmp/run_3.json
 # GET_RN: {
 # GET_RN:   "generated_by":
 # GET_RN:   "machine": {
@@ -59,18 +60,18 @@ lnt admin get-run 3 > get_run.stdout
 # GET_RN: }
 
 lnt admin list-machines > list_machines.stdout
-# RUN: FileCheck %s --check-prefix=LIST_MACHINES < %T/list_machines.stdout
+# RUN: FileCheck %s --check-prefix=LIST_MACHINES < %t.tmp/list_machines.stdout
 # LIST_MACHINES: localhost__clang_DEV__x86_64:1
 # LIST_MACHINES-NEXT: LNT SAMPLE MACHINE:2
 
 lnt admin list-runs 1 > list_runs.stdout
-# RUN: FileCheck %s --check-prefix=LIST_RUNS < %T/list_runs.stdout
+# RUN: FileCheck %s --check-prefix=LIST_RUNS < %t.tmp/list_runs.stdout
 # LIST_RUNS: llvm_project_revision=154331 1
 # LIST_RUNS: llvm_project_revision=152289 2
 
 rm -rf machine_1.json
 lnt admin get-machine 1 > get_machine.stdout
-# RUN: FileCheck %s --check-prefix=GET_MACHINE_JSON < %T/machine_1.json
+# RUN: FileCheck %s --check-prefix=GET_MACHINE_JSON < %t.tmp/machine_1.json
 # GET_MACHINE_JSON: {
 # GET_MACHINE_JSON:   "generated_by":
 # GET_MACHINE_JSON:   "machine": {
@@ -87,12 +88,12 @@ lnt admin get-machine 1 > get_machine.stdout
 # GET_MACHINE_JSON: }
 
 lnt admin rm-machine 1 > rm_machine.stdout
-# RUN: FileCheck %s --check-prefix=RM_MACHINE < %T/rm_machine.stdout
+# RUN: FileCheck %s --check-prefix=RM_MACHINE < %t.tmp/rm_machine.stdout
 # RM_MACHINE: Deleting runs 1 2 (2/2)
 # RM_MACHINE: Deleted machine localhost__clang_DEV__x86_64:1
 
 lnt admin list-machines > list_machines2.stdout
-# RUN: FileCheck %s --check-prefix=LIST_MACHINES2 < %T/list_machines2.stdout
+# RUN: FileCheck %s --check-prefix=LIST_MACHINES2 < %t.tmp/list_machines2.stdout
 # LIST_MACHINES2-NOT: localhost__clang_DEV__x86_64:1
 # LIST_MACHINES2: LNT SAMPLE MACHINE:2
 
@@ -100,7 +101,7 @@ lnt admin rename-machine 2 hal9000
 # No output
 
 lnt admin list-machines > list_machines3.stdout
-# RUN: FileCheck %s --check-prefix=LIST_MACHINES3 < %T/list_machines3.stdout
+# RUN: FileCheck %s --check-prefix=LIST_MACHINES3 < %t.tmp/list_machines3.stdout
 # LIST_MACHINES3: hal9000:2
 
 # Just post again so we have a machine to merge

@@ -1,8 +1,9 @@
 # RUN: rm -rf %t.instance
+# RUN: rm -rf %t.tmp && mkdir -p %t.tmp
 # RUN: python %{shared_inputs}/create_temp_instance.py \
 # RUN:   %s %{shared_inputs}/SmallInstance %t.instance
 # RUN: %{shared_inputs}/server_wrapper.sh %t.instance 9091 \
-# RUN:    /bin/sh %s %T %S/Inputs %{shared_inputs} %{src_root}
+# RUN:    /bin/sh %s %t.tmp %S/Inputs %{shared_inputs} %{src_root}
 
 OUTPUT_DIR="$1"
 INPUTS="$2"
@@ -10,7 +11,7 @@ SHARED_INPUTS="$3"
 SRC_ROOT="$4"
 
 lnt submit "http://localhost:9091/db_default/submitRun" --commit 1 "${SHARED_INPUTS}/sample-report.json" -v > "${OUTPUT_DIR}/submit_verbose.txt"
-# RUN: FileCheck %s --check-prefix=CHECK-VERBOSE < %T/submit_verbose.txt
+# RUN: FileCheck %s --check-prefix=CHECK-VERBOSE < %t.tmp/submit_verbose.txt
 #
 # CHECK-VERBOSE: Import succeeded.
 # CHECK-VERBOSE: --- Tested: 10 tests --
@@ -28,14 +29,14 @@ lnt submit "http://localhost:9091/db_default/submitRun" --commit 1 "${SHARED_INP
 
 
 lnt submit "http://localhost:9091/db_default/submitRun" --commit "${SHARED_INPUTS}/sample-report.json" > "${OUTPUT_DIR}/submit0.txt"
-# RUN: FileCheck %s --check-prefix=CHECK-SUBMIT0 < %T/submit0.txt
+# RUN: FileCheck %s --check-prefix=CHECK-SUBMIT0 < %t.tmp/submit0.txt
 #
 # Make sure the old --commit=1 style argument is still accepted.
 lnt submit "http://localhost:9091/db_default/submitRun" --commit=1 "${SHARED_INPUTS}/sample-report.json" > "${OUTPUT_DIR}/submit1.txt"
-# RUN: FileCheck %s --check-prefix=CHECK-SUBMIT1 < %T/submit1.txt
+# RUN: FileCheck %s --check-prefix=CHECK-SUBMIT1 < %t.tmp/submit1.txt
 
 lnt submit "http://localhost:9091/db_default/submitRun" --commit 1 "${SHARED_INPUTS}/sample-report.json" > "${OUTPUT_DIR}/submit2.txt"
-# RUN: FileCheck %s --check-prefix=CHECK-SUBMIT2 < %T/submit2.txt
+# RUN: FileCheck %s --check-prefix=CHECK-SUBMIT2 < %t.tmp/submit2.txt
 
 # CHECK-SUBMIT0: http://localhost:9091/db_default/v4/nts/4
 # CHECK-SUBMIT1: http://localhost:9091/db_default/v4/nts/5
@@ -43,7 +44,7 @@ lnt submit "http://localhost:9091/db_default/submitRun" --commit 1 "${SHARED_INP
 
 
 lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" --commit "${INPUTS}/compile_submission.json" -v > "${OUTPUT_DIR}/submit_compile.txt"
-# RUN: FileCheck %s --check-prefix=CHECK-COMPILE0 < %T/submit_compile.txt
+# RUN: FileCheck %s --check-prefix=CHECK-COMPILE0 < %t.tmp/submit_compile.txt
 #
 # CHECK-COMPILE0: --- Tested: 10 tests --
 #
@@ -59,7 +60,7 @@ lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" --commit "${I
 # CHECK-COMPILE0: Results available at: http://localhost:9091/db_default/v4/compile/5
 
 lnt submit "http://localhost:9091/db_default/submitRun" --commit "${SRC_ROOT}/docs/report-example.json" -v > "${OUTPUT_DIR}/submit_newformat.txt"
-# RUN: FileCheck %s --check-prefix=CHECK-NEWFORMAT < %T/submit_newformat.txt
+# RUN: FileCheck %s --check-prefix=CHECK-NEWFORMAT < %t.tmp/submit_newformat.txt
 #
 # CHECK-NEWFORMAT: Import succeeded.
 # CHECK-NEWFORMAT: --- Tested: 10 tests --
@@ -79,7 +80,7 @@ lnt submit "http://localhost:9091/db_default/submitRun" --commit "${SRC_ROOT}/do
 # test-suite based on the Info.Run.tag field instead of the URL. The result
 # should be the same as using the "correct" URL.
 lnt submit "http://localhost:9091/db_default/submitRun" --commit "${INPUTS}/compile_submission.json" -v > "${OUTPUT_DIR}/submit_compile1.txt"
-# RUN: FileCheck %s --check-prefix=CHECK-COMPILE1 < %T/submit_compile1.txt
+# RUN: FileCheck %s --check-prefix=CHECK-COMPILE1 < %t.tmp/submit_compile1.txt
 #
 # CHECK-COMPILE1: Import succeeded.
 #
@@ -91,7 +92,7 @@ lnt submit "http://localhost:9091/db_default/submitRun" --commit "${INPUTS}/comp
 # Check some error handling/reporting
 rm -f "${OUTPUT_DIR}/submit_errors.txt"
 lnt submit "http://localhost:9091/db_default/v4/badsuite/submitRun" --commit "${INPUTS}/compile_submission.json" >> "${OUTPUT_DIR}/submit_errors.txt" 2>&1
-# RUN: FileCheck %s --check-prefix=CHECK-ERRORS < %T/submit_errors.txt
+# RUN: FileCheck %s --check-prefix=CHECK-ERRORS < %t.tmp/submit_errors.txt
 # CHECK-ERRORS: lnt server error: Unknown test suite 'badsuite'!
 lnt submit "http://localhost:9091/db_baddb/v4/compile/submitRun" --commit "${INPUTS}/compile_submission.json" >> "${OUTPUT_DIR}/submit_errors.txt" 2>&1
 # CHECK-ERRORS: lnt server error: The page you are looking for does not exist.
@@ -113,7 +114,7 @@ lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" --commit "${I
 
 # Adding extra fields to the machine in a submission is fine.
 lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" --commit "${INPUTS}/compile_submission_machine_diff_fine.json" -v > "${OUTPUT_DIR}/submit_compile_machine_diff.txt"
-# RUN: FileCheck %s --check-prefix=CHECK-MACHINEDIFF < %T/submit_compile_machine_diff.txt
+# RUN: FileCheck %s --check-prefix=CHECK-MACHINEDIFF < %t.tmp/submit_compile_machine_diff.txt
 #
 # CHECK-MACHINEDIFF: Imported Data
 # CHECK-MACHINEDIFF: -------------
@@ -128,7 +129,7 @@ lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" --commit "${I
 
 # Test updating existing machine
 lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" --commit "${INPUTS}/compile_submission_machine_diff_reject.json" --update-machine -v > "${OUTPUT_DIR}/submit_compile_machine_update.txt"
-# RUN: FileCheck %s --check-prefix=CHECK-UPDATEMACHINE < %T/submit_compile_machine_update.txt
+# RUN: FileCheck %s --check-prefix=CHECK-UPDATEMACHINE < %t.tmp/submit_compile_machine_update.txt
 #
 # CHECK-UPDATEMACHINE: Imported Data
 # CHECK-UPDATEMACHINE: -------------
