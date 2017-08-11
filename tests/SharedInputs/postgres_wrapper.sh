@@ -12,8 +12,8 @@ set -u
 DBDIR="$1"
 shift
 if [ -d "${DBDIR}" ]; then
-	echo 1>&2 "${DBDIR} already exists"
-	exit 1
+    echo 1>&2 "${DBDIR} already exists"
+    exit 1
 fi
 
 mkdir -p "${DBDIR}"

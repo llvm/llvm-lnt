@@ -13,8 +13,8 @@ set -eu
 DBDIR="$1"
 shift
 if [ -d "${DBDIR}" ]; then
-	echo 1>&2 "${DBDIR} already exists"
-	exit 1
+    echo 1>&2 "${DBDIR} already exists"
+    exit 1
 fi
 PORT="$1"
 shift
@@ -35,9 +35,9 @@ MYSQL_INSTALL_DB_FLAGS+=" --user=$(whoami)"
 MYSQL_INSTALL_DB_FLAGS+=" --datadir=\"${DBDIR}/data\""
 MYSQL_INSTALL_DB_FLAGS+=" >& \"${DBDIR}/install_db.log\""
 #echo "$ mysql_install_db ${MYSQL_INSTALL_DB_FLAGS}"
-#eval mysql_install_db ${MYSQL_INSTALL_DB_FLAGS} 
+#eval mysql_install_db ${MYSQL_INSTALL_DB_FLAGS}
 echo "$ mysqld ${MYSQL_INSTALL_DB_FLAGS}"
-eval mysqld ${MYSQL_INSTALL_DB_FLAGS} 
+eval mysqld ${MYSQL_INSTALL_DB_FLAGS}
 
 
 MYSQLD_FLAGS+=" --defaults-file=\"${DBDIR}/etc/my.cnf\""
