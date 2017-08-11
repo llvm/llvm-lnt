@@ -154,10 +154,10 @@ def _do_submit():
         result['result_url'] = request.url_root + result['result_url']
 
     response = flask.jsonify(**result)
-    if result['error'] is not None:
+    error = result['error']
+    if error is not None:
         response.status_code = 400
-        logger.info("%s: Submission rejected: %s" %
-                    (request.url, result['error']))
+        logger.warning("%s: Submission rejected: %s" % (request.url, error))
     return response
 
 
