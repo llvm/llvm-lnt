@@ -2,7 +2,8 @@
 	"Machine": {
 		"Info": {
 			"hw.activecpu": "4",
-			"machdep.cpu.vendor": "GenuineIntel"
+			"machdep.cpu.vendor": "GenuineIntel",
+			"os_version": "42"
 		},
 		"Name": "some-compile-suite-machine"
 	},

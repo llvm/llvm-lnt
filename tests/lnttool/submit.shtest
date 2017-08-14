@@ -113,8 +113,8 @@ lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" --commit "${I
 
 
 # Adding extra fields to the machine in a submission is fine.
-lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" --commit "${INPUTS}/compile_submission_machine_diff_fine.json" -v > "${OUTPUT_DIR}/submit_compile_machine_diff.txt"
-# RUN: FileCheck %s --check-prefix=CHECK-MACHINEDIFF < %t.tmp/submit_compile_machine_diff.txt
+lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" --commit "${INPUTS}/compile_submission_machine_diff_fine.json" -v > "${OUTPUT_DIR}/submit_compile_machine_diff_fine.txt"
+# RUN: FileCheck %s --check-prefix=CHECK-MACHINEDIFF < %t.tmp/submit_compile_machine_diff_fine.txt
 #
 # CHECK-MACHINEDIFF: Imported Data
 # CHECK-MACHINEDIFF: -------------

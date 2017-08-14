@@ -804,25 +804,23 @@ class TestSuiteDB(object):
         for field in self.machine_fields:
             existing_value = existing.get_field(field)
             new_value = machine.get_field(field)
-            if existing_value is None:
+            if new_value is None or existing_value == new_value:
+                continue
+            if existing_value is None or forceUpdate:
                 existing.set_field(field, new_value)
-            elif existing_value != new_value:
-                if not forceUpdate:
-                    raise MachineInfoChanged("'%s' on machine '%s' changed." %
-                                             (field.name, name))
-                else:
-                    existing.set_field(field, new_value)
+            else:
+                raise MachineInfoChanged("'%s' on machine '%s' changed." %
+                                         (field.name, name))
         existing_parameters = existing.parameters
-        for key, value in machine.parameters.items():
+        for key, new_value in machine.parameters.items():
             existing_value = existing_parameters.get(key, None)
-            if existing_value is None:
+            if new_value is None or existing_value == new_value:
+                continue
+            if existing_value is None or forceUpdate:
                 existing_parameters[key] = value
-            elif existing_value != value:
-                if not forceUpdate:
-                    raise MachineInfoChanged("'%s' on machine '%s' changed." %
-                                             (key, name))
-                else:
-                    existing_parameters[key] = value
+            else:
+                raise MachineInfoChanged("'%s' on machine '%s' changed." %
+                                         (key, name))
         existing.parameters = existing_parameters
         return existing
 
