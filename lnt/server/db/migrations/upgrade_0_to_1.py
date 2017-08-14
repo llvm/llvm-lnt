@@ -5,10 +5,10 @@
 
 import sqlalchemy
 from sqlalchemy import *
-from sqlalchemy.schema import Index
 from sqlalchemy.orm import relation
+from sqlalchemy.ext.declarative import declarative_base
 
-Base = sqlalchemy.ext.declarative.declarative_base()
+Base = declarative_base()
 
 ###
 # Core Schema
@@ -80,9 +80,9 @@ class SampleField(Base):
     status_field = relation('SampleField', remote_side=id)
 
 
-def initialize_core(engine, session):
+def initialize_core(lnt_engine, session):
     # Create the tables.
-    Base.metadata.create_all(engine)
+    Base.metadata.create_all(lnt_engine)
 
     # Create the fixed sample kinds.
     #
@@ -102,7 +102,7 @@ def initialize_core(engine, session):
 # NTS Testsuite Definition
 
 
-def initialize_nts_definition(engine, session):
+def initialize_nts_definition(session):
     # Fetch the sample types.
     real_sample_type = session.query(SampleType) \
         .filter_by(name="Real").first()
@@ -145,7 +145,7 @@ def initialize_nts_definition(engine, session):
 # Compile Testsuite Definition
 
 
-def initialize_compile_definition(engine, session):
+def initialize_compile_definition(session):
     # Fetch the sample types.
     real_sample_type = session.query(SampleType) \
         .filter_by(name="Real").first()
@@ -188,10 +188,10 @@ def initialize_compile_definition(engine, session):
 
 
 def get_base_for_testsuite(test_suite):
-    Base = sqlalchemy.ext.declarative.declarative_base()
+    UpdatedBase = declarative_base()
     db_key_name = test_suite.db_key_name
 
-    class Machine(Base):
+    class Machine(UpdatedBase):
         __tablename__ = db_key_name + '_Machine'
 
         id = Column("ID", Integer, primary_key=True)
@@ -208,7 +208,7 @@ def get_base_for_testsuite(test_suite):
             class_dict[item.name] = item.column = Column(
                 item.name, String(256))
 
-    class Order(Base):
+    class Order(UpdatedBase):
         __tablename__ = db_key_name + '_Order'
 
         id = Column("ID", Integer, primary_key=True)
@@ -227,7 +227,7 @@ def get_base_for_testsuite(test_suite):
             class_dict[item.name] = item.column = Column(
                 item.name, String(256))
 
-    class Run(Base):
+    class Run(UpdatedBase):
         __tablename__ = db_key_name + '_Run'
 
         id = Column("ID", Integer, primary_key=True)
@@ -254,12 +254,12 @@ def get_base_for_testsuite(test_suite):
             class_dict[item.name] = item.column = Column(
                 item.name, String(256))
 
-    class Test(Base):
+    class Test(UpdatedBase):
         __tablename__ = db_key_name + '_Test'
         id = Column("ID", Integer, primary_key=True)
         name = Column("Name", String(256), unique=True, index=True)
 
-    class Sample(Base):
+    class Sample(UpdatedBase):
         __tablename__ = db_key_name + '_Sample'
 
         id = Column("ID", Integer, primary_key=True)
@@ -292,41 +292,41 @@ def get_base_for_testsuite(test_suite):
     sqlalchemy.schema.Index("ix_%s_Sample_RunID_TestID" % db_key_name,
                             Sample.run_id, Sample.test_id)
 
-    return Base
+    return UpdatedBase
 
 
-def initialize_testsuite(engine, session, name):
+def initialize_testsuite(lnt_engine, session, name):
     defn = session.query(TestSuite).filter_by(name=name).first()
     assert defn is not None
 
     # Create all the testsuite database tables. We don't need to worry about
     # checking if they already exist, SA will handle that for us.
-    base = get_base_for_testsuite(defn).metadata.create_all(engine)
+    get_base_for_testsuite(defn).metadata.create_all(lnt_engine)
 
 
-def upgrade(engine):
+def upgrade(lnt_engine):
     # This upgrade script is special in that it needs to handle databases "in
     # the wild" which have contents but existed before versioning.
 
     # Create a session.
-    session = sqlalchemy.orm.sessionmaker(engine)()
+    session = sqlalchemy.orm.sessionmaker(lnt_engine)()
 
     # If the TestSuite table exists, assume the database is pre-versioning but
-    # already has the core initalized.
-    if not TestSuite.__table__.exists(engine):
-        initialize_core(engine, session)
+    # already has the core initialized.
+    if not TestSuite.__table__.exists(lnt_engine):
+        initialize_core(lnt_engine, session)
 
     # Initialize all the test suite definitions for NTS and Compile, if they do
     # not already exist.
     if session.query(TestSuite).filter_by(name="nts").first() is None:
-        initialize_nts_definition(engine, session)
+        initialize_nts_definition(session)
     if session.query(TestSuite).filter_by(name="compile").first() is None:
-        initialize_compile_definition(engine, session)
+        initialize_compile_definition(session)
 
     # Commit the results.
     session.commit()
 
     # Materialize the test suite tables.
-    initialize_testsuite(engine, session, "nts")
-    initialize_testsuite(engine, session, "compile")
+    initialize_testsuite(lnt_engine, session, "nts")
+    initialize_testsuite(lnt_engine, session, "compile")
     session.close()
