@@ -42,7 +42,9 @@ class BuiltinTest(object):
         """
         raise RuntimeError("Abstract Method.")
 
-    def log(self, message, ts=timestamp()):
+    def log(self, message, ts=None):
+        if not ts:
+            ts = timestamp()
         print >>sys.stderr, '%s: %s' % (ts, message)
 
     @staticmethod
