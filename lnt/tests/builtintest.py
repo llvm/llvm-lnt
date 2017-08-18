@@ -79,9 +79,9 @@ class BuiltinTest(object):
                 updateMachine=config.update_machine, mergeRun=config.merge)
         else:
             server_report = lnt.util.ImportData.no_submit()
-
-        ImportData.print_report_result(server_report, sys.stdout, sys.stderr,
-                                       config.verbose)
+        if server_report:
+            ImportData.print_report_result(server_report, sys.stdout, sys.stderr,
+                                           config.verbose)
         return server_report
 
     @staticmethod
