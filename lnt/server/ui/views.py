@@ -710,8 +710,8 @@ def v4_graph():
             continue
 
         # Ignore the extra part of the key, it is unused.
-        machine_id_str, test_id_str, field_index_str = value.split('.')
         try:
+            machine_id_str, test_id_str, field_index_str = value.split('.')
             machine_id = int(machine_id_str)
             test_id = int(test_id_str)
             field_index = int(field_index_str)
