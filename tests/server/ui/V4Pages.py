@@ -465,6 +465,10 @@ def main():
     assert color2 is None
     assert color1 != color3
 
+    check_redirect(client, '/db_default/submitRun',
+                   '/db_default/v4/nts/submitRun')
+    check_code(client, '/db_default/v4/nts/submitRun')
+
     # Now check the compile report
     # Get the V4 overview page.
     check_code(client, '/v4/compile/')

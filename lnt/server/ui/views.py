@@ -98,9 +98,6 @@ def index():
 ###
 # Database Actions
 def _do_submit():
-    if request.method == 'GET':
-        return render_template("submit_run.html")
-
     assert request.method == 'POST'
     input_file = request.files.get('file')
     input_data = request.form.get('input_data')
@@ -164,6 +161,10 @@ def _do_submit():
 @db_route('/submitRun', only_v3=False, methods=('GET', 'POST'))
 def submit_run():
     """Compatibility url that hardcodes testsuite to 'nts'"""
+    if request.method == 'GET':
+        g.testsuite_name = 'nts'
+        return redirect(v4_url_for('.v4_submitRun'))
+
     # This route doesn't know the testsuite to use. We have some defaults/
     # autodetection for old submissions, but really you should use the full
     # db_XXX/v4/YYYY/submitRun URL when using non-nts suites.
@@ -172,7 +173,9 @@ def submit_run():
 
 
 @v4_route('/submitRun', methods=('GET', 'POST'))
-def submit_run_ts():
+def v4_submitRun():
+    if request.method == 'GET':
+        return render_template("submit_run.html")
     return _do_submit()
 
 ###
