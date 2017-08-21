@@ -36,6 +36,38 @@ class JSONAPIDeleteTester(unittest.TestCase):
         self.client = app.test_client()
         self.shared_inputs = shared_inputs
 
+    def test_00_update_machine(self):
+        """Check PUT request to /machines/n"""
+        client = self.client
+
+        # We are going to set the 'os' field to none, remove the 'uname'
+        # parameter and add the 'new_parameter' parameter.
+        # Make sure none of those things happened yet:
+        machine_before = check_json(client, 'api/db_default/v4/nts/machines/1')
+        machine_before = machine_before['machine']
+        self.assertIsNotNone(machine_before.get('os', None))
+        self.assertIsNone(machine_before.get('new_parameter', None))
+        self.assertIsNotNone(machine_before.get('uname', None))
+
+        data = {
+            'machine': {
+                'hardware': 'hal 9000',
+                'os': None,
+                'hostname': 'localhost',
+                'new_parameter': True,
+            },
+        }
+        json_data = json.dumps(data)
+        resp = client.put('api/db_default/v4/nts/machines/1', data=json_data,
+                          headers={'AuthToken': 'test_token'})
+        self.assertEqual(resp.status_code, 200)
+
+        machine_after = check_json(client, 'api/db_default/v4/nts/machines/1')
+        machine_after = machine_after['machine']
+        for key in ('hardware', 'os', 'hostname', 'new_parameter', 'uname'):
+            self.assertEquals(machine_after.get(key, None),
+                              data['machine'].get(key, None))
+
     def test_00_rename_machine(self):
         """Check rename POST request to /machines/n"""
         client = self.client

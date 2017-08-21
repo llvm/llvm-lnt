@@ -115,6 +115,11 @@ class TestSuiteDB(object):
                     result[field.name] = value
                 return result
 
+            def set_fields_pop(self, data_dict):
+                for field in self.fields:
+                    value = data_dict.pop(field.name, None)
+                    self.set_field(field, value)
+
         db_key_name = self.test_suite.db_key_name
 
         class Machine(self.base, ParameterizedMixin):
@@ -199,6 +204,15 @@ class TestSuiteDB(object):
                         .order_by(ts.Run.start_time.desc()).first()
 
                 return closest_run
+
+            def set_from_dict(self, data):
+                data_name = data.pop('name', None)
+                # This function is not meant for renaming. Abort on mismatch.
+                if data_name is not None and data_name != self.name:
+                    raise ValueError("Mismatching machine name")
+                data.pop('id', None)
+                self.set_fields_pop(data)
+                self.parameters = data
 
             def __json__(self):
                 result = dict()
