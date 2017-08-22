@@ -1,4 +1,4 @@
-include README.txt CHANGELOG.txt
+include README.md
 include requirements.client.txt requirements.server.txt
 recursive-include docs *
 recursive-include tests *
