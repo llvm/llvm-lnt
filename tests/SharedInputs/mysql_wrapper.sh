@@ -60,7 +60,7 @@ do
     sleep 0.1
     echo "$ mysqladmin ${MYSQLADMIN_FLAGS} status"
     eval mysqladmin ${MYSQLADMIN_FLAGS} status
-    if [ $? -e 0 ]; then
+    if [ $? -eq 0 ]; then
         break
     fi
 done
