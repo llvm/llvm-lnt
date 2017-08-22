@@ -9,7 +9,7 @@
 # Inspired by https://github.com/tk0miya/testing.postgresql
 set -u
 
-DBDIR="$1"
+DBDIR="$(mktemp -d -t lnt)"
 shift
 if [ -d "${DBDIR}" ]; then
     echo 1>&2 "${DBDIR} already exists"
@@ -47,3 +47,4 @@ kill -15 $PG_PID
 [ $? -ne 0 ] && (echo 1>&1 "Could not kill postgres server"; exit 1)
 wait $PG_PID
 exit $RC
+rm -rf ${DBDIR}
