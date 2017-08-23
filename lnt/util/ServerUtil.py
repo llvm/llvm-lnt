@@ -23,7 +23,7 @@ def _show_json_error(reply):
     except ValueError:
         print "error: {}".format(reply)
         return
-    sys.stderr.write("lnt server error: {}\n".format(error.get('error')))
+    sys.stderr.write("error: lnt server: {}\n".format(error.get('error')))
     message = error.get('message', '')
     if message:
         sys.stderr.write(message + '\n')

@@ -93,19 +93,19 @@ lnt submit "http://localhost:9091/db_default/submitRun" --commit "${INPUTS}/comp
 rm -f "${OUTPUT_DIR}/submit_errors.txt"
 lnt submit "http://localhost:9091/db_default/v4/badsuite/submitRun" --commit "${INPUTS}/compile_submission.json" >> "${OUTPUT_DIR}/submit_errors.txt" 2>&1
 # RUN: FileCheck %s --check-prefix=CHECK-ERRORS < %t.tmp/submit_errors.txt
-# CHECK-ERRORS: lnt server error: Unknown test suite 'badsuite'!
+# CHECK-ERRORS: error: lnt server: Unknown test suite 'badsuite'!
 lnt submit "http://localhost:9091/db_baddb/v4/compile/submitRun" --commit "${INPUTS}/compile_submission.json" >> "${OUTPUT_DIR}/submit_errors.txt" 2>&1
-# CHECK-ERRORS: lnt server error: The page you are looking for does not exist.
+# CHECK-ERRORS: error: lnt server: The page you are looking for does not exist.
 lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" --commit "${INPUTS}/invalid_submission0.json" >> "${OUTPUT_DIR}/submit_errors.txt" 2>&1
-# CHECK-ERRORS: lnt server error: could not parse input format
+# CHECK-ERRORS: error: lnt server: could not parse input format
 # ...
 # CHECK-ERRORS: SystemExit: unable to guess input format for
 lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" --commit "${INPUTS}/invalid_submission1.json" >> "${OUTPUT_DIR}/submit_errors.txt" 2>&1
-# CHECK-ERRORS: lnt server error: import failure: machine
+# CHECK-ERRORS: error: lnt server: import failure: machine
 # ...
 # CHECK-ERRORS: KeyError: 'machine'
 lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" --commit "${INPUTS}/compile_submission_machine_diff_reject.json" >> "${OUTPUT_DIR}/submit_errors.txt" 2>&1
-# CHECK-ERRORS: lnt server error: import failure: 'hw.activecpu' on machine 'some-compile-suite-machine' changed.
+# CHECK-ERRORS: error: lnt server: import failure: 'hw.activecpu' on machine 'some-compile-suite-machine' changed.
 # ...
 # CHECK-ERRORS: MachineInfoChanged: 'hw.activecpu' on machine 'some-compile-suite-machine' changed.
 # CHECK-ERRORS: Note: Use --update-machine to update the existing machine information.
