@@ -1101,4 +1101,5 @@ def cli_action(*args, **kwargs):
         setattr(test_suite.opts, key, value)
 
     results = test_suite.run_test(test_suite.opts)
-    test_suite.show_results_url(results)
+    if results:
+        test_suite.show_results_url(results)
