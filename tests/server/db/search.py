@@ -108,7 +108,6 @@ class SearchTest(unittest.TestCase):
         ])
 
 if __name__ == '__main__':
-    global base_path
     if len(sys.argv) > 1:
         base_path = sys.argv[1]
     unittest.main(argv=[sys.argv[0], ])
