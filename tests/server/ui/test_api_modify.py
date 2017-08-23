@@ -135,8 +135,6 @@ class JSONAPIDeleteTester(unittest.TestCase):
         for run_id in run_ids:
             resp = check_json(client,
                               'api/db_default/v4/nts/runs/{}'.format(run_id))
-            import pprint
-            pprint.pprint(resp['tests'])
             sample_ids.append([s['id'] for s in resp['tests']])
         self.assertNotEqual(len(sample_ids), 0)
 
@@ -184,6 +182,16 @@ Deleted machine machine2:2
         self.assertIn('http://localhost/api/db_default/v4/nts/runs/', resp.headers['Location'])
         resp_json = json.loads(resp.data)
         self.assertEqual(resp_json['run_id'], 5)
+
+        # Provoke a failing submission.
+        resp = client.post('api/db_default/v4/nts/runs?merge=reject',
+                           data=data,
+                           headers={'AuthToken': 'test_token'})
+        self.assertEqual(resp.status_code, 400)
+        resp_json = json.loads(resp.data)
+        self.assertEqual(resp_json['error'],
+                         "import failure: Duplicate submission for '1'")
+        self.assertEqual(resp_json['success'], False)
 
     def test_04_merge_into(self):
         """Check POST/merge into request for /machines."""

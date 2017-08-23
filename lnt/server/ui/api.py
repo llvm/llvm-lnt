@@ -296,7 +296,7 @@ class Runs(Resource):
 
         error = result['error']
         if error is not None:
-            response = jsonify(response)
+            response = jsonify(result)
             response.status = '400'
             logger.warning("%s: Submission rejected: %s" %
                            (request.url, error))
