@@ -11,7 +11,8 @@ import sqlalchemy
 from lnt.server.db.migrations.upgrade_0_to_1 \
   import SampleType, TestSuite, SampleField
 
-from lnt.server.db.migrations.util import add_column, introspect_table
+from lnt.server.db.migrations.util import introspect_table
+from lnt.server.db.util import add_column
 
 
 def upgrade(engine):
@@ -37,11 +38,10 @@ def upgrade(engine):
     ts.sample_fields.append(hash_status_field)
     ts.sample_fields.append(hash_field)
     session.add(ts)
-    session.commit()
-    session.close()
 
-    nt_sample = introspect_table(engine, 'NT_Sample')
     hash_status = sqlalchemy.Column('hash_status', sqlalchemy.Integer)
     hash_string = sqlalchemy.Column('hash', sqlalchemy.String(32))
-    add_column(engine, nt_sample, hash_status)
-    add_column(engine, nt_sample, hash_string)
+    add_column(session, 'NT_Sample', hash_status)
+    add_column(session, 'NT_Sample', hash_string)
+    session.commit()
+    session.close()

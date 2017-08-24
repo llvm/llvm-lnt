@@ -332,8 +332,7 @@ def upgrade_to(engine, tsschema, new_schema, dry_run=False):
         elif not dry_run:
             # Add missing columns
             column = testsuitedb.make_sample_column(name, type)
-            util.add_sqlalchemy_column(engine, '%s_Sample' % ts_name,
-                                       column)
+            util.add_column(engine, '%s_Sample' % ts_name, column)
 
     if len(old_metrics) != 0:
         raise _MigrationError("Metrics removed: %s" %
@@ -360,7 +359,7 @@ def upgrade_to(engine, tsschema, new_schema, dry_run=False):
         # Add missing columns
         if old_field is None and not dry_run:
             column = testsuitedb.make_run_column(name)
-            util.add_sqlalchemy_column(engine, '%s_Run' % ts_name, column)
+            util.add_column(engine, '%s_Run' % ts_name, column)
 
     if len(old_run_fields) > 0:
         raise _MigrationError("Run fields removed: %s" %
@@ -380,8 +379,7 @@ def upgrade_to(engine, tsschema, new_schema, dry_run=False):
         # Add missing columns
         if old_field is None and not dry_run:
             column = testsuitedb.make_machine_column(name)
-            util.add_sqlalchemy_column(engine, '%s_Machine' % ts_name,
-                                       column)
+            util.add_column(engine, '%s_Machine' % ts_name, column)
 
     if len(old_machine_fields) > 0:
         raise _MigrationError("Machine fields removed: %s" %

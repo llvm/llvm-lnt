@@ -9,7 +9,8 @@ from sqlalchemy.orm import relation
 # change the actual schema, but rather adds functionality vis-a-vis orders.
 import lnt.server.db.migrations.upgrade_0_to_1 as upgrade_0_to_1
 import lnt.server.db.migrations.upgrade_2_to_3 as upgrade_2_to_3
-from lnt.server.db.migrations.util import add_column, introspect_table
+from lnt.server.db.migrations.util import introspect_table
+from lnt.server.db.util import add_column
 
 
 def add_profiles(test_suite):
@@ -46,14 +47,14 @@ def upgrade_testsuite(engine, name):
     # Add FieldChange to the test suite.
     Base = add_profiles(test_suite)
     Base.metadata.create_all(engine)
+    ts_sample_table_name = "{}_Sample".format(db_key_name)
+
+    profile_id = Column('ProfileID', Integer)
+    add_column(session, ts_sample_table_name, profile_id)
     # Commit changes (also closing all relevant transactions with
     # respect to Postgres like databases).
     session.commit()
     session.close()
-
-    ts_sample_table = introspect_table(engine, "{}_Sample".format(db_key_name))
-    profile_id = Column('ProfileID', Integer)
-    add_column(engine, ts_sample_table, profile_id)
 
 
 def upgrade(engine):

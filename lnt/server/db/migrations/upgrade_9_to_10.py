@@ -10,7 +10,8 @@ from sqlalchemy import update, Column, Float
 
 import lnt.server.db.migrations.upgrade_0_to_1 as upgrade_0_to_1
 
-from lnt.server.db.migrations.util import add_column, introspect_table
+from lnt.server.db.migrations.util import introspect_table
+from lnt.server.db.util import add_column
 
 
 def upgrade(engine):
@@ -38,7 +39,5 @@ def upgrade(engine):
 
     with engine.begin() as trans:
         trans.execute(update_code_size)
-
-    nt_sample = introspect_table(engine, 'NT_Sample')
-    code_size = Column('code_size', Float)
-    add_column(engine, nt_sample, code_size)
+        code_size = Column('code_size', Float)
+        add_column(trans, 'NT_Sample', code_size)
