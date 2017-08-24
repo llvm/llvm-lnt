@@ -62,24 +62,24 @@ class DBInfo:
 
         baseline_revision = config_data.get('baseline_revision',
                                             default_baseline_revision)
+        db_version = config_data.get('db_version', '0.4')
+        if db_version != '0.4':
+            raise NotImplementedError("unable to load version %r database" % (
+                                      db_version))
 
         return DBInfo(dbPath,
-                      str(config_data.get('db_version', '0.4')),
                       config_data.get('shadow_import', None),
                       email_config,
                       baseline_revision)
 
     @staticmethod
     def dummy_instance():
-        return DBInfo("sqlite:///:memory:", "0.4", None,
+        return DBInfo("sqlite:///:memory:", None,
                       EmailConfig(False, '', '', []), 0)
 
-    def __init__(self, path,
-                 db_version, shadow_import, email_config,
-                 baseline_revision):
+    def __init__(self, path, shadow_import, email_config, baseline_revision):
         self.config = None
         self.path = path
-        self.db_version = db_version
         self.shadow_import = shadow_import
         self.email_config = email_config
         self.baseline_revision = baseline_revision
@@ -187,13 +187,8 @@ class Config:
         if db_entry is None:
             return None
 
-        # Instantiate the appropriate database version.
-        if db_entry.db_version == '0.4':
-            return lnt.server.db.v4db.V4DB(db_entry.path, self,
-                                           db_entry.baseline_revision)
-
-        raise NotImplementedError("unable to load version %r database" % (
-            db_entry.db_version))
+        return lnt.server.db.v4db.V4DB(db_entry.path, self,
+                                       db_entry.baseline_revision)
 
     def get_database_names(self):
         return self.databases.keys()

@@ -90,7 +90,7 @@ def select_db():
 # Per-Database Routes
 
 
-@db_route('/', only_v3=False)
+@db_route('/')
 def index():
     return render_template("index.html")
 
@@ -158,7 +158,7 @@ def _do_submit():
     return response
 
 
-@db_route('/submitRun', only_v3=False, methods=('GET', 'POST'))
+@db_route('/submitRun', methods=('GET', 'POST'))
 def submit_run():
     """Compatibility url that hardcodes testsuite to 'nts'"""
     if request.method == 'GET':
@@ -416,15 +416,8 @@ def v4_text_report(id):
 
 
 # Compatilibity route for old run pages.
-@db_route("/simple/<tag>/<int:id>/", only_v3=False)
+@db_route("/simple/<tag>/<int:id>/")
 def simple_run(tag, id):
-    # Attempt to find a V4 run which declares that it matches this simple run
-    # ID. We do this so we can preserve some URL compatibility for old
-    # databases.
-    if g.db_info.db_version != '0.4':
-        return render_template("error.html", message="""\
-Invalid URL for version %r database.""" % (g.db_info.db_version,))
-
     # Get the expected test suite.
     db = request.get_db()
     ts = db.testsuite[tag]
@@ -441,7 +434,7 @@ Invalid URL for version %r database.""" % (g.db_info.db_version,))
 
     # Otherwise, report an error.
     return render_template("error.html", message="""\
-Unable to find a v0.4 run for this ID. Please use the native v0.4 URL interface
+Unable to find a run for this ID. Please use the native v4 URL interface
 (instead of the /simple/... URL schema).""")
 
 
@@ -1340,7 +1333,7 @@ def get_summary_config_path():
                         'summary_report_config.json')
 
 
-@db_route("/summary_report/edit", only_v3=False, methods=('GET', 'POST'))
+@db_route("/summary_report/edit", methods=('GET', 'POST'))
 def v4_summary_report_ui():
     # If this is a POST request, update the saved config.
     if request.method == 'POST':
@@ -1390,7 +1383,7 @@ def v4_summary_report_ui():
                            all_orders=all_orders)
 
 
-@db_route("/summary_report", only_v3=False)
+@db_route("/summary_report")
 def v4_summary_report():
     # Load the summary report configuration.
     config_path = get_summary_config_path()

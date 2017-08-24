@@ -39,8 +39,7 @@ secret_key = %(secret_key)r
 # The list of available databases, and their properties. At a minimum, there
 # should be a 'default' entry for the default database.
 databases = {
-    'default' : { 'path' : %(default_db)r,
-                  'db_version' : %(default_db_version)r },
+    'default' : { 'path' : %(default_db)r },
     }
 
 # The LNT email configuration.
@@ -125,8 +124,6 @@ LNT configuration.
 
     init_logger(logging.INFO if show_sql else logging.WARNING,
                 show_sql=show_sql)
-
-    default_db_version = "0.4"
 
     basepath = os.path.abspath(instance_path)
     if os.path.exists(basepath):

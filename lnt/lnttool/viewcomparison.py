@@ -68,7 +68,7 @@ def action_view_comparison(report_a, report_b, hostname, port, dry_run,
         url = 'http://%s:%d' % (hostname, port)
         db_path = os.path.join(tmpdir, 'data.db')
         db_info = lnt.server.config.DBInfo(
-            'sqlite:///%s' % (db_path,), '0.4', None,
+            'sqlite:///%s' % (db_path,), None,
             lnt.server.config.EmailConfig(False, '', '', []), "0")
         # _(self, name, zorgURL, dbDir, tempDir,
         # profileDir, secretKey, databases, blacklist):

@@ -8,7 +8,7 @@ frontend = flask.Blueprint("lnt", __name__, template_folder="ui/templates/",
 
 
 # Decorator for implementing per-database routes.
-def db_route(rule, only_v3=True, **options):
+def db_route(rule, **options):
     """
     LNT specific route for endpoints which always refer to some database
     object.
@@ -23,12 +23,6 @@ def db_route(rule, only_v3=True, **options):
             g.db_info = current_app.old_config.databases.get(g.db_name)
             if g.db_info is None:
                 abort(404)
-
-            # Disable non-v0.3 database support, if requested.
-            if only_v3 and g.db_info.db_version != '0.3':
-                return render_template("error.html", message="""\
-UI support for database with version %r is not yet implemented.""" % (
-                        g.db_info.db_version))
 
             # Compute result.
             result = f(**args)
