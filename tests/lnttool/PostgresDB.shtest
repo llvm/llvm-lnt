@@ -21,7 +21,7 @@ lnt import "${TESTDIR}/instance" "${SHARED_INPUTS}/sample-b-small.plist" --commi
 # default.
 #
 lnt updatedb "${TESTDIR}/instance" --testsuite nts --delete-run 1 \
-	--commit --show-sql > "${TESTDIR}/runrm.out"
+	--commit --show-sql >& "${TESTDIR}/runrm.out"
 # RUN: FileCheck --check-prefix CHECK-RUNRM %s < "%t.install/runrm.out"
 
 # CHECK-RUNRM: DELETE FROM "NT_Sample" WHERE "NT_Sample"."ID" = %(ID)s
@@ -37,7 +37,7 @@ lnt import "${TESTDIR}/instance" "${SHARED_INPUTS}/sample-a-small.plist" --commi
 #
 lnt updatedb "${TESTDIR}/instance" --testsuite nts \
 	--delete-machine "LNT SAMPLE MACHINE" --commit \
-	--show-sql > "${TESTDIR}/machinerm.out"
+	--show-sql >& "${TESTDIR}/machinerm.out"
 # RUN: FileCheck --check-prefix CHECK-MACHINERM %s < "%t.install/machinerm.out"
 
 # CHECK-MACHINERM: DELETE FROM "NT_Sample" WHERE "NT_Sample"."ID" = %(ID)s

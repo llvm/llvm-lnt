@@ -99,17 +99,15 @@ class Request(flask.Request):
         """
 
         if self.db is None:
-            echo = bool(self.args.get('db_log') or self.form.get('db_log'))
             try:
-                self.db = current_app.old_config.get_database(g.db_name,
-                                                              echo=echo)
+                self.db = current_app.old_config.get_database(g.db_name)
             except DatabaseError:
-                self.db = current_app.old_config.get_database(g.db_name,
-                                                              echo=echo)
+                self.db = current_app.old_config.get_database(g.db_name)
             # Enable SQL logging with db_log.
             #
             # FIXME: Conditionalize on an is_production variable.
-            if echo:
+            show_sql = bool(self.args.get('db_log') or self.form.get('db_log'))
+            if show_sql:
                 g.db_log = StringIO.StringIO()
                 logger = logging.getLogger("sqlalchemy")
                 logger.addHandler(logging.StreamHandler(g.db_log))

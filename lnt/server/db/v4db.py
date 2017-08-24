@@ -108,7 +108,7 @@ class V4DB(object):
                 logger.error("Could not load schema '%s'" % schema_file,
                              exc_info=True)
 
-    def __init__(self, path, config, baseline_revision=0, echo=False):
+    def __init__(self, path, config, baseline_revision=0):
         # If the path includes no database type, assume sqlite.
         if lnt.server.db.util.path_has_no_database_type(path):
             path = 'sqlite:///' + path
@@ -116,7 +116,6 @@ class V4DB(object):
         self.path = path
         self.config = config
         self.baseline_revision = baseline_revision
-        self.echo = echo
         with V4DB._engine_lock:
             if path not in V4DB._engine:
                 connect_args = {}
@@ -125,7 +124,7 @@ class V4DB(object):
                     # open for a long time. Make it less likely to hit
                     # "(OperationalError) database is locked" because of that.
                     connect_args['timeout'] = 30
-                engine = sqlalchemy.create_engine(path, echo=echo,
+                engine = sqlalchemy.create_engine(path,
                                                   connect_args=connect_args)
                 V4DB._engine[path] = engine
         self.engine = V4DB._engine[path]
@@ -177,10 +176,11 @@ class V4DB(object):
 
     def settings(self):
         """All the setting needed to recreate this instnace elsewhere."""
-        return {'path': self.path,
-                'config': self.config,
-                'baseline_revision': self.baseline_revision,
-                'echo': self.echo}
+        return {
+            'path': self.path,
+            'config': self.config,
+            'baseline_revision': self.baseline_revision,
+        }
 
     @property
     def testsuite(self):

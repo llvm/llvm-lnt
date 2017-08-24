@@ -175,9 +175,9 @@ class Config:
             db.config = self
         self.api_auth_token = api_auth_token
 
-    def get_database(self, name, echo=False):
+    def get_database(self, name):
         """
-        get_database(name, echo=False) -> db or None
+        get_database(name) -> db or None
 
         Return the appropriate instance of the database with the given name, or
         None if there is no database with that name."""
@@ -190,8 +190,7 @@ class Config:
         # Instantiate the appropriate database version.
         if db_entry.db_version == '0.4':
             return lnt.server.db.v4db.V4DB(db_entry.path, self,
-                                           db_entry.baseline_revision,
-                                           echo)
+                                           db_entry.baseline_revision)
 
         raise NotImplementedError("unable to load version %r database" % (
             db_entry.db_version))

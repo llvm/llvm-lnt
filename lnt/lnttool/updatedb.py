@@ -21,16 +21,20 @@ import click
 def action_updatedb(instance_path, database, testsuite, tmp_dir, commit,
                     show_sql, delete_machines, delete_runs, delete_order):
     """modify a database"""
+    from .common import init_logger
     from lnt.util import logger
     import contextlib
     import lnt.server.instance
+    import logging
+
+    init_logger(logging.INFO if show_sql else logging.WARNING,
+                show_sql=show_sql)
 
     # Load the instance.
     instance = lnt.server.instance.Instance.frompath(instance_path)
 
     # Get the database and test suite.
-    with contextlib.closing(instance.get_database(database,
-                                                  echo=show_sql)) as db:
+    with contextlib.closing(instance.get_database(database)) as db:
         ts = db.testsuite[testsuite]
         order = None
         # Compute a list of all the runs to delete.

@@ -33,15 +33,15 @@ def action_import(instance_path, files, database, output_format, show_sql,
     import logging
     from .common import init_logger
 
-    init_logger(logging.WARNING)
+    init_logger(logging.INFO if show_sql else logging.WARNING,
+                show_sql=show_sql)
 
     # Load the LNT instance.
     instance = lnt.server.instance.Instance.frompath(instance_path)
     config = instance.config
 
     # Get the database.
-    with contextlib.closing(config.get_database(database,
-                                                echo=show_sql)) as db:
+    with contextlib.closing(config.get_database(database)) as db:
         # Load the database.
         success = True
         for file_name in files:
