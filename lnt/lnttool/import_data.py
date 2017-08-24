@@ -30,6 +30,10 @@ def action_import(instance_path, files, database, output_format, show_sql,
     import lnt.util.ImportData
     import pprint
     import sys
+    import logging
+    from .common import init_logger
+
+    init_logger(logging.WARNING)
 
     # Load the LNT instance.
     instance = lnt.server.instance.Instance.frompath(instance_path)
