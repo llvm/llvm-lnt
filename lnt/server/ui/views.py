@@ -1226,9 +1226,9 @@ def v4_global_status():
         # Choose the "best" run to report on. We want the most recent one with
         # the most recent order.
         run = max(runs, key=lambda r: (r.order, r.start_time))
-
-        machine_run_info.append((baseline, run))
-        reported_run_ids.append(baseline.id)
+        if baseline:
+            machine_run_info.append((baseline, run))
+            reported_run_ids.append(baseline.id)
         reported_run_ids.append(run.id)
 
     # Get the set all tests reported in the recent runs.
