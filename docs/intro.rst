@@ -108,6 +108,6 @@ To install the extra packages for the server config::
     lnt create path/to/data_dir --db-dir postgresql://user@host  # data_dir path will be where lnt data will go.
     cd deployment
     # Now edit app_wrapper.py to have your path/to/data_dir path and the log-file below.
-    gunicorn app_wrapper:app --bind 0.0.0.0:8000 --workers 8 --timeout 300 --name lnt_server --log-file /var/log/lnt/lnt.log --access-logfile /var/log/lnt/gunicorn_access.log --access-logfile /var/log/lnt/gunicorn_access.log --max-requests 250000
+    gunicorn app_wrapper:app --bind 0.0.0.0:8000 --workers 8 --timeout 300 --name lnt_server --log-file /var/log/lnt/lnt.log --access-logfile /var/log/lnt/gunicorn_access.log --max-requests 250000
 
 
