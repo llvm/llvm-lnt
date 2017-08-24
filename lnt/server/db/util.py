@@ -1,8 +1,9 @@
 import sqlalchemy
 import sqlalchemy.ext.compiler
-import re
+from sqlalchemy.engine.interfaces import Connectable
 from sqlalchemy.schema import DDLElement
 from sqlalchemy.ext.compiler import compiles
+from typing import Text
 
 
 def path_has_no_database_type(path):
@@ -16,15 +17,14 @@ class _AddColumn(DDLElement):
 
 
 @compiles(_AddColumn)
-def _visit_add_column(element, compiler, **kw):
+def _visit_add_column(element, compiler, **_):
     return ("ALTER TABLE %s ADD COLUMN %s" %
             (compiler.preparer.quote(element.table_name),
              compiler.get_column_specification(element.column)))
 
 
 def add_column(connectable, table_name, column):
-    # type: (sqlalchemy.Connectable, sqlalchemy.Table, sqlalchemy.Column)
-    # -> None
+    # type: (Connectable, Text, sqlalchemy.Column) -> None
     """Add this column to the table named `table_name`.
 
     This is a stopgap to a real migration system.  Inspect the Column pass
