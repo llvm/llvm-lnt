@@ -38,16 +38,7 @@ def launch_workers():
     try:
         if not WORKERS:
             logger.info("Starting workers")
-            manager = Manager()
             WORKERS = True
-            try:
-                current_app.config['mem_logger'].buffer = \
-                    manager.list(current_app.config['mem_logger'].buffer)
-            except RuntimeError:
-                #  It might be the case that we are not running in the app.
-                #  In this case, don't bother memory logging, stdout should
-                #  sufficient for console mode.
-                pass
     finally:
         WORKERS_LOCK.release()
 

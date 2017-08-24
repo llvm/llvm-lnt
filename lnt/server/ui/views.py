@@ -1432,7 +1432,10 @@ def rules():
 @frontend.route('/log')
 def log():
     async_ops.check_workers(True)
-    return render_template("log.html")
+    with open(current_app.config['log_file_name'], 'r') as f:
+        log_lines = f.readlines()
+    r'2017-07-21 15:02:15,143 ERROR:'
+    return render_template("log.html", log_lines=log_lines)
 
 
 @frontend.route('/debug')

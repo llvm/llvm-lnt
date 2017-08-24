@@ -8,42 +8,11 @@
 
 {% block body %}
 
-<table id="logs" class="table">
-  <thead>
-    <tr>
-      <th style="width:130px">Kind</th>
-      <th style="width:130px">Location</th>
-      <th>Message</th>
-    </tr>
-  </thead>
-  <tbody>
-{% for item in config.mem_logger.buffer[::-1] %}
-    {% if item.levelname|string() == 'WARNING' %}
-    <tr class="warning">
-    {% elif item.levelname|string() == 'ERROR' %}
-    <tr class="error">
-    {% else %}
-    <tr class="info">
-    {% endif %}
-      <td>{{ item.levelname}}</td>
-      <td>{{item.filename}}:{{item.lineno}}</td>
-      <td><pre>{{ item.msg }}</pre></td>
-    </tr>
-{% endfor %}
-    </tbody>
-    </table>
-
-
-<script type="text/javascript">
-$(document).ready( function () {
-    var settings = {"dom": '<"top"if>rt<"bottom"Flp>',
-                    "aLengthMenu": [[50, -1],
-                                    [50, "All"]]};
-    dt = $('#logs').DataTable(settings);
-
-});
-
-</script>
+<pre>
+    {% for item in log_lines -%}
+            {{ item -}}
+    {% endfor %}
+</pre>
 
 
 {% endblock %}

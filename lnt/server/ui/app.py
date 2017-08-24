@@ -32,6 +32,10 @@ from lnt.server.ui.api import load_api_resources
 from lnt.util import logger
 
 
+# The default name of the log file.
+LOG_FILENAME = "lnt.log"
+
+
 class RootSlashPatchMiddleware(object):
     def __init__(self, app):
         self.app = app
@@ -200,10 +204,23 @@ class App(LNTExceptionLoggerFlask):
         return app
 
     @staticmethod
-    def create_standalone(config_path):
+    def create_standalone(config_path, log_file=None):
+        """ Create an instance of a lnt Flask application from a config file.
+
+        :param config_path: path to lnt config (directory or config file).
+
+        :param log_file: instead of setting up logging, use this log file.
+        when running in a multiprocess server like gunicorn, you need to use gunicorn's
+        logging instead (since it is multiprocess safe. In this case LNT will print to
+        to stderr and it can be collected by gunicorn. The LNT logs page will show this
+        unified log page.
+
+        :return: a LNT Flask App, ready to be loaded into a wsgi server.
+
+        """
         instance = lnt.server.instance.Instance.frompath(config_path)
         app = App.create_with_instance(instance)
-        app.start_file_logging()
+        app.start_file_logging(log_file)
         return app
 
     def __init__(self, name):
@@ -233,26 +250,20 @@ class App(LNTExceptionLoggerFlask):
 
         lnt.server.db.rules_manager.register_hooks()
 
-    def start_file_logging(self):
+    def start_file_logging(self, log_file_name):
         """Start server production logging.  At this point flask already logs
         to stderr, so just log to a file as well.
 
         """
-        # Print to screen.
+        # Always Print to screen.
         ch = logging.StreamHandler()
-        ch.setLevel(logging.INFO)
+        ch.setLevel(logging.DEBUG)
         self.logger.addHandler(ch)
 
-        # Log to mem for the /log view.
-        h = logging.handlers.MemoryHandler(1024 * 1024,
-                                           flushLevel=logging.CRITICAL)
-        h.setLevel(logging.DEBUG)
-        self.logger.addHandler(h)
-        # Also store the logger, so we can render the buffer in it.
-        self.config['mem_logger'] = h
-
-        if not self.debug:
-            LOG_FILENAME = "lnt.log"
+        # When running in a server config, use the server to setup the log file. If there is more than
+        # one process running, this will not work well.
+        if not self.config.get('log_file_name'):
+            self.config['log_file_name'] = LOG_FILENAME
             try:
                 rotating = logging.handlers.RotatingFileHandler(
                     LOG_FILENAME, maxBytes=1048576, backupCount=5)
