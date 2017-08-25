@@ -11,10 +11,6 @@ def toColorString(col):
     return "#%02x%02x%02x" % (r, g, b)
 
 
-def pairs(list):
-    return zip(list[:-1], list[1:])
-
-
 def safediv(a, b, default=None):
     try:
         return a / b
@@ -53,75 +49,6 @@ def makeBetterColor(h):
     return colorsys.hsv_to_rgb(h, s, v)
 
 
-# The hash color palette avoids green and red as these colours are already used
-# in quite a few places to indicate "good" or "bad".
-hash_color_palette = (
-    colorsys.hsv_to_rgb(h=45. / 360, s=0.3, v=0.9999),  # warm yellow
-    colorsys.hsv_to_rgb(h=210. / 360, s=0.3, v=0.9999),  # blue cyan
-    colorsys.hsv_to_rgb(h=300. / 360, s=0.3, v=0.9999),  # mid magenta
-    colorsys.hsv_to_rgb(h=150. / 360, s=0.3, v=0.9999),  # green cyan
-    colorsys.hsv_to_rgb(h=225. / 360, s=0.3, v=0.9999),  # cool blue
-    colorsys.hsv_to_rgb(h=180. / 360, s=0.3, v=0.9999),  # mid cyan
-)
-
-
-def get_rgb_colors_for_hashes(hash_strings):
-    hash2color = {}
-    unique_hash_counter = 0
-    for hash_string in hash_strings:
-        if hash_string is not None:
-            if hash_string in hash2color:
-                continue
-            hash2color[hash_string] = hash_color_palette[unique_hash_counter]
-            unique_hash_counter += 1
-            if unique_hash_counter >= len(hash_color_palette):
-                break
-    result = []
-    for hash_string in hash_strings:
-        if hash_string is None:
-            result.append(None)
-        else:
-            # If not one of the first N hashes, return rgb value 0,0,0 which is
-            # white.
-            rgb = hash2color.get(hash_string, (0.999, 0.999, 0.999))
-            result.append(toColorString(rgb))
-    return result
-
-
-class multidict:
-    def __init__(self, elts=()):
-        self.data = {}
-        for key, value in elts:
-            self[key] = value
-
-    def __contains__(self, item):
-        return item in self.data
-
-    def __getitem__(self, item):
-        return self.data[item]
-
-    def __setitem__(self, key, value):
-        if key in self.data:
-            self.data[key].append(value)
-        else:
-            self.data[key] = [value]
-
-    def items(self):
-        return self.data.items()
-
-    def values(self):
-        return self.data.values()
-
-    def keys(self):
-        return self.data.keys()
-
-    def __len__(self):
-        return len(self.data)
-
-    def get(self, key, default=None):
-        return self.data.get(key, default)
-
-
 def any_true(list, predicate):
     for i in list:
         if predicate(i):
@@ -139,11 +66,6 @@ def all_true(list, predicate):
 
 def all_false(list, predicate):
     return not any_true(list, predicate)
-
-
-def geometric_mean(l):
-    iPow = 1. / len(l)
-    return reduce(lambda a, b: a * b, [v ** iPow for v in l])
 
 
 def mean(l):

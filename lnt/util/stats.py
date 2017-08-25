@@ -28,6 +28,11 @@ def mean(l):
         return None
 
 
+def geometric_mean(l):
+    iPow = 1. / len(l)
+    return reduce(lambda a, b: a * b, [v ** iPow for v in l])
+
+
 def agg_mean(pairs):
     """Aggregation function in views.py receives input via enumerate and
        produces a tuple.

@@ -1,19 +1,64 @@
+from collections import namedtuple
+from lnt.server.reporting.analysis import REGRESSED, UNCHANGED_FAIL
+from lnt.util import multidict
+import colorsys
 import datetime
-import re
-import urllib
-
-import sqlalchemy.sql
-
 import lnt.server.reporting.analysis
 import lnt.server.ui.app
-
-from lnt.server.reporting.analysis import REGRESSED, UNCHANGED_FAIL
-
-from lnt.server.ui import util
-
-from collections import namedtuple
+import re
+import sqlalchemy.sql
+import urllib
 
 OrderAndHistory = namedtuple('OrderAndHistory', ['max_order', 'recent_orders'])
+
+
+def _pairs(list):
+    return zip(list[:-1], list[1:])
+
+
+# The hash color palette avoids green and red as these colours are already used
+# in quite a few places to indicate "good" or "bad".
+_hash_color_palette = (
+    colorsys.hsv_to_rgb(h=45. / 360, s=0.3, v=0.9999),  # warm yellow
+    colorsys.hsv_to_rgb(h=210. / 360, s=0.3, v=0.9999),  # blue cyan
+    colorsys.hsv_to_rgb(h=300. / 360, s=0.3, v=0.9999),  # mid magenta
+    colorsys.hsv_to_rgb(h=150. / 360, s=0.3, v=0.9999),  # green cyan
+    colorsys.hsv_to_rgb(h=225. / 360, s=0.3, v=0.9999),  # cool blue
+    colorsys.hsv_to_rgb(h=180. / 360, s=0.3, v=0.9999),  # mid cyan
+)
+
+
+def _clamp(v, minVal, maxVal):
+    return min(max(v, minVal), maxVal)
+
+
+def _toColorString(col):
+    r, g, b = [_clamp(int(v * 255), 0, 255)
+               for v in col]
+    return "#%02x%02x%02x" % (r, g, b)
+
+
+def _get_rgb_colors_for_hashes(hash_strings):
+    hash2color = {}
+    unique_hash_counter = 0
+    for hash_string in hash_strings:
+        if hash_string is not None:
+            if hash_string in hash2color:
+                continue
+            hash2color[hash_string] = _hash_color_palette[unique_hash_counter]
+            unique_hash_counter += 1
+            if unique_hash_counter >= len(_hash_color_palette):
+                break
+    result = []
+    for hash_string in hash_strings:
+        if hash_string is None:
+            result.append(None)
+        else:
+            # If not one of the first N hashes, return rgb value 0,0,0 which is
+            # white.
+            rgb = hash2color.get(hash_string, (0.999, 0.999, 0.999))
+            result.append(_toColorString(rgb))
+    return result
 
 
 # Helper classes to make the sparkline chart construction easier in the jinja
@@ -70,7 +115,7 @@ class DayResults:
                 hashes.append(None)
             else:
                 hashes.append(dr.hash)
-        rgb_colors = util.get_rgb_colors_for_hashes(hashes)
+        rgb_colors = _get_rgb_colors_for_hashes(hashes)
         for i, dr in enumerate(self.day_results):
             if dr is not None:
                 dr.hash_rgb_color = rgb_colors[i]
@@ -167,7 +212,7 @@ class DailyReport(object):
         prior_runs = [ts.query(ts.Run).
                       filter(ts.Run.start_time > prior_day).
                       filter(ts.Run.start_time <= day).all()
-                      for day, prior_day in util.pairs(self.prior_days)]
+                      for day, prior_day in _pairs(self.prior_days)]
 
         if self.filter_machine_re is not None:
             prior_runs = [[run for run in runs
@@ -189,7 +234,7 @@ class DailyReport(object):
         historic_runs = [None] * len(prior_runs)
         for i, runs in enumerate(prior_runs):
             # Aggregate the runs by machine.
-            machine_to_all_orders = util.multidict()
+            machine_to_all_orders = multidict.multidict()
             for r in runs:
                 machine_to_all_orders[r.machine] = r.order
 
@@ -243,13 +288,13 @@ class DailyReport(object):
         # overview across machines.
 
         # Aggregate runs by machine ID and day index.
-        self.machine_runs = machine_runs = util.multidict()
+        self.machine_runs = machine_runs = multidict.multidict()
         for day_index, day_runs in enumerate(prior_runs):
             for run in day_runs:
                 machine_runs[(run.machine_id, day_index)] = run
 
         # Also aggregate past runs by day.
-        self.machine_past_runs = util.multidict()
+        self.machine_past_runs = multidict.multidict()
         for day_index, day_runs in enumerate(historic_runs):
             for run in day_runs:
                 self.machine_past_runs[(run.machine_id, day_index)] = run

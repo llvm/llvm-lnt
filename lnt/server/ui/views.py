@@ -41,6 +41,7 @@ from lnt.server.ui.util import FLASH_DANGER, FLASH_SUCCESS, FLASH_INFO
 from lnt.server.ui.util import mean
 from lnt.util import async_ops
 from lnt.util import logger
+from lnt.util import multidict
 from lnt.server.ui.util import baseline_key, convert_revision
 
 
@@ -269,7 +270,7 @@ def v4_machine(id):
     # Gather all the runs on this machine.
     ts = request.get_testsuite()
 
-    associated_runs = util.multidict(
+    associated_runs = multidict.multidict(
         (run_order, r)
         for r, run_order in (ts.query(ts.Run, ts.Order)
                              .join(ts.Order)
@@ -845,8 +846,8 @@ def v4_graph():
                              (field.status_field.column.is_(None)))
 
         # Aggregate by revision.
-        data = util.multidict((rev, (val, date, run_id))
-                              for val, rev, date, run_id in q).items()
+        data = multidict.multidict((rev, (val, date, run_id))
+                                   for val, rev, date, run_id in q).items()
         data.sort(key=lambda sample: convert_revision(sample[0]))
 
         graph_datum.append((test.name, data, col, field, url))
@@ -905,8 +906,8 @@ def v4_graph():
               .group_by(ts.Order.llvm_project_revision, ts.Test)
 
         # Calculate geomean of each revision.
-        data = util.multidict(((rev, date), val) for val, rev, date in q) \
-            .items()
+        data = multidict.multidict(((rev, date), val) for val, rev, date in q) \
+               .items()
         data = [(rev,
                  [(lnt.server.reporting.analysis.calc_geomean(vals), date)])
                 for ((rev, date), vals) in data]
@@ -1186,7 +1187,7 @@ def v4_global_status():
     recent_runs = ts.query(ts.Run).filter(ts.Run.start_time > yesterday).all()
 
     # Aggregate the runs by machine.
-    recent_runs_by_machine = util.multidict()
+    recent_runs_by_machine = multidict.multidict()
     for run in recent_runs:
         recent_runs_by_machine[run.machine] = run
 

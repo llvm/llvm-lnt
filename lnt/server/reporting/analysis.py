@@ -1,10 +1,11 @@
 """
 Utilities for helping with the analysis of data, for reporting purposes.
 """
-from lnt.util import logger
-from lnt.util import stats
-from lnt.server.ui import util
 from lnt.testing import FAIL
+from lnt.util import logger
+from lnt.util import multidict
+from lnt.util import stats
+from lnt.util import stats
 
 REGRESSED = 'REGRESSED'
 IMPROVED = 'IMPROVED'
@@ -46,7 +47,7 @@ def calc_geomean(run_values):
     if not values:
         return None
 
-    return util.geometric_mean(values) - MIN_VALUE_PRECISION
+    return stats.geometric_mean(values) - MIN_VALUE_PRECISION
 
 
 class ComparisonResult:
@@ -252,7 +253,7 @@ class RunInfo(object):
         self.aggregation_fn = aggregation_fn
         self.confidence_lv = confidence_lv
 
-        self.sample_map = util.multidict()
+        self.sample_map = multidict.multidict()
         self.profile_map = dict()
         self.loaded_run_ids = set()
 
