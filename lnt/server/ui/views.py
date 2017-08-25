@@ -36,8 +36,8 @@ import lnt.util.stats
 from lnt.server.reporting.analysis import ComparisonResult, calc_geomean
 from lnt.server.ui.decorators import frontend, db_route, v4_route
 from lnt.server.ui.globals import db_url_for, v4_url_for
-from lnt.server.ui.regression_views import PrecomputedCR
 from lnt.server.ui.util import FLASH_DANGER, FLASH_SUCCESS, FLASH_INFO
+from lnt.server.ui.util import PrecomputedCR
 from lnt.server.ui.util import mean
 from lnt.util import async_ops
 from lnt.util import logger

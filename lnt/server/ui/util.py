@@ -1,6 +1,7 @@
 import colorsys
 import math
 import re
+from lnt.server.reporting.analysis import REGRESSED
 
 from flask import g
 
@@ -279,3 +280,27 @@ def convert_revision(dotted):
     """
     dotted = integral_rex.findall(dotted)
     return tuple([int(d) for d in dotted])
+
+
+class PrecomputedCR():
+    """Make a thing that looks like a comprison result, that is derived
+    from a field change."""
+    previous = 0
+    current = 0
+    pct_delta = 0.00
+    bigger_is_better = False
+
+    def __init__(self, old, new, bigger_is_better):
+        self.previous = old
+        self.current = new
+        self.delta = new - old
+        self.pct_delta = self.delta / old
+
+    def get_test_status(self):
+        return True
+
+    def get_value_status(self, ignore_small=True):
+        return REGRESSED
+
+    def __json__(self):
+        return self.__dict__
