@@ -18,6 +18,7 @@ import os
 import json
 from lnt.server.ui.decorators import v4_route, frontend
 from lnt.server.ui.globals import v4_url_for
+from lnt.server.ui.views import ts_data
 
 
 @frontend.route('/profile/admin')
@@ -201,6 +202,5 @@ def v4_profile(testid, run1_id, run2_id=None):
             v4_url_for('.v4_profile_ajax_getCodeForFunction'),
     }
     return render_template("v4_profile.html",
-                           ts=ts, test=test,
-                           run1=json_run1, run2=json_run2,
-                           urls=urls)
+                           test=test, run1=json_run1, run2=json_run2,
+                           urls=urls, **ts_data(ts))

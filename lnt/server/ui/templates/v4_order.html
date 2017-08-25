@@ -49,7 +49,7 @@
                 <td>{{order.get_field(field)}}</td>
         {% endfor %}
       </tr>
-     {% if order.previous_order_id %}
+      {% if previous_order %}
       <tr>
         <td>Previous Order</td>
           <td>
@@ -57,8 +57,7 @@
                   {{order.previous_order_id}}
               </a>
           </td>
-          {% set previous_order = ts.query(ts.Order).filter(ts.Order.id == order.previous_order_id).one() %}
-            {% for field in previous_order.fields %}
+          {% for field in previous_order.fields %}
                 <td>
                     {{previous_order.get_field(field)}}
                 </td>
@@ -66,16 +65,15 @@
       </tr>
       {% endif %}
 
-      {% if order.next_order_id %}
+      {% if next_order %}
       <tr>
         <td>Next Order</td>
           <td><a href="{{ v4_url_for(".v4_order", id=order.next_order_id) }}">{{order.next_order_id}}</a></td>
-          {% set next_order = ts.query(ts.Order).filter(ts.Order.id == order.next_order_id).one() %}
           {% for field in next_order.fields %}
                 <td>{{next_order.get_field(field)}}</td>
           {% endfor %}
       </tr>
-     {%  endif %}
+      {%  endif %}
     </tbody>
   </table>
   </section>
@@ -117,7 +115,7 @@
   <section id="submissions">
   {# List all submissions which reported for this order. #}
   <h3>Submissions</h3>
-  <b>Num. Submissions:</b> {{ts.query(ts.Run).filter_by(order_id = order.id).count()}}
+  <b>Num. Submissions:</b> {{num_runs}}
   <table class="table table-striped table-hover table-condensed">
     <thead>
       <tr>
@@ -129,12 +127,12 @@
     </thead>
     <tbody>
       {# Show the active submissions. #}
-      {% for r in ts.query(ts.Run).filter_by(order_id = order.id) %}
+      {% for run in runs %}
       <tr>
-        <td><span class="utctime">{{ r.start_time.isoformat() }}</span></td>
-        <td>{{r.end_time - r.start_time}}</td>
-        <td>{{ utils.render_machine(r.machine) }}</td>
-        <td>{{ utils.render_result(r) }}</td>
+        <td><span class="utctime">{{ run.start_time.isoformat() }}</span></td>
+        <td>{{run.end_time - run.start_time}}</td>
+        <td>{{ utils.render_machine(run.machine) }}</td>
+        <td>{{ utils.render_result(run) }}</td>
       </tr>
       {% endfor %}
     </tbody>

@@ -43,5 +43,4 @@ def register(env):
     env.globals.update(
         db_url_for=db_url_for,
         v4_url_for=v4_url_for,
-        v4_url_available=v4_url_available,
-        baseline_key=lnt.server.ui.util.baseline_key)
+        v4_url_available=v4_url_available)

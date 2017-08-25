@@ -189,14 +189,14 @@
                         </li>
                     </ul>
                         {% endif %}
-                {% if ts is defined %}
+                {% if baselines is defined %}
                 <ul class="nav">
                         <li class="dropdown">
                             <a href="#" class="dropdown-toggle" data-toggle="dropdown">Baselines<b class="caret"></b></a>
                             <ul class="dropdown-menu">
                                 <li class="nav-header">Select baseline:</li>
-                                {% for b in ts.query(ts.Baseline).all() %}
-                                {% set is_bold = b.id == session.get(baseline_key()) %}
+                                {% for b in baselines %}
+                                {% set is_bold = b.id == baseline_id %}
                               <li><a href="{{ v4_url_for('.v4_set_baseline', id=b.id) }}">
                                   {% if is_bold %}
                                       <b>{{ b.name }}</b>

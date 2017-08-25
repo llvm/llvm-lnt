@@ -17,6 +17,7 @@ from wtforms.validators import DataRequired
 from lnt.server.ui.decorators import v4_route
 import lnt.server.reporting.analysis
 from lnt.server.ui.globals import v4_url_for
+from lnt.server.ui.views import ts_data
 
 from lnt.util import logger
 from lnt.server.ui.util import FLASH_DANGER, FLASH_SUCCESS, PrecomputedCR
@@ -96,7 +97,7 @@ def v4_new_regressions():
     return render_template("v4_new_regressions.html",
                            testsuite_name=g.testsuite_name,
                            changes=crs, analysis=lnt.server.reporting.analysis,
-                           form=form)
+                           form=form, **ts_data(ts))
 
 
 def calc_impact(ts, fcs):
@@ -228,7 +229,8 @@ def v4_regression_list():
                            sizes=regression_sizes,
                            impacts=impacts,
                            ages=ages,
-                           analysis=lnt.server.reporting.analysis)
+                           analysis=lnt.server.reporting.analysis,
+                           **ts_data(ts))
 
 
 def _get_regressions_from_selected_form(form, ts):
@@ -376,7 +378,8 @@ def v4_regression_detail(id):
                            testsuite_name=g.testsuite_name,
                            regression=regression_info, changes=crs,
                            form=form, analysis=lnt.server.reporting.analysis,
-                           check_all=checkbox_state)
+                           check_all=checkbox_state,
+                           **ts_data(ts))
 
 
 @v4_route("/hook", methods=["GET"])

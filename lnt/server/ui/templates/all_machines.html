@@ -18,9 +18,9 @@
     </thead>
     <tbody class="searchable">
       {# Show the active submissions. #}
-      {% for r in ts.query(ts.Machine) %}
+      {% for m in machines %}
       <tr>
-        <td>{{ utils.render_machine(r) }}</td>
+        <td>{{ utils.render_machine(m) }}</td>
       </tr>
       {% endfor %}
     </tbody>
