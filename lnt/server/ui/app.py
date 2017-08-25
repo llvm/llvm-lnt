@@ -208,10 +208,10 @@ class App(LNTExceptionLoggerFlask):
         :param config_path: path to lnt config (directory or config file).
 
         :param log_file: instead of setting up logging, use this log file.
-        when running in a multiprocess server like gunicorn, you need to use gunicorn's
-        logging instead (since it is multiprocess safe. In this case LNT will print to
-        to stderr and it can be collected by gunicorn. The LNT logs page will show this
-        unified log page.
+        when running in a multiprocess server like gunicorn, you need to use
+        gunicorn's logging instead (since it is multiprocess safe. In this case
+        LNT will print to to stderr and it can be collected by gunicorn. The
+        LNT logs page will show this unified log page.
 
         :return: a LNT Flask App, ready to be loaded into a wsgi server.
 
@@ -258,8 +258,9 @@ class App(LNTExceptionLoggerFlask):
         ch.setLevel(logging.DEBUG)
         self.logger.addHandler(ch)
 
-        # When running in a server config, use the server to setup the log file. If there is more than
-        # one process running, this will not work well.
+        # When running in a server config, use the server to setup the log
+        # file. If there is more than one process running, this will not work
+        # well.
         if not self.config.get('log_file_name'):
             self.config['log_file_name'] = LOG_FILENAME
             try:
