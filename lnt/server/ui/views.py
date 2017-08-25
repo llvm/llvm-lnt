@@ -188,7 +188,8 @@ def submit_run():
 @v4_route('/submitRun', methods=('GET', 'POST'))
 def v4_submitRun():
     if request.method == 'GET':
-        return render_template("submit_run.html")
+        ts = request.get_testsuite()
+        return render_template("submit_run.html", **ts_data(ts))
     return _do_submit()
 
 ###
@@ -197,8 +198,9 @@ def v4_submitRun():
 
 @v4_route("/")
 def v4_overview():
-    return render_template("v4_overview.html",
-                           testsuite_name=g.testsuite_name)
+    ts = request.get_testsuite()
+    return render_template("v4_overview.html", testsuite_name=g.testsuite_name,
+                           **ts_data(ts))
 
 
 @v4_route("/recent_activity")
@@ -317,7 +319,8 @@ def v4_machine(id):
                                testsuite_name=g.testsuite_name,
                                id=id,
                                associated_runs=associated_runs,
-                               machines=machines)
+                               machines=machines,
+                               **ts_data(ts))
     except NoResultFound:
         abort(404)
 
@@ -1770,7 +1773,8 @@ def v4_matrix():
                            baseline_name=baseline_name,
                            machine_name_common=machine_name_common,
                            machine_id_common=machine_id_common,
-                           order_to_date=order_to_date)
+                           order_to_date=order_to_date,
+                           **ts_data(ts))
 
 
 @frontend.route("/explode")
