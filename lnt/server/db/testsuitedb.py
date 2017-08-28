@@ -338,7 +338,7 @@ class TestSuiteDB(object):
             # The parameters blob is used to store any additional information
             # reported by the run but not promoted into the machine record.
             # Such data is stored as a JSON encoded blob.
-            parameters_data = Column("Parameters", Binary)
+            parameters_data = Column("Parameters", Binary, index=False, unique=False)
 
             machine = relation(Machine)
             order = relation(Order)
