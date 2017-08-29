@@ -44,20 +44,33 @@ tests pass, is often a good enough testing approach. For some changes, the
 existing regression tests aren't good enough at the moment, and manual testing
 will be needed.
 
-For any changes that touch on the LNT database design, you'll need to run tests
-on at least sqlite and postgres database engines.  By default the regression
-tests uses sqlite. To enable additional regression tests against a postgress
-database, use a command like the following::
+Optional Tests
+~~~~~~~~~~~~~~
 
-     PATH=$LLVMBUILD/bin:$LNTINSTALL/bin:$PATH llvm-lit -sv -Dpostgres=1 ../lnt/tests
+Some tests require additional tools to be installed and are not enabled by
+default. You can enable them by passing additional flags to lit:
 
-You'll need to use at least postgres version 9.2 to run the regression tests.
+  ``-Dpostgres=1``
+    Enable postgres database support testing. This requires at least
+    postgres version 9.2 and the `initdb` and `postgres` binaries in your path.
+    Note that you do not need to setup an actual server, the tests will create
+    temporary instances on demand.
 
-LNT MySQL Support
-=================
+  ``-Dmysql=1``
+    Enable mysql database support testing. This requires MySQL-python to be
+    installed and expects the `mysqld` and `mysqladmin` binaries in your path.
+    Note that you do not need to setup an actual server, the tests will create
+    temporary instances on demand.
 
-The lnt.llvm.org server runs on MySQL. Testing has been more limited than sqlite and Postgres.  To run the regression
-tests there needs to be MySQL installed in the local path. The LNT tests will create their own instance of a MySQL
-server and database to test in::
+  ``-Dtidylib=1``
+    Check generated html pages for errors using tidy-html5. This requires
+    pytidylib and tidy-html5 to be installed.
 
-    llvm-lit -sv -Dmysql=1 ../lnt/tests
+  ``-Dcheck-coverage=1``
+    Enable ``coverage.py`` reporting, assuming the coverage module has been
+    installed and ``sitecustomize.py`` in the virtualenv has been modified
+    appropriately.
+
+Example:
+
+    PATH=$LLVMBUILD/bin:$LNTINSTALL/bin:$PATH llvm-lit -sv -Dpostgres=1 -Dmysql=1 -Dtidylib=1 ../lnt/tests
