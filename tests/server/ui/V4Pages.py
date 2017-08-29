@@ -242,9 +242,6 @@ def main():
     # Fetch the index page.
     check_code(client, '/')
 
-    # Rules the index page.
-    check_code(client, '/rules')
-
     # Get the V4 overview page.
     check_code(client, '/v4/nts/')
 
@@ -469,6 +466,10 @@ def main():
                    '/db_default/v4/nts/submitRun')
     check_code(client, '/db_default/v4/nts/submitRun')
 
+    check_code(client, '/v4/nts/global_status')
+
+    check_code(client, '/v4/nts/recent_activity')
+
     # Now check the compile report
     # Get the V4 overview page.
     check_code(client, '/v4/compile/')
@@ -536,6 +537,13 @@ def main():
 
     error_page = check_code(client, '/gone', expected_code=404)
     assert "test" in error_page.data
+
+    check_code(client, '/db_default/summary_report')
+
+    check_code(client, '/rules')
+    check_code(client, '/log')
+    check_code(client, '/__health')
+    check_code(client, '/ping')
 
 if __name__ == '__main__':
     main()
