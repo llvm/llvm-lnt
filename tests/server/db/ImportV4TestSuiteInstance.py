@@ -6,7 +6,7 @@
 
 # Import the first test set.
 # RUN: lnt import %t.install %{shared_inputs}/sample-a-small.plist \
-# RUN:     --commit --show-sample-count > %t1.log
+# RUN:     --show-sample-count > %t1.log
 # RUN: FileCheck -check-prefix=IMPORT-A-1 %s < %t1.log
 #
 # IMPORT-A-1: Added Machines: 1
@@ -18,7 +18,7 @@
 
 # Import the second test set.
 # RUN: lnt import %t.install %{shared_inputs}/sample-b-small.plist \
-# RUN:     --commit --show-sample-count --show-sql > %t2.log
+# RUN:     --show-sample-count --show-sql > %t2.log
 # RUN: FileCheck -check-prefix=IMPORT-B %s < %t2.log
 #
 # IMPORT-B: Added Runs : 1
@@ -26,7 +26,7 @@
 
 # Check appending to an existing order
 # RUN: lnt import %t.install %{shared_inputs}/sample-a-small.plist \
-# RUN:     --commit --show-sample-count --merge=append >& %t_append.log
+# RUN:     --show-sample-count --merge=append >& %t_append.log
 # RUN: FileCheck -check-prefix=IMPORT-A-APPEND %s < %t_append.log
 #
 # IMPORT-A-APPEND-NOT: Added Machines
@@ -38,7 +38,7 @@
 
 # Check that reimporting replaces the existing run.
 # RUN: lnt import %t.install %{shared_inputs}/sample-a-small.plist \
-# RUN:     --commit --show-sample-count --merge=replace >& %t_replace.log
+# RUN:     --show-sample-count --merge=replace >& %t_replace.log
 # RUN: FileCheck -check-prefix=IMPORT-A-REPLACE %s < %t_replace.log
 #
 # IMPORT-A-REPLACE-NOT: Added Machines
@@ -50,7 +50,7 @@
 
 # Check that reimporting the first test set properly reports as a duplicate.
 # RUN: not lnt import %t.install %{shared_inputs}/sample-a-small.plist \
-# RUN:     --commit --show-sample-count --merge=reject >& %t_reject.log
+# RUN:     --show-sample-count --merge=reject >& %t_reject.log
 # RUN: FileCheck -check-prefix=IMPORT-A-REJECT %s < %t_reject.log
 #
 # IMPORT-A-REJECT: Duplicate submission for '1'

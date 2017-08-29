@@ -3,13 +3,12 @@
 
 # Import a test set.
 # RUN: lnt import %t.install %{shared_inputs}/sample-a-small.plist \
-# RUN:     --commit --show-sample-count
+# RUN:     --show-sample-count
 
-# Check that we remove both the sample and the run, and that we don't commit by
-# default.
+# Check that we remove both the sample and the run.
 #
 # RUN: lnt updatedb %t.install --testsuite nts \
-# RUN:     --commit --delete-run 1 --show-sql >& %t.out
+# RUN:     --delete-run 1 --show-sql >& %t.out
 # RUN: FileCheck --check-prefix CHECK-RUNRM %s < %t.out
 
 # CHECK-RUNRM: DELETE FROM "NT_Sample" WHERE "NT_Sample"."ID" = ?
@@ -23,9 +22,9 @@
 # RUN: rm -rf %t.install
 # RUN: lnt create %t.install
 # RUN: lnt import %t.install %{shared_inputs}/sample-a-small.plist \
-# RUN:     --commit --show-sample-count
+# RUN:     --show-sample-count
 # RUN: lnt updatedb %t.install --testsuite nts \
-# RUN:     --delete-machine "LNT SAMPLE MACHINE" --commit --show-sql >& %t.out
+# RUN:     --delete-machine "LNT SAMPLE MACHINE" --show-sql >& %t.out
 # RUN: FileCheck --check-prefix CHECK-MACHINERM %s < %t.out
 
 # CHECK-MACHINERM: DELETE FROM "NT_Sample" WHERE "NT_Sample"."ID" = ?

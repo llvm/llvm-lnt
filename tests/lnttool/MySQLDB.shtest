@@ -9,5 +9,5 @@ SHARED_INPUTS="$2"
 lnt create "${TESTDIR}/instance" --db-dir mysql://root@localhost:9109 --default-db testdb --show-sql
 
 # Import a test set.
-lnt import "${TESTDIR}/instance" "${SHARED_INPUTS}/sample-a-small.plist" --commit --show-sample-count
-lnt import "${TESTDIR}/instance" "${SHARED_INPUTS}/sample-b-small.plist" --commit --show-sample-count
+lnt import "${TESTDIR}/instance" "${SHARED_INPUTS}/sample-a-small.plist" --show-sample-count
+lnt import "${TESTDIR}/instance" "${SHARED_INPUTS}/sample-b-small.plist" --show-sample-count

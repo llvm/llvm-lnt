@@ -6,7 +6,7 @@
 
 # Import the test set
 # RUN: lnt import %t.install %S/Inputs/profile-report.json \
-# RUN:   --commit --show-sample-count > %t2.log
+# RUN:   --show-sample-count > %t2.log
 # RUN: ls %t.install/data/profiles
 # RUN: python %s %t.install
 

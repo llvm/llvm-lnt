@@ -20,7 +20,7 @@ TESTS = ["about", "after", "again", "air", "all", "along", "also", "an", "and", 
 def external_submission(url, fname):
     """Use a LNT subprocess to submit our results."""
     assert os.path.exists(fname)
-    cmd = "lnt submit --verbose --commit {url} {file}".format(
+    cmd = "lnt submit --verbose {url} {file}".format(
         url=url, file=fname)
     print "Calling " + cmd
     subprocess.check_call(cmd, shell=True)

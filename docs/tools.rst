@@ -27,14 +27,10 @@ Client-Side Tools
   ``lnt importreport <input path> [<output path>]``
     Convert text based key value pairs into a LNT json report file.
 
-  ``lnt submit [--commit] <server url> <file>+``
+  ``lnt submit <server url> <file>+``
     Submits one or more files to the given server. The ``<server url>`` should
     be the url to the actual ``submitRun`` page on the server; the database
     being submitted to is effectively a part of this URL.
-
-    By default, this only submits the report to the server but does not actually
-    commit the data. When testing, you should verify that the server returns an
-    acceptable response before committing runs.
 
   ``lnt showtests``
     List available built-in tests. See the :ref:`tests` documentation for more
@@ -109,7 +105,7 @@ The following tools are used to interact with an LNT server:
     The default server will have a sqlite3 database named *default*. You can
     specify to use PostgreSQL using ``--db-dir postgresql://user@hostname``.
 
-  ``lnt import [--commit] <instance path> <file>+``
+  ``lnt import <instance path> <file>+``
     Import an LNT data file into a database. You can use ``--database`` to
     select the database to write to. Note that by default this will also
     generate report emails if enabled in the configuration, you can use

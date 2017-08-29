@@ -8,7 +8,6 @@ import click
 @click.option("--testsuite", required=True, help="testsuite to modify")
 @click.option("--tmp-dir", default="lnt_tmp", show_default=True,
               help="name of the temp file directory")
-@click.option("--commit", is_flag=True, help="commit changes to the database")
 @click.option("--show-sql", is_flag=True,
               help="show SQL statements")
 @click.option("--delete-machine", "delete_machines", default=[],
@@ -18,8 +17,8 @@ import click
               multiple=True, help="run ids to delete", type=int)
 @click.option("--delete-order", default=[], show_default=True,
               help="run ids to delete")
-def action_updatedb(instance_path, database, testsuite, tmp_dir, commit,
-                    show_sql, delete_machines, delete_runs, delete_order):
+def action_updatedb(instance_path, database, testsuite, tmp_dir, show_sql,
+                    delete_machines, delete_runs, delete_order):
     """modify a database"""
     from .common import init_logger
     from lnt.util import logger
@@ -52,7 +51,4 @@ def action_updatedb(instance_path, database, testsuite, tmp_dir, commit,
             for machine in machines:
                 ts.delete(machine)
 
-        if commit:
-            db.commit()
-        else:
-            db.rollback()
+        db.commit()

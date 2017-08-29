@@ -12,16 +12,16 @@ createdb --maintenance-db="${PGURL}/postgres" lnt_regr_test_PostgresDB
 lnt create "${TESTDIR}/instance" --db-dir ${PGURL} --default-db lnt_regr_test_PostgresDB
 
 # Import a test set.
-lnt import "${TESTDIR}/instance" "${SHARED_INPUTS}/sample-a-small.plist" --commit --show-sample-count
+lnt import "${TESTDIR}/instance" "${SHARED_INPUTS}/sample-a-small.plist" --show-sample-count
 
 # Import a test set.
-lnt import "${TESTDIR}/instance" "${SHARED_INPUTS}/sample-b-small.plist" --commit --show-sample-count
+lnt import "${TESTDIR}/instance" "${SHARED_INPUTS}/sample-b-small.plist" --show-sample-count
 
 # Check that we remove both the sample and the run, and that we don't commit by
 # default.
 #
 lnt updatedb "${TESTDIR}/instance" --testsuite nts --delete-run 1 \
-	--commit --show-sql >& "${TESTDIR}/runrm.out"
+	--show-sql >& "${TESTDIR}/runrm.out"
 # RUN: FileCheck --check-prefix CHECK-RUNRM %s < "%t.install/runrm.out"
 
 # CHECK-RUNRM: DELETE FROM "NT_Sample" WHERE "NT_Sample"."ID" = %(ID)s
@@ -31,12 +31,12 @@ lnt updatedb "${TESTDIR}/instance" --testsuite nts --delete-run 1 \
 # CHECK-RUNRM: COMMIT
 
 # Import a test set.
-lnt import "${TESTDIR}/instance" "${SHARED_INPUTS}/sample-a-small.plist" --commit --show-sample-count
+lnt import "${TESTDIR}/instance" "${SHARED_INPUTS}/sample-a-small.plist" --show-sample-count
 
 # Check that we remove runs when we remove a machine.
 #
 lnt updatedb "${TESTDIR}/instance" --testsuite nts \
-	--delete-machine "LNT SAMPLE MACHINE" --commit \
+	--delete-machine "LNT SAMPLE MACHINE" \
 	--show-sql >& "${TESTDIR}/machinerm.out"
 # RUN: FileCheck --check-prefix CHECK-MACHINERM %s < "%t.install/machinerm.out"
 

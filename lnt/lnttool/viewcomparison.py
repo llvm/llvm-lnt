@@ -84,9 +84,9 @@ def action_view_comparison(report_a, report_b, hostname, port, dry_run,
         # Import the two reports.
         with contextlib.closing(config.get_database('default')) as db:
             r = import_and_report(config, 'default', db, report_a, '<auto>',
-                                  testsuite, commit=True, updateMachine=True)
+                                  testsuite, updateMachine=True)
             import_and_report(config, 'default', db, report_b, '<auto>',
-                              testsuite, commit=True, updateMachine=True)
+                              testsuite, updateMachine=True)
 
             # Dispatch another thread to start the webbrowser.
             comparison_url = '%s/v4/nts/2?compare_to=1' % (url,)

@@ -43,10 +43,9 @@ class SearchTest(unittest.TestCase):
     
                 result = lnt.util.ImportData.import_and_report(
                     None, 'default', self.db, f.name,
-                    format='<auto>', ts_name='nts', commit=True,
-                    show_sample_count=False, disable_email=True,
-                    disable_report=True, updateMachine=False,
-                    mergeRun='reject')
+                    format='<auto>', ts_name='nts', show_sample_count=False,
+                    disable_email=True, disable_report=True,
+                    updateMachine=False, mergeRun='reject')
 
                 assert result.get('success', False)
 

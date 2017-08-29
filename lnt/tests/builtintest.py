@@ -58,14 +58,12 @@ class BuiltinTest(object):
         if output_stream is not sys.stdout:
             output_stream.close()
 
-    def submit(self, report_path, config, ts_name=None, commit=True):
+    def submit(self, report_path, config, ts_name=None):
         """Submit the results file to the server.  If no server
         was specified, use a local mock server.
 
         report_path is the location of the json report file.  config
-        holds options for submission url, and verbosity.  When commit
-        is true, results will be saved in the server, otherwise you
-        will just get back a report but server state is not altered.
+        holds options for submission url, and verbosity.
 
         Returns the report from the server.
         """
@@ -77,7 +75,7 @@ class BuiltinTest(object):
         if config.submit_url is not None:
             self.log("submitting result to %r" % (config.submit_url,))
             server_report = ServerUtil.submitFile(
-                config.submit_url, report_path, commit, config.verbose,
+                config.submit_url, report_path, config.verbose,
                 updateMachine=config.update_machine, mergeRun=config.merge)
         else:
             server_report = lnt.util.ImportData.no_submit()

@@ -18,7 +18,7 @@
 # RUN: FileCheck --check-prefix CHECK-STDERR < %t.err %s
 
 # CHECK-STDOUT: Import succeeded.
-# CHECK-STDOUT: Added Runs    : 1
+# CHECK-STDOUT: PASS : 345
 
 # CHECK-STDERR: inferred C++ compiler under test
 # CHECK-STDERR: checking source versions
@@ -46,7 +46,8 @@
 # RUN: FileCheck --check-prefix CHECK-STDERR2 < %t.2.err %s
 
 # CHECK-STDOUT2: Import succeeded.
-# CHECK-STDOUT2: Added Runs    : 1
+# CHECK-STDOUT2: FAIL : 3
+# CHECK-STDOUT2: PASS : 342
 
 # CHECK-STDERR2: inferred C++ compiler under test
 # CHECK-STDERR2: checking source versions

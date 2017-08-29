@@ -4,8 +4,8 @@ import logging
 
 
 def submit_options(func):
-    func = click.option("--commit", is_flag=True,
-                        help="actually commit the data")(func)
+    func = click.option("--commit", type=int, help="deprecated/ignored option",
+                        expose_value=False)(func)
     func = click.option("--update-machine", is_flag=True,
                         help="Update machine fields")(func)
     func = click.option("--merge", default="replace", show_default=True,

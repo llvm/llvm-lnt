@@ -164,7 +164,7 @@
 # RUN: FileCheck --check-prefix CHECK-SUBMIT-STDERR < %t.err %s
 
 # CHECK-SUBMIT-STDOUT: Import succeeded.
-# CHECK-SUBMIT-STDOUT: Added Runs    : 1
+# CHECK-SUBMIT-STDOUT: PASS : 345
 
 # CHECK-SUBMIT-STDERR: inferred C++ compiler under test
 # CHECK-SUBMIT-STDERR: checking source versions

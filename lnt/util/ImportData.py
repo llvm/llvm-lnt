@@ -13,18 +13,15 @@ import time
 
 
 def import_and_report(config, db_name, db, file, format, ts_name,
-                      commit=False, show_sample_count=False,
-                      disable_email=False, disable_report=False,
-                      updateMachine=False, mergeRun='replace'):
+                      show_sample_count=False, disable_email=False,
+                      disable_report=False, updateMachine=False,
+                      mergeRun='replace'):
     """
     import_and_report(config, db_name, db, file, format, ts_name,
-                      [commit], [show_sample_count],
-                      [disable_email]) -> ... object ...
+                      [show_sample_count], [disable_email]) -> ... object ...
 
     Import a test data file into an LNT server and generate a test report. On
-    success, run is the newly imported run. Note that success is uneffected by
-    the value of commit, this merely changes whether the run (on success) is
-    committed to the database.
+    success, run is the newly imported run.
 
     The result object is a dictionary containing information on the imported
     run and its comparison to the previous run.
@@ -91,7 +88,9 @@ def import_and_report(config, db_name, db, file, format, ts_name,
                                (data_schema, ts_name))
             return result
 
-        run = ts.importDataFromDict(data, config=db_config, updateMachine=updateMachine, mergeRun=mergeRun)
+        run = ts.importDataFromDict(data, config=db_config,
+                                    updateMachine=updateMachine,
+                                    mergeRun=mergeRun)
     except KeyboardInterrupt:
         raise
     except Exception as e:
@@ -127,20 +126,16 @@ def import_and_report(config, db_name, db, file, format, ts_name,
     if show_sample_count:
         result['added_samples'] = ts.getNumSamples() - numSamples
 
-    result['committed'] = commit
+    result['committed'] = True
     result['run_id'] = run.id
-    if commit:
-        ts.commit()
-        if db_config:
-            #  If we are not in a dummy instance, also run background jobs.
-            #  We have to have a commit before we run, so subprocesses can
-            #  see the submitted data.
-            async_ops.async_fieldchange_calc(db_name, ts, run, config)
+    ts.commit()
+    if db_config:
+        #  If we are not in a dummy instance, also run background jobs.
+        #  We have to have a commit before we run, so subprocesses can
+        #  see the submitted data.
+        async_ops.async_fieldchange_calc(db_name, ts, run, config)
 
-    else:
-        ts.rollback()
     # Add a handy relative link to the submitted run.
-
     result['result_url'] = "db_{}/v4/{}/{}".format(db_name, ts_name, run.id)
     result['report_time'] = time.time() - importStartTime
     result['total_time'] = time.time() - startTime
@@ -159,9 +154,8 @@ def import_and_report(config, db_name, db, file, format, ts_name,
             # Perform the shadow import.
             shadow_result = import_and_report(config, shadow_name,
                                               shadow_db, file, format, ts_name,
-                                              commit, show_sample_count,
-                                              disable_email, disable_report,
-                                              updateMachine)
+                                              show_sample_count, disable_email,
+                                              disable_report, updateMachine)
 
             # Append the shadow result to the result.
             result['shadow_result'] = shadow_result
@@ -272,10 +266,6 @@ def print_report_result(result, out, err, verbose=True):
                       "already in the database.") % result['original_run']
         print >>out
 
-    if not result['committed']:
-        print >>out, "NOTE: This run was not committed!"
-        print >>out
-
     if result['report_to_address']:
         print >>out, "Report emailed to: %r" % result['report_to_address']
         print >>out
@@ -310,8 +300,8 @@ def print_report_result(result, out, err, verbose=True):
         print >>out, kind, ":", count
 
 
-def import_from_string(config, db_name, db, ts_name, data, commit=True,
-                       updateMachine=False, mergeRun='replace'):
+def import_from_string(config, db_name, db, ts_name, data, updateMachine=False,
+                       mergeRun='replace'):
     # Stash a copy of the raw submission.
     #
     # To keep the temporary directory organized, we keep files in
@@ -339,6 +329,6 @@ def import_from_string(config, db_name, db, ts_name, data, commit=True,
     # should at least reject overly large inputs.
 
     result = lnt.util.ImportData.import_and_report(
-        config, db_name, db, path, '<auto>', ts_name, commit,
+        config, db_name, db, path, '<auto>', ts_name,
         updateMachine=updateMachine, mergeRun=mergeRun)
     return result

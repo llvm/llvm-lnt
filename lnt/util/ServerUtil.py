@@ -29,11 +29,11 @@ def _show_json_error(reply):
         sys.stderr.write(message + '\n')
 
 
-def submitFileToServer(url, file, commit, updateMachine, mergeRun):
+def submitFileToServer(url, file, updateMachine, mergeRun):
     with open(file, 'rb') as f:
         values = {
             'input_data': f.read(),
-            'commit': "1" if commit else "0",
+            'commit': "1",  # compatibility with old servers.
             'update_machine': "1" if updateMachine else "0",
             'merge': mergeRun,
         }
@@ -63,8 +63,7 @@ def submitFileToServer(url, file, commit, updateMachine, mergeRun):
     return reply
 
 
-def submitFileToInstance(path, file, commit, updateMachine=False,
-                         mergeRun='replace'):
+def submitFileToInstance(path, file, updateMachine=False, mergeRun='replace'):
     # Otherwise, assume it is a local url and submit to the default database
     # in the instance.
     instance = lnt.server.instance.Instance.frompath(path)
@@ -75,26 +74,22 @@ def submitFileToInstance(path, file, commit, updateMachine=False,
             raise ValueError("no default database in instance: %r" % (path,))
         return lnt.util.ImportData.import_and_report(
             config, db_name, db, file, format='<auto>', ts_name='nts',
-            commit=commit, updateMachine=updateMachine, mergeRun=mergeRun)
+            updateMachine=updateMachine, mergeRun=mergeRun)
 
 
-def submitFile(url, file, commit, verbose, updateMachine=False,
-               mergeRun='replace'):
+def submitFile(url, file, verbose, updateMachine=False, mergeRun='replace'):
     # If this is a real url, submit it using urllib.
     if '://' in url:
-        result = submitFileToServer(url, file, commit, updateMachine, mergeRun)
+        result = submitFileToServer(url, file, updateMachine, mergeRun)
     else:
-        result = submitFileToInstance(url, file, commit, updateMachine,
-                                      mergeRun)
+        result = submitFileToInstance(url, file, updateMachine, mergeRun)
     return result
 
 
-def submitFiles(url, files, commit, verbose, updateMachine=False,
-                mergeRun='replace'):
+def submitFiles(url, files, verbose, updateMachine=False, mergeRun='replace'):
     results = []
     for file in files:
-        result = submitFile(url, file, commit, verbose, updateMachine,
-                            mergeRun)
+        result = submitFile(url, file, verbose, updateMachine, mergeRun)
         if result:
             results.append(result)
     return results

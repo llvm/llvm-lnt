@@ -1694,8 +1694,9 @@ class NTTest(builtintest.BuiltinTest):
             test_results = run_test(opts.label, None, config)
             if opts.rerun:
                 self.log("Performing any needed reruns.")
-                server_report = self.submit_helper(config, commit=False)
-                new_samples = _process_reruns(config, server_report, test_results)
+                server_report = self.submit_helper(config)
+                new_samples = _process_reruns(config, server_report,
+                                              test_results)
                 test_results.update_report(new_samples)
 
                 # persist report with new samples.
@@ -1708,8 +1709,7 @@ class NTTest(builtintest.BuiltinTest):
             if config.output is not None:
                 self.print_report(test_results, config.output)
 
-        commit = True
-        server_report = self.submit_helper(config, commit)
+        server_report = self.submit_helper(config)
 
         ImportData.print_report_result(server_report,
                                        sys.stdout,
@@ -1717,7 +1717,7 @@ class NTTest(builtintest.BuiltinTest):
                                        config.verbose)
         return server_report
 
-    def submit_helper(self, config, commit=False):
+    def submit_helper(self, config):
         """Submit the report to the server.  If no server
         was specified, use a local mock server.
         """
@@ -1731,8 +1731,7 @@ class NTTest(builtintest.BuiltinTest):
             for server in config.submit_url:
                 self.log("submitting result to %r" % (server,))
                 try:
-                    result = ServerUtil.submitFile(server, report_path,
-                                                   commit, False)
+                    result = ServerUtil.submitFile(server, report_path, False)
                 except (urllib2.HTTPError, urllib2.URLError) as e:
                     logger.warning("submitting to {} failed with {}"
                                    .format(server, e))
@@ -1746,7 +1745,7 @@ class NTTest(builtintest.BuiltinTest):
             db = lnt.server.db.v4db.V4DB("sqlite:///:memory:",
                                          lnt.server.config.Config.dummy_instance())
             result = lnt.util.ImportData.import_and_report(
-                None, None, db, report_path, 'json', 'nts', commit)
+                None, None, db, report_path, 'json', 'nts')
 
         if result is None:
             fatal("Results were not obtained from submission.")
