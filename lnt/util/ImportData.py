@@ -91,9 +91,7 @@ def import_and_report(config, db_name, db, file, format, ts_name,
                                (data_schema, ts_name))
             return result
 
-        run = ts.importDataFromDict(data, commit, config=db_config,
-                                    updateMachine=updateMachine,
-                                    mergeRun=mergeRun)
+        run = ts.importDataFromDict(data, config=db_config, updateMachine=updateMachine, mergeRun=mergeRun)
     except KeyboardInterrupt:
         raise
     except Exception as e:

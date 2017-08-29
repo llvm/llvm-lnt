@@ -971,7 +971,7 @@ class TestSuiteDB(object):
         self.add(run)
         return run
 
-    def _importSampleValues(self, tests_data, run, commit, config):
+    def _importSampleValues(self, tests_data, run, config):
         # Load a map of all the tests, which we will extend when we find tests
         # that need to be added.
         # Downcast to str, so we match on MySQL.
@@ -1010,8 +1010,7 @@ class TestSuiteDB(object):
                     else:
                         sample.set_field(field, value)
 
-    def importDataFromDict(self, data, commit, config, updateMachine,
-                           mergeRun):
+    def importDataFromDict(self, data, config, updateMachine, mergeRun):
         """
         importDataFromDict(data, commit, config, updateMachine, mergeRun)
             -> Run  (or throws ValueError exception)
@@ -1023,7 +1022,7 @@ class TestSuiteDB(object):
         """
         machine = self._getOrCreateMachine(data['machine'], updateMachine)
         run = self._getOrCreateRun(data['run'], machine, mergeRun)
-        self._importSampleValues(data['tests'], run, commit, config)
+        self._importSampleValues(data['tests'], run, config)
         return run
 
     # Simple query support (mostly used by templates)
