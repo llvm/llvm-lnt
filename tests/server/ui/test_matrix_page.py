@@ -5,7 +5,7 @@
 # RUN:     %s %{shared_inputs}/SmallInstance \
 # RUN:     %t.instance %S/Inputs/V4Pages_extra_records.sql
 #
-# RUN: python %s %t.instance
+# RUN: python %s %t.instance %{tidylib}
 
 import unittest
 import logging
@@ -14,7 +14,7 @@ import sys
 import lnt.server.db.migrate
 import lnt.server.ui.app
 
-from V4Pages import check_json, check_code
+from V4Pages import check_json, check_code, check_html
 from V4Pages import HTTP_REDIRECT, HTTP_OK, HTTP_BAD_REQUEST, HTTP_NOT_FOUND
 logging.basicConfig(level=logging.DEBUG)
 
@@ -23,7 +23,7 @@ class MatrixViewTester(unittest.TestCase):
 
     def setUp(self):
         """Bind to the LNT test instance."""
-        _, instance_path = sys.argv
+        instance_path = sys.argv[1]
         app = lnt.server.ui.app.App.create_standalone(instance_path)
         app.testing = True
         app.config['WTF_CSRF_ENABLED'] = False
@@ -59,7 +59,7 @@ class MatrixViewTester(unittest.TestCase):
         """Does the page load with the data as expected.
         """
         client = self.client
-        reply = check_code(client, '/v4/nts/matrix?plot.0=2.6.3')
+        reply = check_html(client, '/v4/nts/matrix?plot.0=2.6.3')
         # Set a baseline and run again.
         form_data = dict(name="foo_baseline",
                          description="foo_description",
@@ -69,13 +69,13 @@ class MatrixViewTester(unittest.TestCase):
         check_code(client, '/v4/nts/set_baseline/1',
                    expected_code=HTTP_REDIRECT)
 
-        reply = check_code(client, '/v4/nts/matrix?plot.0=2.6.3')
+        reply = check_html(client, '/v4/nts/matrix?plot.0=2.6.3')
         # Make sure the data is in the page.
         self.assertIn("test6", reply.data)
         self.assertIn("1.0000", reply.data)
         self.assertIn("1.2000", reply.data)
 
-        reply = check_code(client, '/v4/nts/matrix?plot.0=2.6.3&limit=1')
+        reply = check_html(client, '/v4/nts/matrix?plot.0=2.6.3&limit=1')
 
 
 if __name__ == '__main__':

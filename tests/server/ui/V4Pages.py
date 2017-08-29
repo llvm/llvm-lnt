@@ -8,7 +8,7 @@
 # RUN:   %s %{shared_inputs}/SmallInstance %t.instance \
 # RUN:   %S/Inputs/V4Pages_extra_records.sql
 #
-# RUN: python %s %t.instance
+# RUN: python %s %t.instance %{tidylib}
 
 import logging
 import re
@@ -19,6 +19,38 @@ from flask import session
 import lnt.server.db.migrate
 import lnt.server.ui.app
 import json
+import HTMLParser
+
+# We can validate html if pytidylib is available and tidy-html5 is installed.
+# The user can indicate this by passing --use-tidylib to the script (triggered
+# by `lit -Dtidylib=1`)
+if '--use-tidylib' in sys.argv:
+    import tidylib
+    def validate_html(text):
+        document, errors = tidylib.tidy_document(text)
+        had_error = False
+        ignore = [
+            "Warning: trimming empty",
+            "Warning: inserting implicit",
+        ]
+        for e in errors.splitlines():
+            ignore_line = False
+            for i in ignore:
+                if i in e:
+                    ignore_line = True
+                    break
+            if ignore_line:
+                continue
+            sys.stderr.write(e + '\n')
+            had_error = True
+        if had_error:
+            with open('/tmp/lntpage.html', 'w') as out:
+                out.write(text)
+            sys.stderr.write("Note: html saved in /tmp/lntpage.html\n")
+        assert not had_error
+else:
+    def validate_html(text):
+        pass
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -34,6 +66,12 @@ def check_code(client, url, expected_code=HTTP_OK, data_to_send=None):
     assert resp.status_code == expected_code, \
         "Call to %s returned: %d, not the expected %d" % (url, resp.status_code,
                                                           expected_code)
+    return resp
+
+
+def check_html(client, url, expected_code=HTTP_OK, data_to_send=None):
+    resp = check_code(client, url, expected_code, data_to_send)
+    validate_html(resp.data)
     return resp
 
 
@@ -227,7 +265,7 @@ def extract_background_colors(sparkline_svg, nr_days):
 
 
 def main():
-    _, instance_path = sys.argv
+    instance_path = sys.argv[1]
 
     # Create the application instance.
     app = lnt.server.ui.app.App.create_standalone(instance_path)
@@ -240,23 +278,23 @@ def main():
     client = app.test_client()
 
     # Fetch the index page.
-    check_code(client, '/')
+    check_html(client, '/')
 
     # Get the V4 overview page.
-    check_code(client, '/v4/nts/')
+    check_html(client, '/v4/nts/')
 
     # Get a machine overview page.
-    check_code(client, '/v4/nts/machine/1')
+    check_html(client, '/v4/nts/machine/1')
     # Check invalid machine gives error.
     check_code(client,  '/v4/nts/machine/9999', expected_code=HTTP_NOT_FOUND)
     # Get a machine overview page in JSON format.
-    check_code(client, '/v4/nts/machine/1?json=true')
+    check_json(client, '/v4/nts/machine/1?json=true')
 
     # Get the order summary page.
-    check_code(client, '/v4/nts/all_orders')
+    check_html(client, '/v4/nts/all_orders')
 
     # Get an order page.
-    check_code(client, '/v4/nts/order/3')
+    check_html(client, '/v4/nts/order/3')
     # Check invalid order gives error.
     check_code(client, '/v4/nts/order/9999', expected_code=HTTP_NOT_FOUND)
 
@@ -296,9 +334,9 @@ def main():
         session.get('baseline-default-nts') == 1
 
     # Get a run result page (and associated views).
-    check_code(client, '/v4/nts/1')
-    check_code(client, '/v4/nts/1?json=true')
-    check_code(client, '/v4/nts/1/report')
+    check_html(client, '/v4/nts/1')
+    check_json(client, '/v4/nts/1?json=true')
+    check_html(client, '/v4/nts/1/report')
     check_code(client, '/v4/nts/1/text_report')
     # Check invalid run numbers give errors.
     check_code(client, '/v4/nts/9999',
@@ -325,32 +363,32 @@ def main():
                           '0:00:35', 'some-builder #987'])
 
     # Get the new graph page.
-    check_code(client, '/v4/nts/graph?plot.0=1.3.2')
+    check_html(client, '/v4/nts/graph?plot.0=1.3.2')
     # Don't crash when requesting non-existing data
-    check_code(client, '/v4/nts/graph?plot.9999=1.3.2')
+    check_html(client, '/v4/nts/graph?plot.9999=1.3.2')
     check_code(client, '/v4/nts/graph?plot.0=9999.3.2',
                expected_code=HTTP_NOT_FOUND)
     check_code(client, '/v4/nts/graph?plot.0=1.9999.2',
                expected_code=HTTP_NOT_FOUND)
     check_code(client, '/v4/nts/graph?plot.0=1.3.9999',
                expected_code=HTTP_NOT_FOUND)
-    check_code(client, '/v4/nts/graph?plot.9999=1.3.2&json=True')
+    check_json(client, '/v4/nts/graph?plot.9999=1.3.2&json=True')
     # Get the mean graph page.
-    check_code(client, '/v4/nts/graph?mean=1.2')
+    check_html(client, '/v4/nts/graph?mean=1.2')
     # Don't crash when requesting non-existing data
     check_code(client, '/v4/nts/graph?mean=9999.2',
                expected_code=HTTP_NOT_FOUND)
     check_code(client, '/v4/nts/graph?mean=1.9999',
                expected_code=HTTP_NOT_FOUND)
     #  Check baselines work.
-    check_code(client, '/v4/nts/graph?plot.0=1.3.2&baseline.60=3')
+    check_html(client, '/v4/nts/graph?plot.0=1.3.2&baseline.60=3')
 
     # Check some variations of the daily report work.
-    check_code(client, '/v4/nts/daily_report/2012/4/12')
-    check_code(client, '/v4/nts/daily_report/2012/4/11')
-    check_code(client, '/v4/nts/daily_report/2012/4/13')
-    check_code(client, '/v4/nts/daily_report/2012/4/10')
-    check_code(client, '/v4/nts/daily_report/2012/4/14')
+    check_html(client, '/v4/nts/daily_report/2012/4/12')
+    check_html(client, '/v4/nts/daily_report/2012/4/11')
+    check_html(client, '/v4/nts/daily_report/2012/4/13')
+    check_html(client, '/v4/nts/daily_report/2012/4/10')
+    check_html(client, '/v4/nts/daily_report/2012/4/14')
     check_redirect(client, '/v4/nts/daily_report',
                    '/v4/nts/daily_report/\d+/\d+/\d+$')
     check_redirect(client, '/v4/nts/daily_report?num_days=7',
@@ -360,7 +398,7 @@ def main():
     check_redirect(client, '/v4/nts/daily_report?day=15',
                    '/v4/nts/daily_report/\d+/\d+/\d+$')
     # Don't crash when requesting non-existing data
-    check_code(client, '/v4/nts/daily_report/1999/4/12')
+    check_html(client, '/v4/nts/daily_report/1999/4/12')
     check_code(client, '/v4/nts/daily_report/-1/4/12',
                expected_code=HTTP_NOT_FOUND)
     check_code(client, '/v4/nts/daily_report/2012/13/12',
@@ -464,19 +502,19 @@ def main():
 
     check_redirect(client, '/db_default/submitRun',
                    '/db_default/v4/nts/submitRun')
-    check_code(client, '/db_default/v4/nts/submitRun')
+    check_html(client, '/db_default/v4/nts/submitRun')
 
-    check_code(client, '/v4/nts/global_status')
+    check_html(client, '/v4/nts/global_status')
 
-    check_code(client, '/v4/nts/recent_activity')
+    check_html(client, '/v4/nts/recent_activity')
 
     # Now check the compile report
     # Get the V4 overview page.
-    check_code(client, '/v4/compile/')
+    check_html(client, '/v4/compile/')
 
     # Get a machine overview page.
-    check_code(client, '/v4/compile/machine/1')
-    check_code(client, '/v4/compile/machine/2')
+    check_html(client, '/v4/compile/machine/1')
+    check_html(client, '/v4/compile/machine/2')
     check_code(client, '/v4/compile/machine/2/latest', expected_code=HTTP_REDIRECT)
     # Don't crash when requesting non-existing data
     check_code(client, '/v4/compile/machine/9999',
@@ -491,59 +529,61 @@ def main():
     assert resp.headers['Location'] == "http://localhost/db_default/v4/nts/4?compare_to=9"
     
     # Get the order summary page.
-    check_code(client, '/v4/compile/all_orders')
+    check_html(client, '/v4/compile/all_orders')
 
     # Get an order page.
-    check_code(client, '/v4/compile/order/3')
+    check_html(client, '/v4/compile/order/3')
 
     # Get a run result page (and associated views).
-    check_code(client, '/v4/compile/1')
-    check_code(client, '/v4/compile/2')
-    check_code(client, '/v4/compile/3')
-    check_code(client, '/v4/compile/4')
+    check_html(client, '/v4/compile/1')
+    check_html(client, '/v4/compile/2')
+    check_html(client, '/v4/compile/3')
+    check_html(client, '/v4/compile/4')
     check_code(client, '/v4/compile/9999', expected_code=HTTP_NOT_FOUND)
 
-    check_code(client, '/v4/compile/1/report')
+    check_html(client, '/v4/compile/1/report')
 
     check_code(client, '/v4/compile/1/text_report')
 
     # Get the new graph page.
-    check_code(client, '/v4/compile/graph?plot.3=2.3.9')
+    check_html(client, '/v4/compile/graph?plot.3=2.3.9')
 
     # Get the mean graph page.
-    check_code(client, 'v4/compile/graph?mean=2.9')
+    check_html(client, 'v4/compile/graph?mean=2.9')
 
     # Check some variations of the daily report work.
-    check_code(client, '/v4/compile/daily_report/2014/6/5?day_start=16')
-    check_code(client, '/v4/compile/daily_report/2014/6/4')
+    check_html(client, '/v4/compile/daily_report/2014/6/5?day_start=16')
+    check_html(client, '/v4/compile/daily_report/2014/6/4')
 
     check_redirect(client, '/v4/nts/regressions/new_from_graph/1/1/1/1', '/v4/nts/regressions/1')
-    check_code(client, '/v4/nts/regressions/')
-    check_code(client, '/v4/nts/regressions/?machine_filter=machine2')
-    check_code(client, '/v4/nts/regressions/?machine_filter=machine0')
+    check_html(client, '/v4/nts/regressions/')
+    check_html(client, '/v4/nts/regressions/?machine_filter=machine2')
+    check_html(client, '/v4/nts/regressions/?machine_filter=machine0')
 
-    check_code(client, '/v4/nts/regressions/1')
+    check_html(client, '/v4/nts/regressions/1')
 
     check_json(client, '/v4/nts/regressions/1?json=True')
 
     # Make sure the new option does not break anything
-    check_code(client, '/db_default/v4/nts/graph?switch_min_mean=yes&plot.0=1.3.2&submit=Update')
+    check_html(client, '/db_default/v4/nts/graph?switch_min_mean=yes&plot.0=1.3.2&submit=Update')
     check_json(client, '/db_default/v4/nts/graph?switch_min_mean=yes&plot.0=1.3.2&json=true&submit=Update')
-    check_code(client, '/db_default/v4/nts/graph?switch_min_mean=yes&plot.0=1.3.2')
+    check_html(client, '/db_default/v4/nts/graph?switch_min_mean=yes&plot.0=1.3.2')
     check_json(client, '/db_default/v4/nts/graph?switch_min_mean=yes&plot.0=1.3.2&json=true')
     app.testing = False
-    error_page = check_code(client, '/explode', expected_code=500)
+    error_page = check_html(client, '/explode', expected_code=500)
     assert "integer division or modulo by zero" in error_page.data
 
-    error_page = check_code(client, '/gone', expected_code=404)
+    error_page = check_html(client, '/gone', expected_code=404)
     assert "test" in error_page.data
 
-    check_code(client, '/db_default/summary_report')
+    check_html(client, '/db_default/summary_report')
 
-    check_code(client, '/rules')
-    check_code(client, '/log')
-    check_code(client, '/__health')
-    check_code(client, '/ping')
+    check_html(client, '/rules')
+    check_html(client, '/log')
+    resp = check_code(client, '/__health')
+    assert resp.data == "Ok"
+    resp = check_code(client, '/ping')
+    assert resp.data == "pong"
 
 if __name__ == '__main__':
     main()
