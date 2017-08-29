@@ -71,6 +71,6 @@ default. You can enable them by passing additional flags to lit:
     installed and ``sitecustomize.py`` in the virtualenv has been modified
     appropriately.
 
-Example:
+Example::
 
-    PATH=$LLVMBUILD/bin:$LNTINSTALL/bin:$PATH llvm-lit -sv -Dpostgres=1 -Dmysql=1 -Dtidylib=1 ../lnt/tests
+     PATH=$LLVMBUILD/bin:$LNTINSTALL/bin:$PATH llvm-lit -sv -Dpostgres=1 -Dmysql=1 -Dtidylib=1 ../lnt/tests
