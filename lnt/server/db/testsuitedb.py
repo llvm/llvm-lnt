@@ -85,8 +85,10 @@ class TestSuiteDB(object):
         self.order_fields = list(self.test_suite.order_fields)
         self.run_fields = list(self.test_suite.run_fields)
         self.sample_fields = list(self.test_suite.sample_fields)
+        sample_field_indexes = dict()
         for i, field in enumerate(self.sample_fields):
-            field.index = i
+            sample_field_indexes[field.name] = i
+        self.sample_field_indexes = sample_field_indexes
 
         self.base = sqlalchemy.ext.declarative.declarative_base()
 
@@ -1140,3 +1142,6 @@ class TestSuiteDB(object):
 
     def getNumTests(self):
         return self.query(self.Test).count()
+
+    def get_field_index(self, sample_field):
+        return self.sample_field_indexes[sample_field.name]

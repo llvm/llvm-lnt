@@ -324,22 +324,27 @@ class RunInfo(object):
         # better.
         run_failed = prev_failed = False
         if status_field:
+            status_field_index = self.testsuite.get_field_index(status_field)
             for sample in run_samples:
-                run_failed |= sample[status_field.index] == FAIL
+                run_failed |= sample[status_field_index] == FAIL
             for sample in prev_samples:
-                prev_failed |= sample[status_field.index] == FAIL
+                prev_failed |= sample[status_field_index] == FAIL
+
+        field_index = self.testsuite.get_field_index(field)
 
         # Get the current and previous values.
-        run_values = [s[field.index] for s in run_samples
-                      if s[field.index] is not None]
-        prev_values = [s[field.index] for s in prev_samples
-                       if s[field.index] is not None]
+        run_values = [s[field_index] for s in run_samples
+                      if s[field_index] is not None]
+        prev_values = [s[field_index] for s in prev_samples
+                       if s[field_index] is not None]
         if hash_of_binary_field:
-            hash_values = [s[hash_of_binary_field.index] for s in run_samples
-                           if s[field.index] is not None]
-            prev_hash_values = [s[hash_of_binary_field.index]
+            hash_of_binary_field_index = \
+                    self.testsuite.get_field_index(hash_of_binary_field)
+            hash_values = [s[hash_of_binary_field_index] for s in run_samples
+                           if s[field_index] is not None]
+            prev_hash_values = [s[hash_of_binary_field_index]
                                 for s in prev_samples
-                                if s[field.index] is not None]
+                                if s[field_index] is not None]
 
             # All current hash_values should all be the same.
             # Warn in the log when the hash wasn't the same for all samples.

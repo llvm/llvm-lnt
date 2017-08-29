@@ -217,12 +217,14 @@ class SummaryReport(object):
             # Return a datapoint for each passing field.
             for field_name, field, status_field in ts_sample_metric_fields:
                 # Ignore failing samples.
-                if status_field and \
-                        sample[2 + status_field.index] == lnt.testing.FAIL:
-                    continue
+                if status_field:
+                    status_field_index = ts.get_field_index(status_field)
+                    if sample[2 + status_field_index] == lnt.testing.FAIL:
+                        continue
 
                 # Ignore missing samples.
-                value = sample[2 + field.index]
+                field_index = ts.get_field_index(field)
+                value = sample[2 + field_index]
                 if value is None:
                     continue
 
@@ -290,12 +292,14 @@ class SummaryReport(object):
                     continue
 
                 # Ignore failing samples.
-                if status_field and \
-                        sample[2 + status_field.index] == lnt.testing.FAIL:
-                    continue
+                if status_field:
+                    status_field_index = ts.get_field_index(status_field)
+                    if sample[2 + status_field_index] == lnt.testing.FAIL:
+                        continue
 
                 # Ignore missing samples.
-                value = sample[2 + field.index]
+                field_index = ts.get_field_index(field)
+                value = sample[2 + field_index]
                 if value is None:
                     continue
 

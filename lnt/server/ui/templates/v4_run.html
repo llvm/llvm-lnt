@@ -318,6 +318,7 @@ $('.profile-prev-only').tooltip();
 
     {# Report one table for each primary field. #}
     {% for field in metric_fields %}
+      {% set field_index = ts.get_field_index(field) %}
       <section id="{{ field.name }}">
           {% set tests = [] %}
           {% set (runs, compare_runs) = request_info.sri.get_sliding_runs(run, compare_to, request_info.num_comparison_runs) %}
@@ -350,9 +351,9 @@ $('.profile-prev-only').tooltip();
         <tbody class="searchable">
           {% for test_name,test_id,cr in tests %}
             <tr>
-              <td><input type="checkbox" name="plot.{{test_id}}" value="{{machine.id}}.{{test_id}}.{{field.index}}"/></td>
+              <td><input type="checkbox" name="plot.{{test_id}}" value="{{machine.id}}.{{test_id}}.{{field_index}}"/></td>
               <td class="benchmark-name">
-                <a href="{{graph_base}}&amp;plot.{{test_id}}={{ machine.id}}.{{test_id}}.{{field.index}}">
+                <a href="{{graph_base}}&amp;plot.{{test_id}}={{ machine.id}}.{{test_id}}.{{field_index}}">
                   {{ test_name }}
                 </a>
                 {{ utils.render_profile_link(cr.cur_profile, cr.prev_profile, run.id, compare_to.id, test_id) }}
@@ -365,8 +366,8 @@ $('.profile-prev-only').tooltip();
           <tr>
             {% set cr = request_info.sri.get_geomean_comparison_result(
                         run, compare_to, field, tests) %}
-            <td><input type="checkbox" name="mean" value="{{machine.id}}.{{field.index}}"/></td>
-            <td><a href="{{graph_base}}&amp;mean={{machine.id}}.{{field.index}}">Geometric Mean</a></td>
+            <td><input type="checkbox" name="mean" value="{{machine.id}}.{{field_index}}"/></td>
+            <td><a href="{{graph_base}}&amp;mean={{machine.id}}.{{field_index}}">Geometric Mean</a></td>
             {{ get_cell_value(cr) }}
           </tr>
         </tfoot>

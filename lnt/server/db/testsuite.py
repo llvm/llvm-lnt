@@ -294,9 +294,6 @@ class SampleField(FieldMixin, Base):
         self.status_field = status_field
         self.bigger_is_better = bigger_is_better
 
-        # Index of this column.
-        self.index = None
-
         # Column instance for fields which have been bound (non-DB
         # parameter). This is provided for convenience in querying.
         self.column = None
