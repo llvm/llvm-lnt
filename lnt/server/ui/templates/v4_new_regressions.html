@@ -248,7 +248,7 @@ function update_tooltip(event, pos, item, show_fn, graph_data) {
 
         {{ utils.get_regression_cell_value(fc.latest_cr, analysis)}}
 
-        <td><span class="reltime" data-toggle="tooltip" title="{{fc.run.end_time}}">{{ fc.run.end_time.isoformat() }}</td>
+        <td><span class="reltime" data-toggle="tooltip" title="{{fc.run.end_time}}">{{ fc.run.end_time.isoformat() }}</span></td>
     </tr>
     {% endfor %}
   </tbody>

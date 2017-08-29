@@ -4,7 +4,7 @@
 {% set components = [(ts.name, v4_url_for(".v4_global_status"))] %}
 {% block head %}
         <link type="text/css" rel="stylesheet"
-              href="{{ url_for('.static', filename='v4_global_status.css') }}"></link>
+              href="{{ url_for('.static', filename='v4_global_status.css') }}"/>
         <script async src="{{ url_for('.static', filename='popup.js') }}"></script>
         <script async src="{{ url_for('.static', filename='sorttable.js') }}"></script>
         <script language="javascript" type="text/javascript"
@@ -119,7 +119,14 @@
     <div id="toggle-machine-control-panel">
       <ul>
         {% for m in machines %}
-        <li><input machine="{{ m.name }}" id="checkbox-{{ m.css_name }}" checked="checked" type="checkbox" onclick="v4_global_status.toggle_column_visibility('{{ m.css_name }}');">{{ m.name }}</input></li>
+        <li>
+          <div class="checkbox">
+            <label>
+              <input id="checkbox-{{ m.css_name }}" checked="checked" type="checkbox" onclick="v4_global_status.toggle_column_visibility('{{ m.css_name }}');"/>
+              {{ m.name }}
+            </label>
+          </div>
+        </li>
         {% endfor %}
         <li><button onclick="v4_global_status.update_table();">Set Visibility</button><button onclick="v4_global_status.reset_table();">Reset</button></li>
       </ul>

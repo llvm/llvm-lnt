@@ -27,7 +27,9 @@
 {%- endmacro %}
 
 {% macro render_bug(bug) -%}
+{% if bug %}
 <a href="{{bug}}">{{bug}}</a>
+{% endif %}
 {%- endmacro %}
 
 {% macro render_profile_link(profile, compare_profile, run_id, compare_run_id, test_id) -%}
@@ -112,14 +114,14 @@ $(document).ready(function() {
     <div>
     {% endif %}
 
-    <dt>
-        <div class="control-label">
-            {{ field.label }}
+    <dl>
+    <dt class="control-label">{{ field.label }}</dt>
+    <dd>
+        <div class="controls">
+            {{ field(**kwargs)|safe }}
         </div>
-    </dt>
-    <div class="controls">
-      <dd>{{ field(**kwargs)|safe }}</dd>
-    </div>
+    </dd>
+    </dl>
     <ul class="help-inline">
     {% for error in field.errors %}
       <li>{{ error }}</li>
