@@ -981,7 +981,7 @@ class TestSuiteDB(object):
         profiles = dict()
         field_dict = dict([(f.name, f) for f in self.sample_fields])
         for test_data in tests_data:
-            name = test_data['name']
+            name = str(test_data['name'])
             test = test_cache.get(name)
             if test is None:
                 test = self.Test(test_data['name'])
