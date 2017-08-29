@@ -34,8 +34,6 @@ MYSQL_INSTALL_DB_FLAGS+=" --initialize-insecure"
 MYSQL_INSTALL_DB_FLAGS+=" --user=$(whoami)"
 MYSQL_INSTALL_DB_FLAGS+=" --datadir=\"${DBDIR}/data\""
 MYSQL_INSTALL_DB_FLAGS+=" >& \"${DBDIR}/install_db.log\""
-#echo "$ mysql_install_db ${MYSQL_INSTALL_DB_FLAGS}"
-#eval mysql_install_db ${MYSQL_INSTALL_DB_FLAGS}
 echo "$ mysqld ${MYSQL_INSTALL_DB_FLAGS}"
 eval mysqld ${MYSQL_INSTALL_DB_FLAGS}
 
@@ -68,13 +66,12 @@ set -e
 
 set +e
 # This may not be there if the test has not been run before.
-echo "$ mysqladmin ${MYSQLADMIN_FLAGS} drop testdb"
+echo "$ mysqladmin ${MYSQLADMIN_FLAGS} drop --force testdb"
 eval mysqladmin ${MYSQLADMIN_FLAGS} drop --force testdb
 set -e
 
 echo "$ mysqladmin ${MYSQLADMIN_FLAGS} create testdb"
 eval mysqladmin ${MYSQLADMIN_FLAGS} create testdb
-
 
 # Execute command
 eval "$@"
