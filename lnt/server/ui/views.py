@@ -1285,8 +1285,9 @@ def v4_global_status():
                    for baseline, run in machine_run_info)
 
         # Compute the worst cell value.
-        row[1] = max(cr.pct_delta
-                     for cr, _ in row[2:])
+        if len(row) > 2:
+            row[1] = max(cr.pct_delta
+                         for cr, _ in row[2:])
 
         test_table.append(row)
 
