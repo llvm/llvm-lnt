@@ -191,8 +191,9 @@ def print_report_result(result, out, err, verbose=True):
         out.flush()
         print >>err, "Import Failed:"
         print >>err, "%s\n" % result['error']
-        if result['message']:
-            print >>err, "%s\n" % result['message']
+        message = result.get('message', None)
+        if message:
+            print >>err, "%s\n" % message
         print >>err, "--------------"
         err.flush()
         return
