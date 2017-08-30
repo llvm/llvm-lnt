@@ -307,7 +307,7 @@ class SampleField(FieldMixin, Base):
                            self.status_field, self.bigger_is_better)
 
 
-def upgrade_to(engine, tsschema, new_schema, dry_run=False):
+def _upgrade_to(connectable, tsschema, new_schema, dry_run=False):
     new = json.loads(new_schema.jsonschema)
     old = json.loads(tsschema.jsonschema)
     ts_name = new['name']
@@ -329,7 +329,7 @@ def upgrade_to(engine, tsschema, new_schema, dry_run=False):
         elif not dry_run:
             # Add missing columns
             column = testsuitedb.make_sample_column(name, type)
-            util.add_column(engine, '%s_Sample' % ts_name, column)
+            util.add_column(connectable, '%s_Sample' % ts_name, column)
 
     if len(old_metrics) != 0:
         raise _MigrationError("Metrics removed: %s" %
@@ -356,7 +356,7 @@ def upgrade_to(engine, tsschema, new_schema, dry_run=False):
         # Add missing columns
         if old_field is None and not dry_run:
             column = testsuitedb.make_run_column(name)
-            util.add_column(engine, '%s_Run' % ts_name, column)
+            util.add_column(connectable, '%s_Run' % ts_name, column)
 
     if len(old_run_fields) > 0:
         raise _MigrationError("Run fields removed: %s" %
@@ -376,7 +376,7 @@ def upgrade_to(engine, tsschema, new_schema, dry_run=False):
         # Add missing columns
         if old_field is None and not dry_run:
             column = testsuitedb.make_machine_column(name)
-            util.add_column(engine, '%s_Machine' % ts_name, column)
+            util.add_column(connectable, '%s_Machine' % ts_name, column)
 
     if len(old_machine_fields) > 0:
         raise _MigrationError("Machine fields removed: %s" %
@@ -385,34 +385,32 @@ def upgrade_to(engine, tsschema, new_schema, dry_run=False):
     return True
 
 
-def check_testsuite_schema_changes(v4db, testsuite):
+def check_testsuite_schema_changes(session, testsuite):
     """Check whether the given testsuite that was loaded from a json/yaml
     file changed compared to the previous schema stored in the database.
     The database is automatically migrated for trivial changes or we throw
     and exception if automatic migration is not possible."""
     name = testsuite.name
     schema = TestSuiteJSONSchema(name, testsuite.jsonschema)
-    prev_schema = v4db.query(TestSuiteJSONSchema) \
+    prev_schema = session.query(TestSuiteJSONSchema) \
         .filter(TestSuiteJSONSchema.testsuite_name == name).first()
     if prev_schema is not None:
         if prev_schema.jsonschema != schema.jsonschema:
             logger.info("Previous Schema:")
             logger.info(json.dumps(json.loads(prev_schema.jsonschema),
                                    indent=2))
-            # New schema? Save it in the database and we are good.
-            engine = v4db.engine
             # First do a dry run to check whether the upgrade will succeed.
-            upgrade_to(engine, prev_schema, schema, dry_run=True)
+            _upgrade_to(session, prev_schema, schema, dry_run=True)
             # Not perform the actual upgrade. This shouldn't fail as the dry
             # run already worked fine.
-            upgrade_to(engine, prev_schema, schema)
+            _upgrade_to(session, prev_schema, schema)
 
             prev_schema.jsonschema = schema.jsonschema
-            v4db.add(prev_schema)
-            v4db.commit()
+            session.add(prev_schema)
+            session.commit()
     else:
-        v4db.add(schema)
-        v4db.commit()
+        session.add(schema)
+        session.commit()
 
 
 def _sync_fields(session, existing_fields, new_fields):

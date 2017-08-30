@@ -59,7 +59,7 @@ class V4DB(object):
             v4db = self.v4db
             ts = self._extra_suites.get(name)
             if ts:
-                testsuite.check_testsuite_schema_changes(v4db, ts)
+                testsuite.check_testsuite_schema_changes(v4db.session, ts)
                 ts = testsuite.sync_testsuite_with_metatables(v4db.session, ts)
                 v4db.session.commit()
                 create_tables = True
