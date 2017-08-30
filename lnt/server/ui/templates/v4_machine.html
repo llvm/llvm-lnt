@@ -1,7 +1,5 @@
 {% import "utils.html" as utils %}
 {% import "local.html" as local %}
-{% set ts = request.get_testsuite() %}
-{% set machine = ts.getMachine(id) %}
 
 {% extends "layout.html" %}{
 {% set components = [(testsuite_name, v4_url_for(".v4_recent_activity"))] %}
@@ -18,7 +16,7 @@
   <h4>Relatives</h4>
   <ul class="nav nav-list bs-docs-sidenav">
     {# List all machines with this name. #}
-    {% for m in ts.machines(name=machine.name) %}
+    {% for m in relatives %}
     <li>{{ utils.render_machine(m) }}</li>
     {% endfor %}
   </ul>
