@@ -1,6 +1,7 @@
 from lnt.testing.util.commands import fatal
 import glob
 import yaml
+import sys
 
 try:
     import threading
@@ -28,85 +29,40 @@ class V4DB(object):
     _engine_lock = threading.Lock()
     _engine = {}
 
-    class TestSuiteAccessor(object):
-        def __init__(self, v4db):
-            self.v4db = v4db
-            self._extra_suites = {}
-            self._cache = {}
-
-        def __iter__(self):
-            tsnames = [d[0] for d in
-                       self.v4db.query(testsuite.TestSuite.name).all()]
-            for name in tsnames:
-                yield name
-            for name in self._extra_suites.keys():
-                if name in tsnames:
-                    continue
-                yield name
-
-        def add_suite(self, suite):
-            name = suite.name
-            self._extra_suites[name] = suite
-
-        def get(self, name, default=None):
-            # Check the test suite cache, to avoid gratuitous reinstantiation.
-            #
-            # FIXME: Invalidation?
-            if name in self._cache:
-                return self._cache[name]
-
-            create_tables = False
-            v4db = self.v4db
-            ts = self._extra_suites.get(name)
-            if ts:
-                testsuite.check_testsuite_schema_changes(v4db.session, ts)
-                ts = testsuite.sync_testsuite_with_metatables(v4db.session, ts)
-                v4db.session.commit()
-                create_tables = True
-            else:
-                # Get the test suite object.
-                ts = v4db.query(testsuite.TestSuite).\
-                    filter(testsuite.TestSuite.name == name).first()
-                if ts is None:
-                    return default
-
-            # Instantiate the per-test suite wrapper object for this test
-            # suite.
-            self._cache[name] = ts = lnt.server.db.testsuitedb.TestSuiteDB(
-                v4db, name, ts, create_tables=create_tables)
-            return ts
-
-        def __getitem__(self, name):
-            ts = self.get(name)
-            if ts is None:
-                raise IndexError(name)
-            return ts
-
-        def keys(self):
-            return iter(self)
-
-        def values(self):
-            for name in self:
-                yield self[name]
-
-        def items(self):
-            for name in self:
-                yield name, self[name]
-
-    def _load_schema_file(self, schema_file):
+    def _load_schema_file(self, session, schema_file):
         with open(schema_file) as schema_fd:
             data = yaml.load(schema_fd)
         suite = testsuite.TestSuite.from_json(data)
-        self.testsuite.add_suite(suite)
+        testsuite.check_testsuite_schema_changes(session, suite)
+        suite = testsuite.sync_testsuite_with_metatables(session, suite)
+        session.commit()
 
-    def _load_shemas(self):
+        name = suite.name
+        ts = lnt.server.db.testsuitedb.TestSuiteDB(self, name, suite,
+                                                   create_tables=True)
+        if name in self.testsuite:
+            logger.error("Duplicate test-suite '%s' (while loading %s)" %
+                         (name, schema_file))
+        self.testsuite[name] = ts
+
+    def _load_schemas(self, session):
+        # Load schema files (preferred)
         schemasDir = self.config.schemasDir
         for schema_file in glob.glob('%s/*.yaml' % schemasDir):
             try:
-                self._load_schema_file(schema_file)
-            except:
-                logger.error("Could not load schema '%s'" % schema_file,
-                             exc_info=True)
+                self._load_schema_file(session, schema_file)
+            except Exception as e:
+                fatal("Could not load schema '%s': %s\n" % (schema_file, e))
+
+        # Load schemas from database (deprecated)
+        ts_list = session.query(testsuite.TestSuite).all()
+        for suite in ts_list:
+            name = suite.name
+            if name in self.testsuite:
+                continue
+            ts = lnt.server.db.testsuitedb.TestSuiteDB(self, name, suite,
+                                                       create_tables=False)
+            self.testsuite[name] = ts
 
     def __init__(self, path, config, baseline_revision=0):
         # If the path includes no database type, assume sqlite.
@@ -135,9 +91,6 @@ class V4DB(object):
             lnt.server.db.migrate.update(self.engine)
             V4DB._db_updated.add(path)
 
-        # Proxy object for implementing dict-like .testsuite property.
-        self._testsuite_proxy = None
-
         self.session = sqlalchemy.orm.sessionmaker(self.engine)()
 
         # Add several shortcut aliases.
@@ -154,7 +107,8 @@ class V4DB(object):
         self.TestSuite = testsuite.TestSuite
         self.SampleField = testsuite.SampleField
 
-        self._load_shemas()
+        self.testsuite = dict()
+        self._load_schemas(self.session)
 
     def close(self):
         if self.session is not None:
@@ -181,15 +135,3 @@ class V4DB(object):
             'config': self.config,
             'baseline_revision': self.baseline_revision,
         }
-
-    @property
-    def testsuite(self):
-        # This is the start of "magic" part of V4DB, which allows us to get
-        # fully bound SA instances for databases which are effectively
-        # described by the TestSuites table.
-
-        # The magic starts by returning a object which will allow us to use
-        # dictionary like access to get the per-test suite database wrapper.
-        if self._testsuite_proxy is None:
-            self._testsuite_proxy = V4DB.TestSuiteAccessor(self)
-        return self._testsuite_proxy
