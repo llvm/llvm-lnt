@@ -115,18 +115,12 @@ class V4DB(object):
             self.session.close()
 
     @staticmethod
-    def close_engine(db_path):
-        """Rip down everything about this path, so we can make it
-        new again. This is used for tests that need to make a fresh
-        in memory database."""
-        V4DB._engine[db_path].dispose()
-        V4DB._engine.pop(db_path)
-        V4DB._db_updated.remove(db_path)
-
-    @staticmethod
     def close_all_engines():
-        for key in V4DB._engine.keys():
-            V4DB.close_engine(key)
+        with V4DB._engine_lock:
+            for key, engine in V4DB._engine.items():
+                engine.dispose()
+            V4DB._engine = {}
+            V4DB._db_updated = set()
 
     def settings(self):
         """All the setting needed to recreate this instnace elsewhere."""
