@@ -236,8 +236,6 @@ class Run(Resource):
     @staticmethod
     def get(run_id):
         ts = request.get_testsuite()
-        full_run = common_fields_factory()
-
         try:
             run = ts.query(ts.Run) \
                 .filter(ts.Run.id == run_id) \
