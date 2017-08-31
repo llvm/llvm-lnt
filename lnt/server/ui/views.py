@@ -680,6 +680,45 @@ BaselineLegendItem = namedtuple('BaselineLegendItem', 'name id')
 LegendItem = namedtuple('LegendItem', 'machine test_name field_name color url')
 
 
+@v4_route("/graph_for_sample/<int:sample_id>/<string:field_name>")
+def v4_graph_for_sample(sample_id, field_name):
+    """Redirect to a graph of the data that a sample and field came from.
+
+    When you have a sample from an API call, this can get you into the LNT graph
+    page, for that sample.  Extra args are passed through, to allow the caller
+    to customize the graph page displayed, with for example run highlighting.
+
+    :param sample_id: the sample ID from the database, obtained from the API.
+    :param field_name: the name of the field.
+    :return: a redirect to the graph page for that sample and field.
+
+    """
+    ts = request.get_testsuite()
+    target_sample = ts.query(ts.Sample).get(sample_id)
+    if not target_sample:
+        abort(404, "Could not find sample id: {}".format(sample_id))
+
+    # Get the field index we are interested in.
+    field = None
+    for f in target_sample.get_primary_fields():
+        if f.name == field_name:
+            field = f
+            break
+    if not field:
+        abort(400, "Could not find field {}".format(field_name))
+    field_index = field.index
+
+    kwargs = {'plot.0': '{machine_id}.{test_id}.{field_id}'.format(
+        machine_id=target_sample.run.machine.id,
+        test_id=target_sample.test_id,
+        field_id=field_index)}
+    # Pass request args through, so you can add graph options.
+    kwargs.update(request.args)
+
+    graph_url = v4_url_for('.v4_graph', **kwargs)
+    return redirect(graph_url)
+
+
 @v4_route("/graph")
 def v4_graph():
     from lnt.server.ui import util

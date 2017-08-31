@@ -585,5 +585,17 @@ def main():
     resp = check_code(client, '/ping')
     assert resp.data == "pong"
 
+    # Check we can convert a sample into a graph page.
+    graph_to_sample = check_code(client, '/db_default/v4/nts/graph_for_sample/10/compile_time?foo=bar',
+                                 expected_code=HTTP_REDIRECT)
+    assert graph_to_sample.headers['Location'] == "http://localhost/db_default/v4/nts/graph?foo=bar&plot.0=2.6.2"
+
+    # Check that is we ask for a sample or invalid field, we explode with 400s.
+    check_code(client, '/db_default/v4/nts/graph_for_sample/10000/compile_time?foo=bar',
+               expected_code=HTTP_NOT_FOUND)
+    check_code(client, '/db_default/v4/nts/graph_for_sample/10/not_a_metric?foo=bar',
+               expected_code=HTTP_BAD_REQUEST)
+
+
 if __name__ == '__main__':
     main()
