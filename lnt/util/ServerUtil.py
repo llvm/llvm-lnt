@@ -72,8 +72,9 @@ def submitFileToInstance(path, file, updateMachine=False, mergeRun='replace'):
     with contextlib.closing(config.get_database(db_name)) as db:
         if db is None:
             raise ValueError("no default database in instance: %r" % (path,))
+        session = db.make_session()
         return lnt.util.ImportData.import_and_report(
-            config, db_name, db, file, format='<auto>', ts_name='nts',
+            config, db_name, db, session, file, format='<auto>', ts_name='nts',
             updateMachine=updateMachine, mergeRun=mergeRun)
 
 

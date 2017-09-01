@@ -12,6 +12,7 @@ from lnt.server.db.fieldchange import RegressionState
 
 # Create an in memory database.
 db = v4db.V4DB("sqlite:///:memory:", Config.dummy_instance())
+session = db.make_session()
 
 # Get the test suite wrapper.
 ts_db = db.testsuite['nts']
@@ -42,63 +43,63 @@ sample = ts_db.Sample(run, test, compile_time=1.0, score=4.2, code_size=100)
 sample.mem_bytes = 58093568
 
 # Add and commit.
-ts_db.add(machine)
-ts_db.add(order)
-ts_db.add(order2)
-ts_db.add(order3)
+session.add(machine)
+session.add(order)
+session.add(order2)
+session.add(order3)
 
 
-ts_db.add(run)
-ts_db.add(test)
-ts_db.add(sample)
+session.add(run)
+session.add(test)
+session.add(sample)
 field_change = ts_db.FieldChange(order, order2, machine, test,
-                                 list(sample.get_primary_fields())[0])
+                                 list(sample.get_primary_fields())[0].id)
 
-ts_db.add(field_change)
+session.add(field_change)
 
 field_change2 = ts_db.FieldChange(order2, order3, machine, test,
-                                  list(sample.get_primary_fields())[1])
-ts_db.add(field_change2)
+                                  list(sample.get_primary_fields())[1].id)
+session.add(field_change2)
 
 TEST_TITLE = "Some regression title"
 
 regression = ts_db.Regression(TEST_TITLE, "PR1234", RegressionState.DETECTED)
-ts_db.add(regression)
+session.add(regression)
 
 regression_indicator1 = ts_db.RegressionIndicator(regression, field_change)
 regression_indicator2 = ts_db.RegressionIndicator(regression, field_change2)
 
-ts_db.add(regression_indicator1)
-ts_db.add(regression_indicator2)
+session.add(regression_indicator1)
+session.add(regression_indicator2)
 
-ts_db.commit()
+session.commit()
 
 del machine, order, run, test, sample
 
 # Fetch the added objects.
-machines = ts_db.query(ts_db.Machine).all()
+machines = session.query(ts_db.Machine).all()
 assert len(machines) == 1
 machine = machines[0]
 
-orders = ts_db.query(ts_db.Order).all()
+orders = session.query(ts_db.Order).all()
 assert len(orders) == 3
 order = orders[0]
 
-runs = ts_db.query(ts_db.Run).all()
+runs = session.query(ts_db.Run).all()
 assert len(runs) == 1
 run = runs[0]
 
-tests = ts_db.query(ts_db.Test).all()
+tests = session.query(ts_db.Test).all()
 assert len(tests) == 1
 test = tests[0]
 
-samples = ts_db.query(ts_db.Sample).all()
+samples = session.query(ts_db.Sample).all()
 assert len(samples) == 1
 sample = samples[0]
 
 assert sample.code_size == 100
 
-regression_indicators = ts_db.query(ts_db.RegressionIndicator).all()
+regression_indicators = session.query(ts_db.RegressionIndicator).all()
 assert len(regression_indicators) == 2
 ri = regression_indicators[0]
 

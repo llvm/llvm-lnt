@@ -12,7 +12,7 @@ import tempfile
 import time
 
 
-def import_and_report(config, db_name, db, file, format, ts_name,
+def import_and_report(config, db_name, db, session, file, format, ts_name,
                       show_sample_count=False, disable_email=False,
                       disable_report=False, updateMachine=False,
                       mergeRun='replace'):
@@ -32,18 +32,18 @@ def import_and_report(config, db_name, db, file, format, ts_name,
         'import_file': file,
     }
 
-    ts = db.testsuite.get(ts_name)
+    ts = db.testsuite.get(ts_name, None)
     if ts is None:
         result['error'] = "Unknown test suite '%s'!" % ts_name
         return result
-    numMachines = ts.getNumMachines()
-    numRuns = ts.getNumRuns()
-    numTests = ts.getNumTests()
+    numMachines = ts.getNumMachines(session)
+    numRuns = ts.getNumRuns(session)
+    numTests = ts.getNumTests(session)
 
     # If the database gets fragmented, count(*) in SQLite can get really
     # slow!?!
     if show_sample_count:
-        numSamples = ts.getNumSamples()
+        numSamples = ts.getNumSamples(session)
 
     startTime = time.time()
     try:
@@ -88,7 +88,7 @@ def import_and_report(config, db_name, db, file, format, ts_name,
                                (data_schema, ts_name))
             return result
 
-        run = ts.importDataFromDict(data, config=db_config,
+        run = ts.importDataFromDict(session, data, config=db_config,
                                     updateMachine=updateMachine,
                                     mergeRun=mergeRun)
     except KeyboardInterrupt:
@@ -117,18 +117,18 @@ def import_and_report(config, db_name, db, file, format, ts_name,
     if not disable_report:
         #  This has the side effect of building the run report for
         #  this result.
-        NTEmailReport.emailReport(result, db, run, report_url, email_config,
-                                  toAddress, True)
+        NTEmailReport.emailReport(result, session, run, report_url,
+                                  email_config, toAddress, True)
 
-    result['added_machines'] = ts.getNumMachines() - numMachines
-    result['added_runs'] = ts.getNumRuns() - numRuns
-    result['added_tests'] = ts.getNumTests() - numTests
+    result['added_machines'] = ts.getNumMachines(session) - numMachines
+    result['added_runs'] = ts.getNumRuns(session) - numRuns
+    result['added_tests'] = ts.getNumTests(session) - numTests
     if show_sample_count:
-        result['added_samples'] = ts.getNumSamples() - numSamples
+        result['added_samples'] = ts.getNumSamples(session) - numSamples
 
     result['committed'] = True
     result['run_id'] = run.id
-    ts.commit()
+    session.commit()
     if db_config:
         #  If we are not in a dummy instance, also run background jobs.
         #  We have to have a commit before we run, so subprocesses can
@@ -152,8 +152,10 @@ def import_and_report(config, db_name, db, file, format, ts_name,
                                  "database %r does not exist" % shadow_name)
 
             # Perform the shadow import.
+            shadow_session = shadow_db.make_session()
             shadow_result = import_and_report(config, shadow_name,
-                                              shadow_db, file, format, ts_name,
+                                              shadow_db, shadow_session, file,
+                                              format, ts_name,
                                               show_sample_count, disable_email,
                                               disable_report, updateMachine)
 
@@ -301,8 +303,8 @@ def print_report_result(result, out, err, verbose=True):
         print >>out, kind, ":", count
 
 
-def import_from_string(config, db_name, db, ts_name, data, updateMachine=False,
-                       mergeRun='replace'):
+def import_from_string(config, db_name, db, session, ts_name, data,
+                       updateMachine=False, mergeRun='replace'):
     # Stash a copy of the raw submission.
     #
     # To keep the temporary directory organized, we keep files in
@@ -330,6 +332,6 @@ def import_from_string(config, db_name, db, ts_name, data, updateMachine=False,
     # should at least reject overly large inputs.
 
     result = lnt.util.ImportData.import_and_report(
-        config, db_name, db, path, '<auto>', ts_name,
+        config, db_name, db, session, path, '<auto>', ts_name,
         updateMachine=updateMachine, mergeRun=mergeRun)
     return result

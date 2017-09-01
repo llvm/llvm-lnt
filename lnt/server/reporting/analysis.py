@@ -242,7 +242,7 @@ class ComparisonResult:
 
 
 class RunInfo(object):
-    def __init__(self, testsuite, runs_to_load,
+    def __init__(self, session, testsuite, runs_to_load,
                  aggregation_fn=stats.safe_min, confidence_lv=.05,
                  only_tests=None):
         """Get all the samples needed to build a CR.
@@ -257,26 +257,28 @@ class RunInfo(object):
         self.profile_map = dict()
         self.loaded_run_ids = set()
 
-        self._load_samples_for_runs(runs_to_load, only_tests)
+        self._load_samples_for_runs(session, runs_to_load, only_tests)
 
     @property
     def test_ids(self):
         return set(key[1] for key in self.sample_map.keys())
 
-    def get_sliding_runs(self, run, compare_run, num_comparison_runs=0):
+    def get_sliding_runs(self, session, run, compare_run,
+                         num_comparison_runs=0):
         """
         Get num_comparison_runs most recent runs,
         This query is expensive.
         """
         runs = [run]
         runs_prev = self.testsuite \
-            .get_previous_runs_on_machine(run, num_comparison_runs)
+            .get_previous_runs_on_machine(session, run, num_comparison_runs)
         runs += runs_prev
 
         if compare_run is not None:
             compare_runs = [compare_run]
             comp_prev = self.testsuite \
-                .get_previous_runs_on_machine(compare_run, num_comparison_runs)
+                .get_previous_runs_on_machine(session, compare_run,
+                                              num_comparison_runs)
             compare_runs += comp_prev
         else:
             compare_runs = []
@@ -396,7 +398,7 @@ class RunInfo(object):
                                 confidence_lv=0,
                                 bigger_is_better=field.bigger_is_better)
 
-    def _load_samples_for_runs(self, run_ids, only_tests):
+    def _load_samples_for_runs(self, session, run_ids, only_tests):
         # Find the set of new runs to load.
         to_load = set(run_ids) - self.loaded_run_ids
         if not to_load:
@@ -410,7 +412,7 @@ class RunInfo(object):
                    self.testsuite.Sample.test_id,
                    self.testsuite.Sample.profile_id]
         columns.extend(f.column for f in self.testsuite.sample_fields)
-        q = self.testsuite.query(*columns)
+        q = session.query(*columns)
         if only_tests:
             q = q.filter(self.testsuite.Sample.test_id.in_(only_tests))
         q = q.filter(self.testsuite.Sample.run_id.in_(to_load))

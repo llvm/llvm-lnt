@@ -10,7 +10,6 @@ from lnt.testing.util.misc import timestamp
 import lnt.util.ServerUtil as ServerUtil
 import lnt.util.ImportData as ImportData
 import lnt.server.config as server_config
-import lnt.server.db.v4db
 
 
 class OptsContainer(object):
@@ -78,7 +77,7 @@ class BuiltinTest(object):
                 config.submit_url, report_path, config.verbose,
                 updateMachine=config.update_machine, mergeRun=config.merge)
         else:
-            server_report = lnt.util.ImportData.no_submit()
+            server_report = ImportData.no_submit()
         if server_report:
             ImportData.print_report_result(server_report, sys.stdout, sys.stderr,
                                            config.verbose)

@@ -1,7 +1,7 @@
 import re
 
 
-def _naive_search_for_run(ts, query, num_results, default_machine):
+def _naive_search_for_run(session, ts, query, num_results, default_machine):
     """
     This 'naive' search doesn't rely on any indexes so can be used without
     full-text search enabled. This does make it less clever however.
@@ -37,7 +37,7 @@ def _naive_search_for_run(ts, query, num_results, default_machine):
     if not machine_queries:
         machines = [default_machine]
     else:
-        for m in ts.query(ts.Machine).all():
+        for m in session.query(ts.Machine).all():
             if all(q in m.name for q in machine_queries):
                 machines.append(m.id)
 
@@ -50,7 +50,7 @@ def _naive_search_for_run(ts, query, num_results, default_machine):
     llvm_project_revision_col = \
         ts.Order.fields[llvm_project_revision_idx].column
 
-    q = ts.query(ts.Run) \
+    q = session.query(ts.Run) \
           .filter(ts.Run.machine_id.in_(machines)) \
           .filter(ts.Run.order_id == ts.Order.id) \
           .filter(llvm_project_revision_col.isnot(None))
@@ -61,7 +61,7 @@ def _naive_search_for_run(ts, query, num_results, default_machine):
     return q.order_by(ts.Run.id.desc()).limit(num_results).all()
 
 
-def search(ts, query,
+def search(session, ts, query,
            num_results=8, default_machine=None):
     """
     Performs a textual search for a run. The exact syntax supported depends on
@@ -77,5 +77,5 @@ def search(ts, query,
     Returns a list of Run objects.
     """
 
-    return _naive_search_for_run(ts, query,
+    return _naive_search_for_run(session, ts, query,
                                  num_results, default_machine)

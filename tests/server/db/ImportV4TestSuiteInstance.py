@@ -70,20 +70,24 @@ from lnt.server.db import v4db
 
 # Load the test database.
 db = v4db.V4DB("sqlite:///%s" % sys.argv[1], Config.dummy_instance())
+session = db.make_session()
 
 # Get the status kinds, and validate the IDs align with the testing IDs.
-pass_kind = db.query(db.StatusKind).filter_by(id = lnt.testing.PASS).one()
+pass_kind = session.query(testsuite.StatusKind) \
+    .filter_by(id = lnt.testing.PASS).one()
 assert pass_kind.name == "PASS"
-fail_kind = db.query(db.StatusKind).filter_by(id = lnt.testing.FAIL).one()
+fail_kind = session.query(testsuite.StatusKind) \
+    .filter_by(id = lnt.testing.FAIL).one()
 assert fail_kind.name == "FAIL"
-xfail_kind = db.query(db.StatusKind).filter_by(id = lnt.testing.XFAIL).one()
+xfail_kind = session.query(testsuite.StatusKind) \
+    .filter_by(id = lnt.testing.XFAIL).one()
 assert xfail_kind.name == "XFAIL"
 
 # Load the imported test suite.
 ts = db.testsuite['nts']
 
 # Validate the machine.
-machines = list(ts.query(ts.Machine))
+machines = list(session.query(ts.Machine))
 assert len(machines) == 1
 machine = machines[0]
 assert machine.name == 'LNT SAMPLE MACHINE'
@@ -94,13 +98,13 @@ assert len(parameters) == 1
 assert parameters['extrakey'] == u'extravalue'
 
 # Validate the tests.
-tests = list(ts.query(ts.Test))
+tests = list(session.query(ts.Test))
 assert len(tests) == 1
 test = tests[0]
 assert tests[0].name == 'sampletest'
 
 # Validate the orders.
-orders = list(ts.query(ts.Order).order_by(ts.Order.llvm_project_revision))
+orders = list(session.query(ts.Order).order_by(ts.Order.llvm_project_revision))
 assert len(orders) == 2
 order_a,order_b = orders
 print order_a
@@ -113,7 +117,7 @@ assert order_b.next_order_id is None
 assert order_b.llvm_project_revision == '2'
 
 # Validate the runs.
-runs = list(ts.query(ts.Run).order_by(ts.Run.order_id))
+runs = list(session.query(ts.Run).order_by(ts.Run.order_id))
 assert len(runs) == 2
 run_a,run_b = runs
 assert run_a.machine is machine
@@ -128,7 +132,7 @@ assert sorted(run_a.parameters.items()) == [('inferred_run_order', '1')]
 assert sorted(run_b.parameters.items()) == [('inferred_run_order', '2')]
 
 # Validate the samples.
-samples = list(ts.query(ts.Sample)\
+samples = list(session.query(ts.Sample)\
     .join(ts.Run) \
     .order_by(ts.Run.order_id, ts.Sample.id))
 assert len(samples) == 3

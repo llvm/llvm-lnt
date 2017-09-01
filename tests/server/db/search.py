@@ -32,6 +32,7 @@ class SearchTest(unittest.TestCase):
         
         # Get the database.
         self.db = config.get_database('default')
+        self.session = self.db.make_session()
         # Load the database.
         for r in imported_runs:
             with tempfile.NamedTemporaryFile() as f:
@@ -42,7 +43,7 @@ class SearchTest(unittest.TestCase):
                 open(f.name, 'w').write(data)
     
                 result = lnt.util.ImportData.import_and_report(
-                    None, 'default', self.db, f.name,
+                    None, 'default', self.db, self.session, f.name,
                     format='<auto>', ts_name='nts', show_sample_count=False,
                     disable_email=True, disable_report=True,
                     updateMachine=False, mergeRun='reject')
@@ -54,43 +55,47 @@ class SearchTest(unittest.TestCase):
                 for r in rs]
         
     def test_specific(self):
+        session = self.session
         ts = self.db.testsuite.get('nts')
 
-        results = self._mangleResults(search(ts, 'machine1 #5625'))
+        results = self._mangleResults(search(session, ts, 'machine1 #5625'))
         self.assertEqual(results, [
             ('machine1', '5625')
         ])
 
-        results = self._mangleResults(search(ts, 'machine1 #5624'))
+        results = self._mangleResults(search(session, ts, 'machine1 #5624'))
         self.assertEqual(results, [
             ('machine1', '5624')
         ])
 
     def test_multiple_orders(self):
+        session = self.session
         ts = self.db.testsuite.get('nts')
 
-        results = self._mangleResults(search(ts, 'machine1 #56'))
+        results = self._mangleResults(search(session, ts, 'machine1 #56'))
         self.assertEqual(results, [
             ('machine1', '5625'), ('machine1', '5624')
         ])
 
     def test_nohash(self):
+        session = self.session
         ts = self.db.testsuite.get('nts')
 
-        results = self._mangleResults(search(ts, 'machine1 r56'))
+        results = self._mangleResults(search(session, ts, 'machine1 r56'))
         self.assertEqual(results, [
             ('machine1', '5625'), ('machine1', '5624')
         ])
 
-        results = self._mangleResults(search(ts, 'machine1 56'))
+        results = self._mangleResults(search(session, ts, 'machine1 56'))
         self.assertEqual(results, [
             ('machine1', '5625'), ('machine1', '5624')
         ])
 
     def test_default_order(self):
+        session = self.session
         ts = self.db.testsuite.get('nts')
 
-        results = self._mangleResults(search(ts, 'machi ne3'))
+        results = self._mangleResults(search(session, ts, 'machi ne3'))
         self.assertEqual(results, [
             ('machine3', '11324'),
             ('machine3', '7623'),
@@ -99,9 +104,11 @@ class SearchTest(unittest.TestCase):
         ])
         
     def test_default_machine(self):
+        session = self.session
         ts = self.db.testsuite.get('nts')
 
-        results = self._mangleResults(search(ts, '65', default_machine=3))
+        results = self._mangleResults(search(session, ts, '65',
+                                             default_machine=3))
         self.assertEqual(results, [
             ('machine2', '6512')
         ])

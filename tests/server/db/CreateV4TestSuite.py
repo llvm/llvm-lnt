@@ -12,13 +12,14 @@ from lnt.server.db import v4db
 
 # Create an in memory database.
 db = v4db.V4DB("sqlite:///:memory:", Config.dummy_instance())
+session = db.make_session()
 
 # We expect exactly the NTS test suite.
-test_suites = list(db.query(testsuite.TestSuite))
+test_suites = list(session.query(testsuite.TestSuite))
 assert len(test_suites) == 1
 
 # Check the NTS test suite.
-ts = db.query(testsuite.TestSuite).filter_by(name="nts").first()
+ts = session.query(testsuite.TestSuite).filter_by(name="nts").first()
 assert ts.name == "nts"
 assert ts.db_key_name == "NT"
 assert len(ts.machine_fields) == 2

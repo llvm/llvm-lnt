@@ -11,7 +11,7 @@ import os
 
 import aniso8601
 import sqlalchemy
-from flask import session
+import flask
 from sqlalchemy import *
 from sqlalchemy.orm import relation
 from sqlalchemy.orm.exc import ObjectDeletedError
@@ -127,7 +127,7 @@ class TestSuiteDB(object):
         class Machine(self.base, ParameterizedMixin):
             __tablename__ = db_key_name + '_Machine'
 
-            DEFAULT_BASELINE_REVISION = self.v4db.baseline_revision
+            DEFAULT_BASELINE_REVISION = v4db.baseline_revision
 
             fields = self.machine_fields
             id = Column("ID", Integer, primary_key=True)
@@ -165,21 +165,22 @@ class TestSuiteDB(object):
             def parameters(self, data):
                 self.parameters_data = json.dumps(sorted(data.items()))
 
-            def get_baseline_run(self):
+            def get_baseline_run(self, session):
                 ts = Machine.testsuite
-                user_baseline = ts.get_users_baseline()
+                user_baseline = ts.get_users_baseline(session)
                 if user_baseline:
                     return self.get_closest_previously_reported_run(
-                        user_baseline.order)
+                        session, user_baseline.order)
                 else:
                     mach_base = Machine.DEFAULT_BASELINE_REVISION
                     # If we have an int, convert it to a proper string.
                     if isinstance(mach_base, int):
                         mach_base = '% 7d' % mach_base
                     return self.get_closest_previously_reported_run(
-                        ts.Order(llvm_project_revision=mach_base))
+                        session, ts.Order(llvm_project_revision=mach_base))
 
-            def get_closest_previously_reported_run(self, order_to_find):
+            def get_closest_previously_reported_run(self, session,
+                                                    order_to_find):
                 """
                 Find the closest previous run to the requested order, for which
                 this machine also reported.
@@ -189,7 +190,7 @@ class TestSuiteDB(object):
                 ts = Machine.testsuite
                 # Search for best order.
                 best_order = None
-                for order in ts.query(ts.Order).\
+                for order in session.query(ts.Order).\
                         join(ts.Run).\
                         filter(ts.Run.machine_id == self.id).distinct():
                     if order >= order_to_find and \
@@ -200,7 +201,7 @@ class TestSuiteDB(object):
                 # that order.
                 closest_run = None
                 if best_order:
-                    closest_run = ts.query(ts.Run)\
+                    closest_run = session.query(ts.Run)\
                         .filter(ts.Run.machine_id == self.id)\
                         .filter(ts.Run.order_id == best_order.id)\
                         .order_by(ts.Run.start_time.desc()).first()
@@ -500,7 +501,7 @@ class TestSuiteDB(object):
                 those which have a value that can be interpreted as better or
                 worse than other potential values for this field.
                 """
-                for field in self.Sample.fields:
+                for field in Sample.fields:
                     if field.type.name in ['Real', 'Integer']:
                         yield field
 
@@ -586,7 +587,7 @@ class TestSuiteDB(object):
             test_id = Column("TestID", Integer, ForeignKey(Test.id))
             machine_id = Column("MachineID", Integer, ForeignKey(Machine.id))
             field_id = Column("FieldID", Integer,
-                              ForeignKey(self.v4db.SampleField.id))
+                              ForeignKey(testsuite.SampleField.id))
             # Could be from many runs, but most recent one is interesting.
             run_id = Column("RunID", Integer, ForeignKey(Run.id))
 
@@ -596,18 +597,16 @@ class TestSuiteDB(object):
                                  'end_order_id==Order.id')
             test = relation(Test)
             machine = relation(Machine)
-            field = relation(self.v4db.SampleField,
-                             primaryjoin=(self.v4db.SampleField.id ==
-                                          field_id))
+            field = relation(testsuite.SampleField)
             run = relation(Run)
 
             def __init__(self, start_order, end_order, machine,
-                         test, field):
+                         test, field_id):
                 self.start_order = start_order
                 self.end_order = end_order
                 self.machine = machine
-                self.field = field
                 self.test = test
+                self.field_id = field_id
 
             def __repr__(self):
                 return '%s_%s%r' % (db_key_name, self.__class__.__name__,
@@ -749,34 +748,26 @@ class TestSuiteDB(object):
         sqlalchemy.schema.Index("ix_%s_Sample_RunID_TestID" % db_key_name,
                                 Sample.run_id, Sample.test_id)
 
-        # Add several shortcut aliases, similar to the ones on the v4db.
-        self.session = self.v4db.session
-        self.add = self.v4db.add
-        self.delete = self.v4db.delete
-        self.commit = self.v4db.commit
-        self.query = self.v4db.query
-        self.rollback = self.v4db.rollback
-
         if create_tables:
             self.base.metadata.create_all(v4db.engine)
 
-    def get_baselines(self):
-        return self.query(self.Baseline).all()
+    def get_baselines(self, session):
+        return session.query(self.Baseline).all()
 
-    def get_users_baseline(self):
+    def get_users_baseline(self, session):
         try:
             baseline_key = lnt.server.ui.util.baseline_key(self.name)
-            session_baseline = session.get(baseline_key)
+            session_baseline = flask.session.get(baseline_key)
         except RuntimeError:
             # Sometimes this is called from outside the app context.
             # In that case, don't get the user's session baseline.
             return None
         if session_baseline:
-            return self.query(self.Baseline).get(session_baseline)
+            return session.query(self.Baseline).get(session_baseline)
 
         return None
 
-    def _getOrCreateMachine(self, machine_data, forceUpdate):
+    def _getOrCreateMachine(self, session, machine_data, forceUpdate):
         """
         _getOrCreateMachine(data, forceUpdate) -> Machine
 
@@ -795,12 +786,12 @@ class TestSuiteDB(object):
         machine.parameters = machine_parameters
 
         # Look for an existing machine.
-        existing_machines = self.query(self.Machine) \
+        existing_machines = session.query(self.Machine) \
             .filter(self.Machine.name == name) \
             .order_by(self.Machine.id.desc()) \
             .all()
         if len(existing_machines) == 0:
-            self.add(machine)
+            session.add(machine)
             return machine
 
         existing = existing_machines[0]
@@ -840,7 +831,7 @@ class TestSuiteDB(object):
         existing.parameters = existing_parameters
         return existing
 
-    def _getOrCreateOrder(self, run_parameters):
+    def _getOrCreateOrder(self, session, run_parameters):
         """
         _getOrCreateOrder(data) -> Order
 
@@ -851,7 +842,7 @@ class TestSuiteDB(object):
         provided ddata argument.
         """
 
-        query = self.query(self.Order)
+        query = session.query(self.Order)
         order = self.Order()
 
         # First, extract all of the specified order fields.
@@ -874,11 +865,11 @@ class TestSuiteDB(object):
         # linked list.
 
         # Add the new order and commit, to assign an ID.
-        self.add(order)
-        self.v4db.session.commit()
+        session.add(order)
+        session.commit()
 
         # Load all the orders.
-        orders = list(self.query(self.Order))
+        orders = list(session.query(self.Order))
 
         # Sort the objects to form the total ordering.
         orders.sort()
@@ -899,9 +890,9 @@ class TestSuiteDB(object):
 
         return order
 
-    def _getOrCreateRun(self, run_data, machine, merge):
+    def _getOrCreateRun(self, session, run_data, machine, merge):
         """
-        _getOrCreateRun(run_data, machine, merge) -> Run, bool
+        _getOrCreateRun(session, run_data, machine, merge) -> Run, bool
 
         Add a new Run record from the given data (as recorded by the test
         interchange format).
@@ -929,10 +920,10 @@ class TestSuiteDB(object):
         run_parameters.pop('simple_run_id', None)
 
         # Find the order record.
-        order = self._getOrCreateOrder(run_parameters)
+        order = self._getOrCreateOrder(session, run_parameters)
 
         if merge != 'append':
-            existing_runs = self.query(self.Run) \
+            existing_runs = session.query(self.Run) \
                 .filter(self.Run.machine_id == machine.id) \
                 .filter(self.Run.order_id == order.id) \
                 .all()
@@ -942,7 +933,7 @@ class TestSuiteDB(object):
                                      order.name)
                 elif merge == 'replace':
                     for run in existing_runs:
-                        self.delete(run)
+                        session.delete(run)
                 else:
                     raise ValueError('Invalid Run mergeStrategy %r' % merge)
 
@@ -970,15 +961,15 @@ class TestSuiteDB(object):
 
         # Any remaining parameters are saved as a JSON encoded array.
         run.parameters = run_parameters
-        self.add(run)
+        session.add(run)
         return run
 
-    def _importSampleValues(self, tests_data, run, config):
+    def _importSampleValues(self, session, tests_data, run, config):
         # Load a map of all the tests, which we will extend when we find tests
         # that need to be added.
         # Downcast to str, so we match on MySQL.
         test_cache = dict((str(test.name), test)
-                          for test in self.query(self.Test))
+                          for test in session.query(self.Test))
 
         profiles = dict()
         field_dict = dict([(f.name, f) for f in self.sample_fields])
@@ -988,7 +979,7 @@ class TestSuiteDB(object):
             if test is None:
                 test = self.Test(test_data['name'])
                 test_cache[name] = test
-                self.add(test)
+                session.add(test)
 
             samples = []
             for key, values in test_data.items():
@@ -1003,7 +994,7 @@ class TestSuiteDB(object):
                     values = [values]
                 while len(samples) < len(values):
                     sample = self.Sample(run, test)
-                    self.add(sample)
+                    session.add(sample)
                     samples.append(sample)
                 for sample, value in zip(samples, values):
                     if key == 'profile':
@@ -1012,7 +1003,8 @@ class TestSuiteDB(object):
                     else:
                         sample.set_field(field, value)
 
-    def importDataFromDict(self, data, config, updateMachine, mergeRun):
+    def importDataFromDict(self, session, data, config, updateMachine,
+                           mergeRun):
         """
         importDataFromDict(data, config, updateMachine, mergeRun)
             -> Run  (or throws ValueError exception)
@@ -1022,26 +1014,27 @@ class TestSuiteDB(object):
         like mismatching machine data or duplicate run submission with
         mergeRun == 'reject'.
         """
-        machine = self._getOrCreateMachine(data['machine'], updateMachine)
-        run = self._getOrCreateRun(data['run'], machine, mergeRun)
-        self._importSampleValues(data['tests'], run, config)
+        machine = self._getOrCreateMachine(session, data['machine'],
+                                           updateMachine)
+        run = self._getOrCreateRun(session, data['run'], machine, mergeRun)
+        self._importSampleValues(session, data['tests'], run, config)
         return run
 
     # Simple query support (mostly used by templates)
 
-    def machines(self, name=None):
-        q = self.query(self.Machine)
+    def machines(self, session, name=None):
+        q = session.query(self.Machine)
         if name:
             q = q.filter_by(name=name)
         return q
 
-    def getMachine(self, id):
-        return self.query(self.Machine).filter_by(id=id).one()
+    def getMachine(self, session, id):
+        return session.query(self.Machine).filter_by(id=id).one()
 
-    def getRun(self, id):
-        return self.query(self.Run).filter_by(id=id).one()
+    def getRun(self, session, id):
+        return session.query(self.Run).filter_by(id=id).one()
 
-    def get_adjacent_runs_on_machine(self, run, N, direction=-1):
+    def get_adjacent_runs_on_machine(self, session, run, N, direction=-1):
         """
         get_adjacent_runs_on_machine(run, N, direction=-1) -> [Run*]
 
@@ -1089,7 +1082,7 @@ class TestSuiteDB(object):
         #
         # FIXME: Scalability! However, pretty fast in practice, see elaborate
         # explanation above.
-        all_machine_orders = self.query(self.Order).\
+        all_machine_orders = session.query(self.Order).\
             join(self.Run).\
             filter(self.Run.machine == run.machine).distinct().all()
         all_machine_orders.sort()
@@ -1109,7 +1102,7 @@ class TestSuiteDB(object):
         if not ids_to_fetch:
             return []
 
-        runs = self.query(self.Run).\
+        runs = session.query(self.Run).\
             filter(self.Run.machine == run.machine).\
             filter(self.Run.order_id.in_(ids_to_fetch)).all()
 
@@ -1122,26 +1115,26 @@ class TestSuiteDB(object):
 
         return runs
 
-    def get_previous_runs_on_machine(self, run, N):
-        return self.get_adjacent_runs_on_machine(run, N, direction=-1)
+    def get_previous_runs_on_machine(self, session, run, N):
+        return self.get_adjacent_runs_on_machine(session, run, N, direction=-1)
 
-    def get_next_runs_on_machine(self, run, N):
-        return self.get_adjacent_runs_on_machine(run, N, direction=1)
+    def get_next_runs_on_machine(self, session, run, N):
+        return self.get_adjacent_runs_on_machine(session, run, N, direction=1)
 
     def __repr__(self):
-        return "{} (on {})".format(self.name, self.v4db.path)
+        return "TestSuiteDB('%s')" % self.name
 
-    def getNumMachines(self):
-        return self.query(self.Machine).count()
+    def getNumMachines(self, session):
+        return session.query(self.Machine).count()
 
-    def getNumRuns(self):
-        return self.query(self.Run).count()
+    def getNumRuns(self, session):
+        return session.query(self.Run).count()
 
-    def getNumSamples(self):
-        return self.query(self.Sample).count()
+    def getNumSamples(self, session):
+        return session.query(self.Sample).count()
 
-    def getNumTests(self):
-        return self.query(self.Test).count()
+    def getNumTests(self, session):
+        return session.query(self.Test).count()
 
     def get_field_index(self, sample_field):
         return self.sample_field_indexes[sample_field.name]

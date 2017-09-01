@@ -30,7 +30,7 @@ def _populate_blacklist():
         logger.warning("Ignoring blacklist file: {}".format(path))
 
 
-def filter_by_benchmark_name(ts, field_change):
+def filter_by_benchmark_name(session, ts, field_change):
     """Is this a fieldchanges we care about?
     """
     if ignored is None:

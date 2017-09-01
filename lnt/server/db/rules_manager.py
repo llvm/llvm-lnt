@@ -68,17 +68,17 @@ def register_hooks():
     return HOOKS
 
 
-def post_submission_hooks(ts, run_id):
+def post_submission_hooks(session, ts, run_id):
     """Run all the post submission hooks on the submitted run."""
     for func in HOOKS['post_submission_hook']:
-        func(ts, run_id)
+        func(session, ts, run_id)
 
 
-def is_useful_change(ts, field_change):
+def is_useful_change(session, ts, field_change):
     """Run all the change filters. If any are false, drop this change."""
     all_filters = []
     for func in HOOKS['is_useful_change']:
-        decision = func(ts, field_change)
+        decision = func(session, ts, field_change)
         all_filters.append(decision)
     if len(all_filters) == 0:
         return True

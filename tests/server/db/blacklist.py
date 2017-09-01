@@ -27,10 +27,10 @@ logging.basicConfig(level=logging.DEBUG)
 class BlacklistProcessingTest(unittest.TestCase):
     """Test the Rules facility."""
 
-    def _mkorder(self, ts, rev):
+    def _mkorder(self, session, ts, rev):
         order = ts.Order()
         order.llvm_project_revision = rev
-        ts.add(order)
+        session.add(order)
         return order
         
     def setUp(self):
@@ -45,18 +45,22 @@ class BlacklistProcessingTest(unittest.TestCase):
             app.preprocess_request()
             r.g.db_name = "default"
             r.g.testsuite_name = "nts"
+            r.request.db = app.instance.get_database(r.g.db_name)
+            r.request.session = r.request.db.make_session()
             self.ts = r.request.get_testsuite()
             self.ts_db = self.ts
+            self.session = r.request.session
+        session = self.session
         ts_db = self.ts_db
-        order1234 = self.order1234 = self._mkorder(ts_db, "1234")
-        order1236 = self.order1236 = self._mkorder(ts_db, "1236")
+        order1234 = self.order1234 = self._mkorder(session, ts_db, "1234")
+        order1236 = self.order1236 = self._mkorder(session, ts_db, "1236")
 
         machine = self.machine = ts_db.Machine("test-machine")
-        ts_db.add(machine)
+        session.add(machine)
 
         a_field = ts_db.Sample.fields[0]
 
-        ts_db.commit()
+        session.commit()
         
         test = self.test = ts_db.Test("Foo")
         test2 = self.test2 = ts_db.Test("SingleSource/Foo/Bar/baz")
@@ -67,44 +71,45 @@ class BlacklistProcessingTest(unittest.TestCase):
                                                order1236,
                                                machine,
                                                test,
-                                               a_field)
+                                               a_field.id)
         self.field_change2 = ts_db.FieldChange(order1234,
                                                order1236,
                                                machine,
                                                test2,
-                                               a_field)
+                                               a_field.id)
         self.field_change3 = ts_db.FieldChange(order1234,
                                                order1236,
                                                machine,
                                                test3,
-                                               a_field)
+                                               a_field.id)
         self.field_change4 = ts_db.FieldChange(order1234,
                                                order1236,
                                                machine,
                                                test4,
-                                               a_field)
-        ts_db.add(self.field_change1)
-        ts_db.add(self.field_change2)
-        ts_db.add(self.field_change3)
-        ts_db.add(self.field_change4)
+                                               a_field.id)
+        session.add(self.field_change1)
+        session.add(self.field_change2)
+        session.add(self.field_change3)
+        session.add(self.field_change4)
 
-        ts_db.commit()
+        session.commit()
 
     def test_blacklist(self):
         """Check we filter by benchmark name correctly."""
+        session = self.session
         ts = self.ts_db
         fc1 = self.field_change1
         fc2 = self.field_change2
         fc3 = self.field_change3
         fc4 = self.field_change4
 
-        valid = blacklist.filter_by_benchmark_name(ts, fc1)
+        valid = blacklist.filter_by_benchmark_name(session, ts, fc1)
         self.assertTrue(valid, "Expect this to not be filtered.")
-        valid = blacklist.filter_by_benchmark_name(ts, fc2)
+        valid = blacklist.filter_by_benchmark_name(session, ts, fc2)
         self.assertTrue(valid, "Expect this to not be filtered.")
-        bad = blacklist.filter_by_benchmark_name(ts, fc3)
+        bad = blacklist.filter_by_benchmark_name(session, ts, fc3)
         self.assertFalse(bad, "Expect this to be filtered by regex.")
-        bad = blacklist.filter_by_benchmark_name(ts, fc4)
+        bad = blacklist.filter_by_benchmark_name(session, ts, fc4)
         self.assertFalse(bad, "Expect this to be filtered by blacklist.")
 
 if __name__ == '__main__':

@@ -10,7 +10,7 @@ import subprocess
 import time
 
 
-def update_profile_stats(ts, run_id):
+def update_profile_stats(session, ts, run_id):
     config = ts.v4db.config
 
     history_path = os.path.join(config.profileDir, '_profile-history.json')

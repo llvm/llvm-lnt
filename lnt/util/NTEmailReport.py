@@ -4,15 +4,15 @@ import sys
 import urllib
 
 import StringIO
-import lnt.server.db.v4db
 import lnt.server.reporting.runs
 
 
-def emailReport(result, db, run, baseurl, email_config, to, was_added=True):
+def emailReport(result, session, run, baseurl, email_config, to,
+                was_added=True):
     import email.mime.multipart
     import email.mime.text
 
-    subject, report, html_report = _getReport(result, db, run, baseurl,
+    subject, report, html_report = _getReport(result, session, run, baseurl,
                                               was_added)
 
     # Ignore if no to address was given, we do things this way because of the
@@ -44,11 +44,9 @@ def emailReport(result, db, run, baseurl, email_config, to, was_added=True):
     s.quit()
 
 
-def _getReport(result, db, run, baseurl, was_added, compare_to=None):
-    assert isinstance(db, lnt.server.db.v4db.V4DB)
-
+def _getReport(result, session, run, baseurl, was_added, compare_to=None):
     data = lnt.server.reporting.runs.generate_run_data(
-        run, baseurl=baseurl, result=result, compare_to=compare_to,
+        session, run, baseurl=baseurl, result=result, compare_to=compare_to,
         num_comparison_runs=10)
 
     env = lnt.server.ui.app.create_jinja_environment()

@@ -42,11 +42,12 @@ def action_import(instance_path, files, database, output_format, show_sql,
 
     # Get the database.
     with contextlib.closing(config.get_database(database)) as db:
+        session = db.make_session()
         # Load the database.
         success = True
         for file_name in files:
             result = lnt.util.ImportData.import_and_report(
-                config, database, db, file_name,
+                config, database, db, session, file_name,
                 output_format, testsuite, show_sample_count, no_email,
                 no_report, updateMachine=update_machine, mergeRun=merge)
 

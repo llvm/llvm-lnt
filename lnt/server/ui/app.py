@@ -91,27 +91,15 @@ class Request(flask.Request):
 
     # Utility Methods
     def get_db(self):
-        """
-        get_db() -> <db instance>
-
-        Get the active database and add a logging handler if part of the
-        request arguments.
-        """
-
-        if self.db is None:
-            try:
-                self.db = current_app.old_config.get_database(g.db_name)
-            except DatabaseError:
-                self.db = current_app.old_config.get_database(g.db_name)
-            # Enable SQL logging with db_log.
-            #
-            # FIXME: Conditionalize on an is_production variable.
-            show_sql = bool(self.args.get('db_log') or self.form.get('db_log'))
-            if show_sql:
-                g.db_log = StringIO.StringIO()
-                logger = logging.getLogger("sqlalchemy")
-                logger.addHandler(logging.StreamHandler(g.db_log))
-
+        assert self.db is not None
+        # Enable SQL logging with db_log.
+        #
+        # FIXME: Conditionalize on an is_production variable.
+        show_sql = bool(self.args.get('db_log') or self.form.get('db_log'))
+        if show_sql:
+            g.db_log = StringIO.StringIO()
+            logger = logging.getLogger("sqlalchemy")
+            logger.addHandler(logging.StreamHandler(g.db_log))
         return self.db
 
     def get_testsuite(self):
@@ -122,7 +110,7 @@ class Request(flask.Request):
         """
 
         if self.testsuite is None:
-            testsuites = self.get_db().testsuite
+            testsuites = self.db.testsuite
             if g.testsuite_name not in testsuites:
                 flask.abort(404)
 

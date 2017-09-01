@@ -23,13 +23,15 @@ def db_route(rule, **options):
             g.db_info = current_app.old_config.databases.get(g.db_name)
             if g.db_info is None:
                 abort(404)
+            request.db = current_app.instance.get_database(g.db_name)
+            request.session = request.db.make_session()
 
             # Compute result.
             result = f(**args)
 
             # Make sure that any transactions begun by this request are
             # finished.
-            request.get_db().rollback()
+            request.session.rollback()
 
             # Return result.
             return result
@@ -60,13 +62,15 @@ def v4_route(rule, **options):
             g.db_info = current_app.old_config.databases.get(g.db_name)
             if g.db_info is None:
                 abort(404)
+            request.db = current_app.instance.get_database(g.db_name)
+            request.session = request.db.make_session()
 
             # Compute result.
             result = f(**args)
 
             # Make sure that any transactions begun by this request are
             # finished.
-            request.get_db().rollback()
+            request.session.rollback()
 
             # Return result.
             return result

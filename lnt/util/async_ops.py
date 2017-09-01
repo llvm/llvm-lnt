@@ -106,6 +106,7 @@ def async_run_job(job, db_name, ts, func_args, db_config):
     job.start()
     JOBS.append(job)
 
+
 # Flag to track if we have disposed of the parents database connections in
 # this subprocess.
 clean_db = False
@@ -124,15 +125,18 @@ def async_wrapper(job, ts_args, func_args):
         if not clean_db:
             lnt.server.db.v4db.V4DB.close_all_engines()
             clean_db = True
+
         sleep(3)
         logger.info("Running async wrapper: {} ".format(job.__name__) +
                     str(os.getpid()))
         config = ts_args['db_info']
-        _v4db = config.get_database(ts_args['db'])
-        # with contextlib.closing(_v4db) as db:
-        ts = _v4db.testsuite[ts_args['tsname']]
-        nothing = job(ts, **func_args)
-        assert nothing is None
+        db = config.get_database(ts_args['db'])
+        with contextlib.closing(db):
+            session = db.make_session()
+            ts = db.testsuite[ts_args['tsname']]
+            nothing = job(ts, session, **func_args)
+            assert nothing is None
+            session.close()
         end_time = time.time()
         delta = end_time-start_time
         msg = "Finished: {name} in {time:.2f}s ".format(name=job.__name__,

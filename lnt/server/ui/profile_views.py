@@ -64,6 +64,7 @@ def profile_admin():
 
 @v4_route("/profile/ajax/getFunctions")
 def v4_profile_ajax_getFunctions():
+    session = request.session
     ts = request.get_testsuite()
     runid = request.args.get('runid')
     testid = request.args.get('testid')
@@ -72,7 +73,7 @@ def v4_profile_ajax_getFunctions():
 
     idx = 0
     tlc = {}
-    sample = ts.query(ts.Sample) \
+    sample = session.query(ts.Sample) \
                .filter(ts.Sample.run_id == runid) \
                .filter(ts.Sample.test_id == testid).first()
     if sample and sample.profile:
@@ -84,6 +85,7 @@ def v4_profile_ajax_getFunctions():
 
 @v4_route("/profile/ajax/getTopLevelCounters")
 def v4_profile_ajax_getTopLevelCounters():
+    session = request.session
     ts = request.get_testsuite()
     runids = request.args.get('runids').split(',')
     testid = request.args.get('testid')
@@ -93,7 +95,7 @@ def v4_profile_ajax_getTopLevelCounters():
     idx = 0
     tlc = {}
     for rid in runids:
-        sample = ts.query(ts.Sample) \
+        sample = session.query(ts.Sample) \
                    .filter(ts.Sample.run_id == rid) \
                    .filter(ts.Sample.test_id == testid).first()
         if sample and sample.profile:
@@ -111,6 +113,7 @@ def v4_profile_ajax_getTopLevelCounters():
 
 @v4_route("/profile/ajax/getCodeForFunction")
 def v4_profile_ajax_getCodeForFunction():
+    session = request.session
     ts = request.get_testsuite()
     runid = request.args.get('runid')
     testid = request.args.get('testid')
@@ -118,7 +121,7 @@ def v4_profile_ajax_getCodeForFunction():
 
     profileDir = current_app.old_config.profileDir
 
-    sample = ts.query(ts.Sample) \
+    sample = session.query(ts.Sample) \
                .filter(ts.Sample.run_id == runid) \
                .filter(ts.Sample.test_id == testid).first()
     if not sample or not sample.profile:
@@ -139,18 +142,19 @@ def v4_profile_fwd2(testid, run1_id, run2_id=None):
 
 
 def v4_profile(testid, run1_id, run2_id=None):
+    session = request.session
     ts = request.get_testsuite()
     profileDir = current_app.old_config.profileDir
 
     try:
-        test = ts.query(ts.Test).filter(ts.Test.id == testid).one()
-        run1 = ts.query(ts.Run).filter(ts.Run.id == run1_id).one()
-        sample1 = ts.query(ts.Sample) \
+        test = session.query(ts.Test).filter(ts.Test.id == testid).one()
+        run1 = session.query(ts.Run).filter(ts.Run.id == run1_id).one()
+        sample1 = session.query(ts.Sample) \
                     .filter(ts.Sample.run_id == run1_id) \
                     .filter(ts.Sample.test_id == testid).first()
         if run2_id is not None:
-            run2 = ts.query(ts.Run).filter(ts.Run.id == run2_id).one()
-            sample2 = ts.query(ts.Sample) \
+            run2 = session.query(ts.Run).filter(ts.Run.id == run2_id).one()
+            sample2 = session.query(ts.Sample) \
                         .filter(ts.Sample.run_id == run2_id) \
                         .filter(ts.Sample.test_id == testid).first()
         else:

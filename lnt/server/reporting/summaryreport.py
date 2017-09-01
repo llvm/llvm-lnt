@@ -109,7 +109,7 @@ class SummaryReport(object):
 
         self.warnings = []
 
-    def build(self):
+    def build(self, session):
         # Build a per-testsuite list of the machines that match the specified
         # patterns.
         def should_be_in_report(machine):
@@ -118,9 +118,9 @@ class SummaryReport(object):
             for rex in self.report_machine_rexes:
                 if rex.match(machine.name):
                     return True
-        self.requested_machines = dict((ts, filter(should_be_in_report,
-                                                   ts.query(ts.Machine).all()))
-                                       for ts in self.testsuites)
+        self.requested_machines = dict(
+            (ts, filter(should_be_in_report, session.query(ts.Machine).all()))
+            for ts in self.testsuites)
         self.requested_machine_ids = dict(
             (ts, [m.id for m in machines])
             for ts, machines in self.requested_machines.items()
@@ -134,7 +134,7 @@ class SummaryReport(object):
             runs = []
             for ts in self.testsuites:
                 # Find all the orders that match.
-                result = ts.query(ts.Order.id).\
+                result = session.query(ts.Order.id).\
                     filter(ts.Order.llvm_project_revision.in_(
                         orders)).all()
                 ts_order_ids = [id for id, in result]
@@ -143,7 +143,7 @@ class SummaryReport(object):
                 if not ts_order_ids:
                     ts_runs = []
                 else:
-                    ts_runs = ts.query(ts.Run).\
+                    ts_runs = session.query(ts.Run).\
                         filter(ts.Run.order_id.in_(ts_order_ids)).\
                         filter(ts.Run.machine_id.in_(
                             self.requested_machine_ids[ts])).all()
@@ -158,7 +158,7 @@ class SummaryReport(object):
 
         # Load the tests for each testsuite.
         self.tests = dict((ts, dict((test.id, test)
-                                    for test in ts.query(ts.Test)))
+                                    for test in session.query(ts.Test)))
                           for ts in self.testsuites)
 
         # Compute the base table for aggregation.
@@ -341,7 +341,7 @@ class SummaryReport(object):
                 # Load all the samples for all runs we are interested in.
                 columns = [ts.Sample.run_id, ts.Sample.test_id]
                 columns.extend(f.column for f in ts.sample_fields)
-                samples = ts.query(*columns).filter(
+                samples = session.query(*columns).filter(
                     ts.Sample.run_id.in_(run_id_map.keys()))
                 for sample in samples:
                     run = run_id_map[sample[0]]

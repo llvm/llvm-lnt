@@ -65,11 +65,14 @@ class Instance(object):
         self.config_path = config_path
         self.config = config
         self.tmpdir = tmpdir
+        self.databases = dict()
+        for name in self.config.get_database_names():
+            self.databases[name] = self.config.get_database(name)
 
     def __del__(self):
         # If we have a temporary dir, clean it up now.
         if self.tmpdir is not None:
             shutil.rmtree(self.tmpdir)
 
-    def get_database(self, *args, **kwargs):
-        return self.config.get_database(*args, **kwargs)
+    def get_database(self, name):
+        return self.databases.get(name, None)

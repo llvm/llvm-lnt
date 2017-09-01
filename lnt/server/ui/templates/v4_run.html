@@ -321,7 +321,7 @@ $('.profile-prev-only').tooltip();
       {% set field_index = ts.get_field_index(field) %}
       <section id="{{ field.name }}">
           {% set tests = [] %}
-          {% set (runs, compare_runs) = request_info.sri.get_sliding_runs(run, compare_to, request_info.num_comparison_runs) %}
+          {% set (runs, compare_runs) = request_info.sri.get_sliding_runs(session, run, compare_to, request_info.num_comparison_runs) %}
           {% for test_name,test_id in test_info %}
             {% set cr = request_info.sri.get_comparison_result(
                 runs, compare_runs, test_id, field, hash_field) %}

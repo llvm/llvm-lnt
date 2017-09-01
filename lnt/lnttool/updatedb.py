@@ -34,21 +34,23 @@ def action_updatedb(instance_path, database, testsuite, tmp_dir, show_sql,
 
     # Get the database and test suite.
     with contextlib.closing(instance.get_database(database)) as db:
+        session = db.make_session()
         ts = db.testsuite[testsuite]
         order = None
         # Compute a list of all the runs to delete.
         if delete_order:
-            runs = ts.query(ts.Run).join(ts.Order) \
+            runs = session.query(ts.Run).join(ts.Order) \
                 .filter(ts.Order.id == delete_order).all()
         else:
-            runs = ts.query(ts.Run).filter(ts.Run.id.in_(delete_runs)).all()
+            runs = session.query(ts.Run) \
+                .filter(ts.Run.id.in_(delete_runs)).all()
         for run in runs:
-            ts.delete(run)
+            session.delete(run)
 
         if delete_machines:
-            machines = ts.query(ts.Machine) \
+            machines = session.query(ts.Machine) \
                 .filter(ts.Machine.name.in_(delete_machines)).all()
             for machine in machines:
-                ts.delete(machine)
+                session.delete(machine)
 
-        db.commit()
+        session.commit()

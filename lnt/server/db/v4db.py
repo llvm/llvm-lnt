@@ -17,6 +17,7 @@ import lnt.server.db.migrate
 
 from lnt.util import logger
 from lnt.server.db import testsuite
+from sqlalchemy.orm import joinedload, subqueryload
 import lnt.server.db.util
 
 
@@ -24,11 +25,8 @@ class V4DB(object):
     """
     Wrapper object for LNT v0.4+ databases.
     """
-
-    _db_updated = set()
     _engine_lock = threading.Lock()
-    _engine = {}
-
+    _engines = []
     def _load_schema_file(self, session, schema_file):
         with open(schema_file) as schema_fd:
             data = yaml.load(schema_fd)
@@ -55,7 +53,13 @@ class V4DB(object):
                 fatal("Could not load schema '%s': %s\n" % (schema_file, e))
 
         # Load schemas from database (deprecated)
-        ts_list = session.query(testsuite.TestSuite).all()
+        ts_list = session.query(testsuite.TestSuite) \
+            .options(subqueryload(testsuite.TestSuite.sample_fields)
+                     .joinedload(testsuite.SampleField.status_field)) \
+            .options(joinedload(testsuite.TestSuite.order_fields)) \
+            .options(joinedload(testsuite.TestSuite.run_fields)) \
+            .options(joinedload(testsuite.TestSuite.machine_fields)) \
+            .all()
         for suite in ts_list:
             name = suite.name
             if name in self.testsuite:
@@ -72,55 +76,42 @@ class V4DB(object):
         self.path = path
         self.config = config
         self.baseline_revision = baseline_revision
+        connect_args = {}
+        if path.startswith("sqlite://"):
+            # Some of the background tasks keep database transactions
+            # open for a long time. Make it less likely to hit
+            # "(OperationalError) database is locked" because of that.
+            connect_args['timeout'] = 30
+        self.engine = sqlalchemy.create_engine(path,
+                                               connect_args=connect_args)
         with V4DB._engine_lock:
-            if path not in V4DB._engine:
-                connect_args = {}
-                if path.startswith("sqlite://"):
-                    # Some of the background tasks keep database transactions
-                    # open for a long time. Make it less likely to hit
-                    # "(OperationalError) database is locked" because of that.
-                    connect_args['timeout'] = 30
-                engine = sqlalchemy.create_engine(path,
-                                                  connect_args=connect_args)
-                V4DB._engine[path] = engine
-        self.engine = V4DB._engine[path]
+            V4DB._engines.append(self.engine)
 
         # Update the database to the current version, if necessary. Only check
         # this once per path.
-        if path not in V4DB._db_updated:
-            lnt.server.db.migrate.update(self.engine)
-            V4DB._db_updated.add(path)
+        lnt.server.db.migrate.update(self.engine)
 
-        self.session = sqlalchemy.orm.sessionmaker(self.engine)()
-
-        # Add several shortcut aliases.
-        self.add = self.session.add
-        self.delete = self.session.delete
-        self.commit = self.session.commit
-        self.query = self.session.query
-        self.rollback = self.session.rollback
-
-        # For parity with the usage of TestSuiteDB, we make our primary model
-        # classes available as instance variables.
-        self.SampleType = testsuite.SampleType
-        self.StatusKind = testsuite.StatusKind
-        self.TestSuite = testsuite.TestSuite
-        self.SampleField = testsuite.SampleField
+        self.sessionmaker = sqlalchemy.orm.sessionmaker(self.engine)
+        session = self.make_session()
 
         self.testsuite = dict()
-        self._load_schemas(self.session)
+        self._load_schemas(session)
+        session.expunge_all()
+        session.close()
 
     def close(self):
-        if self.session is not None:
-            self.session.close()
+        self.engine.dispose()
 
     @staticmethod
     def close_all_engines():
+        """Hack for async_ops. Do not use for anything else."""
         with V4DB._engine_lock:
-            for key, engine in V4DB._engine.items():
+            for engine in _engines:
                 engine.dispose()
-            V4DB._engine = {}
-            V4DB._db_updated = set()
+            V4DB._engines = []
+
+    def make_session(self):
+        return self.sessionmaker()
 
     def settings(self):
         """All the setting needed to recreate this instnace elsewhere."""

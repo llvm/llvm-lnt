@@ -8,8 +8,8 @@ import lnt.server.ui.app
 import lnt.util.stats
 
 
-def generate_run_data(run, baseurl, num_comparison_runs=0, result=None,
-                      compare_to=None, baseline=None,
+def generate_run_data(session, run, baseurl, num_comparison_runs=0,
+                      result=None, compare_to=None, baseline=None,
                       aggregation_fn=lnt.util.stats.safe_min,
                       confidence_lv=.05, styles=dict(), classes=dict()):
     """
@@ -29,7 +29,7 @@ def generate_run_data(run, baseurl, num_comparison_runs=0, result=None,
         # If a baseline has not been given, look up the run closest to
         # the default baseline revision for which this machine also
         # reported.
-        baseline = machine.get_baseline_run()
+        baseline = machine.get_baseline_run(session)
 
     # If the baseline is the same as the comparison run, ignore it.
     visible_note = None
@@ -41,10 +41,10 @@ def generate_run_data(run, baseurl, num_comparison_runs=0, result=None,
     # Gather the runs to use for statistical data.
     comparison_start_run = compare_to or run
     comparison_window = list(ts.get_previous_runs_on_machine(
-            comparison_start_run, num_comparison_runs))
+            session, comparison_start_run, num_comparison_runs))
     if baseline:
         baseline_window = list(ts.get_previous_runs_on_machine(
-                baseline, num_comparison_runs))
+                session, baseline, num_comparison_runs))
     else:
         baseline_window = []
 
@@ -63,10 +63,10 @@ def generate_run_data(run, baseurl, num_comparison_runs=0, result=None,
     if baseline:
         runs_to_load.add(baseline.id)
     sri = lnt.server.reporting.analysis.RunInfo(
-        ts, runs_to_load, aggregation_fn, confidence_lv)
+        session, ts, runs_to_load, aggregation_fn, confidence_lv)
 
     # Get the test names, metric fields and total test counts.
-    test_names = ts.query(ts.Test.name, ts.Test.id).\
+    test_names = session.query(ts.Test.name, ts.Test.id).\
         order_by(ts.Test.name).\
         filter(ts.Test.id.in_(sri.test_ids)).all()
     metric_fields = list(ts.Sample.get_metric_fields())

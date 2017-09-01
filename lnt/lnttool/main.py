@@ -92,9 +92,10 @@ def action_checkformat(files, testsuite):
     import lnt.util.ImportData
     db = lnt.server.db.v4db.V4DB('sqlite:///:memory:',
                                  lnt.server.config.Config.dummy_instance())
+    session = db.make_session()
     for file in files:
         result = lnt.util.ImportData.import_and_report(
-            None, None, db, file, '<auto>', testsuite)
+            None, None, db, session, file, '<auto>', testsuite)
         lnt.util.ImportData.print_report_result(result, sys.stdout,
                                                 sys.stderr, verbose=True)
 
@@ -243,6 +244,7 @@ def action_send_daily_report(instance_path, address, database, testsuite, host,
 
     # Get the database.
     with contextlib.closing(config.get_database(database)) as db:
+        session = db.make_session()
 
         # Get the testsuite.
         ts = db.testsuite[testsuite]
@@ -251,7 +253,7 @@ def action_send_daily_report(instance_path, address, database, testsuite, host,
             date = datetime.datetime.utcnow()
         else:
             # Get a timestamp to use to derive the daily report to generate.
-            latest = ts.query(ts.Run).\
+            latest = session.query(ts.Run).\
                 order_by(ts.Run.start_time.desc()).limit(1).first()
 
             # If we found a run, use it's start time (rounded up to the next
@@ -269,7 +271,7 @@ def action_send_daily_report(instance_path, address, database, testsuite, host,
             day_start_offset_hours=date.hour, for_mail=True,
             num_prior_days_to_include=days,
             filter_machine_regex=filter_machine_regex)
-        report.build()
+        report.build(session)
 
         logger.info("generating HTML report...")
         ts_url = "%s/db_%s/v4/%s" \
@@ -337,6 +339,7 @@ def action_send_run_comparison(instance_path, run_a_id, run_b_id, database,
 
     # Get the database.
     with contextlib.closing(config.get_database(database)) as db:
+        session = db.make_session()
 
         # Get the testsuite.
         ts = db.testsuite[testsuite]
@@ -344,9 +347,9 @@ def action_send_run_comparison(instance_path, run_a_id, run_b_id, database,
         # Lookup the two runs.
         run_a_id = int(run_a_id)
         run_b_id = int(run_b_id)
-        run_a = ts.query(ts.Run).\
+        run_a = session.query(ts.Run).\
             filter_by(id=run_a_id).first()
-        run_b = ts.query(ts.Run).\
+        run_b = session.query(ts.Run).\
             filter_by(id=run_b_id).first()
         if run_a is None:
             logger.error("invalid run ID %r (not in database)" % (run_a_id,))
@@ -355,8 +358,8 @@ def action_send_run_comparison(instance_path, run_a_id, run_b_id, database,
 
         # Generate the report.
         data = lnt.server.reporting.runs.generate_run_data(
-            run_b, baseurl=config.zorgURL, result=None, compare_to=run_a,
-            baseline=None, aggregation_fn=min)
+            session, run_b, baseurl=config.zorgURL, result=None,
+            compare_to=run_a, baseline=None, aggregation_fn=min)
 
         env = lnt.server.ui.app.create_jinja_environment()
         text_template = env.get_template('reporting/run_report.txt')

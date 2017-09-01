@@ -45,17 +45,20 @@ class TriagePageSelectedForm(Form):
     name = StringField('name', validators=[DataRequired()])
 
 
-def get_fieldchange(ts, id):
-    return ts.query(ts.FieldChange).filter(ts.FieldChange.id == id).one()
+def get_fieldchange(session, ts, id):
+    return session.query(ts.FieldChange) \
+        .filter(ts.FieldChange.id == id) \
+        .one()
 
 
 @v4_route("/regressions/new", methods=["GET", "POST"])
 def v4_new_regressions():
     form = TriagePageSelectedForm(request.form)
+    session = request.session
     ts = request.get_testsuite()
     if request.method == 'POST' and \
             request.form['btn'] == "Create New Regression":
-        regression = new_regression(ts, form.field_changes.data)
+        regression = new_regression(session, ts, form.field_changes.data)
         flash("Created " + regression.title, FLASH_SUCCESS)
         return redirect(v4_url_for(".v4_regression_list",
                         highlight=regression.id))
@@ -64,15 +67,15 @@ def v4_new_regressions():
         ignored = []
         for fc_id in form.field_changes.data:
             ignored.append(str(fc_id))
-            fc = get_fieldchange(ts, fc_id)
+            fc = get_fieldchange(session, ts, fc_id)
             ignored_change = ts.ChangeIgnore(fc)
-            ts.add(ignored_change)
-        ts.commit()
+            session.add(ignored_change)
+        session.commit()
         flash(msg + ", ".join(ignored), FLASH_SUCCESS)
 
 #    d = datetime.datetime.now()
 #    two_weeks_ago = d - datetime.timedelta(days=14)
-    recent_fieldchange = ts.query(ts.FieldChange) \
+    recent_fieldchange = session.query(ts.FieldChange) \
         .join(ts.Test) \
         .outerjoin(ts.ChangeIgnore) \
         .filter(ts.ChangeIgnore.id.is_(None)) \
@@ -86,12 +89,13 @@ def v4_new_regressions():
     form.field_changes.choices = list()
     for fc in recent_fieldchange:
         if fc.old_value is None:
-            cr, key_run, _ = get_cr_for_field_change(ts, fc)
+            cr, key_run, _ = get_cr_for_field_change(session, ts, fc)
         else:
             cr = PrecomputedCR(fc.old_value, fc.new_value,
                                fc.field.bigger_is_better)
             key_run = get_first_runs_of_fieldchange(ts, fc)
-        current_cr, _, _ = get_cr_for_field_change(ts, fc, current=True)
+        current_cr, _, _ = get_cr_for_field_change(session, ts, fc,
+                                                   current=True)
         crs.append(ChangeData(fc, cr, key_run, current_cr))
         form.field_changes.choices.append((fc.id, 1,))
     return render_template("v4_new_regressions.html",
@@ -100,13 +104,13 @@ def v4_new_regressions():
                            form=form, **ts_data(ts))
 
 
-def calc_impact(ts, fcs):
+def calc_impact(session, ts, fcs):
     crs = []
     for fc in fcs:
         if fc is None:
             continue
         if fc.old_value is None:
-            cr, _, _ = get_cr_for_field_change(ts, fc)
+            cr, _, _ = get_cr_for_field_change(session, ts, fc)
         else:
             cr = PrecomputedCR(fc.old_value, fc.new_value,
                                fc.field.bigger_is_better)
@@ -137,7 +141,7 @@ class EmptyDate(object):
 
 @v4_route("/regressions/", methods=["GET", "POST"])
 def v4_regression_list():
-
+    session = request.session
     ts = request.get_testsuite()
     form = MergeRegressionForm(request.form)
     machine_filter = request.args.get('machine_filter')
@@ -145,7 +149,8 @@ def v4_regression_list():
     # Merge requested regressions.
     if request.method == 'POST' and \
        request.form['merge_btn'] == "Merge Regressions":
-        reg_inds, regressions = _get_regressions_from_selected_form(form, ts)
+        reg_inds, regressions = _get_regressions_from_selected_form(session,
+                                                                    form, ts)
         links = []
         target = 0
         for i, r in enumerate(regressions):
@@ -153,7 +158,8 @@ def v4_regression_list():
                 target = i
                 links.append(r.bug)
 
-        new_regress = new_regression(ts, [x.field_change_id for x in reg_inds])
+        new_regress = new_regression(session, ts,
+                                     [x.field_change_id for x in reg_inds])
         new_regress.state = regressions[target].state
         new_regress.title = regressions[target].title
         new_regress.bug = ' '.join(links)
@@ -161,25 +167,26 @@ def v4_regression_list():
             r.bug = v4_url_for(".v4_regression_detail", id=new_regress.id)
             r.title = "Merged into Regression " + str(new_regress.id)
             r.state = RegressionState.IGNORED
-        [ts.delete(x) for x in reg_inds]
+        [session.delete(x) for x in reg_inds]
 
-        ts.commit()
+        session.commit()
         flash("Created: " + new_regress.title, FLASH_SUCCESS)
         return redirect(v4_url_for(".v4_regression_detail", id=new_regress.id))
     # Delete requested regressions.
     if request.method == 'POST' and \
             request.form['merge_btn'] == "Delete Regressions":
-        reg_inds, regressions = _get_regressions_from_selected_form(form, ts)
+        reg_inds, regressions = _get_regressions_from_selected_form(session,
+                                                                    form, ts)
         titles = [r.title for r in regressions]
         for res_ind in reg_inds:
-            ts.delete(res_ind)
+            session.delete(res_ind)
         for reg in regressions:
-            ts.delete(reg)
-        ts.commit()
+            session.delete(reg)
+        session.commit()
         flash(' Deleted: '.join(titles), FLASH_SUCCESS)
         return redirect(v4_url_for(".v4_regression_list", state=state_filter))
 
-    q = ts.query(ts.Regression)
+    q = session.query(ts.Regression)
     title = "All Regressions"
     if state_filter != -1:
         q = q.filter(ts.Regression.state == state_filter)
@@ -193,7 +200,7 @@ def v4_regression_list():
 
     filtered_regressions = []
     for regression in regression_info:
-        reg_inds = ts.query(ts.RegressionIndicator) \
+        reg_inds = session.query(ts.RegressionIndicator) \
             .filter(ts.RegressionIndicator.regression_id ==
                     regression.id) \
             .all()
@@ -209,7 +216,8 @@ def v4_regression_list():
         form.regression_checkboxes.choices.append((regression.id, 1,))
 
         regression_sizes.append(len(reg_inds))
-        impacts.append(calc_impact(ts, [x.field_change for x in reg_inds]))
+        impacts.append(calc_impact(session, ts,
+                                   [x.field_change for x in reg_inds]))
         # Now guess the regression age:
         if len(reg_inds) and reg_inds[0].field_change and \
                 reg_inds[0].field_change.run:
@@ -233,11 +241,11 @@ def v4_regression_list():
                            **ts_data(ts))
 
 
-def _get_regressions_from_selected_form(form, ts):
+def _get_regressions_from_selected_form(session, form, ts):
     regressions_id_to_merge = form.regression_checkboxes.data
-    regressions = ts.query(ts.Regression) \
+    regressions = session.query(ts.Regression) \
         .filter(ts.Regression.id.in_(regressions_id_to_merge)).all()
-    reg_inds = ts.query(ts.RegressionIndicator) \
+    reg_inds = session.query(ts.RegressionIndicator) \
         .filter(ts.RegressionIndicator.regression_id.in_(
             regressions_id_to_merge)) \
         .all()
@@ -274,11 +282,12 @@ class LNTEncoder(flask.json.JSONEncoder):
 
 @v4_route("/regressions/<int:id>", methods=["GET", "POST"])
 def v4_regression_detail(id):
+    session = request.session
     ts = request.get_testsuite()
     form = EditRegressionForm(request.form)
 
     try:
-        regression_info = ts.query(ts.Regression) \
+        regression_info = session.query(ts.Regression) \
             .filter(ts.Regression.id == id) \
             .one()
     except NoResultFound as e:
@@ -287,7 +296,7 @@ def v4_regression_detail(id):
         regression_info.title = form.title.data
         regression_info.bug = form.bug.data
         regression_info.state = form.state.data
-        ts.commit()
+        session.commit()
         flash("Updated " + regression_info.title, FLASH_SUCCESS)
         return redirect(v4_url_for(".v4_regression_list",
                         highlight=regression_info.id,
@@ -295,19 +304,19 @@ def v4_regression_detail(id):
     if request.method == 'POST' and \
             request.form['save_btn'] == "Split Regression":
         # For each of the regression indicators, grab their field ids.
-        res_inds = ts.query(ts.RegressionIndicator) \
+        res_inds = session.query(ts.RegressionIndicator) \
             .filter(ts.RegressionIndicator.field_change_id.in_(
                 form.field_changes.data)) \
             .all()
         fc_ids = [x.field_change_id for x in res_inds]
-        second_regression = new_regression(ts, fc_ids)
+        second_regression = new_regression(session, ts, fc_ids)
         second_regression.state = regression_info.state
 
         # Now remove our links to this regression.
         for res_ind in res_inds:
-            ts.delete(res_ind)
+            session.delete(res_ind)
         lnt.server.db.fieldchange.rebuild_title(ts, regression_info)
-        ts.commit()
+        session.commit()
         flash("Split " + second_regression.title, FLASH_SUCCESS)
         return redirect(v4_url_for(".v4_regression_list",
                         highlight=second_regression.id,
@@ -315,15 +324,15 @@ def v4_regression_detail(id):
     if request.method == 'POST' and request.form['save_btn'] == "Delete":
         # For each of the regression indicators, grab their field ids.
         title = regression_info.title
-        res_inds = ts.query(ts.RegressionIndicator) \
+        res_inds = session.query(ts.RegressionIndicator) \
             .filter(
                 ts.RegressionIndicator.regression_id == regression_info.id) \
             .all()
         # Now remove our links to this regression.
         for res_ind in res_inds:
-            ts.delete(res_ind)
-        ts.delete(regression_info)
-        ts.commit()
+            session.delete(res_ind)
+        session.delete(regression_info)
+        session.commit()
         flash("Deleted " + title, FLASH_SUCCESS)
         return redirect(v4_url_for(".v4_regression_list",
                         state=int(form.edit_state.data)))
@@ -333,7 +342,7 @@ def v4_regression_detail(id):
     form.edit_state.data = regression_info.state
     form.title.data = regression_info.title
     form.bug.data = regression_info.bug
-    regression_indicators = ts.query(ts.RegressionIndicator) \
+    regression_indicators = session.query(ts.RegressionIndicator) \
         .filter(ts.RegressionIndicator.regression_id == id) \
         .all()
 
@@ -351,12 +360,13 @@ def v4_regression_detail(id):
         if fc is None:
             continue
         if fc.old_value is None:
-            cr, key_run, all_runs = get_cr_for_field_change(ts, fc)
+            cr, key_run, all_runs = get_cr_for_field_change(session, ts, fc)
         else:
             cr = PrecomputedCR(fc.old_value, fc.new_value,
                                fc.field.bigger_is_better)
             key_run = get_first_runs_of_fieldchange(ts, fc)
-        current_cr, _, all_runs = get_cr_for_field_change(ts, fc, current=True)
+        current_cr, _, all_runs = get_cr_for_field_change(session, ts, fc,
+                                                          current=True)
         crs.append(ChangeData(fc, cr, key_run, current_cr))
         form.field_changes.choices.append((fc.id, checkbox_state,))
         for run in all_runs:
@@ -384,8 +394,9 @@ def v4_regression_detail(id):
 
 @v4_route("/hook", methods=["GET"])
 def v4_hook():
+    session = request.session
     ts = request.get_testsuite()
-    rule_hooks.post_submission_hooks(ts, 0)
+    rule_hooks.post_submission_hooks(session, ts, 0)
     abort(400)
 
 
@@ -398,12 +409,13 @@ def v4_make_regression(machine_id, test_id, field_index, run_id):
     so we must create a regression, bypassing the normal analysis.
 
     """
+    session = request.session
     ts = request.get_testsuite()
     field = ts.sample_fields[field_index]
     new_regression_id = 0
-    run = ts.query(ts.Run).get(run_id)
+    run = session.query(ts.Run).get(run_id)
 
-    runs = ts.query(ts.Run). \
+    runs = session.query(ts.Run). \
         filter(ts.Run.order_id == run.order_id). \
         filter(ts.Run.machine_id == run.machine_id). \
         all()
@@ -411,7 +423,7 @@ def v4_make_regression(machine_id, test_id, field_index, run_id):
     if len(runs) == 0:
         abort(404)
 
-    previous_runs = ts.get_previous_runs_on_machine(run, 1)
+    previous_runs = ts.get_previous_runs_on_machine(session, run, 1)
 
     # Find our start/end order.
     if previous_runs != []:
@@ -423,46 +435,43 @@ def v4_make_regression(machine_id, test_id, field_index, run_id):
     # Load our run data for the creation of the new fieldchanges.
     runs_to_load = [r.id for r in (runs + previous_runs)]
 
-    runinfo = lnt.server.reporting.analysis.RunInfo(ts, runs_to_load)
+    runinfo = lnt.server.reporting.analysis.RunInfo(session, ts, runs_to_load)
 
     result = runinfo.get_comparison_result(
         runs, previous_runs, test_id, field,
         ts.Sample.get_hash_of_binary_field())
 
     # Try and find a matching FC and update, else create one.
-    f = None
-
     try:
-        f = ts.query(ts.FieldChange) \
+        f = session.query(ts.FieldChange) \
             .filter(ts.FieldChange.start_order == start_order) \
             .filter(ts.FieldChange.end_order == end_order) \
             .filter(ts.FieldChange.test_id == test_id) \
             .filter(ts.FieldChange.machine == run.machine) \
-            .filter(ts.FieldChange.field == field) \
+            .filter(ts.FieldChange.field_id == field.id) \
             .one()
     except sqlalchemy.orm.exc.NoResultFound:
-            f = None
-
-    if not f:
-        test = ts.query(ts.Test).filter(ts.Test.id == test_id).one()
+        # Create one
+        test = session.query(ts.Test).filter(ts.Test.id == test_id).one()
         f = ts.FieldChange(start_order=start_order,
                            end_order=run.order,
                            machine=run.machine,
                            test=test,
-                           field=field)
-        ts.add(f)
+                           field_id=field.id)
+        session.add(f)
+
     # Always update FCs with new values.
     if f:
         f.old_value = result.previous
         f.new_value = result.current
         f.run = run
-    ts.commit()
+    session.commit()
 
     # Make new regressions.
-    regression = new_regression(ts, [f.id])
+    regression = new_regression(session, ts, [f.id])
     regression.state = RegressionState.ACTIVE
 
-    ts.commit()
+    session.commit()
     logger.info("Manually created new regressions: {}".format(regression.id))
     flash("Created " + regression.title, FLASH_SUCCESS)
 

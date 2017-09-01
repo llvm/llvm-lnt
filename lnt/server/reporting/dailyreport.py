@@ -190,7 +190,7 @@ class DailyReport(object):
         # Select a key run arbitrarily.
         return runs[0]
 
-    def build(self):
+    def build(self, session):
         ts = self.ts
 
         # Construct datetime instances for the report range.
@@ -209,7 +209,7 @@ class DailyReport(object):
                            for i in range(self.num_prior_days_to_include + 1)]
 
         # Find all the runs that occurred for each day slice.
-        prior_runs = [ts.query(ts.Run).
+        prior_runs = [session.query(ts.Run).
                       filter(ts.Run.start_time > prior_day).
                       filter(ts.Run.start_time <= day).all()
                       for day, prior_day in _pairs(self.prior_days)]
@@ -308,7 +308,7 @@ class DailyReport(object):
             return
 
         # Get the set all tests reported in the recent runs.
-        self.reporting_tests = ts.query(ts.Test).filter(
+        self.reporting_tests = session.query(ts.Test).filter(
             sqlalchemy.sql.exists('*', sqlalchemy.sql.and_(
                     ts.Sample.run_id.in_(relevant_run_ids),
                     ts.Sample.test_id == ts.Test.id))).all()
@@ -318,7 +318,8 @@ class DailyReport(object):
             [r.id for r in less_relevant_runs]
 
         # Create a run info object.
-        sri = lnt.server.reporting.analysis.RunInfo(ts, run_ids_to_load)
+        sri = lnt.server.reporting.analysis.RunInfo(session, ts,
+                                                    run_ids_to_load)
 
         # Build the result table of tests with interesting results.
         def compute_visible_results_priority(visible_results):
