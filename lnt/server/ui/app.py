@@ -256,12 +256,14 @@ class App(LNTExceptionLoggerFlask):
         # Always Print to screen.
         ch = logging.StreamHandler()
         ch.setLevel(logging.DEBUG)
+        ch.setFormatter(Formatter('%(levelname)s: %(message)s '
+                                  '[in %(filename)s:%(lineno)d %(asctime)s]'))
         self.logger.addHandler(ch)
 
         # When running in a server config, use the server to setup the log
         # file. If there is more than one process running, this will not work
         # well.
-        if not self.config.get('log_file_name'):
+        if not log_file_name:
             self.config['log_file_name'] = LOG_FILENAME
             try:
                 rotating = logging.handlers.RotatingFileHandler(
