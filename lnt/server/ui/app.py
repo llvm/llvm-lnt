@@ -281,7 +281,8 @@ class App(LNTExceptionLoggerFlask):
             else:
                 self.logger.info("Started file logging.")
                 print "Logging to :", LOG_FILENAME
-
+        else:
+            self.config['log_file_name'] = log_file_name
 
 def create_jinja_environment(env=None):
     """
