@@ -972,7 +972,7 @@ class TestSuiteDB(object):
                           for test in session.query(self.Test))
 
         profiles = dict()
-        field_dict = dict([(f.name, f) for f in self.sample_fields])
+        field_dict = dict([(str(f.name), f) for f in self.sample_fields])
         for test_data in tests_data:
             name = str(test_data['name'])
             test = test_cache.get(name)
