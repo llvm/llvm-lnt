@@ -268,7 +268,7 @@ class App(LNTExceptionLoggerFlask):
                     LOG_FILENAME, maxBytes=1048576, backupCount=5)
                 rotating.setFormatter(Formatter(
                     '%(asctime)s %(levelname)s: %(message)s '
-                    '[in %(pathname)s:%(lineno)d]'
+                    '[in %(filename)s:%(lineno)d]'
                 ))
                 rotating.setLevel(logging.DEBUG)
                 self.logger.addHandler(rotating)
