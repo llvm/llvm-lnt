@@ -699,14 +699,13 @@ def v4_graph_for_sample(sample_id, field_name):
         abort(404, "Could not find sample id: {}".format(sample_id))
 
     # Get the field index we are interested in.
-    field = None
-    for f in target_sample.get_primary_fields():
+    field_index = None
+    for idx, f in enumerate(ts.sample_fields):
         if f.name == field_name:
-            field = f
+            field_index = idx
             break
-    if not field:
+    if field_index is None:
         abort(400, "Could not find field {}".format(field_name))
-    field_index = field.index
 
     kwargs = {'plot.0': '{machine_id}.{test_id}.{field_id}'.format(
         machine_id=target_sample.run.machine.id,
