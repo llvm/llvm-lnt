@@ -710,7 +710,7 @@ def v4_graph_for_sample(sample_id, field_name):
     kwargs = {'plot.0': '{machine_id}.{test_id}.{field_index}'.format(
         machine_id=target_sample.run.machine.id,
         test_id=target_sample.test_id,
-        field_indexd=field_index)}
+        field_index=field_index)}
     # Pass request args through, so you can add graph options.
     kwargs.update(request.args)
 
