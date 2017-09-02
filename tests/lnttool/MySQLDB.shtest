@@ -11,3 +11,5 @@ lnt create "${TESTDIR}/instance" --db-dir mysql://root@localhost:9109 --default-
 # Import a test set.
 lnt import "${TESTDIR}/instance" "${SHARED_INPUTS}/sample-a-small.plist" --show-sample-count
 lnt import "${TESTDIR}/instance" "${SHARED_INPUTS}/sample-b-small.plist" --show-sample-count
+lnt import "${TESTDIR}/instance" "${SHARED_INPUTS}/sample-arm.json" --format=json --show-sample-count
+lnt import "${TESTDIR}/instance" "${SHARED_INPUTS}/sample-arm2.json" --format=json --show-sample-count

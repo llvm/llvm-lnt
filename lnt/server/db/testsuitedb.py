@@ -126,7 +126,7 @@ class TestSuiteDB(object):
 
         class Machine(self.base, ParameterizedMixin):
             __tablename__ = db_key_name + '_Machine'
-
+            __table_args__ = {'mysql_collate': 'utf8_bin'}
             DEFAULT_BASELINE_REVISION = v4db.baseline_revision
 
             fields = self.machine_fields
@@ -407,7 +407,7 @@ class TestSuiteDB(object):
 
         class Test(self.base, ParameterizedMixin):
             __tablename__ = db_key_name + '_Test'
-
+            __table_args__ = {'mysql_collate': 'utf8_bin'}  # For case sensitive compare.
             id = Column("ID", Integer, primary_key=True)
             name = Column("Name", String(256), unique=True, index=True)
 
@@ -721,6 +721,7 @@ class TestSuiteDB(object):
         class Baseline(self.base, ParameterizedMixin):
             """Baselines to compare runs to."""
             __tablename__ = db_key_name + '_Baseline'
+            __table_args__ = {'mysql_collate': 'utf8_bin'}
 
             id = Column("ID", Integer, primary_key=True)
             name = Column("Name", String(32), unique=True)

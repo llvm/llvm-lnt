@@ -1,0 +1,40 @@
+{
+    "Machine": {
+        "Info": {}, 
+        "Name": "llvm-tk1-02__clang_DEV__thumbv7"
+    }, 
+    "Run": {
+        "End Time": "2017-08-28 07:06:31", 
+        "Info": {
+            "__report_version__": "1", 
+            "cc1_exec_hash": "ffdaa0bf1406d314f34c80ba81efa28f9004d6ea", 
+            "cc_as_version": "clang-6.0: error: unsupported argument '-v' to option 'Wa,'", 
+            "cc_build": "DEV", 
+            "cc_dumpmachine": "armv7l-unknown-linux-gnueabihf", 
+            "cc_exec_hash": "ffdaa0bf1406d314f34c80ba81efa28f9004d6ea", 
+            "cc_ld_version": "GNU ld (GNU Binutils for Ubuntu) 2.26.1", 
+            "cc_name": "clang", 
+            "cc_src_branch": "trunk", 
+            "cc_src_revision": "311868", 
+            "cc_target": "thumbv7-unknown-linux-gnueabihf", 
+            "cc_target_assembly": "; ModuleID = '/dev/null'\nsource_filename = \"/dev/null\"\ntarget datalayout = \"e-m:e-p:32:32-i64:64-v128:64:128-a:0:32-n32-S64\"\ntarget triple = \"thumbv7-unknown-linux-gnueabihf\"\n\n!llvm.module.flags = !{!0, !1}\n!llvm.ident = !{!2}\n\n!0 = !{i32 1, !\"wchar_size\", i32 4}\n!1 = !{i32 1, !\"min_enum_size\", i32 4}\n!2 = !{!\"clang version 6.0.0 (trunk 311868)\"}", 
+            "cc_version": "clang version 6.0.0 (trunk 311868)\nTarget: armv7l-unknown-linux-gnueabihf\nThread model: posix\nInstalledDir: /home/buildslave/buildslave/clang-native-arm-lnt-perf/stage1.install/bin\nFound candidate GCC installation: /usr/lib/gcc/arm-linux-gnueabihf/5\nFound candidate GCC installation: /usr/lib/gcc/arm-linux-gnueabihf/5.4.0\nFound candidate GCC installation: /usr/lib/gcc/arm-linux-gnueabihf/6\nFound candidate GCC installation: /usr/lib/gcc/arm-linux-gnueabihf/6.0.0\nSelected GCC installation: /usr/lib/gcc/arm-linux-gnueabihf/5.4.0\nCandidate multilib: .;@m32\nSelected multilib: .;@m32\n \"/home/buildslave/buildslave/clang-native-arm-lnt-perf/stage1.install/bin/clang-6.0\" \"-cc1\" \"-triple\" \"thumbv7-unknown-linux-gnueabihf\" \"-E\" \"-disable-free\" \"-main-file-name\" \"null\" \"-mrelocation-model\" \"static\" \"-mthread-model\" \"posix\" \"-mdisable-fp-elim\" \"-fmath-errno\" \"-masm-verbose\" \"-mconstructor-aliases\" \"-fuse-init-array\" \"-target-cpu\" \"cortex-a15\" \"-target-feature\" \"-crc\" \"-target-feature\" \"+dsp\" \"-target-feature\" \"-ras\" \"-target-feature\" \"-dotprod\" \"-target-feature\" \"+hwdiv-arm\" \"-target-feature\" \"+hwdiv\" \"-target-abi\" \"aapcs-linux\" \"-mfloat-abi\" \"hard\" \"-v\" \"-dwarf-column-info\" \"-debugger-tuning=gdb\" \"-resource-dir\" \"/home/buildslave/buildslave/clang-native-arm-lnt-perf/stage1.install/lib/clang/6.0.0\" \"-internal-isystem\" \"/usr/local/include\" \"-internal-isystem\" \"/home/buildslave/buildslave/clang-native-arm-lnt-perf/stage1.install/lib/clang/6.0.0/include\" \"-internal-externc-isystem\" \"/usr/include/arm-linux-gnueabihf\" \"-internal-externc-isystem\" \"/include\" \"-internal-externc-isystem\" \"/usr/include\" \"-O3\" \"-fdebug-compilation-dir\" \"/home/buildslave/buildslave/clang-native-arm-lnt-perf/test/sandbox\" \"-ferror-limit\" \"19\" \"-fmessage-length\" \"0\" \"-fallow-half-arguments-and-returns\" \"-fno-signed-char\" \"-fobjc-runtime=gcc\" \"-fdiagnostics-show-option\" \"-vectorize-loops\" \"-vectorize-slp\" \"-o\" \"-\" \"-x\" \"c\" \"/dev/null\"", 
+            "cc_version_number": "6.0.0", 
+            "inferred_run_order": "311868", 
+            "no_errors": "True", 
+            "run_order": "311868", 
+            "tag": "nts"
+        }, 
+        "Start Time": "2017-08-28 04:38:48"
+    }, 
+    "Tests": [
+        {
+            "Data": [
+                "d527ec917aad980ed2d8006a0826b4ed"
+            ], 
+            "Info": {}, 
+            "Name": "nts.MultiSource/Applications/ALAC/decode/Alacconvert-decode.hash"
+        }
+      
+    ]
+}
