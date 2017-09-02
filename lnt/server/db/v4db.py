@@ -27,7 +27,8 @@ class V4DB(object):
     """
     _engine_lock = threading.Lock()
     _engines = []
-    def _load_schema_file(self, session, schema_file):
+    def _load_schema_file(self, schema_file):
+        session = self.make_session()
         with open(schema_file) as schema_fd:
             data = yaml.load(schema_fd)
         suite = testsuite.TestSuite.from_json(data)
@@ -36,24 +37,27 @@ class V4DB(object):
         session.commit()
 
         # Create tables if necessary
-        lnt.server.db.testsuitedb.TestSuiteDB(self, suite.name, suite,
-                                              create_tables=True)
+        tsdb = lnt.server.db.testsuitedb.TestSuiteDB(self, suite.name, suite)
+        session.close()
+        tsdb.create_tables(self.engine)
 
-    def _load_schemas(self, session):
+    def _load_schemas(self):
         # Load schema files (preferred)
         schemasDir = self.config.schemasDir
         for schema_file in glob.glob('%s/*.yaml' % schemasDir):
             try:
-                self._load_schema_file(session, schema_file)
+                self._load_schema_file(schema_file)
             except Exception as e:
                 fatal("Could not load schema '%s': %s\n" % (schema_file, e))
 
         # Load schemas from database.
+        session = self.make_session()
         ts_list = session.query(testsuite.TestSuite).all()
+        session.expunge_all()
+        session.close()
         for suite in ts_list:
             name = suite.name
-            ts = lnt.server.db.testsuitedb.TestSuiteDB(self, name, suite,
-                                                       create_tables=False)
+            ts = lnt.server.db.testsuitedb.TestSuiteDB(self, name, suite)
             self.testsuite[name] = ts
 
     def __init__(self, path, config, baseline_revision=0):
@@ -80,12 +84,9 @@ class V4DB(object):
         lnt.server.db.migrate.update(self.engine)
 
         self.sessionmaker = sqlalchemy.orm.sessionmaker(self.engine)
-        session = self.make_session()
 
         self.testsuite = dict()
-        self._load_schemas(session)
-        session.expunge_all()
-        session.close()
+        self._load_schemas()
 
     def close(self):
         self.engine.dispose()

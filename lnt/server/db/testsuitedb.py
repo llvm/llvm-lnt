@@ -74,7 +74,7 @@ class TestSuiteDB(object):
     through the model classes constructed by this wrapper object.
     """
 
-    def __init__(self, v4db, name, test_suite, create_tables=False):
+    def __init__(self, v4db, name, test_suite):
         testsuitedb = self
         self.v4db = v4db
         self.name = name
@@ -748,8 +748,8 @@ class TestSuiteDB(object):
         sqlalchemy.schema.Index("ix_%s_Sample_RunID_TestID" % db_key_name,
                                 Sample.run_id, Sample.test_id)
 
-        if create_tables:
-            self.base.metadata.create_all(v4db.engine)
+    def create_tables(self, engine):
+        self.base.metadata.create_all(engine)
 
     def get_baselines(self, session):
         return session.query(self.Baseline).all()
