@@ -35,13 +35,9 @@ class V4DB(object):
         suite = testsuite.sync_testsuite_with_metatables(session, suite)
         session.commit()
 
-        name = suite.name
-        ts = lnt.server.db.testsuitedb.TestSuiteDB(self, name, suite,
-                                                   create_tables=True)
-        if name in self.testsuite:
-            logger.error("Duplicate test-suite '%s' (while loading %s)" %
-                         (name, schema_file))
-        self.testsuite[name] = ts
+        # Create tables if necessary
+        lnt.server.db.testsuitedb.TestSuiteDB(self, suite.name, suite,
+                                              create_tables=True)
 
     def _load_schemas(self, session):
         # Load schema files (preferred)
@@ -52,18 +48,10 @@ class V4DB(object):
             except Exception as e:
                 fatal("Could not load schema '%s': %s\n" % (schema_file, e))
 
-        # Load schemas from database (deprecated)
-        ts_list = session.query(testsuite.TestSuite) \
-            .options(subqueryload(testsuite.TestSuite.sample_fields)
-                     .joinedload(testsuite.SampleField.status_field)) \
-            .options(joinedload(testsuite.TestSuite.order_fields)) \
-            .options(joinedload(testsuite.TestSuite.run_fields)) \
-            .options(joinedload(testsuite.TestSuite.machine_fields)) \
-            .all()
+        # Load schemas from database.
+        ts_list = session.query(testsuite.TestSuite).all()
         for suite in ts_list:
             name = suite.name
-            if name in self.testsuite:
-                continue
             ts = lnt.server.db.testsuitedb.TestSuiteDB(self, name, suite,
                                                        create_tables=False)
             self.testsuite[name] = ts
