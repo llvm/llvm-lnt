@@ -95,7 +95,7 @@ class V4DB(object):
     def close_all_engines():
         """Hack for async_ops. Do not use for anything else."""
         with V4DB._engine_lock:
-            for engine in _engines:
+            for engine in V4DB._engines:
                 engine.dispose()
             V4DB._engines = []
 
