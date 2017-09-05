@@ -16,7 +16,7 @@ FIELD_CHANGE_LOOKBACK = 10
 
 
 def post_submit_tasks(session, ts, run_id):
-    regenerate_fieldchanges_for_run(ts, session, run_id)
+    regenerate_fieldchanges_for_run(session, ts, run_id)
 
 
 def delete_fieldchange(session, ts, change):
@@ -55,7 +55,7 @@ def delete_fieldchange(session, ts, change):
 
 
 @timed
-def regenerate_fieldchanges_for_run(ts, session, run_id):
+def regenerate_fieldchanges_for_run(session, ts, run_id):
     """Regenerate the set of FieldChange objects for the given run.
     """
     # Allow for potentially a few different runs, previous_runs, next_runs
@@ -129,6 +129,7 @@ def regenerate_fieldchanges_for_run(ts, session, run_id):
                                    machine=run.machine,
                                    test=test,
                                    field_id=field.id)
+                f.field = field
                 # Check the rules to see if this change matters.
                 if rules.is_useful_change(session, ts, f):
                     session.add(f)

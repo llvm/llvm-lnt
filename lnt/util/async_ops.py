@@ -134,7 +134,7 @@ def async_wrapper(job, ts_args, func_args):
         with contextlib.closing(db):
             session = db.make_session()
             ts = db.testsuite[ts_args['tsname']]
-            nothing = job(ts, session, **func_args)
+            nothing = job(session, ts, **func_args)
             assert nothing is None
             session.close()
         end_time = time.time()
