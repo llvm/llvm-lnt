@@ -156,8 +156,6 @@ def async_wrapper(job, ts_args, func_args):
         # parent process.
         logger.error("Subprocess failed with:" +
                      "".join(traceback.format_exception(*sys.exc_info())))
-        sys.exit(1)
-    sys.exit(0)
 
 
 def make_callback():
