@@ -201,7 +201,6 @@ def identify_related_changes(session, ts, fc):
     for regression_packed in regressions:
         regression_id = regression_packed[0]
         regression_indicators = get_ris(session, ts, regression_id)
-        print "RIs:", regression_indicators
         for change in regression_indicators:
             regression_change = change.field_change
             if is_overlaping(regression_change, fc):

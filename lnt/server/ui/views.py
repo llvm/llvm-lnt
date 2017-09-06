@@ -591,8 +591,6 @@ def v4_order(id):
 
             flash("Baseline {} updated.".format(baseline.name), FLASH_SUCCESS)
         return redirect(v4_url_for(".v4_order", id=id))
-    else:
-        print form.errors
 
     try:
         baseline = session.query(ts.Baseline) \
