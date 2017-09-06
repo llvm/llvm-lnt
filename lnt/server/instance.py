@@ -2,11 +2,8 @@ import os
 import shutil
 import tarfile
 import tempfile
-
 import lnt.server.config
-
 from lnt.util import logger
-from lnt.testing.util.commands import fatal
 
 
 class Instance(object):
@@ -47,13 +44,14 @@ class Instance(object):
             else:
                 filenames = os.listdir(tmpdir)
                 if len(filenames) != 1:
-                    fatal("unable to find LNT instance inside tarfile")
+                    raise Exception("Unable to find LNT instance "
+                                    "inside tarfile")
                 config_path = os.path.join(tmpdir, filenames[0], "lnt.cfg")
         else:
             config_path = path
 
         if not config_path or not os.path.exists(config_path):
-            fatal("invalid config: %r" % config_path)
+            raise Exception("Invalid config: %r" % config_path)
 
         config_data = {}
         exec open(config_path) in config_data

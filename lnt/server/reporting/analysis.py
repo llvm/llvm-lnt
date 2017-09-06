@@ -21,12 +21,7 @@ def absmin_diff(current, prevs):
     Given more than one min, use the last one detected which is probably a
     newer value. Returns (difference, prev used)
     """
-    try:
-        diffs = [abs(current-prev) for prev in prevs]
-    except:
-        print current, prevs
-        import sys
-        sys.exit(1)
+    diffs = [abs(current-prev) for prev in prevs]
     smallest_pos = 0
     smallest = diffs[0]
     for i, diff in enumerate(diffs):

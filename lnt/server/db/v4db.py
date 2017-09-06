@@ -1,4 +1,3 @@
-from lnt.testing.util.commands import fatal
 import glob
 import yaml
 import sys
@@ -45,10 +44,7 @@ class V4DB(object):
         # Load schema files (preferred)
         schemasDir = self.config.schemasDir
         for schema_file in glob.glob('%s/*.yaml' % schemasDir):
-            try:
-                self._load_schema_file(schema_file)
-            except Exception as e:
-                fatal("Could not load schema '%s': %s\n" % (schema_file, e))
+            self._load_schema_file(schema_file)
 
         # Load schemas from database.
         session = self.make_session()
