@@ -101,8 +101,14 @@ def _do_submit():
     assert request.method == 'POST'
     input_file = request.files.get('file')
     input_data = request.form.get('input_data')
-    updateMachine = int(request.form.get('update_machine', 0)) != 0
-    merge = request.form.get('merge', 'replace')
+    if 'select_machine' not in request.form and \
+            'update_machine' in request.form:
+        # Compatibility with old clients
+        update_machine = int(request.form.get('update_machine', 0)) != 0
+        select_machine = 'update' if update_machine else 'match'
+    else:
+        select_machine = request.form.get('select_machine', 'match')
+    merge_run = request.form.get('merge', 'replace')
 
     if input_file and not input_file.content_length:
         input_file = None
@@ -143,7 +149,7 @@ def _do_submit():
 
     result = lnt.util.ImportData.import_from_string(
         current_app.old_config, g.db_name, db, session, g.testsuite_name,
-        data_value, updateMachine=updateMachine, mergeRun=merge)
+        data_value, select_machine=select_machine, merge_run=merge_run)
 
     # It is nice to have a full URL to the run, so fixup the request URL
     # here were we know more about the flask instance.

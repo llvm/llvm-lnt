@@ -29,13 +29,13 @@ def _show_json_error(reply):
         sys.stderr.write(message + '\n')
 
 
-def submitFileToServer(url, file, updateMachine, mergeRun):
+def submitFileToServer(url, file, select_machine, merge_run):
     with open(file, 'rb') as f:
         values = {
             'input_data': f.read(),
             'commit': "1",  # compatibility with old servers.
-            'update_machine': "1" if updateMachine else "0",
-            'merge': mergeRun,
+            'select_machine': select_machine,
+            'merge': merge_run,
         }
     headers = {'Accept': 'application/json'}
     data = urllib.urlencode(values)
@@ -63,7 +63,8 @@ def submitFileToServer(url, file, updateMachine, mergeRun):
     return reply
 
 
-def submitFileToInstance(path, file, updateMachine=False, mergeRun='replace'):
+def submitFileToInstance(path, file, select_machine='match',
+                         merge_run='replace'):
     # Otherwise, assume it is a local url and submit to the default database
     # in the instance.
     instance = lnt.server.instance.Instance.frompath(path)
@@ -75,22 +76,25 @@ def submitFileToInstance(path, file, updateMachine=False, mergeRun='replace'):
         session = db.make_session()
         return lnt.util.ImportData.import_and_report(
             config, db_name, db, session, file, format='<auto>', ts_name='nts',
-            updateMachine=updateMachine, mergeRun=mergeRun)
+            select_machine=select_machine, merge_run=merge_run)
 
 
-def submitFile(url, file, verbose, updateMachine=False, mergeRun='replace'):
+def submitFile(url, file, verbose, select_machine='match',
+               merge_run='replace'):
     # If this is a real url, submit it using urllib.
     if '://' in url:
-        result = submitFileToServer(url, file, updateMachine, mergeRun)
+        result = submitFileToServer(url, file, select_machine, merge_run)
     else:
-        result = submitFileToInstance(url, file, updateMachine, mergeRun)
+        result = submitFileToInstance(url, file, select_machine, merge_run)
     return result
 
 
-def submitFiles(url, files, verbose, updateMachine=False, mergeRun='replace'):
+def submitFiles(url, files, verbose, select_machine='match',
+                merge_run='replace'):
     results = []
     for file in files:
-        result = submitFile(url, file, verbose, updateMachine, mergeRun)
+        result = submitFile(url, file, verbose, select_machine=select_machine,
+                            merge_run=merge_run)
         if result:
             results.append(result)
     return results

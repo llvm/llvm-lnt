@@ -14,11 +14,13 @@ import time
 
 def import_and_report(config, db_name, db, session, file, format, ts_name,
                       show_sample_count=False, disable_email=False,
-                      disable_report=False, updateMachine=False,
-                      mergeRun='replace'):
+                      disable_report=False, select_machine='match',
+                      merge_run='replace'):
     """
-    import_and_report(config, db_name, db, file, format, ts_name,
-                      [show_sample_count], [disable_email]) -> ... object ...
+    import_and_report(config, db_name, db, session, file, format, ts_name,
+                      [show_sample_count], [disable_email],
+                      [disable_report], [select_machine], [merge_run])
+                     -> ... object ...
 
     Import a test data file into an LNT server and generate a test report. On
     success, run is the newly imported run.
@@ -31,6 +33,10 @@ def import_and_report(config, db_name, db, session, file, format, ts_name,
         'error': None,
         'import_file': file,
     }
+
+    if select_machine not in ('match', 'update', 'split'):
+        result['error'] = "select_machine must be 'match', 'update' or 'split'"
+        return result
 
     ts = db.testsuite.get(ts_name, None)
     if ts is None:
@@ -89,8 +95,8 @@ def import_and_report(config, db_name, db, session, file, format, ts_name,
             return result
 
         run = ts.importDataFromDict(session, data, config=db_config,
-                                    updateMachine=updateMachine,
-                                    mergeRun=mergeRun)
+                                    select_machine=select_machine,
+                                    merge_run=merge_run)
     except KeyboardInterrupt:
         raise
     except Exception as e:
@@ -98,8 +104,9 @@ def import_and_report(config, db_name, db, session, file, format, ts_name,
         result['error'] = "import failure: %s" % e.message
         result['message'] = traceback.format_exc()
         if isinstance(e, lnt.server.db.testsuitedb.MachineInfoChanged):
-            result['message'] += '\n\nNote: Use --update-machine to update ' \
-                                 'the existing machine information.\n'
+            result['message'] += \
+                '\n\nNote: Use --select-machine=update to update ' \
+                'the existing machine information.\n'
         return result
 
     # If the import succeeded, save the import path.
@@ -157,7 +164,9 @@ def import_and_report(config, db_name, db, session, file, format, ts_name,
                                               shadow_db, shadow_session, file,
                                               format, ts_name,
                                               show_sample_count, disable_email,
-                                              disable_report, updateMachine)
+                                              disable_report,
+                                              select_machine=select_machine,
+                                              merge_run=merge_run)
 
             # Append the shadow result to the result.
             result['shadow_result'] = shadow_result
@@ -304,7 +313,7 @@ def print_report_result(result, out, err, verbose=True):
 
 
 def import_from_string(config, db_name, db, session, ts_name, data,
-                       updateMachine=False, mergeRun='replace'):
+                       select_machine='match', merge_run='replace'):
     # Stash a copy of the raw submission.
     #
     # To keep the temporary directory organized, we keep files in
@@ -333,5 +342,5 @@ def import_from_string(config, db_name, db, session, ts_name, data,
 
     result = lnt.util.ImportData.import_and_report(
         config, db_name, db, session, path, '<auto>', ts_name,
-        updateMachine=updateMachine, mergeRun=mergeRun)
+        select_machine=select_machine, merge_run=merge_run)
     return result

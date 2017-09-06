@@ -1,0 +1,29 @@
+{
+	"Machine": {
+		"Info": {
+			"hw.activecpu": "2",
+			"machdep.cpu.vendor": "AMD"
+		},
+		"Name": "some-compile-suite-machine"
+	},
+	"Run": {
+		"End Time": "2017-07-06 15:37:08",
+		"Start Time": "2017-07-06 15:05:23",
+		"Info": {
+			"__report_version__": "1",
+			"run_order": "663405",
+			"tag": "compile"
+		}
+	},
+	"Tests": [
+        {
+            "Data": [
+                13.601326,
+                13.411566,
+                13.490528
+            ],
+            "Info": {},
+            "Name": "compile.build/Adium-1.5.7(config='Debug',j=1).user"
+        }
+	]
+}

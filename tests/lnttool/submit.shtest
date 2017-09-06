@@ -103,7 +103,7 @@ lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" "${INPUTS}/co
 # CHECK-ERRORS: error: lnt server: import failure: 'hw.activecpu' on machine 'some-compile-suite-machine' changed.
 # ...
 # CHECK-ERRORS: MachineInfoChanged: 'hw.activecpu' on machine 'some-compile-suite-machine' changed.
-# CHECK-ERRORS: Note: Use --update-machine to update the existing machine information.
+# CHECK-ERRORS: Note: Use --select-machine=update to update the existing machine information.
 
 
 
@@ -123,7 +123,7 @@ lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" "${INPUTS}/co
 # CHECK-MACHINEDIFF: Results available at: http://localhost:9091/db_default/v4/compile/7
 
 # Test updating existing machine
-lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" "${INPUTS}/compile_submission_machine_diff_reject.json" --update-machine -v > "${OUTPUT_DIR}/submit_compile_machine_update.txt"
+lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" "${INPUTS}/compile_submission_machine_diff_reject.json" --select-machine=update -v > "${OUTPUT_DIR}/submit_compile_machine_update.txt"
 # RUN: FileCheck %s --check-prefix=CHECK-UPDATEMACHINE < %t.tmp/submit_compile_machine_update.txt
 #
 # CHECK-UPDATEMACHINE: Imported Data
@@ -136,3 +136,18 @@ lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" "${INPUTS}/co
 # CHECK-UPDATEMACHINE: ----------------
 # CHECK-UPDATEMACHINE: PASS : 9
 # CHECK-UPDATEMACHINE: Results available at: http://localhost:9091/db_default/v4/compile/8
+
+# Test creation of new machines on information mismatch in split mode.
+lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" "${INPUTS}/compile_submission_machine_diff_split.json" --select-machine=split -v > "${OUTPUT_DIR}/submit_compile_machine_split.txt"
+# RUN: FileCheck %s --check-prefix=CHECK-SPLITMACHINE < %t.tmp/submit_compile_machine_split.txt
+#
+# We should have added a new machine:
+# CHECK-SPLITMACHINE: Imported Data
+# CHECK-SPLITMACHINE: -------------
+# CHECK-SPLITMACHINE: Added Machines: 1
+# CHECK-SPLITMACHINE: Added Runs    : 1
+#
+# CHECK-SPLITMACHINE: Results
+# CHECK-SPLITMACHINE: ----------------
+# CHECK-SPLITMACHINE: PASS : 5
+# CHECK-SPLITMACHINE: Results available at: http://localhost:9091/db_default/v4/compile/9

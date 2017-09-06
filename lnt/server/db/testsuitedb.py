@@ -772,13 +772,55 @@ class TestSuiteDB(object):
 
         return None
 
-    def _getOrCreateMachine(self, session, machine_data, forceUpdate):
+    def _getIncompatibleFields(self, existing_machine, new_machine):
+        incompatible_fields = set()
+        for field in self.machine_fields:
+            existing_value = existing_machine.get_field(field)
+            new_value = new_machine.get_field(field)
+            if new_value is None or existing_value == new_value:
+                continue
+            if existing_value is not None:
+                incompatible_fields.add(field.name)
+        existing_parameters = existing_machine.parameters
+        for key, new_value in new_machine.parameters.items():
+            existing_value = existing_parameters.get(key, None)
+            if new_value is None or existing_value == new_value:
+                continue
+            if existing_value is not None:
+                incompatible_fields.add(key)
+        return incompatible_fields
+
+    def _updateMachine(self, existing_machine, new_machine):
+        for field in self.machine_fields:
+            new_value = new_machine.get_field(field)
+            if new_value is None:
+                continue
+            existing_machine.set_field(field, new_value)
+        parameters = existing_machine.parameters
+        for key, new_value in new_machine.parameters.items():
+            if new_value is None and parameters.get(key, None) is not None:
+                continue
+            parameters[key] = new_value
+        existing_machine.parameters = parameters
+
+    def _getOrCreateMachine(self, session, machine_data, select_machine):
         """
-        _getOrCreateMachine(data, forceUpdate) -> Machine
+        _getOrCreateMachine(data, select_machine) -> Machine
 
         Add or create (and insert) a Machine record from the given machine data
         (as recorded by the test interchange format).
+
+        select_machine strategies:
+        'match': Abort if the existing machine doesn't match the new machine
+                 data.
+        'update': Update the existing machine in cases where the new machine
+                  data doesn't match the existing data.
+        'split': On parameter mismatch create a new machine with a `$NN` suffix
+                 added, or choose an existing compatible machine with such a
+                 suffix.
         """
+        assert select_machine == 'match' or select_machine == 'update' \
+            or select_machine == 'split'
 
         # Convert the machine data into a machine record.
         machine_parameters = machine_data.copy()
@@ -795,46 +837,37 @@ class TestSuiteDB(object):
             .filter(self.Machine.name == name) \
             .order_by(self.Machine.id.desc()) \
             .all()
+        # No existing machine? Add one.
         if len(existing_machines) == 0:
             session.add(machine)
             return machine
-
-        existing = existing_machines[0]
-
-        # Unfortunately previous LNT versions allowed multiple machines
-        # with the same name to exist, so we should choose the one that
-        # matches best.
-        if len(existing_machines) > 1:
-            for m in existing_machines:
-                if m.parameters == machine.parameters:
-                    existing = m
-                    break
-
-        # Check and potentially update existing machine.
-        # Parameters that were previously unset are added. If a parameter
-        # changed then we update or abort depending on `forceUpdate`.
-        for field in self.machine_fields:
-            existing_value = existing.get_field(field)
-            new_value = machine.get_field(field)
-            if new_value is None or existing_value == new_value:
-                continue
-            if existing_value is None or forceUpdate:
-                existing.set_field(field, new_value)
-            else:
+        # Search for a compatible machine.
+        existing_machine = None
+        incompatible_fields_0 = []
+        for m in existing_machines:
+            incompatible_fields = self._getIncompatibleFields(m, machine)
+            if len(incompatible_fields) == 0:
+                existing_machine = m
+                break
+            if len(incompatible_fields_0) == 0:
+                incompatible_fields_0 = incompatible_fields
+        # All existing machines are incompatible?
+        if existing_machine is None:
+            if select_machine == 'split':
+                # Add a new machine.
+                session.add(machine)
+                return machine
+            if select_machine == 'match':
                 raise MachineInfoChanged("'%s' on machine '%s' changed." %
-                                         (field.name, name))
-        existing_parameters = existing.parameters
-        for key, new_value in machine.parameters.items():
-            existing_value = existing_parameters.get(key, None)
-            if new_value is None or existing_value == new_value:
-                continue
-            if existing_value is None or forceUpdate:
-                existing_parameters[key] = value
+                                         (', '.join(incompatible_fields_0),
+                                          name))
             else:
-                raise MachineInfoChanged("'%s' on machine '%s' changed." %
-                                         (key, name))
-        existing.parameters = existing_parameters
-        return existing
+                assert select_machine == 'update'
+                # Just pick the first and update it below.
+                existing_machine = existing_machines[0]
+
+        self._updateMachine(existing_machine, machine)
+        return existing_machine
 
     def _getOrCreateOrder(self, session, run_parameters):
         """
@@ -1008,20 +1041,20 @@ class TestSuiteDB(object):
                     else:
                         sample.set_field(field, value)
 
-    def importDataFromDict(self, session, data, config, updateMachine,
-                           mergeRun):
+    def importDataFromDict(self, session, data, config, select_machine,
+                           merge_run):
         """
-        importDataFromDict(data, config, updateMachine, mergeRun)
+        importDataFromDict(session, data, config, select_machine, merge_run)
             -> Run  (or throws ValueError exception)
 
         Import a new run from the provided test interchange data, and return
         the constructed Run record. May throw ValueError exceptions in cases
         like mismatching machine data or duplicate run submission with
-        mergeRun == 'reject'.
+        merge_run == 'reject'.
         """
         machine = self._getOrCreateMachine(session, data['machine'],
-                                           updateMachine)
-        run = self._getOrCreateRun(session, data['run'], machine, mergeRun)
+                                           select_machine)
+        run = self._getOrCreateRun(session, data['run'], machine, merge_run)
         self._importSampleValues(session, data['tests'], run, config)
         return run
 

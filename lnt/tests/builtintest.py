@@ -75,7 +75,7 @@ class BuiltinTest(object):
             self.log("submitting result to %r" % (config.submit_url,))
             server_report = ServerUtil.submitFile(
                 config.submit_url, report_path, config.verbose,
-                updateMachine=config.update_machine, mergeRun=config.merge)
+                select_machine=config.select_machine, merge_run=config.merge)
         else:
             server_report = ImportData.no_submit()
         if server_report:

@@ -46,7 +46,7 @@ class SearchTest(unittest.TestCase):
                     None, 'default', self.db, self.session, f.name,
                     format='<auto>', ts_name='nts', show_sample_count=False,
                     disable_email=True, disable_report=True,
-                    updateMachine=False, mergeRun='reject')
+                    select_machine='match', merge_run='reject')
 
                 assert result.get('success', False)
 

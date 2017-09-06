@@ -298,11 +298,11 @@ class Runs(Resource):
         session = request.session
         db = request.get_db()
         data = request.data
-        updateMachine = request.values.get('update_machine', False)
+        select_machine = request.values.get('select_machine', 'match')
         merge = request.values.get('merge', 'replace')
         result = lnt.util.ImportData.import_from_string(
             current_app.old_config, g.db_name, db, session, g.testsuite_name,
-            data, updateMachine=updateMachine, mergeRun=merge)
+            data, select_machine=select_machine, merge_run=merge)
 
         error = result['error']
         if error is not None:

@@ -23,7 +23,7 @@ import lnt.formats
 @submit_options
 def action_import(instance_path, files, database, output_format, show_sql,
                   show_sample_count, show_raw_result, testsuite, verbose,
-                  quiet, no_email, no_report, update_machine, merge):
+                  quiet, no_email, no_report, select_machine, merge):
     """import test data into a database"""
     import contextlib
     import lnt.server.instance
@@ -49,7 +49,7 @@ def action_import(instance_path, files, database, output_format, show_sql,
             result = lnt.util.ImportData.import_and_report(
                 config, database, db, session, file_name,
                 output_format, testsuite, show_sample_count, no_email,
-                no_report, updateMachine=update_machine, mergeRun=merge)
+                no_report, select_machine=select_machine, merge_run=merge)
 
             success &= result.get('success', False)
             if quiet:
@@ -59,8 +59,7 @@ def action_import(instance_path, files, database, output_format, show_sql,
                 pprint.pprint(result)
             else:
                 lnt.util.ImportData.print_report_result(result, sys.stdout,
-                                                        sys.stderr,
-                                                        verbose)
+                                                        sys.stderr, verbose)
 
         if not success:
             raise SystemExit(1)

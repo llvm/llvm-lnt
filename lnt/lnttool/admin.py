@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import click
+from .common import submit_options
 
 
 def _load_dependencies():
@@ -286,11 +287,8 @@ def action_rm_run(config, runs):
 @_pass_config
 @click.argument("datafiles", nargs=-1, type=click.Path(exists=True),
                 required=True)
-@click.option("--update-machine", is_flag=True, help="Update machine fields")
-@click.option("--merge", default="replace", show_default=True,
-              type=click.Choice(['reject', 'replace', 'merge']),
-              help="Merge strategy when run already exists")
-def action_post_run(config, datafiles, update_machine, merge):
+@submit_options
+def action_post_run(config, datafiles, select_machine, merge):
     """Submit report files to server."""
     _check_auth_token(config)
 
@@ -301,7 +299,7 @@ def action_post_run(config, datafiles, update_machine, merge):
         url = ('{lnt_url}/api/db_{database}/v4/{testsuite}/runs'
                .format(**config.dict))
         url_params = {
-            'update_machine': 1 if update_machine else 0,
+            'select_machine': select_machine,
             'merge': merge,
         }
         response = config.session.post(url, params=url_params, data=data,
