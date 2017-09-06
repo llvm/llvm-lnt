@@ -2,7 +2,7 @@
 # RUN: rm -rf %t.tmp && mkdir -p %t.tmp
 # RUN: python %{shared_inputs}/create_temp_instance.py \
 # RUN:   %s %{shared_inputs}/SmallInstance %t.instance
-# RUN: %{shared_inputs}/server_wrapper.sh %t.instance 9091 \
+# RUN: %{shared_inputs}/server_wrapper.sh --fail-on-error %t.instance 9091 \
 # RUN:    /bin/sh %s %t.tmp %S/Inputs %{shared_inputs} %{src_root}
 
 OUTPUT_DIR="$1"
@@ -29,11 +29,11 @@ lnt submit "http://localhost:9091/db_default/submitRun" "${SHARED_INPUTS}/sample
 
 
 # Make sure the old --commit=1 style argument is still accepted.
-lnt submit "http://localhost:9091/db_default/submitRun" --commit=1 "${SHARED_INPUTS}/sample-report.json" > "${OUTPUT_DIR}/submit0.txt"
+lnt submit "http://localhost:9091/db_default/submitRun" --commit=1 "${SHARED_INPUTS}/sample-report1.json" > "${OUTPUT_DIR}/submit0.txt"
 # RUN: FileCheck %s --check-prefix=CHECK-SUBMIT0 < %t.tmp/submit0.txt
 # CHECK-SUBMIT0: http://localhost:9091/db_default/v4/nts/4
 
-lnt submit "http://localhost:9091/db_default/submitRun" --commit 1 "${SHARED_INPUTS}/sample-report.json" > "${OUTPUT_DIR}/submit1.txt"
+lnt submit "http://localhost:9091/db_default/submitRun" --commit 1 "${SHARED_INPUTS}/sample-report2.json" > "${OUTPUT_DIR}/submit1.txt"
 # RUN: FileCheck %s --check-prefix=CHECK-SUBMIT1 < %t.tmp/submit1.txt
 # CHECK-SUBMIT1: http://localhost:9091/db_default/v4/nts/5
 
@@ -74,7 +74,7 @@ lnt submit "http://localhost:9091/db_default/submitRun" "${SRC_ROOT}/docs/report
 # For the old submitters/formats we have some detection logic to determine the
 # test-suite based on the Info.Run.tag field instead of the URL. The result
 # should be the same as using the "correct" URL.
-lnt submit "http://localhost:9091/db_default/submitRun" "${INPUTS}/compile_submission.json" -v > "${OUTPUT_DIR}/submit_compile1.txt"
+lnt submit "http://localhost:9091/db_default/submitRun" "${INPUTS}/compile_submission1.json" -v > "${OUTPUT_DIR}/submit_compile1.txt"
 # RUN: FileCheck %s --check-prefix=CHECK-COMPILE1 < %t.tmp/submit_compile1.txt
 #
 # CHECK-COMPILE1: Import succeeded.

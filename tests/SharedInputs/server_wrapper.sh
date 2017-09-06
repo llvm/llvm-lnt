@@ -26,6 +26,12 @@ main() {
     [ $# -lt 2 ] &&
         error "not enough arguments"
 
+    local fail_on_error=0
+    if [ "$1" = "--fail-on-error" ]; then
+        fail_on_error=1
+        shift
+    fi
+
     local server_instance=$1
     local port_number=$2
     shift 2
@@ -51,6 +57,14 @@ main() {
         error "wha happen??  ${kill_rc}"
 
     wait ${pid}
+
+    if [ "$fail_on_error" = "1" ]; then
+        if egrep "ERROR|FATAL|raise" "${server_instance}/server_wrapper_runserver.log"; then
+            echo 1>&2 "Logfile indicates problems: ${server_instance}/server_wrapper_runserver.log"
+            exit 1
+        fi
+    fi
+
     exit ${rc}
 }
 

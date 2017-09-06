@@ -1,0 +1,75 @@
+{
+	"Machine": {
+		"Info": {
+			"hw.activecpu": "4",
+			"machdep.cpu.vendor": "GenuineIntel",
+			"os_version": "42"
+		},
+		"Name": "some-compile-suite-machine"
+	},
+	"Run": {
+		"End Time": "2017-07-06 15:37:08",
+		"Start Time": "2017-07-06 15:05:23",
+		"Info": {
+			"__report_version__": "1",
+			"run_order": "663347",
+			"tag": "compile"
+		}
+	},
+	"Tests": [
+        {
+            "Data": [
+                14.601326,
+                14.411566,
+                14.490528
+            ],
+            "Info": {},
+            "Name": "compile.build/Adium-1.5.7(config='Debug',j=1).user"
+        },
+        {
+            "Data": [
+                6.35114,
+                6.021678,
+                6.008406
+            ],
+            "Info": {},
+            "Name": "compile.build/Adium-1.5.7(config='Debug',j=1).sys"
+        },
+        {
+            "Data": [
+                20.398301,
+                20.121045,
+                19.722336
+            ],
+            "Info": {},
+            "Name": "compile.build/Adium-1.5.7(config='Debug',j=1).wall"
+        },
+        {
+            "Data": [
+                38.057092,
+                38.091625,
+                38.051625
+            ],
+            "Info": {},
+            "Name": "compile.build/Adium-1.5.7(config='Release',j=1).user"
+        },
+                {
+            "Data": [
+                12.423008,
+                12.409628,
+                12.398736
+            ],
+            "Info": {},
+            "Name": "compile.build/Adium-1.5.7(config='Release',j=1).sys"
+        },
+        {
+            "Data": [
+                50.016597,
+                49.881782,
+                49.90554
+            ],
+            "Info": {},
+            "Name": "compile.build/Adium-1.5.7(config='Release',j=1).wall"
+        }
+	]
+}
