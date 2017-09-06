@@ -343,7 +343,7 @@ class RunInfo(object):
             hash_of_binary_field_index = \
                     self.testsuite.get_field_index(hash_of_binary_field)
             hash_values = [s[hash_of_binary_field_index] for s in run_samples
-                           if s[field_index] is not None]
+                           if s[hash_of_binary_field_index] is not None]
             prev_hash_values = [s[hash_of_binary_field_index]
                                 for s in prev_samples
                                 if s[field_index] is not None]
