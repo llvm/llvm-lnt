@@ -1130,16 +1130,16 @@ class TestSuiteDB(object):
         return "TestSuiteDB('%s')" % self.name
 
     def getNumMachines(self, session):
-        return session.query(self.Machine).count()
+        return session.query(sqlalchemy.func.count(self.Machine.id)).scalar()
 
     def getNumRuns(self, session):
-        return session.query(self.Run).count()
+        return session.query(sqlalchemy.func.count(self.Run.id)).scalar()
 
     def getNumSamples(self, session):
-        return session.query(self.Sample).count()
+        return session.query(sqlalchemy.func.count(self.Sample.id)).scalar()
 
     def getNumTests(self, session):
-        return session.query(self.Test).count()
+        return session.query(sqlalchemy.func.count(self.Test.id)).scalar()
 
     def get_field_index(self, sample_field):
         return self.sample_field_indexes[sample_field.name]
