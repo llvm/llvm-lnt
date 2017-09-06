@@ -61,6 +61,7 @@ def regenerate_fieldchanges_for_run(session, ts, run_id):
     # Allow for potentially a few different runs, previous_runs, next_runs
     # all with the same order_id which we will aggregate together to make
     # our comparison result.
+    logger.info("Regenerate fieldchanges for %s run %s" % (ts, run_id))
     run = ts.getRun(session, run_id)
     runs = session.query(ts.Run). \
         filter(ts.Run.order_id == run.order_id). \
