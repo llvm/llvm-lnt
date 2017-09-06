@@ -71,7 +71,13 @@ def async_fieldchange_calc(db_name, ts, run, db_config):
 
 def check_workers(is_logged):
     global JOBS
-    JOBS = [x for x in JOBS if x.is_alive()]
+    alive_jobs_list = []
+    for j in JOBS:
+        if j.is_alive():
+            alive_jobs_list.append(j)
+        else:
+            j.join()
+    JOBS = alive_jobs_list
     still_running = len(JOBS)
     msg = "{} Job(s) in the queue.".format(still_running)
     if is_logged:
