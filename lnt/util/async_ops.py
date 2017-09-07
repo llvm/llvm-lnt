@@ -113,24 +113,14 @@ def async_run_job(job, db_name, ts, func_args, db_config):
     JOBS.append(job)
 
 
-# Flag to track if we have disposed of the parents database connections in
-# this subprocess.
-clean_db = False
-
-
 def async_wrapper(job, ts_args, func_args):
     """Setup test-suite in this subprocess and run something.
 
     Because of multipocessing, capture excptions and log messages,
     and return them.
     """
-    global clean_db
     try:
         start_time = time.time()
-
-        if not clean_db:
-            lnt.server.db.v4db.V4DB.close_all_engines()
-            clean_db = True
 
         sleep(3)
         logger.info("Running async wrapper: {} ".format(job.__name__) +
@@ -139,10 +129,10 @@ def async_wrapper(job, ts_args, func_args):
         db = config.get_database(ts_args['db'])
         with contextlib.closing(db):
             session = db.make_session()
-            ts = db.testsuite[ts_args['tsname']]
-            nothing = job(session, ts, **func_args)
-            assert nothing is None
-            session.close()
+            with contextlib.closing(session):
+                ts = db.testsuite[ts_args['tsname']]
+                nothing = job(session, ts, **func_args)
+                assert nothing is None
         end_time = time.time()
         delta = end_time-start_time
         msg = "Finished: {name} in {time:.2f}s ".format(name=job.__name__,

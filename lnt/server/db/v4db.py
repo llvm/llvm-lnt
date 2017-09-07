@@ -24,8 +24,6 @@ class V4DB(object):
     """
     Wrapper object for LNT v0.4+ databases.
     """
-    _engine_lock = threading.Lock()
-    _engines = []
     def _load_schema_file(self, schema_file):
         session = self.make_session()
         with open(schema_file) as schema_fd:
@@ -72,8 +70,6 @@ class V4DB(object):
             connect_args['timeout'] = 30
         self.engine = sqlalchemy.create_engine(path,
                                                connect_args=connect_args)
-        with V4DB._engine_lock:
-            V4DB._engines.append(self.engine)
 
         # Update the database to the current version, if necessary. Only check
         # this once per path.
@@ -86,14 +82,6 @@ class V4DB(object):
 
     def close(self):
         self.engine.dispose()
-
-    @staticmethod
-    def close_all_engines():
-        """Hack for async_ops. Do not use for anything else."""
-        with V4DB._engine_lock:
-            for engine in V4DB._engines:
-                engine.dispose()
-            V4DB._engines = []
 
     def make_session(self):
         return self.sessionmaker()
