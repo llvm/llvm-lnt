@@ -22,8 +22,7 @@ def upgrade(engine):
 
     ts = session.query(upgrade_0_to_1.TestSuite).filter_by(name='nts').first()
     mem_bytes = upgrade_0_to_1.SampleField(name="mem_bytes",
-                                           type=real_sample_type,
-                                           info_key=".mem",)
+                                           type=real_sample_type)
     ts.sample_fields.append(mem_bytes)
     session.add(ts)
     session.commit()

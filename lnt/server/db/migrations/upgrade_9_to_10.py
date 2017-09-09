@@ -23,8 +23,7 @@ def upgrade(engine):
 
     ts = session.query(upgrade_0_to_1.TestSuite).filter_by(name='nts').first()
     code_size = upgrade_0_to_1.SampleField(name="code_size",
-                                           type=real_sample_type,
-                                           info_key=".code_size",)
+                                           type=real_sample_type)
     ts.sample_fields.append(code_size)
     session.add(ts)
     session.commit()

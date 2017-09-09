@@ -44,7 +44,6 @@ class MachineField(Base):
     test_suite_id = Column("TestSuiteID", Integer, ForeignKey('TestSuite.ID'),
                            index=True)
     name = Column("Name", String(256))
-    info_key = Column("InfoKey", String(256))
 
 
 class OrderField(Base):
@@ -53,7 +52,6 @@ class OrderField(Base):
     test_suite_id = Column("TestSuiteID", Integer, ForeignKey('TestSuite.ID'),
                            index=True)
     name = Column("Name", String(256))
-    info_key = Column("InfoKey", String(256))
     ordinal = Column("Ordinal", Integer)
 
 
@@ -63,7 +61,6 @@ class RunField(Base):
     test_suite_id = Column("TestSuiteID", Integer, ForeignKey('TestSuite.ID'),
                            index=True)
     name = Column("Name", String(256))
-    info_key = Column("InfoKey", String(256))
 
 
 class SampleField(Base):
@@ -74,7 +71,6 @@ class SampleField(Base):
     name = Column("Name", String(256))
     type_id = Column("Type", Integer, ForeignKey('SampleType.ID'))
     type = relation(SampleType)
-    info_key = Column("InfoKey", String(256))
     status_field_id = Column("status_field", Integer, ForeignKey(
             'TestSuiteSampleFields.ID'))
     status_field = relation('SampleField', remote_side=id)
@@ -113,27 +109,24 @@ def initialize_nts_definition(session):
     ts = TestSuite(name="nts", db_key_name="NT")
 
     # Promote the natural information produced by 'runtest nt' to fields.
-    ts.machine_fields.append(MachineField(name="hardware",
-                                          info_key="hardware"))
-    ts.machine_fields.append(MachineField(name="os", info_key="os"))
+    ts.machine_fields.append(MachineField(name="hardware"))
+    ts.machine_fields.append(MachineField(name="os"))
 
     # The only reliable order currently is the "run_order" field. We will want
     # to revise this over time.
     ts.order_fields.append(OrderField(name="llvm_project_revision",
-                                      info_key="run_order", ordinal=0))
+                                      ordinal=0))
 
     # We are only interested in simple runs, so we expect exactly four fields
     # per test.
     compile_status = SampleField(name="compile_status",
-                                 type=status_sample_type,
-                                 info_key=".compile.status")
+                                 type=status_sample_type)
     compile_time = SampleField(name="compile_time", type=real_sample_type,
-                               info_key=".compile",
                                status_field=compile_status)
-    exec_status = SampleField(name="execution_status", type=status_sample_type,
-                              info_key=".exec.status")
+    exec_status = SampleField(name="execution_status",
+                              type=status_sample_type)
     exec_time = SampleField(name="execution_time", type=real_sample_type,
-                            info_key=".exec", status_field=exec_status)
+                            status_field=exec_status)
     ts.sample_fields.append(compile_time)
     ts.sample_fields.append(compile_status)
     ts.sample_fields.append(exec_time)
@@ -156,15 +149,13 @@ def initialize_compile_definition(session):
     ts = TestSuite(name="compile", db_key_name="Compile")
 
     # Promote some natural information to fields.
-    ts.machine_fields.append(MachineField(name="hardware",
-                                          info_key="hw.model"))
-    ts.machine_fields.append(MachineField(name="os_version",
-                                          info_key="kern.version"))
+    ts.machine_fields.append(MachineField(name="hardware"))
+    ts.machine_fields.append(MachineField(name="os_version"))
 
     # The only reliable order currently is the "run_order" field. We will want
     # to revise this over time.
     ts.order_fields.append(OrderField(name="llvm_project_revision",
-                                      info_key="run_order", ordinal=0))
+                                      ordinal=0))
 
     # We expect up to five fields per test, each with a status field.
     for name, type_name in (('user', 'time'),
@@ -173,12 +164,11 @@ def initialize_compile_definition(session):
                             ('size', 'bytes'),
                             ('mem', 'bytes')):
         status = SampleField(
-            name="%s_status" % (name,), type=status_sample_type,
-            info_key=".%s.status" % (name,))
+            name="%s_status" % (name,), type=status_sample_type)
         ts.sample_fields.append(status)
         value = SampleField(
             name="%s_%s" % (name, type_name), type=real_sample_type,
-            info_key=".%s" % (name,), status_field=status)
+            status_field=status)
         ts.sample_fields.append(value)
 
     session.add(ts)
