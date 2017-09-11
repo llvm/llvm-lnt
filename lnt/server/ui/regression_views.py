@@ -93,7 +93,7 @@ def v4_new_regressions():
         else:
             cr = PrecomputedCR(fc.old_value, fc.new_value,
                                fc.field.bigger_is_better)
-            key_run = get_first_runs_of_fieldchange(ts, fc)
+            key_run = get_first_runs_of_fieldchange(session, ts, fc)
         current_cr, _, _ = get_cr_for_field_change(session, ts, fc,
                                                    current=True)
         crs.append(ChangeData(fc, cr, key_run, current_cr))
@@ -364,7 +364,7 @@ def v4_regression_detail(id):
         else:
             cr = PrecomputedCR(fc.old_value, fc.new_value,
                                fc.field.bigger_is_better)
-            key_run = get_first_runs_of_fieldchange(ts, fc)
+            key_run = get_first_runs_of_fieldchange(session, ts, fc)
         current_cr, _, all_runs = get_cr_for_field_change(session, ts, fc,
                                                           current=True)
         crs.append(ChangeData(fc, cr, key_run, current_cr))
