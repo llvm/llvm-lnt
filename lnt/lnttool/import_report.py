@@ -41,7 +41,10 @@ def action_importreport(input, output, suite, order, machine):
 
     for line in input.readlines():
         key, val = line.split()
-        test = lnt.testing.TestSamples(suite + "." + key, [val])
+        metric = key.split(".")[1]
+        metric_type = float if metric not in ("hash", "profile") else str
+        test = lnt.testing.TestSamples(suite + "." + key, [val], conv_f = metric_type)
+
         report.tests.extend([test])
 
     output.write(report.render())
