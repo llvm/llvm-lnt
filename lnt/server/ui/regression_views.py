@@ -315,7 +315,7 @@ def v4_regression_detail(id):
         # Now remove our links to this regression.
         for res_ind in res_inds:
             session.delete(res_ind)
-        lnt.server.db.fieldchange.rebuild_title(ts, regression_info)
+        lnt.server.db.fieldchange.rebuild_title(session, ts, regression_info)
         session.commit()
         flash("Split " + second_regression.title, FLASH_SUCCESS)
         return redirect(v4_url_for(".v4_regression_list",
