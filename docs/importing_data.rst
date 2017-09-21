@@ -85,7 +85,7 @@ benchmark suites as well. The following metrics are supported for a test:
 * ``compilation_status``: A non zero value represents a compilation failure.
 * ``hash_status``: A non zero value represents a failure computing the
   executable hash.
-* ``mem_byts``: Memory usage in bytes during execution; lower is better.
+* ``mem_bytes``: Memory usage in bytes during execution; lower is better.
 * ``code_size``: Code size (usually the size of the text segment) in bytes;
   lower is better.
 
