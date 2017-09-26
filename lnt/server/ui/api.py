@@ -8,33 +8,10 @@ from sqlalchemy.orm import joinedload
 from sqlalchemy.orm.exc import NoResultFound
 
 from lnt.server.ui.util import convert_revision
+from lnt.server.ui.decorators import in_db
 from lnt.testing import PASS
 from lnt.util import logger
 from functools import wraps
-
-
-def in_db(func):
-    """Extract the database information off the request and attach to
-    particular test suite and database."""
-
-    def wrap(*args, **kwargs):
-        db = kwargs.pop('db')
-        ts = kwargs.pop('ts')
-        g.db_name = db
-        g.testsuite_name = ts
-        g.db_info = current_app.old_config.databases.get(g.db_name)
-        if g.db_info is None:
-            abort(404, message="Invalid database.")
-        request.db = current_app.instance.get_database(g.db_name)
-        request.session = request.db.make_session()
-        # Compute result.
-        result = func(*args, **kwargs)
-
-        # Make sure that any transactions begun by this request are finished.
-        request.session.rollback()
-        return result
-
-    return wrap
 
 
 def requires_auth_token(f):

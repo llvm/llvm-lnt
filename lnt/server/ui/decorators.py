@@ -7,7 +7,16 @@ frontend = flask.Blueprint("lnt", __name__, template_folder="ui/templates/",
                            static_folder="ui/static")
 
 
-# Decorator for implementing per-database routes.
+def _make_db_session(db_name):
+    # Initialize the database parameters on the app globals object.
+    g.db_name = db_name or "default"
+    g.db_info = current_app.old_config.databases.get(g.db_name)
+    if g.db_info is None:
+        abort(404, "Unknown database.")
+    request.db = current_app.instance.get_database(g.db_name)
+    request.session = request.db.make_session()
+
+
 def db_route(rule, **options):
     """
     LNT specific route for endpoints which always refer to some database
@@ -18,23 +27,11 @@ def db_route(rule, **options):
     """
     def decorator(f):
         def wrap(db_name=None, **args):
-            # Initialize the database parameters on the app globals object.
-            g.db_name = db_name or "default"
-            g.db_info = current_app.old_config.databases.get(g.db_name)
-            if g.db_info is None:
-                abort(404)
-            request.db = current_app.instance.get_database(g.db_name)
-            request.session = request.db.make_session()
-
-            # Compute result.
-            result = f(**args)
-
-            # Make sure that any transactions begun by this request are
-            # finished.
-            request.session.rollback()
-
-            # Return result.
-            return result
+            _make_db_session(db_name)
+            try:
+                return f(**args)
+            finally:
+                request.session.close()
 
         frontend.add_url_rule(rule, f.__name__, wrap, **options)
         frontend.add_url_rule("/db_<db_name>" + rule,
@@ -44,36 +41,19 @@ def db_route(rule, **options):
     return decorator
 
 
-# Decorator for implementing per-testsuite routes.
 def v4_route(rule, **options):
     """
     LNT V4 specific route for endpoints which always refer to some testsuite
     object.
     """
-
-    # FIXME: This is manually composed with db_route.
     def decorator(f):
         def wrap(testsuite_name, db_name=None, **args):
-            # Initialize the test suite parameters on the app globals object.
             g.testsuite_name = testsuite_name
-
-            # Initialize the database parameters on the app globals object.
-            g.db_name = db_name or "default"
-            g.db_info = current_app.old_config.databases.get(g.db_name)
-            if g.db_info is None:
-                abort(404)
-            request.db = current_app.instance.get_database(g.db_name)
-            request.session = request.db.make_session()
-
-            # Compute result.
-            result = f(**args)
-
-            # Make sure that any transactions begun by this request are
-            # finished.
-            request.session.rollback()
-
-            # Return result.
-            return result
+            _make_db_session(db_name)
+            try:
+                return f(**args)
+            finally:
+                request.session.close()
 
         frontend.add_url_rule("/v4/<testsuite_name>" + rule,
                               f.__name__, wrap, **options)
@@ -82,3 +62,19 @@ def v4_route(rule, **options):
 
         return wrap
     return decorator
+
+
+def in_db(func):
+    """Extract the database information off the request and attach to
+    particular test suite and database. Used by the REST api."""
+    def wrap(*args, **kwargs):
+        db = kwargs.pop('db')
+        ts = kwargs.pop('ts')
+        g.testsuite_name = ts
+        _make_db_session(db)
+        try:
+            return func(*args, **kwargs)
+        finally:
+            request.session.close()
+
+    return wrap
