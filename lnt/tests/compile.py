@@ -125,6 +125,12 @@ def get_runN_test_data(name, variables, cmd, ignore_stderr=False,
         if data.get('version') != 0:
             raise ValueError('unknown runN data format')
         data_samples = data.get('samples')
+    else:
+        # Print stdout/stderr log if available
+        if stdout is not None:
+            g_log.info("%s:\n--\n%s\n--" % (stdout, open(stdout).read()))
+        if stderr is not None:
+            g_log.info("%s:\n--\n%s\n--" % (stderr, open(stderr).read()))
     keys = []
     if not only_mem:
         keys.extend([('user', 1,), ('sys', 2,), ('wall', 3,)])
