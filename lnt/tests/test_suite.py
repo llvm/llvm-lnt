@@ -610,15 +610,11 @@ class TestSuiteTest(BuiltinTest):
     def _get_lnt_code(self, code):
         return {'PASS': lnt.testing.PASS,
                 'FAIL': lnt.testing.FAIL,
+                'NOEXE': lnt.testing.FAIL,
                 'XFAIL': lnt.testing.XFAIL,
                 'XPASS': lnt.testing.FAIL,
                 'UNRESOLVED': lnt.testing.FAIL
                }[code]
-
-    def _test_failed_to_compile(self, raw_name, path):
-        # FIXME: Do we need to add ".exe" in windows?
-        name = raw_name.rsplit('.test', 1)[0]
-        return not os.path.exists(os.path.join(path, name))
 
     def _extract_cmake_vars_from_cache(self):
         assert self.configured is True
@@ -699,11 +695,21 @@ class TestSuiteTest(BuiltinTest):
         no_errors = True
 
         for test_data in data['tests']:
-            raw_name = test_data['name'].split(' :: ', 1)[1]
-            name = 'nts.' + raw_name.rsplit('.test', 1)[0]
-            is_pass = self._is_pass_code(test_data['code'])
+            code = test_data['code']
+            raw_name = test_data['name']
+
+            split_name = raw_name.split(' :: ', 1)
+            if len(split_name) > 1:
+                name = split_name[1]
+            else:
+                name = split_name[0]
+
+            if name.endswith('.test'):
+                name = name[:-5]
+            name = 'nts.' + name
 
             # If --single-result is given, exit based on --single-result-predicate
+            is_pass = self._is_pass_code(code)
             if self.opts.single_result and \
                raw_name == self.opts.single_result + '.test':
                 env = {'status': is_pass}
@@ -716,7 +722,7 @@ class TestSuiteTest(BuiltinTest):
                 sys.exit(0 if status else 1)
 
             if 'metrics' in test_data:
-                for k, v in test_data['metrics'].items():
+                for k, v in sorted(test_data['metrics'].items()):
                     if k == 'profile':
                         profiles_to_import.append((name, v))
                         continue
@@ -735,7 +741,7 @@ class TestSuiteTest(BuiltinTest):
                                                 test_info,
                                                 LIT_METRIC_CONV_FN[k]))
 
-            if self._test_failed_to_compile(raw_name, path):
+            if code == 'NOEXE':
                 test_samples.append(
                     lnt.testing.TestSamples(name + '.compile.status',
                                             [lnt.testing.FAIL],

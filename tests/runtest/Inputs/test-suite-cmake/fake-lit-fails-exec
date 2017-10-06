@@ -7,5 +7,5 @@ parser.add_argument('-j', type=int)
 parser.add_argument('bar')
 args, _ = parser.parse_known_args()
 
-shutil.copyfile(args.bar + '/fake-results.json', args.o)
+shutil.copyfile(args.bar + '/fake-results-fail-exec.json', args.o)
 sys.exit(1)

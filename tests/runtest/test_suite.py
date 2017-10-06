@@ -20,10 +20,12 @@
 # RUN: FileCheck  --check-prefix CHECK-CSV < %t.SANDBOX/build/test-results.csv %s
 # RUN: FileCheck  --check-prefix CHECK-CHECKFORMAT < %t.checkformat %s
 
-# CHECK-REPORT: "no_errors": "False",
+# CHECK-REPORT: "no_errors": "True",
 # CHECK-REPORT: "run_order": "154331"
-# CHECK-REPORT: "Name": "nts.{{[^.]+}}.compile"
-# CHECK-REPORT: "Name": "nts.{{[^.]+}}.compile.status"
+# CHECK-REPORT: "Name": "nts.foo.compile"
+# CHECK-REPORT: "Name": "nts.foo.exec"
+# CHECK-REPORT: "Name": "nts.foo.hash"
+# CHECK-REPORT: "Name": "nts.foo.score"
 #
 # CHECK-BASIC: Inferred C++ compiler under test
 # CHECK-BASIC: Configuring
@@ -320,10 +322,29 @@
 # RUN:     --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
 # RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
 # RUN:     --use-make %S/Inputs/test-suite-cmake/fake-make \
-# RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit-fails \
+# RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit-fails-compile \
 # RUN:     --run-order=123 > %t.log 2> %t.err
-# RUN: FileCheck --check-prefix CHECK-RESULTS-FAIL < %t.SANDBOX/build/report.json %s
-# CHECK-RESULTS-FAIL: "run_order": "123"
+# RUN: FileCheck --check-prefix CHECK-RESULTS-FAIL-COMPILE < %t.SANDBOX/build/report.json %s
+# CHECK-RESULTS-FAIL-COMPILE: "no_errors": "False"
+# CHECK-RESULTS-FAIL-COMPILE: "run_order": "123"
+# CHECK-RESULTS-FAIL-COMPILE: "Name": "nts.bar.compile.status"
+
+# Check that with a failing test, a report is still produced.
+# RUN: rm -f %t.SANDBOX/build/report.json
+# RUN: lnt runtest test-suite \
+# RUN:     --sandbox %t.SANDBOX \
+# RUN:     --no-timestamp \
+# RUN:     --no-configure \
+# RUN:     --test-suite %S/Inputs/test-suite-cmake \
+# RUN:     --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
+# RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
+# RUN:     --use-make %S/Inputs/test-suite-cmake/fake-make \
+# RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit-fails-exec \
+# RUN:     --run-order=123 > %t.log 2> %t.err
+# RUN: FileCheck --check-prefix CHECK-RESULTS-FAIL-EXEC < %t.SANDBOX/build/report.json %s
+# CHECK-RESULTS-FAIL-EXEC: "no_errors": "False"
+# CHECK-RESULTS-FAIL-EXEC: "run_order": "123"
+# CHECK-RESULTS-FAIL-EXEC: "Name": "nts.baz.exec.status"
 
 # Check a run of test-suite using a cmake cache
 # Also make sure we get: compiler defines, cache, other defines on the cmake

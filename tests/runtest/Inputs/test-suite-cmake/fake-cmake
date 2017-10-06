@@ -52,7 +52,13 @@ then
   echo CMAKE_C_FLAGS_RELWITHDEBINFO:STRING=-O2 -g
   echo CMAKE_CXX_FLAGS_RELWITHDEBINFO:STRING=-O2 -g
 else
-  cp $CMAKE_SRC_DIR/fake-test $CMAKE_SRC_DIR/fake-results.json $CMAKE_SRC_DIR/fake-results-profile.json .
+  cp \
+    $CMAKE_SRC_DIR/fake-test \
+    $CMAKE_SRC_DIR/fake-results.json \
+    $CMAKE_SRC_DIR/fake-results-fail-compile.json \
+    $CMAKE_SRC_DIR/fake-results-fail-exec.json \
+    $CMAKE_SRC_DIR/fake-results-profile.json \
+    .
   echo "Dummy" > CMakeCache.txt
   echo CMAKE_C_COMPILER:FILEPATH=$CMAKE_C_COMPILER >> CMakeCache.txt
   echo CMAKE_CXX_COMPILER:FILEPATH=$CMAKE_CXX_COMPILER >> CMakeCache.txt
@@ -60,6 +66,12 @@ else
     echo CMAKE_C_COMPILER_TARGET:STRING=$CMAKE_C_COMPILER_TARGET >> CMakeCache.txt
   fi
   mkdir subtest
-  cp $CMAKE_SRC_DIR/fake-test $CMAKE_SRC_DIR/fake-results.json subtest
+  cp \
+    $CMAKE_SRC_DIR/fake-test \
+    $CMAKE_SRC_DIR/fake-results.json \
+    $CMAKE_SRC_DIR/fake-results-fail-compile.json \
+    $CMAKE_SRC_DIR/fake-results-fail-exec.json \
+    $CMAKE_SRC_DIR/fake-results-profile.json \
+    subtest
 fi
 exit 0
