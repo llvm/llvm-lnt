@@ -97,6 +97,8 @@ class Machine(Resource):
             elif len(machines) > 1:
                 abort(404, msg="Name '%s' is ambiguous; specify machine id" %
                       (machine_spec))
+            else:
+                machine = machines[0]
         if machine is None:
             abort(404, msg="Did not find machine '%s'" % (machine_spec,))
         return machine

@@ -155,6 +155,11 @@ class JSONAPITester(unittest.TestCase):
         for run in j['runs']:
             self.assertSetEqual(set(run.keys()), possible_run_keys)
 
+        # Specify machine by name
+        j = check_json(client, 'api/db_default/v4/nts/machines/localhost__clang_DEV__x86_64')
+        self._check_response_is_well_formed(j)
+        self.assertEqual(j['machine'], machines_expected_response[0])
+
         # Invalid machine ids are 404.
         check_json(client, 'api/db_default/v4/nts/machines/99', expected_code=404)
         check_json(client, 'api/db_default/v4/nts/machines/foo', expected_code=404)
