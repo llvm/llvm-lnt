@@ -21,7 +21,7 @@ Example::
 
     echo -n "foo.exec 25\nbar.score 24.2\nbar/baz.size 110.0\n" > results.txt
     lnt importreport --machine=my-machine-name --order=1234 --testsuite=nts results.txt report.json
-    lnt submit http://mylnt.com/default/submitRun report.json
+    lnt submit http://mylnt.com/db_default/submitRun report.json
 
 .. _json_format:
 
