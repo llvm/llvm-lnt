@@ -81,13 +81,14 @@ benchmark suites as well. The following metrics are supported for a test:
 * ``execution_time``: Execution time in seconds; lower is better.
 * ``score``: Benchmarking score; higher is better.
 * ``compile_time``: Compiling time in seconds; lower is better.
+* ``hash``: A string with the executable hash (usually md5sum of the stripped binary)
+* ``mem_bytes``: Memory usage in bytes during execution; lower is better.
+* ``code_size``: Code size (usually the size of the text segment) in bytes;
+  lower is better.
 * ``execution_status``: A non zero value represents an execution failure.
 * ``compilation_status``: A non zero value represents a compilation failure.
 * ``hash_status``: A non zero value represents a failure computing the
   executable hash.
-* ``mem_bytes``: Memory usage in bytes during execution; lower is better.
-* ``code_size``: Code size (usually the size of the text segment) in bytes;
-  lower is better.
 
 The `run` information is expected to contain this:
 
