@@ -77,6 +77,11 @@ class AdminConfig(object):
         auth_token = self.auth_token
         if auth_token is not None:
             session.headers.update({'AuthToken': auth_token})
+
+        skip_cert_check = self.dict.get('skip_cert_check', False)
+        if skip_cert_check:
+            session.verify = False
+
         self.session = session
 
 
