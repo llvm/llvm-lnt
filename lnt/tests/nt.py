@@ -1662,6 +1662,7 @@ class NTTest(builtintest.BuiltinTest):
                         .format(config.qemu_user_mode_command))
 
         # Multisample, if requested.
+        merge_run = None
         if opts.multisample is not None:
             # Collect the sample reports.
             reports = []
@@ -1705,11 +1706,12 @@ class NTTest(builtintest.BuiltinTest):
                 lnt_report_file = open(lnt_report_path, 'w')
                 print >>lnt_report_file, test_results.render()
                 lnt_report_file.close()
+                merge_run = 'replace'
 
             if config.output is not None:
                 self.print_report(test_results, config.output)
 
-        server_report = self.submit_helper(config)
+        server_report = self.submit_helper(config, merge_run)
 
         ImportData.print_report_result(server_report,
                                        sys.stdout,
@@ -1717,7 +1719,7 @@ class NTTest(builtintest.BuiltinTest):
                                        config.verbose)
         return server_report
 
-    def submit_helper(self, config):
+    def submit_helper(self, config, merge_run=None):
         """Submit the report to the server.  If no server
         was specified, use a local mock server.
         """
@@ -1731,7 +1733,8 @@ class NTTest(builtintest.BuiltinTest):
             for server in config.submit_url:
                 self.log("submitting result to %r" % (server,))
                 try:
-                    result = ServerUtil.submitFile(server, report_path, False)
+                    result = ServerUtil.submitFile(server, report_path, False,
+                                                   merge_run=merge_run)
                 except (urllib2.HTTPError, urllib2.URLError) as e:
                     logger.warning("submitting to {} failed with {}"
                                    .format(server, e))

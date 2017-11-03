@@ -14,6 +14,7 @@ import unittest
 
 import lnt.server.db.migrate
 import lnt.server.ui.app
+import copy
 from V4Pages import check_json
 
 logging.basicConfig(level=logging.DEBUG)
@@ -60,16 +61,18 @@ class JSONAPIRoundTripTester(unittest.TestCase):
         # able to set them to anything without anyone complaining.
         self.assertEqual(orig_api_run['machine']['id'], 1)
 
-        new_api_run, result_url = self._resubmit(orig_api_run)
+        modified_run = copy.deepcopy(orig_api_run)
+        modified_run['run']['llvm_project_revision'] = u'666'
+        new_api_run, result_url = self._resubmit(modified_run)
 
         self.assertEqual(result_url, 'http://localhost/db_default/v4/nts/10')
         self.assertEqual(new_api_run['run']['id'], 10)
+        self.assertEqual(new_api_run['run']['llvm_project_revision'], u'666')
+        new_api_run['run']['llvm_project_revision'] = orig_api_run['run']['llvm_project_revision']
 
         # We change run id and machine id back to the original and after that
         # we should have a perfect match.
         self._compare_results(new_api_run, orig_api_run)
-        final_run_api, _ = self._resubmit(new_api_run)
-        self._compare_results(new_api_run, final_run_api)
 
     def _compare_results(self, after_submit_run, before_submit_run):
         """Take the results from server submission and compare them.

@@ -29,14 +29,16 @@ def _show_json_error(reply):
         sys.stderr.write(message + '\n')
 
 
-def submitFileToServer(url, file, select_machine, merge_run):
+def submitFileToServer(url, file, select_machine=None, merge_run=None):
     with open(file, 'rb') as f:
         values = {
             'input_data': f.read(),
             'commit': "1",  # compatibility with old servers.
-            'select_machine': select_machine,
-            'merge': merge_run,
         }
+        if select_machine is not None:
+            values['select_machine'] = select_machine
+        if merge_run is not None:
+            values['merge'] = merge_run
     headers = {'Accept': 'application/json'}
     data = urllib.urlencode(values)
     try:
@@ -63,8 +65,7 @@ def submitFileToServer(url, file, select_machine, merge_run):
     return reply
 
 
-def submitFileToInstance(path, file, select_machine='match',
-                         merge_run='replace'):
+def submitFileToInstance(path, file, select_machine=None, merge_run=None):
     # Otherwise, assume it is a local url and submit to the default database
     # in the instance.
     instance = lnt.server.instance.Instance.frompath(path)
@@ -79,8 +80,7 @@ def submitFileToInstance(path, file, select_machine='match',
             select_machine=select_machine, merge_run=merge_run)
 
 
-def submitFile(url, file, verbose, select_machine='match',
-               merge_run='replace'):
+def submitFile(url, file, verbose, select_machine=None, merge_run=None):
     # If this is a real url, submit it using urllib.
     if '://' in url:
         result = submitFileToServer(url, file, select_machine, merge_run)
@@ -89,8 +89,7 @@ def submitFile(url, file, verbose, select_machine='match',
     return result
 
 
-def submitFiles(url, files, verbose, select_machine='match',
-                merge_run='replace'):
+def submitFiles(url, files, verbose, select_machine=None, merge_run=None):
     results = []
     for file in files:
         result = submitFile(url, file, verbose, select_machine=select_machine,

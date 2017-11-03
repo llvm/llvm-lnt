@@ -189,6 +189,6 @@
 # RUN:   --sandbox %t.SANDBOX \
 # RUN:   --test-suite %S/Inputs/rerun-test-suite1 \
 # RUN:   --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
-# RUN:   --no-timestamp --rerun --run-order 1 > %t.log 2> %t.err
+# RUN:   --no-timestamp --rerun --run-order 2 > %t.log 2> %t.err
 # RUN: FileCheck --check-prefix CHECK-SUBMIT-STDOUT < %t.log %s
 # RUN: FileCheck --check-prefix CHECK-SUBMIT-STDERR < %t.err %s

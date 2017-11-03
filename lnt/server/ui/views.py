@@ -108,7 +108,7 @@ def _do_submit():
         select_machine = 'update' if update_machine else 'match'
     else:
         select_machine = request.form.get('select_machine', 'match')
-    merge_run = request.form.get('merge', 'replace')
+    merge_run = request.form.get('merge', None)
 
     if input_file and not input_file.content_length:
         input_file = None

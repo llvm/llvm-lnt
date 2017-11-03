@@ -14,8 +14,8 @@ import time
 
 def import_and_report(config, db_name, db, session, file, format, ts_name,
                       show_sample_count=False, disable_email=False,
-                      disable_report=False, select_machine='match',
-                      merge_run='replace'):
+                      disable_report=False, select_machine=None,
+                      merge_run=None):
     """
     import_and_report(config, db_name, db, session, file, format, ts_name,
                       [show_sample_count], [disable_email],
@@ -33,6 +33,10 @@ def import_and_report(config, db_name, db, session, file, format, ts_name,
         'error': None,
         'import_file': file,
     }
+    if select_machine is None:
+        select_machine = 'match'
+    if merge_run is None:
+        merge_run = 'reject'
 
     if select_machine not in ('match', 'update', 'split'):
         result['error'] = "select_machine must be 'match', 'update' or 'split'"
@@ -313,7 +317,7 @@ def print_report_result(result, out, err, verbose=True):
 
 
 def import_from_string(config, db_name, db, session, ts_name, data,
-                       select_machine='match', merge_run='replace'):
+                       select_machine=None, merge_run=None):
     # Stash a copy of the raw submission.
     #
     # To keep the temporary directory organized, we keep files in
