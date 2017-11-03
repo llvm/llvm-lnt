@@ -16,6 +16,7 @@ from sqlalchemy import *
 from sqlalchemy.orm import relation
 from sqlalchemy.orm.exc import ObjectDeletedError
 from typing import List
+from lnt.util import logger
 
 import testsuite
 import lnt.testing.profile.profile as profile
@@ -970,8 +971,9 @@ class TestSuiteDB(object):
                     raise ValueError("Duplicate submission for '%s'" %
                                      order.name)
                 elif merge == 'replace':
-                    for run in existing_runs:
-                        session.delete(run)
+                    for previous_run in existing_runs:
+                        logger.info("Duplicate submission for order %r: deleting previous run %r" % (order, previous_run))
+                        session.delete(previous_run)
                 else:
                     raise ValueError('Invalid Run mergeStrategy %r' % merge)
 
