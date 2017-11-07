@@ -495,10 +495,13 @@ class TestSuiteTest(BuiltinTest):
         # Prepare cmake cache if requested:
         cmake_flags = []
         for cache in self.opts.cmake_cache:
+            if cache == "":
+                continue
             # Shortcut for the common case.
             if not cache.endswith(".cmake") and "/" not in cache:
                 cache = os.path.join(self._test_suite_dir(),
                                      "cmake/caches", cache + ".cmake")
+            cache = os.path.abspath(cache)
             if not os.path.exists(cache):
                 fatal("Could not find CMake cache file: " + cache)
             cmake_flags += ['-C', cache]
