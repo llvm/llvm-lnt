@@ -1,9 +1,12 @@
+#!/bin/bash
 # RUN: rm -rf %t.instance
 # RUN: rm -rf %t.tmp && mkdir -p %t.tmp
 # RUN: python %{shared_inputs}/create_temp_instance.py \
 # RUN:   %s %{shared_inputs}/SmallInstance %t.instance
 # RUN: %{shared_inputs}/server_wrapper.sh --fail-on-error %t.instance 9091 \
 # RUN:    /bin/sh %s %t.tmp %S/Inputs %{shared_inputs} %{src_root}
+
+set -eux
 
 OUTPUT_DIR="$1"
 INPUTS="$2"
@@ -86,20 +89,20 @@ lnt submit "http://localhost:9091/db_default/submitRun" "${INPUTS}/compile_submi
 
 # Check some error handling/reporting
 rm -f "${OUTPUT_DIR}/submit_errors.txt"
-lnt submit "http://localhost:9091/db_default/v4/badsuite/submitRun" "${INPUTS}/compile_submission.json" >> "${OUTPUT_DIR}/submit_errors.txt" 2>&1
+not lnt submit "http://localhost:9091/db_default/v4/badsuite/submitRun" "${INPUTS}/compile_submission.json" >> "${OUTPUT_DIR}/submit_errors.txt" 2>&1
 # RUN: FileCheck %s --check-prefix=CHECK-ERRORS < %t.tmp/submit_errors.txt
 # CHECK-ERRORS: error: lnt server: Unknown test suite 'badsuite'!
-lnt submit "http://localhost:9091/db_baddb/v4/compile/submitRun" "${INPUTS}/compile_submission.json" >> "${OUTPUT_DIR}/submit_errors.txt" 2>&1
+not lnt submit "http://localhost:9091/db_baddb/v4/compile/submitRun" "${INPUTS}/compile_submission.json" >> "${OUTPUT_DIR}/submit_errors.txt" 2>&1
 # CHECK-ERRORS: error: lnt server: The page you are looking for does not exist.
-lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" "${INPUTS}/invalid_submission0.json" >> "${OUTPUT_DIR}/submit_errors.txt" 2>&1
+not lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" "${INPUTS}/invalid_submission0.json" >> "${OUTPUT_DIR}/submit_errors.txt" 2>&1
 # CHECK-ERRORS: error: lnt server: could not parse input format
 # ...
 # CHECK-ERRORS: SystemExit: unable to guess input format for
-lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" "${INPUTS}/invalid_submission1.json" >> "${OUTPUT_DIR}/submit_errors.txt" 2>&1
+not lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" "${INPUTS}/invalid_submission1.json" >> "${OUTPUT_DIR}/submit_errors.txt" 2>&1
 # CHECK-ERRORS: error: lnt server: import failure: machine
 # ...
 # CHECK-ERRORS: KeyError: 'machine'
-lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" "${INPUTS}/compile_submission_machine_diff_reject.json" >> "${OUTPUT_DIR}/submit_errors.txt" 2>&1
+not lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" "${INPUTS}/compile_submission_machine_diff_reject.json" >> "${OUTPUT_DIR}/submit_errors.txt" 2>&1
 # CHECK-ERRORS: error: lnt server: import failure: 'hw.activecpu' on machine 'some-compile-suite-machine' changed.
 # ...
 # CHECK-ERRORS: MachineInfoChanged: 'hw.activecpu' on machine 'some-compile-suite-machine' changed.

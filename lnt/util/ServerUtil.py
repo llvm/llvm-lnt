@@ -46,6 +46,10 @@ def submitFileToServer(url, file, select_machine=None, merge_run=None):
     except urllib2.HTTPError as e:
         _show_json_error(e.read())
         return
+    except urllib2.URLError as e:
+        sys.stderr.write("error: could not resolve '%s': %s\n" %
+                         (url, e))
+        return
     result_data = response.read()
 
     # The result is expected to be a JSON object.

@@ -1,0 +1,2 @@
+# RUN: not lnt submit "http://doesnotexist.invalid/db_default/submitRun" %{shared_inputs}/sample-report.json 2>&1 | FileCheck %s
+# CHECK: error: could not resolve 'http://doesnotexist.invalid/db_default/submitRun':

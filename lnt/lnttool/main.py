@@ -187,14 +187,16 @@ def action_submit(url, files, select_machine, merge, verbose):
     from lnt.util import ServerUtil
     import lnt.util.ImportData
 
-    files = ServerUtil.submitFiles(url, files, verbose,
+    results = ServerUtil.submitFiles(url, files, verbose,
                                    select_machine=select_machine,
                                    merge_run=merge)
-    for submitted_file in files:
+    for submitted_file in results:
         if verbose:
             lnt.util.ImportData.print_report_result(
                 submitted_file, sys.stdout, sys.stderr, True)
         _print_result_url(submitted_file, verbose)
+    if len(files) != len(results):
+        sys.exit(1)
 
 
 @click.command("update")
