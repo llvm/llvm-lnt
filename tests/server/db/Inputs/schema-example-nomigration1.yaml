@@ -1,7 +1,7 @@
 # We cannot automatically migrate this it removes the existing machine field
 # "os"
 format_version: "2"
-name: size
+name: my_suite
 metrics:
   - name: text_size
     bigger_is_better: false

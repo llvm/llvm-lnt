@@ -100,15 +100,14 @@ The `run` information is expected to contain this:
 Custom Test Suites
 ------------------
 
-LNTs test suites are derived from a set of metadata definitions for each suite.
-Simply put, suites are a collections of metrics that are collected for each run.
-You can define your own test-suites if the schema in a different suite does not
-already meet your needs.
+LNT test suite schemas define which metrics can be tracked for a test and what
+extra information is known about runs and machines.  You can define your own
+test suite schemas in a yaml file. The LNT administrator has to place (or
+symlink) this yaml file into the servers schema directory.
 
-To create a schema place a yaml file into the schemas directory of your lnt
-instance. Example:
+Example:
 
-.. literalinclude:: schema-example.yaml
+.. literalinclude:: my_suite.yaml
     :language: yaml
 
 * LNT currently supports the following metric types:
@@ -120,3 +119,6 @@ instance. Example:
 
 * You need to mark at least 1 of the run fields as ``order: true`` so LNT knows
   how to sort runs.
+* Note that runs are not be limited to the fields defined in the schema for
+  the run and machine information. The fields in the schema merely declare which
+  keys get their own column in the database and a prefered treatment in the UI.

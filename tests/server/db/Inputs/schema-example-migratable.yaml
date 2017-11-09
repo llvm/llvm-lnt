@@ -2,7 +2,7 @@
 # over the default example schema. Migration should succeed as this only
 # requires the create of new columns.
 format_version: "2"
-name: size
+name: my_suite
 metrics:
   - name: text_size
     bigger_is_better: false

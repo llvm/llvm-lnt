@@ -1,5 +1,5 @@
 format_version: '2'
-name: size
+name: my_suite
 metrics:
   - name: text_size
     bigger_is_better: false

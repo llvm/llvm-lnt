@@ -1,7 +1,7 @@
 # RUN: rm -rf "%t.install"
 # RUN: lnt create "%t.install"
-# RUN: ln -sf %{src_root}/docs/schema-example.yaml "%t.install/schemas/size.yaml"
-# RUN: lnt import "%t.install" -s size %S/Inputs/customschema-report.json | FileCheck %s
+# RUN: ln -sf %{src_root}/docs/my_suite.yaml "%t.install/schemas/"
+# RUN: lnt import "%t.install" -s my_suite %S/Inputs/customschema-report.json | FileCheck %s
 
 # CHECK: Import succeeded.
 # CHECK: Imported Data
@@ -19,34 +19,34 @@
 # ===============
 #
 # Inserting with an extra field shouldn't work just yet
-# RUN: not lnt import "%t.install" -s size "%S/Inputs/customschema-report2.json" 2>&1 | FileCheck %s --check-prefix=NOTUPGRADED
+# RUN: not lnt import "%t.install" -s my_suite "%S/Inputs/customschema-report2.json" 2>&1 | FileCheck %s --check-prefix=NOTUPGRADED
 # NOTUPGRADED: Metric u'newfield' unknown in suite
 
 # Upgrading to a schema with metrics/fields removed should fail
-# RUN: rm -f "%t.install/schemas/size.yaml"
-# RUN: ln -sf "%S/Inputs/schema-example-nomigration0.yaml" "%t.install/schemas/size.yaml"
-# RUN: not lnt import "%t.install" -s size "%S/Inputs/customschema-report.json" 2>&1 | FileCheck %s --check-prefix=NOMIGRATION0
+# RUN: rm -f "%t.install/schemas/my_suite.yaml"
+# RUN: ln -sf "%S/Inputs/schema-example-nomigration0.yaml" "%t.install/schemas/my_suite.yaml"
+# RUN: not lnt import "%t.install" -s my_suite "%S/Inputs/customschema-report.json" 2>&1 | FileCheck %s --check-prefix=NOMIGRATION0
 # NOMIGRATION0: Cannot automatically migrate database: Metrics removed: data_size
 #
-# RUN: rm -f "%t.install/schemas/size.yaml"
-# RUN: ln -sf "%S/Inputs/schema-example-nomigration1.yaml" "%t.install/schemas/size.yaml"
-# RUN: not lnt import "%t.install" -s size "%S/Inputs/customschema-report.json" 2>&1 | FileCheck %s --check-prefix=NOMIGRATION1
+# RUN: rm -f "%t.install/schemas/my_suite.yaml"
+# RUN: ln -sf "%S/Inputs/schema-example-nomigration1.yaml" "%t.install/schemas/my_suite.yaml"
+# RUN: not lnt import "%t.install" -s my_suite "%S/Inputs/customschema-report.json" 2>&1 | FileCheck %s --check-prefix=NOMIGRATION1
 # NOMIGRATION1: Cannot automatically migrate database: Machine fields removed: os
 #
-# RUN: rm -f "%t.install/schemas/size.yaml"
-# RUN: ln -sf "%S/Inputs/schema-example-nomigration2.yaml" "%t.install/schemas/size.yaml"
-# RUN: not lnt import "%t.install" -s size "%S/Inputs/customschema-report.json" 2>&1 | FileCheck %s --check-prefix=NOMIGRATION2
+# RUN: rm -f "%t.install/schemas/my_suite.yaml"
+# RUN: ln -sf "%S/Inputs/schema-example-nomigration2.yaml" "%t.install/schemas/my_suite.yaml"
+# RUN: not lnt import "%t.install" -s my_suite "%S/Inputs/customschema-report.json" 2>&1 | FileCheck %s --check-prefix=NOMIGRATION2
 # NOMIGRATION2: Cannot automatically migrate database: Type mismatch in metric 'data_size'
 
 
 # This upgrade should finally work
-# RUN: rm -f "%t.install/schemas/size.yaml"
-# RUN: ln -sf "%S/Inputs/schema-example-migratable.yaml" "%t.install/schemas/size.yaml"
-# RUN: lnt import "%t.install" "%S/Inputs/customschema-report2.json" -s size --show-sql 2>&1 | FileCheck %s --check-prefix=MIGRATION
+# RUN: rm -f "%t.install/schemas/my_suite.yaml"
+# RUN: ln -sf "%S/Inputs/schema-example-migratable.yaml" "%t.install/schemas/my_suite.yaml"
+# RUN: lnt import "%t.install" "%S/Inputs/customschema-report2.json" -s my_suite --show-sql 2>&1 | FileCheck %s --check-prefix=MIGRATION
 #
-# MIGRATION: ALTER TABLE "size_Sample" ADD COLUMN newfield FLOAT
-# MIGRATION: ALTER TABLE "size_Run" ADD COLUMN new_run_field VARCHAR(256)
-# MIGRATION: ALTER TABLE "size_Machine" ADD COLUMN new_machine_field VARCHAR(256)
+# MIGRATION: ALTER TABLE "my_suite_Sample" ADD COLUMN newfield FLOAT
+# MIGRATION: ALTER TABLE "my_suite_Run" ADD COLUMN new_run_field VARCHAR(256)
+# MIGRATION: ALTER TABLE "my_suite_Machine" ADD COLUMN new_machine_field VARCHAR(256)
 #
 # MIGRATION: Import succeeded.
 # MIGRATION: Imported Data
