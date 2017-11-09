@@ -188,8 +188,8 @@ def action_submit(url, files, select_machine, merge, verbose):
     import lnt.util.ImportData
 
     results = ServerUtil.submitFiles(url, files, verbose,
-                                   select_machine=select_machine,
-                                   merge_run=merge)
+                                     select_machine=select_machine,
+                                     merge_run=merge)
     for submitted_file in results:
         if verbose:
             lnt.util.ImportData.print_report_result(
@@ -497,6 +497,8 @@ def main():
 Use ``lnt <command> --help`` for more information on a specific command.
     """
     _version_check()
+
+
 main.add_command(action_check_no_errors)
 main.add_command(action_checkformat)
 main.add_command(action_convert)

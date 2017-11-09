@@ -55,7 +55,7 @@ def submitFileToServer(url, file, select_machine=None, merge_run=None):
     # The result is expected to be a JSON object.
     try:
         return json.loads(result_data)
-    except:
+    except Exception:
         import traceback
         print "Unable to load result, not a valid JSON object."
         print

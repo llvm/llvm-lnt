@@ -343,7 +343,8 @@ class TestSuiteDB(object):
             # The parameters blob is used to store any additional information
             # reported by the run but not promoted into the machine record.
             # Such data is stored as a JSON encoded blob.
-            parameters_data = Column("Parameters", Binary, index=False, unique=False)
+            parameters_data = Column("Parameters", Binary, index=False,
+                                     unique=False)
 
             machine = relation(Machine)
             order = relation(Order)
@@ -410,7 +411,8 @@ class TestSuiteDB(object):
 
         class Test(self.base, ParameterizedMixin):
             __tablename__ = db_key_name + '_Test'
-            __table_args__ = {'mysql_collate': 'utf8_bin'}  # For case sensitive compare.
+            # utf8_bin for case sensitive compare
+            __table_args__ = {'mysql_collate': 'utf8_bin'}
             id = Column("ID", Integer, primary_key=True)
             name = Column("Name", String(256), unique=True, index=True)
 
@@ -972,7 +974,9 @@ class TestSuiteDB(object):
                                      order.name)
                 elif merge == 'replace':
                     for previous_run in existing_runs:
-                        logger.info("Duplicate submission for order %r: deleting previous run %r" % (order, previous_run))
+                        logger.info("Duplicate submission for order %r: "
+                                    "deleting previous run %r" %
+                                    (order, previous_run))
                         session.delete(previous_run)
                 else:
                     raise ValueError('Invalid Run mergeStrategy %r' % merge)

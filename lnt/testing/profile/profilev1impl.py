@@ -1,5 +1,7 @@
 from lnt.testing.profile.profile import ProfileImpl
-import cPickle, zlib
+import cPickle
+import zlib
+
 
 class ProfileV1(ProfileImpl):
     """
@@ -7,12 +9,13 @@ ProfileV1 files not clever in any way. They are simple Python objects with
 the profile data layed out in the most obvious way for production/consumption
 that are then pickled and compressed.
 
-They are expected to be created by simply storing into the ``self.data`` member.
+They are expected to be created by simply storing into the ``self.data``
+member.
 
 The ``self.data`` member has this format::
 
   {
-   counters: {'cycles': 12345.0, 'branch-misses': 200.0}, # Counter values are absolute.
+   counters: {'cycles': 12345.0, 'branch-misses': 200.0}, # absolute values.
    disassembly-format: 'raw',
    functions: {
      name: {
@@ -28,10 +31,11 @@ The ``self.data`` member has this format::
 
     def __init__(self, data):
         """
-        Create from a raw data dict. data has the format given in the class docstring.
+        Create from a raw data dict. data has the format given in the class
+        docstring.
         """
         self.data = data
-    
+
     @staticmethod
     def upgrade(old):
         raise RuntimeError("Cannot upgrade to version 1!")
@@ -67,7 +71,7 @@ The ``self.data`` member has this format::
         if 'disassembly-format' in self.data:
             return self.data['disassembly-format']
         return 'raw'
-    
+
     def getFunctions(self):
         d = {}
         for fn in self.data['functions']:

@@ -97,7 +97,7 @@ not lnt submit "http://localhost:9091/db_baddb/v4/compile/submitRun" "${INPUTS}/
 not lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" "${INPUTS}/invalid_submission0.json" >> "${OUTPUT_DIR}/submit_errors.txt" 2>&1
 # CHECK-ERRORS: error: lnt server: could not parse input format
 # ...
-# CHECK-ERRORS: SystemExit: unable to guess input format for
+# CHECK-ERRORS: ValueError: unable to guess input format for
 not lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" "${INPUTS}/invalid_submission1.json" >> "${OUTPUT_DIR}/submit_errors.txt" 2>&1
 # CHECK-ERRORS: error: lnt server: import failure: machine
 # ...

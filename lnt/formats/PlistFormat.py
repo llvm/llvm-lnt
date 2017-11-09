@@ -1,13 +1,17 @@
 import plistlib
 
+
 def _matches_format(path_or_file):
     try:
         plistlib.readPlist(path_or_file)
         return True
-    except:
+    except Exception:
         return False
 
-format = { 'name' : 'plist',
-           'predicate' : _matches_format,
-           'read' : plistlib.readPlist,
-           'write' : plistlib.writePlist }
+
+format = {
+    'name': 'plist',
+    'predicate': _matches_format,
+    'read': plistlib.readPlist,
+    'write': plistlib.writePlist,
+}

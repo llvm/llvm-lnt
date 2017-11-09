@@ -1,5 +1,10 @@
-import struct, bz2, os, StringIO, copy, io
 from profile import ProfileImpl
+import StringIO
+import bz2
+import copy
+import io
+import os
+import struct
 
 """
 ProfileV2 is a profile data representation designed to keep the
@@ -28,13 +33,14 @@ The sections are:
 
   Functions
       For each function, contains the counters for that function, the number
-      of instructions and indices into the LineAddresses, LineCounters and LineText
-      sections.
+      of instructions and indices into the LineAddresses, LineCounters and
+      LineText sections.
 
   LineAddresses
-      A flat list of numbers, addresses are encoded as offsets from the previous
-      address. Each Function knows its starting index into this list (the first
-      address is an offset from zero) and how many addresses to read.
+      A flat list of numbers, addresses are encoded as offsets from the
+      previous address. Each Function knows its starting index into this list
+      (the first address is an offset from zero) and how many addresses to
+      read.
 
   LineCounters
       A list of floating point values, one for each counter in the counter name
@@ -43,36 +49,39 @@ The sections are:
       Like LineAddresses, Functions know their own index into the LineCounter
       table.
 
-      The numbers are floating point numbers that are bitconverted into integers.
+      The numbers are floating point numbers that are bitconverted into
+      integers.
 
   LineText
-      A list of offsets into the TextPool, which is a simple string pool. Again,
-      Functions know their index into the LineText section.
+      A list of offsets into the TextPool, which is a simple string pool.
+      Again, Functions know their index into the LineText section.
 
   TextPool
       A simple string pool.
 
-  The LineAddresses and LineCounters sections are designed to hold very repetitive
-  data that is very easy to compress. The LineText section allows repeated strings
-  to be reused (for example 'add r0, r0, r0').
+  The LineAddresses and LineCounters sections are designed to hold very
+  repetitive data that is very easy to compress. The LineText section allows
+  repeated strings to be reused (for example 'add r0, r0, r0').
 
-  The LineAddresses, LineCounters, LineText and TextPool sections are BZ2 compressed.
+  The LineAddresses, LineCounters, LineText and TextPool sections are BZ2
+  compressed.
 
-  The TextPool section has the ability to be shared across multiple profiles to 
-  take advantage of inter-run redundancy (the image very rarely changes substantially).
-  This pooling ability is not yet implemented but the appropriate scaffolding is in
-  place.
+  The TextPool section has the ability to be shared across multiple profiles
+  to take advantage of inter-run redundancy (the image very rarely changes
+  substantially). This pooling ability is not yet implemented but the
+  appropriate scaffolding is in place.
 
-  The ProfileV2 format gives a ~3x size improvement over the ProfileV1 (which is also
-  compressed) - meaning a ProfileV2 is roughly 1/3 the size of ProfileV1. With text
-  pooling, ProfileV2s can be even smaller.
+  The ProfileV2 format gives a ~3x size improvement over the ProfileV1 (which
+  is also compressed) - meaning a ProfileV2 is roughly 1/3 the size of
+  ProfileV1. With text pooling, ProfileV2s can be even smaller.
 
-  Not only this, but for the simple task of enumerating the functions in a profile
-  we do not need to do any decompression at all.
+  Not only this, but for the simple task of enumerating the functions in a
+  profile we do not need to do any decompression at all.
 """
 
-################################################################################
+##############################################################################
 # Utility functions
+
 
 def readNum(fobj):
     """
@@ -87,11 +96,11 @@ def readNum(fobj):
         if (b & 0x80) == 0:
             return n
 
+
 def writeNum(fobj, n):
     """
     Write 'n' as a ULEB encoded number to a stream.
     """
-    l = []
     while True:
         b = n & 0x7F
         n >>= 7
@@ -102,12 +111,14 @@ def writeNum(fobj, n):
         if n == 0:
             break
 
+
 def readString(fobj):
     """
     Read a string from a stream.
     """
     return fobj.readline()[:-1]
-    
+
+
 def writeString(fobj, s):
     """
     Write a string to a stream.
@@ -115,14 +126,16 @@ def writeString(fobj, s):
     fobj.write(str(s))
     fobj.write('\n')
 
+
 def readFloat(fobj):
     """
     Read a floating point number from a stream.
     """
-    l = readNum(fobj)
-    packed = struct.pack('>l', l)
+    num = readNum(fobj)
+    packed = struct.pack('>l', num)
     f = struct.unpack('>f', packed)[0]
     return f
+
 
 def writeFloat(fobj, f):
     """
@@ -135,8 +148,9 @@ def writeFloat(fobj, f):
     bits = struct.unpack('>l', packed)[0]
     writeNum(fobj, bits)
 
-################################################################################
+##############################################################################
 # Abstract section types
+
 
 class Section(object):
     def writeHeader(self, fobj, offset, size):
@@ -163,16 +177,18 @@ class Section(object):
     def copy(self):
         return copy.copy(self)
 
+
 class CompressedSection(Section):
     def read(self, fobj):
         fobj.seek(self.offset + self.start)
         _io = StringIO.StringIO(bz2.decompress(fobj.read(self.size)))
         return self.deserialize(_io)
-    
+
     def write(self, fobj):
         _io = io.BytesIO()
         self.serialize(_io)
         fobj.write(bz2.compress(_io.getvalue()))
+
 
 class MaybePooledSection(Section):
     """
@@ -199,7 +215,7 @@ class MaybePooledSection(Section):
             _io = StringIO.StringIO(bz2.decompress(fobj.read(self.size)))
             self.size = len(_io.getvalue())
             return self.deserialize(_io)
-    
+
     def write(self, fobj):
         _io = StringIO.StringIO()
         if self.pool_fname:
@@ -209,9 +225,10 @@ class MaybePooledSection(Section):
             Section.write(self, _io)
             fobj.write(bz2.compress(_io.getvalue()))
 
-################################################################################
+##############################################################################
 # Concrete section types
-            
+
+
 class Header(Section):
     def serialize(self, fobj):
         writeString(fobj, self.disassembly_format)
@@ -225,15 +242,16 @@ class Header(Section):
     def __repr__(self):
         pass
 
+
 class CounterNamePool(Section):
     """
-    Maps counter names to indices. It allows later sections to refer to 
+    Maps counter names to indices. It allows later sections to refer to
     counters by index.
     """
     def serialize(self, fobj):
-        l = len(self.idx_to_name)
-        writeNum(fobj, l)
-        for i in xrange(l):
+        n_names = len(self.idx_to_name)
+        writeNum(fobj, n_names)
+        for i in xrange(n_names):
             writeString(fobj, self.idx_to_name[i])
 
     def deserialize(self, fobj):
@@ -241,7 +259,7 @@ class CounterNamePool(Section):
         for i in xrange(readNum(fobj)):
             self.idx_to_name[i] = readString(fobj)
         self.name_to_idx = {v: k
-                            for k,v
+                            for k, v
                             in self.idx_to_name.items()}
 
     def upgrade(self, impl):
@@ -253,9 +271,10 @@ class CounterNamePool(Section):
             keys += f['counters'].keys()
         keys = sorted(set(keys))
 
-        self.idx_to_name = {k: v for k,v in enumerate(keys)}
-        self.name_to_idx = {v: k for k,v in enumerate(keys)}
-        
+        self.idx_to_name = {k: v for k, v in enumerate(keys)}
+        self.name_to_idx = {v: k for k, v in enumerate(keys)}
+
+
 class TopLevelCounters(Section):
     def __init__(self, counter_name_pool):
         self.counter_name_pool = counter_name_pool
@@ -280,7 +299,8 @@ class TopLevelCounters(Section):
         new = copy.copy(self)
         new.counter_name_pool = cnp
         return new
-        
+
+
 class LineCounters(CompressedSection):
     def __init__(self, impl=None):
         self.impl = impl
@@ -304,9 +324,10 @@ class LineCounters(CompressedSection):
     def upgrade(self, impl):
         self.impl = impl
         self.function_offsets = {}
-    
+
     def getOffsetFor(self, fname):
         return self.function_offsets[fname]
+
     def setOffsetFor(self, fname, value):
         self.function_offsets[fname] = value
 
@@ -320,12 +341,13 @@ class LineCounters(CompressedSection):
             for k in counters:
                 c[k] = readFloat(_io)
             yield c
-            
+
+
 class LineAddresses(CompressedSection):
     def __init__(self, impl=None):
         self.impl = impl
         self.function_offsets = {}
-        
+
     def serialize(self, fobj):
         """
         Addresses are encoded as a delta from the previous address. This allows
@@ -340,11 +362,12 @@ class LineAddresses(CompressedSection):
             self.function_offsets[fname] = fobj.tell() - start
             prev_address = 0
             for counters, address, text in self.impl.getCodeForFunction(fname):
-                # FIXME: Hack around a bug in perf extraction somewhere - if we go
-                # off the end of a symbol to a previous symbol, addresses will go backwards!
+                # FIXME: Hack around a bug in perf extraction somewhere - if
+                # we go off the end of a symbol to a previous symbol,
+                # addresses will go backwards!
                 writeNum(fobj, max(0, address - prev_address))
                 prev_address = address
-                
+
     def deserialize(self, fobj):
         self.data = fobj.read()
 
@@ -354,6 +377,7 @@ class LineAddresses(CompressedSection):
 
     def getOffsetFor(self, fname):
         return self.function_offsets[fname]
+
     def setOffsetFor(self, fname, value):
         self.function_offsets[fname] = value
 
@@ -366,13 +390,14 @@ class LineAddresses(CompressedSection):
             address = readNum(_io) + last_address
             last_address = address
             yield address
-            
+
+
 class LineText(CompressedSection):
     """
     Text lines (like "add r0, r0, r0") can be repeated.
 
     Instead of just storing the text in raw form, we store pointers into
-    a text pool. This allows text to be reused, but also reused between 
+    a text pool. This allows text to be reused, but also reused between
     different profiles if required (the text pools can be extracted
     into a separate file)
     """
@@ -391,7 +416,7 @@ class LineText(CompressedSection):
             self.function_offsets[fname] = fobj.tell() - start
             for counters, address, text in self.impl.getCodeForFunction(fname):
                 writeNum(fobj, self.text_pool.getOrCreate(text))
-            writeNum(fobj, 0) # Write sequence terminator
+            writeNum(fobj, 0)  # Write sequence terminator
 
     def deserialize(self, fobj):
         # FIXME: Make this lazy.
@@ -400,9 +425,10 @@ class LineText(CompressedSection):
     def upgrade(self, impl):
         self.impl = impl
         self.function_offsets = {}
-    
+
     def getOffsetFor(self, fname):
         return self.function_offsets[fname]
+
     def setOffsetFor(self, fname, value):
         self.function_offsets[fname] = value
 
@@ -419,7 +445,8 @@ class LineText(CompressedSection):
         new = copy.copy(self)
         new.text_pool = tp
         return new
-        
+
+
 class TextPool(MaybePooledSection):
     def __init__(self):
         MaybePooledSection.__init__(self)
@@ -440,12 +467,12 @@ class TextPool(MaybePooledSection):
 
     def upgrade(self, impl):
         pass
-    
+
     def getOrCreate(self, text):
         if self.pool_fname and not self.pool_read:
             assert False
             self.readFromPool()
-        
+
         if text in self.offsets:
             return self.offsets[text]
         self.offsets[text] = self.data.tell()
@@ -458,7 +485,8 @@ class TextPool(MaybePooledSection):
 
     def copy(self):
         return copy.deepcopy(self)
-            
+
+
 class Functions(Section):
     def __init__(self, counter_name_pool, line_counters,
                  line_addresses, line_text, impl=None):
@@ -508,7 +536,8 @@ class Functions(Section):
 
     def getCodeForFunction(self, fname):
         f = self.functions[fname]
-        counter_gen = self.line_counters.extractForFunction(fname, f['counters'].keys())
+        counter_gen = self.line_counters \
+            .extractForFunction(fname, f['counters'].keys())
         address_gen = self.line_addresses.extractForFunction(fname)
         text_gen = self.line_text.extractForFunction(fname)
         for n in xrange(f['length']):
@@ -522,11 +551,13 @@ class Functions(Section):
         new.line_addresses = line_addresses
         new.line_text = line_text
         return new
-            
+
+
 class ProfileV2(ProfileImpl):
     @staticmethod
     def checkFile(fn):
-        # The first number is the version (2); ULEB encoded this is simply 0x02.
+        # The first number is the version (2); ULEB encoded this is simply
+        # 0x02.
         return ord(open(fn).read(1)) == 2
 
     @staticmethod
@@ -541,9 +572,9 @@ class ProfileV2(ProfileImpl):
         p.tp = TextPool()
         p.lt = LineText(p.tp, p)
         p.f = Functions(p.cnp, p.lc, p.la, p.lt, p)
-        
+
         p.sections = [p.h, p.cnp, p.tlc, p.lc, p.la, p.lt, p.tp, p.f]
-        
+
         version = readNum(fobj)
         assert version == 2
 
@@ -555,7 +586,7 @@ class ProfileV2(ProfileImpl):
             section.read(fobj)
 
         return p
-    
+
     def serialize(self, fname=None):
         # If we're not writing to a file, emulate a file object instead.
         if fname is None:
@@ -577,7 +608,7 @@ class ProfileV2(ProfileImpl):
         f = self.f.copy(cnp, lc, la, lt)
         sections = [h, cnp, tlc, lc, la, lt, tp, f]
 
-        writeNum(fobj, 2) # Version
+        writeNum(fobj, 2)  # Version
 
         # We need to write all sections first, so we know their offset
         # before we write the header.
@@ -601,7 +632,7 @@ class ProfileV2(ProfileImpl):
         assert v1impl.getVersion() == 1
 
         p = ProfileV2()
-        
+
         p.h = Header()
         p.cnp = CounterNamePool()
         p.tlc = TopLevelCounters(p.cnp)
@@ -610,7 +641,7 @@ class ProfileV2(ProfileImpl):
         p.tp = TextPool()
         p.lt = LineText(p.tp, p)
         p.f = Functions(p.cnp, p.lc, p.la, p.lt, p)
-        
+
         p.sections = [p.h, p.cnp, p.tlc, p.lc, p.la, p.lt, p.tp, p.f]
 
         for section in p.sections:

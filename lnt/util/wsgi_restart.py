@@ -48,7 +48,7 @@ def _modified(path):
 
         if mtime != _times[path]:
             return True
-    except:
+    except Exception:
         # If any exception occured, likely that file has been
         # been removed just before stat(), so force a restart.
 
@@ -84,8 +84,9 @@ def _monitor():
 
         try:
             return _queue.get(timeout=_interval)
-        except:
+        except Exception:
             pass
+
 
 _thread = threading.Thread(target=_monitor)
 _thread.setDaemon(True)
@@ -94,9 +95,10 @@ _thread.setDaemon(True)
 def _exiting():
     try:
         _queue.put(True)
-    except:
+    except Exception:
         pass
     _thread.join()
+
 
 atexit.register(_exiting)
 

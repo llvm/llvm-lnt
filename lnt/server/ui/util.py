@@ -69,16 +69,16 @@ def all_false(list, predicate):
     return not any_true(list, predicate)
 
 
-def mean(l):
-    return sum(l) / len(l)
+def mean(values):
+    return sum(values) / len(values)
 
 
-def median(l):
-    l = list(l)
-    l.sort()
-    N = len(l)
-    return (l[(N - 1) // 2] +
-            l[(N + 0) // 2]) * .5
+def median(values):
+    values = list(values)
+    values.sort()
+    N = len(values)
+    return (values[(N - 1) // 2] +
+            values[(N + 0) // 2]) * .5
 
 
 def prependLines(prependStr, str):
@@ -207,10 +207,10 @@ class PctCell:
             return '<td %s>%s</td>' % (attr_string, self.getValue())
 
 
-def sorted(l, *args, **kwargs):
-    l = list(l)
-    l.sort(*args, **kwargs)
-    return l
+def sorted(values, *args, **kwargs):
+    values = list(values)
+    values.sort(*args, **kwargs)
+    return values
 
 
 def renderProducerAsHTML(producer):

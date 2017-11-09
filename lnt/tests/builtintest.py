@@ -79,8 +79,8 @@ class BuiltinTest(object):
         else:
             server_report = ImportData.no_submit()
         if server_report:
-            ImportData.print_report_result(server_report, sys.stdout, sys.stderr,
-                                           config.verbose)
+            ImportData.print_report_result(server_report, sys.stdout,
+                                           sys.stderr, config.verbose)
         return server_report
 
     @staticmethod

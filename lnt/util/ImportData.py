@@ -58,9 +58,7 @@ def import_and_report(config, db_name, db, session, file, format, ts_name,
     startTime = time.time()
     try:
         data = lnt.formats.read_any(file, format)
-    except KeyboardInterrupt:
-        raise
-    except:
+    except Exception:
         import traceback
         result['error'] = "could not parse input format"
         result['message'] = traceback.format_exc()

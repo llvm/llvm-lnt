@@ -33,7 +33,7 @@ def action_convert(input, output, input_format, output_format):
         finally:
             if output != sys.stdout:
                 output.close()
-    except:
+    except Exception:
         if output != sys.stdout:
             os.remove(output)
         raise

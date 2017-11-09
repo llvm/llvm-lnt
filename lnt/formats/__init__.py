@@ -2,9 +2,9 @@
 Utilities for converting to LNT's test format.
 
 LNT formats are described by dictionaries with 'name', 'read', and 'write'
-fields. Only the 'name' field is required. The 'read' field should be a callable
-taking a path_or_file object, the 'write' function should be a callable taking a
-Python object to write, and the path_or_file to write to.
+fields. Only the 'name' field is required. The 'read' field should be a
+callable taking a path_or_file object, the 'write' function should be a
+callable taking a Python object to write, and the path_or_file to write to.
 """
 
 from PlistFormat import format as plist
@@ -14,6 +14,7 @@ formats = [plist, json]
 formats_by_name = dict((f['name'], f) for f in formats)
 format_names = formats_by_name.keys()
 
+
 def get_format(name):
     """get_format(name) -> [format]
 
@@ -21,6 +22,7 @@ def get_format(name):
     """
 
     return formats_by_name.get(name)
+
 
 def guess_format(path_or_file):
     """guess_format(path_or_file) -> [format]
@@ -42,7 +44,7 @@ def guess_format(path_or_file):
             try:
                 if not f['predicate'](path_or_file):
                     continue
-            except:
+            except Exception:
                 continue
         finally:
             if is_file:
@@ -57,6 +59,7 @@ def guess_format(path_or_file):
 
     return matches
 
+
 def read_any(path_or_file, format_name):
     """read_any(path_or_file, format_name) -> [format]
 
@@ -68,15 +71,16 @@ def read_any(path_or_file, format_name):
         f = guess_format(path_or_file)
         if f is None:
             if isinstance(path_or_file, str):
-                raise SystemExit("unable to guess input format for %r" % (
+                raise ValueError("unable to guess input format for %r" % (
                         path_or_file,))
             else:
-                raise SystemExit("unable to guess input format for file")
+                raise ValueError("unable to guess input format for file")
     else:
         f = get_format(format_name)
         if f is None or not f.get('read'):
-            raise SystemExit("unknown input format: %r" % format_name)
+            raise ValueError("unknown input format: %r" % format_name)
 
     return f['read'](path_or_file)
+
 
 __all__ = ['get_format', 'guess_format', 'read_any'] + format_names

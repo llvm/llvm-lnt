@@ -4,7 +4,7 @@ import sys
 
 try:
     import threading
-except:
+except Exception:
     import dummy_threading as threading
 
 import sqlalchemy

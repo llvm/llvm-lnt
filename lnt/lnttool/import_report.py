@@ -43,7 +43,8 @@ def action_importreport(input, output, suite, order, machine):
         key, val = line.split()
         metric = key.split(".")[1]
         metric_type = float if metric not in ("hash", "profile") else str
-        test = lnt.testing.TestSamples(suite + "." + key, [val], conv_f = metric_type)
+        test = lnt.testing.TestSamples(suite + "." + key, [val],
+                                       conv_f=metric_type)
 
         report.tests.extend([test])
 

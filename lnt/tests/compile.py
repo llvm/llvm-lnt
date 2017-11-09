@@ -97,7 +97,7 @@ def runN(args, N, cwd, preprocess_cmd=None, env=None, sample_mem=False,
     # Otherwise, parse the timing data from runN.
     try:
         return eval(stdout)
-    except:
+    except Exception:
         fatal("failed to parse output: %s\n" % stdout)
 
 
@@ -113,7 +113,8 @@ def get_output_path(*names):
 
 def get_runN_test_data(name, variables, cmd, ignore_stderr=False,
                        sample_mem=False, only_mem=False,
-                       stdout=None, stderr=None, preprocess_cmd=None, env=None):
+                       stdout=None, stderr=None, preprocess_cmd=None,
+                       env=None):
     if only_mem and not sample_mem:
         raise ArgumentError("only_mem doesn't make sense without sample_mem")
 
@@ -168,7 +169,8 @@ def test_cc_command(base_name, run_info, variables, input, output, flags,
     # extra run just to get the memory statistics.
     if opts.memory_profiling:
         # Find the cc1 command, which we use to do memory profiling. To do this
-        # we execute the compiler with '-###' to figure out what it wants to do.
+        # we execute the compiler with '-###' to figure out what it wants to
+        # do.
         cc_output = commands.capture(cmd + ['-o', '/dev/null', '-###'],
                                      include_stderr=True).strip()
         cc_commands = []
@@ -208,8 +210,8 @@ def test_cc_command(base_name, run_info, variables, input, output, flags,
             success = True
 
             # For now, the way the software is set up things are going to get
-            # confused if we don't report the same number of samples as reported
-            # for other variables. So we just report the size N times.
+            # confused if we don't report the same number of samples as
+            # reported for other variables. So we just report the size N times.
             #
             # FIXME: We should resolve this, eventually.
             for i in range(variables.get('run_count')):
@@ -231,20 +233,20 @@ IRGEN = "irgen"
 CODEGEN = "codegen"
 ASSEMBLY = "assembly"
 
-STAGE_TO_FLAG_MAP = {PCH_GEN: Stage(flags=['-x', 'objective-c-header'], has_output=True),
-                     DRIVER: Stage(flags=['-###', '-fsyntax-only'], has_output=False),
-                     INIT: Stage(flags=['-fsyntax-only',
-                                        '-Xclang', '-init-only'],
-                                 has_output=False),
-                     SYNTAX: Stage(flags=['-fsyntax-only'], has_output=False),
-                     IRGEN_ONLY: Stage(flags=['-emit-llvm', '-c',
-                                              '-Xclang', '-emit-llvm-only'],
-                                       has_output=False),
-                     IRGEN: Stage(flags=['-emit-llvm', '-c'], has_output=True),
-                     CODEGEN: Stage(flags=['-c', '-Xclang', '-emit-codegen-only'],
-                                    has_output=False),
-                     # Object would be better name. Keep for backwards compat.
-                     ASSEMBLY: Stage(flags=['-c'], has_output=True)}
+STAGE_TO_FLAG_MAP = {
+    PCH_GEN: Stage(flags=['-x', 'objective-c-header'], has_output=True),
+    DRIVER: Stage(flags=['-###', '-fsyntax-only'], has_output=False),
+    INIT: Stage(flags=['-fsyntax-only', '-Xclang', '-init-only'],
+                has_output=False),
+    SYNTAX: Stage(flags=['-fsyntax-only'], has_output=False),
+    IRGEN_ONLY: Stage(flags=['-emit-llvm', '-c', '-Xclang', '-emit-llvm-only'],
+                      has_output=False),
+    IRGEN: Stage(flags=['-emit-llvm', '-c'], has_output=True),
+    CODEGEN: Stage(flags=['-c', '-Xclang', '-emit-codegen-only'],
+                   has_output=False),
+    # Object would be better name. Keep for backwards compat.
+    ASSEMBLY: Stage(flags=['-c'], has_output=True),
+}
 
 
 def test_compile(name, run_info, variables, input, output, pch_input,
@@ -400,10 +402,10 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs,
         # Add the build configuration selection.
         cmd.extend(('-configuration', build_config))
 
-        cmd.append('OBJROOT=%s' % (os.path.join(build_base, 'obj')))
-        cmd.append('SYMROOT=%s' % (os.path.join(build_base, 'sym')))
-        cmd.append('DSTROOT=%s' % (os.path.join(build_base, 'dst')))
-        cmd.append('SHARED_PRECOMPS_DIR=%s' % (os.path.join(build_base, 'pch')))
+        cmd.append('OBJROOT=%s' % os.path.join(build_base, 'obj'))
+        cmd.append('SYMROOT=%s' % os.path.join(build_base, 'sym'))
+        cmd.append('DSTROOT=%s' % os.path.join(build_base, 'dst'))
+        cmd.append('SHARED_PRECOMPS_DIR=%s' % os.path.join(build_base, 'pch'))
 
         # Add arguments to force the appropriate compiler.
         cmd.append('CC=%s' % (opts.cc,))
@@ -419,15 +421,16 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs,
         # (we don't want to obscure what we are trying to time).
         cmd.append('RUN_CLANG_STATIC_ANALYZER=NO')
 
-        # Inhibit all warnings, we don't want to count the time to generate them
-        # against newer compilers which have added (presumably good) warnings.
+        # Inhibit all warnings, we don't want to count the time to generate
+        # them against newer compilers which have added (presumably good)
+        # warnings.
         cmd.append('GCC_WARN_INHIBIT_ALL_WARNINGS=YES')
 
         # Add additional arguments to force the build scenario we want.
         cmd.extend(('-jobs', str(num_jobs)))
 
-        # If the user specifies any additional options to be included on the command line,
-        # append them here.
+        # If the user specifies any additional options to be included on the
+        # command line, append them here.
         cmd.extend(build_info.get('extra_args', []))
 
         # If the user specifies any extra environment variables, put
@@ -445,18 +448,21 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs,
 
     elif build_info['style'] == 'make':
         # Get the subdirectory in Source where our sources exist.
-        src_dir = os.path.dirname(os.path.join(source_path, build_info['file']))
-        # Grab our config from build_info. This is config is currently only used in
-        # the make build style since Xcode, the only other build style as of today,
-        # handles changing configuration through the configuration type variables.
-        # Make does not do this so we have to use more brute force to get it right.
+        src_dir = os.path.dirname(os.path.join(source_path,
+                                               build_info['file']))
+        # Grab our config from build_info. This is config is currently only
+        # used in the make build style since Xcode, the only other build style
+        # as of today, handles changing configuration through the configuration
+        # type variables.  Make does not do this so we have to use more brute
+        # force to get it right.
         config = build_info.get('config', {}).get(build_config, {})
 
         # Copy our source directory over to build_base.
-        # We do this since we assume that we are processing a make project which
-        # has already been configured and so that we do not need to worry about
-        # make install or anything like that. We can just build the project and
-        # use the user supplied path to its location in the build directory.
+        # We do this since we assume that we are processing a make project
+        # which has already been configured and so that we do not need to worry
+        # about make install or anything like that. We can just build the
+        # project and use the user supplied path to its location in the build
+        # directory.
         copied_src_dir = os.path.join(build_base, os.path.basename(dir_name))
         shutil.copytree(src_dir, copied_src_dir)
 
@@ -464,8 +470,8 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs,
         cmd.extend(['make', '-C', copied_src_dir, build_info['target'], "-j",
                     str(num_jobs)])
 
-        # If the user specifies any additional options to be included on the command line,
-        # append them here.
+        # If the user specifies any additional options to be included on the
+        # command line, append them here.
         cmd.extend(config.get('extra_args', []))
 
         # If the user specifies any extra environment variables, put
@@ -510,9 +516,10 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs,
         samples = []
 
         try:
-            # We use a dictionary here for our formatted processing of binary_path so
-            # that if the user needs our build config he can get it via %(build_config)s
-            # in his string and if he does not, an error is not thrown.
+            # We use a dictionary here for our formatted processing of
+            # binary_path so that if the user needs our build config he can get
+            # it via %(build_config)s in his string and if he does not, an
+            # error is not thrown.
             format_args = {"build_config": build_config}
             cmd = codesize_util + [os.path.join(build_base,
                                                 binary_path % format_args)]
@@ -524,9 +531,10 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs,
                 bytes = long(result)
                 success = True
 
-                # For now, the way the software is set up things are going to get
-                # confused if we don't report the same number of samples as reported
-                # for other variables. So we just report the size N times.
+                # For now, the way the software is set up things are going to
+                # get confused if we don't report the same number of samples
+                # as reported for other variables. So we just report the size
+                # N times.
                 #
                 # FIXME: We should resolve this, eventually.
                 for i in range(variables.get('run_count')):
@@ -603,9 +611,9 @@ def get_single_file_tests(flags_to_test, test_suite_externals,
         # the nature of python generators I can not just return in the previous
         # warning case.
         for f in flags_to_test:
-            # FIXME: Note that the order matters here, because we need to make sure
-            # to generate the right PCH file before we try to use it. Ideally the
-            # testing infrastructure would just handle this.
+            # FIXME: Note that the order matters here, because we need to make
+            # sure to generate the right PCH file before we try to use it.
+            # Ideally the testing infrastructure would just handle this.
             for pch in all_pch:
                 path, name, output = pch['path'], pch['name'], pch['output']
 
@@ -688,10 +696,10 @@ TODO:
    o PCH Utilization
 
 FIXME: One major hole here is that we aren't testing one situation which does
-sometimes show up with PCH, where we have a PCH file + a second significant body
-of code (e.g., a large user framework, or a poorly PCHified project). In
-practice, this can be a significant hole because PCH has a substantial impact on
-how lookup, for example, is done.
+sometimes show up with PCH, where we have a PCH file + a second significant
+body of code (e.g., a large user framework, or a poorly PCHified project). In
+practice, this can be a significant hole because PCH has a substantial impact
+on how lookup, for example, is done.
 
 We run each of the tests above in a number of dimensions:
  - O0
@@ -727,7 +735,6 @@ class CompileTest(builtintest.BuiltinTest):
 
         if opts.cxx is None:
             self._fatal('--cxx is required (and could not be inferred)')
-
 
         # Force the CC and CXX variables to be absolute paths.
         cc_abs = os.path.abspath(commands.which(opts.cc))
@@ -778,22 +785,25 @@ class CompileTest(builtintest.BuiltinTest):
         def setup_log(output_dir):
             def stderr_log_handler():
                 h = logging.StreamHandler()
-                f = logging.Formatter("%(asctime)-7s: %(levelname)s: %(message)s",
-                                      "%Y-%m-%d %H:%M:%S")
+                f = logging.Formatter(
+                    "%(asctime)-7s: %(levelname)s: %(message)s",
+                    "%Y-%m-%d %H:%M:%S")
                 h.setFormatter(f)
                 return h
 
             def file_log_handler(path):
                 h = logging.FileHandler(path, mode='w')
-                f = logging.Formatter("%(asctime)-7s: %(levelname)s: %(message)s",
-                                      "%Y-%m-%d %H:%M:%S")
+                f = logging.Formatter(
+                    "%(asctime)-7s: %(levelname)s: %(message)s",
+                    "%Y-%m-%d %H:%M:%S")
                 h.setFormatter(f)
                 return h
-            l = logging.Logger('compile_test')
-            l.setLevel(logging.INFO)
-            l.addHandler(file_log_handler(os.path.join(output_dir, 'test.log')))
-            l.addHandler(stderr_log_handler())
-            return l
+            log = logging.Logger('compile_test')
+            log.setLevel(logging.INFO)
+            log.addHandler(file_log_handler(os.path.join(output_dir,
+                                                         'test.log')))
+            log.addHandler(stderr_log_handler())
+            return log
         g_log = setup_log(g_output_dir)
 
         # Collect machine and run information.
@@ -805,7 +815,8 @@ class CompileTest(builtintest.BuiltinTest):
         # FIXME: Get more machine information? Cocoa.h hash, for example.
 
         for name, cmd in (('sys_cc_version', ('/usr/bin/gcc', '-v')),
-                          ('sys_as_version', ('/usr/bin/as', '-v', '/dev/null')),
+                          ('sys_as_version',
+                           ('/usr/bin/as', '-v', '/dev/null')),
                           ('sys_ld_version', ('/usr/bin/ld', '-v')),
                           ('sys_xcodebuild', ('xcodebuild', '-version'))):
             run_info[name] = commands.capture(cmd, include_stderr=True).strip()
@@ -909,8 +920,8 @@ class CompileTest(builtintest.BuiltinTest):
                                  for filter in test_filters
                                  if filter.search(test[0])])]
         if not tests_to_run:
-            self._fatal(
-                "no tests requested (invalid --test or --test-filter options)!")
+            self._fatal("no tests requested "
+                        "(invalid --test or --test-filter options)!")
 
         # Ensure output directory is available.
         if not os.path.exists(g_output_dir):
@@ -970,6 +981,7 @@ class CompileTest(builtintest.BuiltinTest):
         server_report = self.submit(lnt_report_path, opts, ts_name='compile')
 
         return server_report
+
 
 # FIXME: an equivalent to argparse's add_argument_group is not implemented
 #        on click. Need to review it when such functionality is available.

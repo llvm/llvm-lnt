@@ -322,6 +322,7 @@ def infer_cxx_compiler(cc_path):
     if os.path.exists(cxx_path):
         return cxx_path
 
+
 o__all__ = ['get_cc_info', 'infer_cxx_compiler']
 
 

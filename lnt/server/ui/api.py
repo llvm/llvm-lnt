@@ -397,7 +397,7 @@ class Graph(Resource):
             abort(404)
 
         q = session.query(field.column, ts.Order.llvm_project_revision,
-                     ts.Run.start_time, ts.Run.id) \
+                          ts.Run.start_time, ts.Run.id) \
             .join(ts.Run) \
             .join(ts.Order) \
             .filter(ts.Run.machine_id == machine.id) \

@@ -44,6 +44,7 @@ def load_rules():
 
     return rule_scripts
 
+
 # Places our rules can hook to.
 HOOKS = {
     'post_test_hook': [],

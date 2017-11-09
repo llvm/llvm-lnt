@@ -3,27 +3,27 @@ import math
 from lnt.external.stats.stats import mannwhitneyu as mannwhitneyu_large
 
 
-def safe_min(l):
+def safe_min(values):
     """Calculate min, but if given an empty list return None."""
-    l = list(l)  # In case this is a complex type, get a simple list.
-    if not l:
+    values = list(values)  # In case this is a complex type, get a simple list.
+    if not values:
         return None
     else:
-        return min(l)
+        return min(values)
 
 
-def safe_max(l):
+def safe_max(values):
     """Calculate max, but if given an empty list return None."""
-    l = list(l)  # In case this is a complex type, get a simple list.
-    if not l:
+    values = list(values)  # In case this is a complex type, get a simple list.
+    if not values:
         return None
     else:
-        return max(l)
+        return max(values)
 
 
-def mean(l):
-    if l:
-        return sum(l)/len(l)
+def mean(values):
+    if values:
+        return sum(values)/len(values)
     else:
         return None
 
@@ -51,24 +51,24 @@ def agg_mean(pairs):
     return (None, None)
 
 
-def median(l):
-    if not l:
+def median(values):
+    if not values:
         return None
-    l = list(l)
-    l.sort()
-    N = len(l)
-    return (l[(N-1)//2] + l[N//2])*.5
+    values = list(values)
+    values.sort()
+    N = len(values)
+    return (values[(N-1)//2] + values[N//2])*.5
 
 
-def median_absolute_deviation(l, med=None):
+def median_absolute_deviation(values, med=None):
     if med is None:
-        med = median(l)
-    return median([abs(x - med) for x in l])
+        med = median(values)
+    return median([abs(x - med) for x in values])
 
 
-def standard_deviation(l):
-    m = mean(l)
-    means_sqrd = sum([(v - m)**2 for v in l]) / len(l)
+def standard_deviation(values):
+    m = mean(values)
+    means_sqrd = sum([(v - m)**2 for v in values]) / len(values)
     rms = math.sqrt(means_sqrd)
     return rms
 
@@ -119,6 +119,7 @@ def mannwhitneyu_small(a, b, sigLevel):
 
     same = U <= SIGN_TABLES[sigLevel][len(a) - 1][len(b) - 1]
     return same
+
 
 # Table for .10 significance level.
 TABLE_0_10 = [

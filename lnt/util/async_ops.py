@@ -141,7 +141,7 @@ def async_wrapper(job, ts_args, func_args):
             logger.info(msg)
         else:
             logger.warning(msg)
-    except:
+    except Exception:
         # Put all exception text into an exception and raise that for our
         # parent process.
         logger.error("Subprocess failed with:" +

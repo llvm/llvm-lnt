@@ -138,7 +138,7 @@ def _do_submit():
                 Info = Run.get('Info')
                 if Info is not None:
                     g.testsuite_name = Info.get('tag')
-        except:
+        except Exception:
             pass
     if g.testsuite_name is None:
         g.testsuite_name = 'nts'
@@ -390,7 +390,7 @@ class V4RequestInfo(object):
         try:
             self.num_comparison_runs = int(
                 request.args.get('num_comparison_runs'))
-        except:
+        except Exception:
             self.num_comparison_runs = 0
 
         # Find the baseline run, if requested.
@@ -696,6 +696,7 @@ def v4_run_graph(id):
 
     return redirect(v4_url_for(".v4_graph", **args))
 
+
 BaselineLegendItem = namedtuple('BaselineLegendItem', 'name id')
 LegendItem = namedtuple('LegendItem', 'machine test_name field_name color url')
 
@@ -704,9 +705,10 @@ LegendItem = namedtuple('LegendItem', 'machine test_name field_name color url')
 def v4_graph_for_sample(sample_id, field_name):
     """Redirect to a graph of the data that a sample and field came from.
 
-    When you have a sample from an API call, this can get you into the LNT graph
-    page, for that sample.  Extra args are passed through, to allow the caller
-    to customize the graph page displayed, with for example run highlighting.
+    When you have a sample from an API call, this can get you into the LNT
+    graph page, for that sample.  Extra args are passed through, to allow the
+    caller to customize the graph page displayed, with for example run
+    highlighting.
 
     :param sample_id: the sample ID from the database, obtained from the API.
     :param field_name: the name of the field.
@@ -807,17 +809,16 @@ def v4_graph():
             machine_id = int(machine_id_str)
             test_id = int(test_id_str)
             field_index = int(field_index_str)
-        except:
+        except Exception:
             return abort(400)
 
         if not (0 <= field_index < len(ts.sample_fields)):
             return abort(404)
 
         try:
-            machine = \
-                session.query(ts.Machine) \
-                    .filter(ts.Machine.id == machine_id) \
-                    .one()
+            machine = session.query(ts.Machine) \
+                             .filter(ts.Machine.id == machine_id) \
+                             .one()
             test = session.query(ts.Test).filter(ts.Test.id == test_id).one()
             field = ts.sample_fields[field_index]
         except NoResultFound:
@@ -874,7 +875,7 @@ def v4_graph():
         run_id_str = value
         try:
             run_id = int(run_id_str)
-        except:
+        except Exception:
             return abort(400)
 
         try:
@@ -882,7 +883,7 @@ def v4_graph():
                 .options(joinedload(ts.Run.machine)) \
                 .filter(ts.Run.id == run_id) \
                 .one()
-        except:
+        except Exception:
             err_msg = ("The run {} was not found in the database."
                        .format(run_id))
             return render_template("error.html",
@@ -932,7 +933,7 @@ def v4_graph():
         #
         # FIXME: Don't hard code field name.
         q = session.query(field.column, ts.Order.llvm_project_revision,
-                     ts.Run.start_time, ts.Run.id) \
+                          ts.Run.start_time, ts.Run.id) \
             .join(ts.Run).join(ts.Order) \
             .filter(ts.Run.machine_id == machine.id) \
             .filter(ts.Sample.test == test) \
@@ -1000,10 +1001,10 @@ def v4_graph():
         q = session.query(sqlalchemy.sql.func.min(field.column),
                           ts.Order.llvm_project_revision,
                           sqlalchemy.sql.func.min(ts.Run.start_time)) \
-              .join(ts.Run).join(ts.Order).join(ts.Test) \
-              .filter(ts.Run.machine_id == machine.id) \
-              .filter(field.column.isnot(None)) \
-              .group_by(ts.Order.llvm_project_revision, ts.Test)
+                   .join(ts.Run).join(ts.Order).join(ts.Test) \
+                   .filter(ts.Run.machine_id == machine.id) \
+                   .filter(field.column.isnot(None)) \
+                   .group_by(ts.Order.llvm_project_revision, ts.Test)
 
         # Calculate geomean of each revision.
         data = multidict.multidict(
@@ -1575,17 +1576,18 @@ def v4_search():
         try:
             int(i)
             return True
-        except:
+        except Exception:
             return False
 
     session = request.session
     ts = request.get_testsuite()
     query = request.args.get('q')
-    l = request.args.get('l', 8)
+    l_arg = request.args.get('l', 8)
     default_machine = request.args.get('m', None)
 
     assert query
-    results = lnt.server.db.search.search(session, ts, query, num_results=l,
+    results = lnt.server.db.search.search(session, ts, query,
+                                          num_results=l_arg,
                                           default_machine=default_machine)
 
     return json.dumps(
@@ -1822,9 +1824,9 @@ def v4_matrix():
                                                         False)
     # Calculate the date of each order.
     runs = session.query(ts.Run.start_time, ts.Order.llvm_project_revision) \
-             .join(ts.Order) \
-             .filter(ts.Order.llvm_project_revision.in_(all_orders)) \
-             .all()
+                  .join(ts.Order) \
+                  .filter(ts.Order.llvm_project_revision.in_(all_orders)) \
+                  .all()
 
     order_to_date = dict([(x[1], x[0]) for x in runs])
 

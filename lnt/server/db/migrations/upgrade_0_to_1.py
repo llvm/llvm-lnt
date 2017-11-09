@@ -183,11 +183,13 @@ def get_base_for_testsuite(test_suite):
 
     class Machine(UpdatedBase):
         __tablename__ = db_key_name + '_Machine'
-        __table_args__ = {'mysql_collate': 'utf8_bin'}  # For case sensitive compare.
+        # For case sensitive compare.
+        __table_args__ = {'mysql_collate': 'utf8_bin'}
         id = Column("ID", Integer, primary_key=True)
         name = Column("Name", String(256), index=True)
 
-        parameters_data = Column("Parameters", Binary, index=False, unique=False)
+        parameters_data = Column("Parameters", Binary, index=False,
+                                 unique=False)
 
         class_dict = locals()
         for item in test_suite.machine_fields:
@@ -230,7 +232,8 @@ def get_base_for_testsuite(test_suite):
         end_time = Column("EndTime", DateTime)
         simple_run_id = Column("SimpleRunID", Integer)
 
-        parameters_data = Column("Parameters", Binary, index=False, unique=False)
+        parameters_data = Column("Parameters", Binary, index=False,
+                                 unique=False)
 
         machine = sqlalchemy.orm.relation(Machine)
         order = sqlalchemy.orm.relation(Order)

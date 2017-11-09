@@ -317,7 +317,7 @@ def action_post_run(config, datafiles, select_machine, merge):
                 response_data = json.loads(response.text)
                 json.dump(response_data, sys.stderr, response_data, indent=2,
                           sort_keys=True)
-            except:
+            except Exception:
                 sys.stderr.write(response.text)
             sys.stderr.write('\n')
 

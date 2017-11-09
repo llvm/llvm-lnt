@@ -267,6 +267,7 @@ class _UpgradeSchema(object):
         self.machine_param_rename = machine_param_rename
         self.run_param_rename = run_param_rename
 
+
 _nts_upgrade = _UpgradeSchema(
     metric_rename={
         '.code_size': 'code_size',
@@ -431,5 +432,6 @@ def upgrade_report(data, ts_name):
         format_version = 2
     assert(format_version == 2)
     return data
+
 
 __all__ = ['Report', 'Machine', 'Run', 'TestSamples']

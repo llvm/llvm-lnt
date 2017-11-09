@@ -51,9 +51,9 @@ def _naive_search_for_run(session, ts, query, num_results, default_machine):
         ts.Order.fields[llvm_project_revision_idx].column
 
     q = session.query(ts.Run) \
-          .filter(ts.Run.machine_id.in_(machines)) \
-          .filter(ts.Run.order_id == ts.Order.id) \
-          .filter(llvm_project_revision_col.isnot(None))
+        .filter(ts.Run.machine_id.in_(machines)) \
+        .filter(ts.Run.order_id == ts.Order.id) \
+        .filter(llvm_project_revision_col.isnot(None))
     if order_queries:
         oq = '%' + str(order_queries[0]) + '%'
         q = q.filter(llvm_project_revision_col.like(oq))

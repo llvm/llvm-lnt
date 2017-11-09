@@ -72,4 +72,5 @@ def regression_evolution(session, ts, run_id):
     session.commit()
     logger.info("Changed the state of {} regressions".format(changed))
 
+
 post_submission_hook = regression_evolution

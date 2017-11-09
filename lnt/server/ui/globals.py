@@ -31,7 +31,7 @@ def v4_url_available(*args, **kwargs):
     try:
         flask.g.testsuite_name
         return True
-    except:
+    except Exception:
         return False
 
 

@@ -30,11 +30,11 @@ def profile_admin():
 
     try:
         history = json.loads(open(history_path).read())
-    except:
+    except Exception:
         history = []
     try:
         age = json.loads(open(age_path).read())
-    except:
+    except Exception:
         age = []
 
     # Convert from UNIX timestamps to Javascript timestamps.
@@ -74,8 +74,8 @@ def v4_profile_ajax_getFunctions():
     idx = 0
     tlc = {}
     sample = session.query(ts.Sample) \
-               .filter(ts.Sample.run_id == runid) \
-               .filter(ts.Sample.test_id == testid).first()
+                    .filter(ts.Sample.run_id == runid) \
+                    .filter(ts.Sample.test_id == testid).first()
     if sample and sample.profile:
         p = sample.profile.load(profileDir)
         return json.dumps([[n, f] for n, f in p.getFunctions().items()])
@@ -122,8 +122,8 @@ def v4_profile_ajax_getCodeForFunction():
     profileDir = current_app.old_config.profileDir
 
     sample = session.query(ts.Sample) \
-               .filter(ts.Sample.run_id == runid) \
-               .filter(ts.Sample.test_id == testid).first()
+                    .filter(ts.Sample.run_id == runid) \
+                    .filter(ts.Sample.test_id == testid).first()
     if not sample or not sample.profile:
         abort(404)
 
@@ -150,13 +150,13 @@ def v4_profile(testid, run1_id, run2_id=None):
         test = session.query(ts.Test).filter(ts.Test.id == testid).one()
         run1 = session.query(ts.Run).filter(ts.Run.id == run1_id).one()
         sample1 = session.query(ts.Sample) \
-                    .filter(ts.Sample.run_id == run1_id) \
-                    .filter(ts.Sample.test_id == testid).first()
+                         .filter(ts.Sample.run_id == run1_id) \
+                         .filter(ts.Sample.test_id == testid).first()
         if run2_id is not None:
             run2 = session.query(ts.Run).filter(ts.Run.id == run2_id).one()
             sample2 = session.query(ts.Sample) \
-                        .filter(ts.Sample.run_id == run2_id) \
-                        .filter(ts.Sample.test_id == testid).first()
+                             .filter(ts.Sample.run_id == run2_id) \
+                             .filter(ts.Sample.test_id == testid).first()
         else:
             run2 = None
             sample2 = None

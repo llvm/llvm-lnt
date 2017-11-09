@@ -22,7 +22,7 @@ def update_profile_stats(session, ts, run_id):
 
     try:
         history = json.loads(open(history_path).read())
-    except:
+    except Exception:
         history = []
     age = []
 
@@ -40,5 +40,6 @@ def update_profile_stats(session, ts, run_id):
 
     open(history_path, 'w').write(json.dumps(history))
     open(age_path, 'w').write(json.dumps(age))
+
 
 post_submission_hook = update_profile_stats

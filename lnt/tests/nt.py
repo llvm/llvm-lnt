@@ -68,7 +68,8 @@ class TestModule(object):
         print >>self.log, cmdstr
 
         self._log.flush()
-        p = subprocess.Popen(args, stdout=self._log, stderr=self._log, **kwargs)
+        p = subprocess.Popen(args, stdout=self._log, stderr=self._log,
+                             **kwargs)
         return p.wait()
 
     def get_time(self):
@@ -346,8 +347,8 @@ class TestConfiguration(object):
             make_variables['LD_ENV_OVERRIDES'] = (
                 'env DYLD_LIBRARY_PATH=%s' % os.path.dirname(
                     self.liblto_path))
-        # If ref input is requested for SPEC, we wil run SPEC through its new test
-        # module so skip SPEC as part of NT.
+        # If ref input is requested for SPEC, we wil run SPEC through its new
+        # test module so skip SPEC as part of NT.
         if self.test_spec_ref:
             make_variables['USE_SPEC_TEST_MODULE'] = '1'
 
@@ -374,13 +375,14 @@ class TestConfiguration(object):
         # CC_UNDER_TEST_TARGET_IS_ARMV7).
         if '-' in cc_info.get('cc_target', ''):
             arch_name = cc_info.get('cc_target').split('-', 1)[0]
-            make_variables['CC_UNDER_TEST_TARGET_IS_' + arch_name.upper()] = '1'
+            CC_VAR = 'CC_UNDER_TEST_TARGET_IS_' + arch_name.upper()
+            make_variables[CC_VAR] = '1'
 
         # Set LLVM_RELEASE_IS_PLUS_ASSERTS when appropriate, to allow
         # testing older LLVM source trees.
         llvm_source_version = self.llvm_source_version
-        if (llvm_source_version and llvm_source_version.isdigit() and
-            int(llvm_source_version) < 107758):
+        if llvm_source_version and llvm_source_version.isdigit() and \
+           int(llvm_source_version) < 107758:
             make_variables['LLVM_RELEASE_IS_PLUS_ASSERTS'] = 1
 
         # Set ARCH appropriately, based on the inferred target.
@@ -399,8 +401,8 @@ class TestConfiguration(object):
             # FIXME: Clean this up once everyone is on 'lnt runtest
             # nt' style nightly testing.
             arch = cc_target.split('-', 1)[0].lower()
-            if (len(arch) == 4 and arch[0] == 'i' and arch.endswith('86') and
-                arch[1] in '3456789'):  # i[3-9]86
+            if len(arch) == 4 and arch[0] == 'i' and arch.endswith('86') and \
+               arch[1] in '3456789':  # i[3-9]86
                 llvm_arch = 'x86'
             elif arch in ('x86_64', 'amd64'):
                 llvm_arch = 'x86_64'
@@ -458,12 +460,14 @@ class TestConfiguration(object):
 
 ###
 
+
 def scan_for_test_modules(config):
     base_modules_path = os.path.join(config.test_suite_root, 'LNTBased')
     if config.only_test is None:
         test_modules_path = base_modules_path
     elif config.only_test.startswith('LNTBased'):
-        test_modules_path = os.path.join(config.test_suite_root, config.only_test)
+        test_modules_path = os.path.join(config.test_suite_root,
+                                         config.only_test)
     else:
         return
 
@@ -471,8 +475,8 @@ def scan_for_test_modules(config):
     # various "suites" of LNTBased tests in separate repositories, and allowing
     # users to just checkout them out elsewhere and link them into their LLVM
     # test-suite source tree.
-    for dirpath,dirnames,filenames in os.walk(test_modules_path,
-                                              followlinks = True):
+    for dirpath, dirnames, filenames in os.walk(test_modules_path,
+                                                followlinks=True):
         # Ignore the example tests, unless requested.
         if not config.include_test_examples and 'Examples' in dirnames:
             dirnames.remove('Examples')
@@ -492,30 +496,32 @@ def scan_for_test_modules(config):
         assert dirpath.startswith(base_modules_path + '/')
         yield dirpath[len(base_modules_path) + 1:]
 
+
 def execute_command(test_log, basedir, args, report_dir):
-  logfile = test_log
+    logfile = test_log
 
-  if report_dir is not None:
-    logfile = subprocess.PIPE
-    # Open a duplicated logfile at the global dir.
-    _, logname = os.path.split(test_log.name)
-    global_log_path = os.path.join(report_dir, logname)
-    global_log = open(global_log_path, 'a+')
+    if report_dir is not None:
+        logfile = subprocess.PIPE
+        # Open a duplicated logfile at the global dir.
+        _, logname = os.path.split(test_log.name)
+        global_log_path = os.path.join(report_dir, logname)
+        global_log = open(global_log_path, 'a+')
 
-  p = subprocess.Popen(args=args, stdin=None, stdout=logfile,
-                       stderr=subprocess.STDOUT, cwd=basedir,
-                       env=os.environ)
+    p = subprocess.Popen(args=args, stdin=None, stdout=logfile,
+                         stderr=subprocess.STDOUT, cwd=basedir,
+                         env=os.environ)
 
-  if report_dir is not None:
-    while p.poll() is None:
-      l = p.stdout.readline()
-      if len(l) > 0:
-        test_log.write(l)
-        global_log.write(l)
+    if report_dir is not None:
+        while p.poll() is None:
+            line = p.stdout.readline()
+            if len(line) > 0:
+                test_log.write(line)
+                global_log.write(line)
 
-    global_log.close()
+        global_log.close()
 
-  return p.wait()
+    return p.wait()
+
 
 # FIXME: Support duplicate logfiles to global directory.
 def execute_test_modules(test_log, test_modules, test_module_variables,
@@ -537,7 +543,7 @@ def execute_test_modules(test_log, test_modules, test_module_variables,
         module_file = open(module_path)
         try:
             exec module_file in locals, globals
-        except:
+        except Exception:
             info = traceback.format_exc()
             fatal("unable to import test module: %r\n%s" % (
                     module_path, info))
@@ -549,7 +555,7 @@ def execute_test_modules(test_log, test_modules, test_module_variables,
                     module_path,))
         try:
             test_instance = test_class()
-        except:
+        except Exception:
             info = traceback.format_exc()
             fatal("unable to instantiate test class for: %r\n%s" % (
                     module_path, info))
@@ -558,7 +564,8 @@ def execute_test_modules(test_log, test_modules, test_module_variables,
             fatal("invalid test class (expected lnt.tests.nt.TestModule "
                   "subclass) for: %r" % module_path)
 
-        # Create the per test variables, and ensure the output directory exists.
+        # Create the per test variables, and ensure the output directory
+        # exists.
         variables = test_module_variables.copy()
         variables['MODULENAME'] = name
         variables['SRCROOT'] = test_path
@@ -567,8 +574,9 @@ def execute_test_modules(test_log, test_modules, test_module_variables,
 
         # Execute the tests.
         try:
-            test_samples = test_instance._execute_test(test_log, variables, make_variables, config)
-        except:
+            test_samples = test_instance._execute_test(test_log, variables,
+                                                       make_variables, config)
+        except Exception:
             info = traceback.format_exc()
             fatal("exception executing tests for: %r\n%s" % (
                     module_path, info))
@@ -581,7 +589,7 @@ def execute_test_modules(test_log, test_modules, test_module_variables,
                 if not isinstance(item, lnt.testing.TestSamples):
                     is_ok = False
                     break
-        except:
+        except Exception:
             is_ok = False
         if not is_ok:
             fatal("test module did not return samples list: %r" % (
@@ -591,23 +599,26 @@ def execute_test_modules(test_log, test_modules, test_module_variables,
 
     return results
 
+
 def compute_test_module_variables(make_variables, config):
-    # Set the test module options, which we try and restrict to a tighter subset
-    # than what we pass to the LNT makefiles.
+    # Set the test module options, which we try and restrict to a tighter
+    # subset than what we pass to the LNT makefiles.
     test_module_variables = {
-        'CC' : make_variables['TARGET_LLVMGCC'],
-        'CXX' : make_variables['TARGET_LLVMGXX'],
-        'CFLAGS' : (make_variables['TARGET_FLAGS'] + ' ' +
-                    make_variables['OPTFLAGS']),
-        'CXXFLAGS' : (make_variables['TARGET_FLAGS'] + ' ' +
-                      make_variables['OPTFLAGS']) }
+        'CC': make_variables['TARGET_LLVMGCC'],
+        'CXX': make_variables['TARGET_LLVMGXX'],
+        'CFLAGS': (make_variables['TARGET_FLAGS'] + ' ' +
+                   make_variables['OPTFLAGS']),
+        'CXXFLAGS': (make_variables['TARGET_FLAGS'] + ' ' +
+                     make_variables['OPTFLAGS']),
+    }
 
     # Add the remote execution variables.
     if config.remote:
         test_module_variables['REMOTE_HOST'] = make_variables['REMOTE_HOST']
         test_module_variables['REMOTE_USER'] = make_variables['REMOTE_USER']
         test_module_variables['REMOTE_PORT'] = make_variables['REMOTE_PORT']
-        test_module_variables['REMOTE_CLIENT'] = make_variables['REMOTE_CLIENT']
+        test_module_variables['REMOTE_CLIENT'] = \
+            make_variables['REMOTE_CLIENT']
 
     # Add miscellaneous optional variables.
     if 'LD_ENV_OVERRIDES' in make_variables:
@@ -628,16 +639,17 @@ def compute_test_module_variables(make_variables, config):
     # We pass the test execution values as variables too, this might be better
     # passed as actual arguments.
     test_module_variables['THREADS'] = config.threads
-    test_module_variables['BUILD_THREADS'] = config.build_threads or \
-                                             config.threads
+    test_module_variables['BUILD_THREADS'] = \
+        config.build_threads or config.threads
     return test_module_variables
+
 
 def execute_nt_tests(test_log, make_variables, basedir, config):
     report_dir = config.report_dir
     common_args = ['make', '-k']
-    common_args.extend('%s=%s' % (k,v) for k,v in make_variables.items())
+    common_args.extend('%s=%s' % (k, v) for k, v in make_variables.items())
     if config.only_test is not None:
-        common_args.extend(['-C',config.only_test])
+        common_args.extend(['-C', config.only_test])
 
     # If we are using isolation, run under sandbox-exec.
     if config.use_isolation:
@@ -667,25 +679,27 @@ def execute_nt_tests(test_log, make_variables, basedir, config):
                         (regex #"^/private/var/folders/")
                         (regex #"^/dev/")
                         (regex #"^%s"))""" % (basedir,)
-        common_args = ['sandbox-exec', '-f', sandbox_profile_path] + common_args
+        common_args = ['sandbox-exec', '-f', sandbox_profile_path] +\
+            common_args
 
     # Run a separate 'make build' step if --build-threads was given.
     if config.build_threads > 0:
-      args = common_args + ['-j', str(config.build_threads), 'build']
-      print >>test_log, '%s: running: %s' % (timestamp(),
-                                             ' '.join('"%s"' % a
-                                                      for a in args))
-      test_log.flush()
+        args = common_args + ['-j', str(config.build_threads), 'build']
+        print >>test_log, '%s: running: %s' % (timestamp(),
+                                               ' '.join('"%s"' % a
+                                                        for a in args))
+        test_log.flush()
 
-      print >>sys.stderr, '%s: building "nightly tests" with -j%u...' % (
-          timestamp(), config.build_threads)
-      res = execute_command(test_log, basedir, args, report_dir)
-      if res != 0:
-          print >> sys.stderr, "Failure while running make build!  See log: %s"%(test_log.name)
+        print >>sys.stderr, '%s: building "nightly tests" with -j%u...' % (
+            timestamp(), config.build_threads)
+        res = execute_command(test_log, basedir, args, report_dir)
+        if res != 0:
+            print >> sys.stderr, "Failure while running make build! " \
+                                 "See log: %s" % test_log.name
 
     # Then 'make report'.
     args = common_args + ['-j', str(config.threads),
-        'report', 'report.%s.csv' % config.test_style]
+                          'report', 'report.%s.csv' % config.test_style]
     print >>test_log, '%s: running: %s' % (timestamp(),
                                            ' '.join('"%s"' % a
                                                     for a in args))
@@ -700,9 +714,12 @@ def execute_nt_tests(test_log, make_variables, basedir, config):
     res = execute_command(test_log, basedir, args, report_dir)
 
     if res != 0:
-        print >> sys.stderr, "Failure while running nightly tests!  See log: %s" % (test_log.name)
+        print >> sys.stderr, "Failure while running nightly tests!  "\
+                             "See log: %s" % test_log.name
 
-# Keep a mapping of mangled test names, to the original names in the test-suite.
+
+# Keep a mapping of mangled test names, to the original names in the
+# test-suite.
 TEST_TO_NAME = {}
 KNOWN_SAMPLE_KEYS = ('compile', 'exec', 'hash',
                      'gcc.compile', 'bc.compile', 'llc.compile',
@@ -782,7 +799,7 @@ def load_nt_report_file(report_path, config):
             program = os.path.join(config.rerun_test, program)
 
         program_real = program
-        program_mangled = program.replace('.','_')
+        program_mangled = program.replace('.', '_')
         test_base_name = program_mangled
 
         # Check if this is a subtest result, in which case we ignore missing
@@ -846,6 +863,7 @@ def load_nt_report_file(report_path, config):
 
     return test_samples, no_errors
 
+
 def prepare_report_dir(config):
     # Set up the sandbox.
     sandbox_path = config.sandbox_path
@@ -867,7 +885,8 @@ def prepare_report_dir(config):
     if needs_clean and config.timestamp_build:
         fatal('refusing to reuse pre-existing build dir %r' % report_dir)
 
-def prepare_build_dir(config, iteration) :
+
+def prepare_build_dir(config, iteration):
     # report_dir is supposed to be canonicalized, so we do not need to
     # call os.path.realpath before mkdir.
     build_dir = config.build_dir(iteration)
@@ -885,12 +904,13 @@ def prepare_build_dir(config, iteration) :
         fatal('refusing to reuse pre-existing build dir %r' % build_dir)
     return build_dir
 
+
 def update_tools(make_variables, config, iteration):
     """Update the test suite tools. """
 
     print >>sys.stderr, '%s: building test-suite tools' % (timestamp(),)
     args = ['make', 'tools']
-    args.extend('%s=%s' % (k,v) for k,v in make_variables.items())
+    args.extend('%s=%s' % (k, v) for k, v in make_variables.items())
     build_tools_log_path = os.path.join(config.build_dir(iteration),
                                         'build-tools.log')
     build_tools_log = open(build_tools_log_path, 'w')
@@ -902,7 +922,9 @@ def update_tools(make_variables, config, iteration):
                           args, config.report_dir)
     build_tools_log.close()
     if res != 0:
-        fatal('Unable to build tools, aborting! See log: %s'%(build_tools_log_path))
+        fatal('Unable to build tools, aborting! See log: %s' %
+              build_tools_log_path)
+
 
 def configure_test_suite(config, iteration):
     """Run configure on the test suite."""
@@ -912,7 +934,7 @@ def configure_test_suite(config, iteration):
     configure_log = open(configure_log_path, 'w')
 
     args = [os.path.realpath(os.path.join(config.test_suite_root,
-                                              'configure'))]
+                                          'configure'))]
     if config.without_llvm:
         args.extend(['--without-llvmsrc', '--without-llvmobj'])
     else:
@@ -936,6 +958,7 @@ def configure_test_suite(config, iteration):
     if res != 0:
         fatal('Configure failed, log is here: %r' % configure_log_path)
 
+
 def copy_missing_makefiles(config, basedir):
     """When running with only_test something, makefiles will be missing,
     so copy them into place. """
@@ -950,6 +973,7 @@ def copy_missing_makefiles(config, basedir):
             shutil.copyfile(os.path.join(src_path, 'Makefile'),
                             os.path.join(obj_path, 'Makefile'))
 
+
 def run_test(nick_prefix, iteration, config):
     print >>sys.stderr, "%s: checking source versions" % (
         timestamp(),)
@@ -961,7 +985,8 @@ def run_test(nick_prefix, iteration, config):
 
     # Compute the test module variables, which are a restricted subset of the
     # make variables.
-    test_module_variables = compute_test_module_variables(make_variables, config)
+    test_module_variables = compute_test_module_variables(make_variables,
+                                                          config)
 
     # Scan for LNT-based test modules.
     print >>sys.stderr, "%s: scanning for LNT-based test modules" % (
@@ -986,7 +1011,6 @@ def run_test(nick_prefix, iteration, config):
     start_time = timestamp()
     print >>sys.stderr, '%s: starting test in %r' % (start_time, basedir)
 
-
     # Configure the test suite.
     if config.run_configure or not os.path.exists(os.path.join(
             basedir, 'Makefile.config')):
@@ -994,14 +1018,15 @@ def run_test(nick_prefix, iteration, config):
 
     # If running with --only-test, creating any dirs which might be missing and
     # copy Makefiles.
-    if config.only_test is not None and not config.only_test.startswith("LNTBased"):
+    if config.only_test is not None and \
+       not config.only_test.startswith("LNTBased"):
         copy_missing_makefiles(config, basedir)
 
     # If running without LLVM, make sure tools are up to date.
     if config.without_llvm:
         update_tools(make_variables, config, iteration)
 
-   # Always blow away any existing report.
+    # Always blow away any existing report.
     build_report_path = config.build_report_path(iteration)
     if os.path.exists(build_report_path):
         os.remove(build_report_path)
@@ -1043,7 +1068,7 @@ def run_test(nick_prefix, iteration, config):
 
     # Merge in the test samples from all of the test modules.
     existing_tests = set(s.name for s in test_samples)
-    for module,results in test_module_results:
+    for module, results in test_module_results:
         for s in results:
             if s.name in existing_tests:
                 fatal("test module %r added duplicate test: %r" % (
@@ -1056,9 +1081,9 @@ def run_test(nick_prefix, iteration, config):
     #
     # FIXME: Import full range of data that the Clang tests are using?
     machine_info = {}
-    machine_info['hardware'] = capture(["uname","-m"],
+    machine_info['hardware'] = capture(["uname", "-m"],
                                        include_stderr=True).strip()
-    machine_info['os'] = capture(["uname","-sr"], include_stderr=True).strip()
+    machine_info['os'] = capture(["uname", "-sr"], include_stderr=True).strip()
     if config.cc_reference is not None:
         machine_info['gcc_version'] = capture(
             [config.cc_reference, '--version'],
@@ -1098,11 +1123,13 @@ def run_test(nick_prefix, iteration, config):
     else:
         machdep_info = run_info
 
-    machdep_info['uname'] = capture(["uname","-a"], include_stderr=True).strip()
-    machdep_info['name'] = capture(["uname","-n"], include_stderr=True).strip()
+    machdep_info['uname'] = capture(["uname", "-a"],
+                                    include_stderr=True).strip()
+    machdep_info['name'] = capture(["uname", "-n"],
+                                   include_stderr=True).strip()
 
-    # FIXME: Hack, use better method of getting versions. Ideally, from binaries
-    # so we are more likely to be accurate.
+    # FIXME: Hack, use better method of getting versions. Ideally, from
+    # binaries so we are more likely to be accurate.
     if config.llvm_source_version is not None:
         run_info['llvm_revision'] = config.llvm_source_version
     run_info['test_suite_revision'] = test_suite_source_version
@@ -1117,17 +1144,17 @@ def run_test(nick_prefix, iteration, config):
         run_info['run_order'] = config.cc_info['inferred_run_order']
 
     # Add any user specified parameters.
-    for target,params in ((machine_info, config.machine_parameters),
-                          (run_info, config.run_parameters)):
+    for target, params in ((machine_info, config.machine_parameters),
+                           (run_info, config.run_parameters)):
         for entry in params:
             if '=' not in entry:
-                name,value = entry,''
+                name, value = entry, ''
             else:
-                name,value = entry.split('=', 1)
+                name, value = entry.split('=', 1)
             if name in target:
                 logger.warning("parameter %r overwrote existing value: %r" %
                                (name, target.get(name)))
-            print target,name,value
+            print target, name, value
             target[name] = value
 
     # Generate the test report.
@@ -1135,24 +1162,26 @@ def run_test(nick_prefix, iteration, config):
     print >>sys.stderr, '%s: generating report: %r' % (timestamp(),
                                                        lnt_report_path)
     machine = lnt.testing.Machine(nick, machine_info)
-    run = lnt.testing.Run(start_time, end_time, info = run_info)
+    run = lnt.testing.Run(start_time, end_time, info=run_info)
 
     report = lnt.testing.Report(machine, run, test_samples)
     lnt_report_file = open(lnt_report_path, 'w')
-    print >>lnt_report_file,report.render()
+    print >>lnt_report_file, report.render()
     lnt_report_file.close()
 
     return report
 
 ###
 
+
 def _construct_report_path(basedir, only_test, test_style, file_type="csv"):
     """Get the full path to report files in the sandbox.
     """
     report_path = os.path.join(basedir)
     if only_test is not None:
-        report_path =  os.path.join(report_path, only_test)
-    report_path = os.path.join(report_path, ('report.%s.' % test_style) + file_type)
+        report_path = os.path.join(report_path, only_test)
+    report_path = os.path.join(report_path,
+                               ('report.%s.' % test_style) + file_type)
     return report_path
 
 
@@ -1173,8 +1202,8 @@ def rerun_test(config, name, num_times):
     test_full_path = os.path.join(
         config.report_dir, relative_test_path)
 
-    assert os.path.exists(test_full_path), "Previous test directory not there?" + \
-        test_full_path
+    assert os.path.exists(test_full_path), \
+        "Previous test directory not there?" + test_full_path
 
     results = []
     no_errors = True
@@ -1185,7 +1214,8 @@ def rerun_test(config, name, num_times):
         results.extend(test_results)
 
     # Check we got an exec and status from each run.
-    assert len(results) >= num_times, "Did not get all the runs?" + str(results)
+    assert len(results) >= num_times, \
+        "Did not get all the runs?" + str(results)
 
     logfile.close()
     return results, no_errors
@@ -1210,7 +1240,8 @@ def _prepare_testsuite_for_rerun(test_name, test_full_path, config):
         os.remove(path)
 
 
-def _execute_test_again(config, test_name, test_path, test_relative_path, logfile):
+def _execute_test_again(config, test_name, test_path, test_relative_path,
+                        logfile):
     """(Re)Execute the benchmark of interest. """
 
     _prepare_testsuite_for_rerun(test_name, test_path, config)
@@ -1229,36 +1260,40 @@ def _execute_test_again(config, test_name, test_path, test_relative_path, logfil
             config.rerun_test = test_relative_path
     # The target for the specific benchmark.
     # Make target.
-    benchmark_report_target =  "Output/" + test_name + \
+    benchmark_report_target = "Output/" + test_name + \
         "." + config.test_style + ".report.txt"
     # Actual file system location of the target.
-    benchmark_report_path =  os.path.join(config.build_dir(None),
-                                       test_path,
-                                       benchmark_report_target)
+    benchmark_report_path = os.path.join(config.build_dir(None),
+                                         test_path,
+                                         benchmark_report_target)
     to_exec.append(benchmark_report_target)
 
     returncode = execute_command(logfile,
-        config.build_dir(None), to_exec, config.report_dir)
+                                 config.build_dir(None), to_exec,
+                                 config.report_dir)
     assert returncode == 0, "Remake command failed."
     assert os.path.exists(benchmark_report_path), "Missing " \
         "generated report: " + benchmark_report_path
 
     # Now we need to pull out the results into the CSV format LNT can read.
     schema = os.path.join(config.test_suite_root,
-        "TEST." + config.test_style + ".report")
-    result_path =  os.path.join(config.build_dir(None),
-        test_path, "Output",
-        test_name + "." + config.test_style + ".report.csv")
+                          "TEST." + config.test_style + ".report")
+    result_path = os.path.join(config.build_dir(None),
+                               test_path, "Output",
+                               test_name + "." + config.test_style +
+                               ".report.csv")
 
     gen_report_template = "{gen} -csv {schema} < {input} > {output}"
     gen_cmd = gen_report_template.format(gen=config.generate_report_script,
-        schema=schema, input=benchmark_report_path, output=result_path)
-    bash_gen_cmd  = ["/bin/bash", "-c", gen_cmd]
+                                         schema=schema,
+                                         input=benchmark_report_path,
+                                         output=result_path)
+    bash_gen_cmd = ["/bin/bash", "-c", gen_cmd]
 
     assert not os.path.exists(result_path), "Results should not exist yet." + \
         result_path
-    returncode = execute_command(logfile,
-        config.build_dir(None), bash_gen_cmd, config.report_dir)
+    returncode = execute_command(logfile, config.build_dir(None), bash_gen_cmd,
+                                 config.report_dir)
     assert returncode == 0, "command failed"
     assert os.path.exists(result_path), "Missing results file."
 
@@ -1266,8 +1301,10 @@ def _execute_test_again(config, test_name, test_path, test_relative_path, logfil
     assert len(results) > 0
     return results, no_errors
 
+
 def _unix_quote_args(s):
     return map(pipes.quote, shlex.split(s))
+
 
 # When set to true, all benchmarks will be rerun.
 # TODO: remove me when rerun patch is done.
@@ -1419,9 +1456,9 @@ def _process_reruns(config, server_reply, local_results):
         if SERVER_COMPILE_RESULT in test_type:
             if new_entry.compile_status is None:
                 new_entry.compile_status = results_status
-        elif SERVER_EXEC_RESULT in test_type or \
-             SERVER_SCORE_RESULT in test_type or \
-             SERVER_MEM_RESULT in test_type:
+        elif (SERVER_EXEC_RESULT in test_type or
+              SERVER_SCORE_RESULT in test_type or
+              SERVER_MEM_RESULT in test_type):
             if new_entry.execution_status is None:
                 # If the server has not seen the test before, it will return
                 # None for the performance results analysis. In this case we
@@ -1480,8 +1517,8 @@ Basic usage:
     --test-suite ~/llvm-test-suite
 
 where --sandbox is the directory to build and store results in, --cc and --cxx
-are the full paths to the compilers to test, and --test-suite is the path to the
-test-suite source.
+are the full paths to the compilers to test, and --test-suite is the path to
+the test-suite source.
 
 To do a quick test, you can add something like:
 
@@ -1553,8 +1590,9 @@ class NTTest(builtintest.BuiltinTest):
 
         # If there was no --cxx given, attempt to infer it from the --cc.
         if opts.cxx_under_test is None:
-            opts.cxx_under_test = lnt.testing.util.compilers.infer_cxx_compiler(
-                opts.cc_under_test)
+            opts.cxx_under_test = \
+                lnt.testing.util.compilers.infer_cxx_compiler(
+                    opts.cc_under_test)
             if opts.cxx_under_test is not None:
                 logger.info("inferred C++ compiler under test as: %r" %
                             (opts.cxx_under_test,))
@@ -1583,7 +1621,7 @@ class NTTest(builtintest.BuiltinTest):
         # given a C++ compiler that doesn't exist, reset it to just use the
         # given C compiler.
         if not os.path.exists(opts.cxx_under_test):
-            logger.warning("invalid cxx_under_test, " + 
+            logger.warning("invalid cxx_under_test, " +
                            "falling back to cc_under_test")
             opts.cxx_under_test = opts.cc_under_test
 
@@ -1624,7 +1662,8 @@ class NTTest(builtintest.BuiltinTest):
                 self._fatal('--remote is required with --remote-user')
 
         if opts.spec_with_pgo and not opts.test_spec_ref:
-            self._fatal('--spec-with-pgo is only supported with --spec-with-ref')
+            self._fatal('--spec-with-pgo is only supported with '
+                        '--spec-with-ref')
 
         # libLTO should exist, if given.
         if opts.liblto_path:
@@ -1632,7 +1671,8 @@ class NTTest(builtintest.BuiltinTest):
                 self._fatal('invalid --liblto-path argument %r' % (
                     opts.liblto_path,))
 
-        # Support disabling test suite externals separately from providing path.
+        # Support disabling test suite externals separately from providing
+        # path.
         if not opts.test_externals:
             opts.test_suite_externals = '/dev/null'
         else:
@@ -1654,8 +1694,8 @@ class NTTest(builtintest.BuiltinTest):
         # test-suite directory, that borks things. <rdar://problem/7876418>
         prepare_report_dir(config)
 
-        # These notes are used by the regression tests to check if we've handled
-        # flags correctly.
+        # These notes are used by the regression tests to check if we've
+        # handled flags correctly.
         logger.info('TARGET_FLAGS: {}'.format(' '.join(config.target_flags)))
         if config.qemu_user_mode:
             logger.info('QEMU_USER_MODE_COMMAND: {}'
@@ -1668,8 +1708,8 @@ class NTTest(builtintest.BuiltinTest):
             reports = []
 
             for i in range(opts.multisample):
-                print >>sys.stderr, "%s: (multisample) running iteration %d" % (
-                    timestamp(), i)
+                print >>sys.stderr, "%s: (multisample) running iteration %d" %\
+                        (timestamp(), i)
                 report = run_test(opts.label, i, config)
                 reports.append(report)
 
@@ -1746,7 +1786,8 @@ class NTTest(builtintest.BuiltinTest):
             import lnt.server.db.v4db
             import lnt.server.config
             db = lnt.server.db.v4db.V4DB("sqlite:///:memory:",
-                                         lnt.server.config.Config.dummy_instance())
+                                         lnt.server.config.Config
+                                         .dummy_instance())
             session = db.make_session()
             result = lnt.util.ImportData.import_and_report(
                 None, None, db, session, report_path, 'json', 'nts')
@@ -1789,6 +1830,7 @@ def _tools_check():
     status = call(["which", "tclsh"], stdout=FNULL, stderr=FNULL)
     if status > 0:
         raise SystemExit("""error: tclsh not available on your system.""")
+
 
 # FIXME: an equivalent to argparse's add_argument_group is not implemented
 #        on click. Need to review it when such functionality is available.

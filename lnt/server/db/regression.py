@@ -22,14 +22,16 @@ class RegressionState:
     FIXED = 22
     # System detected it is fixed.
     DETECTED_FIXED = 23
-    names = {DETECTED: u'Detected',
-             STAGED: u'Staged',
-             ACTIVE: u'Active',
-             NTBF: u'Not to be Fixed',
-             IGNORED: u'Ignored',
-             DETECTED_FIXED: u'Verify',
-             FIXED: u'Fixed'
-             }
+    names = {
+        DETECTED: u'Detected',
+        STAGED: u'Staged',
+        ACTIVE: u'Active',
+        NTBF: u'Not to be Fixed',
+        IGNORED: u'Ignored',
+        DETECTED_FIXED: u'Verify',
+        FIXED: u'Fixed',
+    }
+
 
 ChangeRuns = namedtuple("ChangeRuns", ["before", "after"])
 ChangeData = namedtuple("ChangeData", ["ri", "cr", "run", "latest_cr"])

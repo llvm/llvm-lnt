@@ -272,6 +272,7 @@ class App(LNTExceptionLoggerFlask):
         else:
             self.config['log_file_name'] = log_file_name
 
+
 def create_jinja_environment(env=None):
     """
     create_jinja_environment([env]) -> jinja2.Environment

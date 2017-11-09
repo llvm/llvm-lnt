@@ -36,6 +36,10 @@ from lnt.tests.builtintest import BuiltinTest
 TEST_SUITE_KNOWN_ARCHITECTURES = ['ARM', 'AArch64', 'Mips', 'X86']
 KNOWN_SAMPLE_KEYS = ['compile', 'exec', 'hash', 'score']
 
+_LNT_CODES = {
+
+}
+
 XML_REPORT_TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
 <testsuites>
 {%  for suite in suites %}
@@ -71,28 +75,32 @@ XML_REPORT_TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
 </testsuites>
 """
 
-CSV_REPORT_TEMPLATE = \
-"""Program;CC;CC_Time;CC_Hash;Exec;Exec_Time;Score
+CSV_REPORT_TEMPLATE = """\
+Program;CC;CC_Time;CC_Hash;Exec;Exec_Time;Score
 {%- for suite in suites -%}
     {%- for test in suite.tests %}
 {{ suite.name }}/{{ test.path }}/{{ test.name }};
         {%- if test.code == "NOEXE" -%}
             fail;*;*;
         {%- else -%}
-            pass;{{ test.metrics.compile_time if test.metrics }};{{ test.metrics.hash if test.metrics }};
+            pass;{{ test.metrics.compile_time if test.metrics }};\
+{{ test.metrics.hash if test.metrics }};
         {%- endif -%}
         {%- if test.code == "FAIL" or test.code == "NOEXE" -%}
             fail;*;*;
         {%- else -%}
-            pass;{{ test.metrics.exec_time if test.metrics }};{{ test.metrics.score if test.metrics }};
+            pass;{{ test.metrics.exec_time if test.metrics }};\
+{{ test.metrics.score if test.metrics }};
         {%- endif -%}
     {% endfor %}
 {%- endfor -%}
 """
 
-# _importProfile imports a single profile. It must be at the top level (and
-# not within TestSuiteTest) so that multiprocessing can import it correctly.
+
 def _importProfile(name_filename):
+    """_importProfile imports a single profile. It must be at the top level
+    (and not within TestSuiteTest) so that multiprocessing can import it
+    correctly."""
     name, filename = name_filename
 
     if not os.path.exists(filename):
@@ -141,7 +149,8 @@ def _lit_json_to_template(json_reports, template_engine):
         entry = {'name': suite,
                  'id': id,
                  'tests': tests,
-                 'timestamp': datetime.datetime.now().replace(microsecond=0).isoformat(),
+                 'timestamp': datetime.datetime.now().replace(microsecond=0)
+                                      .isoformat(),
                  'num_tests': len(tests),
                  'num_failures': len(
                      [x for x in tests if x['code'] == 'FAIL']),
@@ -249,8 +258,8 @@ class TestSuiteTest(BuiltinTest):
                             " test or directory name)")
 
         if opts.single_result and not opts.only_test[1]:
-            self._fatal("--single-result must be given a single test name, not a " +
-                        "directory name")
+            self._fatal("--single-result must be given a single test name, "
+                        "not a directory name")
 
         opts.cppflags = ' '.join(opts.cppflags)
         opts.cflags = ' '.join(opts.cflags)
@@ -302,7 +311,8 @@ class TestSuiteTest(BuiltinTest):
             # Construct the nickname from a few key parameters.
             cc_info = self._get_cc_info(cmake_vars)
             cc_nick = '%s_%s' % (cc_info['cc_name'], cc_info['cc_build'])
-            opts.label += "__%s__%s" % (cc_nick, cc_info['cc_target'].split('-')[0])
+            opts.label += "__%s__%s" %\
+                (cc_nick, cc_info['cc_target'].split('-')[0])
         logger.info('Using nickname: %r' % opts.label)
 
         #  When we can't detect the clang version we use 0 instead. That
@@ -432,7 +442,8 @@ class TestSuiteTest(BuiltinTest):
         if self.opts.cxx:
             defs['CMAKE_CXX_COMPILER'] = self.opts.cxx
 
-        cmake_build_types = ('DEBUG','MINSIZEREL', 'RELEASE', 'RELWITHDEBINFO')
+        cmake_build_types = ('DEBUG', 'MINSIZEREL', 'RELEASE',
+                             'RELWITHDEBINFO')
         if self.opts.cppflags or self.opts.cflags:
             all_cflags = ' '.join([self.opts.cppflags, self.opts.cflags])
             defs['CMAKE_C_FLAGS'] = self._unix_quote_args(all_cflags)
@@ -450,7 +461,8 @@ class TestSuiteTest(BuiltinTest):
                 defs['CMAKE_CXX_FLAGS_'+build_type] = ""
 
         if self.opts.run_under:
-            defs['TEST_SUITE_RUN_UNDER'] = self._unix_quote_args(self.opts.run_under)
+            defs['TEST_SUITE_RUN_UNDER'] = \
+                self._unix_quote_args(self.opts.run_under)
         if self.opts.benchmarking_only:
             defs['TEST_SUITE_BENCHMARKING_ONLY'] = 'ON'
         if self.opts.only_compile:
@@ -517,10 +529,10 @@ class TestSuiteTest(BuiltinTest):
             if value is not None:
                 early_defs[key] = value
 
-        cmake_cmd = [cmake_cmd] + \
-                    ['-D%s=%s' % (k, v) for k, v in early_defs.items()] + \
-                    cmake_flags + [self._test_suite_dir()] + \
-                    ['-D%s=%s' % (k, v) for k, v in defs.items()]
+        cmake_cmd = ([cmake_cmd] +
+                     ['-D%s=%s' % (k, v) for k, v in early_defs.items()] +
+                     cmake_flags + [self._test_suite_dir()] +
+                     ['-D%s=%s' % (k, v) for k, v in defs.items()])
         if execute:
             self._check_call(cmake_cmd, cwd=path)
 
@@ -582,13 +594,14 @@ class TestSuiteTest(BuiltinTest):
             if nr_threads != 1:
                 logger.warning('Gathering profiles with perf requires -j 1 ' +
                                'as perf record cannot be run multiple times ' +
-                               'simultaneously. Overriding -j %s to -j 1' % \
+                               'simultaneously. Overriding -j %s to -j 1' %
                                nr_threads)
                 nr_threads = 1
             extra_args += ['--param', 'profile=perf']
             if self.opts.perf_events:
                 extra_args += ['--param',
-                               'perf_profile_events=%s' % self.opts.perf_events]
+                               'perf_profile_events=%s' %
+                               self.opts.perf_events]
 
         logger.info('Testing...')
         try:
@@ -604,20 +617,21 @@ class TestSuiteTest(BuiltinTest):
         try:
             return json.loads(open(output_json_path.name).read())
         except ValueError as e:
-            fatal("Running test-suite did not create valid json report in {}: {}".format(
-                output_json_path.name, e.message))
+            fatal("Running test-suite did not create valid json report "
+                  "in {}: {}".format(output_json_path.name, e.message))
 
     def _is_pass_code(self, code):
         return code in ('PASS', 'XPASS', 'XFAIL')
 
     def _get_lnt_code(self, code):
-        return {'PASS': lnt.testing.PASS,
-                'FAIL': lnt.testing.FAIL,
-                'NOEXE': lnt.testing.FAIL,
-                'XFAIL': lnt.testing.XFAIL,
-                'XPASS': lnt.testing.FAIL,
-                'UNRESOLVED': lnt.testing.FAIL
-               }[code]
+        return {
+            'FAIL': lnt.testing.FAIL,
+            'NOEXE': lnt.testing.FAIL,
+            'PASS': lnt.testing.PASS,
+            'UNRESOLVED': lnt.testing.FAIL,
+            'XFAIL': lnt.testing.XFAIL,
+            'XPASS': lnt.testing.FAIL,
+        }[code]
 
     def _extract_cmake_vars_from_cache(self):
         assert self.configured is True
@@ -711,7 +725,8 @@ class TestSuiteTest(BuiltinTest):
                 name = name[:-5]
             name = 'nts.' + name
 
-            # If --single-result is given, exit based on --single-result-predicate
+            # If --single-result is given, exit based on
+            # --single-result-predicate
             is_pass = self._is_pass_code(code)
             if self.opts.single_result and \
                raw_name == self.opts.single_result + '.test':
@@ -730,12 +745,14 @@ class TestSuiteTest(BuiltinTest):
                         profiles_to_import.append((name, v))
                         continue
 
-                    if k not in LIT_METRIC_TO_LNT or LIT_METRIC_TO_LNT[k] in ignore:
+                    if k not in LIT_METRIC_TO_LNT or \
+                       LIT_METRIC_TO_LNT[k] in ignore:
                         continue
                     server_name = name + '.' + LIT_METRIC_TO_LNT[k]
 
                     if k == 'link_time':
-                        # Move link time into a second benchmark's compile-time.
+                        # Move link time into a second benchmark's
+                        # compile-time.
                         server_name = name + '-link.' + LIT_METRIC_TO_LNT[k]
 
                     test_samples.append(
@@ -752,10 +769,10 @@ class TestSuiteTest(BuiltinTest):
                 no_errors = False
 
             elif not is_pass:
+                lnt_code = self._get_lnt_code(test_data['code'])
                 test_samples.append(
                     lnt.testing.TestSamples(name + '.exec.status',
-                                            [self._get_lnt_code(test_data['code'])],
-                                            test_info))
+                                            [lnt_code], test_info))
                 no_errors = False
 
         # Now import the profiles in parallel.
@@ -873,7 +890,8 @@ class TestSuiteTest(BuiltinTest):
             f.write(std_out)
         # Executable(s) and test file:
         shutil.copy(os.path.join(local_path, short_name), report_path)
-        shutil.copy(os.path.join(local_path, short_name + ".test"), report_path)
+        shutil.copy(os.path.join(local_path, short_name + ".test"),
+                    report_path)
         # Temp files are in:
         temp_files = os.path.join(local_path, "CMakeFiles",
                                   short_name + ".dir")
@@ -956,7 +974,8 @@ class TestSuiteTest(BuiltinTest):
             logger.warning("Tests may fail because of iprofiler's output.")
             # The dtps file will be saved as root, make it so
             # that we can read it.
-            chmod = sudo + ["chown", "-R", getpass.getuser(), short_name + ".dtps"]
+            chmod = sudo + ["chown", "-R", getpass.getuser(),
+                            short_name + ".dtps"]
             subprocess.call(chmod)
             profile = local_path + "/" + short_name + ".dtps"
             shutil.copytree(profile, report_path + "/" + short_name + ".dtps")
@@ -967,6 +986,7 @@ class TestSuiteTest(BuiltinTest):
         logger.info("Report produced in: " + report_path)
 
         return lnt.util.ImportData.no_submit()
+
 
 @click.command("test-suite", short_help=__doc__)
 @click.argument("label", default=platform.uname()[1], required=False,

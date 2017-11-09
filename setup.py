@@ -12,8 +12,8 @@ if _platform == "darwin":
     os.environ["CXX"] = "xcrun --sdk macosx clang"
     cflags += ['-stdlib=libc++', '-mmacosx-version-min=10.7']
 
-# setuptools expects to be invoked from within the directory of setup.py, but it
-# is nice to allow:
+# setuptools expects to be invoked from within the directory of setup.py, but
+# it is nice to allow:
 #   python path/to/setup.py install
 # to work (for scripts, etc.)
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -37,27 +37,27 @@ except TypeError:
 reqs = [str(ir.req) for ir in install_reqs]
 
 setup(
-    name = "LNT",
-    version = lnt.__version__,
+    name="LNT",
+    version=lnt.__version__,
 
-    author = lnt.__author__,
-    author_email = lnt.__email__,
-    url = 'http://llvm.org',
-    license = 'BSD',
+    author=lnt.__author__,
+    author_email=lnt.__email__,
+    url='http://llvm.org',
+    license='BSD',
 
-    description = "LLVM Nightly Test Infrastructure",
-    keywords = 'web testing performance development llvm',
-    long_description = """\
+    description="LLVM Nightly Test Infrastructure",
+    keywords='web testing performance development llvm',
+    long_description="""\
 *LNT*
 +++++
 
 About
 =====
 
-*LNT* is an infrastructure for performance testing. The software itself consists
-of two main parts, a web application for accessing and visualizing performance
-data, and command line utilities to allow users to generate and submit test
-results to the server.
+*LNT* is an infrastructure for performance testing. The software itself
+consists of two main parts, a web application for accessing and visualizing
+performance data, and command line utilities to allow users to generate and
+submit test results to the server.
 
 The package was originally written for use in testing LLVM compiler
 technologies, but is designed to be usable for the performance testing of any
@@ -91,34 +91,35 @@ http://llvm.org/svn/llvm-project/lnt/trunk
         'Topic :: Software Development :: Testing',
         ],
 
-    zip_safe = False,
+    zip_safe=False,
 
     # Additional resource extensions we use.
-    package_data = {'lnt.server.ui': ['static/*.ico',
-                                      'static/*.js',
-                                      'static/*.css',
-                                      'static/*.svg',
-                                      'static/bootstrap/css/*.css',
-                                      'static/bootstrap/js/*.js',
-                                      'static/bootstrap/img/*.png',
-                                      'static/flot/*.min.js',
-                                      'static/d3/*.min.js',
-                                      'static/jquery/**/*.min.js',
-                                      'templates/*.html',
-                                      'templates/reporting/*.html',
-                                      'templates/reporting/*.txt'],
-                    'lnt.server.db': ['migrations/*.py'] },
+    package_data={'lnt.server.ui': ['static/*.ico',
+                                    'static/*.js',
+                                    'static/*.css',
+                                    'static/*.svg',
+                                    'static/bootstrap/css/*.css',
+                                    'static/bootstrap/js/*.js',
+                                    'static/bootstrap/img/*.png',
+                                    'static/flot/*.min.js',
+                                    'static/d3/*.min.js',
+                                    'static/jquery/**/*.min.js',
+                                    'templates/*.html',
+                                    'templates/reporting/*.html',
+                                    'templates/reporting/*.txt'],
+                  'lnt.server.db': ['migrations/*.py'],
+                  },
 
-    packages = find_packages(),
+    packages=find_packages(),
 
-    test_suite = 'tests.test_all',
+    test_suite='tests.test_all',
 
-    entry_points = {
+    entry_points={
         'console_scripts': [
             'lnt = lnt.lnttool:main',
-            ],
-        },
+        ],
+    },
     install_requires=reqs,
 
-    ext_modules = [cPerf],
+    ext_modules=[cPerf],
 )

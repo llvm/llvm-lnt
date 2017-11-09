@@ -8,7 +8,8 @@ import sqlalchemy
 #
 # Import the original schema from upgrade_0_to_1 since upgrade_6_to_7 does not
 # change the actual schema.
-from lnt.server.db.migrations.upgrade_0_to_1 import SampleType, TestSuite, SampleField
+from lnt.server.db.migrations.upgrade_0_to_1 import SampleType, TestSuite, \
+        SampleField
 
 from lnt.server.db.util import add_column
 
