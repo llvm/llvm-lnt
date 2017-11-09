@@ -14,7 +14,7 @@ ALLSPHINXOPTS   = -d $(BUILDDIR)/doctrees $(PAPEROPT_$(PAPER)) $(SPHINXOPTS) .
 
 .PHONY: help clean html dirhtml singlehtml pickle json htmlhelp qthelp epub latex changes linkcheck doctest
 
-all:	html
+all:	copydocs
 
 help:
 	@echo "Please use \`make <target>' where <target> is one of"
@@ -36,9 +36,12 @@ help:
 clean:
 	-rm -rf $(BUILDDIR)/*
 
+.PHONY: copydocs
+copydocs: html
+	cp -av $(BUILDDIR)/html/* $(BUILDDIR)/../../lnt/server/ui/static/docs/
+
 html:
 	$(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html
-	cp -av $(BUILDDIR)/html/* $(BUILDDIR)/../../lnt/server/ui/static/docs/
 	@echo
 	@echo "Build finished. The HTML pages are in $(BUILDDIR)/html."
 
