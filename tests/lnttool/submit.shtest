@@ -88,21 +88,36 @@ lnt submit "http://localhost:9091/db_default/submitRun" "${INPUTS}/compile_submi
 # CHECK-COMPILE1: Results available at: http://localhost:9091/db_default/v4/compile/6
 
 # Check some error handling/reporting
-rm -f "${OUTPUT_DIR}/submit_errors.txt"
-not lnt submit "http://localhost:9091/db_default/v4/badsuite/submitRun" "${INPUTS}/compile_submission.json" >> "${OUTPUT_DIR}/submit_errors.txt" 2>&1
 # RUN: FileCheck %s --check-prefix=CHECK-ERRORS < %t.tmp/submit_errors.txt
+rm -f "${OUTPUT_DIR}/submit_errors.txt"
+
+echo "=== compile_submission.json badsuite" >> "${OUTPUT_DIR}/submit_errors.txt"
+not lnt submit "http://localhost:9091/db_default/v4/badsuite/submitRun" "${INPUTS}/compile_submission.json" >> "${OUTPUT_DIR}/submit_errors.txt" 2>&1
+# CHECK-ERRORS-LABEL: === compile_submission.json badsuite
 # CHECK-ERRORS: error: lnt server: Unknown test suite 'badsuite'!
+
+echo "=== compile_submission.json baddb" >> "${OUTPUT_DIR}/submit_errors.txt"
 not lnt submit "http://localhost:9091/db_baddb/v4/compile/submitRun" "${INPUTS}/compile_submission.json" >> "${OUTPUT_DIR}/submit_errors.txt" 2>&1
+# CHECK_ERROR-LABEL: === compile_submission.json baddb
 # CHECK-ERRORS: error: lnt server: The page you are looking for does not exist.
+
+echo "=== invalid_submission0.json" >> "${OUTPUT_DIR}/submit_errors.txt"
 not lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" "${INPUTS}/invalid_submission0.json" >> "${OUTPUT_DIR}/submit_errors.txt" 2>&1
+# CHECK-ERRORS-LABEL: === invalid_submission0.json
 # CHECK-ERRORS: error: lnt server: could not parse input format
 # ...
 # CHECK-ERRORS: ValueError: unable to guess input format for
+
+echo "=== invalid_submission1.json" >> "${OUTPUT_DIR}/submit_errors.txt"
 not lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" "${INPUTS}/invalid_submission1.json" >> "${OUTPUT_DIR}/submit_errors.txt" 2>&1
-# CHECK-ERRORS: error: lnt server: import failure: machine
+# CHECK-ERRORS-LABEL: === invalid_submission1.json
+# CHECK-ERRORS: error: lnt server: Invalid input format: No 'run' section in submission
 # ...
-# CHECK-ERRORS: KeyError: 'machine'
+# CHECK-ERRORS: ValueError: No 'run' section in submission
+
+echo "=== compile_submission_machine_diff_reject.json" >> "${OUTPUT_DIR}/submit_errors.txt"
 not lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" "${INPUTS}/compile_submission_machine_diff_reject.json" >> "${OUTPUT_DIR}/submit_errors.txt" 2>&1
+# CHECK-ERRORS-LABEL: === compile_submission_machine_diff_reject.json
 # CHECK-ERRORS: error: lnt server: import failure: 'hw.activecpu' on machine 'some-compile-suite-machine' changed.
 # ...
 # CHECK-ERRORS: MachineInfoChanged: 'hw.activecpu' on machine 'some-compile-suite-machine' changed.

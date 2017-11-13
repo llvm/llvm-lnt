@@ -67,7 +67,13 @@ def import_and_report(config, db_name, db, session, file, format, ts_name,
     result['load_time'] = time.time() - startTime
 
     # Auto-upgrade the data, if necessary.
-    data = lnt.testing.upgrade_report(data, ts_name)
+    try:
+        data = lnt.testing.upgrade_and_normalize_report(data, ts_name)
+    except ValueError as e:
+        import traceback
+        result['error'] = "Invalid input format: %s" % e
+        result['message'] = traceback.format_exc()
+        return result
 
     # Find the database config, if we have a configuration object.
     if config:

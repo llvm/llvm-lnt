@@ -43,6 +43,12 @@
 # CHECK2: PASS : 10
 #
 #
+# RUN: lnt checkformat %S/Inputs/minimal.json 2>&1 | FileCheck %s --check-prefix=MINIMAL
+# MINIMAL: Import succeeded.
+# MINIMAL: Added Machines: 1
+# MINIMAL: Added Runs    : 1
+#
+#
 # Check invalid format
 # RUN: lnt checkformat %S/Inputs/invalid_submission0.json 2>&1 | FileCheck %s --check-prefix=CHECKFAIL0
 #

@@ -42,9 +42,9 @@ First, make sure you've understood the underlying :ref:`concepts` used by LNT.
           (_String_: _String_)* // optional extra info
       },
       "run": {
-          "start_time": "%Y-%m-%dT%H:%M:%S", // mandatory, ISO8061 timestamp
-          "end_time": "%Y-%m-%dT%H:%M:%S",   // mandatory, ISO8061 timestamp, can equal start_time if not known.
-          (_String_: _String_)* // optional extra info about the run.
+          ("start_time": "%Y-%m-%dT%H:%M:%S",)? // optional, ISO8061 timestamp
+          ("end_time": "%Y-%m-%dT%H:%M:%S",)?   // optional, ISO8061 timestamp, can equal start_time if not known.
+          (_String_: _String_,)* // optional extra info about the run.
           // At least one of the extra fields is used as ordering and is
           // mandatory. For the 'nts' and 'Compile' schemas this is the
           // 'llvm_project_revision' field.

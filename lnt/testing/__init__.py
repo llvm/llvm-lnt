@@ -348,10 +348,13 @@ def upgrade_1_to_2(data, ts_name):
 
     # Flatten Result.Info into result
     Run = data['Run']
-    result_run = {
-        'end_time': Run['End Time'],
-        'start_time': Run['Start Time'],
-    }
+    result_run = {}
+    start_time = Run.get('Start Time')
+    if start_time is not None:
+        result_run['start_time'] = start_time
+    end_time = Run.get('End Time')
+    if end_time is not None:
+        result_run['end_time'] = end_time
     for key, value in Run['Info'].items():
         newname = upgrade.run_param_rename.get(key, key)
         if newname in result_run:
@@ -417,11 +420,12 @@ def upgrade_1_to_2(data, ts_name):
     return result
 
 
-def upgrade_report(data, ts_name):
+def upgrade_and_normalize_report(data, ts_name):
     # Get the report version. V2 has it at the top level, older version
     # in Run.Info.
     format_version = _get_format_version(data)
     if format_version is None:
+        data['format_version'] = '2'
         format_version = 2
 
     if format_version == 0:
@@ -430,7 +434,26 @@ def upgrade_report(data, ts_name):
     if format_version == 1:
         data = upgrade_1_to_2(data, ts_name)
         format_version = 2
-    assert(format_version == 2)
+
+    if format_version != 2 or data['format_version'] != '2':
+        raise ValueError("Unknown format version")
+    if 'run' not in data:
+        import pprint
+        logger.info(pprint.pformat(data))
+        raise ValueError("No 'run' section in submission")
+    if 'machine' not in data:
+        raise ValueError("No 'machine' section in submission")
+    if 'tests' not in data:
+        raise ValueError("No 'tests' section in submission")
+
+    run = data['run']
+    if not 'start_time' in run:
+        time = datetime.datetime.utcnow().replace(microsecond=0).isoformat()
+        run['start_time'] = time
+        run['end_time'] = time
+    elif not 'end_time' in run:
+        run['end_time'] = run['start_time']
+
     return data
 
 
