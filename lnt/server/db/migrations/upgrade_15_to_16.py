@@ -3,7 +3,7 @@ pretty slow.
 """
 
 import sqlalchemy
-from sqlalchemy import Index, select, all_
+from sqlalchemy import Index, select
 from lnt.server.db.migrations.util import introspect_table
 from logging import getLogger
 
