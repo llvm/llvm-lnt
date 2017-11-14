@@ -1552,22 +1552,18 @@ def debug():
 
 @frontend.route('/__health')
 def health():
-    """Our instnace health. If queue is too long or we use too much mem,
+    """Our instance health. If queue is too long or we use too much mem,
     return 500.  Monitor might reboot us for this."""
-    explode = False
+    is_bad_state = False
     msg = "Ok"
-    queue_length = async_ops.check_workers(False)
-    if queue_length > 10:
-        explode = True
-        msg = "Queue too long."
 
     import resource
     stats = resource.getrusage(resource.RUSAGE_SELF)
     mem = stats.ru_maxrss
     if mem > 1024**3:
-        explode = True
+        is_bad_state = True
         msg = "Over memory " + str(mem) + ">" + str(1024**3)
-    if explode:
+    if is_bad_state:
         return msg, 500
     return msg, 200
 
