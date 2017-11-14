@@ -48,7 +48,7 @@ The first step is to produce the profile data itself in LNT format suitable for 
 
 ``/tmp/my_profile.lntprof`` is now an LNT profile in a space-efficient binary form. To prepare it to be sent via JSON, we must base-64 encode it::
 
-  base64 -i /tmp/my_profile.lntprof -o /tmp/my_profile.txt
+  base64 -i /tmp/my_profile.lntprof > /tmp/my_profile.txt
 
 Now we just need to add it to the report. Profiles look similar to hashes in that they are samples with string data::
 
