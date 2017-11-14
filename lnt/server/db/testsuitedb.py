@@ -589,7 +589,7 @@ class TestSuiteDB(object):
             old_value = Column("OldValue", Float)
             new_value = Column("NewValue", Float)
             start_order_id = Column("StartOrderID", Integer,
-                                    ForeignKey(Order.id))
+                                    ForeignKey(Order.id), index=True)
             end_order_id = Column("EndOrderID", Integer, ForeignKey(Order.id))
             test_id = Column("TestID", Integer, ForeignKey(Test.id))
             machine_id = Column("MachineID", Integer, ForeignKey(Machine.id))
