@@ -12,10 +12,14 @@ from lnt.server.db import rules_manager as rules
 # How many runs backwards to use in the previous run set.
 # More runs are slower (more DB access), but may provide
 # more accurate results.
+
 FIELD_CHANGE_LOOKBACK = 10
 
 
 def post_submit_tasks(session, ts, run_id):
+    """Run the field change related post submission tasks.
+
+    """
     regenerate_fieldchanges_for_run(session, ts, run_id)
 
 
@@ -130,22 +134,19 @@ def regenerate_fieldchanges_for_run(session, ts, run_id):
                                    machine=run.machine,
                                    test=test,
                                    field_id=field.id)
-                f.field = field
-                # Check the rules to see if this change matters.
-                if rules.is_useful_change(session, ts, f):
-                    session.add(f)
-                    try:
-                        found, new_reg = identify_related_changes(session, ts,
-                                                                  f)
-                    except ObjectDeletedError:
-                        # This can happen from time to time.
-                        # So, lets retry once.
-                        found, new_reg = identify_related_changes(session, ts,
-                                                                  f)
+                session.add(f)
+                try:
+                    found, new_reg = identify_related_changes(session, ts,
+                                                              f)
+                except ObjectDeletedError:
+                    # This can happen from time to time.
+                    # So, lets retry once.
+                    found, new_reg = identify_related_changes(session, ts,
+                                                              f)
 
-                    if found:
-                        logger.info("Found field change: {}".format(
-                                    run.machine))
+                if found:
+                    logger.info("Found field change: {}".format(
+                                run.machine))
 
             # Always update FCs with new values.
             if f:

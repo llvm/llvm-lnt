@@ -1,5 +1,5 @@
 from lnt.util import NTEmailReport
-from lnt.util import async_ops
+
 from lnt.util import logger
 import collections
 import datetime
@@ -7,9 +7,11 @@ import lnt.formats
 import lnt.server.reporting.analysis
 import lnt.testing
 import os
-import re
+
 import tempfile
 import time
+
+from lnt.server.db import fieldchange
 
 
 def import_and_report(config, db_name, db, session, file, format, ts_name,
@@ -144,11 +146,8 @@ def import_and_report(config, db_name, db, session, file, format, ts_name,
     result['committed'] = True
     result['run_id'] = run.id
     session.commit()
-    if db_config:
-        #  If we are not in a dummy instance, also run background jobs.
-        #  We have to have a commit before we run, so subprocesses can
-        #  see the submitted data.
-        async_ops.async_fieldchange_calc(db_name, ts, run, config)
+
+    fieldchange.post_submit_tasks(session, ts, run.id)
 
     # Add a handy relative link to the submitted run.
     result['result_url'] = "db_{}/v4/{}/{}".format(db_name, ts_name, run.id)
