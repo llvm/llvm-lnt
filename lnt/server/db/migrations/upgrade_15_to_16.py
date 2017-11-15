@@ -23,9 +23,12 @@ def _mk_index_on(engine, ts_name):
 def upgrade(engine):
     """Add an index to FieldChangeV2 for each fo the test-suites.
     """
-    with engine.begin() as trans:
-        test_suite = introspect_table(engine, 'TestSuite')
 
-        db_keys = trans.execute(select([test_suite]))
-        for suite in db_keys:
+    test_suite = introspect_table(engine, 'TestSuite')
+
+    with engine.begin() as trans:
+        db_keys = list(trans.execute(select([test_suite])))
+
+    for suite in db_keys:
+        with engine.begin() as trans:
             _mk_index_on(trans, suite[2])
