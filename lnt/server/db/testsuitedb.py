@@ -675,7 +675,7 @@ class TestSuiteDB(object):
                 }
 
         class RegressionIndicator(self.base, ParameterizedMixin):
-            """"""
+            """Relates a regression to a fieldchange."""
 
             __tablename__ = db_key_name + '_RegressionIndicator'
             id = Column("ID", Integer, primary_key=True)
