@@ -680,7 +680,7 @@ class TestSuiteDB(object):
             __tablename__ = db_key_name + '_RegressionIndicator'
             id = Column("ID", Integer, primary_key=True)
             regression_id = Column("RegressionID", Integer,
-                                   ForeignKey(Regression.id))
+                                   ForeignKey(Regression.id), index=True)
             field_change_id = Column("FieldChangeID", Integer,
                                      ForeignKey(FieldChange.id))
 
