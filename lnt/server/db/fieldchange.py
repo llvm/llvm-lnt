@@ -156,7 +156,7 @@ def regenerate_fieldchanges_for_run(session, ts, run_id):
     session.commit()
 
     regressions = session.query(ts.Regression).all()[::-1]
-    rules.post_submission_hooks(session, ts, regressions)
+    rules.post_submission_hooks(session, ts, run_id)
 
 
 def is_overlaping(fc1, fc2):

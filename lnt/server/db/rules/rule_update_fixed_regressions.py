@@ -4,8 +4,8 @@ Staged or Active + fixed -> Verify
 """
 from lnt.server.db.regression import RegressionState
 from lnt.server.db.regression import get_cr_for_field_change, get_ris
-from lnt.util import logger
 from lnt.testing.util.commands import timed
+from lnt.util import logger
 
 
 def _fixed_rind(session, ts, rind):
@@ -29,6 +29,22 @@ def is_fixed(session, ts, regression):
     return all(fixes)
 
 
+def impacts(session, ts, run_id, regression):
+    """Does this run have a chance of impacting this regression?
+
+    This is just to prevent doing a full comparison, so we don't have
+    to be toally accurate. For now, compare machines."""
+    machine_id = session.query(ts.Run.machine_id).filter(ts.Run.id == run_id).scalar()
+
+    regression_machines = [x[0] for x in session.query(ts.FieldChange.machine_id)
+        .join(ts.RegressionIndicator)
+        .filter(ts.RegressionIndicator.regression_id == regression.id)
+        .all()]
+
+    regression_machines_set = set(regression_machines)
+    return machine_id in regression_machines_set
+
+
 @timed
 def regression_evolution(session, ts, run_id):
     """Analyse regressions. If they have changes, process them.
@@ -50,21 +66,21 @@ def regression_evolution(session, ts, run_id):
     active = [r for r in regressions if r.state == RegressionState.ACTIVE]
 
     for regression in detects:
-        if is_fixed(session, ts, regression):
+        if impacts(session, ts, run_id, regression) and is_fixed(session, ts, regression):
             logger.info("Detected fixed regression" + str(regression))
             regression.state = RegressionState.IGNORED
             regression.title = regression.title + " [Detected Fixed]"
             changed += 1
 
     for regression in staged:
-        if is_fixed(session, ts, regression):
+        if impacts(session, ts, run_id, regression) and is_fixed(session, ts, regression):
             logger.info("Staged fixed regression" + str(regression))
             regression.state = RegressionState.DETECTED_FIXED
             regression.title = regression.title + " [Detected Fixed]"
             changed += 1
 
     for regression in active:
-        if is_fixed(session, ts, regression):
+        if impacts(session, ts, run_id, regression) and is_fixed(session, ts, regression):
             logger.info("Active fixed regression" + str(regression))
             regression.state = RegressionState.DETECTED_FIXED
             regression.title = regression.title + " [Detected Fixed]"

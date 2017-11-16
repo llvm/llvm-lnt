@@ -193,7 +193,7 @@ class ChangeProcessingTests(unittest.TestCase):
         session = self.session
         ts_db = self.ts_db
         rule_update_fixed_regressions.regression_evolution(
-            session, ts_db, self.regressions)
+            session, ts_db, self.run.id)
 
     def test_fc_deletion(self):
         session = self.session
