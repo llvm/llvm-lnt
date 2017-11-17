@@ -2,8 +2,11 @@
 Detcted + fixed -> Ignored
 Staged or Active + fixed -> Verify
 """
+from sqlalchemy.orm.session import Session
+
 from lnt.server.db.regression import RegressionState
 from lnt.server.db.regression import get_cr_for_field_change, get_ris
+from lnt.server.db.testsuitedb import TestSuiteDB
 from lnt.testing.util.commands import timed
 from lnt.util import logger
 
@@ -30,6 +33,7 @@ def is_fixed(session, ts, regression):
 
 
 def impacts(session, ts, run_id, regression):
+    # type: (Session, TestSuiteDB, int, object) -> bool
     """Does this run have a chance of impacting this regression?
 
     This is just to prevent doing a full comparison, so we don't have
