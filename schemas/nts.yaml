@@ -1,0 +1,31 @@
+# Nightly Test Suite (nts) schema. This was originally developed for the llvm
+# test-suite and now is LNTs default schema. It also has some extra fields
+# like `score` or `mem_bytes` to work for more test suites out of the box.
+format_version: '2'
+name: nts
+metrics:
+- name: compile_time
+  type: Real
+- name: compile_status
+  type: Status
+- name: execution_time
+  type: Real
+- name: execution_status
+  type: Status
+- name: score
+  type: Real
+  bigger_is_better: true
+- name: mem_bytes
+  type: Real
+- name: hash
+  type: Hash
+- name: hash_status
+  type: Status
+- name: code_size
+  type: Real
+run_fields:
+- name: llvm_project_revision
+  order: true
+machine_fields:
+- name: hardware
+- name: os
