@@ -1,20 +1,20 @@
 format_version: '2'
 name: my_suite
 metrics:
-  - name: text_size
-    bigger_is_better: false
-    type: Real
-  - name: data_size
-    bigger_is_better: false
-    type: Real
-  - name: score
-    bigger_is_better: true
-    type: Real
-  - name: hash
-    type: Hash
+- name: text_size
+  bigger_is_better: false
+  type: Real
+- name: data_size
+  bigger_is_better: false
+  type: Real
+- name: score
+  bigger_is_better: true
+  type: Real
+- name: hash
+  type: Hash
 run_fields:
-  - name: llvm_project_revision
-    order: true
+- name: llvm_project_revision
+  order: true
 machine_fields:
-  - name: hardware
-  - name: os
+- name: hardware
+- name: os

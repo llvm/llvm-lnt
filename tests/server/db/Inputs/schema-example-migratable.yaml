@@ -4,25 +4,25 @@
 format_version: "2"
 name: my_suite
 metrics:
-  - name: text_size
-    bigger_is_better: false
-    type: Real
-  - name: data_size
-    bigger_is_better: false
-    type: Real
-  - name: score
-    bigger_is_better: true
-    type: Real
-  - name: hash
-    type: Hash
-  - name: newfield
-    bigger_is_better: true
-    type: Real
+- name: text_size
+  bigger_is_better: false
+  type: Real
+- name: data_size
+  bigger_is_better: false
+  type: Real
+- name: score
+  bigger_is_better: true
+  type: Real
+- name: hash
+  type: Hash
+- name: newfield
+  bigger_is_better: true
+  type: Real
 run_fields:
-  - name: llvm_project_revision
-    order: true
-  - name: new_run_field
+- name: llvm_project_revision
+  order: true
+- name: new_run_field
 machine_fields:
-  - name: new_machine_field
-  - name: hardware
-  - name: os
+- name: new_machine_field
+- name: hardware
+- name: os

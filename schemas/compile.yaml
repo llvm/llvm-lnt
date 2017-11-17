@@ -2,29 +2,29 @@
 format_version: '2'
 name: compile
 metrics:
-  - name: user_time
-    type: Real
-  - name: user_status
-    type: Status
-  - name: sys_time
-    type: Real
-  - name: sys_status
-    type: Status
-  - name: wall_time
-    type: Real
-  - name: wall_status
-    type: Status
-  - name: size_bytes
-    type: Real   # Should be Integer but we don't want to invalidate old data
-  - name: size_status
-    type: Status
-  - name: mem_bytes
-    type: Real
-  - name: mem_status
-    type: Status
+- name: user_time
+  type: Real
+- name: user_status
+  type: Status
+- name: sys_time
+  type: Real
+- name: sys_status
+  type: Status
+- name: wall_time
+  type: Real
+- name: wall_status
+  type: Status
+- name: size_bytes
+  type: Real   # Should be Integer but we don't want to invalidate old data
+- name: size_status
+  type: Status
+- name: mem_bytes
+  type: Real
+- name: mem_status
+  type: Status
 run_fields:
-  - name: llvm_project_revision
-    order: true
+- name: llvm_project_revision
+  order: true
 machine_fields:
-  - name: hardware
-  - name: os_version
+- name: hardware
+- name: os_version
