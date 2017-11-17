@@ -5,9 +5,7 @@ pretty slow.
 import sqlalchemy
 from sqlalchemy import Index, select
 from lnt.server.db.migrations.util import introspect_table
-from logging import getLogger
-
-log = getLogger(__name__)
+from lnt.util import logger
 
 
 def _mk_index_on(engine, ts_name):
@@ -17,7 +15,7 @@ def _mk_index_on(engine, ts_name):
     try:
         fast_fc_lookup.create(engine)
     except (sqlalchemy.exc.OperationalError, sqlalchemy.exc.ProgrammingError) as e:
-        log.warning("Skipping index creation on {}, because of {}".format(fc_table.name, e.message))
+        logger.warning("Skipping index creation on {}, because of {}".format(fc_table.name, e.message))
 
 
 def upgrade(engine):
