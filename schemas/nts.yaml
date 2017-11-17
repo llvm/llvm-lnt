@@ -6,23 +6,36 @@ name: nts
 metrics:
 - name: compile_time
   type: Real
+  display_name: Compile Time
+  unit: seconds
+  unit_abbrev: s
 - name: compile_status
   type: Status
 - name: execution_time
   type: Real
+  display_name: Execution Time
+  unit: seconds
+  unit_abbrev: s
 - name: execution_status
   type: Status
 - name: score
   type: Real
   bigger_is_better: true
+  display_name: Score
 - name: mem_bytes
   type: Real
+  display_name: Memory Usage
+  unit: bytes
+  unit_abbrev: b
 - name: hash
   type: Hash
 - name: hash_status
   type: Status
 - name: code_size
   type: Real
+  display_name: Code Size
+  unit: bytes
+  unit_abbrev: b
 run_fields:
 - name: llvm_project_revision
   order: true

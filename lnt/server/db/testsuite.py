@@ -147,13 +147,18 @@ class TestSuite(Base):
             name = metric_desc['name']
             bigger_is_better = metric_desc.get('bigger_is_better', False)
             metric_type_name = metric_desc.get('type', 'Real')
+            display_name = metric_desc.get('display_name')
+            unit = metric_desc.get('unit')
+            unit_abbrev = metric_desc.get('unit_abbrev')
             if not testsuitedb.is_known_sample_type(metric_type_name):
                 raise ValueError("Unknown metric type '%s'" %
                                  metric_type_name)
             metric_type = SampleType(metric_type_name)
             bigger_is_better_int = 1 if bigger_is_better else 0
             field = SampleField(name, metric_type, status_field=None,
-                                bigger_is_better=bigger_is_better_int)
+                                bigger_is_better=bigger_is_better_int,
+                                display_name=display_name, unit=unit,
+                                unit_abbrev=unit_abbrev)
             sample_fields.append(field)
         ts.sample_fields = sample_fields
         ts.jsonschema = data
@@ -265,22 +270,38 @@ class SampleField(FieldMixin, Base):
     # This assumption can be inverted by setting this column to nonzero.
     bigger_is_better = Column("bigger_is_better", Integer)
 
-    def __init__(self, name, type, status_field=None, bigger_is_better=0):
+    def __init__(self, name, type, status_field=None, bigger_is_better=0,
+                 display_name=None, unit=None, unit_abbrev=None):
         self.name = name
         self.type = type
         self.status_field = status_field
         self.bigger_is_better = bigger_is_better
+        self.display_name = name if display_name is None else display_name
+        self.unit = unit
+        self.unit_abbrev = unit_abbrev
 
         # Column instance for fields which have been bound (non-DB
         # parameter). This is provided for convenience in querying.
         self.column = None
+
+    @sqlalchemy.orm.reconstructor
+    def init_on_load(self):
+        self.display_name = self.name
+        self.unit = None
+        self.unit_abbrev = None
 
     def __repr__(self):
         return '%s%r' % (self.__class__.__name__, (self.name, self.type, ))
 
     def __copy__(self):
         return SampleField(self.name, self.type, self.status_field,
-                           self.bigger_is_better)
+                           self.bigger_is_better, self.display_name, self.unit,
+                           self.unit_abbrev)
+
+    def copy_info(self, other):
+        self.display_name = other.display_name
+        self.unit = other.unit
+        self.unit_abbrev = other.unit_abbrev
 
 
 def _upgrade_to(connectable, tsschema, new_schema, dry_run=False):
@@ -398,6 +419,8 @@ def _sync_fields(session, existing_fields, new_fields):
                 break
         if existing is None:
             existing_fields.append(new_field.__copy__())
+        elif hasattr(existing, 'copy_info'):
+            existing.copy_info(new_field)
 
 
 def sync_testsuite_with_metatables(session, testsuite):

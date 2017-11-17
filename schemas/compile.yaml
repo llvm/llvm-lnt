@@ -4,22 +4,32 @@ name: compile
 metrics:
 - name: user_time
   type: Real
+  display_name: User Time
+  unit: seconds
 - name: user_status
   type: Status
 - name: sys_time
   type: Real
+  display_name: System Time
+  unit: seconds
 - name: sys_status
   type: Status
 - name: wall_time
   type: Real
+  display_name: Wall Time
+  unit: seconds
 - name: wall_status
   type: Status
 - name: size_bytes
   type: Real   # Should be Integer but we don't want to invalidate old data
+  display_name: Executable Size
+  unit: bytes
 - name: size_status
   type: Status
 - name: mem_bytes
   type: Real
+  display_name: Memory Usage
+  unit: bytes
 - name: mem_status
   type: Status
 run_fields:

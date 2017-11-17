@@ -420,7 +420,7 @@ def main():
     # check that a regression seen between 2 consecutive runs that are
     # more than a day apart gets reported
     result_table_20120504 = get_results_table(
-        client, '/v4/nts/daily_report/2012/5/04', "execution_time")
+        client, '/v4/nts/daily_report/2012/5/04', "Execution Time")
     check_table_content(result_table_20120504,
                         [["test1", ""],
                          ["", "machine2", "1.0000", "-", "900.00%", ""],
@@ -434,7 +434,7 @@ def main():
     # Check that a failing result does not show up in the spark line
     # as a dot with value 0.
     result_table_20120513 = get_results_table(
-        client, '/v4/nts/daily_report/2012/5/13?num_days=3', "execution_time")
+        client, '/v4/nts/daily_report/2012/5/13?num_days=3', "Execution Time")
     check_table_content(result_table_20120513,
                         [["test6", ""],
                          ["", "machine2", "1.0000", "FAIL", "PASS", ""],
