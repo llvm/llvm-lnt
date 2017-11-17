@@ -49,6 +49,41 @@ def impacts(session, ts, run_id, regression):
     return machine_id in regression_machines_set
 
 
+def age_out_oldest_regressions(session, ts, num_to_keep=50):
+    # type: (Session, TestSuiteDB, int) -> int
+    """Find the oldest regressions that are still in the detected state,
+    and age them out.  This is needed when regressions are not manually
+    acknowledged, regression analysis can grow unbounded.
+    
+    :param session: db session
+    :param ts: testsuite
+    :param num_to_keep: the number of newest regressions to keep in the detected state.
+    :returns: the number of regressions changed.
+    """
+
+    regression_orders = session.query(ts.Regression.id, ts.FieldChange.end_order_id) \
+        .filter(ts.Regression.state == RegressionState.DETECTED) \
+        .join(ts.RegressionIndicator, ts.Regression.id == ts.RegressionIndicator.regression_id) \
+        .join(ts.FieldChange) \
+        .all()
+
+    regression_newest_change = {}
+    for regression_id, order_id in regression_orders:
+        current = regression_newest_change.get(regression_id)
+        if current is None or current < order_id:
+            regression_newest_change[regression_id] = order_id
+    # Order regressions by FC end order.
+    ordered = sorted(regression_newest_change.items(), key=lambda x: x[1])
+    to_move = ordered[0:(-1 * num_to_keep)]
+
+    for r, _ in to_move:
+        regress = session.query(ts.Regression).filter_by(id=r).one()
+        logger.info("Ageing out regression {} to keep regression count under {}."
+                    .format(regress, num_to_keep))
+        regress.state = RegressionState.IGNORED
+    return len(to_move)
+
+
 @timed
 def regression_evolution(session, ts, run_id):
     """Analyse regressions. If they have changes, process them.
@@ -68,6 +103,11 @@ def regression_evolution(session, ts, run_id):
     detects = [r for r in regressions if r.state == RegressionState.DETECTED]
     staged = [r for r in regressions if r.state == RegressionState.STAGED]
     active = [r for r in regressions if r.state == RegressionState.ACTIVE]
+
+    # Remove the oldest detected regressions if needed.
+    num_regression_to_keep = 50
+    if len(detects) > num_regression_to_keep:
+        changed += age_out_oldest_regressions(session, ts, num_regression_to_keep)
 
     for regression in detects:
         if impacts(session, ts, run_id, regression) and is_fixed(session, ts, regression):
@@ -89,6 +129,7 @@ def regression_evolution(session, ts, run_id):
             regression.state = RegressionState.DETECTED_FIXED
             regression.title = regression.title + " [Detected Fixed]"
             changed += 1
+
     session.commit()
     logger.info("Changed the state of {} regressions".format(changed))
 
