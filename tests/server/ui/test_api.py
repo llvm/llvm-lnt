@@ -7,13 +7,13 @@
 #
 # RUN: python %s %t.instance
 
+from V4Pages import check_json
+import lnt.server.db.migrate
+import lnt.server.ui.app
 import logging
 import sys
 import unittest
-
-import lnt.server.db.migrate
-import lnt.server.ui.app
-from V4Pages import check_json
+import yaml
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -113,6 +113,7 @@ class JSONAPITester(unittest.TestCase):
     def setUp(self):
         """Bind to the LNT test instance."""
         _, instance_path = sys.argv
+        self.instance_path = instance_path
         app = lnt.server.ui.app.App.create_standalone(instance_path)
         app.testing = True
         self.client = app.test_client()
@@ -240,6 +241,28 @@ class JSONAPITester(unittest.TestCase):
                               'api/db_default/v4/nts/samples?runid=1&runid=2')
         self._check_response_is_well_formed(two_runs)
         self.assertEqual(j, two_runs)
+
+    def test_schema(self):
+        client = self.client
+        rest_schema = check_json(client, 'api/db_default/v4/nts/schema')
+
+        # The reported schema should be the same as the yaml one on the top.
+        with open('%s/schemas/nts.yaml' % self.instance_path) as syaml:
+            yaml_schema = yaml.load(syaml)
+            # Do some massaging to make it similar to the rest API result.
+            for m in yaml_schema['metrics']:
+                if 'unit' not in m:
+                    m['unit'] = None
+                if 'unit_abbrev' not in m:
+                    m['unit_abbrev'] = None
+                if 'display_name' not in m:
+                    m['display_name'] = m['name']
+                if 'bigger_is_better' not in m:
+                    m['bigger_is_better'] = False
+            yaml_schema['metrics'].sort(key=lambda x: x['name'])
+            yaml_schema['run_fields'].sort(key=lambda x: x['name'])
+            yaml_schema['machine_fields'].sort(key=lambda x: x['name'])
+        self.assertEqual(rest_schema, yaml_schema)
 
 
 if __name__ == '__main__':

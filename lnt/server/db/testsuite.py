@@ -164,6 +164,48 @@ class TestSuite(Base):
         ts.jsonschema = data
         return ts
 
+    def __json__(self):
+        metrics = []
+        for sample_field in self.sample_fields:
+            metric = {
+                'bigger_is_better': (sample_field.bigger_is_better != 0),
+                'display_name': sample_field.display_name,
+                'name': sample_field.name,
+                'type': sample_field.type.name,
+                'unit': sample_field.unit,
+                'unit_abbrev': sample_field.unit_abbrev,
+            }
+            metrics.append(metric)
+        machine_fields = []
+        for machine_field in self.machine_fields:
+            field = {
+                'name': machine_field.name
+            }
+            machine_fields.append(field)
+        run_fields = []
+        for run_field in self.run_fields:
+            field = {
+                'name': run_field.name
+            }
+            run_fields.append(field)
+        for order_field in self.order_fields:
+            field = {
+                'name': order_field.name,
+                'order': True,
+            }
+            run_fields.append(field)
+        metrics.sort(key=lambda x: x['name'])
+        machine_fields.sort(key=lambda x: x['name'])
+        run_fields.sort(key=lambda x: x['name'])
+
+        return {
+            'format_version': '2',
+            'machine_fields': machine_fields,
+            'metrics': metrics,
+            'name': self.name,
+            'run_fields': run_fields,
+        }
+
 
 class FieldMixin(object):
     @property

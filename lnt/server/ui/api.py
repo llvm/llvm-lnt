@@ -318,6 +318,15 @@ class Order(Resource):
         return result
 
 
+class Schema(Resource):
+    method_decorators = [in_db]
+
+    @staticmethod
+    def get():
+        ts = request.get_testsuite()
+        return ts.test_suite
+
+
 class SampleData(Resource):
     method_decorators = [in_db]
 
@@ -498,6 +507,7 @@ def load_api_resources(api):
     api.add_resource(Run, ts_path("runs/<int:run_id>"))
     api.add_resource(SamplesData, ts_path("samples"), ts_path("samples/"))
     api.add_resource(SampleData, ts_path("samples/<sample_id>"))
+    api.add_resource(Schema, ts_path("schema"), ts_path("schema/"))
     api.add_resource(Order, ts_path("orders/<int:order_id>"))
     graph_url = "graph/<int:machine_id>/<int:test_id>/<int:field_index>"
     api.add_resource(Graph, ts_path(graph_url))
