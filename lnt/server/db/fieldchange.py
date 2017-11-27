@@ -1,5 +1,6 @@
 import difflib
 import sqlalchemy.sql
+from sqlalchemy.orm import joinedload
 from sqlalchemy.orm.exc import ObjectDeletedError
 import lnt.server.reporting.analysis
 from lnt.testing.util.commands import timed
@@ -198,6 +199,7 @@ def identify_related_changes(session, ts, fc):
         .join(ts.Regression) \
         .filter(or_(ts.Regression.state == RegressionState.DETECTED,
                 ts.Regression.state == RegressionState.DETECTED_FIXED)) \
+        .options(joinedload(ts.RegressionIndicator.field_change)) \
         .all()
 
     for change in active_indicators:
