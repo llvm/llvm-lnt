@@ -194,40 +194,39 @@ def identify_related_changes(session, ts, fc):
     ranges. Then looks for changes that are similar.
 
     """
-    regressions = session.query(ts.Regression.id) \
+    active_indicators = session.query(ts.RegressionIndicator) \
+        .join(ts.Regression) \
         .filter(or_(ts.Regression.state == RegressionState.DETECTED,
                 ts.Regression.state == RegressionState.DETECTED_FIXED)) \
         .all()
 
-    for regression_packed in regressions:
-        regression_id = regression_packed[0]
-        regression_indicators = get_ris(session, ts, regression_id)
-        for change in regression_indicators:
-            regression_change = change.field_change
-            if is_overlaping(regression_change, fc):
-                confidence = 0.0
+    for change in active_indicators:
+        regression_change = change.field_change
 
-                confidence += percent_similar(regression_change.machine.name,
-                                              fc.machine.name)
-                confidence += percent_similar(regression_change.test.name,
-                                              fc.test.name)
+        if is_overlaping(regression_change, fc):
+            confidence = 0.0
 
-                if regression_change.field_id == fc.field_id:
-                    confidence += 1.0
+            confidence += percent_similar(regression_change.machine.name,
+                                          fc.machine.name)
+            confidence += percent_similar(regression_change.test.name,
+                                          fc.test.name)
 
-                if confidence >= 2.0:
-                    # Matching
-                    MSG = "Found a match: {} with score {}."
-                    regression = session.query(ts.Regression) \
-                        .get(regression_id)
-                    logger.info(MSG.format(str(regression),
-                                           confidence))
-                    ri = ts.RegressionIndicator(regression, fc)
-                    session.add(ri)
-                    # Update the default title if needed.
-                    rebuild_title(session, ts, regression)
-                    session.commit()
-                    return True, regression
+            if regression_change.field_id == fc.field_id:
+                confidence += 1.0
+
+            if confidence >= 2.0:
+                # Matching
+                MSG = "Found a match: {} with score {}."
+                regression = session.query(ts.Regression) \
+                    .get(change.regression_id)
+                logger.info(MSG.format(str(regression),
+                                       confidence))
+                ri = ts.RegressionIndicator(regression, fc)
+                session.add(ri)
+                # Update the default title if needed.
+                rebuild_title(session, ts, regression)
+                session.commit()
+                return True, regression
     logger.info("Could not find a partner, creating new Regression for change")
     new_reg = new_regression(session, ts, [fc.id])
     return False, new_reg
