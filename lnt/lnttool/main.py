@@ -199,17 +199,6 @@ def action_submit(url, files, select_machine, merge, verbose):
         sys.exit(1)
 
 
-@click.command("update")
-@click.argument("db_path")
-@click.option("--show-sql", is_flag=True, help="show all SQL queries")
-def action_update(db_path, show_sql):
-    """create and or auto-update the given database"""
-    init_logger(logging.INFO, show_sql=show_sql, stream=sys.stderr)
-
-    # Update the database.
-    lnt.server.db.migrate.update_path(db_path)
-
-
 @click.command("send-daily-report")
 @click.argument("instance_path", type=click.UNPROCESSED)
 @click.argument("address")
@@ -511,7 +500,6 @@ main.add_command(action_send_daily_report)
 main.add_command(action_send_run_comparison)
 main.add_command(action_showtests)
 main.add_command(action_submit)
-main.add_command(action_update)
 main.add_command(action_updatedb)
 main.add_command(action_view_comparison)
 main.add_command(group_admin)
