@@ -36,7 +36,7 @@ order3 = ts_db.Order()
 order3.llvm_project_revision = "1236"
 
 
-run = ts_db.Run(machine, order, start_time, end_time)
+run = ts_db.Run(None, machine, order, start_time, end_time)
 test = ts_db.Test("test-a")
 
 sample = ts_db.Sample(run, test, compile_time=1.0, score=4.2, code_size=100)

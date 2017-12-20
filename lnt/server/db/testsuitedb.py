@@ -363,8 +363,8 @@ class TestSuiteDB(object):
 
                 class_dict[iname] = item.column = make_run_column(iname)
 
-            def __init__(self, machine, order, start_time, end_time):
-                self.id = None
+            def __init__(self, new_id, machine, order, start_time, end_time):
+                self.id = new_id
                 self.machine = machine
                 self.order = order
                 self.start_time = start_time
@@ -962,6 +962,7 @@ class TestSuiteDB(object):
 
         # Find the order record.
         order = self._getOrCreateOrder(session, run_parameters)
+        new_id = None
 
         if merge != 'append':
             existing_runs = session.query(self.Run) \
@@ -977,6 +978,10 @@ class TestSuiteDB(object):
                         logger.info("Duplicate submission for order %r: "
                                     "deleting previous run %r" %
                                     (order, previous_run))
+
+                        # Keep the latest ID so the URL is still valid on replace
+                        new_id = previous_run.id
+
                         session.delete(previous_run)
                 else:
                     raise ValueError('Invalid Run mergeStrategy %r' % merge)
@@ -996,7 +1001,7 @@ class TestSuiteDB(object):
                                                   "%Y-%m-%d %H:%M:%S")
         run_parameters.pop('end_time')
 
-        run = self.Run(machine, order, start_time, end_time)
+        run = self.Run(new_id, machine, order, start_time, end_time)
 
         # First, extract all of the specified run fields.
         for item in self.run_fields:

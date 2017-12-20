@@ -60,11 +60,11 @@ class ChangeProcessingTests(unittest.TestCase):
         test2 = self.test2 = ts_db.Test("bar")
         session.add(test2)
 
-        run = self.run = ts_db.Run(machine, order1235, start_time,
+        run = self.run = ts_db.Run(None, machine, order1235, start_time,
                                    end_time)
         session.add(run)
 
-        run2 = self.run2 = ts_db.Run(machine2, order1235, start_time,
+        run2 = self.run2 = ts_db.Run(None, machine2, order1235, start_time,
                                      end_time)
         session.add(run2)
 

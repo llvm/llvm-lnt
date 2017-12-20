@@ -36,6 +36,11 @@ lnt submit "http://localhost:9091/db_default/submitRun" --commit=1 "${SHARED_INP
 # RUN: FileCheck %s --check-prefix=CHECK-SUBMIT0 < %t.tmp/submit0.txt
 # CHECK-SUBMIT0: http://localhost:9091/db_default/v4/nts/4
 
+# Submit sample-report1.json again and check it keeps the same URL
+lnt submit "http://localhost:9091/db_default/submitRun" --commit=1 "${SHARED_INPUTS}/sample-report1.json" > "${OUTPUT_DIR}/submit0-resubmit.txt"
+# RUN: FileCheck %s --check-prefix=CHECK-RESUBMIT0 < %t.tmp/submit0-resubmit.txt
+# CHECK-RESUBMIT0: http://localhost:9091/db_default/v4/nts/4
+
 lnt submit "http://localhost:9091/db_default/submitRun" --commit 1 "${SHARED_INPUTS}/sample-report2.json" > "${OUTPUT_DIR}/submit1.txt"
 # RUN: FileCheck %s --check-prefix=CHECK-SUBMIT1 < %t.tmp/submit1.txt
 # CHECK-SUBMIT1: http://localhost:9091/db_default/v4/nts/5
