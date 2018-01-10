@@ -20,8 +20,7 @@ os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 cPerf = Extension('lnt.testing.profile.cPerf',
                   sources=['lnt/testing/profile/cPerf.cpp'],
-                  extra_compile_args=['-std=c++11'] + cflags,
-                  optional=True)
+                  extra_compile_args=['-std=c++11'] + cflags)
 
 if "--server" in sys.argv:
     sys.argv.remove("--server")
