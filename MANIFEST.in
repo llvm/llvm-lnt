@@ -8,8 +8,6 @@ recursive-include lnt/server/ui/templates *.html
 recursive-include lnt/server/db/migrations *
 include lnt/server/ui/static/flot/Makefile
 include lnt/external/stats/README.txt
-global-exclude *pyc
-global-exclude *~
 prune docs/_build
 prune tests/*/Output
 prune tests/*/*/Output
