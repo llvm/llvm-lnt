@@ -128,9 +128,9 @@ def get_runN_test_data(name, variables, cmd, ignore_stderr=False,
         data_samples = data.get('samples')
     else:
         # Print stdout/stderr log if available
-        if stdout is not None:
+        if stdout is not None and os.path.exists(stdout):
             g_log.info("%s:\n--\n%s\n--" % (stdout, open(stdout).read()))
-        if stderr is not None:
+        if stderr is not None and os.path.exists(stderr):
             g_log.info("%s:\n--\n%s\n--" % (stderr, open(stderr).read()))
     keys = []
     if not only_mem:
