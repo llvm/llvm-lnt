@@ -81,24 +81,24 @@ def runN(args, N, cwd, preprocess_cmd=None, env=None, sample_mem=False,
                          stderr=subprocess.PIPE,
                          env=env,
                          cwd=cwd)
-    stdout, stderr = p.communicate()
+    runn_stdout, runn_stderr = p.communicate()
     res = p.returncode
 
     # If the runN command failed, or it had stderr when we didn't expect it,
     # fail immediately and don't try to parse the output.
     if res != 0:
-        g_log.error("command failed with stderr:\n--\n%s\n--" % stderr.strip())
+        g_log.error("runN command failed with stderr:\n--\n%s\n--" % runn_stderr.strip())
         return None
-    elif not ignore_stderr and stderr.strip():
+    elif not ignore_stderr and runn_stderr.strip():
         g_log.error("command had unexpected output on stderr:\n--\n%s\n--" % (
-                    stderr.strip(),))
+                    runn_stderr.strip(),))
         return None
 
     # Otherwise, parse the timing data from runN.
     try:
-        return eval(stdout)
+        return eval(runn_stdout)
     except Exception:
-        fatal("failed to parse output: %s\n" % stdout)
+        fatal("failed to parse output: %s\n" % runn_stdout)
 
 
 # Test functions.
@@ -116,7 +116,7 @@ def get_runN_test_data(name, variables, cmd, ignore_stderr=False,
                        stdout=None, stderr=None, preprocess_cmd=None,
                        env=None):
     if only_mem and not sample_mem:
-        raise ArgumentError("only_mem doesn't make sense without sample_mem")
+        raise Exception("only_mem doesn't make sense without sample_mem")
 
     data = runN(cmd, variables.get('run_count'), cwd='/tmp',
                 ignore_stderr=ignore_stderr, sample_mem=sample_mem,
