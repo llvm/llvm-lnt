@@ -304,12 +304,11 @@ class TestSuiteDB(object):
                 # against non-instances.
                 if self.__class__ is not b.__class__:
                     return -1
-
                 # Compare every field in lexicographic order.
-                return cmp(tuple(convert_revision(self.get_field(item), cache=Order.order_name_cache)
-                                 for item in self.fields),
-                           tuple(convert_revision(b.get_field(item),  cache=Order.order_name_cache)
-                                 for item in self.fields))
+                return cmp([convert_revision(self.get_field(item), cache=Order.order_name_cache)
+                            for item in self.fields],
+                           [convert_revision(b.get_field(item),  cache=Order.order_name_cache)
+                            for item in self.fields])
 
             def __json__(self, include_id=True):
                 result = {}
