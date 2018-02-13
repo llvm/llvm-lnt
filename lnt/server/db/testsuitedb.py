@@ -21,6 +21,7 @@ from lnt.util import logger
 import testsuite
 import lnt.testing.profile.profile as profile
 import lnt
+from lnt.server.ui.util import convert_revision
 
 
 def _dict_update_abort_on_duplicates(base_dict, to_merge):
@@ -250,6 +251,7 @@ class TestSuiteDB(object):
             join = 'Order.previous_order_id==Order.id'
             next_order = relation("Order", backref=backref, primaryjoin=join,
                                   uselist=False)
+            order_name_cache = {}
 
             # Dynamically create fields for all of the test suite defined order
             # fields.
@@ -303,20 +305,10 @@ class TestSuiteDB(object):
                 if self.__class__ is not b.__class__:
                     return -1
 
-                # Compare each field numerically integer or integral version,
-                # where possible. We ignore whitespace and convert each dot
-                # separated component to an integer if is is numeric.
-                def convert_field(value):
-                    items = value.strip().split('.')
-                    for i, item in enumerate(items):
-                        if item.isdigit():
-                            items[i] = int(item, 10)
-                    return tuple(items)
-
                 # Compare every field in lexicographic order.
-                return cmp(tuple(convert_field(self.get_field(item))
+                return cmp(tuple(convert_revision(self.get_field(item), cache=Order.order_name_cache)
                                  for item in self.fields),
-                           tuple(convert_field(b.get_field(item))
+                           tuple(convert_revision(b.get_field(item),  cache=Order.order_name_cache)
                                  for item in self.fields))
 
             def __json__(self, include_id=True):
