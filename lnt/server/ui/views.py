@@ -917,6 +917,7 @@ def v4_graph():
     graph_datum = []
     overview_plots = []
     baseline_plots = []
+    revision_cache = {}
     num_plots = len(graph_parameters)
     for i, (machine, test, field, field_index) in enumerate(graph_parameters):
         # Determine the base plot color.
@@ -948,7 +949,7 @@ def v4_graph():
         data = multidict.multidict((rev, (val, date, run_id))
                                    for val, rev, date, run_id in q).items()
 
-        data.sort(key=lambda sample: convert_revision(sample[0]))
+        data.sort(key=lambda sample: convert_revision(sample[0], cache=revision_cache))
 
         graph_datum.append((test.name, data, col, field, url))
 
