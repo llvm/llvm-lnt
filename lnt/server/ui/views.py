@@ -18,7 +18,7 @@ from flask import request, url_for
 from flask_wtf import Form
 from sqlalchemy.orm import joinedload
 from sqlalchemy.orm.exc import NoResultFound
-from typing import List, Optional
+from typing import List, Optional, Text, Union
 from wtforms import SelectField, StringField, SubmitField
 from wtforms.validators import DataRequired, Length
 
@@ -1033,7 +1033,6 @@ def v4_graph():
         else:
             normalize_by = 1.0
 
-        using_ints = True
         for pos, (point_label, datapoints) in enumerate(data):
             # Get the samples.
             data = [data_date[0] for data_date in datapoints]
@@ -1043,12 +1042,7 @@ def v4_graph():
             runs = [data_pts[2]
                     for data_pts in datapoints if len(data_pts) == 3]
 
-            # When we can, map x-axis to revisions, but when that is too hard
-            # use the position of the sample instead.
-            rev_x = convert_revision(point_label)
-            if using_ints and len(rev_x) != 1:
-                using_ints = False
-            x = rev_x[0] if using_ints else pos
+            x = determine_x_value(point_label, pos, revision_cache)
 
             values = [v*normalize_by for v in data]
             aggregation_fn = min
@@ -1256,6 +1250,30 @@ def v4_graph():
                            overview_plots=overview_plots, legend=legend,
                            baseline_plots=baseline_plots,
                            **ts_data(ts))
+
+
+def determine_x_value(point_label, fallback, revision_cache):
+    # type: (Text, int, dict) -> Union(int|float)
+    """Given the order data, lets make a reasonable x axis value.
+
+    :param point_label: the text representation of the x value
+    :param fallback: The value to use for non
+    :param revision_cache: a dict to use as a cache for convert_revision.
+    :return: an integer or float value that is like the point_label or fallback.
+
+    """
+    rev_x = convert_revision(point_label, revision_cache)
+    if len(rev_x) == 1:
+        x = rev_x[0]
+    elif len(rev_x) == 2:
+        try:
+            x = float(point_label)
+        except ValueError:
+            # It might have dashes or something silly
+            x = float(str(rev_x[0]) + '.' + str(rev_x[1]))
+    else:
+        return fallback
+    return x
 
 
 @v4_route("/global_status")
