@@ -1515,6 +1515,7 @@ def v4_summary_report_ui():
 
 @db_route("/summary_report")
 def v4_summary_report():
+    session = request.session
     # Load the summary report configuration.
     config_path = get_summary_config_path()
     if not os.path.exists(config_path):
@@ -1529,7 +1530,7 @@ You must define a summary report configuration first.""")
         request.get_db(), config['orders'], config['machine_names'],
         config['machine_patterns'])
     # Build the report.
-    report.build()
+    report.build(session)
 
     if bool(request.args.get('json')):
         json_obj = dict()
