@@ -808,7 +808,7 @@ def v4_graph():
             machine_id = int(machine_id_str)
             test_id = int(test_id_str)
             field_index = int(field_index_str)
-        except Exception:
+        except ValueError:
             return abort(400)
 
         if not (0 <= field_index < len(ts.sample_fields)):
