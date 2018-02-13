@@ -273,13 +273,31 @@ def baseline_key(ts_name=None):
 integral_rex = re.compile(r"[\d]+")
 
 
-def convert_revision(dotted):
+def convert_revision(dotted, cache=None):
     """Turn a version number like 489.2.10 into something
     that is ordered and sortable.
-    For now 489.2.10 will be returned as a tuple of ints.
+    "1" -> (1)
+    "1.2.3" -> (1,2,3)
+
+    :param dotted: the string revision to convert
+    :param cache: a dict to use as a cache or None for no cache.
+        because this is called many times, it is a nice performance
+        increase to cache these conversions.
+    :return: a tuple with the numeric bits of this revision as ints.
+
     """
-    dotted = integral_rex.findall(dotted)
-    return tuple([int(d) for d in dotted])
+    if cache is not None:
+        val = cache.get(dotted)
+        if val:
+            return val
+        else:
+            dotted_parsed = integral_rex.findall(dotted)
+            val = tuple([int(d) for d in dotted_parsed])
+            cache[dotted] = val
+            return val
+    dotted_parsed = integral_rex.findall(dotted)
+    val = tuple([int(d) for d in dotted_parsed])
+    return val
 
 
 class PrecomputedCR():
