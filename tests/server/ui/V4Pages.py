@@ -356,11 +356,17 @@ def main():
     check_producer_label(client, '/v4/nts/7',
                          ['Current', '152293', '2012-05-10T16:28:23',
                           '0:00:35', 'Producer'])
+    check_producer_label(client, '/v4/nts/8',
+                         ['Current', '152294', '2012-05-11T16:28:23',
+                          '0:00:35', 'Producer'])
 
     # Get a run that contains Buildbot producer information
     check_producer_label(client, '/v4/nts/7',
                          ['Previous', '152292', '2012-05-01T16:28:23',
                           '0:00:35', 'some-builder #987'])
+    check_producer_label(client, '/v4/nts/9',
+                         ['Current', '152295', '2012-05-12T16:28:23',
+                          '0:00:35', 'some-builder #999'])
 
     # Get the new graph page.
     check_html(client, '/v4/nts/graph?plot.0=1.3.2')

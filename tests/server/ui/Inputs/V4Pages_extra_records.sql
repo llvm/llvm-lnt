@@ -82,11 +82,13 @@ INSERT INTO "NT_Run" ("MachineID", "OrderID", "ImportedFrom", "StartTime",
 INSERT INTO "NT_Run" ("MachineID", "OrderID", "ImportedFrom", "StartTime",
                       "EndTime", "SimpleRunID", "Parameters")
  VALUES(2,7,'run8.json','2012-05-11 16:28:23.000000',
-        '2012-05-11 16:28:58.000000',NULL,'[]'); -- ID 8
+        '2012-05-11 16:28:58.000000',NULL,
+        '[["producer", "https://my.build.server/buildResult"]]'); -- ID 8
 INSERT INTO "NT_Run" ("MachineID", "OrderID", "ImportedFrom", "StartTime",
                       "EndTime", "SimpleRunID", "Parameters")
  VALUES(2,8,'run9.json','2012-05-12 16:28:23.000000',
-        '2012-05-12 16:28:58.000000',NULL,'[]'); -- ID 9
+        '2012-05-12 16:28:58.000000',NULL,
+        '[["producer", "https://buildbot.server.url/builders/some-builder/builds/999"]]'); -- ID 9
 INSERT INTO "NT_Sample" ("RunID", "TestID", "compile_status",
                          "execution_status", "compile_time", "execution_time",
                          "score", "mem_bytes")

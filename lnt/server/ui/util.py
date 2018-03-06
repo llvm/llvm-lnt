@@ -215,20 +215,21 @@ def sorted(values, *args, **kwargs):
 
 def renderProducerAsHTML(producer):
     # If the string looks like a buildbot link, render it prettily.
-    m = re.match(r'http://(.*)/builders/(.*)/builds/(\d+)', producer)
+    m = re.match(r'(https?)://(.*)/builders/(.*)/builds/(\d+)', producer)
     if m:
-        url = m.group(1)
-        builder = m.group(2)
-        build = m.group(3)
+        protocol = m.group(1)
+        url = m.group(2)
+        builder = m.group(3)
+        build = m.group(4)
 
         png_url = \
-            'http://%(url)s/png?builder=%(builder)s&amp;number=%(build)s' % \
-            locals()
+            '%(protocol)s://%(url)s/png?builder=%(builder)s&amp;' \
+            'number=%(build)s' % locals()
         img = '<img src="%(png_url)s" />' % locals()
         return '<a href="%(producer)s">%(builder)s #%(build)s %(img)s</a>' % \
             locals()
 
-    elif producer.startswith('http://'):
+    elif re.search(r'^https?://.+', producer):
         return '<a href="' + producer + '">Producer</a>'
 
     else:
