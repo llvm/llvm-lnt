@@ -53,31 +53,21 @@ The first step is to produce the profile data itself in LNT format suitable for 
 Now we just need to add it to the report. Profiles look similar to hashes in that they are samples with string data::
 
   {
-     "Machine": {
+    "format_version": "2",
+    "machine": {
        ...
-     },
-     "Run": {
+    },
+    "run": {
        ...
-     },
-     "Tests": [
-          {
-              "Data": [
-                  0.1056,
-                  0.1055
-              ],
-              "Info": {},
-              "Name": "nts.suite1/program1.exec"
-          },
-          {
-              "Data": [
-                  "eJxNj8EOgjAMhu99Cm9wULMOEHgBE888QdkASWCQFWJ8e1v04JIt+9f//7qmfkVoEj8yMXdzO70v/RJn2hJYrRQiveSWATdJvwe3jUtgecgh9Wsh9T6gyJvKUjm0kegK0mmt9UCjJUSgB5q8KsobUJOQ96dozr8tAbRApPbssOeCcm83ddoLC7ijMcA/RGUUwXt7iviPEDLJN92yh62LR7I8aBUMysgLnaKNFNzzMo8y7uGplQ4sa/j6rfn60WYaGdRhtT9fP5+JUW4="
-              ],
-              "Info": {},
-              "Name": "nts.suite2/program1.profile"
-          }
-      ]
-   }
-
+    },
+    "tests": [
+       {
+           "name": "nts.suite1/program1",
+           "execution_time": [ 0.1056, 0.1055 ],
+           "profile": "eJxNj8EOgjAMhu99Cm9wULMOEHgBE888QdkASWCQFWJ8e1v04JIt+9f//7qmfkVoEj8yMXdzO70v/RJn2hJYrRQiveSWATdJvwe3jUtgecgh9Wsh9T6gyJvKUjm0kegK0mmt9UCjJUSgB5q8KsobUJOQ96dozr8tAbRApPbssOeCcm83ddoLC7ijMcA/RGUUwXt7iviPEDLJN92yh62LR7I8aBUMysgLnaKNFNzzMo8y7uGplQ4sa/j6rfn60WYaGdRhtT9fP5+JUW4="
+       }
+    ]
+}
 
 Supported formats
 -----------------
