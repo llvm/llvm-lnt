@@ -41,7 +41,11 @@
          {% for name, cr, test_id in bucket %}
          <tr>
            <td class="benchmark-name" style="{{ styles['td'] }}">
-             <a href="{{ run_url }}/graph?{{ [('test.%d' % test_id, field_index)] | urlencode }}">{{ name }}</a>
+             {% if run.machine != compare_to.machine %}
+               <a href="{{ run_url }}/graph?plot.0={{run.machine_id}}.{{test_id}}.{{field_index}}&plot.1={{compare_to.machine_id}}.{{test_id}}.{{field_index}}">{{ name }}</a>
+             {% else %}
+               <a href="{{ run_url }}/graph?{{ [('test.%d' % test_id, field_index)] | urlencode }}">{{ name }}</a>
+             {% endif %}
              {% if compare_to %}
              {% set compare_to_id = compare_to.id %}
              {% else %}
