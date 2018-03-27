@@ -21,6 +21,13 @@ from lnt.server.ui.globals import v4_url_for
 from lnt.server.ui.views import ts_data
 
 
+def _get_sample(session, ts, run_id, test_id):
+    return session.query(ts.Sample) \
+                    .filter(ts.Sample.run_id == run_id) \
+                    .filter(ts.Sample.test_id == test_id) \
+                    .filter(ts.Sample.profile_id.isnot(None)).first()
+
+
 @frontend.route('/profile/admin')
 def profile_admin():
     profileDir = current_app.old_config.profileDir
@@ -73,9 +80,8 @@ def v4_profile_ajax_getFunctions():
 
     idx = 0
     tlc = {}
-    sample = session.query(ts.Sample) \
-                    .filter(ts.Sample.run_id == runid) \
-                    .filter(ts.Sample.test_id == testid).first()
+    sample = _get_sample(session, ts, runid, testid)
+
     if sample and sample.profile:
         p = sample.profile.load(profileDir)
         return json.dumps([[n, f] for n, f in p.getFunctions().items()])
@@ -95,9 +101,7 @@ def v4_profile_ajax_getTopLevelCounters():
     idx = 0
     tlc = {}
     for rid in runids:
-        sample = session.query(ts.Sample) \
-                   .filter(ts.Sample.run_id == rid) \
-                   .filter(ts.Sample.test_id == testid).first()
+        sample = _get_sample(session, ts, rid, testid)
         if sample and sample.profile:
             p = sample.profile.load(profileDir)
             for k, v in p.getTopLevelCounters().items():
@@ -121,9 +125,7 @@ def v4_profile_ajax_getCodeForFunction():
 
     profileDir = current_app.old_config.profileDir
 
-    sample = session.query(ts.Sample) \
-                    .filter(ts.Sample.run_id == runid) \
-                    .filter(ts.Sample.test_id == testid).first()
+    sample = _get_sample(session, ts, runid, testid)
     if not sample or not sample.profile:
         abort(404)
 
@@ -149,14 +151,10 @@ def v4_profile(testid, run1_id, run2_id=None):
     try:
         test = session.query(ts.Test).filter(ts.Test.id == testid).one()
         run1 = session.query(ts.Run).filter(ts.Run.id == run1_id).one()
-        sample1 = session.query(ts.Sample) \
-                         .filter(ts.Sample.run_id == run1_id) \
-                         .filter(ts.Sample.test_id == testid).first()
+        sample1 = _get_sample(session, ts, run1_id, testid)
         if run2_id is not None:
             run2 = session.query(ts.Run).filter(ts.Run.id == run2_id).one()
-            sample2 = session.query(ts.Sample) \
-                             .filter(ts.Sample.run_id == run2_id) \
-                             .filter(ts.Sample.test_id == testid).first()
+            sample2 = _get_sample(session, ts, run2_id, testid)
         else:
             run2 = None
             sample2 = None

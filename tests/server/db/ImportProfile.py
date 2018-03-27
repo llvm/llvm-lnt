@@ -5,7 +5,7 @@
 # RUN: lnt create %t.install
 
 # Import the test set
-# RUN: lnt import %t.install %S/Inputs/profile-report.json \
+# RUN: lnt import %t.install  %{shared_inputs}/profile-report.json \
 # RUN:   --show-sample-count > %t2.log
 # RUN: ls %t.install/data/profiles
 # RUN: python %s %t.install

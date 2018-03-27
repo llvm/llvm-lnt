@@ -7,6 +7,9 @@
 # RUN: python %{shared_inputs}/create_temp_instance.py \
 # RUN:   %s %{shared_inputs}/SmallInstance %t.instance \
 # RUN:   %S/Inputs/V4Pages_extra_records.sql
+
+# Import a profile
+# RUN: lnt import %t.instance %{shared_inputs}/profile-report.json
 #
 # RUN: python %s %t.instance %{tidylib}
 
@@ -533,7 +536,7 @@ def main():
     assert resp.headers['Location'] == "http://localhost/db_default/v4/nts/9?compare_to=4"
     resp = check_code(client, '/v4/nts/machine/3/compare?compare_to_id=2', expected_code=HTTP_REDIRECT)
     assert resp.headers['Location'] == "http://localhost/db_default/v4/nts/4?compare_to=9"
-    
+
     # Get the order summary page.
     check_html(client, '/v4/compile/all_orders')
 
@@ -569,6 +572,27 @@ def main():
     check_html(client, '/v4/nts/regressions/1')
 
     check_json(client, '/v4/nts/regressions/1?json=True')
+
+    # Check 404 is issues for inexistent Code
+    check_code(client, 'v4/nts/profile/9999/9999', expected_code=HTTP_NOT_FOUND)
+
+    # Profile Viewer Ajax functions
+    # Check profiles page is responsive with expected IDs
+    check_code(client, 'v4/nts/profile/10/10')
+    # Check ajax call
+    functions = check_json(client, 'v4/nts/profile/ajax/getFunctions?runid=10&testid=10')
+    number_of_functions = len(functions)
+    first_function_name = functions[0][0]
+    assert 1 == number_of_functions
+    assert "fn1" == first_function_name
+
+    top_level_counters = check_json(client, 'v4/nts/profile/ajax/getTopLevelCounters?runids=10&testid=10')
+    assert "cycles" in top_level_counters
+    assert "branch-misses" in top_level_counters
+
+    code_for_fn = check_json(client, 'v4/nts/profile/ajax/getCodeForFunction?runid=10&testid=10&f=fn1')
+    lines_in_function = len(code_for_fn)
+    assert 2 == lines_in_function
 
     # Make sure the new option does not break anything
     check_html(client, '/db_default/v4/nts/graph?switch_min_mean=yes&plot.0=1.3.2&submit=Update')
