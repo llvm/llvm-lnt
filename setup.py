@@ -1,4 +1,8 @@
-from pip.req import parse_requirements
+try:
+    from pip.req import parse_requirements
+except ImportError:
+    # The req module has been moved to pip._internal in the 10 release.
+    from pip._internal.req import parse_requirements
 import lnt
 import os
 from sys import platform as _platform
