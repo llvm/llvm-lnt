@@ -4,4 +4,3 @@ psycopg2==2.5.3
 # Flask 0.11 does not work yet.
 gunicorn==18.0
 progressbar==2.3
-requests==2.3.0
