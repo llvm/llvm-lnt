@@ -53,7 +53,7 @@
     {% for key,value in machine.parameters|dictsort %}
     <tr>
       <td>{{key}}</td>
-      <td>{{value}}</td>
+      <td>{{ utils.newline_to_br(value) }}</td>
     </tr>
     {% endfor %}
   </table>

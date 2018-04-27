@@ -130,3 +130,14 @@ $(document).ready(function() {
 
     </div>
 {% endmacro %}
+
+{% macro newline_to_br(value) %}
+  {# Split lines in multi-line values. #}
+  {% if '\n' in value|string %}
+    {% for ln in (value|string).split('\n') %}
+      {{ ln }}<br/>
+    {% endfor %}
+  {% else %}
+    {{value}}
+  {% endif %}
+{% endmacro %}
