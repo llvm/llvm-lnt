@@ -94,7 +94,7 @@
     {% for run in runs %}
     <tr>
       {% if loop.first %}
-      <td rowspan="{{ runs|length }}" style="text-align:right">local.{{ order.as_ordered_string() }}</td>
+      <td rowspan="{{ runs|length }}" style="text-align:right">{{local.render_order_link(order)}}</td>
       {% endif %}
       <td><span class="utctime">{{ run.start_time.isoformat() }}</span></td>
       <td>{{ run.end_time - run.start_time }}s</td>
