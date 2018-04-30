@@ -1,5 +1,5 @@
 import os
-from lit import lit
+import lit.discovery
 
 def test_all():
-    return lit.load_test_suite([os.path.dirname(__file__)])
+    return lit.discovery.load_test_suite([os.path.dirname(__file__)])
