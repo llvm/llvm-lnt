@@ -19,3 +19,4 @@ typing
 click==6.7
 pyyaml==3.12
 requests==2.3.0
+lit>=0.6.0
