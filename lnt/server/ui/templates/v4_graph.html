@@ -43,7 +43,30 @@ var test_suite_name = "{{ request.view_args.testsuite_name }}";
 var db_name = "{{ request.view_args.get('db_name','') }}";
 var graph_plots = {{graph_plots|tojson|safe}};
 var baseline_plots = {{baseline_plots|tojson|safe}};
+var options = {{options|tojson|safe}};
 prefix = "{{request.base_url}}";
+
+transform_fn = function (v) { return v; }
+inverse_transform_fn = function (v) { return v; }
+
+if (options.logarithmic_scale) {
+    transform_fn = function(v) {
+      if (v < 0)
+        return -Math.log10(-v);
+      else if (v > 0)
+        return Math.log10(v);
+      else
+        return 0;
+    }
+    inverse_transform_fn = function(v) {
+      if (v < 0)
+        return -Math.pow(10, -v);
+      else if (v > 0)
+        return Math.pow(10, v);
+      else
+        return 0;
+    }
+}
 
 function init_graph() {
   // Set up the primary graph.
@@ -66,7 +89,10 @@ function init_graph() {
               frameRate: 60 },
       grid : {
         hoverable : true,
-        clickable: true }
+        clickable: true },
+        yaxis: {
+          transform: transform_fn,
+          inverseTransform: inverse_transform_fn }
       };
 
   // Add baseline lines
@@ -205,6 +231,11 @@ function init_page() {
                 <td>Show Moving Median</td>
                 <td><input type="checkbox" name="show_moving_median" value="yes"
                      {{ 'checked="checked"' if options.show_moving_median else ""}}/></td>
+              </tr>
+              <tr>
+                <td>Show Logarithmic Scale</td>
+                <td><input type="checkbox" name="logarithmic_scale" value="yes"
+                     {{ 'checked="checked"' if options.logarithmic_scale else ""}}/></td>
               </tr>
               <tr>
                 <td>Moving Average/Median Window Size</td>

@@ -791,6 +791,9 @@ def v4_graph():
         request.args.get('moving_window_size', 10))
     options['hide_highlight'] = bool(
         request.args.get('hide_highlight'))
+    options['logarithmic_scale'] = bool(
+        request.args.get('logarithmic_scale'))
+
     show_highlight = not options['hide_highlight']
 
     # Load the graph parameters.
