@@ -269,7 +269,7 @@ def action_send_daily_report(instance_path, address, database, testsuite, host,
             % (config.zorgURL, database, testsuite)
         subject = "Daily Report: %04d-%02d-%02d" % (
             report.year, report.month, report.day)
-        html_report = report.render(ts_url, only_html_body=False)
+        html_report = report.render(ts_url, only_html_body=False).encode('utf-8')
 
         if subject_prefix is not None:
             subject = "%s %s" % (subject_prefix, subject)
@@ -279,7 +279,7 @@ def action_send_daily_report(instance_path, address, database, testsuite, host,
         msg['Subject'] = subject
         msg['From'] = from_address
         msg['To'] = address
-        msg.attach(email.mime.text.MIMEText(html_report, "html"))
+        msg.attach(email.mime.text.MIMEText(html_report, 'html', 'utf-8'))
 
         # Send the report.
         if not dry_run:
@@ -354,9 +354,9 @@ def action_send_run_comparison(instance_path, run_a_id, run_b_id, database,
 
         env = lnt.server.ui.app.create_jinja_environment()
         text_template = env.get_template('reporting/run_report.txt')
-        text_report = text_template.render(data)
+        text_report = text_template.render(data).encode('utf-8')
         html_template = env.get_template('reporting/run_report.html')
-        html_report = html_template.render(data)
+        html_report = html_template.render(data).encode('utf-8')
 
         subject = data['subject']
         if subject_prefix is not None:
@@ -367,8 +367,8 @@ def action_send_run_comparison(instance_path, run_a_id, run_b_id, database,
         msg['Subject'] = subject
         msg['From'] = from_address
         msg['To'] = to_address
-        msg.attach(email.mime.text.MIMEText(text_report, 'plain'))
-        msg.attach(email.mime.text.MIMEText(html_report, 'html'))
+        msg.attach(email.mime.text.MIMEText(text_report, 'plain', 'utf-8'))
+        msg.attach(email.mime.text.MIMEText(html_report, 'html', 'utf-8'))
 
         # Send the report.
         if not dry_run:

@@ -23,7 +23,7 @@ def emailReport(result, session, run, baseurl, email_config, to,
 
     # Generate a plain text message if we have no html report.
     if not html_report:
-        msg = email.mime.text.MIMEText(report)
+        msg = email.mime.text.MIMEText(report.encode('utf-8'), 'plain', 'utf-8')
         msg['Subject'] = subject
         msg['From'] = email_config.from_address
         msg['To'] = to
@@ -36,8 +36,8 @@ def emailReport(result, session, run, baseurl, email_config, to,
         # Attach parts into message container, according to RFC 2046, the last
         # part of a multipart message, in this case the HTML message, is best
         # and preferred.
-        msg.attach(email.mime.text.MIMEText(report, 'plain'))
-        msg.attach(email.mime.text.MIMEText(html_report, 'html'))
+        msg.attach(email.mime.text.MIMEText(report.encode('utf-8'), 'plain', 'utf-8'))
+        msg.attach(email.mime.text.MIMEText(html_report.encode('utf-8'), 'html', 'utf-8'))
 
     s = smtplib.SMTP(email_config.host)
     s.sendmail(email_config.from_address, [to], msg.as_string())
