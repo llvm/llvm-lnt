@@ -7,6 +7,10 @@
     <a href="{{v4_url_for('.v4_order', id=order.id)}}">{{ prefix }}{{order.llvm_project_revision}}</a>
 {%- endmacro %}
 
+{% macro render_compare_to_run(run, url) -%}
+<a href="{{url}}"><span class="utctime">{{ run.start_time.isoformat() }}</span></a>
+{%- endmacro %}
+
 {# Some example settings from llvm.org. #}
 {#
     <!---On llvm.org we use SVN, so put an r in front. Ex. r1234 -->

@@ -1,4 +1,5 @@
 {% import "utils.html" as utils %}
+{% import "local.html" as local %}
 
 {% set hash_field = ts.Sample.get_hash_of_binary_field() %}
 {% set machine = run.machine %}
@@ -114,7 +115,7 @@ $('.profile-prev-only').tooltip();
   {% for r in neighboring_runs %}
     <li>
       {{ "<b>"|safe if r.id == run.id else "" }}
-      <a href="{{v4_url_for('.v4_run', id=r.id)}}"><span class="utctime">{{ r.start_time.isoformat() }}</span></a>
+      {{ local.render_compare_to_run(r, v4_url_for('.v4_run', id=r.id)) }}
       {{ "</b>"|safe if r.id == run.id else "" }}
     </li>
   {% endfor %}
@@ -126,7 +127,7 @@ $('.profile-prev-only').tooltip();
     {% for r in comparison_neighboring_runs %}
       <li>
         {{ "<b>"|safe if compare_to and r.id == compare_to.id else "" }}
-        <a href="{{v4_url_for('.v4_run', id=run.id, compare_to=r.id)}}"><span class="utctime">{{ r.start_time.isoformat() }}</span></a>
+        {{ local.render_compare_to_run(r, v4_url_for('.v4_run', id=run.id, compare_to=r.id)) }}
         {{ "</b>"|safe if compare_to and r.id == compare_to.id else "" }}
       </li>
     {% endfor %}
