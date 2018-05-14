@@ -1,8 +1,8 @@
-{% macro render_popup_begin(id, title, hidden, depth=1) -%}
+{% macro render_popup_begin(id, title, hidden, element = 'span', depth=1) -%}
   <div class="accordion" id="{{id}}-accordion">
     <div class="accordion-group">
       <div class="accordion-heading">
-        <a class="accordion-toggle" data-toggle="collapse" data-parent="#{{id}}-accordion" href="#{{id}}-collapse">{{ title }}</a>
+          <{{element}}><a class="accordion-toggle" data-toggle="collapse" data-parent="#{{id}}-accordion" href="#{{id}}-collapse">{{ title }}</a></{{element}}>
       </div>
       <div id="{{id}}-collapse" class="accordion-body {{ 'collapse' if hidden else 'collapse in' }}">
         <div class="accordion-inner">
