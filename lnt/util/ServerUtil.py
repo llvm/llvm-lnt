@@ -66,8 +66,6 @@ def submitFileToServer(url, file, select_machine=None, merge_run=None):
         print "error:", result_data
         return
 
-    return reply
-
 
 def submitFileToInstance(path, file, select_machine=None, merge_run=None):
     # Otherwise, assume it is a local url and submit to the default database

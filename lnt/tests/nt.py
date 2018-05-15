@@ -1397,7 +1397,6 @@ def _process_reruns(config, server_reply, local_results):
         if server_reply.get('error', None):
             logger.warning("Server returned an error:" + server_reply['error'])
         fatal("No Server results. Cannot do reruns.")
-        logging.fatal()
     # Holds the combined local and server results.
     collated_results = dict()
 

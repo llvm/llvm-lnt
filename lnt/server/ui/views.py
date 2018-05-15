@@ -1370,7 +1370,7 @@ def v4_global_status():
         # Compute comparison results for each machine.
         row.extend((runinfo.get_run_comparison_result(
                         run, baseline, test_id, field,
-                        ts.Sample.get_hash_of_Binary_field),
+                        ts.Sample.get_hash_of_binary_field),
                     run.id)
                    for baseline, run in machine_run_info)
 
