@@ -242,6 +242,21 @@ class JSONAPITester(unittest.TestCase):
         self._check_response_is_well_formed(two_runs)
         self.assertEqual(j, two_runs)
 
+    def test_fields_api(self):
+        """Fields API."""
+        client = self.client
+        j = check_json(client, 'api/db_default/v4/nts/fields')
+
+        fields = j['fields']
+
+        # check number of fields
+        self.assertEqual(9, len(fields))
+
+        # check first field
+        f0 = fields[0]
+        self.assertEqual(0, f0['column_id'])
+        self.assertEqual('compile_status', f0['column_name'])
+
     def test_schema(self):
         client = self.client
         rest_schema = check_json(client, 'api/db_default/v4/nts/schema')
