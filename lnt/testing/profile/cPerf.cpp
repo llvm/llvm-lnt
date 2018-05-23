@@ -280,20 +280,25 @@ public:
       if (Len == -1)
         break;
 
-      char One[32], Two[32], Three[32], Four[512];
-      if (sscanf(Line, "%s %s %s %s", One, Two, Three, Four) < 4)
-        continue;
+      std::vector<std::string> SplittedLine;
+      if (splitLine(std::string(Line), SplittedLine) < 4)
+        continue; 
+
+      const std::string& One = SplittedLine[0];
+      const std::string& Two = SplittedLine[1];
+      const std::string& Three = SplittedLine[2];
+      std::string& Four = SplittedLine[3];
 
       char *EndPtr = NULL;
-      uint64_t Start = strtoull(One, &EndPtr, 16);
-      if (EndPtr == One)
+      uint64_t Start = strtoull(One.c_str(), &EndPtr, 16);
+      if (EndPtr == One.c_str())
         continue;
-      uint64_t Extent = strtoull(Two, &EndPtr, 16);
-      if (EndPtr == Two)
+      uint64_t Extent = strtoull(Two.c_str(), &EndPtr, 16);
+      if (EndPtr == Two.c_str())
         continue;
-      if (strlen(Three) != 1)
+      if (Three.length() != 1)
         continue;
-      switch (Three[0]) {
+      switch (Three.front()) {
       default:
         continue;
       case 'T':
@@ -304,10 +309,9 @@ public:
       case 'w': // Weak object (not tagged as such)
         break;
       }
-      std::string S(Four);
-      if (S.back() == '\n')
-        S.pop_back();
-      push_back({Start, Start + Extent, S});
+      if (Four.back() == '\n')
+        Four.pop_back();
+      push_back({Start, Start + Extent, Four});
     }
     if (Line)
       free(Line);
@@ -325,6 +329,16 @@ public:
     std::sort(begin(), end());
     auto NewEnd = std::unique(begin(), end());
     erase(NewEnd, end());
+  }
+
+protected:
+  int splitLine(const std::string& line, std::vector<std::string>& output, char delim = ' ') {
+    std::stringstream ss(line);
+    std::string token;
+    while (std::getline(ss, token, delim)) {
+        output.push_back(token);
+    }
+    return output.size();
   }
 };
 
