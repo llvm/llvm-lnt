@@ -257,6 +257,21 @@ class JSONAPITester(unittest.TestCase):
         self.assertEqual(0, f0['column_id'])
         self.assertEqual('compile_status', f0['column_name'])
 
+    def test_tests_api(self):
+        """Tests API."""
+        client = self.client
+        j = check_json(client, 'api/db_default/v4/nts/tests')
+
+        tests = j['tests']
+
+        # check number of tests
+        self.assertEqual(9, len(tests))
+
+        # check first test
+        t0 = tests[0]
+        self.assertEqual(1, t0['id'])
+        self.assertEqual('SingleSource/UnitTests/2006-12-01-float_varg', t0['name'])
+
     def test_schema(self):
         client = self.client
         rest_schema = check_json(client, 'api/db_default/v4/nts/schema')

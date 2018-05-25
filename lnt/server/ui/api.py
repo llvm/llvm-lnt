@@ -72,6 +72,21 @@ class Fields(Resource):
         result = common_fields_factory()
         result['fields'] = [{'column_id': i, 'column_name': f.column.name}
                 for i, f in enumerate(ts.sample_fields)]
+
+        return result
+
+class Tests(Resource):
+    """List all the tests in the test suite."""
+    method_decorators = [in_db]
+
+    @staticmethod
+    def get():
+        ts = request.get_testsuite()
+
+        result = common_fields_factory()
+        tests = request.session.query(ts.Test).all()
+        result['tests'] = [t.__json__() for t in tests]
+
         return result
 
 class Machines(Resource):
@@ -513,6 +528,7 @@ def load_api_resources(api):
             resp.headers.extend(headers)
         return resp
 
+    api.add_resource(Tests, ts_path("tests"), ts_path("tests/"))
     api.add_resource(Fields, ts_path("fields"), ts_path("fields/"))
     api.add_resource(Machines, ts_path("machines"), ts_path("machines/"))
     api.add_resource(Machine, ts_path("machines/<machine_spec>"))
