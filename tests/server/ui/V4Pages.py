@@ -181,6 +181,13 @@ def get_table_body_content(table):
              for row in table.findall("./tbody/tr")]
 
 
+def get_table_links(table):
+    return [[link.get("href")
+             for cell in row.findall("./td")
+             for link in cell.findall("a")]
+             for row in table.findall("./tbody/tr")]
+
+
 def check_row_is_in_table(table, expected_row_content):
     body_content = get_table_body_content(table)
     assert expected_row_content in body_content, \
@@ -192,6 +199,13 @@ def check_table_content(table, expected_content):
     body_content = get_table_body_content(table)
     assert expected_content == body_content, \
         "Expected table content %s, found %s" % \
+        (expected_content, body_content)
+
+
+def check_table_links(table, expected_content):
+    body_content = get_table_links(table)
+    assert expected_content == body_content, \
+        "Expected table links %s, found %s" % \
         (expected_content, body_content)
 
 
@@ -435,6 +449,11 @@ def main():
                          ["", "machine2", "1.0000", "-", "900.00%", ""],
                          ["test2", ""],
                          ["", "machine2", "FAIL", "-", "PASS", ""]])
+    check_table_links(result_table_20120504,
+                      [[],
+                       ["/db_default/v4/nts/graph?plot.0=2.4.3&highlight_run=6"],
+                       [],
+                       ["/db_default/v4/nts/graph?plot.0=2.5.3&highlight_run=6"]])
 
     check_body_nr_tests_table(
         client, '/v4/nts/daily_report/2012/5/04',
@@ -453,6 +472,15 @@ def main():
                          ["", "machine2", "1.0000", '-', '20.00%', ""],
                          ["test_mhash_on_run", ""],
                          ["", "machine2", "1.0000", '-', '20.00%', ""], ])
+    check_table_links(result_table_20120513,
+                      [[],
+                       ['/db_default/v4/nts/graph?plot.0=2.6.3&highlight_run=9'],
+                       [],
+                       ['/db_default/v4/nts/graph?plot.0=2.7.3&highlight_run=9'],
+                       [],
+                       ['/db_default/v4/nts/graph?plot.0=2.8.3&highlight_run=9'],
+                       [],
+                       ['/db_default/v4/nts/graph?plot.0=2.9.3&highlight_run=9']])
 
     sparkline_test6_xml = \
         get_sparkline(result_table_20120513, "test6", "machine2")

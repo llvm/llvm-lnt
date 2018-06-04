@@ -247,7 +247,7 @@
     <td style="{{ styles.td }}">&nbsp;</td>
     <td class="machine-name" style="{{ styles.td }}"><a href="{{
       ts_url}}/graph?plot.0={{machine.id}}.{{test.id}}.{{
-        field.index}}&amp;highlight_run={{key_run.id}}">{{
+        report.ts.get_field_index(field)}}&amp;highlight_run={{key_run.id}}">{{
           machine.name}}</a></td>
 {%-    set first_result_shown = false -%}
 {%-    for day_result in day_results|reverse -%}
