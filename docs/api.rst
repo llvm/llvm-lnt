@@ -19,29 +19,35 @@ The machines endpoint allows access to all the machines, and properties and runs
 will fetch run and sample data. The samples endpoint allows for the bulk export of samples from a number of runs at
 once.
 
-+---------------------------+------------------------------------------------------------------------------------------+
-| Endpoint                  | Description                                                                              |
-+---------------------------+------------------------------------------------------------------------------------------+
-| /machines/                | List all the machines in this testsuite.                                                 |
-+---------------------------+------------------------------------------------------------------------------------------+
-| /machines/`id`            | Get all the runs info and machine fields for machine `id`.                               |
-+---------------------------+------------------------------------------------------------------------------------------+
-| /runs/`id`                | Get all the run info and sample data for one run `id`.                                   |
-+---------------------------+------------------------------------------------------------------------------------------+
-| /orders/`id`              | Get all order info for Order `id`.                                                       |
-+---------------------------+------------------------------------------------------------------------------------------+
-| /samples?runid=1&runid=2  | Retrieve all the sample data for a list of run ids.  Run IDs should be pass as args.     |
-|                           | Will return sample data in the samples section, as a list of dicts, with a key for       |
-|                           | each metric type. Empty samples are not sent.                                            |
-+---------------------------+------------------------------------------------------------------------------------------+
-| /samples/`id`             | Get all non-empty sample info for Sample `id`.                                           |
-+---------------------------+------------------------------------------------------------------------------------------+
-| /schema                   | Return test suite schema.                                                                |
-+---------------------------+------------------------------------------------------------------------------------------+
-| /fields                   | Return all fields in this testsuite.                                                     |
-+---------------------------+------------------------------------------------------------------------------------------+
-| /tests                    | Return all tests in this testsuite.                                                      |
-+---------------------------+------------------------------------------------------------------------------------------+
++---------------------------------+------------------------------------------------------------------------------------+
+| Endpoint                        | Description                                                                        |
++---------------------------------+------------------------------------------------------------------------------------+
+| /machines/                      | List all the machines in this testsuite.                                           |
++---------------------------------+------------------------------------------------------------------------------------+
+| /machines/`id`                  | Get all the runs info and machine fields for machine `id`.                         |
++---------------------------------+------------------------------------------------------------------------------------+
+| /runs/`id`                      | Get all the run info and sample data for one run `id`.                             |
++---------------------------------+------------------------------------------------------------------------------------+
+| /orders/`id`                    | Get all order info for Order `id`.                                                 |
++---------------------------------+------------------------------------------------------------------------------------+
+| /samples?runid=1&runid=2        | Retrieve all the sample data for a list of run ids.  Run IDs should be pass as args|
+|                                 | Will return sample data in the samples section, as a list of dicts, with a key for |
+|                                 | each metric type. Empty samples are not sent.                                      |
++---------------------------------+------------------------------------------------------------------------------------+
+| /samples/`id`                   | Get all non-empty sample info for Sample `id`.                                     |
++---------------------------------+------------------------------------------------------------------------------------+
+| /schema                         | Return test suite schema.                                                          |
++---------------------------------+------------------------------------------------------------------------------------+
+| /fields                         | Return all fields in this testsuite.                                               |
++---------------------------------+------------------------------------------------------------------------------------+
+| /tests                          | Return all tests in this testsuite.                                                |
++---------------------------------+------------------------------------------------------------------------------------+
+| /graph_for_sample/`id`/`f_name` | Redirect to a graph which contains the sample with ID `id` and the field           |
+|                                 | `f_name`.  This can be used to generate a link to a graph based on the sample data |
+|                                 | that is returned by the run API. Any parameters passed to this endpoint are        |
+|                                 | appended to the graph URL to control formatting etc of the graph. Note, this       |
+|                                 | endpoint is not under /api/, but matches the graph URL location.                   |
++---------------------------------+------------------------------------------------------------------------------------+
 
 .. _auth_tokens:
 
