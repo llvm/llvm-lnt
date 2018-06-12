@@ -249,7 +249,7 @@ def v4_machines():
     # Gather all the runs on this machine.
     session = request.session
     ts = request.get_testsuite()
-    machines = session.query(ts.Machine)
+    machines = session.query(ts.Machine).order_by(ts.Machine.name)
 
     return render_template("all_machines.html", machines=machines,
                            **ts_data(ts))
