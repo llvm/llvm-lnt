@@ -39,6 +39,9 @@ def get_cc_info(path, cc_flags=[]):
                             cc_flags + ['-x', 'assembler', '/dev/null'],
                             include_stderr=True).strip()
 
+    if "clang: error: unsupported argument '-v'" in cc_as_version:
+        cc_as_version = "Clang built in."
+
     # Determine the linker version, as found by the compiler.
     tf = tempfile.NamedTemporaryFile(suffix='.c')
     name = tf.name
