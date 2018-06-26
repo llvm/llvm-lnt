@@ -43,17 +43,8 @@ def get_cc_info(path, cc_flags=[]):
         cc_as_version = "Clang built in."
 
     # Determine the linker version, as found by the compiler.
-    tf = tempfile.NamedTemporaryFile(suffix='.c')
-    name = tf.name
-    tf.close()
-    tf = open(name, 'w')
-    print >>tf, "int main() { return 0; }"
-    tf.close()
-    cc_ld_version = capture(([cc, "-Wl,-v", '-o', '/dev/null'] +
-                             cc_flags + [tf.name]),
+    cc_ld_version = capture(([cc, "-Wl,-v", "-dynamiclib"]),
                             include_stderr=True).strip()
-    rm_f(tf.name)
-
     # Extract the default target .ll (or assembly, for non-LLVM compilers).
     cc_target_assembly = capture([cc, '-S', '-flto', '-o', '-'] + cc_flags +
                                  ['-x', 'c', '/dev/null'],
