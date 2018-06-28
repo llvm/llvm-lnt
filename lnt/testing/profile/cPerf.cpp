@@ -438,7 +438,8 @@ public:
   void emitMaps();
   void emitSymbol(
       Symbol &Sym, Map &M,
-      std::map<uint64_t, std::map<const char *, uint64_t>>::iterator &Event,
+      std::map<uint64_t, std::map<const char *, uint64_t>>::iterator Event,
+      std::map<const char *, uint64_t> &SymEvents,
       uint64_t Adjust);
   PyObject *complete();
 
@@ -633,15 +634,6 @@ void PerfReader::emitFunctionStart(std::string &Name) {
 
 void PerfReader::emitFunctionEnd(std::string &Name,
                                  std::map<const char *, uint64_t> &Counters) {
-  // If the function only took up < 0.5% of any counter, don't bother with it.
-  bool Keep = false;
-  for (auto &KV : Counters) {
-    if ((double)KV.second / (double)TotalEvents[KV.first] > 0.005)
-      Keep = true;
-  }
-  if (!Keep)
-    return;
-
   auto *CounterDict = PyDict_New();
   for (auto &KV : Counters)
     PyDict_SetItemString(CounterDict, KV.first,
@@ -718,36 +710,53 @@ void PerfReader::emitMaps() {
 
     NmOutput Syms(Nm);
     Syms.reset(&Maps[MapID]);
-    auto Sym = Syms.begin();
 
+    // Accumulate the event totals for each symbol
+    auto Sym = Syms.begin();
     auto Event = MapEvents.begin();
+    std::map<uint64_t, std::map<const char*, uint64_t>> SymToEventTotals;
     while (Event != MapEvents.end() && Sym != Syms.end()) {
+      // Skip events until we find one after the start of Sym
       auto PC = Event->first - Adjust;
       if (PC < Sym->Start) {
         ++Event;
         continue;
       }
-      while (Sym != Syms.end() && PC >= Sym->End)
+      // Skip symbols until the event is before the end of Sym
+      if (PC >= Sym->End) {
         ++Sym;
-      if (Sym == Syms.end() || Sym->Start > PC) {
-        ++Event;
         continue;
       }
+      // We now know that Event lies within Sym, so add it to the totals
+      for (auto &KV : Event->second)
+        SymToEventTotals[Sym->Start][KV.first] += KV.second;
+      ++Event;
+    }
 
-      emitSymbol(*Sym++, Maps[MapID], Event, Adjust);
+    // Emit only symbols that took up > 0.5% of any counter
+    for (auto &Sym : Syms) {
+      bool Keep = false;
+      for (auto &KV : SymToEventTotals[Sym.Start]) {
+        if ((double)KV.second / (double)TotalEvents[KV.first] > 0.005) {
+          Keep = true;
+          break;
+        }
+      }
+      if (Keep)
+        emitSymbol(Sym, Maps[MapID], MapEvents.lower_bound(Sym.Start),
+                   SymToEventTotals[Sym.Start], Adjust);
     }
   }
 }
 
 void PerfReader::emitSymbol(
     Symbol &Sym, Map &M,
-    std::map<uint64_t, std::map<const char *, uint64_t>>::iterator &Event,
+    std::map<uint64_t, std::map<const char *, uint64_t>>::iterator Event,
+    std::map<const char *, uint64_t> &SymEvents,
     uint64_t Adjust) {
   ObjdumpOutput Dump(Objdump);
   Dump.reset(&M, Sym.Start, Sym.End);
   Dump.next();
-
-  std::map<const char *, uint64_t> SymEvents;
 
   emitFunctionStart(Sym.Name);
   for (uint64_t I = Sym.Start; I < Sym.End; I = Dump.next()) {
@@ -756,10 +765,6 @@ void PerfReader::emitSymbol(
     auto Text = Dump.getText();
     if (PC == I) {
       emitLine(I, &Event->second, Text);
-
-      for (auto &KV : Event->second)
-        SymEvents[KV.first] += KV.second;
-
       ++Event;
     } else {
       emitLine(I, nullptr, Text);
