@@ -114,6 +114,8 @@ def resolve_command_path(name):
     executable.
 
     """
+    name = os.path.expanduser(name)
+
     # If the given name exists (or is a path), make it absolute.
     if os.path.exists(name):
         return os.path.abspath(name)
