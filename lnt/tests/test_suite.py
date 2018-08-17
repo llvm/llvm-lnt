@@ -689,7 +689,8 @@ class TestSuiteTest(BuiltinTest):
             'hash': 'hash',
             'link_time': 'compile',
             'size.__text': 'code_size',
-            'mem_bytes': 'mem'
+            'mem_bytes': 'mem',
+            'link_mem_bytes': 'mem'
         }
         LIT_METRIC_CONV_FN = {
             'compile_time': float,
@@ -698,7 +699,8 @@ class TestSuiteTest(BuiltinTest):
             'hash': str,
             'link_time': float,
             'size.__text': float,
-            'mem_bytes': float
+            'mem_bytes': float,
+            'link_mem_bytes': float
         }
 
         # We don't use the test info, currently.
@@ -752,7 +754,7 @@ class TestSuiteTest(BuiltinTest):
                         continue
                     server_name = name + '.' + LIT_METRIC_TO_LNT[k]
 
-                    if k == 'link_time':
+                    if k == 'link_time' or k == 'link_mem_bytes':
                         # Move link time into a second benchmark's
                         # compile-time.
                         server_name = name + '-link.' + LIT_METRIC_TO_LNT[k]
