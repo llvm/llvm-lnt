@@ -214,12 +214,15 @@ class TestSuiteTest(BuiltinTest):
         if not os.path.exists(opts.test_suite_root):
             self._fatal("invalid --test-suite argument, does not exist: %r" % (
                 opts.test_suite_root))
+        opts.test_suite_root = os.path.abspath(opts.test_suite_root)
 
         if opts.test_suite_externals:
             if not os.path.exists(opts.test_suite_externals):
                 self._fatal(
                     "invalid --test-externals argument, does not exist: %r" % (
                         opts.test_suite_externals,))
+            opts.test_suite_externals = os.path.abspath(
+                opts.test_suite_externals)
 
         opts.cmake = resolve_command_path(opts.cmake)
         if not isexecfile(opts.cmake):
