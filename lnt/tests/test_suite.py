@@ -184,6 +184,7 @@ class TestSuiteTest(BuiltinTest):
         self.configured = False
         self.compiled = False
         self.trained = False
+        self.remote_run = False
 
     def run_test(self, opts):
 
@@ -387,6 +388,7 @@ class TestSuiteTest(BuiltinTest):
             self._clean(self._base_path)
         if not self.compiled or compile:
             self._make(self._base_path)
+            self._install_benchmark(self._base_path)
             self.compiled = True
 
         data = self._lit(self._base_path, test, profile)
@@ -507,6 +509,9 @@ class TestSuiteTest(BuiltinTest):
             lines.append("  %s: '%s'" % (k, v))
         lines.append('}')
 
+        if 'TEST_SUITE_REMOTE_HOST' in defs:
+            self.remote_run = True
+
         # Prepare cmake cache if requested:
         cmake_flags = []
         for cache in self.opts.cmake_cache:
@@ -546,6 +551,7 @@ class TestSuiteTest(BuiltinTest):
                       "TEST_SUITE_RUN_TYPE=train"]
         self._configure(path, extra_cmake_defs=extra_defs)
         self._make(path)
+        self._install_benchmark(path)
         self._lit(path, True, False)
 
     def _make(self, path):
@@ -573,6 +579,11 @@ class TestSuiteTest(BuiltinTest):
             # failure. Build failures are not unexpected when testing an
             # experimental compiler.
             pass
+
+    def _install_benchmark(self, path):
+        if self.remote_run:
+            make_cmd = self.opts.make
+            self._check_call([make_cmd, 'rsync'], cwd=path)
 
     def _lit(self, path, test, profile):
         lit_cmd = self.opts.lit
@@ -840,7 +851,7 @@ class TestSuiteTest(BuiltinTest):
         test-suite normally. The report has stuff in it that will be useful
         for reproducing and diagnosing a performance change.
         """
-        assert self.opts.only_test, "We don't have a benchmark to diagenose."
+        assert self.opts.only_test, "We don't have a benchmark to diagnose."
         bm_path, short_name = self.opts.only_test
         assert bm_path, "The benchmark path is empty?"
 
