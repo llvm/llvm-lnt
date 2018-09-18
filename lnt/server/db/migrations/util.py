@@ -27,7 +27,7 @@ def introspect_table(engine, name, autoload=True):
 
 
 def rename_table(engine, old_name, new_name):
-    """Rename table wiht name \p old_name to \p new_name."""
+    """Rename table with name `old_name` to `new_name`."""
     # sqlite refuses to rename "BAR" to "bar" so we go
     # "BAR" -> "BAR_x" -> "bar"
     rename = _RenameTable(old_name, old_name+"_x")

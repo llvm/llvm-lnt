@@ -478,7 +478,7 @@ class SummaryReport(object):
                 continue
 
             # Add to the single file stack.
-            stage_name, = re.match('Single File \((.*)\)', test_name).groups()
+            stage_name, = re.match(r'Single File \((.*)\)', test_name).groups()
             try:
                 stack_index = self.single_file_stage_order.index(stage_name)
             except ValueError:

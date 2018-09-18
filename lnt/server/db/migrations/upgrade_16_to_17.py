@@ -7,6 +7,7 @@ from sqlalchemy import Index, select
 from lnt.server.db.migrations.util import introspect_table
 from lnt.util import logger
 
+
 def _mk_index_on(engine, ts_name):
     fc_table = introspect_table(engine, "{}_RegressionIndicator".format(ts_name))
 

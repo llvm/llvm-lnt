@@ -61,6 +61,7 @@ def add_common_fields(to_update):
     """Update a dict with the common fields."""
     to_update.update(common_fields_factory())
 
+
 class Fields(Resource):
     """List all the fields in the test suite."""
     method_decorators = [in_db]
@@ -71,9 +72,10 @@ class Fields(Resource):
 
         result = common_fields_factory()
         result['fields'] = [{'column_id': i, 'column_name': f.column.name}
-                for i, f in enumerate(ts.sample_fields)]
+                            for i, f in enumerate(ts.sample_fields)]
 
         return result
+
 
 class Tests(Resource):
     """List all the tests in the test suite."""
@@ -88,6 +90,7 @@ class Tests(Resource):
         result['tests'] = [t.__json__() for t in tests]
 
         return result
+
 
 class Machines(Resource):
     """List all the machines and give summary information."""

@@ -54,8 +54,8 @@ def new_regression(session, ts, field_changes):
 
 
 def rebuild_title(session, ts, regression):
-    """Update the title of a regresson."""
-    if re.match("Regression of \d+ benchmarks.*", regression.title):
+    """Update the title of a regression."""
+    if re.match(r"Regression of \d+ benchmarks.*", regression.title):
         old_changes = session.query(ts.RegressionIndicator) \
             .filter(ts.RegressionIndicator.regression_id == regression.id) \
             .all()
@@ -73,7 +73,7 @@ def rebuild_title(session, ts, regression):
 
 
 def get_all_orders_for_machine(session, ts, machine):
-    """Get all the oredrs for this sa machine."""
+    """Get all the orders for this sa machine."""
     return session.query(ts.Order) \
         .join(ts.Run) \
         .filter(ts.Run.machine_id == machine) \

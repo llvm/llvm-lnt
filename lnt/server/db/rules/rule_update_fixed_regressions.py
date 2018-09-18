@@ -41,9 +41,9 @@ def impacts(session, ts, run_id, regression):
     machine_id = session.query(ts.Run.machine_id).filter(ts.Run.id == run_id).scalar()
 
     regression_machines = [x[0] for x in session.query(ts.FieldChange.machine_id)
-        .join(ts.RegressionIndicator)
-        .filter(ts.RegressionIndicator.regression_id == regression.id)
-        .all()]
+                           .join(ts.RegressionIndicator)
+                           .filter(ts.RegressionIndicator.regression_id == regression.id)
+                           .all()]
 
     regression_machines_set = set(regression_machines)
     return machine_id in regression_machines_set
@@ -54,7 +54,7 @@ def age_out_oldest_regressions(session, ts, num_to_keep=50):
     """Find the oldest regressions that are still in the detected state,
     and age them out.  This is needed when regressions are not manually
     acknowledged, regression analysis can grow unbounded.
-    
+
     :param session: db session
     :param ts: testsuite
     :param num_to_keep: the number of newest regressions to keep in the detected state.

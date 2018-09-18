@@ -447,11 +447,11 @@ def upgrade_and_normalize_report(data, ts_name):
         raise ValueError("No 'tests' section in submission")
 
     run = data['run']
-    if not 'start_time' in run:
+    if 'start_time' not in run:
         time = datetime.datetime.utcnow().replace(microsecond=0).isoformat()
         run['start_time'] = time
         run['end_time'] = time
-    elif not 'end_time' in run:
+    elif 'end_time' not in run:
         run['end_time'] = run['start_time']
 
     return data
