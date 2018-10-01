@@ -537,6 +537,9 @@ def main():
     assert color2 is None
     assert color1 != color3
 
+    # Check some variations of the latest runs report work.
+    check_html(client, '/v4/nts/latest_runs_report')
+
     check_redirect(client, '/db_default/submitRun',
                    '/db_default/v4/nts/submitRun')
     check_html(client, '/db_default/v4/nts/submitRun')

@@ -1,125 +1,13 @@
 from collections import namedtuple
 from lnt.server.reporting.analysis import REGRESSED, UNCHANGED_FAIL
+from lnt.server.reporting.report import RunResult, RunResults, report_css_styles, pairs, OrderAndHistory
 from lnt.util import multidict
-import colorsys
 import datetime
 import lnt.server.reporting.analysis
 import lnt.server.ui.app
 import re
 import sqlalchemy.sql
 import urllib
-
-OrderAndHistory = namedtuple('OrderAndHistory', ['max_order', 'recent_orders'])
-
-
-def _pairs(list):
-    return zip(list[:-1], list[1:])
-
-
-# The hash color palette avoids green and red as these colours are already used
-# in quite a few places to indicate "good" or "bad".
-_hash_color_palette = (
-    colorsys.hsv_to_rgb(h=45. / 360, s=0.3, v=0.9999),  # warm yellow
-    colorsys.hsv_to_rgb(h=210. / 360, s=0.3, v=0.9999),  # blue cyan
-    colorsys.hsv_to_rgb(h=300. / 360, s=0.3, v=0.9999),  # mid magenta
-    colorsys.hsv_to_rgb(h=150. / 360, s=0.3, v=0.9999),  # green cyan
-    colorsys.hsv_to_rgb(h=225. / 360, s=0.3, v=0.9999),  # cool blue
-    colorsys.hsv_to_rgb(h=180. / 360, s=0.3, v=0.9999),  # mid cyan
-)
-
-
-def _clamp(v, minVal, maxVal):
-    return min(max(v, minVal), maxVal)
-
-
-def _toColorString(col):
-    r, g, b = [_clamp(int(v * 255), 0, 255)
-               for v in col]
-    return "#%02x%02x%02x" % (r, g, b)
-
-
-def _get_rgb_colors_for_hashes(hash_strings):
-    hash2color = {}
-    unique_hash_counter = 0
-    for hash_string in hash_strings:
-        if hash_string is not None:
-            if hash_string in hash2color:
-                continue
-            hash2color[hash_string] = _hash_color_palette[unique_hash_counter]
-            unique_hash_counter += 1
-            if unique_hash_counter >= len(_hash_color_palette):
-                break
-    result = []
-    for hash_string in hash_strings:
-        if hash_string is None:
-            result.append(None)
-        else:
-            # If not one of the first N hashes, return rgb value 0,0,0 which is
-            # white.
-            rgb = hash2color.get(hash_string, (0.999, 0.999, 0.999))
-            result.append(_toColorString(rgb))
-    return result
-
-
-# Helper classes to make the sparkline chart construction easier in the jinja
-# template.
-class DayResult:
-    def __init__(self, comparisonResult):
-        self.cr = comparisonResult
-        self.hash = self.cr.cur_hash
-        self.samples = self.cr.samples
-        if self.samples is None:
-            self.samples = []
-
-
-class DayResults:
-    """
-    DayResults contains pre-processed data to easily construct the HTML for
-    a single row in the results table, showing how one test on one board
-    evolved over a number of runs/days.
-    """
-    def __init__(self):
-        self.day_results = []
-        self._complete = False
-        self.min_sample = None
-        self.max_sample = None
-
-    def __getitem__(self, i):
-        return self.day_results[i]
-
-    def __len__(self):
-        return len(self.day_results)
-
-    def append(self, day_result):
-        assert not self._complete
-        self.day_results.append(day_result)
-
-    def complete(self):
-        """
-        complete() needs to be called after all appends to this object, but
-        before the data is used the jinja template.
-        """
-        self._complete = True
-        all_samples = []
-        for dr in self.day_results:
-            if dr is None:
-                continue
-            if dr.cr.samples is not None and not dr.cr.failed:
-                all_samples.extend(dr.cr.samples)
-        if len(all_samples) > 0:
-            self.min_sample = min(all_samples)
-            self.max_sample = max(all_samples)
-        hashes = []
-        for dr in self.day_results:
-            if dr is None:
-                hashes.append(None)
-            else:
-                hashes.append(dr.hash)
-        rgb_colors = _get_rgb_colors_for_hashes(hashes)
-        for i, dr in enumerate(self.day_results):
-            if dr is not None:
-                dr.hash_rgb_color = rgb_colors[i]
-
 
 class DailyReport(object):
     def __init__(self, ts, year, month, day, num_prior_days_to_include=3,
@@ -212,7 +100,7 @@ class DailyReport(object):
         prior_runs = [session.query(ts.Run).
                       filter(ts.Run.start_time > prior_day).
                       filter(ts.Run.start_time <= day).all()
-                      for day, prior_day in _pairs(self.prior_days)]
+                      for day, prior_day in pairs(self.prior_days)]
 
         if self.filter_machine_re is not None:
             prior_runs = [[run for run in runs
@@ -380,8 +268,8 @@ class DailyReport(object):
                         continue
 
                     # Otherwise, compute the results for all the days.
-                    day_results = DayResults()
-                    day_results.append(DayResult(cr))
+                    day_results = RunResults()
+                    day_results.append(RunResult(cr))
                     for i in range(1, self.num_prior_days_to_include):
                         day_runs = machine_runs.get((machine.id, i), ())
                         if len(day_runs) == 0:
@@ -394,7 +282,7 @@ class DailyReport(object):
                         cr = sri.get_comparison_result(
                             day_runs, prev_runs, test.id, field,
                             self.hash_of_binary_field)
-                        day_results.append(DayResult(cr))
+                        day_results.append(RunResult(cr))
 
                     day_results.complete()
 
@@ -431,23 +319,6 @@ class DailyReport(object):
         env = lnt.server.ui.app.create_jinja_environment()
         template = env.get_template('reporting/daily_report.html')
 
-        # Compute static CSS styles for elements. We use the style directly on
-        # elements instead of via a stylesheet to support major email clients
-        # (like Gmail) which can't deal with embedded style sheets.
-        #
-        # These are derived from the static style.css file we use elsewhere.
-        styles = {
-            "body": ("color:#000000; background-color:#ffffff; "
-                     "font-family: Helvetica, sans-serif; font-size:9pt"),
-            "table": ("font-size:9pt; border-spacing: 0px; "
-                      "border: 1px solid black"),
-            "th": (
-                "background-color:#eee; color:#666666; font-weight: bold; "
-                "cursor: default; text-align:center; font-weight: bold; "
-                "font-family: Verdana; padding:5px; padding-left:8px"),
-            "td": "padding:5px; padding-left:8px",
-        }
-
         return template.render(
-            report=self, styles=styles, analysis=lnt.server.reporting.analysis,
+            report=self, styles=report_css_styles, analysis=lnt.server.reporting.analysis,
             ts_url=ts_url, only_html_body=only_html_body)

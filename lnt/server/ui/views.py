@@ -26,6 +26,7 @@ import lnt.server.db.rules_manager
 import lnt.server.db.search
 import lnt.server.reporting.analysis
 import lnt.server.reporting.dailyreport
+import lnt.server.reporting.latestrunsreport
 import lnt.server.reporting.runs
 import lnt.server.reporting.summaryreport
 import lnt.server.ui.util
@@ -1513,6 +1514,23 @@ def v4_summary_report_ui():
                            config=config, all_machines=all_machines,
                            all_orders=all_orders, **ts_data(ts))
 
+@v4_route("/latest_runs_report")
+def v4_latest_runs_report():
+    session = request.session
+    ts = request.get_testsuite()
+
+    num_runs_str = request.args.get('num_runs')
+    if num_runs_str is not None:
+        num_runs = int(num_runs_str)
+    else:
+        num_runs = 10
+
+    report = lnt.server.reporting.latestrunsreport.LatestRunsReport(ts, num_runs)
+    report.build(request.session)
+
+    return render_template("v4_latest_runs_report.html", report=report,
+                           analysis=lnt.server.reporting.analysis,
+                           **ts_data(ts))
 
 @db_route("/summary_report")
 def v4_summary_report():
