@@ -64,10 +64,11 @@ do
 done
 set -e
 
+# Drop database to be sure. The DB may not exist if the test has not been run
+# before: hide output to avoid confusion.
 set +e
-# This may not be there if the test has not been run before.
 echo "$ mysqladmin ${MYSQLADMIN_FLAGS} drop --force testdb"
-eval mysqladmin ${MYSQLADMIN_FLAGS} drop --force testdb
+eval mysqladmin ${MYSQLADMIN_FLAGS} drop --force testdb >& /dev/null
 set -e
 
 echo "$ mysqladmin ${MYSQLADMIN_FLAGS} create testdb"
