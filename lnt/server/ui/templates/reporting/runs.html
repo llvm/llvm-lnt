@@ -11,11 +11,12 @@
 %}
 
 {% if bucket and bucket_name != 'Unchanged Tests' %}
+    {% set small_column_width = 'width: 7%;' %}
    <p>
-     <table style="{{ styles['table'] }}" class="{{ classes['table'] }}">
+     <table style="{{ styles['table'] }}; width: 1000px;" class="{{ classes['table'] }}">
        <thead>
        <tr>
-         <th style="{{ styles['th'] }}; width:500px">{{ bucket_name }} - {{ field_display_name }}</th>
+         <th style="{{ styles['th'] }}; width:40%">{{ bucket_name }} - {{ field_display_name }}</th>
        {% if not show_perf %}
          </tr>
          </thead>
@@ -26,13 +27,13 @@
          {% endfor %}
          </tbody>
        {% else %}
-         <th style="{{ styles['th'] }}">Δ {{ metric_field_suffix }}</th>
-         <th style="{{ styles['th'] }}">{{ metric_name }}</th>
-         <th style="{{ styles['th'] }}">Current</th>
-         <th style="{{ styles['th'] }}">σ {{ metric_field_suffix }}</th>
+         <th style="{{ styles['th'] }}; {{ small_column_width }}">Δ {{ metric_field_suffix }}</th>
+         <th style="{{ styles['th'] }}; {{ small_column_width }}">{{ metric_name }}</th>
+         <th style="{{ styles['th'] }}; {{ small_column_width }}">Current</th>
+         <th style="{{ styles['th'] }}; {{ small_column_width }}">σ {{ metric_field_suffix }}</th>
          {% if secondary_info %}
-         <th style="{{ styles['th'] }}">Δ {{ secondary_field_suffix }}</th>
-         <th style="{{ styles['th'] }}">σ {{ secondary_field_suffix }}</th>
+         <th style="{{ styles['th'] }}; {{ small_column_width }}">Δ {{ secondary_field_suffix }}</th>
+         <th style="{{ styles['th'] }}; {{ small_column_width }}">σ {{ secondary_field_suffix }}</th>
          {% endif %}
          </tr>
          </thead>
@@ -53,14 +54,14 @@
              {% endif %}
              {{ utils.render_profile_link(cr.cur_profile, cr.prev_profile, run.id, compare_to_id, test_id) }}
            </td>
-           {{ cr.pct_delta|aspctcell(style=styles['td'],reverse=cr.bigger_is_better)|safe }}
-           <td style="{{ styles['td'] }}">{{ "%.4f" | format(cr.previous) }}</td>
-           <td style="{{ styles['td'] }}">{{ "%.4f" | format(cr.current) }}</td>
-           <td style="{{ styles['td'] }}">{{ "%.4f" | format_or_default(cr.stddev, '-') }}</td>
+           {{ cr.pct_delta|aspctcell(style=styles['td'] + 'text-align: right;',reverse=cr.bigger_is_better)|safe }}
+           <td class="right" style="{{ styles['td'] }}">{{ "%.4f" | format(cr.previous) }}</td>
+           <td class="right" style="{{ styles['td'] }}">{{ "%.4f" | format(cr.current) }}</td>
+           <td class="right" style="{{ styles['td'] }}">{{ "%.4f" | format_or_default(cr.stddev, '-') }}</td>
            {% if secondary_info %}
              {% set a_cr = secondary_info[(name, field)] %}
-             {{ a_cr.pct_delta|aspctcell(style=styles['td'],reverse=cr.bigger_is_better)|safe }}
-             <td style="{{ styles['td'] }}">{{ "%.4f" | format_or_default(a_cr.stddev, '-') }}</td>
+             {{ a_cr.pct_delta|aspctcell(style=styles['td'] + 'text-align: right;',reverse=cr.bigger_is_better)|safe }}
+             <td class="right" style="{{ styles['td'] }}">{{ "%.4f" | format_or_default(a_cr.stddev, '-') }}</td>
            {% endif %}
          </tr>
          {% endfor %}

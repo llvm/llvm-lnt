@@ -58,9 +58,9 @@ $('.profile-prev-only').tooltip();
   {% endif %}
 
   {% if cell_color %}
-    <td style="background-color:{{ '#%02x%02x%02x' % cell_color }}">{{ run_cell_value }}</td>
+    <td class="right" style="background-color:{{ '#%02x%02x%02x' % cell_color }}">{{ run_cell_value }}</td>
   {% else %}
-    <td>{{run_cell_value}}</td>
+    <td class="right">{{run_cell_value}}</td>
   {% endif %}
 
   {% if test_status == analysis.UNCHANGED_PASS and

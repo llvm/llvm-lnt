@@ -18,3 +18,7 @@ tr:hover > td > .editable {
 .editable span {
     position: relative;
 }
+
+tr > td.right {
+    text-align: right;
+}
