@@ -159,7 +159,7 @@
     {{ reportutils.get_cell_value(day_result, analysis, styles) }}
 {%-        else -%}
 {%-        set first_result_shown = true -%}
-    {{ reportutils.get_initial_cell_value(day_result, analysis, styles) }}
+{{ reportutils.get_initial_cell_value(day_result, field, analysis, styles) }}
 {%-        endif -%}
 {%-      endif -%}
 {%-    endfor %}

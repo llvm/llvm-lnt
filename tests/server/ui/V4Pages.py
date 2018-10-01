@@ -446,7 +446,7 @@ def main():
         client, '/v4/nts/daily_report/2012/5/04', "Execution Time")
     check_table_content(result_table_20120504,
                         [["test1", ""],
-                         ["", "machine2", "1.0000", "-", "900.00%", ""],
+                         ["", "machine2", "1.000", "-", "900.00%", ""],
                          ["test2", ""],
                          ["", "machine2", "FAIL", "-", "PASS", ""]])
     check_table_links(result_table_20120504,
@@ -465,13 +465,13 @@ def main():
         client, '/v4/nts/daily_report/2012/5/13?num_days=3', "Execution Time")
     check_table_content(result_table_20120513,
                         [["test6", ""],
-                         ["", "machine2", "1.0000", "FAIL", "PASS", ""],
+                         ["", "machine2", "1.000", "FAIL", "PASS", ""],
                          ["test_hash1", ""],
-                         ["", "machine2", "1.0000", '-', '20.00%', ""],
+                         ["", "machine2", "1.000", '-', '20.00%', ""],
                          ["test_hash2", ""],
-                         ["", "machine2", "1.0000", '-', '20.00%', ""],
+                         ["", "machine2", "1.000", '-', '20.00%', ""],
                          ["test_mhash_on_run", ""],
-                         ["", "machine2", "1.0000", '-', '20.00%', ""], ])
+                         ["", "machine2", "1.000", '-', '20.00%', ""], ])
     check_table_links(result_table_20120513,
                       [[],
                        ['/db_default/v4/nts/graph?plot.0=2.6.3&highlight_run=9'],

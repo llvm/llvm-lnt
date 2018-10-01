@@ -54,6 +54,22 @@ def filter_shortname(test_name):
     return util.guess_test_short_name(test_name)
 
 
+def filter_filesize(value):
+    for unit in ['', 'K', 'M', 'G', 'T', 'P', 'E', 'Z']:
+        if abs(value) < 1024.0:
+            return "%3.2f %sB" % (value, unit)
+        value /= 1024.0
+    return "%.2f%sB" % (value, 'Yi')
+
+def filter_print_value(value, field_unit, field_unit_abbrev, default = '-'):
+    if value == None:
+        return default
+
+    if field_unit == 'bytes' and field_unit_abbrev == 'B':
+        return filter_filesize(value)
+    else:
+        return '%.3f' % value
+
 def register(env):
     for name, object in globals().items():
         if name.startswith('filter_'):

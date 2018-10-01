@@ -5,7 +5,7 @@
 #}
 {%
   macro add_report_changes_detail_for_field_and_bucket(
-    compare_to, field, show_perf, run_url, field_index, field_display_name, bucket_name, bucket, test_names,
+    compare_to, field, show_perf, run_url, field_index, field_display_name, field_unit, field_unit_abbrev, bucket_name, bucket, test_names,
     metric_name, metric_field_suffix, secondary_field_suffix, secondary_info, styles, classes
   )
 %}
@@ -55,13 +55,13 @@
              {{ utils.render_profile_link(cr.cur_profile, cr.prev_profile, run.id, compare_to_id, test_id) }}
            </td>
            {{ cr.pct_delta|aspctcell(style=styles['td'] + 'text-align: right;',reverse=cr.bigger_is_better)|safe }}
-           <td class="right" style="{{ styles['td'] }}">{{ "%.4f" | format(cr.previous) }}</td>
-           <td class="right" style="{{ styles['td'] }}">{{ "%.4f" | format(cr.current) }}</td>
-           <td class="right" style="{{ styles['td'] }}">{{ "%.4f" | format_or_default(cr.stddev, '-') }}</td>
+           <td class="right" style="{{ styles['td'] }}">{{ cr.previous | print_value(field_unit, field_unit_abbrev) }}</td>
+           <td class="right" style="{{ styles['td'] }}">{{ cr.current | print_value(field_unit, field_unit_abbrev) }}</td>
+           <td class="right" style="{{ styles['td'] }}">{{ cr.stddev | print_value(field_unit, field_unit_abbrev) }}</td>
            {% if secondary_info %}
              {% set a_cr = secondary_info[(name, field)] %}
              {{ a_cr.pct_delta|aspctcell(style=styles['td'] + 'text-align: right;',reverse=cr.bigger_is_better)|safe }}
-             <td class="right" style="{{ styles['td'] }}">{{ "%.4f" | format_or_default(a_cr.stddev, '-') }}</td>
+             <td class="right" style="{{ styles['td'] }}">{{ a_cr.stddev | print_value(field_unit, field_unit_abbrev) }}</td>
            {% endif %}
          </tr>
          {% endfor %}
@@ -169,7 +169,7 @@
       {% set field_index = ts.get_field_index(field) %}
       {{
         add_report_changes_detail_for_field_and_bucket(compare_to, field, show_perf, run_url, field_index, field.display_name,
-                                                       bucket_name, sorted_bucket, test_names,
+                                                       field.unit, field.unit_abbrev, bucket_name, sorted_bucket, test_names,
                                                        'Previous', '', ' (B)', run_to_baseline_info, styles, classes)
       }}
     {% endfor %}
@@ -185,8 +185,8 @@
 {% for _, field, bucket_name, sorted_bucket, test_names, show_perf in prioritized_buckets_run_over_baseline %}
   {% set field_index = ts.get_field_index(field) %}
   {{
-    add_report_changes_detail_for_field_and_bucket(baseline, field, show_perf, run_url, field_index, field.display_name,
-                                                   bucket_name, sorted_bucket, test_names,
+    add_report_changes_detail_for_field_and_bucket(baseline, field, show_perf, run_url, field_index, field.display_name, field.unit,
+                                                   field.unit_abbrev, bucket_name, sorted_bucket, test_names,
                                                    'Baseline', '(B)', '', run_to_run_info, styles, classes)
   }}
 {% endfor %}

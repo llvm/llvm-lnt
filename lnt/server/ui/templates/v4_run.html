@@ -36,10 +36,10 @@ $('.profile-prev-only').tooltip();
   
 {% block title %}Run Results{% endblock %}
 
-{% macro get_cell_value(cr) %}
+{% macro get_cell_value(cr, field) %}
   {% set test_status = cr.get_test_status() %}
   {% set value_status = cr.get_value_status(ignore_small=not options.show_small_diff) %}
-  {% set run_cell_value = "-" if cr.current is none else "%.4f" % cr.current %}
+  {% set run_cell_value = cr.current|print_value(field.unit, field.unit_abbrev) %}
   {% set run_cell_value = "-" if test_status in [analysis.REGRESSED, analysis.UNCHANGED_FAIL] else run_cell_value %}
 
   {% if options.show_previous %}
@@ -352,7 +352,7 @@ $('.profile-prev-only').tooltip();
                 </a>
                 {{ utils.render_profile_link(cr.cur_profile, cr.prev_profile, run.id, compare_to.id, test_id) }}
               </td>
-              {{ get_cell_value(cr) }}
+              {{ get_cell_value(cr, field) }}
             </tr>
           {% endfor %}
         </tbody>
@@ -362,7 +362,7 @@ $('.profile-prev-only').tooltip();
                         run, compare_to, field, tests) %}
             <td><input type="checkbox" name="mean" value="{{machine.id}}.{{field_index}}"/></td>
             <td><a href="{{graph_base}}&amp;mean={{machine.id}}.{{field_index}}">Geometric Mean</a></td>
-            {{ get_cell_value(cr) }}
+            {{ get_cell_value(cr, field) }}
           </tr>
         </tfoot>
       </table>
