@@ -1,0 +1,67 @@
+{% import "utils.html" as utils %}
+{% import "local.html" as local %}
+{% import "reportutils.html" as reportutils %}
+{% if not only_html_body %}
+<html>
+<head>
+    <title>Latest ({{ report.run_count }}) Runs Report</title>
+</head>
+<body style="{{ styles['body'] }}">
+{% endif %}
+
+<h2 style="text-align:center">Latest ({{ report.run_count }}) Runs Report</h2>
+
+{{ utils.regex_filter_box(input_id='machine-filter',
+                          selector='.searchable-machine',
+                          placeholder="Machine name regex...",
+                          selector_part_to_search=".machine-name")
+}}
+{{ utils.regex_filter_box(input_id='test-filter',
+                          selector='.searchable',
+                          placeholder="Test name regex...",
+                          selector_part_to_search=".test-name")
+}}
+
+{% for field, field_results in report.result_table %}
+    {%- if field_results -%}
+        {{ utils.render_popup_begin(field.display_name, field.display_name, false, element = 'h3') }}
+        {% for machine, machine_runs, machine_results in field_results %}
+            <div class="searchable-machine">
+                <h5 class="machine-name">{{machine.name}}</h5>
+                <table border="1" style="{{ styles.table }};">
+                    <thead>
+                        <tr>
+                            <th style="{{ styles.th }}">Test Name</th>
+                            {% for i in range(machine_runs)|reverse %}
+                                <th style="{{ styles.th }}">Run #{{i + 1}}</th>
+                            {% endfor %}
+                            <th style="{{ styles.th }}">Sparkline</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for test, test_results in machine_results %}
+                            <tr class="searchable">
+                                <td class="test-name" style="{{ styles.td }}"><a href="{{
+                  ts_url}}/graph?plot.0={{machine.id}}.{{test.id}}.{{
+                    report.ts.get_field_index(field)}}">{{test.name}}</a></td>
+                                {{ reportutils.get_initial_cell_value(test_results[-1], field, analysis, styles) }}
+                                {% for result in test_results[:-1]|reverse %}
+                                    {{ reportutils.get_cell_value(result, analysis, styles) }}
+                                {% endfor %}
+                                <td>{{ reportutils.spark_plot(test_results) }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% endfor %}
+        {{ utils.render_popup_end() }}
+    {% else %}
+        <h3>No significant {{ field.display_name }} changes found.</h3>
+    {%- endif -%}
+{% endfor %}
+
+{% if not only_html_body %}
+</body>
+</html>
+{% endif %}

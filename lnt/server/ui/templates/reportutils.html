@@ -1,0 +1,100 @@
+{% macro get_initial_cell_value(result, field, analysis, styles) %}
+{%- set cr = result.cr -%}
+{%- set test_status = cr.get_test_status() -%}
+{%- if (test_status == analysis.REGRESSED or
+       test_status == analysis.UNCHANGED_FAIL) %}
+       <td style="{{ styles.td }}; background-color:#e98080">FAIL</td>
+{%- else %}
+    <td style="{{ styles.td }}; {{ styles.right }}; background-color:#d2d2d2"> {#- -#}
+        {{ cr.current|print_value(field.unit, field.unit_abbrev) }}
+    </td>
+{%- endif -%}
+{% endmacro %}
+
+{% macro get_cell_value(result, analysis, styles) %}
+{%- set cr = result.cr -%}
+{%- set test_status = cr.get_test_status() -%}
+{%- set value_status = cr.get_value_status() -%}
+{%- if (test_status == analysis.REGRESSED or
+       test_status == analysis.UNCHANGED_FAIL) %}
+    <td style="{{ styles.td }}; background-color:#e98080">FAIL</td>
+{%- elif test_status == analysis.IMPROVED %}
+    <td style="{{ styles.td }}; background-color:#8fdf5f">PASS</td>
+{%- else -%}
+{%- if (value_status == analysis.REGRESSED or
+       value_status == analysis.IMPROVED) %}
+    {{ cr.pct_delta|aspctcell(reverse=cr.bigger_is_better, style = styles.right)|safe }}
+{%- else %}
+    <td style="{{ styles.td }}">-</td>
+{%- endif -%}
+{%- endif -%}
+{% endmacro %}
+
+{% macro spark_plot(results) %}
+{%- set x_border_size = 5 %}
+{%- set x_border_size = 5 %}
+{%- set y_border_size = 2 %}
+{%- set height = 18 %}
+{%- set full_height = height + 2*y_border_size %}
+{%- set x_day_spacing = 10 %}
+{%- set sample_fuzzing = 0.5 %}
+{%- set nr_days = results|length %}
+{%- set width = x_day_spacing * nr_days + 2*x_border_size %}
+{%- if results.max_sample != results.min_sample %}
+  {%- set scaling_factor = (1.0*height)
+         / (results.max_sample-results.min_sample) -%}
+{%- else %}
+  {%- set scaling_factor = 1.0 -%}
+{%- endif %}
+{%- macro spark_y_coord(day_nr, value) -%}
+  {{ (value-results.min_sample) * scaling_factor + y_border_size }}
+{%- endmacro -%}
+{%- macro spark_x_coord(day_nr) -%}
+  {{ (nr_days - day_nr) * x_day_spacing + x_border_size }}
+{%- endmacro -%}
+{%- macro spark_hash_background(day_nr, dr) -%}
+  {%- if dr.cr.cur_hash is not none -%}
+    {%- set style = "fill: "+dr.hash_rgb_color+";" -%}
+  {%- else -%}
+    {%- set style = "fill: none;" -%}
+  {%- endif -%}
+    <rect x="{{(nr_days-day_nr-0.5) * x_day_spacing + x_border_size}}" y="0"
+          width="{{x_day_spacing}}" height="{{full_height}}" style="{{style}}"/>
+{%- endmacro -%}
+    <span>
+      <svg width="{{width}}" height="{{full_height}}">
+      <rect width="{{width}}" height="{{full_height}}" fill="#f7f7f7"/>
+{#- Make y-axis go upwards instead of downwards: #}
+      <g transform="translate(0, {{full_height}}) scale(1, -1) ">
+{%- for dr in results -%}
+  {%- if dr is not none and not dr.cr.failed -%}
+    {%- set day_nr = loop.index %}
+    {%- set nr_samples_for_day = dr.samples|length %}
+        {{ spark_hash_background(day_nr, dr) }}
+    {%- for sample in dr.samples -%}
+      {# fuzz the x-coordinate slightly so that multiple samples with the same
+         value can be noticed #}
+      {%- set sample_fuzz = (-sample_fuzzing*1.25) +
+                       (2.0*sample_fuzzing/nr_samples_for_day) * loop.index %}
+        <circle cx="{{ spark_x_coord(day_nr)|float + sample_fuzz }}" {# -#}
+                cy="{{ spark_y_coord(day_nr, sample) }}" r="1"
+                stroke-width="1" stroke="black" fill="black" />
+    {%- endfor -%}
+  {%- endif -%}
+{%- endfor %}
+        <polyline points="
+  {%- for dr in results -%}
+    {%- if dr is not none -%}
+      {%- set cr = dr.cr -%}
+      {%- set day_nr = loop.index -%}
+      {%- if not cr.failed and cr.current is not none %}
+          {{ spark_x_coord(day_nr) }} {{ spark_y_coord(day_nr, cr.current) }}
+      {%- endif -%}
+    {%- endif -%}
+  {%- endfor -%}
+          " fill="none" stroke="red" stroke-width="1"/>
+        </g>
+      </svg>
+    </span>
+{%- endmacro %}
+
