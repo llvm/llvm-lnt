@@ -955,7 +955,7 @@ def v4_graph():
 
         data.sort(key=lambda sample: convert_revision(sample[0], cache=revision_cache))
 
-        graph_datum.append((test.name, data, col, field, url))
+        graph_datum.append((test.name, data, col, field, url, machine))
 
         # Get baselines for this line
         num_baselines = len(baseline_parameters)
@@ -1021,9 +1021,9 @@ def v4_graph():
         # Sort data points according to revision number.
         data.sort(key=lambda sample: convert_revision(sample[0]))
 
-        graph_datum.append((test_name, data, col, field, None))
+        graph_datum.append((test_name, data, col, field, None, machine))
 
-    for name, data, col, field, url in graph_datum:
+    for name, data, col, field, url, machine in graph_datum:
         # Compute the graph points.
         errorbar_data = []
         points_data = []
@@ -1062,6 +1062,7 @@ def v4_graph():
 
             # Generate metadata.
             metadata = {"label": point_label}
+            metadata["machine"] = machine.name
             metadata["date"] = str(dates[agg_index])
             if runs:
                 metadata["runID"] = str(runs[agg_index])

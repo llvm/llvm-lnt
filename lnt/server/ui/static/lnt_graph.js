@@ -99,6 +99,10 @@ function show_tooltip(x, y, item, pos, graph_data) {
         tip_body +=  "<b><a href=\"" + meta_data.link + "\">" + meta_data.title + "</a></b></br>";
     }
 
+    if (meta_data.machine) {
+        tip_body += "<b>Machine:</b> " + meta_data.machine + "<br>";
+    }
+
     if (meta_data.test_name) {
         tip_body += "<b>Test:</b> " + meta_data.test_name + "<br>";
     }
