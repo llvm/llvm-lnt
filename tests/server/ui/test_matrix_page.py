@@ -59,7 +59,7 @@ class MatrixViewTester(unittest.TestCase):
         """Does the page load with the data as expected.
         """
         client = self.client
-        reply = check_html(client, '/v4/nts/matrix?plot.0=2.6.3')
+        reply = check_html(client, '/v4/nts/matrix?plot.0=2.6.2')
         # Set a baseline and run again.
         form_data = dict(name="foo_baseline",
                          description="foo_description",
@@ -69,13 +69,13 @@ class MatrixViewTester(unittest.TestCase):
         check_code(client, '/v4/nts/set_baseline/1',
                    expected_code=HTTP_REDIRECT)
 
-        reply = check_html(client, '/v4/nts/matrix?plot.0=2.6.3')
+        reply = check_html(client, '/v4/nts/matrix?plot.0=2.6.2')
         # Make sure the data is in the page.
         self.assertIn("test6", reply.data)
         self.assertIn("1.0000", reply.data)
         self.assertIn("1.2000", reply.data)
 
-        reply = check_html(client, '/v4/nts/matrix?plot.0=2.6.3&limit=1')
+        reply = check_html(client, '/v4/nts/matrix?plot.0=2.6.2&limit=1')
 
 
 if __name__ == '__main__':

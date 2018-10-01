@@ -199,13 +199,13 @@ class JSONAPITester(unittest.TestCase):
         """Check that /graph/x/y/z returns what we expect."""
         client = self.client
 
-        j = check_json(client, 'api/db_default/v4/nts/graph/2/4/3')
+        j = check_json(client, 'api/db_default/v4/nts/graph/2/4/2')
         # TODO: Graph API needs redesign to be well formed.
         # self._check_response_is_well_formed(j)
         self.assertEqual(graph_data, j)
 
         # Now check that limit works.
-        j2 = check_json(client, 'api/db_default/v4/nts/graph/2/4/3?limit=1')
+        j2 = check_json(client, 'api/db_default/v4/nts/graph/2/4/2?limit=1')
         # self._check_response_is_well_formed(j)
         self.assertEqual(graph_data2, j2)
 
@@ -255,7 +255,7 @@ class JSONAPITester(unittest.TestCase):
         # check first field
         f0 = fields[0]
         self.assertEqual(0, f0['column_id'])
-        self.assertEqual('compile_status', f0['column_name'])
+        self.assertEqual('compile_time', f0['column_name'])
 
     def test_tests_api(self):
         """Tests API."""

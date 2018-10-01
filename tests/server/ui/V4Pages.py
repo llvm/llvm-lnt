@@ -451,9 +451,9 @@ def main():
                          ["", "machine2", "FAIL", "-", "PASS", ""]])
     check_table_links(result_table_20120504,
                       [[],
-                       ["/db_default/v4/nts/graph?plot.0=2.4.3&highlight_run=6"],
+                       ["/db_default/v4/nts/graph?plot.0=2.4.2&highlight_run=6"],
                        [],
-                       ["/db_default/v4/nts/graph?plot.0=2.5.3&highlight_run=6"]])
+                       ["/db_default/v4/nts/graph?plot.0=2.5.2&highlight_run=6"]])
 
     check_body_nr_tests_table(
         client, '/v4/nts/daily_report/2012/5/04',
@@ -474,13 +474,13 @@ def main():
                          ["", "machine2", "1.000", '-', '20.00%', ""], ])
     check_table_links(result_table_20120513,
                       [[],
-                       ['/db_default/v4/nts/graph?plot.0=2.6.3&highlight_run=9'],
+                       ['/db_default/v4/nts/graph?plot.0=2.6.2&highlight_run=9'],
                        [],
-                       ['/db_default/v4/nts/graph?plot.0=2.7.3&highlight_run=9'],
+                       ['/db_default/v4/nts/graph?plot.0=2.7.2&highlight_run=9'],
                        [],
-                       ['/db_default/v4/nts/graph?plot.0=2.8.3&highlight_run=9'],
+                       ['/db_default/v4/nts/graph?plot.0=2.8.2&highlight_run=9'],
                        [],
-                       ['/db_default/v4/nts/graph?plot.0=2.9.3&highlight_run=9']])
+                       ['/db_default/v4/nts/graph?plot.0=2.9.2&highlight_run=9']])
 
     sparkline_test6_xml = \
         get_sparkline(result_table_20120513, "test6", "machine2")
@@ -649,7 +649,7 @@ def main():
     # Check we can convert a sample into a graph page.
     graph_to_sample = check_code(client, '/db_default/v4/nts/graph_for_sample/10/compile_time?foo=bar',
                                  expected_code=HTTP_REDIRECT)
-    assert graph_to_sample.headers['Location'] == "http://localhost/db_default/v4/nts/graph?foo=bar&plot.0=2.6.2"
+    assert graph_to_sample.headers['Location'] == "http://localhost/db_default/v4/nts/graph?foo=bar&plot.0=2.6.0"
 
     # Check that is we ask for a sample or invalid field, we explode with 400s.
     check_code(client, '/db_default/v4/nts/graph_for_sample/10000/compile_time?foo=bar',
