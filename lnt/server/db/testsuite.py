@@ -143,7 +143,7 @@ class TestSuite(Base):
         assert(len(order_fields) > 0)
 
         sample_fields = []
-        for metric_desc in data['metrics']:
+        for index, metric_desc in enumerate(data['metrics']):
             name = metric_desc['name']
             bigger_is_better = metric_desc.get('bigger_is_better', False)
             metric_type_name = metric_desc.get('type', 'Real')
@@ -155,7 +155,7 @@ class TestSuite(Base):
                                  metric_type_name)
             metric_type = SampleType(metric_type_name)
             bigger_is_better_int = 1 if bigger_is_better else 0
-            field = SampleField(name, metric_type, status_field=None,
+            field = SampleField(name, metric_type, index, status_field=None,
                                 bigger_is_better=bigger_is_better_int,
                                 display_name=display_name, unit=unit,
                                 unit_abbrev=unit_abbrev)
@@ -312,7 +312,7 @@ class SampleField(FieldMixin, Base):
     # This assumption can be inverted by setting this column to nonzero.
     bigger_is_better = Column("bigger_is_better", Integer)
 
-    def __init__(self, name, type, status_field=None, bigger_is_better=0,
+    def __init__(self, name, type, schema_index, status_field=None, bigger_is_better=0,
                  display_name=None, unit=None, unit_abbrev=None):
         self.name = name
         self.type = type
@@ -321,6 +321,7 @@ class SampleField(FieldMixin, Base):
         self.display_name = name if display_name is None else display_name
         self.unit = unit
         self.unit_abbrev = unit_abbrev
+        self.schema_index = schema_index
 
         # Column instance for fields which have been bound (non-DB
         # parameter). This is provided for convenience in querying.
@@ -331,12 +332,13 @@ class SampleField(FieldMixin, Base):
         self.display_name = self.name
         self.unit = None
         self.unit_abbrev = None
+        self.schema_index = -1
 
     def __repr__(self):
         return '%s%r' % (self.__class__.__name__, (self.name, self.type, ))
 
     def __copy__(self):
-        return SampleField(self.name, self.type, self.status_field,
+        return SampleField(self.name, self.type, self.schema_index, self.status_field,
                            self.bigger_is_better, self.display_name, self.unit,
                            self.unit_abbrev)
 
@@ -344,6 +346,7 @@ class SampleField(FieldMixin, Base):
         self.display_name = other.display_name
         self.unit = other.unit
         self.unit_abbrev = other.unit_abbrev
+        self.schema_index = other.schema_index
 
 
 def _upgrade_to(connectable, tsschema, new_schema, dry_run=False):
