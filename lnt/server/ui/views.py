@@ -2,6 +2,7 @@ import datetime
 import json
 import os
 import re
+import time
 from collections import namedtuple, defaultdict
 from urlparse import urlparse, urljoin
 
@@ -1909,3 +1910,15 @@ def ping():
 
     Used by tests to poll on server creation."""
     return "pong", 200
+
+
+@frontend.route("/sleep")
+def sleep():
+    """Simple route to simulate long running page loads.
+
+    Used by to diagnose proxy issues etc."""
+    sleep_time = 1
+    if request.args.get('timeout'):
+        sleep_time = int(request.args.get('timeout'))
+    time.sleep(sleep_time)
+    return "Done", 200

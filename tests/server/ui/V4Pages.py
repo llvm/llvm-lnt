@@ -637,6 +637,8 @@ def main():
     error_page = check_html(client, '/gone', expected_code=404)
     assert "test" in error_page.data
 
+    check_html(client, '/sleep?timeout=0', expected_code=200)
+
     check_html(client, '/db_default/summary_report')
 
     check_html(client, '/rules')
