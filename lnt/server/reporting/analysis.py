@@ -15,6 +15,8 @@ UNCHANGED_FAIL = 'UNCHANGED_FAIL'
 # The smallest measureable change we can detect in seconds.
 MIN_VALUE_PRECISION = 0.0001
 
+# Minimal percentage difference that is visible in reports
+MIN_PERCENTAGE_CHANGE = .01
 
 def absmin_diff(current, prevs):
     """Min of differences between current sample and all previous samples.
@@ -183,16 +185,16 @@ class ComparisonResult:
         elif self.prev_failed:
             return UNCHANGED_PASS
 
-        # Always ignore percentage changes below 1%, for now, we just don't
+        # Always ignore percentage changes below MIN_PERCENTAGE_CHANGE %, for now, we just don't
         # have enough time to investigate that level of stuff.
-        if ignore_small and abs(self.pct_delta) < .01:
+        if ignore_small and abs(self.pct_delta) < MIN_PERCENTAGE_CHANGE:
             return UNCHANGED_PASS
 
         # Always ignore changes with small deltas. There is no mathematical
         # basis for this, it should be obviated by appropriate statistical
         # checks, but practical evidence indicates what we currently have isn't
         # good enough (for reasons I do not yet understand).
-        if ignore_small and abs(self.delta) < .01:
+        if ignore_small and abs(self.delta) < MIN_PERCENTAGE_CHANGE:
             return UNCHANGED_PASS
 
         # Ignore tests whose delta is too small relative to the precision we

@@ -9,7 +9,7 @@ from lnt.server.db.regression import get_cr_for_field_change, get_ris
 from lnt.server.db.testsuitedb import TestSuiteDB
 from lnt.testing.util.commands import timed
 from lnt.util import logger
-
+from lnt.server.reporting.analysis import MIN_PERCENTAGE_CHANGE
 
 def _fixed_rind(session, ts, rind):
     """Is this regression indicator fixed?"""
@@ -17,7 +17,7 @@ def _fixed_rind(session, ts, rind):
     if fc is None:
         return False
     current_cr, _, _ = get_cr_for_field_change(session, ts, fc, current=True)
-    if current_cr.pct_delta < 0.01:
+    if current_cr.pct_delta < MIN_PERCENTAGE_CHANGE:
         return True
     else:
         return False
