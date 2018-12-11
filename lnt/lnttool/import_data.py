@@ -1,4 +1,4 @@
-from .common import submit_options
+from lnt.lnttool.common import submit_options
 import click
 import lnt.formats
 
@@ -29,7 +29,6 @@ def action_import(instance_path, files, database, output_format, show_sql,
     import lnt.server.instance
     import lnt.util.ImportData
     import pprint
-    import sys
     import logging
     from .common import init_logger
 
