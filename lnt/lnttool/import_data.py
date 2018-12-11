@@ -1,3 +1,4 @@
+import sys
 from lnt.lnttool.common import submit_options
 import click
 import lnt.formats
