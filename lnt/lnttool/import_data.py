@@ -1,7 +1,12 @@
+import contextlib
+import logging
+import pprint
 import sys
-from lnt.lnttool.common import submit_options
+
 import click
+
 import lnt.formats
+from lnt.lnttool.common import submit_options, init_logger
 
 
 @click.command("import")
@@ -26,12 +31,8 @@ def action_import(instance_path, files, database, output_format, show_sql,
                   show_sample_count, show_raw_result, testsuite, verbose,
                   quiet, no_email, no_report, select_machine, merge):
     """import test data into a database"""
-    import contextlib
     import lnt.server.instance
     import lnt.util.ImportData
-    import pprint
-    import logging
-    from .common import init_logger
 
     init_logger(logging.INFO if verbose or show_sql else logging.WARNING,
                 show_sql=show_sql)
