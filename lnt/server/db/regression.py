@@ -4,6 +4,7 @@ import re
 from collections import namedtuple
 from lnt.server.reporting.analysis import RunInfo
 from lnt.server.ui.util import guess_test_short_name as shortname
+from lnt.testing.util.commands import timed
 
 
 class RegressionState:
@@ -37,6 +38,7 @@ ChangeRuns = namedtuple("ChangeRuns", ["before", "after"])
 ChangeData = namedtuple("ChangeData", ["ri", "cr", "run", "latest_cr"])
 
 
+@timed
 def new_regression(session, ts, field_changes):
     """Make a new regression and add to DB."""
     today = datetime.date.today()
