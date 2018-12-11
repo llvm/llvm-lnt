@@ -44,13 +44,18 @@ def new_regression(session, ts, field_changes):
     title = MSG
     regression = ts.Regression(title, "", RegressionState.DETECTED)
     session.add(regression)
+    new_ris = []
     for fc_id in field_changes:
-        fc = get_fieldchange(session, ts, fc_id)
+        if type(fc_id) == int:
+            fc = get_fieldchange(session, ts, fc_id)
+        else:
+            fc = fc_id
         ri1 = ts.RegressionIndicator(regression, fc)
-        session.add(ri1)
+        new_ris.append(ri1)
+    session.add_all(new_ris)
     rebuild_title(session, ts, regression)
     session.commit()
-    return regression
+    return regression, new_ris
 
 
 def rebuild_title(session, ts, regression):

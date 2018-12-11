@@ -14,11 +14,8 @@ def timed(func):
         t_start = time.time()
         result = func(*args, **kw)
         t_end = time.time()
-        short_args = repr(args)
-        if len(short_args) > 80:
-            short_args = short_args[0:80]
         delta = t_end - t_start
-        msg = '%r (%s, %r) %2.2f sec' % (func.__name__, short_args, kw, delta)
+        msg = '%r %2.2f sec' % (func.__name__, delta)
         if delta > 10:
             logger.warning(msg)
         else:

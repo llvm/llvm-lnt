@@ -120,6 +120,13 @@ def regenerate_fieldchanges_for_run(session, ts, run_id):
                               .filter(ts.FieldChange.field_id.in_(field_ids))
                               .all())
 
+    active_indicators = session.query(ts.RegressionIndicator) \
+        .join(ts.Regression) \
+        .filter(or_(ts.Regression.state == RegressionState.DETECTED,
+                    ts.Regression.state == RegressionState.DETECTED_FIXED)) \
+        .options(joinedload(ts.RegressionIndicator.field_change)) \
+        .all()
+
     for field in list(ts.Sample.get_metric_fields()):
         for test_id in runinfo.test_ids:
             f = None
@@ -158,12 +165,12 @@ def regenerate_fieldchanges_for_run(session, ts, run_id):
                 session.add(f)
                 try:
                     found, new_reg = identify_related_changes(session, ts,
-                                                              f)
+                                                              f, active_indicators)
                 except ObjectDeletedError:
                     # This can happen from time to time.
                     # So, lets retry once.
                     found, new_reg = identify_related_changes(session, ts,
-                                                              f)
+                                                              f, active_indicators)
 
                 if found:
                     logger.info("Found field change: {}".format(
@@ -174,6 +181,7 @@ def regenerate_fieldchanges_for_run(session, ts, run_id):
                 f.old_value = result.previous
                 f.new_value = result.current
                 f.run = run
+
     session.commit()
 
     regressions = session.query(ts.Regression).all()[::-1]
@@ -206,7 +214,7 @@ def percent_similar(a, b):
 
 
 @timed
-def identify_related_changes(session, ts, fc):
+def identify_related_changes(session, ts, fc, active_indicators):
     """Can we find a home for this change in some existing regression? If a
     match is found add a regression indicator adding this change to that
     regression, otherwise create a new regression for this change.
@@ -215,13 +223,6 @@ def identify_related_changes(session, ts, fc):
     ranges. Then looks for changes that are similar.
 
     """
-    active_indicators = session.query(ts.RegressionIndicator) \
-        .join(ts.Regression) \
-        .filter(or_(ts.Regression.state == RegressionState.DETECTED,
-                ts.Regression.state == RegressionState.DETECTED_FIXED)) \
-        .options(joinedload(ts.RegressionIndicator.field_change)) \
-        .all()
-
     for change in active_indicators:
         regression_change = change.field_change
 
@@ -245,10 +246,12 @@ def identify_related_changes(session, ts, fc):
                                        confidence))
                 ri = ts.RegressionIndicator(regression, fc)
                 session.add(ri)
+                active_indicators.append(ri)
                 # Update the default title if needed.
                 rebuild_title(session, ts, regression)
                 session.commit()
                 return True, regression
     logger.info("Could not find a partner, creating new Regression for change")
-    new_reg = new_regression(session, ts, [fc.id])
+    new_reg, new_indicators = new_regression(session, ts, [fc.id])
+    active_indicators.extend(new_indicators)
     return False, new_reg
