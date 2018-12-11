@@ -102,6 +102,24 @@ def regenerate_fieldchanges_for_run(session, ts, run_id):
 
     # Only store fieldchanges for "metric" samples like execution time;
     # not for fields with other data, e.g. hash of a binary
+    field_ids = [x.id for x in ts.Sample.get_metric_fields()]
+
+    # We need to make sure if a field change already exists we use it.
+    # Since querying on every possible test*field is expensive, get the
+    # interesting locations ahead of time, and keep them in memory to
+    # check if we should actually query.
+    changes_of_interest = set(session.query(ts.FieldChange.start_order_id,
+                                            ts.FieldChange.end_order_id,
+                                            ts.FieldChange.test_id,
+                                            ts.FieldChange.machine_id,
+                                            ts.FieldChange.field_id)
+                              .filter(ts.FieldChange.start_order == start_order)
+                              .filter(ts.FieldChange.end_order == end_order)
+                              .filter(ts.FieldChange.test_id.in_(runinfo.test_ids))
+                              .filter(ts.FieldChange.machine == run.machine)
+                              .filter(ts.FieldChange.field_id.in_(field_ids))
+                              .all())
+
     for field in list(ts.Sample.get_metric_fields()):
         for test_id in runinfo.test_ids:
             f = None
@@ -109,17 +127,19 @@ def regenerate_fieldchanges_for_run(session, ts, run_id):
                 runs, previous_runs, test_id, field,
                 ts.Sample.get_hash_of_binary_field())
             # Try and find a matching FC and update, else create one.
-            try:
+            target = (start_order.id, run.order.id, run.machine.id, test_id, field.id)
+            should_search = target in changes_of_interest
+
+            if should_search:
                 f = session.query(ts.FieldChange) \
                     .filter(ts.FieldChange.start_order == start_order) \
                     .filter(ts.FieldChange.end_order == end_order) \
                     .filter(ts.FieldChange.test_id == test_id) \
                     .filter(ts.FieldChange.machine == run.machine) \
                     .filter(ts.FieldChange.field_id == field.id) \
-                    .one()
-            except sqlalchemy.orm.exc.NoResultFound:
-                f = None
-
+                    .one_or_none()
+                if not f:
+                    logger.warning("Fell back to field lookup. Should not happen.")
             if not result.is_result_performance_change() and f:
                 # With more data, its not a regression. Kill it!
                 logger.info("Removing field change: {}".format(f.id))
