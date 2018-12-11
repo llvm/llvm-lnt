@@ -125,6 +125,9 @@ def regenerate_fieldchanges_for_run(session, ts, run_id):
         .filter(or_(ts.Regression.state == RegressionState.DETECTED,
                     ts.Regression.state == RegressionState.DETECTED_FIXED)) \
         .options(joinedload(ts.RegressionIndicator.field_change)) \
+        .options(joinedload("field_change.start_order")) \
+        .options(joinedload("field_change.end_order")) \
+        .options(joinedload("field_change.test")) \
         .all()
 
     for field in list(ts.Sample.get_metric_fields()):
