@@ -15,7 +15,7 @@ def timed(func):
         result = func(*args, **kw)
         t_end = time.time()
         delta = t_end - t_start
-        msg = '%r %2.2f sec' % (func.__name__, delta)
+        msg = 'timer: %r %2.2f sec' % (func.__name__, delta)
         if delta > 10:
             logger.warning(msg)
         else:
