@@ -72,7 +72,7 @@ def read_any(path_or_file, format_name):
         if f is None:
             if isinstance(path_or_file, str):
                 raise ValueError("unable to guess input format for %r" % (
-                        path_or_file,))
+                    path_or_file,))
             else:
                 raise ValueError("unable to guess input format for file")
     else:
