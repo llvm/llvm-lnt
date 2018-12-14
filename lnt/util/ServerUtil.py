@@ -1,7 +1,6 @@
 """
 Utility for submitting files to a web server over HTTP.
 """
-import plistlib
 import sys
 import urllib
 import urllib2
@@ -9,7 +8,6 @@ import contextlib
 import json
 
 import lnt.server.instance
-from lnt.util import ImportData
 
 # FIXME: I used to maintain this file in such a way that it could be used
 # separate from LNT to do submission. This could be useful for adapting an
