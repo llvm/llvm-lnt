@@ -9,7 +9,6 @@ import lnt.server.reporting.analysis
 from lnt.testing.util.commands import timed
 from lnt.util import logger
 from lnt.server.db.regression import new_regression, RegressionState
-from lnt.server.db.regression import get_ris
 from lnt.server.db.regression import rebuild_title
 from sqlalchemy import or_
 from lnt.server.db import rules_manager as rules
