@@ -30,7 +30,7 @@ from lnt.testing.util.misc import timestamp
 
 from lnt.server.reporting.analysis import UNCHANGED_PASS, UNCHANGED_FAIL
 from lnt.server.reporting.analysis import REGRESSED, IMPROVED
-from lnt.util import logger, ImportData
+from lnt.util import logger
 from lnt.lnttool.common import submit_options
 import builtintest
 
