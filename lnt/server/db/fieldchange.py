@@ -1,7 +1,10 @@
 import difflib
 import sqlalchemy.sql
 from sqlalchemy.orm import joinedload
+from sqlalchemy.orm.session import Session
 from sqlalchemy.orm.exc import ObjectDeletedError
+from typing import Tuple, List
+
 import lnt.server.reporting.analysis
 from lnt.testing.util.commands import timed
 from lnt.util import logger
@@ -10,6 +13,7 @@ from lnt.server.db.regression import get_ris
 from lnt.server.db.regression import rebuild_title
 from sqlalchemy import or_
 from lnt.server.db import rules_manager as rules
+from lnt.server.db.testsuitedb import TestSuiteDB
 # How many runs backwards to use in the previous run set.
 # More runs are slower (more DB access), but may provide
 # more accurate results.
@@ -25,6 +29,7 @@ def post_submit_tasks(session, ts, run_id):
 
 
 def delete_fieldchange(session, ts, change):
+    # type: (Session, TestSuiteDB, TestSuiteDB.FieldChange) -> List[int]
     """Delete this field change.  Since it might be attahed to a regression
     via regression indicators, fix those up too.  If this orphans a regression
     delete it as well."""
@@ -61,6 +66,7 @@ def delete_fieldchange(session, ts, change):
 
 @timed
 def regenerate_fieldchanges_for_run(session, ts, run_id):
+    # type: (Session, TestSuiteDB, int) -> None
     """Regenerate the set of FieldChange objects for the given run.
     """
     # Allow for potentially a few different runs, previous_runs, next_runs
@@ -187,11 +193,12 @@ def regenerate_fieldchanges_for_run(session, ts, run_id):
 
     session.commit()
 
-    regressions = session.query(ts.Regression).all()[::-1]
     rules.post_submission_hooks(session, ts, run_id)
 
 
 def is_overlaping(fc1, fc2):
+    # type: (TestSuiteDB.FieldChange, TestSuiteDB.FieldChange) -> bool
+
     """"Returns true if these two orders intersect. """
     try:
         r1_min = fc1.start_order
@@ -206,18 +213,19 @@ def is_overlaping(fc1, fc2):
 
 
 def percent_similar(a, b):
+    # type: (str, str) -> float
     """
     Percent similar: are these strings similar to each other?
     :param a: first string
     :param b: second string
     """
-    # type: (str, str) -> float
     s = difflib.SequenceMatcher(lambda x: x.isdigit(), a, b)
     return s.ratio()
 
 
 @timed
 def identify_related_changes(session, ts, fc, active_indicators):
+    # type: (Session, TestSuiteDB, TestSuiteDB.FieldChange, List) -> Tuple[bool, List]
     """Can we find a home for this change in some existing regression? If a
     match is found add a regression indicator adding this change to that
     regression, otherwise create a new regression for this change.
