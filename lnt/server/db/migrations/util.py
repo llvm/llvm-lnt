@@ -17,7 +17,7 @@ def _visite_rename_table(element, compiler, **kw):
 
 
 def introspect_table(engine, name, autoload=True):
-    # type: (sqlalchemy.engine.Engine, str) -> sqlalchemy.Table
+    # type: (sqlalchemy.engine.Engine, str, bool) -> sqlalchemy.Table
     """Create a SQLAlchemy Table from the table name in the current DB.
 
     Used to make a Table object from something already in the DB."""
