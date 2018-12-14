@@ -58,7 +58,7 @@ def v4_new_regressions():
     ts = request.get_testsuite()
     if request.method == 'POST' and \
             request.form['btn'] == "Create New Regression":
-        regression = new_regression(session, ts, form.field_changes.data)
+        regression, _ = new_regression(session, ts, form.field_changes.data)
         flash("Created " + regression.title, FLASH_SUCCESS)
         return redirect(v4_url_for(".v4_regression_list",
                         highlight=regression.id))
@@ -158,7 +158,7 @@ def v4_regression_list():
                 target = i
                 links.append(r.bug)
 
-        new_regress = new_regression(session, ts,
+        new_regress, _ = new_regression(session, ts,
                                      [x.field_change_id for x in reg_inds])
         new_regress.state = regressions[target].state
         new_regress.title = regressions[target].title
@@ -309,7 +309,7 @@ def v4_regression_detail(id):
                 form.field_changes.data)) \
             .all()
         fc_ids = [x.field_change_id for x in res_inds]
-        second_regression = new_regression(session, ts, fc_ids)
+        second_regression, _ = new_regression(session, ts, fc_ids)
         second_regression.state = regression_info.state
 
         # Now remove our links to this regression.
@@ -468,7 +468,7 @@ def v4_make_regression(machine_id, test_id, field_index, run_id):
     session.commit()
 
     # Make new regressions.
-    regression = new_regression(session, ts, [f.id])
+    regression, _ = new_regression(session, ts, [f.id])
     regression.state = RegressionState.ACTIVE
 
     session.commit()
