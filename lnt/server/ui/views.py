@@ -19,7 +19,7 @@ from flask import request, url_for
 from flask_wtf import Form
 from sqlalchemy.orm import joinedload
 from sqlalchemy.orm.exc import NoResultFound
-from typing import List, Optional, Text, Union
+from typing import List, Optional
 from wtforms import SelectField, StringField, SubmitField
 from wtforms.validators import DataRequired, Length
 
@@ -1258,7 +1258,6 @@ def v4_graph():
 
 
 def determine_x_value(point_label, fallback, revision_cache):
-    # type: (Text, int, dict) -> Union(int|float)
     """Given the order data, lets make a reasonable x axis value.
 
     :param point_label: the text representation of the x value
