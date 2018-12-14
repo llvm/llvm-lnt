@@ -92,7 +92,7 @@ http://llvm.org/svn/llvm-project/lnt/trunk
         'Programming Language :: Python',
         'Topic :: Software Development :: Quality Assurance',
         'Topic :: Software Development :: Testing',
-        ],
+    ],
 
     zip_safe=False,
 
