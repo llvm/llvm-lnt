@@ -19,4 +19,4 @@ typing
 click==6.7
 pyyaml==3.12
 requests
-lit>=0.6.0
+-e svn+https://llvm.org/svn/llvm-project/llvm/trunk/utils/lit/#egg=lit
