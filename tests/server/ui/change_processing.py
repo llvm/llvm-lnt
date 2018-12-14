@@ -12,6 +12,9 @@ import logging
 import sys
 import unittest
 
+from sqlalchemy import or_
+from sqlalchemy.orm import joinedload
+
 from lnt.server.config import Config
 from lnt.server.db import v4db
 from lnt.server.db.fieldchange import delete_fieldchange
@@ -135,13 +138,23 @@ class ChangeProcessingTests(unittest.TestCase):
         self.assertFalse(is_overlaping(self.field_change, self.field_change3),
                          "Should not be overlapping")
 
+        active_indicators = session.query(ts_db.RegressionIndicator) \
+            .join(ts_db.Regression) \
+            .filter(or_(ts_db.Regression.state == RegressionState.DETECTED,
+                        ts_db.Regression.state == RegressionState.DETECTED_FIXED)) \
+            .options(joinedload(ts_db.RegressionIndicator.field_change)) \
+            .options(joinedload("field_change.start_order")) \
+            .options(joinedload("field_change.end_order")) \
+            .options(joinedload("field_change.test")) \
+            .all()
+
         # Check non-overlapping changes are always False.
-        ret, reg = identify_related_changes(session, ts_db, self.field_change3)
+        ret, reg = identify_related_changes(session, ts_db, self.field_change3, active_indicators)
 
         self.assertFalse(ret, "Ranges don't overlap, should not match")
         self.regressions.append(reg)
         # Check a regression matches if all fields match.
-        ret, _ = identify_related_changes(session, ts_db, self.field_change)
+        ret, _ = identify_related_changes(session, ts_db, self.field_change, active_indicators)
         self.assertTrue(ret, "Should Match.")
 
         field_change7 = ts_db.FieldChange(self.order1234,
@@ -150,7 +163,18 @@ class ChangeProcessingTests(unittest.TestCase):
                                           self.test2,
                                           self.a_field.id)
         session.add(field_change7)
-        ret, reg = identify_related_changes(session, ts_db, field_change7)
+
+        active_indicators = session.query(ts_db.RegressionIndicator) \
+            .join(ts_db.Regression) \
+            .filter(or_(ts_db.Regression.state == RegressionState.DETECTED,
+                        ts_db.Regression.state == RegressionState.DETECTED_FIXED)) \
+            .options(joinedload(ts_db.RegressionIndicator.field_change)) \
+            .options(joinedload("field_change.start_order")) \
+            .options(joinedload("field_change.end_order")) \
+            .options(joinedload("field_change.test")) \
+            .all()
+
+        ret, reg = identify_related_changes(session, ts_db, field_change7, active_indicators)
         self.assertNotEquals(self.regression, reg)
         self.assertFalse(ret, "No match with different machine and tests.")
         self.regressions.append(reg)
@@ -161,7 +185,7 @@ class ChangeProcessingTests(unittest.TestCase):
                                           self.a_field.id)
 
         # Check a regression matches if all fields match.
-        ret, _ = identify_related_changes(session, ts_db, field_change4)
+        ret, _ = identify_related_changes(session, ts_db, field_change4, active_indicators)
         self.assertTrue(ret, "Should Match with different machine.")
 
         field_change5 = ts_db.FieldChange(self.order1234,
@@ -171,7 +195,7 @@ class ChangeProcessingTests(unittest.TestCase):
                                           self.a_field.id)
 
         # Check a regression matches if all fields match.
-        ret, _ = identify_related_changes(session, ts_db, field_change5)
+        ret, _ = identify_related_changes(session, ts_db, field_change5, active_indicators)
         self.assertTrue(ret, "Should Match with different tests.")
         field_change6 = ts_db.FieldChange(self.order1234,
                                           self.order1235,
@@ -180,7 +204,7 @@ class ChangeProcessingTests(unittest.TestCase):
                                           self.a_field2.id)
 
         # Check a regression matches if all fields match.
-        ret, _ = identify_related_changes(session, ts_db, field_change6)
+        ret, _ = identify_related_changes(session, ts_db, field_change6, active_indicators)
         self.assertTrue(ret, "Should Match with different fields.")
 
         session.commit()
