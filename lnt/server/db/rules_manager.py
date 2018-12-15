@@ -4,7 +4,6 @@ Define facilities for automatically applying rules to data.
 import os
 import re
 from lnt.util import logger
-from lnt.testing.util.commands import timed
 
 
 def load_rules():
@@ -53,12 +52,14 @@ HOOKS = {
     'is_useful_change': [],
 }
 DESCRIPTIONS = {}
+HOOKS_LOADED = False
 
 
 def register_hooks():
     """Exec all the rules files.  Gather the hooks from them
     and load them into the hook dict for later use.
     """
+    global HOOKS_LOADED
     for name, path in load_rules().items():
         globals = {}
         execfile(path, globals)
@@ -66,11 +67,14 @@ def register_hooks():
         for hook_name in HOOKS.keys():
             if hook_name in globals:
                 HOOKS[hook_name].append(globals[hook_name])
+    HOOKS_LOADED = True
     return HOOKS
 
 
 def post_submission_hooks(session, ts, run_id):
     """Run all the post submission hooks on the submitted run."""
+    if not HOOKS_LOADED:
+        logger.error("Running Hooks without loading them first.")
     for func in HOOKS['post_submission_hook']:
         func(session, ts, run_id)
 
