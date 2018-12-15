@@ -88,6 +88,7 @@ class TestSuiteDB(object):
         self.run_fields = list(self.test_suite.run_fields)
         self.sample_fields = list(sorted(self.test_suite.sample_fields,
             key = lambda s: s.schema_index))
+        self.machine_to_latest_order_cache = {}
         sample_field_indexes = dict()
 
         for i, field in enumerate(self.sample_fields):

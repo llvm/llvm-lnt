@@ -87,6 +87,14 @@ def get_all_orders_for_machine(session, ts, machine):
         .order_by(asc(ts.Order.llvm_project_revision)) \
         .all()
 
+@timed
+def get_last_order_for_machine(session, ts, machine):
+    """Get all the orders for this sa machine."""
+    return session.query(ts.Order) \
+        .join(ts.Run) \
+        .filter(ts.Run.machine_id == machine) \
+        .order_by(desc(ts.Order.llvm_project_revision)) \
+        .first()
 
 def get_ris(session, ts, regression_id):
     return session.query(ts.RegressionIndicator) \
@@ -116,7 +124,10 @@ def get_current_runs_of_fieldchange(session, ts, fc):
     before_runs = get_runs_for_order_and_machine(session, ts,
                                                  fc.start_order_id,
                                                  fc.machine_id)
-    newest_order = get_all_orders_for_machine(session, ts, fc.machine_id)[-1]
+    newest_order = ts.machine_to_latest_order_cache.get(fc.machine_id)
+    if not newest_order:
+        newest_order = get_last_order_for_machine(session, ts, fc.machine_id)
+        ts.machine_to_latest_order_cache[fc.machine_id] = newest_order
 
     after_runs = get_runs_for_order_and_machine(session, ts, newest_order.id,
                                                 fc.machine_id)
