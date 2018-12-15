@@ -7,6 +7,7 @@ import click
 
 import lnt.formats
 from lnt.lnttool.common import submit_options, init_logger
+from lnt.server.db.rules_manager import register_hooks
 
 
 @click.command("import")
@@ -40,6 +41,8 @@ def action_import(instance_path, files, database, output_format, show_sql,
     # Load the LNT instance.
     instance = lnt.server.instance.Instance.frompath(instance_path)
     config = instance.config
+
+    register_hooks()
 
     # Get the database.
     with contextlib.closing(config.get_database(database)) as db:
