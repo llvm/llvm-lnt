@@ -36,10 +36,6 @@ from lnt.tests.builtintest import BuiltinTest
 TEST_SUITE_KNOWN_ARCHITECTURES = ['ARM', 'AArch64', 'Mips', 'X86']
 KNOWN_SAMPLE_KEYS = ['compile', 'exec', 'hash', 'score']
 
-_LNT_CODES = {
-
-}
-
 XML_REPORT_TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
 <testsuites>
 {%  for suite in suites %}
