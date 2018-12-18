@@ -28,7 +28,7 @@ def is_fixed(session, ts, regression):
     fixed?
     """
     r_inds = get_ris(session, ts, regression.id)
-    fixes = [_fixed_rind(session, ts, x) for x in r_inds]
+    fixes = (_fixed_rind(session, ts, x) for x in r_inds)
     return all(fixes)
 
 
