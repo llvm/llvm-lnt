@@ -3,6 +3,7 @@ Detcted + fixed -> Ignored
 Staged or Active + fixed -> Verify
 """
 from sqlalchemy.orm.session import Session
+from typing import Dict
 
 from lnt.server.db.regression import RegressionState
 from lnt.server.db.regression import get_cr_for_field_change, get_ris
@@ -10,6 +11,7 @@ from lnt.server.db.testsuitedb import TestSuiteDB
 from lnt.testing.util.commands import timed
 from lnt.util import logger
 from lnt.server.reporting.analysis import MIN_PERCENTAGE_CHANGE
+
 
 def _fixed_rind(session, ts, rind):
     """Is this regression indicator fixed?"""
@@ -33,7 +35,7 @@ def is_fixed(session, ts, regression):
 
 
 def impacts(session, ts, run_id, regression):
-    # type: (Session, TestSuiteDB, int, object) -> bool
+    # type: (Session, TestSuiteDB, int, TestSuiteDB.Regression) -> bool
     """Does this run have a chance of impacting this regression?
 
     This is just to prevent doing a full comparison, so we don't have
@@ -67,7 +69,7 @@ def age_out_oldest_regressions(session, ts, num_to_keep=50):
         .join(ts.FieldChange) \
         .all()
 
-    regression_newest_change = {}
+    regression_newest_change = {}  # type: Dict[int, int]
     for regression_id, order_id in regression_orders:
         current = regression_newest_change.get(regression_id)
         if current is None or current < order_id:

@@ -3,6 +3,9 @@ Define facilities for automatically applying rules to data.
 """
 import os
 import re
+
+from typing import Callable, Dict, List
+
 from lnt.util import logger
 
 
@@ -50,7 +53,8 @@ HOOKS = {
     'post_submission_hook': [],
     'post_regression_create_hook': [],
     'is_useful_change': [],
-}
+}  # type: Dict['str', List[Callable]]
+
 DESCRIPTIONS = {}
 HOOKS_LOADED = False
 
