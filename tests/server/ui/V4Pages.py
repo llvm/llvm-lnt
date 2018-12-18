@@ -22,13 +22,13 @@ from flask import session
 import lnt.server.db.migrate
 import lnt.server.ui.app
 import json
-import HTMLParser
 
 # We can validate html if pytidylib is available and tidy-html5 is installed.
 # The user can indicate this by passing --use-tidylib to the script (triggered
 # by `lit -Dtidylib=1`)
 if '--use-tidylib' in sys.argv:
     import tidylib
+
     def validate_html(text):
         document, errors = tidylib.tidy_document(text)
         had_error = False
@@ -99,8 +99,8 @@ def check_redirect(client, url, expected_redirect_regex):
 
 
 def dump_html(html_string):
-   for linenr, line in enumerate(html_string.split('\n')):
-      print "%4d:%s" % (linenr+1, line)
+    for linenr, line in enumerate(html_string.split('\n')):
+        print "%4d:%s" % (linenr + 1, line)
 
 
 def get_xml_tree(html_string):
@@ -109,15 +109,14 @@ def get_xml_tree(html_string):
         parser.parser.UseForeignDTD(True)
         parser.entity.update((x, unichr(i)) for x, i in name2codepoint.iteritems())
         tree = ET.fromstring(html_string, parser=parser)
-    except:
-       dump_html(html_string)
-       raise
+    except:  # noqa FIXME: figure out what we expect this to throw.
+        dump_html(html_string)
+        raise
     return tree
 
 
 def find_table_by_thead_content(tree, table_head_contents):
     all_tables = tree.findall(".//thead/..")
-    found_header = False
     for table in all_tables:
         for child in table.findall('./thead/tr/th'):
             if child.text == table_head_contents:
@@ -133,8 +132,7 @@ def find_table_with_heading(tree, table_heading):
             if found_header:
                 if child.tag == "table":
                     return child
-            elif (child.tag.startswith('h') and
-                  child.text == table_heading):
+            elif child.tag.startswith('h') and child.text == table_heading:
                 found_header = True
     return None
 
@@ -178,14 +176,14 @@ def get_results_table(client, url, fieldname):
 def get_table_body_content(table):
     return [[convert_html_to_text(cell).strip()
              for cell in row.findall("./td")]
-             for row in table.findall("./tbody/tr")]
+            for row in table.findall("./tbody/tr")]
 
 
 def get_table_links(table):
     return [[link.get("href")
              for cell in row.findall("./td")
              for link in cell.findall("a")]
-             for row in table.findall("./tbody/tr")]
+            for row in table.findall("./tbody/tr")]
 
 
 def check_row_is_in_table(table, expected_row_content):
@@ -303,7 +301,7 @@ def main():
     # Get a machine overview page.
     check_html(client, '/v4/nts/machine/1')
     # Check invalid machine gives error.
-    check_code(client,  '/v4/nts/machine/9999', expected_code=HTTP_NOT_FOUND)
+    check_code(client, '/v4/nts/machine/9999', expected_code=HTTP_NOT_FOUND)
     # Get a machine overview page in JSON format.
     check_json(client, '/v4/nts/machine/1?json=true')
 

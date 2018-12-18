@@ -149,7 +149,7 @@ class JSONAPIDeleteTester(unittest.TestCase):
                              headers={'AuthToken': 'test_token'})
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.get_data(),
-'''Deleting runs 3 5 6 7 8 9 (6/6)
+                         '''Deleting runs 3 5 6 7 8 9 (6/6)
 Deleted machine machine2:2
 ''')
 

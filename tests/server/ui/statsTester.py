@@ -52,6 +52,7 @@ class TestLNTStatsTester(unittest.TestCase):
             (value, index) for (index, value) in enumerate(test_list3))
         self.assertEqual((1.0, INDEX), (agg_value, agg_index))
 
+
 if __name__ == '__main__':
     try:
         unittest.main()

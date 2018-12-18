@@ -14,9 +14,10 @@ import sys
 import lnt.server.db.migrate
 import lnt.server.ui.app
 
-from V4Pages import check_json, check_code, check_html
-from V4Pages import HTTP_REDIRECT, HTTP_OK, HTTP_BAD_REQUEST, HTTP_NOT_FOUND
+from V4Pages import check_code, check_html
+from V4Pages import HTTP_REDIRECT, HTTP_BAD_REQUEST, HTTP_NOT_FOUND
 logging.basicConfig(level=logging.DEBUG)
+
 
 class MatrixViewTester(unittest.TestCase):
     """Test the Matrix view."""
@@ -40,7 +41,7 @@ class MatrixViewTester(unittest.TestCase):
         reply = check_code(client, '/v4/nts/matrix?plot.0=1.1.1',
                            expected_code=HTTP_NOT_FOUND)
         self.assertIn("No data found.", reply.data)
-        
+
         reply = check_code(client, '/v4/nts/matrix?plot.0=a.2.0',
                            expected_code=HTTP_BAD_REQUEST)
         self.assertIn("malformed", reply.data)
