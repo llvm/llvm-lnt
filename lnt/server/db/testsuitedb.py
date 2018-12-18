@@ -1016,6 +1016,7 @@ class TestSuiteDB(object):
 
         profiles = dict()
         field_dict = dict([(f.name, f) for f in self.sample_fields])
+        all_samples_to_add = []
         for test_data in tests_data:
             name = test_data['name']
             test = test_cache.get(name)
@@ -1037,14 +1038,15 @@ class TestSuiteDB(object):
                     values = [values]
                 while len(samples) < len(values):
                     sample = self.Sample(run, test)
-                    session.add(sample)
                     samples.append(sample)
+                    all_samples_to_add.append(sample)
                 for sample, value in zip(samples, values):
                     if key == 'profile':
                         profile = self.Profile(value, config, name)
                         sample.profile = profiles.get(hash(value), profile)
                     else:
                         sample.set_field(field, value)
+        session.add_all(all_samples_to_add)
 
     def importDataFromDict(self, session, data, config, select_machine,
                            merge_run):
