@@ -1,12 +1,8 @@
 import hashlib
 import os
 import re
-import tempfile
 
-from lnt.util import logger
-from commands import capture
-from commands import fatal
-from commands import rm_f
+from lnt.testing.util.commands import logger, capture, fatal
 
 
 def ishexhash(string):
