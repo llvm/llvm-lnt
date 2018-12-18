@@ -93,6 +93,9 @@ def regression_evolution(session, ts, run_id):
     NTBF.
     """
     logger.info("Running regression evolution")
+
+    # Clear the cache before we start.
+    ts.machine_to_latest_order_cache = {}
     changed = 0
     evolve_states = [RegressionState.DETECTED, RegressionState.STAGED,
                      RegressionState.ACTIVE]
