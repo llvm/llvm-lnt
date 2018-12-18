@@ -138,14 +138,15 @@ class ChangeProcessingTests(unittest.TestCase):
         self.assertFalse(is_overlaping(self.field_change, self.field_change3),
                          "Should not be overlapping")
 
-        active_indicators = session.query(ts_db.RegressionIndicator) \
+        active_indicators = session.query(ts_db.FieldChange) \
+            .join(ts_db.RegressionIndicator) \
             .join(ts_db.Regression) \
             .filter(or_(ts_db.Regression.state == RegressionState.DETECTED,
                         ts_db.Regression.state == RegressionState.DETECTED_FIXED)) \
-            .options(joinedload(ts_db.RegressionIndicator.field_change)) \
-            .options(joinedload("field_change.start_order")) \
-            .options(joinedload("field_change.end_order")) \
-            .options(joinedload("field_change.test")) \
+            .options(joinedload(ts_db.FieldChange.start_order),
+                     joinedload(ts_db.FieldChange.end_order),
+                     joinedload(ts_db.FieldChange.test),
+                     joinedload(ts_db.FieldChange.machine)) \
             .all()
 
         # Check non-overlapping changes are always False.
@@ -164,14 +165,15 @@ class ChangeProcessingTests(unittest.TestCase):
                                           self.a_field.id)
         session.add(field_change7)
 
-        active_indicators = session.query(ts_db.RegressionIndicator) \
+        active_indicators = session.query(ts_db.FieldChange) \
+            .join(ts_db.RegressionIndicator) \
             .join(ts_db.Regression) \
             .filter(or_(ts_db.Regression.state == RegressionState.DETECTED,
                         ts_db.Regression.state == RegressionState.DETECTED_FIXED)) \
-            .options(joinedload(ts_db.RegressionIndicator.field_change)) \
-            .options(joinedload("field_change.start_order")) \
-            .options(joinedload("field_change.end_order")) \
-            .options(joinedload("field_change.test")) \
+            .options(joinedload(ts_db.FieldChange.start_order),
+                     joinedload(ts_db.FieldChange.end_order),
+                     joinedload(ts_db.FieldChange.test),
+                     joinedload(ts_db.FieldChange.machine)) \
             .all()
 
         ret, reg = identify_related_changes(session, ts_db, field_change7, active_indicators)

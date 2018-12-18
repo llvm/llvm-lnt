@@ -125,14 +125,15 @@ def regenerate_fieldchanges_for_run(session, ts, run_id):
                               .filter(ts.FieldChange.field_id.in_(field_ids))
                               .all())
 
-    active_indicators = session.query(ts.RegressionIndicator) \
+    active_indicators = session.query(ts.FieldChange) \
+        .join(ts.RegressionIndicator) \
         .join(ts.Regression) \
         .filter(or_(ts.Regression.state == RegressionState.DETECTED,
                     ts.Regression.state == RegressionState.DETECTED_FIXED)) \
-        .options(joinedload(ts.RegressionIndicator.field_change)) \
-        .options(joinedload("field_change.start_order")) \
-        .options(joinedload("field_change.end_order")) \
-        .options(joinedload("field_change.test")) \
+        .options(joinedload(ts.FieldChange.start_order),
+                 joinedload(ts.FieldChange.end_order),
+                 joinedload(ts.FieldChange.test),
+                 joinedload(ts.FieldChange.machine)) \
         .all()
 
     for field in list(ts.Sample.get_metric_fields()):
@@ -233,25 +234,26 @@ def identify_related_changes(session, ts, fc, active_indicators):
     ranges. Then looks for changes that are similar.
 
     """
-    for change in active_indicators:
-        regression_change = change.field_change
 
-        if is_overlaping(regression_change, fc):
+    for change in active_indicators:
+        if is_overlaping(change, fc):
             confidence = 0.0
 
-            confidence += percent_similar(regression_change.machine.name,
+            confidence += percent_similar(change.machine.name,
                                           fc.machine.name)
-            confidence += percent_similar(regression_change.test.name,
+            confidence += percent_similar(change.test.name,
                                           fc.test.name)
 
-            if regression_change.field_id == fc.field_id:
+            if change.field_id == fc.field_id:
                 confidence += 1.0
 
             if confidence >= 2.0:
                 # Matching
                 MSG = "Found a match: {} with score {}."
                 regression = session.query(ts.Regression) \
-                    .get(change.regression_id)
+                    .join(ts.RegressionIndicator) \
+                    .filter(ts.RegressionIndicator.field_change_id == change.id) \
+                    .one()
                 logger.info(MSG.format(str(regression),
                                        confidence))
                 ri = ts.RegressionIndicator(regression, fc)
@@ -259,7 +261,6 @@ def identify_related_changes(session, ts, fc, active_indicators):
                 active_indicators.append(ri)
                 # Update the default title if needed.
                 rebuild_title(session, ts, regression)
-                session.commit()
                 return True, regression
     logger.info("Could not find a partner, creating new Regression for change")
     new_reg, new_indicators = new_regression(session, ts, [fc.id])
