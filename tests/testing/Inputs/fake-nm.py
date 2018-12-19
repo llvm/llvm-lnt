@@ -1,4 +1,4 @@
-import os, sys
+import sys
 
 if '--fake-nm-be-non-dynamic' in sys.argv:
     if '-D' in sys.argv:
