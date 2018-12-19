@@ -8,6 +8,7 @@ import testsuitedb
 import util
 
 import sqlalchemy
+import sqlalchemy.ext.declarative
 import sqlalchemy.orm
 from sqlalchemy import Column, Integer, ForeignKey, String, Binary
 from sqlalchemy.orm import relation
