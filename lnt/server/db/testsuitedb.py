@@ -12,7 +12,7 @@ import os
 import aniso8601
 import sqlalchemy
 import flask
-from sqlalchemy import *
+from sqlalchemy import Float, String, Integer, Column, ForeignKey, Binary, DateTime
 from sqlalchemy.orm import relation
 from sqlalchemy.orm.exc import ObjectDeletedError
 from typing import List
