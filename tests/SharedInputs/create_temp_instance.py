@@ -13,7 +13,7 @@ def get_postgres_db_uri():
 
 
 def get_postgres_tmp_db_name(test_name):
-    return "lnt_regr_test_"+hashlib.md5(test_name).hexdigest()
+    return "lnt_regr_test_" + hashlib.md5(test_name).hexdigest()
 
 
 def search_replace_in_file_with_function(filename, replacement_function):
@@ -94,12 +94,12 @@ def create_tmp_database(db, test_name, dest_dir):
         search_replace_in_file(
             os.path.join(dest_dir, "lnt.cfg"),
             "db_dir = 'data'",
-            "db_dir = '"+get_postgres_db_uri()+"'")
+            "db_dir = '" + get_postgres_db_uri() + "'")
         search_replace_in_file(
             os.path.join(dest_dir, "lnt.cfg"),
             "'path' : 'lnt.db'",
-            "'path' : '"+tmp_db_name+"'")
-        return get_postgres_db_uri()+"/"+tmp_db_name
+            "'path' : '" + tmp_db_name + "'")
+        return get_postgres_db_uri() + "/" + tmp_db_name
     else:
         # sqlite
         os.mkdir(os.path.join(dest_dir, "data"))
@@ -117,14 +117,13 @@ def main():
     else:
         _, test_name, template_source_dir, dest_dir, extra_sql = sys.argv
 
-
     os.mkdir(os.path.join(dest_dir))
     shutil.copy(os.path.join(template_source_dir, "lnt.cfg"), dest_dir)
     shutil.copy(os.path.join(template_source_dir, "lnt.wsgi"), dest_dir)
     lnt_db = create_tmp_database(get_postgres_db_uri(), test_name, dest_dir)
 
     run_sql_file(lnt_db,
-                 os.path.join(template_source_dir,"data", "lnt_db_create.sql"),
+                 os.path.join(template_source_dir, "data", "lnt_db_create.sql"),
                  dest_dir)
     if extra_sql:
         run_sql_file(lnt_db, extra_sql, dest_dir)
@@ -134,5 +133,6 @@ def main():
                os.path.join(dest_dir, 'schemas', 'nts.yaml'))
     os.symlink(os.path.join(filedir, '..', '..', 'schemas', 'compile.yaml'),
                os.path.join(dest_dir, 'schemas', 'compile.yaml'))
+
 
 main()
