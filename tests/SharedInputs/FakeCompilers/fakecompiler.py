@@ -8,8 +8,6 @@ import inspect
 import os
 import sys
 
-from optparse import OptionParser, OptionGroup
-
 g_program = None
 
 
