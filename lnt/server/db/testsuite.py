@@ -8,13 +8,12 @@ import testsuitedb
 import util
 
 import sqlalchemy
-import sqlalchemy.ext.declarative
 import sqlalchemy.orm
 from sqlalchemy import Column, Integer, ForeignKey, String, Binary
 from sqlalchemy.orm import relation
 from lnt.util import logger
 
-Base = sqlalchemy.ext.declarative.declarative_base()
+Base = sqlalchemy.ext.declarative.declarative_base()  # type: sqlalchemy.ext.declarative.api.DeclarativeMeta
 
 
 class SampleType(Base):
