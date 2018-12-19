@@ -39,7 +39,7 @@ icc: command line warning #10006: ignoring unknown option '-###'
 icc version 12.1.3 (gcc version 4.2.1 compatibility)
 /usr/bin/icc-2011-base/bin/intel64/mcpcom    -_g -mP3OPT_inline_alloca -D__HONOR_STD -D__ICC=1210 -D__INTEL_COMPILER=1210 "-_Acpu(x86_64)" "-_Amachine(x86_64)" -D__BLOCKS__ -D__PTRDIFF_TYPE__=long "-D__SIZE_TYPE__=unsigned long" -D__WCHAR_TYPE__=int -D__WINT_TYPE__=int "-D__INTMAX_TYPE__=long int" "-D__UINTMAX_TYPE__=long unsigned int" -D__LONG_MAX__=9223372036854775807L -D__QMSPP_ -D__OPTIMIZE__ -D__NO_MATH_INLINES -D__NO_STRING_INLINES -D__NO_INLINE__ -D__GNUC_GNU_INLINE__ -D__GNUC__=4 -D__GNUC_MINOR__=2 -D__GNUC_PATCHLEVEL__=1 -D__APPLE_CC__=5658 -D__ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__=1073 -D__LITTLE_ENDIAN__ -D__DYNAMIC__ "-D__private_extern__=__attribute__((visibility("hidden")))" -D__LP64__ -D_LP64 -D__GXX_ABI_VERSION=1002 -D__USER_LABEL_PREFIX__=_ -D__REGISTER_PREFIX__= -D__INTEL_RTTI__ -D__x86_64 -D__x86_64__ -D_MT -D__INTEL_COMPILER_BUILD_DATE=20120130 -D__PIC__ -D__APPLE__ -D__MACH__ -D__pentium4 -D__pentium4__ -D__tune_pentium4__ -D__SSE2__ -D__SSE3__ -D__SSSE3__ -D__SSE__ -D__MMX__ -_k -_8 -_l -_D -_a -_b -E --gnu_version=421 -_W5 --gcc-extern-inline --multibyte_chars --blocks --array_section --simd --simd_func -mP1OPT_print_version=FALSE -mP1OPT_version=12.1-intel64 -mGLOB_diag_use_message_catalog=FALSE /dev/null
 ... more boring stuff here ...
-"""
+"""  # noqa
 
     def print_llvm_target(self, args):
         print """\
@@ -48,7 +48,7 @@ icc: command line warning #10006: ignoring unknown option '-flto'
 	.section	__DATA, __data
 # End
 	.subsections_via_symbols
-"""
+"""  # noqa
 
     def print_dumpmachine(self):
         print """i686-apple-darwin11"""
@@ -153,8 +153,7 @@ InstalledDir: /home/foo/bin"""
 
 fake_compilers = dict((value.compiler_name, value)
                       for key, value in locals().items()
-                      if inspect.isclass(value) and \
-                      issubclass(value, FakeCompiler))
+                      if inspect.isclass(value) and issubclass(value, FakeCompiler))
 
 
 class ClangNoInfo(LLVMCompiler):
@@ -177,7 +176,7 @@ class GenericLLVMCompiler(LLVMCompiler):
         print >> sys.stderr, """\
 LLVM version 3.3 (git:/git/pz/clang.git 597522d740374f093a089a2acbec5b20466b2f34) (/d/g/pz/llvm git:/git/pz/llvm.git 6e95d969734af111bb33bcec0bcc27fd803a3b76)
 Target: x86_64-apple-darwin12.3.0
-Thread model: posix"""
+Thread model: posix"""  # noqa
         print >> sys.stderr, """\
  "%s" "-cc1" "-E" ... more boring stuff here ...""" % (
             g_program,)
@@ -185,8 +184,7 @@ Thread model: posix"""
 
 fake_compilers = dict((value.compiler_name, value)
                       for key, value in locals().items()
-                      if inspect.isclass(value) and \
-                      issubclass(value, FakeCompiler))
+                      if inspect.isclass(value) and issubclass(value, FakeCompiler))
 
 
 def main():
