@@ -133,7 +133,8 @@
 # RUN:   --no-timestamp > %t.log 2> %t.err
 # RUN: FileCheck --check-prefix CHECK-CFLAG5 < %t.err %s
 # CHECK-CFLAG5: inferred C++ compiler under test
-# CHECK-CFLAG5: TARGET_FLAGS: --target=armv7a-none-eabi -Weverything -Wall '-test=escaped space' '-some-option=stay with me' -O3
+# CHECK-CFLAG5: TARGET_FLAGS: --target=armv7a-none-eabi -Weverything -Wall '-test=escaped space'
+# CHECK-CFLAG5: '-some-option=stay with me' -O3
 
 # Qemu flag handling
 # RUN: lnt runtest nt \
@@ -146,7 +147,8 @@
 # RUN:   --qemu-flags '-device gus,irq=5 -test=escaped\ space -some-option="stay with me"' \
 # RUN:   --no-timestamp > %t.log 2> %t.err
 # RUN: FileCheck --check-prefix CHECK-QEMU-FLAG1 < %t.err %s
-# CHECK-QEMU-FLAG1: QEMU_USER_MODE_COMMAND: TEST -soundhw gus -net nic -device gus,irq=5 '-test=escaped space' '-some-option=stay with me'
+# CHECK-QEMU-FLAG1: QEMU_USER_MODE_COMMAND: TEST -soundhw gus -net nic -device gus,irq=5
+# CHECK-QEMU-FLAG1: '-test=escaped space' '-some-option=stay with me'
 
 # Check submission to a server through url works:
 # RUN: rm -rf %{test_exec_root}/runtest/nt_server_instance
