@@ -1,12 +1,8 @@
 # Version 3 of the database adds the FieldChange class to track flagged
 # regressions in the database.
 
-import os
-import sys
-
 import sqlalchemy
-from sqlalchemy import *
-from sqlalchemy.schema import Index
+from sqlalchemy import Integer, Column, ForeignKey
 from sqlalchemy.orm import relation
 
 # Import the original schema from upgrade_0_to_1 since upgrade_1_to_2 does not

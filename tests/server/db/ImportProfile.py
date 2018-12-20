@@ -10,7 +10,8 @@
 # RUN: ls %t.install/data/profiles
 # RUN: python %s %t.install
 
-import os, sys, glob
+import sys
+import glob
 from lnt.testing.profile.profilev1impl import ProfileV1
 
 profile = glob.glob('%s/data/profiles/*.lntprof' % sys.argv[1])[0]

@@ -2,14 +2,13 @@
 # adds Profiles.
 
 import sqlalchemy
-from sqlalchemy import *
+from sqlalchemy import String, Integer, Column, DateTime
 from sqlalchemy.orm import relation
 
 # Import the original schema from upgrade_0_to_1 since upgrade_1_to_2 does not
 # change the actual schema, but rather adds functionality vis-a-vis orders.
 import lnt.server.db.migrations.upgrade_0_to_1 as upgrade_0_to_1
 import lnt.server.db.migrations.upgrade_2_to_3 as upgrade_2_to_3
-from lnt.server.db.migrations.util import introspect_table
 from lnt.server.db.util import add_column
 
 

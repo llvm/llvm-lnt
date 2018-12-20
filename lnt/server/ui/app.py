@@ -16,7 +16,6 @@ from flask import request
 from flask import jsonify
 from flask import render_template
 from flask_restful import Api
-from sqlalchemy.exc import DatabaseError
 from sqlalchemy.ext.declarative import DeclarativeMeta
 
 import lnt

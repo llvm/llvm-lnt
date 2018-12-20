@@ -1,7 +1,7 @@
 # Version 6 adds a "mem_bytes"" Sample type to "nts".
 
 import sqlalchemy
-from sqlalchemy import *
+from sqlalchemy import Float, Column, update
 from lnt.server.db.migrations.util import introspect_table
 from lnt.server.db.util import add_column
 

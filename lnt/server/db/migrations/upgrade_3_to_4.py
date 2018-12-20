@@ -2,7 +2,6 @@
 
 from sqlalchemy import Column, Integer
 
-from lnt.server.db.migrations.util import introspect_table
 from lnt.server.db.util import add_column
 
 

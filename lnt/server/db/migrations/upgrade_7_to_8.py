@@ -1,12 +1,8 @@
 # Version 8 of the database updates FieldChanges as well as adds tables
 # for Regression Tracking features.
 
-import os
-import sys
-
 import sqlalchemy
-from sqlalchemy import *
-from sqlalchemy.schema import Index
+from sqlalchemy import Float, String, Integer, Column, ForeignKey
 from sqlalchemy.orm import relation
 
 # Import the original schema from upgrade_0_to_1 since upgrade_1_to_2 does not

@@ -9,12 +9,11 @@
 # extraction, and we recompute the run order for them.
 
 import json
-import pprint
 import re
 
 from lnt.util import logger
 import sqlalchemy
-from sqlalchemy import Table, MetaData, Column
+from sqlalchemy import Table, MetaData
 
 
 def update_testsuite(engine, session, db_key_name):
