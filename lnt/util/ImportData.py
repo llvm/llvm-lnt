@@ -1,5 +1,5 @@
 from lnt.util import NTEmailReport
-
+from contextlib import closing
 from lnt.util import logger
 import collections
 import datetime
@@ -124,7 +124,6 @@ def import_and_report(config, db_name, db, session, file, format, ts_name,
 
     result['import_time'] = time.time() - importStartTime
 
-    reportStartTime = time.time()
     result['report_to_address'] = toAddress
     if config:
         report_url = "%s/db_%s/" % (config.zorgURL, db_name)
@@ -236,7 +235,6 @@ def print_report_result(result, out, err, verbose=True):
     test_index = 0
     result_kinds = collections.Counter()
     for i, item in enumerate(test_results):
-        pset = item['pset']
         pset_results = item['results']
 
         for name, test_status, perf_status in pset_results:
@@ -330,7 +328,7 @@ def import_from_string(config, db_name, db, session, ts_name, data,
                           "%04d-%02d" % (utcnow.year, utcnow.month))
     try:
         os.makedirs(tmpdir)
-    except OSError as e:
+    except OSError:
         pass
 
     # Save the file under a name prefixed with the date, to make it easier

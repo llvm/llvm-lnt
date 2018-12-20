@@ -1,7 +1,13 @@
 import click
+import time
+import urllib
+import webbrowser
+import sys
 
 
 def _start_browser(url, debug=False):
+    from lnt.util import logger
+
     def url_is_up(url):
         try:
             o = urllib.urlopen(url)
@@ -51,12 +57,8 @@ def action_view_comparison(report_a, report_b, hostname, port, dry_run,
     import logging
     import os
     import shutil
-    import sys
     import tempfile
     import thread
-    import time
-    import urllib
-    import webbrowser
 
     init_logger(logging.ERROR)
 
@@ -84,7 +86,7 @@ def action_view_comparison(report_a, report_b, hostname, port, dry_run,
         # Import the two reports.
         with contextlib.closing(config.get_database('default')) as db:
             session = db.make_session()
-            r = import_and_report(config, 'default', db, session, report_a,
+            import_and_report(config, 'default', db, session, report_a,
                                   '<auto>', testsuite, select_machine='match')
             import_and_report(config, 'default', db, session, report_b,
                               '<auto>', testsuite, select_machine='match')

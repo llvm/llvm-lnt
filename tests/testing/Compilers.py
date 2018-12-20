@@ -13,10 +13,12 @@ basedir = sys.argv[1]
 
 logging.basicConfig(level=logging.DEBUG)
 
+
 def get_info(name):
     logging.info("checking compiler: %r", name)
     return lnt.testing.util.compilers.get_cc_info(
         os.path.join(basedir, name))
+
 
 # Check icc.
 info = get_info("icc-12.1.3")
