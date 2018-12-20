@@ -1,7 +1,7 @@
 from lnt.util import logger
 from profile import ProfileImpl
 from profilev1impl import ProfileV1
-import json
+
 import os
 import traceback
 

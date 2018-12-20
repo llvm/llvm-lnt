@@ -61,6 +61,7 @@ def filter_filesize(value):
         value /= 1024.0
     return "%.2f%sB" % (value, 'Yi')
 
+
 def filter_print_value(value, field_unit, field_unit_abbrev, default = '-'):
     if value == None:
         return default
@@ -69,6 +70,7 @@ def filter_print_value(value, field_unit, field_unit_abbrev, default = '-'):
         return filter_filesize(value)
     else:
         return '%.3f' % value
+
 
 def register(env):
     for name, object in globals().items():

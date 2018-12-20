@@ -35,7 +35,6 @@ def update_testsuite(engine, session, db_key_name):
 
     # Scan each run that has no report version and possibly recompute the
     # run order.
-    run_order_map = {}
     logger.info("updating runs")
     all_runs = session.query(Run).\
         filter(sqlalchemy.not_(Run.Parameters.like(

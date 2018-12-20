@@ -1,5 +1,5 @@
 from sqlalchemy import desc, asc
-import datetime
+
 import re
 from collections import namedtuple
 from lnt.server.reporting.analysis import RunInfo
@@ -41,7 +41,6 @@ ChangeData = namedtuple("ChangeData", ["ri", "cr", "run", "latest_cr"])
 @timed
 def new_regression(session, ts, field_changes):
     """Make a new regression and add to DB."""
-    today = datetime.date.today()
     MSG = "Regression of 0 benchmarks"
     title = MSG
     regression = ts.Regression(title, "", RegressionState.DETECTED)
@@ -87,6 +86,7 @@ def get_all_orders_for_machine(session, ts, machine):
         .order_by(asc(ts.Order.llvm_project_revision)) \
         .all()
 
+
 @timed
 def get_last_order_for_machine(session, ts, machine):
     """Get all the orders for this sa machine."""
@@ -95,6 +95,7 @@ def get_last_order_for_machine(session, ts, machine):
         .filter(ts.Run.machine_id == machine) \
         .order_by(desc(ts.Order.llvm_project_revision)) \
         .first()
+
 
 def get_ris(session, ts, regression_id):
     return session.query(ts.RegressionIndicator) \

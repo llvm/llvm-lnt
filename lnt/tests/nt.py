@@ -1103,7 +1103,7 @@ def run_test(nick_prefix, iteration, config):
     if config.remote:
         remote_args = [config.remote_client,
                        "-l", config.remote_user,
-                       "-p",  str(config.remote_port),
+                       "-p", str(config.remote_port),
                        config.remote_host]
         run_info['remote_uname'] = capture(remote_args + ["uname", "-a"],
                                            include_stderr=True).strip()
@@ -1403,7 +1403,6 @@ def _process_reruns(config, server_reply, local_results):
     for b in local_results.tests:
         # format: suite.test/path/and/name.type<.type>
         fields = b.name.split('.')
-        test_suite = fields[0]
 
         test_type_size = -1
         if fields[-1] == "status":

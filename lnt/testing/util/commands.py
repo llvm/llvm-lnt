@@ -72,7 +72,6 @@ def capture_with_result(args, include_stderr=False):
 
 
 def capture(args, include_stderr=False):
-    import subprocess
     """capture(command) - Run the given command (or argv list) in a shell and
     return the standard output."""
     return capture_with_result(args, include_stderr)[0]

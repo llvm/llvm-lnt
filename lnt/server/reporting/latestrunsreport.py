@@ -1,11 +1,8 @@
-from collections import namedtuple
 from lnt.server.reporting.analysis import REGRESSED, UNCHANGED_FAIL
 from lnt.server.reporting.report import RunResult, RunResults, report_css_styles
-from lnt.util import multidict
 import lnt.server.reporting.analysis
 import lnt.server.ui.app
-import sqlalchemy.sql
-import urllib
+
 
 class LatestRunsReport(object):
     def __init__(self, ts, run_count):

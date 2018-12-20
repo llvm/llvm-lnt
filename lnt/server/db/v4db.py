@@ -1,6 +1,5 @@
 import glob
 import yaml
-import sys
 
 try:
     import threading
@@ -14,9 +13,8 @@ import lnt.testing
 import lnt.server.db.testsuitedb
 import lnt.server.db.migrate
 
-from lnt.util import logger
 from lnt.server.db import testsuite
-from sqlalchemy.orm import joinedload, subqueryload
+from sqlalchemy.orm import joinedload
 import lnt.server.db.util
 
 

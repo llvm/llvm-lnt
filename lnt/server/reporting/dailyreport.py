@@ -1,4 +1,3 @@
-from collections import namedtuple
 from lnt.server.reporting.analysis import REGRESSED, UNCHANGED_FAIL
 from lnt.server.reporting.report import RunResult, RunResults, report_css_styles, pairs, OrderAndHistory
 from lnt.util import multidict
@@ -8,6 +7,7 @@ import lnt.server.ui.app
 import re
 import sqlalchemy.sql
 import urllib
+
 
 class DailyReport(object):
     def __init__(self, ts, year, month, day, num_prior_days_to_include=3,

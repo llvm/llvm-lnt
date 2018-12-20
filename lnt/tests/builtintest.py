@@ -9,7 +9,6 @@ from lnt.testing.util.misc import timestamp
 
 import lnt.util.ServerUtil as ServerUtil
 import lnt.util.ImportData as ImportData
-import lnt.server.config as server_config
 
 
 class OptsContainer(object):

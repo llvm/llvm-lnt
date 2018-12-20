@@ -5,9 +5,9 @@ import lnt.util.ImportData
 import lnt.server.instance
 from lnt.server.db.search import search
 
-#logging.basicConfig(level=logging.DEBUG)
 
 base_path = ''
+
 
 class SearchTest(unittest.TestCase):
     def setUp(self):
@@ -29,7 +29,6 @@ class SearchTest(unittest.TestCase):
                          ('machine3', '11324'),
                          ('supermachine', '1324'),
                          ('supermachine', '7623')]
-        
         # Get the database.
         self.db = config.get_database('default')
         self.session = self.db.make_session()
@@ -41,7 +40,7 @@ class SearchTest(unittest.TestCase):
                     .replace('@@MACHINE@@', r[0]) \
                     .replace('@@ORDER@@', r[1])
                 open(f.name, 'w').write(data)
-    
+
                 result = lnt.util.ImportData.import_and_report(
                     None, 'default', self.db, self.session, f.name,
                     format='<auto>', ts_name='nts', show_sample_count=False,
@@ -53,7 +52,7 @@ class SearchTest(unittest.TestCase):
     def _mangleResults(self, rs):
         return [(r.machine.name, str(r.order.llvm_project_revision))
                 for r in rs]
-        
+
     def test_specific(self):
         session = self.session
         ts = self.db.testsuite.get('nts')

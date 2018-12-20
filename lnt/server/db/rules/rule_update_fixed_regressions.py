@@ -3,7 +3,7 @@ Detcted + fixed -> Ignored
 Staged or Active + fixed -> Verify
 """
 from sqlalchemy.orm.session import Session
-from typing import Dict
+from typing import Dict  # noqa: flake8 does not detect use in comments
 
 from lnt.server.db.regression import RegressionState
 from lnt.server.db.regression import get_cr_for_field_change, get_ris

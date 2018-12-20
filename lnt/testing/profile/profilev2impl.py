@@ -264,7 +264,6 @@ class CounterNamePool(Section):
 
     def upgrade(self, impl):
         self.idx_to_name = {}
-        n = 0
 
         keys = impl.getTopLevelCounters().keys()
         for f in impl.getFunctions().values():

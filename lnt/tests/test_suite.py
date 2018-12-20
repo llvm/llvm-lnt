@@ -140,18 +140,18 @@ def _lit_json_to_template(json_reports, template_engine):
 
         tests_by_suite[suite_name].append(entry)
     suites = []
-    for id, suite in enumerate(tests_by_suite):
+    for i, suite in enumerate(tests_by_suite):
         tests = tests_by_suite[suite]
         entry = {'name': suite,
-                 'id': id,
+                 'id': i,
                  'tests': tests,
                  'timestamp': datetime.datetime.now().replace(microsecond=0)
                                       .isoformat(),
                  'num_tests': len(tests),
                  'num_failures': len(
-                     [x for x in tests if x['code'] == 'FAIL']),
+                     [test for test in tests if test['code'] == 'FAIL']),
                  'num_errors': len(
-                     [x for x in tests if x['code'] == 'NOEXE'])}
+                     [test for test in tests if test['code'] == 'NOEXE'])}
         suites.append(entry)
     str_template = template_engine.render(suites=suites)
     return str_template
@@ -663,8 +663,7 @@ class TestSuiteTest(BuiltinTest):
                 "CMAKE_C_FLAGS_RELEASE",
                 "CMAKE_C_FLAGS_RELWITHDEBINFO",
                 "CMAKE_C_COMPILER_TARGET",
-                "CMAKE_CXX_COMPILER_TARGET",
-                )]
+                "CMAKE_CXX_COMPILER_TARGET")]
         cmake_vars = {}
         for line in cmake_lah_output.split("\n"):
             for pattern, varname in pattern2var:
