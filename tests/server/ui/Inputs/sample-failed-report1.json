@@ -1,0 +1,27 @@
+{
+    "Machine": {
+        "Info": {
+            "os": "SAMPLE OS",
+            "hardware": "x86_64"
+        },
+        "Name": "LNT SAMPLE MACHINE"
+    },
+    "Run": {
+        "Start Time": "2009-11-17 02:12:25",
+        "End Time": "2009-11-17 03:44:48",
+        "Info": {
+            "run_order": "42",
+            "tag": "nts",
+            "__report_version__": "1"
+        }
+    },
+    "Tests": [
+        {
+            "Data": [
+                1.0
+            ],
+            "Info": {},
+            "Name": "nts.FailingTest.exec.status"
+        }
+    ]
+}
