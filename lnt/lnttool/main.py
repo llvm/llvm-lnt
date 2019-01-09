@@ -247,7 +247,7 @@ def action_send_daily_report(instance_path, address, database, testsuite, host,
             latest = session.query(ts.Run).\
                 order_by(ts.Run.start_time.desc()).limit(1).first()
 
-            # If we found a run, use it's start time (rounded up to the next
+            # If we found a run, use its start time (rounded up to the next
             # hour, so we make sure it gets included).
             if latest:
                 date = latest.start_time + datetime.timedelta(hours=1)
