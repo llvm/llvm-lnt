@@ -368,11 +368,12 @@ class RunInfo(object):
         return r
 
     def get_geomean_comparison_result(self, run, compare_to, field, tests):
-        if tests:
+        unchanged_tests = [(cr.previous, cr.current, cr.prev_hash, cr.cur_hash)
+                           for _, _, cr in tests
+                           if cr.get_test_status() == UNCHANGED_PASS]
+        if unchanged_tests:
             prev_values, run_values, prev_hash, cur_hash = zip(
-                *[(cr.previous, cr.current, cr.prev_hash, cr.cur_hash)
-                  for _, _, cr in tests
-                  if cr.get_test_status() == UNCHANGED_PASS])
+                *unchanged_tests)
             prev_values = [x for x in prev_values if x is not None]
             run_values = [x for x in run_values if x is not None]
             prev_hash = [x for x in prev_hash if x is not None]

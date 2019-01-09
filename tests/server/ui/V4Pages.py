@@ -11,6 +11,9 @@
 # Import a profile
 # RUN: lnt import %t.instance %{shared_inputs}/profile-report.json
 #
+# RUN: lnt import %t.instance %S/Inputs/sample-failed-report1.json
+# RUN: lnt import %t.instance %S/Inputs/sample-failed-report2.json
+#
 # RUN: python %s %t.instance %{tidylib}
 
 import logging
@@ -656,6 +659,10 @@ def main():
                expected_code=HTTP_NOT_FOUND)
     check_code(client, '/db_default/v4/nts/graph_for_sample/10/not_a_metric?foo=bar',
                expected_code=HTTP_BAD_REQUEST)
+
+    # check get_geomean_comparison_result with empty unchanged_tests
+    check_html(client, '/v4/nts/11')
+    check_html(client, '/v4/nts/12')
 
 
 if __name__ == '__main__':
