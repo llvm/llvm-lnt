@@ -46,7 +46,7 @@ setup(
     author=lnt.__author__,
     author_email=lnt.__email__,
     url='http://llvm.org',
-    license='BSD',
+    license = 'Apache-2.0 with LLVM exception',
 
     description="LLVM Nightly Test Infrastructure",
     keywords='web testing performance development llvm',
@@ -85,8 +85,7 @@ http://llvm.org/svn/llvm-project/lnt/trunk
         'Development Status :: 4 - Beta',
         'Environment :: Web Environment',
         'Intended Audience :: Developers',
-        ('License :: OSI Approved :: '
-         'University of Illinois/NCSA Open Source License'),
+        'License :: OSI Approved :: Apache-2.0 with LLVM exception',
         'Natural Language :: English',
         'Operating System :: OS Independent',
         'Programming Language :: Python',
