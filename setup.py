@@ -106,6 +106,8 @@ http://llvm.org/svn/llvm-project/lnt/trunk
                                     'static/flot/*.min.js',
                                     'static/d3/*.min.js',
                                     'static/jquery/**/*.min.js',
+                                    'static/jquery/jquery.dataTables/*.css',
+                                    'static/jquery/jquery.dataTables/*.js',
                                     'templates/*.html',
                                     'templates/reporting/*.html',
                                     'templates/reporting/*.txt'],
