@@ -184,27 +184,27 @@ class TestSuiteTest(BuiltinTest):
 
     def run_test(self, opts):
 
-        if self.opts.cc is not None:
-            self.opts.cc = resolve_command_path(self.opts.cc)
+        if opts.cc is not None:
+            opts.cc = resolve_command_path(opts.cc)
 
-            if not lnt.testing.util.compilers.is_valid(self.opts.cc):
+            if not lnt.testing.util.compilers.is_valid(opts.cc):
                 self._fatal('--cc does not point to a valid executable.')
 
             # If there was no --cxx given, attempt to infer it from the --cc.
-            if self.opts.cxx is None:
-                self.opts.cxx = \
-                    lnt.testing.util.compilers.infer_cxx_compiler(self.opts.cc)
-                if self.opts.cxx is not None:
+            if opts.cxx is None:
+                opts.cxx = \
+                    lnt.testing.util.compilers.infer_cxx_compiler(opts.cc)
+                if opts.cxx is not None:
                     logger.info("Inferred C++ compiler under test as: %r"
-                                % (self.opts.cxx,))
+                                % (opts.cxx,))
                 else:
                     self._fatal("unable to infer --cxx - set it manually.")
             else:
-                self.opts.cxx = resolve_command_path(self.opts.cxx)
+                opts.cxx = resolve_command_path(opts.cxx)
 
-            if not os.path.exists(self.opts.cxx):
+            if not os.path.exists(opts.cxx):
                 self._fatal("invalid --cxx argument %r, does not exist"
-                            % (self.opts.cxx))
+                            % (opts.cxx))
 
         if opts.test_suite_root is None:
             self._fatal('--test-suite is required')
@@ -245,7 +245,7 @@ class TestSuiteTest(BuiltinTest):
             # --only-test can either point to a particular test or a directory.
             # Therefore, test_suite_root + opts.only_test or
             # test_suite_root + dirname(opts.only_test) must be a directory.
-            path = os.path.join(self.opts.test_suite_root, opts.only_test)
+            path = os.path.join(opts.test_suite_root, opts.only_test)
             parent_path = os.path.dirname(path)
 
             if os.path.isdir(path):
@@ -272,16 +272,16 @@ class TestSuiteTest(BuiltinTest):
         self.start_time = timestamp()
 
         # Work out where to put our build stuff
-        if self.opts.timestamp_build:
+        if opts.timestamp_build:
             ts = self.start_time.replace(' ', '_').replace(':', '-')
             build_dir_name = "test-%s" % ts
         else:
             build_dir_name = "build"
-        basedir = os.path.join(self.opts.sandbox_path, build_dir_name)
+        basedir = os.path.join(opts.sandbox_path, build_dir_name)
         self._base_path = basedir
 
         cmakecache = os.path.join(self._base_path, 'CMakeCache.txt')
-        self.configured = not self.opts.run_configure and \
+        self.configured = not opts.run_configure and \
             os.path.exists(cmakecache)
 
         #  If we are doing diagnostics, skip the usual run and do them now.
@@ -331,7 +331,7 @@ class TestSuiteTest(BuiltinTest):
             c = i < opts.compile_multisample
             e = i < opts.exec_multisample
             # only gather perf profiles on a single run.
-            p = i == 0 and self.opts.use_perf in ('profile', 'all')
+            p = i == 0 and opts.use_perf in ('profile', 'all')
             run_report, json_data = self.run(cmake_vars, compile=c, test=e,
                                              profile=p)
             reports.append(run_report)
@@ -361,7 +361,7 @@ class TestSuiteTest(BuiltinTest):
         with open(csv_report_path, 'w') as fd:
             fd.write(str_template)
 
-        return self.submit(report_path, self.opts, 'nts')
+        return self.submit(report_path, opts, 'nts')
 
     def _configure_if_needed(self):
         mkdir_p(self._base_path)
