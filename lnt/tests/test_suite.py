@@ -373,6 +373,9 @@ class TestSuiteTest(BuiltinTest):
     def run(self, cmake_vars, compile=True, test=True, profile=False):
         mkdir_p(self._base_path)
 
+        # FIXME: should we only run PGO collection once, even when
+        # multisampling? We could do so be adding "and not self.trained"
+        # below.
         if self.opts.pgo:
             self._collect_pgo(self._base_path)
             self.trained = True
@@ -382,7 +385,7 @@ class TestSuiteTest(BuiltinTest):
 
         if self.compiled and compile:
             self._clean(self._base_path)
-        if not self.compiled or compile:
+        if not self.compiled or compile or self.opts.pgo:
             self._make(self._base_path)
             self._install_benchmark(self._base_path)
             self.compiled = True
@@ -544,8 +547,10 @@ class TestSuiteTest(BuiltinTest):
 
     def _collect_pgo(self, path):
         extra_defs = ["TEST_SUITE_PROFILE_GENERATE=On",
+                      "TEST_SUITE_PROFILE_USE=Off",
                       "TEST_SUITE_RUN_TYPE=train"]
         self._configure(path, extra_cmake_defs=extra_defs)
+        self._clean(self._base_path)
         self._make(path)
         self._install_benchmark(path)
         self._lit(path, True, False)
