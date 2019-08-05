@@ -44,19 +44,27 @@ class Report:
         self.check()
 
     def check(self):
+        """Check that object members are adequate to generate an LNT
+        json report file when rendering that instance.
+        """
         assert isinstance(self.machine, Machine)
         assert isinstance(self.run, Run)
         for t in self.tests:
             assert isinstance(t, TestSamples)
 
     def update_report(self, new_samples):
-        """Add extra samples to this report, and update the end time."""
+        """Add extra samples to this report, and update the end time of
+        the run.
+        """
         self.check()
         self.tests.extend(new_samples)
         self.run.update_endtime()
         self.check()
 
     def render(self, indent=4):
+        """Return a LNT json report file format as a string, where each
+        object is indented by indent spaces compared to its parent.
+        """
         # Note that we specifically override the encoding to avoid the
         # possibility of encoding errors. Clients which care about the
         # text encoding should supply unicode string objects.
@@ -82,6 +90,9 @@ class Machine:
                          for key, value in info.items())
 
     def render(self):
+        """Return info from this instance in a dictionary that respects
+        the LNT report format when printed as json.
+        """
         return {'Name': self.name,
                 'Info': self.info}
 
@@ -122,11 +133,15 @@ class Run:
         self.info['__report_version__'] = '1'
 
     def update_endtime(self, end_time=None):
+        """Update the end time of this run."""
         if end_time is None:
             end_time = datetime.datetime.utcnow()
         self.end_time = normalize_time(end_time)
 
     def render(self):
+        """Return info from this instance in a dictionary that respects
+        the LNT report format when printed as json.
+        """
         return {'Start Time': self.start_time,
                 'End Time': self.end_time,
                 'Info': self.info}
@@ -161,12 +176,18 @@ class TestSamples:
     """
 
     def __init__(self, name, data, info={}, conv_f=float):
+        """Create an instance representing the samples converted into
+        floating-point values using the conv_f function.
+        """
         self.name = str(name)
         self.info = dict((str(key), str(value))
                          for key, value in info.items())
         self.data = map(conv_f, data)
 
     def render(self):
+        """Return info from this instance in a dictionary that respects
+        the LNT report format when printed as json.
+        """
         return {'Name': self.name,
                 'Info': self.info,
                 'Data': self.data}
