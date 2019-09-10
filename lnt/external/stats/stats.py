@@ -278,7 +278,7 @@ Usage:   lgeometricmean(inlist)
     mult = 1.0
     one_over_n = 1.0/len(inlist)
     for item in inlist:
-        mult = mult * pow(item,one_over_n)
+        mult = mult * pow(item, one_over_n)
     return mult
 
 
@@ -317,7 +317,7 @@ Heiman's Basic Stats (1st Edition), or CRC Probability & Statistics.
 
 Usage:   lmedian (inlist, numbins=1000)
 """
-    (hist, smallest, binsize, extras) = histogram(inlist,numbins,[min(inlist),max(inlist)]) # make histog
+    (hist, smallest, binsize, extras) = histogram(inlist, numbins, [min(inlist), max(inlist)]) # make histog
     cumhist = cumsum(hist)              # make cumulative histogram
     for i in range(len(cumhist)):        # get 1st(!) index holding 50%ile score
         if cumhist[i]>=len(inlist)/2.0:
@@ -416,7 +416,7 @@ Recipies (alternate defn in CRC Standard Probability and Statistics, p.6.)
 
 Usage:   lskew(inlist)
 """
-    return moment(inlist,3)/pow(moment(inlist,2),1.5)
+    return moment(inlist, 3)/pow(moment(inlist, 2), 1.5)
 
 
 def lkurtosis(inlist):
@@ -426,7 +426,7 @@ Recipies (alternate defn in CRC Standard Probability and Statistics, p.6.)
 
 Usage:   lkurtosis(inlist)
 """
-    return moment(inlist,4)/pow(moment(inlist,2),2.0)
+    return moment(inlist, 4)/pow(moment(inlist, 2), 2.0)
 
 
 def ldescribe(inlist):
@@ -437,7 +437,7 @@ Usage:   ldescribe(inlist)
 Returns: n, mean, standard deviation, skew, kurtosis
 """
     n = len(inlist)
-    mm = (min(inlist),max(inlist))
+    mm = (min(inlist), max(inlist))
     m = mean(inlist)
     sd = stdev(inlist)
     sk = skew(inlist)
@@ -492,7 +492,7 @@ given by inlist.  Formula depends on the values used to histogram the data(!).
 Usage:   lpercentileofscore(inlist,score,histbins=10,defaultlimits=None)
 """
 
-    h, lrl, binsize, extras = histogram(inlist,histbins,defaultlimits)
+    h, lrl, binsize, extras = histogram(inlist, histbins, defaultlimits)
     cumhist = cumsum(copy.deepcopy(h))
     i = int((score - lrl)/float(binsize))
     pct = (cumhist[i-1]+((score-(lrl+binsize*i))/float(binsize))*h[i])/float(len(inlist)) * 100
@@ -545,9 +545,9 @@ Returns a cumulative frequency histogram, using the histogram function.
 Usage:   lcumfreq(inlist,numbins=10,defaultreallimits=None)
 Returns: list of cumfreq bin values, lowerreallimit, binsize, extrapoints
 """
-    h,l,b,e = histogram(inlist,numbins,defaultreallimits)
+    h, l, b, e = histogram(inlist, numbins, defaultreallimits)
     cumhist = cumsum(copy.deepcopy(h))
-    return cumhist,l,b,e
+    return cumhist, l, b, e
 
 
 def lrelfreq(inlist,numbins=10,defaultreallimits=None):
@@ -557,10 +557,10 @@ Returns a relative frequency histogram, using the histogram function.
 Usage:   lrelfreq(inlist,numbins=10,defaultreallimits=None)
 Returns: list of cumfreq bin values, lowerreallimit, binsize, extrapoints
 """
-    h,l,b,e = histogram(inlist,numbins,defaultreallimits)
+    h, l, b, e = histogram(inlist, numbins, defaultreallimits)
     for i in range(len(h)):
         h[i] = h[i]/float(len(inlist))
-    return h,l,b,e
+    return h, l, b, e
 
 
 ####################################
@@ -719,7 +719,7 @@ Usage:   lzs(inlist)
 """
     zscores = []
     for item in inlist:
-        zscores.append(z(inlist,item))
+        zscores.append(z(inlist, item))
     return zscores
 
 
@@ -727,7 +727,7 @@ Usage:   lzs(inlist)
 #######  TRIMMING FUNCTIONS  #######
 ####################################
 
-def ltrimboth (l,proportiontocut):
+def ltrimboth (l, proportiontocut):
     """
 Slices off the passed proportion of items from BOTH ends of the passed
 list (i.e., with proportiontocut=0.1, slices 'leftmost' 10% AND 'rightmost'
@@ -766,7 +766,7 @@ Returns: trimmed version of list l
 #####  CORRELATION FUNCTIONS  ######
 ####################################
 
-def lpaired(x,y):
+def lpaired(x, y):
     """
 Interactively determines the type of data and then runs the
 appropriated statistic for paired group data.
@@ -775,62 +775,62 @@ Usage:   lpaired(x,y)
 Returns: appropriate statistic name, value, and probability
 """
     samples = ''
-    while samples not in ['i','r','I','R','c','C']:
+    while samples not in ['i', 'r', 'I', 'R', 'c', 'C']:
         print('\nIndependent or related samples, or correlation (i,r,c): ', end=' ')
         samples = input()
 
-    if samples in ['i','I','r','R']:
+    if samples in ['i', 'I', 'r', 'R']:
         print('\nComparing variances ...', end=' ')
 # USE O'BRIEN'S TEST FOR HOMOGENEITY OF VARIANCE, Maxwell & delaney, p.112
-        r = obrientransform(x,y)
-        f,p = F_oneway(pstat.colex(r,0),pstat.colex(r,1))
+        r = obrientransform(x, y)
+        f, p = F_oneway(pstat.colex(r, 0), pstat.colex(r, 1))
         if p<0.05:
-            vartype='unequal, p='+str(round(p,4))
+            vartype='unequal, p='+str(round(p, 4))
         else:
             vartype='equal'
         print(vartype)
-        if samples in ['i','I']:
+        if samples in ['i', 'I']:
             if vartype[0]=='e':
-                t,p = ttest_ind(x,y,0)
+                t, p = ttest_ind(x, y, 0)
                 print('\nIndependent samples t-test:  ', round(t, 4), round(p, 4))
             else:
                 if len(x)>20 or len(y)>20:
-                    z,p = ranksums(x,y)
+                    z, p = ranksums(x, y)
                     print('\nRank Sums test (NONparametric, n>20):  ', round(z, 4), round(p, 4))
                 else:
-                    u,p = mannwhitneyu(x,y)
+                    u, p = mannwhitneyu(x, y)
                     print('\nMann-Whitney U-test (NONparametric, ns<20):  ', round(u, 4), round(p, 4))
 
         else:  # RELATED SAMPLES
             if vartype[0]=='e':
-                t,p = ttest_rel(x,y,0)
+                t, p = ttest_rel(x, y, 0)
                 print('\nRelated samples t-test:  ', round(t, 4), round(p, 4))
             else:
-                t,p = ranksums(x,y)
+                t, p = ranksums(x, y)
                 print('\nWilcoxon T-test (NONparametric):  ', round(t, 4), round(p, 4))
     else:  # CORRELATION ANALYSIS
         corrtype = ''
-        while corrtype not in ['c','C','r','R','d','D']:
+        while corrtype not in ['c', 'C', 'r', 'R', 'd', 'D']:
             print('\nIs the data Continuous, Ranked, or Dichotomous (c,r,d): ', end=' ')
             corrtype = input()
-        if corrtype in ['c','C']:
-            m,b,r,p,see = linregress(x,y)
+        if corrtype in ['c', 'C']:
+            m, b, r, p, see = linregress(x, y)
             print('\nLinear regression for continuous variables ...')
-            lol = [['Slope','Intercept','r','Prob','SEestimate'],[round(m,4),round(b,4),round(r,4),round(p,4),round(see,4)]]
+            lol = [['Slope', 'Intercept', 'r', 'Prob', 'SEestimate'], [round(m, 4), round(b, 4), round(r, 4), round(p, 4), round(see, 4)]]
             pstat.printcc(lol)
-        elif corrtype in ['r','R']:
-            r,p = spearmanr(x,y)
+        elif corrtype in ['r', 'R']:
+            r, p = spearmanr(x, y)
             print('\nCorrelation for ranked variables ...')
             print("Spearman's r: ", round(r, 4), round(p, 4))
         else: # DICHOTOMOUS
-            r,p = pointbiserialr(x,y)
+            r, p = pointbiserialr(x, y)
             print('\nAssuming x contains a dichotomous variable ...')
             print('Point Biserial r: ', round(r, 4), round(p, 4))
     print('\n\n')
     return None
 
 
-def lpearsonr(x,y):
+def lpearsonr(x, y):
     """
 Calculates a Pearson correlation coefficient and the associated
 probability value.  Taken from Heiman's Basic Statistics for the Behav.
@@ -847,30 +847,30 @@ Returns: Pearson's r value, two-tailed p-value
     y = list(map(float, y))
     xmean = mean(x)
     ymean = mean(y)
-    r_num = n*(summult(x,y)) - sum(x)*sum(y)
+    r_num = n*(summult(x, y)) - sum(x)*sum(y)
     r_den = math.sqrt((n*ss(x) - square_of_sums(x))*(n*ss(y)-square_of_sums(y)))
     r = (r_num / r_den)  # denominator already a float
     df = n-2
     t = r*math.sqrt(df/((1.0-r+TINY)*(1.0+r+TINY)))
-    prob = betai(0.5*df,0.5,df/float(df+t*t))
+    prob = betai(0.5*df, 0.5, df/float(df+t*t))
     return r, prob
 
 
-def llincc(x,y):
+def llincc(x, y):
     """
 Calculates Lin's concordance correlation coefficient.
 
 Usage:   alincc(x,y)    where x, y are equal-length arrays
 Returns: Lin's CC
 """
-    covar = lcov(x,y)*(len(x)-1)/float(len(x))  # correct denom to n
+    covar = lcov(x, y)*(len(x)-1)/float(len(x))  # correct denom to n
     xvar = lvar(x)*(len(x)-1)/float(len(x))  # correct denom to n
     yvar = lvar(y)*(len(y)-1)/float(len(y))  # correct denom to n
     lincc = (2 * covar) / ((xvar+yvar) +((amean(x)-amean(y))**2))
     return lincc
 
 
-def lspearmanr(x,y):
+def lspearmanr(x, y):
     """
 Calculates a Spearman rank-order correlation coefficient.  Taken
 from Heiman's Basic Statistics for the Behav. Sci (1st), p.192.
@@ -884,17 +884,17 @@ Returns: Spearman's r, two-tailed p-value
     n = len(x)
     rankx = rankdata(x)
     ranky = rankdata(y)
-    dsq = sumdiffsquared(rankx,ranky)
+    dsq = sumdiffsquared(rankx, ranky)
     rs = 1 - 6*dsq / float(n*(n**2-1))
     t = rs * math.sqrt((n-2) / ((rs+1.0)*(1.0-rs)))
     df = n-2
-    probrs = betai(0.5*df,0.5,df/(df+t*t))  # t already a float
+    probrs = betai(0.5*df, 0.5, df/(df+t*t))  # t already a float
 # probability values for rs are from part 2 of the spearman function in
 # Numerical Recipies, p.510.  They are close to tables, but not exact. (?)
     return rs, probrs
 
 
-def lpointbiserialr(x,y):
+def lpointbiserialr(x, y):
     """
 Calculates a point-biserial correlation coefficient and the associated
 probability value.  Taken from Heiman's Basic Statistics for the Behav.
@@ -906,27 +906,27 @@ Returns: Point-biserial r, two-tailed p-value
     TINY = 1e-30
     if len(x) != len(y):
         raise ValueError('INPUT VALUES NOT PAIRED IN pointbiserialr.  ABORTING.')
-    data = pstat.abut(x,y)
+    data = pstat.abut(x, y)
     categories = pstat.unique(x)
     if len(categories) != 2:
         raise ValueError("Exactly 2 categories required for pointbiserialr().")
     else:   # there are 2 categories, continue
-        codemap = pstat.abut(categories,range(2))
-        recoded = pstat.recode(data,codemap,0)
-        x = pstat.linexand(data,0,categories[0])
-        y = pstat.linexand(data,0,categories[1])
-        xmean = mean(pstat.colex(x,1))
-        ymean = mean(pstat.colex(y,1))
+        codemap = pstat.abut(categories, range(2))
+        recoded = pstat.recode(data, codemap, 0)
+        x = pstat.linexand(data, 0, categories[0])
+        y = pstat.linexand(data, 0, categories[1])
+        xmean = mean(pstat.colex(x, 1))
+        ymean = mean(pstat.colex(y, 1))
         n = len(data)
         adjust = math.sqrt((len(x)/float(n))*(len(y)/float(n)))
-        rpb = (ymean - xmean)/samplestdev(pstat.colex(data,1))*adjust
+        rpb = (ymean - xmean)/samplestdev(pstat.colex(data, 1))*adjust
         df = n-2
         t = rpb*math.sqrt(df/((1.0-rpb+TINY)*(1.0+rpb+TINY)))
-        prob = betai(0.5*df,0.5,df/(df+t*t))  # t already a float
+        prob = betai(0.5*df, 0.5, df/(df+t*t))  # t already a float
         return rpb, prob
 
 
-def lkendalltau(x,y):
+def lkendalltau(x, y):
     """
 Calculates Kendall's tau ... correlation of ordinal data.  Adapted
 from function kendl1 in Numerical Recipies.  Needs good test-routine.@@@
@@ -938,7 +938,7 @@ Returns: Kendall's tau, two-tailed p-value
     n2 = 0
     iss = 0
     for j in range(len(x)-1):
-        for k in range(j,len(y)):
+        for k in range(j, len(y)):
             a1 = x[j] - x[k]
             a2 = y[j] - y[k]
             aa = a1 * a2
@@ -961,7 +961,7 @@ Returns: Kendall's tau, two-tailed p-value
     return tau, prob
 
 
-def llinregress(x,y):
+def llinregress(x, y):
     """
 Calculates a regression line on x,y pairs.  
 
@@ -976,13 +976,13 @@ Returns: slope, intercept, r, two-tailed prob, sterr-of-estimate
     y = list(map(float, y))
     xmean = mean(x)
     ymean = mean(y)
-    r_num = float(n*(summult(x,y)) - sum(x)*sum(y))
+    r_num = float(n*(summult(x, y)) - sum(x)*sum(y))
     r_den = math.sqrt((n*ss(x) - square_of_sums(x))*(n*ss(y)-square_of_sums(y)))
     r = r_num / r_den
     z = 0.5*math.log((1.0+r+TINY)/(1.0-r+TINY))
     df = n-2
     t = r*math.sqrt(df/((1.0-r+TINY)*(1.0+r+TINY)))
-    prob = betai(0.5*df,0.5,df/(df+t*t))
+    prob = betai(0.5*df, 0.5, df/(df+t*t))
     slope = r_num / float(n*ss(x) - square_of_sums(x))
     intercept = ymean - slope*xmean
     sterrest = math.sqrt(1-r*r)*samplestdev(y)
@@ -1009,15 +1009,15 @@ Returns: t-value, two-tailed prob
     df = n-1
     svar = ((n-1)*v)/float(df)
     t = (x-popmean)/math.sqrt(svar*(1.0/n))
-    prob = betai(0.5*df,0.5,float(df)/(df+t*t))
+    prob = betai(0.5*df, 0.5, float(df)/(df+t*t))
 
     if printit != 0:
         statname = 'Single-sample T-test.'
-        outputpairedstats(printit,writemode,
-                          'Population','--',popmean,0,0,0,
-                          name,n,x,v,min(a),max(a),
-                          statname,t,prob)
-    return t,prob
+        outputpairedstats(printit, writemode,
+                          'Population', '--', popmean, 0, 0, 0,
+                          name, n, x, v, min(a), max(a),
+                          statname, t, prob)
+    return t, prob
 
 
 def lttest_ind (a, b, printit=0, name1='Samp1', name2='Samp2', writemode='a'):
@@ -1040,15 +1040,15 @@ Returns: t-value, two-tailed prob
     df = n1+n2-2
     svar = ((n1-1)*v1+(n2-1)*v2)/float(df)
     t = (x1-x2)/math.sqrt(svar*(1.0/n1 + 1.0/n2))
-    prob = betai(0.5*df,0.5,df/(df+t*t))
+    prob = betai(0.5*df, 0.5, df/(df+t*t))
 
     if printit != 0:
         statname = 'Independent samples T-test.'
-        outputpairedstats(printit,writemode,
-                          name1,n1,x1,v1,min(a),max(a),
-                          name2,n2,x2,v2,min(b),max(b),
-                          statname,t,prob)
-    return t,prob
+        outputpairedstats(printit, writemode,
+                          name1, n1, x1, v1, min(a), max(a),
+                          name2, n2, x2, v2, min(b), max(b),
+                          statname, t, prob)
+    return t, prob
 
 
 def lttest_rel (a,b,printit=0,name1='Sample1',name2='Sample2',writemode='a'):
@@ -1076,14 +1076,14 @@ Returns: t-value, two-tailed prob
     cov = cov / float(df)
     sd = math.sqrt((v1+v2 - 2.0*cov)/float(n))
     t = (x1-x2)/sd
-    prob = betai(0.5*df,0.5,df/(df+t*t))
+    prob = betai(0.5*df, 0.5, df/(df+t*t))
 
     if printit != 0:
         statname = 'Related samples T-test.'
-        outputpairedstats(printit,writemode,
-                          name1,n,x1,v1,min(a),max(a),
-                          name2,n,x2,v2,min(b),max(b),
-                          statname,t,prob)
+        outputpairedstats(printit, writemode,
+                          name1, n, x1, v1, min(a), max(a),
+                          name2, n, x2, v2, min(b), max(b),
+                          statname, t, prob)
     return t, prob
 
 
@@ -1105,7 +1105,7 @@ Returns: chisquare-statistic, associated p-value
     return chisq, chisqprob(chisq, k-1)
 
 
-def lks_2samp (data1,data2):
+def lks_2samp (data1, data2):
     """
 Computes the Kolmogorov-Smirnof statistic on 2 samples.  From
 Numerical Recipies in C, page 493.
@@ -1144,7 +1144,7 @@ Returns: KS D-value, associated p-value
     return d, prob
 
 
-def lmannwhitneyu(x,y):
+def lmannwhitneyu(x, y):
     """
 Calculates a Mann-Whitney U statistic on the provided scores and
 returns the result.  Use only when the n in each condition is < 20 and
@@ -1163,8 +1163,8 @@ Returns: u-statistic, one-tailed p-value (i.e., p(z(U)))
     ranky = ranked[n1:]        # the rest are y-ranks
     u1 = n1*n2 + (n1*(n1+1))/2.0 - sum(rankx)  # calc U for x
     u2 = n1*n2 - u1                            # remainder is U for y
-    bigu = max(u1,u2)
-    smallu = min(u1,u2)
+    bigu = max(u1, u2)
+    smallu = min(u1, u2)
     T = math.sqrt(tiecorrect(ranked))  # correction factor for tied scores
     if T == 0:
         raise ValueError('All numbers are identical in lmannwhitneyu')
@@ -1182,7 +1182,7 @@ New York: McGraw-Hill.  Code adapted from |Stat rankind.c code.
 Usage:   ltiecorrect(rankvals)
 Returns: T correction factor for U or H
 """
-    sorted,posn = shellsort(rankvals)
+    sorted, posn = shellsort(rankvals)
     n = len(sorted)
     T = 0.0
     i = 0
@@ -1198,7 +1198,7 @@ Returns: T correction factor for U or H
     return 1.0 - T
 
 
-def lranksums(x,y):
+def lranksums(x, y):
     """
 Calculates the rank sums statistic on the provided scores and
 returns the result.  Use only when the n in each condition is > 20 and you
@@ -1220,7 +1220,7 @@ Returns: a z-statistic, two-tailed p-value
     return z, prob
 
 
-def lwilcoxont(x,y):
+def lwilcoxont(x, y):
     """
 Calculates the Wilcoxon T-test for related samples and returns the
 result.  A non-parametric T-test.
@@ -1285,7 +1285,7 @@ Returns: H-statistic (corrected for ties), associated p-value
     if T == 0:
         raise ValueError('All numbers are identical in lkruskalwallish')
     h = h / float(T)
-    return h, chisqprob(h,df)
+    return h, chisqprob(h, df)
 
 
 def lfriedmanchisquare(*args):
@@ -1311,14 +1311,14 @@ Returns: chi-square statistic, associated p-value
     for i in range(k):
         ssbn = ssbn + sum(args[i])**2
     chisq = 12.0 / (k*n*(k+1)) * ssbn - 3*n*(k+1)
-    return chisq, chisqprob(chisq,k-1)
+    return chisq, chisqprob(chisq, k-1)
 
 
 ####################################
 ####  PROBABILITY CALCULATIONS  ####
 ####################################
 
-def lchisqprob(chisq,df):
+def lchisqprob(chisq, df):
     """
 Returns the (1-tailed) probability value associated with the provided
 chi-square value and df.  Adapted from chisq.c in Gary Perlman's |Stat.
@@ -1447,7 +1447,7 @@ Usage:   lksprob(alam)
     sum = 0.0
     termbf = 0.0
     a2 = -2.0*alam*alam
-    for j in range(1,201):
+    for j in range(1, 201):
         term = fac*math.exp(a2*j*j)
         sum = sum + term
         if math.fabs(term) <= (0.001*termbf) or math.fabs(term) < (1.0e-8*sum):
@@ -1469,7 +1469,7 @@ Usage:   lfprob(dfnum, dfden, F)   where usually dfnum=dfbn, dfden=dfwn
     return p
 
 
-def lbetacf(a,b,x):
+def lbetacf(a, b, x):
     """
 This function evaluates the continued fraction form of the incomplete
 Beta function, betai.  (Adapted from: Numerical Recipies in C.)
@@ -1524,7 +1524,7 @@ Usage:   lgammln(xx)
     return -tmp + math.log(2.50662827465*ser)
 
 
-def lbetai(a,b,x):
+def lbetai(a, b, x):
     """
 Returns the incomplete beta function:
 
@@ -1544,9 +1544,9 @@ Usage:   lbetai(a,b,x)
         bt = math.exp(gammln(a+b)-gammln(a)-gammln(b)+a*math.log(x)+b*
                       math.log(1.0-x))
     if (x<(a+1.0)/(a+b+2.0)):
-        return bt*betacf(a,b,x)/float(a)
+        return bt*betacf(a, b, x)/float(a)
     else:
-        return 1.0-bt*betacf(b,a,1.0-x)/float(b)
+        return 1.0-bt*betacf(b, a, 1.0-x)/float(b)
 
 
 ####################################
@@ -1579,11 +1579,11 @@ Returns: F value, one-tailed p-value
     msb = ssbn/float(dfbn)
     msw = sswn/float(dfwn)
     f = msb/msw
-    prob = fprob(dfbn,dfwn,f)
+    prob = fprob(dfbn, dfwn, f)
     return f, prob
 
 
-def lF_value (ER,EF,dfnum,dfden):
+def lF_value (ER, EF, dfnum, dfden):
     """
 Returns an F-statistic given the following:
         ER  = error associated with the null hypothesis (the Restricted model)
@@ -1611,7 +1611,7 @@ Returns: None
 """
     if not isinstance(listoflists[0], (list, tuple)):
         listoflists = [listoflists]
-    outfile = open(file,writetype)
+    outfile = open(file, writetype)
     rowstokill = []
     list2print = copy.deepcopy(listoflists)
     for i in range(len(listoflists)):
@@ -1622,7 +1622,7 @@ Returns: None
         del list2print[row]
     maxsize = [0]*len(list2print[0])
     for col in range(len(list2print[0])):
-        items = pstat.colex(list2print,col)
+        items = pstat.colex(list2print, col)
         maxsize[col] = (max(map(lambda item: len(pstat.makestr(item)), items))
                         + extra)
     for row in listoflists:
@@ -1632,15 +1632,15 @@ Returns: None
             dashes = [0]*len(maxsize)
             for j in range(len(maxsize)):
                 dashes[j] = '-'*(maxsize[j]-2)
-            outfile.write(pstat.lineincustcols(dashes,maxsize))
+            outfile.write(pstat.lineincustcols(dashes, maxsize))
         else:
-            outfile.write(pstat.lineincustcols(row,maxsize))
+            outfile.write(pstat.lineincustcols(row, maxsize))
         outfile.write('\n')
     outfile.close()
     return None
 
 
-def lincr(l,cap):        # to increment a list up to a max-list of 'cap'
+def lincr(l, cap):        # to increment a list up to a max-list of 'cap'
     """
 Simulate a counting system from an n-dimensional list.
 
@@ -1677,7 +1677,7 @@ passed list.
 Usage:   lcumsum(inlist)
 """
     newlist = copy.deepcopy(inlist)
-    for i in range(1,len(newlist)):
+    for i in range(1, len(newlist)):
         newlist[i] = newlist[i] + newlist[i-1]
     return newlist
 
@@ -1695,7 +1695,7 @@ Usage:   lss(inlist)
     return ss
 
 
-def lsummult (list1,list2):
+def lsummult (list1, list2):
     """
 Multiplies elements in list1 and list2, element by element, and
 returns the sum of all resulting multiplications.  Must provide equal
@@ -1706,12 +1706,12 @@ Usage:   lsummult(list1,list2)
     if len(list1) != len(list2):
         raise ValueError("Lists not equal length in summult.")
     s = 0
-    for item1,item2 in pstat.abut(list1,list2):
+    for item1, item2 in pstat.abut(list1, list2):
         s = s + item1*item2
     return s
 
 
-def lsumdiffsquared(x,y):
+def lsumdiffsquared(x, y):
     """
 Takes pairwise differences of the values in lists x and y, squares
 these differences, and returns the sum of these squares.
@@ -1749,8 +1749,8 @@ Returns: sorted-inlist, sorting-index-vector (for original list)
     ivec = range(n)
     gap = n // 2   # integer division needed
     while gap >0:
-        for i in range(gap,n):
-            for j in range(i-gap,-1,-gap):
+        for i in range(gap, n):
+            for j in range(i-gap, -1, -gap):
                 while j>=0 and svec[j]>svec[j+gap]:
                     temp        = svec[j]
                     svec[j]     = svec[j+gap]
@@ -1781,14 +1781,14 @@ Returns: a list of length equal to inlist, containing rank scores
         dupcount = dupcount + 1
         if i == n - 1 or svec[i] != svec[i + 1]:
             averank = sumranks / float(dupcount) + 1
-            for j in range(i-dupcount+1,i+1):
+            for j in range(i-dupcount+1, i+1):
                 newlist[ivec[j]] = averank
             sumranks = 0
             dupcount = 0
     return newlist
 
 
-def outputpairedstats(fname,writemode,name1,n1,m1,se1,min1,max1,name2,n2,m2,se2,min2,max2,statname,stat,prob):
+def outputpairedstats(fname, writemode, name1, n1, m1, se1, min1, max1, name2, n2, m2, se2, min2, max2, statname, stat, prob):
     """
 Prints or write to a file stats for two groups, using the name, n,
 mean, sterr, min and max for each group, as well as the statistic name,
@@ -1809,9 +1809,9 @@ Returns: None
     if  prob < 0.001:  suffix = '  ***'
     elif prob < 0.01:  suffix = '  **'
     elif prob < 0.05:  suffix = '  *'
-    title = [['Name','N','Mean','SD','Min','Max']]
-    lofl = title+[[name1,n1,round(m1,3),round(math.sqrt(se1),3),min1,max1],
-                  [name2,n2,round(m2,3),round(math.sqrt(se2),3),min2,max2]]
+    title = [['Name', 'N', 'Mean', 'SD', 'Min', 'Max']]
+    lofl = title+[[name1, n1, round(m1, 3), round(math.sqrt(se1), 3), min1, max1],
+                  [name2, n2, round(m2, 3), round(math.sqrt(se2), 3), min2, max2]]
     if not isinstance(fname, str) or len(fname) == 0:
         print()
         print(statname)
@@ -1828,11 +1828,11 @@ Returns: None
         print('Test statistic = ', round(stat, 3), '   p = ', round(prob, 3), suffix)
         print()
     else:
-        file = open(fname,writemode)
+        file = open(fname, writemode)
         file.write('\n'+statname+'\n\n')
         file.close()
-        writecc(lofl,fname,'a')
-        file = open(fname,'a')
+        writecc(lofl, fname, 'a')
+        file = open(fname, 'a')
         try:
             if stat.shape == ():
                 stat = stat[0]
@@ -1840,7 +1840,7 @@ Returns: None
                 prob = prob[0]
         except:
             pass
-        file.write(pstat.list2string(['\nTest statistic = ',round(stat,4),'   p = ',round(prob,4),suffix,'\n\n']))
+        file.write(pstat.list2string(['\nTest statistic = ', round(stat, 4), '   p = ', round(prob, 4), suffix, '\n\n']))
         file.close()
     return None
 
@@ -1860,11 +1860,11 @@ Usage:   lfindwithin(data)     data in |Stat format
 
     numfact = len(data[0])-1
     withinvec = 0
-    for col in range(1,numfact):
-        examplelevel = pstat.unique(pstat.colex(data,col))[0]
-        rows = pstat.linexand(data,col,examplelevel)  # get 1 level of this factor
-        factsubjs = pstat.unique(pstat.colex(rows,0))
-        allsubjs = pstat.unique(pstat.colex(data,0))
+    for col in range(1, numfact):
+        examplelevel = pstat.unique(pstat.colex(data, col))[0]
+        rows = pstat.linexand(data, col, examplelevel)  # get 1 level of this factor
+        factsubjs = pstat.unique(pstat.colex(rows, 0))
+        allsubjs = pstat.unique(pstat.colex(data, 0))
         if len(factsubjs) == len(allsubjs):  # fewer Ss than scores on this factor?
             withinvec = withinvec + (1 << col)
     return withinvec
@@ -2004,31 +2004,31 @@ inarray, with only 1 'level' per dim that was collapsed over.
 Usage:   ageometricmean(inarray,dimension=None,keepdims=0)
 Returns: geometric mean computed over dim(s) listed in dimension
 """
-    inarray = N.array(inarray,N.float_)
+    inarray = N.array(inarray, N.float_)
     if dimension is None:
         inarray = N.ravel(inarray)
         size = len(inarray)
-        mult = N.power(inarray,1.0/size)
+        mult = N.power(inarray, 1.0/size)
         mult = N.multiply.reduce(mult)
     elif isinstance(dimension, (int, float)):
         size = inarray.shape[dimension]
-        mult = N.power(inarray,1.0/size)
-        mult = N.multiply.reduce(mult,dimension)
+        mult = N.power(inarray, 1.0/size)
+        mult = N.multiply.reduce(mult, dimension)
         if keepdims == 1:
             shp = list(inarray.shape)
             shp[dimension] = 1
-            sum = N.reshape(sum,shp)
+            sum = N.reshape(sum, shp)
     else: # must be a SEQUENCE of dims to average over
         dims = sorted(dimension, reverse=True)
-        size = N.array(N.multiply.reduce(N.take(inarray.shape,dims)),N.float_)
-        mult = N.power(inarray,1.0/size)
+        size = N.array(N.multiply.reduce(N.take(inarray.shape, dims)), N.float_)
+        mult = N.power(inarray, 1.0/size)
         for dim in dims:
-            mult = N.multiply.reduce(mult,dim)
+            mult = N.multiply.reduce(mult, dim)
         if keepdims == 1:
             shp = list(inarray.shape)
             for dim in dims:
                 shp[dim] = 1
-            mult = N.reshape(mult,shp)
+            mult = N.reshape(mult, shp)
     return mult
 
 
@@ -2056,32 +2056,32 @@ Returns: harmonic mean computed over dim(s) in dimension
         if keepdims == 1:
             shp = list(inarray.shape)
             shp[dimension] = 1
-            s = N.reshape(s,shp)
+            s = N.reshape(s, shp)
     else: # must be a SEQUENCE of dims to average over
         dims = sorted(dimension)
         nondims = []
         for i in range(len(inarray.shape)):
             if i not in dims:
                 nondims.append(i)
-        tinarray = N.transpose(inarray,nondims+dims) # put keep-dims first
+        tinarray = N.transpose(inarray, nondims+dims) # put keep-dims first
         idx = [0] *len(nondims)
         if idx == []:
             size = len(N.ravel(inarray))
             s = asum(1.0 / inarray)
             if keepdims == 1:
-                s = N.reshape([s],N.ones(len(inarray.shape)))
+                s = N.reshape([s], N.ones(len(inarray.shape)))
         else:
             idx[0] = -1
             loopcap = N.array(tinarray.shape[0:len(nondims)]) -1
-            s = N.zeros(loopcap+1,N.float_)
+            s = N.zeros(loopcap+1, N.float_)
             while incr(idx, loopcap) != -1:
                 s[idx] = asum(1.0/tinarray[idx])
-            size = N.multiply.reduce(N.take(inarray.shape,dims))
+            size = N.multiply.reduce(N.take(inarray.shape, dims))
             if keepdims == 1:
                 shp = list(inarray.shape)
                 for dim in dims:
                     shp[dim] = 1
-                s = N.reshape(s,shp)
+                s = N.reshape(s, shp)
     return size / s
 
 
@@ -2098,30 +2098,30 @@ inarray, with only 1 'level' per dim that was collapsed over.
 Usage:   amean(inarray,dimension=None,keepdims=0)
 Returns: arithematic mean calculated over dim(s) in dimension
 """
-    if inarray.dtype in [N.int_, N.short,N.ubyte]:
+    if inarray.dtype in [N.int_, N.short, N.ubyte]:
         inarray = inarray.astype(N.float_)
     if dimension is None:
         inarray = N.ravel(inarray)
         sum = N.add.reduce(inarray)
         denom = float(len(inarray))
     elif isinstance(dimension, (int, float)):
-        sum = asum(inarray,dimension)
+        sum = asum(inarray, dimension)
         denom = float(inarray.shape[dimension])
         if keepdims == 1:
             shp = list(inarray.shape)
             shp[dimension] = 1
-            sum = N.reshape(sum,shp)
+            sum = N.reshape(sum, shp)
     else: # must be a TUPLE of dims to average over
         dims = sorted(dimension, reverse=True)
         sum = inarray *1.0
         for dim in dims:
-            sum = N.add.reduce(sum,dim)
-        denom = N.array(N.multiply.reduce(N.take(inarray.shape,dims)),N.float_)
+            sum = N.add.reduce(sum, dim)
+        denom = N.array(N.multiply.reduce(N.take(inarray.shape, dims)), N.float_)
         if keepdims == 1:
             shp = list(inarray.shape)
             for dim in dims:
                 shp[dim] = 1
-            sum = N.reshape(sum,shp)
+            sum = N.reshape(sum, shp)
     return sum/denom
 
 
@@ -2137,9 +2137,9 @@ Usage:   amedian(inarray,numbins=1000)
 Returns: median calculated over ALL values in inarray
 """
     inarray = N.ravel(inarray)
-    (hist, smallest, binsize, extras) = ahistogram(inarray,numbins,[min(inarray),max(inarray)])
+    (hist, smallest, binsize, extras) = ahistogram(inarray, numbins, [min(inarray), max(inarray)])
     cumhist = N.cumsum(hist)            # make cumulative histogram
-    otherbins = N.greater_equal(cumhist,len(inarray)/2.0)
+    otherbins = N.greater_equal(cumhist, len(inarray)/2.0)
     otherbins = list(otherbins)         # list of 0/1s, 1s start at median bin
     cfbin = otherbins.index(1)                # get 1st(!) index holding 50%ile score
     LRL = smallest + binsize*cfbin        # get lower read limit of that bin
@@ -2162,13 +2162,13 @@ Returns: 'middle' score of the array, or the mean of the 2 middle scores
     if dimension is None:
         inarray = N.ravel(inarray)
         dimension = 0
-    inarray = N.sort(inarray,dimension)
+    inarray = N.sort(inarray, dimension)
     if inarray.shape[dimension] % 2 == 0:   # if even number of elements
         indx = inarray.shape[dimension]/2   # integer division correct
         median = N.asarray(inarray[indx]+inarray[indx-1]) / 2.0
     else:
         indx = inarray.shape[dimension] / 2 # integer division correct
-        median = N.take(inarray,[indx],dimension)
+        median = N.take(inarray, [indx], dimension)
         if median.shape == (1,):
             median = median[0]
     return median
@@ -2194,15 +2194,15 @@ Returns: array of bin-counts for mode(s), array of corresponding modal values
     oldmostfreq = N.zeros(testshape)
     oldcounts = N.zeros(testshape)
     for score in scores:
-        template = N.equal(a,score)
-        counts = asum(template,dimension,1)
-        mostfrequent = N.where(counts>oldcounts,score,oldmostfreq)
-        oldcounts = N.where(counts>oldcounts,counts,oldcounts)
+        template = N.equal(a, score)
+        counts = asum(template, dimension, 1)
+        mostfrequent = N.where(counts>oldcounts, score, oldmostfreq)
+        oldcounts = N.where(counts>oldcounts, counts, oldcounts)
         oldmostfreq = mostfrequent
     return oldcounts, mostfrequent
 
 
- def atmean(a,limits=None,inclusive=(1,1)):
+ def atmean(a,limits=None,inclusive=(1, 1)):
      """
 Returns the arithmetic mean of all values in an array, ignoring values
 strictly outside the sequence passed to 'limits'.   Note: either limit
@@ -2212,7 +2212,7 @@ inclusive list/tuple determines whether the lower and upper limiting bounds
 
 Usage:   atmean(a,limits=None,inclusive=(1,1))
 """
-     if a.dtype in [N.int_, N.short,N.ubyte]:
+     if a.dtype in [N.int_, N.short, N.ubyte]:
          a = a.astype(N.float_)
      if limits is None:
          return mean(a)
@@ -2224,17 +2224,17 @@ Usage:   atmean(a,limits=None,inclusive=(1,1))
      if limits[0] > N.maximum.reduce(N.ravel(a)) or limits[1] < N.minimum.reduce(N.ravel(a)):
          raise ValueError("No array values within given limits (atmean).")
      elif limits[0] is None and limits[1] is not None:
-         mask = upperfcn(a,limits[1])
+         mask = upperfcn(a, limits[1])
      elif limits[0] is not None and limits[1] is None:
-         mask = lowerfcn(a,limits[0])
+         mask = lowerfcn(a, limits[0])
      elif limits[0] is not None and limits[1] is not None:
-         mask = lowerfcn(a,limits[0])*upperfcn(a,limits[1])
+         mask = lowerfcn(a, limits[0])*upperfcn(a, limits[1])
      s = float(N.add.reduce(N.ravel(a*mask)))
      n = float(N.add.reduce(N.ravel(mask)))
      return s/n
 
 
- def atvar(a,limits=None,inclusive=(1,1)):
+ def atvar(a,limits=None,inclusive=(1, 1)):
      """
 Returns the sample variance of values in an array, (i.e., using N-1),
 ignoring values strictly outside the sequence passed to 'limits'.  
@@ -2256,13 +2256,13 @@ Usage:   atvar(a,limits=None,inclusive=(1,1))
      if limits[0] > N.maximum.reduce(N.ravel(a)) or limits[1] < N.minimum.reduce(N.ravel(a)):
          raise ValueError("No array values within given limits (atvar).")
      elif limits[0] is None and limits[1] is not None:
-         mask = upperfcn(a,limits[1])
+         mask = upperfcn(a, limits[1])
      elif limits[0] is not None and limits[1] is None:
-         mask = lowerfcn(a,limits[0])
+         mask = lowerfcn(a, limits[0])
      elif limits[0] is not None and limits[1] is not None:
-         mask = lowerfcn(a,limits[0])*upperfcn(a,limits[1])
+         mask = lowerfcn(a, limits[0])*upperfcn(a, limits[1])
 
-     a = N.compress(mask,a)  # squish out excluded values
+     a = N.compress(mask, a)  # squish out excluded values
      return avar(a)
 
 
@@ -2282,8 +2282,8 @@ Usage:   atmin(a,lowerlimit=None,dimension=None,inclusive=1)
      if lowerlimit is None:
          lowerlimit = N.minimum.reduce(N.ravel(a))-11
      biggest = N.maximum.reduce(N.ravel(a))
-     ta = N.where(lowerfcn(a,lowerlimit),a,biggest)
-     return N.minimum.reduce(ta,dimension)
+     ta = N.where(lowerfcn(a, lowerlimit), a, biggest)
+     return N.minimum.reduce(ta, dimension)
 
 
  def atmax(a,upperlimit,dimension=None,inclusive=1):
@@ -2302,11 +2302,11 @@ Usage:   atmax(a,upperlimit,dimension=None,inclusive=1)
      if upperlimit is None:
          upperlimit = N.maximum.reduce(N.ravel(a))+1
      smallest = N.minimum.reduce(N.ravel(a))
-     ta = N.where(upperfcn(a,upperlimit),a,smallest)
-     return N.maximum.reduce(ta,dimension)
+     ta = N.where(upperfcn(a, upperlimit), a, smallest)
+     return N.maximum.reduce(ta, dimension)
 
 
- def atstdev(a,limits=None,inclusive=(1,1)):
+ def atstdev(a,limits=None,inclusive=(1, 1)):
      """
 Returns the standard deviation of all values in an array, ignoring values
 strictly outside the sequence passed to 'limits'.   Note: either limit
@@ -2316,10 +2316,10 @@ inclusive list/tuple determines whether the lower and upper limiting bounds
 
 Usage:   atstdev(a,limits=None,inclusive=(1,1))
 """
-     return N.sqrt(tvar(a,limits,inclusive))
+     return N.sqrt(tvar(a, limits, inclusive))
 
 
- def atsem(a,limits=None,inclusive=(1,1)):
+ def atsem(a,limits=None,inclusive=(1, 1)):
      """
 Returns the standard error of the mean for the values in an array,
 (i.e., using N for the denominator), ignoring values strictly outside
@@ -2330,7 +2330,7 @@ open/exclusive (0) or closed/inclusive (1).
 
 Usage:   atsem(a,limits=None,inclusive=(1,1))
 """
-     sd = tstdev(a,limits,inclusive)
+     sd = tstdev(a, limits, inclusive)
      if limits is None or limits == [None, None]:
          n = float(len(N.ravel(a)))
          limits = [min(a)-1, max(a)+1]
@@ -2342,11 +2342,11 @@ Usage:   atsem(a,limits=None,inclusive=(1,1))
      if limits[0] > N.maximum.reduce(N.ravel(a)) or limits[1] < N.minimum.reduce(N.ravel(a)):
          raise ValueError("No array values within given limits (atsem).")
      elif limits[0] is None and limits[1] is not None:
-         mask = upperfcn(a,limits[1])
+         mask = upperfcn(a, limits[1])
      elif limits[0] is not None and limits[1] is None:
-         mask = lowerfcn(a,limits[0])
+         mask = lowerfcn(a, limits[0])
      elif limits[0] is not None and limits[1] is not None:
-         mask = lowerfcn(a,limits[0])*upperfcn(a,limits[1])
+         mask = lowerfcn(a, limits[0])*upperfcn(a, limits[1])
      term1 = N.add.reduce(N.ravel(a*a*mask))
      n = float(N.add.reduce(N.ravel(mask)))
      return sd/math.sqrt(n)
@@ -2373,9 +2373,9 @@ Returns: appropriate moment along given dimension
     if moment == 1:
         return 0.0
     else:
-        mn = amean(a,dimension,1)  # 1=keepdims
-        s = N.power((a-mn),moment)
-        return amean(s,dimension)
+        mn = amean(a, dimension, 1)  # 1=keepdims
+        s = N.power((a-mn), moment)
+        return amean(s, dimension)
 
 
  def avariation(a,dimension=None):
@@ -2387,7 +2387,7 @@ sequence (operate over multiple dimensions).
 
 Usage:   avariation(a,dimension=None)
 """
-    return 100.0*asamplestdev(a,dimension)/amean(a,dimension)
+    return 100.0*asamplestdev(a, dimension)/amean(a, dimension)
 
 
  def askew(a,dimension=None): 
@@ -2401,12 +2401,12 @@ dimensions).
 Usage:   askew(a, dimension=None)
 Returns: skew of vals in a along dimension, returning ZERO where all vals equal
 """
-    denom = N.power(amoment(a,2,dimension),1.5)
-    zero = N.equal(denom,0)
+    denom = N.power(amoment(a, 2, dimension), 1.5)
+    zero = N.equal(denom, 0)
     if isinstance(denom, N.ndarray) and asum(zero) != 0:
         print("Number of zeros in askew: ", asum(zero))
     denom = denom + zero  # prevent divide-by-zero
-    return N.where(zero, 0, amoment(a,3,dimension)/denom)
+    return N.where(zero, 0, amoment(a, 3, dimension)/denom)
 
 
  def akurtosis(a,dimension=None):
@@ -2420,12 +2420,12 @@ sequence (operate over multiple dimensions).
 Usage:   akurtosis(a,dimension=None)
 Returns: kurtosis of values in a along dimension, and ZERO where all vals equal
 """
-    denom = N.power(amoment(a,2,dimension),2)
-    zero = N.equal(denom,0)
+    denom = N.power(amoment(a, 2, dimension), 2)
+    zero = N.equal(denom, 0)
     if isinstance(denom, N.ndarray) and asum(zero) != 0:
         print("Number of zeros in akurtosis: ", asum(zero))
     denom = denom + zero  # prevent divide-by-zero
-    return N.where(zero,0,amoment(a,4,dimension)/denom)
+    return N.where(zero, 0, amoment(a, 4, dimension)/denom)
 
 
  def adescribe(inarray,dimension=None):
@@ -2441,11 +2441,11 @@ Returns: n, (min,max), mean, standard deviation, skew, kurtosis
          inarray = N.ravel(inarray)
          dimension = 0
      n = inarray.shape[dimension]
-     mm = (N.minimum.reduce(inarray),N.maximum.reduce(inarray))
-     m = amean(inarray,dimension)
-     sd = astdev(inarray,dimension)
-     skew = askew(inarray,dimension)
-     kurt = akurtosis(inarray,dimension)
+     mm = (N.minimum.reduce(inarray), N.maximum.reduce(inarray))
+     m = amean(inarray, dimension)
+     sd = astdev(inarray, dimension)
+     skew = askew(inarray, dimension)
+     kurt = akurtosis(inarray, dimension)
      return n, mm, m, sd, skew, kurt
 
 
@@ -2466,14 +2466,14 @@ Returns: z-score and 2-tail z-probability
     if dimension is None:
         a = N.ravel(a)
         dimension = 0
-    b2 = askew(a,dimension)
+    b2 = askew(a, dimension)
     n = float(a.shape[dimension])
     y = b2 * N.sqrt(((n+1)*(n+3)) / (6.0*(n-2)) )
     beta2 = ( 3.0*(n*n+27*n-70)*(n+1)*(n+3) ) / ( (n-2.0)*(n+5)*(n+7)*(n+9) )
     W2 = -1 + N.sqrt(2*(beta2-1))
     delta = 1/N.sqrt(N.log(N.sqrt(W2)))
     alpha = N.sqrt(2/(W2-1))
-    y = N.where(y==0,1,y)
+    y = N.where(y==0, 1, y)
     Z = delta*N.log(y/alpha + N.sqrt((y/alpha)**2+1))
     return Z, (1.0-zprob(Z))*2
 
@@ -2494,7 +2494,7 @@ Returns: z-score and 2-tail z-probability, returns 0 for bad pixels
     n = float(a.shape[dimension])
     if n<20:
         print("akurtosistest only valid for n>=20 ... continuing anyway, n=", n)
-    b2 = akurtosis(a,dimension)
+    b2 = akurtosis(a, dimension)
     E = 3.0*(n-1) /(n+1)
     varb2 = 24.0*n*(n-2)*(n-3) / ((n+1)*(n+1)*(n+3)*(n+5))
     x = (b2-E)/N.sqrt(varb2)
@@ -2503,10 +2503,10 @@ Returns: z-score and 2-tail z-probability, returns 0 for bad pixels
     A = 6.0 + 8.0/sqrtbeta1 *(2.0/sqrtbeta1 + N.sqrt(1+4.0/(sqrtbeta1**2)))
     term1 = 1 -2/(9.0*A)
     denom = 1 +x*N.sqrt(2/(A-4.0))
-    denom = N.where(N.less(denom,0), 99, denom)
-    term2 = N.where(N.equal(denom,0), term1, N.power((1-2.0/A)/denom,1/3.0))
+    denom = N.where(N.less(denom, 0), 99, denom)
+    term2 = N.where(N.equal(denom, 0), term1, N.power((1-2.0/A)/denom, 1/3.0))
     Z = ( term1 - term2 ) / N.sqrt(2/(9.0*A))
-    Z = N.where(N.equal(denom,99), 0, Z)
+    Z = N.where(N.equal(denom, 99), 0, Z)
     return Z, (1.0-zprob(Z))*2
 
 
@@ -2523,10 +2523,10 @@ Returns: z-score and 2-tail probability
     if dimension is None:
         a = N.ravel(a)
         dimension = 0
-    s,p = askewtest(a,dimension)
-    k,p = akurtosistest(a,dimension)
-    k2 = N.power(s,2) + N.power(k,2)
-    return k2, achisqprob(k2,2)
+    s, p = askewtest(a, dimension)
+    k, p = akurtosistest(a, dimension)
+    k2 = N.power(s, 2) + N.power(k, 2)
+    return k2, achisqprob(k2, 2)
 
 
 #####################################
@@ -2546,7 +2546,7 @@ Returns: a 2D frequency table (col [0:n-1]=scores, col n=frequencies)
     scores = N.sort(scores)
     freq = N.zeros(len(scores))
     for i in range(len(scores)):
-        freq[i] = N.add.reduce(N.equal(a,scores[i]))
+        freq[i] = N.add.reduce(N.equal(a, scores[i]))
     return N.array(pstat.aabut(scores, freq))
 
 
@@ -2574,7 +2574,7 @@ the data(!).
 Usage:   apercentileofscore(inarray,score,histbins=10,defaultlimits=None)
 Returns: percentile-position of score (0-100) relative to inarray
 """
-    h, lrl, binsize, extras = histogram(inarray,histbins,defaultlimits)
+    h, lrl, binsize, extras = histogram(inarray, histbins, defaultlimits)
     cumhist = cumsum(h*1)
     i = int((score - lrl)/float(binsize))
     pct = (cumhist[i-1]+((score-(lrl+binsize*i))/float(binsize))*h[i])/float(len(inarray)) * 100
@@ -2629,9 +2629,9 @@ lower and upper limits on values to include.
 Usage:   acumfreq(a,numbins=10,defaultreallimits=None)
 Returns: array of cumfreq bin values, lowerreallimit, binsize, extrapoints
 """
-    h,l,b,e = histogram(a,numbins,defaultreallimits)
+    h, l, b, e = histogram(a, numbins, defaultreallimits)
     cumhist = cumsum(h*1)
-    return cumhist,l,b,e
+    return cumhist, l, b, e
 
 
  def arelfreq(a,numbins=10,defaultreallimits=None):
@@ -2643,9 +2643,9 @@ lower and upper limits on values to include.
 Usage:   arelfreq(a,numbins=10,defaultreallimits=None)
 Returns: array of cumfreq bin values, lowerreallimit, binsize, extrapoints
 """
-    h,l,b,e = histogram(a,numbins,defaultreallimits)
+    h, l, b, e = histogram(a, numbins, defaultreallimits)
     h = N.array(h/float(a.shape[0]))
-    return h,l,b,e
+    return h, l, b, e
 
 
 #####################################
@@ -2665,9 +2665,9 @@ Returns: transformed data for use in an ANOVA
 """
     TINY = 1e-10
     k = len(args)
-    n = N.zeros(k,N.float_)
-    v = N.zeros(k,N.float_)
-    m = N.zeros(k,N.float_)
+    n = N.zeros(k, N.float_)
+    v = N.zeros(k, N.float_)
+    m = N.zeros(k, N.float_)
     nargs = []
     for i in range(k):
         nargs.append(args[i].astype(N.float_))
@@ -2704,9 +2704,9 @@ Usage:   asamplevar(inarray,dimension=None,keepdims=0)
         inarray = N.ravel(inarray)
         dimension = 0
     if dimension == 1:
-        mn = amean(inarray,dimension)[:,N.NewAxis]
+        mn = amean(inarray, dimension)[:, N.NewAxis]
     else:
-        mn = amean(inarray,dimension,keepdims=1)
+        mn = amean(inarray, dimension, keepdims=1)
     deviations = inarray - mn 
     if isinstance(dimension, list):
         n = 1
@@ -2714,7 +2714,7 @@ Usage:   asamplevar(inarray,dimension=None,keepdims=0)
             n = n*inarray.shape[d]
     else:
         n = inarray.shape[dimension]
-    svar = ass(deviations,dimension,keepdims) / float(n)
+    svar = ass(deviations, dimension, keepdims) / float(n)
     return svar
 
 
@@ -2728,7 +2728,7 @@ with the same number of dimensions as inarray.
 
 Usage:   asamplestdev(inarray,dimension=None,keepdims=0)
 """
-    return N.sqrt(asamplevar(inarray,dimension,keepdims))
+    return N.sqrt(asamplevar(inarray, dimension, keepdims))
 
 
  def asignaltonoise(instack,dimension=0):
@@ -2741,9 +2741,9 @@ Usage:   asignaltonoise(instack,dimension=0):
 Returns: array containing the value of (mean/stdev) along dimension,
          or 0 when stdev=0
 """
-    m = mean(instack,dimension)
-    sd = stdev(instack,dimension)
-    return N.where(sd==0,0,m/sd)
+    m = mean(instack, dimension)
+    sd = stdev(instack, dimension)
+    return N.where(sd==0, 0, m/sd)
 
 
  def acov (x,y, dimension=None,keepdims=0):
@@ -2760,9 +2760,9 @@ Usage:   acov(x,y,dimension=None,keepdims=0)
         x = N.ravel(x)
         y = N.ravel(y)
         dimension = 0
-    xmn = amean(x,dimension,1)  # keepdims
+    xmn = amean(x, dimension, 1)  # keepdims
     xdeviations = x - xmn
-    ymn = amean(y,dimension,1)  # keepdims
+    ymn = amean(y, dimension, 1)  # keepdims
     ydeviations = y - ymn
     if isinstance(dimension, list):
         n = 1
@@ -2787,7 +2787,7 @@ Usage:   avar(inarray,dimension=None,keepdims=0)
     if dimension is None:
         inarray = N.ravel(inarray)
         dimension = 0
-    mn = amean(inarray,dimension,1)
+    mn = amean(inarray, dimension, 1)
     deviations = inarray - mn
     if isinstance(dimension, list):
         n = 1
@@ -2795,7 +2795,7 @@ Usage:   avar(inarray,dimension=None,keepdims=0)
             n = n*inarray.shape[d]
     else:
         n = inarray.shape[dimension]
-    var = ass(deviations,dimension,keepdims)/float(n-1)
+    var = ass(deviations, dimension, keepdims)/float(n-1)
     return var
 
 
@@ -2809,7 +2809,7 @@ an array with the same number of dimensions as inarray.
 
 Usage:   astdev(inarray,dimension=None,keepdims=0)
 """
-    return N.sqrt(avar(inarray,dimension,keepdims))
+    return N.sqrt(avar(inarray, dimension, keepdims))
 
 
  def asterr (inarray, dimension=None, keepdims=0):
@@ -2825,7 +2825,7 @@ Usage:   asterr(inarray,dimension=None,keepdims=0)
     if dimension is None:
         inarray = N.ravel(inarray)
         dimension = 0
-    return astdev(inarray,dimension,keepdims) / float(N.sqrt(inarray.shape[dimension]))
+    return astdev(inarray, dimension, keepdims) / float(N.sqrt(inarray.shape[dimension]))
 
 
  def asem (inarray, dimension=None, keepdims=0):
@@ -2847,7 +2847,7 @@ Usage:   asem(inarray,dimension=None, keepdims=0)
             n = n*inarray.shape[d]
     else:
         n = inarray.shape[dimension]
-    s = asamplestdev(inarray,dimension,keepdims) / N.sqrt(n-1)
+    s = asamplestdev(inarray, dimension, keepdims) / N.sqrt(n-1)
     return s
 
 
@@ -2872,7 +2872,7 @@ Usage:   azs(a)
 """
     zscores = []
     for item in a:
-        zscores.append(z(a,item))
+        zscores.append(z(a, item))
     return N.array(zscores)
 
 
@@ -2884,8 +2884,8 @@ of the compare array.
 
 Usage:   azs(scores, compare, dimension=0)
 """
-    mns = amean(compare,dimension)
-    sstd = asamplestdev(compare,0)
+    mns = amean(compare, dimension)
+    sstd = asamplestdev(compare, 0)
     return (scores - mns) / sstd
 
 
@@ -2905,14 +2905,14 @@ Returns: a, with values <threshmin or >threshmax replaced with newval
 """
     mask = N.zeros(a.shape)
     if threshmin is not None:
-        mask = mask + N.where(a<threshmin,1,0)
+        mask = mask + N.where(a<threshmin, 1, 0)
     if threshmax is not None:
-        mask = mask + N.where(a>threshmax,1,0)
-    mask = N.clip(mask,0,1)
-    return N.where(mask,newval,a)
+        mask = mask + N.where(a>threshmax, 1, 0)
+    mask = N.clip(mask, 0, 1)
+    return N.where(mask, newval, a)
 
 
- def atrimboth (a,proportiontocut):
+ def atrimboth (a, proportiontocut):
     """
 Slices off the passed proportion of items from BOTH ends of the passed
 array (i.e., with proportiontocut=0.1, slices 'leftmost' 10% AND
@@ -2962,8 +2962,8 @@ Returns: covariance matrix of X
     if len(X.shape) != 2:
         raise TypeError("acovariance requires 2D matrices")
     n = X.shape[0]
-    mX = amean(X,0)
-    return N.dot(N.transpose(X),X) / float(n) - N.multiply.outer(mX,mX)
+    mX = amean(X, 0)
+    return N.dot(N.transpose(X), X) / float(n) - N.multiply.outer(mX, mX)
 
 
  def acorrelation(X):
@@ -2975,10 +2975,10 @@ Returns: correlation matrix of X
 """
     C = acovariance(X)
     V = N.diagonal(C)
-    return C / N.sqrt(N.multiply.outer(V,V))
+    return C / N.sqrt(N.multiply.outer(V, V))
 
 
- def apaired(x,y):
+ def apaired(x, y):
     """
 Interactively determines the type of data in x and y, and then runs the
 appropriated statistic for paired group data.
@@ -2987,62 +2987,62 @@ Usage:   apaired(x,y)     x,y = the two arrays of values to be compared
 Returns: appropriate statistic name, value, and probability
 """
     samples = ''
-    while samples not in ['i','r','I','R','c','C']:
+    while samples not in ['i', 'r', 'I', 'R', 'c', 'C']:
         print('\nIndependent or related samples, or correlation (i,r,c): ', end=' ')
         samples = input()
 
-    if samples in ['i','I','r','R']:
+    if samples in ['i', 'I', 'r', 'R']:
         print('\nComparing variances ...', end=' ')
 # USE O'BRIEN'S TEST FOR HOMOGENEITY OF VARIANCE, Maxwell & delaney, p.112
-        r = obrientransform(x,y)
-        f,p = F_oneway(pstat.colex(r,0),pstat.colex(r,1))
+        r = obrientransform(x, y)
+        f, p = F_oneway(pstat.colex(r, 0), pstat.colex(r, 1))
         if p<0.05:
-            vartype='unequal, p='+str(round(p,4))
+            vartype='unequal, p='+str(round(p, 4))
         else:
             vartype='equal'
         print(vartype)
-        if samples in ['i','I']:
+        if samples in ['i', 'I']:
             if vartype[0]=='e':
-                t,p = ttest_ind(x,y,None,0)
+                t, p = ttest_ind(x, y, None, 0)
                 print('\nIndependent samples t-test:  ', round(t, 4), round(p, 4))
             else:
                 if len(x)>20 or len(y)>20:
-                    z,p = ranksums(x,y)
+                    z, p = ranksums(x, y)
                     print('\nRank Sums test (NONparametric, n>20):  ', round(z, 4), round(p, 4))
                 else:
-                    u,p = mannwhitneyu(x,y)
+                    u, p = mannwhitneyu(x, y)
                     print('\nMann-Whitney U-test (NONparametric, ns<20):  ', round(u, 4), round(p, 4))
 
         else:  # RELATED SAMPLES
             if vartype[0]=='e':
-                t,p = ttest_rel(x,y,0)
+                t, p = ttest_rel(x, y, 0)
                 print('\nRelated samples t-test:  ', round(t, 4), round(p, 4))
             else:
-                t,p = ranksums(x,y)
+                t, p = ranksums(x, y)
                 print('\nWilcoxon T-test (NONparametric):  ', round(t, 4), round(p, 4))
     else:  # CORRELATION ANALYSIS
         corrtype = ''
-        while corrtype not in ['c','C','r','R','d','D']:
+        while corrtype not in ['c', 'C', 'r', 'R', 'd', 'D']:
             print('\nIs the data Continuous, Ranked, or Dichotomous (c,r,d): ', end=' ')
             corrtype = input()
-        if corrtype in ['c','C']:
-            m,b,r,p,see = linregress(x,y)
+        if corrtype in ['c', 'C']:
+            m, b, r, p, see = linregress(x, y)
             print('\nLinear regression for continuous variables ...')
-            lol = [['Slope','Intercept','r','Prob','SEestimate'],[round(m,4),round(b,4),round(r,4),round(p,4),round(see,4)]]
+            lol = [['Slope', 'Intercept', 'r', 'Prob', 'SEestimate'], [round(m, 4), round(b, 4), round(r, 4), round(p, 4), round(see, 4)]]
             pstat.printcc(lol)
-        elif corrtype in ['r','R']:
-            r,p = spearmanr(x,y)
+        elif corrtype in ['r', 'R']:
+            r, p = spearmanr(x, y)
             print('\nCorrelation for ranked variables ...')
             print("Spearman's r: ", round(r, 4), round(p, 4))
         else: # DICHOTOMOUS
-            r,p = pointbiserialr(x,y)
+            r, p = pointbiserialr(x, y)
             print('\nAssuming x contains a dichotomous variable ...')
             print('Point Biserial r: ', round(r, 4), round(p, 4))
     print('\n\n')
     return None
 
 
- def dices(x,y):
+ def dices(x, y):
     """
 Calculates Dice's coefficient ... (2*number of common terms)/(number of terms in x +
 number of terms in y). Returns a value between 0 (orthogonal) and 1.
@@ -3067,11 +3067,11 @@ Returns: icc rho, prob ####PROB IS A GUESS BASED ON PEARSON
 """
     TINY = 1.0e-20
     if y:
-        all = N.concatenate([x,y],0)
+        all = N.concatenate([x, y], 0)
     else:
         all = x+0
-        x = all[:,0]
-        y = all[:,1]
+        x = all[:, 0]
+        y = all[:, 1]
     totalss = ass(all-mean(all))
     pairmeans = (x+y)/2.
     withinss = ass(x-pairmeans) + ass(y-pairmeans)
@@ -3081,11 +3081,11 @@ Returns: icc rho, prob ####PROB IS A GUESS BASED ON PEARSON
     betweenms = (totalss-withinss) / betwdf
     rho = (betweenms-withinms)/(withinms+betweenms)
     t = rho*math.sqrt(betwdf/((1.0-rho+TINY)*(1.0+rho+TINY)))
-    prob = abetai(0.5*betwdf,0.5,betwdf/(betwdf+t*t),verbose)
+    prob = abetai(0.5*betwdf, 0.5, betwdf/(betwdf+t*t), verbose)
     return rho, prob
 
 
- def alincc(x,y):
+ def alincc(x, y):
     """
 Calculates Lin's concordance correlation coefficient.
 
@@ -3094,7 +3094,7 @@ Returns: Lin's CC
 """
     x = N.ravel(x)
     y = N.ravel(y)
-    covar = acov(x,y)*(len(x)-1)/float(len(x))  # correct denom to n
+    covar = acov(x, y)*(len(x)-1)/float(len(x))  # correct denom to n
     xvar = avar(x)*(len(x)-1)/float(len(x))  # correct denom to n
     yvar = avar(y)*(len(y)-1)/float(len(y))  # correct denom to n
     lincc = (2 * covar) / ((xvar+yvar) +((amean(x)-amean(y))**2))
@@ -3118,11 +3118,11 @@ Returns: Pearson's r, two-tailed p-value
     r = (r_num / r_den)
     df = n-2
     t = r*math.sqrt(df/((1.0-r+TINY)*(1.0+r+TINY)))
-    prob = abetai(0.5*df,0.5,df/(df+t*t),verbose)
-    return r,prob
+    prob = abetai(0.5*df, 0.5, df/(df+t*t), verbose)
+    return r, prob
 
 
- def aspearmanr(x,y):
+ def aspearmanr(x, y):
     """
 Calculates a Spearman rank-order correlation coefficient.  Taken
 from Heiman's Basic Statistics for the Behav. Sci (1st), p.192.
@@ -3138,13 +3138,13 @@ Returns: Spearman's r, two-tailed p-value
     rs = 1 - 6*dsq / float(n*(n**2-1))
     t = rs * math.sqrt((n-2) / ((rs+1.0)*(1.0-rs)))
     df = n-2
-    probrs = abetai(0.5*df,0.5,df/(df+t*t))
+    probrs = abetai(0.5*df, 0.5, df/(df+t*t))
 # probability values for rs are from part 2 of the spearman function in
 # Numerical Recipies, p.510.  They close to tables, but not exact.(?)
     return rs, probrs
 
 
- def apointbiserialr(x,y):
+ def apointbiserialr(x, y):
     """
 Calculates a point-biserial correlation coefficient and the associated
 probability value.  Taken from Heiman's Basic Statistics for the Behav.
@@ -3155,26 +3155,26 @@ Returns: Point-biserial r, two-tailed p-value
 """
     TINY = 1e-30
     categories = pstat.aunique(x)
-    data = pstat.aabut(x,y)
+    data = pstat.aabut(x, y)
     if len(categories) != 2:
         raise ValueError("Exactly 2 categories required (in x) for pointbiserialr().")
     else:   # there are 2 categories, continue
-        codemap = pstat.aabut(categories,N.arange(2))
-        recoded = pstat.arecode(data,codemap,0)
-        x = pstat.alinexand(data,0,categories[0])
-        y = pstat.alinexand(data,0,categories[1])
-        xmean = amean(pstat.acolex(x,1))
-        ymean = amean(pstat.acolex(y,1))
+        codemap = pstat.aabut(categories, N.arange(2))
+        recoded = pstat.arecode(data, codemap, 0)
+        x = pstat.alinexand(data, 0, categories[0])
+        y = pstat.alinexand(data, 0, categories[1])
+        xmean = amean(pstat.acolex(x, 1))
+        ymean = amean(pstat.acolex(y, 1))
         n = len(data)
         adjust = math.sqrt((len(x)/float(n))*(len(y)/float(n)))
-        rpb = (ymean - xmean)/asamplestdev(pstat.acolex(data,1))*adjust
+        rpb = (ymean - xmean)/asamplestdev(pstat.acolex(data, 1))*adjust
         df = n-2
         t = rpb*math.sqrt(df/((1.0-rpb+TINY)*(1.0+rpb+TINY)))
-        prob = abetai(0.5*df,0.5,df/(df+t*t))
+        prob = abetai(0.5*df, 0.5, df/(df+t*t))
         return rpb, prob
 
 
- def akendalltau(x,y):
+ def akendalltau(x, y):
     """
 Calculates Kendall's tau ... correlation of ordinal data.  Adapted
 from function kendl1 in Numerical Recipies.  Needs good test-cases.@@@
@@ -3186,7 +3186,7 @@ Returns: Kendall's tau, two-tailed p-value
     n2 = 0
     iss = 0
     for j in range(len(x)-1):
-        for k in range(j,len(y)):
+        for k in range(j, len(y)):
             a1 = x[j] - x[k]
             a2 = y[j] - y[k]
             aa = a1 * a2
@@ -3225,8 +3225,8 @@ Returns: slope, intercept, r, two-tailed prob, sterr-of-the-estimate, n
             x = args[0]
             y = args[1]
         else:
-            x = args[:,0]
-            y = args[:,1]
+            x = args[:, 0]
+            y = args[:, 1]
     else:
         x = args[0]
         y = args[1]
@@ -3239,7 +3239,7 @@ Returns: slope, intercept, r, two-tailed prob, sterr-of-the-estimate, n
     z = 0.5*math.log((1.0+r+TINY)/(1.0-r+TINY))
     df = n-2
     t = r*math.sqrt(df/((1.0-r+TINY)*(1.0+r+TINY)))
-    prob = abetai(0.5*df,0.5,df/(df+t*t))
+    prob = abetai(0.5*df, 0.5, df/(df+t*t))
     slope = r_num / (float(n)*ass(x) - asquare_of_sums(x))
     intercept = ymean - slope*xmean
     sterrest = math.sqrt(1-r*r)*asamplestdev(y)
@@ -3258,8 +3258,8 @@ Returns: slope, intercept, r, two-tailed prob, sterr-of-the-estimate, n
             x = N.ravel(args[0])
             y = args[1]
         else:
-            x = N.ravel(args[:,0])
-            y = args[:,1]
+            x = N.ravel(args[:, 0])
+            y = args[:, 1]
     else:
         x = args[0]
         y = args[1]
@@ -3267,27 +3267,27 @@ Returns: slope, intercept, r, two-tailed prob, sterr-of-the-estimate, n
     y = y.astype(N.float_)
     n = len(x)
     xmean = amean(x)
-    ymean = amean(y,0)
+    ymean = amean(y, 0)
     shp = N.ones(len(y.shape))
     shp[0] = len(x)
     x.shape = shp
     print(x.shape, y.shape)
-    r_num = n*(N.add.reduce(x*y,0)) - N.add.reduce(x)*N.add.reduce(y,0)
-    r_den = N.sqrt((n*ass(x) - asquare_of_sums(x))*(n*ass(y,0)-asquare_of_sums(y,0)))
-    zerodivproblem = N.equal(r_den,0)
-    r_den = N.where(zerodivproblem,1,r_den)  # avoid zero-division in 1st place
+    r_num = n*(N.add.reduce(x*y, 0)) - N.add.reduce(x)*N.add.reduce(y, 0)
+    r_den = N.sqrt((n*ass(x) - asquare_of_sums(x))*(n*ass(y, 0)-asquare_of_sums(y, 0)))
+    zerodivproblem = N.equal(r_den, 0)
+    r_den = N.where(zerodivproblem, 1, r_den)  # avoid zero-division in 1st place
     r = r_num / r_den  # need to do this nicely for matrix division
-    r = N.where(zerodivproblem,0.0,r)
+    r = N.where(zerodivproblem, 0.0, r)
     z = 0.5*N.log((1.0+r+TINY)/(1.0-r+TINY))
     df = n-2
     t = r*N.sqrt(df/((1.0-r+TINY)*(1.0+r+TINY)))
-    prob = abetai(0.5*df,0.5,df/(df+t*t))
+    prob = abetai(0.5*df, 0.5, df/(df+t*t))
 
     ss = float(n)*ass(x)-asquare_of_sums(x)
-    s_den = N.where(ss==0,1,ss)  # avoid zero-division in 1st place
+    s_den = N.where(ss==0, 1, ss)  # avoid zero-division in 1st place
     slope = r_num / s_den
     intercept = ymean - slope*xmean
-    sterrest = N.sqrt(1-r*r)*asamplestdev(y,0)
+    sterrest = N.sqrt(1-r*r)*asamplestdev(y, 0)
     return slope, intercept, r, prob, sterrest, n
 
 
@@ -3313,16 +3313,16 @@ Returns: t-value, two-tailed prob
     df = n-1
     svar = ((n-1)*v) / float(df)
     t = (x-popmean)/math.sqrt(svar*(1.0/n))
-    prob = abetai(0.5*df,0.5,df/(df+t*t))
+    prob = abetai(0.5*df, 0.5, df/(df+t*t))
 
     if printit != 0:
         statname = 'Single-sample T-test.'
-        outputpairedstats(printit,writemode,
-                          'Population','--',popmean,0,0,0,
-                          name,n,x,v,N.minimum.reduce(N.ravel(a)),
+        outputpairedstats(printit, writemode,
+                          'Population', '--', popmean, 0, 0, 0,
+                          name, n, x, v, N.minimum.reduce(N.ravel(a)),
                           N.maximum.reduce(N.ravel(a)),
-                          statname,t,prob)
-    return t,prob
+                          statname, t, prob)
+    return t, prob
 
 
  def attest_ind (a, b, dimension=None, printit=0, name1='Samp1', name2='Samp2',writemode='a'):
@@ -3342,22 +3342,22 @@ Returns: t-value, two-tailed p-value
         a = N.ravel(a)
         b = N.ravel(b)
         dimension = 0
-    x1 = amean(a,dimension)
-    x2 = amean(b,dimension)
-    v1 = avar(a,dimension)
-    v2 = avar(b,dimension)
+    x1 = amean(a, dimension)
+    x2 = amean(b, dimension)
+    v1 = avar(a, dimension)
+    v2 = avar(b, dimension)
     n1 = a.shape[dimension]
     n2 = b.shape[dimension]
     df = n1+n2-2
     svar = ((n1-1)*v1+(n2-1)*v2) / float(df)
-    zerodivproblem = N.equal(svar,0)
-    svar = N.where(zerodivproblem,1,svar)  # avoid zero-division in 1st place
+    zerodivproblem = N.equal(svar, 0)
+    svar = N.where(zerodivproblem, 1, svar)  # avoid zero-division in 1st place
     t = (x1-x2)/N.sqrt(svar*(1.0/n1 + 1.0/n2))  # N-D COMPUTATION HERE!!!!!!
-    t = N.where(zerodivproblem,1.0,t)     # replace NaN/wrong t-values with 1.0
-    probs = abetai(0.5*df,0.5,float(df)/(df+t*t))
+    t = N.where(zerodivproblem, 1.0, t)     # replace NaN/wrong t-values with 1.0
+    probs = abetai(0.5*df, 0.5, float(df)/(df+t*t))
 
     if isinstance(t, N.ndarray):
-        probs = N.reshape(probs,t.shape)
+        probs = N.reshape(probs, t.shape)
     if probs.shape == (1,):
         probs = probs[0]
         
@@ -3367,16 +3367,16 @@ Returns: t-value, two-tailed p-value
         if isinstance(probs, N.ndarray):
             probs = probs[0]
         statname = 'Independent samples T-test.'
-        outputpairedstats(printit,writemode,
-                          name1,n1,x1,v1,N.minimum.reduce(N.ravel(a)),
+        outputpairedstats(printit, writemode,
+                          name1, n1, x1, v1, N.minimum.reduce(N.ravel(a)),
                           N.maximum.reduce(N.ravel(a)),
-                          name2,n2,x2,v2,N.minimum.reduce(N.ravel(b)),
+                          name2, n2, x2, v2, N.minimum.reduce(N.ravel(b)),
                           N.maximum.reduce(N.ravel(b)),
-                          statname,t,probs)
+                          statname, t, probs)
         return
     return t, probs
 
- def ap2t(pval,df):
+ def ap2t(pval, df):
     """
 Tries to compute a t-value from a p-value (or pval array) and associated df.
 SLOW for large numbers of elements(!) as it re-computes p-values 20 times
@@ -3389,19 +3389,19 @@ Returns: an array of t-values with the shape of pval
     pval = N.array(pval)
     signs = N.sign(pval)
     pval = abs(pval)
-    t = N.ones(pval.shape,N.float_)*50
-    step = N.ones(pval.shape,N.float_)*25
+    t = N.ones(pval.shape, N.float_)*50
+    step = N.ones(pval.shape, N.float_)*25
     print("Initial ap2t() prob calc")
-    prob = abetai(0.5*df,0.5,float(df)/(df+t*t))
+    prob = abetai(0.5*df, 0.5, float(df)/(df+t*t))
     print('ap2t() iter: ', end=' ')
     for i in range(10):
         print(i, ' ', end=' ')
-        t = N.where(pval<prob,t+step,t-step)
-        prob = abetai(0.5*df,0.5,float(df)/(df+t*t))
+        t = N.where(pval<prob, t+step, t-step)
+        prob = abetai(0.5*df, 0.5, float(df)/(df+t*t))
         step = step/2
     print()
     # since this is an ugly hack, we get ugly boundaries
-    t = N.where(t>99.9,1000,t)      # hit upper-boundary
+    t = N.where(t>99.9, 1000, t)      # hit upper-boundary
     t = t+signs
     return t #, prob, pval
 
@@ -3425,33 +3425,33 @@ Returns: t-value, two-tailed p-value
         dimension = 0
     if len(a) != len(b):
         raise ValueError('Unequal length arrays.')
-    x1 = amean(a,dimension)
-    x2 = amean(b,dimension)
-    v1 = avar(a,dimension)
-    v2 = avar(b,dimension)
+    x1 = amean(a, dimension)
+    x2 = amean(b, dimension)
+    v1 = avar(a, dimension)
+    v2 = avar(b, dimension)
     n = a.shape[dimension]
     df = float(n-1)
     d = (a-b).astype('d')
 
-    denom = N.sqrt((n*N.add.reduce(d*d,dimension) - N.add.reduce(d,dimension)**2) /df)
-    zerodivproblem = N.equal(denom,0)
-    denom = N.where(zerodivproblem,1,denom)  # avoid zero-division in 1st place
-    t = N.add.reduce(d,dimension) / denom      # N-D COMPUTATION HERE!!!!!!
-    t = N.where(zerodivproblem,1.0,t)     # replace NaN/wrong t-values with 1.0
-    probs = abetai(0.5*df,0.5,float(df)/(df+t*t))
+    denom = N.sqrt((n*N.add.reduce(d*d, dimension) - N.add.reduce(d, dimension)**2) /df)
+    zerodivproblem = N.equal(denom, 0)
+    denom = N.where(zerodivproblem, 1, denom)  # avoid zero-division in 1st place
+    t = N.add.reduce(d, dimension) / denom      # N-D COMPUTATION HERE!!!!!!
+    t = N.where(zerodivproblem, 1.0, t)     # replace NaN/wrong t-values with 1.0
+    probs = abetai(0.5*df, 0.5, float(df)/(df+t*t))
     if isinstance(t, N.ndarray):
-        probs = N.reshape(probs,t.shape)
+        probs = N.reshape(probs, t.shape)
     if probs.shape == (1,):
         probs = probs[0]
 
     if printit != 0:
         statname = 'Related samples T-test.'
-        outputpairedstats(printit,writemode,
-                          name1,n,x1,v1,N.minimum.reduce(N.ravel(a)),
+        outputpairedstats(printit, writemode,
+                          name1, n, x1, v1, N.minimum.reduce(N.ravel(a)),
                           N.maximum.reduce(N.ravel(a)),
-                          name2,n,x2,v2,N.minimum.reduce(N.ravel(b)),
+                          name2, n, x2, v2, N.minimum.reduce(N.ravel(b)),
                           N.maximum.reduce(N.ravel(b)),
-                          statname,t,probs)
+                          statname, t, probs)
         return
     return t, probs
 
@@ -3469,13 +3469,13 @@ Returns: chisquare-statistic, associated p-value
 
     k = len(f_obs)
     if f_exp is None:
-        f_exp = N.array([sum(f_obs)/float(k)] * len(f_obs),N.float_)
+        f_exp = N.array([sum(f_obs)/float(k)] * len(f_obs), N.float_)
     f_exp = f_exp.astype(N.float_)
     chisq = N.add.reduce((f_obs-f_exp)**2 / f_exp)
     return chisq, achisqprob(chisq, k-1)
 
 
- def aks_2samp (data1,data2):
+ def aks_2samp (data1, data2):
     """
 Computes the Kolmogorov-Smirnof statistic on 2 samples.  Modified from
 Numerical Recipies in C, page 493.  Returns KS D-value, prob.  Not ufunc-
@@ -3492,9 +3492,9 @@ Returns: KS D-value, p-value
     n2 = data2.shape[0]
     en1 = n1*1
     en2 = n2*1
-    d = N.zeros(data1.shape[1:],N.float_)
-    data1 = N.sort(data1,0)
-    data2 = N.sort(data2,0)
+    d = N.zeros(data1.shape[1:], N.float_)
+    data1 = N.sort(data1, 0)
+    data2 = N.sort(data2, 0)
     while j1 < n1 and j2 < n2:
         d1=data1[j1]
         d2=data2[j2]
@@ -3515,7 +3515,7 @@ Returns: KS D-value, p-value
     return d, prob
 
 
- def amannwhitneyu(x,y):
+ def amannwhitneyu(x, y):
     """
 Calculates a Mann-Whitney U statistic on the provided scores and
 returns the result.  Use only when the n in each condition is < 20 and
@@ -3528,13 +3528,13 @@ Returns: u-statistic, one-tailed p-value (i.e., p(z(U)))
 """
     n1 = len(x)
     n2 = len(y)
-    ranked = rankdata(N.concatenate((x,y)))
+    ranked = rankdata(N.concatenate((x, y)))
     rankx = ranked[0:n1]       # get the x-ranks
     ranky = ranked[n1:]        # the rest are y-ranks
     u1 = n1*n2 + (n1*(n1+1))/2.0 - sum(rankx)  # calc U for x
     u2 = n1*n2 - u1                            # remainder is U for y
-    bigu = max(u1,u2)
-    smallu = min(u1,u2)
+    bigu = max(u1, u2)
+    smallu = min(u1, u2)
     T = math.sqrt(tiecorrect(ranked))  # correction factor for tied scores
     if T == 0:
         raise ValueError('All numbers are identical in amannwhitneyu')
@@ -3553,7 +3553,7 @@ code.
 Usage:   atiecorrect(rankvals)
 Returns: T correction factor for U or H
 """
-    sorted,posn = ashellsort(N.array(rankvals))
+    sorted, posn = ashellsort(N.array(rankvals))
     n = len(sorted)
     T = 0.0
     i = 0
@@ -3569,7 +3569,7 @@ Returns: T correction factor for U or H
     return 1.0 - T
 
 
- def aranksums(x,y):
+ def aranksums(x, y):
     """
 Calculates the rank sums statistic on the provided scores and returns
 the result.
@@ -3579,7 +3579,7 @@ Returns: z-statistic, two-tailed p-value
 """
     n1 = len(x)
     n2 = len(y)
-    alldata = N.concatenate((x,y))
+    alldata = N.concatenate((x, y))
     ranked = arankdata(alldata)
     x = ranked[:n1]
     y = ranked[n1:]
@@ -3590,7 +3590,7 @@ Returns: z-statistic, two-tailed p-value
     return z, prob
 
 
- def awilcoxont(x,y):
+ def awilcoxont(x, y):
     """
 Calculates the Wilcoxon T-test for related samples and returns the
 result.  A non-parametric T-test.
@@ -3601,7 +3601,7 @@ Returns: t-statistic, two-tailed p-value
     if len(x) != len(y):
         raise ValueError('Unequal N in awilcoxont.  Aborting.')
     d = x-y
-    d = N.compress(N.not_equal(d,0),d) # Keep all non-zero differences
+    d = N.compress(N.not_equal(d, 0), d) # Keep all non-zero differences
     count = len(d)
     absd = abs(d)
     absranked = arankdata(absd)
@@ -3654,7 +3654,7 @@ Returns: H-statistic (corrected for ties), associated p-value
     if T == 0:
         raise ValueError('All numbers are identical in akruskalwallish')
     h = h / float(T)
-    return h, chisqprob(h,df)
+    return h, chisqprob(h, df)
 
 
  def afriedmanchisquare(*args):
@@ -3677,16 +3677,16 @@ Returns: chi-square statistic, associated p-value
     data = data.astype(N.float_)
     for i in range(len(data)):
         data[i] = arankdata(data[i])
-    ssbn = asum(asum(args,1)**2)
+    ssbn = asum(asum(args, 1)**2)
     chisq = 12.0 / (k*n*(k+1)) * ssbn - 3*n*(k+1)
-    return chisq, achisqprob(chisq,k-1)
+    return chisq, achisqprob(chisq, k-1)
 
 
 #####################################
 ####  APROBABILITY CALCULATIONS  ####
 #####################################
 
- def achisqprob(chisq,df):
+ def achisqprob(chisq, df):
     """
 Returns the (1-tail) probability value associated with the provided chi-square
 value and df.  Heavily modified from chisq.c in Gary Perlman's |Stat.  Can
@@ -3697,7 +3697,7 @@ Usage:   achisqprob(chisq,df)    chisq=chisquare stat., df=degrees of freedom
     BIG = 200.0
     def ex(x):
         BIG = 200.0
-        exponents = N.where(N.less(x,-BIG),-BIG,x)
+        exponents = N.where(N.less(x, -BIG), -BIG, x)
         return N.exp(exponents)
 
     if isinstance(chisq, N.ndarray):
@@ -3706,9 +3706,9 @@ Usage:   achisqprob(chisq,df)    chisq=chisquare stat., df=degrees of freedom
         arrayflag = 0
         chisq = N.array([chisq])
     if df < 1:
-        return N.ones(chisq.shape,N.float)
-    probs = N.zeros(chisq.shape,N.float_)
-    probs = N.where(N.less_equal(chisq,0),1.0,probs)  # set prob=1 for chisq<0
+        return N.ones(chisq.shape, N.float)
+    probs = N.zeros(chisq.shape, N.float_)
+    probs = N.where(N.less_equal(chisq, 0), 1.0, probs)  # set prob=1 for chisq<0
     a = 0.5 * chisq
     if df > 1:
         y = ex(-a)
@@ -3723,46 +3723,46 @@ Usage:   achisqprob(chisq,df)    chisq=chisquare stat., df=degrees of freedom
     if (df > 2):
         chisq = 0.5 * (df - 1.0)
         if even:
-            z = N.ones(probs.shape,N.float_)
+            z = N.ones(probs.shape, N.float_)
         else:
-            z = 0.5 *N.ones(probs.shape,N.float_)
+            z = 0.5 *N.ones(probs.shape, N.float_)
         if even:
-            e = N.zeros(probs.shape,N.float_)
+            e = N.zeros(probs.shape, N.float_)
         else:
-            e = N.log(N.sqrt(N.pi)) *N.ones(probs.shape,N.float_)
+            e = N.log(N.sqrt(N.pi)) *N.ones(probs.shape, N.float_)
         c = N.log(a)
         mask = N.zeros(probs.shape)
-        a_big = N.greater(a,BIG)
-        a_big_frozen = -1 *N.ones(probs.shape,N.float_)
+        a_big = N.greater(a, BIG)
+        a_big_frozen = -1 *N.ones(probs.shape, N.float_)
         totalelements = N.multiply.reduce(N.array(probs.shape))
         while asum(mask) != totalelements:
             e = N.log(z) + e
             s = s + ex(c*z-a-e)
             z = z + 1.0
 #            print z, e, s
-            newmask = N.greater(z,chisq)
-            a_big_frozen = N.where(newmask*N.equal(mask,0)*a_big, s, a_big_frozen)
-            mask = N.clip(newmask+mask,0,1)
+            newmask = N.greater(z, chisq)
+            a_big_frozen = N.where(newmask*N.equal(mask, 0)*a_big, s, a_big_frozen)
+            mask = N.clip(newmask+mask, 0, 1)
         if even:
-            z = N.ones(probs.shape,N.float_)
-            e = N.ones(probs.shape,N.float_)
+            z = N.ones(probs.shape, N.float_)
+            e = N.ones(probs.shape, N.float_)
         else:
-            z = 0.5 *N.ones(probs.shape,N.float_)
-            e = 1.0 / N.sqrt(N.pi) / N.sqrt(a) * N.ones(probs.shape,N.float_)
+            z = 0.5 *N.ones(probs.shape, N.float_)
+            e = 1.0 / N.sqrt(N.pi) / N.sqrt(a) * N.ones(probs.shape, N.float_)
         c = 0.0
         mask = N.zeros(probs.shape)
-        a_notbig_frozen = -1 *N.ones(probs.shape,N.float_)
+        a_notbig_frozen = -1 *N.ones(probs.shape, N.float_)
         while asum(mask) != totalelements:
             e = e * (a/z.astype(N.float_))
             c = c + e
             z = z + 1.0
 #            print '#2', z, e, c, s, c*y+s2
-            newmask = N.greater(z,chisq)
-            a_notbig_frozen = N.where(newmask*N.equal(mask,0)*(1-a_big),
+            newmask = N.greater(z, chisq)
+            a_notbig_frozen = N.where(newmask*N.equal(mask, 0)*(1-a_big),
                                       c*y+s2, a_notbig_frozen)
-            mask = N.clip(newmask+mask,0,1)
-        probs = N.where(N.equal(probs,1),1,
-                        N.where(N.greater(a,BIG),a_big_frozen,a_notbig_frozen))
+            mask = N.clip(newmask+mask, 0, 1)
+        probs = N.where(N.equal(probs, 1), 1,
+                        N.where(N.greater(a, BIG), a_big_frozen, a_notbig_frozen))
         return probs
     else:
         return s
@@ -3779,7 +3779,7 @@ Usage:   aerfcc(x)
     z = abs(x)
     t = 1.0 / (1.0+0.5*z)
     ans = t * N.exp(-z*z-1.26551223 + t*(1.00002368+t*(0.37409196+t*(0.09678418+t*(-0.18628806+t*(0.27886807+t*(-1.13520398+t*(1.48851587+t*(-0.82215223+t*0.17087277)))))))))
-    return N.where(N.greater_equal(x,0), ans, 2.0-ans)
+    return N.where(N.greater_equal(x, 0), ans, 2.0-ans)
 
 
  def azprob(z):
@@ -3813,11 +3813,11 @@ Usage:   azprob(z)    where z is a z-value
         return x
 
     Z_MAX = 6.0    # maximum meaningful z-value
-    x = N.zeros(z.shape,N.float_) # initialize
+    x = N.zeros(z.shape, N.float_) # initialize
     y = 0.5 * N.fabs(z)
-    x = N.where(N.less(y,1.0),wfunc(y*y),yfunc(y-2.0)) # get x's
-    x = N.where(N.greater(y,Z_MAX*0.5),1.0,x)          # kill those with big Z
-    prob = N.where(N.greater(z,0),(x+1)*0.5,(1-x)*0.5)
+    x = N.where(N.less(y, 1.0), wfunc(y*y), yfunc(y-2.0)) # get x's
+    x = N.where(N.greater(y, Z_MAX*0.5), 1.0, x)          # kill those with big Z
+    prob = N.where(N.greater(z, 0), (x+1)*0.5, (1-x)*0.5)
     return prob
 
 
@@ -3829,38 +3829,38 @@ Adapted from Numerical Recipies.  Can handle multiple dimensions.
 Usage:   aksprob(alam)
 """
      if isinstance(alam, N.ndarray):
-         frozen = -1 *N.ones(alam.shape,N.float64)
+         frozen = -1 *N.ones(alam.shape, N.float64)
          alam = alam.astype(N.float64)
          arrayflag = 1
      else:
          frozen = N.array(-1.)
-         alam = N.array(alam,N.float64)
+         alam = N.array(alam, N.float64)
          arrayflag = 1
      mask = N.zeros(alam.shape)
-     fac = 2.0 *N.ones(alam.shape,N.float_)
-     sum = N.zeros(alam.shape,N.float_)
-     termbf = N.zeros(alam.shape,N.float_)
-     a2 = N.array(-2.0*alam*alam,N.float64)
+     fac = 2.0 *N.ones(alam.shape, N.float_)
+     sum = N.zeros(alam.shape, N.float_)
+     termbf = N.zeros(alam.shape, N.float_)
+     a2 = N.array(-2.0*alam*alam, N.float64)
      totalelements = N.multiply.reduce(N.array(mask.shape))
-     for j in range(1,201):
+     for j in range(1, 201):
          if asum(mask) == totalelements:
              break
          exponents = (a2*j*j)
-         overflowmask = N.less(exponents,-746)
-         frozen = N.where(overflowmask,0,frozen)
+         overflowmask = N.less(exponents, -746)
+         frozen = N.where(overflowmask, 0, frozen)
          mask = mask+overflowmask
          term = fac*N.exp(exponents)
          sum = sum + term
-         newmask = N.where(N.less_equal(abs(term),(0.001*termbf)) +
-                           N.less(abs(term),1.0e-8*sum), 1, 0)
-         frozen = N.where(newmask*N.equal(mask,0), sum, frozen)
-         mask = N.clip(mask+newmask,0,1)
+         newmask = N.where(N.less_equal(abs(term), (0.001*termbf)) +
+                           N.less(abs(term), 1.0e-8*sum), 1, 0)
+         frozen = N.where(newmask*N.equal(mask, 0), sum, frozen)
+         mask = N.clip(mask+newmask, 0, 1)
          fac = -fac
          termbf = abs(term)
      if arrayflag:
-         return N.where(N.equal(frozen,-1), 1.0, frozen)  # 1.0 if doesn't converge
+         return N.where(N.equal(frozen, -1), 1.0, frozen)  # 1.0 if doesn't converge
      else:
-         return N.where(N.equal(frozen,-1), 1.0, frozen)[0]  # 1.0 if doesn't converge
+         return N.where(N.equal(frozen, -1), 1.0, frozen)[0]  # 1.0 if doesn't converge
 
 
  def afprob (dfnum, dfden, F):
@@ -3890,7 +3890,7 @@ Usage:   abetacf(a,b,x,verbose=1)
 
     arrayflag = 1
     if isinstance(x, N.ndarray):
-        frozen = N.ones(x.shape,N.float_) *-1  #start out w/ -1s, should replace all
+        frozen = N.ones(x.shape, N.float_) *-1  #start out w/ -1s, should replace all
     else:
         arrayflag = 0
         frozen = N.array([-1])
@@ -3902,7 +3902,7 @@ Usage:   abetacf(a,b,x,verbose=1)
     qam = a-1.0
     bz = 1.0-qab*x/qap
     for i in range(ITMAX+1):
-        if N.sum(N.ravel(N.equal(frozen,-1)))==0:
+        if N.sum(N.ravel(N.equal(frozen, -1)))==0:
             break
         em = float(i+1)
         tem = em + em
@@ -3917,10 +3917,10 @@ Usage:   abetacf(a,b,x,verbose=1)
         bm = bp/bpp
         az = app/bpp
         bz = 1.0
-        newmask = N.less(abs(az-aold),EPS*abs(az))
-        frozen = N.where(newmask*N.equal(mask,0), az, frozen)
-        mask = N.clip(mask+newmask,0,1)
-    noconverge = asum(N.equal(frozen,-1))
+        newmask = N.less(abs(az-aold), EPS*abs(az))
+        frozen = N.where(newmask*N.equal(mask, 0), az, frozen)
+        mask = N.clip(mask+newmask, 0, 1)
+    noconverge = asum(N.equal(frozen, -1))
     if noconverge != 0 and verbose:
         print('a or b too big, or ITMAX too small in Betacf for ', noconverge, ' elements')
     if arrayflag:
@@ -3967,24 +3967,24 @@ Usage:   abetai(a,b,x,verbose=1)
     if isinstance(a, N.ndarray):
         if asum(N.less(x, 0) + N.greater(x, 1)) != 0:
             raise ValueError('Bad x in abetai')
-    x = N.where(N.equal(x,0),TINY,x)
-    x = N.where(N.equal(x,1.0),1-TINY,x)
+    x = N.where(N.equal(x, 0), TINY, x)
+    x = N.where(N.equal(x, 1.0), 1-TINY, x)
 
-    bt = N.where(N.equal(x,0)+N.equal(x,1), 0, -1)
+    bt = N.where(N.equal(x, 0)+N.equal(x, 1), 0, -1)
     exponents = ( gammln(a+b)-gammln(a)-gammln(b)+a*N.log(x)+b*
                   N.log(1.0-x) )
     # 746 (below) is the MAX POSSIBLE BEFORE OVERFLOW
-    exponents = N.where(N.less(exponents,-740),-740,exponents)
+    exponents = N.where(N.less(exponents, -740), -740, exponents)
     bt = N.exp(exponents)
     if isinstance(x, N.ndarray):
-        ans = N.where(N.less(x,(a+1)/(a+b+2.0)),
-                      bt*abetacf(a,b,x,verbose)/float(a),
-                      1.0-bt*abetacf(b,a,1.0-x,verbose)/float(b))
+        ans = N.where(N.less(x, (a+1)/(a+b+2.0)),
+                      bt*abetacf(a, b, x, verbose)/float(a),
+                      1.0-bt*abetacf(b, a, 1.0-x, verbose)/float(b))
     else:
         if x<(a+1)/(a+b+2.0):
-            ans = bt*abetacf(a,b,x,verbose)/float(a)
+            ans = bt*abetacf(a, b, x, verbose)/float(a)
         else:
-            ans = 1.0-bt*abetacf(b,a,1.0-x,verbose)/float(b)
+            ans = 1.0-bt*abetacf(b, a, 1.0-x, verbose)/float(b)
     return ans
 
 
@@ -3995,7 +3995,7 @@ Usage:   abetai(a,b,x,verbose=1)
  import LinearAlgebra, operator
  LA = LinearAlgebra
 
- def aglm(data,para):
+ def aglm(data, para):
     """
 Calculates a linear model fit ... anova/ancova/lin-regress/t-test/etc. Taken
 from:
@@ -4011,21 +4011,21 @@ Returns: statistic, p-value ???
         return
     n = len(para)
     p = pstat.aunique(para)
-    x = N.zeros((n,len(p)))  # design matrix
+    x = N.zeros((n, len(p)))  # design matrix
     for l in range(len(p)):
-        x[:,l] = N.equal(para,p[l])
-    b = N.dot(N.dot(LA.inv(N.dot(N.transpose(x),x)),  # i.e., b=inv(X'X)X'Y
+        x[:, l] = N.equal(para, p[l])
+    b = N.dot(N.dot(LA.inv(N.dot(N.transpose(x), x)),  # i.e., b=inv(X'X)X'Y
                     N.transpose(x)),
               data)
-    diffs = (data - N.dot(x,b))
+    diffs = (data - N.dot(x, b))
     s_sq = 1./(n-len(p)) * N.dot(N.transpose(diffs), diffs)
 
     if len(p) == 2:  # ttest_ind
-        c = N.array([1,-1])
+        c = N.array([1, -1])
         df = n-2
-        fact = asum(1.0/asum(x,0))  # i.e., 1/n1 + 1/n2 + 1/n3 ...
-        t = N.dot(c,b) / N.sqrt(s_sq*fact)
-        probs = abetai(0.5*df,0.5,float(df)/(df+t*t))
+        fact = asum(1.0/asum(x, 0))  # i.e., 1/n1 + 1/n2 + 1/n3 ...
+        t = N.dot(c, b) / N.sqrt(s_sq*fact)
+        probs = abetai(0.5*df, 0.5, float(df)/(df+t*t))
         return t, probs
 
 
@@ -4053,11 +4053,11 @@ Returns: f-value, probability
     msb = ssbn/float(dfbn)
     msw = sswn/float(dfwn)
     f = msb/msw
-    prob = fprob(dfbn,dfwn,f)
+    prob = fprob(dfbn, dfwn, f)
     return f, prob
 
 
- def aF_value (ER,EF,dfR,dfF):
+ def aF_value (ER, EF, dfR, dfF):
     """
 Returns an F-statistic given the following:
         ER  = error associated with the null hypothesis (the Restricted model)
@@ -4069,19 +4069,19 @@ Returns an F-statistic given the following:
 
 
  def outputfstats(Enum, Eden, dfnum, dfden, f, prob):
-     Enum = round(Enum,3)
-     Eden = round(Eden,3)
-     dfnum = round(Enum,3)
-     dfden = round(dfden,3)
-     f = round(f,3)
-     prob = round(prob,3)
+     Enum = round(Enum, 3)
+     Eden = round(Eden, 3)
+     dfnum = round(Enum, 3)
+     dfden = round(dfden, 3)
+     f = round(f, 3)
+     prob = round(prob, 3)
      suffix = ''                       # for *s after the p-value
      if  prob < 0.001:  suffix = '  ***'
      elif prob < 0.01:  suffix = '  **'
      elif prob < 0.05:  suffix = '  *'
-     title = [['EF/ER','DF','Mean Square','F-value','prob','']]
-     lofl = title+[[Enum, dfnum, round(Enum/float(dfnum),3), f, prob, suffix],
-                   [Eden, dfden, round(Eden/float(dfden),3),'','','']]
+     title = [['EF/ER', 'DF', 'Mean Square', 'F-value', 'prob', '']]
+     lofl = title+[[Enum, dfnum, round(Enum/float(dfnum), 3), f, prob, suffix],
+                   [Eden, dfden, round(Eden/float(dfden), 3), '', '', '']]
      pstat.printcc(lofl)
      return
 
@@ -4115,9 +4115,9 @@ Returns: array shape of a, with -1 where a<0 and +1 where a>=0
 """
     a = N.asarray(a)
     if isinstance(a, (int, float)):
-        return a-a-N.less(a,0)+N.greater(a,0)
+        return a-a-N.less(a, 0)+N.greater(a, 0)
     else:
-        return N.zeros(N.shape(a))-N.less(a,0)+N.greater(a,0)
+        return N.zeros(N.shape(a))-N.less(a, 0)+N.greater(a, 0)
 
 
  def asum (a, dimension=None,keepdims=0):
@@ -4142,17 +4142,17 @@ Returns: array summed along 'dimension'(s), same _number_ of dims if keepdims=1
          if keepdims == 1:
              shp = list(a.shape)
              shp[dimension] = 1
-             s = N.reshape(s,shp)
+             s = N.reshape(s, shp)
      else: # must be a SEQUENCE of dims to sum over
         dims = sorted(dimension, reverse=True)
         s = a *1.0
         for dim in dims:
-            s = N.add.reduce(s,dim)
+            s = N.add.reduce(s, dim)
         if keepdims == 1:
             shp = list(a.shape)
             for dim in dims:
                 shp[dim] = 1
-            s = N.reshape(s,shp)
+            s = N.reshape(s, shp)
      return s
 
 
@@ -4171,10 +4171,10 @@ Usage:   acumsum(a,dimension=None)
     if isinstance(dimension, (list, tuple, N.ndarray)):
         dimension = sorted(dimension, reverse=True)
         for d in dimension:
-            a = N.add.accumulate(a,d)
+            a = N.add.accumulate(a, d)
         return a
     else:
-        return N.add.accumulate(a,dimension)
+        return N.add.accumulate(a, dimension)
 
 
  def ass(inarray, dimension=None, keepdims=0):
@@ -4192,7 +4192,7 @@ Returns: sum-along-'dimension' for (inarray*inarray)
     if dimension is None:
         inarray = N.ravel(inarray)
         dimension = 0
-    return asum(inarray*inarray,dimension,keepdims)
+    return asum(inarray*inarray, dimension, keepdims)
 
 
  def asummult (array1,array2,dimension=None,keepdims=0):
@@ -4209,7 +4209,7 @@ Usage:   asummult(array1,array2,dimension=None,keepdims=0)
         array1 = N.ravel(array1)
         array2 = N.ravel(array2)
         dimension = 0
-    return asum(array1*array2,dimension,keepdims)
+    return asum(array1*array2, dimension, keepdims)
 
 
  def asquare_of_sums(inarray, dimension=None, keepdims=0):
@@ -4226,7 +4226,7 @@ Returns: the square of the sum over dim(s) in dimension
     if dimension is None:
         inarray = N.ravel(inarray)
         dimension = 0
-    s = asum(inarray,dimension,keepdims)
+    s = asum(inarray, dimension, keepdims)
     if isinstance(s, N.ndarray):
         return s.astype(N.float_)*s
     else:
@@ -4247,7 +4247,7 @@ Returns: sum[ravel(a-b)**2]
     if dimension is None:
         inarray = N.ravel(a)
         dimension = 0
-    return asum((a-b)**2,dimension,keepdims)
+    return asum((a-b)**2, dimension, keepdims)
 
 
  def ashellsort(inarray):
@@ -4262,8 +4262,8 @@ Returns: sorted-inarray, sorting-index-vector (for original array)
     ivec = range(n)
     gap = n // 2   # integer division needed
     while gap >0:
-        for i in range(gap,n):
-            for j in range(i-gap,-1,-gap):
+        for i in range(gap, n):
+            for j in range(i-gap, -1, -gap):
                 while j>=0 and svec[j]>svec[j+gap]:
                     temp        = svec[j]
                     svec[j]     = svec[j+gap]
@@ -4288,13 +4288,13 @@ Returns: array of length equal to inarray, containing rank scores
     svec, ivec = ashellsort(inarray)
     sumranks = 0
     dupcount = 0
-    newarray = N.zeros(n,N.float_)
+    newarray = N.zeros(n, N.float_)
     for i in range(n):
         sumranks = sumranks + i
         dupcount = dupcount + 1
         if i == n - 1 or svec[i] != svec[i + 1]:
             averank = sumranks / float(dupcount) + 1
-            for j in range(i-dupcount+1,i+1):
+            for j in range(i-dupcount+1, i+1):
                 newarray[ivec[j]] = averank
             sumranks = 0
             dupcount = 0
@@ -4311,9 +4311,9 @@ Usage:   afindwithin(data)     data in |Stat format
 """
     numfact = len(data[0])-2
     withinvec = [0]*numfact
-    for col in range(1,numfact+1):
-        rows = pstat.linexand(data,col,pstat.unique(pstat.colex(data,1))[0])  # get 1 level of this factor
-        if len(pstat.unique(pstat.colex(rows,0))) < len(rows):   # if fewer subjects than scores on this factor
+    for col in range(1, numfact+1):
+        rows = pstat.linexand(data, col, pstat.unique(pstat.colex(data, 1))[0])  # get 1 level of this factor
+        if len(pstat.unique(pstat.colex(rows, 0))) < len(rows):   # if fewer subjects than scores on this factor
             withinvec[col-1] = 1
     return withinvec
 

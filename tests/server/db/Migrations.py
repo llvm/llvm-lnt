@@ -38,7 +38,7 @@ def sanity_check_instance(instance_path):
             continue
 
         # We found a test suite link...
-        link,name = m.groups()
+        link, name = m.groups()
         logging.info("visiting test suite %r", name)
 
         # Get the test suite overview page.
@@ -66,7 +66,7 @@ def check_instance(instance_path, temp_path):
     sanity_check_instance(instance_temp_path)
 
 def main():
-    _,temp_path = sys.argv
+    _, temp_path = sys.argv
 
     # Clean the temporary path, if necessary.
     if os.path.exists(temp_path):

@@ -107,7 +107,7 @@ assert tests[0].name == 'sampletest'
 # Validate the orders.
 orders = list(session.query(ts.Order).order_by(ts.Order.llvm_project_revision))
 assert len(orders) == 2
-order_a,order_b = orders
+order_a, order_b = orders
 print(order_a)
 print(order_b)
 assert order_a.previous_order_id is None
@@ -120,7 +120,7 @@ assert order_b.llvm_project_revision == '2'
 # Validate the runs.
 runs = list(session.query(ts.Run).order_by(ts.Run.order_id))
 assert len(runs) == 2
-run_a,run_b = runs
+run_a, run_b = runs
 assert run_a.machine is machine
 assert run_b.machine is machine
 assert run_a.order is order_a
@@ -137,7 +137,7 @@ samples = list(session.query(ts.Sample)\
     .join(ts.Run) \
     .order_by(ts.Run.order_id, ts.Sample.id))
 assert len(samples) == 3
-sample_a_0,sample_a_1,sample_b = samples
+sample_a_0, sample_a_1, sample_b = samples
 assert sample_a_0.run is run_a
 assert sample_a_1.run is run_a
 assert sample_b.run is run_b
