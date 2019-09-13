@@ -1,4 +1,5 @@
 """LLVM test-suite compile and execution tests"""
+from __future__ import print_function
 import csv
 import os
 import platform
@@ -64,8 +65,8 @@ class TestModule(object):
             cmdstr = ' '.join(args)
 
         if 'cwd' in kwargs:
-            print >>self._log, "# In working dir: " + kwargs['cwd']
-        print >>self.log, cmdstr
+            print("# In working dir: " + kwargs['cwd'], file=self._log)
+        print(cmdstr, file=self.log)
 
         self._log.flush()
         p = subprocess.Popen(args, stdout=self._log, stderr=self._log,
@@ -530,7 +531,7 @@ def execute_test_modules(test_log, test_modules, test_module_variables,
     # parallel build options to the test.
     test_modules.sort()
 
-    print >>sys.stderr, '%s: executing test modules' % (timestamp(),)
+    print('%s: executing test modules' % (timestamp(), ), file=sys.stderr)
     results = []
     for name in test_modules:
         # First, load the test module file.
@@ -655,10 +656,10 @@ def execute_nt_tests(test_log, make_variables, basedir, config):
     if config.use_isolation:
         # Write out the sandbox profile.
         sandbox_profile_path = os.path.join(basedir, "isolation.sb")
-        print >>sys.stderr, "%s: creating sandbox profile %r" % (
-            timestamp(), sandbox_profile_path)
+        print("%s: creating sandbox profile %r" % (
+            timestamp(), sandbox_profile_path), file=sys.stderr)
         with open(sandbox_profile_path, 'w') as f:
-            print >>f, """
+            print("""
 ;; Sandbox profile for isolation test access.
 (version 1)
 
@@ -678,44 +679,44 @@ def execute_nt_tests(test_log, make_variables, basedir, config):
                         (regex #"^/private/tmp/")
                         (regex #"^/private/var/folders/")
                         (regex #"^/dev/")
-                        (regex #"^%s"))""" % (basedir,)
+                        (regex #"^%s"))""" % (basedir, ), file=f)
         common_args = ['sandbox-exec', '-f', sandbox_profile_path] +\
             common_args
 
     # Run a separate 'make build' step if --build-threads was given.
     if config.build_threads > 0:
         args = common_args + ['-j', str(config.build_threads), 'build']
-        print >>test_log, '%s: running: %s' % (timestamp(),
-                                               ' '.join('"%s"' % a
-                                                        for a in args))
+        print('%s: running: %s' % (timestamp(),
+                                   ' '.join('"%s"' % a
+                                            for a in args)), file=test_log)
         test_log.flush()
 
-        print >>sys.stderr, '%s: building "nightly tests" with -j%u...' % (
-            timestamp(), config.build_threads)
+        print('%s: building "nightly tests" with -j%u...' % (
+            timestamp(), config.build_threads), file=sys.stderr)
         res = execute_command(test_log, basedir, args, report_dir)
         if res != 0:
-            print >> sys.stderr, "Failure while running make build! " \
-                                 "See log: %s" % test_log.name
+            print("Failure while running make build! " \
+                  "See log: %s" % test_log.name, file=sys.stderr)
 
     # Then 'make report'.
     args = common_args + ['-j', str(config.threads),
                           'report', 'report.%s.csv' % config.test_style]
-    print >>test_log, '%s: running: %s' % (timestamp(),
-                                           ' '.join('"%s"' % a
-                                                    for a in args))
+    print('%s: running: %s' % (timestamp(),
+                               ' '.join('"%s"' % a
+                                        for a in args)), file=test_log)
     test_log.flush()
 
     # FIXME: We shouldn't need to set env=os.environ here, but if we don't
     # somehow MACOSX_DEPLOYMENT_TARGET gets injected into the environment on OS
     # X (which changes the driver behavior and causes generally weirdness).
-    print >>sys.stderr, '%s: executing "nightly tests" with -j%u...' % (
-        timestamp(), config.threads)
+    print('%s: executing "nightly tests" with -j%u...' % (
+        timestamp(), config.threads), file=sys.stderr)
 
     res = execute_command(test_log, basedir, args, report_dir)
 
     if res != 0:
-        print >> sys.stderr, "Failure while running nightly tests!  "\
-                             "See log: %s" % test_log.name
+        print("Failure while running nightly tests!  "\
+              "See log: %s" % test_log.name, file=sys.stderr)
 
 
 # Keep a mapping of mangled test names, to the original names in the
@@ -867,10 +868,10 @@ def load_nt_report_file(report_path, config):
 def prepare_report_dir(config):
     # Set up the sandbox.
     sandbox_path = config.sandbox_path
-    print sandbox_path
+    print(sandbox_path)
     if not os.path.exists(sandbox_path):
-        print >>sys.stderr, "%s: creating sandbox: %r" % (
-            timestamp(), sandbox_path)
+        print("%s: creating sandbox: %r" % (
+            timestamp(), sandbox_path), file=sys.stderr)
         os.mkdir(sandbox_path)
 
     # Create the per-test directory.
@@ -908,15 +909,15 @@ def prepare_build_dir(config, iteration):
 def update_tools(make_variables, config, iteration):
     """Update the test suite tools. """
 
-    print >>sys.stderr, '%s: building test-suite tools' % (timestamp(),)
+    print('%s: building test-suite tools' % (timestamp(), ), file=sys.stderr)
     args = ['make', 'tools']
     args.extend('%s=%s' % (k, v) for k, v in make_variables.items())
     build_tools_log_path = os.path.join(config.build_dir(iteration),
                                         'build-tools.log')
     build_tools_log = open(build_tools_log_path, 'w')
-    print >>build_tools_log, '%s: running: %s' % (timestamp(),
-                                                  ' '.join('"%s"' % a
-                                                           for a in args))
+    print('%s: running: %s' % (timestamp(),
+                               ' '.join('"%s"' % a
+                                        for a in args)), file=build_tools_log)
     build_tools_log.flush()
     res = execute_command(build_tools_log, config.build_dir(iteration),
                           args, config.report_dir)
@@ -947,12 +948,12 @@ def configure_test_suite(config, iteration):
 
     args.extend(['--target=%s' % config.target])
 
-    print >>configure_log, '%s: running: %s' % (timestamp(),
-                                                ' '.join('"%s"' % a
-                                                         for a in args))
+    print('%s: running: %s' % (timestamp(),
+                               ' '.join('"%s"' % a
+                                        for a in args)), file=configure_log)
     configure_log.flush()
 
-    print >>sys.stderr, '%s: configuring...' % timestamp()
+    print('%s: configuring...' % timestamp(), file=sys.stderr)
     res = execute_command(configure_log, basedir, args, config.report_dir)
     configure_log.close()
     if res != 0:
@@ -968,15 +969,15 @@ def copy_missing_makefiles(config, basedir):
         obj_path = os.path.join(basedir, suffix)
         src_path = os.path.join(config.test_suite_root, suffix)
         if not os.path.exists(obj_path):
-            print '%s: initializing test dir %s' % (timestamp(), suffix)
+            print('%s: initializing test dir %s' % (timestamp(), suffix))
             os.mkdir(obj_path)
             shutil.copyfile(os.path.join(src_path, 'Makefile'),
                             os.path.join(obj_path, 'Makefile'))
 
 
 def run_test(nick_prefix, iteration, config):
-    print >>sys.stderr, "%s: checking source versions" % (
-        timestamp(),)
+    print("%s: checking source versions" % (
+        timestamp(), ), file=sys.stderr)
 
     test_suite_source_version = get_source_version(config.test_suite_root)
 
@@ -989,11 +990,11 @@ def run_test(nick_prefix, iteration, config):
                                                           config)
 
     # Scan for LNT-based test modules.
-    print >>sys.stderr, "%s: scanning for LNT-based test modules" % (
-        timestamp(),)
+    print("%s: scanning for LNT-based test modules" % (
+        timestamp(), ), file=sys.stderr)
     test_modules = list(scan_for_test_modules(config))
-    print >>sys.stderr, "%s: found %d LNT-based test modules" % (
-        timestamp(), len(test_modules))
+    print("%s: found %d LNT-based test modules" % (
+        timestamp(), len(test_modules)), file=sys.stderr)
 
     nick = nick_prefix
     if config.auto_name:
@@ -1001,7 +1002,7 @@ def run_test(nick_prefix, iteration, config):
         cc_info = config.cc_info
         cc_nick = '%s_%s' % (cc_info.get('cc_name'), cc_info.get('cc_build'))
         nick += "__%s__%s" % (cc_nick, cc_info.get('cc_target').split('-')[0])
-    print >>sys.stderr, "%s: using nickname: %r" % (timestamp(), nick)
+    print("%s: using nickname: %r" % (timestamp(), nick), file=sys.stderr)
 
     basedir = prepare_build_dir(config, iteration)
 
@@ -1009,7 +1010,7 @@ def run_test(nick_prefix, iteration, config):
     # cause make horrible fits).
 
     start_time = timestamp()
-    print >>sys.stderr, '%s: starting test in %r' % (start_time, basedir)
+    print('%s: starting test in %r' % (start_time, basedir), file=sys.stderr)
 
     # Configure the test suite.
     if config.run_configure or not os.path.exists(os.path.join(
@@ -1054,9 +1055,9 @@ def run_test(nick_prefix, iteration, config):
     else:
         test_namespace = 'nightlytest'
     if run_nightly_test:
-        print >>sys.stderr, '%s: loading nightly test data...' % timestamp()
+        print('%s: loading nightly test data...' % timestamp(), file=sys.stderr)
         # If nightly test went screwy, it won't have produced a report.
-        print build_report_path
+        print(build_report_path)
         if not os.path.exists(build_report_path):
             fatal('nightly test failed, no report generated')
 
@@ -1076,7 +1077,7 @@ def run_test(nick_prefix, iteration, config):
             existing_tests.add(s.name)
         test_samples.extend(results)
 
-    print >>sys.stderr, '%s: capturing machine information' % (timestamp(),)
+    print('%s: capturing machine information' % (timestamp(), ), file=sys.stderr)
     # Collect the machine and run info.
     #
     # FIXME: Import full range of data that the Clang tests are using?
@@ -1154,19 +1155,19 @@ def run_test(nick_prefix, iteration, config):
             if name in target:
                 logger.warning("parameter %r overwrote existing value: %r" %
                                (name, target.get(name)))
-            print target, name, value
+            print(target, name, value)
             target[name] = value
 
     # Generate the test report.
     lnt_report_path = config.report_path(iteration)
-    print >>sys.stderr, '%s: generating report: %r' % (timestamp(),
-                                                       lnt_report_path)
+    print('%s: generating report: %r' % (timestamp(),
+                                         lnt_report_path), file=sys.stderr)
     machine = lnt.testing.Machine(nick, machine_info)
     run = lnt.testing.Run(start_time, end_time, info=run_info)
 
     report = lnt.testing.Report(machine, run, test_samples)
     lnt_report_file = open(lnt_report_path, 'w')
-    print >>lnt_report_file, report.render()
+    print(report.render(), file=lnt_report_file)
     lnt_report_file.close()
 
     return report
@@ -1236,7 +1237,7 @@ def _prepare_testsuite_for_rerun(test_name, test_full_path, config):
 
     assert len(to_go) >= 1, "Missing at least one accounting file."
     for path in to_go:
-        print "Removing:", path
+        print("Removing:", path)
         os.remove(path)
 
 
@@ -1706,16 +1707,16 @@ class NTTest(builtintest.BuiltinTest):
             reports = []
 
             for i in range(opts.multisample):
-                print >>sys.stderr, "%s: (multisample) running iteration %d" %\
-                        (timestamp(), i)
+                print("%s: (multisample) running iteration %d" %\
+                        (timestamp(), i), file=sys.stderr)
                 report = run_test(opts.label, i, config)
                 reports.append(report)
 
             # Create the merged report.
             #
             # FIXME: Do a more robust job of merging the reports?
-            print >>sys.stderr, "%s: (multisample) creating merged report" % (
-                timestamp(),)
+            print("%s: (multisample) creating merged report" % (
+                timestamp(), ), file=sys.stderr)
             machine = reports[0].machine
             run = reports[0].run
             run.end_time = reports[-1].run.end_time
@@ -1726,7 +1727,7 @@ class NTTest(builtintest.BuiltinTest):
             lnt_report_path = config.report_path(None)
             report = lnt.testing.Report(machine, run, test_samples)
             lnt_report_file = open(lnt_report_path, 'w')
-            print >>lnt_report_file, report.render()
+            print(report.render(), file=lnt_report_file)
             lnt_report_file.close()
 
         else:
@@ -1742,7 +1743,7 @@ class NTTest(builtintest.BuiltinTest):
                 lnt_report_path = config.report_path(None)
 
                 lnt_report_file = open(lnt_report_path, 'w')
-                print >>lnt_report_file, test_results.render()
+                print(test_results.render(), file=lnt_report_file)
                 lnt_report_file.close()
                 merge_run = 'replace'
 

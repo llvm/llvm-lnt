@@ -1,3 +1,4 @@
+from __future__ import print_function
 from lnt.util import NTEmailReport
 from contextlib import closing
 from lnt.util import logger
@@ -200,18 +201,18 @@ def print_report_result(result, out, err, verbose=True):
 
     # Print the generic import information.
     if 'import_file' in result:
-        print >>out, "Importing %r" % os.path.basename(result['import_file'])
+        print("Importing %r" % os.path.basename(result['import_file']), file=out)
     if result['success']:
-        print >>out, "Import succeeded."
-        print >>out
+        print("Import succeeded.", file=out)
+        print(file=out)
     else:
         out.flush()
-        print >>err, "Import Failed:"
-        print >>err, "%s\n" % result['error']
+        print("Import Failed:", file=err)
+        print("%s\n" % result['error'], file=err)
         message = result.get('message', None)
         if message:
-            print >>err, "%s\n" % message
-        print >>err, "--------------"
+            print("%s\n" % message, file=err)
+        print("--------------", file=err)
         err.flush()
         return
 
@@ -223,15 +224,15 @@ def print_report_result(result, out, err, verbose=True):
     # List the parameter sets, if interesting.
     show_pset = len(test_results) > 1
     if show_pset:
-        print >>out, "Parameter Sets"
-        print >>out, "--------------"
+        print("Parameter Sets", file=out)
+        print("--------------", file=out)
         for i, info in enumerate(test_results):
-            print >>out, "P%d: %s" % (i, info['pset'])
-        print >>out
+            print("P%d: %s" % (i, info['pset']), file=out)
+        print(file=out)
 
     total_num_tests = sum([len(item['results'])
                            for item in test_results])
-    print >>out, "--- Tested: %d tests --" % total_num_tests
+    print("--- Tested: %d tests --" % total_num_tests, file=out)
     test_index = 0
     result_kinds = collections.Counter()
     for i, item in enumerate(test_results):
@@ -270,51 +271,51 @@ def print_report_result(result, out, err, verbose=True):
 
             if show_pset:
                 name = 'P%d :: %s' % (i, name)
-            print >>out, "%s: %s (%d of %d)" % (result_string, name,
-                                                test_index, total_num_tests)
+            print("%s: %s (%d of %d)" % (result_string, name,
+                                         test_index, total_num_tests), file=out)
 
             if result_info:
-                print >>out, "%s TEST '%s' %s" % ('*'*20, name, '*'*20)
-                print >>out, result_info
-                print >>out, "*" * 20
+                print("%s TEST '%s' %s" % ('*'*20, name, '*'*20), file=out)
+                print(result_info, file=out)
+                print("*" * 20, file=out)
 
     if 'original_run' in result:
-        print >>out, ("This submission is a duplicate of run %d, "
-                      "already in the database.") % result['original_run']
-        print >>out
+        print(("This submission is a duplicate of run %d, "
+               "already in the database.") % result['original_run'], file=out)
+        print(file=out)
 
     if result['report_to_address']:
-        print >>out, "Report emailed to: %r" % result['report_to_address']
-        print >>out
+        print("Report emailed to: %r" % result['report_to_address'], file=out)
+        print(file=out)
 
     # Print the processing times.
-    print >>out, "Processing Times"
-    print >>out, "----------------"
-    print >>out, "Load   : %.2fs" % result['load_time']
-    print >>out, "Import : %.2fs" % result['import_time']
-    print >>out, "Report : %.2fs" % result['report_time']
-    print >>out, "Total  : %.2fs" % result['total_time']
-    print >>out
+    print("Processing Times", file=out)
+    print("----------------", file=out)
+    print("Load   : %.2fs" % result['load_time'], file=out)
+    print("Import : %.2fs" % result['import_time'], file=out)
+    print("Report : %.2fs" % result['report_time'], file=out)
+    print("Total  : %.2fs" % result['total_time'], file=out)
+    print(file=out)
 
     # Print the added database items.
     total_added = (result['added_machines'] + result['added_runs'] +
                    result['added_tests'] + result.get('added_samples', 0))
     if total_added:
-        print >>out, "Imported Data"
-        print >>out, "-------------"
+        print("Imported Data", file=out)
+        print("-------------", file=out)
         if result['added_machines']:
-            print >>out, "Added Machines: %d" % result['added_machines']
+            print("Added Machines: %d" % result['added_machines'], file=out)
         if result['added_runs']:
-            print >>out, "Added Runs    : %d" % result['added_runs']
+            print("Added Runs    : %d" % result['added_runs'], file=out)
         if result['added_tests']:
-            print >>out, "Added Tests   : %d" % result['added_tests']
+            print("Added Tests   : %d" % result['added_tests'], file=out)
         if result.get('added_samples', 0):
-            print >>out, "Added Samples : %d" % result['added_samples']
-        print >>out
-    print >>out, "Results"
-    print >>out, "----------------"
+            print("Added Samples : %d" % result['added_samples'], file=out)
+        print(file=out)
+    print("Results", file=out)
+    print("----------------", file=out)
     for kind, count in result_kinds.items():
-        print >>out, kind, ":", count
+        print(kind, ":", count, file=out)
 
 
 def import_from_string(config, db_name, db, session, ts_name, data,

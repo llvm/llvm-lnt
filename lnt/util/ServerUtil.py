@@ -1,6 +1,7 @@
 """
 Utility for submitting files to a web server over HTTP.
 """
+from __future__ import print_function
 import sys
 import urllib
 import urllib2
@@ -19,7 +20,7 @@ def _show_json_error(reply):
     try:
         error = json.loads(reply)
     except ValueError:
-        print "error: {}".format(reply)
+        print("error: {}".format(reply))
         return
     sys.stderr.write("error: lnt server: {}\n".format(error.get('error')))
     message = error.get('message', '')
@@ -55,13 +56,13 @@ def submitFileToServer(url, file, select_machine=None, merge_run=None):
         return json.loads(result_data)
     except Exception:
         import traceback
-        print "Unable to load result, not a valid JSON object."
-        print
-        print "Traceback:"
+        print("Unable to load result, not a valid JSON object.")
+        print()
+        print("Traceback:")
         traceback.print_exc()
-        print
-        print "Result:"
-        print "error:", result_data
+        print()
+        print("Result:")
+        print("error:", result_data)
         return
 
 

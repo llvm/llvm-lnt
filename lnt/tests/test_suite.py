@@ -1,4 +1,5 @@
 """LLVM test-suite"""
+from __future__ import print_function
 import subprocess
 import tempfile
 import json
@@ -971,7 +972,7 @@ class TestSuiteTest(BuiltinTest):
                                   "iprofiler -timeprofiler -I 40u")
 
             cmd_iprofiler = cmd + ['-DTEST_SUITE_RUN_UNDER=' + iprofiler]
-            print ' '.join(cmd_iprofiler)
+            print(' '.join(cmd_iprofiler))
 
             out = subprocess.check_output(cmd_iprofiler)
 

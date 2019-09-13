@@ -105,6 +105,7 @@ functions/methods.  Their inclusion here is for function name consistency.
 ##
 ## 11/08/98 ... fixed aput to output large arrays correctly
 
+from __future__ import print_function
 import stats  # required 3rd party module
 import string, copy
 from types import *
@@ -514,14 +515,14 @@ Returns: None
         maxsize[col] = max(map(len,items)) + extra
     for row in lst:
         if row == ['\n'] or row == '\n' or row == '' or row == ['']:
-            print
+            print()
         elif row == ['dashes'] or row == 'dashes':
             dashes = [0]*len(maxsize)
             for j in range(len(maxsize)):
                 dashes[j] = '-'*(maxsize[j]-2)
-            print lineincustcols(dashes,maxsize)
+            print(lineincustcols(dashes, maxsize))
         else:
-            print lineincustcols(row,maxsize)
+            print(lineincustcols(row, maxsize))
     return None
 
 
@@ -534,7 +535,7 @@ Usage:   printincols (listoflists,colsize)
 Returns: None
 """
     for row in listoflists:
-        print lineincols(row,colsize)
+        print(lineincols(row, colsize))
     return None
 
 
@@ -547,9 +548,9 @@ Returns: None
 """
     for row in listoflists:
         if row[-1] == '\n':
-            print row,
+            print(row, end=' ')
         else:
-            print row
+            print(row)
     return None
 
 

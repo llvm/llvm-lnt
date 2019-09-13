@@ -2,6 +2,7 @@
 Base class for builtin-in tests.
 """
 
+from __future__ import print_function
 import sys
 import os
 
@@ -43,7 +44,7 @@ class BuiltinTest(object):
     def log(self, message, ts=None):
         if not ts:
             ts = timestamp()
-        print >>sys.stderr, '%s: %s' % (ts, message)
+        print('%s: %s' % (ts, message), file=sys.stderr)
 
     @staticmethod
     def print_report(report, output):
@@ -52,7 +53,7 @@ class BuiltinTest(object):
             output_stream = sys.stdout
         else:
             output_stream = open(output, 'w')
-        print >> output_stream, report.render()
+        print(report.render(), file=output_stream)
         if output_stream is not sys.stdout:
             output_stream.close()
 
@@ -87,4 +88,4 @@ class BuiltinTest(object):
         """Print the result URL"""
         result_url = server_results.get('result_url', None)
         if result_url is not None:
-            print "Results available at:", server_results['result_url']
+            print("Results available at:", server_results['result_url'])

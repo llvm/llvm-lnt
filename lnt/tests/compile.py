@@ -1,4 +1,5 @@
 """Single file compile-time performance testing"""
+from __future__ import print_function
 import errno
 import hashlib
 import json
@@ -759,8 +760,8 @@ class CompileTest(builtintest.BuiltinTest):
         # Set up the sandbox.
         global g_output_dir
         if not os.path.exists(opts.sandbox_path):
-            print >>sys.stderr, "%s: creating sandbox: %r" % (
-                timestamp(), opts.sandbox_path)
+            print("%s: creating sandbox: %r" % (
+                timestamp(), opts.sandbox_path), file=sys.stderr)
             os.mkdir(opts.sandbox_path)
         if opts.timestamp_build:
             fmt_timestamp = timestamp().replace(' ', '_').replace(':', '-')
@@ -888,10 +889,10 @@ class CompileTest(builtintest.BuiltinTest):
 
         # Show the tests, if requested.
         if opts.show_tests:
-            print >>sys.stderr, 'Available Tests'
+            print('Available Tests', file=sys.stderr)
             for name in sorted(set(name for name, _ in all_tests)):
-                print >>sys.stderr, '  %s' % (name,)
-            print
+                print('  %s' % (name, ), file=sys.stderr)
+            print()
             raise SystemExit
 
         # Find the tests to run.

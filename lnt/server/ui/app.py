@@ -1,3 +1,4 @@
+from __future__ import print_function
 import StringIO
 import logging
 import logging.handlers
@@ -262,12 +263,12 @@ class App(LNTExceptionLoggerFlask):
                 rotating.setLevel(logging.DEBUG)
                 self.logger.addHandler(rotating)
             except (OSError, IOError) as e:
-                print >> sys.stderr, "Error making log file", \
-                                     LOG_FILENAME, str(e)
-                print >> sys.stderr, "Will not log to file."
+                print("Error making log file", \
+                      LOG_FILENAME, str(e), file=sys.stderr)
+                print("Will not log to file.", file=sys.stderr)
             else:
                 self.logger.info("Started file logging.")
-                print "Logging to :", LOG_FILENAME
+                print("Logging to :", LOG_FILENAME)
         else:
             self.config['log_file_name'] = log_file_name
 

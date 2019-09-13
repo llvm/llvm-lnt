@@ -1,4 +1,5 @@
 """Implement the command line 'lnt' tool."""
+from __future__ import print_function
 from .common import init_logger
 from .common import submit_options
 from .convert import action_convert
@@ -134,11 +135,11 @@ def _print_result_url(results, verbose):
     result_url = results.get('result_url')
     if result_url is not None:
         if verbose:
-            print "Results available at:", result_url
+            print("Results available at:", result_url)
         else:
-            print result_url
+            print(result_url)
     elif verbose:
-        print "Results available at: no URL available"
+        print("Results available at: no URL available")
 
 
 class RunTestCLI(click.MultiCommand):
@@ -167,13 +168,13 @@ def action_showtests():
     import lnt.tests
     import inspect
 
-    print 'Available tests:'
+    print('Available tests:')
     test_names = lnt.tests.get_names()
     max_name = max(map(len, test_names))
     for name in test_names:
         test_module = lnt.tests.get_module(name)
         description = inspect.cleandoc(test_module.__doc__)
-        print '  %-*s - %s' % (max_name, name, description)
+        print('  %-*s - %s' % (max_name, name, description))
 
 
 @click.command("submit")
@@ -409,7 +410,7 @@ def command_update(input, output):
 def command_get_version(input):
     """print the version of a profile"""
     import lnt.testing.profile.profile as profile
-    print profile.Profile.fromFile(input).getVersion()
+    print(profile.Profile.fromFile(input).getVersion())
 
 
 @action_profile.command("getTopLevelCounters")
@@ -418,7 +419,7 @@ def command_top_level_counters(input):
     """print the whole-profile counter values"""
     import json
     import lnt.testing.profile.profile as profile
-    print json.dumps(profile.Profile.fromFile(input).getTopLevelCounters())
+    print(json.dumps(profile.Profile.fromFile(input).getTopLevelCounters()))
 
 
 @action_profile.command("getFunctions")
@@ -427,7 +428,7 @@ def command_get_functions(input):
     """print the functions in a profile"""
     import json
     import lnt.testing.profile.profile as profile
-    print json.dumps(profile.Profile.fromFile(input).getFunctions())
+    print(json.dumps(profile.Profile.fromFile(input).getFunctions()))
 
 
 @action_profile.command("getCodeForFunction")
@@ -437,8 +438,8 @@ def command_code_for_function(input, fn):
     """print the code/instruction for a function"""
     import json
     import lnt.testing.profile.profile as profile
-    print json.dumps(
-        list(profile.Profile.fromFile(input).getCodeForFunction(fn)))
+    print(json.dumps(
+        list(profile.Profile.fromFile(input).getCodeForFunction(fn))))
 
 
 def _version_check():
@@ -472,7 +473,7 @@ def show_version(ctx, param, value):
     if not value or ctx.resilient_parsing:
         return
     if lnt.__version__:
-        print "LNT %s" % (lnt.__version__,)
+        print("LNT %s" % (lnt.__version__, ))
     ctx.exit()
 
 

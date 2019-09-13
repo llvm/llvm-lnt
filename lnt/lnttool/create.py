@@ -1,3 +1,4 @@
+from __future__ import print_function
 import click
 import platform
 
@@ -164,19 +165,19 @@ LNT configuration.
     # Execute an upgrade on the database to initialize the schema.
     lnt.server.db.migrate.update_path(db_path)
 
-    print 'created LNT configuration in %r' % basepath
-    print '  configuration file: %s' % cfg_path
-    print '  WSGI app          : %s' % wsgi_path
-    print '  database file     : %s' % db_path
-    print '  temporary dir     : %s' % tmp_path
-    print '  host URL          : %s' % hosturl
-    print
-    print 'You can execute:'
-    print '  %s' % wsgi_path
-    print 'to test your installation with the builtin server.'
-    print
-    print 'For production use configure this application to run with any'
-    print 'WSGI capable web server. You may need to modify the permissions'
-    print 'on the database and temporary file directory to allow writing'
-    print 'by the web app.'
-    print
+    print('created LNT configuration in %r' % basepath)
+    print('  configuration file: %s' % cfg_path)
+    print('  WSGI app          : %s' % wsgi_path)
+    print('  database file     : %s' % db_path)
+    print('  temporary dir     : %s' % tmp_path)
+    print('  host URL          : %s' % hosturl)
+    print()
+    print('You can execute:')
+    print('  %s' % wsgi_path)
+    print('to test your installation with the builtin server.')
+    print()
+    print('For production use configure this application to run with any')
+    print('WSGI capable web server. You may need to modify the permissions')
+    print('on the database and temporary file directory to allow writing')
+    print('by the web app.')
+    print()

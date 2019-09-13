@@ -48,8 +48,8 @@ This is a handy way to keep consistent function names when different
 argument types require different functions to be called.  Having
 implementated the Dispatch class, however, means that to get info on
 a given function, you must use the REAL function name ... that is
-"print stats.lmean.__doc__" or "print stats.amean.__doc__" work fine,
-while "print stats.mean.__doc__" will print the doc for the Dispatch
+"print(stats.lmean.__doc__)" or "print(stats.amean.__doc__)" work fine,
+while "print(stats.mean.__doc__)" will print the doc for the Dispatch
 class.  NUMPY FUNCTIONS ('a' prefix) generally have more argument options
 but should otherwise be consistent with the corresponding list functions.
 
@@ -222,6 +222,7 @@ SUPPORT FUNCTIONS:  writecc
 ##              changed name of skewness and askewness to skew and askew
 ##              fixed (a)histogram (which sometimes counted points <lowerlimit)
 
+from __future__ import print_function
 import pstat               # required 3rd party module
 import math, string, copy  # required python modules
 from types import *
@@ -473,7 +474,7 @@ given by inlist.
 Usage:   lscoreatpercentile(inlist,percent)
 """
     if percent > 1:
-        print "\nDividing percent>1 by 100 in lscoreatpercentile().\n"
+        print("\nDividing percent>1 by 100 in lscoreatpercentile().\n")
         percent = percent / 100.0
     targetcf = percent*len(inlist)
     h, lrl, binsize, extras = histogram(inlist)
@@ -535,7 +536,7 @@ Returns: list of bin values, lowerreallimit, binsize, extrapoints
         except:
             extrapoints = extrapoints + 1
     if (extrapoints > 0 and printextras == 1):
-        print '\nPoints outside given histogram range =',extrapoints
+        print('\nPoints outside given histogram range =', extrapoints)
     return (bins, lowerreallimit, binsize, extrapoints)
 
 
@@ -777,11 +778,11 @@ Returns: appropriate statistic name, value, and probability
 """
     samples = ''
     while samples not in ['i','r','I','R','c','C']:
-        print '\nIndependent or related samples, or correlation (i,r,c): ',
+        print('\nIndependent or related samples, or correlation (i,r,c): ', end=' ')
         samples = raw_input()
 
     if samples in ['i','I','r','R']:
-        print '\nComparing variances ...',
+        print('\nComparing variances ...', end=' ')
 # USE O'BRIEN'S TEST FOR HOMOGENEITY OF VARIANCE, Maxwell & delaney, p.112
         r = obrientransform(x,y)
         f,p = F_oneway(pstat.colex(r,0),pstat.colex(r,1))
@@ -789,45 +790,45 @@ Returns: appropriate statistic name, value, and probability
             vartype='unequal, p='+str(round(p,4))
         else:
             vartype='equal'
-        print vartype
+        print(vartype)
         if samples in ['i','I']:
             if vartype[0]=='e':
                 t,p = ttest_ind(x,y,0)
-                print '\nIndependent samples t-test:  ', round(t,4),round(p,4)
+                print('\nIndependent samples t-test:  ', round(t, 4), round(p, 4))
             else:
                 if len(x)>20 or len(y)>20:
                     z,p = ranksums(x,y)
-                    print '\nRank Sums test (NONparametric, n>20):  ', round(z,4),round(p,4)
+                    print('\nRank Sums test (NONparametric, n>20):  ', round(z, 4), round(p, 4))
                 else:
                     u,p = mannwhitneyu(x,y)
-                    print '\nMann-Whitney U-test (NONparametric, ns<20):  ', round(u,4),round(p,4)
+                    print('\nMann-Whitney U-test (NONparametric, ns<20):  ', round(u, 4), round(p, 4))
 
         else:  # RELATED SAMPLES
             if vartype[0]=='e':
                 t,p = ttest_rel(x,y,0)
-                print '\nRelated samples t-test:  ', round(t,4),round(p,4)
+                print('\nRelated samples t-test:  ', round(t, 4), round(p, 4))
             else:
                 t,p = ranksums(x,y)
-                print '\nWilcoxon T-test (NONparametric):  ', round(t,4),round(p,4)
+                print('\nWilcoxon T-test (NONparametric):  ', round(t, 4), round(p, 4))
     else:  # CORRELATION ANALYSIS
         corrtype = ''
         while corrtype not in ['c','C','r','R','d','D']:
-            print '\nIs the data Continuous, Ranked, or Dichotomous (c,r,d): ',
+            print('\nIs the data Continuous, Ranked, or Dichotomous (c,r,d): ', end=' ')
             corrtype = raw_input()
         if corrtype in ['c','C']:
             m,b,r,p,see = linregress(x,y)
-            print '\nLinear regression for continuous variables ...'
+            print('\nLinear regression for continuous variables ...')
             lol = [['Slope','Intercept','r','Prob','SEestimate'],[round(m,4),round(b,4),round(r,4),round(p,4),round(see,4)]]
             pstat.printcc(lol)
         elif corrtype in ['r','R']:
             r,p = spearmanr(x,y)
-            print '\nCorrelation for ranked variables ...'
-            print "Spearman's r: ",round(r,4),round(p,4)
+            print('\nCorrelation for ranked variables ...')
+            print("Spearman's r: ", round(r, 4), round(p, 4))
         else: # DICHOTOMOUS
             r,p = pointbiserialr(x,y)
-            print '\nAssuming x contains a dichotomous variable ...'
-            print 'Point Biserial r: ',round(r,4),round(p,4)
-    print '\n\n'
+            print('\nAssuming x contains a dichotomous variable ...')
+            print('Point Biserial r: ', round(r, 4), round(p, 4))
+    print('\n\n')
     return None
 
 
@@ -1501,7 +1502,7 @@ Usage:   lbetacf(a,b,x)
         bz = 1.0
         if (abs(az-aold)<(EPS*abs(az))):
             return az
-    print 'a or b too big, or ITMAX too small in Betacf.'
+    print('a or b too big, or ITMAX too small in Betacf.')
 
 
 def lgammln(xx):
@@ -1821,11 +1822,11 @@ Returns: None
     lofl = title+[[name1,n1,round(m1,3),round(math.sqrt(se1),3),min1,max1],
                   [name2,n2,round(m2,3),round(math.sqrt(se2),3),min2,max2]]
     if type(fname)<>StringType or len(fname)==0:
-        print
-        print statname
-        print
+        print()
+        print(statname)
+        print()
         pstat.printcc(lofl)
-        print
+        print()
         try:
             if stat.shape == ():
                 stat = stat[0]
@@ -1833,8 +1834,8 @@ Returns: None
                 prob = prob[0]
         except:
             pass
-        print 'Test statistic = ',round(stat,3),'   p = ',round(prob,3),suffix
-        print
+        print('Test statistic = ', round(stat, 3), '   p = ', round(prob, 3), suffix)
+        print()
     else:
         file = open(fname,writemode)
         file.write('\n'+statname+'\n\n')
@@ -2417,7 +2418,7 @@ Returns: skew of vals in a along dimension, returning ZERO where all vals equal
     denom = N.power(amoment(a,2,dimension),1.5)
     zero = N.equal(denom,0)
     if type(denom) == N.ndarray and asum(zero) <> 0:
-        print "Number of zeros in askew: ",asum(zero)
+        print("Number of zeros in askew: ", asum(zero))
     denom = denom + zero  # prevent divide-by-zero
     return N.where(zero, 0, amoment(a,3,dimension)/denom)
 
@@ -2436,7 +2437,7 @@ Returns: kurtosis of values in a along dimension, and ZERO where all vals equal
     denom = N.power(amoment(a,2,dimension),2)
     zero = N.equal(denom,0)
     if type(denom) == N.ndarray and asum(zero) <> 0:
-        print "Number of zeros in akurtosis: ",asum(zero)
+        print("Number of zeros in akurtosis: ", asum(zero))
     denom = denom + zero  # prevent divide-by-zero
     return N.where(zero,0,amoment(a,4,dimension)/denom)
 
@@ -2506,7 +2507,7 @@ Returns: z-score and 2-tail z-probability, returns 0 for bad pixels
         dimension = 0
     n = float(a.shape[dimension])
     if n<20:
-        print "akurtosistest only valid for n>=20 ... continuing anyway, n=",n
+        print("akurtosistest only valid for n>=20 ... continuing anyway, n=", n)
     b2 = akurtosis(a,dimension)
     E = 3.0*(n-1) /(n+1)
     varb2 = 24.0*n*(n-2)*(n-3) / ((n+1)*(n+1)*(n+3)*(n+5))
@@ -2629,7 +2630,7 @@ Returns: (array of bin counts, bin-minimum, min-width, #-points-outside-range)
         except:                           # point outside lower/upper limits
             extrapoints = extrapoints + 1
     if (extrapoints > 0 and printextras == 1):
-        print '\nPoints outside given histogram range =',extrapoints
+        print('\nPoints outside given histogram range =', extrapoints)
     return (bins, lowerreallimit, binsize, extrapoints)
 
 
@@ -3001,11 +3002,11 @@ Returns: appropriate statistic name, value, and probability
 """
     samples = ''
     while samples not in ['i','r','I','R','c','C']:
-        print '\nIndependent or related samples, or correlation (i,r,c): ',
+        print('\nIndependent or related samples, or correlation (i,r,c): ', end=' ')
         samples = raw_input()
 
     if samples in ['i','I','r','R']:
-        print '\nComparing variances ...',
+        print('\nComparing variances ...', end=' ')
 # USE O'BRIEN'S TEST FOR HOMOGENEITY OF VARIANCE, Maxwell & delaney, p.112
         r = obrientransform(x,y)
         f,p = F_oneway(pstat.colex(r,0),pstat.colex(r,1))
@@ -3013,45 +3014,45 @@ Returns: appropriate statistic name, value, and probability
             vartype='unequal, p='+str(round(p,4))
         else:
             vartype='equal'
-        print vartype
+        print(vartype)
         if samples in ['i','I']:
             if vartype[0]=='e':
                 t,p = ttest_ind(x,y,None,0)
-                print '\nIndependent samples t-test:  ', round(t,4),round(p,4)
+                print('\nIndependent samples t-test:  ', round(t, 4), round(p, 4))
             else:
                 if len(x)>20 or len(y)>20:
                     z,p = ranksums(x,y)
-                    print '\nRank Sums test (NONparametric, n>20):  ', round(z,4),round(p,4)
+                    print('\nRank Sums test (NONparametric, n>20):  ', round(z, 4), round(p, 4))
                 else:
                     u,p = mannwhitneyu(x,y)
-                    print '\nMann-Whitney U-test (NONparametric, ns<20):  ', round(u,4),round(p,4)
+                    print('\nMann-Whitney U-test (NONparametric, ns<20):  ', round(u, 4), round(p, 4))
 
         else:  # RELATED SAMPLES
             if vartype[0]=='e':
                 t,p = ttest_rel(x,y,0)
-                print '\nRelated samples t-test:  ', round(t,4),round(p,4)
+                print('\nRelated samples t-test:  ', round(t, 4), round(p, 4))
             else:
                 t,p = ranksums(x,y)
-                print '\nWilcoxon T-test (NONparametric):  ', round(t,4),round(p,4)
+                print('\nWilcoxon T-test (NONparametric):  ', round(t, 4), round(p, 4))
     else:  # CORRELATION ANALYSIS
         corrtype = ''
         while corrtype not in ['c','C','r','R','d','D']:
-            print '\nIs the data Continuous, Ranked, or Dichotomous (c,r,d): ',
+            print('\nIs the data Continuous, Ranked, or Dichotomous (c,r,d): ', end=' ')
             corrtype = raw_input()
         if corrtype in ['c','C']:
             m,b,r,p,see = linregress(x,y)
-            print '\nLinear regression for continuous variables ...'
+            print('\nLinear regression for continuous variables ...')
             lol = [['Slope','Intercept','r','Prob','SEestimate'],[round(m,4),round(b,4),round(r,4),round(p,4),round(see,4)]]
             pstat.printcc(lol)
         elif corrtype in ['r','R']:
             r,p = spearmanr(x,y)
-            print '\nCorrelation for ranked variables ...'
-            print "Spearman's r: ",round(r,4),round(p,4)
+            print('\nCorrelation for ranked variables ...')
+            print("Spearman's r: ", round(r, 4), round(p, 4))
         else: # DICHOTOMOUS
             r,p = pointbiserialr(x,y)
-            print '\nAssuming x contains a dichotomous variable ...'
-            print 'Point Biserial r: ',round(r,4),round(p,4)
-    print '\n\n'
+            print('\nAssuming x contains a dichotomous variable ...')
+            print('Point Biserial r: ', round(r, 4), round(p, 4))
+    print('\n\n')
     return None
 
 
@@ -3284,7 +3285,7 @@ Returns: slope, intercept, r, two-tailed prob, sterr-of-the-estimate, n
     shp = N.ones(len(y.shape))
     shp[0] = len(x)
     x.shape = shp
-    print x.shape, y.shape
+    print(x.shape, y.shape)
     r_num = n*(N.add.reduce(x*y,0)) - N.add.reduce(x)*N.add.reduce(y,0)
     r_den = N.sqrt((n*ass(x) - asquare_of_sums(x))*(n*ass(y,0)-asquare_of_sums(y,0)))
     zerodivproblem = N.equal(r_den,0)
@@ -3404,15 +3405,15 @@ Returns: an array of t-values with the shape of pval
     pval = abs(pval)
     t = N.ones(pval.shape,N.float_)*50
     step = N.ones(pval.shape,N.float_)*25
-    print "Initial ap2t() prob calc"
+    print("Initial ap2t() prob calc")
     prob = abetai(0.5*df,0.5,float(df)/(df+t*t))
-    print 'ap2t() iter: ',
+    print('ap2t() iter: ', end=' ')
     for i in range(10):
-        print i,' ',
+        print(i, ' ', end=' ')
         t = N.where(pval<prob,t+step,t-step)
         prob = abetai(0.5*df,0.5,float(df)/(df+t*t))
         step = step/2
-    print
+    print()
     # since this is an ugly hack, we get ugly boundaries
     t = N.where(t>99.9,1000,t)      # hit upper-boundary
     t = t+signs
@@ -3935,7 +3936,7 @@ Usage:   abetacf(a,b,x,verbose=1)
         mask = N.clip(mask+newmask,0,1)
     noconverge = asum(N.equal(frozen,-1))
     if noconverge <> 0 and verbose:
-        print 'a or b too big, or ITMAX too small in Betacf for ',noconverge,' elements'
+        print('a or b too big, or ITMAX too small in Betacf for ', noconverge, ' elements')
     if arrayflag:
         return frozen
     else:
@@ -4020,7 +4021,7 @@ Usage:   aglm(data,para)
 Returns: statistic, p-value ???
 """
     if len(para) <> len(data):
-        print "data and para must be same length in aglm"
+        print("data and para must be same length in aglm")
         return
     n = len(para)
     p = pstat.aunique(para)
