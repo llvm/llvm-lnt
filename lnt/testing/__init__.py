@@ -182,7 +182,7 @@ class TestSamples:
         self.name = str(name)
         self.info = dict((str(key), str(value))
                          for key, value in info.items())
-        self.data = map(conv_f, data)
+        self.data = list(map(conv_f, data))
 
     def render(self):
         """Return info from this instance in a dictionary that respects

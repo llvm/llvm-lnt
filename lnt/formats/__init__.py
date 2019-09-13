@@ -12,7 +12,7 @@ from JSONFormat import format as json
 
 formats = [plist, json]
 formats_by_name = dict((f['name'], f) for f in formats)
-format_names = formats_by_name.keys()
+format_names = list(formats_by_name.keys())
 
 
 def get_format(name):

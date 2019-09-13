@@ -54,7 +54,7 @@ class Instance(object):
             raise Exception("Invalid config: %r" % config_path)
 
         config_data = {}
-        exec open(config_path) in config_data
+        exec(open(config_path).read(), config_data)
         config = lnt.server.config.Config.from_data(config_path, config_data)
 
         return Instance(config_path, config, tmpdir)

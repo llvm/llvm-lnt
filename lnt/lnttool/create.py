@@ -160,7 +160,7 @@ LNT configuration.
     wsgi_file = open(wsgi_path, 'w')
     wsgi_file.write(kWSGITemplate % locals())
     wsgi_file.close()
-    os.chmod(wsgi_path, 0755)
+    os.chmod(wsgi_path, 0o755)
 
     # Execute an upgrade on the database to initialize the schema.
     lnt.server.db.migrate.update_path(db_path)
