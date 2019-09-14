@@ -8,6 +8,7 @@ from __future__ import print_function
 ## Just to make sure there are no syntax errors in this.  This does not
 ## actually run a blast.
 # RUN: python %{src_root}/tests/utils/blast.py
+from builtins import range
 import time
 import subprocess
 import os
@@ -45,7 +46,7 @@ def rand_sample():
     """Make a random sized list of random samples."""
     r = random.randint(1, 20)
     samples = []
-    for i in xrange(r):
+    for i in range(r):
         samples.append(random.random() * 100)
     return samples
 
@@ -65,7 +66,7 @@ if len(sys.argv) < 3:
     print("Usage: python blast.py <num_submissions> <sleep_between> [optional url]")
     sys.exit(0)
 
-for i in xrange(int(sys.argv[1])):
+for i in range(int(sys.argv[1])):
     machine = lnt.testing.Machine(MACH, DEFAULT_MACHINE_INFO)
     run = lnt.testing.Run(start_time, end_time, run_info)
     report = lnt.testing.Report(machine=machine, run=run, tests=[])

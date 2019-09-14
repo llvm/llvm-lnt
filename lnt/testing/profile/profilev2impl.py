@@ -1,4 +1,5 @@
 from __future__ import absolute_import
+from builtins import range
 from .profile import ProfileImpl
 import StringIO
 import bz2
@@ -252,12 +253,12 @@ class CounterNamePool(Section):
     def serialize(self, fobj):
         n_names = len(self.idx_to_name)
         writeNum(fobj, n_names)
-        for i in xrange(n_names):
+        for i in range(n_names):
             writeString(fobj, self.idx_to_name[i])
 
     def deserialize(self, fobj):
         self.idx_to_name = {}
-        for i in xrange(readNum(fobj)):
+        for i in range(readNum(fobj)):
             self.idx_to_name[i] = readString(fobj)
         self.name_to_idx = {v: k
                             for k, v
@@ -287,7 +288,7 @@ class TopLevelCounters(Section):
 
     def deserialize(self, fobj):
         self.counters = {}
-        for i in xrange(readNum(fobj)):
+        for i in range(readNum(fobj)):
             k = readNum(fobj)
             v = readNum(fobj)
             self.counters[self.counter_name_pool.idx_to_name[k]] = v
@@ -514,7 +515,7 @@ class Functions(Section):
 
     def deserialize(self, fobj):
         self.functions = {}
-        for i in xrange(readNum(fobj)):
+        for i in range(readNum(fobj)):
             f = {}
             name = readString(fobj)
             f['length'] = readNum(fobj)
@@ -523,7 +524,7 @@ class Functions(Section):
             self.line_text.setOffsetFor(name, readNum(fobj))
             f['counters'] = {}
 
-            for j in xrange(readNum(fobj)):
+            for j in range(readNum(fobj)):
                 k = self.counter_name_pool.idx_to_name[readNum(fobj)]
                 v = readFloat(fobj)
                 f['counters'][k] = v
@@ -540,7 +541,7 @@ class Functions(Section):
             .extractForFunction(fname, list(f['counters'].keys()))
         address_gen = self.line_addresses.extractForFunction(fname)
         text_gen = self.line_text.extractForFunction(fname)
-        for n in xrange(f['length']):
+        for n in range(f['length']):
             yield (next(counter_gen), next(address_gen), next(text_gen))
 
     def copy(self, counter_name_pool, line_counters,

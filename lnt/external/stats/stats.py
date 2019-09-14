@@ -911,7 +911,7 @@ Returns: Point-biserial r, two-tailed p-value
     if len(categories) != 2:
         raise ValueError("Exactly 2 categories required for pointbiserialr().")
     else:   # there are 2 categories, continue
-        codemap = pstat.abut(categories, range(2))
+        codemap = pstat.abut(categories, list(range(2)))
         recoded = pstat.recode(data, codemap, 0)
         x = pstat.linexand(data, 0, categories[0])
         y = pstat.linexand(data, 0, categories[1])
@@ -1746,7 +1746,7 @@ Returns: sorted-inlist, sorting-index-vector (for original list)
 """
     n = len(inlist)
     svec = copy.deepcopy(inlist)
-    ivec = range(n)
+    ivec = list(range(n))
     gap = n // 2   # integer division needed
     while gap >0:
         for i in range(gap, n):
@@ -4259,7 +4259,7 @@ Returns: sorted-inarray, sorting-index-vector (for original array)
 """
     n = len(inarray)
     svec = inarray *1.0
-    ivec = range(n)
+    ivec = list(range(n))
     gap = n // 2   # integer division needed
     while gap >0:
         for i in range(gap, n):

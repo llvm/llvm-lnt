@@ -1211,7 +1211,7 @@ def rerun_test(config, name, num_times):
 
     results = []
     no_errors = True
-    for _ in xrange(0, num_times):
+    for _ in range(0, num_times):
         test_results, t_no_errors = _execute_test_again(
             config, test_name, test_full_path, relative_test_path, logfile)
         no_errors &= t_no_errors
