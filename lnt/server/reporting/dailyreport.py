@@ -1,3 +1,5 @@
+from future import standard_library
+standard_library.install_aliases()
 from lnt.server.reporting.analysis import REGRESSED, UNCHANGED_FAIL
 from lnt.server.reporting.report import RunResult, RunResults, report_css_styles, pairs, OrderAndHistory
 from lnt.util import multidict
@@ -6,7 +8,7 @@ import lnt.server.reporting.analysis
 import lnt.server.ui.app
 import re
 import sqlalchemy.sql
-import urllib
+import urllib.parse
 
 
 class DailyReport(object):
@@ -44,7 +46,7 @@ class DailyReport(object):
     def get_query_parameters_string(self):
         query_params = [
             "{}={}".format(
-                urllib.quote_plus(query_param), urllib.quote_plus(str(value)))
+                urllib.parse.quote_plus(query_param), urllib.parse.quote_plus(str(value)))
             for query_param, value in (
                 ("day_start", self.day_start_offset.seconds // 3600),
                 ("num_days", self.num_prior_days_to_include),

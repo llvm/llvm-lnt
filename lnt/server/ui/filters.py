@@ -1,7 +1,9 @@
+from future import standard_library
+standard_library.install_aliases()
 import StringIO
 import datetime
 import pprint
-import urllib
+import urllib.parse
 import time
 
 from lnt.server.ui import util
@@ -37,7 +39,7 @@ def filter_format_or_default(fmt, input, default):
 
 
 def filter_urlencode(args):
-    return urllib.urlencode(args)
+    return urllib.parse.urlencode(args)
 
 
 def filter_timedelta(start_time):

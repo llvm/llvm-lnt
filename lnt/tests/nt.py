@@ -1,6 +1,8 @@
 """LLVM test-suite compile and execution tests"""
 from __future__ import absolute_import
 from __future__ import print_function
+from future import standard_library
+standard_library.install_aliases()
 import csv
 import os
 import platform
@@ -11,7 +13,7 @@ import sys
 import glob
 import time
 import traceback
-import urllib2
+import urllib.error
 import shlex
 import pipes
 import resource
@@ -1775,7 +1777,7 @@ class NTTest(builtintest.BuiltinTest):
                 try:
                     result = ServerUtil.submitFile(server, report_path, False,
                                                    merge_run=merge_run)
-                except (urllib2.HTTPError, urllib2.URLError) as e:
+                except (urllib.error.HTTPError, urllib.error.URLError) as e:
                     logger.warning("submitting to {} failed with {}"
                                    .format(server, e))
         else:

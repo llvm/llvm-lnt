@@ -2,9 +2,12 @@
 Utility for submitting files to a web server over HTTP.
 """
 from __future__ import print_function
+from future import standard_library
+standard_library.install_aliases()
 import sys
-import urllib
-import urllib2
+import urllib.request
+import urllib.parse
+import urllib.error
 import contextlib
 import json
 
@@ -39,13 +42,13 @@ def submitFileToServer(url, file, select_machine=None, merge_run=None):
         if merge_run is not None:
             values['merge'] = merge_run
     headers = {'Accept': 'application/json'}
-    data = urllib.urlencode(values)
+    data = urllib.parse.urlencode(values).encode(encoding='ascii')
     try:
-        response = urllib2.urlopen(urllib2.Request(url, data, headers=headers))
-    except urllib2.HTTPError as e:
+        response = urllib.request.urlopen(urllib.request.Request(url, data, headers=headers))
+    except urllib.error.HTTPError as e:
         _show_json_error(e.read())
         return
-    except urllib2.URLError as e:
+    except urllib.error.URLError as e:
         sys.stderr.write("error: could not resolve '%s': %s\n" %
                          (url, e))
         return

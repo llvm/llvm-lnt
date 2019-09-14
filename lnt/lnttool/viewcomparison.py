@@ -1,6 +1,8 @@
+from future import standard_library
+standard_library.install_aliases()
 import click
 import time
-import urllib
+import urllib.request
 import webbrowser
 import sys
 
@@ -10,7 +12,7 @@ def _start_browser(url, debug=False):
 
     def url_is_up(url):
         try:
-            o = urllib.urlopen(url)
+            o = urllib.request.urlopen(url)
         except IOError:
             return False
         o.close()
