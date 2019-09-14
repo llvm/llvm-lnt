@@ -138,24 +138,24 @@ Returns: a list of lists as long as the LONGEST list past, source on the
             addon = [addon]
         if len(addon) < len(source):                # is source list longer?
             if len(source) % len(addon) == 0:        # are they integer multiples?
-                repeats = len(source)/len(addon)    # repeat addon n times
+                repeats = len(source) // len(addon)    # repeat addon n times
                 origadd = copy.deepcopy(addon)
                 for i in range(repeats-1):
                     addon = addon + origadd
             else:
-                repeats = len(source)/len(addon)+1  # repeat addon x times,
+                repeats = len(source) // len(addon) + 1  # repeat addon x times,
                 origadd = copy.deepcopy(addon)      #    x is NOT an integer
                 for i in range(repeats-1):
                     addon = addon + origadd
                     addon = addon[0:len(source)]
         elif len(source) < len(addon):                # is addon list longer?
             if len(addon) % len(source) == 0:        # are they integer multiples?
-                repeats = len(addon)/len(source)    # repeat source n times
+                repeats = len(addon) // len(source)    # repeat source n times
                 origsour = copy.deepcopy(source)
                 for i in range(repeats-1):
                     source = source + origsour
             else:
-                repeats = len(addon)/len(source)+1  # repeat source x times,
+                repeats = len(addon) // len(source) + 1  # repeat source x times,
                 origsour = copy.deepcopy(source)    #   x is NOT an integer
                 for i in range(repeats-1):
                     source = source + origsour

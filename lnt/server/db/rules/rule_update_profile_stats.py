@@ -35,7 +35,7 @@ def update_profile_stats(session, ts, run_id):
 
     for f in glob.glob('%s/*.lntprof' % profile_path):
         mtime = os.stat(f).st_mtime
-        sz = os.stat(f).st_size / 1000
+        sz = os.stat(f).st_size // 1000
         age.append([mtime, sz])
 
     open(history_path, 'w').write(json.dumps(history))

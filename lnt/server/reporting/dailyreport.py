@@ -46,7 +46,7 @@ class DailyReport(object):
             "{}={}".format(
                 urllib.quote_plus(query_param), urllib.quote_plus(str(value)))
             for query_param, value in (
-                ("day_start", self.day_start_offset.seconds / 3600),
+                ("day_start", self.day_start_offset.seconds // 3600),
                 ("num_days", self.num_prior_days_to_include),
                 ("filter-machine-regex", self.filter_machine_regex_str),)
             if value is not None]

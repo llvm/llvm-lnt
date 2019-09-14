@@ -340,10 +340,10 @@ Usage:   lmedianscore(inlist)
 
     newlist = sorted(copy.deepcopy(inlist))
     if len(newlist) % 2 == 0:   # if even number of scores, average middle 2
-        index = len(newlist)/2  # integer division correct
+        index = len(newlist) // 2  # integer division correct
         median = float(newlist[index] + newlist[index-1]) /2
     else:
-        index = len(newlist)/2  # int divsion gives mid value when count from 0
+        index = len(newlist) // 2  # int divsion gives mid value when count from 0
         median = newlist[index]
     return median
 
@@ -1747,7 +1747,7 @@ Returns: sorted-inlist, sorting-index-vector (for original list)
     n = len(inlist)
     svec = copy.deepcopy(inlist)
     ivec = range(n)
-    gap = n/2   # integer division needed
+    gap = n // 2   # integer division needed
     while gap >0:
         for i in range(gap,n):
             for j in range(i-gap,-1,-gap):
@@ -1758,7 +1758,7 @@ Returns: sorted-inlist, sorting-index-vector (for original list)
                     itemp       = ivec[j]
                     ivec[j]     = ivec[j+gap]
                     ivec[j+gap] = itemp
-        gap = gap / 2  # integer division needed
+        gap = gap // 2  # integer division needed
 # svec is now sorted inlist, and ivec has the order svec[i] = vec[ivec[i]]
     return svec, ivec
 
@@ -4260,7 +4260,7 @@ Returns: sorted-inarray, sorting-index-vector (for original array)
     n = len(inarray)
     svec = inarray *1.0
     ivec = range(n)
-    gap = n/2   # integer division needed
+    gap = n // 2   # integer division needed
     while gap >0:
         for i in range(gap,n):
             for j in range(i-gap,-1,-gap):
@@ -4271,7 +4271,7 @@ Returns: sorted-inarray, sorting-index-vector (for original array)
                     itemp       = ivec[j]
                     ivec[j]     = ivec[j+gap]
                     ivec[j+gap] = itemp
-        gap = gap / 2  # integer division needed
+        gap = gap // 2  # integer division needed
 #    svec is now sorted input vector, ivec has the order svec[i] = vec[ivec[i]]
     return svec, ivec
 
