@@ -1,6 +1,6 @@
 from future import standard_library
 standard_library.install_aliases()
-import StringIO
+import io
 import datetime
 import pprint
 import urllib.parse
@@ -26,7 +26,7 @@ def filter_aspctcell(value, class_=None, style=None, attributes=None, *args,
 
 
 def filter_pprint(value):
-    stream = StringIO.StringIO()
+    stream = io.StringIO()
     pprint.pprint(value, stream)
     return stream.getvalue()
 

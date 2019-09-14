@@ -17,11 +17,13 @@ from __future__ import print_function
 #
 # RUN: python %s %t.instance %{tidylib}
 
+from future import standard_library
+standard_library.install_aliases()
 import logging
 import re
 import sys
 import xml.etree.ElementTree as ET
-from htmlentitydefs import name2codepoint
+from html.entities import name2codepoint
 from flask import session
 import lnt.server.db.migrate
 import lnt.server.ui.app

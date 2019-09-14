@@ -1,7 +1,8 @@
 from __future__ import absolute_import
 from builtins import range
+from future import standard_library
+standard_library.install_aliases()
 from .profile import ProfileImpl
-import StringIO
 import bz2
 import copy
 import io
@@ -92,7 +93,7 @@ def readNum(fobj):
     n = 0
     shift = 0
     while True:
-        b = ord(fobj.read(1))
+        b = bytearray(fobj.read(1))[0]
         n |= (b & 0x7F) << shift
         shift += 7
         if (b & 0x80) == 0:
@@ -108,7 +109,7 @@ def writeNum(fobj, n):
         n >>= 7
         if n != 0:
             b |= 0x80
-        fobj.write(chr(b))
+        fobj.write(bytearray([b]))
 
         if n == 0:
             break
@@ -118,15 +119,15 @@ def readString(fobj):
     """
     Read a string from a stream.
     """
-    return fobj.readline()[:-1]
+    return fobj.readline()[:-1].decode()
 
 
 def writeString(fobj, s):
     """
     Write a string to a stream.
     """
-    fobj.write(str(s))
-    fobj.write('\n')
+    fobj.write(s.encode())
+    fobj.write(u'\n'.encode())
 
 
 def readFloat(fobj):
@@ -183,7 +184,7 @@ class Section(object):
 class CompressedSection(Section):
     def read(self, fobj):
         fobj.seek(self.offset + self.start)
-        _io = StringIO.StringIO(bz2.decompress(fobj.read(self.size)))
+        _io = io.BytesIO(bz2.decompress(fobj.read(self.size)))
         return self.deserialize(_io)
 
     def write(self, fobj):
@@ -214,12 +215,12 @@ class MaybePooledSection(Section):
             raise NotImplementedError()
 
         else:
-            _io = StringIO.StringIO(bz2.decompress(fobj.read(self.size)))
+            _io = io.BytesIO(bz2.decompress(fobj.read(self.size)))
             self.size = len(_io.getvalue())
             return self.deserialize(_io)
 
     def write(self, fobj):
-        _io = StringIO.StringIO()
+        _io = io.BytesIO()
         if self.pool_fname:
             raise NotImplementedError()
 
@@ -334,7 +335,7 @@ class LineCounters(CompressedSection):
 
     def extractForFunction(self, fname, counters):
         offset = self.function_offsets[fname]
-        _io = StringIO.StringIO(self.data)
+        _io = io.BytesIO(self.data)
         _io.seek(offset)
         counters.sort()
         while True:
@@ -384,7 +385,7 @@ class LineAddresses(CompressedSection):
 
     def extractForFunction(self, fname):
         offset = self.function_offsets[fname]
-        _io = StringIO.StringIO(self.data)
+        _io = io.BytesIO(self.data)
         _io.seek(offset)
         last_address = 0
         while True:
@@ -436,7 +437,7 @@ class LineText(CompressedSection):
     def extractForFunction(self, fname):
         offset = self.function_offsets[fname]
 
-        _io = StringIO.StringIO(self.data)
+        _io = io.BytesIO(self.data)
         _io.seek(offset)
         while True:
             n = readNum(_io)
@@ -455,7 +456,7 @@ class TextPool(MaybePooledSection):
         # Populate data with a single character initially so that zero is
         # never a valid string pool index. LineText relies upon this to use
         # zero as a sentinel.
-        self.data = StringIO.StringIO('\n')
+        self.data = io.BytesIO(u'\n'.encode())
         self.pool_read = False
 
     def serialize(self, fobj):
@@ -464,7 +465,7 @@ class TextPool(MaybePooledSection):
 
     def deserialize(self, fobj):
         # FIXME: Make this lazy!
-        self.data = StringIO.StringIO(fobj.read(self.size))
+        self.data = io.BytesIO(fobj.read(self.size))
 
     def upgrade(self, impl):
         pass
@@ -591,7 +592,7 @@ class ProfileV2(ProfileImpl):
     def serialize(self, fname=None):
         # If we're not writing to a file, emulate a file object instead.
         if fname is None:
-            fobj = StringIO.StringIO()
+            fobj = io.BytesIO()
         else:
             fobj = open(fname, 'wb')
 
@@ -613,7 +614,7 @@ class ProfileV2(ProfileImpl):
 
         # We need to write all sections first, so we know their offset
         # before we write the header.
-        tmpio = StringIO.StringIO()
+        tmpio = io.BytesIO()
         offsets = {}
         sizes = {}
         for section in sections:

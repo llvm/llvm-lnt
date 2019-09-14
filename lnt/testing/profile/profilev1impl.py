@@ -1,5 +1,7 @@
+from future import standard_library
+standard_library.install_aliases()
 from lnt.testing.profile.profile import ProfileImpl
-import cPickle
+import pickle
 import zlib
 
 
@@ -48,11 +50,11 @@ The ``self.data`` member has this format::
     @staticmethod
     def deserialize(fobj):
         o = zlib.decompress(fobj.read())
-        data = cPickle.loads(o)
+        data = pickle.loads(o)
         return ProfileV1(data)
 
     def serialize(self, fname=None):
-        obj = cPickle.dumps(self.data)
+        obj = pickle.dumps(self.data)
         compressed_obj = zlib.compress(obj)
 
         if fname is None:

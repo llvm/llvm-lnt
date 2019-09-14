@@ -1,5 +1,7 @@
 from __future__ import print_function
-import StringIO
+from future import standard_library
+standard_library.install_aliases()
+import io
 import logging
 import logging.handlers
 import sys
@@ -97,7 +99,7 @@ class Request(flask.Request):
         # FIXME: Conditionalize on an is_production variable.
         show_sql = bool(self.args.get('db_log') or self.form.get('db_log'))
         if show_sql:
-            g.db_log = StringIO.StringIO()
+            g.db_log = io.StringIO()
             logger = logging.getLogger("sqlalchemy")
             logger.addHandler(logging.StreamHandler(g.db_log))
         return self.db

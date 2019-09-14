@@ -1,16 +1,18 @@
 #!/usr/bin/env python
+from future import standard_library
+standard_library.install_aliases()
 import click
 from .common import submit_options
 
 
 def _load_dependencies():
-    global yaml, sys, requests, json, os, httplib
+    global yaml, sys, requests, json, os, http
     import yaml
     import sys
     import requests
     import json
     import os
-    import httplib
+    import http.client
 
 
 def _error(msg):
@@ -101,7 +103,7 @@ def _check_response(response):
         return
 
     sys.stderr.write("%d: %s\n" %
-                     (status_code, httplib.responses.get(status_code, '')))
+                     (status_code, http.client.responses.get(status_code, '')))
     sys.stderr.write("\n%s\n" % response.text)
     sys.exit(1)
 

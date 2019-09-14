@@ -1,10 +1,12 @@
+from future import standard_library
+standard_library.install_aliases()
 import datetime
 import json
 import os
 import re
 import time
 from collections import namedtuple, defaultdict
-from urlparse import urlparse, urljoin
+from urllib.parse import urlparse, urljoin
 
 import flask
 import sqlalchemy.sql

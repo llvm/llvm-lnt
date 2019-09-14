@@ -60,7 +60,7 @@ def action_view_comparison(report_a, report_b, hostname, port, dry_run,
     import os
     import shutil
     import tempfile
-    import thread
+    import _thread
 
     init_logger(logging.ERROR)
 
@@ -98,7 +98,7 @@ def action_view_comparison(report_a, report_b, hostname, port, dry_run,
             logger.info("opening comparison view: %s" % (comparison_url,))
 
             if not dry_run:
-                thread.start_new_thread(_start_browser, (comparison_url, True))
+                _thread.start_new_thread(_start_browser, (comparison_url, True))
 
             # Run the webserver.
             app = lnt.server.ui.app.App.create_with_instance(instance)
