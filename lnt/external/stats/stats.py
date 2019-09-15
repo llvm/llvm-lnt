@@ -247,12 +247,12 @@ print stats.amean.__doc__ or whatever.
         for func, types in tuples:
             for t in types:
                 if t in self._dispatch:
-                    raise ValueError, "can't have two dispatches on "+str(t)
+                    raise ValueError("can't have two dispatches on " + str(t))
                 self._dispatch[t] = func
 
     def __call__(self, arg1, *args, **kw):
         if type(arg1) not in self._dispatch:
-            raise TypeError, "don't know how to dispatch %s arguments" %  type(arg1)
+            raise TypeError("don't know how to dispatch %s arguments" % type(arg1))
         return apply(self._dispatch[type(arg1)], (arg1,) + args, kw)
 
 
@@ -599,7 +599,7 @@ Returns: transformed data for use in an ANOVA
         if v[j] - mean(nargs[j]) > TINY:
             check = 0
     if check != 1:
-        raise ValueError, 'Problem in obrientransform.'
+        raise ValueError('Problem in obrientransform.')
     else:
         return nargs
 
@@ -842,7 +842,7 @@ Returns: Pearson's r value, two-tailed p-value
 """
     TINY = 1.0e-30
     if len(x) != len(y):
-        raise ValueError, 'Input values not paired in pearsonr.  Aborting.'
+        raise ValueError('Input values not paired in pearsonr.  Aborting.')
     n = len(x)
     x = map(float,x)
     y = map(float,y)
@@ -881,7 +881,7 @@ Returns: Spearman's r, two-tailed p-value
 """
     TINY = 1e-30
     if len(x) != len(y):
-        raise ValueError, 'Input values not paired in spearmanr.  Aborting.'
+        raise ValueError('Input values not paired in spearmanr.  Aborting.')
     n = len(x)
     rankx = rankdata(x)
     ranky = rankdata(y)
@@ -906,11 +906,11 @@ Returns: Point-biserial r, two-tailed p-value
 """
     TINY = 1e-30
     if len(x) != len(y):
-        raise ValueError, 'INPUT VALUES NOT PAIRED IN pointbiserialr.  ABORTING.'
+        raise ValueError('INPUT VALUES NOT PAIRED IN pointbiserialr.  ABORTING.')
     data = pstat.abut(x,y)
     categories = pstat.unique(x)
     if len(categories) != 2:
-        raise ValueError, "Exactly 2 categories required for pointbiserialr()."
+        raise ValueError("Exactly 2 categories required for pointbiserialr().")
     else:   # there are 2 categories, continue
         codemap = pstat.abut(categories,range(2))
         recoded = pstat.recode(data,codemap,0)
@@ -971,7 +971,7 @@ Returns: slope, intercept, r, two-tailed prob, sterr-of-estimate
 """
     TINY = 1.0e-20
     if len(x) != len(y):
-        raise ValueError, 'Input values not paired in linregress.  Aborting.'
+        raise ValueError('Input values not paired in linregress.  Aborting.')
     n = len(x)
     x = map(float,x)
     y = map(float,y)
@@ -1064,7 +1064,7 @@ Usage:   lttest_rel(a,b,printit=0,name1='Sample1',name2='Sample2',writemode='a')
 Returns: t-value, two-tailed prob
 """
     if len(a) != len(b):
-        raise ValueError, 'Unequal length lists in ttest_rel.'
+        raise ValueError('Unequal length lists in ttest_rel.')
     x1 = mean(a)
     x2 = mean(b)
     v1 = var(a)
@@ -1168,7 +1168,7 @@ Returns: u-statistic, one-tailed p-value (i.e., p(z(U)))
     smallu = min(u1,u2)
     T = math.sqrt(tiecorrect(ranked))  # correction factor for tied scores
     if T == 0:
-        raise ValueError, 'All numbers are identical in lmannwhitneyu'
+        raise ValueError('All numbers are identical in lmannwhitneyu')
     sd = math.sqrt(T*n1*n2*(n1+n2+1)/12.0)
     z = abs((bigu-n1*n2/2.0) / sd)  # normal approximation for prob calc
     return smallu, 1.0 - zprob(z)
@@ -1230,7 +1230,7 @@ Usage:   lwilcoxont(x,y)
 Returns: a t-statistic, two-tail probability estimate
 """
     if len(x) != len(y):
-        raise ValueError, 'Unequal N in wilcoxont.  Aborting.'
+        raise ValueError('Unequal N in wilcoxont.  Aborting.')
     d=[]
     for i in range(len(x)):
         diff = x[i] - y[i]
@@ -1284,7 +1284,7 @@ Returns: H-statistic (corrected for ties), associated p-value
     h = 12.0 / (totaln*(totaln+1)) * ssbn - 3*(totaln+1)
     df = len(args) - 1
     if T == 0:
-        raise ValueError, 'All numbers are identical in lkruskalwallish'
+        raise ValueError('All numbers are identical in lkruskalwallish')
     h = h / float(T)
     return h, chisqprob(h,df)
 
@@ -1303,7 +1303,7 @@ Returns: chi-square statistic, associated p-value
 """
     k = len(args)
     if k < 3:
-        raise ValueError, 'Less than 3 levels.  Friedman test not appropriate.'
+        raise ValueError('Less than 3 levels.  Friedman test not appropriate.')
     n = len(args[0])
     data = apply(pstat.abut,tuple(args))
     for i in range(len(data)):
@@ -1538,7 +1538,7 @@ using the betacf function.  (Adapted from: Numerical Recipies in C.)
 Usage:   lbetai(a,b,x)
 """
     if (x<0.0 or x>1.0):
-        raise ValueError, 'Bad x in lbetai'
+        raise ValueError('Bad x in lbetai')
     if (x==0.0 or x==1.0):
         bt = 0.0
     else:
@@ -1712,7 +1712,7 @@ length lists.
 Usage:   lsummult(list1,list2)
 """
     if len(list1) != len(list2):
-        raise ValueError, "Lists not equal length in summult."
+        raise ValueError("Lists not equal length in summult.")
     s = 0
     for item1,item2 in pstat.abut(list1,list2):
         s = s + item1*item2
@@ -2235,7 +2235,7 @@ Usage:   atmean(a,limits=None,inclusive=(1,1))
      if inclusive[1]:         upperfcn = N.less_equal
      else:               upperfcn = N.less
      if limits[0] > N.maximum.reduce(N.ravel(a)) or limits[1] < N.minimum.reduce(N.ravel(a)):
-         raise ValueError, "No array values within given limits (atmean)."
+         raise ValueError("No array values within given limits (atmean).")
      elif limits[0] is None and limits[1] is not None:
          mask = upperfcn(a,limits[1])
      elif limits[0] is not None and limits[1] is None:
@@ -2267,7 +2267,7 @@ Usage:   atvar(a,limits=None,inclusive=(1,1))
      if inclusive[1]:    upperfcn = N.less_equal
      else:               upperfcn = N.less
      if limits[0] > N.maximum.reduce(N.ravel(a)) or limits[1] < N.minimum.reduce(N.ravel(a)):
-         raise ValueError, "No array values within given limits (atvar)."
+         raise ValueError("No array values within given limits (atvar).")
      elif limits[0] is None and limits[1] is not None:
          mask = upperfcn(a,limits[1])
      elif limits[0] is not None and limits[1] is None:
@@ -2353,7 +2353,7 @@ Usage:   atsem(a,limits=None,inclusive=(1,1))
      if inclusive[1]:         upperfcn = N.less_equal
      else:               upperfcn = N.less
      if limits[0] > N.maximum.reduce(N.ravel(a)) or limits[1] < N.minimum.reduce(N.ravel(a)):
-         raise ValueError, "No array values within given limits (atsem)."
+         raise ValueError("No array values within given limits (atsem).")
      elif limits[0] is None and limits[1] is not None:
          mask = upperfcn(a,limits[1])
      elif limits[0] is not None and limits[1] is None:
@@ -2698,7 +2698,7 @@ Returns: transformed data for use in an ANOVA
         if v[j] - mean(nargs[j]) > TINY:
             check = 0
     if check != 1:
-        raise ValueError, 'Lack of convergence in obrientransform.'
+        raise ValueError('Lack of convergence in obrientransform.')
     else:
         return N.array(nargs)
 
@@ -2973,7 +2973,7 @@ Usage:   acovariance(X)
 Returns: covariance matrix of X
 """
     if len(X.shape) != 2:
-        raise TypeError, "acovariance requires 2D matrices"
+        raise TypeError("acovariance requires 2D matrices")
     n = X.shape[0]
     mX = amean(X,0)
     return N.dot(N.transpose(X),X) / float(n) - N.multiply.outer(mX,mX)
@@ -3170,7 +3170,7 @@ Returns: Point-biserial r, two-tailed p-value
     categories = pstat.aunique(x)
     data = pstat.aabut(x,y)
     if len(categories) != 2:
-        raise ValueError, "Exactly 2 categories required (in x) for pointbiserialr()."
+        raise ValueError("Exactly 2 categories required (in x) for pointbiserialr().")
     else:   # there are 2 categories, continue
         codemap = pstat.aabut(categories,N.arange(2))
         recoded = pstat.arecode(data,codemap,0)
@@ -3437,7 +3437,7 @@ Returns: t-value, two-tailed p-value
         b = N.ravel(b)
         dimension = 0
     if len(a) != len(b):
-        raise ValueError, 'Unequal length arrays.'
+        raise ValueError('Unequal length arrays.')
     x1 = amean(a,dimension)
     x2 = amean(b,dimension)
     v1 = avar(a,dimension)
@@ -3550,7 +3550,7 @@ Returns: u-statistic, one-tailed p-value (i.e., p(z(U)))
     smallu = min(u1,u2)
     T = math.sqrt(tiecorrect(ranked))  # correction factor for tied scores
     if T == 0:
-        raise ValueError, 'All numbers are identical in amannwhitneyu'
+        raise ValueError('All numbers are identical in amannwhitneyu')
     sd = math.sqrt(T*n1*n2*(n1+n2+1)/12.0)
     z = abs((bigu-n1*n2/2.0) / sd)  # normal approximation for prob calc
     return smallu, 1.0 - azprob(z)
@@ -3612,7 +3612,7 @@ Usage:   awilcoxont(x,y)     where x,y are equal-length arrays for 2 conditions
 Returns: t-statistic, two-tailed p-value
 """
     if len(x) != len(y):
-        raise ValueError, 'Unequal N in awilcoxont.  Aborting.'
+        raise ValueError('Unequal N in awilcoxont.  Aborting.')
     d = x-y
     d = N.compress(N.not_equal(d,0),d) # Keep all non-zero differences
     count = len(d)
@@ -3665,7 +3665,7 @@ Returns: H-statistic (corrected for ties), associated p-value
     h = 12.0 / (totaln*(totaln+1)) * ssbn - 3*(totaln+1)
     df = len(args) - 1
     if T == 0:
-        raise ValueError, 'All numbers are identical in akruskalwallish'
+        raise ValueError('All numbers are identical in akruskalwallish')
     h = h / float(T)
     return h, chisqprob(h,df)
 
@@ -3684,7 +3684,7 @@ Returns: chi-square statistic, associated p-value
 """
     k = len(args)
     if k < 3:
-        raise ValueError, '\nLess than 3 levels.  Friedman test not appropriate.\n'
+        raise ValueError('\nLess than 3 levels.  Friedman test not appropriate.\n')
     n = len(args[0])
     data = apply(pstat.aabut,args)
     data = data.astype(N.float_)
@@ -3979,7 +3979,7 @@ Usage:   abetai(a,b,x,verbose=1)
     TINY = 1e-15
     if isinstance(a, N.ndarray):
         if asum(N.less(x, 0) + N.greater(x, 1)) != 0:
-            raise ValueError, 'Bad x in abetai'
+            raise ValueError('Bad x in abetai')
     x = N.where(N.equal(x,0),TINY,x)
     x = N.where(N.equal(x,1.0),1-TINY,x)
 
