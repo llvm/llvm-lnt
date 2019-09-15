@@ -30,10 +30,10 @@ def requires_auth_token(f):
 def with_ts(obj):
     """For Url type fields to work, the objects we return must have a test-suite
     and database attribute set, the function attempts to set them."""
-    if type(obj) == list:
+    if isinstance(obj, list):
         # For lists, set them on all elements.
         return [with_ts(x) for x in obj]
-    if type(obj) == dict:
+    if isinstance(obj, dict):
         # If already a dict, just add the fields.
         new_obj = obj
     else:

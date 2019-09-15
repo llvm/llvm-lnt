@@ -100,7 +100,7 @@ class TestConfiguration(object):
         opts -- the command line options object
         start_time -- the time the program was invoked as a string
         """
-        assert type(opts) == dict, "Options must be a dict."
+        assert isinstance(opts, dict), "Options must be a dict."
         self.opts = opts
         self.__dict__.update(opts)
         self.start_time = start_time

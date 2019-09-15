@@ -131,10 +131,10 @@ Returns: a list of lists as long as the LONGEST list past, source on the
          'left', lists in <args> attached consecutively on the 'right'
 """
 
-    if type(source) not in [ListType,TupleType]:
+    if not isinstance(source, (list, tuple)):
         source = [source]
     for addon in args:
-        if type(addon) not in [ListType,TupleType]:
+        if not isinstance(addon, (list, tuple)):
             addon = [addon]
         if len(addon) < len(source):                # is source list longer?
             if len(source) % len(addon) == 0:        # are they integer multiples?
@@ -177,21 +177,21 @@ Usage:   simpleabut(source,addon)  where source, addon=list (or list-of-lists)
 Returns: a list of lists as long as source, with source on the 'left' and
                  addon on the 'right'
 """
-    if type(source) not in [ListType,TupleType]:
+    if not isinstance(source, (list, tuple)):
         source = [source]
-    if type(addon) not in [ListType,TupleType]:
+    if not isinstance(addon, (list, tuple)):
         addon = [addon]
     minlen = min(len(source),len(addon))
     list = copy.deepcopy(source)                # start abut process
-    if type(source[0]) not in [ListType,TupleType]:
-        if type(addon[0]) not in [ListType,TupleType]:
+    if not isinstance(source[0], (list, tuple)):
+        if not isinstance(addon[0], (list, tuple)):
             for i in range(minlen):
                 list[i] = [source[i]] + [addon[i]]        # source/addon = column
         else:
             for i in range(minlen):
                 list[i] = [source[i]] + addon[i]        # addon=list-of-lists
     else:
-        if type(addon[0]) not in [ListType,TupleType]:
+        if not isinstance(addon[0], (list, tuple)):
             for i in range(minlen):
                 list[i] = source[i] + [addon[i]]        # source=list-of-lists
         else:
@@ -214,13 +214,13 @@ Returns: a list-of-lists corresponding to the columns from listoflists
 """
     global index
     column = 0
-    if type(cnums) in [ListType,TupleType]:   # if multiple columns to get
+    if isinstance(cnums, (list, tuple)):   # if multiple columns to get
         index = cnums[0]
         column = map(lambda x: x[index], listoflists)
         for col in cnums[1:]:
             index = col
             column = abut(column,map(lambda x: x[index], listoflists))
-    elif type(cnums) == StringType:              # if an 'x[3:]' type expr.
+    elif isinstance(cnums, str):              # if an 'x[3:]' type expr.
         evalstring = 'map(lambda x: x'+cnums+', listoflists)'
         column = eval(evalstring)
     else:                                     # else it's just 1 col to get
@@ -252,9 +252,9 @@ Returns: a list of lists with all unique permutations of entries appearing in
              s = s + item
          return s/float(len(inlist))
 
-     if type(keepcols) not in [ListType,TupleType]:
+     if not isinstance(keepcols, (list, tuple)):
          keepcols = [keepcols]
-     if type(collapsecols) not in [ListType,TupleType]:
+     if not isinstance(collapsecols, (list, tuple)):
          collapsecols = [collapsecols]
      if cfcn == None:
          cfcn = collmean
@@ -284,9 +284,9 @@ Returns: a list of lists with all unique permutations of entries appearing in
          uniques = unique(values)
          uniques.sort()
          newlist = []
-         if type(keepcols) not in [ListType,TupleType]:  keepcols = [keepcols]
+         if not isinstance(keepcols, (list, tuple)):  keepcols = [keepcols]
          for item in uniques:
-             if type(item) not in [ListType,TupleType]:  item =[item]
+             if not isinstance(item, (list, tuple)):  item =[item]
              tmprows = linexand(listoflists,keepcols,item)
              for col in collapsecols:
                  avgcol = colex(tmprows,col)
@@ -345,13 +345,13 @@ len(columnlist) must equal len(valuelist).
 Usage:   linexand (listoflists,columnlist,valuelist)
 Returns: the rows of listoflists where columnlist[i]=valuelist[i] for ALL i
 """
-    if type(columnlist) not in [ListType,TupleType]:
+    if not isinstance(columnlist, (list, tuple)):
         columnlist = [columnlist]
-    if type(valuelist) not in [ListType,TupleType]:
+    if not isinstance(valuelist, (list, tuple)):
         valuelist = [valuelist]
     criterion = ''
     for i in range(len(columnlist)):
-        if type(valuelist[i])==StringType:
+        if isinstance(valuelist[i], str):
             critval = '\'' + valuelist[i] + '\''
         else:
             critval = str(valuelist[i])
@@ -373,15 +373,15 @@ valuelist values are all assumed to pertain to the same column.
 Usage:   linexor (listoflists,columnlist,valuelist)
 Returns: the rows of listoflists where columnlist[i]=valuelist[i] for ANY i
 """
-    if type(columnlist) not in [ListType,TupleType]:
+    if not isinstance(columnlist, (list, tuple)):
         columnlist = [columnlist]
-    if type(valuelist) not in [ListType,TupleType]:
+    if not isinstance(valuelist, (list, tuple)):
         valuelist = [valuelist]
     criterion = ''
     if len(columnlist) == 1 and len(valuelist) > 1:
         columnlist = columnlist*len(valuelist)
     for i in range(len(columnlist)):          # build an exec string
-        if type(valuelist[i])==StringType:
+        if isinstance(valuelist[i], str):
             critval = '\'' + valuelist[i] + '\''
         else:
             critval = str(valuelist[i])
@@ -402,7 +402,7 @@ Usage:   linedelimited (inlist,delimiter)
 """
     outstr = ''
     for item in inlist:
-        if type(item) <> StringType:
+        if not isinstance(item, str):
             item = str(item)
         outstr = outstr + item + delimiter
     outstr = outstr[0:-1]
@@ -418,7 +418,7 @@ Usage:   lineincols (inlist,colsize)   where colsize is an integer
 """
     outstr = ''
     for item in inlist:
-        if type(item) <> StringType:
+        if not isinstance(item, str):
             item = str(item)
         size = len(item)
         if size <= colsize:
@@ -442,7 +442,7 @@ Returns: formatted string created from inlist
 """
     outstr = ''
     for i in range(len(inlist)):
-        if type(inlist[i]) <> StringType:
+        if not isinstance(inlist[i], str):
             item = str(inlist[i])
         else:
             item = inlist[i]
@@ -483,7 +483,7 @@ Returns: if l = [1,2,'hi'] then returns [[1],[2],['hi']] etc.
 
 
 def makestr (x):
-    if type(x) <> StringType:
+    if not isinstance(x, str):
         x = str(x)
     return x
 
@@ -498,7 +498,7 @@ respectively.
 Usage:   printcc (lst,extra=2)
 Returns: None
 """
-    if type(lst[0]) not in [ListType,TupleType]:
+    if not isinstance(lst[0], (list, tuple)):
         lst = [lst]
     rowstokill = []
     list2print = copy.deepcopy(lst)
@@ -568,7 +568,7 @@ Usage:   replace (inlst,oldval,newval)
 """
     lst = inlst*1
     for i in range(len(lst)):
-        if type(lst[i]) not in [ListType,TupleType]:
+        if not isinstance(lst[i], (list, tuple)):
             if lst[i]==oldval: lst[i]=newval
         else:
             lst[i] = replace(lst[i],oldval,newval)
@@ -586,7 +586,7 @@ Returns: inlist with the appropriate values replaced with new ones
 """
     lst = copy.deepcopy(inlist)
     if cols != None:
-        if type(cols) not in [ListType,TupleType]:
+        if not isinstance(cols, (list, tuple)):
             cols = [cols]
         for col in cols:
             for row in range(len(lst)):
@@ -623,17 +623,17 @@ Returns: remapped version of listoflists
 def roundlist (inlist,digits):
     """
 Goes through each element in a 1D or 2D inlist, and applies the following
-function to all elements of FloatType ... round(element,digits).
+function to all elements of float ... round(element,digits).
 
 Usage:   roundlist(inlist,digits)
 Returns: list with rounded floats
 """
-    if type(inlist[0]) in [IntType, FloatType]:
+    if isinstance(inlist[0], (int, float)):
         inlist = [inlist]
     l = inlist*1
     for i in range(len(l)):
         for j in range(len(l[i])):
-            if type(l[i][j])==FloatType:
+            if isinstance(l[i][j], float):
                 l[i][j] = round(l[i][j],digits)
     return l
 
@@ -756,7 +756,7 @@ column-array (and that the whole array will be returned as a column).
 Usage:   acolex (a,indices,axis=1)
 Returns: the columns of a specified by indices
 """
-    if type(indices) not in [ListType,TupleType,N.ndarray]:
+    if not isinstance(indices, (list, tuple, N.ndarray)):
         indices = [indices]
     if len(N.shape(a)) == 1:
         cols = N.resize(a,[a.shape[0],1])
@@ -780,9 +780,9 @@ Returns: unique 'conditions' specified by the contents of columns specified
     def acollmean (inarray):
         return N.sum(N.ravel(inarray))
 
-    if type(keepcols) not in [ListType,TupleType,N.ndarray]:
+    if not isinstance(keepcols, (list, tuple, N.ndarray)):
         keepcols = [keepcols]
-    if type(collapsecols) not in [ListType,TupleType,N.ndarray]:
+    if not isinstance(collapsecols, (list, tuple, N.ndarray)):
         collapsecols = [collapsecols]
 
     if cfcn == None:
@@ -804,14 +804,14 @@ Returns: unique 'conditions' specified by the contents of columns specified
             means = aabut(means,test)
         return means
     else:
-        if type(keepcols) not in [ListType,TupleType,N.ndarray]:
+        if not isinstance(keepcols, (list, tuple, N.ndarray)):
             keepcols = [keepcols]
         values = colex(a,keepcols)   # so that "item" can be appended (below)
         uniques = unique(values)  # get a LIST, so .sort keeps rows intact
         uniques.sort()
         newlist = []
         for item in uniques:
-            if type(item) not in [ListType,TupleType,N.ndarray]:
+            if not isinstance(item, (list, tuple, N.ndarray)):
                 item =[item]
             tmprows = alinexand(a,keepcols,item)
             for col in collapsecols:
@@ -854,7 +854,7 @@ Usage:   adm (a,criterion)   where criterion is like 'x[2]==37'
 
 
  def isstring(x):
-    if type(x)==StringType:
+    if isinstance(x, str):
         return 1
     else:
         return 0
@@ -868,13 +868,13 @@ Returns the rows of an array where col (from columnlist) = val
 Usage:   alinexand (a,columnlist,valuelist)
 Returns: the rows of a where columnlist[i]=valuelist[i] for ALL i
 """
-    if type(columnlist) not in [ListType,TupleType,N.ndarray]:
+    if not isinstance(columnlist, (list, tuple, N.ndarray)):
         columnlist = [columnlist]
-    if type(valuelist) not in [ListType,TupleType,N.ndarray]:
+    if not isinstance(valuelist, (list, tuple, N.ndarray)):
         valuelist = [valuelist]
     criterion = ''
     for i in range(len(columnlist)):
-        if type(valuelist[i])==StringType:
+        if isinstance(valuelist[i], str):
             critval = '\'' + valuelist[i] + '\''
         else:
             critval = str(valuelist[i])
@@ -894,9 +894,9 @@ other list.
 Usage:   alinexor (a,columnlist,valuelist)
 Returns: the rows of a where columnlist[i]=valuelist[i] for ANY i
 """
-    if type(columnlist) not in [ListType,TupleType,N.ndarray]:
+    if not isinstance(columnlist, (list, tuple, N.ndarray)):
         columnlist = [columnlist]
-    if type(valuelist) not in [ListType,TupleType,N.ndarray]:
+    if not isinstance(valuelist, (list, tuple, N.ndarray)):
         valuelist = [valuelist]
     criterion = ''
     if len(columnlist) == 1 and len(valuelist) > 1:
@@ -904,7 +904,7 @@ Returns: the rows of a where columnlist[i]=valuelist[i] for ANY i
     elif len(valuelist) == 1 and len(columnlist) > 1:
         valuelist = valuelist*len(columnlist)
     for i in range(len(columnlist)):
-        if type(valuelist[i])==StringType:
+        if isinstance(valuelist[i], str):
             critval = '\'' + valuelist[i] + '\''
         else:
             critval = str(valuelist[i])
@@ -939,7 +939,7 @@ Returns: a version of array a where listmap[i][0] = (instead) listmap[i][1]
         work = acolex(a,col)
         work = work.ravel()
     for pair in listmap:
-        if type(pair[1]) == StringType or work.dtype.char=='O' or a.dtype.char=='O':
+        if isinstance(pair[1], str) or work.dtype.char == 'O' or a.dtype.char == 'O':
             work = N.array(work,dtype='O')
             a = N.array(a,dtype='O')
             for i in range(len(work)):

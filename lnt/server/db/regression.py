@@ -47,7 +47,7 @@ def new_regression(session, ts, field_changes):
     session.add(regression)
     new_ris = []
     for fc_id in field_changes:
-        if type(fc_id) == int:
+        if isinstance(fc_id, int):
             fc = get_fieldchange(session, ts, fc_id)
         else:
             fc = fc_id

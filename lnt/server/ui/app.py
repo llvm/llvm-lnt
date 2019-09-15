@@ -57,7 +57,7 @@ class LNTObjectJSONEncoder(flask.json.JSONEncoder):
     def default(self, obj):
         if hasattr(obj, '__json__'):
             return obj.__json__()
-        if type(obj) is datetime.datetime:
+        if isinstance(obj, datetime.datetime):
             return obj.isoformat()
         if isinstance(obj.__class__, DeclarativeMeta):
             fields = {}
