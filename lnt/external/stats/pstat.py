@@ -256,7 +256,7 @@ Returns: a list of lists with all unique permutations of entries appearing in
          keepcols = [keepcols]
      if not isinstance(collapsecols, (list, tuple)):
          collapsecols = [collapsecols]
-     if cfcn == None:
+     if cfcn is None:
          cfcn = collmean
      if keepcols == []:
          means = [0]*len(collapsecols)
@@ -291,13 +291,13 @@ Returns: a list of lists with all unique permutations of entries appearing in
              for col in collapsecols:
                  avgcol = colex(tmprows,col)
                  item.append(cfcn(avgcol))
-                 if fcn1 <> None:
+                 if fcn1 is not None:
                      try:
                          test = fcn1(avgcol)
                      except:
                          test = 'N/A'
                      item.append(test)
-                 if fcn2 <> None:
+                 if fcn2 is not None:
                      try:
                          test = fcn2(avgcol)
                      except:
@@ -585,7 +585,7 @@ Usage:   recode (inlist,listmap,cols=None)  cols=recode cols, listmap=2D list
 Returns: inlist with the appropriate values replaced with new ones
 """
     lst = copy.deepcopy(inlist)
-    if cols != None:
+    if cols is not None:
         if not isinstance(cols, (list, tuple)):
             cols = [cols]
         for col in cols:
@@ -785,18 +785,18 @@ Returns: unique 'conditions' specified by the contents of columns specified
     if not isinstance(collapsecols, (list, tuple, N.ndarray)):
         collapsecols = [collapsecols]
 
-    if cfcn == None:
+    if cfcn is None:
         cfcn = acollmean
     if keepcols == []:
         avgcol = acolex(a,collapsecols)
         means = N.sum(avgcol)/float(len(avgcol))
-        if fcn1<>None:
+        if fcn1 is not None:
             try:
                 test = fcn1(avgcol)
             except:
                 test = N.array(['N/A']*len(means))
             means = aabut(means,test)
-        if fcn2<>None:
+        if fcn2 is not None:
             try:
                 test = fcn2(avgcol)
             except:
@@ -817,13 +817,13 @@ Returns: unique 'conditions' specified by the contents of columns specified
             for col in collapsecols:
                 avgcol = acolex(tmprows,col)
                 item.append(acollmean(avgcol))
-                if fcn1<>None:
+                if fcn1 is not None:
                     try:
                         test = fcn1(avgcol)
                     except:
                         test = 'N/A'
                     item.append(test)
-                if fcn2<>None:
+                if fcn2 is not None:
                     try:
                         test = fcn2(avgcol)
                     except:

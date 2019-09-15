@@ -63,7 +63,7 @@ def filter_filesize(value):
 
 
 def filter_print_value(value, field_unit, field_unit_abbrev, default = '-'):
-    if value == None:
+    if value is None:
         return default
 
     if field_unit == 'bytes' and field_unit_abbrev == 'B':

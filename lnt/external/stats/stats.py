@@ -511,7 +511,7 @@ spanning all the numbers in the inlist.
 Usage:   lhistogram (inlist, numbins=10, defaultreallimits=None,suppressoutput=0)
 Returns: list of bin values, lowerreallimit, binsize, extrapoints
 """
-    if (defaultreallimits <> None):
+    if (defaultreallimits is not None):
         if not isinstance(defaultreallimits, (list, tuple)) or len(defaultreallimits) == 1: # only one limit given, assumed to be lower one & upper is calc'd
             lowerreallimit = defaultreallimits
             upperreallimit = 1.000001 * max(inlist)
@@ -598,7 +598,7 @@ Returns: transformed data for use in an ANOVA
     for j in range(k):
         if v[j] - mean(nargs[j]) > TINY:
             check = 0
-    if check <> 1:
+    if check != 1:
         raise ValueError, 'Problem in obrientransform.'
     else:
         return nargs
@@ -841,7 +841,7 @@ Usage:   lpearsonr(x,y)      where x and y are equal-length lists
 Returns: Pearson's r value, two-tailed p-value
 """
     TINY = 1.0e-30
-    if len(x) <> len(y):
+    if len(x) != len(y):
         raise ValueError, 'Input values not paired in pearsonr.  Aborting.'
     n = len(x)
     x = map(float,x)
@@ -880,7 +880,7 @@ Usage:   lspearmanr(x,y)      where x and y are equal-length lists
 Returns: Spearman's r, two-tailed p-value
 """
     TINY = 1e-30
-    if len(x) <> len(y):
+    if len(x) != len(y):
         raise ValueError, 'Input values not paired in spearmanr.  Aborting.'
     n = len(x)
     rankx = rankdata(x)
@@ -905,11 +905,11 @@ Usage:   lpointbiserialr(x,y)      where x,y are equal-length lists
 Returns: Point-biserial r, two-tailed p-value
 """
     TINY = 1e-30
-    if len(x) <> len(y):
+    if len(x) != len(y):
         raise ValueError, 'INPUT VALUES NOT PAIRED IN pointbiserialr.  ABORTING.'
     data = pstat.abut(x,y)
     categories = pstat.unique(x)
-    if len(categories) <> 2:
+    if len(categories) != 2:
         raise ValueError, "Exactly 2 categories required for pointbiserialr()."
     else:   # there are 2 categories, continue
         codemap = pstat.abut(categories,range(2))
@@ -970,7 +970,7 @@ Usage:   llinregress(x,y)      x,y are equal-length lists of x-y coordinates
 Returns: slope, intercept, r, two-tailed prob, sterr-of-estimate
 """
     TINY = 1.0e-20
-    if len(x) <> len(y):
+    if len(x) != len(y):
         raise ValueError, 'Input values not paired in linregress.  Aborting.'
     n = len(x)
     x = map(float,x)
@@ -1012,7 +1012,7 @@ Returns: t-value, two-tailed prob
     t = (x-popmean)/math.sqrt(svar*(1.0/n))
     prob = betai(0.5*df,0.5,float(df)/(df+t*t))
 
-    if printit <> 0:
+    if printit != 0:
         statname = 'Single-sample T-test.'
         outputpairedstats(printit,writemode,
                           'Population','--',popmean,0,0,0,
@@ -1043,7 +1043,7 @@ Returns: t-value, two-tailed prob
     t = (x1-x2)/math.sqrt(svar*(1.0/n1 + 1.0/n2))
     prob = betai(0.5*df,0.5,df/(df+t*t))
 
-    if printit <> 0:
+    if printit != 0:
         statname = 'Independent samples T-test.'
         outputpairedstats(printit,writemode,
                           name1,n1,x1,v1,min(a),max(a),
@@ -1063,7 +1063,7 @@ and prob.
 Usage:   lttest_rel(a,b,printit=0,name1='Sample1',name2='Sample2',writemode='a')
 Returns: t-value, two-tailed prob
 """
-    if len(a)<>len(b):
+    if len(a) != len(b):
         raise ValueError, 'Unequal length lists in ttest_rel.'
     x1 = mean(a)
     x2 = mean(b)
@@ -1079,7 +1079,7 @@ Returns: t-value, two-tailed prob
     t = (x1-x2)/sd
     prob = betai(0.5*df,0.5,df/(df+t*t))
 
-    if printit <> 0:
+    if printit != 0:
         statname = 'Related samples T-test.'
         outputpairedstats(printit,writemode,
                           name1,n,x1,v1,min(a),max(a),
@@ -1098,7 +1098,7 @@ Usage:   lchisquare(f_obs, f_exp=None)   f_obs = list of observed cell freq.
 Returns: chisquare-statistic, associated p-value
 """
     k = len(f_obs)                 # number of groups
-    if f_exp == None:
+    if f_exp is None:
         f_exp = [sum(f_obs)/float(k)] * len(f_obs) # create k bins with = freq.
     chisq = 0
     for i in range(len(f_obs)):
@@ -1229,12 +1229,12 @@ result.  A non-parametric T-test.
 Usage:   lwilcoxont(x,y)
 Returns: a t-statistic, two-tail probability estimate
 """
-    if len(x) <> len(y):
+    if len(x) != len(y):
         raise ValueError, 'Unequal N in wilcoxont.  Aborting.'
     d=[]
     for i in range(len(x)):
         diff = x[i] - y[i]
-        if diff <> 0:
+        if diff != 0:
             d.append(diff)
     count = len(d)
     absd = map(abs,d)
@@ -1711,7 +1711,7 @@ length lists.
 
 Usage:   lsummult(list1,list2)
 """
-    if len(list1) <> len(list2):
+    if len(list1) != len(list2):
         raise ValueError, "Lists not equal length in summult."
     s = 0
     for item1,item2 in pstat.abut(list1,list2):
@@ -1787,7 +1787,7 @@ Returns: a list of length equal to inlist, containing rank scores
     for i in range(n):
         sumranks = sumranks + i
         dupcount = dupcount + 1
-        if i==n-1 or svec[i] <> svec[i+1]:
+        if i == n - 1 or svec[i] != svec[i + 1]:
             averank = sumranks / float(dupcount) + 1
             for j in range(i-dupcount+1,i+1):
                 newlist[ivec[j]] = averank
@@ -2013,7 +2013,7 @@ Usage:   ageometricmean(inarray,dimension=None,keepdims=0)
 Returns: geometric mean computed over dim(s) listed in dimension
 """
     inarray = N.array(inarray,N.float_)
-    if dimension == None:
+    if dimension is None:
         inarray = N.ravel(inarray)
         size = len(inarray)
         mult = N.power(inarray,1.0/size)
@@ -2056,7 +2056,7 @@ Usage:   aharmonicmean(inarray,dimension=None,keepdims=0)
 Returns: harmonic mean computed over dim(s) in dimension
 """
     inarray = inarray.astype(N.float_)
-    if dimension == None:
+    if dimension is None:
         inarray = N.ravel(inarray)
         size = len(inarray)
         s = N.add.reduce(1.0 / inarray)
@@ -2085,7 +2085,7 @@ Returns: harmonic mean computed over dim(s) in dimension
             idx[0] = -1
             loopcap = N.array(tinarray.shape[0:len(nondims)]) -1
             s = N.zeros(loopcap+1,N.float_)
-            while incr(idx,loopcap) <> -1:
+            while incr(idx, loopcap) != -1:
                 s[idx] = asum(1.0/tinarray[idx])
             size = N.multiply.reduce(N.take(inarray.shape,dims))
             if keepdims == 1:
@@ -2111,7 +2111,7 @@ Returns: arithematic mean calculated over dim(s) in dimension
 """
     if inarray.dtype in [N.int_, N.short,N.ubyte]:
         inarray = inarray.astype(N.float_)
-    if dimension == None:
+    if dimension is None:
         inarray = N.ravel(inarray)
         sum = N.add.reduce(inarray)
         denom = float(len(inarray))
@@ -2172,7 +2172,7 @@ be None, to pre-flatten the array, or else dimension must equal 0).
 Usage:   amedianscore(inarray,dimension=None)
 Returns: 'middle' score of the array, or the mean of the 2 middle scores
 """
-    if dimension == None:
+    if dimension is None:
         inarray = N.ravel(inarray)
         dimension = 0
     inarray = N.sort(inarray,dimension)
@@ -2198,7 +2198,7 @@ Usage:   amode(a, dimension=None)
 Returns: array of bin-counts for mode(s), array of corresponding modal values
 """
 
-    if dimension == None:
+    if dimension is None:
         a = N.ravel(a)
         dimension = 0
     scores = pstat.aunique(N.ravel(a))       # get ALL unique values
@@ -2227,7 +2227,7 @@ Usage:   atmean(a,limits=None,inclusive=(1,1))
 """
      if a.dtype in [N.int_, N.short,N.ubyte]:
          a = a.astype(N.float_)
-     if limits == None:
+     if limits is None:
          return mean(a)
      assert isinstance(limits, (list, tuple, N.ndarray)), "Wrong type for limits in atmean"
      if inclusive[0]:         lowerfcn = N.greater_equal
@@ -2236,11 +2236,11 @@ Usage:   atmean(a,limits=None,inclusive=(1,1))
      else:               upperfcn = N.less
      if limits[0] > N.maximum.reduce(N.ravel(a)) or limits[1] < N.minimum.reduce(N.ravel(a)):
          raise ValueError, "No array values within given limits (atmean)."
-     elif limits[0]==None and limits[1]<>None:
+     elif limits[0] is None and limits[1] is not None:
          mask = upperfcn(a,limits[1])
-     elif limits[0]<>None and limits[1]==None:
+     elif limits[0] is not None and limits[1] is None:
          mask = lowerfcn(a,limits[0])
-     elif limits[0]<>None and limits[1]<>None:
+     elif limits[0] is not None and limits[1] is not None:
          mask = lowerfcn(a,limits[0])*upperfcn(a,limits[1])
      s = float(N.add.reduce(N.ravel(a*mask)))
      n = float(N.add.reduce(N.ravel(mask)))
@@ -2259,7 +2259,7 @@ closed/inclusive (1). ASSUMES A FLAT ARRAY (OR ELSE PREFLATTENS).
 Usage:   atvar(a,limits=None,inclusive=(1,1))
 """
      a = a.astype(N.float_)
-     if limits == None or limits == [None,None]:
+     if limits is None or limits == [None, None]:
          return avar(a)
      assert isinstance(limits, (list, tuple, N.ndarray)), "Wrong type for limits in atvar"
      if inclusive[0]:    lowerfcn = N.greater_equal
@@ -2268,11 +2268,11 @@ Usage:   atvar(a,limits=None,inclusive=(1,1))
      else:               upperfcn = N.less
      if limits[0] > N.maximum.reduce(N.ravel(a)) or limits[1] < N.minimum.reduce(N.ravel(a)):
          raise ValueError, "No array values within given limits (atvar)."
-     elif limits[0]==None and limits[1]<>None:
+     elif limits[0] is None and limits[1] is not None:
          mask = upperfcn(a,limits[1])
-     elif limits[0]<>None and limits[1]==None:
+     elif limits[0] is not None and limits[1] is None:
          mask = lowerfcn(a,limits[0])
-     elif limits[0]<>None and limits[1]<>None:
+     elif limits[0] is not None and limits[1] is not None:
          mask = lowerfcn(a,limits[0])*upperfcn(a,limits[1])
 
      a = N.compress(mask,a)  # squish out excluded values
@@ -2289,10 +2289,10 @@ Usage:   atmin(a,lowerlimit=None,dimension=None,inclusive=1)
 """
      if inclusive:         lowerfcn = N.greater
      else:               lowerfcn = N.greater_equal
-     if dimension == None:
+     if dimension is None:
          a = N.ravel(a)
          dimension = 0
-     if lowerlimit == None:
+     if lowerlimit is None:
          lowerlimit = N.minimum.reduce(N.ravel(a))-11
      biggest = N.maximum.reduce(N.ravel(a))
      ta = N.where(lowerfcn(a,lowerlimit),a,biggest)
@@ -2309,10 +2309,10 @@ Usage:   atmax(a,upperlimit,dimension=None,inclusive=1)
 """
      if inclusive:         upperfcn = N.less
      else:               upperfcn = N.less_equal
-     if dimension == None:
+     if dimension is None:
          a = N.ravel(a)
          dimension = 0
-     if upperlimit == None:
+     if upperlimit is None:
          upperlimit = N.maximum.reduce(N.ravel(a))+1
      smallest = N.minimum.reduce(N.ravel(a))
      ta = N.where(upperfcn(a,upperlimit),a,smallest)
@@ -2344,7 +2344,7 @@ open/exclusive (0) or closed/inclusive (1).
 Usage:   atsem(a,limits=None,inclusive=(1,1))
 """
      sd = tstdev(a,limits,inclusive)
-     if limits == None or limits == [None,None]:
+     if limits is None or limits == [None, None]:
          n = float(len(N.ravel(a)))
          limits = [min(a)-1, max(a)+1]
      assert isinstance(limits, (list, tuple, N.ndarray)), "Wrong type for limits in atsem"
@@ -2354,11 +2354,11 @@ Usage:   atsem(a,limits=None,inclusive=(1,1))
      else:               upperfcn = N.less
      if limits[0] > N.maximum.reduce(N.ravel(a)) or limits[1] < N.minimum.reduce(N.ravel(a)):
          raise ValueError, "No array values within given limits (atsem)."
-     elif limits[0]==None and limits[1]<>None:
+     elif limits[0] is None and limits[1] is not None:
          mask = upperfcn(a,limits[1])
-     elif limits[0]<>None and limits[1]==None:
+     elif limits[0] is not None and limits[1] is None:
          mask = lowerfcn(a,limits[0])
-     elif limits[0]<>None and limits[1]<>None:
+     elif limits[0] is not None and limits[1] is not None:
          mask = lowerfcn(a,limits[0])*upperfcn(a,limits[1])
      term1 = N.add.reduce(N.ravel(a*a*mask))
      n = float(N.add.reduce(N.ravel(mask)))
@@ -2380,7 +2380,7 @@ multiple dimensions).
 Usage:   amoment(a,moment=1,dimension=None)
 Returns: appropriate moment along given dimension
 """
-    if dimension == None:
+    if dimension is None:
         a = N.ravel(a)
         dimension = 0
     if moment == 1:
@@ -2416,7 +2416,7 @@ Returns: skew of vals in a along dimension, returning ZERO where all vals equal
 """
     denom = N.power(amoment(a,2,dimension),1.5)
     zero = N.equal(denom,0)
-    if isinstance(denom, N.ndarray) and asum(zero) <> 0:
+    if isinstance(denom, N.ndarray) and asum(zero) != 0:
         print("Number of zeros in askew: ", asum(zero))
     denom = denom + zero  # prevent divide-by-zero
     return N.where(zero, 0, amoment(a,3,dimension)/denom)
@@ -2435,7 +2435,7 @@ Returns: kurtosis of values in a along dimension, and ZERO where all vals equal
 """
     denom = N.power(amoment(a,2,dimension),2)
     zero = N.equal(denom,0)
-    if isinstance(denom, N.ndarray) and asum(zero) <> 0:
+    if isinstance(denom, N.ndarray) and asum(zero) != 0:
         print("Number of zeros in akurtosis: ", asum(zero))
     denom = denom + zero  # prevent divide-by-zero
     return N.where(zero,0,amoment(a,4,dimension)/denom)
@@ -2450,7 +2450,7 @@ which to operate), or a sequence (operate over multiple dimensions).
 Usage:   adescribe(inarray,dimension=None)
 Returns: n, (min,max), mean, standard deviation, skew, kurtosis
 """
-     if dimension == None:
+     if dimension is None:
          inarray = N.ravel(inarray)
          dimension = 0
      n = inarray.shape[dimension]
@@ -2476,7 +2476,7 @@ over multiple dimensions).
 Usage:   askewtest(a,dimension=None)
 Returns: z-score and 2-tail z-probability
 """
-    if dimension == None:
+    if dimension is None:
         a = N.ravel(a)
         dimension = 0
     b2 = askew(a,dimension)
@@ -2501,7 +2501,7 @@ or a sequence (operate over multiple dimensions).
 Usage:   akurtosistest(a,dimension=None)
 Returns: z-score and 2-tail z-probability, returns 0 for bad pixels
 """
-    if dimension == None:
+    if dimension is None:
         a = N.ravel(a)
         dimension = 0
     n = float(a.shape[dimension])
@@ -2533,7 +2533,7 @@ operate), or a sequence (operate over multiple dimensions).
 Usage:   anormaltest(a,dimension=None)
 Returns: z-score and 2-tail probability
 """
-    if dimension == None:
+    if dimension is None:
         a = N.ravel(a)
         dimension = 0
     s,p = askewtest(a,dimension)
@@ -2607,7 +2607,7 @@ Usage:   ahistogram(inarray,numbins=10,defaultlimits=None,printextras=1)
 Returns: (array of bin counts, bin-minimum, min-width, #-points-outside-range)
 """
     inarray = N.ravel(inarray)               # flatten any >1D arrays
-    if (defaultlimits <> None):
+    if (defaultlimits is not None):
         lowerreallimit = defaultlimits[0]
         upperreallimit = defaultlimits[1]
         binsize = (upperreallimit-lowerreallimit) / float(numbins)
@@ -2697,7 +2697,7 @@ Returns: transformed data for use in an ANOVA
     for j in range(k):
         if v[j] - mean(nargs[j]) > TINY:
             check = 0
-    if check <> 1:
+    if check != 1:
         raise ValueError, 'Lack of convergence in obrientransform.'
     else:
         return N.array(nargs)
@@ -2713,7 +2713,7 @@ with the same number of dimensions as inarray.
 
 Usage:   asamplevar(inarray,dimension=None,keepdims=0)
 """
-    if dimension == None:
+    if dimension is None:
         inarray = N.ravel(inarray)
         dimension = 0
     if dimension == 1:
@@ -2769,7 +2769,7 @@ same number of dimensions as inarray.
 
 Usage:   acov(x,y,dimension=None,keepdims=0)
 """
-    if dimension == None:
+    if dimension is None:
         x = N.ravel(x)
         y = N.ravel(y)
         dimension = 0
@@ -2797,7 +2797,7 @@ same number of dimensions as inarray.
 
 Usage:   avar(inarray,dimension=None,keepdims=0)
 """
-    if dimension == None:
+    if dimension is None:
         inarray = N.ravel(inarray)
         dimension = 0
     mn = amean(inarray,dimension,1)
@@ -2835,7 +2835,7 @@ an array with the same number of dimensions as inarray.
 
 Usage:   asterr(inarray,dimension=None,keepdims=0)
 """
-    if dimension == None:
+    if dimension is None:
         inarray = N.ravel(inarray)
         dimension = 0
     return astdev(inarray,dimension,keepdims) / float(N.sqrt(inarray.shape[dimension]))
@@ -2851,7 +2851,7 @@ same number of dimensions as inarray.
 
 Usage:   asem(inarray,dimension=None, keepdims=0)
 """
-    if dimension == None:
+    if dimension is None:
         inarray = N.ravel(inarray)
         dimension = 0
     if isinstance(dimension, list):
@@ -2917,9 +2917,9 @@ Usage:   athreshold(a,threshmin=None,threshmax=None,newval=0)
 Returns: a, with values <threshmin or >threshmax replaced with newval
 """
     mask = N.zeros(a.shape)
-    if threshmin <> None:
+    if threshmin is not None:
         mask = mask + N.where(a<threshmin,1,0)
-    if threshmax <> None:
+    if threshmax is not None:
         mask = mask + N.where(a>threshmax,1,0)
     mask = N.clip(mask,0,1)
     return N.where(mask,newval,a)
@@ -2972,7 +2972,7 @@ Computes the covariance matrix of a matrix X.  Requires a 2D matrix input.
 Usage:   acovariance(X)
 Returns: covariance matrix of X
 """
-    if len(X.shape) <> 2:
+    if len(X.shape) != 2:
         raise TypeError, "acovariance requires 2D matrices"
     n = X.shape[0]
     mX = amean(X,0)
@@ -3169,7 +3169,7 @@ Returns: Point-biserial r, two-tailed p-value
     TINY = 1e-30
     categories = pstat.aunique(x)
     data = pstat.aabut(x,y)
-    if len(categories) <> 2:
+    if len(categories) != 2:
         raise ValueError, "Exactly 2 categories required (in x) for pointbiserialr()."
     else:   # there are 2 categories, continue
         codemap = pstat.aabut(categories,N.arange(2))
@@ -3328,7 +3328,7 @@ Returns: t-value, two-tailed prob
     t = (x-popmean)/math.sqrt(svar*(1.0/n))
     prob = abetai(0.5*df,0.5,df/(df+t*t))
 
-    if printit <> 0:
+    if printit != 0:
         statname = 'Single-sample T-test.'
         outputpairedstats(printit,writemode,
                           'Population','--',popmean,0,0,0,
@@ -3351,7 +3351,7 @@ Usage:   attest_ind (a,b,dimension=None,printit=0,
                      Name1='Samp1',Name2='Samp2',writemode='a')
 Returns: t-value, two-tailed p-value
 """
-    if dimension == None:
+    if dimension is None:
         a = N.ravel(a)
         b = N.ravel(b)
         dimension = 0
@@ -3374,7 +3374,7 @@ Returns: t-value, two-tailed p-value
     if probs.shape == (1,):
         probs = probs[0]
         
-    if printit <> 0:
+    if printit != 0:
         if isinstance(t, N.ndarray):
             t = t[0]
         if isinstance(probs, N.ndarray):
@@ -3432,11 +3432,11 @@ Usage:   attest_rel(a,b,dimension=None,printit=0,
                     name1='Samp1',name2='Samp2',writemode='a')
 Returns: t-value, two-tailed p-value
 """
-    if dimension == None:
+    if dimension is None:
         a = N.ravel(a)
         b = N.ravel(b)
         dimension = 0
-    if len(a)<>len(b):
+    if len(a) != len(b):
         raise ValueError, 'Unequal length arrays.'
     x1 = amean(a,dimension)
     x2 = amean(b,dimension)
@@ -3457,7 +3457,7 @@ Returns: t-value, two-tailed p-value
     if probs.shape == (1,):
         probs = probs[0]
 
-    if printit <> 0:
+    if printit != 0:
         statname = 'Related samples T-test.'
         outputpairedstats(printit,writemode,
                           name1,n,x1,v1,N.minimum.reduce(N.ravel(a)),
@@ -3481,7 +3481,7 @@ Returns: chisquare-statistic, associated p-value
 """
 
     k = len(f_obs)
-    if f_exp == None:
+    if f_exp is None:
         f_exp = N.array([sum(f_obs)/float(k)] * len(f_obs),N.float_)
     f_exp = f_exp.astype(N.float_)
     chisq = N.add.reduce((f_obs-f_exp)**2 / f_exp)
@@ -3611,7 +3611,7 @@ result.  A non-parametric T-test.
 Usage:   awilcoxont(x,y)     where x,y are equal-length arrays for 2 conditions
 Returns: t-statistic, two-tailed p-value
 """
-    if len(x) <> len(y):
+    if len(x) != len(y):
         raise ValueError, 'Unequal N in awilcoxont.  Aborting.'
     d = x-y
     d = N.compress(N.not_equal(d,0),d) # Keep all non-zero differences
@@ -3748,7 +3748,7 @@ Usage:   achisqprob(chisq,df)    chisq=chisquare stat., df=degrees of freedom
         a_big = N.greater(a,BIG)
         a_big_frozen = -1 *N.ones(probs.shape,N.float_)
         totalelements = N.multiply.reduce(N.array(probs.shape))
-        while asum(mask)<>totalelements:
+        while asum(mask) != totalelements:
             e = N.log(z) + e
             s = s + ex(c*z-a-e)
             z = z + 1.0
@@ -3765,7 +3765,7 @@ Usage:   achisqprob(chisq,df)    chisq=chisquare stat., df=degrees of freedom
         c = 0.0
         mask = N.zeros(probs.shape)
         a_notbig_frozen = -1 *N.ones(probs.shape,N.float_)
-        while asum(mask)<>totalelements:
+        while asum(mask) != totalelements:
             e = e * (a/z.astype(N.float_))
             c = c + e
             z = z + 1.0
@@ -3934,7 +3934,7 @@ Usage:   abetacf(a,b,x,verbose=1)
         frozen = N.where(newmask*N.equal(mask,0), az, frozen)
         mask = N.clip(mask+newmask,0,1)
     noconverge = asum(N.equal(frozen,-1))
-    if noconverge <> 0 and verbose:
+    if noconverge != 0 and verbose:
         print('a or b too big, or ITMAX too small in Betacf for ', noconverge, ' elements')
     if arrayflag:
         return frozen
@@ -3978,7 +3978,7 @@ Usage:   abetai(a,b,x,verbose=1)
 """
     TINY = 1e-15
     if isinstance(a, N.ndarray):
-        if asum(N.less(x,0)+N.greater(x,1)) <> 0:
+        if asum(N.less(x, 0) + N.greater(x, 1)) != 0:
             raise ValueError, 'Bad x in abetai'
     x = N.where(N.equal(x,0),TINY,x)
     x = N.where(N.equal(x,1.0),1-TINY,x)
@@ -4019,7 +4019,7 @@ from:
 Usage:   aglm(data,para)
 Returns: statistic, p-value ???
 """
-    if len(para) <> len(data):
+    if len(para) != len(data):
         print("data and para must be same length in aglm")
         return
     n = len(para)
@@ -4155,7 +4155,7 @@ Returns: array summed along 'dimension'(s), same _number_ of dims if keepdims=1
 """
      if isinstance(a, N.ndarray) and a.dtype in [N.int_, N.short, N.ubyte]:
          a = a.astype(N.float_)
-     if dimension == None:
+     if dimension is None:
          s = N.sum(N.ravel(a))
      elif isinstance(dimension, (int, float)):
          s = N.add.reduce(a, dimension)
@@ -4187,7 +4187,7 @@ over multiple dimensions, but this last one just barely makes sense).
 
 Usage:   acumsum(a,dimension=None)
 """
-    if dimension == None:
+    if dimension is None:
         a = N.ravel(a)
         dimension = 0
     if isinstance(dimension, (list, tuple, N.ndarray)):
@@ -4213,7 +4213,7 @@ of dimensions.
 Usage:   ass(inarray, dimension=None, keepdims=0)
 Returns: sum-along-'dimension' for (inarray*inarray)
 """
-    if dimension == None:
+    if dimension is None:
         inarray = N.ravel(inarray)
         dimension = 0
     return asum(inarray*inarray,dimension,keepdims)
@@ -4229,7 +4229,7 @@ dimensions).  A trivial function, but included for completeness.
 
 Usage:   asummult(array1,array2,dimension=None,keepdims=0)
 """
-    if dimension == None:
+    if dimension is None:
         array1 = N.ravel(array1)
         array2 = N.ravel(array2)
         dimension = 0
@@ -4247,7 +4247,7 @@ NUMBER of dimensions as the original.
 Usage:   asquare_of_sums(inarray, dimension=None, keepdims=0)
 Returns: the square of the sum over dim(s) in dimension
 """
-    if dimension == None:
+    if dimension is None:
         inarray = N.ravel(inarray)
         dimension = 0
     s = asum(inarray,dimension,keepdims)
@@ -4268,7 +4268,7 @@ keepdims=1 means the return shape = len(a.shape) = len(b.shape)
 Usage:   asumdiffsquared(a,b)
 Returns: sum[ravel(a-b)**2]
 """
-    if dimension == None:
+    if dimension is None:
         inarray = N.ravel(a)
         dimension = 0
     return asum((a-b)**2,dimension,keepdims)
@@ -4316,7 +4316,7 @@ Returns: array of length equal to inarray, containing rank scores
     for i in range(n):
         sumranks = sumranks + i
         dupcount = dupcount + 1
-        if i==n-1 or svec[i] <> svec[i+1]:
+        if i == n - 1 or svec[i] != svec[i + 1]:
             averank = sumranks / float(dupcount) + 1
             for j in range(i-dupcount+1,i+1):
                 newarray[ivec[j]] = averank
