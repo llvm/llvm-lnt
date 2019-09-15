@@ -9,6 +9,9 @@ from sys import platform as _platform
 import sys
 from setuptools import setup, find_packages, Extension
 
+if sys.version_info < (2, 7):
+    raise RuntimeError("Python 2.7 or higher required.")
+
 cflags = []
 
 if _platform == "darwin":
@@ -124,4 +127,6 @@ http://llvm.org/svn/llvm-project/lnt/trunk
     install_requires=reqs,
 
     ext_modules=[cPerf],
+
+    python_requires='>=2.7',
 )

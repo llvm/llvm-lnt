@@ -812,7 +812,25 @@ static PyMethodDef cPerfMethods[] = {{"importPerf", cPerf_importPerf,
                                       "Import perf.data from a filename"},
                                      {NULL, NULL, 0, NULL}};
 
-PyMODINIT_FUNC initcPerf(void) { (void)Py_InitModule("cPerf", cPerfMethods); }
+#if PY_MAJOR_VERSION >= 3
+static PyModuleDef cPerfModuleDef = {PyModuleDef_HEAD_INIT,
+                                     "cPerf",
+                                     nullptr,
+                                     -1,
+                                     cPerfMethods,
+                                     nullptr,
+                                     nullptr,
+                                     nullptr,
+                                     nullptr};
+#endif
+
+PyMODINIT_FUNC initcPerf(void) {
+#if PY_MAJOR_VERSION >= 3
+  return PyModule_Create(&cPerfModuleDef);
+#else
+  (void)Py_InitModule("cPerf", cPerfMethods);
+#endif
+}
 
 #else // STANDALONE
 
