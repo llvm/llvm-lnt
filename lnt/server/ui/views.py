@@ -799,6 +799,8 @@ def v4_graph():
     show_highlight = not options['hide_highlight']
 
     # Load the graph parameters.
+    GraphParameter = namedtuple('GraphParameter',
+                                ['machine', 'test', 'field', 'field_index'])
     graph_parameters = []
     for name, value in request.args.items():
         # Plots to graph are passed as::
@@ -827,10 +829,12 @@ def v4_graph():
             field = ts.sample_fields[field_index]
         except NoResultFound:
             return abort(404)
-        graph_parameters.append((machine, test, field, field_index))
+        graph_parameters.append(GraphParameter(machine, test, field, field_index))
 
     # Order the plots by machine name, test name and then field.
-    graph_parameters.sort(key=lambda (m, t, f, _): (m.name, t.name, f.name, _))
+    graph_parameters.sort(key=lambda graph_parameter:
+                          (graph_parameter.machine.name, graph_parameter.test.name,
+                           graph_parameter.field.name, graph_parameter.field_index))
 
     # Extract requested mean trend.
     mean_parameter = None

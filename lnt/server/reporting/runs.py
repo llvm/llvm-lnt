@@ -2,6 +2,7 @@
 Report functionality centered around individual runs.
 """
 
+from collections import namedtuple
 import time
 import lnt.server.reporting.analysis
 import lnt.server.ui.app
@@ -123,7 +124,9 @@ def generate_run_data(session, run, baseurl, num_comparison_runs=0,
         if not bucket or bucket_name == 'Unchanged Test' or not show_perf:
             return bucket
         else:
-            return sorted(bucket, key=lambda (_, cr, __): -abs(cr.pct_delta))
+            return sorted(
+                bucket,
+                key=lambda bucket_entry: -abs(bucket_entry.cr.pct_delta))
 
     def prioritize_buckets(test_results):
         prioritized = [(priority, field, bucket_name,
@@ -212,6 +215,7 @@ def generate_run_data(session, run, baseurl, num_comparison_runs=0,
     return data
 
 
+BucketEntry = namedtuple('BucketEntry', ['name', 'cr', 'test_id'])
 def _get_changes_by_type(ts, run_a, run_b, metric_fields, test_names,
                          num_comparison_runs, sri):
     comparison_results = {}
@@ -249,7 +253,7 @@ def _get_changes_by_type(ts, run_a, run_b, metric_fields, test_names,
             else:
                 bucket = unchanged_tests
 
-            bucket.append((name, cr, test_id))
+            bucket.append(BucketEntry(name, cr, test_id))
 
         results_by_type.append(
             (field, (('New Failures', new_failures, False),
