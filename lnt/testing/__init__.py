@@ -36,42 +36,69 @@ class Report:
     In the LNT test model, every test run should define exactly one
     machine and run, and any number of test samples.
     """
-    def __init__(self, machine, run, tests):
+    def __init__(self, machine, run, tests, report_version=1):
+        """Construct a LNT report file format in the given format version."""
         self.machine = machine
         self.run = run
         self.tests = list(tests)
-        self.report_version = '1'
+        self.report_version = report_version
         self.check()
 
     def check(self):
         """Check that object members are adequate to generate an LNT
-        json report file when rendering that instance.
+        json report file of the version specified at construction when
+        rendering that instance.
         """
-        assert isinstance(self.machine, Machine)
-        assert isinstance(self.run, Run)
-        for t in self.tests:
-            assert isinstance(t, TestSamples)
+        # Check requested report version is supported by this library
+        assert self.report_version <= 2, "Only v2 or older LNT report format supported."
 
-    def update_report(self, new_samples):
+        assert isinstance(self.machine, Machine), "Unexpected type for machine."
+        assert (
+            self.machine.report_version == self.report_version
+        ), "Mismatch between machine and report version."
+
+        assert isinstance(self.run, Run), "Unexpected type for run."
+        assert (
+            self.run.report_version == self.report_version
+        ), "Mismatch between run and report version."
+
+        for t in self.tests:
+            if self.report_version == 2:
+                assert isinstance(t, Test), "Unexpected type for test"
+                assert (
+                    t.report_version == self.report_version
+                ), "Mismatch between test and report version."
+            else:
+                assert isinstance(t, TestSamples), "Unexpected type for test samples."
+
+    def update_report(self, new_tests_samples, end_time=None):
         """Add extra samples to this report, and update the end time of
         the run.
         """
         self.check()
-        self.tests.extend(new_samples)
-        self.run.update_endtime()
+        self.tests.extend(new_tests_samples)
+        self.run.update_endtime(end_time)
         self.check()
 
     def render(self, indent=4):
-        """Return a LNT json report file format as a string, where each
-        object is indented by indent spaces compared to its parent.
+        """Return a LNT json report file format of the version specified
+        at construction as a string, where each object is indented by
+        indent spaces compared to its parent.
         """
         # Note that we specifically override the encoding to avoid the
         # possibility of encoding errors. Clients which care about the
         # text encoding should supply unicode string objects.
-        return json.dumps({'Machine': self.machine.render(),
-                           'Run': self.run.render(),
-                           'Tests': [t.render() for t in self.tests]},
-                          sort_keys=True, indent=indent, encoding='latin-1')
+        if self.report_version == 2:
+            return json.dumps({'format_version': str(self.report_version),
+                               'machine': self.machine.render(),
+                               'run': self.run.render(),
+                               'tests': [t.render() for t in self.tests]},
+                              sort_keys=True, indent=indent, encoding='latin-1')
+        else:
+            return json.dumps({'Machine': self.machine.render(),
+                               'Run': self.run.render(),
+                               'Tests': [t.render() for t in self.tests]},
+                              sort_keys=True, indent=indent, encoding='latin-1')
 
 
 class Machine:
@@ -84,26 +111,44 @@ class Machine:
     Machines entries in the database are uniqued by their name and the
     entire contents of the info dictionary.
     """
-    def __init__(self, name, info={}):
+    def __init__(self, name, info={}, report_version=1):
         self.name = str(name)
         self.info = dict((str(key), str(value))
                          for key, value in info.items())
+        self.report_version = report_version
+        self.check()
+
+    def check(self):
+        """Check object members are adequate to generate an LNT json
+        report file of the version specified at construction when
+        rendering that instance.
+        """
+        # Check requested version is supported by this library
+        assert (
+            self.report_version <= 2
+        ), "Only v2 or older supported for LNT report format Machine objects."
 
     def render(self):
         """Return info from this instance in a dictionary that respects
-        the LNT report format when printed as json.
+        the LNT report format in the version specified at construction
+        when printed as json.
         """
-        return {'Name': self.name,
-                'Info': self.info}
+        if self.report_version == 2:
+            d = dict(self.info)
+            d['Name'] = self.name
+            return d
+        else:
+            return {'Name': self.name,
+                    'Info': self.info}
 
 
 class Run:
     """Information on the particular test run.
 
-    The start and end time should always be supplied with the run.
-    Currently, the server uses these to order runs. In the future we
-    will support additional ways to order runs (for example, by a source
-    revision).
+    At least one parameter must be supplied and is used as ordering
+    among several runs. When generating a report in format 1 or earlier,
+    both start_time and end_time are used for that effect and the
+    current date is used if their value is None.
 
     As with Machine, the info dictionary can be used to describe
     additional information on the run. This dictionary should be used to
@@ -113,46 +158,149 @@ class Run:
     which could be useful in analysis, for example the current machine
     load.
     """
-    def __init__(self, start_time, end_time, info={}):
-        if start_time is None:
-            start_time = datetime.datetime.utcnow()
-        if end_time is None:
-            end_time = datetime.datetime.utcnow()
-
-        self.start_time = normalize_time(start_time)
-        self.end_time = normalize_time(end_time)
+    def __init__(self, start_time=None, end_time=None, info={}, report_version=1):
+        if report_version <= 1:
+            if start_time is None:
+                start_time = datetime.datetime.utcnow()
+            if end_time is None:
+                end_time = datetime.datetime.utcnow()
+        self.start_time = normalize_time(start_time) if start_time is not None else None
+        self.end_time = normalize_time(end_time) if end_time is not None else None
         self.info = dict()
         # Convert keys/values that are not json encodable to strings.
         for key, value in info.items():
             key = str(key)
             value = str(value)
             self.info[key] = value
-        if '__report_version__' in self.info:
+        self.report_version = report_version
+        if self.report_version <= 1:
+            if 'tag' not in self.info:
+                raise ValueError("Missing 'tag' entry in 'info' dictionary")
+            if 'run_order' not in self.info:
+                raise ValueError("Missing 'run_order' entry in 'info' dictionary")
+        else:
+            if 'llvm_project_revision' not in self.info:
+                raise ValueError("Missing 'llvm_project_revision' entry in 'info' dictionary")
+        if '__report_version__' in info:
             raise ValueError("'__report_version__' key is reserved")
-        # TODO: Convert to version 2
-        self.info['__report_version__'] = '1'
+        if report_version == 1:
+            self.info['__report_version__'] = '1'
+        self.check()
+
+    def check(self):
+        """Check object members are adequate to generate an LNT json
+        report file of the version specified at construction when
+        rendering that instance.
+        """
+        # Check requested version is supported by this library
+        assert (
+            self.report_version <= 2
+        ), "Only v2 or older supported for LNT report format Run objects."
+        if self.start_time is None and self.end_time is None and not bool(self.info):
+            raise ValueError("No data defined in this Run")
 
     def update_endtime(self, end_time=None):
         """Update the end time of this run."""
-        if end_time is None:
+        if self.report_version <= 1 and end_time is None:
             end_time = datetime.datetime.utcnow()
-        self.end_time = normalize_time(end_time)
+        self.end_time = normalize_time(end_time) if end_time else None
+        self.check()
 
     def render(self):
         """Return info from this instance in a dictionary that respects
-        the LNT report format when printed as json.
+        the LNT report format in the version specified at construction
+        when printed as json.
         """
-        return {'Start Time': self.start_time,
-                'End Time': self.end_time,
-                'Info': self.info}
+        if self.report_version == 2:
+            d = dict(self.info)
+            if self.start_time is not None:
+                d['start_time'] = self.start_time
+            if self.end_time is not None:
+                d['end_time'] = self.end_time
+            return d
+        else:
+            info = dict(self.info)
+            if self.report_version == 1:
+                info['__report_version__'] = '1'
+            return {'Start Time': self.start_time,
+                    'End Time': self.end_time,
+                    'Info': info}
+
+
+class Test:
+    """Information on a particular test in the run and its associated
+    samples.
+
+    The server automatically creates test database objects whenever a
+    new test name is seen. Test should be used to generate report in
+    version 2 or later of LNT JSON report file format.
+
+    Test names are intended to be a persistent, recognizable identifier
+    for what is being executed. Currently, most formats use some form of
+    dotted notation for the test name, and this may become enshrined in
+    the format in the future. In general, the test names should be
+    independent of the software-under-test and refer to some known
+    quantity, for example the software under test. For example,
+    'CINT2006.403_gcc' is a meaningful test name.
+
+    The test info dictionary is intended to hold information on the
+    particular permutation of the test that was run. This might include
+    variables specific to the software-under-test . This could include,
+    for example, the compile flags the test was built with, or the
+    runtime parameters that were used. As a general rule, if two test
+    samples are meaningfully and directly comparable, then they should
+    have the same test name but different info paramaters.
+    """
+
+    def __init__(self, name, samples, info={}, report_version=2):
+        self.name = name
+        self.samples = samples
+        self.info = dict()
+        # Convert keys/values that are not json encodable to strings.
+        for key, value in list(info.items()):
+            key = str(key)
+            value = str(value)
+            self.info[key] = value
+        self.report_version = report_version
+        self.check()
+
+    def check(self):
+        """Check object members are adequate to generate an LNT json
+        report file of the version specified at construction when
+        rendering that instance.
+        """
+        # Check requested version is supported by this library and is
+        # valid for this object.
+        assert (
+            self.report_version == 2
+        ), "Only v2 supported for LNT report format Test objects."
+        for s in self.samples:
+            assert isinstance(s, MetricSamples), "Unexpected type for metric sample."
+            assert (
+                s.report_version == self.report_version
+            ), "Mismatch between test and metric samples."
+
+    def render(self):
+        """Return info from this instance in a dictionary that respects
+        the LNT report format in the version specified at construction
+        when printed as json.
+        """
+        d = dict(self.info)
+        d.update([s.render().popitem() for s in self.samples])
+        d['Name'] = self.name
+        return d
 
 
 class TestSamples:
-    """Test sample data.
+    """Information on a given test and its associated samples data.
 
-    The test sample data defines both the tests that were run and their
-    values. The server automatically creates test database objects
-    whenever a new test name is seen.
+    Samples data must all relate to the same metric. When several
+    metrics are available for a given test, the convention is to have
+    one TestSamples per metric and to encode the metric into the name,
+    e.g. Benchmark1.exec. The server automatically creates test database
+    objects whenever a new test name is seen. TestSamples should only be
+    used to generate report in version 1 or earlier of LNT JSON report
+    file format.
 
     Test names are intended to be a persistent, recognizable identifier
     for what is being executed. Currently, most formats use some form of
@@ -186,7 +334,8 @@ class TestSamples:
 
     def render(self):
         """Return info from this instance in a dictionary that respects
-        the LNT report format when printed as json.
+        the LNT report format in the version specified at construction
+        when printed as json.
         """
         return {'Name': self.name,
                 'Info': self.info,
@@ -197,6 +346,48 @@ class TestSamples:
         return "TestSample({}): {} - {}".format(self.name,
                                                 self.data,
                                                 self.info)
+
+
+class MetricSamples:
+    """Samples data for a given metric of a given test.
+
+    An arbitrary number of samples for a given metric is allowed for
+    situations where the same metric is obtained several time for a
+    given test to gather statistical data.
+
+    MetricSamples should be used to generate report in version 2 or
+    later of LNT JSON report file format.
+    """
+
+    def __init__(self, metric, data, conv_f=float, report_version=2):
+        self.metric = str(metric)
+        self.data = list(map(conv_f, data))
+        self.report_version = report_version
+        self.check()
+
+    def check(self):
+        """Check object members are adequate to generate an LNT json
+        report file of the version specified at construction when
+        rendering that instance.
+        """
+        # Check requested version is supported by this library and is
+        # valid for this object.
+        assert (
+            self.report_version == 2
+        ), "Only v2 supported for LNT report format MetricSamples objects."
+
+    def add_samples(self, new_samples, conv_f=float):
+        """Add samples for this metric, converted to float by calling
+        function conv_f.
+        """
+        self.data.extend(list(map(conv_f, new_samples)))
+
+    def render(self):
+        """Return info from this instance in a dictionary that respects
+        the LNT report format in the version specified at construction
+        when printed as json.
+        """
+        return {self.metric: self.data if len(self.data) > 1 else self.data[0]}
 
 
 ###
