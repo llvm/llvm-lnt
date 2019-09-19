@@ -1,0 +1,27 @@
+version: '3'
+
+services:
+  lnt:
+    build:
+      context: .
+    container_name: lnt
+    image: lnt
+    environment:
+      - DB_ENGINE=postgres
+      - DB_HOST=lnt-postgres
+      - DB_PWD
+    depends_on:
+      - db
+    deploy:
+      restart_policy:
+        condition: on-failure
+    ports:
+      - "8000:8000"
+
+  db:
+    container_name: lnt-postgres
+    image: postgres:alpine
+    environment:
+      - POSTGRES_PASSWORD=${DB_PWD}
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_DB=${DB_BASE}
