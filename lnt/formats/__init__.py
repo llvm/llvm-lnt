@@ -7,8 +7,9 @@ callable taking a path_or_file object, the 'write' function should be a
 callable taking a Python object to write, and the path_or_file to write to.
 """
 
-from PlistFormat import format as plist
-from JSONFormat import format as json
+from __future__ import absolute_import
+from .PlistFormat import format as plist
+from .JSONFormat import format as json
 
 formats = [plist, json]
 formats_by_name = dict((f['name'], f) for f in formats)

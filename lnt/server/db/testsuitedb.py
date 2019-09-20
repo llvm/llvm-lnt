@@ -5,6 +5,7 @@ These are a bit magical because the models themselves are driven by the test
 suite metadata, so we only create the classes at runtime.
 """
 
+from __future__ import absolute_import
 import datetime
 import json
 import os
@@ -18,7 +19,7 @@ from sqlalchemy.orm.exc import ObjectDeletedError
 from typing import List
 from lnt.util import logger
 
-import testsuite
+from . import testsuite
 import lnt.testing.profile.profile as profile
 import lnt
 from lnt.server.ui.util import convert_revision

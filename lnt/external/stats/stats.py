@@ -222,8 +222,9 @@ SUPPORT FUNCTIONS:  writecc
 ##              changed name of skewness and askewness to skew and askew
 ##              fixed (a)histogram (which sometimes counted points <lowerlimit)
 
+from __future__ import absolute_import
 from __future__ import print_function
-import pstat               # required 3rd party module
+from . import pstat        # required 3rd party module
 import math, string, copy  # required python modules
 from types import *
 

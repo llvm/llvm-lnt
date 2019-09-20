@@ -2,10 +2,10 @@
 Database models for the TestSuites abstraction.
 """
 
+from __future__ import absolute_import
 import json
 import lnt
-import testsuitedb
-import util
+from . import util
 
 import sqlalchemy
 import sqlalchemy.ext.declarative
@@ -114,6 +114,7 @@ class TestSuite(Base):
 
     @staticmethod
     def from_json(data):
+        from . import testsuitedb
         if data.get('format_version') != '2':
             raise ValueError("Expected \"format_version\": \"2\" in schema")
         name = data['name']
@@ -349,6 +350,7 @@ class SampleField(FieldMixin, Base):
 
 
 def _upgrade_to(connectable, tsschema, new_schema, dry_run=False):
+    from . import testsuitedb
     new = json.loads(new_schema.jsonschema)
     old = json.loads(tsschema.jsonschema)
     ts_name = new['name']

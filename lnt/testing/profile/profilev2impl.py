@@ -1,4 +1,5 @@
-from profile import ProfileImpl
+from __future__ import absolute_import
+from .profile import ProfileImpl
 import StringIO
 import bz2
 import copy
