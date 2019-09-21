@@ -254,7 +254,7 @@ print stats.amean.__doc__ or whatever.
     def __call__(self, arg1, *args, **kw):
         if type(arg1) not in self._dispatch:
             raise TypeError("don't know how to dispatch %s arguments" % type(arg1))
-        return apply(self._dispatch[type(arg1)], (arg1,) + args, kw)
+        return self._dispatch[type(arg1)](*((arg1,) + args), **kw)
 
 
 ##########################################################################
@@ -1306,7 +1306,7 @@ Returns: chi-square statistic, associated p-value
     if k < 3:
         raise ValueError('Less than 3 levels.  Friedman test not appropriate.')
     n = len(args[0])
-    data = apply(pstat.abut,tuple(args))
+    data = pstat.abut(*tuple(args))
     for i in range(len(data)):
         data[i] = rankdata(data[i])
     ssbn = 0
@@ -3687,7 +3687,7 @@ Returns: chi-square statistic, associated p-value
     if k < 3:
         raise ValueError('\nLess than 3 levels.  Friedman test not appropriate.\n')
     n = len(args[0])
-    data = apply(pstat.aabut,args)
+    data = pstat.aabut(*args)
     data = data.astype(N.float_)
     for i in range(len(data)):
         data[i] = arankdata(data[i])
