@@ -281,8 +281,7 @@ Returns: a list of lists with all unique permutations of entries appearing in
          return means
      else:
          values = colex(listoflists,keepcols)
-         uniques = unique(values)
-         uniques.sort()
+         uniques = sorted(unique(values))
          newlist = []
          if not isinstance(keepcols, (list, tuple)):  keepcols = [keepcols]
          for item in uniques:
@@ -646,8 +645,7 @@ sortcols.
 Usage:   sortby(listoflists,sortcols)
 Returns: sorted list, unchanged column ordering
 """
-    newlist = abut(colex(listoflists,sortcols),listoflists)
-    newlist.sort()
+    newlist = sorted(abut(colex(listoflists, sortcols), listoflists))
     try:
         numcols = len(sortcols)
     except TypeError:
@@ -807,8 +805,7 @@ Returns: unique 'conditions' specified by the contents of columns specified
         if not isinstance(keepcols, (list, tuple, N.ndarray)):
             keepcols = [keepcols]
         values = colex(a,keepcols)   # so that "item" can be appended (below)
-        uniques = unique(values)  # get a LIST, so .sort keeps rows intact
-        uniques.sort()
+        uniques = sorted(unique(values))  # get a LIST, so .sort keeps rows intact
         newlist = []
         for item in uniques:
             if not isinstance(item, (list, tuple, N.ndarray)):

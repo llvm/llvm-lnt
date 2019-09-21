@@ -74,8 +74,7 @@ def mean(values):
 
 
 def median(values):
-    values = list(values)
-    values.sort()
+    values = sorted(values)
     N = len(values)
     return (values[(N - 1) // 2] +
             values[(N + 0) // 2]) * .5

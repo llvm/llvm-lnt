@@ -54,8 +54,7 @@ def agg_mean(pairs):
 def median(values):
     if not values:
         return None
-    values = list(values)
-    values.sort()
+    values = sorted(values)
     N = len(values)
     return (values[(N - 1) // 2] + values[N // 2]) * .5
 

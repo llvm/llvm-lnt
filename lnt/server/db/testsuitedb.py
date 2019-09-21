@@ -904,11 +904,8 @@ class TestSuiteDB(object):
         session.add(order)
         session.commit()
 
-        # Load all the orders.
-        orders = list(session.query(self.Order))
-
-        # Sort the objects to form the total ordering.
-        orders.sort()
+        # Load all the orders and sort them to form the total ordering.
+        orders = sorted(session.query(self.Order))
 
         # Find the order we just added.
         index = orders.index(order)
@@ -1128,10 +1125,13 @@ class TestSuiteDB(object):
         #
         # FIXME: Scalability! However, pretty fast in practice, see elaborate
         # explanation above.
-        all_machine_orders = session.query(self.Order).\
-            join(self.Run).\
-            filter(self.Run.machine == run.machine).distinct().all()
-        all_machine_orders.sort()
+        all_machine_orders = sorted(
+            session.query(self.Order)
+            .join(self.Run)
+            .filter(self.Run.machine == run.machine)
+            .distinct()
+            .all()
+        )
 
         # Find the index of the current run.
         index = all_machine_orders.index(run.order)

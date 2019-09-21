@@ -58,7 +58,7 @@ def _modified(path):
 
 
 def _monitor():
-    while 1:
+    while True:
         # Check modification times on all files in sys.modules.
 
         for module in sys.modules.values():

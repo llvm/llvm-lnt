@@ -305,8 +305,7 @@ def v4_machine(id):
                              .join(ts.Order)
                              .filter(ts.Run.machine_id == id)
                              .order_by(ts.Run.start_time.desc())))
-    associated_runs = associated_runs.items()
-    associated_runs.sort()
+    associated_runs = sorted(associated_runs.items())
 
     try:
         machine = session.query(ts.Machine).filter(ts.Machine.id == id).one()
@@ -658,11 +657,8 @@ def v4_all_orders():
     session = request.session
     ts = request.get_testsuite()
 
-    # Get the orders.
-    orders = session.query(ts.Order).all()
-
-    # Order the runs totally.
-    orders.sort()
+    # Get the orders and sort them totally.
+    orders = sorted(session.query(ts.Order).all())
 
     return render_template("v4_all_orders.html", orders=orders, **ts_data(ts))
 

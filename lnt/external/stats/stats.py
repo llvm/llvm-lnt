@@ -337,8 +337,7 @@ number of scores, the mean of the 2 middle scores is returned.
 Usage:   lmedianscore(inlist)
 """
 
-    newlist = copy.deepcopy(inlist)
-    newlist.sort()
+    newlist = sorted(copy.deepcopy(inlist))
     if len(newlist) % 2 == 0:   # if even number of scores, average middle 2
         index = len(newlist)/2  # integer division correct
         median = float(newlist[index] + newlist[index-1]) /2
@@ -358,8 +357,7 @@ Usage:   lmode(inlist)
 Returns: bin-count for mode(s), a list of modal value(s)
 """
 
-    scores = pstat.unique(inlist)
-    scores.sort()
+    scores = sorted(pstat.unique(inlist))
     freq = []
     for item in scores:
         freq.append(inlist.count(item))
@@ -458,8 +456,7 @@ and it's frequency count.  Assumes a 1D list is passed.
 Usage:   litemfreq(inlist)
 Returns: a 2D frequency table (col [0:n-1]=scores, col n=frequencies)
 """
-    scores = pstat.unique(inlist)
-    scores.sort()
+    scores = sorted(pstat.unique(inlist))
     freq = []
     for item in scores:
         freq.append(inlist.count(item))
@@ -2028,9 +2025,7 @@ Returns: geometric mean computed over dim(s) listed in dimension
             shp[dimension] = 1
             sum = N.reshape(sum,shp)
     else: # must be a SEQUENCE of dims to average over
-        dims = list(dimension)
-        dims.sort()
-        dims.reverse()
+        dims = sorted(dimension, reverse=True)
         size = N.array(N.multiply.reduce(N.take(inarray.shape,dims)),N.float_)
         mult = N.power(inarray,1.0/size)
         for dim in dims:
@@ -2069,8 +2064,7 @@ Returns: harmonic mean computed over dim(s) in dimension
             shp[dimension] = 1
             s = N.reshape(s,shp)
     else: # must be a SEQUENCE of dims to average over
-        dims = list(dimension)
-        dims.sort()
+        dims = sorted(dimension)
         nondims = []
         for i in range(len(inarray.shape)):
             if i not in dims:
@@ -2124,9 +2118,7 @@ Returns: arithematic mean calculated over dim(s) in dimension
             shp[dimension] = 1
             sum = N.reshape(sum,shp)
     else: # must be a TUPLE of dims to average over
-        dims = list(dimension)
-        dims.sort()
-        dims.reverse()
+        dims = sorted(dimension, reverse=True)
         sum = inarray *1.0
         for dim in dims:
             sum = N.add.reduce(sum,dim)
@@ -4165,9 +4157,7 @@ Returns: array summed along 'dimension'(s), same _number_ of dims if keepdims=1
              shp[dimension] = 1
              s = N.reshape(s,shp)
      else: # must be a SEQUENCE of dims to sum over
-        dims = list(dimension)
-        dims.sort()
-        dims.reverse()
+        dims = sorted(dimension, reverse=True)
         s = a *1.0
         for dim in dims:
             s = N.add.reduce(s,dim)
@@ -4192,9 +4182,7 @@ Usage:   acumsum(a,dimension=None)
         a = N.ravel(a)
         dimension = 0
     if isinstance(dimension, (list, tuple, N.ndarray)):
-        dimension = list(dimension)
-        dimension.sort()
-        dimension.reverse()
+        dimension = sorted(dimension, reverse=True)
         for d in dimension:
             a = N.add.accumulate(a,d)
         return a
