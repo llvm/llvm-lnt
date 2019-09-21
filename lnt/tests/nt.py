@@ -543,7 +543,7 @@ def execute_test_modules(test_log, test_modules, test_module_variables,
         module_path = os.path.join(test_path, 'TestModule')
         module_file = open(module_path)
         try:
-            exec module_file in locals, globals
+            exec(module_file, locals, globals)
         except Exception:
             info = traceback.format_exc()
             fatal("unable to import test module: %r\n%s" % (
