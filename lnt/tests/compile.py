@@ -314,7 +314,7 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs,
         # Remove any existing content, if necessary.
         try:
             shutil.rmtree(source_path)
-        except OSError, e:
+        except OSError as e:
             if e.errno != errno.ENOENT:
                 raise
 
