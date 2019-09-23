@@ -541,7 +541,7 @@ class Functions(Section):
         address_gen = self.line_addresses.extractForFunction(fname)
         text_gen = self.line_text.extractForFunction(fname)
         for n in xrange(f['length']):
-            yield (counter_gen.next(), address_gen.next(), text_gen.next())
+            yield (next(counter_gen), next(address_gen), next(text_gen))
 
     def copy(self, counter_name_pool, line_counters,
              line_addresses, line_text):

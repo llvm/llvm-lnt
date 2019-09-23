@@ -773,7 +773,7 @@ def load_nt_report_file(report_path, config):
     reader_it = iter(csv.reader(report_file))
 
     # Get the header.
-    header = reader_it.next()
+    header = next(reader_it)
     if header[0] != 'Program':
         fatal('unexpected report file, missing header')
 
