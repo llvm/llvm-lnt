@@ -1,3 +1,4 @@
+from __future__ import print_function
 # Check the import process into a v4 test suite DB.
 #
 # We first construct a temporary LNT instance.
@@ -107,8 +108,8 @@ assert tests[0].name == 'sampletest'
 orders = list(session.query(ts.Order).order_by(ts.Order.llvm_project_revision))
 assert len(orders) == 2
 order_a,order_b = orders
-print order_a
-print order_b
+print(order_a)
+print(order_b)
 assert order_a.previous_order_id is None
 assert order_a.next_order_id is order_b.id
 assert order_a.llvm_project_revision == '1'
@@ -143,9 +144,9 @@ assert sample_b.run is run_b
 assert sample_a_0.test is test
 assert sample_a_1.test is test
 assert sample_b.test is test
-print sample_a_0
-print sample_a_1
-print sample_b
+print(sample_a_0)
+print(sample_a_1)
+print(sample_b)
 assert sample_a_0.compile_time == 0.019
 assert sample_a_0.compile_status == lnt.testing.PASS
 assert sample_a_0.execution_time == 0.3

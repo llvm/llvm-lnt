@@ -3,6 +3,7 @@
 Simple example of a test generator which just produces data on some
 mathematical functions, keyed off of the current time.
 """
+from __future__ import print_function
 from lnt.testing import Machine, Run, TestSamples, Report
 import math
 import random
@@ -47,7 +48,7 @@ def main():
 
     report = Report(machine, run, tests)
 
-    print >>output, report.render()
+    print(report.render(), file=output)
 
     if output is not sys.stderr:
         output.close()

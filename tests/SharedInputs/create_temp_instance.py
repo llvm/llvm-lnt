@@ -1,3 +1,4 @@
+from __future__ import print_function
 import sys
 import shutil
 import os.path
@@ -69,7 +70,7 @@ def run_sql_file(db, sql_file, dest_dir):
         cmd = "psql %s -f %s" % (db, tmpfile_name)
     else:
         cmd = "sqlite3 -batch %s < %s" % (db, sql_file)
-    print cmd
+    print(cmd)
     subprocess.check_call(cmd, shell="True")
 
 
@@ -78,7 +79,7 @@ def run_sql_cmd(db, sql_cmd):
         cmd = 'echo "%s" | psql %s' % (sql_cmd, db)
     else:
         cmd = 'echo "%s" | sqlite3 -batch %s' % (sql_cmd, db)
-    print cmd
+    print(cmd)
     subprocess.check_call(cmd, shell="True")
 
 
@@ -109,7 +110,7 @@ def create_tmp_database(db, test_name, dest_dir):
 def main():
     usage = "%s test_name template_source_dir dest_dir [extra.sql]"
     if len(sys.argv) not in (4, 5):
-        print usage
+        print(usage)
         sys.exit(-1)
     if len(sys.argv) == 4:
         _, test_name, template_source_dir, dest_dir = sys.argv

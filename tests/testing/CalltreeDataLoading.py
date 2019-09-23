@@ -1,3 +1,4 @@
+from __future__ import print_function
 # Check the model bindings for test suite instances.
 #
 # RUN: rm -f %t.db
@@ -8,7 +9,7 @@ import sys
 from lnt.testing.util import valgrind
 
 data = valgrind.CalltreeData.frompath(sys.argv[1])
-print data
+print(data)
 
 assert data.command == 'true'
 assert tuple(data.events) == ('Ir', 'I1mr', 'ILmr', 'Dr', 'D1mr', 'DLmr',

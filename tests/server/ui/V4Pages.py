@@ -1,3 +1,4 @@
+from __future__ import print_function
 # Perform basic sanity checking of the V4 UI pages.
 #
 # create temporary instance
@@ -103,7 +104,7 @@ def check_redirect(client, url, expected_redirect_regex):
 
 def dump_html(html_string):
     for linenr, line in enumerate(html_string.split('\n')):
-        print "%4d:%s" % (linenr + 1, line)
+        print("%4d:%s" % (linenr + 1, line))
 
 
 def get_xml_tree(html_string):

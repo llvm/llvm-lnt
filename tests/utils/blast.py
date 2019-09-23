@@ -4,6 +4,7 @@ Smash a LNT instance with random submissions.
 This should only be used for (load) testing.  It will add a bunch
 of bad data to your instance, so don't use it on a production instance.
 """
+from __future__ import print_function
 ## Just to make sure there are no syntax errors in this.  This does not
 ## actually run a blast.
 # RUN: python %{src_root}/tests/utils/blast.py
@@ -36,7 +37,7 @@ def external_submission(url, fname):
     assert os.path.exists(fname)
     cmd = "lnt submit --verbose {url} {file}".format(
         url=url, file=fname)
-    print "Calling " + cmd
+    print("Calling " + cmd)
     subprocess.check_call(cmd, shell=True)
 
 
@@ -61,7 +62,7 @@ tstamp = int(time.time())
 run_info['run_order'] = tstamp
 
 if len(sys.argv) < 3:
-    print "Usage: python blast.py <num_submissions> <sleep_between> [optional url]"
+    print("Usage: python blast.py <num_submissions> <sleep_between> [optional url]")
     sys.exit(0)
 
 for i in xrange(int(sys.argv[1])):
@@ -76,7 +77,7 @@ for i in xrange(int(sys.argv[1])):
 
     f_os, fname = tempfile.mkstemp(text=True, suffix='.json', prefix='lnt-stats-')
     f = os.fdopen(f_os, "w")
-    print >> f, report.render()
+    print(report.render(), file=f)
     f.close()
     local = "http://localhost:8000/db_default/submitRun"
     if len(sys.argv) == 4:

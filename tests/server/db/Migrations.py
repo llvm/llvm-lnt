@@ -2,6 +2,7 @@
 #
 # RUN: python %s %t
 
+from __future__ import print_function
 import logging
 import os
 import re
@@ -31,7 +32,7 @@ def sanity_check_instance(instance_path):
     test_suite_list_end = index.data.index("</div>", test_suite_list_start)
     for ln in index.data[test_suite_list_start:test_suite_list_end].split("\n"):
         # Ignore non-matching lines.
-        print >>sys.stderr,ln
+        print(ln, file=sys.stderr)
         m = test_suite_link_rex.match(ln)
         if not m:
             continue
