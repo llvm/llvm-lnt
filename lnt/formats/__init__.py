@@ -8,12 +8,13 @@ callable taking a Python object to write, and the path_or_file to write to.
 """
 
 from __future__ import absolute_import
+from typing import List, Dict
 from .PlistFormat import format as plist
 from .JSONFormat import format as json
 
-formats = [plist, json]
-formats_by_name = dict((f['name'], f) for f in formats)
-format_names = list(formats_by_name.keys())
+formats = [plist, json]  # type: List[Dict]
+formats_by_name = dict((f['name'], f) for f in formats)  # type: Dict[str, Dict]
+format_names = list(formats_by_name.keys())  # type: List[str]
 
 
 def get_format(name):

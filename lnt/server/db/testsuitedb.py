@@ -33,35 +33,6 @@ def _dict_update_abort_on_duplicates(base_dict, to_merge):
         base_dict[key] = value
 
 
-_sample_type_to_sql = {
-    'Real': Float,
-    'Hash': String,
-    'Status': Integer,
-}
-
-
-def is_known_sample_type(name):
-    return name in _sample_type_to_sql
-
-
-def make_sample_column(name, type):
-    sqltype = _sample_type_to_sql.get(type)
-    if sqltype is None:
-        raise ValueError("test suite defines unknown sample type %r" % type)
-    options = []
-    if type == 'Status':
-        options.append(ForeignKey(testsuite.StatusKind.id))
-    return Column(name, sqltype, *options)
-
-
-def make_run_column(name):
-    return Column(name, String(256))
-
-
-def make_machine_column(name):
-    return Column(name, String(256))
-
-
 class MachineInfoChanged(ValueError):
     pass
 
@@ -153,7 +124,8 @@ class TestSuiteDB(object):
                     raise ValueError("test suite defines reserved key %r" % (
                         iname))
 
-                class_dict[iname] = item.column = make_machine_column(iname)
+                item.column = testsuite.make_machine_column(iname)
+                class_dict[iname] = item.column
 
             def __init__(self, name_value):
                 self.id = None
@@ -356,7 +328,8 @@ class TestSuiteDB(object):
                     raise ValueError("test suite defines reserved key %r" %
                                      (iname,))
 
-                class_dict[iname] = item.column = make_run_column(iname)
+                item.column = testsuite.make_run_column(iname)
+                class_dict[iname] = item.column
 
             def __init__(self, new_id, machine, order, start_time, end_time):
                 self.id = new_id
@@ -537,7 +510,8 @@ class TestSuiteDB(object):
                     raise ValueError("test suite defines reserved key %r" %
                                      (iname,))
 
-                item.column = make_sample_column(iname, item.type.name)
+                item.column = testsuite.make_sample_column(iname,
+                                                           item.type.name)
                 class_dict[iname] = item.column
 
             def __init__(self, run, test, **kwargs):

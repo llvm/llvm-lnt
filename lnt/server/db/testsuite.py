@@ -10,7 +10,7 @@ from . import util
 import sqlalchemy
 import sqlalchemy.ext.declarative
 import sqlalchemy.orm
-from sqlalchemy import Column, Integer, ForeignKey, String, Binary
+from sqlalchemy import Column, Integer, ForeignKey, String, Binary, Float
 from sqlalchemy.orm import relation
 from lnt.util import logger
 
@@ -57,6 +57,35 @@ class StatusKind(Base):
 
     def __repr__(self):
         return '%s%r' % (self.__class__.__name__, (self.name,))
+
+
+_sample_type_to_sql = {
+    'Real': Float,
+    'Hash': String,
+    'Status': Integer,
+}
+
+
+def is_known_sample_type(name):
+    return name in _sample_type_to_sql
+
+
+def make_sample_column(name, type):
+    sqltype = _sample_type_to_sql.get(type)
+    if sqltype is None:
+        raise ValueError("test suite defines unknown sample type %r" % type)
+    options = []
+    if type == 'Status':
+        options.append(ForeignKey(StatusKind.id))
+    return Column(name, sqltype, *options)
+
+
+def make_run_column(name):
+    return Column(name, String(256))
+
+
+def make_machine_column(name):
+    return Column(name, String(256))
 
 
 class _MigrationError(Exception):
@@ -114,7 +143,6 @@ class TestSuite(Base):
 
     @staticmethod
     def from_json(data):
-        from . import testsuitedb
         if data.get('format_version') != '2':
             raise ValueError("Expected \"format_version\": \"2\" in schema")
         name = data['name']
@@ -150,7 +178,7 @@ class TestSuite(Base):
             display_name = metric_desc.get('display_name')
             unit = metric_desc.get('unit')
             unit_abbrev = metric_desc.get('unit_abbrev')
-            if not testsuitedb.is_known_sample_type(metric_type_name):
+            if not is_known_sample_type(metric_type_name):
                 raise ValueError("Unknown metric type '%s'" %
                                  metric_type_name)
             metric_type = SampleType(metric_type_name)
@@ -350,7 +378,6 @@ class SampleField(FieldMixin, Base):
 
 
 def _upgrade_to(connectable, tsschema, new_schema, dry_run=False):
-    from . import testsuitedb
     new = json.loads(new_schema.jsonschema)
     old = json.loads(tsschema.jsonschema)
     ts_name = new['name']
@@ -371,7 +398,7 @@ def _upgrade_to(connectable, tsschema, new_schema, dry_run=False):
                                       name)
         elif not dry_run:
             # Add missing columns
-            column = testsuitedb.make_sample_column(name, type)
+            column = make_sample_column(name, type)
             util.add_column(connectable, '%s_Sample' % ts_name, column)
 
     if len(old_metrics) != 0:
@@ -398,7 +425,7 @@ def _upgrade_to(connectable, tsschema, new_schema, dry_run=False):
         old_field = old_run_fields.pop(name, None)
         # Add missing columns
         if old_field is None and not dry_run:
-            column = testsuitedb.make_run_column(name)
+            column = make_run_column(name)
             util.add_column(connectable, '%s_Run' % ts_name, column)
 
     if len(old_run_fields) > 0:
@@ -418,7 +445,7 @@ def _upgrade_to(connectable, tsschema, new_schema, dry_run=False):
         old_field = old_machine_fields.pop(name, None)
         # Add missing columns
         if old_field is None and not dry_run:
-            column = testsuitedb.make_machine_column(name)
+            column = make_machine_column(name)
             util.add_column(connectable, '%s_Machine' % ts_name, column)
 
     if len(old_machine_fields) > 0:

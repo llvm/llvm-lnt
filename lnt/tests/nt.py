@@ -1,4 +1,5 @@
 """LLVM test-suite compile and execution tests"""
+from __future__ import absolute_import
 from __future__ import print_function
 import csv
 import os
@@ -33,7 +34,7 @@ from lnt.server.reporting.analysis import UNCHANGED_PASS, UNCHANGED_FAIL
 from lnt.server.reporting.analysis import REGRESSED, IMPROVED
 from lnt.util import logger
 from lnt.lnttool.common import submit_options
-import builtintest
+from . import builtintest
 
 
 class TestModule(object):
