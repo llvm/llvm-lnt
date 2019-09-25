@@ -224,6 +224,7 @@ SUPPORT FUNCTIONS:  writecc
 
 from __future__ import absolute_import
 from __future__ import print_function
+from builtins import input
 from . import pstat        # required 3rd party module
 import math, string, copy  # required python modules
 from types import *
@@ -776,7 +777,7 @@ Returns: appropriate statistic name, value, and probability
     samples = ''
     while samples not in ['i','r','I','R','c','C']:
         print('\nIndependent or related samples, or correlation (i,r,c): ', end=' ')
-        samples = raw_input()
+        samples = input()
 
     if samples in ['i','I','r','R']:
         print('\nComparing variances ...', end=' ')
@@ -811,7 +812,7 @@ Returns: appropriate statistic name, value, and probability
         corrtype = ''
         while corrtype not in ['c','C','r','R','d','D']:
             print('\nIs the data Continuous, Ranked, or Dichotomous (c,r,d): ', end=' ')
-            corrtype = raw_input()
+            corrtype = input()
         if corrtype in ['c','C']:
             m,b,r,p,see = linregress(x,y)
             print('\nLinear regression for continuous variables ...')
@@ -2988,7 +2989,7 @@ Returns: appropriate statistic name, value, and probability
     samples = ''
     while samples not in ['i','r','I','R','c','C']:
         print('\nIndependent or related samples, or correlation (i,r,c): ', end=' ')
-        samples = raw_input()
+        samples = input()
 
     if samples in ['i','I','r','R']:
         print('\nComparing variances ...', end=' ')
@@ -3023,7 +3024,7 @@ Returns: appropriate statistic name, value, and probability
         corrtype = ''
         while corrtype not in ['c','C','r','R','d','D']:
             print('\nIs the data Continuous, Ranked, or Dichotomous (c,r,d): ', end=' ')
-            corrtype = raw_input()
+            corrtype = input()
         if corrtype in ['c','C']:
             m,b,r,p,see = linregress(x,y)
             print('\nLinear regression for continuous variables ...')
