@@ -529,7 +529,7 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs,
                            " ".join("'%s'" % arg for arg in cmd))
             result = subprocess.check_output(cmd).strip()
             if result != "fail":
-                bytes = long(result)
+                bytes = int(result)
                 success = True
 
                 # For now, the way the software is set up things are going to
