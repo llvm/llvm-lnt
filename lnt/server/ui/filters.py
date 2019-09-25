@@ -73,6 +73,6 @@ def filter_print_value(value, field_unit, field_unit_abbrev, default = '-'):
 
 
 def register(env):
-    for name, object in globals().items():
+    for name, obj in globals().items():
         if name.startswith('filter_'):
-            env.filters[name[7:]] = object
+            env.filters[name[7:]] = obj

@@ -84,7 +84,7 @@ def prependLines(prependStr, str):
     return ('\n' + prependStr).join(str.splitlines())
 
 
-def pprint(object, useRepr=True):
+def pprint(obj, useRepr=True):
     def recur(ob):
         return pprint(ob, useRepr)
 
@@ -97,16 +97,16 @@ def pprint(object, useRepr=True):
     def pprintArgs(name, args):
         return wrapString(name + '(', ',\n'.join(map(recur, args)), ')')
 
-    if isinstance(object, tuple):
-        return wrapString('(', ',\n'.join(map(recur, object)),
-                          [')', ',)'][len(object) == 1])
-    elif isinstance(object, list):
-        return wrapString('[', ',\n'.join(map(recur, object)), ']')
-    elif isinstance(object, set):
-        return pprintArgs('set', list(object))
-    elif isinstance(object, dict):
+    if isinstance(obj, tuple):
+        return wrapString('(', ', \n'.join(map(recur, obj)),
+                          [')', ',)'][len(obj) == 1])
+    elif isinstance(obj, list):
+        return wrapString('[', ', \n'.join(map(recur, obj)), ']')
+    elif isinstance(obj, set):
+        return pprintArgs('set', list(obj))
+    elif isinstance(obj, dict):
         elts = []
-        for k, v in object.items():
+        for k, v in obj.items():
             kr = recur(k)
             vr = recur(v)
             elts.append('%s : %s' % (kr,
@@ -116,12 +116,12 @@ def pprint(object, useRepr=True):
         return wrapString('{', ',\n'.join(elts), '}')
     else:
         if useRepr:
-            return repr(object)
-        return str(object)
+            return repr(obj)
+        return str(obj)
 
 
-def prefixAndPPrint(prefix, object, useRepr=True):
-    return prefix + prependLines(' ' * len(prefix), pprint(object, useRepr))
+def prefixAndPPrint(prefix, obj, useRepr=True):
+    return prefix + prependLines(' ' * len(prefix), pprint(obj, useRepr))
 
 
 def clamp(v, minVal, maxVal):
