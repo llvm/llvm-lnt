@@ -62,7 +62,7 @@ Built-in Tests
 LLVM CMake test-suite
 ~~~~~~~~~~~~~~~~~~~~~
 
-The llvm test-suite can be run with the ``test-suite``` built-in test.
+The llvm test-suite can be run with the ``test-suite`` built-in test.
 
 Running the test-suite via CMake and lit uses a different LNT test::
 
@@ -77,8 +77,8 @@ Running the test-suite via CMake and lit uses a different LNT test::
        --cmake-cache Release
 
 Since the CMake test-suite uses lit to run the tests and compare their output,
-LNT needs to know the path to your LLVM lit installation.  The test-suite Holds
-some common common configurations in CMake caches. The ``--cmake-cache`` flag
+LNT needs to know the path to your LLVM lit installation.  The test-suite holds
+some common configurations in CMake caches. The ``--cmake-cache`` flag
 and the ``--cmake-define`` flag allow you to change how LNT configures cmake
 for the test-suite run.
 
