@@ -119,7 +119,7 @@ class SummaryReport(object):
                 if rex.match(machine.name):
                     return True
         self.requested_machines = dict(
-            (ts, filter(should_be_in_report, session.query(ts.Machine).all()))
+            (ts, list(filter(should_be_in_report, session.query(ts.Machine).all())))
             for ts in self.testsuites)
         self.requested_machine_ids = dict(
             (ts, [m.id for m in machines])
