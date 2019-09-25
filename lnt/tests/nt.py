@@ -1305,7 +1305,7 @@ def _execute_test_again(config, test_name, test_path, test_relative_path,
 
 
 def _unix_quote_args(s):
-    return map(pipes.quote, shlex.split(s))
+    return list(map(pipes.quote, shlex.split(s)))
 
 
 # When set to true, all benchmarks will be rerun.

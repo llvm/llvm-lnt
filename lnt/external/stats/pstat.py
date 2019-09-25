@@ -216,16 +216,16 @@ Returns: a list-of-lists corresponding to the columns from listoflists
     column = 0
     if isinstance(cnums, (list, tuple)):   # if multiple columns to get
         index = cnums[0]
-        column = map(lambda x: x[index], listoflists)
+        column = [x[index] for x in listoflists]
         for col in cnums[1:]:
             index = col
-            column = abut(column,map(lambda x: x[index], listoflists))
+            column = abut(column, [x[index] for x in listoflists])
     elif isinstance(cnums, str):              # if an 'x[3:]' type expr.
-        evalstring = 'map(lambda x: x'+cnums+', listoflists)'
+        evalstring = 'list(map(lambda x: x'+cnums+', listoflists))'
         column = eval(evalstring)
     else:                                     # else it's just 1 col to get
         index = cnums
-        column = map(lambda x: x[index], listoflists)
+        column = [x[index] for x in listoflists]
     return column
 
 
@@ -463,8 +463,8 @@ the string.join function.
 Usage:   list2string (inlist,delimit=' ')
 Returns: the string created from inlist
 """
-    stringlist = map(makestr,inlist)
-    return string.join(stringlist,delimit)
+    stringlist = map(makestr, inlist)
+    return delimit.join(stringlist)
 
 
 def makelol(inlist):
@@ -510,8 +510,7 @@ Returns: None
     maxsize = [0]*len(list2print[0])
     for col in range(len(list2print[0])):
         items = colex(list2print,col)
-        items = map(makestr,items)
-        maxsize[col] = max(map(len,items)) + extra
+        maxsize[col] = max(map(lambda item: len(makestr(item)), items)) + extra
     for row in lst:
         if row == ['\n'] or row == '\n' or row == '' or row == ['']:
             print()
@@ -614,7 +613,7 @@ returned ... map(lambda x: 'criterion',listoflists).
 Usage:   remap(listoflists,criterion)    criterion=string
 Returns: remapped version of listoflists
 """
-    function = 'map(lambda x: '+criterion+',listoflists)'
+    function = 'list(map(lambda x: '+criterion+',listoflists))'
     lines = eval(function)
     return lines
 
@@ -963,7 +962,7 @@ Returns: an array of equal length containing 1s where the two rows had
 """
     return 
     if row1.dtype.char=='O' or row2.dtype=='O':
-        cmpvect = N.logical_not(abs(N.array(map(cmp,row1,row2)))) # cmp fcn gives -1,0,1
+        cmpvect = N.logical_not(abs(N.array(list(map(cmp, row1, row2))))) # cmp fcn gives -1,0,1
     else:
         cmpvect = N.equal(row1,row2)
     return cmpvect
@@ -1023,7 +1022,7 @@ Usage:   aunique (inarray)
             for item in inarray[1:]:
                 newflag = 1
                 for unq in uniques:  # NOTE: cmp --> 0=same, -1=<, 1=>
-                    test = N.sum(abs(N.array(map(cmp,item,unq))))
+                    test = N.sum(abs(N.array(list(map(cmp, item, unq)))))
                     if test == 0:   # if item identical to any 1 row in uniques
                         newflag = 0 # then not a novel item to add
                         break

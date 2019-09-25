@@ -1330,7 +1330,7 @@ def v4_global_status():
     def get_machine_keys(m):
         m.css_name = m.name.replace('.', '-')
         return m
-    recent_machines = map(get_machine_keys, recent_machines)
+    recent_machines = list(map(get_machine_keys, recent_machines))
 
     # For each machine, build a table of the machine, the baseline run, and the
     # most recent run. We also computed a list of all the runs we are reporting

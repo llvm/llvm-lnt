@@ -74,7 +74,7 @@ class CalltreeData(object):
             # Check if this is the closing summary line.
             if ln.startswith('summary'):
                 key, value = ln.split(':', 1)
-                summary_samples = map(int, value.split())
+                summary_samples = list(map(int, value.split()))
                 break
 
             # Check if this is an update to the current file or function.
@@ -84,7 +84,7 @@ class CalltreeData(object):
                 current_function = ln[3:-1]
             else:
                 # Otherwise, this is a data record.
-                samples = map(int, ln.split())
+                samples = list(map(int, ln.split()))
                 if len(samples) != num_samples:
                     raise CalltreeParseError(
                         "invalid record line, unexpected sample count")

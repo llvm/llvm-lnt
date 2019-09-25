@@ -842,8 +842,8 @@ Returns: Pearson's r value, two-tailed p-value
     if len(x) != len(y):
         raise ValueError('Input values not paired in pearsonr.  Aborting.')
     n = len(x)
-    x = map(float,x)
-    y = map(float,y)
+    x = list(map(float, x))
+    y = list(map(float, y))
     xmean = mean(x)
     ymean = mean(y)
     r_num = n*(summult(x,y)) - sum(x)*sum(y)
@@ -971,8 +971,8 @@ Returns: slope, intercept, r, two-tailed prob, sterr-of-estimate
     if len(x) != len(y):
         raise ValueError('Input values not paired in linregress.  Aborting.')
     n = len(x)
-    x = map(float,x)
-    y = map(float,y)
+    x = list(map(float, x))
+    y = list(map(float, y))
     xmean = mean(x)
     ymean = mean(y)
     r_num = float(n*(summult(x,y)) - sum(x)*sum(y))
@@ -1235,7 +1235,7 @@ Returns: a t-statistic, two-tail probability estimate
         if diff != 0:
             d.append(diff)
     count = len(d)
-    absd = map(abs,d)
+    absd = list(map(abs, d))
     absranked = rankdata(absd)
     r_plus = 0.0
     r_minus = 0.0
@@ -1265,7 +1265,7 @@ Returns: H-statistic (corrected for ties), associated p-value
     args = list(args)
     n = [0]*len(args)
     all = []
-    n = map(len,args)
+    n = list(map(len, args))
     for i in range(len(args)):
         all = all + args[i]
     ranked = rankdata(all)
@@ -1562,14 +1562,7 @@ Usage:   F_oneway(*lists)    where *lists is any number of lists, one per
 Returns: F value, one-tailed p-value
 """
     a = len(lists)           # ANOVA on 'a' groups, each in it's own list
-    means = [0]*a
-    vars = [0]*a
-    ns = [0]*a
     alldata = []
-    tmp = map(N.array,lists)
-    means = map(amean,tmp)
-    vars = map(avar,tmp)
-    ns = map(len,lists)
     for i in range(len(lists)):
         alldata = alldata + lists[i]
     alldata = N.array(alldata)
@@ -1629,8 +1622,8 @@ Returns: None
     maxsize = [0]*len(list2print[0])
     for col in range(len(list2print[0])):
         items = pstat.colex(list2print,col)
-        items = map(pstat.makestr,items)
-        maxsize[col] = max(map(len,items)) + extra
+        maxsize[col] = (max(map(lambda item: len(pstat.makestr(item)), items))
+                        + extra)
     for row in listoflists:
         if row == ['\n'] or row == '\n':
             outfile.write('\n')
@@ -3640,7 +3633,7 @@ Returns: H-statistic (corrected for ties), associated p-value
     assert len(args) == 3, "Need at least 3 groups in stats.akruskalwallish()"
     args = list(args)
     n = [0]*len(args)
-    n = map(len,args)
+    n = list(map(len, args))
     all = []
     for i in range(len(args)):
         all = all + args[i].tolist()
@@ -4045,14 +4038,7 @@ Usage:   aF_oneway (*args)    where *args is 2 or more arrays, one per
 Returns: f-value, probability
 """
     na = len(args)            # ANOVA on 'na' groups, each in it's own array
-    means = [0]*na
-    vars = [0]*na
-    ns = [0]*na
     alldata = []
-    tmp = map(N.array,args)
-    means = map(amean,tmp)
-    vars = map(avar,tmp)
-    ns = map(len,args)
     alldata = N.concatenate(args)
     bign = len(alldata)
     sstot = ass(alldata)-(asquare_of_sums(alldata)/float(bign))

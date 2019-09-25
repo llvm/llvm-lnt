@@ -380,7 +380,7 @@ class MetricSamples:
         """Add samples for this metric, converted to float by calling
         function conv_f.
         """
-        self.data.extend(list(map(conv_f, new_samples)))
+        self.data.extend(map(conv_f, new_samples))
 
     def render(self):
         """Return info from this instance in a dictionary that respects
