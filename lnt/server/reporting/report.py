@@ -8,8 +8,9 @@ from collections import namedtuple
 
 OrderAndHistory = namedtuple('OrderAndHistory', ['max_order', 'recent_orders'])
 
-def pairs(list):
-    return zip(list[:-1], list[1:])
+def pairs(l):
+    """Make an iterable of all pairs of consecutive elements in l."""
+    return zip(l[:-1], l[1:])
 
 # The hash color palette avoids green and red as these colours are already used
 # in quite a few places to indicate "good" or "bad".
