@@ -1563,8 +1563,8 @@ Returns: F value, one-tailed p-value
 """
     a = len(lists)           # ANOVA on 'a' groups, each in it's own list
     alldata = []
-    for i in range(len(lists)):
-        alldata = alldata + lists[i]
+    for l in lists:
+        alldata.extend(l)
     alldata = N.array(alldata)
     bign = len(alldata)
     sstot = ass(alldata)-(asquare_of_sums(alldata)/float(bign))
