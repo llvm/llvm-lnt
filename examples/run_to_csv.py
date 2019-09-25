@@ -7,7 +7,7 @@ import sys
 
 data = json.load(sys.stdin)
 
-titles = data['tests'].itervalues().next().keys()
+titles = list(next(iter(data['tests'].values())).keys())
 titles.insert(0, titles.pop(titles.index("name")))
 
 print(", ".join(titles))

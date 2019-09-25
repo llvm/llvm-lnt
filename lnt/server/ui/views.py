@@ -951,8 +951,9 @@ def v4_graph():
                              (field.status_field.column.is_(None)))
 
         # Aggregate by revision.
-        data = multidict.multidict((rev, (val, date, run_id))
-                                   for val, rev, date, run_id in q).items()
+        data = list(multidict.multidict((rev, (val, date, run_id))
+                                        for val, rev, date, run_id in q)
+                    .items())
 
         data.sort(key=lambda sample: convert_revision(sample[0], cache=revision_cache))
 

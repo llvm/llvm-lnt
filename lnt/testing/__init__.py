@@ -257,7 +257,7 @@ class Test:
         self.samples = samples
         self.info = dict()
         # Convert keys/values that are not json encodable to strings.
-        for key, value in list(info.items()):
+        for key, value in info.items():
             key = str(key)
             value = str(value)
             self.info[key] = value

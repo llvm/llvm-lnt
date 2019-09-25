@@ -111,7 +111,7 @@ def get_xml_tree(html_string):
     try:
         parser = ET.XMLParser()
         parser.parser.UseForeignDTD(True)
-        parser.entity.update((x, unichr(i)) for x, i in name2codepoint.iteritems())
+        parser.entity.update((x, unichr(i)) for x, i in name2codepoint.items())
         tree = ET.fromstring(html_string, parser=parser)
     except:  # noqa FIXME: figure out what we expect this to throw.
         dump_html(html_string)

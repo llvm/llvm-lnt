@@ -342,7 +342,7 @@ class SummaryReport(object):
                 columns = [ts.Sample.run_id, ts.Sample.test_id]
                 columns.extend(f.column for f in ts.sample_fields)
                 samples = session.query(*columns).filter(
-                    ts.Sample.run_id.in_(run_id_map.keys()))
+                    ts.Sample.run_id.in_(list(run_id_map.keys())))
                 for sample in samples:
                     run = run_id_map[sample[0]]
                     datapoints = list()

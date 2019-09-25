@@ -191,4 +191,4 @@ class Config:
                                        db_entry.baseline_revision)
 
     def get_database_names(self):
-        return self.databases.keys()
+        return list(self.databases.keys())

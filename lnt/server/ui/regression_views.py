@@ -256,7 +256,7 @@ class EditRegressionForm(Form):
     title = StringField(u'Title', validators=[DataRequired()])
     bug = StringField(u'Bug', validators=[DataRequired()])
     field_changes = MultiCheckboxField("Changes", coerce=int)
-    choices = RegressionState.names.items()
+    choices = list(RegressionState.names.items())
     state = SelectField(u'State', choices=choices)
     edit_state = HiddenField(u'EditState', validators=[DataRequired()])
 

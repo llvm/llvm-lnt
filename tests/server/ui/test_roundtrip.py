@@ -89,7 +89,7 @@ class JSONAPIRoundTripTester(unittest.TestCase):
         before_submit_run['run']['order_id'] = an_id
         after_submit_run['run']['order_id'] = an_id
 
-        self.assertEqual(before_submit_run.keys(), after_submit_run.keys())
+        self.assertEqual(list(before_submit_run.keys()), list(after_submit_run.keys()))
         # Machine and run will be dicts, compare them directly.
         for k in ['machine', 'run']:
             self.assertEqual(before_submit_run[k], after_submit_run[k])

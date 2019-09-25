@@ -266,9 +266,9 @@ class CounterNamePool(Section):
     def upgrade(self, impl):
         self.idx_to_name = {}
 
-        keys = impl.getTopLevelCounters().keys()
+        keys = list(impl.getTopLevelCounters().keys())
         for f in impl.getFunctions().values():
-            keys += f['counters'].keys()
+            keys.extend(f['counters'].keys())
         keys = sorted(set(keys))
 
         self.idx_to_name = {k: v for k, v in enumerate(keys)}
@@ -313,9 +313,9 @@ class LineCounters(CompressedSection):
         start = fobj.tell()
         for fname, f in sorted(self.impl.getFunctions().items()):
             self.function_offsets[fname] = fobj.tell() - start
-            all_counters = f['counters'].keys()
+            all_counters = sorted(f['counters'].keys())
             for counters, address, text in self.impl.getCodeForFunction(fname):
-                for k in sorted(all_counters):
+                for k in all_counters:
                     writeFloat(fobj, counters.get(k, 0))
 
     def deserialize(self, fobj):
@@ -537,7 +537,7 @@ class Functions(Section):
     def getCodeForFunction(self, fname):
         f = self.functions[fname]
         counter_gen = self.line_counters \
-            .extractForFunction(fname, f['counters'].keys())
+            .extractForFunction(fname, list(f['counters'].keys()))
         address_gen = self.line_addresses.extractForFunction(fname)
         text_gen = self.line_text.extractForFunction(fname)
         for n in xrange(f['length']):

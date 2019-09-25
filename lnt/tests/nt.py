@@ -1479,14 +1479,14 @@ def _process_reruns(config, server_reply, local_results):
     for test in collated_results.values():
         test.check()
 
-    rerunable_benches = [x for x in collated_results.values()
-                         if x.is_rerunable()]
+    rerunable_benches = list(filter(lambda bench: bench.is_rerunable(),
+                                    collated_results.values()))
     rerunable_benches.sort(key=lambda x: x.name)
     # Now lets do the reruns.
     rerun_results = []
     summary = "Rerunning {} of {} benchmarks."
     logger.info(summary.format(len(rerunable_benches),
-                               len(collated_results.values())))
+                               len(collated_results)))
 
     for i, bench in enumerate(rerunable_benches):
         logger.info("Rerunning: {} [{}/{}]".format(bench.name,
