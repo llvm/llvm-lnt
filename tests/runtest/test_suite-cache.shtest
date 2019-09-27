@@ -12,9 +12,10 @@
 # RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit \
 # RUN:     --cmake-cache Release \
 # RUN:     --cmake-define FOO=BAR \
+# RUN:     -D BAR=BAZ \
 # RUN:     &> %t.cmake-cache.log
 # RUN: FileCheck  --check-prefix CHECK-CACHE < %t.cmake-cache.log %s
-# CHECK-CACHE: Execute: {{.*}}cmake -DCMAKE_CXX_COMPILER:FILEPATH={{.*}}/FakeCompilers/clang++-r154331 -DCMAKE_C_COMPILER:FILEPATH={{.*}}FakeCompilers/clang-r154331 -C {{.*}}/Release.cmake {{.*}}-DFOO=BAR
+# CHECK-CACHE: Execute: {{.*}}cmake -DCMAKE_CXX_COMPILER:FILEPATH={{.*}}/FakeCompilers/clang++-r154331 -DCMAKE_C_COMPILER:FILEPATH={{.*}}FakeCompilers/clang-r154331 -C {{.*}}/Release.cmake {{.*}}-DFOO=BAR{{.*}}-DBAR=BAZ
 
 # RUN: rm -rf %t.SANDBOX
 # Check a run of test-suite using a invalid cmake cache

@@ -1028,7 +1028,7 @@ class TestSuiteTest(BuiltinTest):
 @click.option("--test-externals", "test_suite_externals",
               type=click.UNPROCESSED, metavar="PATH",
               help="Path to the LLVM test-suite externals")
-@click.option("--cmake-define", "cmake_defines",
+@click.option("-D", "--cmake-define", "cmake_defines",
               multiple=True,
               help="Defines to pass to cmake. These do not require the "
                    "-D prefix and can be given multiple times. e.g.: "
