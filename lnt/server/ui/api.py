@@ -100,7 +100,7 @@ class Machines(Resource):
     def get():
         ts = request.get_testsuite()
         session = request.session
-        machines = session.query(ts.Machine).all()
+        machines = session.query(ts.Machine).order_by(ts.Machine.id).all()
 
         result = common_fields_factory()
         result['machines'] = machines
