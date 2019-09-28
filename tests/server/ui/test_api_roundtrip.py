@@ -57,5 +57,4 @@ class JSONAPIDeleteTester(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    unittest.TestLoader.sortTestMethodsUsing = lambda _, x, y: cmp(x, y)
     unittest.main(argv=[sys.argv[0], ])

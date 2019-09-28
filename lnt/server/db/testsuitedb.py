@@ -9,6 +9,7 @@ from __future__ import absolute_import
 import datetime
 import json
 import os
+import itertools
 
 import aniso8601
 import sqlalchemy
@@ -208,8 +209,8 @@ class TestSuiteDB(object):
             __tablename__ = db_key_name + '_Order'
 
             # We guarantee that our fields are stored in the order they are
-            # supposed to be lexicographically compared, the __cmp__ method
-            # relies on this.
+            # supposed to be lexicographically compared, the rich comparison
+            # methods rely on this.
             fields = sorted(self.order_fields,
                             key=lambda of: of.ordinal)
 
@@ -274,17 +275,58 @@ class TestSuiteDB(object):
             def name(self):
                 return self.as_ordered_string()
 
-            def __cmp__(self, b):
+            def _get_comparison_discriminant(self, b):
+                """Return a representative pair of converted revision from self
+                and b. Order of the element on this pair is the same as the
+                order of self relative to b.
+                """
                 # SA occasionally uses comparison to check model instances
-                # verse some sentinels, so we ensure we support comparison
+                # versus some sentinels, so we ensure we support comparison
                 # against non-instances.
                 if self.__class__ is not b.__class__:
-                    return -1
-                # Compare every field in lexicographic order.
-                return cmp([convert_revision(self.get_field(item), cache=Order.order_name_cache)
-                            for item in self.fields],
-                           [convert_revision(b.get_field(item),  cache=Order.order_name_cache)
-                            for item in self.fields])
+                    return (0, 1)
+
+                # Pair converted revision from self and b.
+                converted_revisions = map(
+                    lambda item: (
+                        convert_revision(
+                            self.get_field(item), cache=Order.order_name_cache
+                        ),
+                        convert_revision(
+                            b.get_field(item), cache=Order.order_name_cache
+                        ),
+                    ),
+                    self.fields,
+                )
+                # Return the first unequal pair, or (0, 0) otherwise.
+                return next(
+                    itertools.dropwhile(lambda x: x[0] == x[1], converted_revisions),
+                    (0, 0),
+                )
+
+            def __eq__(self, b):
+                discriminant = self._get_comparison_discriminant(b)
+                return discriminant[0] == discriminant[1]
+
+            def __ne__(self, b):
+                discriminant = self._get_comparison_discriminant(b)
+                return discriminant[0] != discriminant[1]
+
+            def __lt__(self, b):
+                discriminant = self._get_comparison_discriminant(b)
+                return discriminant[0] < discriminant[1]
+
+            def __le__(self, b):
+                discriminant = self._get_comparison_discriminant(b)
+                return discriminant[0] <= discriminant[1]
+
+            def __gt__(self, b):
+                discriminant = self._get_comparison_discriminant(b)
+                return discriminant[0] > discriminant[1]
+
+            def __ge__(self, b):
+                discriminant = self._get_comparison_discriminant(b)
+                return discriminant[0] >= discriminant[1]
 
             def __json__(self, include_id=True):
                 result = {}

@@ -953,7 +953,8 @@ Returns: a version of array a where listmap[i][0] = (instead) listmap[i][1]
  def arowcompare(row1, row2):
     """
 Compares two rows from an array, regardless of whether it is an
-array of numbers or of python objects (which requires the cmp function).
+array of numbers or of python objects (which requires rich comparison
+method __eq__).
 @@@PURPOSE? 2007-11-26
 
 Usage:   arowcompare(row1,row2)
@@ -962,7 +963,7 @@ Returns: an array of equal length containing 1s where the two rows had
 """
     return 
     if row1.dtype.char=='O' or row2.dtype=='O':
-        cmpvect = N.logical_not(abs(N.array(list(map(cmp, row1, row2))))) # cmp fcn gives -1,0,1
+        cmpvect = N.array([x == y for x, y in zip(row1, row2)])
     else:
         cmpvect = N.equal(row1,row2)
     return cmpvect
@@ -971,7 +972,8 @@ Returns: an array of equal length containing 1s where the two rows had
  def arowsame(row1, row2):
     """
 Compares two rows from an array, regardless of whether it is an
-array of numbers or of python objects (which requires the cmp function).
+array of numbers or of python objects (which requires rich comparison
+method __eq__).
 
 Usage:   arowsame(row1,row2)
 Returns: 1 if the two rows are identical, 0 otherwise.
@@ -1021,8 +1023,8 @@ Usage:   aunique (inarray)
         else:   # must be an Object array, alltrue/equal functions don't work
             for item in inarray[1:]:
                 newflag = 1
-                for unq in uniques:  # NOTE: cmp --> 0=same, -1=<, 1=>
-                    test = N.sum(abs(N.array(list(map(cmp, item, unq)))))
+                for unq in uniques:
+                    test = N.sum(N.array([x == y for x, y in zip(item, unq)]))
                     if test == 0:   # if item identical to any 1 row in uniques
                         newflag = 0 # then not a novel item to add
                         break
