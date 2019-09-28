@@ -1771,9 +1771,6 @@ def v4_matrix():
             req.samples[s[1]].append(s[0])
             all_orders.add(s[1])
             order_to_id[s[1]] = s[2]
-        req.derive_stat = {}
-        for order, samples in req.samples.items():
-            req.derive_stat[order] = mean(samples)
     if not all_orders:
         abort(404, "No data found.")
     # Now grab the baseline data.

@@ -12,13 +12,6 @@ def toColorString(col):
     return "#%02x%02x%02x" % (r, g, b)
 
 
-def safediv(a, b, default=None):
-    try:
-        return a / b
-    except ZeroDivisionError:
-        return default
-
-
 def makeDarkerColor(h):
     return makeDarkColor(h, 0.50)
 
