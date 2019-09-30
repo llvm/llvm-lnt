@@ -93,12 +93,12 @@ class Report:
                                'machine': self.machine.render(),
                                'run': self.run.render(),
                                'tests': [t.render() for t in self.tests]},
-                              sort_keys=True, indent=indent, encoding='latin-1')
+                              sort_keys=True, indent=indent)
         else:
             return json.dumps({'Machine': self.machine.render(),
                                'Run': self.run.render(),
                                'Tests': [t.render() for t in self.tests]},
-                              sort_keys=True, indent=indent, encoding='latin-1')
+                              sort_keys=True, indent=indent)
 
 
 class Machine:
