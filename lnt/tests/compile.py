@@ -81,7 +81,8 @@ def runN(args, N, cwd, preprocess_cmd=None, env=None, sample_mem=False,
                          stdout=subprocess.PIPE,
                          stderr=subprocess.PIPE,
                          env=env,
-                         cwd=cwd)
+                         cwd=cwd,
+                         universal_newlines=True)
     runn_stdout, runn_stderr = p.communicate()
     res = p.returncode
 
@@ -332,13 +333,15 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs,
                                  stdin=None,
                                  stdout=subprocess.PIPE,
                                  stderr=subprocess.PIPE,
-                                 cwd=source_path)
+                                 cwd=source_path,
+                                 universal_newlines=True)
         else:
             p = subprocess.Popen(args=['unzip', '-q', archive_path],
                                  stdin=None,
                                  stdout=subprocess.PIPE,
                                  stderr=subprocess.PIPE,
-                                 cwd=source_path)
+                                 cwd=source_path,
+                                 universal_newlines=True)
         stdout, stderr = p.communicate()
         if p.wait() != 0:
             fatal(("unable to extract archive %r at %r\n"
@@ -356,7 +359,8 @@ def test_build(base_name, run_info, variables, project, build_config, num_jobs,
                                  stdin=None,
                                  stdout=subprocess.PIPE,
                                  stderr=subprocess.PIPE,
-                                 cwd=source_path)
+                                 cwd=source_path,
+                                 universal_newlines=True)
             stdout, stderr = p.communicate()
             if p.wait() != 0:
                 fatal(("unable to apply patch file %r in %r\n"

@@ -513,7 +513,7 @@ def execute_command(test_log, basedir, args, report_dir):
 
     p = subprocess.Popen(args=args, stdin=None, stdout=logfile,
                          stderr=subprocess.STDOUT, cwd=basedir,
-                         env=os.environ)
+                         env=os.environ, universal_newlines=True)
 
     if report_dir is not None:
         while p.poll() is None:

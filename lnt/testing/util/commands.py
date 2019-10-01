@@ -61,7 +61,8 @@ def capture_with_result(args, include_stderr=False):
     if include_stderr:
         stderr = subprocess.STDOUT
     try:
-        p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=stderr)
+        p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=stderr,
+                             universal_newlines=True)
     except OSError as e:
         if e.errno == errno.ENOENT:
             fatal('no such file or directory: %r when running %s.' %

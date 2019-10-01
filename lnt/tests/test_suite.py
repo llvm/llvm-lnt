@@ -424,7 +424,10 @@ class TestSuiteTest(BuiltinTest):
         if 'cwd' in kwargs:
             logger.info('          (In %s)' % kwargs['cwd'])
         output = subprocess.check_output(*args, **kwargs)
-        sys.stdout.write(output)
+        if kwargs.get('universal_newlines', False):
+            sys.stdout.write(output)
+        else:
+            sys.stdout.buffer.write(output)
         return output
 
     def _clean(self, path):
@@ -652,7 +655,8 @@ class TestSuiteTest(BuiltinTest):
     def _extract_cmake_vars_from_cache(self):
         assert self.configured is True
         cmake_lah_output = self._check_output(
-            [self.opts.cmake] + ['-LAH', '-N'] + [self._base_path])
+            [self.opts.cmake] + ['-LAH', '-N'] + [self._base_path],
+            universal_newlines=True)
         pattern2var = [
             (re.compile("^%s:[^=]*=(.*)$" % cmakevar), cmakevar)
             for cmakevar in (
@@ -875,13 +879,14 @@ class TestSuiteTest(BuiltinTest):
 
         logger.info(' '.join(cmd_temps))
 
-        out = subprocess.check_output(cmd_temps)
+        out = subprocess.check_output(cmd_temps, universal_newlines=True)
         logger.info(out)
 
         # Figure out our test's target.
         make_cmd = [self.opts.make, "VERBOSE=1", 'help']
 
-        make_targets = subprocess.check_output(make_cmd)
+        make_targets = subprocess.check_output(make_cmd,
+                                               universal_newlines=True)
         matcher = re.compile(r"^\.\.\.\s{}$".format(short_name),
                              re.MULTILINE | re.IGNORECASE)
         if not matcher.search(make_targets):
@@ -894,7 +899,8 @@ class TestSuiteTest(BuiltinTest):
         logger.info(" ".join(make_deps))
         p = subprocess.Popen(make_deps,
                              stdout=subprocess.PIPE,
-                             stderr=subprocess.STDOUT)
+                             stderr=subprocess.STDOUT,
+                             universal_newlines=True)
         std_out, std_err = p.communicate()
         logger.info(std_out)
 
@@ -902,7 +908,8 @@ class TestSuiteTest(BuiltinTest):
         logger.info(" ".join(make_save_temps))
         p = subprocess.Popen(make_save_temps,
                              stdout=subprocess.PIPE,
-                             stderr=subprocess.STDOUT)
+                             stderr=subprocess.STDOUT,
+                             universal_newlines=True)
         std_out, std_err = p.communicate()
         logger.info(std_out)
         with open(report_path + "/build.log", 'w') as f:
@@ -926,13 +933,14 @@ class TestSuiteTest(BuiltinTest):
 
         logger.info(' '.join(cmd_time_report))
 
-        out = subprocess.check_output(cmd_time_report)
+        out = subprocess.check_output(cmd_time_report, universal_newlines=True)
         logger.info(out)
 
         make_time_report = [self.opts.make, "VERBOSE=1", short_name]
         p = subprocess.Popen(make_time_report,
                              stdout=subprocess.PIPE,
-                             stderr=subprocess.PIPE)
+                             stderr=subprocess.PIPE,
+                             universal_newlines=True)
         std_out, std_err = p.communicate()
 
         with open(report_path + "/time-report.txt", 'w') as f:
@@ -944,13 +952,15 @@ class TestSuiteTest(BuiltinTest):
 
         logger.info(' '.join(cmd_stats_report))
 
-        out = subprocess.check_output(cmd_stats_report)
+        out = subprocess.check_output(cmd_stats_report,
+                                      universal_newlines=True)
         logger.info(out)
 
         make_stats_report = [self.opts.make, "VERBOSE=1", short_name]
         p = subprocess.Popen(make_stats_report,
                              stdout=subprocess.PIPE,
-                             stderr=subprocess.PIPE)
+                             stderr=subprocess.PIPE,
+                             universal_newlines=True)
         std_out, std_err = p.communicate()
 
         with open(report_path + "/stats-report.txt", 'w') as f:
@@ -974,19 +984,20 @@ class TestSuiteTest(BuiltinTest):
             cmd_iprofiler = cmd + ['-DTEST_SUITE_RUN_UNDER=' + iprofiler]
             print(' '.join(cmd_iprofiler))
 
-            out = subprocess.check_output(cmd_iprofiler)
+            subprocess.check_output(cmd_iprofiler, universal_newlines=True)
 
             os.chdir(local_path)
             make_iprofiler_temps = [self.opts.make, "VERBOSE=1", short_name]
             p = subprocess.Popen(make_iprofiler_temps,
                                  stdout=subprocess.PIPE,
                                  stderr=subprocess.PIPE)
-            std_out, std_err = p.communicate()
+            p.communicate()
             logger.warning("Using sudo to collect execution trace.")
             make_save_temps = sudo + [self.opts.lit, short_name + ".test"]
             p = subprocess.Popen(make_save_temps,
                                  stdout=subprocess.PIPE,
-                                 stderr=subprocess.PIPE)
+                                 stderr=subprocess.PIPE,
+                                 universal_newlines=True)
             std_out, std_err = p.communicate()
             sys.stdout.write(std_out)
             sys.stderr.write(std_err)

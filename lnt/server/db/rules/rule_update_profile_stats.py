@@ -28,7 +28,8 @@ def update_profile_stats(session, ts, run_id):
 
     dt = time.time()
     blocks = subprocess.check_output("du -s -k %s" % profile_path,
-                                     shell=True).split('\t')[0]
+                                     shell=True,
+                                     universal_newlines=True).split('\t')[0]
     kb = float(blocks)  # 1024 byte blocks.
 
     history.append((dt, kb))
