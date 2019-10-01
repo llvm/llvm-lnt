@@ -771,7 +771,10 @@ def load_nt_report_file(report_path, config):
             append_to_sample_keys((True, 'jit.exec', 'JIT', 'time'))
 
     # Load the report file.
-    report_file = open(report_path, 'rb')
+    if sys.version_info[0] < 3:
+        report_file = open(report_path, 'rb')
+    else:
+        report_file = open(report_path, 'r', newline='')
     reader_it = iter(csv.reader(report_file))
 
     # Get the header.
