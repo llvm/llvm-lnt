@@ -637,7 +637,7 @@ class TestSuiteTest(BuiltinTest):
             return json.loads(open(output_json_path.name).read())
         except ValueError as e:
             fatal("Running test-suite did not create valid json report "
-                  "in {}: {}".format(output_json_path.name, e.message))
+                  "in {}: {}".format(output_json_path.name, e))
 
     def _is_pass_code(self, code):
         return code in ('PASS', 'XPASS', 'XFAIL')

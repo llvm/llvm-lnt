@@ -112,7 +112,7 @@ def import_and_report(config, db_name, db, session, file, format, ts_name,
         raise
     except Exception as e:
         import traceback
-        result['error'] = "import failure: %s" % e.message
+        result['error'] = "import failure: %s" % e
         result['message'] = traceback.format_exc()
         if isinstance(e, lnt.server.db.testsuitedb.MachineInfoChanged):
             result['message'] += \

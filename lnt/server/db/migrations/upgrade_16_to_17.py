@@ -15,7 +15,7 @@ def _mk_index_on(engine, ts_name):
     try:
         fast_fc_lookup.create(engine)
     except (sqlalchemy.exc.OperationalError, sqlalchemy.exc.ProgrammingError) as e:
-        logger.warning("Skipping index creation on {}, because of {}".format(fc_table.name, e.message))
+        logger.warning("Skipping index creation on {}, because of {}".format(fc_table.name, e))
 
 
 def upgrade(engine):
