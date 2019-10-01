@@ -11,7 +11,7 @@ from lnt.util import logger
 def _mk_index_on(engine, ts_name):
     fc_table = introspect_table(engine, "{}_FieldChangeV2".format(ts_name))
 
-    fast_fc_lookup = Index('idx_fast_fieldchange_lookup', fc_table.c.StartOrderID)
+    fast_fc_lookup = Index('{}_idx_fast_fieldchange_lookup'.format(ts_name), fc_table.c.StartOrderID)
     try:
         fast_fc_lookup.create(engine)
     except (sqlalchemy.exc.OperationalError, sqlalchemy.exc.ProgrammingError) as e:
