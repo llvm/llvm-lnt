@@ -1054,7 +1054,7 @@ class TestSuiteDB(object):
                     continue
                 field = field_dict.get(key)
                 if field is None and key != 'profile':
-                    raise ValueError("test %r: Metric %r unknown in suite " %
+                    raise ValueError("test %s: Metric '%s' unknown in suite " %
                                      (name, key))
 
                 if not isinstance(values, list):

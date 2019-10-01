@@ -20,7 +20,7 @@
 #
 # Inserting with an extra field shouldn't work just yet
 # RUN: not lnt import "%t.install" -s my_suite "%S/Inputs/customschema-report2.json" 2>&1 | FileCheck %s --check-prefix=NOTUPGRADED
-# NOTUPGRADED: Metric u'newfield' unknown in suite
+# NOTUPGRADED: Metric 'newfield' unknown in suite
 
 # Upgrading to a schema with metrics/fields removed should fail
 # RUN: rm -f "%t.install/schemas/my_suite.yaml"
