@@ -153,7 +153,7 @@ CREATE TABLE "NT_Machine" (
 );
 INSERT INTO "NT_Machine" ("Name", "Parameters", "hardware", "os")
  VALUES('localhost__clang_DEV__x86_64',
-        '[["name", "localhost"], ["uname", "Darwin localhost 11.3.0 Darwin Kernel Version 11.3.0: Thu Jan 12 18:47:41 PST 2012; root:xnu-1699.24.23~1/RELEASE_X86_64 x86_64"]]',
+        CAST('[["name", "localhost"], ["uname", "Darwin localhost 11.3.0 Darwin Kernel Version 11.3.0: Thu Jan 12 18:47:41 PST 2012; root:xnu-1699.24.23~1/RELEASE_X86_64 x86_64"]]' AS BLOB),
         'x86_64','Darwin 11.3.0'); -- ID 1
 CREATE TABLE "NT_Test" (
 	"ID" INTEGER PRIMARY KEY NOT NULL, 

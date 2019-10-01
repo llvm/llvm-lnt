@@ -143,7 +143,7 @@ class TestSuiteDB(object):
 
             @parameters.setter
             def parameters(self, data):
-                self.parameters_data = json.dumps(sorted(data.items()))
+                self.parameters_data = json.dumps(sorted(data.items())).encode("utf-8")
 
             def get_baseline_run(self, session):
                 ts = Machine.testsuite
@@ -402,7 +402,7 @@ class TestSuiteDB(object):
 
             @parameters.setter
             def parameters(self, data):
-                self.parameters_data = json.dumps(sorted(data.items()))
+                self.parameters_data = json.dumps(sorted(data.items())).encode("utf-8")
 
             def __json__(self, flatten_order=True):
                 result = {

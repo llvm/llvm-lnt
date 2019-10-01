@@ -84,7 +84,7 @@ def update_testsuite(engine, session, db_key_name):
         # Update the run info.
         run_info['inferred_run_order'] = run_order
         run_info['__report_version__'] = '1'
-        run.Parameters = json.dumps(sorted(run_info.items()))
+        run.Parameters = json.dumps(sorted(run_info.items())).encode('utf-8')
 
         if run_order != orig_order:
             # Lookup the new run order.

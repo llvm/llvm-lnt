@@ -6,27 +6,27 @@ INSERT INTO "compile_Test" ("Name")
  
 -- make sure there are 3 machines - to test ?filter-machine-regex= on daily_report page
 INSERT INTO "NT_Machine" ("Name", "Parameters", "hardware", "os")
- VALUES('machine2','[]','AArch64','linux'); -- ID 2
+ VALUES('machine2',CAST('[]' AS BLOB),'AArch64','linux'); -- ID 2
 INSERT INTO "NT_Order" ("NextOrder", "PreviousOrder", "llvm_project_revision")
  VALUES(2,NULL,'152290'); -- ID 3
 UPDATE "NT_Order" SET "NextOrder" = 3 WHERE "ID" = 2;
 INSERT INTO "NT_Run" ("MachineID", "OrderID", "ImportedFrom", "StartTime",
                       "EndTime", "SimpleRunID", "Parameters")
  VALUES(2,3,'run3.json','2012-04-11 16:28:23.000000',
-        '2012-04-11 16:28:58.000000',NULL,'[]'); -- ID 3
+        '2012-04-11 16:28:58.000000',NULL,CAST('[]' AS BLOB)); -- ID 3
 INSERT INTO "NT_Sample" ("RunID", "TestID", "compile_status",
                          "execution_status", "compile_time", "execution_time",
                          "score", "mem_bytes")
  VALUES(3,1,NULL,NULL,0.001,0.0001,NULL,NULL); -- ID 3
 INSERT INTO "NT_Machine" ("Name", "Parameters", "hardware", "os")
- VALUES('machine3','[]','AArch64','linux'); -- ID 3
+ VALUES('machine3',CAST('[]' AS BLOB),'AArch64','linux'); -- ID 3
 INSERT INTO "NT_Order" ("NextOrder", "PreviousOrder", "llvm_project_revision")
  VALUES(3,NULL,'152291'); -- ID 4
 UPDATE "NT_Order" SET "PreviousOrder" = 4 WHERE "ID" = 3;
 INSERT INTO "NT_Run" ("MachineID", "OrderID", "ImportedFrom", "StartTime",
                       "EndTime", "SimpleRunID", "Parameters") 
  VALUES(3,4,'run4.json','2012-04-11 16:28:24.000000',
-        '2012-04-11 16:28:59.000000',NULL,'[]'); -- ID 4
+        '2012-04-11 16:28:59.000000',NULL,CAST('[]' AS BLOB)); -- ID 4
 INSERT INTO "NT_Sample" ("RunID", "TestID", "compile_status",
                          "execution_status", "compile_time", "execution_time",
                          "score", "mem_bytes")
@@ -41,7 +41,7 @@ INSERT INTO "NT_Run" ("MachineID", "OrderID", "ImportedFrom", "StartTime",
                       "EndTime", "SimpleRunID", "Parameters")
  VALUES(2,5,'run5.json','2012-05-01 16:28:23.000000',
         '2012-05-01 16:28:58.000000',NULL,
-        '[["producer", "http://buildbot.server.url/builders/some-builder/builds/987"]]'); -- ID 5
+        CAST('[["producer", "http://buildbot.server.url/builders/some-builder/builds/987"]]' AS BLOB)); -- ID 5
 INSERT INTO "NT_Sample" ("RunID", "TestID", "compile_status",
                          "execution_status", "compile_time", "execution_time",
                          "score", "mem_bytes")
@@ -56,7 +56,7 @@ UPDATE "NT_Order" SET "PreviousOrder" = 6 WHERE "ID" = 5;
 INSERT INTO "NT_Run" ("MachineID", "OrderID", "ImportedFrom", "StartTime",
                       "EndTime", "SimpleRunID", "Parameters")
  VALUES(2,6,'run6.json','2012-05-03 16:28:24.000000',
-        '2012-05-03 16:28:59.000000',NULL,'[]'); -- ID 6
+        '2012-05-03 16:28:59.000000',NULL,CAST('[]' AS BLOB)); -- ID 6
 INSERT INTO "NT_Sample" ("RunID", "TestID", "compile_status",
                          "execution_status", "compile_time", "execution_time",
                          "score", "mem_bytes")
@@ -78,17 +78,17 @@ INSERT INTO "NT_Run" ("MachineID", "OrderID", "ImportedFrom", "StartTime",
                       "EndTime", "SimpleRunID", "Parameters")
  VALUES(2,6,'run7.json','2012-05-10 16:28:23.000000',
         '2012-05-10 16:28:58.000000',NULL,
-        '[["producer", "http://my.build.server/buildResult"]]'); -- ID 7
+        CAST('[["producer", "http://my.build.server/buildResult"]]' AS BLOB)); -- ID 7
 INSERT INTO "NT_Run" ("MachineID", "OrderID", "ImportedFrom", "StartTime",
                       "EndTime", "SimpleRunID", "Parameters")
  VALUES(2,7,'run8.json','2012-05-11 16:28:23.000000',
         '2012-05-11 16:28:58.000000',NULL,
-        '[["producer", "https://my.build.server/buildResult"]]'); -- ID 8
+        CAST('[["producer", "https://my.build.server/buildResult"]]' AS BLOB)); -- ID 8
 INSERT INTO "NT_Run" ("MachineID", "OrderID", "ImportedFrom", "StartTime",
                       "EndTime", "SimpleRunID", "Parameters")
  VALUES(2,8,'run9.json','2012-05-12 16:28:23.000000',
         '2012-05-12 16:28:58.000000',NULL,
-        '[["producer", "https://buildbot.server.url/builders/some-builder/builds/999"]]'); -- ID 9
+        CAST('[["producer", "https://buildbot.server.url/builders/some-builder/builds/999"]]' AS BLOB)); -- ID 9
 INSERT INTO "NT_Sample" ("RunID", "TestID", "compile_status",
                          "execution_status", "compile_time", "execution_time",
                          "score", "mem_bytes")

@@ -106,7 +106,7 @@ class TestSuiteJSONSchema(Base):
 
     def __init__(self, testsuite_name, data):
         self.testsuite_name = testsuite_name
-        self.jsonschema = json.dumps(data, encoding='utf-8', sort_keys=True)
+        self.jsonschema = json.dumps(data, sort_keys=True).encode('utf-8')
 
 
 class TestSuite(Base):

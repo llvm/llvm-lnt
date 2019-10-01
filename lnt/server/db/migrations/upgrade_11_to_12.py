@@ -21,7 +21,7 @@ def update_testsuite(engine, db_key_name):
         name = info.pop('name', None)
         if name is not None:
             info['hostname'] = name
-        machine.Parameters = json.dumps(sorted(info.items()))
+        machine.Parameters = json.dumps(sorted(info.items())).encode("utf-8")
 
     session.commit()
     session.close()
