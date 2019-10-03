@@ -85,9 +85,6 @@ class Report:
         at construction as a string, where each object is indented by
         indent spaces compared to its parent.
         """
-        # Note that we specifically override the encoding to avoid the
-        # possibility of encoding errors. Clients which care about the
-        # text encoding should supply unicode string objects.
         if self.report_version == 2:
             return json.dumps({'format_version': str(self.report_version),
                                'machine': self.machine.render(),
