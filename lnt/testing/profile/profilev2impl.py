@@ -558,7 +558,7 @@ class ProfileV2(ProfileImpl):
     def checkFile(fn):
         # The first number is the version (2); ULEB encoded this is simply
         # 0x02.
-        return ord(open(fn).read(1)) == 2
+        return open(fn, 'rb').read(1) == b'\x02'
 
     @staticmethod
     def deserialize(fobj):

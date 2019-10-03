@@ -18,7 +18,7 @@ class LinuxPerfProfile(ProfileImpl):
 
     @staticmethod
     def checkFile(fn):
-        return open(fn).read(8) == 'PERFILE2'
+        return open(fn, 'rb').read(8) == b'PERFILE2'
 
     @staticmethod
     def deserialize(f, nm='nm', objdump='objdump', propagateExceptions=False):
