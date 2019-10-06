@@ -3,8 +3,8 @@ import click
 
 @click.command("importreport", short_help="import simple space separated "
                "data into a report to submit.")
-@click.argument("input", type=click.File('rb'), default="-", required=False)
-@click.argument("output", type=click.File('wb'), default="report.json",
+@click.argument("input", type=click.File('r'), default="-", required=False)
+@click.argument("output", type=click.File('w'), default="report.json",
                 required=False)
 @click.option("--testsuite", "suite", default="nts", show_default=True,
               required=True, help="short name of the test suite to submit to")
