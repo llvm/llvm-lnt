@@ -424,11 +424,13 @@ def command_top_level_counters(input):
 
 @action_profile.command("getFunctions")
 @click.argument("input", type=click.Path(exists=True))
-def command_get_functions(input):
+@click.option("--sortkeys", is_flag=True)
+def command_get_functions(input, sortkeys):
     """print the functions in a profile"""
     import json
     import lnt.testing.profile.profile as profile
-    print(json.dumps(profile.Profile.fromFile(input).getFunctions()))
+    print(json.dumps(profile.Profile.fromFile(input).getFunctions(),
+                     sort_keys=sortkeys))
 
 
 @action_profile.command("getCodeForFunction")
