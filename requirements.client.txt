@@ -15,7 +15,7 @@ WTForms==2.0.2
 Flask-WTF==0.12
 typing
 click==6.7
-pyyaml==3.12
+pyyaml==3.13
 requests
 future
 -e svn+https://llvm.org/svn/llvm-project/llvm/trunk/utils/lit/#egg=lit
