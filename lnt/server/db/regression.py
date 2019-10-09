@@ -71,7 +71,7 @@ def rebuild_title(session, ts, regression):
             fc = ri.field_change
             benchmarks.add(shortname(fc.test.name))
         FMT = "Regression of {} benchmarks: {}"
-        title = FMT.format(new_size, ', '.join(benchmarks))
+        title = FMT.format(new_size, ', '.join(sorted(benchmarks)))
         # Crop long titles.
         title = (title[:120] + '...') if len(title) > 120 else title
         regression.title = title

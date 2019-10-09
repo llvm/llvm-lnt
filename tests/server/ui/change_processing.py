@@ -212,7 +212,8 @@ class ChangeProcessingTests(unittest.TestCase):
         session.commit()
 
         r2 = rebuild_title(session, ts_db, self.regression)
-        expected_title = "Regression of 6 benchmarks: foo, bar"
+        # The list of benchmark regressing is guaranteed to be sorted.
+        expected_title = "Regression of 6 benchmarks: bar, foo"
         self.assertEqual(r2.title, expected_title)
 
     def test_regression_evolution(self):
