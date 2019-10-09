@@ -2,17 +2,18 @@
 from future import standard_library
 standard_library.install_aliases()
 import click
+from importlib import import_module
 from .common import submit_options
 
 
 def _load_dependencies():
     global yaml, sys, requests, json, os, http
-    import yaml
-    import sys
-    import requests
-    import json
-    import os
-    import http.client
+    yaml = import_module('yaml')
+    sys = import_module('sys')
+    requests = import_module('requests')
+    json = import_module('json')
+    os = import_module('os')
+    http = import_module('http.client')
 
 
 def _error(msg):
