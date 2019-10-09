@@ -78,7 +78,7 @@ def check_code(client, url, expected_code=HTTP_OK, data_to_send=None):
 
 def check_html(client, url, expected_code=HTTP_OK, data_to_send=None):
     resp = check_code(client, url, expected_code, data_to_send)
-    validate_html(resp.data)
+    validate_html(resp.get_data(as_text=True))
     return resp
 
 
@@ -145,7 +145,7 @@ def find_table_with_heading(tree, table_heading):
 
 def check_nr_machines_reported(client, url, expected_nr_machines):
     resp = check_code(client, url)
-    html = resp.data
+    html = resp.get_data(as_text=sys.version_info[0] >= 3)
     tree = get_xml_tree(html)
     # look for the table containing the machines on the page.
     # do this by looking for the title containing "Reported Machine Order"
@@ -166,7 +166,7 @@ def convert_html_to_text(element):
 
 def get_table_by_header(client, url, table_header):
     resp = check_code(client, url)
-    html = resp.data
+    html = resp.get_data(as_text=sys.version_info[0] >= 3)
     tree = get_xml_tree(html)
     table = find_table_with_heading(tree, table_header)
     assert table is not None, \
@@ -227,7 +227,7 @@ def check_body_nr_tests_table(client, url, expected_content):
 def check_producer_label(client, url, label):
     table_header = "Produced by"
     resp = check_code(client, url)
-    tree = get_xml_tree(resp.data)
+    tree = get_xml_tree(resp.get_data(as_text=sys.version_info[0] >= 3))
     table = find_table_by_thead_content(tree, table_header)
     check_row_is_in_table(table, label)
 
@@ -333,7 +333,7 @@ def main():
                     follow_redirects=True)
     assert r.status_code == HTTP_OK
     # Should see baseline displayed in page body.
-    assert "Baseline - foo_baseline" in r.data
+    assert "Baseline - foo_baseline" in r.get_data(as_text=True)
 
     # Now demote it.
     data2 = dict(name="foo_baseline",
@@ -344,7 +344,7 @@ def main():
     r = client.post('/v4/nts/order/3', data=data2, follow_redirects=True)
     assert r.status_code == HTTP_OK
     # Baseline should no longer be shown in page baseline.
-    assert "Baseline - foo_baseline" not in r.data
+    assert "Baseline - foo_baseline" not in r.get_data(as_text=True)
 
     # Leave a baseline in place for the rest of the tests.
     client.post('/v4/nts/order/3', data=form_data)
@@ -638,10 +638,11 @@ def main():
     check_json(client, '/db_default/v4/nts/graph?switch_min_mean=yes&plot.0=1.3.2&json=true')
     app.testing = False
     error_page = check_html(client, '/explode', expected_code=500)
-    assert re.search("division (or modulo )?by zero", error_page.data)
+    assert re.search("division (or modulo )?by zero",
+                     error_page.get_data(as_text=True))
 
     error_page = check_html(client, '/gone', expected_code=404)
-    assert "test" in error_page.data
+    assert "test" in error_page.get_data(as_text=True)
 
     check_html(client, '/sleep?timeout=0', expected_code=200)
 
@@ -650,9 +651,9 @@ def main():
     check_html(client, '/rules')
     check_html(client, '/log')
     resp = check_code(client, '/__health')
-    assert resp.data == "Ok"
+    assert resp.get_data(as_text=True) == "Ok"
     resp = check_code(client, '/ping')
-    assert resp.data == "pong"
+    assert resp.get_data(as_text=True) == "pong"
 
     # Check we can convert a sample into a graph page.
     graph_to_sample = check_code(client, '/db_default/v4/nts/graph_for_sample/10/compile_time?foo=bar',

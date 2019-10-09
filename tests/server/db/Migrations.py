@@ -28,9 +28,10 @@ def sanity_check_instance(instance_path):
 
     # Visit all the test suites.
     test_suite_link_rex = re.compile("""  <a href="(.*)">(.*)</a><br>""")
-    test_suite_list_start = index.data.index("<h3>Test Suites</h3>")
-    test_suite_list_end = index.data.index("</div>", test_suite_list_start)
-    for ln in index.data[test_suite_list_start:test_suite_list_end].split("\n"):
+    data = index.get_data(as_text=True)
+    test_suite_list_start = data.index("<h3>Test Suites</h3>")
+    test_suite_list_end = data.index("</div>", test_suite_list_start)
+    for ln in data[test_suite_list_start:test_suite_list_end].split("\n"):
         # Ignore non-matching lines.
         print(ln, file=sys.stderr)
         m = test_suite_link_rex.match(ln)

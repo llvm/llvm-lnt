@@ -306,7 +306,7 @@ class Runs(Resource):
         """Add a new run into the lnt database"""
         session = request.session
         db = request.get_db()
-        data = request.data
+        data = request.get_data(as_text=True)
         select_machine = request.values.get('select_machine', 'match')
         merge = request.values.get('merge', None)
         result = lnt.util.ImportData.import_from_string(

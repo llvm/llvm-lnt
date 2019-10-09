@@ -36,25 +36,26 @@ class MatrixViewTester(unittest.TestCase):
         client = self.client
         reply = check_code(client, '/v4/nts/matrix',
                            expected_code=HTTP_NOT_FOUND)
-        self.assertIn("Request requires some data arguments.", reply.data)
+        self.assertIn("Request requires some data arguments.",
+                      reply.get_data(as_text=True))
 
         reply = check_code(client, '/v4/nts/matrix?plot.0=1.1.1',
                            expected_code=HTTP_NOT_FOUND)
-        self.assertIn("No data found.", reply.data)
+        self.assertIn("No data found.", reply.get_data(as_text=True))
 
         reply = check_code(client, '/v4/nts/matrix?plot.0=a.2.0',
                            expected_code=HTTP_BAD_REQUEST)
-        self.assertIn("malformed", reply.data)
+        self.assertIn("malformed", reply.get_data(as_text=True))
 
         reply = check_code(client, '/v4/nts/matrix?plot.0=999.0.0',
                            expected_code=HTTP_NOT_FOUND)
-        self.assertIn("Invalid machine", reply.data)
+        self.assertIn("Invalid machine", reply.get_data(as_text=True))
         reply = check_code(client, '/v4/nts/matrix?plot.0=1.999.0',
                            expected_code=HTTP_NOT_FOUND)
-        self.assertIn("Invalid test", reply.data)
+        self.assertIn("Invalid test", reply.get_data(as_text=True))
         reply = check_code(client, '/v4/nts/matrix?plot.0=1.1.999',
                            expected_code=HTTP_NOT_FOUND)
-        self.assertIn("Invalid field", reply.data)
+        self.assertIn("Invalid field", reply.get_data(as_text=True))
 
     def test_matrix_view(self):
         """Does the page load with the data as expected.
@@ -66,15 +67,16 @@ class MatrixViewTester(unittest.TestCase):
                          description="foo_description",
                          prmote=True)
         rc = client.post('/v4/nts/order/6', data=form_data)
-        self.assertEquals(rc.status_code, HTTP_REDIRECT)
+        self.assertEqual(rc.status_code, HTTP_REDIRECT)
         check_code(client, '/v4/nts/set_baseline/1',
                    expected_code=HTTP_REDIRECT)
 
         reply = check_html(client, '/v4/nts/matrix?plot.0=2.6.2')
         # Make sure the data is in the page.
-        self.assertIn("test6", reply.data)
-        self.assertIn("1.0000", reply.data)
-        self.assertIn("1.2000", reply.data)
+        data = reply.get_data(as_text=True)
+        self.assertIn("test6", data)
+        self.assertIn("1.0000", data)
+        self.assertIn("1.2000", data)
 
         reply = check_html(client, '/v4/nts/matrix?plot.0=2.6.2&limit=1')
 
