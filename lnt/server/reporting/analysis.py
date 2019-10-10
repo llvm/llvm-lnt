@@ -96,7 +96,6 @@ class ComparisonResult:
             self.stddev = None
             self.MAD = None
 
-        self.stddev_mean = None  # Only calculate this if needed.
         self.failed = cur_failed
         self.prev_failed = prev_failed
         self.samples = samples
@@ -104,14 +103,6 @@ class ComparisonResult:
 
         self.confidence_lv = confidence_lv
         self.bigger_is_better = bigger_is_better
-
-    @property
-    def stddev_mean(self):
-        """The mean around stddev for current sampples. Cached after first call.
-        """
-        if not self.stddev_mean:
-            self.stddev_mean = stats.mean(self.samples)
-        return self.stddev_mean
 
     def __repr__(self):
         """Print this ComparisonResult's constructor.
