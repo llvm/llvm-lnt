@@ -113,6 +113,7 @@ def action_create(instance_path, name, config, wsgi, tmp_dir, db_dir,
 * INSTANCE_PATH should point to a directory that will keep
 LNT configuration.
     """
+    from builtins import bytes
     from .common import init_logger
     import hashlib
     import lnt.server.db.migrate
@@ -137,8 +138,12 @@ LNT configuration.
     tmp_path = os.path.join(basepath, tmp_dir)
     wsgi_path = os.path.join(basepath, wsgi)
     schemas_path = os.path.join(basepath, "schemas")
-    secret_key = (secret_key or
-                  hashlib.sha1(str(random.getrandbits(256))).hexdigest())
+    secret_key = (
+        secret_key or
+        hashlib.sha1(
+            bytes(str(random.getrandbits(256)), encoding="ascii")
+        ).hexdigest()
+    )
 
     os.mkdir(instance_path)
     os.mkdir(tmp_path)
