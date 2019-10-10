@@ -12,7 +12,7 @@ def get_names():
 
     Return the list of known built-in test names.
     """
-    return _known_tests
+    return sorted(_known_tests)
 
 
 def get_module(name):
