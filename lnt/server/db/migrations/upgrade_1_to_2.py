@@ -38,7 +38,7 @@ def update_testsuite(engine, session, db_key_name):
     logger.info("updating runs")
     all_runs = session.query(Run).\
         filter(sqlalchemy.not_(Run.Parameters.like(
-                '%["__report_version__"%'))).all()
+                b'%["__report_version__"%'))).all()
     for i, run in enumerate(all_runs):
         if i % 1000 == 999:
             logger.info("update run %d of %d" % (i + 1, len(all_runs)))
