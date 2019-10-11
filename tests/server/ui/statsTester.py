@@ -1,13 +1,4 @@
-#
-# create temporary instance
-# Cleanup temporary directory in case one remained from a previous run - also
-# see PR9904.
-# RUN: rm -rf %t.instance
-# RUN: python %{shared_inputs}/create_temp_instance.py \
-# RUN:   %s %{shared_inputs}/SmallInstance %t.instance \
-# RUN:   %S/Inputs/V4Pages_extra_records.sql
-#
-# RUN: python %s %t.instance
+# RUN: python %s
 
 import unittest
 
@@ -54,13 +45,4 @@ class TestLNTStatsTester(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    try:
-        unittest.main()
-    except AttributeError:
-        # Command line parameters are treated as test cases, when \
-        # running with lit rather than python directly.
-        import sys
-        if len(sys.argv) != 2:
-            sys.exit("Something went horribly wrong. You need parameters.")
-        del sys.argv[1:]
-        unittest.main()
+    unittest.main()
