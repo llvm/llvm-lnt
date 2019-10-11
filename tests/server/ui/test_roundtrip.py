@@ -94,8 +94,10 @@ class JSONAPIRoundTripTester(unittest.TestCase):
         for k in ['machine', 'run']:
             self.assertEqual(before_submit_run[k], after_submit_run[k])
         # The order of the tests might have changed, so sort before they are compared.
-        before_submit_tests = sorted(before_submit_run['tests'])
-        after_submit_tests = sorted(after_submit_run['tests'])
+        before_submit_tests = sorted(before_submit_run['tests'],
+                                     key=lambda test: test['id'])
+        after_submit_tests = sorted(after_submit_run['tests'],
+                                    key=lambda test: test['id'])
         for i, _ in enumerate(before_submit_tests):
             before_submit_tests[i]['run_id'] = 1234
             after_submit_tests[i]['run_id'] = 1234
