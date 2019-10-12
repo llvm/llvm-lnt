@@ -536,7 +536,7 @@ def execute_test_modules(test_log, test_modules, test_module_variables,
     results = []
     for name in test_modules:
         # First, load the test module file.
-        locals = globals = {}
+        globals = {}
         test_path = os.path.join(config.test_suite_root, 'LNTBased', name)
         # This is where shared code between test modules should go.
         sys.path.append(os.path.join(config.test_suite_root, 'LNTBased/lib'))
@@ -544,7 +544,7 @@ def execute_test_modules(test_log, test_modules, test_module_variables,
         module_path = os.path.join(test_path, 'TestModule')
         module_file = open(module_path)
         try:
-            exec(module_file, locals, globals)
+            exec(module_file, globals)
         except Exception:
             info = traceback.format_exc()
             fatal("unable to import test module: %r\n%s" % (
