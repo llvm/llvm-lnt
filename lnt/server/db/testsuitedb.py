@@ -304,6 +304,15 @@ class TestSuiteDB(object):
                     (0, 0),
                 )
 
+            def __hash__(self):
+                converted_fields = map(
+                    lambda item: convert_revision(
+                        self.get_field(item), cache=Order.order_name_cache
+                    ),
+                    self.fields,
+                )
+                return hash(tuple(converted_fields))
+
             def __eq__(self, b):
                 discriminant = self._get_comparison_discriminant(b)
                 return discriminant[0] == discriminant[1]
