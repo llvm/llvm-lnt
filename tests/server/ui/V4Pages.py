@@ -109,10 +109,12 @@ def dump_html(html_string):
 
 def get_xml_tree(html_string):
     try:
-        parser = ET.XMLParser()
-        parser.parser.UseForeignDTD(True)
-        parser.entity.update((x, unichr(i)) for x, i in name2codepoint.items())
-        tree = ET.fromstring(html_string, parser=parser)
+        entities_defs = []
+        for x, i in name2codepoint.items():
+            entities_defs.append('  <!ENTITY {x} "&#{i};">'.format(**locals()))
+        docstring = "<!DOCTYPE html [\n{}\n]>".format('\n'.join(entities_defs))
+        html_string = html_string.replace("<!DOCTYPE html>", docstring, 1)
+        tree = ET.fromstring(html_string)
     except:  # noqa FIXME: figure out what we expect this to throw.
         dump_html(html_string)
         raise
