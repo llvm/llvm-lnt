@@ -371,7 +371,9 @@ def main():
 
     # Get a graph page. This has been changed to redirect.
     check_redirect(client, '/v4/nts/1/graph?test.3=2',
-                   'v4/nts/graph\?plot\.0=1\.3\.2&highlight_run=1$')
+                   'v4/nts/graph\?'
+                   '(plot\.0=1\.3\.2&highlight_run=1'
+                   '|highlight_run=1&plot\.0=1\.3\.2)$')
 
     # Get a run that contains generic producer information
     check_producer_label(client, '/v4/nts/7',
@@ -655,7 +657,9 @@ def main():
     # Check we can convert a sample into a graph page.
     graph_to_sample = check_code(client, '/db_default/v4/nts/graph_for_sample/10/compile_time?foo=bar',
                                  expected_code=HTTP_REDIRECT)
-    assert graph_to_sample.headers['Location'] == "http://localhost/db_default/v4/nts/graph?foo=bar&plot.0=2.6.0"
+    assert graph_to_sample.headers['Location'] in (
+            "http://localhost/db_default/v4/nts/graph?foo=bar&plot.0=2.6.0",
+            "http://localhost/db_default/v4/nts/graph?plot.0=2.6.0&foo=bar")
 
     # Check that is we ask for a sample or invalid field, we explode with 400s.
     check_code(client, '/db_default/v4/nts/graph_for_sample/10000/compile_time?foo=bar',
