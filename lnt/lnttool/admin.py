@@ -186,7 +186,7 @@ def action_rm_machine(config, machine):
            .format(machine=machine, **config.dict))
     response = config.session.delete(url, stream=True)
     _check_response(response)
-    for line in response.iter_lines():
+    for line in response.text.splitlines():
         sys.stdout.write(line + '\n')
         sys.stdout.flush()
 
