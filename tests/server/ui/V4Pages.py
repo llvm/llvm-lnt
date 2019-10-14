@@ -636,7 +636,7 @@ def main():
     check_json(client, '/db_default/v4/nts/graph?switch_min_mean=yes&plot.0=1.3.2&json=true')
     app.testing = False
     error_page = check_html(client, '/explode', expected_code=500)
-    assert "integer division or modulo by zero" in error_page.data
+    assert re.search("division (or modulo )?by zero", error_page.data)
 
     error_page = check_html(client, '/gone', expected_code=404)
     assert "test" in error_page.data
