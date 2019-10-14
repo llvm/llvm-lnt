@@ -66,7 +66,8 @@ def register_hooks():
     global HOOKS_LOADED
     for name, path in load_rules().items():
         globals = {}
-        exec(compile(open(path).read(), path, 'exec'), globals)
+        with open(path) as f:
+            exec(compile(f.read(), path, 'exec'), globals)
         DESCRIPTIONS[name] = globals['__doc__']
         for hook_name in HOOKS.keys():
             if hook_name in globals:

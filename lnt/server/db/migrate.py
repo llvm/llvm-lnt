@@ -162,8 +162,8 @@ def update_schema(engine, versions, available_migrations, schema_name):
         upgrade_script = schema_migrations[db_version]
 
         globals = {}
-        exec(compile(open(upgrade_script).read(), upgrade_script, 'exec'),
-             globals)
+        with open(upgrade_script) as f:
+            exec(compile(f.read(), upgrade_script, 'exec'), globals)
         upgrade_method = globals['upgrade']
 
         # Execute the upgrade.
