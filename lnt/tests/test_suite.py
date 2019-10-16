@@ -1,5 +1,4 @@
 """LLVM test-suite"""
-from __future__ import print_function
 import subprocess
 import tempfile
 import json

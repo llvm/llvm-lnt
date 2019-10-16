@@ -1,4 +1,3 @@
-from __future__ import print_function
 import click
 import platform
 
@@ -113,7 +112,6 @@ def action_create(instance_path, name, config, wsgi, tmp_dir, db_dir,
 * INSTANCE_PATH should point to a directory that will keep
 LNT configuration.
     """
-    from builtins import bytes
     from .common import init_logger
     import hashlib
     import lnt.server.db.migrate

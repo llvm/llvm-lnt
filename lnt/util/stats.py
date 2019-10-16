@@ -1,4 +1,3 @@
-from __future__ import division
 import math
 from lnt.external.stats.stats import mannwhitneyu as mannwhitneyu_large
 from functools import reduce

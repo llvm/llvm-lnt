@@ -1,7 +1,4 @@
 # This code lifted from the mod_wsgi docs.
-from __future__ import print_function
-from future import standard_library
-standard_library.install_aliases()
 import os
 from pathlib import Path
 from typing import Sequence

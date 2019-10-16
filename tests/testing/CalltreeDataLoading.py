@@ -1,4 +1,3 @@
-from __future__ import print_function
 # Check the model bindings for test suite instances.
 #
 # RUN: rm -f %t.db

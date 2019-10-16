@@ -2,7 +2,6 @@
 Database models for the TestSuites abstraction.
 """
 
-from __future__ import absolute_import
 import json
 import lnt
 from . import util

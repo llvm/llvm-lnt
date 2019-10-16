@@ -1,7 +1,3 @@
-from __future__ import absolute_import
-from builtins import range
-from future import standard_library
-standard_library.install_aliases()
 from .profile import ProfileImpl
 import bz2
 import copy

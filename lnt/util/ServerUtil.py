@@ -1,9 +1,6 @@
 """
 Utility for submitting files to a web server over HTTP.
 """
-from __future__ import print_function
-from future import standard_library
-standard_library.install_aliases()
 import sys
 import urllib.request
 import urllib.parse

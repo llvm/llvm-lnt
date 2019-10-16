@@ -1,6 +1,4 @@
 #!/usr/bin/env python
-from future import standard_library
-standard_library.install_aliases()
 import click
 from importlib import import_module
 from .common import submit_options

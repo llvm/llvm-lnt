@@ -2,7 +2,6 @@
 Base class for builtin-in tests.
 """
 
-from __future__ import print_function
 import sys
 import os
 

@@ -1,12 +1,11 @@
-from __future__ import print_function
 import lnt
 import os
 from sys import platform as _platform
 import sys
 from setuptools import setup, find_packages, Extension
 
-if sys.version_info < (3, 6) and sys.version_info[:2] != (2, 7):
-    raise RuntimeError("Python 2.7 or Python 3.6 or higher required.")
+if sys.version_info < (3, 6):
+    raise RuntimeError("Python 3.6 or higher required.")
 
 cflags = []
 
@@ -81,7 +80,7 @@ The *LNT* source is available in the llvm-lnt repository:
         'License :: OSI Approved :: Apache-2.0 with LLVM exception',
         'Natural Language :: English',
         'Operating System :: OS Independent',
-        'Programming Language :: Python',
+        'Programming Language :: Python :: 3',
         'Topic :: Software Development :: Quality Assurance',
         'Topic :: Software Development :: Testing',
     ],
@@ -133,12 +132,11 @@ The *LNT* source is available in the llvm-lnt repository:
         "click==6.7",
         "pyyaml==5.1.2",
         "requests",
-        "future",
         "lit==0.11.1",
         "certifi"
     ],
 
     ext_modules=[cPerf],
 
-    python_requires='>=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*, !=3.5.*',
+    python_requires='>=3.6.*',
 )

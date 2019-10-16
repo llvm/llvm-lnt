@@ -1,5 +1,4 @@
 """Implement the command line 'lnt' tool."""
-from __future__ import print_function
 from .common import init_logger
 from .common import submit_options
 from .convert import action_convert

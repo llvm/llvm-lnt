@@ -1,5 +1,3 @@
-from future import standard_library
-standard_library.install_aliases()
 from lnt.testing.profile.profile import ProfileImpl
 import pickle
 import zlib

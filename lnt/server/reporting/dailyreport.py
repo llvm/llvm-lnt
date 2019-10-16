@@ -1,5 +1,3 @@
-from future import standard_library
-standard_library.install_aliases()
 from lnt.server.reporting.analysis import REGRESSED, UNCHANGED_FAIL
 from lnt.server.reporting.report import RunResult, RunResults, report_css_styles, pairs, OrderAndHistory
 from lnt.util import multidict

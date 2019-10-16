@@ -3,8 +3,6 @@
 """
 Utilities for "faking" a compiler response.
 """
-from __future__ import print_function
-
 import inspect
 import os
 import sys

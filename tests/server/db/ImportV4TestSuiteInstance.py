@@ -1,4 +1,3 @@
-from __future__ import print_function
 # Check the import process into a v4 test suite DB.
 #
 # We first construct a temporary LNT instance.

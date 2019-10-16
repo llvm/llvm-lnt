@@ -1,4 +1,3 @@
-from __future__ import absolute_import
 from lnt.util import logger
 from .profile import ProfileImpl
 from .profilev1impl import ProfileV1

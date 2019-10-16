@@ -1,4 +1,3 @@
-from __future__ import print_function
 from lnt.util import NTEmailReport
 from contextlib import closing
 from lnt.util import logger

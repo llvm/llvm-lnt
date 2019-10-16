@@ -1,4 +1,3 @@
-from __future__ import print_function
 # Perform basic sanity checking of the V4 UI pages.
 #
 # create temporary instance
@@ -22,8 +21,6 @@ from __future__ import print_function
 #
 # RUN: python %s %t.instance %{tidylib}
 
-from future import standard_library
-standard_library.install_aliases()
 import logging
 import re
 import sys

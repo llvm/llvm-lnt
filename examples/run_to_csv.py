@@ -1,7 +1,5 @@
 """Convert the JSON run file passed on stdin to a csv"""
-from __future__ import print_function
 import json
-
 import sys
 
 

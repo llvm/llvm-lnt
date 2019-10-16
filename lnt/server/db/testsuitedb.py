@@ -5,7 +5,6 @@ These are a bit magical because the models themselves are driven by the test
 suite metadata, so we only create the classes at runtime.
 """
 
-from __future__ import absolute_import
 import datetime
 import json
 import os
