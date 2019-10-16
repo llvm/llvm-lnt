@@ -7,13 +7,9 @@ convert them to JSON data suitable for submitting to the server.
 """
 
 import datetime
+import json
 import re
 from lnt.util import logger
-
-try:
-    import json
-except ImportError:
-    import simplejson as json
 
 # We define the following constants for use as sample values by
 # convention.
