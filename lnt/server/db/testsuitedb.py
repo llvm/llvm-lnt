@@ -236,7 +236,7 @@ class TestSuiteDB(object):
             for item in self.order_fields:
                 if item.name in class_dict:
                     raise ValueError("test suite defines reserved key %r" % (
-                        name,))
+                        item.name,))
 
                 class_dict[item.name] = item.column = Column(
                     item.name, String(256))
