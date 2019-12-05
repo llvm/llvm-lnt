@@ -338,9 +338,8 @@ def import_from_string(config, db_name, db, session, ts_name, data,
     prefix = utcnow.strftime("data-%Y-%m-%d_%H-%M-%S")
     fd, path = tempfile.mkstemp(prefix=prefix, suffix='.json',
                                 dir=str(tmpdir), text=True)
-    fp = os.fdopen(fd, "w")
-    fp.write(data)
-    fp.close()
+    with os.fdopen(fd, "w") as fp:
+        fp.write(data)
 
     # Import the data.
     #
