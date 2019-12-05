@@ -9,8 +9,8 @@ from sys import platform as _platform
 import sys
 from setuptools import setup, find_packages, Extension
 
-if sys.version_info < (2, 7):
-    raise RuntimeError("Python 2.7 or higher required.")
+if sys.version_info < (3, 6) and sys.version_info[:2] != (2, 7):
+    raise RuntimeError("Python 2.7 or Python 3.6 or higher required.")
 
 cflags = []
 
@@ -128,5 +128,5 @@ http://llvm.org/svn/llvm-project/lnt/trunk
 
     ext_modules=[cPerf],
 
-    python_requires='>=2.7',
+    python_requires='>=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*, !=3.5.*',
 )
