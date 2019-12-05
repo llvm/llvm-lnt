@@ -213,7 +213,7 @@ class ChangeProcessingTests(unittest.TestCase):
 
         r2 = rebuild_title(session, ts_db, self.regression)
         expected_title = "Regression of 6 benchmarks: foo, bar"
-        self.assertEquals(r2.title, expected_title)
+        self.assertEqual(r2.title, expected_title)
 
     def test_regression_evolution(self):
         session = self.session

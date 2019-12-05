@@ -139,12 +139,12 @@ class JSONAPITester(unittest.TestCase):
         # All machines returns the list of machines with parameters, but no runs.
         j = check_json(client, 'api/db_default/v4/nts/machines/')
         self._check_response_is_well_formed(j)
-        self.assertEquals(j['machines'], machines_expected_response)
+        self.assertEqual(j['machines'], machines_expected_response)
         self.assertIsNone(j.get('runs'))
 
         j = check_json(client, 'api/db_default/v4/nts/machines')
         self._check_response_is_well_formed(j)
-        self.assertEquals(j['machines'], machines_expected_response)
+        self.assertEqual(j['machines'], machines_expected_response)
         self.assertIsNone(j.get('runs'))
 
         # Machine + properties + run information.
@@ -183,7 +183,7 @@ class JSONAPITester(unittest.TestCase):
         """ Check /orders/n returns the expected order information."""
         client = self.client
         j = check_json(client, 'api/db_default/v4/nts/orders/1')
-        self.assertEquals(j['orders'][0], order_expected_response)
+        self.assertEqual(j['orders'][0], order_expected_response)
         self._check_response_is_well_formed(j)
         check_json(client, 'api/db_default/v4/nts/orders/100', expected_code=404)
 
@@ -192,7 +192,7 @@ class JSONAPITester(unittest.TestCase):
         client = self.client
         j = check_json(client, 'api/db_default/v4/nts/samples/1')
         self._check_response_is_well_formed(j)
-        self.assertEquals(sample_expected_response, j['samples'][0])
+        self.assertEqual(sample_expected_response, j['samples'][0])
         check_json(client, 'api/db_default/v4/nts/samples/1000', expected_code=404)
 
     def test_graph_api(self):

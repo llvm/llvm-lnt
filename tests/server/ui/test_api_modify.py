@@ -65,8 +65,8 @@ class JSONAPIDeleteTester(unittest.TestCase):
         machine_after = check_json(client, 'api/db_default/v4/nts/machines/1')
         machine_after = machine_after['machine']
         for key in ('hardware', 'os', 'hostname', 'new_parameter', 'uname'):
-            self.assertEquals(machine_after.get(key, None),
-                              data['machine'].get(key, None))
+            self.assertEqual(machine_after.get(key, None),
+                             data['machine'].get(key, None))
 
     def test_00_rename_machine(self):
         """Check rename POST request to /machines/n"""
