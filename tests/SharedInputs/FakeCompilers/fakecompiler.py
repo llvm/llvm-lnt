@@ -104,15 +104,12 @@ InstalledDir: /home/foo/bin
             g_program,), file=sys.stderr)
 
 
-# Clang build from a git repository.
-class Clang_git(LLVMCompiler):
-    compiler_name = "clang-git"
-
+# Monorepo clang build
+class Clang_monorepo(LLVMCompiler):
+    compiler_name = "clang-monorepo"
     def print_verbose_info(self):
         print("""\
-clang version 3.1\
- (git:/git/clang.git 37ce0feee598d82e7220fa0a4b110619cae6ea72)\
- (git:/git/llvm.git 60fca4f64e697ad834ce7ee8c2e478cae394c7dc)
+clang version 1.2.3 (ssh://something.com/llvm-project.git 597522d740374f093a089a2acbec5b20466b2f34)
 Target: arm-apple-darwin11.4.0
 Thread model: posix
 InstalledDir: /home/foo/bin
@@ -121,22 +118,18 @@ InstalledDir: /home/foo/bin
  "%s" "-cc1" "-E" ... more boring stuff here ...""" % (
             g_program,), file=sys.stderr)
 
-
-# Clang build from a git repository.
-class Clang_git_2(LLVMCompiler):
-    compiler_name = "clang-git-2"
-
+# Monorepo clang build with some extra stuff after the version string
+class Clang_monorepo2(LLVMCompiler):
+    compiler_name = "clang-monorepo2"
     def print_verbose_info(self):
         print("""\
-clang version 3.2\
- (/d/g/pz/clang.git git:/git/pz/clang.git 8ab09316f63ea99ff23b2684c454b1008b8d5f10)\
- (http://llvm.org/git/llvm.git /d/g/pz/llvm.git git:/git/pb/llvm.git 7c53f795961cc2d35b85d315aadb2ac135a0fdb2)
-Target: x86_64-apple-darwin12.2.0
-Thread model: posix""", file=sys.stderr)
+clang version 1.2.3 (ssh://something.com/llvm-project.git 597522d740374f093a089a2acbec5b20466b2f34) (extra) (stuff) (here)
+Thread model: posix
+InstalledDir: /home/foo/bin
+""", file=sys.stderr)
         print("""\
  "%s" "-cc1" "-E" ... more boring stuff here ...""" % (
             g_program,), file=sys.stderr)
-
 
 class AppleClang_138_1(LLVMCompiler):
     compiler_name = "apple-clang-138.1"

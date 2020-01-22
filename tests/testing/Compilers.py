@@ -42,22 +42,24 @@ assert info['cc_name'] == 'apple_clang'
 assert info['cc_build'] == 'PROD'
 assert info['inferred_run_order'] == '138.1'
 
-# Check a Clang built from git repositories.
-info = get_info("clang-git")
+# Check a monorepo Clang.
+info = get_info("clang-monorepo")
 pprint.pprint(info)
 assert info['cc_name'] == 'clang'
 assert info['cc_build'] == 'DEV'
-assert info['inferred_run_order'] == '%s,%s' % (
-    '37ce0feee598d82e7220fa0a4b110619cae6ea72',
-    '60fca4f64e697ad834ce7ee8c2e478cae394c7dc')
+assert info['cc_src_branch'] == 'ssh://something.com/llvm-project.git'
+assert info['cc_src_revision'] == '597522d740374f093a089a2acbec5b20466b2f34'
+assert info['inferred_run_order'] == info['cc_src_revision']
+assert info['cc_version_number'] == '1.2.3'
 
-info = get_info("clang-git-2")
+# Same as clang-monorepo, except the version string has some extra parens at
+# the end. Verify that we can still match this.
+info = get_info("clang-monorepo2")
 pprint.pprint(info)
-assert info['cc_name'] == 'clang'
-assert info['cc_build'] == 'DEV'
-assert info['inferred_run_order'] == '%s,%s' % (
-    '8ab09316f63ea99ff23b2684c454b1008b8d5f10',
-    '7c53f795961cc2d35b85d315aadb2ac135a0fdb2')
+assert info['cc_src_branch'] == 'ssh://something.com/llvm-project.git'
+assert info['cc_src_revision'] == '597522d740374f093a089a2acbec5b20466b2f34'
+assert info['inferred_run_order'] == info['cc_src_revision']
+assert info['cc_version_number'] == '1.2.3'
 
 # Check a Clang that prints no info.
 info = get_info("clang-no-info")
