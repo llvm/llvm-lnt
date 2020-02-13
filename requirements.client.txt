@@ -18,4 +18,5 @@ click==6.7
 pyyaml==3.13
 requests
 future
--e svn+https://llvm.org/svn/llvm-project/llvm/trunk/utils/lit/#egg=lit
+# Use Monorepo for LIT
+-e git+https://github.com/llvm/llvm-project.git#egg=lit&subdirectory=llvm/utils/lit
