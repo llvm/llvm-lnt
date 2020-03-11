@@ -182,22 +182,22 @@ Returns: a list of lists as long as source, with source on the 'left' and
     if not isinstance(addon, (list, tuple)):
         addon = [addon]
     minlen = min(len(source), len(addon))
-    list = copy.deepcopy(source)                # start abut process
+    source_copy = copy.deepcopy(source)                # start abut process
     if not isinstance(source[0], (list, tuple)):
         if not isinstance(addon[0], (list, tuple)):
             for i in range(minlen):
-                list[i] = [source[i]] + [addon[i]]        # source/addon = column
+                source_copy[i] = [source[i]] + [addon[i]]        # source/addon = column
         else:
             for i in range(minlen):
-                list[i] = [source[i]] + addon[i]        # addon=list-of-lists
+                source_copy[i] = [source[i]] + addon[i]        # addon=list-of-lists
     else:
         if not isinstance(addon[0], (list, tuple)):
             for i in range(minlen):
-                list[i] = source[i] + [addon[i]]        # source=list-of-lists
+                source_copy[i] = source[i] + [addon[i]]        # source=list-of-lists
         else:
             for i in range(minlen):
-                list[i] = source[i] + addon[i]        # source/addon = list-of-lists
-    source = list
+                source_copy[i] = source[i] + addon[i]        # source/addon = list-of-lists
+    source = source_copy
     return source
 
 
