@@ -931,7 +931,7 @@ def v4_graph():
         col = list(util.makeDarkColor(float(i) / num_plots))
         url = "/".join([str(machine.id), str(test.id), str(field_index)])
         legend.append(LegendItem(machine, test.name, field.name,
-                                 tuple(map(int, col)), url))
+                                 tuple(col), url))
 
         # Load all the field values for this test on the same machine.
         #
@@ -985,7 +985,7 @@ def v4_graph():
             # Make a color closer to the sample than its neighbour.
             color_offset = float(baseline_id) / num_baselines / 2
             my_color = (i + color_offset) / num_plots
-            dark_col = list(map(int, util.makeDarkerColor(my_color)))
+            dark_col = list(util.makeDarkerColor(my_color))
             str_dark_col = util.toColorString(dark_col)
             baseline_plots.append({
                 'color': str_dark_col,

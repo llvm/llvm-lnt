@@ -307,7 +307,7 @@ function init_page() {
     </tr>
     {% for machine, test_name, field_name, col, url in legend %}
     <tr class="data-row" data-url="{{url}}">
-      <td style="background-color: #{{ '%02x%02x%02x' % (255*col[0], 255*col[1], 255*col[2]) }}">&nbsp;</td>
+      <td style="background-color: #{{ '%02x%02x%02x' % ((255*col[0])|int, (255*col[1])|int, (255*col[2])|int) }}">&nbsp;</td>
       <td>{{ utils.render_machine(machine) }}</td>
       <td>{{ test_name }}</td>
       <td class="metric">{{ field_name }}</td>
