@@ -67,7 +67,7 @@ Now we just need to add it to the report. Profiles look similar to hashes in tha
            "profile": "eJxNj8EOgjAMhu99Cm9wULMOEHgBE888QdkASWCQFWJ8e1v04JIt+9f//7qmfkVoEj8yMXdzO70v/RJn2hJYrRQiveSWATdJvwe3jUtgecgh9Wsh9T6gyJvKUjm0kegK0mmt9UCjJUSgB5q8KsobUJOQ96dozr8tAbRApPbssOeCcm83ddoLC7ijMcA/RGUUwXt7iviPEDLJN92yh62LR7I8aBUMysgLnaKNFNzzMo8y7uGplQ4sa/j6rfn60WYaGdRhtT9fP5+JUW4="
        }
     ]
-}
+   }
 
 Supported formats
 -----------------
