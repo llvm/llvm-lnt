@@ -424,6 +424,8 @@ class TestConfiguration(object):
                 llvm_arch = 'Sparc'
             elif arch in ('mips', 'mipsel', 'mips64', 'mips64el'):
                 llvm_arch = 'Mips'
+            elif arch in ('ve'):
+                llvm_arch = 'VE'
 
         if llvm_arch is not None:
             make_variables['ARCH'] = llvm_arch
