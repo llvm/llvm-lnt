@@ -40,7 +40,15 @@ except TypeError:
     # In old PIP the session flag cannot be passed.
     install_reqs = parse_requirements(req_file)
 
-reqs = [str(ir.req) for ir in install_reqs]
+try:
+    # Filter out git dependencies, which can't be handled by setuptools.
+    reqs = [ir.requirement for ir in install_reqs
+            if not ir.requirement.startswith("git+")]
+except AttributeError:
+    # Old versions of pip (<20.1) returned a List[InstallRequirement] instead
+    # of a List[ParsedRequirement], which has different member names, and does
+    # not include git dependencies.
+    reqs = [str(ir.req) for ir in install_reqs]
 
 setup(
     name="LNT",
