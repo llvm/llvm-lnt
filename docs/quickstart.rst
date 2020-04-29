@@ -59,19 +59,21 @@ command. The information below should be enough to get you started, but see the
    the LLVM projects directory, as LLVM's configure/make build will then want to
    automatically configure it for you.
 
-#. Execute the ``lnt runtest nt`` test producer, point it at the test suite and
+#. Execute the ``lnt runtest test-suite`` test producer, point it at the test suite and
    the compiler you want to test::
 
-     lnt runtest nt \
-         --sandbox SANDBOX \
-         --cc ~/llvm.obj/Release/bin/clang \
-         --test-suite ~/llvm-test-suite
+   $ lnt runtest test-suite \
+       --sandbox /tmp/BAR \
+       --cc ~/llvm.obj.64/Release+Asserts/bin/clang \
+       --cxx ~/llvm.obj.64/Release+Asserts/bin/clang++ \
+       --test-suite ~/llvm-test-suite \
+       --cmake-cache Release
 
    The ``SANDBOX`` value is a path to where the test suite build products and
    results will be stored (inside a timestamped directory, by default).
 
 #. On most systems, the execution time results will be a bit noisy. There are
-   a range of things you can do to reduce noisiness (with LNT runtest nt
+   a range of things you can do to reduce noisiness (with LNT runtest test-suite
    command line options when available between brackets):
 
    * Only build the benchmarks in parallel, but do the actual running of the
@@ -97,7 +99,7 @@ command. The information below should be enough to get you started, but see the
 Viewing Results
 ---------------
 
-By default, ``lnt runtest nt`` will show the passes and failures after doing a
+By default, ``lnt runtest test-suite`` will show the passes and failures after doing a
 run, but if you are interested in viewing the result data in more detail you
 should install a local LNT instance to submit the results to.
 
