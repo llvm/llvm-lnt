@@ -1,8 +1,4 @@
-try:
-    from pip.req import parse_requirements
-except ImportError:
-    # The req module has been moved to pip._internal in the 10 release.
-    from pip._internal.req import parse_requirements
+from __future__ import print_function
 import lnt
 import os
 from sys import platform as _platform
@@ -31,24 +27,10 @@ cPerf = Extension('lnt.testing.profile.cPerf',
 
 if "--server" in sys.argv:
     sys.argv.remove("--server")
-    req_file = "requirements.server.txt"
-else:
-    req_file = "requirements.client.txt"
-try:
-    install_reqs = parse_requirements(req_file, session=False)
-except TypeError:
-    # In old PIP the session flag cannot be passed.
-    install_reqs = parse_requirements(req_file)
+    print("Use pip to install requirements.server.txt for a full server install:")
+    print("pip install -r ./requirements.server.txt")
+    sys.exit(1)
 
-try:
-    # Filter out git dependencies, which can't be handled by setuptools.
-    reqs = [ir.requirement for ir in install_reqs
-            if not ir.requirement.startswith("git+")]
-except AttributeError:
-    # Old versions of pip (<20.1) returned a List[InstallRequirement] instead
-    # of a List[ParsedRequirement], which has different member names, and does
-    # not include git dependencies.
-    reqs = [str(ir.req) for ir in install_reqs]
 
 setup(
     name="LNT",
@@ -132,7 +114,28 @@ http://llvm.org/svn/llvm-project/lnt/trunk
             'lnt = lnt.lnttool:main',
         ],
     },
-    install_requires=reqs,
+    install_requires=[
+        "six",
+        "aniso8601==1.2.0",
+        "Flask==0.12.2",
+        "Flask-RESTful==0.3.4",
+        "Jinja2==2.7.2",
+        "MarkupSafe==0.23",
+        "SQLAlchemy==1.1.11",
+        "Werkzeug==0.12.2",
+        "itsdangerous==0.24",
+        "python-dateutil==2.6.0",
+        "python-gnupg==0.3.7",
+        "pytz==2016.10",
+        "WTForms==2.0.2",
+        "Flask-WTF==0.12",
+        "typing",
+        "click==6.7",
+        "pyyaml==3.13",
+        "requests",
+        "future",
+        "lit",
+    ],
 
     ext_modules=[cPerf],
 

@@ -104,7 +104,6 @@ To install the extra packages for the server config::
     virtualenv venv
     . ./venv/bin/activate
     pip install -r requirements.server.txt
-    python setup.py install --server
     lnt create path/to/data_dir --db-dir postgresql://user@host  # data_dir path will be where lnt data will go.
     cd deployment
     # Now edit app_wrapper.py to have your path/to/data_dir path and the log-file below.
