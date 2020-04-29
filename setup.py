@@ -131,7 +131,7 @@ http://llvm.org/svn/llvm-project/lnt/trunk
         "Flask-WTF==0.12",
         "typing",
         "click==6.7",
-        "pyyaml==3.13",
+        "pyyaml==5.1",
         "requests",
         "future",
         "lit",
