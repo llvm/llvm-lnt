@@ -1,5 +1,5 @@
 # These requirements are what you would install on a production server.
 .
 psycopg2==2.8
-gunicorn==18.0
+gunicorn==19.5.0
 progressbar2
