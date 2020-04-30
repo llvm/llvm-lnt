@@ -13,7 +13,8 @@ def _load_dependencies():
     requests = import_module('requests')
     json = import_module('json')
     os = import_module('os')
-    http = import_module('http.client')
+    http = import_module('http')
+    import_module('http.client')
 
 
 def _error(msg):
