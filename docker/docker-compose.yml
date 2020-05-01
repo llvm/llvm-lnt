@@ -20,7 +20,7 @@ services:
 
   db:
     container_name: lnt-postgres
-    image: postgres:alpine
+    image: postgres:11-alpine
     environment:
       - POSTGRES_PASSWORD=${DB_PWD}
       - POSTGRES_USER=${DB_USER}
