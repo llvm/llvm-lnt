@@ -4,7 +4,7 @@ RUN apk update \
   && apk add --no-cache --virtual .build-deps git g++ postgresql-dev yaml-dev \
   && apk add --no-cache libpq \
   && git clone https://github.com/llvm/llvm-lnt /var/src/lnt \
-  && python3 -m pip install /var/src/lnt/requirements.server.txt \
+  && cd /var/src/lnt && pip3 install -r requirements.server.txt \
   && rm -rf /var/src \
   && apk --purge del .build-deps \
   && mkdir /var/log/lnt
