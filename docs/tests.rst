@@ -66,8 +66,8 @@ The llvm test-suite can be run with the ``test-suite`` built-in test.
 
 Running the test-suite via CMake and lit uses a different LNT test::
 
-  $ rm -rf /tmp/BAR
-  $ lnt runtest test-suite \
+  rm -rf /tmp/BAR
+  lnt runtest test-suite \
        --sandbox /tmp/BAR \
        --cc ~/llvm.obj.64/Release+Asserts/bin/clang \
        --cxx ~/llvm.obj.64/Release+Asserts/bin/clang++ \
@@ -269,7 +269,7 @@ To capture these profiles, use command line option ``--use-perf=all``. A
 typical command line using this for evaluating the performance of generated
 code looks something like the following::
 
-  $ lnt runtest test-suite \
+  lnt runtest test-suite \
        --sandbox SANDBOX \
        --cc ~/bin/clang \
        --use-cmake=/usr/local/bin/cmake \
@@ -304,7 +304,7 @@ The default predicate is simply ``status`` - so this can be used to debug correc
 
 Full example using ``llvmlab`` to debug a performance improvement::
 
-  $ llvmlab bisect --min-rev=261265 --max-rev=261369 \
+  llvmlab bisect --min-rev=261265 --max-rev=261369 \
     lnt runtest test-suite \
       --cc '%(path)s/bin/clang' \
       --sandbox SANDBOX \
@@ -322,7 +322,7 @@ Producing Diagnositic Reports
 The test-suite module can produce a diagnostic report which might be useful
 for figuring out what is going on with a benchmark::
 
-  $ lnt runtest test-suite \
+  lnt runtest test-suite \
          --sandbox /tmp/BAR \
          --cc ~/llvm.obj.64/Release+Asserts/bin/clang \
          --cxx ~/llvm.obj.64/Release+Asserts/bin/clang++ \
@@ -349,7 +349,7 @@ https://cmake.org/cmake/help/v3.0/manual/cmake-toolchains.7.html#cross-compiling
 An example command line for cross-compiling on an X86 machine, targeting
 AArch64 linux, is::
 
-  $ lnt runtest test-suite \
+  lnt runtest test-suite \
          --sandbox SANDBOX \
          --test-suite /work/llvm-test-suite \
          --use-lit lit \

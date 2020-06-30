@@ -62,7 +62,7 @@ command. The information below should be enough to get you started, but see the
 #. Execute the ``lnt runtest test-suite`` test producer, point it at the test suite and
    the compiler you want to test::
 
-   $ lnt runtest test-suite \
+     lnt runtest test-suite \
        --sandbox /tmp/BAR \
        --cc ~/llvm.obj.64/Release+Asserts/bin/clang \
        --cxx ~/llvm.obj.64/Release+Asserts/bin/clang++ \
