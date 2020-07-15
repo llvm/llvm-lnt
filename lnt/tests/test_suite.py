@@ -473,6 +473,11 @@ class TestSuiteTest(BuiltinTest):
                 self._unix_quote_args(self.opts.run_under)
         if self.opts.benchmarking_only:
             defs['TEST_SUITE_BENCHMARKING_ONLY'] = 'ON'
+        if self.opts.test_size:
+            if self.opts.test_size == 'large':
+                defs['LARGE_PROBLEM_SIZE'] = 'ON'
+            elif self.opts.test_size == 'small':
+                defs['SMALL_PROBLEM_SIZE'] = 'ON'
         if self.opts.only_compile:
             defs['TEST_SUITE_RUN_BENCHMARKS'] = 'Off'
         if self.opts.use_perf in ('time', 'all'):
