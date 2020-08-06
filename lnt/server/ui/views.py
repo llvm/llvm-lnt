@@ -425,7 +425,7 @@ class V4RequestInfo(object):
         }
 
         self.data = lnt.server.reporting.runs.generate_run_data(
-            session, self.run, baseurl=db_url_for('.index', _external=True),
+            session, self.run, baseurl=db_url_for('.index', _external=False),
             result=None, compare_to=compare_to, baseline=baseline,
             num_comparison_runs=self.num_comparison_runs,
             aggregation_fn=self.aggregation_fn, confidence_lv=confidence_lv,
