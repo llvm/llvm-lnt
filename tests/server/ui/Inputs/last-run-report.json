@@ -1,0 +1,38 @@
+{
+  "generated_by": "LNT Server v0.4.2.dev0",
+  "machine": {
+    "id": 4,
+    "name": "e105293.local__clang_DEV__x86_64"
+  },
+  "run": {
+    "start_time": "2020-09-11T12:01:10",
+    "end_time": "2020-09-11T12:02:19",
+    "order_by": "llvm_project_revision",
+    "llvm_project_revision": "154338",
+    "tag": "nts"
+  },
+  "tests": [
+    {
+      "name": "unique-name-wreodfpj",
+      "compile_status": "0",
+      "compile_time": "1.3",
+      "execution_status": "0",
+      "execution_time": "1.4",
+      "hash_status": "0",
+      "hash": "fedcba",
+      "score": 18,
+      "code_size": 10126
+    },
+    {
+      "name": "unique-name-lowrf",
+      "compile_status": "0",
+      "compile_time": "1.3",
+      "execution_status": "0",
+      "execution_time": "1.4",
+      "hash_status": "0",
+      "hash": "fedcba",
+      "score": 18,
+      "code_size": 10126
+    }
+  ]
+}

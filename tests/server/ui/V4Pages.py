@@ -12,6 +12,11 @@ from __future__ import print_function
 # Import a profile
 # RUN: lnt import %t.instance %{shared_inputs}/profile-report.json
 #
+# Import last run. The run in this report must be the most recent one and the
+# tests inside unique to test the comparator used when sorting the tests per
+# regression status in the global status page.
+# RUN: lnt import %t.instance %S/Inputs/last-run-report.json
+#
 # RUN: lnt import %t.instance %S/Inputs/sample-failed-report1.json
 # RUN: lnt import %t.instance %S/Inputs/sample-failed-report2.json
 #
