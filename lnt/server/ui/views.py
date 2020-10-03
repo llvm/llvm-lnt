@@ -1387,7 +1387,7 @@ def v4_global_status():
         test_table.append(row)
 
     # Order the table by worst regression.
-    test_table.sort(key=lambda row: row[1], reverse=True)
+    test_table.sort(key=lambda row: 0 if row[1] is None else row[1], reverse=True)
 
     return render_template("v4_global_status.html",
                            tests=test_table,
