@@ -1,4 +1,4 @@
-FROM python:alpine
+FROM python:3.7-alpine
 
 RUN apk update \
   && apk add --no-cache --virtual .build-deps git g++ postgresql-dev yaml-dev \
