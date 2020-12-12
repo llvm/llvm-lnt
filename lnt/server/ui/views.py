@@ -40,7 +40,7 @@ from lnt.external.stats import stats as ext_stats
 from lnt.server.reporting.analysis import ComparisonResult, calc_geomean
 from lnt.server.ui import util
 from lnt.server.ui.decorators import frontend, db_route, v4_route
-from lnt.server.ui.globals import db_url_for, v4_url_for
+from lnt.server.ui.globals import db_url_for, v4_url_for, v4_redirect
 from lnt.server.ui.util import FLASH_DANGER, FLASH_SUCCESS, FLASH_INFO
 from lnt.server.ui.util import PrecomputedCR
 from lnt.server.ui.util import baseline_key, convert_revision
@@ -72,7 +72,7 @@ def get_redirect_target():
 
 @frontend.route('/favicon.ico')
 def favicon_ico():
-    return redirect(url_for('.static', filename='favicon.ico'))
+    return v4_redirect(url_for('.static', filename='favicon.ico'))
 
 
 @frontend.route('/select_db')
@@ -91,7 +91,7 @@ def select_db():
     else:
         if '/' in path[1:]:
             new_path += "/" + path.split("/", 2)[2]
-    return redirect(request.script_root + new_path)
+    return v4_redirect(request.script_root + new_path)
 
 #####
 # Per-Database Routes
@@ -188,7 +188,7 @@ def submit_run():
     """Compatibility url that hardcodes testsuite to 'nts'"""
     if request.method == 'GET':
         g.testsuite_name = 'nts'
-        return redirect(v4_url_for('.v4_submitRun'))
+        return v4_redirect(v4_url_for('.v4_submitRun'))
 
     # This route doesn't know the testsuite to use. We have some defaults/
     # autodetection for old submissions, but really you should use the full
@@ -269,7 +269,7 @@ def v4_machine_latest(machine_id):
         .filter(ts.Run.machine_id == machine_id) \
         .order_by(ts.Run.start_time.desc()) \
         .first()
-    return redirect(v4_url_for('.v4_run', id=run.id, **request.args))
+    return v4_redirect(v4_url_for('.v4_run', id=run.id, **request.args))
 
 
 @v4_route("/machine/<int:machine_id>/compare")
@@ -288,7 +288,7 @@ def v4_machine_compare(machine_id):
         .order_by(ts.Run.start_time.desc()) \
         .first()
 
-    return redirect(v4_url_for('.v4_run', id=machine_1_run.id,
+    return v4_redirect(v4_url_for('.v4_run', id=machine_1_run.id,
                                compare_to=machine_2_run.id))
 
 
@@ -468,7 +468,7 @@ def simple_run(tag, id):
 
     # If we found one, redirect to it's report.
     if matched_run is not None:
-        return redirect(db_url_for(".v4_run", testsuite_name=tag,
+        return v4_redirect(db_url_for(".v4_run", testsuite_name=tag,
                                    id=matched_run.id))
 
     # Otherwise, report an error.
@@ -602,7 +602,7 @@ def v4_order(id):
             session.commit()
 
             flash("Baseline {} updated.".format(baseline.name), FLASH_SUCCESS)
-        return redirect(v4_url_for(".v4_order", id=id))
+        return v4_redirect(v4_url_for(".v4_order", id=id))
 
     try:
         baseline = session.query(ts.Baseline) \
@@ -650,7 +650,7 @@ def v4_set_baseline(id):
     flash("Baseline set to " + base.name, FLASH_SUCCESS)
     flask.session[baseline_key(ts.name)] = id
 
-    return redirect(get_redirect_target())
+    return v4_redirect(get_redirect_target())
 
 
 @v4_route("/all_orders")
@@ -697,7 +697,7 @@ def v4_run_graph(id):
             run.machine.id, test_id, value)
         plot_number += 1
 
-    return redirect(v4_url_for(".v4_graph", **args))
+    return v4_redirect(v4_url_for(".v4_graph", **args))
 
 
 BaselineLegendItem = namedtuple('BaselineLegendItem', 'name id')
@@ -741,7 +741,7 @@ def v4_graph_for_sample(sample_id, field_name):
     kwargs.update(request.args)
 
     graph_url = v4_url_for('.v4_graph', **kwargs)
-    return redirect(graph_url)
+    return v4_redirect(graph_url)
 
 
 @v4_route("/graph")
@@ -1421,7 +1421,7 @@ def v4_daily_report_overview():
     extra_args.pop("month", None)
     extra_args.pop("day", None)
 
-    return redirect(v4_url_for(".v4_daily_report",
+    return v4_redirect(v4_url_for(".v4_daily_report",
                                year=date.year, month=date.month, day=date.day,
                                **extra_args))
 
@@ -1482,7 +1482,7 @@ def v4_summary_report_ui():
             flask.json.dump(config, f, indent=2)
 
         # Redirect to the summary report.
-        return redirect(db_url_for(".v4_summary_report"))
+        return v4_redirect(db_url_for(".v4_summary_report"))
 
     config_path = get_summary_config_path()
     if os.path.exists(config_path):

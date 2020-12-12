@@ -3,6 +3,7 @@ Module for defining additional Jinja global functions.
 """
 
 import flask
+from flask import Response
 
 import lnt.server.ui.util
 
@@ -34,6 +35,20 @@ def v4_url_available(*args, **kwargs):
     except Exception:
         return False
 
+class fixed_location_response(Response):
+    autocorrect_location_header = False
+
+def v4_redirect(*args, **kwargs):
+    """
+    Like redirect but can be used to allow relative URL redirection.
+    Flask's default response makes URLs absolute before putting in the
+    Location header due to adhering to the out-dated RFC 2616 which has
+    been superseded by RFC 7231.
+
+    The RFC outdated in 2018 but Flask still does not implement the new
+    standard.
+    """
+    return flask.redirect(*args, Response=fixed_location_response, **kwargs)
 
 def register(env):
     # Add some normal Python builtins which can be useful in templates.
@@ -43,4 +58,5 @@ def register(env):
     env.globals.update(
         db_url_for=db_url_for,
         v4_url_for=v4_url_for,
+        v4_redirect=v4_redirect,
         v4_url_available=v4_url_available)

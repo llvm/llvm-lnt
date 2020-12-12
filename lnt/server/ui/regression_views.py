@@ -16,7 +16,7 @@ from wtforms.validators import DataRequired
 
 from lnt.server.ui.decorators import v4_route
 import lnt.server.reporting.analysis
-from lnt.server.ui.globals import v4_url_for
+from lnt.server.ui.globals import v4_url_for, v4_redirect
 from lnt.server.ui.views import ts_data
 
 from lnt.util import logger
@@ -60,7 +60,7 @@ def v4_new_regressions():
             request.form['btn'] == "Create New Regression":
         regression, _ = new_regression(session, ts, form.field_changes.data)
         flash("Created " + regression.title, FLASH_SUCCESS)
-        return redirect(v4_url_for(".v4_regression_list",
+        return v4_redirect(v4_url_for(".v4_regression_list",
                         highlight=regression.id))
     if request.method == 'POST' and request.form['btn'] == "Ignore Changes":
         msg = "Ignoring changes: "
@@ -171,7 +171,7 @@ def v4_regression_list():
 
         session.commit()
         flash("Created: " + new_regress.title, FLASH_SUCCESS)
-        return redirect(v4_url_for(".v4_regression_detail", id=new_regress.id))
+        return v4_redirect(v4_url_for(".v4_regression_detail", id=new_regress.id))
     # Delete requested regressions.
     if request.method == 'POST' and \
             request.form['merge_btn'] == "Delete Regressions":
@@ -184,7 +184,7 @@ def v4_regression_list():
             session.delete(reg)
         session.commit()
         flash(' Deleted: '.join(titles), FLASH_SUCCESS)
-        return redirect(v4_url_for(".v4_regression_list", state=state_filter))
+        return v4_redirect(v4_url_for(".v4_regression_list", state=state_filter))
 
     q = session.query(ts.Regression)
     title = "All Regressions"
@@ -298,7 +298,7 @@ def v4_regression_detail(id):
         regression_info.state = form.state.data
         session.commit()
         flash("Updated " + regression_info.title, FLASH_SUCCESS)
-        return redirect(v4_url_for(".v4_regression_list",
+        return v4_redirect(v4_url_for(".v4_regression_list",
                         highlight=regression_info.id,
                         state=int(form.edit_state.data)))
     if request.method == 'POST' and \
@@ -318,7 +318,7 @@ def v4_regression_detail(id):
         lnt.server.db.fieldchange.rebuild_title(session, ts, regression_info)
         session.commit()
         flash("Split " + second_regression.title, FLASH_SUCCESS)
-        return redirect(v4_url_for(".v4_regression_list",
+        return v4_redirect(v4_url_for(".v4_regression_list",
                         highlight=second_regression.id,
                         state=int(form.edit_state.data)))
     if request.method == 'POST' and request.form['save_btn'] == "Delete":
@@ -334,7 +334,7 @@ def v4_regression_detail(id):
         session.delete(regression_info)
         session.commit()
         flash("Deleted " + title, FLASH_SUCCESS)
-        return redirect(v4_url_for(".v4_regression_list",
+        return v4_redirect(v4_url_for(".v4_regression_list",
                         state=int(form.edit_state.data)))
     form.field_changes.choices = list()
     form.state.default = regression_info.state
@@ -475,4 +475,4 @@ def v4_make_regression(machine_id, test_id, field_index, run_id):
     logger.info("Manually created new regressions: {}".format(regression.id))
     flash("Created " + regression.title, FLASH_SUCCESS)
 
-    return redirect(v4_url_for(".v4_regression_detail", id=regression.id))
+    return v4_redirect(v4_url_for(".v4_regression_detail", id=regression.id))
