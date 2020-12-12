@@ -174,7 +174,7 @@ def _do_submit():
 def ts_data(ts):
     """Data about the current testsuite used by layout.html which should be
     present in most templates."""
-    baseline_id = flask.session.get(baseline_key())
+    baseline_id = flask.session.get(baseline_key(ts.name))
     baselines = request.session.query(ts.Baseline).all()
     return {
         'baseline_id': baseline_id,
@@ -648,7 +648,7 @@ def v4_set_baseline(id):
     if not base:
         return abort(404)
     flash("Baseline set to " + base.name, FLASH_SUCCESS)
-    flask.session[baseline_key()] = id
+    flask.session[baseline_key(ts.name)] = id
 
     return redirect(get_redirect_target())
 
@@ -1666,7 +1666,7 @@ def baseline():
     """
     session = request.session
     ts = request.get_testsuite()
-    base_id = flask.session.get(baseline_key())
+    base_id = flask.session.get(baseline_key(ts.name))
     if not base_id:
         return None
     try:
