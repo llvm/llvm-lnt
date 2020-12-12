@@ -824,13 +824,15 @@ static PyModuleDef cPerfModuleDef = {PyModuleDef_HEAD_INIT,
                                      nullptr};
 #endif
 
-PyMODINIT_FUNC initcPerf(void) {
 #if PY_MAJOR_VERSION >= 3
+PyMODINIT_FUNC PyInit_cPerf(void) {
   return PyModule_Create(&cPerfModuleDef);
-#else
-  (void)Py_InitModule("cPerf", cPerfMethods);
-#endif
 }
+#else
+PyMODINIT_FUNC initcPerf(void) {
+  (void)Py_InitModule("cPerf", cPerfMethods);
+}
+#endif
 
 #else // STANDALONE
 

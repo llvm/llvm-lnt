@@ -7,7 +7,7 @@ import os
 import traceback
 
 try:
-    import cPerf
+    from . import cPerf
 except Exception:
     pass
 
