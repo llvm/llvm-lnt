@@ -82,7 +82,7 @@ def mannwhitneyu(a, b, sigLevel=.05):
     else:
         try:
             # MWU in SciPy is one-sided, multiply by 2 to get two-sided.
-            p = mannwhitneyu_large(a, b) * 2
+            p = mannwhitneyu_large(a, b)[1] * 2
             return p >= sigLevel
         except ValueError:
             return True
