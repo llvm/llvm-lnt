@@ -58,6 +58,8 @@ else
     $CMAKE_SRC_DIR/fake-results-fail-compile.json \
     $CMAKE_SRC_DIR/fake-results-fail-exec.json \
     $CMAKE_SRC_DIR/fake-results-profile.json \
+    $CMAKE_SRC_DIR/fake-results-profile-import.json \
+    $CMAKE_SRC_DIR/fake-results.perf_data \
     .
   echo "Dummy" > CMakeCache.txt
   echo CMAKE_C_COMPILER:FILEPATH=$CMAKE_C_COMPILER >> CMakeCache.txt
@@ -72,6 +74,8 @@ else
     $CMAKE_SRC_DIR/fake-results-fail-compile.json \
     $CMAKE_SRC_DIR/fake-results-fail-exec.json \
     $CMAKE_SRC_DIR/fake-results-profile.json \
+    $CMAKE_SRC_DIR/fake-results-profile-import.json \
+    $CMAKE_SRC_DIR/fake-results.perf_data \
     subtest
 fi
 exit 0

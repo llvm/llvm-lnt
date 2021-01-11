@@ -80,7 +80,8 @@ class Profile(object):
             return tf.name
 
         else:
-            open(filename, 'w').write(s)
+            with open(filename, 'wb') as f:
+                f.write(s)
             return filename
 
     def save(self, filename=None, profileDir=None, prefix=''):
@@ -115,7 +116,7 @@ class Profile(object):
 
         Implementation note: the string is base64 encoded.
         """
-        return base64.b64encode(self.impl.serialize())
+        return base64.b64encode(self.impl.serialize()).decode('ascii')
 
     def upgrade(self):
         """

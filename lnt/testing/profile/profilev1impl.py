@@ -60,7 +60,7 @@ The ``self.data`` member has this format::
         if fname is None:
             return bytes(compressed_obj)
         else:
-            with open(fname, 'w') as fd:
+            with open(fname, 'wb') as fd:
                 fd.write(compressed_obj)
 
     def getVersion(self):

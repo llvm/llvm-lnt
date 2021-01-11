@@ -47,7 +47,7 @@ class ProfileV1Test(unittest.TestCase):
 
         with tempfile.NamedTemporaryFile() as f:
             Profile.saveFromRendered(s, filename=f.name)
-            p2 = ProfileV1.deserialize(open(f.name))
+            p2 = ProfileV1.deserialize(open(f.name, "rb"))
 
         self.assertEqual(p2.data, self.test_data)
 
