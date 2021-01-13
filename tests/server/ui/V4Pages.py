@@ -577,9 +577,9 @@ def main():
 
     # Check the compare machine form gives correct redirects.
     resp = check_code(client, '/v4/nts/machine/2/compare?compare_to_id=3', expected_code=HTTP_REDIRECT)
-    assert resp.headers['Location'] == "http://localhost/db_default/v4/nts/9?compare_to=4"
+    assert resp.headers['Location'] == "/db_default/v4/nts/9?compare_to=4"
     resp = check_code(client, '/v4/nts/machine/3/compare?compare_to_id=2', expected_code=HTTP_REDIRECT)
-    assert resp.headers['Location'] == "http://localhost/db_default/v4/nts/4?compare_to=9"
+    assert resp.headers['Location'] == "/db_default/v4/nts/4?compare_to=9"
 
     # Get the order summary page.
     check_html(client, '/v4/compile/all_orders')
@@ -666,8 +666,8 @@ def main():
     graph_to_sample = check_code(client, '/db_default/v4/nts/graph_for_sample/10/compile_time?foo=bar',
                                  expected_code=HTTP_REDIRECT)
     assert graph_to_sample.headers['Location'] in (
-            "http://localhost/db_default/v4/nts/graph?foo=bar&plot.0=2.6.0",
-            "http://localhost/db_default/v4/nts/graph?plot.0=2.6.0&foo=bar")
+            "/db_default/v4/nts/graph?foo=bar&plot.0=2.6.0",
+            "/db_default/v4/nts/graph?plot.0=2.6.0&foo=bar")
 
     # Check that is we ask for a sample or invalid field, we explode with 400s.
     check_code(client, '/db_default/v4/nts/graph_for_sample/10000/compile_time?foo=bar',
