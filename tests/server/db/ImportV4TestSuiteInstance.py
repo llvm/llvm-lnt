@@ -62,7 +62,8 @@ from __future__ import print_function
 # Run consistency checks on the final database, to validate the import.
 # RUN: python %s %t.install/data/lnt.db
 
-import datetime, sys
+import datetime
+import sys
 
 import lnt.testing
 from lnt.server.config import Config

@@ -1,5 +1,11 @@
 # RUN: python %s
-import unittest, logging, sys, copy, tempfile, io
+
+import unittest
+import logging
+import sys
+import copy
+import tempfile
+import io
 from lnt.testing.profile.profilev2impl import ProfileV2
 from lnt.testing.profile.profilev1impl import ProfileV1
 
