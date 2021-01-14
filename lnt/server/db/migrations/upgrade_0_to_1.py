@@ -4,11 +4,11 @@
 # versioning.
 
 import sqlalchemy
+from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import Float, String, Integer, Column, ForeignKey, Binary, DateTime
 from sqlalchemy.orm import relation
-from sqlalchemy.ext.declarative import declarative_base
 
-Base = declarative_base()  # type: sqlalchemy.ext.declarative.api.DeclarativeMeta
+Base = declarative_base()
 
 ###
 # Core Schema
