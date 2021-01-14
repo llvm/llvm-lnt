@@ -134,31 +134,31 @@ class CPerfTest(unittest.TestCase):
         self.assertTrue(LinuxPerfProfile.checkFile(self._getInput('fib-aarch64.perf_data')))
 
     def test_aarch64_fib(self):
-       perf_data = self._getInput('fib-aarch64.perf_data')
-       p = LinuxPerfProfile.deserialize(open(perf_data),
-                                        nm=self._getNm(perf_data),
-                                        objdump=self._getObjdump(perf_data),
-                                        propagateExceptions=True)
+        perf_data = self._getInput('fib-aarch64.perf_data')
+        p = LinuxPerfProfile.deserialize(open(perf_data),
+                                         nm=self._getNm(perf_data),
+                                         objdump=self._getObjdump(perf_data),
+                                         propagateExceptions=True)
 
-       self.assertEqual(p.data, self.expected_data['fib-aarch64'])
+        self.assertEqual(p.data, self.expected_data['fib-aarch64'])
 
     def test_aarch64_fib2(self):
-       perf_data = self._getInput('fib2-aarch64.perf_data')
-       p = LinuxPerfProfile.deserialize(open(perf_data),
-                                        nm=self._getNm(perf_data),
-                                        objdump=self._getObjdump(perf_data),
-                                        propagateExceptions=True)
+        perf_data = self._getInput('fib2-aarch64.perf_data')
+        p = LinuxPerfProfile.deserialize(open(perf_data),
+                                         nm=self._getNm(perf_data),
+                                         objdump=self._getObjdump(perf_data),
+                                         propagateExceptions=True)
 
-       self.assertEqual(p.data, self.expected_data['fib2-aarch64'])
+        self.assertEqual(p.data, self.expected_data['fib2-aarch64'])
 
     def test_aarch64_fib2_nondynamic(self):
-       perf_data = self._getInput('fib2-aarch64.perf_data')
-       p = LinuxPerfProfile.deserialize(open(perf_data),
-                                        nm=self._getNm(perf_data, True),
-                                        objdump=self._getObjdump(perf_data),
-                                        propagateExceptions=True)
+        perf_data = self._getInput('fib2-aarch64.perf_data')
+        p = LinuxPerfProfile.deserialize(open(perf_data),
+                                         nm=self._getNm(perf_data, True),
+                                         objdump=self._getObjdump(perf_data),
+                                         propagateExceptions=True)
 
-       self.assertEqual(p.data, self.expected_data['fib2-aarch64'])
+        self.assertEqual(p.data, self.expected_data['fib2-aarch64'])
 
     def test_random_guff(self):
         # Create complete rubbish and throw it at cPerf, expecting an
