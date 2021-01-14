@@ -33,8 +33,10 @@ def v4_url_available(*args, **kwargs):
     except Exception:
         return False
 
+
 class fixed_location_response(Response):
     autocorrect_location_header = False
+
 
 def v4_redirect(*args, **kwargs):
     """
@@ -47,6 +49,7 @@ def v4_redirect(*args, **kwargs):
     standard.
     """
     return flask.redirect(*args, Response=fixed_location_response, **kwargs)
+
 
 def register(env):
     # Add some normal Python builtins which can be useful in templates.

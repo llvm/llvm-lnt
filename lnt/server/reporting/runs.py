@@ -216,6 +216,8 @@ def generate_run_data(session, run, baseurl, num_comparison_runs=0,
 
 
 BucketEntry = namedtuple('BucketEntry', ['name', 'cr', 'test_id'])
+
+
 def _get_changes_by_type(ts, run_a, run_b, metric_fields, test_names,
                          num_comparison_runs, sri):
     comparison_results = {}

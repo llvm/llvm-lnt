@@ -8,9 +8,11 @@ from collections import namedtuple
 
 OrderAndHistory = namedtuple('OrderAndHistory', ['max_order', 'recent_orders'])
 
+
 def pairs(l):
     """Make an iterable of all pairs of consecutive elements in l."""
     return zip(l[:-1], l[1:])
+
 
 # The hash color palette avoids green and red as these colours are already used
 # in quite a few places to indicate "good" or "bad".
@@ -22,6 +24,7 @@ _hash_color_palette = (
     colorsys.hsv_to_rgb(h=225. / 360, s=0.3, v=0.9999),  # cool blue
     colorsys.hsv_to_rgb(h=180. / 360, s=0.3, v=0.9999),  # mid cyan
 )
+
 
 def _clamp(v, minVal, maxVal):
     return min(max(v, minVal), maxVal)
@@ -55,6 +58,7 @@ def _get_rgb_colors_for_hashes(hash_strings):
             result.append(_toColorString(rgb))
     return result
 
+
 # Helper classes to make the sparkline chart construction easier in the jinja
 # template.
 class RunResult:
@@ -64,6 +68,7 @@ class RunResult:
         self.samples = self.cr.samples
         if self.samples is None:
             self.samples = []
+
 
 class RunResults:
     """
@@ -112,6 +117,7 @@ class RunResults:
         for i, dr in enumerate(self.results):
             if dr is not None:
                 dr.hash_rgb_color = rgb_colors[i]
+
 
 # Compute static CSS styles for elements. We use the style directly on
 # elements instead of via a stylesheet to support major email clients

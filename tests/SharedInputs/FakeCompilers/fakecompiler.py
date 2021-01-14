@@ -118,6 +118,7 @@ InstalledDir: /home/foo/bin
  "%s" "-cc1" "-E" ... more boring stuff here ...""" % (
             g_program,), file=sys.stderr)
 
+
 # Monorepo clang build with some extra stuff after the version string
 class Clang_monorepo2(LLVMCompiler):
     compiler_name = "clang-monorepo2"
@@ -130,6 +131,7 @@ InstalledDir: /home/foo/bin
         print("""\
  "%s" "-cc1" "-E" ... more boring stuff here ...""" % (
             g_program,), file=sys.stderr)
+
 
 class AppleClang_138_1(LLVMCompiler):
     compiler_name = "apple-clang-138.1"

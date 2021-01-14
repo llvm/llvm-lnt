@@ -46,6 +46,7 @@ def sanity_check_instance(instance_path):
         overview = client.get(os.path.join("/", link))
         assert "LNT : %s - Recent Activity" % (name,) in overview.data
 
+
 def check_instance(instance_path, temp_path):
     logging.info("checking instance: %r", instance_path)
 
@@ -66,6 +67,7 @@ def check_instance(instance_path, temp_path):
     # Sanity check that the update instance works correctly.
     sanity_check_instance(instance_temp_path)
 
+
 def main():
     _, temp_path = sys.argv
 
@@ -85,6 +87,7 @@ def main():
 
         # Otherwise, we have a test instance. Check migration of it.
         check_instance(input_path, temp_path)
+
 
 if __name__ == '__main__':
     main()

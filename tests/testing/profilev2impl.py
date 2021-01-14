@@ -12,6 +12,7 @@ from lnt.testing.profile.profilev1impl import ProfileV1
 
 logging.basicConfig(level=logging.DEBUG)
 
+
 class ProfileV2Test(unittest.TestCase):
     def setUp(self):
         self.test_data = {
@@ -49,6 +50,7 @@ class ProfileV2Test(unittest.TestCase):
         self.assertEqual(p.getFunctions(),
                          {'fn1': {'counters': {'cycles': 45.0, 'branch-misses': 10.0},
                                   'length': 2}})
-        
+
+
 if __name__ == '__main__':
     unittest.main(argv=[sys.argv[0], ])

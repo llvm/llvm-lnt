@@ -1517,6 +1517,7 @@ def v4_summary_report_ui():
                            config=config, all_machines=all_machines,
                            all_orders=all_orders, **ts_data(ts))
 
+
 @v4_route("/latest_runs_report")
 def v4_latest_runs_report():
     session = request.session
@@ -1534,6 +1535,7 @@ def v4_latest_runs_report():
     return render_template("v4_latest_runs_report.html", report=report,
                            analysis=lnt.server.reporting.analysis,
                            **ts_data(ts))
+
 
 @db_route("/summary_report")
 def v4_summary_report():

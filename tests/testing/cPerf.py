@@ -5,7 +5,8 @@ import sys
 import os
 import tempfile
 from lnt.testing.profile.perf import LinuxPerfProfile
-    
+
+
 class CPerfTest(unittest.TestCase):
     def setUp(self):
         self.inputs = os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -118,7 +119,7 @@ class CPerfTest(unittest.TestCase):
                                                     [{},
                                                      4196092,
                                                      u'\td65f03c0 \tret']]}}}}
-        
+
     def _getNm(self, perf_data_fname, non_dynamic=False):
         stub = perf_data_fname.rsplit('.perf_data', 1)[0]
         s = 'python %s/fake-nm.py %s.nm.out' % (self.inputs, stub)
@@ -132,7 +133,7 @@ class CPerfTest(unittest.TestCase):
 
     def _getInput(self, fname):
         return os.path.join(self.inputs, fname)
-    
+
     def test_check_file(self):
         self.assertTrue(LinuxPerfProfile.checkFile(self._getInput('fib-aarch64.perf_data')))
 
@@ -182,6 +183,7 @@ class CPerfTest(unittest.TestCase):
             with self.assertRaises(AssertionError):
                 LinuxPerfProfile.deserialize(open(fd.name),
                                              propagateExceptions=True)
+
 
 if __name__ == '__main__':
     unittest.main(argv=[sys.argv[0], ])

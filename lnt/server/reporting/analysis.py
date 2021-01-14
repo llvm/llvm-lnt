@@ -18,6 +18,7 @@ MIN_VALUE_PRECISION = 0.0001
 # Minimal percentage difference that is visible in reports
 MIN_PERCENTAGE_CHANGE = .01
 
+
 def absmin_diff(current, prevs):
     """Min of differences between current sample and all previous samples.
     Given more than one min, use the last one detected which is probably a

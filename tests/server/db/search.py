@@ -105,7 +105,7 @@ class SearchTest(unittest.TestCase):
             ('machine3', '6512'),
             ('machine3', '65')
         ])
-        
+
     def test_default_machine(self):
         session = self.session
         ts = self.db.testsuite.get('nts')
@@ -115,6 +115,7 @@ class SearchTest(unittest.TestCase):
         self.assertEqual(results, [
             ('machine2', '6512')
         ])
+
 
 if __name__ == '__main__':
     if len(sys.argv) > 1:

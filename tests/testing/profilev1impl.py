@@ -11,6 +11,7 @@ from lnt.testing.profile.profile import Profile
 
 logging.basicConfig(level=logging.DEBUG)
 
+
 class ProfileV1Test(unittest.TestCase):
     def setUp(self):
         self.test_data = {
@@ -56,6 +57,7 @@ class ProfileV1Test(unittest.TestCase):
             p2 = ProfileV1.deserialize(open(f.name, "rb"))
 
         self.assertEqual(p2.data, self.test_data)
+
 
 if __name__ == '__main__':
     unittest.main(argv=[sys.argv[0], ])
