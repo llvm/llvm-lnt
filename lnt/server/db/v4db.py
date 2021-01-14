@@ -1,11 +1,6 @@
 import glob
 import yaml
 
-try:
-    import threading
-except Exception:
-    import dummy_threading as threading
-
 import sqlalchemy
 
 import lnt.testing
