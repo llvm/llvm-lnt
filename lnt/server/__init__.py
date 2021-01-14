@@ -1,1 +1,3 @@
-__all__ = []
+from typing import Sequence
+
+__all__ = [] # type: Sequence[str]

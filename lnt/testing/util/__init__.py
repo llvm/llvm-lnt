@@ -2,4 +2,6 @@
 Miscellaneous utilities for generating test data.
 """
 
-__all__ = []
+from typing import Sequence
+
+__all__ = [] # type: Sequence[str]
