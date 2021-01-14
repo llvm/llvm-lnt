@@ -2,7 +2,6 @@
 Post submission hook to write the current state of the profiles directory. This
 gets fed into the profile/admin page.
 """
-import datetime
 import glob
 import json
 import os

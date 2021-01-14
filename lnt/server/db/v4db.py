@@ -9,7 +9,6 @@ import lnt.server.db.testsuitedb
 import lnt.server.db.migrate
 
 from lnt.server.db import testsuite
-from sqlalchemy.orm import joinedload
 import lnt.server.db.util
 
 

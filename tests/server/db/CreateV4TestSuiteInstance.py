@@ -6,7 +6,6 @@
 import datetime
 
 from lnt.server.config import Config
-from lnt.server.db import testsuite
 from lnt.server.db import v4db
 from lnt.server.db.fieldchange import RegressionState
 

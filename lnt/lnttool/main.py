@@ -65,8 +65,8 @@ view the results.
             app.wsgi_app, stream=open(profiler_file, 'w'),
             profile_dir=profiler_dir)
     if shell:
-        from flask import current_app
-        from flask import g
+        from flask import current_app  # noqa: F401  # Used in locals() below
+        from flask import g  # noqa: F401  # Used in locals() below
         import code
         ctx = app.test_request_context()
         ctx.push()

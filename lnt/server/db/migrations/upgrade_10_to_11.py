@@ -3,7 +3,6 @@
 
 import sqlalchemy
 from sqlalchemy import String, Integer, Column, ForeignKey
-from sqlalchemy.orm import relation
 
 # Import the original schema from upgrade_0_to_1 since upgrade_1_to_2 does not
 # change the actual schema, but rather adds functionality vis-a-vis orders.

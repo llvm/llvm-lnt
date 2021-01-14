@@ -1,5 +1,6 @@
 # RUN: python %s
-import unittest, sys, os, tempfile, time, threading, json
+
+import unittest, sys, os, tempfile
 from lnt.testing.profile.perf import LinuxPerfProfile
     
 class CPerfTest(unittest.TestCase):

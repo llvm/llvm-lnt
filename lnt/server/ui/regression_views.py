@@ -6,7 +6,6 @@ from flask import abort
 from flask import render_template
 from flask import request
 from flask import flash
-from flask import redirect
 from sqlalchemy import desc
 from sqlalchemy.orm.exc import NoResultFound
 from wtforms import SelectMultipleField, StringField, widgets, SelectField

@@ -1,7 +1,7 @@
 # Drop the "FieldChange" tables; they have been deprecated and replaced by
 # "FieldChangeV2" for a long while now (but can still cause trouble when trying
 # to delete old runs that are referenced from a FieldChange entry).
-from lnt.server.db.migrations.util import introspect_table, rename_table
+from lnt.server.db.migrations.util import introspect_table
 
 
 def update_testsuite(engine, db_key_name):

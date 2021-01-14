@@ -5,7 +5,6 @@
 # RUN: rm -f %t.db
 # RUN: python %s %t.db
 
-import sys
 from lnt.server.config import Config
 from lnt.server.db import testsuite
 from lnt.server.db import v4db

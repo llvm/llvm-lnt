@@ -5,8 +5,6 @@ Module for defining additional Jinja global functions.
 import flask
 from flask import Response
 
-import lnt.server.ui.util
-
 
 def db_url_for(*args, **kwargs):
     """

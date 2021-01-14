@@ -17,7 +17,6 @@ import flask
 from sqlalchemy import Float, String, Integer, Column, ForeignKey, Binary, DateTime
 from sqlalchemy.orm import relation
 from sqlalchemy.orm.exc import ObjectDeletedError
-from typing import List
 from lnt.util import logger
 
 from . import testsuite

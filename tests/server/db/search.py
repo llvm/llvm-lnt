@@ -1,6 +1,6 @@
 # RUN: python %s %S
 
-import unittest, tempfile, shutil, logging, sys, os, contextlib
+import unittest, tempfile, shutil, sys, os
 import lnt.util.ImportData
 import lnt.server.instance
 from lnt.server.db.search import search

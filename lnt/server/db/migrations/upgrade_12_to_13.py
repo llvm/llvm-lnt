@@ -1,5 +1,4 @@
 # Adds new table to store jsonschema previously used to construct testsuite.
-import sqlalchemy
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import Column, String, Binary
 
