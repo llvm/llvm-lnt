@@ -1,12 +1,5 @@
 # RUN: python %s
 import unittest, sys, os, tempfile, time, threading, json
-
-try:
-    import lnt.testing.profile.cPerf as cPerf
-except:
-    # No tests to run if cPerf is not available
-    sys.exit(0)
-
 from lnt.testing.profile.perf import LinuxPerfProfile
     
 class CPerfTest(unittest.TestCase):
