@@ -134,9 +134,9 @@ assert sorted(run_a.parameters.items()) == [('inferred_run_order', '1')]
 assert sorted(run_b.parameters.items()) == [('inferred_run_order', '2')]
 
 # Validate the samples.
-samples = list(session.query(ts.Sample)\
-    .join(ts.Run) \
-    .order_by(ts.Run.order_id, ts.Sample.id))
+samples = list(session.query(ts.Sample)
+               .join(ts.Run)
+               .order_by(ts.Run.order_id, ts.Sample.id))
 assert len(samples) == 3
 sample_a_0, sample_a_1, sample_b = samples
 assert sample_a_0.run is run_a

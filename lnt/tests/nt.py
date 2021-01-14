@@ -1716,7 +1716,7 @@ class NTTest(builtintest.BuiltinTest):
 
             for i in range(opts.multisample):
                 print("%s: (multisample) running iteration %d" %\
-                        (timestamp(), i), file=sys.stderr)
+                      (timestamp(), i), file=sys.stderr)
                 report = run_test(opts.label, i, config)
                 reports.append(report)
 

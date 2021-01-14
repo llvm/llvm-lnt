@@ -60,7 +60,7 @@ def v4_new_regressions():
         regression, _ = new_regression(session, ts, form.field_changes.data)
         flash("Created " + regression.title, FLASH_SUCCESS)
         return v4_redirect(v4_url_for(".v4_regression_list",
-                        highlight=regression.id))
+                                      highlight=regression.id))
     if request.method == 'POST' and request.form['btn'] == "Ignore Changes":
         msg = "Ignoring changes: "
         ignored = []
@@ -158,7 +158,7 @@ def v4_regression_list():
                 links.append(r.bug)
 
         new_regress, _ = new_regression(session, ts,
-                                     [x.field_change_id for x in reg_inds])
+                                        [x.field_change_id for x in reg_inds])
         new_regress.state = regressions[target].state
         new_regress.title = regressions[target].title
         new_regress.bug = ' '.join(links)
@@ -298,8 +298,8 @@ def v4_regression_detail(id):
         session.commit()
         flash("Updated " + regression_info.title, FLASH_SUCCESS)
         return v4_redirect(v4_url_for(".v4_regression_list",
-                        highlight=regression_info.id,
-                        state=int(form.edit_state.data)))
+                                      highlight=regression_info.id,
+                                      state=int(form.edit_state.data)))
     if request.method == 'POST' and \
             request.form['save_btn'] == "Split Regression":
         # For each of the regression indicators, grab their field ids.
@@ -318,8 +318,8 @@ def v4_regression_detail(id):
         session.commit()
         flash("Split " + second_regression.title, FLASH_SUCCESS)
         return v4_redirect(v4_url_for(".v4_regression_list",
-                        highlight=second_regression.id,
-                        state=int(form.edit_state.data)))
+                                      highlight=second_regression.id,
+                                      state=int(form.edit_state.data)))
     if request.method == 'POST' and request.form['save_btn'] == "Delete":
         # For each of the regression indicators, grab their field ids.
         title = regression_info.title
@@ -334,7 +334,7 @@ def v4_regression_detail(id):
         session.commit()
         flash("Deleted " + title, FLASH_SUCCESS)
         return v4_redirect(v4_url_for(".v4_regression_list",
-                        state=int(form.edit_state.data)))
+                                      state=int(form.edit_state.data)))
     form.field_changes.choices = list()
     form.state.default = regression_info.state
     form.process()

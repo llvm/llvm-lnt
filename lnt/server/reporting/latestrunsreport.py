@@ -24,7 +24,8 @@ class LatestRunsReport(object):
             field_results = []
             for machine in machines:
                 machine_results = []
-                machine_runs = list(reversed(session.query(ts.Run)
+                machine_runs = list(reversed(
+                    session.query(ts.Run)
                     .filter(ts.Run.machine_id == machine.id)
                     .order_by(ts.Run.start_time.desc())
                     .limit(self.run_count)
@@ -38,12 +39,12 @@ class LatestRunsReport(object):
                 # take all tests from latest run and do a comparison
                 oldest_run = machine_runs[0]
 
-                run_tests = session.query(ts.Test) \
-                        .join(ts.Sample) \
-                        .join(ts.Run) \
-                        .filter(ts.Sample.run_id == oldest_run.id) \
-                        .filter(ts.Sample.test_id == ts.Test.id) \
-                        .all()
+                run_tests = (session.query(ts.Test)
+                             .join(ts.Sample)
+                             .join(ts.Run)
+                             .filter(ts.Sample.run_id == oldest_run.id)
+                             .filter(ts.Sample.test_id == ts.Test.id)
+                             .all())
 
                 # Create a run info object.
                 sri = lnt.server.reporting.analysis.RunInfo(session, ts, machine_runs_ids)

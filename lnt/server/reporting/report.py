@@ -126,9 +126,9 @@ class RunResults:
 
 report_css_styles = {
         "body": ("color:#000000; background-color:#ffffff; "
-            "font-family: Helvetica, sans-serif; font-size:9pt"),
+                 "font-family: Helvetica, sans-serif; font-size:9pt"),
         "table": ("font-size:9pt; border-spacing: 0px; "
-            "border: 1px solid black"),
+                  "border: 1px solid black"),
         "th": (
             "background-color:#eee; color:#666666; font-weight: bold; "
             "cursor: default; text-align:center; font-weight: bold; "

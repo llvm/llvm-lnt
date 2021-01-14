@@ -288,7 +288,7 @@ def v4_machine_compare(machine_id):
         .first()
 
     return v4_redirect(v4_url_for('.v4_run', id=machine_1_run.id,
-                               compare_to=machine_2_run.id))
+                                  compare_to=machine_2_run.id))
 
 
 @v4_route("/machine/<int:id>")
@@ -468,7 +468,7 @@ def simple_run(tag, id):
     # If we found one, redirect to it's report.
     if matched_run is not None:
         return v4_redirect(db_url_for(".v4_run", testsuite_name=tag,
-                                   id=matched_run.id))
+                                      id=matched_run.id))
 
     # Otherwise, report an error.
     return render_template("error.html", message="""\
@@ -1421,8 +1421,8 @@ def v4_daily_report_overview():
     extra_args.pop("day", None)
 
     return v4_redirect(v4_url_for(".v4_daily_report",
-                               year=date.year, month=date.month, day=date.day,
-                               **extra_args))
+                                  year=date.year, month=date.month,
+                                  day=date.day, **extra_args))
 
 
 @v4_route("/daily_report/<int:year>/<int:month>/<int:day>")

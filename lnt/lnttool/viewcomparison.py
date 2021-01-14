@@ -89,7 +89,7 @@ def action_view_comparison(report_a, report_b, hostname, port, dry_run,
         with contextlib.closing(config.get_database('default')) as db:
             session = db.make_session()
             import_and_report(config, 'default', db, session, report_a,
-                                  '<auto>', testsuite, select_machine='match')
+                              '<auto>', testsuite, select_machine='match')
             import_and_report(config, 'default', db, session, report_b,
                               '<auto>', testsuite, select_machine='match')
 
