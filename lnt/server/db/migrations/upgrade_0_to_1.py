@@ -195,7 +195,7 @@ def get_base_for_testsuite(test_suite):
         for item in test_suite.machine_fields:
             if item.name in class_dict:
                 raise ValueError("test suite defines reserved key %r" %
-                                 (name,))
+                                 (item.name,))
 
             class_dict[item.name] = item.column = Column(
                 item.name, String(256))
@@ -268,7 +268,7 @@ def get_base_for_testsuite(test_suite):
         for item in test_suite.sample_fields:
             if item.name in class_dict:
                 raise ValueError("test suite defines reserved key {}"
-                                 .format(name))
+                                 .format(item.name))
 
             if item.type.name == 'Real':
                 item.column = Column(item.name, Float)
