@@ -1,4 +1,6 @@
 *.pyc
+/junit-mypy.xml
+.tox/
 /LNT.egg-info
 build
 dist
