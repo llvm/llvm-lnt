@@ -83,5 +83,5 @@ The ``self.data`` member has this format::
         return d
 
     def getCodeForFunction(self, fname):
-        for l in self.data['functions'][fname].get('data', []):
-            yield (l[0], l[1], l[2])
+        for inst_info in self.data['functions'][fname].get('data', []):
+            yield (inst_info[0], inst_info[1], inst_info[2])

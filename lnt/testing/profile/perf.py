@@ -34,9 +34,9 @@ class LinuxPerfProfile(ProfileImpl):
             # Go through the data and convert counter values to percentages.
             for f in data['functions'].values():
                 fc = f['counters']
-                for l in f['data']:
-                    for k, v in l[0].items():
-                        l[0][k] = 100.0 * float(v) / fc[k]
+                for inst_info in f['data']:
+                    for k, v in inst_info[0].items():
+                        inst_info[0][k] = 100.0 * float(v) / fc[k]
                 for k, v in fc.items():
                     fc[k] = 100.0 * v / data['counters'][k]
 

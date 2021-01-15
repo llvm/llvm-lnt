@@ -41,9 +41,9 @@ class ProfileV2Test(unittest.TestCase):
         fobj = io.BytesIO(s)
         p2 = ProfileV2.deserialize(fobj)
 
-        l = list(p2.getCodeForFunction('fn1'))
+        l1 = list(p2.getCodeForFunction('fn1'))
         l2 = self.test_data['functions']['fn1']['data']
-        self.assertEqual(l, l2)
+        self.assertEqual(l1, l2)
 
     def test_getFunctions(self):
         p = ProfileV2.upgrade(ProfileV1(copy.deepcopy(self.test_data)))

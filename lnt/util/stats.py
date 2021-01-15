@@ -29,9 +29,9 @@ def mean(values):
         return None
 
 
-def geometric_mean(l):
-    iPow = 1. / len(l)
-    return reduce(lambda a, b: a * b, [v ** iPow for v in l])
+def geometric_mean(values):
+    iPow = 1. / len(values)
+    return reduce(lambda a, b: a * b, [v ** iPow for v in values])
 
 
 def agg_mean(pairs):

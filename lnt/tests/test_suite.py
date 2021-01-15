@@ -534,8 +534,8 @@ class TestSuiteTest(BuiltinTest):
                 fatal("Could not find CMake cache file: " + cache)
             cmake_flags += ['-C', cache]
 
-        for l in lines:
-            logger.info(l)
+        for line in lines:
+            logger.info(line)
 
         # Define compilers before specifying the cache files.
         early_defs = {}
