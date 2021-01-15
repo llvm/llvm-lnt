@@ -49,7 +49,6 @@ class TestSuiteDB(object):
     """
 
     def __init__(self, v4db, name, test_suite):
-        testsuitedb = self
         self.v4db = v4db
         self.name = name
         self.test_suite = test_suite

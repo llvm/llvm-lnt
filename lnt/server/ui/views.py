@@ -407,9 +407,6 @@ class V4RequestInfo(object):
         else:
             baseline = None
 
-        # Gather the runs to use for statistical data.
-        comparison_start_run = compare_to or self.run
-
         # We're going to render this on a real webpage with CSS support, so
         # override the default styles and provide bootstrap class names for
         # the tables.
@@ -1520,7 +1517,6 @@ def v4_summary_report_ui():
 
 @v4_route("/latest_runs_report")
 def v4_latest_runs_report():
-    session = request.session
     ts = request.get_testsuite()
 
     num_runs_str = request.args.get('num_runs')

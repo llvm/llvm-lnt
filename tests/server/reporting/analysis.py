@@ -277,13 +277,13 @@ class ComparisonResultTest(unittest.TestCase):
         self.assertEqual(bimodal.get_value_status(), REGRESSED)
 
     def test_single_spike(self):
-        spike = ComparisonResult(
+        spike = ComparisonResult(  # noqa: F841  # relates to commented code
             min, False, False, [SPIKE[11]], SPIKE[0:10], None, None)
         # Fixme
         # self.assertEqual(spike.get_value_status(), UNCHANGED_PASS)
 
     def test_noise_single_spike(self):
-        spike = ComparisonResult(
+        spike = ComparisonResult(  # noqa: F841  # relates to commented code
             min, False, False, [NOISE_SPIKE[8]], NOISE_SPIKE[0:7], None, None)
         # Fixme
         # self.assertEqual(spike.get_value_status(), UNCHANGED_PASS)
@@ -300,13 +300,13 @@ class ComparisonResultTest(unittest.TestCase):
         self.assertEqual(slow.get_value_status(), REGRESSED)
 
     def test_slow_improvement(self):
-        slow = ComparisonResult(
+        slow = ComparisonResult(  # noqa: F841  # relates to commented code
             min, False, False, [SLOW_IMP[12]], SLOW_IMP[0:11], None, None)
         # Fixme
         # self.assertEqual(slow.get_value_status(), IMPROVED)
 
     def test_noise_slow_improvement(self):
-        slow = ComparisonResult(
+        slow = ComparisonResult(  # noqa: F841  # relates to commented code
             min, False, False, [SLOW_IMP_NOISE[12]], SLOW_IMP_NOISE[0:11],
             None, None)
         # Fixme

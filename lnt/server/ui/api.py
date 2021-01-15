@@ -195,12 +195,10 @@ class Machine(Resource):
     @requires_auth_token
     def put(machine_spec):
         machine = Machine._get_machine(machine_spec)
-        machine_name = "%s:%s" % (machine.name, machine.id)
         data = json.loads(request.data)
         machine_data = data['machine']
         machine.set_from_dict(machine_data)
         session = request.session
-        ts = request.get_testsuite()
         session.commit()
 
     @staticmethod

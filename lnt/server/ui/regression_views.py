@@ -289,7 +289,7 @@ def v4_regression_detail(id):
         regression_info = session.query(ts.Regression) \
             .filter(ts.Regression.id == id) \
             .one()
-    except NoResultFound as e:
+    except NoResultFound:
         abort(404)
     if request.method == 'POST' and request.form['save_btn'] == "Save Changes":
         regression_info.title = form.title.data
@@ -411,7 +411,6 @@ def v4_make_regression(machine_id, test_id, field_index, run_id):
     session = request.session
     ts = request.get_testsuite()
     field = ts.sample_fields[field_index]
-    new_regression_id = 0
     run = session.query(ts.Run).get(run_id)
 
     runs = session.query(ts.Run). \

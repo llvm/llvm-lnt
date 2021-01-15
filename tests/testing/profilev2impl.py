@@ -32,7 +32,7 @@ class ProfileV2Test(unittest.TestCase):
     def test_serialize(self):
         p = ProfileV2.upgrade(ProfileV1(copy.deepcopy(self.test_data)))
         with tempfile.NamedTemporaryFile() as f:
-            s = p.serialize(f.name)
+            p.serialize(f.name)
             self.assertTrue(ProfileV2.checkFile(f.name))
 
     def test_deserialize(self):

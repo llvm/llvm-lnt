@@ -159,7 +159,7 @@ def regenerate_fieldchanges_for_run(session, ts, run_id):
             if not result.is_result_performance_change() and f:
                 # With more data, its not a regression. Kill it!
                 logger.info("Removing field change: {}".format(f.id))
-                deleted = delete_fieldchange(session, ts, f)
+                delete_fieldchange(session, ts, f)
                 continue
 
             if result.is_result_performance_change() and not f:

@@ -67,8 +67,6 @@ def v4_profile_ajax_getFunctions():
 
     profileDir = current_app.old_config.profileDir
 
-    idx = 0
-    tlc = {}
     sample = _get_sample(session, ts, runid, testid)
 
     if sample and sample.profile:
@@ -135,7 +133,6 @@ def v4_profile_fwd2(testid, run1_id, run2_id=None):
 def v4_profile(testid, run1_id, run2_id=None):
     session = request.session
     ts = request.get_testsuite()
-    profileDir = current_app.old_config.profileDir
 
     try:
         test = session.query(ts.Test).filter(ts.Test.id == testid).one()
@@ -150,16 +147,6 @@ def v4_profile(testid, run1_id, run2_id=None):
     except NoResultFound:
         # FIXME: Make this a nicer error page.
         abort(404)
-
-    if sample1.profile:
-        profile1 = sample1.profile
-    else:
-        profile1 = None
-
-    if sample2 and sample2.profile:
-        profile2 = sample2.profile
-    else:
-        profile2 = None
 
     json_run1 = {
         'id': run1.id,

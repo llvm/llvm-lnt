@@ -344,8 +344,6 @@ class SummaryReport(object):
                 samples = session.query(*columns).filter(
                     ts.Sample.run_id.in_(list(run_id_map.keys())))
                 for sample in samples:
-                    run = run_id_map[sample[0]]
-                    datapoints = list()
                     for key, value in get_datapoints_for_sample(ts, sample):
                         items = self.data_table.get(key)
                         if items is None:

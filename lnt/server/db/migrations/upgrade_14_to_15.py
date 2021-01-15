@@ -6,7 +6,7 @@ from lnt.server.db.migrations.util import introspect_table
 
 def update_testsuite(engine, db_key_name):
     table_name = '%s_FieldChange' % db_key_name
-    with engine.begin() as trans:
+    with engine.begin():
         table = introspect_table(engine, table_name, autoload=False)
         table.drop(checkfirst=True)
 
