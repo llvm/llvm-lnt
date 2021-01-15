@@ -7,8 +7,6 @@
 # RUN: python %{shared_inputs}/create_temp_instance.py \
 # RUN:   %s %{shared_inputs}/SmallInstance %t.instance
 
-
-
 # RUN: lnt send-run-comparison --dry-run --to some@address.com \
 # RUN: --from some.other@address.com  \
 # RUN: --host localhost %t.instance 1 2 | FileCheck %s --check-prefix CHECK0
@@ -36,8 +34,6 @@
 # CHECK0: </head>
 # ...
 # CHECK0: </html>
-
-
 
 # RUN: lnt send-daily-report --dry-run --from some.other@address.com \
 # RUN: --host localhost --testsuite nts --filter-machine-regex=machine.? \

@@ -107,6 +107,7 @@ InstalledDir: /home/foo/bin
 # Monorepo clang build
 class Clang_monorepo(LLVMCompiler):
     compiler_name = "clang-monorepo"
+
     def print_verbose_info(self):
         print("""\
 clang version 1.2.3 (ssh://something.com/llvm-project.git 597522d740374f093a089a2acbec5b20466b2f34)
@@ -122,6 +123,7 @@ InstalledDir: /home/foo/bin
 # Monorepo clang build with some extra stuff after the version string
 class Clang_monorepo2(LLVMCompiler):
     compiler_name = "clang-monorepo2"
+
     def print_verbose_info(self):
         print("""\
 clang version 1.2.3 (ssh://something.com/llvm-project.git 597522d740374f093a089a2acbec5b20466b2f34) (extra) (stuff) (here)
