@@ -39,7 +39,7 @@ setup(
     author=lnt.__author__,
     author_email=lnt.__email__,
     url='http://llvm.org',
-    license = 'Apache-2.0 with LLVM exception',
+    license='Apache-2.0 with LLVM exception',
 
     description="LLVM Nightly Test Infrastructure",
     keywords='web testing performance development llvm',

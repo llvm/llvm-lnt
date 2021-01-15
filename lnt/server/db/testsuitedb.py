@@ -58,7 +58,7 @@ class TestSuiteDB(object):
         self.order_fields = list(self.test_suite.order_fields)
         self.run_fields = list(self.test_suite.run_fields)
         self.sample_fields = list(sorted(self.test_suite.sample_fields,
-                                         key = lambda s: s.schema_index))
+                                         key=lambda s: s.schema_index))
         self.machine_to_latest_order_cache = {}
         sample_field_indexes = dict()
 
@@ -487,7 +487,10 @@ class TestSuiteDB(object):
         class Sample(self.base, ParameterizedMixin):
             __tablename__ = db_key_name + '_Sample'
 
-            fields = list(sorted(self.sample_fields, key = lambda x: self.sample_field_indexes[x.name]))
+            fields = list(
+                sorted(self.sample_fields,
+                       key=lambda x: self.sample_field_indexes[x.name])
+            )
             id = Column("ID", Integer, primary_key=True)
             # We do not need an index on run_id, this is covered by the
             # compound (Run(ID),Test(ID)) index we create below.

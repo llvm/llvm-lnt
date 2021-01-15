@@ -64,7 +64,7 @@ def filter_filesize(value):
     return "%.2f%sB" % (value, 'Yi')
 
 
-def filter_print_value(value, field_unit, field_unit_abbrev, default = '-'):
+def filter_print_value(value, field_unit, field_unit_abbrev, default='-'):
     if value is None:
         return default
 

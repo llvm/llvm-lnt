@@ -76,13 +76,13 @@ session = db.make_session()
 
 # Get the status kinds, and validate the IDs align with the testing IDs.
 pass_kind = session.query(testsuite.StatusKind) \
-    .filter_by(id = lnt.testing.PASS).one()
+    .filter_by(id=lnt.testing.PASS).one()
 assert pass_kind.name == "PASS"
 fail_kind = session.query(testsuite.StatusKind) \
-    .filter_by(id = lnt.testing.FAIL).one()
+    .filter_by(id=lnt.testing.FAIL).one()
 assert fail_kind.name == "FAIL"
 xfail_kind = session.query(testsuite.StatusKind) \
-    .filter_by(id = lnt.testing.XFAIL).one()
+    .filter_by(id=lnt.testing.XFAIL).one()
 assert xfail_kind.name == "XFAIL"
 
 # Load the imported test suite.
