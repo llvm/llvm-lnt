@@ -292,7 +292,7 @@ class OrderField(FieldMixin, Base):
         return '%s%r' % (self.__class__.__name__, (self.name, self.ordinal))
 
     def __copy__(self):
-        return Ordinal(self.name, self.ordinal)
+        return OrderField(self.name, self.ordinal)
 
 
 class RunField(FieldMixin, Base):
