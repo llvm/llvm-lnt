@@ -639,7 +639,8 @@ class TestSuiteTest(BuiltinTest):
             # failures!
             pass
         try:
-            return json.loads(open(output_json_path.name).read())
+            with open(output_json_path.name) as f:
+                return json.loads(f.read())
         except ValueError as e:
             fatal("Running test-suite did not create valid json report "
                   "in {}: {}".format(output_json_path.name, e))

@@ -186,7 +186,8 @@ def get_cc_info(path, cc_flags=[]):
                          (cc, cc_target_assembly))
 
     cc_exec_hash = hashlib.sha1()
-    cc_exec_hash.update(open(cc, 'rb').read())
+    with open(cc, 'rb') as f:
+        cc_exec_hash.update(f.read())
 
     info = {
         'cc_build': cc_build,

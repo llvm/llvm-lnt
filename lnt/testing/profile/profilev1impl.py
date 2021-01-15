@@ -45,7 +45,8 @@ The ``self.data`` member has this format::
     @staticmethod
     def checkFile(fn):
         # "zlib compressed data" - 78 9C
-        return open(fn, 'rb').read(2) == b'\x78\x9c'
+        with open(fn, 'rb') as f:
+            return f.read(2) == b'\x78\x9c'
 
     @staticmethod
     def deserialize(fobj):
