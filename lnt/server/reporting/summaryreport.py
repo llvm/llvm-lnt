@@ -176,7 +176,7 @@ class SummaryReport(object):
         #   <machine id>)
 
         self.data_table = {}
-        self._build_data_table()
+        self._build_data_table(session)
 
         # Compute indexed data table by applying the indexing functions.
         self._build_indexed_data_table()
@@ -187,7 +187,7 @@ class SummaryReport(object):
         # Build final organized data tables.
         self._build_final_data_tables()
 
-    def _build_data_table(self):
+    def _build_data_table(self, session):
         def get_nts_datapoints_for_sample(ts, sample):
             # Get the basic sample info.
             run_id = sample[0]
