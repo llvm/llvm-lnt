@@ -50,7 +50,7 @@ class V4DB(object):
             tsdb = lnt.server.db.testsuitedb.TestSuiteDB(self, name, suite)
             self.testsuite[name] = tsdb
         # Order testuites alphabetically to get groupings
-        self.testsuite = dict (sorted (self.testsuite.items()))
+        self.testsuite = dict(sorted(self.testsuite.items()))
 
     def __init__(self, path, config, baseline_revision=0):
         # If the path includes no database type, assume sqlite.
