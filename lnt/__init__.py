@@ -10,4 +10,4 @@ try:
 except Exception:
     pass
 
-__all__ = [] # type: Sequence[str]
+__all__ = []  # type: Sequence[str]
