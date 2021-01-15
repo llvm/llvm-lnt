@@ -27,7 +27,8 @@ def load_rules():
     rules_path = os.path.join(os.path.dirname(__file__), 'rules')
     for item in os.listdir(rules_path):
         # Ignore certain known non-scripts.
-        if item in ('README.txt', '__init__.py') or item.endswith('.pyc'):
+        if item in ('README.txt', '__init__.py',
+                    '__pycache__') or item.endswith('.pyc'):
             continue
 
         # Ignore non-matching files.

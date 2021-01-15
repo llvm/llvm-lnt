@@ -68,7 +68,7 @@ def _load_migrations():
         for item in os.listdir(schema_migrations_path):
             # Ignore certain known non-scripts.
             if item in ('README.txt', '__init__.py', 'new_suite.py',
-                        'util.py') or item.endswith('.pyc'):
+                        'util.py', '__pycache__') or item.endswith('.pyc'):
                 continue
 
             # Ignore non-matching files.
