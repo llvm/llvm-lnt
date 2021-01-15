@@ -265,7 +265,7 @@ class App(LNTExceptionLoggerFlask):
                 rotating.setLevel(logging.DEBUG)
                 self.logger.addHandler(rotating)
             except (OSError, IOError) as e:
-                print("Error making log file", \
+                print("Error making log file",
                       LOG_FILENAME, str(e), file=sys.stderr)
                 print("Will not log to file.", file=sys.stderr)
             else:

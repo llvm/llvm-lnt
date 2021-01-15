@@ -700,7 +700,7 @@ def execute_nt_tests(test_log, make_variables, basedir, config):
             timestamp(), config.build_threads), file=sys.stderr)
         res = execute_command(test_log, basedir, args, report_dir)
         if res != 0:
-            print("Failure while running make build! " \
+            print("Failure while running make build! "
                   "See log: %s" % test_log.name, file=sys.stderr)
 
     # Then 'make report'.
@@ -720,7 +720,7 @@ def execute_nt_tests(test_log, make_variables, basedir, config):
     res = execute_command(test_log, basedir, args, report_dir)
 
     if res != 0:
-        print("Failure while running nightly tests!  "\
+        print("Failure while running nightly tests!  "
               "See log: %s" % test_log.name, file=sys.stderr)
 
 
@@ -1715,7 +1715,7 @@ class NTTest(builtintest.BuiltinTest):
             reports = []
 
             for i in range(opts.multisample):
-                print("%s: (multisample) running iteration %d" %\
+                print("%s: (multisample) running iteration %d" %
                       (timestamp(), i), file=sys.stderr)
                 report = run_test(opts.label, i, config)
                 reports.append(report)
