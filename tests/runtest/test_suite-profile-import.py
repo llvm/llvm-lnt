@@ -20,7 +20,6 @@
 
 import sys
 import glob
-import glob
 from lnt.testing.profile.profilev2impl import ProfileV2
 
 profile = glob.glob('%s/data/profiles/*.lntprof' % sys.argv[1])[0]

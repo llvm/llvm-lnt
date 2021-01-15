@@ -5,7 +5,6 @@ from lnt.testing import FAIL
 from lnt.util import logger
 from lnt.util import multidict
 from lnt.util import stats
-from lnt.util import stats
 
 REGRESSED = 'REGRESSED'
 IMPROVED = 'IMPROVED'
