@@ -36,6 +36,7 @@ import lnt.util
 import lnt.util.ImportData
 import lnt.util.stats
 from lnt.external.stats import stats as ext_stats
+from lnt.server.db import testsuitedb
 from lnt.server.reporting.analysis import ComparisonResult, calc_geomean
 from lnt.server.ui import util
 from lnt.server.ui.decorators import frontend, db_route, v4_route
