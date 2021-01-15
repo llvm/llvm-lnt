@@ -125,14 +125,14 @@ class RunResults:
 # These are derived from the static style.css file we use elsewhere.
 
 report_css_styles = {
-        "body": ("color:#000000; background-color:#ffffff; "
-                 "font-family: Helvetica, sans-serif; font-size:9pt"),
-        "table": ("font-size:9pt; border-spacing: 0px; "
-                  "border: 1px solid black"),
-        "th": (
-            "background-color:#eee; color:#666666; font-weight: bold; "
-            "cursor: default; text-align:center; font-weight: bold; "
-            "font-family: Verdana; padding:5px; padding-left:8px"),
-        "td": "padding:5px; padding-left:8px",
-        "right": "text-align: right;"
-        }
+    "body": ("color:#000000; background-color:#ffffff; "
+             "font-family: Helvetica, sans-serif; font-size:9pt"),
+    "table": ("font-size:9pt; border-spacing: 0px; "
+              "border: 1px solid black"),
+    "th": (
+        "background-color:#eee; color:#666666; font-weight: bold; "
+        "cursor: default; text-align:center; font-weight: bold; "
+        "font-family: Verdana; padding:5px; padding-left:8px"),
+    "td": "padding:5px; padding-left:8px",
+    "right": "text-align: right;"
+}
