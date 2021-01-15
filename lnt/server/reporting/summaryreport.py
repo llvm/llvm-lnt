@@ -14,9 +14,6 @@ class Aggregation(object):
     def __repr__(self):
         return repr(self.getvalue())
 
-    def getvalue(self):
-        abstract
-
     def append(self, values):
         if not self.is_initialized:
             self.is_initialized = True
