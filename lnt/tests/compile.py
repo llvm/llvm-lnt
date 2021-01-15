@@ -187,7 +187,7 @@ def test_cc_command(base_name, run_info, variables, input, output, flags,
                               ln.startswith('InstalledDir:') or
                               ' version ' in ln)
             if is_garbage:
-                    continue
+                continue
             cc_commands.append(ln)
 
         if len(cc_commands) != 1:
