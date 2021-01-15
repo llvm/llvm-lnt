@@ -126,7 +126,8 @@ class Clang_monorepo2(LLVMCompiler):
 
     def print_verbose_info(self):
         print("""\
-clang version 1.2.3 (ssh://something.com/llvm-project.git 597522d740374f093a089a2acbec5b20466b2f34) (extra) (stuff) (here)
+clang version 1.2.3 (ssh://something.com/llvm-project.git \
+597522d740374f093a089a2acbec5b20466b2f34) (extra) (stuff) (here)
 Thread model: posix
 InstalledDir: /home/foo/bin
 """, file=sys.stderr)
