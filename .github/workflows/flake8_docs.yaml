@@ -1,4 +1,4 @@
-name: Python Flake8, Docs
+name: Python Flake8, Docs, mypy
 
 on:
   - push
@@ -21,4 +21,6 @@ jobs:
     - name: Tox flake8
       run: tox -e flake8
     - name: Tox docs
-      run: tox -e docs      
+      run: tox -e docs
+    - name: Tox mypy
+      run: tox -e mypy
