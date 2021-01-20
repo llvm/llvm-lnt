@@ -121,7 +121,7 @@ http://llvm.org/svn/llvm-project/lnt/trunk
         "Flask-RESTful==0.3.4",
         "Jinja2==2.7.2",
         "MarkupSafe==0.23",
-        "SQLAlchemy==1.1.11",
+        "SQLAlchemy==1.2.19",
         "Werkzeug==0.12.2",
         "itsdangerous==0.24",
         "python-dateutil==2.6.0",
