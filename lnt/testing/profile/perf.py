@@ -7,7 +7,7 @@ import os
 import traceback
 
 try:
-    from . import cPerf
+    from . import cPerf  # type: ignore  # mypy cannot process Cython modules
 except Exception:
     pass
 
