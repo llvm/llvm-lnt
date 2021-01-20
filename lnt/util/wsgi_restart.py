@@ -3,6 +3,8 @@ from __future__ import print_function
 from future import standard_library
 standard_library.install_aliases()
 import os
+from pathlib import Path
+from typing import Sequence
 import sys
 import signal
 import threading
@@ -11,10 +13,10 @@ import queue
 
 _interval = 1.0
 _times = {}
-_files = []
+_files = []  # type: Sequence[Path]
 
 _running = False
-_queue = queue.Queue()
+_queue = queue.Queue()  # type: queue.Queue
 _lock = threading.Lock()
 
 
