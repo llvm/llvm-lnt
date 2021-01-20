@@ -1024,7 +1024,7 @@ class TestSuiteTest(BuiltinTest):
         return lnt.util.ImportData.no_submit()
 
 
-@click.command("test-suite", short_help=__doc__)
+@click.command("test-suite", short_help=str(__doc__))
 @click.argument("label", default=platform.uname()[1], required=False,
                 type=click.UNPROCESSED)
 # Sandbox options

@@ -993,7 +993,7 @@ class CompileTest(builtintest.BuiltinTest):
 # FIXME: an equivalent to argparse's add_argument_group is not implemented
 #        on click. Need to review it when such functionality is available.
 #        https://github.com/pallets/click/issues/373
-@click.command("compile", help=usage_info, short_help=__doc__)
+@click.command("compile", help=usage_info, short_help=str(__doc__))
 @click.argument("label", default=platform.uname()[1], required=False,
                 type=click.UNPROCESSED)
 @click.option("-s", "--sandbox", "sandbox_path", required=True,
