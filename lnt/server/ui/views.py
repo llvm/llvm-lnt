@@ -1658,7 +1658,7 @@ class MatrixOptions(Form):
 
 
 def baseline():
-    # type: () -> Optional[testsuitedb.Baseline]
+    # type: () -> Optional[testsuitedb.TestSuiteDB.Baseline]
     """Get the baseline object from the user's current session baseline value
     or None if one is not defined.
     """
