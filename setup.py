@@ -134,7 +134,7 @@ http://llvm.org/svn/llvm-project/lnt/trunk
         "pyyaml==3.13",
         "requests",
         "future",
-        "lit",
+        "lit==0.11.1",
     ],
 
     ext_modules=[cPerf],
