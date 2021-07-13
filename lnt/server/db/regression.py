@@ -55,8 +55,9 @@ def new_regression(session, ts, field_changes):
         ri1 = ts.RegressionIndicator(regression, fc)
         new_ris.append(ri1)
     session.add_all(new_ris)
+    session.flush()
     rebuild_title(session, ts, regression)
-    logger.info("Creating new Regression: {}".format(regression.title))
+    logger.info("Creating new Regression: {} from {} RIs".format(regression.title, len(new_ris)))
     session.commit()
     return regression, new_ris
 

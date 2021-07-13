@@ -172,6 +172,7 @@ def regenerate_fieldchanges_for_run(session, ts, run_id):
                                    test=test,
                                    field_id=field.id)
                 session.add(f)
+                session.flush()
                 try:
                     found, new_reg = identify_related_changes(session, ts,
                                                               f, active_indicators)
@@ -258,6 +259,7 @@ def identify_related_changes(session, ts, fc, active_indicators):
                                        confidence))
                 ri = ts.RegressionIndicator(regression, fc)
                 session.add(ri)
+                session.flush()
                 active_indicators.append(ri)
                 # Update the default title if needed.
                 rebuild_title(session, ts, regression)
