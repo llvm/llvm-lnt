@@ -38,7 +38,7 @@ setup(
 
     author=lnt.__author__,
     author_email=lnt.__email__,
-    url='http://llvm.org',
+    url='https://llvm.org',
     license='Apache-2.0 with LLVM exception',
 
     description="LLVM Nightly Test Infrastructure",
@@ -64,14 +64,14 @@ Documentation
 =============
 
 The official *LNT* documentation is available online at:
-  http://llvm.org/docs/lnt
+  https://llvm.org/docs/lnt
 
 
 Source
 ======
 
-The *LNT* source is available in the LLVM SVN repository:
-http://llvm.org/svn/llvm-project/lnt/trunk
+The *LNT* source is available in the llvm-lnt repository:
+  https://github.com/llvm/llvm-lnt
 """,
 
     classifiers=[
