@@ -119,7 +119,7 @@ http://llvm.org/svn/llvm-project/lnt/trunk
         "aniso8601==1.2.0",
         "Flask==0.12.2",
         "Flask-RESTful==0.3.4",
-        "Jinja2==2.7.2",
+        "Jinja2==2.11.3",
         "MarkupSafe==0.23",
         "SQLAlchemy==1.2.19",
         "Werkzeug==0.12.2",
