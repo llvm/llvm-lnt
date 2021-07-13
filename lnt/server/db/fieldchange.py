@@ -261,8 +261,10 @@ def identify_related_changes(session, ts, fc, active_indicators):
                 active_indicators.append(ri)
                 # Update the default title if needed.
                 rebuild_title(session, ts, regression)
+                logger.info("Updated title of Regression({}) to \"{}\"".format(regression.id, regression.title))
                 return True, regression
-    logger.info("Could not find a partner, creating new Regression for change")
+
     new_reg, new_indicators = new_regression(session, ts, [fc.id])
+    logger.info("Could not find a partner, creating new Regression for change: {}".format(new_reg.title))
     active_indicators.extend(new_indicators)
     return False, new_reg

@@ -5,6 +5,7 @@ from collections import namedtuple
 from lnt.server.reporting.analysis import RunInfo
 from lnt.server.ui.util import guess_test_short_name as shortname
 from lnt.testing.util.commands import timed
+from lnt.util import logger
 
 
 class RegressionState:
@@ -55,6 +56,7 @@ def new_regression(session, ts, field_changes):
         new_ris.append(ri1)
     session.add_all(new_ris)
     rebuild_title(session, ts, regression)
+    logger.info("Creating new Regression: {}".format(regression.title))
     session.commit()
     return regression, new_ris
 
@@ -74,7 +76,9 @@ def rebuild_title(session, ts, regression):
         title = FMT.format(new_size, ', '.join(sorted(benchmarks)))
         # Crop long titles.
         title = (title[:120] + '...') if len(title) > 120 else title
+        logger.info("Rename Regression: \"{}\" to \"{}\"".format(regression.title, title))
         regression.title = title
+
     return regression
 
 
