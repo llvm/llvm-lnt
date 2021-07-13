@@ -124,7 +124,6 @@ The *LNT* source is available in the llvm-lnt repository:
         "SQLAlchemy==1.2.19",
         "Werkzeug==0.12.2",
         "itsdangerous==0.24",
-        "python-dateutil==2.6.0",
         "python-gnupg==0.3.7",
         "pytz==2016.10",
         "WTForms==2.0.2",
