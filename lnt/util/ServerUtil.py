@@ -10,7 +10,8 @@ import urllib.parse
 import urllib.error
 import contextlib
 import json
-
+import ssl
+import certifi
 import lnt.server.instance
 
 # FIXME: I used to maintain this file in such a way that it could be used
@@ -44,7 +45,8 @@ def submitFileToServer(url, file, select_machine=None, merge_run=None):
     headers = {'Accept': 'application/json'}
     data = urllib.parse.urlencode(values).encode(encoding='ascii')
     try:
-        response = urllib.request.urlopen(urllib.request.Request(url, data, headers=headers))
+        context = ssl.create_default_context(cafile=certifi.where())
+        response = urllib.request.urlopen(urllib.request.Request(url, data, headers=headers), context=context)
     except urllib.error.HTTPError as e:
         _show_json_error(e.read())
         return

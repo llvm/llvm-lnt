@@ -134,6 +134,7 @@ The *LNT* source is available in the llvm-lnt repository:
         "requests",
         "future",
         "lit==0.11.1",
+        "certifi"
     ],
 
     ext_modules=[cPerf],
