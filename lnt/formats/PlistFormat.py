@@ -3,7 +3,7 @@ import plistlib
 
 def _matches_format(path_or_file):
     try:
-        plistlib.readPlist(path_or_file)
+        plistlib.load(path_or_file)
         return True
     except Exception:
         return False
@@ -12,6 +12,6 @@ def _matches_format(path_or_file):
 format = {
     'name': 'plist',
     'predicate': _matches_format,
-    'read': plistlib.readPlist,
-    'write': plistlib.writePlist,
+    'read': plistlib.load,
+    'write': plistlib.dump,
 }
