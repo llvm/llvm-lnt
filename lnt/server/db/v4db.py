@@ -19,7 +19,7 @@ class V4DB(object):
     def _load_schema_file(self, schema_file):
         session = self.make_session(expire_on_commit=False)
         with open(schema_file) as schema_fd:
-            data = yaml.load(schema_fd)
+            data = yaml.safe_load(schema_fd)
         suite = testsuite.TestSuite.from_json(data)
         testsuite.check_testsuite_schema_changes(session, suite)
         suite = testsuite.sync_testsuite_with_metatables(session, suite)

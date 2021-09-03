@@ -278,7 +278,7 @@ class JSONAPITester(unittest.TestCase):
 
         # The reported schema should be the same as the yaml one on the top.
         with open('%s/schemas/nts.yaml' % self.instance_path) as syaml:
-            yaml_schema = yaml.load(syaml)
+            yaml_schema = yaml.safe_load(syaml)
             # Do some massaging to make it similar to the rest API result.
             for m in yaml_schema['metrics']:
                 if 'unit' not in m:

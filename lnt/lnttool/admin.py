@@ -50,7 +50,7 @@ class AdminConfig(object):
 
     def _try_load_config(self, filename):
         try:
-            config = yaml.load(open(filename))
+            config = yaml.safe_load(open(filename))
             for key, value in config.items():
                 self._set(key, value)
         except IOError as e:
