@@ -125,7 +125,7 @@ def regenerate_fieldchanges_for_run(session, ts, run_id):
                               .filter(ts.FieldChange.field_id.in_(field_ids))
                               .all())
 
-    active_indicators = session.query(ts.FieldChange) \
+    active_changes = session.query(ts.FieldChange) \
         .join(ts.RegressionIndicator) \
         .join(ts.Regression) \
         .filter(or_(ts.Regression.state == RegressionState.DETECTED,
@@ -175,12 +175,12 @@ def regenerate_fieldchanges_for_run(session, ts, run_id):
                 session.flush()
                 try:
                     found, new_reg = identify_related_changes(session, ts,
-                                                              f, active_indicators)
+                                                              f, active_changes)
                 except ObjectDeletedError:
                     # This can happen from time to time.
                     # So, lets retry once.
                     found, new_reg = identify_related_changes(session, ts,
-                                                              f, active_indicators)
+                                                              f, active_changes)
 
                 if found:
                     logger.info("Found field change: {}".format(
@@ -225,7 +225,7 @@ def percent_similar(a, b):
 
 
 @timed
-def identify_related_changes(session, ts, fc, active_indicators):
+def identify_related_changes(session, ts, fc, active_changes):
     # type: (Session, TestSuiteDB, TestSuiteDB.FieldChange, List) -> Tuple[bool, List]
     """Can we find a home for this change in some existing regression? If a
     match is found add a regression indicator adding this change to that
@@ -236,7 +236,7 @@ def identify_related_changes(session, ts, fc, active_indicators):
 
     """
 
-    for change in active_indicators:
+    for change in active_changes:
         if is_overlaping(change, fc):
             confidence = 0.0
 
@@ -260,13 +260,13 @@ def identify_related_changes(session, ts, fc, active_indicators):
                 ri = ts.RegressionIndicator(regression, fc)
                 session.add(ri)
                 session.flush()
-                active_indicators.append(ri)
+                active_changes.append(fc)
                 # Update the default title if needed.
                 rebuild_title(session, ts, regression)
                 logger.info("Updated title of Regression({}) to \"{}\"".format(regression.id, regression.title))
                 return True, regression
 
-    new_reg, new_indicators = new_regression(session, ts, [fc.id])
+    new_reg, new_indicators = new_regression(session, ts, [fc])
     logger.info("Could not find a partner, creating new Regression for change: {}".format(new_reg.title))
-    active_indicators.extend(new_indicators)
+    active_changes.append(fc)
     return False, new_reg
