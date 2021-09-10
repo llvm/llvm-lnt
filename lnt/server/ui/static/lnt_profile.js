@@ -122,7 +122,7 @@ InstructionSetParser.prototype = {
                 if (!noFallThru && nextInstruction)
                     targets.push(nextInstruction.address);
                 if (match.length > 1)
-                    targets.push(cfg.convertToAddress(match[1]));
+                    targets.push(cfg.convertToAddress(match[1], instruction.address));
                 return [noFallThru, targets];
             }
         }
@@ -134,8 +134,13 @@ InstructionSetParser.prototype = {
 CFG.prototype = {
     // The following method will have different implementations depending
     // on the profiler, or kind of profiling input.
-    convertToAddress: function (addressString) {
-      return parseInt(addressString, 16);
+    convertToAddress: function (addressString, addressCurrent) {
+      // If the address starts with '#' it is a relative one
+      // and should be processed differently
+      if (addressString.startsWith('#'))
+          return addressCurrent + parseInt(addressString.substring(1), 16);
+      else
+          return parseInt(addressString, 16);
     },
 
     parseDisassembly: function(counter) {
