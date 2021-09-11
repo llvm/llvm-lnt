@@ -73,14 +73,15 @@ XML_REPORT_TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
 """
 
 CSV_REPORT_TEMPLATE = """\
-Program;CC;CC_Time;CC_Hash;Exec;Exec_Time;Score
+Program;CC;CC_Time;Code_Size;CC_Hash;Exec;Exec_Time;Score
 {%- for suite in suites -%}
     {%- for test in suite.tests %}
 {{ suite.name }}/{{ test.path }}/{{ test.name }};
         {%- if test.code == "NOEXE" -%}
-            fail;*;*;
+            fail;*;*;*;
         {%- else -%}
             pass;{{ test.metrics.compile_time if test.metrics }};\
+{{ test.metrics['size..text'] if test.metrics }};\
 {{ test.metrics.hash if test.metrics }};
         {%- endif -%}
         {%- if test.code == "FAIL" or test.code == "NOEXE" -%}
@@ -713,7 +714,7 @@ class TestSuiteTest(BuiltinTest):
             'score': 'score',
             'hash': 'hash',
             'link_time': 'compile',
-            'size.__text': 'code_size',
+            'size..text': 'code_size',
             'mem_bytes': 'mem',
             'link_mem_bytes': 'mem'
         }
@@ -723,7 +724,7 @@ class TestSuiteTest(BuiltinTest):
             'score': float,
             'hash': str,
             'link_time': float,
-            'size.__text': float,
+            'size..text': float,
             'mem_bytes': float,
             'link_mem_bytes': float
         }
