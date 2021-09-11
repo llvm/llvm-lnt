@@ -137,10 +137,13 @@ CFG.prototype = {
     convertToAddress: function (addressString, addressCurrent) {
       // If the address starts with '#' it is a relative one
       // and should be processed differently
-      if (addressString.startsWith('#'))
-          return addressCurrent + parseInt(addressString.substring(1), 16);
+      var isRelative = addressString.startsWith('#');
+      var charOffset = (isRelative ? 1 : 0);
+      var base = (addressString.substring(charOffset).startsWith('0x') ? 16 : 10);
+      if (isRelative)
+          return addressCurrent + parseInt(addressString.substring(1), base);
       else
-          return parseInt(addressString, 16);
+          return parseInt(addressString, base);
     },
 
     parseDisassembly: function(counter) {
