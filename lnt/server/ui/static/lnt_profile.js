@@ -138,7 +138,7 @@ CFG.prototype = {
       // If the address starts with '#' it is a relative one
       // and should be processed differently
       if (addressString.startsWith('#'))
-          return addressCurrent + parseInt(addressString.substring(1), 16);
+          return addressCurrent + parseInt(addressString.substring(1), 10);
       else
           return parseInt(addressString, 16);
     },
