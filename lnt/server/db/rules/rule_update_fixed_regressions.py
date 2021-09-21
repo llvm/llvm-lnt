@@ -116,21 +116,21 @@ def regression_evolution(session, ts, run_id):
 
     for regression in detects:
         if impacts(session, ts, run_id, regression) and is_fixed(session, ts, regression):
-            logger.info("Detected fixed regression" + str(regression))
+            logger.info("Detected fixed regression " + str(regression))
             regression.state = RegressionState.IGNORED
             regression.title = regression.title + " [Detected Fixed]"
             changed += 1
 
     for regression in staged:
         if impacts(session, ts, run_id, regression) and is_fixed(session, ts, regression):
-            logger.info("Staged fixed regression" + str(regression))
+            logger.info("Staged fixed regression " + str(regression))
             regression.state = RegressionState.DETECTED_FIXED
             regression.title = regression.title + " [Detected Fixed]"
             changed += 1
 
     for regression in active:
         if impacts(session, ts, run_id, regression) and is_fixed(session, ts, regression):
-            logger.info("Active fixed regression" + str(regression))
+            logger.info("Active fixed regression " + str(regression))
             regression.state = RegressionState.DETECTED_FIXED
             regression.title = regression.title + " [Detected Fixed]"
             changed += 1
