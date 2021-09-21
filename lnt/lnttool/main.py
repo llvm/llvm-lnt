@@ -10,6 +10,7 @@ from .updatedb import action_updatedb
 from .viewcomparison import action_view_comparison
 from .admin import group_admin
 from lnt.util import logger
+from lnt.server.db.rules_manager import register_hooks
 import click
 import logging
 import sys
@@ -183,14 +184,20 @@ def action_showtests():
 @submit_options
 @click.option("--verbose", "-v", is_flag=True,
               help="show verbose test results")
-def action_submit(url, files, select_machine, merge, verbose):
+@click.option("--testsuite", "-s", default='nts', show_default=True,
+              help="testsuite to use in case the url is a file path")
+def action_submit(url, files, select_machine, merge, verbose, testsuite):
     """submit a test report to the server"""
     from lnt.util import ServerUtil
     import lnt.util.ImportData
 
+    if '://' not in url:
+        init_logger(logging.DEBUG)
+        register_hooks()
+
     results = ServerUtil.submitFiles(url, files, verbose,
                                      select_machine=select_machine,
-                                     merge_run=merge)
+                                     merge_run=merge, testsuite=testsuite)
     for submitted_file in results:
         if verbose:
             lnt.util.ImportData.print_report_result(

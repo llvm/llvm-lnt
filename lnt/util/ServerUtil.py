@@ -71,7 +71,8 @@ def submitFileToServer(url, file, select_machine=None, merge_run=None):
         return
 
 
-def submitFileToInstance(path, file, select_machine=None, merge_run=None):
+def submitFileToInstance(path, file, select_machine=None, merge_run=None,
+                         testsuite=None):
     # Otherwise, assume it is a local url and submit to the default database
     # in the instance.
     instance = lnt.server.instance.Instance.frompath(path)
@@ -82,24 +83,28 @@ def submitFileToInstance(path, file, select_machine=None, merge_run=None):
             raise ValueError("no default database in instance: %r" % (path,))
         session = db.make_session()
         return lnt.util.ImportData.import_and_report(
-            config, db_name, db, session, file, format='<auto>', ts_name='nts',
-            select_machine=select_machine, merge_run=merge_run)
+            config, db_name, db, session, file, format='<auto>',
+            ts_name=testsuite or 'nts', select_machine=select_machine,
+            merge_run=merge_run)
 
 
-def submitFile(url, file, verbose, select_machine=None, merge_run=None):
+def submitFile(url, file, verbose, select_machine=None, merge_run=None,
+               testsuite=None):
     # If this is a real url, submit it using urllib.
     if '://' in url:
         result = submitFileToServer(url, file, select_machine, merge_run)
     else:
-        result = submitFileToInstance(url, file, select_machine, merge_run)
+        result = submitFileToInstance(url, file, select_machine, merge_run,
+                                      testsuite)
     return result
 
 
-def submitFiles(url, files, verbose, select_machine=None, merge_run=None):
+def submitFiles(url, files, verbose, select_machine=None, merge_run=None,
+                testsuite=None):
     results = []
     for file in files:
         result = submitFile(url, file, verbose, select_machine=select_machine,
-                            merge_run=merge_run)
+                            merge_run=merge_run, testsuite=testsuite)
         if result:
             results.append(result)
     return results
