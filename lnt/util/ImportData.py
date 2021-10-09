@@ -18,7 +18,7 @@ from lnt.server.db import fieldchange
 def import_and_report(config, db_name, db, session, file, format, ts_name,
                       show_sample_count=False, disable_email=False,
                       disable_report=False, select_machine=None,
-                      merge_run=None):
+                      merge_run=None, ignore_regressions=False):
     """
     import_and_report(config, db_name, db, session, file, format, ts_name,
                       [show_sample_count], [disable_email],
@@ -147,7 +147,10 @@ def import_and_report(config, db_name, db, session, file, format, ts_name,
     result['run_id'] = run.id
     session.commit()
 
-    fieldchange.post_submit_tasks(session, ts, run.id)
+    if ignore_regressions:
+        logger.info("Regenerating regressions skipped")
+    else:
+        fieldchange.post_submit_tasks(session, ts, run.id)
 
     # Add a handy relative link to the submitted run.
     result['result_url'] = "db_{}/v4/{}/{}".format(db_name, ts_name, run.id)
@@ -173,7 +176,8 @@ def import_and_report(config, db_name, db, session, file, format, ts_name,
                                               show_sample_count, disable_email,
                                               disable_report,
                                               select_machine=select_machine,
-                                              merge_run=merge_run)
+                                              merge_run=merge_run,
+                                              ignore_regressions=ignore_regressions)
 
             # Append the shadow result to the result.
             result['shadow_result'] = shadow_result
@@ -319,7 +323,8 @@ def print_report_result(result, out, err, verbose=True):
 
 
 def import_from_string(config, db_name, db, session, ts_name, data,
-                       select_machine=None, merge_run=None):
+                       select_machine=None, merge_run=None,
+                       ignore_regressions=False):
     # Stash a copy of the raw submission.
     #
     # To keep the temporary directory organized, we keep files in
@@ -348,5 +353,6 @@ def import_from_string(config, db_name, db, session, ts_name, data,
 
     result = lnt.util.ImportData.import_and_report(
         config, db_name, db, session, path, '<auto>', ts_name,
-        select_machine=select_machine, merge_run=merge_run)
+        select_machine=select_machine, merge_run=merge_run,
+        ignore_regressions=ignore_regressions)
     return result

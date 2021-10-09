@@ -118,6 +118,8 @@ class Config:
             blacklist = None
         secretKey = data.get('secret_key', None)
 
+        ignore_regressions = data.get('ignore_regressions', False)
+
         return Config(data.get('name', 'LNT'), data['zorgURL'],
                       dbDir, os.path.join(baseDir, tempDir),
                       os.path.join(baseDir, profileDir), secretKey,
@@ -125,7 +127,7 @@ class Config:
                                                  default_email_config,
                                                  0))
                            for k, v in data['databases'].items()]),
-                      blacklist, schemasDir, api_auth_token)
+                      blacklist, schemasDir, api_auth_token, ignore_regressions)
 
     @staticmethod
     def dummy_instance():
@@ -159,7 +161,8 @@ class Config:
                  databases,
                  blacklist,
                  schemasDir,
-                 api_auth_token=None):
+                 api_auth_token=None,
+                 ignore_regressions=False):
         self.name = name
         self.zorgURL = zorgURL
         self.dbDir = dbDir
@@ -174,6 +177,7 @@ class Config:
         for db in self.databases.values():
             db.config = self
         self.api_auth_token = api_auth_token
+        self.ignore_regressions = ignore_regressions
 
     def get_database(self, name):
         """

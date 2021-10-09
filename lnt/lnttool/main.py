@@ -186,7 +186,10 @@ def action_showtests():
               help="show verbose test results")
 @click.option("--testsuite", "-s", default='nts', show_default=True,
               help="testsuite to use in case the url is a file path")
-def action_submit(url, files, select_machine, merge, verbose, testsuite):
+@click.option("--ignore-regressions", is_flag=True,
+              help="disable regression tracking")
+def action_submit(url, files, select_machine, merge, verbose,
+                  ignore_regressions):
     """submit a test report to the server"""
     from lnt.util import ServerUtil
     import lnt.util.ImportData
@@ -197,7 +200,8 @@ def action_submit(url, files, select_machine, merge, verbose, testsuite):
 
     results = ServerUtil.submitFiles(url, files, verbose,
                                      select_machine=select_machine,
-                                     merge_run=merge, testsuite=testsuite)
+                                     merge_run=merge, testsuite=testsuite,
+                                     ignore_regressions=ignore_regressions)
     for submitted_file in results:
         if verbose:
             lnt.util.ImportData.print_report_result(

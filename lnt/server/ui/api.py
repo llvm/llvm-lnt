@@ -307,9 +307,12 @@ class Runs(Resource):
         data = request.get_data(as_text=True)
         select_machine = request.values.get('select_machine', 'match')
         merge = request.values.get('merge', None)
+        ignore_regressions = request.values.get('ignore_regressions', False) \
+            or getattr(current_app.old_config, 'ignore_regressions', False)
         result = lnt.util.ImportData.import_from_string(
             current_app.old_config, g.db_name, db, session, g.testsuite_name,
-            data, select_machine=select_machine, merge_run=merge)
+            data, select_machine=select_machine, merge_run=merge,
+            ignore_regressions=ignore_regressions)
 
         error = result['error']
         if error is not None:

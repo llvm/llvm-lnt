@@ -32,7 +32,8 @@ def _show_json_error(reply):
         sys.stderr.write(message + '\n')
 
 
-def submitFileToServer(url, file, select_machine=None, merge_run=None):
+def submitFileToServer(url, file, select_machine=None, merge_run=None,
+                       ignore_regressions=False):
     with open(file, 'rb') as f:
         values = {
             'input_data': f.read(),
@@ -42,6 +43,8 @@ def submitFileToServer(url, file, select_machine=None, merge_run=None):
             values['select_machine'] = select_machine
         if merge_run is not None:
             values['merge'] = merge_run
+        if ignore_regressions:
+            values['ignore_regressions'] = True
     headers = {'Accept': 'application/json'}
     data = urllib.parse.urlencode(values).encode(encoding='ascii')
     try:
@@ -72,7 +75,7 @@ def submitFileToServer(url, file, select_machine=None, merge_run=None):
 
 
 def submitFileToInstance(path, file, select_machine=None, merge_run=None,
-                         testsuite=None):
+                         testsuite=None, ignore_regressions=False):
     # Otherwise, assume it is a local url and submit to the default database
     # in the instance.
     instance = lnt.server.instance.Instance.frompath(path)
@@ -85,26 +88,28 @@ def submitFileToInstance(path, file, select_machine=None, merge_run=None,
         return lnt.util.ImportData.import_and_report(
             config, db_name, db, session, file, format='<auto>',
             ts_name=testsuite or 'nts', select_machine=select_machine,
-            merge_run=merge_run)
+            merge_run=merge_run, ignore_regressions=ignore_regressions)
 
 
 def submitFile(url, file, verbose, select_machine=None, merge_run=None,
-               testsuite=None):
+               testsuite=None, ignore_regressions=False):
     # If this is a real url, submit it using urllib.
     if '://' in url:
-        result = submitFileToServer(url, file, select_machine, merge_run)
+        result = submitFileToServer(url, file, select_machine, merge_run,
+                                    ignore_regressions)
     else:
         result = submitFileToInstance(url, file, select_machine, merge_run,
-                                      testsuite)
+                                      testsuite, ignore_regressions)
     return result
 
 
 def submitFiles(url, files, verbose, select_machine=None, merge_run=None,
-                testsuite=None):
+                testsuite=None, ignore_regressions=False):
     results = []
     for file in files:
         result = submitFile(url, file, verbose, select_machine=select_machine,
-                            merge_run=merge_run, testsuite=testsuite)
+                            merge_run=merge_run, testsuite=testsuite,
+                            ignore_regressions=ignore_regressions)
         if result:
             results.append(result)
     return results

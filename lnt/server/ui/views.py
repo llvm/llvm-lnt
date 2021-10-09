@@ -116,6 +116,8 @@ def _do_submit():
     else:
         select_machine = request.form.get('select_machine', 'match')
     merge_run = request.form.get('merge', None)
+    ignore_regressions = request.form.get('ignore_regressions', False) \
+        or getattr(current_app.old_config, 'ignore_regressions', False)
 
     if input_file and not input_file.content_length:
         input_file = None
@@ -156,7 +158,8 @@ def _do_submit():
 
     result = lnt.util.ImportData.import_from_string(
         current_app.old_config, g.db_name, db, session, g.testsuite_name,
-        data_value, select_machine=select_machine, merge_run=merge_run)
+        data_value, select_machine=select_machine, merge_run=merge_run,
+        ignore_regressions=ignore_regressions)
 
     # It is nice to have a full URL to the run, so fixup the request URL
     # here were we know more about the flask instance.
