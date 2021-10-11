@@ -188,7 +188,7 @@ def action_showtests():
               help="testsuite to use in case the url is a file path")
 @click.option("--ignore-regressions", is_flag=True,
               help="disable regression tracking")
-def action_submit(url, files, select_machine, merge, verbose,
+def action_submit(url, files, select_machine, merge, verbose, testsuite,
                   ignore_regressions):
     """submit a test report to the server"""
     from lnt.util import ServerUtil
