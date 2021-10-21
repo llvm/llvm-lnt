@@ -259,16 +259,18 @@ struct Symbol {
 
 class NmOutput : public std::vector<Symbol> {
 public:
-  std::string Nm;
+  std::string Nm, BinaryCacheRoot;
 
-  NmOutput(std::string Nm) : Nm(Nm) {}
+  NmOutput(std::string Nm, std::string BinaryCacheRoot)
+    : Nm(Nm), BinaryCacheRoot(BinaryCacheRoot) {}
 
   void fetchSymbols(Map *M, bool Dynamic) {
     std::string D = "-D";
     if (!Dynamic)
       // Don't fetch the dynamic symbols - instead fetch static ones.
       D = "";
-    std::string Cmd = Nm + " " + D + " -S --defined-only " + std::string(M->Filename) +
+    std::string Cmd = Nm + " " + D + " -S --defined-only " +
+                      BinaryCacheRoot + std::string(M->Filename) +
                       " 2>/dev/null";
     auto Stream = ForkAndExec(Cmd);
 
@@ -343,7 +345,7 @@ protected:
 
 class ObjdumpOutput {
 public:
-  std::string Objdump;
+  std::string Objdump, BinaryCacheRoot;
   FILE *Stream;
   char *ThisText;
   uint64_t ThisAddress;
@@ -351,8 +353,9 @@ public:
   char *Line;
   size_t LineLen;
 
-  ObjdumpOutput(std::string Objdump)
-    : Objdump(Objdump), Stream(nullptr), Line(NULL), LineLen(0) {}
+  ObjdumpOutput(std::string Objdump, std::string BinaryCacheRoot)
+    : Objdump(Objdump), BinaryCacheRoot(BinaryCacheRoot), Stream(nullptr),
+      Line(NULL), LineLen(0) {}
   ~ObjdumpOutput() {
     if (Stream) {
       fclose(Stream);
@@ -375,7 +378,8 @@ public:
 
     std::string Cmd = Objdump + " -d --no-show-raw-insn --start-address=" +
                       std::string(buf1) + " --stop-address=" +
-                      std::string(buf2) + " " + std::string(M->Filename) +
+                      std::string(buf2) + " " +
+                      BinaryCacheRoot + std::string(M->Filename) +
                       " 2>/dev/null";
     Stream = ForkAndExec(Cmd);
 
@@ -420,7 +424,7 @@ public:
 class PerfReader {
 public:
   PerfReader(const std::string &Filename, std::string Nm,
-             std::string Objdump);
+             std::string Objdump, std::string BinaryCacheRoot);
   ~PerfReader();
 
   void readHeader();
@@ -458,12 +462,13 @@ private:
   PyObject *Functions, *TopLevelCounters;
   std::vector<PyObject*> Lines;
   
-  std::string Nm, Objdump;
+  std::string Nm, Objdump, BinaryCacheRoot;
 };
 
 PerfReader::PerfReader(const std::string &Filename,
-                       std::string Nm, std::string Objdump)
-    : Nm(Nm), Objdump(Objdump) {
+                       std::string Nm, std::string Objdump,
+                       std::string BinaryCacheRoot)
+    : Nm(Nm), Objdump(Objdump), BinaryCacheRoot(BinaryCacheRoot) {
   int fd = open(Filename.c_str(), O_RDONLY);
   assert(fd > 0);
 
@@ -707,7 +712,7 @@ void PerfReader::emitMaps() {
     bool IsSO = IsSharedObject(Maps[MapID].Filename);
     uint64_t Adjust = IsSO ? Maps[MapID].Start : 0;
 
-    NmOutput Syms(Nm);
+    NmOutput Syms(Nm, BinaryCacheRoot);
     Syms.reset(&Maps[MapID]);
 
     // Accumulate the event totals for each symbol
@@ -753,7 +758,7 @@ void PerfReader::emitSymbol(
     std::map<uint64_t, std::map<const char *, uint64_t>>::iterator Event,
     std::map<const char *, uint64_t> &SymEvents,
     uint64_t Adjust) {
-  ObjdumpOutput Dump(Objdump);
+  ObjdumpOutput Dump(Objdump, BinaryCacheRoot);
   Dump.reset(&M, Sym.Start, Sym.End);
   Dump.next();
 
@@ -784,11 +789,12 @@ static PyObject *cPerf_importPerf(PyObject *self, PyObject *args) {
   const char *Fname;
   const char *Nm = "nm";
   const char *Objdump = "objdump";
-  if (!PyArg_ParseTuple(args, "s|ss", &Fname, &Nm, &Objdump))
+  const char *BinaryCacheRoot = "";
+  if (!PyArg_ParseTuple(args, "s|sss", &Fname, &Nm, &Objdump, &BinaryCacheRoot))
     return NULL;
 
   try {
-    PerfReader P(Fname, Nm, Objdump);
+    PerfReader P(Fname, Nm, Objdump, BinaryCacheRoot);
     P.readHeader();
     P.readAttrs();
     P.readDataStream();

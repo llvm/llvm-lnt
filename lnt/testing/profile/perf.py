@@ -22,7 +22,8 @@ class LinuxPerfProfile(ProfileImpl):
             return f.read(8) == b'PERFILE2'
 
     @staticmethod
-    def deserialize(f, nm='nm', objdump='objdump', propagateExceptions=False):
+    def deserialize(f, nm='nm', objdump='objdump', propagateExceptions=False,
+                    binaryCacheRoot=''):
         f = f.name
 
         if os.path.getsize(f) == 0:

@@ -27,7 +27,15 @@ class Profile(object):
         """
         for impl in lnt.testing.profile.IMPLEMENTATIONS.values():
             if impl.checkFile(f):
-                ret = impl.deserialize(open(f, 'rb'))
+                ret = None
+                with open(f, 'rb') as fd:
+                    if impl is lnt.testing.profile.perf.LinuxPerfProfile:
+                        ret = impl.deserialize(fd,
+                                  nm = os.getenv('CMAKE_NM', 'nm'),
+                                  objdump = os.getenv('CMAKE_OBJDUMP', 'objdump'),
+                                  binaryCacheRoot = os.getenv('LNT_BINARY_CACHE_ROOT', ''))
+                    else:
+                        ret = impl.deserialize(fd)
                 if ret:
                     return Profile(ret)
                 else:
