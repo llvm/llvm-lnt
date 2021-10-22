@@ -9,7 +9,11 @@ callable taking a Python object to write, and the path_or_file to write to.
 
 from __future__ import absolute_import
 from typing import List, Dict
-from .PlistFormat import format as plist
+try:
+    from plistlib import readPlist
+    from .PlistFormat2 import format as plist  # for Python 2
+except ImportError:
+    from .PlistFormat import format as plist  # for Python 3
 from .JSONFormat import format as json
 
 formats = [plist, json]  # type: List[Dict]
