@@ -30,10 +30,11 @@ class Profile(object):
                 ret = None
                 with open(f, 'rb') as fd:
                     if impl is lnt.testing.profile.perf.LinuxPerfProfile:
-                        ret = impl.deserialize(fd,
-                                  nm = os.getenv('CMAKE_NM', 'nm'),
-                                  objdump = os.getenv('CMAKE_OBJDUMP', 'objdump'),
-                                  binaryCacheRoot = os.getenv('LNT_BINARY_CACHE_ROOT', ''))
+                        ret = impl.deserialize(
+                            fd,
+                            nm=os.getenv('CMAKE_NM', 'nm'),
+                            objdump=os.getenv('CMAKE_OBJDUMP', 'objdump'),
+                            binaryCacheRoot=os.getenv('LNT_BINARY_CACHE_ROOT', ''))
                     else:
                         ret = impl.deserialize(fd)
                 if ret:

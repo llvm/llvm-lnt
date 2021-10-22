@@ -16,3 +16,9 @@ The infrastructure has the following layout:
  $ROOT/tests - Tests for the infrastructure.
 
 For more information, see the web documentation, or docs/.
+
+Testing
+=======
+
+Testing is done by running tox from the top-level directory. It runs the tests
+for both Python 2 and Python 3, it also checks code style.
