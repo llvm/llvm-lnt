@@ -57,9 +57,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef STANDALONE
 #include <Python.h>
-#endif
 #include <algorithm>
 #include <cassert>
 #include <cstring>
@@ -469,6 +467,8 @@ PerfReader::PerfReader(const std::string &Filename,
                        std::string Nm, std::string Objdump,
                        std::string BinaryCacheRoot)
     : Nm(Nm), Objdump(Objdump), BinaryCacheRoot(BinaryCacheRoot) {
+  TopLevelCounters = PyDict_New();
+  Functions = PyDict_New();
   int fd = open(Filename.c_str(), O_RDONLY);
   assert(fd > 0);
 
@@ -672,12 +672,9 @@ void PerfReader::emitLine(uint64_t PC,
 }
 
 void PerfReader::emitTopLevelCounters() {
-  TopLevelCounters = PyDict_New();
   for (auto &KV : TotalEvents)
     PyDict_SetItemString(TopLevelCounters, KV.first,
                          PyLong_FromUnsignedLongLong((unsigned long long)KV.second));
-
-  Functions = PyDict_New();
 }
 
 void PerfReader::emitMaps() {
@@ -843,13 +840,17 @@ PyMODINIT_FUNC initcPerf(void) {
 #else // STANDALONE
 
 int main(int argc, char **argv) {
-  PerfReader P(argv[1], std::cout);
+  Py_Initialize();
+  if (argc < 2)  return -1;
+  PerfReader P(argv[1], "nm", "objdump", "");
   P.readHeader();
   P.readAttrs();
   P.readDataStream();
   P.emitTopLevelCounters();
   P.emitMaps();
-  P.complete();
+  PyObject_Print(P.complete(), stdout, Py_PRINT_RAW);
+  Py_FinalizeEx();
+  return 0;
 }
 
 #endif
