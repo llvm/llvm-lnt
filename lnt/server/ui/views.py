@@ -80,9 +80,9 @@ def select_db():
     path = request.args.get('path')
     db = request.args.get('db')
     if path is None:
-        abort(400)
+        abort(400, "'path' argument is missing")
     if db not in current_app.old_config.databases:
-        abort(404)
+        abort(404, "'db' argument is missing or invalid")
 
     # Rewrite the path.
     new_path = "/db_%s" % db
@@ -315,7 +315,7 @@ def v4_machine(id):
     try:
         machine = session.query(ts.Machine).filter(ts.Machine.id == id).one()
     except NoResultFound:
-        abort(404)
+        abort(404, "Invalid machine id {}".format(id))
 
     if request.args.get('json'):
         json_obj = dict()
@@ -350,7 +350,7 @@ class V4RequestInfo(object):
         self.ts = ts = request.get_testsuite()
         self.run = run = session.query(ts.Run).filter_by(id=run_id).first()
         if run is None:
-            abort(404)
+            abort(404, "Invalid run id {}".format(run_id))
 
         # Get the aggregation function to use.
         aggregation_fn_name = request.args.get('aggregation_fn')
@@ -616,7 +616,7 @@ def v4_order(id):
     # Get the order.
     order = session.query(ts.Order).filter(ts.Order.id == id).first()
     if order is None:
-        abort(404)
+        abort(404, "Invalid order id {}".format(id))
 
     previous_order = None
     if order.previous_order_id:
@@ -646,7 +646,7 @@ def v4_set_baseline(id):
     ts = request.get_testsuite()
     base = session.query(ts.Baseline).get(id)
     if not base:
-        return abort(404)
+        return abort(404, "Invalid baseline id {}".format(id))
     flash("Baseline set to " + base.name, FLASH_SUCCESS)
     flask.session[baseline_key(ts.name)] = id
 
@@ -674,7 +674,7 @@ def v4_run_graph(id):
     ts = request.get_testsuite()
     run = session.query(ts.Run).filter_by(id=id).first()
     if run is None:
-        abort(404)
+        abort(404, "Invalid run id {}".format(id))
 
     # Convert the old style test parameters encoding.
     args = {'highlight_run': id}
@@ -722,7 +722,7 @@ def v4_graph_for_sample(sample_id, field_name):
     ts = request.get_testsuite()
     target_sample = session.query(ts.Sample).get(sample_id)
     if not target_sample:
-        abort(404, "Could not find sample id: {}".format(sample_id))
+        abort(404, "Could not find sample id {}".format(sample_id))
 
     # Get the field index we are interested in.
     field_index = None
@@ -814,19 +814,26 @@ def v4_graph():
             test_id = int(test_id_str)
             field_index = int(field_index_str)
         except ValueError:
-            return abort(400)
+            return abort(400, "Parameter {} was malformed. {} must be int.int.int" \
+                              .format(name, value))
 
         if not (0 <= field_index < len(ts.sample_fields)):
-            return abort(404)
+            return abort(404, "Invalid field index {}".format(field_index))
 
         try:
             machine = session.query(ts.Machine) \
                              .filter(ts.Machine.id == machine_id) \
                              .one()
+        except NoResultFound:
+            return abort(404, "Invalid machine id {}".format(machine_id))
+        try:
             test = session.query(ts.Test).filter(ts.Test.id == test_id).one()
+        except NoResultFound:
+            return abort(404, "Invalid test id {}".format(test_id))
+        try:
             field = ts.sample_fields[field_index]
         except NoResultFound:
-            return abort(404)
+            return abort(404, "Invalid field_index {}".format(field_index))
         graph_parameters.append(GraphParameter(machine, test, field, field_index))
 
     # Order the plots by machine name, test name and then field.
@@ -848,17 +855,18 @@ def v4_graph():
             machine_id = int(machine_id_str)
             field_index = int(field_index_str)
         except ValueError:
-            return abort(400)
+            return abort(400, "Parameter {} was malformed. {} must be int.int" \
+                              .format(name, value))
 
         if not (0 <= field_index < len(ts.sample_fields)):
-            return abort(404)
+            return abort(404, "Invalid field index {}".format(field_index))
 
         try:
             machine = session.query(ts.Machine) \
                 .filter(ts.Machine.id == machine_id) \
                 .one()
         except NoResultFound:
-            return abort(404)
+            return abort(404, "Invalid machine id {}".format(machine_id))
         field = ts.sample_fields[field_index]
 
         mean_parameter = (machine, field)
@@ -882,7 +890,7 @@ def v4_graph():
         try:
             run_id = int(run_id_str)
         except Exception:
-            return abort(400)
+            return abort(400, "Invalid baseline run id {}".format(run_id_str))
 
         try:
             run = session.query(ts.Run) \
@@ -905,7 +913,7 @@ def v4_graph():
         highlight_run = session.query(ts.Run).filter_by(
             id=int(highlight_run_id)).first()
         if highlight_run is None:
-            abort(404)
+            abort(404, "Invalid highlight_run id {}".format(highlight_run_id))
 
         # Find the neighboring runs, by order.
         prev_runs = list(ts.get_previous_runs_on_machine(session,
@@ -1708,32 +1716,32 @@ def v4_matrix():
             test_id = int(test_id_str)
             field_index = int(field_index_str)
         except ValueError:
-            err_msg = "data {} was malformed. {} must be int.int.int"
+            err_msg = "Parameter {} was malformed. {} must be int.int.int"
             return abort(400, err_msg.format(name, value))
 
         if not (0 <= field_index < len(ts.sample_fields)):
-            return abort(404, "Invalid field index: {}".format(field_index))
+            return abort(404, "Invalid field index {}".format(field_index))
 
         try:
             machine = session.query(ts.Machine) \
                 .filter(ts.Machine.id == machine_id) \
                 .one()
         except NoResultFound:
-            return abort(404, "Invalid machine ID: {}".format(machine_id))
+            return abort(404, "Invalid machine id {}".format(machine_id))
         try:
             test = session.query(ts.Test).filter(ts.Test.id == test_id).one()
         except NoResultFound:
-            return abort(404, "Invalid test ID: {}".format(test_id))
+            return abort(404, "Invalid test id {}".format(test_id))
         try:
             field = ts.sample_fields[field_index]
         except NoResultFound:
-            return abort(404, "Invalid field_index: {}".format(field_index))
+            return abort(404, "Invalid field_index {}".format(field_index))
 
         valid_request = MatrixDataRequest(machine, test, field)
         data_parameters.append(valid_request)
 
     if not data_parameters:
-        abort(404, "Request requires some data arguments.")
+        abort(404, "Request requires some plot arguments.")
     # Feature: if all of the results are from the same machine, hide the name
     # to make the headers more compact.
     dedup = True
@@ -1775,7 +1783,7 @@ def v4_matrix():
             all_orders.add(s[1])
             order_to_id[s[1]] = s[2]
     if not all_orders:
-        abort(404, "No data found.")
+        abort(404, "No orders found.")
     # Now grab the baseline data.
     user_baseline = baseline()
     backup_baseline = next(iter(all_orders))

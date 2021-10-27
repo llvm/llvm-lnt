@@ -36,12 +36,12 @@ class MatrixViewTester(unittest.TestCase):
         client = self.client
         reply = check_code(client, '/v4/nts/matrix',
                            expected_code=HTTP_NOT_FOUND)
-        self.assertIn("Request requires some data arguments.",
+        self.assertIn("Request requires some plot arguments.",
                       reply.get_data(as_text=True))
 
         reply = check_code(client, '/v4/nts/matrix?plot.0=1.1.1',
                            expected_code=HTTP_NOT_FOUND)
-        self.assertIn("No data found.", reply.get_data(as_text=True))
+        self.assertIn("No orders found.", reply.get_data(as_text=True))
 
         reply = check_code(client, '/v4/nts/matrix?plot.0=a.2.0',
                            expected_code=HTTP_BAD_REQUEST)
