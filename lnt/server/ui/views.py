@@ -20,7 +20,7 @@ from flask import request, url_for
 from flask_wtf import Form
 from sqlalchemy.orm import joinedload
 from sqlalchemy.orm.exc import NoResultFound
-from typing import List, Optional
+from typing import Optional
 from wtforms import SelectField, StringField, SubmitField
 from wtforms.validators import DataRequired, Length
 
@@ -744,6 +744,175 @@ def v4_graph_for_sample(sample_id, field_name):
     return v4_redirect(graph_url)
 
 
+class PlotParameter(object):
+    def __init__(self, machine, test, field, field_index):
+        self.machine = machine
+        self.test = test
+        self.field = field
+        self.field_index = field_index
+        self.samples = None
+
+    def __repr__(self):
+        return "{}:{}({} samples)" \
+            .format(self.machine.name,
+                    self.test.name,
+                    len(self.samples) if self.samples else "No")
+
+
+def assert_field_idx_valid(field_idx, count):
+    if not (0 <= field_idx < count):
+        return abort(404, "Invalid field index {}. Total sample_fileds for "
+                          "the current suite is {}.".format(field_idx, count))
+
+
+def load_plot_parameter(machine_id, test_id, field_index, session, ts):
+    try:
+        machine_id = int(machine_id)
+        test_id = int(test_id)
+        field_index = int(field_index)
+    except ValueError:
+        return abort(400, "Invalid plot arguments.")
+
+    try:
+        machine = session.query(ts.Machine) \
+            .filter(ts.Machine.id == machine_id) \
+            .one()
+    except NoResultFound:
+        return abort(404, "Invalid machine id {}".format(machine_id))
+    try:
+        test = session.query(ts.Test).filter(ts.Test.id == test_id).one()
+    except NoResultFound:
+        return abort(404, "Invalid test id {}".format(test_id))
+
+    assert_field_idx_valid(field_index, len(ts.sample_fields))
+    try:
+        field = ts.sample_fields[field_index]
+    except NoResultFound:
+        return abort(404, "Invalid field_index {}".format(field_index))
+
+    return PlotParameter(machine, test, field, field_index)
+
+
+def parse_plot_parameters(args):
+    """
+    Returns a list of tuples of integers (machine_id, test_id, field_index).
+    :param args: The request parameters dictionary.
+    """
+    plot_parameters = []
+    for name, value in args.items():
+        # Plots are passed as::
+        #
+        #  plot.<unused>=<machine id>.<test id>.<field index>
+        if not name.startswith('plot.'):
+            continue
+
+        # Ignore the extra part of the key, it is unused.
+
+        try:
+            machine_id, test_id, field_index = map(int, value.split('.'))
+        except ValueError:
+            return abort(400, "Parameter {} was malformed. {} must be int.int.int"
+                              .format(name, value))
+
+        plot_parameters.append((machine_id, test_id, field_index))
+
+    return plot_parameters
+
+
+def parse_and_load_plot_parameters(args, session, ts):
+    """
+    Parses plot parameters and loads the corresponding entities from the database.
+    Returns a list of PlotParameter instances sorted by machine name, test name and then field.
+    :param args: The request parameters dictionary.
+    :param session: The database session.
+    :param ts: The test suite.
+    """
+    plot_parameters = [load_plot_parameter(machine_id, test_id, field_index, session, ts)
+                       for (machine_id, test_id, field_index) in parse_plot_parameters(args)]
+    # Order the plots by machine name, test name and then field.
+    plot_parameters.sort(key=lambda plot_parameter:
+                         (plot_parameter.machine.name, plot_parameter.test.name,
+                          plot_parameter.field.name, plot_parameter.field_index))
+
+    return plot_parameters
+
+
+def parse_mean_parameter(args, session, ts):
+    # Mean to graph is passed as:
+    #
+    #  mean=<machine id>.<field index>
+    value = args.get('mean')
+    if not value:
+        return None
+
+    try:
+        machine_id, field_index = map(int, value.split('.'))
+    except ValueError:
+        return abort(400,
+                     "Invalid format of 'mean={}', expected mean=<machine id>.<field index>".format(value))
+
+    try:
+        machine = session.query(ts.Machine) \
+            .filter(ts.Machine.id == machine_id) \
+            .one()
+    except NoResultFound:
+        return abort(404, "Invalid machine id {}".format(machine_id))
+
+    assert_field_idx_valid(field_index, len(ts.sample_fields))
+    field = ts.sample_fields[field_index]
+
+    return machine, field
+
+
+def load_graph_data(plot_parameter, show_failures, revision_cache=None):
+
+    session = request.session
+    ts = request.get_testsuite()
+
+    # Load all the field values for this test on the same machine.
+    #
+    # FIXME: Don't join to Order here, aggregate this across all the tests
+    # we want to load. Actually, we should just make this a single query.
+    #
+    # FIXME: Don't hard code field name.
+    values = session.query(plot_parameter.field.column, ts.Order.llvm_project_revision,
+                           ts.Run.start_time, ts.Run.id) \
+                    .join(ts.Run).join(ts.Order) \
+                    .filter(ts.Run.machine_id == plot_parameter.machine.id) \
+                    .filter(ts.Sample.test == plot_parameter.test) \
+                    .filter(plot_parameter.field.column.isnot(None))
+    # Unless all samples requested, filter out failing tests.
+    if not show_failures:
+        if plot_parameter.field.status_field:
+            values = values.filter((plot_parameter.field.status_field.column == PASS) |
+                                   (plot_parameter.field.status_field.column.is_(None)))
+
+    # Aggregate by revision.
+    data = list(multidict.multidict((rev, (val, date, run_id))
+                                    for val, rev, date, run_id in values).items())
+    data.sort(key=lambda sample: convert_revision(sample[0], cache=revision_cache))
+    return data
+
+
+def load_geomean_data(field, machine):
+    session = request.session
+    ts = request.get_testsuite()
+    values = session.query(sqlalchemy.sql.func.min(field.column),
+                           ts.Order.llvm_project_revision,
+                           sqlalchemy.sql.func.min(ts.Run.start_time)) \
+                    .join(ts.Run).join(ts.Order).join(ts.Test) \
+                    .filter(ts.Run.machine_id == machine.id) \
+                    .filter(field.column.isnot(None)) \
+                    .group_by(ts.Order.llvm_project_revision, ts.Test)
+
+    # Calculate geomean of each revision.
+    data = multidict.multidict(((rev, date), val) for val, rev, date in values).items()
+    data = [(rev, [(calc_geomean(vals), date)]) for ((rev, date), vals) in data]
+    # Sort data points according to revision number.
+    data.sort(key=lambda sample: convert_revision(sample[0]))
+    return data
+
+
 @v4_route("/graph")
 def v4_graph():
 
@@ -797,82 +966,13 @@ def v4_graph():
     show_highlight = not options['hide_highlight']
 
     # Load the graph parameters.
-    GraphParameter = namedtuple('GraphParameter',
-                                ['machine', 'test', 'field', 'field_index'])
-    graph_parameters = []
-    for name, value in request.args.items():
-        # Plots to graph are passed as::
-        #
-        #  plot.<unused>=<machine id>.<test id>.<field index>
-        if not name.startswith(str('plot.')):
-            continue
-
-        # Ignore the extra part of the key, it is unused.
-        try:
-            machine_id_str, test_id_str, field_index_str = value.split('.')
-            machine_id = int(machine_id_str)
-            test_id = int(test_id_str)
-            field_index = int(field_index_str)
-        except ValueError:
-            return abort(400, "Parameter {} was malformed. {} must be int.int.int" \
-                              .format(name, value))
-
-        if not (0 <= field_index < len(ts.sample_fields)):
-            return abort(404, "Invalid field index {}".format(field_index))
-
-        try:
-            machine = session.query(ts.Machine) \
-                             .filter(ts.Machine.id == machine_id) \
-                             .one()
-        except NoResultFound:
-            return abort(404, "Invalid machine id {}".format(machine_id))
-        try:
-            test = session.query(ts.Test).filter(ts.Test.id == test_id).one()
-        except NoResultFound:
-            return abort(404, "Invalid test id {}".format(test_id))
-        try:
-            field = ts.sample_fields[field_index]
-        except NoResultFound:
-            return abort(404, "Invalid field_index {}".format(field_index))
-        graph_parameters.append(GraphParameter(machine, test, field, field_index))
-
-    # Order the plots by machine name, test name and then field.
-    graph_parameters.sort(key=lambda graph_parameter:
-                          (graph_parameter.machine.name, graph_parameter.test.name,
-                           graph_parameter.field.name, graph_parameter.field_index))
+    plot_parameters = parse_and_load_plot_parameters(request.args, session, ts)
 
     # Extract requested mean trend.
-    mean_parameter = None
-    for name, value in request.args.items():
-        # Mean to graph is passed as:
-        #
-        #  mean=<machine id>.<field index>
-        if name != 'mean':
-            continue
-
-        machine_id_str, field_index_str = value.split('.')
-        try:
-            machine_id = int(machine_id_str)
-            field_index = int(field_index_str)
-        except ValueError:
-            return abort(400, "Parameter {} was malformed. {} must be int.int" \
-                              .format(name, value))
-
-        if not (0 <= field_index < len(ts.sample_fields)):
-            return abort(404, "Invalid field index {}".format(field_index))
-
-        try:
-            machine = session.query(ts.Machine) \
-                .filter(ts.Machine.id == machine_id) \
-                .one()
-        except NoResultFound:
-            return abort(404, "Invalid machine id {}".format(machine_id))
-        field = ts.sample_fields[field_index]
-
-        mean_parameter = (machine, field)
+    mean_parameter = parse_mean_parameter(request.args, session, ts)
 
     # Sanity check the arguments.
-    if not graph_parameters and not mean_parameter:
+    if not plot_parameters and not mean_parameter:
         return render_template("error.html", message="Nothing to graph.")
 
     # Extract requested baselines, and their titles.
@@ -933,53 +1033,30 @@ def v4_graph():
     overview_plots = []
     baseline_plots = []
     revision_cache = {}
-    num_plots = len(graph_parameters)
-    for i, (machine, test, field, field_index) in enumerate(graph_parameters):
+    num_plots = len(plot_parameters)
+    for i, req in enumerate(plot_parameters):
         # Determine the base plot color.
         col = list(util.makeDarkColor(float(i) / num_plots))
-        url = "/".join([str(machine.id), str(test.id), str(field_index)])
-        legend.append(LegendItem(machine, test.name, field.name,
+        url = "/".join([str(req.machine.id), str(req.test.id), str(req.field_index)])
+        legend.append(LegendItem(req.machine, req.test.name, req.field.name,
                                  tuple(col), url))
 
         # Load all the field values for this test on the same machine.
-        #
-        # FIXME: Don't join to Order here, aggregate this across all the tests
-        # we want to load. Actually, we should just make this a single query.
-        #
-        # FIXME: Don't hard code field name.
-        q = session.query(field.column, ts.Order.llvm_project_revision,
-                          ts.Run.start_time, ts.Run.id) \
-            .join(ts.Run).join(ts.Order) \
-            .filter(ts.Run.machine_id == machine.id) \
-            .filter(ts.Sample.test == test) \
-            .filter(field.column.isnot(None))
+        data = load_graph_data(req, show_failures, revision_cache)
 
-        # Unless all samples requested, filter out failing tests.
-        if not show_failures:
-            if field.status_field:
-                q = q.filter((field.status_field.column == PASS) |
-                             (field.status_field.column.is_(None)))
-
-        # Aggregate by revision.
-        data = list(multidict.multidict((rev, (val, date, run_id))
-                                        for val, rev, date, run_id in q)
-                    .items())
-
-        data.sort(key=lambda sample: convert_revision(sample[0], cache=revision_cache))
-
-        graph_datum.append((test.name, data, col, field, url, machine))
+        graph_datum.append((req.test.name, data, col, req.field, url, req.machine))
 
         # Get baselines for this line
         num_baselines = len(baseline_parameters)
         for baseline_id, (baseline, baseline_title) in \
                 enumerate(baseline_parameters):
-            q_baseline = session.query(field.column,
+            q_baseline = session.query(req.field.column,
                                        ts.Order.llvm_project_revision,
                                        ts.Run.start_time, ts.Machine.name) \
                          .join(ts.Run).join(ts.Order).join(ts.Machine) \
                          .filter(ts.Run.id == baseline.id) \
-                         .filter(ts.Sample.test == test) \
-                         .filter(field.column.isnot(None))
+                         .filter(ts.Sample.test == req.test) \
+                         .filter(req.field.column.isnot(None))
             # In the event of many samples, use the mean of the samples as the
             # baseline.
             samples = []
@@ -1004,7 +1081,7 @@ def v4_graph():
             baseline_name = ("Baseline {} on {}"
                              .format(baseline_title, q_baseline[0].name))
             legend.append(LegendItem(BaselineLegendItem(
-                baseline_name, baseline.id), test.name, field.name, dark_col,
+                baseline_name, baseline.id), req.test.name, req.field.name, dark_col,
                 None))
 
     # Draw mean trend if requested.
@@ -1014,25 +1091,7 @@ def v4_graph():
 
         col = (0, 0, 0)
         legend.append(LegendItem(machine, test_name, field.name, col, None))
-
-        q = session.query(sqlalchemy.sql.func.min(field.column),
-                          ts.Order.llvm_project_revision,
-                          sqlalchemy.sql.func.min(ts.Run.start_time)) \
-                   .join(ts.Run).join(ts.Order).join(ts.Test) \
-                   .filter(ts.Run.machine_id == machine.id) \
-                   .filter(field.column.isnot(None)) \
-                   .group_by(ts.Order.llvm_project_revision, ts.Test)
-
-        # Calculate geomean of each revision.
-        data = multidict.multidict(
-                    ((rev, date), val) for val, rev, date in q).items()
-        data = [(rev,
-                 [(lnt.server.reporting.analysis.calc_geomean(vals), date)])
-                for ((rev, date), vals) in data]
-
-        # Sort data points according to revision number.
-        data.sort(key=lambda sample: convert_revision(sample[0]))
-
+        data = load_geomean_data(field, machine)
         graph_datum.append((test_name, data, col, field, None, machine))
 
     for name, data, col, field, url, machine in graph_datum:
@@ -1642,19 +1701,6 @@ def v4_search():
          for r in results])
 
 
-class MatrixDataRequest(object):
-    def __init__(self, machine, test, field):
-        self.machine = machine
-        self.test = test
-        self.field = field
-
-    def __repr__(self):
-        return "{}:{}({} samples)" \
-            .format(self.machine.name,
-                    self.test.name,
-                    len(self.samples) if self.samples else "No")
-
-
 # How much data to render in the Matrix view.
 MATRIX_LIMITS = [
     ('12', 'Small'),
@@ -1703,64 +1749,29 @@ def v4_matrix():
         post_limit = form.limit.data
     else:
         post_limit = MATRIX_LIMITS[0][0]
-    data_parameters = []  # type: List[MatrixDataRequest]
-    for name, value in request.args.items():
-        #  plot.<unused>=<machine id>.<test id>.<field index>
-        if not name.startswith(str('plot.')):
-            continue
+    plot_parameters = parse_and_load_plot_parameters(request.args, session, ts)
 
-        # Ignore the extra part of the key, it is unused.
-        machine_id_str, test_id_str, field_index_str = value.split('.')
-        try:
-            machine_id = int(machine_id_str)
-            test_id = int(test_id_str)
-            field_index = int(field_index_str)
-        except ValueError:
-            err_msg = "Parameter {} was malformed. {} must be int.int.int"
-            return abort(400, err_msg.format(name, value))
-
-        if not (0 <= field_index < len(ts.sample_fields)):
-            return abort(404, "Invalid field index {}".format(field_index))
-
-        try:
-            machine = session.query(ts.Machine) \
-                .filter(ts.Machine.id == machine_id) \
-                .one()
-        except NoResultFound:
-            return abort(404, "Invalid machine id {}".format(machine_id))
-        try:
-            test = session.query(ts.Test).filter(ts.Test.id == test_id).one()
-        except NoResultFound:
-            return abort(404, "Invalid test id {}".format(test_id))
-        try:
-            field = ts.sample_fields[field_index]
-        except NoResultFound:
-            return abort(404, "Invalid field_index {}".format(field_index))
-
-        valid_request = MatrixDataRequest(machine, test, field)
-        data_parameters.append(valid_request)
-
-    if not data_parameters:
+    if not plot_parameters:
         abort(404, "Request requires some plot arguments.")
     # Feature: if all of the results are from the same machine, hide the name
     # to make the headers more compact.
     dedup = True
-    for r in data_parameters:
-        if r.machine.id != data_parameters[0].machine.id:
+    for r in plot_parameters:
+        if r.machine.id != plot_parameters[0].machine.id:
             dedup = False
     if dedup:
-        machine_name_common = data_parameters[0].machine.name
-        machine_id_common = data_parameters[0].machine.id
+        machine_name_common = plot_parameters[0].machine.name
+        machine_id_common = plot_parameters[0].machine.id
     else:
         machine_name_common = machine_id_common = None
 
     # It is nice for the columns to be sorted by name.
-    data_parameters.sort(key=lambda x: x.test.name),
+    plot_parameters.sort(key=lambda x: x.test.name),
 
     # Now lets get the data.
     all_orders = set()
     order_to_id = {}
-    for req in data_parameters:
+    for req in plot_parameters:
         q = session.query(req.field.column, ts.Order.llvm_project_revision,
                           ts.Order.id) \
             .join(ts.Run) \
@@ -1795,7 +1806,7 @@ def v4_matrix():
         baseline_rev = backup_baseline
         baseline_name = backup_baseline
 
-    for req in data_parameters:
+    for req in plot_parameters:
         q_baseline = session.query(req.field.column,
                                    ts.Order.llvm_project_revision,
                                    ts.Order.id) \
@@ -1825,7 +1836,7 @@ def v4_matrix():
     all_orders.insert(0, baseline_rev)
     # Now calculate Changes between each run.
 
-    for req in data_parameters:
+    for req in plot_parameters:
         req.change = {}
         for order in all_orders:
             cur_samples = req.samples[order]
@@ -1845,7 +1856,7 @@ def v4_matrix():
     for order in all_orders:
         curr_samples = []
         prev_samples = []
-        for req in data_parameters:
+        for req in plot_parameters:
             curr_samples.extend(req.samples[order])
             prev_samples.extend(req.samples[baseline_rev])
         prev_geomean = calc_geomean(prev_samples)
@@ -1885,7 +1896,7 @@ def v4_matrix():
 
     return render_template("v4_matrix.html",
                            testsuite_name=g.testsuite_name,
-                           associated_runs=data_parameters,
+                           associated_runs=plot_parameters,
                            orders=all_orders,
                            options=FakeOptions(),
                            analysis=lnt.server.reporting.analysis,
