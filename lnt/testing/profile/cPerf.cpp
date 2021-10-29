@@ -365,6 +365,7 @@ public:
 
   void reset(Map *M, uint64_t Start, uint64_t Stop) {
     ThisAddress = 0;
+    ThisText = "";
     if (Stream) {
       fclose(Stream);
       wait(NULL);
@@ -396,6 +397,7 @@ public:
       ssize_t Len = getline(&Line, &LineLen, Stream);
       if (Len == -1) {
         ThisAddress = EndAddress;
+        ThisText = "";
         return;
       }
       char *TokBuf;
@@ -757,10 +759,9 @@ void PerfReader::emitSymbol(
     uint64_t Adjust) {
   ObjdumpOutput Dump(Objdump, BinaryCacheRoot);
   Dump.reset(&M, Sym.Start, Sym.End);
-  Dump.next();
 
   emitFunctionStart(Sym.Name);
-  for (uint64_t I = Sym.Start; I < Sym.End; I = Dump.next()) {
+  for (uint64_t I = Dump.next(); I < Sym.End; I = Dump.next()) {
     auto PC = Event->first - Adjust;
 
     auto Text = Dump.getText();
