@@ -11,6 +11,9 @@ if [ ! -r /etc/lnt.cfg ]; then
 	  --tmp-dir /tmp/lnt \
 	  --db-dir "${DB_PATH}" \
 	  --default-db "${DB_BASE}"
+  if [ -n "${LNT_AUTH_TOKEN:-}" ]; then
+    sed -i "s/# \(api_auth_token =\).*/\1 '${LNT_AUTH_TOKEN}'/" /etc/lnt.cfg
+  fi
 fi
 
 cd /var/lib/lnt

@@ -10,6 +10,7 @@ services:
       - DB_ENGINE=postgres
       - DB_HOST=lnt-postgres
       - DB_PWD
+      - LNT_AUTH_TOKEN
     depends_on:
       - db
     deploy:
