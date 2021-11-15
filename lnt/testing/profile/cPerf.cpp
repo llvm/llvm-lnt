@@ -132,7 +132,7 @@ void Assert(bool Expr, const char *ExprStr, const char *File, int Line) {
 
 // Returns true if the ELF file given by filename
 // is a shared object (DYN).
-bool IsSharedObject(std::string Fname) {
+bool IsSharedObject(char *Fname) {
   // We replicate the first part of an ELF header here
   // so as not to rely on <elf.h>.
   struct PartialElfHeader {
@@ -141,7 +141,7 @@ bool IsSharedObject(std::string Fname) {
   };
   const int ET_DYN = 3;
 
-  FILE *stream = fopen(Fname.c_str(), "r");
+  FILE *stream = fopen(Fname, "r");
   if (stream == NULL)
     return false;
 
@@ -213,6 +213,8 @@ struct perf_event_mmap {
   char filename[1];
 };
 
+#define PROT_EXEC 4
+
 struct perf_event_mmap2 {
   struct perf_event_header header;
 
@@ -240,7 +242,7 @@ struct perf_sample_id {
 //===----------------------------------------------------------------------===//
 
 struct Map {
-  uint64_t Start, End;
+  uint64_t Start, End, Adjust;
   const char *Filename;
 };
 
@@ -544,7 +546,12 @@ unsigned char *PerfReader::readEvent(unsigned char *Buf) {
   if (E->header.type == PERF_RECORD_MMAP) {
     perf_event_mmap *E = (perf_event_mmap *)Buf;
     auto MapID = Maps.size();
-    Maps.push_back({E->start, E->start + E->extent, E->filename});
+    // EXEC ELF objects aren't relocated. DYN ones are,
+    // so if it's a DYN object adjust by subtracting the
+    // map base.
+    bool IsSO = IsSharedObject(E->filename);
+    Maps.push_back({E->start, E->start + E->extent,
+                    IsSO ? E->start - E->pgoff : 0, E->filename});
 
     // FIXME: use EventLayouts.begin()->second!
     perf_sample_id *ID =
@@ -554,8 +561,15 @@ unsigned char *PerfReader::readEvent(unsigned char *Buf) {
   }
   if (E->header.type == PERF_RECORD_MMAP2) {
     perf_event_mmap2 *E = (perf_event_mmap2 *)Buf;
+    if (!(E->prot & PROT_EXEC))
+      break;
     auto MapID = Maps.size();
-    Maps.push_back({E->start, E->start + E->extent, E->filename});
+    // EXEC ELF objects aren't relocated. DYN ones are,
+    // so if it's a DYN object adjust by subtracting the
+    // map base.
+    bool IsSO = IsSharedObject(E->filename);
+    Maps.push_back({E->start, E->start + E->extent,
+                    IsSO ? E->start - E->pgoff : 0, E->filename});
 
     // FIXME: use EventLayouts.begin()->second!
     perf_sample_id *ID =
@@ -705,11 +719,7 @@ void PerfReader::emitMaps() {
     if (AllUnderThreshold)
       continue;
 
-    // EXEC ELF objects aren't relocated. DYN ones are,
-    // so if it's a DYN object adjust by subtracting the
-    // map base.
-    bool IsSO = IsSharedObject(Maps[MapID].Filename);
-    uint64_t Adjust = IsSO ? Maps[MapID].Start : 0;
+    uint64_t Adjust = Maps[MapID].Adjust;
 
     NmOutput Syms(Nm, BinaryCacheRoot);
     Syms.reset(&Maps[MapID]);
