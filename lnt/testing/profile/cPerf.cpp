@@ -188,6 +188,21 @@ struct perf_header {
   uint64_t flags1[3];
 };
 
+struct perf_event_attr {
+    uint32_t type;
+    uint32_t size;
+    uint64_t config;
+    uint64_t sample_period;
+    uint64_t sample_type;
+    uint64_t read_format;
+    uint64_t flags;
+    uint32_t wakeup_events;
+    uint32_t bp_type;
+    uint64_t bp_addr;
+    uint64_t bp_len;
+    uint64_t branch_sample_type;
+};
+
 struct perf_event_header {
   uint32_t type;
   uint16_t misc;
@@ -235,6 +250,68 @@ struct perf_sample_id {
   uint32_t pid, tid;
   uint64_t time;
   uint64_t id;
+};
+
+enum perf_type_id {
+  PERF_TYPE_HARDWARE = 0,
+  PERF_TYPE_SOFTWARE = 1,
+  PERF_TYPE_TRACEPOINT = 2,
+  PERF_TYPE_HW_CACHE = 3,
+  PERF_TYPE_RAW = 4,
+  PERF_TYPE_BREAKPOINT = 5,
+  PERF_TYPE_MAX
+};
+
+enum perf_hw_id {
+  PERF_COUNT_HW_CPU_CYCLES = 0,
+  PERF_COUNT_HW_INSTRUCTIONS = 1,
+  PERF_COUNT_HW_CACHE_REFERENCES = 2,
+  PERF_COUNT_HW_CACHE_MISSES = 3,
+  PERF_COUNT_HW_BRANCH_INSTRUCTIONS = 4,
+  PERF_COUNT_HW_BRANCH_MISSES = 5,
+  PERF_COUNT_HW_BUS_CYCLES = 6,
+  PERF_COUNT_HW_STALLED_CYCLES_FRONTEND = 7,
+  PERF_COUNT_HW_STALLED_CYCLES_BACKEND = 8,
+  PERF_COUNT_HW_REF_CPU_CYCLES = 9,
+  PERF_COUNT_HW_MAX
+};
+
+static const char* hw_event_names[PERF_COUNT_HW_MAX] = {
+  "cycles",
+  "instructions",
+  "cache-references",
+  "cache-misses",
+  "branch-instructions",
+  "branch-misses",
+  "bus-cycles",
+  "stalled-cycles-frontend",
+  "stalled-cycles-backend",
+  "ref-cpu-cycles"
+};
+
+enum perf_sw_ids {
+  PERF_COUNT_SW_CPU_CLOCK = 0,
+  PERF_COUNT_SW_TASK_CLOCK = 1,
+  PERF_COUNT_SW_PAGE_FAULTS = 2,
+  PERF_COUNT_SW_CONTEXT_SWITCHES = 3,
+  PERF_COUNT_SW_CPU_MIGRATIONS = 4,
+  PERF_COUNT_SW_PAGE_FAULTS_MIN = 5,
+  PERF_COUNT_SW_PAGE_FAULTS_MAJ = 6,
+  PERF_COUNT_SW_ALIGNMENT_FAULTS = 7,
+  PERF_COUNT_SW_EMULATION_FAULTS = 8,
+  PERF_COUNT_SW_MAX
+};
+
+static const char* sw_event_names[PERF_COUNT_SW_MAX] = {
+  "cpu-clock",
+  "task-clock",
+  "page-faults",
+  "context-switches",
+  "cpu-migrations",
+  "minor-faults",
+  "major-faults",
+  "alignment-faults",
+  "emulation-faults"
 };
 
 //===----------------------------------------------------------------------===//
@@ -339,7 +416,7 @@ protected:
     while (std::getline(ss, token, delim)) {
         output.push_back(token);
     }
-    return output.size();
+    return (int)output.size();
   }
 };
 
@@ -431,6 +508,7 @@ public:
 
   void readHeader();
   void readAttrs();
+  void readEventDesc();
   void readDataStream();
   unsigned char *readEvent(unsigned char *);
   perf_event_sample parseEvent(unsigned char *Buf, uint64_t Layout);
@@ -499,15 +577,51 @@ void PerfReader::readDataStream() {
     Buf = readEvent(Buf);
 }
 
+#define HEADER_EVENT_DESC 12
+
 void PerfReader::readAttrs() {
-  const int HEADER_EVENT_DESC = 12;
+  if (Header->flags & (1U << HEADER_EVENT_DESC)) {
+    readEventDesc();
+  } else {
+    uint64_t NumEvents = Header->attrs.size / Header->attr_size;
+    for (unsigned I = 0; I < NumEvents; ++I) {
+      const perf_event_attr* attr = (const perf_event_attr*)&Buffer[Header->attrs.offset + I * Header->attr_size];
+      const perf_file_section* ids = (const perf_file_section*)((unsigned char *)attr + attr->size);
+      unsigned char* Buf = &Buffer[ids->offset];
+      uint64_t NumIDs = ids->size / sizeof(uint64_t);
+
+      const char* Str = "unknown";
+      switch (attr->type) {
+      case PERF_TYPE_HARDWARE:
+        if (attr->config < PERF_COUNT_HW_MAX) Str = hw_event_names[attr->config];
+        break;
+      case PERF_TYPE_SOFTWARE:
+        if (attr->config < PERF_COUNT_SW_MAX) Str = sw_event_names[attr->config];
+        break;
+      }
+
+      // Weirdness of perf: if there is only one event descriptor, that
+      // event descriptor can be referred to by ANY id!
+      if (NumEvents == 1 && NumIDs == 0) {
+        EventIDs[0] = Str;
+        EventLayouts[0] = attr->sample_type;
+      }
+
+      for (unsigned J = 0; J < NumIDs; ++J) {
+        auto id = TakeU64(Buf);
+        EventIDs[id] = Str;
+        EventLayouts[id] = attr->sample_type;
+      }
+    }
+  }
+}
+
+void PerfReader::readEventDesc() {
   perf_file_section *P =
       (perf_file_section *)&Buffer[Header->data.offset + Header->data.size];
   for (int I = 0; I < HEADER_EVENT_DESC; ++I)
-    if (Header->flags & (1U << I))
+    if (Header->flags & (1ULL << I))
       ++P;
-
-  assert(Header->flags & (1U << HEADER_EVENT_DESC));
 
   unsigned char *Buf = &Buffer[P->offset];
   uint32_t NumEvents = TakeU32(Buf);
@@ -541,9 +655,10 @@ void PerfReader::readAttrs() {
 }
 
 unsigned char *PerfReader::readEvent(unsigned char *Buf) {
-  perf_event_sample *E = (perf_event_sample *)Buf;
-  
-  if (E->header.type == PERF_RECORD_MMAP) {
+  perf_event_header *E = (perf_event_header *)Buf;
+  switch (E->type) {
+  case PERF_RECORD_MMAP:
+  {
     perf_event_mmap *E = (perf_event_mmap *)Buf;
     auto MapID = Maps.size();
     // EXEC ELF objects aren't relocated. DYN ones are,
@@ -559,10 +674,12 @@ unsigned char *PerfReader::readEvent(unsigned char *Buf) {
     auto &CurrentMap = CurrentMaps[ID->time];
     CurrentMap.insert({E->start, MapID});
   }
-  if (E->header.type == PERF_RECORD_MMAP2) {
+  break;
+  case PERF_RECORD_MMAP2:
+  {
     perf_event_mmap2 *E = (perf_event_mmap2 *)Buf;
     if (!(E->prot & PROT_EXEC))
-      return &Buf[E->header.size];
+      return break;
     auto MapID = Maps.size();
     // EXEC ELF objects aren't relocated. DYN ones are,
     // so if it's a DYN object adjust by subtracting the
@@ -577,44 +694,44 @@ unsigned char *PerfReader::readEvent(unsigned char *Buf) {
     auto &CurrentMap = CurrentMaps[ID->time];
     CurrentMap.insert({E->start, MapID});
   }
+  break;
+  case PERF_RECORD_SAMPLE:
+  {
+    perf_event_sample* E = (perf_event_sample*)Buf;
+    auto NewE = parseEvent(((unsigned char*)E) + sizeof(perf_event_header),
+                           EventLayouts.begin()->second);
+    auto EventID = NewE.id;
+    auto PC = NewE.ip;
 
-  if (E->header.type != PERF_RECORD_SAMPLE)
-    return &Buf[E->header.size];
-  
-  auto NewE = parseEvent(((unsigned char*)E) + sizeof(perf_event_header),
-                         EventLayouts.begin()->second);
-  auto EventID = NewE.id;
-  auto PC = NewE.ip;
+    // Search for the map corresponding to this sample. Search backwards through
+    // time, discarding any maps created after our timestamp.
+    uint64_t MapID = ~0ULL;
+    for (auto I = CurrentMaps.rbegin(), E = CurrentMaps.rend();
+         I != E; ++I) {
+      if (I->first > NewE.time)
+        continue;
 
-  // Search for the map corresponding to this sample. Search backwards through
-  // time, discarding any maps created after our timestamp.
-  size_t MapID = ~0UL;
-  for (auto I = CurrentMaps.rbegin(), E = CurrentMaps.rend();
-       I != E; ++I) {
-    if (I->first > NewE.time)
-      continue;
-    
-    auto NewI = I->second.upper_bound(PC);
-    if (NewI == I->second.begin())
-      continue;
-    --NewI;
+      auto NewI = I->second.upper_bound(PC);
+      if (NewI == I->second.begin())
+        continue;
+      --NewI;
 
-    if (NewI->first > PC)
-      continue;
-    MapID = NewI->second;
-    break;
+      if (NewI->first > PC)
+        continue;
+      MapID = NewI->second;
+      break;
+    }
+    if (MapID != ~0ULL) {
+      assert(EventIDs.count(EventID));
+      Events[MapID][PC][EventIDs[EventID]] += NewE.period;
+
+      TotalEvents[EventIDs[EventID]] += NewE.period;
+      TotalEventsPerMap[MapID][EventIDs[EventID]] += NewE.period;
+    }
   }
-  if (MapID == ~0UL)
-    return &Buf[E->header.size];
-  assert(MapID != ~0UL);
-  
-  assert(EventIDs.count(EventID));
-  Events[MapID][PC][EventIDs[EventID]] += NewE.period;
-
-  TotalEvents[EventIDs[EventID]] += NewE.period;
-  TotalEventsPerMap[MapID][EventIDs[EventID]] += NewE.period;
-
-  return &Buf[E->header.size];
+  break;
+  }
+  return &Buf[E->size];
 }
 
 perf_event_sample PerfReader::parseEvent(unsigned char *Buf, uint64_t Layout) {
