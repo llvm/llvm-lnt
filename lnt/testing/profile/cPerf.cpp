@@ -679,7 +679,7 @@ unsigned char *PerfReader::readEvent(unsigned char *Buf) {
   {
     perf_event_mmap2 *E = (perf_event_mmap2 *)Buf;
     if (!(E->prot & PROT_EXEC))
-      return break;
+      break;
     auto MapID = Maps.size();
     // EXEC ELF objects aren't relocated. DYN ones are,
     // so if it's a DYN object adjust by subtracting the
