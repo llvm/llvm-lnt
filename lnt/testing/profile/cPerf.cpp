@@ -132,7 +132,7 @@ void Assert(bool Expr, const char *ExprStr, const char *File, int Line) {
 
 // Returns true if the ELF file given by filename
 // is a shared object (DYN).
-bool IsSharedObject(char *Fname) {
+bool IsSharedObject(const std::string &Fname) {
   // We replicate the first part of an ELF header here
   // so as not to rely on <elf.h>.
   struct PartialElfHeader {
@@ -141,7 +141,7 @@ bool IsSharedObject(char *Fname) {
   };
   const int ET_DYN = 3;
 
-  FILE *stream = fopen(Fname, "r");
+  FILE *stream = fopen(Fname.c_str(), "r");
   if (stream == NULL)
     return false;
 
@@ -664,7 +664,7 @@ unsigned char *PerfReader::readEvent(unsigned char *Buf) {
     // EXEC ELF objects aren't relocated. DYN ones are,
     // so if it's a DYN object adjust by subtracting the
     // map base.
-    bool IsSO = IsSharedObject(E->filename);
+    bool IsSO = IsSharedObject(BinaryCacheRoot + std::string(E->filename));
     Maps.push_back({E->start, E->start + E->extent,
                     IsSO ? E->start - E->pgoff : 0, E->filename});
 
@@ -684,7 +684,7 @@ unsigned char *PerfReader::readEvent(unsigned char *Buf) {
     // EXEC ELF objects aren't relocated. DYN ones are,
     // so if it's a DYN object adjust by subtracting the
     // map base.
-    bool IsSO = IsSharedObject(E->filename);
+    bool IsSO = IsSharedObject(BinaryCacheRoot + std::string(E->filename));
     Maps.push_back({E->start, E->start + E->extent,
                     IsSO ? E->start - E->pgoff : 0, E->filename});
 
