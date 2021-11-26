@@ -57,6 +57,15 @@
 //
 //===----------------------------------------------------------------------===//
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#define _CRT_SECURE_NO_WARNINGS
+#define strtok_r strtok_s
+#include <windows.h>
+#include <BaseTsd.h>
+typedef SSIZE_T ssize_t;
+#define PROT_EXEC 4
+#endif
 #include <Python.h>
 #include <algorithm>
 #include <cassert>
@@ -69,10 +78,12 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#ifndef _WIN32
 #include <sys/mman.h>
-#include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#endif
+#include <sys/stat.h>
 #include <vector>
 
 //===----------------------------------------------------------------------===//
@@ -106,6 +117,10 @@ uint64_t TakeU64(unsigned char *&Buf) {
 // Forks, execs Cmd under a shell and returns
 // a file descriptor reading the command's stdout.
 FILE *ForkAndExec(std::string Cmd) {
+#ifdef _WIN32
+  Cmd = "cmd.exe /c " + Cmd;
+  FILE *Stream = _popen(Cmd.c_str(), "rt");
+#else
   int P[2];
   pipe(P);
 
@@ -118,9 +133,42 @@ FILE *ForkAndExec(std::string Cmd) {
   } else {
     close(P[1]);
   }
-
+#endif
   return Stream;
 }
+
+#ifdef _WIN32
+ssize_t getline(char** lineptr, size_t* n, FILE* stream) {
+  if (lineptr == nullptr || stream == nullptr || n == nullptr) return -1;
+  int c = fgetc(stream);
+  if (c == EOF) return -1;
+  char* bufptr = *lineptr;
+  size_t size = *n;
+  if (bufptr == nullptr) {
+    size = 128;
+    bufptr = (char*)malloc(size);
+    if (bufptr == nullptr) return -1;
+    *lineptr = bufptr;
+  }
+  char* p = bufptr;
+  while (c != EOF) {
+    size_t offset = (size_t)(p - bufptr);
+    if ((offset + 2) > size)) {
+      size = size + 128;
+      bufptr = (char*)realloc(bufptr, size);
+      if (bufptr == nullptr) return -1;
+      *lineptr = bufptr;
+      p = bufptr + offset;
+    }
+    *p++ = c;
+    if (c == '\n') break;
+    c = fgetc(stream);
+  }
+  *p = '\0';
+  *n = size;
+  return p - bufptr;
+}
+#endif
 
 void Assert(bool Expr, const char *ExprStr, const char *File, int Line) {
   if (Expr)
@@ -227,8 +275,6 @@ struct perf_event_mmap {
   uint64_t start, extent, pgoff;
   char filename[1];
 };
-
-#define PROT_EXEC 4
 
 struct perf_event_mmap2 {
   struct perf_event_header header;
@@ -348,7 +394,11 @@ public:
       D = "";
     std::string Cmd = Nm + " " + D + " -S --defined-only " +
                       BinaryCacheRoot + std::string(M->Filename) +
+#ifdef _WIN32
+                      " 2> NUL";
+#else
                       " 2>/dev/null";
+#endif
     auto Stream = ForkAndExec(Cmd);
 
     char *Line = nullptr;
@@ -394,8 +444,12 @@ public:
     if (Line)
       free(Line);
 
+#ifdef _WIN32
+    _pclose(Stream);
+#else
     fclose(Stream);
     wait(NULL);
+#endif
   }
 
   void reset(Map *M) {
@@ -435,8 +489,12 @@ public:
       Line(NULL), LineLen(0) {}
   ~ObjdumpOutput() {
     if (Stream) {
+#ifdef _WIN32
+      _pclose(Stream);
+#else
       fclose(Stream);
       wait(NULL);
+#endif
     }
     if (Line)
       free(Line);
@@ -446,8 +504,12 @@ public:
     ThisAddress = 0;
     ThisText = "";
     if (Stream) {
+#ifdef _WIN32
+      _pclose(Stream);
+#else
       fclose(Stream);
       wait(NULL);
+#endif
     }
 
     char buf1[32], buf2[32];
@@ -458,7 +520,11 @@ public:
                       std::string(buf1) + " --stop-address=" +
                       std::string(buf2) + " " +
                       BinaryCacheRoot + std::string(M->Filename) +
+#ifdef _WIN32
+                      " 2> NUL";
+#else
                       " 2>/dev/null";
+#endif
     Stream = ForkAndExec(Cmd);
 
     EndAddress = Stop;
@@ -528,7 +594,12 @@ public:
 
 private:
   unsigned char *Buffer;
+#ifdef _WIN32
+  HANDLE hFile;
+  HANDLE hMapFile;
+#else
   size_t BufferLen;
+#endif
 
   perf_header *Header;
   std::map<uint64_t, const char *> EventIDs;
@@ -551,6 +622,20 @@ PerfReader::PerfReader(const std::string &Filename,
     : Nm(Nm), Objdump(Objdump), BinaryCacheRoot(BinaryCacheRoot) {
   TopLevelCounters = PyDict_New();
   Functions = PyDict_New();
+#ifdef _WIN32
+  Buffer = nullptr;
+  hMapFile = nullptr;
+  hFile = ::CreateFileA(Filename.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL,
+                        OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+  assert(hFile != INVALID_HANDLE_VALUE);
+  LARGE_INTEGER size;
+  size.QuadPart = 0;
+  assert(::GetFileSizeEx(hFile, &size) != FALSE);
+  hMapFile = ::CreateFileMapping(hFile, NULL, PAGE_READONLY, size.HighPart, size.LowPart, NULL);
+  assert(hMapFile != nullptr);
+  Buffer = (unsigned char*)::MapViewOfFile(hMapFile, FILE_MAP_READ, 0, 0, 0);
+  assert(Buffer != nullptr);
+#else
   int fd = open(Filename.c_str(), O_RDONLY);
   assert(fd > 0);
 
@@ -560,9 +645,20 @@ PerfReader::PerfReader(const std::string &Filename,
 
   Buffer = (unsigned char *)mmap(NULL, BufferLen, PROT_READ, MAP_SHARED, fd, 0);
   assert(Buffer != MAP_FAILED);
+#endif
 }
 
-PerfReader::~PerfReader() { munmap(Buffer, BufferLen); }
+PerfReader::~PerfReader() {
+#ifdef _WIN32
+  if (hMapFile != NULL) {
+    if (Buffer != NULL) ::UnmapViewOfFile(Buffer);
+    ::CloseHandle(hMapFile);
+  }
+  if (hFile != INVALID_HANDLE_VALUE) ::CloseHandle(hFile);
+#else
+  munmap(Buffer, BufferLen);
+#endif
+}
 
 void PerfReader::readHeader() {
   Header = (perf_header *)&Buffer[0];
