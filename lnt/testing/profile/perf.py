@@ -22,7 +22,7 @@ class LinuxPerfProfile(ProfileImpl):
             return f.read(8) == b'PERFILE2'
 
     @staticmethod
-    def deserialize(f, nm='nm', objdump='objdump', propagateExceptions=False,
+    def deserialize(f, objdump='objdump', propagateExceptions=False,
                     binaryCacheRoot=''):
         f = f.name
 
@@ -31,7 +31,7 @@ class LinuxPerfProfile(ProfileImpl):
             return None
 
         try:
-            data = cPerf.importPerf(f, nm, objdump)
+            data = cPerf.importPerf(f, objdump, binaryCacheRoot)
 
             # Go through the data and convert counter values to percentages.
             for f in data['functions'].values():

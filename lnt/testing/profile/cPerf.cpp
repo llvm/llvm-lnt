@@ -37,7 +37,7 @@
 //       if the mmap's event total is < 1% of the total in all counters,
 //         then discard the mmap [1].
 //
-//       load symbol data by calling "nm" and parsing the result.
+//       load symbol data by calling "objdump -t" and parsing the result.
 //       for all PCs we have events for, in sorted order:
 //           find the symbol this PC is part of -> Sym
 //           look up all PCs between Sym.Start and Sym.End and emit data
@@ -50,7 +50,7 @@
 // invoked, and its samples will continue until the perf wrapper tool exits.
 // This means that it will often take one or two samples in intermediate
 // binaries like "perf", "bash", or libaries such as libdl. We don't care about
-// these, and these binaries and libraries are very large to nm and objdump.
+// these, and these binaries and libraries are very large to objdump.
 //
 // So we have a threshold - if a binary contains < 1% of all samples, don't
 // bother importing it.
@@ -361,7 +361,7 @@ static const char* sw_event_names[PERF_COUNT_SW_MAX] = {
 };
 
 //===----------------------------------------------------------------------===//
-// Readers for nm and objdump output
+// Readers for objdump output
 //===----------------------------------------------------------------------===//
 
 struct Map {
@@ -380,19 +380,15 @@ struct Symbol {
   }
 };
 
-class NmOutput : public std::vector<Symbol> {
+class SymTabOutput : public std::vector<Symbol> {
 public:
-  std::string Nm, BinaryCacheRoot;
+  std::string Objdump, BinaryCacheRoot;
 
-  NmOutput(std::string Nm, std::string BinaryCacheRoot)
-    : Nm(Nm), BinaryCacheRoot(BinaryCacheRoot) {}
+  SymTabOutput(std::string Objdump, std::string BinaryCacheRoot)
+    : Objdump(Objdump), BinaryCacheRoot(BinaryCacheRoot) {}
 
-  void fetchSymbols(Map *M, bool Dynamic) {
-    std::string D = "-D";
-    if (!Dynamic)
-      // Don't fetch the dynamic symbols - instead fetch static ones.
-      D = "";
-    std::string Cmd = Nm + " " + D + " -S --defined-only " +
+  void fetchSymbols(Map *M) {
+    std::string Cmd = Objdump + " -t -T -C " +
                       BinaryCacheRoot + std::string(M->Filename) +
 #ifdef _WIN32
                       " 2> NUL";
@@ -408,38 +404,65 @@ public:
       if (Len == -1)
         break;
 
-      std::vector<std::string> SplittedLine;
-      if (splitLine(std::string(Line), SplittedLine) < 4)
-        continue; 
+      std::stringstream SS(Line);
 
-      const std::string& One = SplittedLine[0];
-      const std::string& Two = SplittedLine[1];
-      const std::string& Three = SplittedLine[2];
-      std::string& Four = SplittedLine[3];
+      std::string Start;
+      if (!std::getline(SS, Start, ' '))
+        continue;
+      char* EndPtr = NULL;
+      uint64_t NStart = strtoull(Start.c_str(), &EndPtr, 16);
+      if (EndPtr == Start.c_str())
+        continue;
 
-      char *EndPtr = NULL;
-      uint64_t Start = strtoull(One.c_str(), &EndPtr, 16);
-      if (EndPtr == One.c_str())
+      char GlobLoc;          // Local -> 'l', Global -> 'g', Neither -> ' '
+      if (!SS.get(GlobLoc))
         continue;
-      uint64_t Extent = strtoull(Two.c_str(), &EndPtr, 16);
-      if (EndPtr == Two.c_str())
+      char Weak;             // Weak?
+      if (!SS.get(Weak))
         continue;
-      if (Three.length() != 1)
+      char Space;
+      if (!SS.get(Space))    // Constructor. Not supported yet.
         continue;
-      switch (Three.front()) {
-      default:
+      if (!SS.get(Space))    // Warning. Not supported yet.
         continue;
-      case 'T':
-      case 't': // Text section
-      case 'V':
-      case 'v': // Weak object
-      case 'W':
-      case 'w': // Weak object (not tagged as such)
-        break;
-      }
-      if (Four.back() == '\n')
-        Four.pop_back();
-      push_back({Start, Start + Extent, Four});
+      char IFunc;            // Indirect reference to another symbol.
+      if (!SS.get(IFunc))
+        continue;
+      char Debug;            // Debugging (d) or dynamic (D) symbol.
+      if (!SS.get(Debug))
+        continue;
+      char FileFunc;         // Name of function (F), file (f) or object (O).
+      if (!SS.get(FileFunc))
+        continue;
+      if (FileFunc != 'F')
+        continue;
+      if (!SS.get(Space))
+        continue;
+
+      std::string Section;
+      if (!std::getline(SS, Section, '\t'))
+        continue;
+      if (Section != ".text")
+        continue;
+
+      std::string Extent;
+      if (!std::getline(SS, Extent, ' '))
+        continue;
+      uint64_t NExtent = strtoull(Extent.c_str(), &EndPtr, 16);
+      if (EndPtr == Extent.c_str())
+        continue;
+
+      std::string Func;
+      while (std::getline(SS, Func, ' ') && Func.empty());  // Skip spaces.
+      if (Func.empty())
+        continue;
+      // Note Func includes the symbol table visibility if any.
+      std::string FuncRest;
+      if (std::getline(SS, FuncRest)) // Read the rest line if any.
+        Func += std::string(" ") + FuncRest;
+      if (Func.back() == '\n')
+        Func.pop_back();
+      push_back({NStart, NStart + NExtent, Func});
     }
     if (Line)
       free(Line);
@@ -455,8 +478,7 @@ public:
   void reset(Map *M) {
     clear();
     // Fetch both dynamic and static symbols, sort and unique them.
-    fetchSymbols(M, true);
-    fetchSymbols(M, false);
+    fetchSymbols(M);
     
     std::sort(begin(), end());
     auto NewEnd = std::unique(begin(), end());
@@ -568,8 +590,8 @@ public:
 
 class PerfReader {
 public:
-  PerfReader(const std::string &Filename, std::string Nm,
-             std::string Objdump, std::string BinaryCacheRoot);
+  PerfReader(const std::string &Filename, std::string Objdump,
+             std::string BinaryCacheRoot);
   ~PerfReader();
 
   void readHeader();
@@ -613,13 +635,12 @@ private:
   PyObject *Functions, *TopLevelCounters;
   std::vector<PyObject*> Lines;
   
-  std::string Nm, Objdump, BinaryCacheRoot;
+  std::string Objdump, BinaryCacheRoot;
 };
 
-PerfReader::PerfReader(const std::string &Filename,
-                       std::string Nm, std::string Objdump,
+PerfReader::PerfReader(const std::string &Filename, std::string Objdump,
                        std::string BinaryCacheRoot)
-    : Nm(Nm), Objdump(Objdump), BinaryCacheRoot(BinaryCacheRoot) {
+    : Objdump(Objdump), BinaryCacheRoot(BinaryCacheRoot) {
   TopLevelCounters = PyDict_New();
   Functions = PyDict_New();
 #ifdef _WIN32
@@ -934,7 +955,7 @@ void PerfReader::emitMaps() {
 
     uint64_t Adjust = Maps[MapID].Adjust;
 
-    NmOutput Syms(Nm, BinaryCacheRoot);
+    SymTabOutput Syms(Objdump, BinaryCacheRoot);
     Syms.reset(&Maps[MapID]);
 
     // Accumulate the event totals for each symbol
@@ -1008,14 +1029,13 @@ PyObject *PerfReader::complete() {
 #ifndef STANDALONE
 static PyObject *cPerf_importPerf(PyObject *self, PyObject *args) {
   const char *Fname;
-  const char *Nm = "nm";
   const char *Objdump = "objdump";
   const char *BinaryCacheRoot = "";
-  if (!PyArg_ParseTuple(args, "s|sss", &Fname, &Nm, &Objdump, &BinaryCacheRoot))
+  if (!PyArg_ParseTuple(args, "s|ss", &Fname, &Objdump, &BinaryCacheRoot))
     return NULL;
 
   try {
-    PerfReader P(Fname, Nm, Objdump, BinaryCacheRoot);
+    PerfReader P(Fname, Objdump, BinaryCacheRoot);
     P.readHeader();
     P.readAttrs();
     P.readDataStream();
@@ -1066,7 +1086,7 @@ PyMODINIT_FUNC initcPerf(void) {
 int main(int argc, char **argv) {
   Py_Initialize();
   if (argc < 2)  return -1;
-  PerfReader P(argv[1], "nm", "objdump", "");
+  PerfReader P(argv[1], "objdump", "");
   P.readHeader();
   P.readAttrs();
   P.readDataStream();

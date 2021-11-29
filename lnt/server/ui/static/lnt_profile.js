@@ -475,7 +475,7 @@ Profile.prototype = {
         $.ajax(g_urls.getCodeForFunction, {
             dataType: "json",
             data: {'runid': this.runid, 'testid': this.testid,
-                   'f': fname},
+                   'f': encodeURIComponent(fname)},
             success: function(data) {
                 this_.data = data;
                 this_._display();
@@ -1075,9 +1075,10 @@ function FunctionTypeahead(element, options) {
         },
         updater: function(item) {
             // FIXME: the item isn't passed in as json any more, it's
-            // been rendered. Lame. Hack around this by splitting apart
-            // the ','-concatenated 2-tuple again.
-            fname = item.split(',')[0];
+            // been rendered ("fname,[object Object]"). Lame. Hack around
+            // this by splitting apart the ','-concatenated 2-tuple again.
+            var splitIndex = item.lastIndexOf(',');
+            fname = item.substr(0, splitIndex);
 
             options.updated(fname);
             return fname;

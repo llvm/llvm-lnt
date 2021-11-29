@@ -5,6 +5,7 @@ from sqlalchemy.orm.exc import NoResultFound
 from flask import render_template, current_app
 import os
 import json
+import urllib
 from lnt.server.ui.decorators import v4_route, frontend
 from lnt.server.ui.globals import v4_url_for
 from lnt.server.ui.views import ts_data
@@ -108,7 +109,7 @@ def v4_profile_ajax_getCodeForFunction():
     ts = request.get_testsuite()
     runid = request.args.get('runid')
     testid = request.args.get('testid')
-    f = request.args.get('f')
+    f = urllib.parse.unquote(request.args.get('f'))
 
     profileDir = current_app.old_config.profileDir
 
