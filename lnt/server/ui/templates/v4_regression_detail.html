@@ -43,8 +43,8 @@ var changes = [
     {% set fc = changes[loop.index -1] %}
     {% set fc_ri_field_index = ts.get_field_index(fc.ri.field) %}
     {"url": "{{fc.ri.machine.id}}/{{fc.ri.test.id}}/{{fc_ri_field_index}}",
-     "start": {{fc.ri.start_order.llvm_project_revision}},
-     "end": {{fc.ri.end_order.llvm_project_revision}}
+     "start": "{{fc.ri.start_order.as_ordered_string()}}",
+     "end": "{{fc.ri.end_order.as_ordered_string()}}"
  },
 {% endfor %}
 ];

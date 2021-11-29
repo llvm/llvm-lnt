@@ -456,11 +456,11 @@ class Graph(Resource):
                 q = q.limit(limit)
 
         samples = [
-            [convert_revision(rev), val,
+            [rev, val,
              {'label': rev, 'date': str(time), 'runID': str(rid)}]
             for val, rev, time, rid in q.all()[::-1]
         ]
-        samples.sort(key=lambda x: x[0])
+        samples.sort(key=lambda x: convert_revision(x[0]))
         return samples
 
 
