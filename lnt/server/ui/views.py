@@ -7,6 +7,7 @@ import re
 import time
 from collections import namedtuple, defaultdict
 from urllib.parse import urlparse, urljoin
+from io import BytesIO
 
 import flask
 import sqlalchemy.sql
@@ -17,6 +18,7 @@ from flask import g
 from flask import make_response
 from flask import render_template
 from flask import request, url_for
+from flask import send_file
 from flask_wtf import Form
 from sqlalchemy.orm import joinedload
 from sqlalchemy.orm.exc import NoResultFound
@@ -864,8 +866,14 @@ def parse_mean_parameter(args, session, ts):
     return machine, field
 
 
-def load_graph_data(plot_parameter, show_failures, revision_cache=None):
-
+def load_graph_data(plot_parameter, show_failures, limit, xaxis_date, revision_cache=None):
+    """
+    Load all the field values for this test on the same machine.
+    :param plot_parameter: Stores machine, test and field to load.
+    :param show_failures: Filter only passed values if False.
+    :param limit: Limit points if specified.
+    :param xaxis_date: X axis is Date, otherwise Order.
+    """
     session = request.session
     ts = request.get_testsuite()
 
@@ -873,9 +881,7 @@ def load_graph_data(plot_parameter, show_failures, revision_cache=None):
     #
     # FIXME: Don't join to Order here, aggregate this across all the tests
     # we want to load. Actually, we should just make this a single query.
-    #
-    # FIXME: Don't hard code field name.
-    values = session.query(plot_parameter.field.column, ts.Order.llvm_project_revision,
+    values = session.query(plot_parameter.field.column, ts.Order,
                            ts.Run.start_time, ts.Run.id) \
                     .join(ts.Run).join(ts.Order) \
                     .filter(ts.Run.machine_id == plot_parameter.machine.id) \
@@ -886,30 +892,64 @@ def load_graph_data(plot_parameter, show_failures, revision_cache=None):
         if plot_parameter.field.status_field:
             values = values.filter((plot_parameter.field.status_field.column == PASS) |
                                    (plot_parameter.field.status_field.column.is_(None)))
+    if limit:
+        values = values.limit(limit)
 
-    # Aggregate by revision.
-    data = list(multidict.multidict((rev, (val, date, run_id))
-                                    for val, rev, date, run_id in values).items())
-    data.sort(key=lambda sample: convert_revision(sample[0], cache=revision_cache))
+    if xaxis_date:
+        # Aggregate by date.
+        data = list(multidict.multidict(
+            (date, (val, order, date, run_id))
+            for val, order, date, run_id in values).items())
+        # Sort data points according to date.
+        data.sort(key=lambda sample: sample[0])
+    else:
+        # Aggregate by order (revision).
+        data = list(multidict.multidict(
+            (order.llvm_project_revision, (val, order, date, run_id))
+            for val, order, date, run_id in values).items())
+        # Sort data points according to order (revision).
+        data.sort(key=lambda sample: convert_revision(sample[0], cache=revision_cache))
+
     return data
 
 
-def load_geomean_data(field, machine):
+def load_geomean_data(field, machine, limit, xaxis_date, revision_cache=None):
+    """
+    Load geomean for specified field on the same machine.
+    :param field: Field.
+    :param machine: Machine.
+    :param limit: Limit points if specified.
+    :param xaxis_date: X axis is Date, otherwise Order.
+    """
     session = request.session
     ts = request.get_testsuite()
     values = session.query(sqlalchemy.sql.func.min(field.column),
-                           ts.Order.llvm_project_revision,
+                           ts.Order,
                            sqlalchemy.sql.func.min(ts.Run.start_time)) \
                     .join(ts.Run).join(ts.Order).join(ts.Test) \
                     .filter(ts.Run.machine_id == machine.id) \
                     .filter(field.column.isnot(None)) \
                     .group_by(ts.Order.llvm_project_revision, ts.Test)
 
+    if limit:
+        values = values.limit(limit)
+
+    data = multidict.multidict(
+        ((order, date), val)
+        for val, order, date in values).items()
+
     # Calculate geomean of each revision.
-    data = multidict.multidict(((rev, date), val) for val, rev, date in values).items()
-    data = [(rev, [(calc_geomean(vals), date)]) for ((rev, date), vals) in data]
-    # Sort data points according to revision number.
-    data.sort(key=lambda sample: convert_revision(sample[0]))
+    if xaxis_date:
+        data = [(date, [(calc_geomean(vals), order, date)])
+                for ((order, date), vals) in data]
+        # Sort data points according to date.
+        data.sort(key=lambda sample: sample[0])
+    else:
+        data = [(order.llvm_project_revision, [(calc_geomean(vals), order, date)])
+                for ((order, date), vals) in data]
+        # Sort data points according to order (revision).
+        data.sort(key=lambda sample: convert_revision(sample[0], cache=revision_cache))
+
     return data
 
 
@@ -946,6 +986,12 @@ def v4_graph():
         bool(request.args.get('show_stddev'))
     options['hide_all_points'] = hide_all_points = bool(
         request.args.get('hide_all_points'))
+    options['xaxis_date'] = xaxis_date = bool(
+        request.args.get('xaxis_date'))
+    options['limit'] = limit = int(
+        request.args.get('limit', 0))
+    options['show_cumulative_minimum'] = show_cumulative_minimum = bool(
+        request.args.get('show_cumulative_minimum'))
     options['show_linear_regression'] = show_linear_regression = bool(
         request.args.get('show_linear_regression'))
     options['show_failures'] = show_failures = bool(
@@ -981,7 +1027,7 @@ def v4_graph():
         # Baselines to graph are passed as:
         #
         #  baseline.title=<run id>
-        if not name.startswith(str('baseline.')):
+        if not name.startswith('baseline.'):
             continue
 
         baseline_title = name[len('baseline.'):]
@@ -1022,18 +1068,20 @@ def v4_graph():
             start_rev = prev_runs[0].order.llvm_project_revision
             end_rev = highlight_run.order.llvm_project_revision
             revision_range = {
-                "start": convert_revision(start_rev),
-                "end": convert_revision(end_rev),
+                "start": start_rev,
+                "end": end_rev,
             }
 
     # Build the graph data.
     legend = []
     graph_plots = []
     graph_datum = []
-    overview_plots = []
     baseline_plots = []
     revision_cache = {}
     num_plots = len(plot_parameters)
+
+    metrics = list(set(req.field.name for req in plot_parameters))
+
     for i, req in enumerate(plot_parameters):
         # Determine the base plot color.
         col = list(util.makeDarkColor(float(i) / num_plots))
@@ -1042,7 +1090,7 @@ def v4_graph():
                                  tuple(col), url))
 
         # Load all the field values for this test on the same machine.
-        data = load_graph_data(req, show_failures, revision_cache)
+        data = load_graph_data(req, show_failures, limit, xaxis_date, revision_cache)
 
         graph_datum.append((req.test.name, data, col, req.field, url, req.machine))
 
@@ -1073,10 +1121,11 @@ def v4_graph():
             dark_col = list(util.makeDarkerColor(my_color))
             str_dark_col = util.toColorString(dark_col)
             baseline_plots.append({
-                'color': str_dark_col,
-                'lineWidth': 2,
-                'yaxis': {'from': mean, 'to': mean},
-                'name': q_baseline[0].llvm_project_revision,
+                "color": str_dark_col,
+                "lineWidth": 2,
+                "yaxis": {"from": mean, "to": mean},
+                # "name": q_baseline[0].llvm_project_revision,
+                "name": "Baseline %s: %s (%s)" % (baseline_title, req.test.name, req.field.name),
             })
             baseline_name = ("Baseline {} on {}"
                              .format(baseline_title, q_baseline[0].name))
@@ -1089,18 +1138,37 @@ def v4_graph():
         machine, field = mean_parameter
         test_name = 'Geometric Mean'
 
+        if field.name not in metrics:
+            metrics.append(field.name)
+
         col = (0, 0, 0)
         legend.append(LegendItem(machine, test_name, field.name, col, None))
-        data = load_geomean_data(field, machine)
+        data = load_geomean_data(field, machine, limit, xaxis_date, revision_cache)
         graph_datum.append((test_name, data, col, field, None, machine))
 
-    for name, data, col, field, url, machine in graph_datum:
+    def trace_name(name, test_name, field_name):
+        return "%s: %s (%s)" % (name, test_name, field_name)
+
+    for test_name, data, col, field, url, machine in graph_datum:
+        # Generate trace metadata.
+        trace_meta = {}
+        trace_meta["machine"] = machine.name
+        trace_meta["machineID"] = machine.id
+        if len(graph_datum) > 1:
+            # If there are more than one plot in the graph, also label the
+            # test name.
+            trace_meta["test_name"] = test_name
+            trace_meta["metric"] = field.name
+
         # Compute the graph points.
-        errorbar_data = []
-        points_data = []
-        pts = []
-        moving_median_data = []
-        moving_average_data = []
+        pts_x = []
+        pts_y = []
+        meta = []
+        errorbar = {"x": [], "y": [], "error_y": {"type": "data", "visible": True, "array": []}}
+        cumulative_minimum = {"x": [], "y": []}
+        moving_median_data = {"x": [], "y": []}
+        moving_average_data = {"x": [], "y": []}
+        multisample_points_data = {"x": [], "y": [], "meta": []}
 
         if normalize_by_median:
             normalize_by = 1.0/stats.median([min([d[0] for d in values])
@@ -1108,20 +1176,22 @@ def v4_graph():
         else:
             normalize_by = 1.0
 
-        for pos, (point_label, datapoints) in enumerate(data):
+        min_val = None
+        # Note data is sorted in load_graph_data().
+        for point_label, datapoints in data:
             # Get the samples.
-            data = [data_date[0] for data_date in datapoints]
+            values = [data_array[0] for data_array in datapoints]
+            orders = [data_array[1] for data_array in datapoints]
             # And the date on which they were taken.
-            dates = [data_date[1] for data_date in datapoints]
-            # Run where this point was collected.
-            runs = [data_pts[2]
-                    for data_pts in datapoints if len(data_pts) == 3]
+            dates = [data_array[2] for data_array in datapoints]
+            # Run ID where this point was collected.
+            run_ids = [data_array[3] for data_array in datapoints if len(data_array) == 4]
 
-            x = determine_x_value(point_label, pos, revision_cache)
+            values = [v * normalize_by for v in values]
 
-            values = [v*normalize_by for v in data]
+            is_multisample = (len(values) > 1)
+
             aggregation_fn = min
-
             if switch_min_mean_local:
                 aggregation_fn = lnt.util.stats.agg_mean
             if field.bigger_is_better:
@@ -1130,55 +1200,72 @@ def v4_graph():
             agg_value, agg_index = \
                 aggregation_fn((value, index)
                                for (index, value) in enumerate(values))
+            pts_y.append(agg_value)
 
-            # Generate metadata.
-            metadata = {"label": point_label}
-            metadata["machine"] = machine.name
-            metadata["date"] = str(dates[agg_index])
-            if runs:
-                metadata["runID"] = str(runs[agg_index])
+            # Plotly does not sort X axis in case of type: 'category'.
+            # point_label is a string (order revision) if xaxis_date = False
+            pts_x.append(point_label)
 
-            if len(graph_datum) > 1:
-                # If there are more than one plot in the graph, also label the
-                # test name.
-                metadata["test_name"] = name
+            # Generate point metadata.
+            point_metadata = {"order": orders[agg_index].as_ordered_string(),
+                              "orderID": orders[agg_index].id,
+                              "date": str(dates[agg_index])}
+            if run_ids:
+                point_metadata["runID"] = str(run_ids[agg_index])
+            meta.append(point_metadata)
 
-            pts.append((x, agg_value, metadata))
-
-            # Add the individual points, if requested.
-            # For each point add a text label for the mouse over.
-            if not hide_all_points:
+            # Add the multisample points, if requested.
+            if not hide_all_points and (is_multisample or
+               bool(request.args.get('csv')) or bool(request.args.get('download_csv'))):
                 for i, v in enumerate(values):
-                    point_metadata = dict(metadata)
-                    point_metadata["date"] = str(dates[i])
-                    points_data.append((x, v, point_metadata))
+                    multisample_metadata = {"order": orders[i].as_ordered_string(),
+                                            "orderID": orders[i].id,
+                                            "date": str(dates[i])}
+                    if run_ids:
+                        multisample_metadata["runID"] = str(run_ids[i])
+                    multisample_points_data["x"].append(point_label)
+                    multisample_points_data["y"].append(v)
+                    multisample_points_data["meta"].append(multisample_metadata)
 
             # Add the standard deviation error bar, if requested.
             if show_stddev:
                 mean = stats.mean(values)
                 sigma = stats.standard_deviation(values)
-                errorbar_data.append((x, mean, sigma))
+                errorbar["x"].append(point_label)
+                errorbar["y"].append(mean)
+                errorbar["error_y"]["array"].append(sigma)
 
             # Add the MAD error bar, if requested.
             if show_mad:
                 med = stats.median(values)
                 mad = stats.median_absolute_deviation(values, med)
-                errorbar_data.append((x, med, mad))
+                errorbar["x"].append(point_label)
+                errorbar["y"].append(med)
+                errorbar["error_y"]["array"].append(mad)
+
+            if show_cumulative_minimum:
+                min_val = agg_value if min_val is None else min(min_val, agg_value)
+                cumulative_minimum["x"].append(point_label)
+                cumulative_minimum["y"].append(min_val)
 
         # Compute the moving average and or moving median of our data if
         # requested.
         if moving_average or moving_median:
 
             def compute_moving_average(x, window, average_list, _):
-                average_list.append((x, lnt.util.stats.mean(window)))
+                average_list["x"].append(x)
+                average_list["y"].append(lnt.util.stats.mean(window))
 
             def compute_moving_median(x, window, _, median_list):
-                median_list.append((x, lnt.util.stats.median(window)))
+                median_list["x"].append(x)
+                median_list["y"].append(lnt.util.stats.median(window))
 
             def compute_moving_average_and_median(x, window, average_list,
                                                   median_list):
-                average_list.append((x, lnt.util.stats.mean(window)))
-                median_list.append((x, lnt.util.stats.median(window)))
+                average_list["x"].append(x)
+                average_list["y"].append(lnt.util.stats.mean(window))
+                median_list["x"].append(x)
+                median_list["y"].append(lnt.util.stats.median(window))
 
             if moving_average and moving_median:
                 fun = compute_moving_average_and_median
@@ -1187,117 +1274,170 @@ def v4_graph():
             else:
                 fun = compute_moving_median
 
-            len_pts = len(pts)
+            len_pts = len(pts_x)
             for i in range(len_pts):
                 start_index = max(0, i - moving_window_size)
                 end_index = min(len_pts, i + moving_window_size)
 
-                window_pts = [x[1] for x in pts[start_index:end_index]]
-                fun(pts[i][0], window_pts, moving_average_data,
+                window_pts = pts_y[start_index:end_index]
+                fun(pts_x[i], window_pts, moving_average_data,
                     moving_median_data)
 
-        # On the overview, we always show the line plot.
-        overview_plots.append({
-            "data": pts,
-            "color": util.toColorString(col),
-        })
+        yaxis_index = metrics.index(field.name)
+        yaxis = "y" if yaxis_index == 0 else "y%d" % (yaxis_index + 1)
 
         # Add the minimum line plot, if requested.
         if show_lineplot:
             plot = {
-                "data": pts,
-                "color": util.toColorString(col),
+                "name": trace_name("Line", test_name, field.name),
+                "legendgroup": test_name,
+                "yaxis": yaxis,
+                "type": "scatter",
+                "mode": "lines+markers",
+                "line": {"color": util.toColorString(col)},
+                "x": pts_x,
+                "y": pts_y,
+                "meta": meta
             }
+            plot.update(trace_meta)
             if url:
                 plot["url"] = url
             graph_plots.append(plot)
+
         # Add regression line, if requested.
-        if show_linear_regression:
-            xs = [t for t, v, _ in pts]
-            ys = [v for t, v, _ in pts]
+        if show_linear_regression and len(pts_x) >= 2:
+            unique_x = list(set(pts_x))
+            if xaxis_date:
+                unique_x.sort()
+            else:
+                unique_x.sort(key=lambda sample: convert_revision(sample, cache=revision_cache))
+            num_unique_x = len(unique_x)
+            if num_unique_x >= 2:
+                dict_x = {}
+                x_min = pts_x[0]
+                x_max = pts_x[-1]
 
-            # We compute the regression line in terms of a normalized X scale.
-            x_min, x_max = min(xs), max(xs)
-            try:
-                norm_xs = [(x - x_min) / (x_max - x_min)
-                           for x in xs]
-            except ZeroDivisionError:
-                norm_xs = xs
+                # We compute the regression line in terms of a normalized X scale.
+                if xaxis_date:
+                    x_range = float((x_max - x_min).total_seconds())
+                    for x_key in unique_x:
+                        dict_x[x_key] = (x_key - x_min).total_seconds() / x_range
+                else:
+                    for i, x_key in enumerate(unique_x):
+                        dict_x[x_key] = i/(num_unique_x - 1)
 
-            try:
-                info = ext_stats.linregress(norm_xs, ys)
-            except ZeroDivisionError:
-                info = None
-            except ValueError:
-                info = None
+                norm_x = [dict_x[xi] for xi in pts_x]
 
-            if info is not None:
-                slope, intercept, _, _, _ = info
+                try:
+                    info = ext_stats.linregress(norm_x, pts_y)
+                except ZeroDivisionError:
+                    info = None
+                except ValueError:
+                    info = None
 
-                reglin_col = [c * .7 for c in col]
-                reglin_pts = [(x_min, 0.0 * slope + intercept),
-                              (x_max, 1.0 * slope + intercept)]
-                graph_plots.insert(0, {
-                    "data": reglin_pts,
-                    "color": util.toColorString(reglin_col),
-                    "lines": {
-                        "lineWidth": 2
-                    },
-                    "shadowSize": 4,
-                })
+                if info is not None:
+                    slope, intercept, _, _, _ = info
+
+                    reglin_col = [c * 0.8 for c in col]
+                    if xaxis_date:
+                        reglin_y = [(xi - x_min).total_seconds() / x_range * slope +
+                                    intercept for xi in unique_x]
+                    else:
+                        reglin_y = [i/(num_unique_x - 1) * slope +
+                                    intercept for i in range(num_unique_x)]
+                    plot = {
+                        "name": trace_name("Linear Regression", test_name, field.name),
+                        "legendgroup": test_name,
+                        "yaxis": yaxis,
+                        "hoverinfo": "skip",
+                        "type": "scatter",
+                        "mode": "lines",
+                        "line": {"color": util.toColorString(reglin_col), "width": 2},
+                        # "shadowSize": 4,
+                        "x": unique_x,
+                        "y": reglin_y
+                    }
+                    plot.update(trace_meta)
+                    graph_plots.insert(0, plot)
 
         # Add the points plot, if used.
-        if points_data:
+        if multisample_points_data["x"]:
             pts_col = (0, 0, 0)
-            plot = {
-                "data": points_data,
-                "color": util.toColorString(pts_col),
-                "lines": {"show": False},
-                "points": {
-                    "show": True,
-                    "radius": .25,
-                    "fill": True,
-                },
-            }
+            multisample_points_data.update({
+                "name": trace_name("Points", test_name, field.name),
+                "legendgroup": test_name,
+                "showlegend": False,
+                "yaxis": yaxis,
+                # "hoverinfo": "skip",
+                "type": "scatter",
+                "mode": "markers",
+                "marker": {"color": util.toColorString(pts_col), "size": 5}
+            })
+            multisample_points_data.update(trace_meta)
             if url:
-                plot['url'] = url
-            graph_plots.append(plot)
+                multisample_points_data["url"] = url
+            graph_plots.append(multisample_points_data)
 
         # Add the error bar plot, if used.
-        if errorbar_data:
-            bar_col = [c*.7 for c in col]
-            graph_plots.append({
-                "data": errorbar_data,
-                "lines": {"show": False},
-                "color": util.toColorString(bar_col),
-                "points": {
-                    "errorbars": "y",
-                    "yerr": {
-                        "show": True,
-                        "lowerCap": "-",
-                        "upperCap": "-",
-                        "lineWidth": 1,
-                    }
-                }
+        if errorbar["x"]:
+            bar_col = [c * 0.4 for c in col]
+            errorbar.update({
+                "name": trace_name("Error bars", test_name, field.name),
+                "showlegend": False,
+                "yaxis": yaxis,
+                "hoverinfo": "skip",
+                "type": "scatter",
+                "mode": "markers",
+                "marker": {"color": util.toColorString(bar_col)}
             })
+            errorbar.update(trace_meta)
+            graph_plots.append(errorbar)
 
         # Add the moving average plot, if used.
-        if moving_average_data:
-            col = [0.32, 0.6, 0.0]
-            graph_plots.append({
-                "data": moving_average_data,
-                "color": util.toColorString(col),
+        if moving_average_data["x"]:
+            avg_col = [c * 0.7 for c in col]
+            moving_average_data.update({
+                "name": trace_name("Moving average", test_name, field.name),
+                "legendgroup": test_name,
+                "yaxis": yaxis,
+                "hoverinfo": "skip",
+                "type": "scatter",
+                "mode": "lines",
+                "line": {"color": util.toColorString(avg_col)}
             })
+            moving_average_data.update(trace_meta)
+            graph_plots.append(moving_average_data)
 
         # Add the moving median plot, if used.
-        if moving_median_data:
-            col = [0.75, 0.0, 1.0]
-            graph_plots.append({
-                "data": moving_median_data,
-                "color": util.toColorString(col),
+        if moving_median_data["x"]:
+            med_col = [c * 0.6 for c in col]
+            moving_median_data.update({
+                "name": trace_name("Moving median: ", test_name, field.name),
+                "legendgroup": test_name,
+                "yaxis": yaxis,
+                "hoverinfo": "skip",
+                "type": "scatter",
+                "mode": "lines",
+                "line": {"color": util.toColorString(med_col)}
             })
+            moving_median_data.update(trace_meta)
+            graph_plots.append(moving_median_data)
 
-    if bool(request.args.get('json')):
+        if cumulative_minimum["x"]:
+            min_col = [c * 0.5 for c in col]
+            cumulative_minimum.update({
+                "name": trace_name("Cumulative Minimum", test_name, field.name),
+                "legendgroup": test_name,
+                "yaxis": yaxis,
+                "hoverinfo": "skip",
+                "type": "scatter",
+                "mode": "lines",
+                "line": {"color": util.toColorString(min_col)}
+            })
+            cumulative_minimum.update(trace_meta)
+            graph_plots.append(cumulative_minimum)
+
+    if bool(request.args.get("json")) or bool(request.args.get("download_json")):
         json_obj = dict()
         json_obj['data'] = graph_plots
         # Flatten ORM machine objects to their string names.
@@ -1317,37 +1457,25 @@ def v4_graph():
         json_obj['current_options'] = options
         json_obj['test_suite_name'] = ts.name
         json_obj['baselines'] = baseline_plots
-        return flask.jsonify(**json_obj)
+        flask_json = flask.jsonify(**json_obj)
+
+        if bool(request.args.get('json')):
+            return flask_json
+        else:
+            json_file = BytesIO()
+            lines = flask_json.get_data()
+            json_file.write(lines)
+            json_file.seek(0)
+            return send_file(json_file,
+                             mimetype='text/json',
+                             attachment_filename='Graph.json',
+                             as_attachment=True)
 
     return render_template("v4_graph.html", options=options,
-                           revision_range=revision_range,
                            graph_plots=graph_plots,
-                           overview_plots=overview_plots, legend=legend,
-                           baseline_plots=baseline_plots,
+                           metrics=metrics,
+                           legend=legend,
                            **ts_data(ts))
-
-
-def determine_x_value(point_label, fallback, revision_cache):
-    """Given the order data, lets make a reasonable x axis value.
-
-    :param point_label: the text representation of the x value
-    :param fallback: The value to use for non
-    :param revision_cache: a dict to use as a cache for convert_revision.
-    :return: an integer or float value that is like the point_label or fallback.
-
-    """
-    rev_x = convert_revision(point_label, revision_cache)
-    if len(rev_x) == 1:
-        x = rev_x[0]
-    elif len(rev_x) == 2:
-        try:
-            x = float(point_label)
-        except ValueError:
-            # It might have dashes or something silly
-            x = float(str(rev_x[0]) + '.' + str(rev_x[1]))
-    else:
-        return fallback
-    return x
 
 
 @v4_route("/global_status")

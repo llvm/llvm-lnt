@@ -97,6 +97,7 @@ The *LNT* source is available in the llvm-lnt repository:
                                     'static/bootstrap/js/*.js',
                                     'static/bootstrap/img/*.png',
                                     'static/flot/*.min.js',
+                                    'static/plotly/*.min.js',
                                     'static/d3/*.min.js',
                                     'static/jquery/**/*.min.js',
                                     'templates/*.html',

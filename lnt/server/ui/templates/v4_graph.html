@@ -4,32 +4,11 @@
 {% extends "layout.html" %}
 {% set components = [(ts.name, v4_url_for(".v4_recent_activity"))] %}
 {% block head %}
-  <script src="{{ url_for('.static', filename='popup.js') }}"></script>
-  <script src="{{ url_for('.static', filename='sorttable.js') }}"></script>
+  <script language="javascript" type="text/javascript"
+          src="{{ url_for('.static', filename='lnt_graph.js') }}"></script>
   <script language="javascript" type="text/javascript"
           src="{{ url_for('.static',
-                          filename='flot/jquery.flot.min.js') }}"> </script>
-  <script language="javascript" type="text/javascript"
-           src="{{ url_for('.static',
-                          filename='flot/jquery.flot.symbol.min.js') }}"> </script>
-  <script language="javascript" type="text/javascript"
-          src="{{ url_for('.static',
-                          filename='flot/jquery.flot.errorbars.min.js') }}"> </script>
-  <script language="javascript" type="text/javascript"
-          src="{{ url_for('.static',
-                          filename='flot/jquery.flot.navigate.min.js') }}"> </script>
-  <script language="javascript" type="text/javascript"
-          src="{{ url_for('.static',
-                          filename='flot/jquery.flot.selection.min.js') }}"> </script>
-  <script language="javascript" type="text/javascript"
-          src="{{ url_for('.static',
-                          filename='flot/jquery.flot.highlight.min.js') }}"></script>
-  <script language="javascript" type="text/javascript"
-          src="{{ url_for('.static',
-                          filename='flot/jquery.flot.touch.min.js') }}"></script>
-  <script language="javascript" type="text/javascript"
-          src="{{ url_for('.static',
-                        filename='lnt_graph.js') }}"></script>
+                          filename='plotly/plotly-2.6.3.min.js') }}"></script>
 {% endblock %}
 
 {% block title %}Graph{% endblock %}
@@ -38,125 +17,80 @@
 {% block onload %}init_page(){% endblock %}
 
 {% block javascript %}
-var g = {};
 var test_suite_name = "{{ request.view_args.testsuite_name }}";
 var db_name = "{{ request.view_args.get('db_name','') }}";
 var graph_plots = {{graph_plots|tojson|safe}};
-var baseline_plots = {{baseline_plots|tojson|safe}};
+var metrics = {{metrics|tojson|safe}};
+var legend = {{legend|tojson|safe}};
 var options = {{options|tojson|safe}};
-prefix = "{{request.base_url}}";
-
-transform_fn = function (v) { return v; }
-inverse_transform_fn = function (v) { return v; }
-
-if (options.logarithmic_scale) {
-    transform_fn = function(v) {
-      if (v < 0)
-        return -Math.log10(-v);
-      else if (v > 0)
-        return Math.log10(v);
-      else
-        return 0;
-    }
-    inverse_transform_fn = function(v) {
-      if (v < 0)
-        return -Math.pow(10, -v);
-      else if (v > 0)
-        return Math.pow(10, v);
-      else
-        return 0;
-    }
-}
 
 function init_graph() {
-  // Set up the primary graph.
-  var graph = $("#graph");
-  var graph_options = {
-      series : {
-        lines : {
-          lineWidth : 1 },
-        shadowSize : 0
-        },
-      highlight : {
-{% if revision_range is not none %}
-        range: {{revision_range|tojson|safe}}
-{% else %}
-        enabled: false
-{% endif %}
-      },
-      zoom : { interactive : false },
-      pan : { interactive : true,
-              frameRate: 60 },
-      grid : {
-        hoverable : true,
-        clickable: true },
-        yaxis: {
-          transform: transform_fn,
-          inverseTransform: inverse_transform_fn }
-      };
+  // Add regressions
+  var tmp_plots = plotly_update_graphplots(graph_plots);
 
-  // Add baseline lines
-  graph_options['grid']['markings'] = baseline_plots;
-  var tmp_plots = update_graphplots(graph_plots);
-  var main_plot = $.plot(graph, tmp_plots, graph_options);
+  var graph_layout = {
+    // title: 'Graph',
+    hovermode: 'closest',
+    showlegend: true,
+    legend: { x: 0, y: -1.0,
+      // yanchor: 'bottom',
+      // size: 'top left',
+      bgcolor: 'rgba(0,0,0,0)' },
+    margin: { l: 50, r: 0, t: 10, b: 0 },
+    height: 700
+  };
+  if (options.xaxis_date) {
+    graph_layout['xaxis'] = {title: 'Date', type: 'date'};
+  } else {
+    graph_layout['xaxis'] = {title: 'Order', type: 'category'};
+  }
 
-  // Add tooltips.
-  graph.bind("plotclick", function (e, p, i) {
-      update_tooltip(e, p, i, show_tooltip, tmp_plots);
-  });
-
-  // Set up the overview graph.
-  var overview = $("#overview")
-  var overview_plots = {{overview_plots|tojson|safe}};
-  $.plot(overview, overview_plots, {
-    series : {
-      lines : {
-        lineWidth : 1 },
-      shadowSize : 0 },
-    selection: { mode: "x" },
-    touch: {
-      enabled: false
-    },
-    highlight : {
-{% if revision_range is not none %}
-       range: {{revision_range|tojson|safe}},
-       alpha: "1",
-       stroke: true,
-{% else %}
-        enabled: false
-{% endif %}
-    },
-    yaxis: { ticks: [] } });
-
-  // Connect selection on the overview graph to the main plot.
-  $("#overview").bind("plotselected", function (event, ranges) {
-    // Set the zooming on the plot.
-    $.plot(graph, graph_plots,
-      $.extend(true, {}, graph_options, {
-        xaxis: { min: ranges.xaxis.from, max: ranges.xaxis.to },
-        yaxis: { min: ranges.yaxis.from, max: ranges.yaxis.to }
-      }));
-  });
-  bind_zoom_bar(main_plot);
-
+  var xaxis_left = 0.0;
+  var xaxis_right = 1.0;
+  for (var i = 0; i < metrics.length; i++) {
+    var yaxis = 'yaxis';
+    if (i > 0)  yaxis += (i+1).toString();
+    graph_layout[yaxis] = {title: metrics[i]};
+    if (options.logarithmic_scale) {
+      graph_layout[yaxis]['type'] = 'log';
+      graph_layout[yaxis]['autorange'] = true;
+    }
+    if (i > 0 ) {
+      graph_layout[yaxis]['overlaying'] = 'y';
+    }
+    if (i & 1) {
+      graph_layout[yaxis]['side'] = 'right';
+      xaxis_right = 1 - 0.03 * i;
+      graph_layout[yaxis]['position'] = xaxis_right;
+    } else {
+      xaxis_left = 0.03 * i
+      graph_layout[yaxis]['position'] = xaxis_left;
+    }
+  }
+  graph_layout['xaxis']['domain'] = [xaxis_left, xaxis_right];
+  Plotly.newPlot('graph', tmp_plots, graph_layout);
+  var graph = document.getElementById('graph')
+  graph.on('plotly_click', plotly_update_tooltip);
+  graph.on('plotly_doubleclick', plotly_hide_tooltip);
 }
 
 
 function init_page() {
-    // First start the requests for regrssion data.
-    var urls = $(".data-row").each(function (index, val) {
-        $.getJSON(get_api_url("regression",
-                              db_name,
-                              test_suite_name,
-                              $(val).data('url')),
-                              function (data) {
-                                  new_graph_regression_callback(data, index, init_graph);
-                              });
-        return $(val).data('url');
+  if (!options.xaxis_date) {
+    // First start the requests for regression data.
+    legend.forEach(function(item, index) {
+      if (item[4]) {  // legend.url
+        var yaxis_index = metrics.indexOf(item[2]); // legend.field_name
+        var yaxis = ((yaxis_index == 0) ? "y" : ("y"+(yaxis_index + 1).toString()));
+        $.getJSON(get_api_url("regression", db_name, test_suite_name, item[4]),
+          function (data) {
+            plotly_graph_regression_callback(data, index, item, yaxis, init_graph);
+          }
+        );
+      }
     });
-
-    init_graph();
-    init_axis();
+  }
+  init_graph();
 }
 
 {% endblock %}
@@ -164,8 +98,7 @@ function init_page() {
 {% block sidebar %}
   <h4>Controls</h4>
   <ul>
-  <li>Left Mouse: Pan
-  <li>Double Left Mouse: Zoom
+  <li>Double Left Mouse: Hide Tooltip
   </ul>
 {% endblock %}
 
@@ -173,6 +106,22 @@ function init_page() {
   <table width="100%">
   <tr>
     <td><h3>Graph</h3></td>
+    <td>
+      <table>
+        <tr>
+          <td>
+            <form class="" action="" method="get">
+              {% for name,value in request.args.items() %}
+                  {# {% if name.startswith('plot.') %} #}
+                  <input type="hidden" name="{{name}}" value="{{value}}"/>
+                  {# {% endif %} #}
+              {% endfor %}
+              <input class="btn btn-primary" type="submit" name="download_json" value="Get as JSON"/>
+            </form>
+          </td>
+        </tr>
+      </table>
+    </td>
     <td>
       <div class="dropdown pull-right" id="settings">
         <a class="dropdown-toggle" data-toggle="dropdown" href="#settings">
@@ -182,6 +131,11 @@ function init_page() {
           <form action="" method="get">
           <table class="table table-striped table-hover table-condensed">
             <tbody>
+              <tr>
+                <td>Use dates for X axis instead of revisions</td>
+                <td><input type="checkbox" name="xaxis_date" value="yes"
+                    {{ 'checked="checked"' if options.xaxis_date else ""}}/></td>
+              </tr>
               <tr>
                 <td>Mean() as Aggregation</td>
                 <td><input type="checkbox" name="switch_min_mean" value="yes"
@@ -213,7 +167,7 @@ function init_page() {
                      {{ 'checked="checked"' if options.show_failures else ""}}/></td>
               </tr>
               <tr>
-                <td>Hide Sample Points:</td>
+                <td>Hide MultiSample Points:</td>
                 <td><input type="checkbox" name="hide_all_points" value="yes"
                      {{ 'checked="checked"' if options.hide_all_points else ""}}/></td>
               </tr>
@@ -233,6 +187,11 @@ function init_page() {
                      {{ 'checked="checked"' if options.show_moving_median else ""}}/></td>
               </tr>
               <tr>
+                <td>Show Cumulative Minimum</td>
+                <td><input type="checkbox" name="show_cumulative_minimum" value="yes"
+                     {{ 'checked="checked"' if options.show_cumulative_minimum else ""}}/></td>
+              </tr>
+              <tr>
                 <td>Show Logarithmic Scale</td>
                 <td><input type="checkbox" name="logarithmic_scale" value="yes"
                      {{ 'checked="checked"' if options.logarithmic_scale else ""}}/></td>
@@ -249,6 +208,14 @@ function init_page() {
                 <td>Hide Revision Comparison Region Highlight</td>
                 <td><input type="checkbox" name="hide_highlight" value="yes"
                      {{ 'checked="checked"' if options.hide_highlight else ""}}/></td>
+              </tr>
+              <tr>
+                  <td>Display only <i>n</i> latest orders</td>
+              </tr>
+              {# Split this into a new row to avoid making the dialog wider. #}
+              <tr>
+                <td><input type="text" name="limit"
+                     value="{{ options.limit }}"}/></td>
               </tr>
             </tbody>
           </table>
@@ -273,45 +240,10 @@ function init_page() {
       </div>
     </td>
   </tr>
-
-	<tr>
-        <td colspan="2">
-            <div id="graphbox" style="margin-left:20px">
-                <div id="graph" style="height:500px"></div>
-                <div id="zoombar" style="width:40px;">
-                    <button id="in" type="button" class="btn btn-default" style="width:100%;text-align:center;">+</button>
-                    <br/>
-                    <button id="out" type="button" class="btn btn-default" style="width:100%; text-align:center;">-</button>
-                </div>
-                <div id="yaxis">Metric</div>
-                <div id="xaxis">Order</div>
-            </div>
-        </td>
-    </tr>
-
-    <tr>
-        <td colspan="2">
-            <div id="overview" style="height:80px;margin-top:20px;margin-left:20px"></div>
-        </td>
-    </tr>
-
+  <tr>
+    <td colspan="3">
+      <div id="graph" />
+    </td>
+  </tr>
 </table>
-
-  <h3>Legend</h3>
-  <table class="table table-condensed table-hover table-striped">
-    <tr>
-      <th></th>
-      <th>Machine</th>
-      <th>Test</th>
-      <th>Type</th>
-    </tr>
-    {% for machine, test_name, field_name, col, url in legend %}
-    <tr class="data-row" data-url="{{url}}">
-      <td style="background-color: #{{ '%02x%02x%02x' % ((255*col[0])|int, (255*col[1])|int, (255*col[2])|int) }}">&nbsp;</td>
-      <td>{{ utils.render_machine(machine) }}</td>
-      <td>{{ test_name }}</td>
-      <td class="metric">{{ field_name }}</td>
-    </tr>
-    {% endfor %}
-  </table>
 {% endblock %}
