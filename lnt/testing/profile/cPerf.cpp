@@ -153,7 +153,7 @@ ssize_t getline(char** lineptr, size_t* n, FILE* stream) {
   char* p = bufptr;
   while (c != EOF) {
     size_t offset = (size_t)(p - bufptr);
-    if ((offset + 2) > size)) {
+    if ((offset + 2) > size) {
       size = size + 128;
       bufptr = (char*)realloc(bufptr, size);
       if (bufptr == nullptr) return -1;
