@@ -8,4 +8,9 @@ for a in sys.argv:
         sys.stdout.write(open(fname).read())
         sys.exit(0)
 
+    if a.startswith('-t'):
+        fname = '%s.out' % sys.argv[1]
+        sys.stdout.write(open(fname).read())
+        sys.exit(0)
+
 sys.exit(1)
