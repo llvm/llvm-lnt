@@ -1501,8 +1501,8 @@ def v4_global_status():
     yesterday = latest_date - datetime.timedelta(days=1)
 
     # Get arguments.
-    revision = int(request.args.get('revision',
-                                    ts.Machine.DEFAULT_BASELINE_REVISION))
+    revision = request.args.get('revision',
+                                str(ts.Machine.DEFAULT_BASELINE_REVISION))
     field = fields.get(request.args.get('field', None), metric_fields[0])
 
     # Get the list of all runs we might be interested in.
@@ -1539,8 +1539,8 @@ def v4_global_status():
         runs = recent_runs_by_machine[machine]
 
         # Get the baseline run for this machine.
-        baseline = machine.get_closest_previously_reported_run(session,
-                                                               revision)
+        baseline = machine.get_closest_previously_reported_run(
+            session, ts.Order(llvm_project_revision=revision))
 
         # Choose the "best" run to report on. We want the most recent one with
         # the most recent order.
@@ -1549,6 +1549,9 @@ def v4_global_status():
             machine_run_info.append((baseline, run))
             reported_run_ids.append(baseline.id)
         reported_run_ids.append(run.id)
+
+    if not machine_run_info:
+        abort(404, "No closest runs for revision '{}'".format(revision))
 
     # Get the set all tests reported in the recent runs.
     reported_tests = session.query(ts.Test.id, ts.Test.name).filter(
@@ -1570,7 +1573,7 @@ def v4_global_status():
         # Compute comparison results for each machine.
         row.extend((runinfo.get_run_comparison_result(
                         run, baseline, test_id, field,
-                        ts.Sample.get_hash_of_binary_field),
+                        ts.Sample.get_hash_of_binary_field()),
                     run.id)
                    for baseline, run in machine_run_info)
 
@@ -1582,7 +1585,7 @@ def v4_global_status():
         test_table.append(row)
 
     # Order the table by worst regression.
-    test_table.sort(key=lambda row: 0 if row[1] is None else row[1], reverse=True)
+    test_table.sort(key=lambda row: row[1], reverse=True)
 
     return render_template("v4_global_status.html",
                            tests=test_table,
@@ -1805,13 +1808,6 @@ def health():
 
 @v4_route("/search")
 def v4_search():
-    def _isint(i):
-        try:
-            int(i)
-            return True
-        except Exception:
-            return False
-
     session = request.session
     ts = request.get_testsuite()
     query = request.args.get('q')
