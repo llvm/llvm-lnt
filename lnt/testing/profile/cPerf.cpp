@@ -268,19 +268,20 @@ struct perf_event_sample {
   uint64_t period;
 };
 
-struct perf_event_mmap {
+struct perf_event_mmap_common {
   struct perf_event_header header;
 
   uint32_t pid, tid;
   uint64_t start, extent, pgoff;
+};
+
+struct perf_event_mmap {
+  struct perf_event_mmap_common mmap_common;
   char filename[1];
 };
 
 struct perf_event_mmap2 {
-  struct perf_event_header header;
-
-  uint32_t pid, tid;
-  uint64_t start, extent, pgoff;
+  struct perf_event_mmap_common mmap_common;
   uint32_t maj, min;
   uint64_t ino, ino_generation;
   uint32_t prot, flags;
@@ -290,12 +291,6 @@ struct perf_event_mmap2 {
 struct perf_trace_event_type {
   uint64_t event_id;
   char str[64];
-};
-
-struct perf_sample_id {
-  uint32_t pid, tid;
-  uint64_t time;
-  uint64_t id;
 };
 
 enum perf_type_id {
@@ -598,6 +593,7 @@ public:
   void readAttrs();
   void readEventDesc();
   void readDataStream();
+  void registerNewMapping(unsigned char *Buf, const char *FileName);
   unsigned char *readEvent(unsigned char *);
   perf_event_sample parseEvent(unsigned char *Buf, uint64_t Layout);
   void emitLine(uint64_t PC, std::map<const char *, uint64_t> *Counters,
@@ -719,7 +715,7 @@ void PerfReader::readAttrs() {
 
       // Weirdness of perf: if there is only one event descriptor, that
       // event descriptor can be referred to by ANY id!
-      if (NumEvents == 1 && NumIDs == 0) {
+      if (NumEvents == 1) {
         EventIDs[0] = Str;
         EventLayouts[0] = attr->sample_type;
       }
@@ -758,7 +754,7 @@ void PerfReader::readEventDesc() {
 
     // Weirdness of perf: if there is only one event descriptor, that
     // event descriptor can be referred to by ANY id!
-    if (NumEvents == 1 && NumIDs == 0) {
+    if (NumEvents == 1) {
       EventIDs[0] = Str;
       EventLayouts[0] = Layout;
     }
@@ -771,25 +767,49 @@ void PerfReader::readEventDesc() {
   }
 }
 
+static uint64_t getTimeFromSampleId(unsigned char *EndOfStruct,
+                                    uint64_t Layout) {
+  uint64_t *Ptr = (uint64_t *)EndOfStruct;
+  // Each of the PERF_SAMPLE_* bits tested below adds an 8-byte field.
+  if (Layout & PERF_SAMPLE_IDENTIFIER)
+    --Ptr;
+  if (Layout & PERF_SAMPLE_CPU)
+    --Ptr;
+  if (Layout & PERF_SAMPLE_STREAM_ID)
+    --Ptr;
+  if (Layout & PERF_SAMPLE_ID)
+    --Ptr;
+  assert(Layout & PERF_SAMPLE_TIME);
+  --Ptr;
+  return *Ptr;
+}
+
+void PerfReader::registerNewMapping(unsigned char *Buf, const char *Filename) {
+  perf_event_mmap_common *E = (perf_event_mmap_common *)Buf;
+  auto MapID = Maps.size();
+  // EXEC ELF objects aren't relocated. DYN ones are,
+  // so if it's a DYN object adjust by subtracting the
+  // map base.
+  bool IsSO = IsSharedObject(BinaryCacheRoot + std::string(Filename));
+  uint64_t End = E->start + E->extent;
+  uint64_t Adjust = IsSO ? E->start - E->pgoff : 0;
+  Maps.push_back({E->start, End, Adjust, Filename});
+
+  unsigned char *EndOfEvent = Buf + E->header.size;
+  // FIXME: The first EventID is used for every event.
+  // FIXME: The code assumes perf_event_attr.sample_id_all is set.
+  uint64_t Time = getTimeFromSampleId(EndOfEvent, EventLayouts.begin()->second);
+  auto &CurrentMap = CurrentMaps[Time];
+  CurrentMap.insert({E->start, MapID});
+}
+
 unsigned char *PerfReader::readEvent(unsigned char *Buf) {
   perf_event_header *E = (perf_event_header *)Buf;
   switch (E->type) {
   case PERF_RECORD_MMAP:
   {
     perf_event_mmap *E = (perf_event_mmap *)Buf;
-    auto MapID = Maps.size();
-    // EXEC ELF objects aren't relocated. DYN ones are,
-    // so if it's a DYN object adjust by subtracting the
-    // map base.
-    bool IsSO = IsSharedObject(BinaryCacheRoot + std::string(E->filename));
-    Maps.push_back({E->start, E->start + E->extent,
-                    IsSO ? E->start - E->pgoff : 0, E->filename});
-
-    // FIXME: use EventLayouts.begin()->second!
-    perf_sample_id *ID =
-        (perf_sample_id *)(Buf + E->header.size - sizeof(perf_sample_id));
-    auto &CurrentMap = CurrentMaps[ID->time];
-    CurrentMap.insert({E->start, MapID});
+    registerNewMapping(Buf, E->filename);
   }
   break;
   case PERF_RECORD_MMAP2:
@@ -797,19 +817,7 @@ unsigned char *PerfReader::readEvent(unsigned char *Buf) {
     perf_event_mmap2 *E = (perf_event_mmap2 *)Buf;
     if (!(E->prot & PROT_EXEC))
       break;
-    auto MapID = Maps.size();
-    // EXEC ELF objects aren't relocated. DYN ones are,
-    // so if it's a DYN object adjust by subtracting the
-    // map base.
-    bool IsSO = IsSharedObject(BinaryCacheRoot + std::string(E->filename));
-    Maps.push_back({E->start, E->start + E->extent,
-                    IsSO ? E->start - E->pgoff : 0, E->filename});
-
-    // FIXME: use EventLayouts.begin()->second!
-    perf_sample_id *ID =
-        (perf_sample_id *)(Buf + E->header.size - sizeof(perf_sample_id));
-    auto &CurrentMap = CurrentMaps[ID->time];
-    CurrentMap.insert({E->start, MapID});
+    registerNewMapping(Buf, E->filename);
   }
   break;
   case PERF_RECORD_SAMPLE:
