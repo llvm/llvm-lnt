@@ -500,7 +500,7 @@ class ObjdumpOutput {
 public:
   std::string Objdump, BinaryCacheRoot;
   FILE *Stream;
-  char *ThisText;
+  const char *ThisText;
   uint64_t ThisAddress;
   uint64_t EndAddress;
   char *Line;
@@ -535,8 +535,8 @@ public:
     }
 
     char buf1[32], buf2[32];
-    sprintf(buf1, "%#llx", Start);
-    sprintf(buf2, "%#llx", Stop + 4);
+    sprintf(buf1, "%#" PRIx64, Start);
+    sprintf(buf2, "%#" PRIx64, Stop + 4);
 
     std::string Cmd = Objdump + " -d --no-show-raw-insn --start-address=" +
                       std::string(buf1) + " --stop-address=" +
@@ -1083,16 +1083,33 @@ PyMODINIT_FUNC initcPerf(void) {
 
 #else // STANDALONE
 
+// You can build the standalone version for a debug purpose using
+// clang++ cPerf.cpp -o /tmp/cPerf -DSTANDALONE $(pkg-config --cflags --libs python3-embed)
+
+// getenv() is permitted to overwrite its return value on subsequent calls,
+// so copy it to std::string early.
+static std::string getEnvVar(const char *VarName, const char *DefaultValue) {
+  const char *Value = getenv(VarName);
+  if (!Value)
+    Value = DefaultValue;
+  return Value;
+}
+
 int main(int argc, char **argv) {
   Py_Initialize();
   if (argc < 2)  return -1;
-  PerfReader P(argv[1], "objdump", "");
+
+  std::string BinaryCacheRoot = getEnvVar("LNT_BINARY_CACHE_ROOT", "");
+  std::string Objdump = getEnvVar("CMAKE_OBJDUMP", "objdump");
+
+  PerfReader P(argv[1], Objdump, BinaryCacheRoot);
   P.readHeader();
   P.readAttrs();
   P.readDataStream();
   P.emitTopLevelCounters();
   P.emitMaps();
   PyObject_Print(P.complete(), stdout, Py_PRINT_RAW);
+  fputs("\n", stdout); // Usually expected by UNIX shells
   Py_FinalizeEx();
   return 0;
 }
