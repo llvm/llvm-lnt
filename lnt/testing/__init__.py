@@ -485,6 +485,7 @@ _nts_upgrade = _UpgradeSchema(
         '.hash.status': 'hash_status',
         '.mem': 'mem_bytes',
         '.score': 'score',
+        '.profile': 'profile',
     }, machine_param_rename={
         'name': 'hostname',  # Avoid name clash with actual machine name.
     }, run_param_rename={

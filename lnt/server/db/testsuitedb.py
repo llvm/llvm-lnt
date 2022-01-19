@@ -1038,10 +1038,14 @@ class TestSuiteDB(object):
         test_cache = dict((test.name, test)
                           for test in session.query(self.Test))
 
-        profiles = dict()
         field_dict = dict([(f.name, f) for f in self.sample_fields])
         all_samples_to_add = []
+        is_profile_only = lambda td : len(td) == 2 and 'profile' in td
         for test_data in tests_data:
+            if is_profile_only(test_data):
+                # Ignore for now profile data without other metrics
+                continue
+
             name = test_data['name']
             test = test_cache.get(name)
             if test is None:
@@ -1066,10 +1070,42 @@ class TestSuiteDB(object):
                     all_samples_to_add.append(sample)
                 for sample, value in zip(samples, values):
                     if key == 'profile':
-                        profile = self.Profile(value, config, name)
-                        sample.profile = profiles.get(hash(value), profile)
+                        sample.profile = self.Profile(value, config, name)
                     else:
                         sample.set_field(field, value)
+
+        for test_data in tests_data:
+            if not is_profile_only(test_data):
+                continue
+            name = test_data['name']
+            test = test_cache.get(name)
+            tests = [test_cache[test_name] for test_name in test_cache \
+                                           if test_name.startswith(name + '.test:')]
+            if test is not None:
+                tests.append(test)
+
+            value = test_data['profile']
+            new_profile = self.Profile(value, config, name)
+            count = 0
+            for test in tests:
+                sample_exist = False
+                for sample in all_samples_to_add:
+                    if sample.test == test:
+                        if sample.profile is None:
+                            sample.profile = new_profile
+                            count += 1
+                            sample_exist = True
+                        else:
+                            logger.warning('Test %s already contains the profile data. ' \
+                                'Profile %s was ignored.', test.name, name)
+                if not sample_exist:
+                    logger.warning('The test %s is invalid. It contains the profile, ' \
+                                   'but no any samples. Consider removing it.', test.name)
+            if count == 0:
+                logger.warning('Cannot find test(s) for the profile %s', name)
+            else:
+                logger.info('The profile %s was added to %d test(s).', name, count)
+
         session.add_all(all_samples_to_add)
 
     def importDataFromDict(self, session, data, config, select_machine,
