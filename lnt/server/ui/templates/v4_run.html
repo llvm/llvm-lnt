@@ -345,7 +345,7 @@ $('.profile-prev-only').tooltip();
         <tbody class="searchable">
           {% for test_name,test_id,cr in tests %}
             <tr>
-              <td><input type="checkbox" name="plot.{{test_id}}" value="{{machine.id}}.{{test_id}}.{{field_index}}"/></td>
+              <td><input type="checkbox" name="plot.{{test_id}}.{{field_index}}" value="{{machine.id}}.{{test_id}}.{{field_index}}"/></td>
               <td class="benchmark-name">
                 <a href="{{graph_base}}&amp;plot.{{test_id}}={{ machine.id}}.{{test_id}}.{{field_index}}">
                   {{ test_name }}
