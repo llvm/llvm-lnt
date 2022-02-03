@@ -1412,7 +1412,7 @@ def v4_graph():
         if moving_median_data["x"]:
             med_col = [c * 0.6 for c in col]
             moving_median_data.update({
-                "name": trace_name("Moving median: ", test_name, field.name),
+                "name": trace_name("Moving median", test_name, field.name),
                 "legendgroup": test_name,
                 "yaxis": yaxis,
                 "hoverinfo": "skip",

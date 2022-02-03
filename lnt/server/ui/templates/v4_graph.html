@@ -63,13 +63,13 @@ function init_graph() {
       xaxis_right = 1 - 0.03 * i;
       graph_layout[yaxis]['position'] = xaxis_right;
     } else {
-      xaxis_left = 0.03 * i
+      xaxis_left = 0.03 * i;
       graph_layout[yaxis]['position'] = xaxis_left;
     }
   }
   graph_layout['xaxis']['domain'] = [xaxis_left, xaxis_right];
   Plotly.newPlot('graph', tmp_plots, graph_layout);
-  var graph = document.getElementById('graph')
+  var graph = document.getElementById('graph');
   graph.on('plotly_click', plotly_update_tooltip);
   graph.on('plotly_doubleclick', plotly_hide_tooltip);
 }
