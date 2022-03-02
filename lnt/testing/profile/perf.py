@@ -5,11 +5,31 @@ from .profilev1impl import ProfileV1
 
 import os
 import traceback
+import glob
 
 try:
     from . import cPerf  # type: ignore  # mypy cannot process Cython modules
 except Exception:
     pass
+
+
+def merge_recursively(dct1, dct2):
+    # type: (dict, dict) -> None
+    """Add the content of dct2 to dct1.
+    :param dct1: merge to.
+    :param dct2: merge from.
+    """
+    for k, v in dct2.items():
+        if k in dct1:
+            if isinstance(dct1[k], dict) and isinstance(v, dict):
+                merge_recursively(dct1[k], v)
+            elif isinstance(dct1[k], list) and isinstance(v, list):
+                dct1[k].extend(v)
+            else:
+                raise TypeError("Values for the key {} must be the same type (dict or list), "
+                                "but got {} and {}".format(k, type(dct1[k]), type(v)))
+        else:
+            dct1[k] = v
 
 
 class LinuxPerfProfile(ProfileImpl):
@@ -31,7 +51,10 @@ class LinuxPerfProfile(ProfileImpl):
             return None
 
         try:
-            data = cPerf.importPerf(f, objdump, binaryCacheRoot)
+            data = {}
+            for fname in glob.glob("%s*" % f):
+                cur_data = cPerf.importPerf(fname, objdump, binaryCacheRoot)
+                merge_recursively(data, cur_data)
 
             # Go through the data and convert counter values to percentages.
             for f in data['functions'].values():
