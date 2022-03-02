@@ -139,7 +139,7 @@ CFG.prototype = {
       // and should be processed differently
       var isRelative = addressString.startsWith('#');
       var charOffset = (isRelative ? 1 : 0);
-      var base = (addressString.substring(charOffset).startsWith('0x') ? 16 : 10);
+      var base = (isRelative ? 10 : 16);
       if (isRelative)
           return addressCurrent + parseInt(addressString.substring(1), base);
       else
