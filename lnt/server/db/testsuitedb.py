@@ -1039,7 +1039,10 @@ class TestSuiteDB(object):
 
         field_dict = dict([(f.name, f) for f in self.sample_fields])
         all_samples_to_add = []
-        is_profile_only = lambda td : len(td) == 2 and 'profile' in td
+
+        def is_profile_only(td):
+            return len(td) == 2 and 'profile' in td
+
         for test_data in tests_data:
             if is_profile_only(test_data):
                 # Ignore for now profile data without other metrics
@@ -1078,8 +1081,11 @@ class TestSuiteDB(object):
                 continue
             name = test_data['name']
             test = test_cache.get(name)
-            tests = [test_cache[test_name] for test_name in test_cache \
-                                           if test_name.startswith(name + '.test:')]
+            tests = [
+                test_cache[test_name]
+                for test_name in test_cache
+                if test_name.startswith(name + '.test:')
+            ]
             if test is not None:
                 tests.append(test)
 
@@ -1095,10 +1101,10 @@ class TestSuiteDB(object):
                             count += 1
                             sample_exist = True
                         else:
-                            logger.warning('Test %s already contains the profile data. ' \
-                                'Profile %s was ignored.', test.name, name)
+                            logger.warning('Test %s already contains the profile data. '
+                                           'Profile %s was ignored.', test.name, name)
                 if not sample_exist:
-                    logger.warning('The test %s is invalid. It contains the profile, ' \
+                    logger.warning('The test %s is invalid. It contains the profile, '
                                    'but no any samples. Consider removing it.', test.name)
             if count == 0:
                 logger.warning('Cannot find test(s) for the profile %s', name)
