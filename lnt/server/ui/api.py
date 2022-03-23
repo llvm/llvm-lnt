@@ -71,7 +71,7 @@ class Fields(Resource):
         ts = request.get_testsuite()
 
         result = common_fields_factory()
-        result['fields'] = [{'column_id': i, 'column_name': f.column.name}
+        result['fields'] = [{'column_id': i, 'column_name': f.column.name, 'column_type': str(f.column.type)}
                             for i, f in enumerate(ts.sample_fields)]
 
         return result

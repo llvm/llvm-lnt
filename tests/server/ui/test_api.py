@@ -256,6 +256,7 @@ class JSONAPITester(unittest.TestCase):
         f0 = fields[0]
         self.assertEqual(0, f0['column_id'])
         self.assertEqual('compile_time', f0['column_name'])
+        self.assertEqual('FLOAT', f0['column_type'])
 
     def test_tests_api(self):
         """Tests API."""
