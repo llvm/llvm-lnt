@@ -1,4 +1,5 @@
 import colorsys
+import hashlib
 import math
 import re
 from lnt.server.reporting.analysis import REGRESSED
@@ -262,25 +263,26 @@ def convert_revision(dotted, cache=None):
     that is ordered and sortable.
     "1" -> (1)
     "1.2.3" -> (1,2,3)
+    "1a2,3-45:b6;" -> (1,2,3,45,6)
+    "abc" -> (hash("abc"))
 
     :param dotted: the string revision to convert
     :param cache: a dict to use as a cache or None for no cache.
         because this is called many times, it is a nice performance
         increase to cache these conversions.
     :return: a tuple with the numeric bits of this revision as ints.
-
+        return a hash in case of miss formatted version to avoid wrong equals.
     """
     if cache is not None:
         val = cache.get(dotted)
         if val:
             return val
-        else:
-            dotted_parsed = integral_rex.findall(dotted)
-            val = tuple([int(d) for d in dotted_parsed])
-            cache[dotted] = val
-            return val
+
     dotted_parsed = integral_rex.findall(dotted)
-    val = tuple([int(d) for d in dotted_parsed])
+    val = tuple([int(d) for d in dotted_parsed] or 
+                [int(hashlib.sha1(dotted.encode("utf-8")).hexdigest(), 16)])
+    if cache is not None:
+        cache[dotted] = val
     return val
 
 
