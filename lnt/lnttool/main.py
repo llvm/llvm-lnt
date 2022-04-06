@@ -471,15 +471,15 @@ def _version_check():
 
     # Get the current distribution.
     installed_dist = pkg_resources.get_distribution("LNT")
-    installed_dist_name = "%s %s" % (installed_dist.project_name,
-                                     installed_dist.version)
-    current_dist_name = "LNT %s" % (lnt.__version__,)
-    if pkg_resources.parse_version(installed_dist_name) != \
-       pkg_resources.parse_version(current_dist_name):
+    if installed_dist.project_name != "LNT" or \
+       pkg_resources.parse_version(installed_dist.version) != \
+       pkg_resources.parse_version(lnt.__version__):
         raise SystemExit("""\
-error: installed distribution %s is not current (%s), you may need to reinstall
+error: installed distribution %s %s is not current (%s %s), you may need to reinstall
 LNT or rerun 'setup.py develop' if using development mode.""" % (
-                         installed_dist_name, current_dist_name))
+                         installed_dist.project_name,
+                         installed_dist.version,
+                         "LNT", lnt.__version__))
 
 
 def show_version(ctx, param, value):
