@@ -129,7 +129,7 @@ FILE *ForkAndExec(std::string Cmd) {
   if (fork() == 0) {
     dup2(P[1], 1);
     close(P[0]);
-    execl("/bin/sh", "sh", "-c", Cmd.c_str(), 0);
+    execl("/bin/sh", "sh", "-c", Cmd.c_str(), (char *)NULL);
   } else {
     close(P[1]);
   }
@@ -364,6 +364,12 @@ struct Map {
   const char *Filename;
 };
 
+struct EventDesc {
+  uint64_t Start;
+  uint64_t End;
+  size_t MapId;
+};
+
 struct Symbol {
   uint64_t Start;
   uint64_t End;
@@ -381,6 +387,55 @@ public:
 
   SymTabOutput(std::string Objdump, std::string BinaryCacheRoot)
     : Objdump(Objdump), BinaryCacheRoot(BinaryCacheRoot) {}
+
+  uint64_t fetchExecSegment(Map *M) {
+    std::string Cmd = Objdump + " -p -C " +
+                      BinaryCacheRoot + std::string(M->Filename) +
+#ifdef _WIN32
+                      " 2> NUL";
+#else
+                      " 2>/dev/null";
+#endif
+    auto Stream = ForkAndExec(Cmd);
+
+    char *Line = nullptr, *PrevLine = nullptr;
+    size_t LineLen = 0;
+    uint64_t offset = 0;
+    while (true) {
+      if (PrevLine)
+        free (PrevLine);
+      if (Line)
+        PrevLine = strdup (Line);
+      ssize_t Len = getline(&Line, &LineLen, Stream);
+      if (Len == -1)
+        break;
+
+      char* pos;
+      if ((pos = strstr (Line, "flags r-x")) == NULL
+          && (pos = strstr (Line, "flags rwx")) == NULL)
+        continue;
+
+      /* Format is weird.. but we did find the section so punt.  */
+      if ((pos = strstr (PrevLine, "vaddr ")) == NULL)
+        break;
+
+      pos += 6;
+      offset = strtoull (pos, NULL, 16);
+      break;
+    }
+    if (Line)
+      free(Line);
+    if (PrevLine)
+      free(PrevLine);
+
+#ifdef _WIN32
+    _pclose(Stream);
+#else
+    fclose(Stream);
+    wait(NULL);
+#endif
+    return offset;
+  }
 
   void fetchSymbols(Map *M) {
     std::string Cmd = Objdump + " -t -T -C " +
@@ -473,6 +528,10 @@ public:
   void reset(Map *M) {
     clear();
     // Fetch both dynamic and static symbols, sort and unique them.
+    uint64_t segmentStart = fetchExecSegment (M);
+    /* Adjust the symbol to a value relative to the start of the load address
+    to match up with registerNewMapping.  */
+    M->Adjust -= segmentStart;
     fetchSymbols(M);
     
     std::sort(begin(), end());
@@ -626,7 +685,7 @@ private:
   std::map<const char *, uint64_t> TotalEvents;
   std::map<uint64_t, std::map<const char *, uint64_t>> TotalEventsPerMap;
   std::vector<Map> Maps;
-  std::map<uint64_t, std::map<uint64_t, size_t>> CurrentMaps;
+  std::map<uint64_t, std::map<uint64_t, EventDesc>> CurrentMaps;
 
   PyObject *Functions, *TopLevelCounters;
   std::vector<PyObject*> Lines;
@@ -800,7 +859,7 @@ void PerfReader::registerNewMapping(unsigned char *Buf, const char *Filename) {
   // FIXME: The code assumes perf_event_attr.sample_id_all is set.
   uint64_t Time = getTimeFromSampleId(EndOfEvent, EventLayouts.begin()->second);
   auto &CurrentMap = CurrentMaps[Time];
-  CurrentMap.insert({E->start, MapID});
+  CurrentMap.insert({E->start, { E->start, End, MapID}});
 }
 
 unsigned char *PerfReader::readEvent(unsigned char *Buf) {
@@ -841,9 +900,9 @@ unsigned char *PerfReader::readEvent(unsigned char *Buf) {
         continue;
       --NewI;
 
-      if (NewI->first > PC)
+      if (NewI->second.Start > PC || NewI->second.End < PC)
         continue;
-      MapID = NewI->second;
+      MapID = NewI->second.MapId;
       break;
     }
     if (MapID != ~0ULL) {
@@ -961,10 +1020,10 @@ void PerfReader::emitMaps() {
     if (AllUnderThreshold)
       continue;
 
-    uint64_t Adjust = Maps[MapID].Adjust;
-
     SymTabOutput Syms(Objdump, BinaryCacheRoot);
     Syms.reset(&Maps[MapID]);
+
+    uint64_t Adjust = Maps[MapID].Adjust;
 
     // Accumulate the event totals for each symbol
     auto Sym = Syms.begin();
