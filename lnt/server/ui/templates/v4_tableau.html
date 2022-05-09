@@ -1,0 +1,34 @@
+{% set nosidebar = True %}
+{% extends "layout.html" %}
+{% set components = [] %}
+{% block title %}Tableau Machines Data Feed{% endblock %}
+{% block head %}
+  <script>
+    var ts_url = "/api/db_{{ request.view_args.db_name }}/v4/{{ request.view_args.testsuite_name }}";
+  </script>
+  <meta http-equiv="Cache-Control" content="no-store"/>
+  <script type="text/javascript" src="https://connectors.tableau.com/libs/tableauwdc-2.3.latest.js"></script>
+  <script type="text/javascript"  src="{{ url_for('.static', filename='lnt_tableau.js') }}"></script>
+{% endblock %}
+{% block body %}
+
+{% if error is defined %}
+  <p><font color="#FF0000">{{ error }}</font></p>
+{% endif %}
+<p>This WDC exports all the data submitted for a collection of machines. Below is a prompt for a machine name regular
+    expression. The regexp matches against the machine names in this database/suite. You can see those machine names <a href="{{ v4_url_for(".v4_machines") }}" target="_blank">here</a>.</p>
+
+    <p>The regular expression is a <a
+            href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Regular_Expressions/Cheatsheet" target="_blank">JavaScript
+        regular expression</a>.</p>
+
+    <form>
+    <div class="form-inline">
+        <label for="machine-name" class="text-center">Machine Regexp</label>
+    </div>
+    <div class="form-inline">
+        <input type="text" class="form-control" id="machine-name" value=".*">
+    </div>
+    <button type="button" id="submitButton" class="btn btn-success" style="margin: 10px;">Get LNT Data!</button>
+</form>
+{% endblock %}
