@@ -73,18 +73,18 @@ Accessing Data outside of LNT: Tableau Web Data Connector
 Connector (WDC) to make it easy to get LNT data into Tableau.
 
 In Tableau, create a new data source of the Web Data Connector type.  When prompted for the URL, use the standard
-database and suite url, followed by /tableau/.
+database and suite url, followed by /tableau.
 
 Examples::
 
     # WDC for a public server
-    https://lnt.llvm.org/db_default/v4/nts/tableau/
+    https://lnt.llvm.org/db_default/v4/nts/tableau
 
     # WDC for a local instance
-    http://localhost:5000/db_default/v4/nts/tableau/
+    http://localhost:5000/db_default/v4/nts/tableau
 
     # WDC for a different database and suite
-    http://localhost:5000/db_my_perf/v4/size/tableau/
+    http://localhost:5000/db_my_perf/v4/size/tableau
 
 The WDC exports all the data submitted for a collection of machines. The WDC will prompt for a machine regular
 expression. The regexp matches against the machine names in this database/suite. You can see those machine names at a
