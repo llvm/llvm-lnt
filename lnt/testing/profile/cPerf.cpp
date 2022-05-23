@@ -361,6 +361,7 @@ static const char* sw_event_names[PERF_COUNT_SW_MAX] = {
 
 struct Map {
   uint64_t Start, End, Adjust;
+  bool isSO;
   const char *Filename;
 };
 
@@ -528,10 +529,14 @@ public:
   void reset(Map *M) {
     clear();
     // Fetch both dynamic and static symbols, sort and unique them.
-    uint64_t segmentStart = fetchExecSegment (M);
-    /* Adjust the symbol to a value relative to the start of the load address
-    to match up with registerNewMapping.  */
-    M->Adjust -= segmentStart;
+    /* If we're a relocatable object then take the actual start of the text
+       segment into account.  */
+    if (M->isSO) {
+      uint64_t segmentStart = fetchExecSegment (M);
+      /* Adjust the symbol to a value relative to the start of the load address
+         to match up with registerNewMapping.  */
+      M->Adjust -= segmentStart;
+    }
     fetchSymbols(M);
     
     std::sort(begin(), end());
@@ -852,7 +857,7 @@ void PerfReader::registerNewMapping(unsigned char *Buf, const char *Filename) {
   bool IsSO = IsSharedObject(BinaryCacheRoot + std::string(Filename));
   uint64_t End = E->start + E->extent;
   uint64_t Adjust = IsSO ? E->start - E->pgoff : 0;
-  Maps.push_back({E->start, End, Adjust, Filename});
+  Maps.push_back({E->start, End, Adjust, IsSO, Filename});
 
   unsigned char *EndOfEvent = Buf + E->header.size;
   // FIXME: The first EventID is used for every event.
