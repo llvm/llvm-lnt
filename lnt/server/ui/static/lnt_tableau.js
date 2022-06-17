@@ -18,12 +18,26 @@
     "hash": tableau.dataTypeEnum.string,
     "code_size": tableau.dataTypeEnum.int};
 
+  /** Get a json payload from the LNT server asynchronously or error.
+   * @param {string} payload_url JSON payloads URL.
+   */
   function getValue(payload_url) {
-    var value = $.ajax({
+    var response = $.ajax({
       url: payload_url,
-      async: false
-    }).responseText;
-    return JSON.parse(value);
+      async: false,
+      cache: false,
+      timeout: 60000, // Make all requests timeout after a minute.
+    });
+
+    if (response.status >= 400) {
+      var error_msg = "Requesting data from LNT failed with:\n\n HTTP " +
+        response.status + ": " + response.responseText + "\n\nURL: " +
+        payload_url
+      tableau.abortWithError(error_msg);
+      throw new Error(error_msg);
+    }
+
+    return JSON.parse(response.responseText);
   }
 
   function get_matching_machines(regexp) {
