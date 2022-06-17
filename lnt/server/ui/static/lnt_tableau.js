@@ -48,10 +48,11 @@
           search_info.machine_regexp);
     }
 
-    $.getJSON(ts_url + "/fields/", function (resp) {
-      var fields = resp.fields;
-      var cols = [];
-      cols.push({
+    var field_info = getValue(ts_url + "/fields/");
+
+    var fields = field_info.fields;
+    var cols = [];
+    cols.push({
         id: "machine_name",
         alias: "Machine Name",
         dataType: tableau.dataTypeEnum.string
@@ -86,13 +87,13 @@
       });
       var tableSchema = {
         id: "lnt_machine_feed",
-        alias: "Performance Data from " + resp.generated_by,
+        alias: "Performance Data from " + field_info.generated_by,
         columns: cols,
         incrementColumnId: "run_id"
-      };
-      schemaCallback([tableSchema]);
-    });
-  };
+    };
+    schemaCallback([tableSchema]);
+  }
+
 
   // Download the data.
   myConnector.getData = function (table, doneCallback) {
