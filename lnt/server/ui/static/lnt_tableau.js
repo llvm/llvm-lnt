@@ -8,15 +8,9 @@
   // TODO: make the server report types.
   // Map LNT types to Tableau datatypes.
   var col_type_mapper = {
-    "compile_status": tableau.dataTypeEnum.int,
-    "execution_status": tableau.dataTypeEnum.int,
-    "compile_time": tableau.dataTypeEnum.float,
-    "execution_time": tableau.dataTypeEnum.float,
-    "score": tableau.dataTypeEnum.int,
-    "mem_bytes": tableau.dataTypeEnum.int,
-    "hash_status": tableau.dataTypeEnum.int,
-    "hash": tableau.dataTypeEnum.string,
-    "code_size": tableau.dataTypeEnum.int};
+    "INTEGER": tableau.dataTypeEnum.int,
+    "FLOAT": tableau.dataTypeEnum.float,
+    "VARCHAR": tableau.dataTypeEnum.string};
 
   /** Get a json payload from the LNT server asynchronously or error.
    * @param {string} payload_url JSON payloads URL.
@@ -108,7 +102,7 @@
       sample_cols.push({
         id: field.column_name,
         alias: field.column_name,
-        dataType: col_type_mapper[field.column_name]
+        dataType: col_type_mapper[field.column_type]
       });
     });
 
