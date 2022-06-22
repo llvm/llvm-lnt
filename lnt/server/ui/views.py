@@ -955,9 +955,6 @@ def load_geomean_data(field, machine, limit, xaxis_date, revision_cache=None):
 def v4_tableau():
     """ Tableau WDC."""
     ts = request.get_testsuite()
-    # TODO: fixup data type exporting to support all test suites.
-    if ts.name != "nts":
-        flash("Support for non-nts suites is experimental: suite is " + ts.name, FLASH_DANGER)
     return render_template("v4_tableau.html")
 
 
