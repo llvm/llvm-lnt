@@ -45,7 +45,6 @@
     var resp = getValue(ts_url + "/machines/");
     var machines = resp.machines;
     return machines.filter(function (name_ids) {
-      console.log(name_ids.name + ", " + name_regexp.test(name_ids.name));
       return name_regexp.test(name_ids.name);
     });
   }
