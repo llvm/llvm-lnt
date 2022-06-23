@@ -48,16 +48,31 @@
     var search_info = JSON.parse(tableau.connectionData);
     tableau.reportProgress("Getting Schema from LNT.");
 
+    var field_info = getValue(ts_url + "/fields/");
+    var fields = field_info.fields;
+
     // Lookup machines of interest, and gather run fields.
-    var machine_names = get_matching_machines(search_info.machine_regexp);
-    if (machine_names.length === 0) {
+    // Detect schema of the run_infos by grabbing them.
+    var run_info_cols = new Set();
+    var machine_infos = get_matching_machines(search_info.machine_regexp);
+    if (machine_infos.length === 0) {
       tableau.abortWithError("Did not match any machine names matching: " +
           search_info.machine_regexp);
     }
 
-    var field_info = getValue(ts_url + "/fields/");
+    machine_infos.forEach(function (machine) {
+        var machines_run_data = getValue(ts_url + "/machines/" + machine.id)
+        // Grab the last run_info.
+        // If fields were added over time, it should have the most.
+        var final_run_info = machines_run_data.runs[machines_run_data.runs.length - 1];
+        for (const [key, value] of Object.entries(final_run_info)) {
+          run_info_cols.add(key);
+        }
+    });
+    // These will be imported differently.
+    run_info_cols.delete('id');
+    run_info_cols.delete('order_id');
 
-    var fields = field_info.fields;
     var sample_cols = [];
     var run_cols = [];
 
@@ -92,6 +107,17 @@
       alias: "Run DateTime",
       dataType: tableau.dataTypeEnum.datetime
     });
+
+    run_info_cols.forEach(function(key) {
+      run_cols.push({
+        id: key,
+        alias: key,
+        // It seems like these are all strings, no matter the type.
+        // At least I have not found a counter example.
+        dataType: tableau.dataTypeEnum.string
+      });
+    });
+
     sample_cols.push({
       id: "test_name",
       alias: "Test",
@@ -106,20 +132,20 @@
       });
     });
 
-      var measurementsSchema = {
-        id: "measurement_data",
-        alias: "Measurement Data",
-        columns: sample_cols,
-        incrementColumnId: "run_id",
-        joinOnly: true
-      };
+    var measurementsSchema = {
+      id: "measurement_data",
+      alias: "Measurement Data",
+      columns: sample_cols,
+      incrementColumnId: "run_id",
+      joinOnly: true
+    };
 
-      var runSchema = {
-        id: "run_information",
-        alias: "Run Information",
-        columns: run_cols,
-        incrementColumnId: "run_id"
-      };
+    var runSchema = {
+      id: "run_information",
+      alias: "Run Information",
+      columns: run_cols,
+      incrementColumnId: "run_id"
+    };
 
     var standardConnection = {
       "alias": "Measurements with Run Info",
@@ -181,10 +207,12 @@
 
           var date_str = run_info.end_time;
           var run_date = new Date(date_str);
-          tableData.push({run_id: run_info.id,
+          var base_run_data = {run_id: run_info.id,
             machine_name: machines_run_data.machine.name,
             run_order: run_info[run_info.order_by],
-            run_date: run_date});
+            run_date: run_date};
+          Object.assign(base_run_data, run_info);
+          tableData.push(base_run_data);
 
           if (total_fetched % submission_batch_size == 0) {
             table.appendRows(tableData);
