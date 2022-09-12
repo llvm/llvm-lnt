@@ -15,18 +15,21 @@
   /** Get a json payload from the LNT server asynchronously or error.
    * @param {string} payload_url JSON payloads URL.
    */
-  function getValue(payload_url) {
+  function getValue(payload_url, retries) {
     var response = $.ajax({
       url: payload_url,
       async: false,
       cache: false,
-      timeout: 60000, // Make all requests timeout after a minute.
+      timeout: 60000  // Make all requests timeout after a minute.
     });
-
+    if (retries > 0 && response.status >= 500) {
+      tableau.reportProgress("Error: Retrying because of 5xx error code.");
+      return getValue(payload_url, retries-1);
+    }
     if (response.status >= 400) {
       var error_msg = "Requesting data from LNT failed with:\n\n HTTP " +
         response.status + ": " + response.responseText + "\n\nURL: " +
-        payload_url
+        payload_url;
       tableau.abortWithError(error_msg);
       throw new Error(error_msg);
     }
@@ -36,7 +39,7 @@
 
   function get_matching_machines(regexp) {
     const name_regexp = new RegExp(regexp);
-    var resp = getValue(ts_url + "/machines/");
+    var resp = getValue(ts_url + "/machines/", 3);
     var machines = resp.machines;
     return machines.filter(function (name_ids) {
       return name_regexp.test(name_ids.name);
@@ -48,7 +51,7 @@
     var search_info = JSON.parse(tableau.connectionData);
     tableau.reportProgress("Getting Schema from LNT.");
 
-    var field_info = getValue(ts_url + "/fields/");
+    var field_info = getValue(ts_url + "/fields/", 3);
     var fields = field_info.fields;
 
     // Lookup machines of interest, and gather run fields.
@@ -61,7 +64,7 @@
     }
 
     machine_infos.forEach(function (machine) {
-        var machines_run_data = getValue(ts_url + "/machines/" + machine.id)
+        var machines_run_data = getValue(ts_url + "/machines/" + machine.id, 3);
         // Grab the last run_info.
         // If fields were added over time, it should have the most.
         var final_run_info = machines_run_data.runs[machines_run_data.runs.length - 1];
@@ -197,7 +200,7 @@
       var submission_batch_size = 10000;
       var total_fetched = 1;
       machine_names.forEach(function (machine) {
-        var machines_run_data = getValue(ts_url + "/machines/" + machine.id)
+        var machines_run_data = getValue(ts_url + "/machines/" + machine.id, 3);
 
         machines_run_data.runs.forEach(function(run_info){
           // Incremental support.
@@ -257,7 +260,7 @@
           tableau.reportProgress(status_msg);
         }
 
-        run_data = getValue(ts_url + "/runs/" + run_id);
+        run_data = getValue(ts_url + "/runs/" + run_id, 3);
 
         run_data.tests.forEach(function (element) {
           element.test_name = element.name;
