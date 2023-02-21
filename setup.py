@@ -138,5 +138,5 @@ The *LNT* source is available in the llvm-lnt repository:
 
     ext_modules=[cPerf],
 
-    python_requires='>=3.6.*',
+    python_requires='>=3.6',
 )
