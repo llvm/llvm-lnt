@@ -1073,10 +1073,12 @@ function FunctionTypeahead(element, options) {
         },
         updater: function(item) {
             // FIXME: the item isn't passed in as json any more, it's
-            // been rendered ("fname,[object Object]"). Lame. Hack around
-            // this by splitting apart the ','-concatenated 2-tuple again.
-            var splitIndex = item.lastIndexOf(',');
-            fname = item.substr(0, splitIndex);
+            // been rendered. Lame. Hack around this by splitting apart
+            // the ','-concatenated 2-tuple again.
+            // tamar: with C++ symbols demangled we have natural ,s in the
+            //        string so we can't blindly lop off ,.  Instead lets just
+            //        do a safer substring on ,[object Object].
+            fname = item.substr(0, item.length - ",[object Object]".length);
 
             options.updated(fname);
             return fname;
