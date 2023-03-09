@@ -39,6 +39,13 @@ main() {
     lnt runserver ${server_instance} --hostname localhost --port ${port_number} >& ${server_instance}/server_wrapper_runserver.log &
     local pid=$!
 
+    # In the polling code below, absence of 'curl' would cause an infinite loop
+    # instead of "command not found" error, so check for environment
+    # misconfiguration explicitly.
+    if ! curl --version > /dev/null; then
+        echo 1>&2 "Command 'curl' not found."
+        exit 1
+    fi
     # Poll the server until it is up and running
     while ! curl http://localhost:${port_number}/ping -m1 -o/dev/null -s ; do
         # Maybe server is totally dead.
