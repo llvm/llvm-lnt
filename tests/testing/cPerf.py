@@ -170,30 +170,28 @@ class CPerfTest(unittest.TestCase):
     def _getInput(self, fname):
         return os.path.join(self.inputs, fname)
 
+    def _loadPerfDataInput(self, fname):
+        perf_data = self._getInput(fname)
+        fake_objdump = self._getObjdump(perf_data)
+        with open(perf_data, 'rb') as f:
+            return LinuxPerfProfile.deserialize(
+                f, objdump=fake_objdump, propagateExceptions=True)
+
     def test_check_file(self):
         self.assertTrue(LinuxPerfProfile.checkFile(self._getInput('fib-aarch64.perf_data')))
 
     def test_aarch64_fib(self):
-        perf_data = self._getInput('fib-aarch64.perf_data')
-        p = LinuxPerfProfile.deserialize(open(perf_data, 'rb'),
-                                         objdump=self._getObjdump(perf_data),
-                                         propagateExceptions=True)
+        p = self._loadPerfDataInput('fib-aarch64.perf_data')
 
         self.assertEqual(p.data, self.expected_data['fib-aarch64'])
 
     def test_aarch64_fib2(self):
-        perf_data = self._getInput('fib2-aarch64.perf_data')
-        p = LinuxPerfProfile.deserialize(open(perf_data, 'rb'),
-                                         objdump=self._getObjdump(perf_data),
-                                         propagateExceptions=True)
+        p = self._loadPerfDataInput('fib2-aarch64.perf_data')
 
         self.assertEqual(p.data, self.expected_data['fib2-aarch64'])
 
     def test_aarch64_fib2_nondynamic(self):
-        perf_data = self._getInput('fib2-aarch64.perf_data')
-        p = LinuxPerfProfile.deserialize(open(perf_data, 'rb'),
-                                         objdump=self._getObjdump(perf_data),
-                                         propagateExceptions=True)
+        p = self._loadPerfDataInput('fib2-aarch64.perf_data')
 
         self.assertEqual(p.data, self.expected_data['fib2-aarch64'])
 
