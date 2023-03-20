@@ -80,7 +80,7 @@ Program;CC;CC_Time;Code_Size;CC_Hash;Exec;Exec_Time;Score
             fail;*;*;*;
         {%- else -%}
             pass;{{ test.metrics.compile_time if test.metrics }};\
-{{ test.metrics['size..text'] if test.metrics }};\
+{{ test.metrics.get('size..text') or test.metrics.get('size.__text') if test.metrics }};\
 {{ test.metrics.hash if test.metrics }};
         {%- endif -%}
         {%- if test.code == "FAIL" or test.code == "NOEXE" -%}
@@ -714,6 +714,8 @@ class TestSuiteTest(BuiltinTest):
             'hash': 'hash',
             'link_time': 'compile',
             'size..text': 'code_size',
+            # On Darwin, the section name is reported as `__text`.
+            'size.__text': 'code_size',
             'mem_bytes': 'mem',
             'link_mem_bytes': 'mem'
         }
@@ -724,6 +726,8 @@ class TestSuiteTest(BuiltinTest):
             'hash': str,
             'link_time': float,
             'size..text': float,
+            # On Darwin, the section name is reported as `__text`.
+            'size.__text': float,
             'mem_bytes': float,
             'link_mem_bytes': float
         }
