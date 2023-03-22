@@ -1,0 +1,12 @@
+
+/tmp/segments-shifted:	file format elf64-x86-64
+
+Disassembly of section .text:
+
+0000000000002000 <correct>:
+    2000: 48 85 ff                     	testq	%rdi, %rdi
+    2003: 7e 0b                        	jle	0x2010 <correct+0x10>
+    2005: ff 05 11 40 00 00            	incl	16401(%rip)             # 0x601c <n>
+    200b: 48 ff cf                     	decq	%rdi
+    200e: 75 f5                        	jne	0x2005 <correct+0x5>
+    2010: c3                           	retq

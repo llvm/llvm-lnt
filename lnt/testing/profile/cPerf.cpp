@@ -178,30 +178,6 @@ void Assert(bool Expr, const char *ExprStr, const char *File, int Line) {
   throw std::logic_error(Str);
 }
 
-// Returns true if the ELF file given by filename
-// is a shared object (DYN).
-bool IsSharedObject(const std::string &Fname) {
-  // We replicate the first part of an ELF header here
-  // so as not to rely on <elf.h>.
-  struct PartialElfHeader {
-    unsigned char e_ident[16];
-    uint16_t e_type;
-  };
-  const int ET_DYN = 3;
-
-  FILE *stream = fopen(Fname.c_str(), "r");
-  if (stream == NULL)
-    return false;
-
-  PartialElfHeader H;
-  auto NumRead = fread(&H, 1, sizeof(H), stream);
-  assert(NumRead == sizeof(H));
-
-  fclose(stream);
-
-  return H.e_type == ET_DYN;
-}
-
 //===----------------------------------------------------------------------===//
 // Perf structures. Taken from https://lwn.net/Articles/644919/
 //===----------------------------------------------------------------------===//
@@ -360,9 +336,20 @@ static const char* sw_event_names[PERF_COUNT_SW_MAX] = {
 //===----------------------------------------------------------------------===//
 
 struct Map {
-  uint64_t Start, End, Adjust;
-  bool isSO;
+  Map(uint64_t Start, uint64_t End, const char *Filename)
+    : Start(Start), End(End), Filename(Filename) {}
+
+  uint64_t Start, End;
   const char *Filename;
+
+  // Mapping-related adjustments. Here FileOffset(func) is the offset of func
+  // in the ELF file, VAddr(func) is the virtual address associated with this
+  // symbol (in case of executable and shared object ELF files, st_value field
+  // of a symbol table's entry is symbol's virtual address) and &func is the
+  // actual memory address after relocations took place in the address space of
+  // the process being profiled.
+  uint64_t FileToPCOffset;    // FileOffset(func) + FileToPCOffset == &func
+  uint64_t VAddrToFileOffset; // VAddr(func) + VAddrToFileOffset == FileOffset(func)
 };
 
 struct EventDesc {
@@ -389,7 +376,7 @@ public:
   SymTabOutput(std::string Objdump, std::string BinaryCacheRoot)
     : Objdump(Objdump), BinaryCacheRoot(BinaryCacheRoot) {}
 
-  uint64_t fetchExecSegment(Map *M) {
+  void fetchExecSegment(Map *M, uint64_t *FileOffset, uint64_t *VAddr) {
     std::string Cmd = Objdump + " -p -C " +
                       BinaryCacheRoot + std::string(M->Filename) +
 #ifdef _WIN32
@@ -401,7 +388,7 @@ public:
 
     char *Line = nullptr, *PrevLine = nullptr;
     size_t LineLen = 0;
-    uint64_t offset = 0;
+    *FileOffset = *VAddr = 0;
     while (true) {
       if (PrevLine)
         free (PrevLine);
@@ -411,17 +398,22 @@ public:
       if (Len == -1)
         break;
 
-      char* pos;
-      if ((pos = strstr (Line, "flags r-x")) == NULL
-          && (pos = strstr (Line, "flags rwx")) == NULL)
+      if (!strstr(Line, "flags r-x") && !strstr(Line, "flags rwx"))
         continue;
 
       /* Format is weird.. but we did find the section so punt.  */
-      if ((pos = strstr (PrevLine, "vaddr ")) == NULL)
+      const char *OFFSET_LABEL = "off ";
+      const char *VADDR_LABEL = "vaddr ";
+      char *pos_offset = strstr(PrevLine, OFFSET_LABEL);
+      char *pos_vaddr = strstr(PrevLine, VADDR_LABEL);
+      if (!pos_offset || !pos_vaddr)
         break;
 
-      pos += 6;
-      offset = strtoull (pos, NULL, 16);
+      pos_offset += strlen(OFFSET_LABEL);
+      pos_vaddr += strlen(VADDR_LABEL);
+      *FileOffset = strtoull(pos_offset, NULL, 16);
+      *VAddr = strtoull(pos_vaddr, NULL, 16);
+
       break;
     }
     if (Line)
@@ -435,7 +427,6 @@ public:
     fclose(Stream);
     wait(NULL);
 #endif
-    return offset;
   }
 
   void fetchSymbols(Map *M) {
@@ -528,15 +519,14 @@ public:
 
   void reset(Map *M) {
     clear();
+
+    // Take possible difference between "offset" and "virtual address" of
+    // the executable segment into account.
+    uint64_t FileOffset, VAddr;
+    fetchExecSegment(M, &FileOffset, &VAddr);
+    M->VAddrToFileOffset = FileOffset - VAddr;
+
     // Fetch both dynamic and static symbols, sort and unique them.
-    /* If we're a relocatable object then take the actual start of the text
-       segment into account.  */
-    if (M->isSO) {
-      uint64_t segmentStart = fetchExecSegment (M);
-      /* Adjust the symbol to a value relative to the start of the load address
-         to match up with registerNewMapping.  */
-      M->Adjust -= segmentStart;
-    }
     fetchSymbols(M);
     
     std::sort(begin(), end());
@@ -670,8 +660,7 @@ public:
   void emitSymbol(
       Symbol &Sym, Map &M,
       std::map<uint64_t, std::map<const char *, uint64_t>>::iterator Event,
-      std::map<const char *, uint64_t> &SymEvents,
-      uint64_t Adjust);
+      std::map<const char *, uint64_t> &SymEvents);
   PyObject *complete();
 
 private:
@@ -851,13 +840,11 @@ static uint64_t getTimeFromSampleId(unsigned char *EndOfStruct,
 void PerfReader::registerNewMapping(unsigned char *Buf, const char *Filename) {
   perf_event_mmap_common *E = (perf_event_mmap_common *)Buf;
   auto MapID = Maps.size();
-  // EXEC ELF objects aren't relocated. DYN ones are,
-  // so if it's a DYN object adjust by subtracting the
-  // map base.
-  bool IsSO = IsSharedObject(BinaryCacheRoot + std::string(Filename));
+
   uint64_t End = E->start + E->extent;
-  uint64_t Adjust = IsSO ? E->start - E->pgoff : 0;
-  Maps.push_back({E->start, End, Adjust, IsSO, Filename});
+  Map NewMapping(E->start, End, Filename);
+  NewMapping.FileToPCOffset = E->start - E->pgoff;
+  Maps.push_back(NewMapping);
 
   unsigned char *EndOfEvent = Buf + E->header.size;
   // FIXME: The first EventID is used for every event.
@@ -1025,10 +1012,11 @@ void PerfReader::emitMaps() {
     if (AllUnderThreshold)
       continue;
 
+    Map &M = Maps[MapID];
     SymTabOutput Syms(Objdump, BinaryCacheRoot);
-    Syms.reset(&Maps[MapID]);
+    Syms.reset(&M);
 
-    uint64_t Adjust = Maps[MapID].Adjust;
+    uint64_t VAddrToPCOffset = M.VAddrToFileOffset + M.FileToPCOffset;
 
     // Accumulate the event totals for each symbol
     auto Sym = Syms.begin();
@@ -1036,13 +1024,13 @@ void PerfReader::emitMaps() {
     std::map<uint64_t, std::map<const char*, uint64_t>> SymToEventTotals;
     while (Event != MapEvents.end() && Sym != Syms.end()) {
       // Skip events until we find one after the start of Sym
-      auto PC = Event->first - Adjust;
-      if (PC < Sym->Start) {
+      auto VAddr = Event->first - VAddrToPCOffset;
+      if (VAddr < Sym->Start) {
         ++Event;
         continue;
       }
       // Skip symbols until the event is before the end of Sym
-      if (PC >= Sym->End) {
+      if (VAddr >= Sym->End) {
         ++Sym;
         continue;
       }
@@ -1062,8 +1050,8 @@ void PerfReader::emitMaps() {
         }
       }
       if (Keep)
-        emitSymbol(Sym, Maps[MapID], MapEvents.lower_bound(Sym.Start),
-                   SymToEventTotals[Sym.Start], Adjust);
+        emitSymbol(Sym, M, MapEvents.lower_bound(Sym.Start + VAddrToPCOffset),
+                   SymToEventTotals[Sym.Start]);
     }
   }
 }
@@ -1071,17 +1059,19 @@ void PerfReader::emitMaps() {
 void PerfReader::emitSymbol(
     Symbol &Sym, Map &M,
     std::map<uint64_t, std::map<const char *, uint64_t>>::iterator Event,
-    std::map<const char *, uint64_t> &SymEvents,
-    uint64_t Adjust) {
+    std::map<const char *, uint64_t> &SymEvents) {
+  uint64_t VAddrToPCOffset = M.VAddrToFileOffset + M.FileToPCOffset;
   ObjdumpOutput Dump(Objdump, BinaryCacheRoot);
   Dump.reset(&M, Sym.Start, Sym.End);
 
   emitFunctionStart(Sym.Name);
+  assert(Sym.Start <= Event->first - VAddrToPCOffset &&
+         Event->first - VAddrToPCOffset < Sym.End);
   for (uint64_t I = Dump.next(); I < Sym.End; I = Dump.next()) {
-    auto PC = Event->first - Adjust;
+    auto VAddr = Event->first - VAddrToPCOffset;
 
     auto Text = Dump.getText();
-    if (PC == I) {
+    if (VAddr == I) {
       emitLine(I, &Event->second, Text);
       ++Event;
     } else {

@@ -1,0 +1,14 @@
+
+/tmp/segments-exec:	file format elf64-x86-64
+
+Disassembly of section .text:
+
+0000000000403000 <correct>:
+  403000: 48 85 ff                     	testq	%rdi, %rdi
+  403003: 7e 0b                        	jle	0x403010 <correct+0x10>
+  403005: ff 05 c5 42 0b 00            	incl	737989(%rip)            # 0x4b72d0 <n>
+  40300b: 48 ff cf                     	decq	%rdi
+  40300e: 75 f5                        	jne	0x403005 <correct+0x5>
+  403010: c3                           	retq
+  403011: 66 2e 0f 1f 84 00 00 00 00 00	nopw	%cs:(%rax,%rax)
+  40301b: 0f 1f 44 00 00               	nopl	(%rax,%rax)

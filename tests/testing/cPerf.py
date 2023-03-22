@@ -195,6 +195,39 @@ class CPerfTest(unittest.TestCase):
 
         self.assertEqual(p.data, self.expected_data['fib2-aarch64'])
 
+    def _check_segment_layout(self, suffix):
+        counter_name = 'cpu-clock'
+        p = self._loadPerfDataInput('segments-%s.perf_data' % suffix)
+
+        counters = p.data['counters']
+        self.assertIn(counter_name, counters)
+        self.assertGreater(counters[counter_name], 10000000)
+
+        functions = p.data['functions']
+        self.assertIn('correct', functions)
+
+        f_counters = functions['correct']['counters']
+        self.assertIn(counter_name, f_counters)
+        self.assertGreater(f_counters[counter_name], 98.0)
+
+        f_instructions = functions['correct']['data']
+        self.assertGreater(len(f_instructions), 0)
+
+    def test_segment_layout_dyn(self):
+        # Test handling of a regular shared library or position-independent
+        # executable (ET_DYN).
+        self._check_segment_layout('dyn')
+
+    def test_segment_layout_exec(self):
+        # Test handling of a traditional ELF executable (ET_EXEC).
+        self._check_segment_layout('exec')
+
+    def test_segment_layout_shifted(self):
+        # ET_DYN ELF files usually have virtual addresses equal to offsets
+        # in the file but it is not required and this assumption is actually
+        # violated by some ELF files.
+        self._check_segment_layout('shifted')
+
     def test_random_guff(self):
         # Create complete rubbish and throw it at cPerf, expecting an
         # AssertionError.

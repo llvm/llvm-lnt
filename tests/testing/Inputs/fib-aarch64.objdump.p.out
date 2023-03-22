@@ -1,0 +1,16 @@
+Fake "objdump -p" output.
+
+The original test case was added when ET_EXEC and ET_DYN ELF binaries were
+handled differently (assuming ET_EXEC by default - if IsSharedObject() function
+cannot find the file).
+
+This test input was added to fix the existing tests after the removal of the
+heuristic relying on virtual addresses being equal to file offsets for ET_DYN
+case and to final addresses in the process' address space for ET_EXEC case,
+respectively.
+
+The "off" and "vaddr" fields are set to some reasonable values based on the
+mmap2 records from *.perf_data file.
+
+LOAD off    0x00000000 vaddr 0x00400000 paddr ...
+     ...        ...     ...      ...    flags r-x

@@ -16,4 +16,7 @@ for arg in sys.argv:
     if arg.startswith('-t'):
         exit_with_fake_output('out')
 
+    if arg.startswith('-p'):
+        exit_with_fake_output('p.out')
+
 sys.exit(1)

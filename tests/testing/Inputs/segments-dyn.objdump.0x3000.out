@@ -1,0 +1,12 @@
+
+/tmp/segments-dyn:	file format elf64-x86-64
+
+Disassembly of section .text:
+
+0000000000003000 <correct>:
+    3000: 48 85 ff                     	testq	%rdi, %rdi
+    3003: 7e 0b                        	jle	0x3010 <correct+0x10>
+    3005: ff 05 11 30 00 00            	incl	12305(%rip)             # 0x601c <n>
+    300b: 48 ff cf                     	decq	%rdi
+    300e: 75 f5                        	jne	0x3005 <correct+0x5>
+    3010: c3                           	retq
