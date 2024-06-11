@@ -21,4 +21,4 @@ Testing
 =======
 
 Testing is done by running tox from the top-level directory. It runs the tests
-for both Python 2 and Python 3, it also checks code style.
+for Python 3 and checks code style.
