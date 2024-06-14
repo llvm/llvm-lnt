@@ -19,10 +19,8 @@ function CFGBasicBlock (instructions, fallThruInstruction, cfg) {
     this.targets = gjt[1];
     this.noFallThru = gjt[0];
     this.weight = this.instructions
-        .reduce(function (a,b) {
-            var weight_a = (a.weight === undefined)?0:a.weight;
-            var weight_b = (b.weight === undefined)?0:b.weight;
-            return weight_a+weight_b;
+        .reduce(function (acc,inst) {
+            return acc + ((inst.weight === undefined)?0:inst.weight);
         }, 0);
 };
 
