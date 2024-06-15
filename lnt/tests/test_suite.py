@@ -627,6 +627,11 @@ class TestSuiteTest(BuiltinTest):
                                'perf_profile_events=%s' %
                                self.opts.perf_events]
 
+        if self.opts.filter:
+            extra_args = ['--filter', self.opts.filter]
+        if self.opts.filter_out:
+            extra_args = ['--filter-out', self.opts.filter_out]
+
         logger.info('Testing...')
         try:
             self._check_call([lit_cmd,
@@ -1088,6 +1093,12 @@ class TestSuiteTest(BuiltinTest):
 @click.option("--only-test", "only_test", metavar="PATH",
               type=click.UNPROCESSED, default=None,
               help="Only run tests under PATH")
+@click.option("--filter", metavar="REGEX",
+              help="Only run tests with paths matching the given regular "
+                   "expression")
+@click.option("--filter-out", metavar="REGEX",
+              help="Filter out tests with paths matching the given regular "
+                   "expression")
 # Test Execution
 @click.option("--only-compile", "only_compile",
               help="Don't run the tests, just compile them.", is_flag=True)
