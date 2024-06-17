@@ -628,9 +628,9 @@ class TestSuiteTest(BuiltinTest):
                                self.opts.perf_events]
 
         if self.opts.filter:
-            extra_args = ['--filter', self.opts.filter]
+            extra_args += ['--filter', self.opts.filter]
         if self.opts.filter_out:
-            extra_args = ['--filter-out', self.opts.filter_out]
+            extra_args += ['--filter-out', self.opts.filter_out]
 
         logger.info('Testing...')
         try:
