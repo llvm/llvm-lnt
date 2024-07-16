@@ -225,9 +225,6 @@ class TestSuiteTest(BuiltinTest):
         opts.cmake = resolve_command_path(opts.cmake)
         if not isexecfile(opts.cmake):
             self._fatal("CMake tool not found (looked for %s)" % opts.cmake)
-        opts.make = resolve_command_path(opts.make)
-        if not isexecfile(opts.make):
-            self._fatal("Make tool not found (looked for %s)" % opts.make)
         opts.lit = resolve_command_path(opts.lit)
         if not isexecfile(opts.lit):
             self._fatal("LIT tool not found (looked for %s)" % opts.lit)
@@ -387,7 +384,7 @@ class TestSuiteTest(BuiltinTest):
         if self.compiled and compile:
             self._clean(self._base_path)
         if not self.compiled or compile or self.opts.pgo:
-            self._make(self._base_path)
+            self._build(self._base_path)
             self._install_benchmark(self._base_path)
             self.compiled = True
 
@@ -431,14 +428,14 @@ class TestSuiteTest(BuiltinTest):
         return output
 
     def _clean(self, path):
-        make_cmd = self.opts.make
+        cmake_cmd = self.opts.cmake
 
         subdir = path
         if self.opts.only_test:
             components = [path] + [self.opts.only_test[0]]
             subdir = os.path.join(*components)
 
-        self._check_call([make_cmd, 'clean'],
+        self._check_call([cmake_cmd, '--build', '.', '-t', 'clean'],
                          cwd=subdir)
 
     def _configure(self, path, extra_cmake_defs=[], execute=True):
@@ -560,12 +557,12 @@ class TestSuiteTest(BuiltinTest):
                       "TEST_SUITE_RUN_TYPE=train"]
         self._configure(path, extra_cmake_defs=extra_defs)
         self._clean(self._base_path)
-        self._make(path)
+        self._build(path)
         self._install_benchmark(path)
         self._lit(path, True, False)
 
-    def _make(self, path):
-        make_cmd = self.opts.make
+    def _build(self, path):
+        cmake_cmd = self.opts.cmake
 
         subdir = path
         target = 'all'
@@ -576,24 +573,23 @@ class TestSuiteTest(BuiltinTest):
             subdir = os.path.join(*components)
 
         logger.info('Building...')
-        if not self.opts.succinct:
-            args = ["VERBOSE=1", target]
-        else:
-            args = [target]
         try:
-            self._check_call([make_cmd,
-                              '-k', '-j', str(self._build_threads())] + args,
+            self._check_call([cmake_cmd,
+                              '--build', '.',
+                              '-t', target,
+                              '-j', str(self._build_threads())] +
+                             ([] if self.opts.succinct else ["-v"]),
                              cwd=subdir)
         except subprocess.CalledProcessError:
-            # make is expected to exit with code 1 if there was any build
+            # cmake is expected to exit with code 1 if there was any build
             # failure. Build failures are not unexpected when testing an
             # experimental compiler.
             pass
 
     def _install_benchmark(self, path):
-        if self.remote_run:
-            make_cmd = self.opts.make
-            self._check_call([make_cmd, 'rsync'], cwd=path)
+        if self.opts.remote_host:
+            cmake_cmd = self.opts.cmake
+            self._check_call([cmake_cmd, '--build', '.', '-t', 'rsync'], cwd=path)
 
     def _lit(self, path, test, profile):
         lit_cmd = self.opts.lit
@@ -898,30 +894,30 @@ class TestSuiteTest(BuiltinTest):
         logger.info(out)
 
         # Figure out our test's target.
-        make_cmd = [self.opts.make, "VERBOSE=1", 'help']
+        cmake_cmd = [self.opts.cmake, '--build', '.', '-t', 'help']
 
-        make_targets = subprocess.check_output(make_cmd,
-                                               universal_newlines=True)
+        cmake_targets = subprocess.check_output(cmake_cmd,
+                                                universal_newlines=True)
         matcher = re.compile(r"^\.\.\.\s{}$".format(short_name),
                              re.MULTILINE | re.IGNORECASE)
-        if not matcher.search(make_targets):
+        if not matcher.search(cmake_targets):
             assert False, "did not find benchmark, nestsed? Unimplemented."
 
         local_path = os.path.join(path, bm_path)
 
-        make_deps = [self.opts.make, "VERBOSE=1", "timeit-target",
-                     "timeit-host", "fpcmp-host"]
-        logger.info(" ".join(make_deps))
-        p = subprocess.Popen(make_deps,
+        cmake_deps = [self.opts.cmake, "--build", '.', "-t", "timeit-target",
+                      "timeit-host", "fpcmp-host"]
+        logger.info(" ".join(cmake_deps))
+        p = subprocess.Popen(cmake_deps,
                              stdout=subprocess.PIPE,
                              stderr=subprocess.STDOUT,
                              universal_newlines=True)
         std_out, std_err = p.communicate()
         logger.info(std_out)
 
-        make_save_temps = [self.opts.make, "VERBOSE=1", short_name]
-        logger.info(" ".join(make_save_temps))
-        p = subprocess.Popen(make_save_temps,
+        cmake_save_temps = [self.opts.cmake, "--build", '.', "-t", short_name]
+        logger.info(" ".join(cmake_save_temps))
+        p = subprocess.Popen(cmake_save_temps,
                              stdout=subprocess.PIPE,
                              stderr=subprocess.STDOUT,
                              universal_newlines=True)
@@ -951,8 +947,8 @@ class TestSuiteTest(BuiltinTest):
         out = subprocess.check_output(cmd_time_report, universal_newlines=True)
         logger.info(out)
 
-        make_time_report = [self.opts.make, "VERBOSE=1", short_name]
-        p = subprocess.Popen(make_time_report,
+        cmake_time_report = [self.opts.cmake, "--build", '.', "-t", short_name]
+        p = subprocess.Popen(cmake_time_report,
                              stdout=subprocess.PIPE,
                              stderr=subprocess.PIPE,
                              universal_newlines=True)
@@ -971,8 +967,8 @@ class TestSuiteTest(BuiltinTest):
                                       universal_newlines=True)
         logger.info(out)
 
-        make_stats_report = [self.opts.make, "VERBOSE=1", short_name]
-        p = subprocess.Popen(make_stats_report,
+        cmake_stats_report = [self.opts.cmake, "--build", '.', "-t", short_name]
+        p = subprocess.Popen(cmake_stats_report,
                              stdout=subprocess.PIPE,
                              stderr=subprocess.PIPE,
                              universal_newlines=True)
@@ -1002,8 +998,8 @@ class TestSuiteTest(BuiltinTest):
             subprocess.check_output(cmd_iprofiler, universal_newlines=True)
 
             os.chdir(local_path)
-            make_iprofiler_temps = [self.opts.make, "VERBOSE=1", short_name]
-            p = subprocess.Popen(make_iprofiler_temps,
+            cmake_iprofiler_temps = [self.opts.cmake, "--build", '.', "-t", short_name]
+            p = subprocess.Popen(cmake_iprofiler_temps,
                                  stdout=subprocess.PIPE,
                                  stderr=subprocess.PIPE)
             p.communicate()
@@ -1148,7 +1144,7 @@ class TestSuiteTest(BuiltinTest):
               help="write raw report data to PATH (or stdout if '-')",
               default=None)
 @click.option("--succinct-compile-output", "succinct",
-              help="run Make without VERBOSE=1", is_flag=True)
+              help="run CMake without -v", is_flag=True)
 @click.option("-v", "--verbose", "verbose", is_flag=True, default=False,
               help="show verbose test results")
 @click.option("--exclude-stat-from-submission",
@@ -1167,9 +1163,6 @@ class TestSuiteTest(BuiltinTest):
 @click.option("--use-cmake", "cmake", metavar="PATH",
               type=click.UNPROCESSED, default="cmake",
               help="Path to CMake [cmake]")
-@click.option("--use-make", "make", metavar="PATH",
-              type=click.UNPROCESSED, default="make",
-              help="Path to Make [make]")
 @click.option("--use-lit", "lit", metavar="PATH", type=click.UNPROCESSED,
               default="llvm-lit",
               help="Path to the LIT test runner [llvm-lit]")
