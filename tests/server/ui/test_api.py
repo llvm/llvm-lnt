@@ -174,7 +174,7 @@ class JSONAPITester(unittest.TestCase):
                     "start_time": "2012-04-11T16:28:23",
                     "id": 1,
                     "llvm_project_revision": u'154331'}
-        self.assertDictContainsSubset(expected, j['run'])
+        self.assertEqual(j['run'], j['run'] | expected)
         self.assertEqual(len(j['tests']), 2)
         # This should not be a run.
         check_json(client, 'api/db_default/v4/nts/runs/100', expected_code=404)
