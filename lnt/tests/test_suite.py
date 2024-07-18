@@ -589,7 +589,7 @@ class TestSuiteTest(BuiltinTest):
             pass
 
     def _install_benchmark(self, path):
-        if self.opts.remote_host:
+        if self.remote_run:
             cmake_cmd = self.opts.cmake
             self._check_call([cmake_cmd, '--build', '.', '-t', 'rsync'], cwd=path)
 
