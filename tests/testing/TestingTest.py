@@ -336,18 +336,18 @@ class TestRun(unittest.TestCase):
         self.assertEqual(run_datetime_end_v1.report_version, 1)
 
         # Check failure when info contains __report_version__ key.
-        self.assertRaisesRegexp(ValueError, '__report_version__.*reserved',
-                                Run, None, None, info)
+        self.assertRaisesRegex(ValueError, '__report_version__.*reserved',
+                               Run, None, None, info)
 
         # Check missing tag entry in info for format version 1.
-        self.assertRaisesRegexp(ValueError,
-                                "Missing 'tag' entry in 'info' dictionary",
-                                Run, info={'run_order': 40385})
+        self.assertRaisesRegex(ValueError,
+                               "Missing 'tag' entry in 'info' dictionary",
+                               Run, info={'run_order': 40385})
 
         # Check missing run_order entry in info for format version 1.
-        self.assertRaisesRegexp(ValueError,
-                                "Missing 'run_order' entry in 'info'"
-                                " dictionary", Run, info={'tag': 'nts'})
+        self.assertRaisesRegex(ValueError,
+                               "Missing 'run_order' entry in 'info'"
+                               " dictionary", Run, info={'tag': 'nts'})
 
         # Test empty start and end time in format version 2
         self.assertEqual(self.run_float_start_v2.start_time,
@@ -359,10 +359,10 @@ class TestRun(unittest.TestCase):
 
         # Check missing llvm_project_revision entry in info for format
         # version 2.
-        self.assertRaisesRegexp(ValueError,
-                                "Missing 'llvm_project_revision' entry in"
-                                " 'info' dictionary", Run, 0.0, info={},
-                                report_version=2)
+        self.assertRaisesRegex(ValueError,
+                               "Missing 'llvm_project_revision' entry in"
+                               " 'info' dictionary", Run, 0.0, info={},
+                               report_version=2)
 
         # Check call to check()
         self.assertRaises(AssertionError, Run, info=self.info_v2,
@@ -383,8 +383,8 @@ class TestRun(unittest.TestCase):
 
         # Check no time or info.
         self.run_float_start_v2.info = {}
-        self.assertRaisesRegexp(ValueError, 'No data defined in this Run',
-                                self.run_float_start_v2.check)
+        self.assertRaisesRegex(ValueError, 'No data defined in this Run',
+                               self.run_float_start_v2.check)
 
     def test_update(self):
         # Check update with a supplied end time.

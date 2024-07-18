@@ -177,7 +177,7 @@ class ChangeProcessingTests(unittest.TestCase):
             .all()
 
         ret, reg = identify_related_changes(session, ts_db, field_change7, active_indicators)
-        self.assertNotEquals(self.regression, reg)
+        self.assertNotEqual(self.regression, reg)
         self.assertFalse(ret, "No match with different machine and tests.")
         self.regressions.append(reg)
         field_change4 = ts_db.FieldChange(self.order1234,
