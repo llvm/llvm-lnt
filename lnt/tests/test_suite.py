@@ -446,6 +446,8 @@ class TestSuiteTest(BuiltinTest):
             defs['CMAKE_C_COMPILER'] = self.opts.cc
         if self.opts.cxx:
             defs['CMAKE_CXX_COMPILER'] = self.opts.cxx
+        if self.opts.make is not None:
+            defs['CMAKE_MAKE_PROGRAM'] = self.opts.make
 
         cmake_build_types = ('DEBUG', 'MINSIZEREL', 'RELEASE',
                              'RELWITHDEBINFO')
@@ -1163,6 +1165,9 @@ class TestSuiteTest(BuiltinTest):
 @click.option("--use-cmake", "cmake", metavar="PATH",
               type=click.UNPROCESSED, default="cmake",
               help="Path to CMake [cmake]")
+@click.option("--use-make", "make", metavar="PATH",
+              type=click.UNPROCESSED, default="make",
+              help="Path to the build system tool [make/ninja/...]")
 @click.option("--use-lit", "lit", metavar="PATH", type=click.UNPROCESSED,
               default="llvm-lit",
               help="Path to the LIT test runner [llvm-lit]")
