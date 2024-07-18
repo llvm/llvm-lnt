@@ -23,6 +23,9 @@ do
     DUMP_VARS=true
     shift
     shift
+  elif [[ $1 == --build ]]; then
+    source $(dirname "${BASH_SOURCE[0]}")/fake-make
+    exit $?
   elif [[ ! -f $1/CMakeLists.txt && ! -f $1/CMakeCache.txt ]]; then
     # arguments not starting with -D or -C are assumed to point to the cmake
     # src or build dir

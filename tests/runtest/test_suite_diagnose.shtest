@@ -24,8 +24,7 @@
 # RUN:     --no-timestamp \
 # RUN:     --test-suite %S/Inputs/test-suite-cmake \
 # RUN:     --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
-# RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
-# RUN:     --use-make %S/Inputs/test-suite-cmake/fake-diagnose-make \
+# RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-diagnose-cmake \
 # RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit \
 # RUN:     --diagnose --only-test SingleSource/Benchmarks/Stanford/Bubblesort \
 # RUN:     2>&1 | tee %t.diagnose.log
