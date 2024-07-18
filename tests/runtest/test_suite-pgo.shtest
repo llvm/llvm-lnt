@@ -32,20 +32,20 @@
 # RUN:     > %t.pgo_multi.log 2> %t.pgo_multi.err
 # RUN: FileCheck --check-prefix CHECK-PGO-MULTI < %t.pgo_multi.err %s
 # CHECK-PGO-MULTI: TEST_SUITE_PROFILE_GENERATE: 'On'
-# CHECK-PGO-MULTI: Execute: {{.*}}/Inputs/test-suite-cmake/fake-make{{.*}} all
+# CHECK-PGO-MULTI: Execute: {{.*}}/Inputs/test-suite-cmake/fake-cmake --build {{.*}} -t all
 # CHECK-PGO-MULTI: fake-lit-profile
 # CHECK-PGO-MULTI: TEST_SUITE_PROFILE_GENERATE: 'Off'
 # CHECK-PGO-MULTI: TEST_SUITE_PROFILE_USE: 'On'
-# CHECK-PGO-MULTI: Execute: {{.*}}/Inputs/test-suite-cmake/fake-make{{.*}} clean
-# CHECK-PGO-MULTI: Execute: {{.*}}/Inputs/test-suite-cmake/fake-make{{.*}} all
+# CHECK-PGO-MULTI: Execute: {{.*}}/Inputs/test-suite-cmake/fake-cmake --build {{.*}} -t clean
+# CHECK-PGO-MULTI: Execute: {{.*}}/Inputs/test-suite-cmake/fake-cmake --build {{.*}} -t all
 # CHECK-PGO-MULTI: fake-lit-profile
 # CHECK-PGO-MULTI: TEST_SUITE_PROFILE_GENERATE: 'On'
 # CHECK-PGO-MULTI: TEST_SUITE_PROFILE_USE: 'Off'
-# CHECK-PGO-MULTI: Execute: {{.*}}/Inputs/test-suite-cmake/fake-make{{.*}} clean
-# CHECK-PGO-MULTI: Execute: {{.*}}/Inputs/test-suite-cmake/fake-make{{.*}} all
+# CHECK-PGO-MULTI: Execute: {{.*}}/Inputs/test-suite-cmake/fake-cmake --build {{.*}} -t clean
+# CHECK-PGO-MULTI: Execute: {{.*}}/Inputs/test-suite-cmake/fake-cmake --build {{.*}} -t all
 # CHECK-PGO-MULTI: fake-lit-profile
 # CHECK-PGO-MULTI: TEST_SUITE_PROFILE_GENERATE: 'Off'
 # CHECK-PGO-MULTI: TEST_SUITE_PROFILE_USE: 'On'
-# CHECK-PGO-MULTI: Execute: {{.*}}/Inputs/test-suite-cmake/fake-make{{.*}} clean
-# CHECK-PGO-MULTI: Execute: {{.*}}/Inputs/test-suite-cmake/fake-make{{.*}} all
+# CHECK-PGO-MULTI: Execute: {{.*}}/Inputs/test-suite-cmake/fake-cmake --build {{.*}} -t clean
+# CHECK-PGO-MULTI: Execute: {{.*}}/Inputs/test-suite-cmake/fake-cmake --build {{.*}} -t all
 # CHECK-PGO-MULTI: fake-lit-profile
