@@ -1170,7 +1170,7 @@ class TestSuiteTest(BuiltinTest):
               type=click.UNPROCESSED,
               help="Path to the build system tool [make/ninja/...]")
 @click.option("--build-tool-options",
-              help="Options to pass to the build tool (ninja/make/etc.).",
+              help="Options to pass to the build system tool",
               type=click.UNPROCESSED)
 @click.option("--use-lit", "lit", metavar="PATH", type=click.UNPROCESSED,
               default="llvm-lit",
