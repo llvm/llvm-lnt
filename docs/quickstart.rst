@@ -72,8 +72,8 @@ command. The information below should be enough to get you started, but see the
    The ``SANDBOX`` value is a path to where the test suite build products and
    results will be stored (inside a timestamped directory, by default).
 
-   We recommend adding ``--build-tool-options="-k"`` (if you are using ``make``)
-   or ``--build-tool-options="-k 0"`` (if you are using ``ninja``). This ensures
+   We recommend adding ``--build-tool-options "-k"`` (if you are using ``make``)
+   or ``--build-tool-options "-k 0"`` (if you are using ``ninja``). This ensures
    that the build tool carries on building even if there is a compilation
    failure in one of the tests. Without these options, every test after the
    compilation failure will not be compiled and will be reported as a missing
