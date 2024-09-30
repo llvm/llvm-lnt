@@ -100,6 +100,16 @@ InstructionSetParser.prototype = {
         // TODO: add all control-flow-changing instructions.
     ],
 
+    RISCVJumpTargetRegexps: [
+        // (regexp, noFallThru?)
+        // branch conditional:
+        [new RegExp("^\\s*b[a-z]+\\s+.*(0x[0-9a-f]+)\\s+<.+>"), false],
+        // jumps:
+        [new RegExp("^\\s*(?:jal|j|call|tail)\\s+.*(0x[0-9a-f]+)\\s+<.+>"), true],
+        // indirect jumps:
+        [new RegExp("^\\s*(?:jalr|jr|ret)"), true]
+    ],
+
     X86_64JumpTargetRegexps: [
         // (regexp, noFallThru?)
         // branch conditional:
@@ -513,6 +523,9 @@ Profile.prototype = {
         else if (this.instructionSet == 'aarch32t32')
             instructionParser = new InstructionSetParser(
                 InstructionSetParser.prototype.AArch32T32JumpTargetRegexps);
+        if (this.instructionSet == 'riscv')
+            instructionParser = new InstructionSetParser(
+                InstructionSetParser.prototype.RISCVJumpTargetRegexps);
         else if (this.instructionSet == 'x86_64')
             instructionParser = new InstructionSetParser(
                 InstructionSetParser.prototype.X86_64JumpTargetRegexps);
