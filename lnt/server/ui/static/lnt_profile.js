@@ -105,7 +105,7 @@ InstructionSetParser.prototype = {
         // branch conditional:
         [new RegExp("^\\s*b[a-z]+\\s+.*(0x[0-9a-f]+)\\s+<.+>"), false],
         // jumps:
-        [new RegExp("^\\s*(?:jal|j|call|tail)\\s+.+(0x[0-9a-f]+)\\s+<.+>"), true],
+        [new RegExp("^\\s*(?:jal|j|call|tail)\\s+.*(0x[0-9a-f]+)\\s+<.+>"), true],
         // indirect jumps:
         [new RegExp("^\\s*(?:jalr|jr|ret)"), true]
     ],
