@@ -581,7 +581,11 @@ class TestSuiteTest(BuiltinTest):
                               '-t', target,
                               '-j', str(self._build_threads())] +
                              ([] if self.opts.succinct else ["-v"]) +
-                             ["--"] + shlex.split(self.opts.build_tool_options),
+                             (
+                                 (["--"] + shlex.split(self.opts.build_tool_options))
+                                 if self.opts.build_tool_options
+                                 else []
+                             ),
                              cwd=subdir)
         except subprocess.CalledProcessError:
             # cmake is expected to exit with code 1 if there was any build
