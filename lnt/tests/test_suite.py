@@ -581,11 +581,7 @@ class TestSuiteTest(BuiltinTest):
                               '-t', target,
                               '-j', str(self._build_threads())] +
                              ([] if self.opts.succinct else ["-v"]) +
-                             (
-                                 (["--"] + shlex.split(self.opts.build_tool_options))
-                                 if self.opts.build_tool_options
-                                 else []
-                             ),
+                             ["--"] + shlex.split(self.opts.build_tool_options),
                              cwd=subdir)
         except subprocess.CalledProcessError:
             # cmake is expected to exit with code 1 if there was any build
@@ -1173,7 +1169,7 @@ class TestSuiteTest(BuiltinTest):
 @click.option("--use-make", "make", metavar="PATH",
               type=click.UNPROCESSED,
               help="Path to the build system tool [make/ninja/...]")
-@click.option("--build-tool-options",
+@click.option("--build-tool-options", default="",
               help="Options to pass to the build system tool",
               type=click.UNPROCESSED)
 @click.option("--use-lit", "lit", metavar="PATH", type=click.UNPROCESSED,
