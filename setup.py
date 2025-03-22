@@ -122,7 +122,7 @@ The *LNT* source is available in the llvm-lnt repository:
         "Jinja2==2.11.3",
         "MarkupSafe==1.1.1",
         "SQLAlchemy==1.2.19",
-        "Werkzeug==0.15.6",
+        "Werkzeug==3.0.6",
         "itsdangerous==0.24",
         "python-gnupg==0.3.7",
         "pytz==2016.10",
