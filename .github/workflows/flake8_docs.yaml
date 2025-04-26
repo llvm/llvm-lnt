@@ -1,0 +1,26 @@
+name: Python Flake8, Docs, mypy
+
+on:
+  - push
+  - pull_request
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v1
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.9
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install tox tox-gh-actions
+    - name: Tox flake8
+      run: tox -e flake8
+    - name: Tox docs
+      run: tox -e docs
+    - name: Tox mypy
+      run: tox -e mypy
