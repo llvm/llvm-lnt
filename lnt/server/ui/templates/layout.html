@@ -23,13 +23,12 @@
                  }}"></script>
 
     <!-- DataTables CSS -->
-    <link rel="stylesheet" type="text/css" href="//cdn.datatables.net/1.10.8/css/jquery.dataTables.css" />
+    <link href="{{ url_for('.static', filename='jquery/jquery.dataTables.css') }}" rel="stylesheet" media="screen"/>
 
     <!-- DataTables -->
-    <script type="text/javascript" charset="UTF-8" src="//cdn.datatables.net/1.10.8/js/jquery.dataTables.js">
-    </script>
-
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/floatthead/1.4.2/jquery.floatThead.min.js"></script>
+    <script src="{{ url_for('.static', filename='jquery/jquery.dataTables.js') }}"> </script>
+    
+    <script src="{{ url_for('.static', filename='jquery/jquery.floatThead.min.js') }}"> </script>
 
     <script src="{{ url_for('.static', filename='lnt.js') }}"></script>
 
