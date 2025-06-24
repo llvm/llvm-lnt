@@ -448,6 +448,11 @@ class TestSuiteTest(BuiltinTest):
             defs['CMAKE_CXX_COMPILER'] = self.opts.cxx
         if self.opts.make:
             defs['CMAKE_MAKE_PROGRAM'] = self.opts.make
+        if self.opts.make and (self.opts.make.endswith('ninja') or
+                              self.opts.make.endswith('ninja.exe')):
+            cmake_flags = ['-G', 'Ninja']
+        else:
+            cmake_flags = []
 
         cmake_build_types = ('DEBUG', 'MINSIZEREL', 'RELEASE',
                              'RELWITHDEBINFO')
