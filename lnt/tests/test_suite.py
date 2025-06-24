@@ -525,7 +525,6 @@ class TestSuiteTest(BuiltinTest):
             self.remote_run = True
 
         # Prepare cmake cache if requested:
-        cmake_flags = []
         for cache in self.opts.cmake_cache:
             if cache == "":
                 continue
