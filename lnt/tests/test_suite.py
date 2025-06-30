@@ -448,11 +448,6 @@ class TestSuiteTest(BuiltinTest):
             defs['CMAKE_CXX_COMPILER'] = self.opts.cxx
         if self.opts.make:
             defs['CMAKE_MAKE_PROGRAM'] = self.opts.make
-        if self.opts.make and (self.opts.make.endswith('ninja') or
-                              self.opts.make.endswith('ninja.exe')):
-            cmake_flags = ['-G', 'Ninja']
-        else:
-            cmake_flags = []
 
         cmake_build_types = ('DEBUG', 'MINSIZEREL', 'RELEASE',
                              'RELWITHDEBINFO')
@@ -525,6 +520,7 @@ class TestSuiteTest(BuiltinTest):
             self.remote_run = True
 
         # Prepare cmake cache if requested:
+        cmake_flags = []
         for cache in self.opts.cmake_cache:
             if cache == "":
                 continue
