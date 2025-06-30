@@ -12,7 +12,12 @@ import traceback
 import urllib.error
 import shlex
 import pipes
-import resource
+
+try:
+    import resource
+    has_resource = True
+except ImportError:
+    has_resource = False
 
 import click
 
@@ -73,7 +78,8 @@ class TestModule(object):
         return p.wait()
 
     def get_time(self):
-        if self._user_time:
+        # Only get the user time if the 'resource' module is available.
+        if self._user_time and has_resource:
             return resource.getrusage(resource.RUSAGE_CHILDREN).ru_utime
         else:
             return time.time()
