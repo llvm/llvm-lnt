@@ -66,19 +66,3 @@ info = get_info("clang-no-info")
 pprint.pprint(info)
 assert info['cc_name'] == 'clang'
 assert info['cc_version_number'] == '3.2'
-
-# Check a GCC packaged from Debian.
-info = get_info("gcc-debian")
-pprint.pprint(info)
-assert info['cc_name'] == 'gcc'
-assert info['cc_build'] == 'PROD'
-assert info['cc_version_number'] == '12.2.0'
-assert info['cc_target'] == 'x86_64-linux-gnu'
-
-# Check a GCC built from trunk.
-info = get_info("gcc-trunk")
-pprint.pprint(info)
-assert info['cc_name'] == 'gcc'
-assert info['cc_build'] == 'DEV'
-assert info['cc_version_number'] == '16.0.0'
-assert info['cc_target'] == 'x86_64-linux-gnu'

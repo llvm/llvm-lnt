@@ -178,28 +178,6 @@ Thread model: posix""", file=sys.stderr)  # noqa
  "%s" "-cc1" "-E" ... more boring stuff here ...""" % (
             g_program,), file=sys.stderr)
 
-class GCCDebian(FakeCompiler):
-    compiler_name = "gcc-debian"
-
-    def print_verbose_info(self):
-        print("""\
-Target: x86_64-linux-gnu
-gcc version 12.2.0 (Debian 12.2.0-14+deb12u1)""", file=sys.stderr)
-
-    def print_dumpmachine(self):
-        print("x86_64-linux-gnu")
-
-class GCCTrunk(FakeCompiler):
-    compiler_name = "gcc-trunk"
-
-    def print_verbose_info(self):
-        print("""\
-Target: x86_64-linux-gnu
-gcc version 16.0.0 20250807 (experimental) (GCC)""", file=sys.stderr)
-
-    def print_dumpmachine(self):
-        print("x86_64-linux-gnu")
-
 
 fake_compilers = dict((value.compiler_name, value)
                       for key, value in locals().items()

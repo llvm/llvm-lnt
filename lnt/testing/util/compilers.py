@@ -76,8 +76,7 @@ def get_cc_info(path, cc_flags=[]):
         logger.error("unable to find compiler version: %r: %r" %
                      (cc, cc_version))
     else:
-        m = re.match(r'(.*) version ([^ ]*) (?:[0-9]+ )?+(\([^(]*\))(.*)',
-                     version_ln)
+        m = re.match(r'(.*) version ([^ ]*) +(\([^(]*\))(.*)', version_ln)
         if m is not None:
             cc_name, cc_version_num, cc_build_string, cc_extra = m.groups()
         else:
@@ -105,17 +104,15 @@ def get_cc_info(path, cc_flags=[]):
         cc_src_tag = cc_version_num
 
     elif cc_name == 'gcc' and (cc_extra == '' or
-                               cc_extra == '(GCC)' or
                                re.match(r' \(dot [0-9]+\)', cc_extra)):
         cc_norm_name = 'gcc'
         m = re.match(r'\(Apple Inc. build ([0-9]*)\)', cc_build_string)
         if m:
             cc_build = 'PROD'
             cc_src_tag, = m.groups()
-        elif 'experimental' in cc_build_string:
-            cc_build = 'DEV'
         else:
-            cc_build = 'PROD'
+            logger.error('unable to determine gcc build version: %r' %
+                         cc_build_string)
     elif (cc_name in ('clang', 'LLVM', 'Debian clang', 'Apple clang',
                       'Apple LLVM') and
           (cc_extra == '' or 'based on LLVM' in cc_extra or
