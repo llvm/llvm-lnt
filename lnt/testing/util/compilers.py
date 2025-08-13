@@ -76,10 +76,10 @@ def get_cc_info(path, cc_flags=[]):
         logger.error("unable to find compiler version: %r: %r" %
                      (cc, cc_version))
     else:
-        m = re.match(r'(.*) version ([^ ]*) ([0-9]+ )?+(\([^(]*\))(.*)',
+        m = re.match(r'(.*) version ([^ ]*) (?:[0-9]+ )?+(\([^(]*\))(.*)',
                      version_ln)
         if m is not None:
-            cc_name, cc_version_num, _, cc_build_string, cc_extra = m.groups()
+            cc_name, cc_version_num, cc_build_string, cc_extra = m.groups()
         else:
             # If that didn't match, try a more basic pattern.
             m = re.match(r'(.*) version ([^ ]*)', version_ln)
