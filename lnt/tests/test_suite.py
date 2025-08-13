@@ -454,6 +454,9 @@ class TestSuiteTest(BuiltinTest):
         else:
             cmake_flags = []
 
+        if self.opts.cmake_toolchain:
+            cmake_flags += ['--toolchain', self.opts.cmake_toolchain]
+
         cmake_build_types = ('DEBUG', 'MINSIZEREL', 'RELEASE',
                              'RELWITHDEBINFO')
         if self.opts.cppflags or self.opts.cflags:
@@ -493,6 +496,8 @@ class TestSuiteTest(BuiltinTest):
             defs['TEST_SUITE_PROFILE_GENERATE'] = "Off"
             if 'TEST_SUITE_RUN_TYPE' not in defs:
                 defs['TEST_SUITE_RUN_TYPE'] = 'ref'
+        if self.opts.remote_host:
+            defs['TEST_SUITE_REMOTE_HOST'] = self.opts.remote_host
 
         for item in tuple(self.opts.cmake_defines) + tuple(extra_cmake_defs):
             k, v = item.split('=', 1)
@@ -1066,6 +1071,9 @@ class TestSuiteTest(BuiltinTest):
               default=[],
               help="Use one of the test-suite's cmake configurations."
                    " Ex: Release, Debug")
+@click.option("--cmake-toolchain", metavar="PATH", type=click.UNPROCESSED,
+              default=None,
+              help="Path to a CMake toolchain file to use")
 # Test compiler
 @click.option("--cc", "cc", metavar="CC", type=click.UNPROCESSED,
               default=None,
@@ -1137,6 +1145,8 @@ class TestSuiteTest(BuiltinTest):
                    " collect PGO data, then rerun with that training "
                    "data.",
               is_flag=True, default=False,)
+@click.option("--remote-host", metavar="HOST",
+              help="Run tests on a remote machine")
 # Output Options
 @click.option("--no-auto-name", "auto_name",
               help="Don't automatically derive submission name",
