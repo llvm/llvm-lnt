@@ -105,7 +105,7 @@ def _importProfile(objdump, name_filename):
         logger.warning('Profile %s does not exist' % filename)
         return None
 
-    pf = lnt.testing.profile.profile.Profile.fromFile(filename)
+    pf = lnt.testing.profile.profile.Profile.fromFile(filename, objdump)
     if not pf:
         return None
 
