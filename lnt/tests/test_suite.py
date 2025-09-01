@@ -15,6 +15,7 @@ import getpass
 
 import datetime
 from collections import defaultdict
+from functools import partial
 import jinja2
 import click
 
@@ -94,7 +95,7 @@ Program;CC;CC_Time;Code_Size;CC_Hash;Exec;Exec_Time;Score
 """
 
 
-def _importProfile(name_filename):
+def _importProfile(objdump, name_filename):
     """_importProfile imports a single profile. It must be at the top level
     (and not within TestSuiteTest) so that multiprocessing can import it
     correctly."""
@@ -104,7 +105,7 @@ def _importProfile(name_filename):
         logger.warning('Profile %s does not exist' % filename)
         return None
 
-    pf = lnt.testing.profile.profile.Profile.fromFile(filename)
+    pf = lnt.testing.profile.profile.Profile.fromFile(filename, objdump)
     if not pf:
         return None
 
@@ -692,7 +693,8 @@ class TestSuiteTest(BuiltinTest):
                 "CMAKE_C_FLAGS_RELEASE",
                 "CMAKE_C_FLAGS_RELWITHDEBINFO",
                 "CMAKE_C_COMPILER_TARGET",
-                "CMAKE_CXX_COMPILER_TARGET")]
+                "CMAKE_CXX_COMPILER_TARGET",
+                "CMAKE_OBJDUMP")]
         cmake_vars = {}
         for line in cmake_lah_output.split("\n"):
             for pattern, varname in pattern2var:
@@ -828,7 +830,8 @@ class TestSuiteTest(BuiltinTest):
             TIMEOUT = 800
             try:
                 pool = multiprocessing.Pool()
-                waiter = pool.map_async(_importProfile, profiles_to_import)
+                func = partial(_importProfile, cmake_vars["CMAKE_OBJDUMP"])
+                waiter = pool.map_async(func, profiles_to_import)
                 samples = waiter.get(TIMEOUT)
                 test_samples.extend([sample
                                      for sample in samples
