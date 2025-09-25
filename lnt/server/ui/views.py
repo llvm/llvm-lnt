@@ -881,7 +881,7 @@ def load_graph_data(plot_parameter, show_failures, limit, xaxis_date, revision_c
     # we want to load. Actually, we should just make this a single query.
     values = session.query(plot_parameter.field.column, ts.Order,
                            ts.Run.start_time, ts.Run.id) \
-                    .join(ts.Run).join(ts.Order) \
+                    .select_from(ts.Run).join(ts.Order) \
                     .filter(ts.Run.machine_id == plot_parameter.machine.id) \
                     .filter(ts.Sample.test == plot_parameter.test) \
                     .filter(plot_parameter.field.column.isnot(None))
@@ -924,7 +924,7 @@ def load_geomean_data(field, machine, limit, xaxis_date, revision_cache=None):
     values = session.query(sqlalchemy.sql.func.min(field.column),
                            ts.Order,
                            sqlalchemy.sql.func.min(ts.Run.start_time)) \
-                    .join(ts.Run).join(ts.Order).join(ts.Test) \
+                    .select_from(ts.Run).join(ts.Order).join(ts.Sample).join(ts.Test) \
                     .filter(ts.Run.machine_id == machine.id) \
                     .filter(field.column.isnot(None)) \
                     .group_by(ts.Order.llvm_project_revision, ts.Test)
@@ -1106,7 +1106,7 @@ def v4_graph():
             q_baseline = session.query(req.field.column,
                                        ts.Order.llvm_project_revision,
                                        ts.Run.start_time, ts.Machine.name) \
-                         .join(ts.Run).join(ts.Order).join(ts.Machine) \
+                         .select_from(ts.Run).join(ts.Order).join(ts.Machine) \
                          .filter(ts.Run.id == baseline.id) \
                          .filter(ts.Sample.test == req.test) \
                          .filter(req.field.column.isnot(None))
@@ -1903,7 +1903,7 @@ def v4_matrix():
     for req in plot_parameters:
         q = session.query(req.field.column, ts.Order.llvm_project_revision,
                           ts.Order.id) \
-            .join(ts.Run) \
+            .select_from(ts.Run) \
             .join(ts.Order) \
             .filter(ts.Run.machine_id == req.machine.id) \
             .filter(ts.Sample.test == req.test) \
@@ -1939,7 +1939,7 @@ def v4_matrix():
         q_baseline = session.query(req.field.column,
                                    ts.Order.llvm_project_revision,
                                    ts.Order.id) \
-                       .join(ts.Run) \
+                       .select_from(ts.Run) \
                        .join(ts.Order) \
                        .filter(ts.Run.machine_id == req.machine.id) \
                        .filter(ts.Sample.test == req.test) \
