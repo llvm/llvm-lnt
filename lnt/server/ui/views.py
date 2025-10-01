@@ -761,7 +761,7 @@ class PlotParameter(object):
 
 def assert_field_idx_valid(field_idx, count):
     if not (0 <= field_idx < count):
-        return abort(404, "Invalid field index {}. Total sample_fileds for "
+        return abort(404, "Invalid field index {}. Total sample_fields for "
                           "the current suite is {}.".format(field_idx, count))
 
 
