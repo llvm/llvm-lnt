@@ -252,13 +252,13 @@ $('.profile-prev-only').tooltip();
       <td><input id="test_min_value_filter" type="text" name="test_min_value_filter" value="{{ options.test_min_value_filter }}"/></td>
     </tr>
     <tr>
-      <td><label for="agg_func">Aggregation Function</label></td>
+      <td><label for="aggregation_function">Aggregation Function</label></td>
       <td>
-        <select id="agg_func" name="aggregation_fn">
-        <option value="min" {{ ('selected="selected"' if "min" == options.aggregation_fn else '')|safe}}>
-          Minimum</option>
-        <option value="median" {{ ('selected="selected"' if "median" == options.aggregation_fn else '')|safe}}>
-          Median</option>
+        <select id="aggregation_function" name="aggregation_function">
+          <option value="min" {{ 'selected="selected"' if options.aggregation_function == 'min' else '' }}>Minimum</option>
+          <option value="max" {{ 'selected="selected"' if options.aggregation_function == 'max' else '' }}>Maximum</option>
+          <option value="mean" {{ 'selected="selected"' if options.aggregation_function == 'mean' else '' }}>Mean</option>
+          <option value="median" {{ 'selected="selected"' if options.aggregation_function == 'median' else '' }}>Median</option>
         </select>
       </td>
     </tr>
