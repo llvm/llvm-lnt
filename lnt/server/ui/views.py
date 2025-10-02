@@ -188,8 +188,10 @@ def ts_data(ts):
 
 def determine_aggregation_function(function_name):
     """
-    Return the aggregation function associated to the provided function name. This is used by
-    dropdown menus that allow selecting from multiple aggregation functions.
+    Return the aggregation function associated to the provided function name, or None if
+    the function name is unsupported.
+
+    This is used by dropdown menus that allow selecting from multiple aggregation functions.
     """
     if function_name == 'min':
         return lnt.util.stats.safe_min
@@ -200,7 +202,7 @@ def determine_aggregation_function(function_name):
     elif function_name == 'median':
         return lnt.util.stats.median
     else:
-        assert False, f'Invalid aggregation function name {function_name}'
+        return None
 
 
 @db_route('/submitRun', methods=('GET', 'POST'))
@@ -370,7 +372,10 @@ class V4RequestInfo(object):
             abort(404, "Invalid run id {}".format(run_id))
 
         # Get the aggregation function to use.
-        aggregation_fn = determine_aggregation_function(request.args.get('aggregation_function', 'min'))
+        fn_name = request.args.get('aggregation_function', 'min')
+        aggregation_fn = determine_aggregation_function(fn_name)
+        if aggregation_fn is None:
+            abort(404, "Invalid aggregation function name {}".format(fn_name))
 
         # Get the MW confidence level.
         try:
@@ -1197,6 +1202,8 @@ def v4_graph():
 
             fn_name = options.get('aggregation_function') or ('max' if field.bigger_is_better else 'min')
             aggregation_fn = determine_aggregation_function(fn_name)
+            if aggregation_fn is None:
+                abort(404, "Invalid aggregation function name {}".format(fn_name))
             agg_value = aggregation_fn(values)
 
             # When aggregating multiple samples, it becomes unclear which sample to use for
