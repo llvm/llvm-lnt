@@ -986,7 +986,7 @@ def v4_graph():
     # Parse the view options.
     options = {}
     options['aggregation_function'] = \
-        request.args.get('aggregation_function') # default determined later based on the field being graphed
+        request.args.get('aggregation_function')  # default determined later based on the field being graphed
     options['hide_lineplot'] = bool(request.args.get('hide_lineplot'))
     show_lineplot = not options['hide_lineplot']
     options['show_mad'] = show_mad = bool(request.args.get('show_mad'))

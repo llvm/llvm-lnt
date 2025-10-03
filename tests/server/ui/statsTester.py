@@ -4,6 +4,7 @@ import unittest
 
 import lnt.util.stats as stats
 
+
 class TestLNTStatsTester(unittest.TestCase):
     def test_safe_min(self):
         self.assertEqual(stats.safe_min([]), None)
