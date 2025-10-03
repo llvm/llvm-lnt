@@ -4,8 +4,8 @@ from sys import platform as _platform
 import sys
 from setuptools import setup, find_packages, Extension
 
-if sys.version_info < (3, 6):
-    raise RuntimeError("Python 3.6 or higher required.")
+if sys.version_info < (3, 8):
+    raise RuntimeError("Python 3.8 or higher required.")
 
 cflags = []
 
@@ -80,7 +80,7 @@ The *LNT* source is available in the llvm-lnt repository:
         'License :: OSI Approved :: Apache-2.0 with LLVM exception',
         'Natural Language :: English',
         'Operating System :: OS Independent',
-        'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3.8',
         'Topic :: Software Development :: Quality Assurance',
         'Topic :: Software Development :: Testing',
     ],
@@ -138,5 +138,5 @@ The *LNT* source is available in the llvm-lnt repository:
 
     ext_modules=[cPerf],
 
-    python_requires='>=3.6',
+    python_requires='>=3.8',
 )
