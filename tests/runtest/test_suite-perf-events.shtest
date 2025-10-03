@@ -12,5 +12,5 @@
 # RUN:     --perf-events=cycles,cache_misses \
 # RUN:     --verbose \
 # RUN:     > %t.log 2> %t.err
-# RUN: FileCheck --check-prefix CHECK-USE-PERF-EVENT < %t.err %s
+# RUN: filecheck --check-prefix CHECK-USE-PERF-EVENT < %t.err %s
 # CHECK-USE-PERF-EVENT: fake-lit-profile -v -j 1 {{.*--param profile=perf --param perf_profile_events=cycles,cache_misses}}

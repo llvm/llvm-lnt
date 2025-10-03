@@ -11,7 +11,7 @@
 # RUN:     --verbose \
 # RUN:     --pgo \
 # RUN:     > %t.pgo.log 2> %t.pgo.err
-# RUN: FileCheck --check-prefix CHECK-PGO < %t.pgo.err %s
+# RUN: filecheck --check-prefix CHECK-PGO < %t.pgo.err %s
 # CHECK-PGO: TEST_SUITE_PROFILE_GENERATE: 'On'
 # CHECK-PGO: TEST_SUITE_PROFILE_GENERATE: 'Off'
 # CHECK-PGO: TEST_SUITE_PROFILE_USE: 'On'
@@ -30,7 +30,7 @@
 # RUN:     --pgo \
 # RUN:     --exec-multisample 2 \
 # RUN:     > %t.pgo_multi.log 2> %t.pgo_multi.err
-# RUN: FileCheck --check-prefix CHECK-PGO-MULTI < %t.pgo_multi.err %s
+# RUN: filecheck --check-prefix CHECK-PGO-MULTI < %t.pgo_multi.err %s
 # CHECK-PGO-MULTI: TEST_SUITE_PROFILE_GENERATE: 'On'
 # CHECK-PGO-MULTI: Execute: {{.*}}/Inputs/test-suite-cmake/fake-cmake --build {{.*}} -t all
 # CHECK-PGO-MULTI: fake-lit-profile

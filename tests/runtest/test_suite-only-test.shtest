@@ -13,7 +13,7 @@
 # RUN:     --cmake-define three=four \
 # RUN:     --verbose \
 # RUN:     > %t.log 2> %t.err
-# RUN: FileCheck --check-prefix CHECK-ONLYTEST < %t.err %s
+# RUN: filecheck --check-prefix CHECK-ONLYTEST < %t.err %s
 # CHECK-ONLYTEST: Configuring with {
 # CHECK-ONLYTEST:   one: 'two'
 # CHECK-ONLYTEST:   three: 'four'

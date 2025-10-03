@@ -14,8 +14,8 @@
 # RUN:   --test-suite %S/Inputs/rerun-test-suite1 \
 # RUN:   --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
 # RUN:   --no-timestamp --rerun --run-order 1 > %t.log 2> %t.err
-# RUN: FileCheck --check-prefix CHECK-STDOUT < %t.log %s
-# RUN: FileCheck --check-prefix CHECK-STDERR < %t.err %s
+# RUN: filecheck --check-prefix CHECK-STDOUT < %t.log %s
+# RUN: filecheck --check-prefix CHECK-STDERR < %t.err %s
 
 # CHECK-STDOUT: Import succeeded.
 # CHECK-STDOUT: PASS : 345
@@ -42,8 +42,8 @@
 # RUN:   --no-timestamp --rerun --run-order 4 --verbose \
 # RUN:   > %t.2.log 2> %t.2.err || cat %t.2.err
 # RUN: echo "Run 2"
-# RUN: FileCheck --check-prefix CHECK-STDOUT2 < %t.2.log %s
-# RUN: FileCheck --check-prefix CHECK-STDERR2 < %t.2.err %s
+# RUN: filecheck --check-prefix CHECK-STDOUT2 < %t.2.log %s
+# RUN: filecheck --check-prefix CHECK-STDERR2 < %t.2.err %s
 
 # CHECK-STDOUT2: Import succeeded.
 # CHECK-STDOUT2: FAIL : 3

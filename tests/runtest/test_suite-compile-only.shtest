@@ -11,5 +11,5 @@
 # RUN:     --verbose \
 # RUN:     --only-compile \
 # RUN:     > %t.pgo.log 2> %t.compile-only.err
-# RUN: FileCheck --check-prefix CHECK-CO < %t.compile-only.err %s
+# RUN: filecheck --check-prefix CHECK-CO < %t.compile-only.err %s
 # CHECK-CO: TEST_SUITE_RUN_BENCHMARKS: 'Off'

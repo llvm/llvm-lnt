@@ -9,7 +9,7 @@
 
 # RUN: lnt send-run-comparison --dry-run --to some@address.com \
 # RUN: --from some.other@address.com  \
-# RUN: --host localhost %t.instance 1 2 | FileCheck %s --check-prefix CHECK0
+# RUN: --host localhost %t.instance 1 2 | filecheck %s --check-prefix CHECK0
 #
 # CHECK0: From: some.other@address.com
 # CHECK0: To: some@address.com
@@ -37,7 +37,7 @@
 
 # RUN: lnt send-daily-report --dry-run --from some.other@address.com \
 # RUN: --host localhost --testsuite nts --filter-machine-regex=machine.? \
-# RUN: %t.instance some@address.com | FileCheck %s --check-prefix CHECK1
+# RUN: %t.instance some@address.com | filecheck %s --check-prefix CHECK1
 #
 # CHECK1: From: some.other@address.com
 # CHECK1: To: some@address.com

@@ -14,7 +14,7 @@ SHARED_INPUTS="$3"
 SRC_ROOT="$4"
 
 lnt submit "http://localhost:9091/db_default/submitRun" "${SHARED_INPUTS}/sample-report.json" -v > "${OUTPUT_DIR}/submit_verbose.txt"
-# RUN: FileCheck %s --check-prefix=CHECK-VERBOSE < %t.tmp/submit_verbose.txt
+# RUN: filecheck %s --check-prefix=CHECK-VERBOSE < %t.tmp/submit_verbose.txt
 #
 # CHECK-VERBOSE: Import succeeded.
 # CHECK-VERBOSE: --- Tested: 10 tests --
@@ -33,21 +33,21 @@ lnt submit "http://localhost:9091/db_default/submitRun" "${SHARED_INPUTS}/sample
 
 # Make sure the old --commit=1 style argument is still accepted.
 lnt submit "http://localhost:9091/db_default/submitRun" --commit=1 "${SHARED_INPUTS}/sample-report1.json" > "${OUTPUT_DIR}/submit0.txt"
-# RUN: FileCheck %s --check-prefix=CHECK-SUBMIT0 < %t.tmp/submit0.txt
+# RUN: filecheck %s --check-prefix=CHECK-SUBMIT0 < %t.tmp/submit0.txt
 # CHECK-SUBMIT0: http://localhost:9091/db_default/v4/nts/4
 
 # Submit sample-report1.json again and check it keeps the same URL
 lnt submit "http://localhost:9091/db_default/submitRun" --commit=1 "${SHARED_INPUTS}/sample-report1.json" > "${OUTPUT_DIR}/submit0-resubmit.txt"
-# RUN: FileCheck %s --check-prefix=CHECK-RESUBMIT0 < %t.tmp/submit0-resubmit.txt
+# RUN: filecheck %s --check-prefix=CHECK-RESUBMIT0 < %t.tmp/submit0-resubmit.txt
 # CHECK-RESUBMIT0: http://localhost:9091/db_default/v4/nts/4
 
 lnt submit "http://localhost:9091/db_default/submitRun" --commit 1 "${SHARED_INPUTS}/sample-report2.json" > "${OUTPUT_DIR}/submit1.txt"
-# RUN: FileCheck %s --check-prefix=CHECK-SUBMIT1 < %t.tmp/submit1.txt
+# RUN: filecheck %s --check-prefix=CHECK-SUBMIT1 < %t.tmp/submit1.txt
 # CHECK-SUBMIT1: http://localhost:9091/db_default/v4/nts/5
 
 
 lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" "${INPUTS}/compile_submission.json" -v > "${OUTPUT_DIR}/submit_compile.txt"
-# RUN: FileCheck %s --check-prefix=CHECK-COMPILE0 < %t.tmp/submit_compile.txt
+# RUN: filecheck %s --check-prefix=CHECK-COMPILE0 < %t.tmp/submit_compile.txt
 #
 # CHECK-COMPILE0: --- Tested: 10 tests --
 #
@@ -63,7 +63,7 @@ lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" "${INPUTS}/co
 # CHECK-COMPILE0: Results available at: http://localhost:9091/db_default/v4/compile/5
 
 lnt submit "http://localhost:9091/db_default/submitRun" "${SRC_ROOT}/docs/report-example.json" -v > "${OUTPUT_DIR}/submit_newformat.txt"
-# RUN: FileCheck %s --check-prefix=CHECK-NEWFORMAT < %t.tmp/submit_newformat.txt
+# RUN: filecheck %s --check-prefix=CHECK-NEWFORMAT < %t.tmp/submit_newformat.txt
 #
 # CHECK-NEWFORMAT: Import succeeded.
 # CHECK-NEWFORMAT: --- Tested: 10 tests --
@@ -83,7 +83,7 @@ lnt submit "http://localhost:9091/db_default/submitRun" "${SRC_ROOT}/docs/report
 # test-suite based on the Info.Run.tag field instead of the URL. The result
 # should be the same as using the "correct" URL.
 lnt submit "http://localhost:9091/db_default/submitRun" "${INPUTS}/compile_submission1.json" -v > "${OUTPUT_DIR}/submit_compile1.txt"
-# RUN: FileCheck %s --check-prefix=CHECK-COMPILE1 < %t.tmp/submit_compile1.txt
+# RUN: filecheck %s --check-prefix=CHECK-COMPILE1 < %t.tmp/submit_compile1.txt
 #
 # CHECK-COMPILE1: Import succeeded.
 #
@@ -93,7 +93,7 @@ lnt submit "http://localhost:9091/db_default/submitRun" "${INPUTS}/compile_submi
 # CHECK-COMPILE1: Results available at: http://localhost:9091/db_default/v4/compile/6
 
 # Check some error handling/reporting
-# RUN: FileCheck %s --check-prefix=CHECK-ERRORS < %t.tmp/submit_errors.txt
+# RUN: filecheck %s --check-prefix=CHECK-ERRORS < %t.tmp/submit_errors.txt
 rm -f "${OUTPUT_DIR}/submit_errors.txt"
 
 echo "=== compile_submission.json badsuite" >> "${OUTPUT_DIR}/submit_errors.txt"
@@ -132,7 +132,7 @@ not lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" "${INPUTS
 
 # Adding extra fields to the machine in a submission is fine.
 lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" "${INPUTS}/compile_submission_machine_diff_fine.json" -v > "${OUTPUT_DIR}/submit_compile_machine_diff_fine.txt"
-# RUN: FileCheck %s --check-prefix=CHECK-MACHINEDIFF < %t.tmp/submit_compile_machine_diff_fine.txt
+# RUN: filecheck %s --check-prefix=CHECK-MACHINEDIFF < %t.tmp/submit_compile_machine_diff_fine.txt
 #
 # CHECK-MACHINEDIFF: Imported Data
 # CHECK-MACHINEDIFF: -------------
@@ -147,7 +147,7 @@ lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" "${INPUTS}/co
 
 # Test updating existing machine
 lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" "${INPUTS}/compile_submission_machine_diff_reject.json" --select-machine=update -v > "${OUTPUT_DIR}/submit_compile_machine_update.txt"
-# RUN: FileCheck %s --check-prefix=CHECK-UPDATEMACHINE < %t.tmp/submit_compile_machine_update.txt
+# RUN: filecheck %s --check-prefix=CHECK-UPDATEMACHINE < %t.tmp/submit_compile_machine_update.txt
 #
 # CHECK-UPDATEMACHINE: Imported Data
 # CHECK-UPDATEMACHINE: -------------
@@ -162,7 +162,7 @@ lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" "${INPUTS}/co
 
 # Test creation of new machines on information mismatch in split mode.
 lnt submit "http://localhost:9091/db_default/v4/compile/submitRun" "${INPUTS}/compile_submission_machine_diff_split.json" --select-machine=split -v > "${OUTPUT_DIR}/submit_compile_machine_split.txt"
-# RUN: FileCheck %s --check-prefix=CHECK-SPLITMACHINE < %t.tmp/submit_compile_machine_split.txt
+# RUN: filecheck %s --check-prefix=CHECK-SPLITMACHINE < %t.tmp/submit_compile_machine_split.txt
 #
 # We should have added a new machine:
 # CHECK-SPLITMACHINE: Imported Data

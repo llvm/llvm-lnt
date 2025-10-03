@@ -9,7 +9,7 @@
 # RUN:     --use-make %S/Inputs/test-suite-cmake/fake-make \
 # RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit-fails-exec \
 # RUN:     --run-order=123 > %t.log 2> %t.err
-# RUN: FileCheck --check-prefix CHECK-RESULTS-FAIL-EXEC < %t.SANDBOX/build/report.json %s
+# RUN: filecheck --check-prefix CHECK-RESULTS-FAIL-EXEC < %t.SANDBOX/build/report.json %s
 # CHECK-RESULTS-FAIL-EXEC: "no_errors": "False"
 # CHECK-RESULTS-FAIL-EXEC: "run_order": "123"
 # CHECK-RESULTS-FAIL-EXEC: "Name": "nts.baz.exec.status"

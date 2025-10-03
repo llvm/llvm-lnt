@@ -11,7 +11,7 @@
 # RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit \
 # RUN:     --run-under i_do_not_exist \
 # RUN:     > %t.log 2> %t.err
-# RUN: FileCheck --check-prefix CHECK-RUNUNDER1 < %t.err %s
+# RUN: filecheck --check-prefix CHECK-RUNUNDER1 < %t.err %s
 # CHECK-RUNUNDER1: Run under wrapper not found (looked for i_do_not_exist)
 
 # Use a run-under command
@@ -26,7 +26,7 @@
 # RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit \
 # RUN:     --run-under %S/Inputs/test-suite-cmake/fake-make \
 # RUN:     > %t.log 2> %t.err
-# RUN: FileCheck --check-prefix CHECK-RUNUNDER2 < %t.err %s
+# RUN: filecheck --check-prefix CHECK-RUNUNDER2 < %t.err %s
 # CHECK-RUNUNDER2: TEST_SUITE_RUN_UNDER: '{{.*}}/fake-make'
 
 # Use a run-under command with an argument
@@ -41,5 +41,5 @@
 # RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit \
 # RUN:     --run-under '%S/Inputs/test-suite-cmake/fake-make wibble' \
 # RUN:     > %t.log 2> %t.err
-# RUN: FileCheck --check-prefix CHECK-RUNUNDER3 < %t.err %s
+# RUN: filecheck --check-prefix CHECK-RUNUNDER3 < %t.err %s
 # CHECK-RUNUNDER3: TEST_SUITE_RUN_UNDER: '{{.*}}/fake-make wibble'

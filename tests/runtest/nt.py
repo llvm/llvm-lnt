@@ -6,9 +6,9 @@
 # RUN:   --test-suite %S/Inputs/test-suite \
 # RUN:   --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
 # RUN:   --no-timestamp > %t.log 2> %t.err
-# RUN: FileCheck --check-prefix CHECK-STDOUT < %t.log %s
-# RUN: FileCheck --check-prefix CHECK-BASIC < %t.err %s
-# RUN: FileCheck --check-prefix CHECK-REPORT < %t.SANDBOX/build/report.json %s
+# RUN: filecheck --check-prefix CHECK-STDOUT < %t.log %s
+# RUN: filecheck --check-prefix CHECK-BASIC < %t.err %s
+# RUN: filecheck --check-prefix CHECK-REPORT < %t.SANDBOX/build/report.json %s
 # CHECK-REPORT: "run_order": "154331"
 # CHECK-REPORT: "Name": "nts.{{[^.]+}}.exec"
 # CHECK-REPORT: "Name": "nts.{{[^.]+}}.compile"
@@ -36,7 +36,7 @@
 # RUN:   --test-suite %S/Inputs/test-suite \
 # RUN:   --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
 # RUN:   --no-timestamp --no-configure > %t.log 2> %t.err
-# RUN: FileCheck --check-prefix CHECK-NOCONF < %t.err %s
+# RUN: filecheck --check-prefix CHECK-NOCONF < %t.err %s
 # CHECK-NOCONF-NOT: configuring
 #
 # Check a basic nt run on a test-suite without binary hash support.
@@ -45,9 +45,9 @@
 # RUN:   --test-suite %S/Inputs/test-suite-nohash \
 # RUN:   --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
 # RUN:   --no-timestamp > %t.log 2> %t.err
-# RUN: FileCheck --check-prefix CHECK-STDOUT < %t.log %s
-# RUN: FileCheck --check-prefix CHECK-BASIC < %t.err %s
-# RUN: FileCheck --check-prefix CHECK-REPORT < %t.SANDBOX-NO-HASH/build/report.json %s
+# RUN: filecheck --check-prefix CHECK-STDOUT < %t.log %s
+# RUN: filecheck --check-prefix CHECK-BASIC < %t.err %s
+# RUN: filecheck --check-prefix CHECK-REPORT < %t.SANDBOX-NO-HASH/build/report.json %s
 #
 # Manually set a run order.
 # RUN: lnt runtest nt \
@@ -55,7 +55,7 @@
 # RUN:   --test-suite %S/Inputs/test-suite \
 # RUN:   --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
 # RUN:   --no-timestamp --run-order=123 > %t.log 2> %t.err
-# RUN: FileCheck --check-prefix CHECK-RESULTS < %t.SANDBOX/build/report.json %s
+# RUN: filecheck --check-prefix CHECK-RESULTS < %t.SANDBOX/build/report.json %s
 # CHECK-RESULTS: "run_order": "123"
 #
 # Change the machine name. Don't use LLVM.
@@ -64,7 +64,7 @@
 # RUN:   --test-suite %S/Inputs/test-suite \
 # RUN:   --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
 # RUN:   --no-auto-name foo > %t.log 2> %t.err
-# RUN: FileCheck --check-prefix CHECK-AUTONAME < %t.err %s
+# RUN: filecheck --check-prefix CHECK-AUTONAME < %t.err %s
 # CHECK-AUTONAME: using nickname: 'foo'
 
 # Run without LLVM.
@@ -83,7 +83,7 @@
 # RUN:   --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
 # RUN:   --cflag '-Wall' \
 # RUN:   --no-timestamp > %t.log 2> %t.err
-# RUN: FileCheck --check-prefix CHECK-CFLAG1 < %t.err %s
+# RUN: filecheck --check-prefix CHECK-CFLAG1 < %t.err %s
 # CHECK-CFLAG1: inferred C++ compiler under test
 # CHECK-CFLAG1: TARGET_FLAGS: -Wall
 
@@ -96,7 +96,7 @@
 # RUN:   --cflag '-mfloat-abi=hard' \
 # RUN:   --cflag '-O3' \
 # RUN:   --no-timestamp > %t.log 2> %t.err
-# RUN: FileCheck --check-prefix CHECK-CFLAG2 < %t.err %s
+# RUN: filecheck --check-prefix CHECK-CFLAG2 < %t.err %s
 # CHECK-CFLAG2: inferred C++ compiler under test
 # CHECK-CFLAG2: TARGET_FLAGS: -Wall -mfloat-abi=hard -O3
 
@@ -107,7 +107,7 @@
 # RUN:   --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
 # RUN:   --cflags '-Wall -mfloat-abi=hard -O3' \
 # RUN:   --no-timestamp > %t.log 2> %t.err
-# RUN: FileCheck --check-prefix CHECK-CFLAG3 < %t.err %s
+# RUN: filecheck --check-prefix CHECK-CFLAG3 < %t.err %s
 # CHECK-CFLAG3: inferred C++ compiler under test
 # CHECK-CFLAG3: TARGET_FLAGS: -Wall -mfloat-abi=hard -O3
 
@@ -118,7 +118,7 @@
 # RUN:   --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
 # RUN:   --cflags "-Wall -test=escaped\ space -some-option='stay with me' -O3" \
 # RUN:   --no-timestamp > %t.log 2> %t.err
-# RUN: FileCheck --check-prefix CHECK-CFLAG4 < %t.err %s
+# RUN: filecheck --check-prefix CHECK-CFLAG4 < %t.err %s
 # CHECK-CFLAG4: inferred C++ compiler under test
 # CHECK-CFLAG4: TARGET_FLAGS: -Wall '-test=escaped space' '-some-option=stay with me' -O3
 
@@ -131,7 +131,7 @@
 # RUN:   --cflag '-Weverything' \
 # RUN:   --cflags '-Wall -test=escaped\ space -some-option="stay with me" -O3' \
 # RUN:   --no-timestamp > %t.log 2> %t.err
-# RUN: FileCheck --check-prefix CHECK-CFLAG5 < %t.err %s
+# RUN: filecheck --check-prefix CHECK-CFLAG5 < %t.err %s
 # CHECK-CFLAG5: inferred C++ compiler under test
 # CHECK-CFLAG5: TARGET_FLAGS: --target=armv7a-none-eabi -Weverything -Wall '-test=escaped space'
 # CHECK-CFLAG5: '-some-option=stay with me' -O3
@@ -146,7 +146,7 @@
 # RUN:   --qemu-flag '-net nic' \
 # RUN:   --qemu-flags '-device gus,irq=5 -test=escaped\ space -some-option="stay with me"' \
 # RUN:   --no-timestamp > %t.log 2> %t.err
-# RUN: FileCheck --check-prefix CHECK-QEMU-FLAG1 < %t.err %s
+# RUN: filecheck --check-prefix CHECK-QEMU-FLAG1 < %t.err %s
 # CHECK-QEMU-FLAG1: QEMU_USER_MODE_COMMAND: TEST -soundhw gus -net nic -device gus,irq=5
 # CHECK-QEMU-FLAG1: '-test=escaped space' '-some-option=stay with me'
 
@@ -162,8 +162,8 @@
 # RUN:   --test-suite %S/Inputs/rerun-test-suite1 \
 # RUN:   --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
 # RUN:   --no-timestamp --rerun --run-order 1 > %t.log 2> %t.err
-# RUN: FileCheck --check-prefix CHECK-SUBMIT-STDOUT < %t.log %s
-# RUN: FileCheck --check-prefix CHECK-SUBMIT-STDERR < %t.err %s
+# RUN: filecheck --check-prefix CHECK-SUBMIT-STDOUT < %t.log %s
+# RUN: filecheck --check-prefix CHECK-SUBMIT-STDERR < %t.err %s
 
 # CHECK-SUBMIT-STDOUT: Import succeeded.
 # CHECK-SUBMIT-STDOUT: PASS : 345
@@ -192,5 +192,5 @@
 # RUN:   --test-suite %S/Inputs/rerun-test-suite1 \
 # RUN:   --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
 # RUN:   --no-timestamp --rerun --run-order 2 > %t.log 2> %t.err
-# RUN: FileCheck --check-prefix CHECK-SUBMIT-STDOUT < %t.log %s
-# RUN: FileCheck --check-prefix CHECK-SUBMIT-STDERR < %t.err %s
+# RUN: filecheck --check-prefix CHECK-SUBMIT-STDOUT < %t.log %s
+# RUN: filecheck --check-prefix CHECK-SUBMIT-STDERR < %t.err %s

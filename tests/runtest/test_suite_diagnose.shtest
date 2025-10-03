@@ -15,7 +15,7 @@
 # RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit \
 # RUN:     --diagnose \
 # RUN:     2>&1 | tee %t.err || echo "expected to fail"
-# RUN: FileCheck  --check-prefix CHECK-ARGS < %t.err %s
+# RUN: filecheck  --check-prefix CHECK-ARGS < %t.err %s
 # CHECK-ARGS: --diagnose requires --only-test
 
 # Check a basic nt run.
@@ -28,7 +28,7 @@
 # RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit \
 # RUN:     --diagnose --only-test SingleSource/Benchmarks/Stanford/Bubblesort \
 # RUN:     2>&1 | tee %t.diagnose.log
-# RUN: FileCheck  --check-prefix CHECK-DIAGNOSE < %t.diagnose.log %s
+# RUN: filecheck  --check-prefix CHECK-DIAGNOSE < %t.diagnose.log %s
 
 # CHECK-DIAGNOSE: Report produced in:
 # CHECK-DIAGNOSE: Bubblesort.report
