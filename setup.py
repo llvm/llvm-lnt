@@ -117,7 +117,7 @@ The *LNT* source is available in the llvm-lnt repository:
     install_requires=[
         "six",
         "aniso8601==1.2.0",
-        "Flask==0.12.2",
+        "Flask==2.2.5",
         "Flask-RESTful==0.3.4",
         "Jinja2==2.11.3",
         "MarkupSafe==1.1.1",
