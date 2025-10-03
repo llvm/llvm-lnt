@@ -167,7 +167,7 @@ class TestSuite(Base):
                 run_fields.append(field)
         ts.run_fields = run_fields
         ts.order_fields = order_fields
-        assert(len(order_fields) > 0)
+        assert len(order_fields) > 0
 
         sample_fields = []
         for index, metric_desc in enumerate(data['metrics']):
