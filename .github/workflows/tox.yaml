@@ -1,4 +1,4 @@
-name: Python Flake8, Docs, mypy
+name: Run Tox tests
 
 on:
   - push
@@ -24,3 +24,5 @@ jobs:
       run: tox -e docs
     - name: Tox mypy
       run: tox -e mypy
+    - name: Tox py3
+      run: tox -e py3

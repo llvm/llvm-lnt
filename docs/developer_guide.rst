@@ -24,20 +24,20 @@ all times, therefore you should run the regression tests as part of your
 development work-flow, just like you do when developing on other LLVM
 sub-projects.
 
-The LNT regression tests make use of lit and other tools like FileCheck. At
-the moment, probably the easiest way to get them installed is to compile LLVM
-and use the binaries that are generated there. Assuming you've build LLVM
-into $LLVMBUILD, and installed lnt in $LNTINSTALL you can run the regression
-tests using the following command::
+The LNT regression tests make use of lit and other tools like [filecheck](https://github.com/AntonLydike/filecheck).
+To run the tests, we recomment using ``tox`` in a virtual environment::
 
-     PATH=$LLVMBUILD/bin:$LNTINSTALL/bin:$PATH llvm-lit -sv ./tests
+    python3 -m venv .venv
+    source .venv/bin/activate
+    pip install tox
+    tox
 
-If you don't like temporary files being created in your LNT source directory,
-you can run the tests in a different directory too::
+You can also run individual unit tests with ``lit`` directly::
 
-     mkdir ../run_lnt_tests
-     cd ../run_lnt_tests
-     PATH=$LLVMBUILD/bin:$LNTINSTALL/bin:$PATH llvm-lit -sv ../lnt/tests
+    pip install lit
+    lit -sv ./tests
+
+However, that requires manually setting up the testing environment (``filecheck``, etc).
 
 For simple changes, adding a regression test and making sure all regression
 tests pass, is often a good enough testing approach. For some changes, the
@@ -73,4 +73,4 @@ default. You can enable them by passing additional flags to lit:
 
 Example::
 
-     PATH=$LLVMBUILD/bin:$LNTINSTALL/bin:$PATH llvm-lit -sv -Dpostgres=1 -Dmysql=1 -Dtidylib=1 ../lnt/tests
+    lit -sv -Dpostgres=1 -Dmysql=1 -Dtidylib=1 ./tests

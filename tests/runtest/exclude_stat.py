@@ -7,8 +7,8 @@
 # RUN:   --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
 # RUN:   --exclude-stat-from-submission compile \
 # RUN:   --no-timestamp > %t.log 2> %t.err
-# RUN: FileCheck --check-prefix CHECK-STDOUT < %t.log %s
-# RUN: FileCheck --check-prefix CHECK-REPORT < %t.SANDBOX/build/report.json %s
+# RUN: filecheck --check-prefix CHECK-STDOUT < %t.log %s
+# RUN: filecheck --check-prefix CHECK-REPORT < %t.SANDBOX/build/report.json %s
 # CHECK-STDOUT: Import succeeded.
 # CHECK-REPORT:     "Name": "nts.{{[^.]+}}.exec"
 # CHECK-REPORT-NOT: "Name": "nts.{{[^.]+}}.compile"

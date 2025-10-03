@@ -20,16 +20,16 @@
 # 1) there's 2 cmake compiler definition followed by the -C option
 # 2) each of the cmake compiler definition only accepts the other cmake
 #    compiler definition between cmake and itself
-# RUN: FileCheck  --check-prefix CHECK-CACHE1 < %t.cmake-cache.log %s
+# RUN: filecheck  --check-prefix CHECK-CACHE1 < %t.cmake-cache.log %s
 # CHECK-CACHE1: Execute: {{.*}}cmake -DCMAKE_C{{(XX)?}}_COMPILER:FILEPATH={{.*}}/FakeCompilers/clang{{(\+\+)?}}-r154331 -DCMAKE_C{{(XX)?}}_COMPILER:FILEPATH={{.*}}/FakeCompilers/clang{{(\+\+)?}}-r154331 -C {{.*}}/Release.cmake
-# RUN: FileCheck  --check-prefix CHECK-CACHE2 < %t.cmake-cache.log %s
+# RUN: filecheck  --check-prefix CHECK-CACHE2 < %t.cmake-cache.log %s
 # CHECK-CACHE2: Execute: {{.*}}cmake {{(-DCMAKE_CXX_COMPILER:FILEPATH=.*/FakeCompilers/clang\+\+-r154331 )?}}-DCMAKE_C_COMPILER:FILEPATH={{.*}}/FakeCompilers/clang-r154331
-# RUN: FileCheck  --check-prefix CHECK-CACHE3 < %t.cmake-cache.log %s
+# RUN: filecheck  --check-prefix CHECK-CACHE3 < %t.cmake-cache.log %s
 # CHECK-CACHE3: Execute: {{.*}}cmake {{(-DCMAKE_C_COMPILER:FILEPATH=.*/FakeCompilers/clang-r154331 )?}}-DCMAKE_CXX_COMPILER:FILEPATH={{.*}}/FakeCompilers/clang++-r154331
 
-# RUN: FileCheck  --check-prefix CHECK-CACHE4 < %t.cmake-cache.log %s
+# RUN: filecheck  --check-prefix CHECK-CACHE4 < %t.cmake-cache.log %s
 # CHECK-CACHE4: Execute: {{.*}}cmake {{(.+ )?}}-DFOO=BAR
-# RUN: FileCheck  --check-prefix CHECK-CACHE5 < %t.cmake-cache.log %s
+# RUN: filecheck  --check-prefix CHECK-CACHE5 < %t.cmake-cache.log %s
 # CHECK-CACHE5: Execute: {{.*}}cmake {{(.+ )?}}-DBAR=BAZ
 
 # RUN: rm -rf %t.SANDBOX
@@ -44,5 +44,5 @@
 # RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit \
 # RUN:     --cmake-cache Debug \
 # RUN:     &> %t.cmake-cache2.err || true
-# RUN: FileCheck  --check-prefix CHECK-CACHE6 < %t.cmake-cache2.err %s
+# RUN: filecheck  --check-prefix CHECK-CACHE6 < %t.cmake-cache2.err %s
 # CHECK-CACHE6: Could not find CMake cache file

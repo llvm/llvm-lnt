@@ -11,6 +11,6 @@
 # RUN:     --use-perf=time \
 # RUN:     --verbose \
 # RUN:     > %t.log 2> %t.err
-# RUN: FileCheck --check-prefix CHECK-USE-PERF < %t.err %s
+# RUN: filecheck --check-prefix CHECK-USE-PERF < %t.err %s
 # CHECK-USE-PERF: Configuring with {
 # CHECK-USE-PERF:   TEST_SUITE_USE_PERF: 'ON'

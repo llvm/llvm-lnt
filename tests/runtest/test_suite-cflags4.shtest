@@ -12,6 +12,6 @@
 # RUN:   --cflag '-Weverything' \
 # RUN:   --cflags '-Wall -test=escaped\ space -some-option="stay with me" -O3' \
 # RUN:     > %t.log 2> %t.err
-# RUN: FileCheck --check-prefix CHECK-CFLAG5 < %t.err %s
+# RUN: filecheck --check-prefix CHECK-CFLAG5 < %t.err %s
 # CHECK-CFLAG5: Inferred C++ compiler under test
 # CHECK-CFLAG5: CMAKE_C_FLAGS: '--target=armv7a-none-eabi -Weverything -Wall '-test=escaped space' '-some-option=stay with me' -O3

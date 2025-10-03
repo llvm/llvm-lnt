@@ -12,6 +12,6 @@
 # RUN:     --cflag '-mfloat-abi=hard' \
 # RUN:     --cflag '-O3' \
 # RUN:     > %t.log 2> %t.err
-# RUN: FileCheck --check-prefix CHECK-CFLAG2 < %t.err %s
+# RUN: filecheck --check-prefix CHECK-CFLAG2 < %t.err %s
 # CHECK-CFLAG2: Inferred C++ compiler under test
 # CHECK-CFLAG2: CMAKE_C_FLAGS: '-Wall -mfloat-abi=hard -O3

@@ -1,5 +1,5 @@
 # Check an old plist format
-# RUN: lnt checkformat %{shared_inputs}/sample-a-small.plist 2>&1 | FileCheck %s --check-prefix=CHECK0
+# RUN: lnt checkformat %{shared_inputs}/sample-a-small.plist 2>&1 | filecheck %s --check-prefix=CHECK0
 #
 # CHECK0: Import succeeded.
 # CHECK0: Imported Data
@@ -14,7 +14,7 @@
 #
 #
 # Check an old json format
-# RUN: lnt checkformat %{shared_inputs}/sample-report.json 2>&1 | FileCheck %s --check-prefix=CHECK1
+# RUN: lnt checkformat %{shared_inputs}/sample-report.json 2>&1 | filecheck %s --check-prefix=CHECK1
 #
 # CHECK1: Import succeeded.
 # CHECK1: Imported Data
@@ -29,7 +29,7 @@
 #
 #
 # Check new-style json format
-# RUN: lnt checkformat %{src_root}/docs/report-example.json 2>&1 | FileCheck %s --check-prefix=CHECK2
+# RUN: lnt checkformat %{src_root}/docs/report-example.json 2>&1 | filecheck %s --check-prefix=CHECK2
 #
 # CHECK2: Import succeeded.
 # CHECK2: Imported Data
@@ -43,14 +43,14 @@
 # CHECK2: PASS : 10
 #
 #
-# RUN: lnt checkformat %S/Inputs/minimal.json 2>&1 | FileCheck %s --check-prefix=MINIMAL
+# RUN: lnt checkformat %S/Inputs/minimal.json 2>&1 | filecheck %s --check-prefix=MINIMAL
 # MINIMAL: Import succeeded.
 # MINIMAL: Added Machines: 1
 # MINIMAL: Added Runs    : 1
 #
 #
 # Check invalid format
-# RUN: lnt checkformat %S/Inputs/invalid_submission0.json 2>&1 | FileCheck %s --check-prefix=CHECKFAIL0
+# RUN: lnt checkformat %S/Inputs/invalid_submission0.json 2>&1 | filecheck %s --check-prefix=CHECKFAIL0
 #
 # CHECKFAIL0: Import Failed:
 # CHECKFAIL0: could not parse input format

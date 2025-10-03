@@ -13,7 +13,7 @@
 # RUN:     --exec-multisample=2 \
 # RUN:     --verbose \
 # RUN:     > %t.log 2> %t.err
-# RUN: FileCheck --check-prefix CHECK-USE-PERF-ALL < %t.err %s
+# RUN: filecheck --check-prefix CHECK-USE-PERF-ALL < %t.err %s
 # CHECK-USE-PERF-ALL: Configuring with {
 # CHECK-USE-PERF-ALL:   TEST_SUITE_USE_PERF: 'ON'
 # Verify that tests get run sequentially when perf profile gathering is enabled:

@@ -6,8 +6,8 @@
 # RUN:   --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
 # RUN:   --no-timestamp --multisample 5 > %t.log 2> %t.err
 #
-# RUN: FileCheck --check-prefix CHECK-STDOUT < %t.log %s
-# RUN: FileCheck --check-prefix CHECK-STDERR < %t.err %s
+# RUN: filecheck --check-prefix CHECK-STDOUT < %t.log %s
+# RUN: filecheck --check-prefix CHECK-STDERR < %t.err %s
 #
 # CHECK-STDOUT: Import succeeded.
 # CHECK-STDOUT: Added Machines: 1

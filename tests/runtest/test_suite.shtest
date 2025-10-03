@@ -11,11 +11,11 @@
 # RUN:     --output %t.report \
 # RUN:     > %t.out 2> %t.err
 # RUN: lnt checkformat %t.report > %t.checkformat
-# RUN: FileCheck  --check-prefix CHECK-BASIC < %t.err %s
-# RUN: FileCheck  --check-prefix CHECK-REPORT < %t.SANDBOX/build/report.json %s
-# RUN: FileCheck  --check-prefix CHECK-XML < %t.SANDBOX/build/test-results.xunit.xml %s
-# RUN: FileCheck  --check-prefix CHECK-CSV < %t.SANDBOX/build/test-results.csv %s
-# RUN: FileCheck  --check-prefix CHECK-CHECKFORMAT < %t.checkformat %s
+# RUN: filecheck  --check-prefix CHECK-BASIC < %t.err %s
+# RUN: filecheck  --check-prefix CHECK-REPORT < %t.SANDBOX/build/report.json %s
+# RUN: filecheck  --check-prefix CHECK-XML < %t.SANDBOX/build/test-results.xunit.xml %s
+# RUN: filecheck  --check-prefix CHECK-CSV < %t.SANDBOX/build/test-results.csv %s
+# RUN: filecheck  --check-prefix CHECK-CHECKFORMAT < %t.checkformat %s
 
 # CHECK-REPORT: "no_errors": "True",
 # CHECK-REPORT: "run_order": "154331"
@@ -59,7 +59,7 @@
 # RUN:     --use-make %S/Inputs/test-suite-cmake/fake-make \
 # RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit \
 # RUN:     > %t.log 2> %t.err
-# RUN: FileCheck --check-prefix CHECK-NOCONF < %t.err %s
+# RUN: filecheck --check-prefix CHECK-NOCONF < %t.err %s
 # CHECK-NOCONF-NOT: Configuring
 
 # Use a different sandbox with --no-configure
@@ -74,5 +74,5 @@
 # RUN:     --use-make %S/Inputs/test-suite-cmake/fake-make \
 # RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit \
 # RUN:     > %t.log 2> %t.err
-# RUN: FileCheck --check-prefix CHECK-NOCONF2 < %t.err %s
+# RUN: filecheck --check-prefix CHECK-NOCONF2 < %t.err %s
 # CHECK-NOCONF2: Configuring

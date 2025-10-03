@@ -9,7 +9,7 @@
 #
 # RUN: lnt updatedb %t.install --testsuite nts \
 # RUN:     --delete-run 1 --show-sql >& %t.out
-# RUN: FileCheck --check-prefix CHECK-RUNRM %s < %t.out
+# RUN: filecheck --check-prefix CHECK-RUNRM %s < %t.out
 
 # CHECK-RUNRM: DELETE FROM "NT_Sample" WHERE "NT_Sample"."ID" = ?
 # CHECK-RUNRM-NEXT: ((1,), (2,))
@@ -25,7 +25,7 @@
 # RUN:     --show-sample-count
 # RUN: lnt updatedb %t.install --testsuite nts \
 # RUN:     --delete-machine "LNT SAMPLE MACHINE" --show-sql >& %t.out
-# RUN: FileCheck --check-prefix CHECK-MACHINERM %s < %t.out
+# RUN: filecheck --check-prefix CHECK-MACHINERM %s < %t.out
 
 # CHECK-MACHINERM: DELETE FROM "NT_Sample" WHERE "NT_Sample"."ID" = ?
 # CHECK-MACHINERM-NEXT: ((1,), (2,))
