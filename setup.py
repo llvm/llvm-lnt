@@ -132,7 +132,6 @@ The *LNT* source is available in the llvm-lnt repository:
         "click==6.7",
         "pyyaml==5.1.2",
         "requests",
-        "lit==0.11.1",
         "certifi"
     ],
 
