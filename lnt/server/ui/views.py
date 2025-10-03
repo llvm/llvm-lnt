@@ -3,6 +3,7 @@ import json
 import os
 import re
 import time
+import typing  # noqa: F401
 from collections import namedtuple, defaultdict
 from urllib.parse import urlparse, urljoin
 from io import BytesIO
@@ -20,7 +21,6 @@ from flask import send_file
 from flask_wtf import Form
 from sqlalchemy.orm import joinedload
 from sqlalchemy.orm.exc import NoResultFound
-from typing import Optional
 from wtforms import SelectField, StringField, SubmitField
 from wtforms.validators import DataRequired, Length
 
@@ -36,7 +36,7 @@ import lnt.util
 import lnt.util.ImportData
 import lnt.util.stats
 from lnt.external.stats import stats as ext_stats
-from lnt.server.db import testsuitedb
+from lnt.server.db import testsuitedb  # noqa: F401
 from lnt.server.reporting.analysis import ComparisonResult, calc_geomean
 from lnt.server.ui import util
 from lnt.server.ui.decorators import frontend, db_route, v4_route
@@ -1844,7 +1844,8 @@ class MatrixOptions(Form):
     limit = SelectField('Size', choices=MATRIX_LIMITS)
 
 
-def baseline() -> Optional[testsuitedb.TestSuiteDB.Baseline]:
+def baseline():
+    # type: () -> typing.Optional[testsuitedb.TestSuiteDB.Baseline]
     """Get the baseline object from the user's current session baseline value
     or None if one is not defined.
     """
