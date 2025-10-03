@@ -4,6 +4,7 @@ from sqlalchemy.orm import joinedload
 from sqlalchemy.orm.session import Session
 from sqlalchemy.orm.exc import ObjectDeletedError
 from typing import Tuple, List
+import typing
 
 import lnt.server.reporting.analysis
 from lnt.testing.util.commands import timed
@@ -27,7 +28,7 @@ def post_submit_tasks(session, ts, run_id):
     regenerate_fieldchanges_for_run(session, ts, run_id)
 
 
-def delete_fieldchange(session: Session, ts: TestSuiteDB, change: TestSuiteDB.FieldChange) -> List[int]:
+def delete_fieldchange(session: Session, ts: TestSuiteDB, change) -> List[int]:
     """Delete this field change.  Since it might be attahed to a regression
     via regression indicators, fix those up too.  If this orphans a regression
     delete it as well."""
@@ -36,7 +37,7 @@ def delete_fieldchange(session: Session, ts: TestSuiteDB, change: TestSuiteDB.Fi
         filter(ts.RegressionIndicator.field_change_id == change.id). \
         all()
     # And all the related regressions.
-    regression_ids = [r.regression_id for r in indicators]
+    regression_ids: List[int] = [r.regression_id for r in indicators]
 
     # Remove the idicators that point to this change.
     for ind in indicators:
@@ -47,13 +48,13 @@ def delete_fieldchange(session: Session, ts: TestSuiteDB, change: TestSuiteDB.Fi
 
     # We might have just created a regression with no changes.
     # If so, delete it as well.
-    deleted_ids = []
+    deleted_ids: List[int] = []
     for r in regression_ids:
         remaining = session.query(ts.RegressionIndicator). \
             filter(ts.RegressionIndicator.regression_id == r). \
             all()
         if len(remaining) == 0:
-            r = session.query(ts.Regression).get(r)
+            r = typing.cast(int, session.query(ts.Regression).get(r))
             logger.info("Deleting regression because it has not changes:" +
                         repr(r))
             session.delete(r)
@@ -224,7 +225,7 @@ def percent_similar(a: str, b: str) -> float:
 @timed
 def identify_related_changes(session: Session,
                              ts: TestSuiteDB,
-                             fc: TestSuiteDB.FieldChange,
+                             fc,  # TestSuiteDB.FieldChange
                              active_changes: List) -> Tuple[bool, List]:
     """Can we find a home for this change in some existing regression? If a
     match is found add a regression indicator adding this change to that

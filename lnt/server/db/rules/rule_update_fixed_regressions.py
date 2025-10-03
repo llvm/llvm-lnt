@@ -34,7 +34,7 @@ def is_fixed(session, ts, regression):
     return all(fixes)
 
 
-def impacts(session: Session, ts: TestSuiteDB, run_id: int, regression: TestSuiteDB.Regression) -> bool:
+def impacts(session: Session, ts: TestSuiteDB, run_id: int, regression) -> bool:
     """Does this run have a chance of impacting this regression?
 
     This is just to prevent doing a full comparison, so we don't have
