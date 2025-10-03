@@ -87,7 +87,7 @@ def upgrade_testsuite(engine, session, name):
     # Grab Test Suite.
     test_suite = session.query(upgrade_0_to_1.TestSuite).\
                  filter_by(name=name).first()
-    assert(test_suite is not None)
+    assert test_suite is not None
 
     # Add FieldChange to the test suite.
     Base = add_regressions(test_suite)

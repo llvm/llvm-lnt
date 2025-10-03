@@ -10,10 +10,10 @@ import queue
 
 _interval = 1.0
 _times = {}
-_files = []  # type: Sequence[Path]
+_files: Sequence[Path] = []
 
 _running = False
-_queue = queue.Queue()  # type: queue.Queue
+_queue: queue.Queue = queue.Queue()
 _lock = threading.Lock()
 
 

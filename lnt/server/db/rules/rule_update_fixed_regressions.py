@@ -34,8 +34,7 @@ def is_fixed(session, ts, regression):
     return all(fixes)
 
 
-def impacts(session, ts, run_id, regression):
-    # type: (Session, TestSuiteDB, int, TestSuiteDB.Regression) -> bool
+def impacts(session: Session, ts: TestSuiteDB, run_id: int, regression: TestSuiteDB.Regression) -> bool:
     """Does this run have a chance of impacting this regression?
 
     This is just to prevent doing a full comparison, so we don't have
@@ -51,8 +50,7 @@ def impacts(session, ts, run_id, regression):
     return machine_id in regression_machines_set
 
 
-def age_out_oldest_regressions(session, ts, num_to_keep=50):
-    # type: (Session, TestSuiteDB, int) -> int
+def age_out_oldest_regressions(session: Session, ts: TestSuiteDB, num_to_keep: int = 50) -> int:
     """Find the oldest regressions that are still in the detected state,
     and age them out.  This is needed when regressions are not manually
     acknowledged, regression analysis can grow unbounded.
@@ -69,7 +67,7 @@ def age_out_oldest_regressions(session, ts, num_to_keep=50):
         .join(ts.FieldChange) \
         .all()
 
-    regression_newest_change = {}  # type: Dict[int, int]
+    regression_newest_change: Dict[int, int] = {}
     for regression_id, order_id in regression_orders:
         current = regression_newest_change.get(regression_id)
         if current is None or current < order_id:

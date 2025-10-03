@@ -532,7 +532,7 @@ def upgrade_1_to_2(data, ts_name):
     result['format_version'] = '2'
     report_version = data['Run']['Info'].pop('__report_version__', '1')
     # We should not be in upgrade_1_to_2 for other versions
-    assert(report_version == '1')
+    assert report_version == '1'
     tag = data['Run']['Info'].pop('tag', None)
     if tag is not None and tag != ts_name:
         raise ValueError("Importing '%s' data into '%s' testsuite" %
@@ -589,7 +589,7 @@ def upgrade_1_to_2(data, ts_name):
 
         found_metric = False
         for oldname, newname in upgrade.metric_rename.items():
-            assert(oldname.startswith('.'))
+            assert oldname.startswith('.')
             if name_metric.endswith(oldname):
                 name = name_metric[:-len(oldname)]
                 metric = newname

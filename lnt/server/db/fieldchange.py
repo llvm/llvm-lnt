@@ -27,8 +27,7 @@ def post_submit_tasks(session, ts, run_id):
     regenerate_fieldchanges_for_run(session, ts, run_id)
 
 
-def delete_fieldchange(session, ts, change):
-    # type: (Session, TestSuiteDB, TestSuiteDB.FieldChange) -> List[int]
+def delete_fieldchange(session: Session, ts: TestSuiteDB, change: TestSuiteDB.FieldChange) -> List[int]:
     """Delete this field change.  Since it might be attahed to a regression
     via regression indicators, fix those up too.  If this orphans a regression
     delete it as well."""
@@ -64,8 +63,7 @@ def delete_fieldchange(session, ts, change):
 
 
 @timed
-def regenerate_fieldchanges_for_run(session, ts, run_id):
-    # type: (Session, TestSuiteDB, int) -> None
+def regenerate_fieldchanges_for_run(session: Session, ts: TestSuiteDB, run_id: int) -> None:
     """Regenerate the set of FieldChange objects for the given run.
     """
     # Allow for potentially a few different runs, previous_runs, next_runs
@@ -213,8 +211,7 @@ def is_overlaping(fc1, fc2):
            (r1_min < r2_max and r2_min < r1_max)
 
 
-def percent_similar(a, b):
-    # type: (str, str) -> float
+def percent_similar(a: str, b: str) -> float:
     """
     Percent similar: are these strings similar to each other?
     :param a: first string
@@ -225,8 +222,10 @@ def percent_similar(a, b):
 
 
 @timed
-def identify_related_changes(session, ts, fc, active_changes):
-    # type: (Session, TestSuiteDB, TestSuiteDB.FieldChange, List) -> Tuple[bool, List]
+def identify_related_changes(session: Session,
+                             ts: TestSuiteDB,
+                             fc: TestSuiteDB.FieldChange,
+                             active_changes: List) -> Tuple[bool, List]:
     """Can we find a home for this change in some existing regression? If a
     match is found add a regression indicator adding this change to that
     regression, otherwise create a new regression for this change.
