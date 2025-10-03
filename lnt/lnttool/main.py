@@ -466,20 +466,17 @@ def _version_check():
     when the version number changes (which may involve changing package
     requirements).
     """
-    import pkg_resources
+    import importlib.metadata
     import lnt
 
     # Get the current distribution.
-    installed_dist = pkg_resources.get_distribution("LNT")
-    if installed_dist.project_name.lower() != lnt.__name__ or \
-       pkg_resources.parse_version(installed_dist.version) != \
-       pkg_resources.parse_version(lnt.__version__):
-        raise SystemExit("""\
-error: installed distribution %s %s is not current (%s %s), you may need to reinstall
-LNT or rerun 'setup.py develop' if using development mode.""" % (
-                         installed_dist.project_name,
-                         installed_dist.version,
-                         lnt.__name__, lnt.__version__))
+    meta = importlib.metadata.metadata("LNT")
+    if meta['Name'].lower() != lnt.__name__ or meta['Version'] != lnt.__version__:
+        installed = "{} {}".format(meta['Name'], meta['Version'])
+        current = "{} {}".format(lnt.__name__, lnt.__version__)
+        raise SystemExit(f"""\
+error: installed distribution {installed} is not current ({current}), you may need to reinstall
+LNT or rerun 'setup.py develop' if using development mode.""")
 
 
 def show_version(ctx, param, value):
