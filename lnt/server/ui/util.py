@@ -279,7 +279,7 @@ def convert_revision(dotted, cache=None):
             return val
 
     dotted_parsed = integral_rex.findall(dotted)
-    val = tuple([int(d) for d in dotted_parsed] or 
+    val = tuple([int(d) for d in dotted_parsed] or
                 [int(hashlib.sha1(dotted.encode("utf-8")).hexdigest(), 16)])
     if cache is not None:
         cache[dotted] = val
