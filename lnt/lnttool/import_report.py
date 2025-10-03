@@ -28,24 +28,29 @@ def action_importreport(input, output, suite, order, machine):
     import lnt.testing
     import os
 
-    machine_info = {}
-    run_info = {'tag': suite}
-    run_info['run_order'] = order
-    machine = lnt.testing.Machine(machine,
-                                  machine_info)
+    machine = lnt.testing.Machine(machine)
+
     ctime = os.path.getctime(input.name)
     mtime = os.path.getmtime(input.name)
+    run = lnt.testing.Run(start_time=ctime, end_time=mtime,
+                          info={'llvm_project_revision': order})
 
-    run = lnt.testing.Run(ctime, mtime, run_info)
-    report = lnt.testing.Report(machine=machine, run=run, tests=[])
-
+    tests = {}  # name => lnt.testing.Test
     for line in input.readlines():
         key, val = line.split()
-        metric = key.split(".")[1]
+        (testname, metric) = key.split(".")
         metric_type = float if metric not in ("hash", "profile") else str
-        test = lnt.testing.TestSamples(suite + "." + key, [val],
-                                       conv_f=metric_type)
 
-        report.tests.extend([test])
+        if testname not in tests:
+            tests[testname] = lnt.testing.Test(testname, [])
+        test = tests[testname]
 
+        samples = next((s for s in test.samples if s.metric == metric), None)
+        if samples is None:
+            test.samples.append(lnt.testing.MetricSamples(metric, []))
+            samples = test.samples[-1]
+
+        samples.add_samples([val], conv_f=metric_type)
+
+    report = lnt.testing.Report(machine=machine, run=run, tests=list(tests.values()))
     output.write(report.render())

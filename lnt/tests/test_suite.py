@@ -111,10 +111,7 @@ def _importProfile(objdump, name_filename):
 
     pf.upgrade()
     profilefile = pf.render()
-    return lnt.testing.TestSamples(name + '.profile',
-                                   [profilefile],
-                                   {},
-                                   str)
+    return lnt.testing.MetricSamples(name + '.profile', [profilefile], conv_f=str)
 
 
 def _lit_json_to_template(json_reports, template_engine):
@@ -747,9 +744,7 @@ class TestSuiteTest(BuiltinTest):
             'link_mem_bytes': float
         }
 
-        # We don't use the test info, currently.
-        test_info = {}
-        test_samples = []
+        tests = []
 
         # FIXME: Populate with keys not to upload
         ignore = self.opts.exclude_stat_from_submission
@@ -762,6 +757,7 @@ class TestSuiteTest(BuiltinTest):
         for test_data in data['tests']:
             code = test_data['code']
             raw_name = test_data['name']
+            metric_samples = []
 
             split_name = raw_name.split(' :: ', 1)
             if len(split_name) > 1:
@@ -796,32 +792,26 @@ class TestSuiteTest(BuiltinTest):
                     if k not in LIT_METRIC_TO_LNT or \
                        LIT_METRIC_TO_LNT[k] in ignore:
                         continue
-                    server_name = name + '.' + LIT_METRIC_TO_LNT[k]
 
                     if k == 'link_time' or k == 'link_mem_bytes':
                         # Move link time into a second benchmark's
                         # compile-time.
+                        # TODO: This is more difficult with the new API
                         server_name = name + '-link.' + LIT_METRIC_TO_LNT[k]
 
-                    test_samples.append(
-                        lnt.testing.TestSamples(server_name,
-                                                [v],
-                                                test_info,
-                                                LIT_METRIC_CONV_FN[k]))
+                    sample = lnt.testing.MetricSamples(LIT_METRIC_TO_LNT[k], [v], conv_f=LIT_METRIC_CONV_FN[k])
+                    metric_samples.append(sample)
 
             if code == 'NOEXE':
-                test_samples.append(
-                    lnt.testing.TestSamples(name + '.compile.status',
-                                            [lnt.testing.FAIL],
-                                            test_info))
+                metric_samples.append(lnt.testing.MetricSamples('compile.status', [lnt.testing.FAIL]))
                 no_errors = False
 
             elif not is_pass:
                 lnt_code = self._get_lnt_code(test_data['code'])
-                test_samples.append(
-                    lnt.testing.TestSamples(name + '.exec.status',
-                                            [lnt_code], test_info))
+                metric_samples.append(lnt.testing.MetricSamples('exec.status', [lnt_code]))
                 no_errors = False
+
+            tests.append(lnt.testing.Test(name, metric_samples))
 
         # Now import the profiles in parallel.
         if profiles_to_import:
@@ -833,9 +823,7 @@ class TestSuiteTest(BuiltinTest):
                 func = partial(_importProfile, cmake_vars["CMAKE_OBJDUMP"])
                 waiter = pool.map_async(func, profiles_to_import)
                 samples = waiter.get(TIMEOUT)
-                test_samples.extend([sample
-                                     for sample in samples
-                                     if sample is not None])
+                metric_samples.extend([sample for sample in samples if sample is not None])
             except multiprocessing.TimeoutError:
                 logger.warning('Profiles had not completed importing after ' +
                                '%s seconds.' % TIMEOUT)
@@ -846,22 +834,17 @@ class TestSuiteTest(BuiltinTest):
             raise RuntimeError("Result %s did not exist!" %
                                self.opts.single_result)
 
-        # FIXME: Add more machine info!
-        run_info = {
-            'tag': 'nts',
-            'no_errors': no_errors,
-        }
+        run_info = {'no_errors': no_errors}
         run_info.update(self._get_cc_info(cmake_vars))
         run_info['run_order'] = run_info['inferred_run_order']
         if self.opts.run_order:
             run_info['run_order'] = self.opts.run_order
+        run_info['llvm_project_revision'] = run_info['run_order']
 
-        machine_info = {
-        }
-
-        machine = lnt.testing.Machine(self.opts.label, machine_info)
+        # FIXME: Add more machine info!
+        machine = lnt.testing.Machine(self.opts.label, info={})
         run = lnt.testing.Run(self.start_time, timestamp(), info=run_info)
-        report = lnt.testing.Report(machine, run, test_samples)
+        report = lnt.testing.Report(machine, run, tests)
         return report
 
     def _unix_quote_args(self, s):
