@@ -186,6 +186,25 @@ def ts_data(ts):
     }
 
 
+def determine_aggregation_function(function_name):
+    """
+    Return the aggregation function associated to the provided function name, or None if
+    the function name is unsupported.
+
+    This is used by dropdown menus that allow selecting from multiple aggregation functions.
+    """
+    if function_name == 'min':
+        return lnt.util.stats.safe_min
+    elif function_name == 'max':
+        return lnt.util.stats.safe_max
+    elif function_name == 'mean':
+        return lnt.util.stats.mean
+    elif function_name == 'median':
+        return lnt.util.stats.median
+    else:
+        return None
+
+
 @db_route('/submitRun', methods=('GET', 'POST'))
 def submit_run():
     """Compatibility url that hardcodes testsuite to 'nts'"""
@@ -353,10 +372,10 @@ class V4RequestInfo(object):
             abort(404, "Invalid run id {}".format(run_id))
 
         # Get the aggregation function to use.
-        aggregation_fn_name = request.args.get('aggregation_fn')
-        self.aggregation_fn = {'min': lnt.util.stats.safe_min,
-                               'median': lnt.util.stats.median}.get(
-            aggregation_fn_name, lnt.util.stats.safe_min)
+        fn_name = request.args.get('aggregation_function', 'min')
+        aggregation_fn = determine_aggregation_function(fn_name)
+        if aggregation_fn is None:
+            abort(404, "Invalid aggregation function name {}".format(fn_name))
 
         # Get the MW confidence level.
         try:
@@ -428,7 +447,7 @@ class V4RequestInfo(object):
             session, self.run, baseurl=db_url_for('.index', _external=False),
             result=None, compare_to=compare_to, baseline=baseline,
             num_comparison_runs=self.num_comparison_runs,
-            aggregation_fn=self.aggregation_fn, confidence_lv=confidence_lv,
+            aggregation_fn=aggregation_fn, confidence_lv=confidence_lv,
             styles=styles, classes=classes)
         self.sri = self.data['sri']
         note = self.data['visible_note']
@@ -516,7 +535,7 @@ def v4_run(id):
     else:
         test_min_value_filter = 0.0
 
-    options['aggregation_fn'] = request.args.get('aggregation_fn', 'min')
+    options['aggregation_function'] = request.args.get('aggregation_function', 'min')
 
     # Get the test names.
     test_info = session.query(ts.Test.name, ts.Test.id).\
@@ -961,30 +980,13 @@ def v4_tableau():
 
 @v4_route("/graph")
 def v4_graph():
-
     session = request.session
     ts = request.get_testsuite()
-    switch_min_mean_local = False
 
-    if 'switch_min_mean_session' not in flask.session:
-        flask.session['switch_min_mean_session'] = False
     # Parse the view options.
-    options = {'min_mean_checkbox': 'min()'}
-    if 'submit' in request.args:  # user pressed a button
-        if 'switch_min_mean' in request.args:  # user checked mean() checkbox
-            flask.session['switch_min_mean_session'] = \
-                options['switch_min_mean'] = \
-                bool(request.args.get('switch_min_mean'))
-            switch_min_mean_local = flask.session['switch_min_mean_session']
-        else:  # mean() check box is not checked
-            flask.session['switch_min_mean_session'] = \
-                options['switch_min_mean'] = \
-                bool(request.args.get('switch_min_mean'))
-            switch_min_mean_local = flask.session['switch_min_mean_session']
-    else:  # new page was loaded by clicking link, not submit button
-        options['switch_min_mean'] = switch_min_mean_local = \
-            flask.session['switch_min_mean_session']
-
+    options = {}
+    options['aggregation_function'] = \
+        request.args.get('aggregation_function')  # default determined later based on the field being graphed
     options['hide_lineplot'] = bool(request.args.get('hide_lineplot'))
     show_lineplot = not options['hide_lineplot']
     options['show_mad'] = show_mad = bool(request.args.get('show_mad'))
@@ -1198,15 +1200,18 @@ def v4_graph():
 
             is_multisample = (len(values) > 1)
 
-            aggregation_fn = min
-            if switch_min_mean_local:
-                aggregation_fn = lnt.util.stats.agg_mean
-            if field.bigger_is_better:
-                aggregation_fn = max
+            fn_name = options.get('aggregation_function') or ('max' if field.bigger_is_better else 'min')
+            aggregation_fn = determine_aggregation_function(fn_name)
+            if aggregation_fn is None:
+                abort(404, "Invalid aggregation function name {}".format(fn_name))
+            agg_value = aggregation_fn(values)
 
-            agg_value, agg_index = \
-                aggregation_fn((value, index)
-                               for (index, value) in enumerate(values))
+            # When aggregating multiple samples, it becomes unclear which sample to use for
+            # associated data like the run date, the order, etc. Use the index of the closest
+            # value in all the samples.
+            closest_value = sorted(values, key=lambda val: abs(val - agg_value))[0]
+            agg_index = values.index(closest_value)
+
             pts_y.append(agg_value)
 
             # Plotly does not sort X axis in case of type: 'category'.

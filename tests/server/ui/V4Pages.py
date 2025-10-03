@@ -636,10 +636,11 @@ def main():
     assert 2 == lines_in_function
 
     # Make sure the new option does not break anything
-    check_html(client, '/db_default/v4/nts/graph?switch_min_mean=yes&plot.0=1.3.2&submit=Update')
-    check_json(client, '/db_default/v4/nts/graph?switch_min_mean=yes&plot.0=1.3.2&json=true&submit=Update')
-    check_html(client, '/db_default/v4/nts/graph?switch_min_mean=yes&plot.0=1.3.2')
-    check_json(client, '/db_default/v4/nts/graph?switch_min_mean=yes&plot.0=1.3.2&json=true')
+    check_html(client, '/db_default/v4/nts/graph?aggregation_function=mean&plot.0=1.3.2&submit=Update')
+    check_json(client, '/db_default/v4/nts/graph?aggregation_function=mean&plot.0=1.3.2&json=true&submit=Update')
+    check_html(client, '/db_default/v4/nts/graph?aggregation_function=mean&plot.0=1.3.2')
+    check_json(client, '/db_default/v4/nts/graph?aggregation_function=mean&plot.0=1.3.2&json=true')
+    check_html(client, '/db_default/v4/nts/graph?aggregation_function=nonexistent&plot.0=1.3.2', expected_code=404)
     app.testing = False
     error_page = check_html(client, '/explode', expected_code=500)
     assert re.search("division (or modulo )?by zero",

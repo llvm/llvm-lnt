@@ -137,9 +137,18 @@ function init_page() {
                     {{ 'checked="checked"' if options.xaxis_date else ""}}/></td>
               </tr>
               <tr>
-                <td>Mean() as Aggregation</td>
-                <td><input type="checkbox" name="switch_min_mean" value="yes"
-                    {{ 'checked="checked"' if options.switch_min_mean else ""}}/></td>
+                <td>Aggregation function:</td>
+              </tr>
+              {# Split this into a new row to avoid making the dialog wider. #}
+              <tr>
+                <td>
+                  <select name="aggregation_function" id="aggregation_function">
+                    <option value="min" {{ 'selected="selected"' if options.aggregation_function == 'min' else '' }}>Minimum</option>
+                    <option value="max" {{ 'selected="selected"' if options.aggregation_function == 'max' else '' }}>Maximum</option>
+                    <option value="mean" {{ 'selected="selected"' if options.aggregation_function == 'mean' else '' }}>Mean</option>
+                    <option value="median" {{ 'selected="selected"' if options.aggregation_function == 'median' else '' }}>Median</option>
+                  </select>
+                </td>
               </tr>
               <tr>
                 <td>Hide Line Plot:</td>
