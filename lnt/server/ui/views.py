@@ -954,7 +954,6 @@ def load_geomean_data(field, machine, limit, xaxis_date, revision_cache=None):
 @v4_route("/tableau")
 def v4_tableau():
     """ Tableau WDC."""
-    ts = request.get_testsuite()
     return render_template("v4_tableau.html")
 
 
@@ -1842,8 +1841,7 @@ class MatrixOptions(Form):
     limit = SelectField('Size', choices=MATRIX_LIMITS)
 
 
-def baseline():
-    # type: () -> Optional[testsuitedb.TestSuiteDB.Baseline]
+def baseline() -> Optional[testsuitedb.TestSuiteDB.Baseline]:
     """Get the baseline object from the user's current session baseline value
     or None if one is not defined.
     """

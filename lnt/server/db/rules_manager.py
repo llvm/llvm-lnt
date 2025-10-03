@@ -49,12 +49,12 @@ def load_rules():
 
 
 # Places our rules can hook to.
-HOOKS = {
+HOOKS: Dict['str', List[Callable]] = {
     'post_test_hook': [],
     'post_submission_hook': [],
     'post_regression_create_hook': [],
     'is_useful_change': [],
-}  # type: Dict['str', List[Callable]]
+}
 
 DESCRIPTIONS = {}
 HOOKS_LOADED = False
