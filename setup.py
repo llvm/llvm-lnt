@@ -119,7 +119,7 @@ The *LNT* source is available in the llvm-lnt repository:
         "aniso8601==1.2.0",
         "Flask==0.12.2",
         "Flask-RESTful==0.3.4",
-        "Jinja2==2.11.3",
+        "Jinja2",
         "MarkupSafe==1.1.1",
         "SQLAlchemy==1.3.24",
         "Werkzeug==0.15.6",
