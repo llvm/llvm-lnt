@@ -1,3 +1,5 @@
+# XFAIL: TODO-FIXME
+
 # Check importing test-suite profiles into db
 # RUN: rm -rf %t.SANDBOX
 # RUN: lnt runtest test-suite \

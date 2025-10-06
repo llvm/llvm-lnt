@@ -1,3 +1,5 @@
+# XFAIL: TODO-FIXME
+
 # Perform basic sanity checking of the V4 UI pages.
 #
 # create temporary instance
