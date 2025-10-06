@@ -126,6 +126,7 @@ The *LNT* source is available in the llvm-lnt repository:
         "itsdangerous==0.24",
         "python-gnupg==0.3.7",
         "pytz==2016.10",
+        "pyyaml",
         "WTForms==2.0.2",
         "Flask-WTF==0.12",
         "typing",
