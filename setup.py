@@ -130,7 +130,6 @@ The *LNT* source is available in the llvm-lnt repository:
         "Flask-WTF==0.12",
         "typing",
         "click==6.7",
-        "pyyaml==5.1.2",
         "requests",
         "certifi"
     ],
