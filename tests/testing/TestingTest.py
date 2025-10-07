@@ -165,12 +165,12 @@ class TestTest(unittest.TestCase):
 
     def test_render(self):
         # Check rendering with no info.
-        d1 = {'Name': 'Test1',
+        d1 = {'name': 'Test1',
               'execution_time': [21.4, 3.2]}
         self.assertDictEqual(self.test_noinfo.render(), d1)
 
         # Check rendering with info.
-        d2 = {'Name': 'Test2',
+        d2 = {'name': 'Test2',
               'execution_time': [21.4, 3.2],
               'nb_files': '2'}
         self.assertDictEqual(self.test_info.render(), d2)
@@ -479,13 +479,13 @@ class TestMachine(unittest.TestCase):
         self.assertDictEqual(self.machine_v1.render(), d2)
 
         # Check v2 rendering with no info.
-        d3 = {'Name': 'Machine3',
+        d3 = {'name': 'Machine3',
               'CPUs': '2'}
         self.assertDictEqual(self.machine_v2.render(), d3)
 
         # Check v2 rendering with info.
         self.machine_v2.info = {}
-        d4 = {'Name': 'Machine3'}
+        d4 = {'name': 'Machine3'}
         self.assertDictEqual(self.machine_v2.render(), d4)
 
 
@@ -662,7 +662,7 @@ class TestReport(unittest.TestCase):
 {
     "format_version": "2",
     "machine": {
-        "Name": "Machine",
+        "name": "Machine",
         "nb_cpus": "2"
     },
     "run": {
@@ -671,11 +671,11 @@ class TestReport(unittest.TestCase):
     },
     "tests": [
         {
-            "Name": "Test",
             "execution_time": [
                 21.4,
                 3.2
             ],
+            "name": "Test",
             "nb_files": "2"
         }
     ]
@@ -687,7 +687,7 @@ class TestReport(unittest.TestCase):
 {
   "format_version": "2",
   "machine": {
-    "Name": "Machine",
+    "name": "Machine",
     "nb_cpus": "2"
   },
   "run": {
@@ -696,11 +696,11 @@ class TestReport(unittest.TestCase):
   },
   "tests": [
     {
-      "Name": "Test",
       "execution_time": [
         21.4,
         3.2
       ],
+      "name": "Test",
       "nb_files": "2"
     }
   ]
@@ -714,7 +714,7 @@ class TestReport(unittest.TestCase):
 {
     "format_version": "2",
     "machine": {
-        "Name": "Machine",
+        "name": "Machine",
         "nb_cpus": "2"
     },
     "run": {
@@ -723,8 +723,8 @@ class TestReport(unittest.TestCase):
     },
     "tests": [
         {
-            "Name": "Test",
             "execution_time": 21.4,
+            "name": "Test",
             "nb_files": "2"
         }
     ]

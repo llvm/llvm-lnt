@@ -128,7 +128,7 @@ class Machine:
         """
         if self.report_version == 2:
             d = dict(self.info)
-            d['Name'] = self.name
+            d['name'] = self.name
             return d
         else:
             return {'Name': self.name,
@@ -280,7 +280,7 @@ class Test:
         """
         d = dict(self.info)
         d.update([s.render().popitem() for s in self.samples])
-        d['Name'] = self.name
+        d['name'] = self.name
         return d
 
 
