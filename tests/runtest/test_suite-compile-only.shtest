@@ -1,5 +1,3 @@
-# XFAIL: TODO-FIXME
-
 # Check running with compile only
 # RUN: rm -rf %t.SANDBOX
 # RUN: lnt runtest test-suite \
