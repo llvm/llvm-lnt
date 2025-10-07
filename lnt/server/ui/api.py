@@ -438,6 +438,7 @@ class Graph(Resource):
 
         q = session.query(field.column, ts.Order.llvm_project_revision,
                           ts.Run.start_time, ts.Run.id) \
+            .select_from(ts.Sample) \
             .join(ts.Run) \
             .join(ts.Order) \
             .filter(ts.Run.machine_id == machine.id) \
