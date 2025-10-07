@@ -720,8 +720,8 @@ class TestSuiteTest(BuiltinTest):
 
     def _parse_lit_output(self, path, data, cmake_vars, only_test=False):
         LIT_METRIC_TO_LNT = {
-            'compile_time': 'compile',
-            'exec_time': 'exec',
+            'compile_time': 'compile_time',
+            'exec_time': 'execution_time',
             'score': 'score',
             'hash': 'hash',
             'link_time': 'compile',

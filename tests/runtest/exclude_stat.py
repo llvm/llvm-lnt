@@ -10,5 +10,6 @@
 # RUN: filecheck --check-prefix CHECK-STDOUT < %t.log %s
 # RUN: filecheck --check-prefix CHECK-REPORT < %t.SANDBOX/build/report.json %s
 # CHECK-STDOUT: Import succeeded.
-# CHECK-REPORT:     "Name": "nts.{{[^.]+}}.exec"
-# CHECK-REPORT-NOT: "Name": "nts.{{[^.]+}}.compile"
+# CHECK-REPORT:     "execution_time":
+# CHECK-REPORT-NOT: "compile_time":
+# CHECK-REPORT-NOT: "compile":

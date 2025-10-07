@@ -729,7 +729,7 @@ def execute_nt_tests(test_log, make_variables, basedir, config):
 # Keep a mapping of mangled test names, to the original names in the
 # test-suite.
 TEST_TO_NAME = {}
-KNOWN_SAMPLE_KEYS = ('compile', 'exec', 'hash',
+KNOWN_SAMPLE_KEYS = ('compile_time', 'execution_time', 'hash',
                      'gcc.compile', 'bc.compile', 'llc.compile',
                      'llc-beta.compile', 'jit.compile', 'gcc.exec', 'llc.exec',
                      'llc-beta.exec', 'jit.exec')
@@ -750,10 +750,10 @@ def load_nt_report_file(report_path, config):
         # for now, user time is the unqualified Time stat
         if config.test_time_stat == "real":
             time_stat = 'Real_'
-        append_to_sample_keys((True, 'compile', 'CC_' + time_stat + 'Time',
+        append_to_sample_keys((True, 'compile_time', 'CC_' + time_stat + 'Time',
                                None, 'CC', float))
         append_to_sample_keys((False, 'hash', 'CC_Hash', None, 'CC', str))
-        append_to_sample_keys((True, 'exec', 'Exec_' + time_stat + 'Time',
+        append_to_sample_keys((True, 'execution_time', 'Exec_' + time_stat + 'Time',
                                None, 'Exec', float))
     else:
         test_namespace = 'nightlytest'

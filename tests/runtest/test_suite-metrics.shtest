@@ -14,8 +14,8 @@
 # RUN: filecheck --check-prefix CHECK-METRICS < %t.SANDBOX/build/report.json %s
 # RUN: filecheck --check-prefix CHECK-METRICS2 < %t.SANDBOX/build/report.json %s
 # CHECK-METRICS-DAG: "name": "nts.foo"
-# CHECK-METRICS-DAG: "exec":
-# CHECK-METRICS-DAG: "compile":
+# CHECK-METRICS-DAG: "execution_time":
+# CHECK-METRICS-DAG: "compile_time":
 # CHECK-METRICS-DAG: "score":
 # CHECK-METRICS-DAG: "hash":
 # CHECK-METRICS2-NOT: "unknown":

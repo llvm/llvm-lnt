@@ -19,8 +19,8 @@
 
 # CHECK-REPORT: "no_errors": "True",
 # CHECK-REPORT: "run_order": "154331"
-# CHECK-REPORT: "compile": 1.3
-# CHECK-REPORT: "exec": 1.4
+# CHECK-REPORT: "compile_time": 1.3
+# CHECK-REPORT: "execution_time": 1.4
 # CHECK-REPORT: "hash": "xyz"
 # CHECK-REPORT: "name": "nts.foo"
 # CHECK-REPORT: "score": 1.5
