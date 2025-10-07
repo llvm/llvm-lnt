@@ -49,6 +49,7 @@ then
   if [[ $CMAKE_C_COMPILER_TARGET != "notfound" ]]; then
     echo CMAKE_C_COMPILER_TARGET:STRING=$CMAKE_C_COMPILER_TARGET
   fi
+  echo CMAKE_OBJDUMP:FILEPATH=objdump
   echo CMAKE_BUILD_TYPE:STRING=RelWithDebInfo
   echo CMAKE_C_FLAGS:STRING=-O0
   echo CMAKE_CXX_FLAGS:STRING=
@@ -67,6 +68,7 @@ else
   echo "Dummy" > CMakeCache.txt
   echo CMAKE_C_COMPILER:FILEPATH=$CMAKE_C_COMPILER >> CMakeCache.txt
   echo CMAKE_CXX_COMPILER:FILEPATH=$CMAKE_CXX_COMPILER >> CMakeCache.txt
+  echo CMAKE_OBJDUMP:FILEPATH=objdump >> CMakeCache.txt
   if [[ $CMAKE_C_COMPILER_TARGET != "notfound" ]]; then
     echo CMAKE_C_COMPILER_TARGET:STRING=$CMAKE_C_COMPILER_TARGET >> CMakeCache.txt
   fi
