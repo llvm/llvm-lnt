@@ -12,4 +12,5 @@
 # RUN: filecheck --check-prefix CHECK-RESULTS-FAIL-COMPILE < %t.SANDBOX/build/report.json %s
 # CHECK-RESULTS-FAIL-COMPILE: "no_errors": "False"
 # CHECK-RESULTS-FAIL-COMPILE: "run_order": "123"
-# CHECK-RESULTS-FAIL-COMPILE: "Name": "nts.bar.compile.status"
+# CHECK-RESULTS-FAIL-COMPILE: "compile.status": 1.0
+# CHECK-RESULTS-FAIL-COMPILE: "name": "nts.bar"

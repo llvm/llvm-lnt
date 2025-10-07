@@ -19,10 +19,11 @@
 
 # CHECK-REPORT: "no_errors": "True",
 # CHECK-REPORT: "run_order": "154331"
-# CHECK-REPORT: "Name": "nts.foo.compile"
-# CHECK-REPORT: "Name": "nts.foo.exec"
-# CHECK-REPORT: "Name": "nts.foo.hash"
-# CHECK-REPORT: "Name": "nts.foo.score"
+# CHECK-REPORT: "compile": 1.3
+# CHECK-REPORT: "exec": 1.4
+# CHECK-REPORT: "hash": "xyz"
+# CHECK-REPORT: "name": "nts.foo"
+# CHECK-REPORT: "score": 1.5
 #
 # CHECK-BASIC: Inferred C++ compiler under test
 # CHECK-BASIC: Configuring

@@ -13,8 +13,9 @@
 # RUN:     > %t.log 2> %t.err
 # RUN: filecheck --check-prefix CHECK-METRICS < %t.SANDBOX/build/report.json %s
 # RUN: filecheck --check-prefix CHECK-METRICS2 < %t.SANDBOX/build/report.json %s
-# CHECK-METRICS-DAG: foo.exec
-# CHECK-METRICS-DAG: foo.compile
-# CHECK-METRICS-DAG: foo.score
-# CHECK-METRICS-DAG: foo.hash
-# CHECK-METRICS2-NOT: foo.unknown
+# CHECK-METRICS-DAG: "name": "nts.foo"
+# CHECK-METRICS-DAG: "exec":
+# CHECK-METRICS-DAG: "compile":
+# CHECK-METRICS-DAG: "score":
+# CHECK-METRICS-DAG: "hash":
+# CHECK-METRICS2-NOT: "unknown":
