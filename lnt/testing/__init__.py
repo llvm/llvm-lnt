@@ -32,40 +32,21 @@ class Report:
     In the LNT test model, every test run should define exactly one
     machine and run, and any number of test samples.
     """
-    def __init__(self, machine, run, tests, report_version=1):
-        """Construct a LNT report file format in the given format version."""
+    def __init__(self, machine, run, tests):
+        """Construct a LNT report file."""
         self.machine = machine
         self.run = run
         self.tests = list(tests)
-        self.report_version = report_version
         self.check()
 
     def check(self):
         """Check that object members are adequate to generate an LNT
-        json report file of the version specified at construction when
-        rendering that instance.
+        json report file.
         """
-        # Check requested report version is supported by this library
-        assert self.report_version <= 2, "Only v2 or older LNT report format supported."
-
         assert isinstance(self.machine, Machine), "Unexpected type for machine."
-        assert (
-            self.machine.report_version == self.report_version
-        ), "Mismatch between machine and report version."
-
         assert isinstance(self.run, Run), "Unexpected type for run."
-        assert (
-            self.run.report_version == self.report_version
-        ), "Mismatch between run and report version."
-
         for t in self.tests:
-            if self.report_version == 2:
-                assert isinstance(t, Test), "Unexpected type for test"
-                assert (
-                    t.report_version == self.report_version
-                ), "Mismatch between test and report version."
-            else:
-                assert isinstance(t, TestSamples), "Unexpected type for test samples."
+            assert isinstance(t, Test), "Unexpected type for test"
 
     def update_report(self, new_tests_samples, end_time=None):
         """Add extra samples to this report, and update the end time of
@@ -77,21 +58,14 @@ class Report:
         self.check()
 
     def render(self, indent=4):
-        """Return a LNT json report file format of the version specified
-        at construction as a string, where each object is indented by
-        indent spaces compared to its parent.
+        """Return a LNT json report file as a string, where each object is
+        indented by spaces compared to its parent.
         """
-        if self.report_version == 2:
-            return json.dumps({'format_version': str(self.report_version),
-                               'machine': self.machine.render(),
-                               'run': self.run.render(),
-                               'tests': [t.render() for t in self.tests]},
-                              sort_keys=True, indent=indent)
-        else:
-            return json.dumps({'Machine': self.machine.render(),
-                               'Run': self.run.render(),
-                               'Tests': [t.render() for t in self.tests]},
-                              sort_keys=True, indent=indent)
+        return json.dumps({'format_version': '2',
+                            'machine': self.machine.render(),
+                            'run': self.run.render(),
+                            'tests': [t.render() for t in self.tests]},
+                            sort_keys=True, indent=indent)
 
 
 class Machine:
@@ -104,44 +78,25 @@ class Machine:
     Machines entries in the database are uniqued by their name and the
     entire contents of the info dictionary.
     """
-    def __init__(self, name, info={}, report_version=1):
+    def __init__(self, name, info={}):
         self.name = str(name)
         self.info = dict((str(key), str(value))
                          for key, value in info.items())
-        self.report_version = report_version
-        self.check()
-
-    def check(self):
-        """Check object members are adequate to generate an LNT json
-        report file of the version specified at construction when
-        rendering that instance.
-        """
-        # Check requested version is supported by this library
-        assert (
-            self.report_version <= 2
-        ), "Only v2 or older supported for LNT report format Machine objects."
 
     def render(self):
         """Return info from this instance in a dictionary that respects
-        the LNT report format in the version specified at construction
-        when printed as json.
+        the LNT JSON report format.
         """
-        if self.report_version == 2:
-            d = dict(self.info)
-            d['Name'] = self.name
-            return d
-        else:
-            return {'Name': self.name,
-                    'Info': self.info}
+        d = dict(self.info)
+        d['name'] = self.name
+        return d
 
 
 class Run:
     """Information on the particular test run.
 
     At least one parameter must be supplied and is used as ordering
-    among several runs. When generating a report in format 1 or earlier,
-    both start_time and end_time are used for that effect and the
-    current date is used if their value is None.
+    among several runs.
 
     As with Machine, the info dictionary can be used to describe
     additional information on the run. This dictionary should be used to
@@ -151,12 +106,7 @@ class Run:
     which could be useful in analysis, for example the current machine
     load.
     """
-    def __init__(self, start_time=None, end_time=None, info={}, report_version=1):
-        if report_version <= 1:
-            if start_time is None:
-                start_time = datetime.datetime.utcnow()
-            if end_time is None:
-                end_time = datetime.datetime.utcnow()
+    def __init__(self, start_time=None, end_time=None, info={}):
         self.start_time = normalize_time(start_time) if start_time is not None else None
         self.end_time = normalize_time(end_time) if end_time is not None else None
         self.info = dict()
@@ -165,59 +115,24 @@ class Run:
             key = str(key)
             value = str(value)
             self.info[key] = value
-        self.report_version = report_version
-        if self.report_version <= 1:
-            if 'tag' not in self.info:
-                raise ValueError("Missing 'tag' entry in 'info' dictionary")
-            if 'run_order' not in self.info:
-                raise ValueError("Missing 'run_order' entry in 'info' dictionary")
-        else:
-            if 'llvm_project_revision' not in self.info:
-                raise ValueError("Missing 'llvm_project_revision' entry in 'info' dictionary")
-        if '__report_version__' in info:
-            raise ValueError("'__report_version__' key is reserved")
-        if report_version == 1:
-            self.info['__report_version__'] = '1'
-        self.check()
 
-    def check(self):
-        """Check object members are adequate to generate an LNT json
-        report file of the version specified at construction when
-        rendering that instance.
-        """
-        # Check requested version is supported by this library
-        assert (
-            self.report_version <= 2
-        ), "Only v2 or older supported for LNT report format Run objects."
-        if self.start_time is None and self.end_time is None and not bool(self.info):
-            raise ValueError("No data defined in this Run")
+        if 'llvm_project_revision' not in self.info:
+            raise ValueError("Missing 'llvm_project_revision' entry in 'info' dictionary")
 
     def update_endtime(self, end_time=None):
         """Update the end time of this run."""
-        if self.report_version <= 1 and end_time is None:
-            end_time = datetime.datetime.utcnow()
         self.end_time = normalize_time(end_time) if end_time else None
-        self.check()
 
     def render(self):
         """Return info from this instance in a dictionary that respects
-        the LNT report format in the version specified at construction
-        when printed as json.
+        the LNT JSON report format.
         """
-        if self.report_version == 2:
-            d = dict(self.info)
-            if self.start_time is not None:
-                d['start_time'] = self.start_time
-            if self.end_time is not None:
-                d['end_time'] = self.end_time
-            return d
-        else:
-            info = dict(self.info)
-            if self.report_version == 1:
-                info['__report_version__'] = '1'
-            return {'Start Time': self.start_time,
-                    'End Time': self.end_time,
-                    'Info': info}
+        d = dict(self.info)
+        if self.start_time is not None:
+            d['start_time'] = self.start_time
+        if self.end_time is not None:
+            d['end_time'] = self.end_time
+        return d
 
 
 class Test:
@@ -225,8 +140,7 @@ class Test:
     samples.
 
     The server automatically creates test database objects whenever a
-    new test name is seen. Test should be used to generate report in
-    version 2 or later of LNT JSON report file format.
+    new test name is seen.
 
     Test names are intended to be a persistent, recognizable identifier
     for what is being executed. Currently, most formats use some form of
@@ -242,10 +156,10 @@ class Test:
     for example, the compile flags the test was built with, or the
     runtime parameters that were used. As a general rule, if two test
     samples are meaningfully and directly comparable, then they should
-    have the same test name but different info paramaters.
+    have the same test name but different info parameters.
     """
 
-    def __init__(self, name, samples, info={}, report_version=2):
+    def __init__(self, name, samples, info={}):
         self.name = name
         self.samples = samples
         self.info = dict()
@@ -254,33 +168,22 @@ class Test:
             key = str(key)
             value = str(value)
             self.info[key] = value
-        self.report_version = report_version
         self.check()
 
     def check(self):
         """Check object members are adequate to generate an LNT json
-        report file of the version specified at construction when
-        rendering that instance.
+        report file.
         """
-        # Check requested version is supported by this library and is
-        # valid for this object.
-        assert (
-            self.report_version == 2
-        ), "Only v2 supported for LNT report format Test objects."
         for s in self.samples:
             assert isinstance(s, MetricSamples), "Unexpected type for metric sample."
-            assert (
-                s.report_version == self.report_version
-            ), "Mismatch between test and metric samples."
 
     def render(self):
         """Return info from this instance in a dictionary that respects
-        the LNT report format in the version specified at construction
-        when printed as json.
+        the LNT JSON report format.
         """
         d = dict(self.info)
         d.update([s.render().popitem() for s in self.samples])
-        d['Name'] = self.name
+        d['name'] = self.name
         return d
 
 
@@ -309,7 +212,7 @@ class TestSamples:
     for example, the compile flags the test was built with, or the
     runtime parameters that were used. As a general rule, if two test
     samples are meaningfully and directly comparable, then they should
-    have the same test name but different info paramaters.
+    have the same test name but different info parameters.
 
     The report may include an arbitrary number of samples for each test
     for situations where the same test is run multiple times to gather
@@ -347,27 +250,11 @@ class MetricSamples:
     An arbitrary number of samples for a given metric is allowed for
     situations where the same metric is obtained several time for a
     given test to gather statistical data.
-
-    MetricSamples should be used to generate report in version 2 or
-    later of LNT JSON report file format.
     """
 
-    def __init__(self, metric, data, conv_f=float, report_version=2):
+    def __init__(self, metric, data, conv_f=float):
         self.metric = str(metric)
         self.data = list(map(conv_f, data))
-        self.report_version = report_version
-        self.check()
-
-    def check(self):
-        """Check object members are adequate to generate an LNT json
-        report file of the version specified at construction when
-        rendering that instance.
-        """
-        # Check requested version is supported by this library and is
-        # valid for this object.
-        assert (
-            self.report_version == 2
-        ), "Only v2 supported for LNT report format MetricSamples objects."
 
     def add_samples(self, new_samples, conv_f=float):
         """Add samples for this metric, converted to float by calling
@@ -389,8 +276,10 @@ class MetricSamples:
 # We record information on the report "version" to allow the server to support
 # some level of auto-upgrading data from submissions of older reports.
 #
-# We recorder the report version as a reserved key in the run information
-# (primarily so that it can be accessed post-import on the server).
+# We record the report version as a reserved key in the run information. When
+# importing data, we detect the version of the report using the version number
+# and we normalize it to the latest format so that the rest of the code only
+# has to deal with the latest version at all times.
 #
 # Version 0 --           : initial (and unversioned).
 #
