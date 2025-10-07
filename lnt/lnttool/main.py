@@ -475,8 +475,7 @@ def _version_check():
         installed = "{} {}".format(meta['Name'], meta['Version'])
         current = "{} {}".format(lnt.__name__, lnt.__version__)
         raise SystemExit(f"""\
-error: installed distribution {installed} is not current ({current}), you may need to reinstall
-LNT or rerun 'setup.py develop' if using development mode.""")
+error: installed distribution {installed} is not current ({current}), you may need to reinstall LNT""")
 
 
 def show_version(ctx, param, value):

@@ -14,6 +14,7 @@ if _platform == "darwin":
     os.environ["CXX"] = "xcrun --sdk macosx clang"
     cflags += ['-stdlib=libc++', '-mmacosx-version-min=10.7']
 
+# TODO: Remove this once we assume that setup.py isn't called directly to install lnt
 # setuptools expects to be invoked from within the directory of setup.py, but
 # it is nice to allow:
 #   python path/to/setup.py install
