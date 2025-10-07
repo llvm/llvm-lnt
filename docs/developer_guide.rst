@@ -10,8 +10,8 @@ started.
 Installation
 ------------
 
-See :ref:`quickstart` for setting up an installation. Use the "develop" option
-when running ~/lnt/setup.py.
+See :ref:`quickstart` for setting up an installation. Pass ``-e`` to ``pip`` when
+installing the package to install it in "editable" mode.
 
 Running LNT's Regression Tests
 ------------------------------
