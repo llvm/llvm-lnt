@@ -190,7 +190,8 @@ class App(LNTExceptionLoggerFlask):
 
     @staticmethod
     def create_standalone(config_path, log_file=None):
-        """ Create an instance of a lnt Flask application from a config file.
+        """
+        Create an instance of a lnt Flask application from a config file.
 
         :param config_path: path to lnt config (directory or config file).
 

@@ -6,10 +6,10 @@
 # to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 # copies of the Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
-# 
+#
 # The above copyright notice and this permission notice shall be included in
 # all copies or substantial portions of the Software.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -20,7 +20,7 @@
 #
 # Comments and/or additions are welcome (send e-mail to:
 # strang@nmr.mgh.harvard.edu).
-# 
+#
 """
 stats.py module
 
@@ -134,7 +134,7 @@ PROBABILITY CALCS:  chisqprob
                     ksprob
                     fprob
                     betacf
-                    gammln 
+                    gammln
                     betai
 
 ANOVA FUNCTIONS:  F_oneway
@@ -960,7 +960,7 @@ Returns: Kendall's tau, two-tailed p-value
 
 def llinregress(x, y):
     """
-Calculates a regression line on x,y pairs.  
+Calculates a regression line on x,y pairs.
 
 Usage:   llinregress(x,y)      x,y are equal-length lists of x-y coordinates
 Returns: slope, intercept, r, two-tailed prob, sterr-of-estimate
@@ -1255,7 +1255,7 @@ def lkruskalwallish(*args):
 The Kruskal-Wallis H-test is a non-parametric ANOVA for 3 or more
 groups, requiring at least 5 subjects in each group.  This function
 calculates the Kruskal-Wallis H-test for 3 or more independent samples
-and returns the result.  
+and returns the result.
 
 Usage:   lkruskalwallish(*args)
 Returns: H-statistic (corrected for ties), associated p-value
@@ -1394,7 +1394,7 @@ Usage:   lerfcc(x)
 def lzprob(z):
     """
 Returns the area under the normal curve 'to the left of' the given z value.
-Thus, 
+Thus,
     for z<0, zprob(z) = 1-tail probability
     for z>0, 1.0-zprob(z) = 1-tail probability
     for any z, 2.0*(1.0-zprob(abs(z))) = 2-tail probability
@@ -1847,7 +1847,7 @@ def lfindwithin (data):
 Returns an integer representing a binary vector, where 1=within-
 subject factor, 0=between.  Input equals the entire data 2D list (i.e.,
 column 0=random factor, column -1=measured values (those two are skipped).
-Note: input data is in |Stat format ... a list of lists ("2D list") with 
+Note: input data is in |Stat format ... a list of lists ("2D list") with
 one row per measured value, first column=subject identifier, last column=
 score, one in-between column per factor (these columns contain level
 designations on each factor).  See also stats.anova.__doc__.
@@ -2234,7 +2234,7 @@ Usage:   atmean(a,limits=None,inclusive=(1,1))
  def atvar(a,limits=None,inclusive=(1, 1)):
      """
 Returns the sample variance of values in an array, (i.e., using N-1),
-ignoring values strictly outside the sequence passed to 'limits'.  
+ignoring values strictly outside the sequence passed to 'limits'.
 Note: either limit in the sequence, or the value of limits itself,
 can be set to None.  The inclusive list/tuple determines whether the lower
 and upper limiting bounds (respectively) are open/exclusive (0) or
@@ -2387,8 +2387,8 @@ Usage:   avariation(a,dimension=None)
     return 100.0*asamplestdev(a, dimension)/amean(a, dimension)
 
 
- def askew(a,dimension=None): 
-    """ 
+ def askew(a,dimension=None):
+    """
 Returns the skewness of a distribution (normal ==> 0.0; >0 means extra
 weight in left tail).  Use askewtest() to see if it's close enough.
 Dimension can equal None (ravel array first), an integer (the
@@ -2704,7 +2704,7 @@ Usage:   asamplevar(inarray,dimension=None,keepdims=0)
         mn = amean(inarray, dimension)[:, N.NewAxis]
     else:
         mn = amean(inarray, dimension, keepdims=1)
-    deviations = inarray - mn 
+    deviations = inarray - mn
     if isinstance(dimension, list):
         n = 1
         for d in dimension:
@@ -3357,7 +3357,7 @@ Returns: t-value, two-tailed p-value
         probs = N.reshape(probs, t.shape)
     if probs.shape == (1,):
         probs = probs[0]
-        
+
     if printit != 0:
         if isinstance(t, N.ndarray):
             t = t[0]
@@ -3782,7 +3782,7 @@ Usage:   aerfcc(x)
  def azprob(z):
     """
 Returns the area under the normal curve 'to the left of' the given z value.
-Thus, 
+Thus,
     for z<0, zprob(z) = 1-tail probability
     for z>0, 1.0-zprob(z) = 1-tail probability
     for any z, 2.0*(1.0-zprob(abs(z))) = 2-tail probability
@@ -4373,7 +4373,7 @@ Usage:   afindwithin(data)     data in |Stat format
                       (acumfreq, (N.ndarray,)) )
  relfreq = Dispatch ( (lrelfreq, (list, tuple)),
                       (arelfreq, (N.ndarray,)) )
- 
+
 ## VARIABILITY:
  obrientransform = Dispatch ( (lobrientransform, (list, tuple)),
                               (aobrientransform, (N.ndarray,)) )
@@ -4394,14 +4394,14 @@ Usage:   afindwithin(data)     data in |Stat format
                 (az, (N.ndarray,)) )
  zs = Dispatch ( (lzs, (list, tuple)),
                  (azs, (N.ndarray,)) )
- 
+
 ## TRIMMING FCNS:
  threshold = Dispatch( (athreshold, (N.ndarray,)),)
  trimboth = Dispatch ( (ltrimboth, (list, tuple)),
                        (atrimboth, (N.ndarray,)) )
  trim1 = Dispatch ( (ltrim1, (list, tuple)),
                     (atrim1, (N.ndarray,)) )
- 
+
 ## CORRELATION FCNS:
  paired = Dispatch ( (lpaired, (list, tuple)),
                      (apaired, (N.ndarray,)) )
@@ -4417,7 +4417,7 @@ Usage:   afindwithin(data)     data in |Stat format
                          (akendalltau, (N.ndarray,)) )
  linregress = Dispatch ( (llinregress, (list, tuple)),
                          (alinregress, (N.ndarray,)) )
- 
+
 ## INFERENTIAL STATS:
  ttest_1samp = Dispatch ( (lttest_1samp, (list, tuple)),
                           (attest_1samp, (N.ndarray,)) )
@@ -4441,7 +4441,7 @@ Usage:   afindwithin(data)     data in |Stat format
                              (akruskalwallish, (N.ndarray,)) )
  friedmanchisquare = Dispatch ( (lfriedmanchisquare, (list, tuple)),
                                 (afriedmanchisquare, (N.ndarray,)) )
- 
+
 ## PROBABILITY CALCS:
  chisqprob = Dispatch ( (lchisqprob, (int, float)),
                         (achisqprob, (N.ndarray,)) )
@@ -4459,7 +4459,7 @@ Usage:   afindwithin(data)     data in |Stat format
                     (aerfcc, (N.ndarray,)) )
  gammln = Dispatch ( (lgammln, (int, float)),
                      (agammln, (N.ndarray,)) )
- 
+
 ## ANOVA FUNCTIONS:
  F_oneway = Dispatch ( (lF_oneway, (list, tuple)),
                        (aF_oneway, (N.ndarray,)) )

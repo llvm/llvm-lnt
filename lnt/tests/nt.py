@@ -213,7 +213,7 @@ class TestConfiguration(object):
 
     @property
     def qemu_user_mode_command(self):
-        """ The command used for qemu user mode """
+        """The command used for qemu user mode """
         assert self.qemu_user_mode
         qemu_cmd_line = [self.qemu_user_mode] + list(self.qemu_flags)
         if self.qemu_string:
@@ -222,7 +222,7 @@ class TestConfiguration(object):
 
     @property
     def generate_report_script(self):
-        """ The path to the report generation script. """
+        """The path to the report generation script. """
         return os.path.join(self.test_suite_root, "GenerateReport.pl")
 
     def build_report_path(self, iteration):

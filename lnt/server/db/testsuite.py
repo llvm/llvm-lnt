@@ -237,8 +237,9 @@ class TestSuite(Base):
 class FieldMixin(object):
     @property
     def title(self):
-        """ Return a title for the given field by replacing all _ with
-            spaces and that has every word capitalized.
+        """
+        Return a title for the given field by replacing all _ with
+        spaces and that has every word capitalized.
         """
         return self.name.replace("_", " ").title()
 

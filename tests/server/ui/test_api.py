@@ -182,7 +182,7 @@ class JSONAPITester(unittest.TestCase):
         check_json(client, 'api/db_default/v4/nts/runs/100', expected_code=404)
 
     def test_order_api(self):
-        """ Check /orders/n returns the expected order information."""
+        """Check /orders/n returns the expected order information."""
         client = self.client
         j = check_json(client, 'api/db_default/v4/nts/orders/1')
         self.assertEqual(j['orders'][0], order_expected_response)
@@ -190,7 +190,7 @@ class JSONAPITester(unittest.TestCase):
         check_json(client, 'api/db_default/v4/nts/orders/100', expected_code=404)
 
     def test_single_sample_api(self):
-        """ Check /samples/n returns the expected sample information."""
+        """Check /samples/n returns the expected sample information."""
         client = self.client
         j = check_json(client, 'api/db_default/v4/nts/samples/1')
         self._check_response_is_well_formed(j)

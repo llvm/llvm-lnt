@@ -974,7 +974,7 @@ def load_geomean_data(field, machine, limit, xaxis_date, revision_cache=None):
 
 @v4_route("/tableau")
 def v4_tableau():
-    """ Tableau WDC."""
+    """Tableau WDC."""
     return render_template("v4_tableau.html")
 
 
