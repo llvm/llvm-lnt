@@ -143,10 +143,10 @@ function init_page() {
               <tr>
                 <td>
                   <select name="aggregation_function" id="aggregation_function">
-                    <option value="min" {{ 'selected="selected"' if options.aggregation_function == 'min' else '' }}>Minimum</option>
-                    <option value="max" {{ 'selected="selected"' if options.aggregation_function == 'max' else '' }}>Maximum</option>
-                    <option value="mean" {{ 'selected="selected"' if options.aggregation_function == 'mean' else '' }}>Mean</option>
-                    <option value="median" {{ 'selected="selected"' if options.aggregation_function == 'median' else '' }}>Median</option>
+                    <option value="min" {{ ('selected="selected"' if options.aggregation_function == 'min' else '') | safe }}>Minimum</option>
+                    <option value="max" {{ ('selected="selected"' if options.aggregation_function == 'max' else '') | safe }}>Maximum</option>
+                    <option value="mean" {{ ('selected="selected"' if options.aggregation_function == 'mean' else '') | safe }}>Mean</option>
+                    <option value="median" {{ ('selected="selected"' if options.aggregation_function == 'median' else '') | safe }}>Median</option>
                   </select>
                 </td>
               </tr>
