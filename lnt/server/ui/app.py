@@ -46,12 +46,12 @@ class RootSlashPatchMiddleware(object):
         return self.app(environ, start_response)
 
 
-class LNTObjectJSONEncoder(flask.json.JSONEncoder):
+class LNTObjectJSONEncoder(flask.json.provider.DefaultJSONProvider):
     """Take SQLAlchemy objects and jsonify them. If the object has an __json__
     method, use that instead."""
 
     def __init__(self, *args, **kwargs):
-        super(LNTObjectJSONEncoder, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def default(self, obj):
         if hasattr(obj, '__json__'):
@@ -74,7 +74,7 @@ class LNTObjectJSONEncoder(flask.json.JSONEncoder):
 
             return fields
 
-        return flask.json.JSONEncoder.default(self, obj)
+        return super().default(self, obj)
 
 
 class Request(flask.Request):
@@ -140,7 +140,7 @@ class App(LNTExceptionLoggerFlask):
         # Construct the application.
         app = App(__name__)
 
-        app.json_encoder = LNTObjectJSONEncoder
+        app.json = LNTObjectJSONEncoder(app)
         # Register additional filters.
         create_jinja_environment(app.jinja_env)
 
