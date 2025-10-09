@@ -1,6 +1,6 @@
-import flask
 import sqlalchemy
 import json
+import flask
 from flask import g
 from flask import abort
 from flask import render_template
@@ -265,7 +265,7 @@ def name(cls):
     return cls.__class__.__name__
 
 
-class LNTEncoder(flask.json.JSONEncoder):
+class LNTEncoder(json.JSONEncoder):
     """Encode all the common LNT objects."""
     def default(self, obj):
         # Most of our objects have a __json__ defined.
@@ -276,7 +276,7 @@ class LNTEncoder(flask.json.JSONEncoder):
             return
         if name(obj) == "SampleField":
             return obj.name
-        return flask.json.JSONEncoder.default(self, obj)
+        return flask.json.provider.DefaultJSONProvider.default(obj)
 
 
 @v4_route("/regressions/<int:id>", methods=["GET", "POST"])
