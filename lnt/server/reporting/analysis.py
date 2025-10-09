@@ -405,11 +405,7 @@ class RunInfo(object):
         if only_tests:
             q = q.filter(self.testsuite.Sample.test_id.in_(only_tests))
         q = q.filter(self.testsuite.Sample.run_id.in_(to_load))
-        for data in q:
-            run_id = data[0]
-            test_id = data[1]
-            profile_id = data[2]
-            sample_values = data[3:]
+        for (run_id, test_id, profile_id, *sample_values) in q:
             self.sample_map[(run_id, test_id)] = sample_values
             if profile_id is not None:
                 self.profile_map[(run_id, test_id)] = profile_id
