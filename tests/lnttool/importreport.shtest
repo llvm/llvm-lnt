@@ -1,0 +1,30 @@
+# Testing text importing.
+#
+# RUN: lnt importreport --testsuite nts --order 123 --machine foo %S/Inputs/example_metrics.lnt %t.json
+# RUN: filecheck --input-file %t.json %s
+# CHECK:        {
+# CHECK-NEXT:       "format_version": "2",
+# CHECK-NEXT:       "machine": {
+# CHECK-NEXT:           "name": "foo"
+# CHECK-NEXT:       },
+# CHECK-NEXT:       "run": {
+# CHECK-NEXT:           "end_time": "{{.+}}",
+# CHECK-NEXT:           "llvm_project_revision": "123",
+# CHECK-NEXT:           "start_time": "{{.+}}"
+# CHECK-NEXT:       },
+# CHECK-NEXT:       "tests": [
+# CHECK-NEXT:           {
+# CHECK-NEXT:               "execution_time": [
+# CHECK-NEXT:                   10.0,
+# CHECK-NEXT:                   11.0
+# CHECK-NEXT:               ],
+# CHECK-NEXT:               "hash": "d7",
+# CHECK-NEXT:               "name": "foo"
+# CHECK-NEXT:           },
+# CHECK-NEXT:           {
+# CHECK-NEXT:               "execution_time": 20.0,
+# CHECK-NEXT:               "name": "bar",
+# CHECK-NEXT:               "profile": "Xz6/"
+# CHECK-NEXT:           }
+# CHECK-NEXT:       ]
+# CHECK-NEXT:   }
