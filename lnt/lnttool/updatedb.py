@@ -6,19 +6,19 @@ import click
 @click.option("--database", default="default", show_default=True,
               help="database to modify")
 @click.option("--testsuite", required=True, help="testsuite to modify")
-@click.option("--tmp-dir", default="lnt_tmp", show_default=True,
-              help="name of the temp file directory")
 @click.option("--show-sql", is_flag=True,
               help="show SQL statements")
-@click.option("--delete-machine", "delete_machines", default=[],
-              type=click.UNPROCESSED, show_default=True, multiple=True,
-              help="machine names to delete")
-@click.option("--delete-run", "delete_runs", default=[], show_default=True,
-              multiple=True, help="run ids to delete", type=int)
-@click.option("--delete-order", default=[], show_default=True,
-              help="run ids to delete")
-def action_updatedb(instance_path, database, testsuite, tmp_dir, show_sql,
-                    delete_machines, delete_runs, delete_order):
+@click.option("--delete-machine", "delete_machines", default=[], multiple=True, type=click.UNPROCESSED,
+              help="Delete the given machine, all runs associated to this machine and their samples. "
+                   "Machines are identified by their name.")
+@click.option("--delete-run", "delete_runs", default=[], multiple=True, type=int,
+              help="Delete the specified run(s) and their samples. "
+                   "Runs are identified by their ID.")
+@click.option("--delete-order", "delete_orders", default=[], multiple=True, type=int,
+              help="Delete all runs associated to the given order(s) and their samples. "
+                   "Orders are identified by their ID.")
+def action_updatedb(instance_path, database, testsuite, show_sql,
+                    delete_machines, delete_runs, delete_orders):
     """modify a database"""
     from .common import init_logger
 
@@ -37,9 +37,9 @@ def action_updatedb(instance_path, database, testsuite, tmp_dir, show_sql,
         session = db.make_session()
         ts = db.testsuite[testsuite]
         # Compute a list of all the runs to delete.
-        if delete_order:
+        if delete_orders:
             runs = session.query(ts.Run).join(ts.Order) \
-                .filter(ts.Order.id == delete_order).all()
+                .filter(ts.Order.id.in_(delete_orders)).all()
         else:
             runs = session.query(ts.Run) \
                 .filter(ts.Run.id.in_(delete_runs)).all()
