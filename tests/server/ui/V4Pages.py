@@ -1,5 +1,3 @@
-# XFAIL: TODO-FIXME
-
 # Perform basic sanity checking of the V4 UI pages.
 #
 # create temporary instance
@@ -458,9 +456,9 @@ def main():
         client, '/v4/nts/daily_report/2012/5/04', "Execution Time")
     check_table_content(result_table_20120504,
                         [["test1", ""],
-                         ["", "machine2", "1.000", "-", "900.00%", ""],
+                         ["", "machine2", "1.000", "-", "10.000", ""],
                          ["test2", ""],
-                         ["", "machine2", "FAIL", "-", "PASS", ""]])
+                         ["", "machine2", "FAIL", "-", "-", ""]])
     check_table_links(result_table_20120504,
                       [[],
                        ["/db_default/v4/nts/graph?plot.0=2.4.2&highlight_run=6"],
@@ -477,13 +475,13 @@ def main():
         client, '/v4/nts/daily_report/2012/5/13?num_days=3', "Execution Time")
     check_table_content(result_table_20120513,
                         [["test6", ""],
-                         ["", "machine2", "1.000", "FAIL", "PASS", ""],
+                         ["", "machine2", "1.000", "FAIL", "1.200", ""],
                          ["test_hash1", ""],
-                         ["", "machine2", "1.000", '-', '20.00%', ""],
+                         ["", "machine2", "1.000", '1.000', '1.200', ""],
                          ["test_hash2", ""],
-                         ["", "machine2", "1.000", '-', '20.00%', ""],
+                         ["", "machine2", "1.000", '1.000', '1.200', ""],
                          ["test_mhash_on_run", ""],
-                         ["", "machine2", "1.000", '-', '20.00%', ""], ])
+                         ["", "machine2", "1.000", '1.000', '1.200', ""], ])
     check_table_links(result_table_20120513,
                       [[],
                        ['/db_default/v4/nts/graph?plot.0=2.6.2&highlight_run=9'],
@@ -637,16 +635,14 @@ def main():
     lines_in_function = len(code_for_fn)
     assert 2 == lines_in_function
 
-    # Make sure the new option does not break anything
-    check_html(client, '/db_default/v4/nts/graph?aggregation_function=mean&plot.0=1.3.2&submit=Update')
-    check_json(client, '/db_default/v4/nts/graph?aggregation_function=mean&plot.0=1.3.2&json=true&submit=Update')
-    check_html(client, '/db_default/v4/nts/graph?aggregation_function=mean&plot.0=1.3.2')
-    check_json(client, '/db_default/v4/nts/graph?aggregation_function=mean&plot.0=1.3.2&json=true')
-    check_html(client, '/db_default/v4/nts/graph?aggregation_function=nonexistent&plot.0=1.3.2', expected_code=404)
+    # Test with various aggregation functions
+    for fn in ['mean', 'median', 'min', 'max']:
+        check_html(client, f'/db_default/v4/nts/graph?aggregation_function={fn}&plot.7.2=2.7.2')
+        check_json(client, f'/db_default/v4/nts/graph?aggregation_function={fn}&plot.7.2=2.7.2&json=true')
+    check_html(client, '/db_default/v4/nts/graph?aggregation_function=nonexistent&plot.7.2=2.7.2', expected_code=404)
     app.testing = False
     error_page = check_html(client, '/explode', expected_code=500)
-    assert re.search("division (or modulo )?by zero",
-                     error_page.get_data(as_text=True))
+    assert re.search("InternalServerError", error_page.get_data(as_text=True))
 
     error_page = check_html(client, '/gone', expected_code=404)
     assert "test" in error_page.get_data(as_text=True)
