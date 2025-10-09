@@ -9,6 +9,7 @@ from urllib.parse import urlparse, urljoin
 from io import BytesIO
 
 import flask
+import flask_wtf
 import sqlalchemy.sql
 from flask import abort
 from flask import current_app
@@ -18,7 +19,6 @@ from flask import make_response
 from flask import render_template
 from flask import request, url_for
 from flask import send_file
-from flask_wtf import Form
 from sqlalchemy.orm import joinedload
 from sqlalchemy.orm.exc import NoResultFound
 from wtforms import SelectField, StringField, SubmitField
@@ -584,7 +584,7 @@ def v4_run(id):
     return render_template("v4_run.html", **data)
 
 
-class PromoteOrderToBaseline(Form):
+class PromoteOrderToBaseline(flask_wtf.FlaskForm):
     name = StringField('Name', validators=[DataRequired(), Length(max=32)])
     description = StringField('Description', validators=[Length(max=256)])
     promote = SubmitField('Promote')
@@ -1845,7 +1845,7 @@ MATRIX_LIMITS = [
 ]
 
 
-class MatrixOptions(Form):
+class MatrixOptions(flask_wtf.FlaskForm):
     limit = SelectField('Size', choices=MATRIX_LIMITS)
 
 

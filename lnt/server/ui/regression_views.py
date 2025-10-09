@@ -6,11 +6,11 @@ from flask import abort
 from flask import render_template
 from flask import request
 from flask import flash
+import flask_wtf
 from sqlalchemy import desc
 from sqlalchemy.orm.exc import NoResultFound
 from wtforms import SelectMultipleField, StringField, widgets, SelectField
 from wtforms import HiddenField
-from flask_wtf import Form
 from wtforms.validators import DataRequired
 
 from lnt.server.ui.decorators import v4_route
@@ -39,7 +39,7 @@ class MultiCheckboxField(SelectMultipleField):
     option_widget = widgets.CheckboxInput()
 
 
-class TriagePageSelectedForm(Form):
+class TriagePageSelectedForm(flask_wtf.FlaskForm):
     field_changes = MultiCheckboxField("Changes", coerce=int)
     name = StringField('name', validators=[DataRequired()])
 
@@ -125,7 +125,7 @@ def calc_impact(session, ts, fcs):
     return PrecomputedCR(1, 1, True)
 
 
-class MergeRegressionForm(Form):
+class MergeRegressionForm(flask_wtf.FlaskForm):
     regression_checkboxes = MultiCheckboxField("regression_checkboxes",
                                                coerce=int)
 
@@ -251,7 +251,7 @@ def _get_regressions_from_selected_form(session, form, ts):
     return reg_inds, regressions
 
 
-class EditRegressionForm(Form):
+class EditRegressionForm(flask_wtf.FlaskForm):
     title = StringField(u'Title', validators=[DataRequired()])
     bug = StringField(u'Bug', validators=[DataRequired()])
     field_changes = MultiCheckboxField("Changes", coerce=int)
