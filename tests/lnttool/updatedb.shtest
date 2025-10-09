@@ -1,0 +1,43 @@
+# Check that we remove both the samples and the run when we delete a run.
+#
+# RUN: rm -rf %t.install
+# RUN: lnt create %t.install
+# RUN: lnt import %t.install %{shared_inputs}/sample-a-small.plist --show-sample-count
+# RUN: lnt updatedb %t.install --testsuite nts --delete-run 1 --show-sql >& %t.out
+# RUN: filecheck --check-prefix CHECK-RUNRM %s < %t.out
+
+# CHECK-RUNRM: DELETE FROM "NT_Sample" WHERE "NT_Sample"."ID" = ?
+# CHECK-RUNRM-NEXT: ((1,), (2,))
+# CHECK-RUNRM: DELETE FROM "NT_Run" WHERE "NT_Run"."ID" = ?
+# CHECK-RUNRM-NEXT: (1,)
+# CHECK-RUNRM: COMMIT
+
+# Check that we remove both the samples and the run associated to that order when we delete an order.
+#
+# RUN: rm -rf %t.install
+# RUN: lnt create %t.install
+# RUN: lnt import %t.install %{shared_inputs}/sample-a-small.plist --show-sample-count
+# RUN: lnt updatedb %t.install --testsuite nts --delete-order 1 --show-sql >& %t.out
+# RUN: filecheck --check-prefix CHECK-ORDERRM %s < %t.out
+
+# CHECK-ORDERRM: DELETE FROM "NT_Sample" WHERE "NT_Sample"."ID" = ?
+# CHECK-ORDERRM-NEXT: ((1,), (2,))
+# CHECK-ORDERRM: DELETE FROM "NT_Run" WHERE "NT_Run"."ID" = ?
+# CHECK-ORDERRM-NEXT: (1,)
+# CHECK-ORDERRM: COMMIT
+
+# Check that we remove runs when we remove a machine.
+#
+# RUN: rm -rf %t.install
+# RUN: lnt create %t.install
+# RUN: lnt import %t.install %{shared_inputs}/sample-a-small.plist --show-sample-count
+# RUN: lnt updatedb %t.install --testsuite nts --delete-machine "LNT SAMPLE MACHINE" --show-sql >& %t.out
+# RUN: filecheck --check-prefix CHECK-MACHINERM %s < %t.out
+
+# CHECK-MACHINERM: DELETE FROM "NT_Sample" WHERE "NT_Sample"."ID" = ?
+# CHECK-MACHINERM-NEXT: ((1,), (2,))
+# CHECK-MACHINERM: DELETE FROM "NT_Run" WHERE "NT_Run"."ID" = ?
+# CHECK-MACHINERM-NEXT: (1,)
+# CHECK-MACHINERM: DELETE FROM "NT_Machine" WHERE "NT_Machine"."ID" = ?
+# CHECK-MACHINERM-NEXT: (1,)
+# CHECK-MACHINERM: COMMIT
