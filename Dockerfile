@@ -6,7 +6,7 @@ RUN apk update \
 
 WORKDIR /var/src/lnt
 
-COPY requirements.server.txt setup.py .
+COPY requirements*.txt setup.py .
 # setup.py uses lnt.__version__ etc.
 COPY lnt/__init__.py lnt/__init__.py
 # we build the cperf extension during install
