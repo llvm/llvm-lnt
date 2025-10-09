@@ -33,7 +33,7 @@
 $('.profile-but-no-prev').tooltip();
 $('.profile-prev-only').tooltip();
 {% endblock %}
-  
+
 {% block title %}Run Results{% endblock %}
 
 {% macro get_cell_value(cr, field) %}
@@ -255,10 +255,10 @@ $('.profile-prev-only').tooltip();
       <td><label for="aggregation_function">Aggregation Function</label></td>
       <td>
         <select id="aggregation_function" name="aggregation_function">
-          <option value="min" {{ 'selected="selected"' if options.aggregation_function == 'min' else '' }}>Minimum</option>
-          <option value="max" {{ 'selected="selected"' if options.aggregation_function == 'max' else '' }}>Maximum</option>
-          <option value="mean" {{ 'selected="selected"' if options.aggregation_function == 'mean' else '' }}>Mean</option>
-          <option value="median" {{ 'selected="selected"' if options.aggregation_function == 'median' else '' }}>Median</option>
+          <option value="min" {{ ('selected="selected"' if options.aggregation_function == 'min' else '') | safe }}>Minimum</option>
+          <option value="max" {{ ('selected="selected"' if options.aggregation_function == 'max' else '') | safe }}>Maximum</option>
+          <option value="mean" {{ ('selected="selected"' if options.aggregation_function == 'mean' else '') | safe }}>Mean</option>
+          <option value="median" {{ ('selected="selected"' if options.aggregation_function == 'median' else '') | safe }}>Median</option>
         </select>
       </td>
     </tr>
@@ -266,12 +266,9 @@ $('.profile-prev-only').tooltip();
       <td><label for="mannwhit">Mann-Whitney test confidence level</label></td>
       <td>
         <select id="mannwhit" name="MW_confidence_lv">
-          <option value="0.10" {{ ('selected="selected"' if options.MW_confidence_lv == 0.10 else '')|safe}}>
-            10%</option>
-          <option value="0.05" {{ ('selected="selected"' if options.MW_confidence_lv == 0.05 else '')|safe}}>
-            5%</option>
-          <option value="0.01" {{ ('selected="selected"' if options.MW_confidence_lv == 0.01 else '')|safe}}>
-            1%</option>
+          <option value="0.10" {{ ('selected="selected"' if options.MW_confidence_lv == 0.10 else '') | safe}}>10%</option>
+          <option value="0.05" {{ ('selected="selected"' if options.MW_confidence_lv == 0.05 else '') | safe}}>5%</option>
+          <option value="0.01" {{ ('selected="selected"' if options.MW_confidence_lv == 0.01 else '') | safe}}>1%</option>
         </select>
       </td>
     </tr>
