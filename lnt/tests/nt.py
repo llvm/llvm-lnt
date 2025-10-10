@@ -1895,7 +1895,7 @@ def _tools_check():
               type=click.UNPROCESSED)
 @click.option("--make-param", "make_parameters", multiple=True,
               help="Add 'NAME' = 'VAL' to the makefile parameters",
-              type=click.UNPROCESSED)
+              type=click.UNPROCESSED, default=[])
 @click.option("--isysroot", "isysroot", metavar="PATH",
               help="Set -isysroot in TARGET_FLAGS",
               type=click.UNPROCESSED)
@@ -1922,7 +1922,7 @@ def _tools_check():
               help="Additional flags to set in TARGET_FLAGS, space "
                    "separated string. These flags are appended after "
                    "*all* the individual --cflag arguments.",
-              type=click.UNPROCESSED, default='', metavar="FLAG")
+              type=click.UNPROCESSED, default=[], metavar="FLAG")
 @click.option("--mllvm", multiple=True,
               help="Add -mllvm FLAG to TARGET_FLAGS",
               type=click.UNPROCESSED, default=[], metavar="FLAG")
@@ -2008,7 +2008,7 @@ def _tools_check():
               type=click.UNPROCESSED, default=None)
 @click.option("--qemu-flag", "qemu_flags",
               help="Additional flags to pass to qemu", multiple=True,
-              type=click.UNPROCESSED, metavar="FLAG")
+              type=click.UNPROCESSED, default=[], metavar="FLAG")
 @click.option("--qemu-flags", "qemu_string",
               help="Additional flags to pass to qemu, space "
                    "separated string. These flags are appended after "
