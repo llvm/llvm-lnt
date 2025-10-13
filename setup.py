@@ -14,13 +14,6 @@ if _platform == "darwin":
     os.environ["CXX"] = "xcrun --sdk macosx clang"
     cflags += ['-stdlib=libc++', '-mmacosx-version-min=10.7']
 
-# TODO: Remove this once we assume that setup.py isn't called directly to install lnt
-# setuptools expects to be invoked from within the directory of setup.py, but
-# it is nice to allow:
-#   python path/to/setup.py install
-# to work (for scripts, etc.)
-os.chdir(os.path.dirname(os.path.abspath(__file__)))
-
 cPerf = Extension('lnt.testing.profile.cPerf',
                   sources=['lnt/testing/profile/cPerf.cpp'],
                   extra_compile_args=['-std=c++11'] + cflags)
@@ -116,24 +109,21 @@ The *LNT* source is available in the llvm-lnt repository:
         ],
     },
     install_requires=[
-        "six",
-        "aniso8601==1.2.0",
-        "Flask==0.12.2",
-        "Flask-RESTful==0.3.4",
-        "Jinja2==2.11.3",
-        "MarkupSafe==1.1.1",
-        "SQLAlchemy==1.3.24",
-        "Werkzeug==0.15.6",
-        "itsdangerous==0.24",
-        "python-gnupg==0.3.7",
-        "pytz==2016.10",
+        "aniso8601",
+        "certifi",
+        "click",
+        "Flask-RESTful",
+        "Flask-WTF",
+        "Flask",
+        "Jinja2",
+        "MarkupSafe",
+        "python-gnupg",
         "pyyaml",
-        "WTForms==2.0.2",
-        "Flask-WTF==0.12",
-        "typing",
-        "click==6.7",
         "requests",
-        "certifi"
+        "SQLAlchemy",
+        "typing",
+        "Werkzeug",
+        "WTForms",
     ],
 
     ext_modules=[cPerf],
