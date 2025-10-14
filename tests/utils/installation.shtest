@@ -1,0 +1,17 @@
+# Check that installation using the client requirements works properly.
+#
+# RUN: rm -rf %t.venv
+# RUN: python -m venv %t.venv
+# RUN: cd %{src_root}
+# RUN: %t.venv/bin/python -m pip install -r requirements.client.txt
+# RUN: rm -rf %t.installation
+# RUN: %t.venv/bin/lnt create %t.installation
+
+# Check that installation using the server requirements works properly.
+#
+# RUN: rm -rf %t.venv
+# RUN: python -m venv %t.venv
+# RUN: cd %{src_root}
+# RUN: %t.venv/bin/python -m pip install -r requirements.server.txt
+# RUN: rm -rf %t.installation
+# RUN: %t.venv/bin/lnt create %t.installation
