@@ -142,7 +142,7 @@ def _print_result_url(results, verbose):
         print("Results available at: no URL available")
 
 
-class RunTestCLI(click.MultiCommand):
+class RunTestCLI(click.Group):
     def list_commands(self, ctx):
         import lnt.tests
         return lnt.tests.get_names()

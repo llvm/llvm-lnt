@@ -341,7 +341,7 @@ testsuite: nts
     sys.stderr.write("Created '%s'\n" % _default_config_filename)
 
 
-class AdminCLI(click.MultiCommand):
+class AdminCLI(click.Group):
     '''Admin subcommands. Put into this class so we can lazily import
     dependencies.'''
     _commands = [
