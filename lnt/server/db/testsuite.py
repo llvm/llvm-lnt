@@ -2,8 +2,8 @@
 Database models for the TestSuites abstraction.
 """
 
+import importlib.metadata
 import json
-import lnt
 from . import util
 
 import sqlalchemy
@@ -133,8 +133,8 @@ class TestSuite(Base):
     def __init__(self, name, db_key_name):
         self.name = name
         self.db_key_name = db_key_name
-        self.version = "%d.%d" % (lnt.__versioninfo__[0],
-                                  lnt.__versioninfo__[1])
+        (major, minor, *_) = importlib.metadata.version('LNT').split('.')
+        self.version = f"{major}.{minor}"
 
     def __repr__(self):
         return '%s%r' % (self.__class__.__name__, (self.name, self.db_key_name,
