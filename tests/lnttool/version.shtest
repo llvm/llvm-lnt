@@ -1,0 +1,4 @@
+# Ensure that `lnt --version` works properly
+
+# RUN: lnt --version | filecheck %s
+# CHECK: LNT {{\d+[.]\d+[.]\d+.*}}
