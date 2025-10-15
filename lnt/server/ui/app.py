@@ -217,7 +217,7 @@ class App(LNTExceptionLoggerFlask):
         self.request_class = Request
 
         # Store a few global things we want available to templates.
-        self.version = importlib.metadata.version('LNT')
+        self.version = importlib.metadata.version('llvm-lnt')
 
         # Inject a fix for missing slashes on the root URL (see Flask issue
         # #169).

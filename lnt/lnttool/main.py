@@ -462,7 +462,7 @@ def show_version(ctx, param, value):
     if not value or ctx.resilient_parsing:
         return
     import importlib.metadata
-    version = importlib.metadata.version('LNT')
+    version = importlib.metadata.version('llvm-lnt')
     print(f"LNT {version}")
     ctx.exit()
 
