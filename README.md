@@ -17,13 +17,13 @@ software.
 Documentation
 -------------
 
-The official *LNT* documentation is available online at: https://llvm.org/docs/lnt
+The official LNT documentation is available online at: https://llvm.org/docs/lnt
 
 
 Source
 ------
 
-The *LNT* source is available in the llvm-lnt repository: https://github.com/llvm/llvm-lnt
+The LNT source is available in the llvm-lnt repository: https://github.com/llvm/llvm-lnt
 
 
 Contributing
