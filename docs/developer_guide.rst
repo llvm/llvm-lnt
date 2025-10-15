@@ -72,3 +72,18 @@ default. You can enable them by passing additional flags to lit:
 Example::
 
     lit -sv -Dpostgres=1 -Dmysql=1 -Dtidylib=1 ./tests
+
+Publishing a new version of LNT
+-------------------------------
+
+We publish a new version of the LNT package on a regular basis. This is done automatically via a Github
+Action whenever a commit is tagged. However, publishing can also be done manually. To do so, make sure you
+install the development dependencies, and then run the following commands from the virtual environment::
+
+    rm -rf dist
+    python -m build
+    python -m twine upload --repository testpypi dist/*
+
+This requires setting up the right API token, see `the official documentation <https://packaging.python.org/en/latest/tutorials/packaging-projects/#uploading-the-distribution-archives>`_
+for details. You can replace ``--repository testpypi`` with ``--repository pypi`` once you are actually ready
+to publish the package.

@@ -9,25 +9,17 @@ interested in using LNT to test compilers using the LLVM test-suite.
 Installation
 ------------
 
-The first thing to do is to checkout install the LNT software itself. The
-following steps should suffice on any modern Unix variant:
+You can install the latest stable release of LNT from PyPI. We recommend doing
+that from a virtual environment::
 
-#. Checkout the LNT sources::
+    python3 -m venv .venv
+    source .venv/bin/activate
+    pip install llvm-lnt
 
-            git clone https://github.com/llvm/llvm-lnt.git ~/lnt
+This will install the client-side tools. If you also want to run a production
+server, you should instead include the server-side optional requirements::
 
-#. Create a new virtual environment for the LNT application and activate it::
-
-            python3 -m venv .venv
-            source .venv/bin/activate
-
-#. Install LNT into the virtual environment::
-
-            pip install -r requirements.txt
-
-Note that if you only want to use the client-side features of ``lnt``, you can
-install the requirements specified in ``requirements.client.txt`` instead, which
-are a bit more lightweight.
+    pip install "llvm-lnt[server]"
 
 That's it! ``lnt`` should now be accessible from the virtual environment.
 

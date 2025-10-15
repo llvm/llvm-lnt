@@ -60,11 +60,13 @@ server = [
     "psycopg2>=2.9.0",
 ]
 dev = [
+    "build",
     "filecheck",
     "Flake8-pyproject",
     "flake8",
     "lit",
     "tox",
+    "twine",
 ]
 
 [tool.setuptools]
