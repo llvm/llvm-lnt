@@ -7,7 +7,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    name: Build LNT distribution package
+    name: Build LNT package
     steps:
     - uses: actions/checkout@v5
       with:
@@ -29,7 +29,7 @@ jobs:
 
   publish-to-testpypi:
     runs-on: ubuntu-latest
-    name: Publish LNT package to TestPyPI
+    name: Publish LNT to TestPyPI
     needs: [build]
     environment:
       name: testpypi
@@ -51,7 +51,7 @@ jobs:
 
   publish-to-pypi:
     runs-on: ubuntu-latest
-    name: Publish LNT package to PyPI
+    name: Publish LNT to PyPI
     if: startsWith(github.ref, 'refs/tags/') # only publish to PyPI on tag pushes
     needs: [build]
     environment:
