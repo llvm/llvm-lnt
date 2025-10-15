@@ -13,6 +13,7 @@ Installation
 For development purposes, we recommend checking out the sources, setting up a
 virtual environment and installing the development dependencies::
 
+    cd path/to/lnt/sources
     python3 -m venv .venv
     source .venv/bin/activate
     pip install ".[dev]"
