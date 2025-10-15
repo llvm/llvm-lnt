@@ -1,7 +1,7 @@
 *.pyc
 /junit-mypy.xml
 .tox/
-/LNT.egg-info
+/llvm_lnt.egg-info
 build
 dist
 docs/_build

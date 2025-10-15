@@ -118,7 +118,7 @@ class TestSuite(Base):
     db_key_name = Column("DBKeyName", String(256))
 
     # The version of the schema used for the per-testsuite databases (encoded
-    # as the LNT version).
+    # as the llvm-lnt package version).
     version = Column("Version", String(16))
 
     machine_fields = relation('MachineField', backref='test_suite',
@@ -133,7 +133,7 @@ class TestSuite(Base):
     def __init__(self, name, db_key_name):
         self.name = name
         self.db_key_name = db_key_name
-        (major, minor, *_) = importlib.metadata.version('LNT').split('.')
+        (major, minor, *_) = importlib.metadata.version('llvm-lnt').split('.')
         self.version = f"{major}.{minor}"
 
     def __repr__(self):

@@ -3,7 +3,7 @@ requires = ["setuptools >= 74.1"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "LNT"
+name = "llvm-lnt"
 version = "0.4.2.dev0"
 description = "LLVM Nightly Test Infrastructure"
 readme = "README.md"
