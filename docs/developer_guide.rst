@@ -34,10 +34,8 @@ To run the tests, we recomment using ``tox`` in a virtual environment::
 
 You can also run individual unit tests with ``lit`` directly::
 
-    pip install lit
-    lit -sv ./tests
-
-However, that requires manually setting up the testing environment (``filecheck``, etc).
+    pip install ".[dev]"
+    lit -sv tests
 
 For simple changes, adding a regression test and making sure all regression
 tests pass, is often a good enough testing approach. For some changes, the
