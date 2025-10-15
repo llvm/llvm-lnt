@@ -1,4 +1,4 @@
-import importlib
+import importlib.metadata
 import io
 import logging
 import logging.handlers
