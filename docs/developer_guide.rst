@@ -10,8 +10,15 @@ started.
 Installation
 ------------
 
-See :ref:`quickstart` for setting up an installation. Pass ``-e`` to ``pip`` when
-installing the package to install it in "editable" mode.
+For development purposes, we recommend checking out the sources, setting up a
+virtual environment and installing the development dependencies::
+
+    python3 -m venv .venv
+    source .venv/bin/activate
+    pip install ".[dev]"
+
+This will install the current version of the package, along with the dependencies
+required for development (``lit``, ``filecheck``, etc).
 
 Running LNT's Regression Tests
 ------------------------------
@@ -24,18 +31,13 @@ all times, therefore you should run the regression tests as part of your
 development work-flow, just like you do when developing on other LLVM
 sub-projects.
 
-The LNT regression tests make use of lit and other tools like [filecheck](https://github.com/AntonLydike/filecheck).
-To run the tests, we recomment using ``tox`` in a virtual environment::
+We use ``tox`` as the high-level driver to run tests. To run them locally,
+simply run the ``tox`` command from the root of the repository. We also have
+various unit tests which execute using LLVM's ``lit`` utility. You can run
+individual unit tests with ``lit`` directly (assuming you have installed
+the development dependencies in your virtual environment)::
 
-    python3 -m venv .venv
-    source .venv/bin/activate
-    pip install tox
-    tox
-
-You can also run individual unit tests with ``lit`` directly::
-
-    pip install ".[dev]"
-    lit -sv tests
+    lit -sv tests/lnttool/submit.shtest
 
 For simple changes, adding a regression test and making sure all regression
 tests pass, is often a good enough testing approach. For some changes, the
@@ -46,23 +48,23 @@ Optional Tests
 ~~~~~~~~~~~~~~
 
 Some tests require additional tools to be installed and are not enabled by
-default. You can enable them by passing additional flags to lit:
+default. You can enable them by passing additional flags to ``lit``:
 
   ``-Dpostgres=1``
     Enable postgres database support testing. This requires at least
-    postgres version 9.2 and the `initdb` and `postgres` binaries in your path.
+    postgres version 9.2 and the ``initdb`` and ``postgres`` binaries in your path.
     Note that you do not need to setup an actual server, the tests will create
     temporary instances on demand.
 
   ``-Dmysql=1``
     Enable mysql database support testing. This requires MySQL-python to be
-    installed and expects the `mysqld` and `mysqladmin` binaries in your path.
+    installed and expects the ``mysqld`` and ``mysqladmin`` binaries in your path.
     Note that you do not need to setup an actual server, the tests will create
     temporary instances on demand.
 
   ``-Dtidylib=1``
-    Check generated html pages for errors using tidy-html5. This requires
-    pytidylib and tidy-html5 to be installed.
+    Check generated html pages for errors using ``tidy-html5``. This requires
+    ``pytidylib`` and ``tidy-html5`` to be installed.
 
   ``-Dcheck-coverage=1``
     Enable ``coverage.py`` reporting, assuming the coverage module has been
