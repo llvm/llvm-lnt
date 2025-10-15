@@ -461,7 +461,7 @@ def show_version(ctx, param, value):
     """print the LNT version"""
     if not value or ctx.resilient_parsing:
         return
-    import importlib
+    import importlib.metadata
     version = importlib.metadata.version('LNT')
     print(f"LNT {version}")
     ctx.exit()
