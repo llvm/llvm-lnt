@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools >= 74.1"]
+requires = ["setuptools>=80", "setuptools-scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "llvm-lnt"
-version = "0.4.3"
+dynamic = ["version"]
 description = "LLVM Nightly Test Infrastructure"
 readme = "README.md"
 license = "LicenseRef-Apache-2.0-with-LLVM-exception"
@@ -97,6 +97,9 @@ find = {namespaces = false}
 "lnt.server.db" = [
     "migrations/*.py"
 ]
+
+[tool.setuptools_scm]
+# This section is needed with older versions of Python, although it can be empty.
 
 [tool.flake8]
 ignore = ["E712", "E402", "E711", "E266", "W605", "E126", "E226", "W504"]
