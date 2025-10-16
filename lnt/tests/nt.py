@@ -1851,13 +1851,11 @@ def _tools_check():
 @click.option("-s", "--sandbox", "sandbox_path", required=True,
               help="parent directory to build and run tests in",
               type=click.UNPROCESSED)
-@click.option("--no-timestamp", "timestamp_build", flag_value=False,
-              default=True, show_default=True,
-              help="don't timestamp build directory (for testing)")
-@click.option("--no-configure", "run_configure", flag_value=False,
-              default=True, show_default=True,
-              help="don't run configure if Makefile.config is "
-                   "present (only useful with --no-timestamp)")
+@click.option("--timestamp/--no-timestamp", "timestamp_build", default=False, show_default=True,
+              help="Whether to timestamp the build directory (for testing)")
+@click.option("--configure/--no-configure", "run_configure", default=True, show_default=True,
+              help="Whether to run configure if Makefile.config is present (--no-configure "
+                   "is only useful with --no-timestamp)")
 #  Inputs
 @click.option("--without-llvm", is_flag=True, show_default=True,
               help="don't use any LLVM source or build products")
@@ -1938,23 +1936,20 @@ def _tools_check():
 @click.option("--test-time-stat", type=click.Choice(['user', 'real']),
               default='user', show_default=True,
               help="Set the test timing statistic to gather")
-@click.option("--disable-cxx", "test_cxx", flag_value=False, default=True,
-              show_default=True, help="Disable C++ tests")
-@click.option("--disable-externals", "test_externals", flag_value=False,
-              default=True, show_default=True,
-              help="Disable test suite externals (if configured)")
+@click.option("--enable-cxx/--disable-cxx", "test_cxx", default=True, show_default=True,
+              help="Whether to enable C++ tests")
+@click.option("--enable-externals/--disable-externals", "test_externals", default=True, show_default=True,
+              help="Whether to enable test suite externals (if configured)")
 @click.option("--enable-integrated-as", "test_integrated_as", is_flag=True,
               help="Enable TEST_INTEGRATED_AS tests")
 @click.option("--enable-jit", "test_jit", is_flag=True,
               help="Enable JIT tests")
-@click.option("--disable-llc", "test_llc",
-              help="Disable LLC tests",
-              flag_value=False, show_default=True, default=True)
+@click.option("--enable-llc/--disable-llc", "test_llc", default=True, show_default=True,
+              help="Whether to enable LLC tests")
 @click.option("--enable-llcbeta", "test_llcbeta",
               help="Enable LLCBETA tests", is_flag=True)
-@click.option("--disable-lto", "test_lto",
-              help="Disable use of link-time optimization",
-              flag_value=False, show_default=True, default=True)
+@click.option("--enable-lto/--disable-lto", "test_lto", default=True, show_default=True,
+              help="Whether to enable the use of link-time optimization")
 @click.option("--small", "test_small",
               help="Use smaller test inputs and disable large tests",
               is_flag=True)
@@ -2018,13 +2013,11 @@ def _tools_check():
               help="Accumulate test data from multiple runs",
               type=int, default=None, metavar="N")
 #  Output Options
-@click.option("--no-auto-name", "auto_name",
-              help="Don't automatically derive submission name",
-              flag_value=False, show_default=True, default=True)
-@click.option("--no-machdep-info", "use_machdep_info",
-              help=("Don't put machine (instance) dependent "
-                    "variables with machine info"),
-              flag_value=False, show_default=True, default=True)
+@click.option("--auto-name/--no-auto-name", "auto_name", default=True, show_default=True,
+              help="Whether to automatically derive the submission name")
+@click.option("--machdep-info/--no-machdep-info", "use_machdep_info", default=True, show_default=True,
+              help="Whether to put machine (instance) dependent "
+                   "variables with machine info")
 @click.option("--run-order", "run_order", metavar="STR",
               help="String to use to identify and order this run",
               type=click.UNPROCESSED, default=None)

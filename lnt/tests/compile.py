@@ -997,9 +997,8 @@ class CompileTest(builtintest.BuiltinTest):
               help="Parent directory to build and run tests in",
               type=click.UNPROCESSED, default=None, metavar="PATH")
 #  Test Options
-@click.option("--no-timestamp", "timestamp_build",
-              help="Don't timestamp build directory (for testing)",
-              flag_value=False, default=True)
+@click.option("--timestamp/--no-timestamp", "timestamp_build", default=True, show_default=True,
+              help="Whether to timestamp the build directory (for testing)")
 @click.option("--cc", "cc", type=click.UNPROCESSED, required=True,
               help="Path to the compiler under test")
 @click.option("--cxx", "cxx",
@@ -1033,9 +1032,8 @@ class CompileTest(builtintest.BuiltinTest):
                    "tests in.",
               type=click.UNPROCESSED, default="lnt-compile-suite-src")
 #  Test Selection
-@click.option("--no-memory-profiling", "memory_profiling",
-              help="Disable memory profiling",
-              flag_value=False, default=True)
+@click.option("--memory-profiling/--no-memory-profiling", "memory_profiling", default=True, show_default=True,
+              help="Whether to enable memory profiling")
 @click.option("--multisample", "run_count", metavar="N",
               help="Accumulate test data from multiple runs",
               type=int, default=3)
@@ -1066,10 +1064,8 @@ class CompileTest(builtintest.BuiltinTest):
               metavar="NAME", multiple=True, default=[],
               type=click.Choice(['Debug', 'Release']))
 #  Output Options
-@click.option("--no-machdep-info", "use_machdep_info",
-              help=("Don't put machine (instance) dependent "
-                    "variables in machine info"),
-              flag_value=False, default=True)
+@click.option("--machdep-info/--no-machdep-info", "use_machdep_info", default=True, show_default=True,
+              help="Whether to put machine (instance) dependent variables in machine info")
 @click.option("--machine-name", "machine_name", type=click.UNPROCESSED,
               help="Machine name to use in submission",
               default=platform.uname()[1])
