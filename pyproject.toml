@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "llvm-lnt"
-version = "0.4.2.dev0"
+version = "0.4.3"
 description = "LLVM Nightly Test Infrastructure"
 readme = "README.md"
 license = "LicenseRef-Apache-2.0-with-LLVM-exception"
