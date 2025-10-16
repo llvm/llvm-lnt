@@ -11,8 +11,8 @@ jobs:
     steps:
     - uses: actions/checkout@v5
       with:
+        fetch-depth: 0 # fetch all history including tags -- necessary to determine the version from SCM
         persist-credentials: false
-        fetch-tags: true
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
