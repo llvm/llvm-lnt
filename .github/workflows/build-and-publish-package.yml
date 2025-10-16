@@ -29,6 +29,8 @@ jobs:
 
   publish-to-testpypi:
     runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' # only publish to test.PyPI on pushes to main
+
     name: Publish LNT to TestPyPI
     needs: [build]
     environment:
