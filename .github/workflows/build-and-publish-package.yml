@@ -6,10 +6,7 @@ on:
 
 jobs:
   build:
-    # This job runs on macOS because we can't upload binary wheels to PyPI for Linux.
-    # Hence, we produce both a binary *and* a source distribution in this job, but the
-    # binary distribution is only valid for macOS.
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     name: Build LNT package
     steps:
     - uses: actions/checkout@v5
@@ -20,10 +17,12 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: "3.10"
+    # We only build a source distribution because binary distributions for Linux can't be uploaded
+    # to PyPI. Our source distribution is trivial to build anyway.
     - name: Build the source tarball
       run: |
         python -m pip install build
-        python -m build
+        python -m build --sdist
     - name: Store the distribution packages
       uses: actions/upload-artifact@v4
       with:
