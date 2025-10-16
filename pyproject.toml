@@ -115,11 +115,7 @@ env_list = ["py3", "mypy", "flake8", "docs"]
 [tool.tox.env.py3]
 description = "Run the unit tests"
 allowlist_externals = ["rm", "lit"]
-# TODO: Make it possible to run the tests without pinning down all dependencies
-deps = [
-    "-r requirements.txt",
-    ".[dev]",
-]
+deps = [".[dev]"]
 commands = [
     ["rm", "-rf", "test_run_tmp"],
     ["lit", "-sv", "tests"],
