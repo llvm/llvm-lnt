@@ -153,8 +153,7 @@
 # Check submission to a server through url works:
 # RUN: rm -rf %{test_exec_root}/runtest/nt_server_instance
 # RUN: mkdir -p %{test_exec_root}/runtest/nt_server_instance
-# RUN: rsync -av --exclude .svn %S/Inputs/rerun_server_instance/ \
-# RUN:   %{test_exec_root}/runtest/nt_server_instance
+# RUN: rsync -av %S/Inputs/rerun_server_instance/ %{test_exec_root}/runtest/nt_server_instance
 # RUN: %{shared_inputs}/server_wrapper.sh \
 # RUN:   %{test_exec_root}/runtest/nt_server_instance 9089 \
 # RUN:   lnt runtest nt --submit "http://localhost:9089/db_default/submitRun" \
@@ -182,8 +181,7 @@
 # CHECK-SUBMIT-STDERR: Rerunning 0 of 69 benchmarks.
 
 # Check submission to a server through server instance works:
-# RUN: rsync -av --exclude .svn %S/Inputs/rerun_server_instance/ \
-# RUN:   %{test_exec_root}/runtest/nt_server_instance
+# RUN: rsync -av %S/Inputs/rerun_server_instance/ %{test_exec_root}/runtest/nt_server_instance
 # RUN: %{shared_inputs}/server_wrapper.sh \
 # RUN:   %{test_exec_root}/runtest/nt_server_instance 9089 \
 # RUN:   lnt runtest nt --submit "http://localhost:9089/db_default/submitRun" \

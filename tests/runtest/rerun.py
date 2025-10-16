@@ -5,7 +5,7 @@
 
 # RUN: rm -rf %t.instance
 # RUN: mkdir -p %t.instance
-# RUN: rsync -av --exclude .svn %S/Inputs/rerun_server_instance/ %t.instance
+# RUN: rsync -av %S/Inputs/rerun_server_instance/ %t.instance
 # RUN: rm -f CHECK-STDOUT CHECK-STDOUT2 CHECK-STDERR CHECK-STDERR2
 # RUN: %{shared_inputs}/server_wrapper.sh \
 # RUN:   %t.instance 9090 \
