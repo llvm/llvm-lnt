@@ -34,4 +34,4 @@ jobs:
       with:
         push: ${{ github.event_name == 'push' }}
         tags: ghcr.io/${{github.repository}}:latest
-        build-args: BUILDKIT_CONTEXT_KEEP_GIT_DIR=true # keep .git in the Docker build context -- needed to determine the package version
+        context: . # use the current directory as context, as checked out by actions/checkout -- needed for setuptools_scm
