@@ -18,6 +18,9 @@ services:
         condition: on-failure
     ports:
       - "8000:8000"
+    volumes:
+      - lnt_data:/var/lib/lnt
+      - lnt_config:/etc/lnt
 
   db:
     container_name: lnt-postgres
@@ -26,3 +29,7 @@ services:
       - POSTGRES_PASSWORD=${DB_PWD}
       - POSTGRES_USER=${DB_USER:-lntuser}
       - POSTGRES_DB=${DB_BASE:-lnt}
+
+volumes:
+  lnt_data:
+  lnt_config:
