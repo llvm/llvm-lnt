@@ -194,9 +194,6 @@ class TestSuiteTest(BuiltinTest):
         if opts.test_prebuilt and opts.build_dir is None and not opts.exec_interleaved_builds:
             self._fatal("--test-prebuilt requires --build-dir (or use --exec-interleaved-builds)")
 
-        if opts.build_dir and not opts.test_prebuilt and not opts.exec_interleaved_builds:
-            self._fatal("--build-dir can only be used with --test-prebuilt or --exec-interleaved-builds")
-
         if opts.exec_interleaved_builds:
             # --exec-interleaved-builds implies --test-prebuilt
             opts.test_prebuilt = True
@@ -217,13 +214,17 @@ class TestSuiteTest(BuiltinTest):
                         build_dir)
 
         if opts.build_dir:
-            # Validate build directory
+            # Validate and normalize build directory path
             opts.build_dir = os.path.abspath(opts.build_dir)
-            if not os.path.exists(opts.build_dir):
-                self._fatal("--build-dir does not exist: %r" % opts.build_dir)
-            cmakecache = os.path.join(opts.build_dir, 'CMakeCache.txt')
-            if not os.path.exists(cmakecache):
-                self._fatal("--build-dir is not a configured build: %r" % opts.build_dir)
+            if opts.test_prebuilt:
+                # In test-prebuilt mode, build directory must already exist
+                if not os.path.exists(opts.build_dir):
+                    self._fatal("--build-dir does not exist: %r" % opts.build_dir)
+                cmakecache = os.path.join(opts.build_dir, 'CMakeCache.txt')
+                if not os.path.exists(cmakecache):
+                    self._fatal("--build-dir is not a configured build: %r" % opts.build_dir)
+            # In normal build mode, --build-dir specifies where to create the build
+            # (directory will be created if it doesn't exist)
 
         if opts.cc is not None:
             opts.cc = resolve_command_path(opts.cc)
@@ -320,15 +321,15 @@ class TestSuiteTest(BuiltinTest):
         self.start_time = timestamp()
 
         # Work out where to put our build stuff
-        if opts.test_prebuilt and opts.build_dir:
-            # In test-prebuilt mode with --build-dir, use the specified build directory
+        if opts.build_dir:
+            # If --build-dir is specified, use it (for any build type)
             basedir = opts.build_dir
         elif opts.exec_interleaved_builds:
             # For exec-interleaved-builds, each build uses its own directory
             # We'll return early from _run_interleaved_builds(), so basedir doesn't matter
             basedir = opts.sandbox_path
         else:
-            # Normal mode or build-only mode: use sandbox/build or sandbox/test-<timestamp>
+            # Normal mode: use sandbox/build or sandbox/test-<timestamp>
             if opts.timestamp_build:
                 ts = self.start_time.replace(' ', '_').replace(':', '-')
                 build_dir_name = "test-%s" % ts
@@ -1364,9 +1365,10 @@ class TestSuiteTest(BuiltinTest):
               is_flag=True, default=False)
 @click.option("--build-dir", "build_dir",
               metavar="PATH",
-              help="Path to pre-built test directory (used with --test-prebuilt). "
-                   "This is the actual build directory (e.g., sandbox/build), "
-                   "not the sandbox parent directory.",
+              help="Specify build directory location. With --test-prebuilt, this must "
+                   "be an existing configured build. With --build-only or normal mode, "
+                   "specifies where to create the build (overrides default sandbox/build "
+                   "or timestamped directory). Path can be absolute or relative to sandbox.",
               type=click.UNPROCESSED, default=None)
 @click.option("--exec-interleaved-builds", "exec_interleaved_builds",
               metavar="BUILD1,BUILD2,...",
