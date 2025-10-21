@@ -339,8 +339,9 @@ class TestSuiteTest(BuiltinTest):
 
         cmakecache = os.path.join(self._base_path, 'CMakeCache.txt')
         if opts.test_prebuilt:
-            # In test-prebuilt mode, the build is already configured
+            # In test-prebuilt mode, the build is already configured and compiled
             self.configured = True
+            self.compiled = True
         else:
             # In normal/build-only mode, check if we should skip reconfiguration
             self.configured = not opts.run_configure and \
@@ -499,7 +500,7 @@ class TestSuiteTest(BuiltinTest):
 
             for build_idx, build_info in enumerate(build_infos):
                 logger.info("  Testing build %d/%d: %s" %
-                           (build_idx + 1, len(build_infos), build_info['build_dir']))
+                            (build_idx + 1, len(build_infos), build_info['build_dir']))
 
                 # Set _base_path and configured to this build directory
                 self._base_path = build_info['build_dir']
@@ -581,11 +582,11 @@ class TestSuiteTest(BuiltinTest):
             self.trained = True
             self.configured = False
 
-        self._configure_if_needed()
+        if compile or self.opts.pgo:
+            self._configure_if_needed()
 
-        if self.compiled and compile:
-            self._clean(self._base_path)
-        if not self.compiled or compile or self.opts.pgo:
+            if self.compiled:
+                self._clean(self._base_path)
             self._build(self._base_path)
             self._install_benchmark(self._base_path)
             self.compiled = True
