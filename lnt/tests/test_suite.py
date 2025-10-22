@@ -308,6 +308,23 @@ class TestSuiteTest(BuiltinTest):
             self._fatal("--single-result must be given a single test name, "
                         "not a directory name")
 
+        # Parse and validate --drop-exec option
+        if opts.drop_exec is not None:
+            # Check for incompatible options
+            if opts.only_compile:
+                self._fatal("--drop-exec cannot be used with --only-compile")
+            if opts.build:
+                self._fatal("--drop-exec cannot be used with --build")
+            if opts.exec_multisample <= 1:
+                self._fatal("--drop-exec requires --exec-multisample > 1")
+
+            # opts.drop_exec is already an integer from click
+            if opts.drop_exec < 1:
+                self._fatal("--drop-exec must be at least 1")
+
+            if opts.drop_exec >= opts.exec_multisample:
+                self._fatal("--drop-exec would drop all %d samples" % opts.exec_multisample)
+
         opts.cppflags = ' '.join(opts.cppflags)
         opts.cflags = ' '.join(opts.cflags)
         opts.cxxflags = ' '.join(opts.cxxflags)
@@ -428,6 +445,9 @@ class TestSuiteTest(BuiltinTest):
                 reports.append(run_report)
                 json_reports.append(json_data)
 
+        # Filter execution samples if --drop-exec was specified
+        reports, json_reports = self._filter_exec_samples(reports, json_reports)
+
         report = self._create_merged_report(reports)
 
         # Write the report out so it can be read by the submission tool.
@@ -537,8 +557,14 @@ class TestSuiteTest(BuiltinTest):
             build_dir = build_info['build_dir']
             logger.info("Writing report for build: %s" % build_dir)
 
+            # Filter execution samples if --drop-exec was specified
+            build_reports, build_json_reports = self._filter_exec_samples(
+                reports_by_build[build_idx],
+                json_by_build[build_idx]
+            )
+
             # Merge reports for this build
-            merged_report = self._create_merged_report(reports_by_build[build_idx])
+            merged_report = self._create_merged_report(build_reports)
 
             # Write JSON report to build directory
             report_path = os.path.join(build_dir, 'report.json')
@@ -548,13 +574,13 @@ class TestSuiteTest(BuiltinTest):
 
             # Write xUnit XML to build directory
             xml_path = os.path.join(build_dir, 'test-results.xunit.xml')
-            str_template = _lit_json_to_xunit_xml(json_by_build[build_idx])
+            str_template = _lit_json_to_xunit_xml(build_json_reports)
             with open(xml_path, 'w') as fd:
                 fd.write(str_template)
 
             # Write CSV to build directory
             csv_path = os.path.join(build_dir, 'test-results.csv')
-            str_template = _lit_json_to_csv(json_by_build[build_idx])
+            str_template = _lit_json_to_csv(build_json_reports)
             with open(csv_path, 'w') as fd:
                 fd.write(str_template)
 
@@ -606,6 +632,32 @@ class TestSuiteTest(BuiltinTest):
         run.end_time = reports[-1].run.end_time
         test_samples = sum([r.tests for r in reports], [])
         return lnt.testing.Report(machine, run, test_samples)
+
+    def _filter_exec_samples(self, reports, json_reports):
+        """Filter out execution samples based on --drop-exec option.
+
+        Returns filtered (reports, json_reports) tuples.
+        """
+        drop_exec_count = self.opts.drop_exec
+
+        if drop_exec_count is None or drop_exec_count == 0 or len(reports) == 0:
+            return reports, json_reports
+
+        # Drop the first N samples
+        filtered_reports = reports[drop_exec_count:]
+        filtered_json_reports = json_reports[drop_exec_count:]
+
+        # Log what we're dropping
+        if drop_exec_count == 1:
+            logger.info("Dropping first execution sample (iteration 0)")
+        else:
+            logger.info("Dropping first %d execution samples (iterations 0-%d)" %
+                       (drop_exec_count, drop_exec_count - 1))
+
+        logger.info("Kept %d of %d execution samples after --drop-exec filtering" %
+                    (len(filtered_reports), len(reports)))
+
+        return filtered_reports, filtered_json_reports
 
     def _test_suite_dir(self):
         return self.opts.test_suite_root
@@ -1341,6 +1393,10 @@ class TestSuiteTest(BuiltinTest):
 @click.option("--compile-multisample", "compile_multisample",
               help="Accumulate compile test data from multiple runs",
               type=int, default=1, metavar="N")
+@click.option("--drop-exec", "drop_exec",
+              help="Drop the first N execution samples to mitigate warmup effects. "
+                   "Used with --exec-multisample.",
+              type=int, default=None, metavar="N")
 @click.option("-d", "--diagnose", "diagnose",
               help="Produce a diagnostic report for a particular "
                    "test, this will not run all the tests.  Must be"
