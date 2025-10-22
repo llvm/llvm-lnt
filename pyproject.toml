@@ -120,7 +120,7 @@ allowlist_externals = ["rm", "lit"]
 deps = [".[dev]"]
 commands = [
     ["rm", "-rf", "test_run_tmp"],
-    ["lit", "-sv", "tests"],
+    ["lit", "-sv", "--show-unsupported", "tests"],
 ]
 
 [tool.tox.env.flake8]
