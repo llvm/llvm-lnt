@@ -32,12 +32,6 @@ jobs:
       uses: tj-actions/install-postgresql@v3
       with:
         postgresql-version: 17
-      # TODO: I think ubuntu-latest already comes with Postgres installed?
-      #       We need a job to run in an environment where that's not the case, otherwise we aren't
-      #       testing the minimum requirements of the client.
-      run: |
-        which postgres
-        which initdb
     - name: Tox flake8
       run: tox -e flake8
     - name: Tox docs
