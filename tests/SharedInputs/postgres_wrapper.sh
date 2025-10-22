@@ -29,7 +29,7 @@ INITDB_FLAGS+=" --username=pgtest"
 echo "$ initdb $INITDB_FLAGS >& ${DB_DIR}/initdb_log.txt"
 initdb ${INITDB_FLAGS} >& ${DB_DIR}/initdb_log.txt
 
-INITDB_FLAGS=""
+POSTGRES_FLAGS=""
 POSTGRES_FLAGS+=" -p 9100"
 POSTGRES_FLAGS+=" -D ${DB_DIR}/db"
 POSTGRES_FLAGS+=" -k ${DB_DIR}/db"
