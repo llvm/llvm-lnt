@@ -10,7 +10,7 @@
 set -u
 TEST_DIR=$1
 shift
-DB_DIR="$(mktemp -d -t lnt)"
+DB_DIR="$(mktemp -d -t lnt.XXXXX)"
 if [ -d "${TEST_DIR}" ]; then
     echo 1>&2 "${TEST_DIR} already exists"
     exit 1
