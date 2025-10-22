@@ -1,4 +1,4 @@
-#!/bin/env bash
+#!/usr/bin/env bash
 # Setup minimalistic postgres instance in specified directory, start a server,
 # run the given command and shutdown the server. Use
 # `postgresql://pgtest@localhost:9100` to connect to the server.
