@@ -20,7 +20,7 @@ mkdir -p "${TEST_DIR}"
 ln -s ${TEST_DIR}/db_root ${DB_DIR}
 
 INITDB_FLAGS+=" --pgdata=${DB_DIR}/db"
-INITDB_FLAGS+=" --xlogdir=${DB_DIR}/db"
+INITDB_FLAGS+=" --waldir=${DB_DIR}/db"
 INITDB_FLAGS+=" --nosync"
 INITDB_FLAGS+=" --no-locale"
 INITDB_FLAGS+=" --auth=trust"
@@ -49,4 +49,3 @@ kill -15 ${PG_PID}
 wait ${PG_PID}
 [ ${RC} -ne 0 ] && (rm -rf ${DB_DIR})
 exit ${RC}
-
