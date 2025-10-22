@@ -1,3 +1,4 @@
+# REQUIRES: postgres
 # Check that installation using the client requirements works properly.
 #
 # RUN: rm -rf %t.venv
