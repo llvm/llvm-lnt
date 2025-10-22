@@ -1,6 +1,6 @@
 # REQUIRES: postgres
 # RUN: rm -rf "%t.install"
-# RUN: %{shared_inputs}/postgres_wrapper.sh "%t.install" /bin/sh %s "%t.install" postgresql://pgtest@localhost:9100 "%{shared_inputs}"
+# RUN: %{shared_inputs}/postgres_wrapper.sh "%t.install" bash %s "%t.install" postgresql://pgtest@localhost:9100 "%{shared_inputs}"
 set -eux
 
 TESTDIR="$1"

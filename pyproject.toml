@@ -66,7 +66,9 @@ dev = [
     "filecheck",
     "Flake8-pyproject",
     "flake8",
+    "gunicorn>=19.9.0",
     "lit",
+    "psycopg2>=2.9.0",
     "tox",
     "twine",
 ]
@@ -120,7 +122,7 @@ allowlist_externals = ["rm", "lit"]
 deps = [".[dev]"]
 commands = [
     ["rm", "-rf", "test_run_tmp"],
-    ["lit", "-sv", "tests"],
+    ["lit", "-sv", "--show-unsupported", "tests"],
 ]
 
 [tool.tox.env.flake8]

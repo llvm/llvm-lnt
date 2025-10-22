@@ -51,12 +51,6 @@ Optional Tests
 Some tests require additional tools to be installed and are not enabled by
 default. You can enable them by passing additional flags to ``lit``:
 
-  ``-Dpostgres=1``
-    Enable postgres database support testing. This requires at least
-    postgres version 9.2 and the ``initdb`` and ``postgres`` binaries in your path.
-    Note that you do not need to setup an actual server, the tests will create
-    temporary instances on demand.
-
   ``-Dmysql=1``
     Enable mysql database support testing. This requires MySQL-python to be
     installed and expects the ``mysqld`` and ``mysqladmin`` binaries in your path.
@@ -74,7 +68,7 @@ default. You can enable them by passing additional flags to ``lit``:
 
 Example::
 
-    lit -sv -Dpostgres=1 -Dmysql=1 -Dtidylib=1 ./tests
+    lit -sv -Dmysql=1 -Dtidylib=1 ./tests
 
 Publishing a new version of LNT
 -------------------------------

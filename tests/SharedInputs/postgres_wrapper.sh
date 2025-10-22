@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 # Setup minimalistic postgres instance in specified directory, start a server,
 # run the given command and shutdown the server. Use
 # `postgresql://pgtest@localhost:9100` to connect to the server.
@@ -10,7 +10,7 @@
 set -u
 TEST_DIR=$1
 shift
-DB_DIR="$(mktemp -d -t lnt)"
+DB_DIR="$(mktemp -d -t lnt.XXXXX)"
 if [ -d "${TEST_DIR}" ]; then
     echo 1>&2 "${TEST_DIR} already exists"
     exit 1
@@ -19,8 +19,9 @@ fi
 mkdir -p "${TEST_DIR}"
 ln -s ${TEST_DIR}/db_root ${DB_DIR}
 
+INITDB_FLAGS=""
 INITDB_FLAGS+=" --pgdata=${DB_DIR}/db"
-INITDB_FLAGS+=" --xlogdir=${DB_DIR}/db"
+INITDB_FLAGS+=" --waldir=${DB_DIR}/db"
 INITDB_FLAGS+=" --nosync"
 INITDB_FLAGS+=" --no-locale"
 INITDB_FLAGS+=" --auth=trust"
@@ -28,6 +29,7 @@ INITDB_FLAGS+=" --username=pgtest"
 echo "$ initdb $INITDB_FLAGS >& ${DB_DIR}/initdb_log.txt"
 initdb ${INITDB_FLAGS} >& ${DB_DIR}/initdb_log.txt
 
+POSTGRES_FLAGS=""
 POSTGRES_FLAGS+=" -p 9100"
 POSTGRES_FLAGS+=" -D ${DB_DIR}/db"
 POSTGRES_FLAGS+=" -k ${DB_DIR}/db"
@@ -49,4 +51,3 @@ kill -15 ${PG_PID}
 wait ${PG_PID}
 [ ${RC} -ne 0 ] && (rm -rf ${DB_DIR})
 exit ${RC}
-
