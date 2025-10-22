@@ -766,11 +766,7 @@ class CompileTest(builtintest.BuiltinTest):
             print("%s: creating sandbox: %r" % (
                 timestamp(), opts.sandbox_path), file=sys.stderr)
             os.mkdir(opts.sandbox_path)
-        if opts.timestamp_build:
-            fmt_timestamp = timestamp().replace(' ', '_').replace(':', '-')
-            report_name = "test-%s" % (fmt_timestamp)
-        else:
-            report_name = "build"
+        report_name = f"test-{timestamp().replace(' ', '_').replace(':', '-')}"
         g_output_dir = os.path.join(os.path.abspath(opts.sandbox_path),
                                     report_name)
 
@@ -997,8 +993,6 @@ class CompileTest(builtintest.BuiltinTest):
               help="Parent directory to build and run tests in",
               type=click.UNPROCESSED, default=None, metavar="PATH")
 #  Test Options
-@click.option("--timestamp/--no-timestamp", "timestamp_build", default=True, show_default=True,
-              help="Whether to timestamp the build directory (for testing)")
 @click.option("--cc", "cc", type=click.UNPROCESSED, required=True,
               help="Path to the compiler under test")
 @click.option("--cxx", "cxx",

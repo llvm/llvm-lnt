@@ -2,7 +2,7 @@
 # RUN: rm -rf %t.SANDBOX
 # RUN: lnt runtest test-suite \
 # RUN:     --sandbox %t.SANDBOX \
-# RUN:     --no-timestamp \
+# RUN:     --build-dir %t.SANDBOX/build \
 # RUN:     --test-suite %S/Inputs/test-suite-cmake \
 # RUN:     --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
 # RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
@@ -10,8 +10,8 @@
 # RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit \
 # RUN:     --output %t.report \
 # RUN:     > %t.out 2> %t.err
-# RUN: lnt checkformat %t.report > %t.checkformat
 # RUN: filecheck  --check-prefix CHECK-BASIC < %t.err %s
+# RUN: lnt checkformat %t.report > %t.checkformat
 # RUN: filecheck  --check-prefix CHECK-REPORT < %t.SANDBOX/build/report.json %s
 # RUN: filecheck  --check-prefix CHECK-XML < %t.SANDBOX/build/test-results.xunit.xml %s
 # RUN: filecheck  --check-prefix CHECK-CSV < %t.SANDBOX/build/test-results.csv %s
@@ -51,7 +51,7 @@
 # Use the same sandbox again with --no-configure
 # RUN: lnt runtest test-suite \
 # RUN:     --sandbox %t.SANDBOX \
-# RUN:     --no-timestamp \
+# RUN:     --build-dir %t.SANDBOX/build \
 # RUN:     --no-configure \
 # RUN:     --test-suite %S/Inputs/test-suite-cmake \
 # RUN:     --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
@@ -66,7 +66,7 @@
 # RUN: rm -rf %t.SANDBOX2
 # RUN: lnt runtest test-suite \
 # RUN:     --sandbox %t.SANDBOX2 \
-# RUN:     --no-timestamp \
+# RUN:     --build-dir %t.SANDBOX2/build \
 # RUN:     --no-configure \
 # RUN:     --test-suite %S/Inputs/test-suite-cmake \
 # RUN:     --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
