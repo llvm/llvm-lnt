@@ -1314,8 +1314,6 @@ class TestSuiteTest(BuiltinTest):
 @click.option("-S", "--sandbox", "sandbox_path", required=True,
               help="Parent directory to build and run tests in",
               type=click.UNPROCESSED, metavar="PATH")
-@click.option("--timestamp/--no-timestamp", "timestamp_build", default=True, show_default=True,
-              help="Whether to timestamp the build directory (for testing)")
 @click.option("--configure/--no-configure", "run_configure", default=True, show_default=True,
               help="Whether to run CMake if CMakeCache.txt is present (--no-configure is only "
                    "useful with --no-timestamp)")

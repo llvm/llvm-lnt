@@ -997,8 +997,6 @@ class CompileTest(builtintest.BuiltinTest):
               help="Parent directory to build and run tests in",
               type=click.UNPROCESSED, default=None, metavar="PATH")
 #  Test Options
-@click.option("--timestamp/--no-timestamp", "timestamp_build", default=True, show_default=True,
-              help="Whether to timestamp the build directory (for testing)")
 @click.option("--cc", "cc", type=click.UNPROCESSED, required=True,
               help="Path to the compiler under test")
 @click.option("--cxx", "cxx",

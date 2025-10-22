@@ -3,7 +3,7 @@
 # RUN: rm -rf %t.SANDBOX
 # RUN: lnt runtest test-suite \
 # RUN:     --sandbox %t.SANDBOX \
-# RUN:     --no-timestamp \
+# RUN:     --build-dir %t.SANDBOX/build \
 # RUN:     --test-suite %S/Inputs/test-suite-cmake \
 # RUN:     --cmake-define=CMAKE_C_COMPILER:STRING=%{shared_inputs}/FakeCompilers/clang-r154332 \
 # RUN:     --cc %{shared_inputs}/FakeCompilers/clang-r154331 \

@@ -5,7 +5,7 @@
 # RUN:   --test-suite %S/Inputs/test-suite \
 # RUN:   --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
 # RUN:   --only-test subtest \
-# RUN:   --no-timestamp > %t.log 2> %t.err
+# RUN:   > %t.log 2> %t.err
 #
 # RUN: filecheck --check-prefix CHECK-STDOUT < %t.log %s
 # RUN: filecheck --check-prefix CHECK-STDERR < %t.err %s
