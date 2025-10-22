@@ -8,15 +8,16 @@
 #
 # Inspired by https://github.com/tk0miya/testing.postgresql
 set -u
+
 TEST_DIR=$1
 shift
-DB_DIR="$(mktemp -d -t lnt.XXXXX)"
 if [ -d "${TEST_DIR}" ]; then
     echo 1>&2 "${TEST_DIR} already exists"
     exit 1
 fi
-
 mkdir -p "${TEST_DIR}"
+
+DB_DIR="$(mktemp -d -t lnt.XXXXX)"
 ln -s ${TEST_DIR}/db_root ${DB_DIR}
 
 INITDB_FLAGS=""
