@@ -32,9 +32,6 @@ jobs:
       uses: tj-actions/install-postgresql@v3
       with:
         postgresql-version: 17
-    - name: Ensure PostgreSQL is not installed
-      if: ${{ ! matrix.with-postgres }}
-      run: ! which postgres
     - name: Tox flake8
       run: tox -e flake8
     - name: Tox docs
