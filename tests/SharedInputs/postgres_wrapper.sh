@@ -19,6 +19,7 @@ fi
 mkdir -p "${TEST_DIR}"
 ln -s ${TEST_DIR}/db_root ${DB_DIR}
 
+INITDB_FLAGS=""
 INITDB_FLAGS+=" --pgdata=${DB_DIR}/db"
 INITDB_FLAGS+=" --waldir=${DB_DIR}/db"
 INITDB_FLAGS+=" --nosync"
@@ -28,6 +29,7 @@ INITDB_FLAGS+=" --username=pgtest"
 echo "$ initdb $INITDB_FLAGS >& ${DB_DIR}/initdb_log.txt"
 initdb ${INITDB_FLAGS} >& ${DB_DIR}/initdb_log.txt
 
+INITDB_FLAGS=""
 POSTGRES_FLAGS+=" -p 9100"
 POSTGRES_FLAGS+=" -D ${DB_DIR}/db"
 POSTGRES_FLAGS+=" -k ${DB_DIR}/db"
