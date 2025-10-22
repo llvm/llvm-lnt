@@ -5,7 +5,6 @@ import json
 import os
 import shlex
 import platform
-import pipes
 import sys
 import shutil
 import glob
@@ -865,7 +864,7 @@ class TestSuiteTest(BuiltinTest):
         return report
 
     def _unix_quote_args(self, s):
-        return ' '.join(map(pipes.quote, shlex.split(s)))
+        return ' '.join(map(shlex.quote, shlex.split(s)))
 
     def _cp_artifacts(self, src, dest, patts):
         """Copy artifacts out of the build """

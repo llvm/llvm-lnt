@@ -11,7 +11,6 @@ import time
 import traceback
 import urllib.error
 import shlex
-import pipes
 
 try:
     import resource
@@ -1314,7 +1313,7 @@ def _execute_test_again(config, test_name, test_path, test_relative_path,
 
 
 def _unix_quote_args(s):
-    return list(map(pipes.quote, shlex.split(s)))
+    return list(map(shlex.quote, shlex.split(s)))
 
 
 # When set to true, all benchmarks will be rerun.
