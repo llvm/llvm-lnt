@@ -33,7 +33,7 @@ jobs:
       with:
         postgresql-version: 17
     - name: Ensure PostgreSQL is not installed
-      if: ! ${{ matrix.with-postgres }}
+      if: ${{ ! matrix.with-postgres }}
       run: ! postgres
     - name: Tox flake8
       run: tox -e flake8
