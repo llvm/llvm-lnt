@@ -29,6 +29,9 @@ jobs:
         pip install tox tox-gh-actions
     - name: Install PostgreSQL
       if: ${{ matrix.with-postgres }}
+      uses: tj-actions/install-postgresql@v3
+      with:
+        postgresql-version: 17
       # TODO: I think ubuntu-latest already comes with Postgres installed?
       #       We need a job to run in an environment where that's not the case, otherwise we aren't
       #       testing the minimum requirements of the client.
