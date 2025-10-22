@@ -178,10 +178,10 @@ def initialize_compile_definition(session):
 
 
 def get_base_for_testsuite(test_suite):
-    UpdatedBase = declarative_base()
+    UpdatedBase = declarative_base()  # type: ignore[misc]
     db_key_name = test_suite.db_key_name
 
-    class Machine(UpdatedBase):
+    class Machine(UpdatedBase):  # type: ignore[misc,valid-type]
         __tablename__ = db_key_name + '_Machine'
         # For case sensitive compare.
         __table_args__ = {'mysql_collate': 'utf8_bin'}
@@ -200,7 +200,7 @@ def get_base_for_testsuite(test_suite):
             class_dict[item.name] = item.column = Column(
                 item.name, String(256))
 
-    class Order(UpdatedBase):
+    class Order(UpdatedBase):  # type: ignore[misc,valid-type]
         __tablename__ = db_key_name + '_Order'
 
         id = Column("ID", Integer, primary_key=True)
@@ -219,7 +219,7 @@ def get_base_for_testsuite(test_suite):
             class_dict[item.name] = item.column = Column(
                 item.name, String(256))
 
-    class Run(UpdatedBase):
+    class Run(UpdatedBase):  # type: ignore[misc,valid-type]
         __tablename__ = db_key_name + '_Run'
 
         id = Column("ID", Integer, primary_key=True)
@@ -247,13 +247,13 @@ def get_base_for_testsuite(test_suite):
             class_dict[item.name] = item.column = Column(
                 item.name, String(256))
 
-    class Test(UpdatedBase):
+    class Test(UpdatedBase):  # type: ignore[misc,valid-type]
         __tablename__ = db_key_name + '_Test'
         __table_args__ = {'mysql_collate': 'utf8_bin'}
         id = Column("ID", Integer, primary_key=True)
         name = Column("Name", String(256), unique=True, index=True)
 
-    class Sample(UpdatedBase):
+    class Sample(UpdatedBase):  # type: ignore[misc,valid-type]
         __tablename__ = db_key_name + '_Sample'
 
         id = Column("ID", Integer, primary_key=True)
