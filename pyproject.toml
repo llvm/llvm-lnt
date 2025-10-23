@@ -58,7 +58,7 @@ lnt = "lnt.lnttool:main"
 
 [project.optional-dependencies]
 server = [
-    "gunicorn>=19.9.0",
+    "gunicorn",
     "psycopg2>=2.9.0",
 ]
 dev = [
@@ -66,7 +66,7 @@ dev = [
     "filecheck",
     "Flake8-pyproject",
     "flake8",
-    "gunicorn>=19.9.0",
+    "gunicorn",
     "lit",
     "psycopg2>=2.9.0",
     "tox",
