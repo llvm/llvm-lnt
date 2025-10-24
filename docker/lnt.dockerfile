@@ -32,9 +32,10 @@ RUN apk update \
   && apk add --no-cache libpq
 
 # Install LNT itself
-COPY . /var/tmp/lnt
-WORKDIR /var/tmp/lnt
-RUN pip3 install -r requirements.server.txt && apk --purge del .build-deps
+RUN --mount=type=bind,source=.,target=./lnt-source \
+    cd lnt-source && \
+    pip3 install -r requirements.server.txt && \
+    apk --purge del .build-deps
 
 
 FROM llvm-lnt AS llvm-lnt-prod
