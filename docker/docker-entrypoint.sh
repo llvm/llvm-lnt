@@ -1,19 +1,6 @@
 #!/bin/sh
 
-if [ -z ${DB_USER+x} ]; then
-    echo "Missing DB_USER environment variable"
-    exit 1
-fi
-
-if [ -z ${DB_HOST+x} ]; then
-    echo "Missing DB_HOST environment variable"
-    exit 1
-fi
-
-if [ -z ${DB_NAME+x} ]; then
-    echo "Missing DB_NAME environment variable"
-    exit 1
-fi
+set -u
 
 if [ ! -f /run/secrets/lnt-db-password ]; then
     echo "Missing secret lnt-db-password"
