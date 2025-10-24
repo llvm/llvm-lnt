@@ -31,11 +31,12 @@ RUN apk update \
   && apk add --no-cache --virtual .build-deps git g++ postgresql-dev yaml-dev \
   && apk add --no-cache libpq
 
-# Install LNT itself
+# Install LNT itself, without leaving behind any sources inside the image.
 RUN --mount=type=bind,source=.,target=./lnt-source \
-    cd lnt-source && \
-    pip3 install -r requirements.server.txt && \
-    apk --purge del .build-deps
+    cp -R lnt-source /tmp/lnt-src && \
+    cd /tmp/lnt-src && \
+    pip3 install -r requirements.server.txt && apk --purge del .build-deps && \
+    rm -rf /tmp/lnt-src
 
 
 FROM llvm-lnt AS llvm-lnt-prod
