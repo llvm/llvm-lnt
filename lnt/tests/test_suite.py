@@ -186,16 +186,19 @@ class TestSuiteTest(BuiltinTest):
 
     def run_test(self, opts):
 
-        # Validate new build/test mode options
-        if opts.build_only and opts.test_prebuilt:
-            self._fatal("--build-only and --test-prebuilt are mutually exclusive")
+        # Validate build/exec mode options
+        if opts.build and opts.exec_mode:
+            self._fatal("--build and --exec are mutually exclusive")
 
-        if opts.test_prebuilt and opts.build_dir is None and not opts.exec_interleaved_builds:
-            self._fatal("--test-prebuilt requires --build-dir (or use --exec-interleaved-builds)")
+        if opts.exec_mode and opts.build_dir is None and not opts.exec_interleaved_builds:
+            self._fatal("--exec requires --build-dir (or use --exec-interleaved-builds)")
+
+        if opts.build_dir and not opts.exec_mode and not opts.exec_interleaved_builds:
+            self._fatal("--build-dir can only be used with --exec or --exec-interleaved-builds")
 
         if opts.exec_interleaved_builds:
-            # --exec-interleaved-builds implies --test-prebuilt
-            opts.test_prebuilt = True
+            # --exec-interleaved-builds implies --exec
+            opts.exec_mode = True
             # Parse and validate build directories
             opts.exec_interleaved_builds_list = [
                 os.path.abspath(d.strip())
@@ -213,17 +216,13 @@ class TestSuiteTest(BuiltinTest):
                         build_dir)
 
         if opts.build_dir:
-            # Validate and normalize build directory path
+            # Validate build directory
             opts.build_dir = os.path.abspath(opts.build_dir)
-            if opts.test_prebuilt:
-                # In test-prebuilt mode, build directory must already exist
-                if not os.path.exists(opts.build_dir):
-                    self._fatal("--build-dir does not exist: %r" % opts.build_dir)
-                cmakecache = os.path.join(opts.build_dir, 'CMakeCache.txt')
-                if not os.path.exists(cmakecache):
-                    self._fatal("--build-dir is not a configured build: %r" % opts.build_dir)
-            # In normal build mode, --build-dir specifies where to create the build
-            # (directory will be created if it doesn't exist)
+            if not os.path.exists(opts.build_dir):
+                self._fatal("--build-dir does not exist: %r" % opts.build_dir)
+            cmakecache = os.path.join(opts.build_dir, 'CMakeCache.txt')
+            if not os.path.exists(cmakecache):
+                self._fatal("--build-dir is not a configured build: %r" % opts.build_dir)
 
         if opts.cc is not None:
             opts.cc = resolve_command_path(opts.cc)
@@ -249,10 +248,10 @@ class TestSuiteTest(BuiltinTest):
         else:
             # If --cc not specified, CMake will use its default compiler discovery
             # We'll validate that a compiler was found after configuration
-            if opts.cc is None and not opts.test_prebuilt:
+            if opts.cc is None and not opts.exec_mode:
                 logger.info("No --cc specified, will use CMake's default compiler discovery")
 
-        if not opts.test_prebuilt:
+        if not opts.exec_mode:
             # These are only required when building
             if opts.test_suite_root is None:
                 self._fatal('--test-suite is required')
@@ -287,8 +286,8 @@ class TestSuiteTest(BuiltinTest):
             opts.only_test = opts.single_result
 
         if opts.only_test:
-            if not opts.test_prebuilt:
-                # Only validate against test_suite_root if we're not in test-prebuilt mode
+            if not opts.exec_mode:
+                # Only validate against test_suite_root if we're not in exec mode
                 # --only-test can either point to a particular test or a directory.
                 # Therefore, test_suite_root + opts.only_test or
                 # test_suite_root + dirname(opts.only_test) must be a directory.
@@ -303,7 +302,7 @@ class TestSuiteTest(BuiltinTest):
                 else:
                     self._fatal("--only-test argument not understood (must be a " +
                                 " test or directory name)")
-            # else: in test-prebuilt mode, we'll use only_test as-is for filtering
+            # else: in exec mode, we'll use only_test as-is for filtering
 
         if opts.single_result and not opts.only_test[1]:
             self._fatal("--single-result must be given a single test name, "
@@ -320,15 +319,15 @@ class TestSuiteTest(BuiltinTest):
         self.start_time = timestamp()
 
         # Work out where to put our build stuff
-        if opts.build_dir:
-            # If --build-dir is specified, use it (for any build type)
+        if opts.exec_mode and opts.build_dir:
+            # In exec mode with --build-dir, use the specified build directory
             basedir = opts.build_dir
         elif opts.exec_interleaved_builds:
             # For exec-interleaved-builds, each build uses its own directory
             # We'll return early from _run_interleaved_builds(), so basedir doesn't matter
             basedir = opts.sandbox_path
         else:
-            # Normal mode: use sandbox/build or sandbox/test-<timestamp>
+            # Normal mode or build mode: use sandbox/build or sandbox/test-<timestamp>
             if opts.timestamp_build:
                 ts = self.start_time.replace(' ', '_').replace(':', '-')
                 build_dir_name = "test-%s" % ts
@@ -339,12 +338,12 @@ class TestSuiteTest(BuiltinTest):
         self._base_path = basedir
 
         cmakecache = os.path.join(self._base_path, 'CMakeCache.txt')
-        if opts.test_prebuilt:
-            # In test-prebuilt mode, the build is already configured and compiled
+        if opts.exec_mode:
+            # In exec mode, the build is already configured and compiled
             self.configured = True
             self.compiled = True
         else:
-            # In normal/build-only mode, check if we should skip reconfiguration
+            # In normal/build mode, check if we should skip reconfiguration
             self.configured = not opts.run_configure and \
                 os.path.exists(cmakecache)
 
@@ -359,8 +358,8 @@ class TestSuiteTest(BuiltinTest):
         if opts.exec_interleaved_builds:
             return self._run_interleaved_builds(opts)
 
-        # Configure if needed (skip in test-prebuilt mode)
-        if not opts.test_prebuilt:
+        # Configure if needed (skip in exec mode)
+        if not opts.exec_mode:
             # configure, so we can extract toolchain information from the cmake
             # output.
             self._configure_if_needed()
@@ -397,19 +396,19 @@ class TestSuiteTest(BuiltinTest):
                 fatal("Cannot detect compiler version. Specify --run-order"
                       " to manually define it.")
 
-        # Handle --build-only mode
-        if opts.build_only:
-            logger.info("Building tests (--build-only mode)...")
+        # Handle --build mode
+        if opts.build:
+            logger.info("Building tests (--build mode)...")
             self.run(cmake_vars, compile=True, test=False, skip_lit=True)
             logger.info("Build complete. Build directory: %s" % self._base_path)
-            logger.info("Use --test-prebuilt --build-dir %s to run tests." % self._base_path)
+            logger.info("Use --exec --build-dir %s to run tests." % self._base_path)
             return lnt.util.ImportData.no_submit()
 
         # Now do the actual run.
         reports = []
         json_reports = []
-        # In test-prebuilt mode, we only run tests, no compilation
-        if opts.test_prebuilt:
+        # In exec mode, we only run tests, no compilation
+        if opts.exec_mode:
             for i in range(opts.exec_multisample):
                 # only gather perf profiles on a single run.
                 p = i == 0 and opts.use_perf in ('profile', 'all')
@@ -1354,26 +1353,25 @@ class TestSuiteTest(BuiltinTest):
               is_flag=True, default=False,)
 @click.option("--remote-host", metavar="HOST",
               help="Run tests on a remote machine")
-@click.option("--build-only", "build_only",
-              help="Only build the tests, don't run them. Useful for "
+@click.option("--build", "build",
+              help="Only build the tests, don't execute them. Useful for "
                    "preparing builds for later interleaved execution.",
               is_flag=True, default=False)
-@click.option("--test-prebuilt", "test_prebuilt",
-              help="Only run tests from pre-built directory, skip configure "
-                   "and build steps. Use with --build-dir to specify the "
-                   "build directory.",
+@click.option("--exec", "exec_mode",
+              help="Only execute tests from pre-built directory, skip configure "
+                   "and build steps. Requires --build-dir to specify the "
+                   "build directory. Default behavior is to both build and execute.",
               is_flag=True, default=False)
 @click.option("--build-dir", "build_dir",
               metavar="PATH",
-              help="Specify build directory location. With --test-prebuilt, this must "
-                   "be an existing configured build. With --build-only or normal mode, "
-                   "specifies where to create the build (overrides default sandbox/build "
-                   "or timestamped directory). Path can be absolute or relative to sandbox.",
+              help="Path to pre-built test directory (used with --exec). "
+                   "This is the actual build directory (e.g., sandbox/build), "
+                   "not the sandbox parent directory.",
               type=click.UNPROCESSED, default=None)
 @click.option("--exec-interleaved-builds", "exec_interleaved_builds",
               metavar="BUILD1,BUILD2,...",
               help="Comma-separated list of build directories to interleave "
-                   "execution from. Implies --test-prebuilt. Each path should be "
+                   "execution from. Implies --exec. Each path should be "
                    "a build directory (e.g., sandbox/build). For each multisample, "
                    "runs all tests from each build in sequence to control for "
                    "environmental changes.",
