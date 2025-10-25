@@ -652,7 +652,7 @@ class TestSuiteTest(BuiltinTest):
             logger.info("Dropping first execution sample (iteration 0)")
         else:
             logger.info("Dropping first %d execution samples (iterations 0-%d)" %
-                       (drop_exec_count, drop_exec_count - 1))
+                        (drop_exec_count, drop_exec_count - 1))
 
         logger.info("Kept %d of %d execution samples after --drop-exec filtering" %
                     (len(filtered_reports), len(reports)))
