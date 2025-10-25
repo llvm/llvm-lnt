@@ -110,3 +110,14 @@ To install the extra packages for the server config::
     gunicorn app_wrapper:app --bind 0.0.0.0:8000 --workers 8 --timeout 300 --name lnt_server --log-file /var/log/lnt/lnt.log --access-logfile /var/log/lnt/gunicorn_access.log --max-requests 250000
 
 
+Running a LNT Server via Docker
+-------------------------------
+
+We provide a Docker Compose setup with Docker containers that can be used to
+easily bring up a fully working production server within minutes. The container
+can be built and run with::
+
+   docker compose --file docker/compose.yaml --env-file <secrets> up
+
+``<secrets>`` should be the path to a file containing environment variables
+required by the containers. Please refer to the Docker Compose file for details.

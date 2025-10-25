@@ -1,11 +1,13 @@
 #!/usr/bin/env python
 
-import os
-from sqlalchemy import create_engine
+import sys
+import sqlalchemy
 
-db_base_path = os.environ['DB_BASE_PATH']
+if len(sys.argv) != 2:
+    raise "Missing db path for lnt-wait-db"
 
-engine = create_engine(db_base_path)
+db = sys.argv[1]
+engine = sqlalchemy.create_engine(db)
 started = False
 
 while not started:

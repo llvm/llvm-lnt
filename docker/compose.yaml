@@ -1,0 +1,64 @@
+# This file composes a full service running LNT. A LNT service is comprised
+# of a container running a Postgres database and a container running a
+# production LNT webserver.
+#
+# In order to build the full service, some secrets are required. They are taken
+# as environment variables, which means they can be stored in a file and included
+# via `--env-file <secrets-file>`. These environment variables are:
+#
+#   LNT_DB_PASSWORD
+#     The password to use for logging into the database.
+#
+#   LNT_AUTH_TOKEN
+#     The authentication token used to require authentication to
+#     perform destructive actions.
+
+name: llvm-lnt-prod
+
+services:
+  webserver:
+    container_name: webserver
+    build:
+      context: ../
+      dockerfile: docker/lnt.dockerfile
+      target: llvm-lnt-prod
+      args:
+        DB_USER: lntuser
+        DB_HOST: dbserver
+        DB_NAME: lnt.db
+    secrets:
+      - lnt-db-password
+      - lnt-auth-token
+    depends_on:
+      - db
+    deploy:
+      restart_policy:
+        condition: on-failure
+    ports:
+      - "8000:8000"
+    volumes:
+      - instance:/var/lib/lnt
+      - logs:/var/log/lnt
+
+  db:
+    container_name: dbserver
+    image: docker.io/postgres:18-alpine
+    environment:
+      - POSTGRES_PASSWORD_FILE=/run/secrets/lnt-db-password
+      - POSTGRES_USER=lntuser
+      - POSTGRES_DB=lnt.db
+    secrets:
+      - lnt-db-password
+    volumes:
+      - database:/var/lib/postgresql
+
+volumes:
+  instance:
+  logs:
+  database:
+
+secrets:
+  lnt-db-password:
+    environment: "LNT_DB_PASSWORD"
+  lnt-auth-token:
+    environment: "LNT_AUTH_TOKEN"
