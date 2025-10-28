@@ -33,5 +33,4 @@ jobs:
         push: ${{ startsWith(github.ref, 'refs/tags/') }} # only push to ghcr.io on tags
         tags: ghcr.io/${{github.repository}}:latest
         file: docker/lnt.dockerfile
-        target: llvm-lnt
         context: . # use the current directory as context, as checked out by actions/checkout -- needed for setuptools_scm

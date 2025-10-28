@@ -2,18 +2,6 @@
 
 set -u
 
-if [ ! -f /run/secrets/lnt-db-password ]; then
-    echo "Missing secret lnt-db-password"
-    exit 1
-fi
-DB_PASSWORD="$(cat /run/secrets/lnt-db-password)"
-
-if [ ! -f /run/secrets/lnt-auth-token ]; then
-    echo "Missing secret lnt-auth-token"
-    exit 1
-fi
-AUTH_TOKEN="$(cat /run/secrets/lnt-auth-token)"
-
 DB_PATH="postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}"
 
 # Set up the instance the first time this gets run.

@@ -13,7 +13,7 @@
 #     The authentication token used to require authentication to
 #     perform destructive actions.
 
-name: llvm-lnt-prod
+name: llvm-lnt
 
 services:
   webserver:
@@ -21,14 +21,12 @@ services:
     build:
       context: ../
       dockerfile: docker/lnt.dockerfile
-      target: llvm-lnt-prod
       args:
         DB_USER: lntuser
         DB_HOST: dbserver
         DB_NAME: lnt.db
-    secrets:
-      - lnt-db-password
-      - lnt-auth-token
+        DB_PASSWORD: ${LNT_DB_PASSWORD}
+        AUTH_TOKEN: ${LNT_AUTH_TOKEN}
     depends_on:
       - db
     deploy:
@@ -44,11 +42,9 @@ services:
     container_name: dbserver
     image: docker.io/postgres:18-alpine
     environment:
-      - POSTGRES_PASSWORD_FILE=/run/secrets/lnt-db-password
+      - POSTGRES_PASSWORD=${LNT_DB_PASSWORD}
       - POSTGRES_USER=lntuser
       - POSTGRES_DB=lnt.db
-    secrets:
-      - lnt-db-password
     volumes:
       - database:/var/lib/postgresql
 
@@ -56,9 +52,3 @@ volumes:
   instance:
   logs:
   database:
-
-secrets:
-  lnt-db-password:
-    environment: "LNT_DB_PASSWORD"
-  lnt-auth-token:
-    environment: "LNT_AUTH_TOKEN"
