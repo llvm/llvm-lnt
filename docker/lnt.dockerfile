@@ -2,20 +2,20 @@
 # This image is intended to be built from a Docker Compose file, as it
 # requires additional information passed as environment variables:
 #
-#   ENV DB_USER
+#   DB_USER
 #     The username to use for logging into the database.
 #
-#   ENV DB_HOST
+#   DB_HOST
 #     The hostname to use to access the database.
 #
-#   ENV DB_NAME
+#   DB_NAME
 #     The name of the database on the server.
 #
-#   ENV DB_PASSWORD
-#     The password to use for logging into the database.
+#   DB_PASSWORD_FILE
+#     File containing the password to use for logging into the database.
 #
-#   ENV AUTH_TOKEN
-#     The authentication token used to require authentication
+#   AUTH_TOKEN_FILE
+#     File containing the authentication token used to require authentication
 #     to perform destructive actions.
 
 FROM python:3.10-alpine
@@ -37,6 +37,5 @@ VOLUME /var/lib/lnt /var/log/lnt
 
 # Set up the actual entrypoint that gets run when the container starts.
 COPY docker/docker-entrypoint.sh docker/lnt-wait-db /usr/local/bin/
-ENV DB_USER= DB_HOST= DB_NAME= DB_PASSWORD= AUTH_TOKEN=
 ENTRYPOINT ["docker-entrypoint.sh"]
 EXPOSE 8000

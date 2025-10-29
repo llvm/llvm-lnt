@@ -2,7 +2,9 @@
 
 set -u
 
-DB_PATH="postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}"
+password="$(cat ${DB_PASSWORD_FILE})"
+token="$(cat ${AUTH_TOKEN_FILE})"
+DB_PATH="postgres://${DB_USER}:${password}@${DB_HOST}"
 
 # Set up the instance the first time this gets run.
 if [ ! -e /var/lib/lnt/instance/lnt.cfg ]; then
@@ -12,7 +14,7 @@ if [ ! -e /var/lib/lnt/instance/lnt.cfg ]; then
         --tmp-dir /tmp/lnt              \
         --db-dir "${DB_PATH}"           \
         --default-db "${DB_NAME}"
-    sed -i "s/# \(api_auth_token =\).*/\1 '${AUTH_TOKEN}'/" /var/lib/lnt/instance/lnt.cfg
+    sed -i "s/# \(api_auth_token =\).*/\1 '${token}'/" /var/lib/lnt/instance/lnt.cfg
 fi
 
 # Run the server under gunicorn.

@@ -25,8 +25,11 @@ services:
       - DB_USER=lntuser
       - DB_HOST=dbserver
       - DB_NAME=lnt.db
-      - DB_PASSWORD=${LNT_DB_PASSWORD}
-      - AUTH_TOKEN=${LNT_AUTH_TOKEN}
+      - DB_PASSWORD_FILE=/run/secrets/lnt-db-password
+      - AUTH_TOKEN_FILE=/run/secrets/lnt-auth-token
+    secrets:
+      - lnt-db-password
+      - lnt-auth-token
     depends_on:
       - db
     deploy:
@@ -42,9 +45,11 @@ services:
     container_name: dbserver
     image: docker.io/postgres:18-alpine
     environment:
-      - POSTGRES_PASSWORD=${LNT_DB_PASSWORD}
+      - POSTGRES_PASSWORD_FILE=/run/secrets/lnt-db-password
       - POSTGRES_USER=lntuser
       - POSTGRES_DB=lnt.db
+    secrets:
+      - lnt-db-password
     volumes:
       - database:/var/lib/postgresql
 
@@ -52,3 +57,9 @@ volumes:
   instance:
   logs:
   database:
+
+secrets:
+  lnt-db-password:
+    environment: "LNT_DB_PASSWORD"
+  lnt-auth-token:
+    environment: "LNT_AUTH_TOKEN"
