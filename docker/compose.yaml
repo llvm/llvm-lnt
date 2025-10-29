@@ -21,12 +21,12 @@ services:
     build:
       context: ../
       dockerfile: docker/lnt.dockerfile
-      args:
-        DB_USER: lntuser
-        DB_HOST: dbserver
-        DB_NAME: lnt.db
-        DB_PASSWORD: ${LNT_DB_PASSWORD}
-        AUTH_TOKEN: ${LNT_AUTH_TOKEN}
+    environment:
+      - DB_USER=lntuser
+      - DB_HOST=dbserver
+      - DB_NAME=lnt.db
+      - DB_PASSWORD=${LNT_DB_PASSWORD}
+      - AUTH_TOKEN=${LNT_AUTH_TOKEN}
     depends_on:
       - db
     deploy:
