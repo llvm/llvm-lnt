@@ -3,6 +3,7 @@
 .tox/
 /llvm_lnt.egg-info
 build
+deployment/.terraform
 dist
 docs/_build
 lnt/server/ui/static/docs

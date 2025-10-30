@@ -1,0 +1,36 @@
+name: Deploy lnt.llvm.org
+
+on:
+  push:
+    branches: ['main']
+    paths:
+      - '.github/workflows/deploy-lnt.llvm.org.yaml'
+      - 'deployment/*'
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+
+    steps:
+    - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+    - name: Initialize Terraform
+      run: terraform -chdir=deployment init
+
+    - name: Apply Terraform changes
+      run: terraform -chdir=deployment apply -auto-approve
+      env:
+        TF_VAR_lnt_db_password: ${{ secrets.LNT_DB_PASSWORD }}
+        TF_VAR_lnt_auth_token: ${{ secrets.LNT_AUTH_TOKEN }}
