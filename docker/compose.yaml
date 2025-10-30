@@ -43,7 +43,7 @@ services:
 
   db:
     container_name: dbserver
-    image: docker.io/postgres:13-alpine
+    image: docker.io/postgres:18-alpine
     environment:
       - POSTGRES_PASSWORD_FILE=/run/secrets/lnt-db-password
       - POSTGRES_USER=lntuser
