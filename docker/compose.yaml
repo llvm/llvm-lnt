@@ -2,7 +2,7 @@
 # of a container running a Postgres database and a container running a
 # production LNT webserver.
 #
-# In order to build the full service, some secrets are required. They are taken
+# In order to compose the full service, some secrets are required. They are taken
 # as environment variables, which means they can be stored in a file and included
 # via `--env-file <secrets-file>`. These environment variables are:
 #
@@ -18,9 +18,7 @@ name: llvm-lnt
 services:
   webserver:
     container_name: webserver
-    build:
-      context: ../
-      dockerfile: docker/lnt.dockerfile
+    image: ghcr.io/llvm/llvm-lnt:latest
     environment:
       - DB_USER=lntuser
       - DB_HOST=dbserver

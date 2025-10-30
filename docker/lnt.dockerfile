@@ -1,6 +1,5 @@
 # This Dockerfile defines an image that contains a production LNT server.
-# This image is intended to be built from a Docker Compose file, as it
-# requires additional information passed as environment variables:
+# It requires additional information passed as environment variables:
 #
 #   DB_USER
 #     The username to use for logging into the database.
@@ -17,6 +16,15 @@
 #   AUTH_TOKEN_FILE
 #     File containing the authentication token used to require authentication
 #     to perform destructive actions.
+#
+# It also stores information in the following volumes:
+#
+#   /var/lib/lnt
+#     The actual LNT instance data (schema files, configuration files, etc).
+#
+#   /var/log/lnt
+#     Log files for the instance.
+#
 
 FROM python:3.10-alpine
 
