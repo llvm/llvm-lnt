@@ -32,4 +32,5 @@ jobs:
       with:
         push: ${{ github.ref == 'refs/heads/main' }} # only push to ghcr.io on the main branch
         tags: ghcr.io/${{github.repository}}:latest
+        file: docker/lnt.dockerfile
         context: . # use the current directory as context, as checked out by actions/checkout -- needed for setuptools_scm
