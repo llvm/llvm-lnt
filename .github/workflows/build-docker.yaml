@@ -1,4 +1,4 @@
-name: Build Docker image
+name: Build LNT Docker image
 
 on:
   - push
