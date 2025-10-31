@@ -18,9 +18,22 @@ variable "lnt_auth_token" {
   sensitive   = true
 }
 
-resource "local_file" "docker-compose-file" {
-  source = "../compose.yaml"
-  filename = "${path.module}/compose.yaml"
+data "cloudinit_config" "startup_scripts" {
+  base64_encode = true
+  part {
+    filename     = "ec2-startup.sh"
+    content_type = "text/x-shellscript"
+    content      = templatefile("${path.module}/ec2-startup.sh.tpl", {
+      __db_password__ = var.lnt_db_password,
+      __auth_token__ = var.lnt_auth_token,
+    })
+  }
+
+  part {
+    filename     = "compose.yaml"
+    content_type = "text/cloud-config"
+    content      = file("${path.module}/../compose.yaml")
+  }
 }
 
 resource "aws_instance" "docker_server" {
@@ -31,8 +44,5 @@ resource "aws_instance" "docker_server" {
     Name = "lnt.llvm.org"
   }
 
-  user_data = templatefile("${path.module}/ec2-startup.sh.tpl", {
-    __db_password__ = var.lnt_db_password,
-    __auth_token__ = var.lnt_auth_token,
-  })
+  user_data_base64 = data.cloudinit_config.startup_scripts.rendered
 }
