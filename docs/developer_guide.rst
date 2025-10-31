@@ -84,3 +84,14 @@ install the development dependencies, and then run the following commands from t
 This requires setting up the right API token, see `the official documentation <https://packaging.python.org/en/latest/tutorials/packaging-projects/#uploading-the-distribution-archives>`_
 for details. You can replace ``--repository testpypi`` with ``--repository pypi`` once you are actually ready
 to publish the package.
+
+Deploying lnt.llvm.org
+----------------------
+
+The `lnt.llvm.org <https://lnt.llvm.org>`_ instance gets re-deployed automatically on every tag
+that gets pushed to main via a Github Action. Manually deploying the instance is also possible
+by directly using Terraform::
+
+    cd docker/lnt.llvm.org
+    terraform init
+    terraform apply -var <foo> # see docker/lnt.llvm.org/main.tf for required variables
