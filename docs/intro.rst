@@ -86,17 +86,16 @@ for the templating engine. My hope is to eventually move to a more AJAXy web
 interface.
 
 The database layer uses SQLAlchemy for its ORM, and is typically backed by
-SQLite, although I have tested on MySQL on the past, and supporting other
-databases should be trivial. My plan is to always support SQLite as this allows
-the possibility of developers easily running their own LNT installation for
-viewing nightly test results, and to run with whatever DB makes the most sense
+SQLite for local installations and PostgreSQL in production. The plan is to
+always support SQLite as this allows developers to easily run their own LNT
+installation locally, and to run with whatever DB makes the most sense
 on the server.
 
 Running a LNT Server Locally
 ----------------------------
 
 LNT can accommodate many more users in the production config.  In production:
-- Postgres or MySQL should be used as the database.
+- Postgres should be used as the database.
 - A proper wsgi server should be used, in front of a proxy like Nginx or Apache.
 
 To install the extra packages for the server config::
