@@ -63,3 +63,16 @@
 # RUN:     > %t.err2.log 2> %t.err2.err
 # RUN: filecheck --check-prefix CHECK-ERR-UNCONFIGURED < %t.err2.err %s
 # CHECK-ERR-UNCONFIGURED: --build-dir is not a configured build
+
+# Test 5: --exec with --build-dir and --only-test (tuple conversion test)
+# RUN: lnt runtest test-suite \
+# RUN:     --sandbox %t.SANDBOX \
+# RUN:     --no-timestamp \
+# RUN:     --exec \
+# RUN:     --build-dir %t.CUSTOM_BUILD/mybuild \
+# RUN:     --only-test SingleSource \
+# RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
+# RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit \
+# RUN:     > %t.exec-only.log 2> %t.exec-only.err
+# RUN: filecheck --check-prefix CHECK-EXEC-ONLY < %t.exec-only.err %s
+# CHECK-EXEC-ONLY: Testing
