@@ -285,23 +285,30 @@ class TestSuiteTest(BuiltinTest):
             opts.only_test = opts.single_result
 
         if opts.only_test:
-            if not opts.exec_mode:
-                # Only validate against test_suite_root if we're not in exec mode
-                # --only-test can either point to a particular test or a directory.
-                # Therefore, test_suite_root + opts.only_test or
-                # test_suite_root + dirname(opts.only_test) must be a directory.
-                path = os.path.join(opts.test_suite_root, opts.only_test)
-                parent_path = os.path.dirname(path)
+            # Convert --only-test to tuple format: (directory, test_name or None)
+            # In non-exec mode, validate against test_suite_root
+            # In exec mode, validate against build_dir if available
+            base_path = opts.build_dir if opts.exec_mode and opts.build_dir else opts.test_suite_root
 
-                if os.path.isdir(path):
+            if base_path:
+                full_path = os.path.join(base_path, opts.only_test)
+                parent_path = os.path.dirname(full_path)
+
+                if os.path.isdir(full_path):
                     opts.only_test = (opts.only_test, None)
                 elif os.path.isdir(parent_path):
                     opts.only_test = (os.path.dirname(opts.only_test),
                                       os.path.basename(opts.only_test))
-                else:
+                elif not opts.exec_mode:
+                    # In normal mode, path must exist
                     self._fatal("--only-test argument not understood (must be a " +
-                                " test or directory name)")
-            # else: in exec mode, we'll use only_test as-is for filtering
+                                "test or directory name)")
+                else:
+                    # In exec mode, path may not exist yet, assume it's a directory
+                    opts.only_test = (opts.only_test, None)
+            else:
+                # No base_path available (e.g., exec_interleaved_builds), assume directory
+                opts.only_test = (opts.only_test, None)
 
         if opts.single_result and not opts.only_test[1]:
             self._fatal("--single-result must be given a single test name, "
