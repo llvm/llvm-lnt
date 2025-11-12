@@ -30,7 +30,10 @@ jobs:
       id: push
       uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83
       with:
-        push: ${{ github.ref == 'refs/heads/main' }} # only push to ghcr.io on the main branch
-        tags: ghcr.io/${{github.repository}}:latest
+        # Only push to ghcr.io on pushes to the main branch
+        push: ${{ github.ref == 'refs/heads/main' }}
+        # Tag images with the current SHA and with 'latest'
+        tags: "ghcr.io/llvm/llvm-lnt:latest,ghcr.io/llvm/llvm-lnt:${{ github.sha }}"
         file: docker/lnt.dockerfile
-        context: . # use the current directory as context, as checked out by actions/checkout -- needed for setuptools_scm
+        # Use the current directory as context, as checked out by actions/checkout -- needed for setuptools_scm
+        context: .
