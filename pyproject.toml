@@ -151,4 +151,3 @@ deps = [
 ]
 allowlist_externals = ["make"]
 commands = [["make", "-C", "{toxinidir}/docs/", "html"]]
-skip_install = true
