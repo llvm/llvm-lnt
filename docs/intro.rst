@@ -40,5 +40,5 @@ That's it! ``lnt`` should now be accessible from the virtual environment.
 If you are an LLVM developer who is mostly interested in just using LNT to run
 the test-suite against some compiler, then you should fast forward to the section
 on :ref:`running tests <tests>`. If you want to run your own LNT server, jump to
-the section on :ref:`running a server <running-server>`. Otherwise, jump to the
+the section on :ref:`running a server <running_server>`. Otherwise, jump to the
 :ref:`table of contents <contents>` to get started.
