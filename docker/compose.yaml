@@ -13,8 +13,18 @@
 #     The authentication token used to require authentication to
 #     perform destructive actions.
 #
-# Additionally, the version of the llvm-lnt webserver image can be customized with
-# the LNT_IMAGE environment variable. It defaults to `latest`.
+# Additionally, the following aspects of the container can be customized:
+#
+#   LNT_IMAGE
+#     The version of the llvm-lnt webserver image used for the service.
+#     Defaults to 'latest'.
+#
+#   LNT_HOST_PORT
+#     The host-side port that will be bound to the container-side port running
+#     the webserver. This defaults to '8000', which is consistent with what LNT
+#     uses by default for local servers and development. However, production
+#     instances may want to map their port '80' (the default HTTP port) to the
+#     container's port '8000'.
 
 name: llvm-lnt
 
@@ -41,7 +51,7 @@ services:
       restart_policy:
         condition: on-failure
     ports:
-      - "8000:8000"
+      - "${LNT_HOST_PORT:-8000}:8000"
     volumes:
       - instance:/var/lib/lnt
       - logs:/var/log/lnt
