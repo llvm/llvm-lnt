@@ -6,20 +6,20 @@ Importing Data
 Importing Data in a Text File
 -----------------------------
 
-The LNT importreport command will import data in a simple text file format. The
+The ``lnt importreport`` command will import data in a simple text file format. The
 command takes a space separated key value file and creates an LNT report file,
 which can be submitted to a LNT server.  Example input file::
 
-    foo.exec 123
+    foo.execution_time 123
     bar.size 456
     foo/bar/baz.size 789
 
-The format is "test-name.metric", so exec and size are valid metrics for the
-test suite you are submitting to.
+The format is ``test-name.metric value``, so ``execution_time`` and ``size`` must be valid
+metrics for the test suite you are submitting to.
 
 Example::
 
-    echo -n "foo.exec 25\nbar.score 24.2\nbar/baz.size 110.0\n" > results.txt
+    echo -n "foo.execution_time 25\nbar.score 24.2\nbar/baz.size 110.0\n" > results.txt
     lnt importreport --machine=my-machine-name --order=1234 --testsuite=nts results.txt report.json
     lnt submit http://mylnt.com/db_default/submitRun report.json
 
@@ -28,7 +28,7 @@ Example::
 LNT Report File Format
 ----------------------
 
-The lnt importreport tool is an easy way to import data into LNTs test format.
+The ``lnt importreport`` tool is an easy way to import data into LNTs test format.
 You can also create LNTs report data directly for additional flexibility.
 
 First, make sure you've understood the underlying :ref:`concepts` used by LNT.
