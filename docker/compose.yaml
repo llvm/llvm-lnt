@@ -12,13 +12,20 @@
 #   LNT_AUTH_TOKEN
 #     The authentication token used to require authentication to
 #     perform destructive actions.
+#
+# Additionally, the version of the llvm-lnt webserver image can be customized with
+# the LNT_IMAGE environment variable. It defaults to `latest`.
 
 name: llvm-lnt
 
 services:
   webserver:
     container_name: webserver
-    image: ghcr.io/llvm/llvm-lnt:latest
+    image: ghcr.io/llvm/llvm-lnt:${LNT_IMAGE:-latest}
+    # Useful for local debugging
+    # build:
+    #   context: ../
+    #   dockerfile: docker/lnt.dockerfile
     environment:
       - DB_USER=lntuser
       - DB_HOST=dbserver
