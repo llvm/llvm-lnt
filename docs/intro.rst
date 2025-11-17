@@ -30,8 +30,9 @@ that from a virtual environment::
    source .venv/bin/activate
    pip install llvm-lnt
 
-This will install the client-side tools. If you also want to run a production
-server, you should instead include the server-side optional requirements::
+This will install the client-side tools. If you want to run a production server,
+you should instead install ``llvm-lnt`` while including the server-side optional
+requirements::
 
    pip install "llvm-lnt[server]"
 

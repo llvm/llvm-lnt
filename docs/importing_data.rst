@@ -28,7 +28,7 @@ Example::
 LNT Report File Format
 ----------------------
 
-The ``lnt importreport`` tool is an easy way to import data into LNTs test format.
+The ``lnt importreport`` tool is an easy way to import data into LNT's test format.
 You can also create LNTs report data directly for additional flexibility.
 
 First, make sure you've understood the underlying :ref:`concepts` used by LNT.

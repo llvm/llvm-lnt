@@ -22,11 +22,11 @@ A Machine in LNT is the logical bucket which results are categorized by.
 Comparing results from the same machine is easy, across machines is harder.
 Sometimes machine can literally be a machine, but more abstractly, it can be any
 configuration you are interested in tracking. For example, to store results
-from an Arm test machine, you could have a machine call "ArmMachine"; but, you
+from an Arm test machine, you could have a machine called "ArmMachine"; but, you
 may want to break machines up further for example "ArmMachine-Release"
 "ArmMachine-Debug", when you compile the thing you want to test in two modes.
 When doing testing of LLVM, we often string all the useful parameters of the
-configuration into one machines name::
+configuration into the name of the machine::
 
     <hardware>-<arch>-<optimization level>-<branch-name>
 
