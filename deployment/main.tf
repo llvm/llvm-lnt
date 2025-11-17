@@ -139,8 +139,7 @@ resource "aws_instance" "server" {
 #
 resource "aws_ebs_volume" "persistent_state" {
   availability_zone = local.availability_zone
-  # TODO: Put a real size once we're ready to go to production
-  size              = 20 # GiB
+  size              = 128 # GiB
   type              = "gp2"
   tags = {
     Name = "lnt.llvm.org/persistent-state"
