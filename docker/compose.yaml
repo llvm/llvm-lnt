@@ -39,7 +39,7 @@ services:
     environment:
       - DB_USER=lntuser
       - DB_HOST=dbserver
-      - DB_NAME=lnt.db
+      - DB_NAME=lnt
       - DB_PASSWORD_FILE=/run/secrets/lnt-db-password
       - AUTH_TOKEN_FILE=/run/secrets/lnt-auth-token
     secrets:
@@ -62,7 +62,7 @@ services:
     environment:
       - POSTGRES_PASSWORD_FILE=/run/secrets/lnt-db-password
       - POSTGRES_USER=lntuser
-      - POSTGRES_DB=lnt.db
+      - POSTGRES_DB=lnt
     secrets:
       - lnt-db-password
     volumes:
