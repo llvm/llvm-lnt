@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# RUN: rm -rf %t.instance
+# RUN: lnt create %t.instance
+
+# Make sure we can import a basic test set
+# RUN: lnt import %t.instance %{shared_inputs}/sample-a-small.plist
+
+# Make sure we can import test sets where the only difference is the
+# case used in the test name.
+# RUN: lnt import %t.instance %{shared_inputs}/sample-arm.json --format=json
+# RUN: lnt import %t.instance %{shared_inputs}/sample-arm2.json --format=json
