@@ -2,7 +2,10 @@ name: Deploy lnt.llvm.org
 
 on:
   push:
-    branches: ['main']
+    paths:
+      - '.github/workflows/deploy-lnt.llvm.org.yaml'
+      - 'deployment/*'
+  pull_request:
     paths:
       - '.github/workflows/deploy-lnt.llvm.org.yaml'
       - 'deployment/*'
@@ -29,5 +32,9 @@ jobs:
     - name: Initialize Terraform
       run: terraform -chdir=deployment init
 
+    - name: Plan Terraform changes
+      run: terraform -chdir=deployment plan
+
     - name: Apply Terraform changes
+      if: ${{ github.ref == 'refs/heads/main' }} # only apply changes on pushes to main
       run: terraform -chdir=deployment apply -auto-approve
