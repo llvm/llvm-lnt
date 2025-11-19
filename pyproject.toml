@@ -128,7 +128,7 @@ commands = [
 [tool.tox.env.flake8]
 description = "Run linter on the codebase"
 deps = [".[dev]"]
-commands = [["flake8", "--statistics", "--exclude=./lnt/external/", "./lnt/", "./tests/", "./deployment/"]]
+commands = [["flake8", "--statistics", "--exclude=./lnt/external/", "./lnt/", "./tests/"]]
 skip_install = true
 
 [tool.tox.env.mypy]

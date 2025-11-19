@@ -3,13 +3,12 @@
 Concepts
 ========
 
-LNT's data model is pretty simple, and just following the :ref:`quickstart` can
-get you going with performance testing. Moving beyond that, it is useful to have
-an understanding of some of the core concepts in LNT. This can help you get the
-most out of LNT.
+LNT's data model is pretty simple and can be grasped intuitively. However, for
+more advanced usage, it is useful to have an understanding of some of the core
+concepts in LNT. This can help you get the most out of LNT.
 
-Orders Machines and Tests
--------------------------
+Orders, Machines and Tests
+--------------------------
 
 LNT's data model was designed to track the performance of a system in many
 configurations over its evolution.  In LNT, an Order is the x-axis of your
@@ -19,15 +18,15 @@ also be used to represent treatments, such as a/b.  You can put anything you
 want into LNT as an order, as long as it can be sorted by Python's sort
 function.
 
-A Machine in LNT is the logical bucket which results are categorized by. 
+A Machine in LNT is the logical bucket which results are categorized by.
 Comparing results from the same machine is easy, across machines is harder.
 Sometimes machine can literally be a machine, but more abstractly, it can be any
 configuration you are interested in tracking. For example, to store results
-from an Arm test machine, you could have a machine call "ArmMachine"; but, you 
+from an Arm test machine, you could have a machine called "ArmMachine"; but, you
 may want to break machines up further for example "ArmMachine-Release"
 "ArmMachine-Debug", when you compile the thing you want to test in two modes.
 When doing testing of LLVM, we often string all the useful parameters of the
-configuration into one machines name:: 
+configuration into the name of the machine::
 
     <hardware>-<arch>-<optimization level>-<branch-name>
 
@@ -37,7 +36,7 @@ Runs and Samples
 ----------------
 
 Samples are the actual data points LNT collects. Samples have a value, and
-belong to a metric, for example a 4.00 second (value) compile time (metric).  
+belong to a metric, for example a 4.00 second (value) compile time (metric).
 Runs are the unit in which data is submitted.  A Run represents one run through
 a set of tests.  A run has a Order which it was run
 on, a Machine it ran on, and a set of Tests that were run, and for each Test
@@ -54,7 +53,7 @@ Test Suites
 LNT uses the idea of a Test Suite to control what metrics are collected.  Simply,
 the test suite acts as a definition of the data that should be stored about
 the tests that are being run.  LNT currently comes with two default test suites.
-The Nightly Test Suite (NTS) (which is run far more often than nightly now), 
+The Nightly Test Suite (NTS) (which is run far more often than nightly now),
 collects 6 metrics per test: compile time, compile status, execution time, execution
 status, score and size.  The Compile (compile) Test Suite, is focused on metrics
 for compile quality: wall, system and user compile time, compile memory usage
