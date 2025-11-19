@@ -31,6 +31,3 @@ jobs:
 
     - name: Apply Terraform changes
       run: terraform -chdir=deployment apply -auto-approve
-      env:
-        TF_VAR_lnt_db_password: ${{ secrets.LNT_DB_PASSWORD }}
-        TF_VAR_lnt_auth_token: ${{ secrets.LNT_AUTH_TOKEN }}

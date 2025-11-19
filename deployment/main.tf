@@ -2,26 +2,6 @@
 # Terraform file for deploying lnt.llvm.org.
 #
 
-variable "lnt_db_password" {
-  type        = string
-  description = "The database password for the lnt.llvm.org database."
-  sensitive   = true
-}
-
-variable "lnt_auth_token" {
-  type        = string
-  description = "The authentication token to perform destructive operations on lnt.llvm.org."
-  sensitive   = true
-}
-
-locals {
-  # The Docker image to use for the webserver part of the LNT service
-  lnt_image     = "d9ffa5317a9a42a1d2fa337cba97ec51d931f391"
-
-  # The port on the EC2 instance used by the Docker webserver for communication
-  lnt_host_port = "80"
-}
-
 terraform {
   backend "s3" {
     bucket  = "lnt.llvm.org-test-bucket" # TODO: Adjust this for the real LLVM Foundation account
@@ -37,6 +17,36 @@ locals {
 
 provider "aws" {
   region = "us-west-2"
+}
+
+#
+# Setup secrets and other variables
+#
+# Note that the LNT database password and the LNT authentication token for destructive actions
+# must be stored in the AWS Secrets Manager under a secrets named `lnt.llvm.org-secrets`, and
+# with the `lnt-db-password` and `lnt-auth-token` keys respectively. This secrets must exist
+# in whatever AWS account is currently authenticated when running Terraform.
+#
+data "aws_secretsmanager_secret" "lnt_secrets" {
+  name = "lnt.llvm.org-secrets"
+}
+
+data "aws_secretsmanager_secret_version" "lnt_secrets_latest" {
+  secret_id = data.aws_secretsmanager_secret.lnt_secrets.id
+}
+
+locals {
+  # The Docker image to use for the webserver part of the LNT service
+  lnt_image     = "d9ffa5317a9a42a1d2fa337cba97ec51d931f391"
+
+  # The port on the EC2 instance used by the Docker webserver for communication
+  lnt_host_port = "80"
+
+  # The database password for the lnt.llvm.org database.
+  lnt_db_password = jsondecode(data.aws_secretsmanager_secret_version.lnt_secrets_latest.secret_string)["lnt-db-password"]
+
+  # The authentication token to perform destructive operations on lnt.llvm.org.
+  lnt_auth_token = jsondecode(data.aws_secretsmanager_secret_version.lnt_secrets_latest.secret_string)["lnt-auth-token"]
 }
 
 #
@@ -79,8 +89,8 @@ data "cloudinit_config" "startup_scripts" {
           path        = "/etc/lnt/compose.env"
           permissions = "0400" # read-only for owner
           content     = templatefile("${path.module}/compose.env.tpl", {
-            __db_password__   = var.lnt_db_password,
-            __auth_token__    = var.lnt_auth_token,
+            __db_password__   = local.lnt_db_password,
+            __auth_token__    = local.lnt_auth_token,
             __lnt_image__     = local.lnt_image,
             __lnt_host_port__ = local.lnt_host_port,
           })
