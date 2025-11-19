@@ -5,7 +5,7 @@ on:
     paths:
       - '.github/workflows/deploy-lnt.llvm.org.yaml'
       - 'deployment/*'
-  pull_request:
+  pull_request_target:
     paths:
       - '.github/workflows/deploy-lnt.llvm.org.yaml'
       - 'deployment/*'
