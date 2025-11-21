@@ -1,0 +1,27 @@
+#
+# This file maps volumes in the Docker container to actual locations on the EC2 instance.
+# We basically bind the volumes inside the Docker image to the same filesystem location
+# on the EC2 instance (e.g. /var/lib/lnt -> /var/lib/lnt) for ease of access.
+#
+
+volumes:
+  instance:
+    driver: local
+    driver_opts:
+      o: bind
+      type: none
+      device: /var/lib/lnt
+
+  logs:
+    driver: local
+    driver_opts:
+      o: bind
+      type: none
+      device: /var/log/lnt
+
+  database:
+    driver: local
+    driver_opts:
+      o: bind
+      type: none
+      device: /var/lib/postgresql
