@@ -1,14 +1,12 @@
 name: Deploy lnt.llvm.org
 
 on:
-  push:
-    paths:
-      - '.github/workflows/deploy-lnt.llvm.org.yaml'
-      - 'deployment/*'
-  pull_request_target:
-    paths:
-      - '.github/workflows/deploy-lnt.llvm.org.yaml'
-      - 'deployment/*'
+  workflow_dispatch:
+  # Eventually:
+  # pull_request_target:
+  #   paths:
+  #     - '.github/workflows/deploy-lnt.llvm.org.yaml'
+  #     - 'deployment/*'
 
 permissions:
   contents: read
