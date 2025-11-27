@@ -225,8 +225,8 @@ class App(LNTExceptionLoggerFlask):
         self.logger.setLevel(logging.DEBUG)
 
         # Submitted runs can be pretty large so increase the maximum allowed
-        # form field size to 10MB to prevent 413 errors.
-        self.config['MAX_FORM_MEMORY_SIZE'] = 10_000_000
+        # form field size to 50MB to prevent 413 errors.
+        self.config['MAX_FORM_MEMORY_SIZE'] = 50_000_000
 
     def load_config(self, instance):
         self.instance = instance
