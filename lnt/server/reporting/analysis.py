@@ -54,7 +54,8 @@ class ComparisonResult:
     def __init__(self, aggregation_fn,
                  cur_failed, prev_failed, samples, prev_samples,
                  cur_hash, prev_hash, cur_profile=None, prev_profile=None,
-                 confidence_lv=0.05, bigger_is_better=False):
+                 confidence_lv=0.05, bigger_is_better=False,
+                 ignore_same_hash=False):
         self.aggregation_fn = aggregation_fn
 
         # Special case: if we're using the minimum to aggregate, swap it for
@@ -103,6 +104,7 @@ class ComparisonResult:
 
         self.confidence_lv = confidence_lv
         self.bigger_is_better = bigger_is_better
+        self.ignore_same_hash = ignore_same_hash
 
     def __repr__(self):
         """Print this ComparisonResult's constructor.
@@ -118,7 +120,8 @@ class ComparisonResult:
                           self.samples,
                           self.prev_samples,
                           self.confidence_lv,
-                          bool(self.bigger_is_better))
+                          bool(self.bigger_is_better),
+                          bool(self.ignore_same_hash))
 
     def __json__(self):
         simple_dict = self.__dict__
@@ -175,6 +178,12 @@ class ComparisonResult:
             return UNCHANGED_FAIL
         elif self.prev_failed:
             return UNCHANGED_PASS
+
+        # Ignore changes if the hash of the binary is the same and the field is
+        # sensitive to the hash, e.g. execution time.
+        if self.ignore_same_hash:
+            if self.cur_hash and self.prev_hash and self.cur_hash == self.prev_hash:
+                return UNCHANGED_PASS
 
         # Always ignore percentage changes below MIN_PERCENTAGE_CHANGE %, for now, we just don't
         # have enough time to investigate that level of stuff.
@@ -355,7 +364,8 @@ class RunInfo(object):
                              prev_values, cur_hash, prev_hash,
                              cur_profile, prev_profile,
                              self.confidence_lv,
-                             bigger_is_better=field.bigger_is_better)
+                             bigger_is_better=field.bigger_is_better,
+                             ignore_same_hash=field.ignore_same_hash)
         return r
 
     def get_geomean_comparison_result(self, run, compare_to, field, tests):
@@ -385,7 +395,8 @@ class RunInfo(object):
                                 cur_hash=cur_hash,
                                 prev_hash=prev_hash,
                                 confidence_lv=0,
-                                bigger_is_better=field.bigger_is_better)
+                                bigger_is_better=field.bigger_is_better,
+                                ignore_same_hash=field.ignore_same_hash)
 
     def _load_samples_for_runs(self, session, run_ids, only_tests):
         # Find the set of new runs to load.

@@ -16,6 +16,7 @@ metrics:
   display_name: Execution Time
   unit: seconds
   unit_abbrev: s
+  ignore_same_hash: true
 - name: execution_status
   type: Status
 - name: score

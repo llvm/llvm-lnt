@@ -290,6 +290,8 @@ class JSONAPITester(unittest.TestCase):
                     m['display_name'] = m['name']
                 if 'bigger_is_better' not in m:
                     m['bigger_is_better'] = False
+                if 'ignore_same_hash' not in m:
+                    m['ignore_same_hash'] = False
             yaml_schema['metrics'].sort(key=lambda x: x['name'])
             yaml_schema['run_fields'].sort(key=lambda x: x['name'])
             yaml_schema['machine_fields'].sort(key=lambda x: x['name'])

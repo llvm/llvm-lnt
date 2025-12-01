@@ -173,6 +173,7 @@ class TestSuite(Base):
         for index, metric_desc in enumerate(data['metrics']):
             name = metric_desc['name']
             bigger_is_better = metric_desc.get('bigger_is_better', False)
+            ignore_same_hash = metric_desc.get('ignore_same_hash', False)
             metric_type_name = metric_desc.get('type', 'Real')
             display_name = metric_desc.get('display_name')
             unit = metric_desc.get('unit')
@@ -182,8 +183,10 @@ class TestSuite(Base):
                                  metric_type_name)
             metric_type = SampleType(metric_type_name)
             bigger_is_better_int = 1 if bigger_is_better else 0
+            ignore_same_hash_int = 1 if ignore_same_hash else 0
             field = SampleField(name, metric_type, index, status_field=None,
                                 bigger_is_better=bigger_is_better_int,
+                                ignore_same_hash=ignore_same_hash_int,
                                 display_name=display_name, unit=unit,
                                 unit_abbrev=unit_abbrev)
             sample_fields.append(field)
@@ -196,6 +199,7 @@ class TestSuite(Base):
         for sample_field in self.sample_fields:
             metric = {
                 'bigger_is_better': (sample_field.bigger_is_better != 0),
+                'ignore_same_hash': (sample_field.ignore_same_hash != 0),
                 'display_name': sample_field.display_name,
                 'name': sample_field.name,
                 'type': sample_field.type.name,
@@ -340,12 +344,18 @@ class SampleField(FieldMixin, Base):
     # This assumption can be inverted by setting this column to nonzero.
     bigger_is_better = Column("bigger_is_better", Integer)
 
+    # Some fields like execution_time should ignore changes if the binary hash
+    # is the same.
+    ignore_same_hash = Column("ignore_same_hash", Integer, default=0)
+
     def __init__(self, name, type, schema_index, status_field=None, bigger_is_better=0,
+                 ignore_same_hash=0,
                  display_name=None, unit=None, unit_abbrev=None):
         self.name = name
         self.type = type
         self.status_field = status_field
         self.bigger_is_better = bigger_is_better
+        self.ignore_same_hash = ignore_same_hash
         self.display_name = name if display_name is None else display_name
         self.unit = unit
         self.unit_abbrev = unit_abbrev
@@ -367,7 +377,7 @@ class SampleField(FieldMixin, Base):
 
     def __copy__(self):
         return SampleField(self.name, self.type, self.schema_index, self.status_field,
-                           self.bigger_is_better, self.display_name, self.unit,
+                           self.bigger_is_better, self.ignore_same_hash, self.display_name, self.unit,
                            self.unit_abbrev)
 
     def copy_info(self, other):
