@@ -10,4 +10,3 @@ lnt/server/ui/static/docs
 test_run_tmp
 tests/**/Output
 venv
-*~
