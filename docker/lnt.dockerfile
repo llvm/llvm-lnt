@@ -31,15 +31,18 @@ FROM python:3.10-alpine
 COPY pyproject.toml .
 COPY lnt/testing/profile lnt/testing/profile
 
+# Fake a version for setuptools so we don't need to COPY .git
+ENV SETUPTOOLS_SCM_PRETEND_VERSION=0.1
+
 # Install dependencies and build cperf ext-modules.
-# Need to temporarily mount .git for sourcetools-scm.
-RUN --mount=source=.git,target=.git,type=bind \
-  apk update \
+RUN apk update \
   && apk add --no-cache --virtual .build-deps g++ postgresql-dev yaml-dev \
   && apk add --no-cache git libpq \
   && pip install ".[server]" \
   && apk --purge del .build-deps
 
+# Let setuptools_scm use git to pick the version
+ENV SETUPTOOLS_SCM_PRETEND_VERSION=
 # Copy over sources and install LNT.
 COPY . .
 RUN pip install .
