@@ -18,8 +18,8 @@ def upgrade(engine):
     set_exec_time = (
         update(test_suite_sample_fields)
         .where(
-            (test_suite_sample_fields.c.Name == "execution_time")
-            | (test_suite_sample_fields.c.Name == "score")
+            (test_suite_sample_fields.c.Name == "execution_time") |
+            (test_suite_sample_fields.c.Name == "score")
         )
         .values(ignore_same_hash=1)
     )
