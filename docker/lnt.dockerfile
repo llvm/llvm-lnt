@@ -28,17 +28,21 @@
 
 FROM python:3.10-alpine
 
-# Install dependencies
-RUN apk update \
-  && apk add --no-cache --virtual .build-deps git g++ postgresql-dev yaml-dev \
-  && apk add --no-cache libpq
+COPY pyproject.toml .
+COPY lnt/testing/profile lnt/testing/profile
 
-# Install LNT itself, without leaving behind any sources inside the image.
-RUN --mount=type=bind,source=.,target=./lnt-source \
-    cp -R lnt-source /tmp/lnt-src && \
-    cd /tmp/lnt-src && \
-    pip3 install -r requirements.server.txt && apk --purge del .build-deps && \
-    rm -rf /tmp/lnt-src
+# Install dependencies and build cperf ext-modules.
+# Need to temporarily mount .git for sourcetools-scm.
+RUN --mount=source=.git,target=.git,type=bind \
+  apk update \
+  && apk add --no-cache --virtual .build-deps g++ postgresql-dev yaml-dev \
+  && apk add --no-cache git libpq \
+  && pip install ".[server]" \
+  && apk --purge del .build-deps
+
+# Copy over sources and install LNT.
+COPY . .
+RUN pip install .
 
 # Prepare volumes that will be used by the server
 VOLUME /var/lib/lnt /var/log/lnt
