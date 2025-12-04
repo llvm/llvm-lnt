@@ -23,6 +23,7 @@ from lnt.util import logger
 import lnt.testing
 import lnt.testing.profile
 import lnt.testing.util.compilers
+import lnt.util.ImportData
 from lnt.testing.util.misc import timestamp
 from lnt.testing.util.commands import fatal
 from lnt.testing.util.commands import mkdir_p
@@ -185,6 +186,43 @@ class TestSuiteTest(BuiltinTest):
 
     def run_test(self, opts):
 
+        # Validate build/exec mode options
+        if opts.build and opts.exec_mode:
+            self._fatal("--build and --exec are mutually exclusive")
+
+        if opts.exec_mode and opts.build_dir is None and not opts.exec_interleaved_builds:
+            self._fatal("--exec requires --build-dir (or use --exec-interleaved-builds)")
+
+        if opts.exec_interleaved_builds:
+            # --exec-interleaved-builds implies --exec
+            opts.exec_mode = True
+            # Parse and validate build directories
+            opts.exec_interleaved_builds_list = [
+                os.path.abspath(d.strip())
+                for d in opts.exec_interleaved_builds.split(',')
+            ]
+            for build_dir in opts.exec_interleaved_builds_list:
+                if not os.path.exists(build_dir):
+                    self._fatal(
+                        "--exec-interleaved-builds directory does not exist: %r" %
+                        build_dir)
+                cmakecache = os.path.join(build_dir, 'CMakeCache.txt')
+                if not os.path.exists(cmakecache):
+                    self._fatal(
+                        "--exec-interleaved-builds directory is not a configured build: %r" %
+                        build_dir)
+
+        if opts.build_dir:
+            opts.build_dir = os.path.abspath(opts.build_dir)
+            # In --exec mode, validate that build_dir already exists and is configured
+            # In --build mode, we'll create the directory if needed
+            if opts.exec_mode:
+                if not os.path.exists(opts.build_dir):
+                    self._fatal("--build-dir does not exist: %r" % opts.build_dir)
+                cmakecache = os.path.join(opts.build_dir, 'CMakeCache.txt')
+                if not os.path.exists(cmakecache):
+                    self._fatal("--build-dir is not a configured build: %r" % opts.build_dir)
+
         if opts.cc is not None:
             opts.cc = resolve_command_path(opts.cc)
 
@@ -206,13 +244,20 @@ class TestSuiteTest(BuiltinTest):
             if not os.path.exists(opts.cxx):
                 self._fatal("invalid --cxx argument %r, does not exist"
                             % (opts.cxx))
+        else:
+            # If --cc not specified, CMake will use its default compiler discovery
+            # We'll validate that a compiler was found after configuration
+            if opts.cc is None and not opts.exec_mode:
+                logger.info("No --cc specified, will use CMake's default compiler discovery")
 
-        if opts.test_suite_root is None:
-            self._fatal('--test-suite is required')
-        if not os.path.exists(opts.test_suite_root):
-            self._fatal("invalid --test-suite argument, does not exist: %r" % (
-                opts.test_suite_root))
-        opts.test_suite_root = os.path.abspath(opts.test_suite_root)
+        if not opts.exec_mode:
+            # These are only required when building
+            if opts.test_suite_root is None:
+                self._fatal('--test-suite is required')
+            if not os.path.exists(opts.test_suite_root):
+                self._fatal("invalid --test-suite argument, does not exist: %r" % (
+                    opts.test_suite_root))
+            opts.test_suite_root = os.path.abspath(opts.test_suite_root)
 
         if opts.test_suite_externals:
             if not os.path.exists(opts.test_suite_externals):
@@ -240,24 +285,51 @@ class TestSuiteTest(BuiltinTest):
             opts.only_test = opts.single_result
 
         if opts.only_test:
-            # --only-test can either point to a particular test or a directory.
-            # Therefore, test_suite_root + opts.only_test or
-            # test_suite_root + dirname(opts.only_test) must be a directory.
-            path = os.path.join(opts.test_suite_root, opts.only_test)
-            parent_path = os.path.dirname(path)
+            # Convert --only-test to tuple format: (directory, test_name or None)
+            # In non-exec mode, validate against test_suite_root
+            # In exec mode, validate against build_dir if available
+            base_path = opts.build_dir if opts.exec_mode and opts.build_dir else opts.test_suite_root
 
-            if os.path.isdir(path):
-                opts.only_test = (opts.only_test, None)
-            elif os.path.isdir(parent_path):
-                opts.only_test = (os.path.dirname(opts.only_test),
-                                  os.path.basename(opts.only_test))
+            if base_path:
+                full_path = os.path.join(base_path, opts.only_test)
+                parent_path = os.path.dirname(full_path)
+
+                if os.path.isdir(full_path):
+                    opts.only_test = (opts.only_test, None)
+                elif os.path.isdir(parent_path):
+                    opts.only_test = (os.path.dirname(opts.only_test),
+                                      os.path.basename(opts.only_test))
+                elif not opts.exec_mode:
+                    # In normal mode, path must exist
+                    self._fatal("--only-test argument not understood (must be a " +
+                                "test or directory name)")
+                else:
+                    # In exec mode, path may not exist yet, assume it's a directory
+                    opts.only_test = (opts.only_test, None)
             else:
-                self._fatal("--only-test argument not understood (must be a " +
-                            " test or directory name)")
+                # No base_path available (e.g., exec_interleaved_builds), assume directory
+                opts.only_test = (opts.only_test, None)
 
         if opts.single_result and not opts.only_test[1]:
             self._fatal("--single-result must be given a single test name, "
                         "not a directory name")
+
+        # Parse and validate --drop-exec option
+        if opts.drop_exec is not None:
+            # Check for incompatible options
+            if opts.only_compile:
+                self._fatal("--drop-exec cannot be used with --only-compile")
+            if opts.build:
+                self._fatal("--drop-exec cannot be used with --build")
+            if opts.exec_multisample <= 1:
+                self._fatal("--drop-exec requires --exec-multisample > 1")
+
+            # opts.drop_exec is already an integer from click
+            if opts.drop_exec < 1:
+                self._fatal("--drop-exec must be at least 1")
+
+            if opts.drop_exec >= opts.exec_multisample:
+                self._fatal("--drop-exec would drop all %d samples" % opts.exec_multisample)
 
         opts.cppflags = ' '.join(opts.cppflags)
         opts.cflags = ' '.join(opts.cflags)
@@ -270,25 +342,50 @@ class TestSuiteTest(BuiltinTest):
         self.start_time = timestamp()
 
         # Work out where to put our build stuff
-        if opts.timestamp_build:
-            ts = self.start_time.replace(' ', '_').replace(':', '-')
-            build_dir_name = "test-%s" % ts
+        if opts.build_dir and (opts.exec_mode or opts.build):
+            # With --build-dir, use the specified build directory (for both --build and --exec modes)
+            basedir = opts.build_dir
+        elif opts.exec_interleaved_builds:
+            # For exec-interleaved-builds, each build uses its own directory
+            # We'll return early from _run_interleaved_builds(), so basedir doesn't matter
+            basedir = opts.sandbox_path
         else:
-            build_dir_name = "build"
-        basedir = os.path.join(opts.sandbox_path, build_dir_name)
+            # Normal mode: use sandbox/build or sandbox/test-<timestamp>
+            if opts.timestamp_build:
+                ts = self.start_time.replace(' ', '_').replace(':', '-')
+                build_dir_name = "test-%s" % ts
+            else:
+                build_dir_name = "build"
+            basedir = os.path.join(opts.sandbox_path, build_dir_name)
+
         self._base_path = basedir
 
         cmakecache = os.path.join(self._base_path, 'CMakeCache.txt')
-        self.configured = not opts.run_configure and \
-            os.path.exists(cmakecache)
+        if opts.exec_mode:
+            # In exec mode, the build is already configured and compiled
+            self.configured = True
+            self.compiled = True
+        else:
+            # In normal/build mode, check if we should skip reconfiguration
+            self.configured = not opts.run_configure and \
+                os.path.exists(cmakecache)
+
+        # No additional validation needed - CMake will find default compiler if needed
+        # The validation after _configure_if_needed() will catch if no compiler found
 
         #  If we are doing diagnostics, skip the usual run and do them now.
         if opts.diagnose:
             return self.diagnose()
 
-        # configure, so we can extract toolchain information from the cmake
-        # output.
-        self._configure_if_needed()
+        # Handle exec-interleaved-builds mode separately
+        if opts.exec_interleaved_builds:
+            return self._run_interleaved_builds(opts)
+
+        # Configure if needed (skip in exec mode)
+        if not opts.exec_mode:
+            # configure, so we can extract toolchain information from the cmake
+            # output.
+            self._configure_if_needed()
 
         # Verify that we can actually find a compiler before continuing
         cmake_vars = self._extract_cmake_vars_from_cache()
@@ -322,18 +419,40 @@ class TestSuiteTest(BuiltinTest):
                 fatal("Cannot detect compiler version. Specify --run-order"
                       " to manually define it.")
 
+        # Handle --build mode
+        if opts.build:
+            logger.info("Building tests (--build mode)...")
+            self.run(cmake_vars, compile=True, test=False, skip_lit=True)
+            logger.info("Build complete. Build directory: %s" % self._base_path)
+            logger.info("Use --exec --build-dir %s to run tests." % self._base_path)
+            return lnt.util.ImportData.no_submit()
+
         # Now do the actual run.
         reports = []
         json_reports = []
-        for i in range(max(opts.exec_multisample, opts.compile_multisample)):
-            c = i < opts.compile_multisample
-            e = i < opts.exec_multisample
-            # only gather perf profiles on a single run.
-            p = i == 0 and opts.use_perf in ('profile', 'all')
-            run_report, json_data = self.run(cmake_vars, compile=c, test=e,
-                                             profile=p)
-            reports.append(run_report)
-            json_reports.append(json_data)
+        # In exec mode, we only run tests, no compilation
+        if opts.exec_mode:
+            for i in range(opts.exec_multisample):
+                # only gather perf profiles on a single run.
+                p = i == 0 and opts.use_perf in ('profile', 'all')
+                run_report, json_data = self.run(cmake_vars, compile=False, test=True,
+                                                 profile=p)
+                reports.append(run_report)
+                json_reports.append(json_data)
+        else:
+            # Normal mode: build and test
+            for i in range(max(opts.exec_multisample, opts.compile_multisample)):
+                c = i < opts.compile_multisample
+                e = i < opts.exec_multisample
+                # only gather perf profiles on a single run.
+                p = i == 0 and opts.use_perf in ('profile', 'all')
+                run_report, json_data = self.run(cmake_vars, compile=c, test=e,
+                                                 profile=p)
+                reports.append(run_report)
+                json_reports.append(json_data)
+
+        # Filter execution samples if --drop-exec was specified
+        reports, json_reports = self._filter_exec_samples(reports, json_reports)
 
         report = self._create_merged_report(reports)
 
@@ -361,6 +480,122 @@ class TestSuiteTest(BuiltinTest):
 
         return self.submit(report_path, opts, 'nts')
 
+    def _run_interleaved_builds(self, opts):
+        """Run tests from multiple builds in an interleaved fashion."""
+        logger.info("Running interleaved builds mode with %d builds" %
+                    len(opts.exec_interleaved_builds_list))
+
+        # Collect information about each build
+        build_infos = []
+        for build_dir in opts.exec_interleaved_builds_list:
+            logger.info("Loading build from: %s" % build_dir)
+
+            # Temporarily set _base_path and configured to this build directory
+            saved_base_path = self._base_path
+            saved_configured = self.configured
+            self._base_path = build_dir
+            self.configured = True  # Build directories are already configured
+
+            # Extract cmake vars from this build
+            cmake_vars = self._extract_cmake_vars_from_cache()
+            if "CMAKE_C_COMPILER" not in cmake_vars or \
+                    not os.path.exists(cmake_vars["CMAKE_C_COMPILER"]):
+                self._fatal(
+                    "Couldn't find C compiler in build %s (%s)." %
+                    (build_dir, cmake_vars.get("CMAKE_C_COMPILER")))
+
+            cc_info = self._get_cc_info(cmake_vars)
+            logger.info("  Compiler: %s %s" % (cc_info['cc_name'], cc_info['cc_build']))
+
+            build_infos.append({
+                'build_dir': build_dir,
+                'cmake_vars': cmake_vars,
+                'cc_info': cc_info
+            })
+
+            # Restore _base_path and configured
+            self._base_path = saved_base_path
+            self.configured = saved_configured
+
+        # Now run tests in interleaved fashion
+        all_reports = []
+        all_json_reports = []
+
+        for sample_idx in range(opts.exec_multisample):
+            logger.info("Running sample %d of %d" % (sample_idx + 1, opts.exec_multisample))
+
+            for build_idx, build_info in enumerate(build_infos):
+                logger.info("  Testing build %d/%d: %s" %
+                            (build_idx + 1, len(build_infos), build_info['build_dir']))
+
+                # Set _base_path and configured to this build directory
+                self._base_path = build_info['build_dir']
+                self.configured = True  # Build is already configured, skip reconfiguration
+
+                # Run tests (no compilation)
+                p = sample_idx == 0 and opts.use_perf in ('profile', 'all')
+                run_report, json_data = self.run(
+                    build_info['cmake_vars'],
+                    compile=False,
+                    test=True,
+                    profile=p
+                )
+
+                all_reports.append(run_report)
+                all_json_reports.append(json_data)
+
+        logger.info("Interleaved testing complete. Generating reports...")
+
+        # For now, we'll create separate reports for each build
+        # Group reports by build
+        reports_by_build = {}
+        json_by_build = {}
+        for i, (report, json_data) in enumerate(zip(all_reports, all_json_reports)):
+            build_idx = i % len(build_infos)
+            if build_idx not in reports_by_build:
+                reports_by_build[build_idx] = []
+                json_by_build[build_idx] = []
+            reports_by_build[build_idx].append(report)
+            json_by_build[build_idx].append(json_data)
+
+        # Write reports for each build to its own directory
+        for build_idx, build_info in enumerate(build_infos):
+            build_dir = build_info['build_dir']
+            logger.info("Writing report for build: %s" % build_dir)
+
+            # Filter execution samples if --drop-exec was specified
+            build_reports, build_json_reports = self._filter_exec_samples(
+                reports_by_build[build_idx],
+                json_by_build[build_idx]
+            )
+
+            # Merge reports for this build
+            merged_report = self._create_merged_report(build_reports)
+
+            # Write JSON report to build directory
+            report_path = os.path.join(build_dir, 'report.json')
+            with open(report_path, 'w') as fd:
+                fd.write(merged_report.render())
+            logger.info("  Report: %s" % report_path)
+
+            # Write xUnit XML to build directory
+            xml_path = os.path.join(build_dir, 'test-results.xunit.xml')
+            str_template = _lit_json_to_xunit_xml(build_json_reports)
+            with open(xml_path, 'w') as fd:
+                fd.write(str_template)
+
+            # Write CSV to build directory
+            csv_path = os.path.join(build_dir, 'test-results.csv')
+            str_template = _lit_json_to_csv(build_json_reports)
+            with open(csv_path, 'w') as fd:
+                fd.write(str_template)
+
+        logger.info("Reports written to each build directory.")
+        logger.info("To submit results, use 'lnt submit' with each report file.")
+
+        # Return no_submit since we have multiple reports
+        return lnt.util.ImportData.no_submit()
+
     def _configure_if_needed(self):
         mkdir_p(self._base_path)
         if not self.configured:
@@ -368,7 +603,7 @@ class TestSuiteTest(BuiltinTest):
             self._clean(self._base_path)
             self.configured = True
 
-    def run(self, cmake_vars, compile=True, test=True, profile=False):
+    def run(self, cmake_vars, compile=True, test=True, profile=False, skip_lit=False):
         mkdir_p(self._base_path)
 
         # FIXME: should we only run PGO collection once, even when
@@ -379,14 +614,17 @@ class TestSuiteTest(BuiltinTest):
             self.trained = True
             self.configured = False
 
-        self._configure_if_needed()
+        if compile or self.opts.pgo:
+            self._configure_if_needed()
 
-        if self.compiled and compile:
-            self._clean(self._base_path)
-        if not self.compiled or compile or self.opts.pgo:
+            if self.compiled:
+                self._clean(self._base_path)
             self._build(self._base_path)
             self._install_benchmark(self._base_path)
             self.compiled = True
+
+        if skip_lit:
+            return None, None
 
         data = self._lit(self._base_path, test, profile)
         return self._parse_lit_output(self._base_path, data, cmake_vars), data
@@ -400,6 +638,32 @@ class TestSuiteTest(BuiltinTest):
         run.end_time = reports[-1].run.end_time
         test_samples = sum([r.tests for r in reports], [])
         return lnt.testing.Report(machine, run, test_samples)
+
+    def _filter_exec_samples(self, reports, json_reports):
+        """Filter out execution samples based on --drop-exec option.
+
+        Returns filtered (reports, json_reports) tuples.
+        """
+        drop_exec_count = self.opts.drop_exec
+
+        if drop_exec_count is None or drop_exec_count == 0 or len(reports) == 0:
+            return reports, json_reports
+
+        # Drop the first N samples
+        filtered_reports = reports[drop_exec_count:]
+        filtered_json_reports = json_reports[drop_exec_count:]
+
+        # Log what we're dropping
+        if drop_exec_count == 1:
+            logger.info("Dropping first execution sample (iteration 0)")
+        else:
+            logger.info("Dropping first %d execution samples (iterations 0-%d)" %
+                        (drop_exec_count, drop_exec_count - 1))
+
+        logger.info("Kept %d of %d execution samples after --drop-exec filtering" %
+                    (len(filtered_reports), len(reports)))
+
+        return filtered_reports, filtered_json_reports
 
     def _test_suite_dir(self):
         return self.opts.test_suite_root
@@ -1135,6 +1399,10 @@ class TestSuiteTest(BuiltinTest):
 @click.option("--compile-multisample", "compile_multisample",
               help="Accumulate compile test data from multiple runs",
               type=int, default=1, metavar="N")
+@click.option("--drop-exec", "drop_exec",
+              help="Drop the first N execution samples to mitigate warmup effects. "
+                   "Used with --exec-multisample.",
+              type=int, default=None, metavar="N")
 @click.option("-d", "--diagnose", "diagnose",
               help="Produce a diagnostic report for a particular "
                    "test, this will not run all the tests.  Must be"
@@ -1147,6 +1415,29 @@ class TestSuiteTest(BuiltinTest):
               is_flag=True, default=False,)
 @click.option("--remote-host", metavar="HOST",
               help="Run tests on a remote machine")
+@click.option("--build", "build",
+              help="Only build the tests, don't execute them. Useful for "
+                   "preparing builds for later interleaved execution.",
+              is_flag=True, default=False)
+@click.option("--exec", "exec_mode",
+              help="Only execute tests from pre-built directory, skip configure "
+                   "and build steps. Requires --build-dir to specify the "
+                   "build directory. Default behavior is to both build and execute.",
+              is_flag=True, default=False)
+@click.option("--build-dir", "build_dir",
+              metavar="PATH",
+              help="Path to pre-built test directory (used with --exec). "
+                   "This is the actual build directory (e.g., sandbox/build), "
+                   "not the sandbox parent directory.",
+              type=click.UNPROCESSED, default=None)
+@click.option("--exec-interleaved-builds", "exec_interleaved_builds",
+              metavar="BUILD1,BUILD2,...",
+              help="Comma-separated list of build directories to interleave "
+                   "execution from. Implies --exec. Each path should be "
+                   "a build directory (e.g., sandbox/build). For each multisample, "
+                   "runs all tests from each build in sequence to control for "
+                   "environmental changes.",
+              type=click.UNPROCESSED, default=None)
 # Output Options
 @click.option("--auto-name/--no-auto-name", "auto_name", default=True, show_default=True,
               help="Whether to automatically derive the submission name")

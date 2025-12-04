@@ -8,22 +8,22 @@ Contents
 
    intro
 
-   quickstart
+   tests
+
+   running_server
+
+   importing_data
 
    tools
-
-   tests
 
    concepts
 
    api
 
-   importing_data
+   profiles
 
    developer_guide
 
-   profiles
-   
 Indices and tables
 ==================
 
@@ -39,4 +39,3 @@ Module Listing
    :maxdepth: 2
 
    modules/testing
-   

@@ -224,6 +224,10 @@ class App(LNTExceptionLoggerFlask):
         self.wsgi_app = RootSlashPatchMiddleware(self.wsgi_app)
         self.logger.setLevel(logging.DEBUG)
 
+        # Submitted runs can be pretty large so increase the maximum allowed
+        # form field size to 50MB to prevent 413 errors.
+        self.config['MAX_FORM_MEMORY_SIZE'] = 50_000_000
+
     def load_config(self, instance):
         self.instance = instance
         self.old_config = self.instance.config
