@@ -766,11 +766,7 @@ class CompileTest(builtintest.BuiltinTest):
             print("%s: creating sandbox: %r" % (
                 timestamp(), opts.sandbox_path), file=sys.stderr)
             os.mkdir(opts.sandbox_path)
-        if opts.timestamp_build:
-            fmt_timestamp = timestamp().replace(' ', '_').replace(':', '-')
-            report_name = "test-%s" % (fmt_timestamp)
-        else:
-            report_name = "build"
+        report_name = f"test-{timestamp().replace(' ', '_').replace(':', '-')}"
         g_output_dir = os.path.join(os.path.abspath(opts.sandbox_path),
                                     report_name)
 

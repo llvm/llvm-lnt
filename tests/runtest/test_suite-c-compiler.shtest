@@ -9,7 +9,6 @@
 # RUN:     --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
 # RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
 # RUN:     --use-make %S/Inputs/test-suite-cmake/fake-make \
-# RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit \
-# RUN:     > %t.log 2> %t.err || true
+# RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit
 # RUN: filecheck --check-prefix CHECK-CC-CONFL-CMAKEDEF < %t.SANDBOX/build/report.json %s
 # CHECK-CC-CONFL-CMAKEDEF: "run_order": "154332"
