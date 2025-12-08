@@ -4,7 +4,7 @@
 
 terraform {
   backend "s3" {
-    bucket  = "lnt.llvm.org-test-bucket" # TODO: Adjust this for the real LLVM Foundation account
+    bucket  = "lnt.llvm.org-terraform-state"
     key     = "terraform.tfstate"
     region  = "us-west-2"
     encrypt = true
