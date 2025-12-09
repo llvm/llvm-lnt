@@ -26,31 +26,32 @@
 #     Log files for the instance.
 #
 
-FROM python:3.10-alpine
+FROM python:3.10-alpine AS builder
 
-COPY pyproject.toml .
-COPY lnt/testing/profile lnt/testing/profile
-
+# Install dependencies
+RUN apk update && apk add --no-cache g++ postgresql-dev yaml-dev git libpq
 # Fake a version for setuptools so we don't need to COPY .git
 ENV SETUPTOOLS_SCM_PRETEND_VERSION=0.1
+COPY pyproject.toml .
+# pip will build cperf ext-modules so COPY over its sources
+COPY lnt/testing/profile lnt/testing/profile
+RUN pip install --user ".[server]"
 
-# Install dependencies and build cperf ext-modules.
-RUN apk update \
-  && apk add --no-cache --virtual .build-deps g++ postgresql-dev yaml-dev \
-  && apk add --no-cache git libpq \
-  && pip install ".[server]" \
-  && apk --purge del .build-deps
-
-# Let setuptools_scm use git to pick the version
+# Copy over sources and install dependencies
+# Let setuptools_scm use .git to pick the version again
 ENV SETUPTOOLS_SCM_PRETEND_VERSION=
-# Copy over sources and install LNT.
 COPY . .
-RUN pip install .
+RUN pip install --user .
+
+FROM python:3.10-alpine AS final
+RUN apk update && apk add --no-cache libpq
+COPY --from=builder /root/.local /root/.local
 
 # Prepare volumes that will be used by the server
 VOLUME /var/lib/lnt /var/log/lnt
 
 # Set up the actual entrypoint that gets run when the container starts.
 COPY docker/docker-entrypoint.sh docker/docker-entrypoint-log.sh docker/lnt-wait-db /usr/local/bin/
+ENV PATH=/root/.local/bin:$PATH
 ENTRYPOINT ["docker-entrypoint-log.sh"]
 EXPOSE 8000
