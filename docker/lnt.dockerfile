@@ -28,7 +28,7 @@
 
 FROM python:3.10-alpine AS builder
 
-# Install dependencies
+# Install build dependencies
 RUN apk update && apk add --no-cache g++ postgresql-dev yaml-dev git libpq
 # Fake a version for setuptools so we don't need to COPY .git
 ENV SETUPTOOLS_SCM_PRETEND_VERSION=0.1
@@ -37,14 +37,17 @@ COPY pyproject.toml .
 COPY lnt/testing/profile lnt/testing/profile
 RUN pip install --user ".[server]"
 
-# Copy over sources and install dependencies
+# Copy over sources and install LNT
 # Let setuptools_scm use .git to pick the version again
 ENV SETUPTOOLS_SCM_PRETEND_VERSION=
 COPY . .
 RUN pip install --user .
 
 FROM python:3.10-alpine AS final
+
+# Install runtime dependencies
 RUN apk update && apk add --no-cache libpq
+
 COPY --from=builder /root/.local /root/.local
 
 # Prepare volumes that will be used by the server
