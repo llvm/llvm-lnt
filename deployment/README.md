@@ -3,7 +3,7 @@ This directory contains configuration files to deploy lnt.llvm.org.
 In order to perform a deployment, the following requirements must be satisfied:
 1. The Github repository should have secrets named `AWS_ACCESS_KEY_ID` and
    `AWS_SECRET_ACCESS_KEY` to allow Github action to connect to an AWS account.
-2. The active AWS account must contain a S3 bucket named `lnt.llvm.org-terraform-state`
+2. The active AWS account must contain a S3 bucket named `lnt.llvm.org-terraform-state-prod`
    which will be used to store the Terraform state. Versioning should be enabled on
    that bucket.
 3. The active AWS account should have `lnt.llvm.org-secrets` in the AWS secret manager

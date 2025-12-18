@@ -4,7 +4,7 @@
 
 terraform {
   backend "s3" {
-    bucket  = "lnt.llvm.org-terraform-state"
+    bucket  = "lnt.llvm.org-terraform-state-prod"
     key     = "terraform.tfstate"
     region  = "us-west-2"
     encrypt = true
