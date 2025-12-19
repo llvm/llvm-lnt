@@ -133,13 +133,22 @@ resource "aws_instance" "server" {
   ami                         = data.aws_ami.amazon_linux_2023.id
   availability_zone           = local.availability_zone
   instance_type               = "t2.micro" # TODO: Adjust the size of the real instance
-  associate_public_ip_address = true
   security_groups             = [aws_security_group.server.name]
   tags = {
     Name = "lnt.llvm.org/server"
   }
 
   user_data_base64 = data.cloudinit_config.startup_scripts.rendered
+}
+
+# Allocate a stable elastic IP for the webserver
+resource "aws_eip" "stable_ip" {
+  instance = aws_instance.server.id
+  domain   = "vpc"
+}
+
+output "web_server_public_ip" {
+  value = aws_eip.stable_ip.public_ip
 }
 
 #
