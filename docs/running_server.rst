@@ -55,3 +55,13 @@ This service runs a LNT production web server attached to a Postgres database.
 For production use, we recommend using this service and tweaking the desired
 aspects in your custom setup (for example redirecting ports or changing volume
 binds).
+
+Rebuilding the LNT Webserver Docker Image
+-----------------------------------------
+
+By default, the Docker compose setup will used a published version of the LNT
+Docker image from ghcr.io. To use a locally-built Docker image instead, use::
+
+   docker build --file docker/lnt.dockerfile .
+
+and then replace the Docker image in the Docker compose file.
