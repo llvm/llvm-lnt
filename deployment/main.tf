@@ -132,7 +132,7 @@ resource "aws_security_group" "server" {
 resource "aws_instance" "server" {
   ami                         = data.aws_ami.amazon_linux_2023.id
   availability_zone           = local.availability_zone
-  instance_type               = "t2.micro" # TODO: Adjust the size of the real instance
+  instance_type               = "t2.nano" # TODO: Adjust the size of the real instance
   security_groups             = [aws_security_group.server.name]
   tags = {
     Name = "lnt.llvm.org/server"
