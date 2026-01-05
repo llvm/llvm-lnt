@@ -66,9 +66,9 @@ data "cloudinit_config" "startup_scripts" {
   base64_encode = true
 
   part {
-    filename     = "ec2-startup.sh"
+    filename     = "on-ec2-setup.sh"
     content_type = "text/x-shellscript"
-    content      = file("${path.module}/ec2-startup.sh")
+    content      = file("${path.module}/on-ec2-setup.sh")
   }
 
   part {
@@ -94,6 +94,11 @@ data "cloudinit_config" "startup_scripts" {
             __lnt_image__     = local.lnt_image,
             __lnt_host_port__ = local.lnt_host_port,
           })
+        },
+        {
+          path        = "/etc/lnt/on-ec2-boot.sh"
+          permissions = "0400" # read-only for owner
+          content     = file("${path.module}/on-ec2-boot.sh")
         }
       ]
     })

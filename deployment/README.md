@@ -22,7 +22,35 @@ terraform -chdir=deployment plan # to see what will be done
 terraform -chdir=deployment apply
 ```
 
-At a high level, lnt.llvm.org is running in a Docker container on an EC2 instance.
+At a high level, lnt.llvm.org is running in a Docker container on an EC2 instance. When
+the EC2 instance is created, `cloud-init` will run a script that uses `systemctl` to register
+a service that runs the Docker Compose service on every boot. The `cloud-init` step only runs
+once per instance creation. This step can be inspected with:
+
+```bash
+less /var/log/cloud-init-output.log
+less /var/log/cloud-init.log # usually less interesting
+```
+
+Subsequently, `systemctl` will launch the Docker Compose service as instructed. This
+step runs once per boot and can be inspected with:
+
+```bash
+systemctl status lnt.service
+journalctl -u lnt.service
+```
+
+The Docker Compose service itself should now be running, and it can be inspected with:
+
+```bash
+docker ps
+docker logs webserver
+docker logs dbserver # usually less interesting
+```
+
+Finally, the application-level logs produced by LNT (which are usually the most interesting)
+can be inspected under `/var/log/lnt`.
+
 The database is stored in an independent EBS storage that gets attached and detached
 to/from the EC2 instance when it is created/destroyed, but the EBS storage has its own
 independent life cycle (because we want the data to outlive any specific EC2 instance).
