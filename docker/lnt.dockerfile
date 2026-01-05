@@ -44,6 +44,6 @@ RUN --mount=type=bind,source=.,target=./lnt-source \
 VOLUME /var/lib/lnt /var/log/lnt
 
 # Set up the actual entrypoint that gets run when the container starts.
-COPY docker/docker-entrypoint.sh docker/docker-entrypoint-log.sh docker/lnt-wait-db /usr/local/bin/
-ENTRYPOINT ["docker-entrypoint-log.sh"]
+COPY docker/docker-entrypoint.sh docker/lnt-wait-db /usr/local/bin/
+ENTRYPOINT ["docker-entrypoint.sh"]
 EXPOSE 8000
