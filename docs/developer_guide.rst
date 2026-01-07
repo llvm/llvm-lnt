@@ -19,7 +19,8 @@ virtual environment and installing the development dependencies::
     pip install ".[dev]"
 
 This will install the current version of the package, along with the dependencies
-required for development (``lit``, ``filecheck``, etc).
+required for development (``lit``, ``filecheck``, etc). Note that ``curl`` and
+``jq`` are also required for running the tests.
 
 Running LNT's Regression Tests
 ------------------------------

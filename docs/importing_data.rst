@@ -58,16 +58,23 @@ First, make sure you've understood the underlying :ref:`concepts` used by LNT.
       ]
   }
 
+Any optional fields provided in the ``run`` section will be associated to that run and visible
+in the UI when looking at that run. This allows annotating runs with useful additional information,
+such as the commit information related to this run or similar. This data will also be visible on
+charts when viewing historical results. Arbitrary data can be provided, however including too much
+run-related information can cause very large amounts of data to have to be transfered to display
+graphs.
+
 A concrete small example is
 
 .. literalinclude:: report-example.json
     :language: json
 
 
-Given how simple it is to make your own results and send them to LNT,
-it is common to not use the LNT client application at all, and just have a
-custom script run your tests and submit the data to the LNT server. Details
-on how to do this are in :mod:`lnt.testing`
+Given how simple it is to make your own results and send them to LNT, it is common to
+not use the LNT client application at all, and just have a custom script run your tests
+and submit the data to the LNT server in JSON format.
+
 
 .. _nts_suite:
 
