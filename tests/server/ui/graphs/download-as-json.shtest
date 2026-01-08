@@ -1,0 +1,42 @@
+#!/bin/bash
+# RUN: rm -rf %t && mkdir -p %t
+# RUN: lnt create %t/instance
+# RUN: %{shared_inputs}/server_wrapper.sh --fail-on-error %t/instance 9093 \
+# RUN:    /bin/sh %s %t
+# END.
+
+#
+# Exercise the "Download as JSON" button on the graph page.
+#
+
+set -eux
+
+t="$1"
+HOST="http://localhost:9093"
+
+# First, populate with some dummy data.
+cat <<EOF > "$t/report.json"
+{
+    "format_version": "2",
+    "machine": {
+       "name": "machine-foo"
+    },
+    "run": {
+       "start_time": "2026-01-01T11:28:33.00000",
+       "end_time": "2026-01-01T11:28:23.991076",
+       "llvm_project_revision": "1"
+    },
+    "tests": [
+       {
+           "name": "benchmark1",
+           "execution_time": [ 0.1056, 0.1055 ]
+       }
+    ]
+}
+EOF
+
+lnt submit "${HOST}/db_default/v4/nts/submitRun" "$t/report.json"
+
+# Then, trigger the same GET request that would be triggered if we click the
+# button on the graph page, and ensure that doesn't fail.
+curl -X GET -sS --fail "${HOST}/db_default/v4/nts/graph?plot.1.3=1.1.3&download_json=Download+as+JSON"

@@ -1480,7 +1480,7 @@ def v4_graph():
             json_file.seek(0)
             return send_file(json_file,
                              mimetype='text/json',
-                             attachment_filename='Graph.json',
+                             download_name='Graph.json',
                              as_attachment=True)
 
     return render_template("v4_graph.html", options=options,
