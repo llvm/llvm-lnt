@@ -57,7 +57,3 @@ main.add_command(action_updatedb)
 main.add_command(action_view_comparison)
 main.add_command(group_admin)
 main.add_command(group_runtest)
-
-
-if __name__ == '__main__':
-    main()
