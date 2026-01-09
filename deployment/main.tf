@@ -143,7 +143,11 @@ resource "aws_instance" "server" {
     Name = "lnt.llvm.org/server"
   }
 
-  user_data_base64 = data.cloudinit_config.startup_scripts.rendered
+  # Deploy the cloud-init files to the instance on creation. Also make sure that
+  # changing the cloud-init data causes the instance to be re-created, otherwise
+  # the files are not updated. This should probably be the default Terraform behavior.
+  user_data_base64            = data.cloudinit_config.startup_scripts.rendered
+  user_data_replace_on_change = true
 }
 
 # Allocate a stable elastic IP for the webserver

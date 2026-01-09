@@ -6,7 +6,7 @@
 # is initially set up (via cloud-init, see the Terraform configuration file).
 #
 # This arrangement ensures that the LNT service automatically restarts after a reboot of the EC2
-# instance, which is useful since many operations don't require entirely tearing down the instance,
+# instance, which is useful since some operations don't require entirely tearing down the instance,
 # in which case the instance only gets rebooted and should still be functional.
 #
 
