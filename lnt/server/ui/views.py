@@ -899,7 +899,7 @@ def load_graph_data(plot_parameter, show_failures, limit, xaxis_date, revision_c
     # FIXME: Don't join to Order here, aggregate this across all the tests
     # we want to load. Actually, we should just make this a single query.
     values = session.query(plot_parameter.field.column, ts.Order,
-                           ts.Run.start_time, ts.Run.id) \
+                           ts.Run.start_time, ts.Run.id, ts.Run.parameters_data) \
                     .select_from(ts.Sample) \
                     .join(ts.Run).join(ts.Order) \
                     .filter(ts.Run.machine_id == plot_parameter.machine.id) \
@@ -916,15 +916,15 @@ def load_graph_data(plot_parameter, show_failures, limit, xaxis_date, revision_c
     if xaxis_date:
         # Aggregate by date.
         data = list(multidict.multidict(
-            (date, (val, order, date, run_id))
-            for val, order, date, run_id in values).items())
+            (date, (val, order, date, run_id, parameters_data))
+            for val, order, date, run_id, parameters_data in values).items())
         # Sort data points according to date.
         data.sort(key=lambda sample: sample[0])
     else:
         # Aggregate by order (revision).
         data = list(multidict.multidict(
-            (order.llvm_project_revision, (val, order, date, run_id))
-            for val, order, date, run_id in values).items())
+            (order.llvm_project_revision, (val, order, date, run_id, parameters_data))
+            for val, order, date, run_id, parameters_data in values).items())
         # Sort data points according to order (revision).
         data.sort(key=lambda sample: convert_revision(sample[0], cache=revision_cache))
 
@@ -1194,7 +1194,9 @@ def v4_graph():
             # And the date on which they were taken.
             dates = [data_array[2] for data_array in datapoints]
             # Run ID where this point was collected.
-            run_ids = [data_array[3] for data_array in datapoints if len(data_array) == 4]
+            run_ids = [data_array[3] for data_array in datapoints if len(data_array) >= 4]
+            # Run parameters (JSON-encoded binary data)
+            run_parameters_list = [data_array[4] for data_array in datapoints if len(data_array) >= 5]
 
             values = [v * normalize_by for v in values]
 
@@ -1224,6 +1226,13 @@ def v4_graph():
                               "date": str(dates[agg_index])}
             if run_ids:
                 point_metadata["runID"] = str(run_ids[agg_index])
+
+            # Add run parameters to metadata if available
+            if run_parameters_list:
+                run_params = run_parameters_list[agg_index]
+                if run_params:
+                    point_metadata.update(json.loads(run_params.decode('utf-8')))
+
             meta.append(point_metadata)
 
             # Add the multisample points, if requested.
@@ -1235,6 +1244,13 @@ def v4_graph():
                                             "date": str(dates[i])}
                     if run_ids:
                         multisample_metadata["runID"] = str(run_ids[i])
+
+                    # Add run parameters to metadata if available
+                    if run_parameters_list:
+                        run_params = run_parameters_list[i]
+                        if run_params:
+                            multisample_metadata.update(json.loads(run_params.decode('utf-8')))
+
                     multisample_points_data["x"].append(point_label)
                     multisample_points_data["y"].append(v)
                     multisample_points_data["meta"].append(multisample_metadata)
