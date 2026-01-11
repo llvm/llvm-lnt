@@ -2,7 +2,7 @@
 # RUN: rm -rf %t.SANDBOX
 # RUN: lnt runtest test-suite \
 # RUN:     --sandbox %t.SANDBOX \
-# RUN:     --no-timestamp \
+# RUN:     --build-dir %t.SANDBOX/build \
 # RUN:     --test-suite %S/Inputs/test-suite-cmake \
 # RUN:     --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
 # RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
@@ -51,7 +51,7 @@
 # Use the same sandbox again with --no-configure
 # RUN: lnt runtest test-suite \
 # RUN:     --sandbox %t.SANDBOX \
-# RUN:     --no-timestamp \
+# RUN:     --build-dir %t.SANDBOX/build \
 # RUN:     --no-configure \
 # RUN:     --test-suite %S/Inputs/test-suite-cmake \
 # RUN:     --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
@@ -66,7 +66,6 @@
 # RUN: rm -rf %t.SANDBOX2
 # RUN: lnt runtest test-suite \
 # RUN:     --sandbox %t.SANDBOX2 \
-# RUN:     --no-timestamp \
 # RUN:     --no-configure \
 # RUN:     --test-suite %S/Inputs/test-suite-cmake \
 # RUN:     --cc %{shared_inputs}/FakeCompilers/clang-r154331 \

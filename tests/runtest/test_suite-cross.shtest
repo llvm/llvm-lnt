@@ -3,7 +3,6 @@
 # RUN: rm -rf %t.SANDBOX
 # RUN: lnt runtest test-suite \
 # RUN:     --sandbox %t.SANDBOX \
-# RUN:     --no-timestamp \
 # RUN:     --test-suite %S/Inputs/test-suite-cmake \
 # RUN:     --cmake-define=CMAKE_C_COMPILER_TARGET:STRING=targetarch-linux-gnu \
 # RUN:     --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
