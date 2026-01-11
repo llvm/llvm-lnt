@@ -16,12 +16,14 @@ metrics:
   display_name: Execution Time
   unit: seconds
   unit_abbrev: s
+  ignore_same_hash: true
 - name: execution_status
   type: Status
 - name: score
   type: Real
   bigger_is_better: true
   display_name: Score
+  ignore_same_hash: true
 - name: mem_bytes
   type: Real
   display_name: Memory Usage
