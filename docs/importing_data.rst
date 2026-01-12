@@ -23,6 +23,16 @@ Example::
     lnt importreport --machine=my-machine-name --order=1234 --testsuite=nts results.txt report.json
     lnt submit http://mylnt.com/db_default/submitRun report.json
 
+Additional information can also be included in runs. This can be useful to include e.g. the
+commit information associated to the version of the code being benchmarked or other information
+relevant to the run like the system load, etc. This information can be provided to ``lnt importreport``
+as key-value pairs, passing ``--run-info`` as many times as necessary::
+
+    lnt importreport --machine=my-machine-name --order=1234 --testsuite=nts \
+                     --run-info commit="COMMIT INFORMATION"                 \
+                     --run-info machine_load="LOAD INFORMATION"             \
+                     results.txt report.json
+
 .. _json_format:
 
 LNT Report File Format
