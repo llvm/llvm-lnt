@@ -12,10 +12,15 @@ import click
               "Ex: a svn revision, or timestamp.")
 @click.option("--machine", required=True,
               help="the name of the machine to submit under")
-def action_importreport(input, output, suite, order, machine):
+@click.option("--run-info", multiple=True, type=str,
+              help="Optional additional run information to include in the submission. "
+                   "If provided, this must be a key-value pair separated by '='. This "
+                   "argument may be repeated multiple times to provide multiple keys "
+                   "and values in the run information.")
+def action_importreport(input, output, suite, order, machine, run_info):
     """Import simple data into LNT. This takes a space separated
     key value file and creates an LNT report file, which can be submitted to
-    an LNT server.  Example input file:
+    an LNT server. Example input file:
 
     \b
     foo.exec 123
@@ -30,10 +35,19 @@ def action_importreport(input, output, suite, order, machine):
 
     machine = lnt.testing.Machine(machine, report_version=2)
 
+    parsed_info = {}
+    for s in run_info:
+        if '=' not in s:
+            raise click.BadParameter(f"--run-info must be in 'key=value' format, got: {s}")
+        k, v = s.split('=', 1)  # Split only on the first '=' in case there are several in the string
+        parsed_info[k] = v
+    run_info = parsed_info
+    run_info.update({'llvm_project_revision': order})
+
     ctime = os.path.getctime(input.name)
     mtime = os.path.getmtime(input.name)
     run = lnt.testing.Run(start_time=ctime, end_time=mtime,
-                          info={'llvm_project_revision': order},
+                          info=run_info,
                           report_version=2)
 
     tests = {}  # name => lnt.testing.Test
