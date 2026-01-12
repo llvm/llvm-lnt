@@ -54,7 +54,7 @@ COPY --from=builder /root/.local /root/.local
 VOLUME /var/lib/lnt /var/log/lnt
 
 # Set up the actual entrypoint that gets run when the container starts.
-COPY docker/docker-entrypoint.sh docker/docker-entrypoint-log.sh docker/lnt-wait-db /usr/local/bin/
+COPY docker/docker-entrypoint.sh docker/lnt-wait-db /usr/local/bin/
 ENV PATH=/root/.local/bin:$PATH
-ENTRYPOINT ["docker-entrypoint-log.sh"]
+ENTRYPOINT ["docker-entrypoint.sh"]
 EXPOSE 8000

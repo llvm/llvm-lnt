@@ -14,7 +14,11 @@ if [ ! -e /var/lib/lnt/instance/lnt.cfg ]; then
         --tmp-dir /tmp/lnt              \
         --db-dir "${DB_PATH}"           \
         --default-db "${DB_NAME}"
-    sed -i "s/# \(api_auth_token =\).*/\1 '${token}'/" /var/lib/lnt/instance/lnt.cfg
+    if [[ "${token}" == *"'"* ]]; then
+        echo "Invalid API auth token containing single quote ('): that character is used as a delimiter in the config file"
+        exit 1
+    fi
+    echo "api_auth_token = '${token}'" >> /var/lib/lnt/instance/lnt.cfg
 fi
 
 # Run the server under gunicorn.

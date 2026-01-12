@@ -183,8 +183,6 @@ def get_base_for_testsuite(test_suite):
 
     class Machine(UpdatedBase):  # type: ignore[misc,valid-type]
         __tablename__ = db_key_name + '_Machine'
-        # For case sensitive compare.
-        __table_args__ = {'mysql_collate': 'utf8_bin'}
         id = Column("ID", Integer, primary_key=True)
         name = Column("Name", String(256), index=True)
 
@@ -249,7 +247,6 @@ def get_base_for_testsuite(test_suite):
 
     class Test(UpdatedBase):  # type: ignore[misc,valid-type]
         __tablename__ = db_key_name + '_Test'
-        __table_args__ = {'mysql_collate': 'utf8_bin'}
         id = Column("ID", Integer, primary_key=True)
         name = Column("Name", String(256), unique=True, index=True)
 
