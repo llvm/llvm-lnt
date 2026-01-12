@@ -39,7 +39,7 @@ def action_importreport(input, output, suite, order, machine, run_info):
     for s in run_info:
         if '=' not in s:
             raise click.BadParameter(f"--run-info must be in 'key=value' format, got: {s}")
-        k, v = s.split('=', 1) # Split only on the first '=' in case there are several in the string
+        k, v = s.split('=', 1)  # Split only on the first '=' in case there are several in the string
         parsed_info[k] = v
     run_info = parsed_info
     run_info.update({'llvm_project_revision': order})
