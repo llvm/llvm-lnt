@@ -1,6 +1,6 @@
 # This file composes a full service running LNT. A LNT service is comprised
-# of a container running a Postgres database and a container running a
-# production LNT webserver.
+# of a container running a Postgres database, a container running a Nginx
+# reverse proxy and a container running a LNT webserver using gunicorn.
 #
 # In order to compose the full service, some secrets are required. They are taken
 # as environment variables, which means they can be stored in a file and included
@@ -19,12 +19,16 @@
 #     The version of the llvm-lnt webserver image used for the service.
 #     Defaults to 'latest'.
 #
-#   LNT_HOST_PORT
-#     The host-side port that will be bound to the container-side port running
-#     the webserver. This defaults to '8000', which is consistent with what LNT
-#     uses by default for local servers and development. However, production
-#     instances may want to map their port '80' (the default HTTP port) to the
-#     container's port '8000'.
+#   LNT_NGINX_CONFIG
+#     The path to the configuration file to use for Nginx. By default, the nginx
+#     configuration in this source tree is used, however this must be specified
+#     whenever running from a host where the source tree is not available, or
+#     when a fundamentally different configuration is desired.
+#
+#   LNT_EXTERNAL_PORT
+#     The externally-visible port that will be exposed by the service to interact
+#     with the webserver. This defaults to '8000', which is consistent with what
+#     LNT uses by default for local servers and development.
 
 name: llvm-lnt
 
@@ -50,11 +54,15 @@ services:
     deploy:
       restart_policy:
         condition: on-failure
-    ports:
-      - "${LNT_HOST_PORT:-8000}:8000"
     volumes:
       - instance:/var/lib/lnt
       - logs:/var/log/lnt
+    # Only expose this port to the internal Docker network, but not to
+    # the outside world.
+    expose:
+      - "8000"
+    networks:
+      - lnt_network
 
   db:
     container_name: dbserver
@@ -67,6 +75,28 @@ services:
       - lnt-db-password
     volumes:
       - database:/var/lib/postgresql
+    networks:
+      - lnt_network
+
+  nginx:
+    container_name: nginx_reverse_proxy
+    image: docker.io/nginx:latest
+    restart: unless-stopped
+    volumes:
+      - ${LNT_NGINX_CONFIG:-./nginx.conf}:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - webserver
+    # The Nginx server listens to port 80 inside the container, but exposes
+    # the specified port to the outside world.
+    ports:
+      - "${LNT_EXTERNAL_PORT:-8000}:80"
+    networks:
+      - lnt_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   instance:
@@ -78,3 +108,7 @@ secrets:
     environment: "LNT_DB_PASSWORD"
   lnt-auth-token:
     environment: "LNT_AUTH_TOKEN"
+
+networks:
+  lnt_network:
+    driver: bridge

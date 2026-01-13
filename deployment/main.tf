@@ -40,7 +40,7 @@ locals {
   lnt_image     = "f0d69809f71daa5ab549771b7171cb9e2a1cd86a"
 
   # The port on the EC2 instance used by the Docker webserver for communication
-  lnt_host_port = "80"
+  lnt_external_port = "80"
 
   # The database password for the lnt.llvm.org database.
   lnt_db_password = jsondecode(data.aws_secretsmanager_secret_version.lnt_secrets_latest.secret_string)["lnt-db-password"]
@@ -89,11 +89,17 @@ data "cloudinit_config" "startup_scripts" {
           path        = "/etc/lnt/compose.env"
           permissions = "0400" # read-only for owner
           content     = templatefile("${path.module}/compose.env.tpl", {
-            __db_password__   = local.lnt_db_password,
-            __auth_token__    = local.lnt_auth_token,
-            __lnt_image__     = local.lnt_image,
-            __lnt_host_port__ = local.lnt_host_port,
+            __db_password__       = local.lnt_db_password,
+            __auth_token__        = local.lnt_auth_token,
+            __lnt_image__         = local.lnt_image,
+            __lnt_nginx_config__  = "/etc/lnt/nginx.conf",
+            __lnt_external_port__ = local.lnt_external_port,
           })
+        },
+        {
+          path        = "/etc/lnt/nginx.conf"
+          permissions = "0400" # read-only for owner
+          content     = file("${path.module}/../docker/nginx.conf")
         },
         {
           path        = "/etc/lnt/on-ec2-boot.sh"
