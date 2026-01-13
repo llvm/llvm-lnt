@@ -51,15 +51,15 @@ production server within minutes. The service can be built and run with::
 
 ``<env-file>`` should be the path to a file containing environment variables
 required by the containers. Please refer to the Docker Compose file for details.
-This service runs a LNT production web server attached to a Postgres database.
-For production use, we recommend using this service and tweaking the desired
-aspects in your custom setup (for example redirecting ports or changing volume
-binds).
+This service runs a Nginx server that acts as a reverse proxy for the LNT web
+server, which is itself attached to a Postgres database. For production use, we
+recommend using this service and tweaking the desired aspects in your custom setup
+(for example redirecting ports or changing volume binds).
 
 Rebuilding the LNT Webserver Docker Image
 -----------------------------------------
 
-By default, the Docker compose setup will used a published version of the LNT
+By default, the Docker compose setup will use a published version of the LNT
 Docker image from ghcr.io. To use a locally-built Docker image instead, use::
 
    docker build --file docker/lnt.dockerfile .
