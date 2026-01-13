@@ -19,6 +19,12 @@
 #     The version of the llvm-lnt webserver image used for the service.
 #     Defaults to 'latest'.
 #
+#   LNT_NGINX_CONFIG
+#     The path to the configuration file to use for Nginx. By default, the nginx
+#     configuration in this source tree is used, however this must be specified
+#     whenever running from a host where the source tree is not available, or
+#     when a fundamentally different configuration is desired.
+#
 #   LNT_EXTERNAL_PORT
 #     The externally-visible port that will be exposed by the service to interact
 #     with the webserver. This defaults to '8000', which is consistent with what
@@ -77,7 +83,7 @@ services:
     image: docker.io/nginx:latest
     restart: unless-stopped
     volumes:
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ${LNT_NGINX_CONFIG:-./nginx.conf}:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       - webserver
     # The Nginx server listens to port 80 inside the container, but exposes

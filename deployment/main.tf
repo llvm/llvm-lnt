@@ -92,8 +92,14 @@ data "cloudinit_config" "startup_scripts" {
             __db_password__       = local.lnt_db_password,
             __auth_token__        = local.lnt_auth_token,
             __lnt_image__         = local.lnt_image,
+            __lnt_nginx_config__  = "/etc/lnt/nginx.conf",
             __lnt_external_port__ = local.lnt_external_port,
           })
+        },
+        {
+          path        = "/etc/lnt/nginx.conf"
+          permissions = "0400" # read-only for owner
+          content     = file("${path.module}/../docker/nginx.conf")
         },
         {
           path        = "/etc/lnt/on-ec2-boot.sh"
