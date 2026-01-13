@@ -19,11 +19,11 @@ jobs:
       fail-fast: false
 
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
       with:
         fetch-depth: 0 # fetch all history including tags -- necessary to determine the version from SCM
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548 # v6.1.0
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
@@ -32,7 +32,7 @@ jobs:
         pip install tox tox-gh-actions
     - name: Install PostgreSQL
       if: ${{ matrix.with-postgres }}
-      uses: tj-actions/install-postgresql@v3
+      uses: tj-actions/install-postgresql@a889ed6c6fa05022333ed4101295bb1d604f97a8 # v3.2.0
       with:
         postgresql-version: 17
     - name: Tox flake8
