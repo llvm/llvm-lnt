@@ -319,6 +319,28 @@ class ComparisonResultTest(unittest.TestCase):
                 None, None)
             self.assertEqual(zeroSample.get_value_status(), UNCHANGED_PASS)
 
+    def test_ignore_same_hash(self):
+        """Test ignore_same_hash ignores regressions with the same hash."""
+        same_hash = ComparisonResult(min, False, False, [10.], [5.],
+                                     'abc', 'abc', ignore_same_hash=True)
+        self.assertEqual(same_hash.get_value_status(), UNCHANGED_PASS)
+        self.assertFalse(same_hash.is_result_interesting())
+
+        diff_hash = ComparisonResult(min, False, False, [10.], [5.],
+                                     'abc', '123', ignore_same_hash=True)
+        self.assertEqual(diff_hash.get_value_status(), REGRESSED)
+        self.assertTrue(diff_hash.is_result_interesting())
+
+        no_hash = ComparisonResult(min, False, False, [10.], [5.], None,
+                                   '123', ignore_same_hash=True)
+        self.assertEqual(no_hash.get_value_status(), REGRESSED)
+        self.assertTrue(no_hash.is_result_interesting())
+
+        disabled = ComparisonResult(min, False, False, [10.], [5.],
+                                    'abc', 'abc', ignore_same_hash=False)
+        self.assertEqual(disabled.get_value_status(), REGRESSED)
+        self.assertTrue(disabled.is_result_interesting())
+
 
 class AbsMinTester(unittest.TestCase):
 
