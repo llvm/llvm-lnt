@@ -1,5 +1,8 @@
 name: Build and publish package
 
+permissions:
+  contents: read
+
 on:
   - push
   - pull_request
@@ -9,12 +12,12 @@ jobs:
     runs-on: ubuntu-latest
     name: Build LNT package
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
       with:
         fetch-depth: 0 # fetch all history including tags -- necessary to determine the version from SCM
         persist-credentials: false
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548 # v6.1.0
       with:
         python-version: "3.10"
     # We only build a source distribution because binary distributions for Linux can't be uploaded
@@ -24,7 +27,7 @@ jobs:
         python -m pip install build
         python -m build --sdist
     - name: Store the distribution packages
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
       with:
         name: python-package-distributions
         path: dist/
@@ -44,12 +47,12 @@ jobs:
 
     steps:
     - name: Download distributions
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
       with:
         name: python-package-distributions
         path: dist/
     - name: Publish LNT to TestPyPI
-      uses: pypa/gh-action-pypi-publish@release/v1
+      uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e # v1.13.0
       with:
         repository-url: https://test.pypi.org/legacy/
         verbose: true
@@ -68,11 +71,11 @@ jobs:
 
     steps:
     - name: Download distributions
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
       with:
         name: python-package-distributions
         path: dist/
     - name: Publish LNT to PyPI
-      uses: pypa/gh-action-pypi-publish@release/v1
+      uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e # v1.13.0
       with:
         verbose: true

@@ -4,7 +4,7 @@
 
 terraform {
   backend "s3" {
-    bucket  = "lnt.llvm.org-test-bucket" # TODO: Adjust this for the real LLVM Foundation account
+    bucket  = "lnt.llvm.org-terraform-state-prod"
     key     = "terraform.tfstate"
     region  = "us-west-2"
     encrypt = true
@@ -37,10 +37,10 @@ data "aws_secretsmanager_secret_version" "lnt_secrets_latest" {
 
 locals {
   # The Docker image to use for the webserver part of the LNT service
-  lnt_image     = "d9ffa5317a9a42a1d2fa337cba97ec51d931f391"
+  lnt_image     = "f0d69809f71daa5ab549771b7171cb9e2a1cd86a"
 
   # The port on the EC2 instance used by the Docker webserver for communication
-  lnt_host_port = "80"
+  lnt_external_port = "80"
 
   # The database password for the lnt.llvm.org database.
   lnt_db_password = jsondecode(data.aws_secretsmanager_secret_version.lnt_secrets_latest.secret_string)["lnt-db-password"]
@@ -66,9 +66,9 @@ data "cloudinit_config" "startup_scripts" {
   base64_encode = true
 
   part {
-    filename     = "ec2-startup.sh"
+    filename     = "on-ec2-setup.sh"
     content_type = "text/x-shellscript"
-    content      = file("${path.module}/ec2-startup.sh")
+    content      = file("${path.module}/on-ec2-setup.sh")
   }
 
   part {
@@ -89,11 +89,22 @@ data "cloudinit_config" "startup_scripts" {
           path        = "/etc/lnt/compose.env"
           permissions = "0400" # read-only for owner
           content     = templatefile("${path.module}/compose.env.tpl", {
-            __db_password__   = local.lnt_db_password,
-            __auth_token__    = local.lnt_auth_token,
-            __lnt_image__     = local.lnt_image,
-            __lnt_host_port__ = local.lnt_host_port,
+            __db_password__       = local.lnt_db_password,
+            __auth_token__        = local.lnt_auth_token,
+            __lnt_image__         = local.lnt_image,
+            __lnt_nginx_config__  = "/etc/lnt/nginx.conf",
+            __lnt_external_port__ = local.lnt_external_port,
           })
+        },
+        {
+          path        = "/etc/lnt/nginx.conf"
+          permissions = "0400" # read-only for owner
+          content     = file("${path.module}/../docker/nginx.conf")
+        },
+        {
+          path        = "/etc/lnt/on-ec2-boot.sh"
+          permissions = "0400" # read-only for owner
+          content     = file("${path.module}/on-ec2-boot.sh")
         }
       ]
     })
@@ -132,14 +143,27 @@ resource "aws_security_group" "server" {
 resource "aws_instance" "server" {
   ami                         = data.aws_ami.amazon_linux_2023.id
   availability_zone           = local.availability_zone
-  instance_type               = "t2.micro" # TODO: Adjust the size of the real instance
-  associate_public_ip_address = true
+  instance_type               = "t2.small"
   security_groups             = [aws_security_group.server.name]
   tags = {
     Name = "lnt.llvm.org/server"
   }
 
-  user_data_base64 = data.cloudinit_config.startup_scripts.rendered
+  # Deploy the cloud-init files to the instance on creation. Also make sure that
+  # changing the cloud-init data causes the instance to be re-created, otherwise
+  # the files are not updated. This should probably be the default Terraform behavior.
+  user_data_base64            = data.cloudinit_config.startup_scripts.rendered
+  user_data_replace_on_change = true
+}
+
+# Allocate a stable elastic IP for the webserver
+resource "aws_eip" "stable_ip" {
+  instance = aws_instance.server.id
+  domain   = "vpc"
+}
+
+output "web_server_public_ip" {
+  value = aws_eip.stable_ip.public_ip
 }
 
 #

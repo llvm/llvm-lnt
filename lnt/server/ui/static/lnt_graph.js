@@ -101,7 +101,15 @@ function plotly_show_tooltip(data) {
             get_run_url(db_name, test_suite_name, point.meta.runID) +
             "\">" + point.meta.runID + "</a><br>";
     }
-    
+
+    // Display any additional run parameters
+    var known_fields = ['order', 'orderID', 'date', 'runID', 'state'];
+    for (var key in point.meta) {
+        if (point.meta.hasOwnProperty(key) && known_fields.indexOf(key) === -1) {
+            tip_body += "<b>" + key + ":</b> " + point.meta[key] + "<br>";
+        }
+    }
+
     if (point.meta.runID && point.data.url) { // url = machine.id/test.id/field_index
         tip_body += "<a href=\"" +
             get_manual_regression_url(db_name, test_suite_name, point.data.url, point.meta.runID) +

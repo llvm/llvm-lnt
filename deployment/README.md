@@ -1,9 +1,19 @@
 This directory contains configuration files to deploy lnt.llvm.org.
 
-The https://lnt.llvm.org instance gets re-deployed automatically whenever changes
-are made to the configuration files under `deployment/` on the `main` branch via
-a Github Action. Manually deploying the instance is also possible by directly using
-Terraform:
+In order to perform a deployment, the following requirements must be satisfied:
+1. The Github repository should have secrets named `AWS_ACCESS_KEY_ID` and
+   `AWS_SECRET_ACCESS_KEY` to allow Github action to connect to an AWS account.
+2. The active AWS account must contain a S3 bucket named `lnt.llvm.org-terraform-state-prod`
+   which will be used to store the Terraform state. Versioning should be enabled on
+   that bucket.
+3. The active AWS account should have `lnt.llvm.org-secrets` in the AWS secret manager
+   with entries `lnt-db-password` and `lnt-auth-token`. Those will be used for the
+   database password used by LNT and the authentication token for destructive actions,
+   respectively.
+
+Once the above is satisfied, an instance can be re-deployed automatically by running
+the `deploy-lnt.llvm.org.yaml` Github Action. Manually deploying the instance is also
+possible by directly using Terraform:
 
 ```bash
 aws configure # provide appropriate access keys
@@ -12,7 +22,35 @@ terraform -chdir=deployment plan # to see what will be done
 terraform -chdir=deployment apply
 ```
 
-At a high level, lnt.llvm.org is running in a Docker container on an EC2 instance.
+At a high level, lnt.llvm.org is running in a Docker container on an EC2 instance. When
+the EC2 instance is created, `cloud-init` will run a script that uses `systemctl` to register
+a service that runs the Docker Compose service on every boot. The `cloud-init` step only runs
+once per instance creation. This step can be inspected with:
+
+```bash
+less /var/log/cloud-init-output.log
+less /var/log/cloud-init.log # usually less interesting
+```
+
+Subsequently, `systemctl` will launch the Docker Compose service as instructed. This
+step runs once per boot and can be inspected with:
+
+```bash
+systemctl status lnt.service
+journalctl -u lnt.service
+```
+
+The Docker Compose service itself should now be running, and it can be inspected with:
+
+```bash
+docker ps
+docker logs webserver
+docker logs dbserver # usually less interesting
+```
+
+Finally, the application-level logs produced by LNT (which are usually the most interesting)
+can be inspected under `/var/log/lnt`.
+
 The database is stored in an independent EBS storage that gets attached and detached
 to/from the EC2 instance when it is created/destroyed, but the EBS storage has its own
 independent life cycle (because we want the data to outlive any specific EC2 instance).

@@ -101,7 +101,6 @@ class TestSuiteDB(object):
 
         class Machine(self.base, ParameterizedMixin):
             __tablename__ = db_key_name + '_Machine'
-            __table_args__ = {'mysql_collate': 'utf8_bin'}
             DEFAULT_BASELINE_REVISION = v4db.baseline_revision
 
             fields = self.machine_fields
@@ -427,8 +426,6 @@ class TestSuiteDB(object):
 
         class Test(self.base, ParameterizedMixin):
             __tablename__ = db_key_name + '_Test'
-            # utf8_bin for case sensitive compare
-            __table_args__ = {'mysql_collate': 'utf8_bin'}
             id = Column("ID", Integer, primary_key=True)
             name = Column("Name", String(256), unique=True, index=True)
 
@@ -748,7 +745,6 @@ class TestSuiteDB(object):
         class Baseline(self.base, ParameterizedMixin):
             """Baselines to compare runs to."""
             __tablename__ = db_key_name + '_Baseline'
-            __table_args__ = {'mysql_collate': 'utf8_bin'}
 
             id = Column("ID", Integer, primary_key=True)
             name = Column("Name", String(32), unique=True)
@@ -1033,7 +1029,6 @@ class TestSuiteDB(object):
     def _importSampleValues(self, session, tests_data, run, config):
         # Load a map of all the tests, which we will extend when we find tests
         # that need to be added.
-        # Downcast to str, so we match on MySQL.
         test_cache = dict((test.name, test)
                           for test in session.query(self.Test))
 

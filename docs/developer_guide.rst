@@ -19,7 +19,8 @@ virtual environment and installing the development dependencies::
     pip install ".[dev]"
 
 This will install the current version of the package, along with the dependencies
-required for development (``lit``, ``filecheck``, etc).
+required for development (``lit``, ``filecheck``, etc). Note that ``curl`` and
+``jq`` are also required for running the tests.
 
 Running LNT's Regression Tests
 ------------------------------
@@ -51,12 +52,6 @@ Optional Tests
 Some tests require additional tools to be installed and are not enabled by
 default. You can enable them by passing additional flags to ``lit``:
 
-  ``-Dmysql=1``
-    Enable mysql database support testing. This requires MySQL-python to be
-    installed and expects the ``mysqld`` and ``mysqladmin`` binaries in your path.
-    Note that you do not need to setup an actual server, the tests will create
-    temporary instances on demand.
-
   ``-Dtidylib=1``
     Check generated html pages for errors using ``tidy-html5``. This requires
     ``pytidylib`` and ``tidy-html5`` to be installed.
@@ -68,7 +63,7 @@ default. You can enable them by passing additional flags to ``lit``:
 
 Example::
 
-    lit -sv -Dmysql=1 -Dtidylib=1 ./tests
+    lit -sv -Dtidylib=1 ./tests
 
 Publishing a new version of LNT
 -------------------------------

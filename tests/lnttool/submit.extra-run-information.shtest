@@ -1,0 +1,70 @@
+#!/bin/bash
+# RUN: rm -rf %t && mkdir -p %t
+# RUN: lnt create %t/instance
+# RUN: %{shared_inputs}/server_wrapper.sh --fail-on-error %t/instance 9094 \
+# RUN:    /bin/sh %s %t
+
+#
+# Make sure that we can have extra information in the run, and that such information
+# is saved into the DB.
+#
+
+set -eux
+
+t="$1"
+HOST="http://localhost:9094"
+
+# Simple case
+cat <<EOF > "$t/report1.json"
+{
+    "format_version": "2",
+    "machine": {
+       "name": "machine-foo"
+    },
+    "run": {
+       "start_time": "2026-01-01T11:28:33.00000",
+       "end_time": "2026-01-01T11:28:23.991076",
+       "llvm_project_revision": "1",
+       "some_extra_information1": "some tokens",
+       "some_extra_information2": "more tokens"
+    },
+    "tests": [
+       {
+           "name": "benchmark1",
+           "execution_time": [ 0.1056, 0.1055 ]
+       }
+    ]
+}
+EOF
+
+lnt submit "${HOST}/db_default/v4/nts/submitRun" "$t/report1.json"
+curl -sS "${HOST}/api/db_default/v4/nts/runs/1" > "$t/run1.json"
+jq .run.some_extra_information1 "$t/run1.json" | grep "some tokens"
+jq .run.some_extra_information2 "$t/run1.json" | grep "more tokens"
+
+
+# Add different fields with another run
+cat <<EOF > "$t/report2.json"
+{
+    "format_version": "2",
+    "machine": {
+       "name": "machine-foo"
+    },
+    "run": {
+       "start_time": "2026-01-02T11:28:33.00000",
+       "end_time": "2026-01-02T11:28:23.991076",
+       "llvm_project_revision": "2",
+       "some_extra_information3": "some tokens 3"
+    },
+    "tests": [
+       {
+           "name": "benchmark1",
+           "execution_time": [ 0.1056, 0.1055 ]
+       }
+    ]
+}
+EOF
+
+lnt submit "${HOST}/db_default/v4/nts/submitRun" "$t/report2.json"
+curl -sS "${HOST}/api/db_default/v4/nts/runs/2" > "$t/run2.json"
+jq .run.some_extra_information3 "$t/run2.json" | grep "some tokens 3"
