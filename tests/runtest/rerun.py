@@ -13,7 +13,7 @@
 # RUN:   --sandbox %t.SANDBOX \
 # RUN:   --test-suite %S/Inputs/rerun-test-suite1 \
 # RUN:   --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
-# RUN:   --no-timestamp --rerun --run-order 1 > %t.log 2> %t.err
+# RUN:   --rerun --run-order 1 > %t.log 2> %t.err
 # RUN: filecheck --check-prefix CHECK-STDOUT < %t.log %s
 # RUN: filecheck --check-prefix CHECK-STDERR < %t.err %s
 
@@ -39,7 +39,7 @@
 # RUN:   --sandbox %t.SANDBOX2 \
 # RUN:   --test-suite %S/Inputs/rerun-test-suite2 \
 # RUN:   --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
-# RUN:   --no-timestamp --rerun --run-order 4 --verbose \
+# RUN:   --rerun --run-order 4 --verbose \
 # RUN:   > %t.2.log 2> %t.2.err || cat %t.2.err
 # RUN: echo "Run 2"
 # RUN: filecheck --check-prefix CHECK-STDOUT2 < %t.2.log %s
