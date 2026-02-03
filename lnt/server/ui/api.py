@@ -1,4 +1,5 @@
 import lnt.util.ImportData
+import yaml
 import sqlalchemy
 from flask import current_app, g, Response, make_response, stream_with_context
 from flask import json, jsonify
@@ -11,6 +12,8 @@ from lnt.server.ui.util import convert_revision
 from lnt.server.ui.decorators import in_db
 from lnt.testing import PASS
 from lnt.util import logger
+from lnt.server.db import testsuite
+from lnt.server.db import testsuitedb
 from functools import wraps
 
 
@@ -356,6 +359,68 @@ class Schema(Resource):
     def get():
         ts = request.get_testsuite()
         return ts.test_suite
+
+    @staticmethod
+    @requires_auth_token
+    def post():
+        allowed_types = {
+            'application/x-yaml',
+            'text/yaml',
+            'text/x-yaml',
+        }
+        if request.mimetype not in allowed_types:
+            abort(415, msg=(
+                f"Unsupported Content-Type '{request.mimetype}'. "
+                "Use application/x-yaml."
+            ))
+        raw_data = request.data
+        if not raw_data:
+            raw_data = request.form.get('schema')
+        if not raw_data:
+            abort(400, msg="No schema data provided.")
+
+        if isinstance(raw_data, bytes):
+            raw_text = raw_data.decode('utf-8')
+        else:
+            raw_text = raw_data
+
+        try:
+            data = yaml.safe_load(raw_text)
+        except Exception as exc:
+            abort(400, msg=f"Invalid YAML schema payload: {exc}")
+
+        if not isinstance(data, dict):
+            abort(400, msg="Schema payload must be a YAML object.")
+
+        schema_name = data.get('name')
+        if not schema_name:
+            abort(400, msg="Schema payload missing 'name'.")
+        if g.testsuite_name and g.testsuite_name != schema_name:
+            abort(400, msg=f"Schema name '{schema_name}' does not match URL testsuite '{g.testsuite_name}'.")
+
+        try:
+            suite = testsuite.TestSuite.from_json(data)
+        except Exception as exc:
+            abort(400, msg=str(exc))
+
+        session = request.session
+        try:
+            testsuite.check_testsuite_schema_changes(session, suite)
+            suite = testsuite.sync_testsuite_with_metatables(session, suite)
+            session.commit()
+        except Exception as exc:
+            session.rollback()
+            abort(400, msg=str(exc))
+
+        tsdb = testsuitedb.TestSuiteDB(request.db, suite.name, suite)
+        tsdb.create_tables(request.db.engine)
+        request.db.testsuite[suite.name] = tsdb
+        request.db.testsuite = dict(sorted(request.db.testsuite.items()))
+
+        result = common_fields_factory()
+        result['testsuite'] = suite.name
+        result['schema'] = suite.__json__()
+        return result, 201
 
 
 class SampleData(Resource):

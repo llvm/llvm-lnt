@@ -324,6 +324,37 @@ def action_post_run(config, datafiles, select_machine, merge):
             sys.stderr.write('\n')
 
 
+@click.command("add-schema")
+@_pass_config
+@click.argument("schema_file", type=click.Path(exists=True), required=True)
+def action_add_schema(config, schema_file):
+    """Upload a YAML testsuite schema to the server."""
+    _check_auth_token(config)
+
+    url = f"{config.lnt_url}/api/db_{config.database}/v4/{config.testsuite}/schema"
+    with open(schema_file, 'rb') as schema_fd:
+        schema_data = schema_fd.read()
+
+    response = config.session.post(
+        url,
+        data=schema_data,
+        headers={'Content-Type': 'application/x-yaml'},
+    )
+    _check_response(response)
+
+    try:
+        response_data = json.loads(response.text)
+        testsuite_name = response_data.get('testsuite')
+        if testsuite_name:
+            sys.stdout.write(f"{testsuite_name}\n")
+            return
+        if config.verbose:
+            json.dump(response_data, sys.stderr, indent=2, sort_keys=True)
+    except Exception:
+        if config.verbose:
+            sys.stderr.write(response.text)
+
+
 @click.command('create-config')
 def action_create_config():
     """Create example configuration."""
@@ -353,6 +384,7 @@ class AdminCLI(click.Group):
         action_machine_info,
         action_merge_machine_into,
         action_post_run,
+        action_add_schema,
         action_rename_machine,
         action_rm_machine,
         action_rm_run,

@@ -119,8 +119,8 @@ Custom Test Suites
 
 LNT test suite schemas define which metrics can be tracked for a test and what
 extra information is known about runs and machines.  You can define your own
-test suite schemas in a yaml file. The LNT administrator has to place (or
-symlink) this yaml file into the servers schema directory.
+test suite schemas in a yaml file. The LNT administrator can upload the schema
+to the server using the ``lnt admin add-schema`` command (see :ref:`admin_tools`).
 
 Example:
 
