@@ -95,6 +95,31 @@ machine_fields:
         result = json.loads(resp.data)
         self.assertIn("Invalid test suite name", result.get("msg", ""))
 
+    def test_post_schema_invalid_name_prefixes(self):
+        for suite_name in ("1test", "_test"):
+            payload = self._schema_payload(suite_name)
+            resp = self.client.post(
+                f"api/db_default/v4/{suite_name}/schema",
+                data=payload,
+                content_type="application/x-yaml",
+                headers={"AuthToken": "test_token"},
+            )
+            self.assertEqual(resp.status_code, 400)
+            result = json.loads(resp.data)
+            self.assertIn("Invalid test suite name", result.get("msg", ""))
+
+    def test_post_schema_empty_name(self):
+        payload = self._schema_payload("\"\"")
+        resp = self.client.post(
+            "api/db_default/v4/empty_name/schema",
+            data=payload,
+            content_type="application/x-yaml",
+            headers={"AuthToken": "test_token"},
+        )
+        self.assertEqual(resp.status_code, 400)
+        result = json.loads(resp.data)
+        self.assertIn("Schema payload missing 'name'", result.get("msg", ""))
+
     def test_post_unsupported_content_type(self):
         payload = self._schema_payload("schema_test_suite")
         resp = self.client.post(
