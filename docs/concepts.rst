@@ -66,6 +66,7 @@ server using either the lnt import or submit commands, see :ref:`tools`, or
 HTTP POSTed to the submitRun URL.
 
 The most common program to submit data to LNT is the LNT client application
-itself.  The ``lnt runtest nt`` command can run the LLVM test suite, and submit
-data under the NTS test suite. Likewise the ``lnt runtest compile`` command
-can run a set of compile time benchmarks and submit to the Compile test suite.
+itself.  The ``lnt runtest test-suite`` command can run the LLVM test suite,
+and submit data under the NTS test suite. Likewise the ``lnt runtest compile``
+command can run a set of compile time benchmarks and submit to the Compile
+test suite.

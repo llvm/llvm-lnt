@@ -4,7 +4,7 @@ Access to built-in tests.
 # FIXME: There are better ways to do this, no doubt. We also would like this to
 # be extensible outside of the installation. Lookup how 'nose' handles this.
 
-_known_tests = set(['compile', 'nt', 'test_suite'])
+_known_tests = set(['compile', 'test_suite'])
 
 
 def get_names():
