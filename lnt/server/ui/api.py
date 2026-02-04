@@ -1,4 +1,5 @@
 import lnt.util.ImportData
+import re
 import yaml
 import sqlalchemy
 from flask import current_app, g, Response, make_response, stream_with_context
@@ -397,6 +398,11 @@ class Schema(Resource):
         schema_name = data.get('name')
         if not schema_name:
             abort(400, msg="Schema payload missing 'name'.")
+        if not re.match(r'^[A-Za-z][A-Za-z0-9_]*$', schema_name):
+            abort(400, msg=(
+                "Invalid test suite name. Use letters, numbers, and underscores, "
+                "starting with a letter."
+            ))
         if g.testsuite_name and g.testsuite_name != schema_name:
             abort(400, msg=f"Schema name '{schema_name}' does not match URL testsuite '{g.testsuite_name}'.")
 
