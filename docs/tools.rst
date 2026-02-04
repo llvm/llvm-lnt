@@ -52,11 +52,11 @@ Server Administration
 
 The ``lnt admin`` tool allows connecting to a server through LNTs REST API and
 perform data queries and modifications. Data modification is only possible with
-an authentication mechanism specified in the `lntadmin.cfg` file.  See
+an authentication mechanism specified in the ``lntadmin.yaml`` file.  See
 :ref:`auth_tokens` for details.
 
   ``lnt admin create-config``
-  Create a `lntadmin.cfg` configuration file in the current directory. The file
+  Create a ``lntadmin.yaml`` configuration file in the current directory. The file
   describes the URL, authentication settings and default database and
   test-suite settings for an LNT server. The other admin commands read this
   file if it exists.
