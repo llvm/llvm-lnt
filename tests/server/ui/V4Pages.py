@@ -375,9 +375,9 @@ def main():
 
     # Get a graph page. This has been changed to redirect.
     check_redirect(client, '/v4/nts/1/graph?test.3=2',
-                   'v4/nts/graph\?'
-                   '(plot\.0=1\.3\.2&highlight_run=1'
-                   '|highlight_run=1&plot\.0=1\.3\.2)$')
+                   r'v4/nts/graph\?'
+                   r'(plot\.0=1\.3\.2&highlight_run=1'
+                   r'|highlight_run=1&plot\.0=1\.3\.2)$')
 
     # Get a run that contains generic producer information
     check_producer_label(client, '/v4/nts/7',
@@ -423,13 +423,13 @@ def main():
     check_html(client, '/v4/nts/daily_report/2012/4/10')
     check_html(client, '/v4/nts/daily_report/2012/4/14')
     check_redirect(client, '/v4/nts/daily_report',
-                   '/v4/nts/daily_report/\d+/\d+/\d+$')
+                   r'/v4/nts/daily_report/\d+/\d+/\d+$')
     check_redirect(client, '/v4/nts/daily_report?num_days=7',
-                   '/v4/nts/daily_report/\d+/\d+/\d+\?num_days=7$')
+                   r'/v4/nts/daily_report/\d+/\d+/\d+\?num_days=7$')
     # Don't crash when using a parameter that happens to have the same name as
     # a flask URL variable.
     check_redirect(client, '/v4/nts/daily_report?day=15',
-                   '/v4/nts/daily_report/\d+/\d+/\d+$')
+                   r'/v4/nts/daily_report/\d+/\d+/\d+$')
     # Don't crash when requesting non-existing data
     check_html(client, '/v4/nts/daily_report/1999/4/12')
     check_code(client, '/v4/nts/daily_report/-1/4/12',
