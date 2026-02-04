@@ -971,6 +971,7 @@ def load_geomean_data(field, machine, limit, xaxis_date, revision_cache=None):
 
     return data
 
+
 @v4_route("/graph")
 def v4_graph():
     session = request.session
