@@ -47,6 +47,8 @@ Client-Side Tools
     compile or run correctly.
 
 
+.. _admin_tools:
+
 Server Administration
 ~~~~~~~~~~~~~~~~~~~~~
 
