@@ -360,6 +360,30 @@ def action_test_suite_add(config, schema_file):
             sys.stderr.write(response.text)
 
 
+@action_test_suite.command("delete")
+@_pass_config
+@click.argument("testsuite_name", required=True)
+def action_test_suite_delete(config, testsuite_name):
+    """Delete a test suite from the server."""
+    _check_auth_token(config)
+
+    url = f"{config.lnt_url}/api/db_{config.database}/v4/{testsuite_name}/schema"
+    response = config.session.delete(url)
+    _check_response(response)
+
+    try:
+        response_data = json.loads(response.text)
+        deleted_suite = response_data.get('testsuite')
+        if deleted_suite:
+            sys.stdout.write(f"{deleted_suite}\n")
+            return
+        if config.verbose:
+            json.dump(response_data, sys.stderr, indent=2, sort_keys=True)
+    except Exception:
+        if config.verbose:
+            sys.stderr.write(response.text)
+
+
 @click.command('create-config')
 def action_create_config():
     """Create example configuration."""

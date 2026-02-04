@@ -775,6 +775,9 @@ class TestSuiteDB(object):
     def create_tables(self, engine):
         self.base.metadata.create_all(engine)
 
+    def drop_tables(self, engine):
+        self.base.metadata.drop_all(engine)
+
     def get_baselines(self, session):
         return session.query(self.Baseline).all()
 

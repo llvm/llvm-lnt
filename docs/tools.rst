@@ -93,6 +93,9 @@ an authentication mechanism specified in the ``lntadmin.yaml`` file.  See
   ``lnt admin test-suite add <schema.yaml>``
   Add a new test suite to the server with the specified YAML schema.
 
+  ``lnt admin test-suite delete <testsuite>``
+  Delete the specified test suite.
+
   ``lnt admin rm-run <run>+``
   Remove the specified runs and related samples.
 
