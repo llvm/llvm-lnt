@@ -1,11 +1,12 @@
-# Check schema upload REST API.
-# create temporary instance
+# This test checks the /schema POST API that allows creating a new schema.
+
 # RUN: rm -rf %t.instance
 # RUN: python %{shared_inputs}/create_temp_instance.py \
 # RUN:     %s %{shared_inputs}/SmallInstance \
-# RUN:     %t.instance %S/../ui/Inputs/V4Pages_extra_records.sql
+# RUN:     %t.instance %S/../../ui/Inputs/V4Pages_extra_records.sql
 #
 # RUN: python %s %t.instance
+# END.
 
 import json
 import logging
@@ -13,11 +14,11 @@ import os
 import sys
 import unittest
 
-TESTS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+TESTS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 UI_DIR = os.path.join(TESTS_DIR, 'ui')
 sys.path.insert(0, UI_DIR)
 
-from lnt.server.ui.app import App
+import lnt.server.ui.app
 from V4Pages import check_json
 
 logging.basicConfig(level=logging.INFO)
@@ -28,7 +29,7 @@ class SchemaApiTest(unittest.TestCase):
 
     def setUp(self):
         _, instance_path = sys.argv
-        app = App.create_standalone(instance_path)
+        app = lnt.server.ui.app.App.create_standalone(instance_path)
         app.testing = True
         self.client = app.test_client()
 
