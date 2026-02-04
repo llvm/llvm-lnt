@@ -66,6 +66,17 @@ Example::
 
     curl --request DELETE --header "AuthToken: SomeSecret" http://localhost:8000/api/db_default/v4/nts/runs/1
 
+The schema endpoint also supports creating or updating a test suite schema via ``POST``. This requires an ``AuthToken``
+header and a YAML payload.
+
+Example::
+
+        curl --request POST \
+            --header "AuthToken: SomeSecret" \
+            --header "Content-Type: application/x-yaml" \
+            --data-binary @my_suite.yaml \
+            http://localhost:8000/api/db_default/v4/my_suite/schema
+
 Accessing Data outside of LNT: Tableau Web Data Connector
 =========================================================
 

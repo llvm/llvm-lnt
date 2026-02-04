@@ -1,0 +1,114 @@
+# RUN: rm -rf %t.instance
+# RUN: rm -rf %t.tmp && mkdir -p %t.tmp
+# RUN: python %{shared_inputs}/create_temp_instance.py \
+# RUN:   %s %{shared_inputs}/SmallInstance %t.instance
+# RUN: %{shared_inputs}/server_wrapper.sh %t.instance 9095 /bin/sh %s %t.tmp %{shared_inputs}
+
+set -eux
+DIR="$1"
+SHARED_INPUTS="$2"
+cd "$DIR"
+
+expect_add_schema_failure() {
+  local schema_file="$1"
+  local output_file="$2"
+  if lnt admin --testsuite new_test_suite test-suite add "$schema_file" > "$output_file" 2>&1; then
+    echo "Expected failure for $schema_file" >&2
+    exit 1
+  fi
+}
+
+cat > lntadmin.yaml << '__EOF__'
+lnt_url: "http://localhost:9095"
+database: default
+testsuite: nts
+auth_token: test_token
+__EOF__
+
+SCHEMA_URL="http://localhost:9095/api/db_default/v4/new_test_suite/schema"
+
+#
+# Invalid YAML payload.
+#
+printf "invalid: [\n" > invalid_yaml.yaml
+expect_add_schema_failure invalid_yaml.yaml invalid_yaml.stdout
+# RUN: filecheck %s --check-prefix=INVALID_YAML < %t.tmp/invalid_yaml.stdout
+# INVALID_YAML: Invalid YAML schema payload
+
+#
+# YAML payload is not a mapping.
+#
+printf '%s\n' '- item1' > non_object.yaml
+expect_add_schema_failure non_object.yaml non_object.stdout
+# RUN: filecheck %s --check-prefix=NON_OBJECT < %t.tmp/non_object.stdout
+# NON_OBJECT: Schema payload must be a YAML object.
+
+#
+# YAML payload missing required name field.
+#
+cat > missing_name.yaml << '__EOF__'
+format_version: '2'
+metrics:
+  - name: execution_time
+    type: Real
+__EOF__
+expect_add_schema_failure missing_name.yaml missing_name.stdout
+# RUN: filecheck %s --check-prefix=MISSING_NAME < %t.tmp/missing_name.stdout
+# MISSING_NAME: Schema payload missing 'name'.
+
+#
+# YAML payload name does not match URL testsuite.
+#
+cat > mismatched_name.yaml << '__EOF__'
+format_version: '2'
+name: mismatched_suite
+metrics:
+  - name: execution_time
+    type: Real
+__EOF__
+expect_add_schema_failure mismatched_name.yaml mismatched_name.stdout
+# RUN: filecheck %s --check-prefix=MISMATCHED_NAME < %t.tmp/mismatched_name.stdout
+# MISMATCHED_NAME: Schema name 'mismatched_suite' does not match URL testsuite 'new_test_suite'.
+
+#
+# Empty schema file.
+#
+rm -f empty_schema.yaml
+touch empty_schema.yaml
+expect_add_schema_failure empty_schema.yaml empty_schema.stdout
+# RUN: filecheck %s --check-prefix=EMPTY_SCHEMA < %t.tmp/empty_schema.stdout
+# EMPTY_SCHEMA: No schema data provided.
+
+#
+# Valid schema upload via CLI.
+#
+cat > schema.yaml << '__EOF__'
+format_version: '2'
+name: new_test_suite
+metrics:
+  - name: execution_time
+    type: Real
+    unit: seconds
+run_fields:
+  - name: build_revision
+    order: true
+machine_fields:
+  - name: hardware
+__EOF__
+
+lnt admin --testsuite new_test_suite test-suite add schema.yaml > add_schema.stdout 2>&1
+# RUN: filecheck %s --check-prefix=ADD_SCHEMA < %t.tmp/add_schema.stdout
+# ADD_SCHEMA: new_test_suite
+
+#
+# Fetch schema to verify upload content.
+#
+curl -s "$SCHEMA_URL" | jq -r \
+  '.format_version, .name, .machine_fields[].name, .metrics[].name, .run_fields[].name' \
+  > schema_response.txt 2>&1
+# RUN: filecheck %s --check-prefix=SCHEMA_VERIFY < %t.tmp/schema_response.txt
+# SCHEMA_VERIFY: 2
+# SCHEMA_VERIFY: new_test_suite
+# SCHEMA_VERIFY: hardware
+# SCHEMA_VERIFY: execution_time
+# SCHEMA_VERIFY: build_revision
