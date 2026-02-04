@@ -1,30 +1,61 @@
 # Testing text importing.
 #
 # RUN: lnt importreport --testsuite nts --order 123 --machine foo %S/Inputs/example_metrics.lnt %t.json
-# RUN: filecheck --input-file %t.json %s
-# CHECK:        {
-# CHECK-NEXT:       "format_version": "2",
-# CHECK-NEXT:       "machine": {
-# CHECK-NEXT:           "name": "foo"
-# CHECK-NEXT:       },
-# CHECK-NEXT:       "run": {
-# CHECK-NEXT:           "end_time": "{{.+}}",
-# CHECK-NEXT:           "llvm_project_revision": "123",
-# CHECK-NEXT:           "start_time": "{{.+}}"
-# CHECK-NEXT:       },
-# CHECK-NEXT:       "tests": [
-# CHECK-NEXT:           {
-# CHECK-NEXT:               "execution_time": [
-# CHECK-NEXT:                   10.0,
-# CHECK-NEXT:                   11.0
-# CHECK-NEXT:               ],
-# CHECK-NEXT:               "hash": "d7",
-# CHECK-NEXT:               "name": "foo"
-# CHECK-NEXT:           },
-# CHECK-NEXT:           {
-# CHECK-NEXT:               "execution_time": 20.0,
-# CHECK-NEXT:               "name": "bar",
-# CHECK-NEXT:               "profile": "Xz6/"
-# CHECK-NEXT:           }
-# CHECK-NEXT:       ]
-# CHECK-NEXT:   }
+# RUN: filecheck --check-prefix=CHECK-1 --input-file %t.json %s
+# CHECK-1:        {
+# CHECK-1-NEXT:       "format_version": "2",
+# CHECK-1-NEXT:       "machine": {
+# CHECK-1-NEXT:           "name": "foo"
+# CHECK-1-NEXT:       },
+# CHECK-1-NEXT:       "run": {
+# CHECK-1-NEXT:           "end_time": "{{.+}}",
+# CHECK-1-NEXT:           "llvm_project_revision": "123",
+# CHECK-1-NEXT:           "start_time": "{{.+}}"
+# CHECK-1-NEXT:       },
+# CHECK-1-NEXT:       "tests": [
+# CHECK-1-NEXT:           {
+# CHECK-1-NEXT:               "execution_time": [
+# CHECK-1-NEXT:                   10.0,
+# CHECK-1-NEXT:                   11.0
+# CHECK-1-NEXT:               ],
+# CHECK-1-NEXT:               "hash": "d7",
+# CHECK-1-NEXT:               "name": "foo"
+# CHECK-1-NEXT:           },
+# CHECK-1-NEXT:           {
+# CHECK-1-NEXT:               "execution_time": 20.0,
+# CHECK-1-NEXT:               "name": "bar",
+# CHECK-1-NEXT:               "profile": "Xz6/"
+# CHECK-1-NEXT:           }
+# CHECK-1-NEXT:       ]
+# CHECK-1-NEXT:   }
+
+# Testing text importing with empty lines.
+#
+# RUN: lnt importreport --testsuite nts --order 123 --machine foo %S/Inputs/empty-lines.lnt %t.json
+# RUN: filecheck --check-prefix=CHECK-2 --input-file %t.json %s
+# CHECK-2:        {
+# CHECK-2-NEXT:       "format_version": "2",
+# CHECK-2-NEXT:       "machine": {
+# CHECK-2-NEXT:           "name": "foo"
+# CHECK-2-NEXT:       },
+# CHECK-2-NEXT:       "run": {
+# CHECK-2-NEXT:           "end_time": "{{.+}}",
+# CHECK-2-NEXT:           "llvm_project_revision": "123",
+# CHECK-2-NEXT:           "start_time": "{{.+}}"
+# CHECK-2-NEXT:       },
+# CHECK-2-NEXT:       "tests": [
+# CHECK-2-NEXT:           {
+# CHECK-2-NEXT:               "execution_time": [
+# CHECK-2-NEXT:                   10.0,
+# CHECK-2-NEXT:                   11.0
+# CHECK-2-NEXT:               ],
+# CHECK-2-NEXT:               "hash": "d7",
+# CHECK-2-NEXT:               "name": "foo"
+# CHECK-2-NEXT:           },
+# CHECK-2-NEXT:           {
+# CHECK-2-NEXT:               "execution_time": 20.0,
+# CHECK-2-NEXT:               "name": "bar",
+# CHECK-2-NEXT:               "profile": "Xz6/"
+# CHECK-2-NEXT:           }
+# CHECK-2-NEXT:       ]
+# CHECK-2-NEXT:   }

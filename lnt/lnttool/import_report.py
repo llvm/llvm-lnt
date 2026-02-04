@@ -52,6 +52,8 @@ def action_importreport(input, output, suite, order, machine, run_info):
 
     tests = {}  # name => lnt.testing.Test
     for line in input.readlines():
+        if not line.strip():
+            continue
         key, val = line.split()
         (testname, metric) = key.split(".")
         metric_type = float if metric not in ("hash", "profile") else str
