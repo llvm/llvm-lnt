@@ -17,7 +17,6 @@ TESTS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 UI_DIR = os.path.join(TESTS_DIR, 'ui')
 sys.path.insert(0, UI_DIR)
 
-import lnt.server.ui.app
 from lnt.server.ui.app import App
 from V4Pages import check_json
 
@@ -34,7 +33,7 @@ class SchemaApiTest(unittest.TestCase):
         self.client = app.test_client()
 
     def _schema_payload(self, name):
-                return f"""
+        return f"""
 format_version: '2'
 name: {name}
 metrics:
