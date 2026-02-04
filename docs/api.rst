@@ -22,6 +22,8 @@ Complete Endpoint Summary
 +-------+-------------------------------------------------------+---------------------------+
 | POST  | /schema                                               | **Yes**                   |
 +-------+-------------------------------------------------------+---------------------------+
+| DELETE| /schema                                               | **Yes**                   |
++-------+-------------------------------------------------------+---------------------------+
 | GET   | /machines                                             | No                        |
 +-------+-------------------------------------------------------+---------------------------+
 | GET   | /machines/<machine_spec>                              | No                        |
@@ -242,6 +244,38 @@ Creates or updates a test suite schema. Requires authentication.
 * 400 Bad Request - Invalid YAML, missing required fields, or schema validation errors
 * 401 Unauthorized - Missing or invalid AuthToken
 * 415 Unsupported Media Type - Content-Type is not application/x-yaml
+
+**DELETE** ``/api/db_<database>/v4/<testsuite>/schema``
+
+Deletes the test suite schema and drops all associated tables. Requires authentication.
+
+**Headers:**
+
+* ``AuthToken: <token>`` (required)
+
+**Example:**
+
+.. code-block:: bash
+
+    curl --request DELETE \
+         --header "AuthToken: SomeSecret" \
+         http://localhost:8000/api/db_default/v4/my_suite/schema
+
+**Response (200 OK):**
+
+.. code-block:: json
+
+    {
+        "generated_by": "LNT Server <version>",
+        "testsuite": "my_suite",
+        "deleted": true
+    }
+
+**Error Responses:**
+
+* 401 Unauthorized - Missing or invalid AuthToken
+* 404 Not Found - Unknown test suite
+* 500 Internal Server Error - Failed to delete test suite or drop tables
 
 Machines
 ~~~~~~~~
