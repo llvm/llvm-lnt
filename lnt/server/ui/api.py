@@ -15,8 +15,6 @@ from lnt.server.ui.util import convert_revision
 from lnt.server.ui.decorators import in_db
 from lnt.testing import PASS
 from lnt.util import logger
-from lnt.server.db import testsuite
-from lnt.server.db import testsuitedb
 from functools import wraps
 
 
