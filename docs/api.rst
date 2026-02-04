@@ -36,7 +36,7 @@ once.
 +---------------------------------+------------------------------------------------------------------------------------+
 | /samples/`id`                   | Get all non-empty sample info for Sample `id`.                                     |
 +---------------------------------+------------------------------------------------------------------------------------+
-| /schema                         | Return test suite schema.                                                          |
+| /schema                         | Return test suite schema. POST uploads, DELETE removes a test suite.               |
 +---------------------------------+------------------------------------------------------------------------------------+
 | /fields                         | Return all fields in this testsuite.                                               |
 +---------------------------------+------------------------------------------------------------------------------------+
@@ -54,7 +54,7 @@ once.
 Write Operations
 ----------------
 
-The machines, orders and runs endpoints also support the DELETE http method.  The user must include a http header called
+The machines, orders, runs and schema endpoints also support the DELETE http method.  The user must include a http header called
 "AuthToken" which has the API auth token set in the LNT instance configuration.
 
 The API Auth token can be set by adding `api_auth_token` to the instances lnt.cfg config file::
