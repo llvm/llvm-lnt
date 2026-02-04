@@ -324,10 +324,15 @@ def action_post_run(config, datafiles, select_machine, merge):
             sys.stderr.write('\n')
 
 
-@click.command("add-schema")
+@click.group("test-suite", no_args_is_help=True)
+def action_test_suite():
+    """Test suite administration."""
+
+
+@action_test_suite.command("add")
 @_pass_config
 @click.argument("schema_file", type=click.Path(exists=True), required=True)
-def action_add_schema(config, schema_file):
+def action_test_suite_add(config, schema_file):
     """Upload a YAML testsuite schema to the server."""
     _check_auth_token(config)
 
@@ -384,7 +389,7 @@ class AdminCLI(click.Group):
         action_machine_info,
         action_merge_machine_into,
         action_post_run,
-        action_add_schema,
+        action_test_suite,
         action_rename_machine,
         action_rm_machine,
         action_rm_run,

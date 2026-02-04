@@ -12,7 +12,7 @@ cd "$DIR"
 expect_add_schema_failure() {
   local schema_file="$1"
   local output_file="$2"
-  if lnt admin --testsuite new_test_suite add-schema "$schema_file" > "$output_file" 2>&1; then
+  if lnt admin --testsuite new_test_suite test-suite add "$schema_file" > "$output_file" 2>&1; then
     echo "Expected failure for $schema_file" >&2
     exit 1
   fi
@@ -96,7 +96,7 @@ machine_fields:
   - name: hardware
 __EOF__
 
-lnt admin --testsuite new_test_suite add-schema schema.yaml > add_schema.stdout 2>&1
+lnt admin --testsuite new_test_suite test-suite add schema.yaml > add_schema.stdout 2>&1
 # RUN: filecheck %s --check-prefix=ADD_SCHEMA < %t.tmp/add_schema.stdout
 # ADD_SCHEMA: new_test_suite
 

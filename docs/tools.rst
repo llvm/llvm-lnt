@@ -88,7 +88,7 @@ an authentication mechanism specified in the `lntadmin.cfg` file.  See
   ``lnt admin post-run <filename>+``
   Post the specified report files as a new runs to the server.
 
-  ``lnt admin add-schema <schema.yaml>``
+  ``lnt admin test-suite add <schema.yaml>``
   Add a new test suite to the server with the specified YAML schema.
 
   ``lnt admin rm-run <run>+``
