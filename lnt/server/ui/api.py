@@ -455,7 +455,6 @@ class Schema(Resource):
 
         result = common_fields_factory()
         result['testsuite'] = suite_name
-        result['deleted'] = True
         return result
 
 

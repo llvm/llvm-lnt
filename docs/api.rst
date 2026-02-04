@@ -267,8 +267,7 @@ Deletes the test suite schema and drops all associated tables. Requires authenti
 
     {
         "generated_by": "LNT Server <version>",
-        "testsuite": "my_suite",
-        "deleted": true
+        "testsuite": "my_suite"
     }
 
 **Error Responses:**

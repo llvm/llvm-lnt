@@ -70,7 +70,6 @@ machine_fields:
         self.assertEqual(resp.status_code, 200, resp.data.decode("utf-8"))
         result = json.loads(resp.data)
         self.assertEqual(result["testsuite"], "schema_delete_suite")
-        self.assertTrue(result.get("deleted"))
 
         resp = self.client.get("api/db_default/v4/schema_delete_suite/schema")
         self.assertEqual(resp.status_code, 404)
@@ -90,7 +89,6 @@ machine_fields:
         self.assertEqual(resp.status_code, 200, resp.data.decode("utf-8"))
         result = json.loads(resp.data)
         self.assertEqual(result["testsuite"], "nts")
-        self.assertTrue(result.get("deleted"))
 
         resp = self.client.get("api/db_default/v4/nts/schema")
         self.assertEqual(resp.status_code, 404)
