@@ -83,6 +83,18 @@ machine_fields:
         )
         self.assertEqual(resp.status_code, 400)
 
+    def test_post_schema_invalid_name(self):
+        payload = self._schema_payload("bad-name")
+        resp = self.client.post(
+            "api/db_default/v4/bad-name/schema",
+            data=payload,
+            content_type="application/x-yaml",
+            headers={"AuthToken": "test_token"},
+        )
+        self.assertEqual(resp.status_code, 400)
+        result = json.loads(resp.data)
+        self.assertIn("Invalid test suite name", result.get("msg", ""))
+
     def test_post_unsupported_content_type(self):
         payload = self._schema_payload("schema_test_suite")
         resp = self.client.post(
