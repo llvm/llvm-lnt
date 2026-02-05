@@ -2,7 +2,6 @@
 # RUN: rm -rf %t.SANDBOX
 # RUN: lnt runtest test-suite \
 # RUN:     --sandbox %t.SANDBOX \
-# RUN:     --no-timestamp \
 # RUN:     --test-suite %S/Inputs/test-suite-cmake \
 # RUN:     --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
 # RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
@@ -11,11 +10,10 @@
 # RUN:     --use-perf=all \
 # RUN:     -j2 \
 # RUN:     --verbose \
-# RUN:     > %t.log 2> %t.err
+# RUN:     --output %t.report.json
 # RUN: rm -rf %t.DB
-# RUN: lnt create %t.DB >> %t.log 2>> %t.err
-# RUN: lnt import %t.DB %t.SANDBOX/build/report.json \
-# RUN:   --show-sample-count >> %t.log 2>> %t.err
+# RUN: lnt create %t.DB
+# RUN: lnt import %t.DB %t.report.json --show-sample-count
 # RUN: python %s %t.DB
 
 import sys

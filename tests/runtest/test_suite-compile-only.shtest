@@ -2,7 +2,6 @@
 # RUN: rm -rf %t.SANDBOX
 # RUN: lnt runtest test-suite \
 # RUN:     --sandbox %t.SANDBOX \
-# RUN:     --no-timestamp \
 # RUN:     --test-suite %S/Inputs/test-suite-cmake \
 # RUN:     --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
 # RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
@@ -10,6 +9,6 @@
 # RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit-profile \
 # RUN:     --verbose \
 # RUN:     --only-compile \
-# RUN:     > %t.pgo.log 2> %t.compile-only.err
-# RUN: filecheck --check-prefix CHECK-CO < %t.compile-only.err %s
-# CHECK-CO: TEST_SUITE_RUN_BENCHMARKS: 'Off'
+# RUN:     > %t.log 2> %t.err
+# RUN: filecheck %s < %t.err
+# CHECK: TEST_SUITE_RUN_BENCHMARKS: 'Off'

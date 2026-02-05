@@ -4,7 +4,6 @@
 # RUN: rm -rf %t.SANDBOX
 # RUN: lnt runtest test-suite \
 # RUN:     --sandbox %t.SANDBOX \
-# RUN:     --no-timestamp \
 # RUN:     --test-suite %S/Inputs/test-suite-cmake \
 # RUN:     --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
 # RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
@@ -36,7 +35,6 @@
 # Check a run of test-suite using a invalid cmake cache
 # RUN: lnt runtest test-suite \
 # RUN:     --sandbox %t.SANDBOX \
-# RUN:     --no-timestamp \
 # RUN:     --test-suite %S/Inputs/test-suite-cmake \
 # RUN:     --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
 # RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \

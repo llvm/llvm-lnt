@@ -4,13 +4,13 @@
 # RUN: rm -rf %t.SANDBOX-A %t.SANDBOX-B %t.SANDBOX-RESULTS
 # RUN: lnt runtest test-suite \
 # RUN:     --sandbox %t.SANDBOX-A \
-# RUN:     --no-timestamp \
 # RUN:     --test-suite %S/Inputs/test-suite-cmake \
 # RUN:     --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
 # RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
 # RUN:     --use-make %S/Inputs/test-suite-cmake/fake-make \
 # RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit \
 # RUN:     --build \
+# RUN:     --build-dir %t.SANDBOX-A/build \
 # RUN:     > %t.build-a.log 2> %t.build-a.err
 # RUN: filecheck --check-prefix CHECK-BUILD < %t.build-a.err %s
 # CHECK-BUILD: Building tests (--build mode)...
@@ -20,19 +20,17 @@
 # Test 2: Build a second sandbox
 # RUN: lnt runtest test-suite \
 # RUN:     --sandbox %t.SANDBOX-B \
-# RUN:     --no-timestamp \
 # RUN:     --test-suite %S/Inputs/test-suite-cmake \
 # RUN:     --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
 # RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
 # RUN:     --use-make %S/Inputs/test-suite-cmake/fake-make \
 # RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit \
 # RUN:     --build \
-# RUN:     > %t.build-b.log 2> %t.build-b.err
+# RUN:     --build-dir %t.SANDBOX-B/build
 
 # Test 3: Exec prebuilt with single build
 # RUN: lnt runtest test-suite \
 # RUN:     --sandbox %t.SANDBOX-RESULTS \
-# RUN:     --no-timestamp \
 # RUN:     --exec \
 # RUN:     --build-dir %t.SANDBOX-A/build \
 # RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
@@ -48,7 +46,6 @@
 # RUN: rm -rf %t.SANDBOX-RESULTS
 # RUN: lnt runtest test-suite \
 # RUN:     --sandbox %t.SANDBOX-RESULTS \
-# RUN:     --no-timestamp \
 # RUN:     --exec-interleaved-builds %t.SANDBOX-A/build,%t.SANDBOX-B/build \
 # RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
 # RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit \
@@ -91,7 +88,6 @@
 # Test 6: Error case - --build with --exec should fail
 # RUN: not lnt runtest test-suite \
 # RUN:     --sandbox %t.SANDBOX-ERR \
-# RUN:     --no-timestamp \
 # RUN:     --test-suite %S/Inputs/test-suite-cmake \
 # RUN:     --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
 # RUN:     --build \
@@ -103,7 +99,6 @@
 # Test 7: Error case - --exec without --build-dir or --exec-interleaved-builds should fail
 # RUN: not lnt runtest test-suite \
 # RUN:     --sandbox %t.SANDBOX-ERR2 \
-# RUN:     --no-timestamp \
 # RUN:     --exec \
 # RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit \
 # RUN:     > %t.err2.log 2> %t.err2.err

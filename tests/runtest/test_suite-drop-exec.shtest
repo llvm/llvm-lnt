@@ -4,7 +4,6 @@
 # Test 1: --drop-exec without --exec-multisample should fail
 # RUN: not lnt runtest test-suite \
 # RUN:     --sandbox %t.SANDBOX-ERR1 \
-# RUN:     --no-timestamp \
 # RUN:     --test-suite %S/Inputs/test-suite-cmake \
 # RUN:     --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
 # RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
@@ -18,7 +17,6 @@
 # Test 2: --drop-exec with --only-compile should fail
 # RUN: not lnt runtest test-suite \
 # RUN:     --sandbox %t.SANDBOX-ERR2 \
-# RUN:     --no-timestamp \
 # RUN:     --test-suite %S/Inputs/test-suite-cmake \
 # RUN:     --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
 # RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
@@ -33,7 +31,6 @@
 # Test 3: --drop-exec with --build should fail
 # RUN: not lnt runtest test-suite \
 # RUN:     --sandbox %t.SANDBOX-ERR3 \
-# RUN:     --no-timestamp \
 # RUN:     --test-suite %S/Inputs/test-suite-cmake \
 # RUN:     --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
 # RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
@@ -48,7 +45,6 @@
 # Test 4: --drop-exec dropping all samples should fail
 # RUN: not lnt runtest test-suite \
 # RUN:     --sandbox %t.SANDBOX-ERR4 \
-# RUN:     --no-timestamp \
 # RUN:     --test-suite %S/Inputs/test-suite-cmake \
 # RUN:     --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
 # RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
@@ -64,7 +60,6 @@
 # RUN: rm -rf %t.SANDBOX-DROP1
 # RUN: lnt runtest test-suite \
 # RUN:     --sandbox %t.SANDBOX-DROP1 \
-# RUN:     --no-timestamp \
 # RUN:     --test-suite %S/Inputs/test-suite-cmake \
 # RUN:     --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
 # RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
@@ -82,7 +77,6 @@
 # RUN: rm -rf %t.SANDBOX-DROP2
 # RUN: lnt runtest test-suite \
 # RUN:     --sandbox %t.SANDBOX-DROP2 \
-# RUN:     --no-timestamp \
 # RUN:     --test-suite %S/Inputs/test-suite-cmake \
 # RUN:     --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
 # RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
@@ -101,20 +95,18 @@
 # RUN: rm -rf %t.SANDBOX-BUILD-PREBUILT
 # RUN: lnt runtest test-suite \
 # RUN:     --sandbox %t.SANDBOX-BUILD-PREBUILT \
-# RUN:     --no-timestamp \
 # RUN:     --test-suite %S/Inputs/test-suite-cmake \
 # RUN:     --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
 # RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
 # RUN:     --use-make %S/Inputs/test-suite-cmake/fake-make \
 # RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit \
 # RUN:     --build \
-# RUN:     > %t.build-prebuilt.log 2> %t.build-prebuilt.err
+# RUN:     --build-dir %t.SANDBOX-BUILD-PREBUILT/build
 
 # Now test prebuilt with --drop-exec
 # RUN: rm -rf %t.SANDBOX-PREBUILT-TEST
 # RUN: lnt runtest test-suite \
 # RUN:     --sandbox %t.SANDBOX-PREBUILT-TEST \
-# RUN:     --no-timestamp \
 # RUN:     --exec \
 # RUN:     --build-dir %t.SANDBOX-BUILD-PREBUILT/build \
 # RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
