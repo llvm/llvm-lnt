@@ -21,7 +21,6 @@ fi
 echo "Creating necessary filesystem hierarchy on the persistent volume"
 mkdir -p /mnt/lnt-persistent-state/var/lib/lnt
 mkdir -p /mnt/lnt-persistent-state/var/lib/postgresql
-mkdir -p /var/log/lnt # logs are not persisted
 
 echo "Linking locations inside the persistent volume to the expected locations on the instance"
 if [[ ! -e "/var/lib/lnt" ]]; then

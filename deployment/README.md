@@ -48,9 +48,6 @@ docker logs webserver
 docker logs dbserver # usually less interesting
 ```
 
-Finally, the application-level logs produced by LNT (which are usually the most interesting)
-can be inspected under `/var/log/lnt`.
-
 The database is stored in an independent EBS storage that gets attached and detached
 to/from the EC2 instance when it is created/destroyed, but the EBS storage has its own
 independent life cycle (because we want the data to outlive any specific EC2 instance).

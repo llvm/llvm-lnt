@@ -652,7 +652,6 @@ def main():
     check_html(client, '/db_default/summary_report')
 
     check_html(client, '/rules')
-    check_html(client, '/log')
     resp = check_code(client, '/__health')
     assert resp.get_data(as_text=True) == "Ok"
     resp = check_code(client, '/ping')

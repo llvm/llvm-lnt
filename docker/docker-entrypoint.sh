@@ -28,6 +28,5 @@ exec gunicorn lnt_wsgi:application                      \
     --workers 8                                         \
     --timeout 300                                       \
     --name lnt_server                                   \
-    --log-file /var/log/lnt/lnt.log                     \
-    --access-logfile /var/log/lnt/gunicorn_access.log   \
+    --access-logfile -                                  \
     --max-requests 250000

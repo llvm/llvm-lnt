@@ -22,9 +22,6 @@
 #   /var/lib/lnt
 #     The actual LNT instance data (schema files, configuration files, etc).
 #
-#   /var/log/lnt
-#     Log files for the instance.
-#
 
 FROM python:3.10-alpine AS builder
 
@@ -50,8 +47,8 @@ RUN apk update && apk add --no-cache libpq
 
 COPY --from=builder /root/.local /root/.local
 
-# Prepare volumes that will be used by the server
-VOLUME /var/lib/lnt /var/log/lnt
+# Prepare volume that will be used by the server
+VOLUME /var/lib/lnt
 
 # Set up the actual entrypoint that gets run when the container starts.
 COPY docker/docker-entrypoint.sh docker/lnt-wait-db /usr/local/bin/

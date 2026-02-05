@@ -1,8 +1,6 @@
 import importlib.metadata
 import io
 import logging
-import logging.handlers
-import sys
 import time
 import traceback
 from logging import Formatter
@@ -30,10 +28,6 @@ import lnt.server.ui.regression_views
 import lnt.server.ui.views
 from lnt.server.ui.api import load_api_resources
 from lnt.util import logger
-
-
-# The default name of the log file.
-LOG_FILENAME = "lnt.log"
 
 
 class RootSlashPatchMiddleware(object):
@@ -190,24 +184,24 @@ class App(LNTExceptionLoggerFlask):
         return app
 
     @staticmethod
-    def create_standalone(config_path, log_file=None):
+    def create_standalone(config_path):
         """
         Create an instance of a lnt Flask application from a config file.
 
         :param config_path: path to lnt config (directory or config file).
-
-        :param log_file: instead of setting up logging, use this log file.
-        when running in a multiprocess server like gunicorn, you need to use
-        gunicorn's logging instead (since it is multiprocess safe. In this case
-        LNT will print to to stderr and it can be collected by gunicorn. The
-        LNT logs page will show this unified log page.
-
         :return: a LNT Flask App, ready to be loaded into a wsgi server.
-
         """
         instance = lnt.server.instance.Instance.frompath(config_path)
         app = App.create_with_instance(instance)
-        app.start_file_logging(log_file)
+
+        # Always log to stderr. In production, the webserver is generally run
+        # inside a Docker container where logging to stderr is the de facto
+        # standard.
+        handler = logging.StreamHandler()
+        handler.setLevel(logging.DEBUG)
+        handler.setFormatter(Formatter('%(levelname)s: %(message)s [in %(filename)s:%(lineno)d %(asctime)s]'))
+        app.logger.addHandler(handler)
+
         return app
 
     def __init__(self, name):
@@ -240,43 +234,6 @@ class App(LNTExceptionLoggerFlask):
         self.secret_key = self.old_config.secretKey
 
         lnt.server.db.rules_manager.register_hooks()
-
-    def start_file_logging(self, log_file_name):
-        """Start server production logging.  At this point flask already logs
-        to stderr, so just log to a file as well.
-
-        """
-        # Always Print to screen.
-        ch = logging.StreamHandler()
-        ch.setLevel(logging.DEBUG)
-        ch.setFormatter(Formatter('%(levelname)s: %(message)s '
-                                  '[in %(filename)s:%(lineno)d %(asctime)s]'))
-        self.logger.addHandler(ch)
-
-        # When running in a server config, use the server to setup the log
-        # file. If there is more than one process running, this will not work
-        # well.
-        if not log_file_name:
-            self.config['log_file_name'] = LOG_FILENAME
-            try:
-                rotating = logging.handlers.RotatingFileHandler(
-                    LOG_FILENAME, maxBytes=1048576, backupCount=5)
-                rotating.setFormatter(Formatter(
-                    '%(asctime)s %(levelname)s: %(message)s '
-                    '[in %(filename)s:%(lineno)d]'
-                ))
-                rotating.setLevel(logging.DEBUG)
-                self.logger.addHandler(rotating)
-            except (OSError, IOError) as e:
-                print("Error making log file",
-                      LOG_FILENAME, str(e), file=sys.stderr)
-                print("Will not log to file.", file=sys.stderr)
-            else:
-                self.logger.info("Started file logging.")
-                print("Logging to :", LOG_FILENAME)
-        else:
-            self.config['log_file_name'] = log_file_name
-
 
 def create_jinja_environment(env=None):
     """
