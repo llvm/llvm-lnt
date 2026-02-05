@@ -257,8 +257,7 @@ def get_inferred_run_order(info):
 
     # If that failed, infer from the LLVM revision (if specified on input).
     #
-    # FIXME: This is only used when using llvm source builds with 'lnt runtest
-    # nt', which itself is deprecated. We should remove this eventually.
+    # FIXME: We should remove this eventually.
     if info.get('llvm_revision', '').isdigit():
         return info['llvm_revision']
 

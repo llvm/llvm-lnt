@@ -18,7 +18,7 @@
 # RUN: filecheck  --check-prefix CHECK-ARGS < %t.err %s
 # CHECK-ARGS: --diagnose requires --only-test
 
-# Check a basic nt run.
+# Check a basic test-suite run.
 # RUN: lnt runtest test-suite \
 # RUN:     --sandbox %t.SANDBOX \
 # RUN:     --no-timestamp \

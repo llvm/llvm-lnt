@@ -5,7 +5,7 @@
 # `http://localhost:9089`.
 # ./server_wrapper <location of server files> <port> <command>
 # Example:
-# ./server_wrapper /tmp 9089 lnt runtest nt --submit "http://localhost:9089/db_default/submitRun" --cc /bin/clang --sandbox /tmp/sandbox
+# ./server_wrapper /tmp 9089 lnt runtest test-suite --submit "http://localhost:9089/db_default/submitRun" <...>
 
 # First launch the server.
 
@@ -13,7 +13,7 @@ PROGRAM="$(basename $0)"
 
 usage() {
     echo "usage: $PROGRAM <location of server files> <runtest type> <submit-through-url> <portnr> [arguments for lnt runtest]"
-    echo "e.g:   $PROGRAM /tmp/ nt yes --cc /bin/clang --sandbox /tmp/sandbox"
+    echo "e.g:   $PROGRAM /tmp/ test-suite yes --cc /bin/clang --sandbox /tmp/sandbox"
 }
 
 error() {
