@@ -2,6 +2,7 @@
 # RUN: rm -rf %t.SANDBOX
 # RUN: lnt runtest test-suite \
 # RUN:     --sandbox %t.SANDBOX \
+# RUN:     --no-timestamp \
 # RUN:     --test-suite %S/Inputs/test-suite-cmake \
 # RUN:     --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
 # RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
@@ -11,6 +12,6 @@
 # RUN:   --cflag '-Weverything' \
 # RUN:   --cflags '-Wall -test=escaped\ space -some-option="stay with me" -O3' \
 # RUN:     > %t.log 2> %t.err
-# RUN: filecheck %s < %t.err
-# CHECK: Inferred C++ compiler under test
-# CHECK: CMAKE_C_FLAGS: '--target=armv7a-none-eabi -Weverything -Wall '-test=escaped space' '-some-option=stay with me' -O3
+# RUN: filecheck --check-prefix CHECK-CFLAG5 < %t.err %s
+# CHECK-CFLAG5: Inferred C++ compiler under test
+# CHECK-CFLAG5: CMAKE_C_FLAGS: '--target=armv7a-none-eabi -Weverything -Wall '-test=escaped space' '-some-option=stay with me' -O3

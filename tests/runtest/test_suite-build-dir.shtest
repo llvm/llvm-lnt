@@ -5,6 +5,7 @@
 # RUN: mkdir -p %t.CUSTOM_BUILD
 # RUN: lnt runtest test-suite \
 # RUN:     --sandbox %t.SANDBOX \
+# RUN:     --no-timestamp \
 # RUN:     --test-suite %S/Inputs/test-suite-cmake \
 # RUN:     --cc %{shared_inputs}/FakeCompilers/clang-r154331 \
 # RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
@@ -24,6 +25,7 @@
 # Test 2: --exec with --build-dir using the custom build location
 # RUN: lnt runtest test-suite \
 # RUN:     --sandbox %t.SANDBOX \
+# RUN:     --no-timestamp \
 # RUN:     --exec \
 # RUN:     --build-dir %t.CUSTOM_BUILD/mybuild \
 # RUN:     --use-cmake %S/Inputs/test-suite-cmake/fake-cmake \
@@ -41,6 +43,7 @@
 # Test 3: Error case - --exec with --build-dir pointing to non-existent directory should fail
 # RUN: not lnt runtest test-suite \
 # RUN:     --sandbox %t.SANDBOX \
+# RUN:     --no-timestamp \
 # RUN:     --exec \
 # RUN:     --build-dir %t.NONEXISTENT \
 # RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit \
@@ -53,6 +56,7 @@
 # RUN: mkdir -p %t.UNCONFIGURED
 # RUN: not lnt runtest test-suite \
 # RUN:     --sandbox %t.SANDBOX \
+# RUN:     --no-timestamp \
 # RUN:     --exec \
 # RUN:     --build-dir %t.UNCONFIGURED \
 # RUN:     --use-lit %S/Inputs/test-suite-cmake/fake-lit \
@@ -63,6 +67,7 @@
 # Test 5: --exec with --build-dir and --only-test (tuple conversion test)
 # RUN: lnt runtest test-suite \
 # RUN:     --sandbox %t.SANDBOX \
+# RUN:     --no-timestamp \
 # RUN:     --exec \
 # RUN:     --build-dir %t.CUSTOM_BUILD/mybuild \
 # RUN:     --only-test SingleSource \
