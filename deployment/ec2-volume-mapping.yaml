@@ -12,13 +12,6 @@ volumes:
       type: none
       device: /var/lib/lnt
 
-  logs:
-    driver: local
-    driver_opts:
-      o: bind
-      type: none
-      device: /var/log/lnt
-
   database:
     driver: local
     driver_opts:

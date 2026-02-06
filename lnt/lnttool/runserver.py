@@ -41,7 +41,7 @@ view the results.
 
     init_logger(logging.INFO, show_sql=show_sql)
 
-    app = lnt.server.ui.app.App.create_standalone(instance_path,)
+    app = lnt.server.ui.app.App.create_standalone(instance_path)
     if debugger:
         app.debug = True
     if profiler:

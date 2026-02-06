@@ -1797,13 +1797,6 @@ def rules():
     return render_template("rules.html", rules=discovered_rules)
 
 
-@frontend.route('/log')
-def log():
-    with open(current_app.config['log_file_name'], 'r') as f:
-        log_lines = f.readlines()
-    return render_template("log.html", log_lines=log_lines)
-
-
 @frontend.route('/debug')
 def debug():
     assert not current_app.debug
