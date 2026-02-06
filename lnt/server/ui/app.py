@@ -235,6 +235,7 @@ class App(LNTExceptionLoggerFlask):
 
         lnt.server.db.rules_manager.register_hooks()
 
+
 def create_jinja_environment(env=None):
     """
     create_jinja_environment([env]) -> jinja2.Environment
