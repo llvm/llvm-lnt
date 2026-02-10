@@ -9,12 +9,12 @@ from flask_restful import Resource, abort
 from sqlalchemy.orm import joinedload
 from sqlalchemy.orm.exc import NoResultFound
 
-from lnt.server.db import testsuite
-from lnt.server.db import testsuitedb
 from lnt.server.ui.util import convert_revision
 from lnt.server.ui.decorators import in_db
 from lnt.testing import PASS
 from lnt.util import logger
+from lnt.server.db import testsuite
+from lnt.server.db import testsuitedb
 from functools import wraps
 
 
@@ -427,35 +427,6 @@ class Schema(Resource):
         result['testsuite'] = suite.name
         result['schema'] = suite.__json__()
         return result, 201
-
-    @staticmethod
-    @requires_auth_token
-    def delete():
-        session = request.session
-        suite_name = g.testsuite_name
-        suite = session.query(testsuite.TestSuite) \
-            .filter(testsuite.TestSuite.name == suite_name).first()
-        if suite is None:
-            abort(404, msg=f"Unknown test suite '{suite_name}'.")
-
-        tsdb = request.db.testsuite.get(suite_name)
-        if tsdb is None:
-            tsdb = testsuitedb.TestSuiteDB(request.db, suite_name, suite)
-
-        try:
-            tsdb.drop_tables(request.db.engine)
-            testsuite.delete_testsuite(session, suite_name)
-            session.commit()
-        except Exception as exc:
-            session.rollback()
-            abort(500, msg=f"Failed to delete test suite '{suite_name}': {exc}")
-
-        request.db.testsuite.pop(suite_name, None)
-        request.db.testsuite = dict(sorted(request.db.testsuite.items()))
-
-        result = common_fields_factory()
-        result['testsuite'] = suite_name
-        return result
 
 
 class SampleData(Resource):

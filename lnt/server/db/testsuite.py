@@ -534,34 +534,3 @@ def sync_testsuite_with_metatables(session, testsuite):
                      testsuite.sample_fields)
         testsuite = existing_ts
     return testsuite
-
-
-def delete_testsuite(session, name):
-    suite = session.query(TestSuite) \
-        .filter(TestSuite.name == name).first()
-    if suite is None:
-        return None
-
-    suite_id = suite.id
-    session.expunge(suite)
-
-    session.query(TestSuiteJSONSchema) \
-        .filter(TestSuiteJSONSchema.testsuite_name == name) \
-        .delete(synchronize_session=False)
-    session.query(MachineField) \
-        .filter(MachineField.test_suite_id == suite_id) \
-        .delete(synchronize_session=False)
-    session.query(OrderField) \
-        .filter(OrderField.test_suite_id == suite_id) \
-        .delete(synchronize_session=False)
-    session.query(RunField) \
-        .filter(RunField.test_suite_id == suite_id) \
-        .delete(synchronize_session=False)
-    session.query(SampleField) \
-        .filter(SampleField.test_suite_id == suite_id) \
-        .delete(synchronize_session=False)
-
-    session.query(TestSuite) \
-        .filter(TestSuite.id == suite_id) \
-        .delete(synchronize_session=False)
-    return suite
