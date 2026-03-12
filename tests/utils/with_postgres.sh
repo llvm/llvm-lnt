@@ -12,7 +12,7 @@
 # Example:
 #   with_postgres.sh /tmp/my.log bash my_test.sh "${LNT_TEST_DB_URI}" "${LNT_TEST_DB_NAME}"
 #
-set -uo pipefail
+set -euo pipefail
 
 if ! command -v docker > /dev/null 2>&1; then
     echo "error: Could not find 'docker' -- Docker is required to run the tests"
@@ -91,10 +91,16 @@ echo "PostgreSQL available at: ${LNT_TEST_DB_URI}"
 # ---------------------------------------------------------------------------
 # Wait for PostgreSQL to accept connections (up to 30 seconds).
 # pg_isready is available inside the official postgres image.
+#
+# NOTE: We use '-h localhost' to check via TCP rather than the Unix socket.
+# The official postgres image runs a temporary server during initdb that
+# listens only on the Unix socket (listen_addresses=''). Without '-h localhost',
+# pg_isready can succeed against that temp server, then createdb fails when
+# the socket disappears during the transition to the real server.
 # ---------------------------------------------------------------------------
 MAX_TRIES=30
 for i in $(seq 1 "${MAX_TRIES}"); do
-    if docker exec "${CONTAINER_NAME}" pg_isready --quiet; then
+    if docker exec "${CONTAINER_NAME}" pg_isready --quiet -h localhost; then
         echo "PostgreSQL ready after ${i} attempt(s)."
         break
     fi
