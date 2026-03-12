@@ -35,6 +35,9 @@ jobs:
       uses: tj-actions/install-postgresql@a889ed6c6fa05022333ed4101295bb1d604f97a8 # v3.2.0
       with:
         postgresql-version: 17
+    - name: Setup PostgreSQL for testing
+      if: ${{ matrix.with-postgres }}
+      run: echo "LNT_POSTGRES_DB_URI=postgresql://postgres@localhost" >> $GITHUB_ENV
     - name: Tox flake8
       run: tox -e flake8
     - name: Tox docs
