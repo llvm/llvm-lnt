@@ -1,15 +1,12 @@
-# REQUIRES: postgres
 # RUN: rm -rf "%t.install"
-# RUN: %{shared_inputs}/postgres_wrapper.sh "%t.install" bash %s "%t.install" postgresql://pgtest@localhost:9100 "%{shared_inputs}"
+# RUN: mkdir -p "%t.install"
+# RUN: %{utils}/with_postgres.sh %t.log bash %s "%t.install" "%{shared_inputs}"
 set -eux
 
 TESTDIR="$1"
-PGURL="$2"
-SHARED_INPUTS="$3"
-dropdb --if-exists --maintenance-db="${PGURL}/postgres" lnt_regr_test_PostgresDB
-createdb --maintenance-db="${PGURL}/postgres" lnt_regr_test_PostgresDB
+SHARED_INPUTS="$2"
 
-lnt create "${TESTDIR}/instance" --db-dir ${PGURL} --default-db lnt_regr_test_PostgresDB
+lnt create "${TESTDIR}/instance" --db-dir ${LNT_TEST_DB_URI} --default-db ${LNT_TEST_DB_NAME}
 
 # Import a test set.
 lnt import "${TESTDIR}/instance" "${SHARED_INPUTS}/sample-a-small.plist" --show-sample-count
