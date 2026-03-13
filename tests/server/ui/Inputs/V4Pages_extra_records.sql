@@ -1,7 +1,7 @@
 BEGIN TRANSACTION;
 INSERT INTO "NT_Test" ("Name")
  VALUES('SingleSource/UnitTests/ObjC/block-byref-aggr'); -- ID 3 (was 87)
-INSERT INTO "compile_Test" ("Name")
+INSERT INTO "Compile_Test" ("Name")
  VALUES('compile/403.gcc/combine.c/init/(-O0)'); -- ID 3 (was 38)
  
 -- make sure there are 3 machines - to test ?filter-machine-regex= on daily_report page
