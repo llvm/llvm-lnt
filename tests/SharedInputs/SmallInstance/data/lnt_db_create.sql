@@ -1,23 +1,23 @@
 BEGIN TRANSACTION;
 CREATE TABLE "SchemaVersion" (
-	"Name" VARCHAR(256) NOT NULL, 
-	"Version" INTEGER, 
-	PRIMARY KEY ("Name"), 
+	"Name" VARCHAR(256) NOT NULL,
+	"Version" INTEGER,
+	PRIMARY KEY ("Name"),
 	UNIQUE ("Name")
 );
 INSERT INTO "SchemaVersion" VALUES('__core__',7);
 CREATE TABLE "TestSuite" (
-	"ID" INTEGER PRIMARY KEY NOT NULL, 
-	"Name" VARCHAR(256), 
-	"DBKeyName" VARCHAR(256), 
-	"Version" VARCHAR(16), 
+	"ID" INTEGER PRIMARY KEY NOT NULL,
+	"Name" VARCHAR(256),
+	"DBKeyName" VARCHAR(256),
+	"Version" VARCHAR(16),
 	UNIQUE ("Name")
 );
 INSERT INTO "TestSuite" ("Name", "DBKeyName") VALUES('nts','NT');         --ID 1
 INSERT INTO "TestSuite" ("Name", "DBKeyName") VALUES('compile','compile');--ID 2
 CREATE TABLE "StatusKind" (
-	"ID" INTEGER NOT NULL, 
-	"Name" VARCHAR(256), 
+	"ID" INTEGER NOT NULL,
+	"Name" VARCHAR(256),
         PRIMARY KEY ("ID"),
 	UNIQUE ("Name")
 );
@@ -25,26 +25,26 @@ INSERT INTO "StatusKind" VALUES(0,'PASS');
 INSERT INTO "StatusKind" VALUES(1,'FAIL');
 INSERT INTO "StatusKind" VALUES(2,'XFAIL');
 CREATE TABLE "SampleType" (
-	"ID" INTEGER PRIMARY KEY NOT NULL, 
-	"Name" VARCHAR(256), 
+	"ID" INTEGER PRIMARY KEY NOT NULL,
+	"Name" VARCHAR(256),
 	UNIQUE ("Name")
 );
 INSERT INTO "SampleType" ("Name") VALUES('Real');   -- ID 1
 INSERT INTO "SampleType" ("Name") VALUES('Status'); -- ID 2
 INSERT INTO "SampleType" ("Name") VALUES('Hash');   -- ID 3
 CREATE TABLE "TestSuiteRunFields" (
-	"ID" INTEGER PRIMARY KEY NOT NULL, 
-	"TestSuiteID" INTEGER, 
-	"Name" VARCHAR(256), 
-	"InfoKey" VARCHAR(256), 
+	"ID" INTEGER PRIMARY KEY NOT NULL,
+	"TestSuiteID" INTEGER,
+	"Name" VARCHAR(256),
+	"InfoKey" VARCHAR(256),
 	FOREIGN KEY("TestSuiteID") REFERENCES "TestSuite" ("ID")
 );
 CREATE TABLE "TestSuiteOrderFields" (
-	"ID" INTEGER PRIMARY KEY NOT NULL, 
-	"TestSuiteID" INTEGER, 
-	"Name" VARCHAR(256), 
-	"InfoKey" VARCHAR(256), 
-	"Ordinal" INTEGER, 
+	"ID" INTEGER PRIMARY KEY NOT NULL,
+	"TestSuiteID" INTEGER,
+	"Name" VARCHAR(256),
+	"InfoKey" VARCHAR(256),
+	"Ordinal" INTEGER,
 	FOREIGN KEY("TestSuiteID") REFERENCES "TestSuite" ("ID")
 );
 INSERT INTO "TestSuiteOrderFields" ("TestSuiteID", "Name", "InfoKey", "Ordinal")
@@ -52,14 +52,14 @@ INSERT INTO "TestSuiteOrderFields" ("TestSuiteID", "Name", "InfoKey", "Ordinal")
 INSERT INTO "TestSuiteOrderFields" ("TestSuiteID", "Name", "InfoKey", "Ordinal")
  VALUES(2,'llvm_project_revision','run_order',0); -- ID 2
 CREATE TABLE "TestSuiteSampleFields" (
-	"ID" INTEGER PRIMARY KEY NOT NULL, 
-	"TestSuiteID" INTEGER, 
-	"Name" VARCHAR(256), 
-	"Type" INTEGER, 
-	"InfoKey" VARCHAR(256), 
-	status_field INTEGER, bigger_is_better INTEGER DEFAULT 0, 
-	FOREIGN KEY("TestSuiteID") REFERENCES "TestSuite" ("ID"), 
-	FOREIGN KEY("Type") REFERENCES "SampleType" ("ID"), 
+	"ID" INTEGER PRIMARY KEY NOT NULL,
+	"TestSuiteID" INTEGER,
+	"Name" VARCHAR(256),
+	"Type" INTEGER,
+	"InfoKey" VARCHAR(256),
+	status_field INTEGER, bigger_is_better INTEGER DEFAULT 0,
+	FOREIGN KEY("TestSuiteID") REFERENCES "TestSuite" ("ID"),
+	FOREIGN KEY("Type") REFERENCES "SampleType" ("ID"),
 	FOREIGN KEY(status_field) REFERENCES "TestSuiteSampleFields" ("ID")
 );
 INSERT INTO "TestSuiteSampleFields" ("TestSuiteID", "Name", "Type", "InfoKey",
@@ -117,10 +117,10 @@ INSERT INTO "TestSuiteSampleFields" ("TestSuiteID", "Name", "Type", "InfoKey",
                                      "status_field", "bigger_is_better")
  VALUES(1,'hash',3,'.hash',NULL,0);                     -- ID 18
 CREATE TABLE "TestSuiteMachineFields" (
-	"ID" INTEGER PRIMARY KEY NOT NULL, 
-	"TestSuiteID" INTEGER, 
-	"Name" VARCHAR(256), 
-	"InfoKey" VARCHAR(256), 
+	"ID" INTEGER PRIMARY KEY NOT NULL,
+	"TestSuiteID" INTEGER,
+	"Name" VARCHAR(256),
+	"InfoKey" VARCHAR(256),
 	FOREIGN KEY("TestSuiteID") REFERENCES "TestSuite" ("ID")
 );
 INSERT INTO "TestSuiteMachineFields" ("TestSuiteID", "Name", "InfoKey")
@@ -132,11 +132,11 @@ INSERT INTO "TestSuiteMachineFields" ("TestSuiteID", "Name", "InfoKey")
 INSERT INTO "TestSuiteMachineFields" ("TestSuiteID", "Name", "InfoKey")
  VALUES(2,'os_version','kern.version'); -- ID 4
 CREATE TABLE "NT_Order" (
-	"ID" INTEGER PRIMARY KEY NOT NULL, 
-	"NextOrder" INTEGER, 
-	"PreviousOrder" INTEGER, 
-	llvm_project_revision VARCHAR(256), 
-	FOREIGN KEY("NextOrder") REFERENCES "NT_Order" ("ID"), 
+	"ID" INTEGER PRIMARY KEY NOT NULL,
+	"NextOrder" INTEGER,
+	"PreviousOrder" INTEGER,
+	llvm_project_revision VARCHAR(256),
+	FOREIGN KEY("NextOrder") REFERENCES "NT_Order" ("ID"),
 	FOREIGN KEY("PreviousOrder") REFERENCES "NT_Order" ("ID")
 );
 INSERT INTO "NT_Order" ("NextOrder", "PreviousOrder", "llvm_project_revision")
@@ -145,10 +145,10 @@ INSERT INTO "NT_Order" ("NextOrder", "PreviousOrder", "llvm_project_revision")
  VALUES(1,NULL,'152289');    -- ID 2
 UPDATE "NT_Order" SET "PreviousOrder"=2 WHERE "ID"=1;
 CREATE TABLE "NT_Machine" (
-	"ID" INTEGER PRIMARY KEY NOT NULL, 
-	"Name" VARCHAR(256), 
-	"Parameters" BLOB, 
-	hardware VARCHAR(256), 
+	"ID" INTEGER PRIMARY KEY NOT NULL,
+	"Name" VARCHAR(256),
+	"Parameters" BLOB,
+	hardware VARCHAR(256),
 	os VARCHAR(256)
 );
 INSERT INTO "NT_Machine" ("Name", "Parameters", "hardware", "os")
@@ -156,7 +156,7 @@ INSERT INTO "NT_Machine" ("Name", "Parameters", "hardware", "os")
         CAST('[["name", "localhost"], ["uname", "Darwin localhost 11.3.0 Darwin Kernel Version 11.3.0: Thu Jan 12 18:47:41 PST 2012; root:xnu-1699.24.23~1/RELEASE_X86_64 x86_64"]]' AS BLOB),
         'x86_64','Darwin 11.3.0'); -- ID 1
 CREATE TABLE "NT_Test" (
-	"ID" INTEGER PRIMARY KEY NOT NULL, 
+	"ID" INTEGER PRIMARY KEY NOT NULL,
 	"Name" VARCHAR(256)
 );
 INSERT INTO "NT_Test" ("Name")
@@ -164,15 +164,15 @@ INSERT INTO "NT_Test" ("Name")
 INSERT INTO "NT_Test" ("Name")
  VALUES('SingleSource/UnitTests/2006-12-04-DynAllocAndRestore'); -- ID 2
 CREATE TABLE "NT_Run" (
-	"ID" INTEGER PRIMARY KEY NOT NULL, 
-	"MachineID" INTEGER, 
-	"OrderID" INTEGER, 
-	"ImportedFrom" VARCHAR(512), 
-	"StartTime" DATETIME, 
-	"EndTime" DATETIME, 
-	"SimpleRunID" INTEGER, 
-	"Parameters" BLOB, 
-	FOREIGN KEY("MachineID") REFERENCES "NT_Machine" ("ID"), 
+	"ID" INTEGER PRIMARY KEY NOT NULL,
+	"MachineID" INTEGER,
+	"OrderID" INTEGER,
+	"ImportedFrom" VARCHAR(512),
+	"StartTime" DATETIME,
+	"EndTime" DATETIME,
+	"SimpleRunID" INTEGER,
+	"Parameters" BLOB,
+	FOREIGN KEY("MachineID") REFERENCES "NT_Machine" ("ID"),
 	FOREIGN KEY("OrderID") REFERENCES "NT_Order" ("ID")
 );
 INSERT INTO "NT_Run" ("MachineID", "OrderID", "ImportedFrom", "StartTime",
@@ -188,17 +188,17 @@ INSERT INTO "NT_Run" ("MachineID", "OrderID", "ImportedFrom", "StartTime",
         NULL, CAST('[["ARCH", "x86_64"], ["CC_UNDER_TEST_IS_CLANG", "1"], ["CC_UNDER_TEST_TARGET_IS_X86_64", "1"], ["DISABLE_CBE", "1"], ["DISABLE_JIT", "1"], ["ENABLE_HASHED_PROGRAM_OUTPUT", "1"], ["ENABLE_OPTIMIZED", "1"], ["LLC_OPTFLAGS", "-O3"], ["LLI_OPTFLAGS", "-O3"], ["OPTFLAGS", "-O3"], ["TARGET_CC", "None"], ["TARGET_CXX", "None"], ["TARGET_FLAGS", ""], ["TARGET_LLVMGCC", "/tmp/bin/clang"], ["TARGET_LLVMGXX", "/tmp/bin/clang++"], ["TEST", "simple"], ["USE_REFERENCE_OUTPUT", "1"], ["__report_version__", "1"], ["cc1_exec_hash", "984ed8386e2acc8aef74ac3e59ef5e18b7406257"], ["cc_alt_src_branch", "trunk"], ["cc_alt_src_revision", "152288"], ["cc_as_version", "LLVM (http://llvm.org/):\n  LLVM version 3.1svn\n  Optimized build.\n  Built Mar  7 2012 (15:19:54).\n  Default target: x86_64-apple-darwin11.3.0\n  Host CPU: corei7-avx"], ["cc_build", "DEV"], ["cc_exec_hash", "984ed8386e2acc8aef74ac3e59ef5e18b7406257"], ["cc_ld_version", "@(#)PROGRAM:ld  PROJECT:ld64-123.2.1\nLibrary search paths:\n\t/usr/lib\n\t/usr/local/lib\nFramework search paths:\n\t/Library/Frameworks/\n\t/System/Library/Frameworks/"], ["cc_name", "clang"], ["cc_src_branch", "trunk"], ["cc_src_revision", "152289"], ["cc_target", "x86_64-apple-macosx10.7.0"], ["cc_version", "clang version 3.1 (trunk 152289) (llvm/trunk 152288)\nTarget: x86_64-apple-darwin11.3.0\nThread model: posix\n \"/tmp/bin/clang\" \"-cc1\" \"-triple\" \"x86_64-apple-macosx10.7.0\" \"-E\" \"-disable-free\" \"-disable-llvm-verifier\" \"-main-file-name\" \"null\" \"-pic-level\" \"1\" \"-mdisable-fp-elim\" \"-masm-verbose\" \"-munwind-tables\" \"-target-cpu\" \"core2\" \"-v\" \"-resource-dir\" \"/tmp/bin/../lib/clang/3.1\" \"-fmodule-cache-path\" \"/var/folders/32/jb9nf1gs6hx12s0brx1xdy8w0000gn/T/clang-module-cache\" \"-fdebug-compilation-dir\" \"/tmp/SANDBOX\" \"-ferror-limit\" \"19\" \"-fmessage-length\" \"0\" \"-stack-protector\" \"1\" \"-mstackrealign\" \"-fblocks\" \"-fobjc-runtime-has-arc\" \"-fobjc-runtime-has-weak\" \"-fobjc-dispatch-method=mixed\" \"-fobjc-default-synthesize-properties\" \"-fdiagnostics-show-option\" \"-o\" \"-\" \"-x\" \"c\" \"/dev/null\""], ["cc_version_number", "3.1"], ["inferred_run_order", "152289"], ["sw_vers", "ProductName:\tMac OS X\nProductVersion:\t10.7.3\nBuildVersion:\t11D50b"], ["test_suite_revision", "154271"], ["no_errors", false]]' AS BLOB)
        ); -- ID 2
 CREATE TABLE "NT_Sample" (
-	"ID" INTEGER PRIMARY KEY NOT NULL, 
-	"RunID" INTEGER, 
-	"TestID" INTEGER, 
-	compile_status INTEGER, 
-	execution_status INTEGER, 
-	compile_time FLOAT, 
-	execution_time FLOAT, score FLOAT, "mem_bytes" FLOAT, 
+	"ID" INTEGER PRIMARY KEY NOT NULL,
+	"RunID" INTEGER,
+	"TestID" INTEGER,
+	compile_status INTEGER,
+	execution_status INTEGER,
+	compile_time FLOAT,
+	execution_time FLOAT, score FLOAT, "mem_bytes" FLOAT,
         hash_status INTEGER, hash VARCHAR(32),
-	FOREIGN KEY("RunID") REFERENCES "NT_Run" ("ID"), 
-	FOREIGN KEY("TestID") REFERENCES "NT_Test" ("ID"), 
-	FOREIGN KEY(compile_status) REFERENCES "StatusKind" ("ID"), 
+	FOREIGN KEY("RunID") REFERENCES "NT_Run" ("ID"),
+	FOREIGN KEY("TestID") REFERENCES "NT_Test" ("ID"),
+	FOREIGN KEY(compile_status) REFERENCES "StatusKind" ("ID"),
 	FOREIGN KEY(execution_status) REFERENCES "StatusKind" ("ID"),
 	FOREIGN KEY(hash_status) REFERENCES "StatusKind" ("ID")
 );
@@ -211,10 +211,10 @@ INSERT INTO "NT_Sample" ("RunID", "TestID", "compile_status",
                          "score", "mem_bytes")
  VALUES(1,2,NULL,NULL,0.0072,0.0003,NULL,NULL); -- ID 2
 CREATE TABLE "compile_Machine" (
-	"ID" INTEGER PRIMARY KEY NOT NULL, 
-	"Name" VARCHAR(256), 
-	"Parameters" BLOB, 
-	hardware VARCHAR(256), 
+	"ID" INTEGER PRIMARY KEY NOT NULL,
+	"Name" VARCHAR(256),
+	"Parameters" BLOB,
+	hardware VARCHAR(256),
 	os_version VARCHAR(256)
 );
 INSERT INTO "compile_Machine" ("Name", "Parameters", "hardware", "os_version")
@@ -230,7 +230,7 @@ INSERT INTO "compile_Machine" ("Name", "Parameters", "hardware", "os_version")
         'Darwin Kernel Version 14.0.0: Thu May 29 20:54:07 PDT 2014; root:xnu-2763~1/DEVELOPMENT_X86_64'
        ); -- ID 2
 CREATE TABLE "compile_Test" (
-	"ID" INTEGER PRIMARY KEY NOT NULL, 
+	"ID" INTEGER PRIMARY KEY NOT NULL,
 	"Name" VARCHAR(256)
 );
 INSERT INTO "compile_Test" ("Name")
@@ -239,11 +239,11 @@ INSERT INTO "compile_Test" ("Name")
 INSERT INTO "compile_Test" ("Name")
  VALUES('compile/JavaScriptCore/Interpreter.cpp/init/(-O0 -g)'); -- ID 2
 CREATE TABLE "compile_Order" (
-	"ID" INTEGER PRIMARY KEY NOT NULL, 
-	"NextOrder" INTEGER, 
-	"PreviousOrder" INTEGER, 
-	llvm_project_revision VARCHAR(256), 
-	FOREIGN KEY("NextOrder") REFERENCES "compile_Order" ("ID"), 
+	"ID" INTEGER PRIMARY KEY NOT NULL,
+	"NextOrder" INTEGER,
+	"PreviousOrder" INTEGER,
+	llvm_project_revision VARCHAR(256),
+	FOREIGN KEY("NextOrder") REFERENCES "compile_Order" ("ID"),
 	FOREIGN KEY("PreviousOrder") REFERENCES "compile_Order" ("ID")
 );
 INSERT INTO "compile_Order" ("NextOrder", "PreviousOrder",
@@ -258,15 +258,15 @@ INSERT INTO "compile_Order" ("NextOrder", "PreviousOrder",
 UPDATE "compile_Order" SET "PreviousOrder"=2 WHERE "ID"=1;
 UPDATE "compile_Order" SET "PreviousOrder"=3 WHERE "ID"=2;
 CREATE TABLE "compile_Run" (
-	"ID" INTEGER PRIMARY KEY NOT NULL, 
-	"MachineID" INTEGER, 
-	"OrderID" INTEGER, 
-	"ImportedFrom" VARCHAR(512), 
-	"StartTime" DATETIME, 
-	"EndTime" DATETIME, 
-	"SimpleRunID" INTEGER, 
-	"Parameters" BLOB, 
-	FOREIGN KEY("MachineID") REFERENCES "compile_Machine" ("ID"), 
+	"ID" INTEGER PRIMARY KEY NOT NULL,
+	"MachineID" INTEGER,
+	"OrderID" INTEGER,
+	"ImportedFrom" VARCHAR(512),
+	"StartTime" DATETIME,
+	"EndTime" DATETIME,
+	"SimpleRunID" INTEGER,
+	"Parameters" BLOB,
+	FOREIGN KEY("MachineID") REFERENCES "compile_Machine" ("ID"),
 	FOREIGN KEY("OrderID") REFERENCES "compile_Order" ("ID")
 );
 INSERT INTO "compile_Run" ("MachineID", "OrderID", "ImportedFrom", "StartTime",
@@ -298,25 +298,25 @@ INSERT INTO "compile_Run" ("MachineID", "OrderID", "ImportedFrom", "StartTime",
         CAST('[["__report_version__", "1"], ["cc", "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang"], ["cc1_exec_hash", "b18490c69cebfbdd20500c473684b7093a8b2c62"], ["cc_alt_src_branch", "based on LLVM"], ["cc_alt_src_revision", "3.5svn"], ["cc_as_version", "clang: error: unsupported argument ''-v'' to option ''Wa,''"], ["cc_build", "PROD"], ["cc_dumpmachine", "x86_64-apple-darwin14.0.0"], ["cc_exec_hash", "b18490c69cebfbdd20500c473684b7093a8b2c62"], ["cc_ld_version", "@(#)PROGRAM:ld  PROJECT:ld64-241\nconfigured to support archs: armv6 armv7 armv7s arm64 i386 x86_64 x86_64h armv6m armv7m armv7em\nLibrary search paths:\n\t/usr/lib\n\t/usr/local/lib\nFramework search paths:\n\t/Library/Frameworks/\n\t/System/Library/Frameworks/"], ["cc_name", "apple_clang"], ["cc_src_branch", "clang-600.0.34.2"], ["cc_src_tag", "600.0.34.2"], ["cc_target", "x86_64-apple-macosx10.10.0"], ["cc_target_assembly", "; ModuleID = ''/dev/null''\ntarget datalayout = \"e-m:o-i64:64-f80:128-n8:16:32:64-S128\"\ntarget triple = \"x86_64-apple-macosx10.10.0\"\n\n!llvm.ident = !{!0}\n\n!0 = metadata !{metadata !\"Apple LLVM version 6.0 (clang-600.0.34.2) (based on LLVM 3.5svn)\"}"], ["cc_version", "Apple LLVM version 6.0 (clang-600.0.34.2) (based on LLVM 3.5svn)\nTarget: x86_64-apple-darwin14.0.0\nThread model: posix\n \"/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang\" \"-cc1\" \"-triple\" \"x86_64-apple-macosx10.10.0\" \"-E\" \"-disable-free\" \"-disable-llvm-verifier\" \"-main-file-name\" \"null\" \"-mrelocation-model\" \"pic\" \"-pic-level\" \"2\" \"-mdisable-fp-elim\" \"-masm-verbose\" \"-munwind-tables\" \"-target-cpu\" \"core2\" \"-target-linker-version\" \"241\" \"-v\" \"-resource-dir\" \"/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/../lib/clang/6.0\" \"-fdebug-compilation-dir\" \"/Users/cmatthews/src/lnt/tests\" \"-ferror-limit\" \"19\" \"-fmessage-length\" \"0\" \"-stack-protector\" \"1\" \"-mstackrealign\" \"-fblocks\" \"-fobjc-runtime=macosx-10.10.0\" \"-fencode-extended-block-signature\" \"-fdiagnostics-show-option\" \"-vectorize-slp\" \"-o\" \"-\" \"-x\" \"c\" \"/dev/null\""], ["cc_version_number", "6.0"], ["hw.usermem", "998539264"], ["inferred_run_order", "600.0.34.2"], ["kern.boottime", "{ sec = 1401769065, usec = 0 } Mon Jun  2 21:17:45 2014"], ["kern.usrstack", "1383366656"], ["kern.usrstack64", "140734738419712"], ["run_count", "3"], ["sys_as_version", "Apple Inc version cctools-861, GNU assembler version 1.38"], ["sys_cc_version", "Configured with: --prefix=/Applications/Xcode.app/Contents/Developer/usr --with-gxx-include-dir=/usr/include/c++/4.2.1\nApple LLVM version 6.0 (clang-600.0.34) (based on LLVM 3.5svn)\nTarget: x86_64-apple-darwin14.0.0\nThread model: posix"], ["sys_ld_version", "@(#)PROGRAM:ld  PROJECT:ld64-241\nconfigured to support archs: i386 x86_64 x86_64h arm64\nLTO support using: LLVM version 3.5svn"], ["sys_xcodebuild", "Xcode 6.0\nBuild version 6A233"]]' AS BLOB)
        ); -- ID 4
 CREATE TABLE "compile_Sample" (
-	"ID" INTEGER PRIMARY KEY NOT NULL, 
-	"RunID" INTEGER, 
-	"TestID" INTEGER, 
-	user_status INTEGER, 
-	sys_status INTEGER, 
-	wall_status INTEGER, 
-	size_status INTEGER, 
-	mem_status INTEGER, 
-	user_time FLOAT, 
-	sys_time FLOAT, 
-	wall_time FLOAT, 
-	size_bytes FLOAT, 
-	mem_bytes FLOAT, 
-	FOREIGN KEY("RunID") REFERENCES "compile_Run" ("ID"), 
-	FOREIGN KEY("TestID") REFERENCES "compile_Test" ("ID"), 
-	FOREIGN KEY(user_status) REFERENCES "StatusKind" ("ID"), 
-	FOREIGN KEY(sys_status) REFERENCES "StatusKind" ("ID"), 
-	FOREIGN KEY(wall_status) REFERENCES "StatusKind" ("ID"), 
-	FOREIGN KEY(size_status) REFERENCES "StatusKind" ("ID"), 
+	"ID" INTEGER PRIMARY KEY NOT NULL,
+	"RunID" INTEGER,
+	"TestID" INTEGER,
+	user_status INTEGER,
+	sys_status INTEGER,
+	wall_status INTEGER,
+	size_status INTEGER,
+	mem_status INTEGER,
+	user_time FLOAT,
+	sys_time FLOAT,
+	wall_time FLOAT,
+	size_bytes FLOAT,
+	mem_bytes FLOAT,
+	FOREIGN KEY("RunID") REFERENCES "compile_Run" ("ID"),
+	FOREIGN KEY("TestID") REFERENCES "compile_Test" ("ID"),
+	FOREIGN KEY(user_status) REFERENCES "StatusKind" ("ID"),
+	FOREIGN KEY(sys_status) REFERENCES "StatusKind" ("ID"),
+	FOREIGN KEY(wall_status) REFERENCES "StatusKind" ("ID"),
+	FOREIGN KEY(size_status) REFERENCES "StatusKind" ("ID"),
 	FOREIGN KEY(mem_status) REFERENCES "StatusKind" ("ID")
 );
 INSERT INTO "compile_Sample" ("RunID", "TestID", user_status, sys_status,
@@ -330,29 +330,29 @@ INSERT INTO "compile_Sample" ("RunID", "TestID", user_status, sys_status,
  VALUES(1,1,NULL,NULL,NULL,NULL,NULL,0.338633,0.027111,0.367148,165852.0,
         33353728.0); -- ID 2
 CREATE TABLE "NT_FieldChange" (
-	"ID" INTEGER PRIMARY KEY NOT NULL, 
-	"StartOrderID" INTEGER, 
-	"EndOrderID" INTEGER, 
-	"TestID" INTEGER, 
-	"MachineID" INTEGER, 
-	"FieldID" INTEGER, 
-	FOREIGN KEY("StartOrderID") REFERENCES "NT_Order" ("ID"), 
-	FOREIGN KEY("EndOrderID") REFERENCES "NT_Order" ("ID"), 
-	FOREIGN KEY("TestID") REFERENCES "NT_Test" ("ID"), 
-	FOREIGN KEY("MachineID") REFERENCES "NT_Machine" ("ID"), 
+	"ID" INTEGER PRIMARY KEY NOT NULL,
+	"StartOrderID" INTEGER,
+	"EndOrderID" INTEGER,
+	"TestID" INTEGER,
+	"MachineID" INTEGER,
+	"FieldID" INTEGER,
+	FOREIGN KEY("StartOrderID") REFERENCES "NT_Order" ("ID"),
+	FOREIGN KEY("EndOrderID") REFERENCES "NT_Order" ("ID"),
+	FOREIGN KEY("TestID") REFERENCES "NT_Test" ("ID"),
+	FOREIGN KEY("MachineID") REFERENCES "NT_Machine" ("ID"),
 	FOREIGN KEY("FieldID") REFERENCES "TestSuiteSampleFields" ("ID")
 );
 CREATE TABLE "compile_FieldChange" (
-	"ID" INTEGER PRIMARY KEY NOT NULL, 
-	"StartOrderID" INTEGER, 
-	"EndOrderID" INTEGER, 
-	"TestID" INTEGER, 
-	"MachineID" INTEGER, 
-	"FieldID" INTEGER, 
-	FOREIGN KEY("StartOrderID") REFERENCES "compile_Order" ("ID"), 
-	FOREIGN KEY("EndOrderID") REFERENCES "compile_Order" ("ID"), 
-	FOREIGN KEY("TestID") REFERENCES "compile_Test" ("ID"), 
-	FOREIGN KEY("MachineID") REFERENCES "compile_Machine" ("ID"), 
+	"ID" INTEGER PRIMARY KEY NOT NULL,
+	"StartOrderID" INTEGER,
+	"EndOrderID" INTEGER,
+	"TestID" INTEGER,
+	"MachineID" INTEGER,
+	"FieldID" INTEGER,
+	FOREIGN KEY("StartOrderID") REFERENCES "compile_Order" ("ID"),
+	FOREIGN KEY("EndOrderID") REFERENCES "compile_Order" ("ID"),
+	FOREIGN KEY("TestID") REFERENCES "compile_Test" ("ID"),
+	FOREIGN KEY("MachineID") REFERENCES "compile_Machine" ("ID"),
 	FOREIGN KEY("FieldID") REFERENCES "TestSuiteSampleFields" ("ID")
 );
 CREATE INDEX "ix_TestSuiteRunFields_TestSuiteID" ON "TestSuiteRunFields" ("TestSuiteID");
