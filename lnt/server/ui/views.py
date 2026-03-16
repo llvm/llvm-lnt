@@ -948,7 +948,7 @@ def load_geomean_data(field, machine, limit, xaxis_date, revision_cache=None):
                     .join(ts.Run).join(ts.Order).join(ts.Test) \
                     .filter(ts.Run.machine_id == machine.id) \
                     .filter(field.column.isnot(None)) \
-                    .group_by(ts.Order.llvm_project_revision, ts.Test)
+                    .group_by(ts.Order, ts.Test)
 
     if limit:
         values = values.limit(limit)
