@@ -17,7 +17,6 @@ UI_DIR = os.path.join(TESTS_DIR, 'ui')
 sys.path.insert(0, UI_DIR)
 
 import lnt.server.ui.app
-from V4Pages import check_json
 
 logging.basicConfig(level=logging.INFO)
 
@@ -58,7 +57,7 @@ class PostRunTest(unittest.TestCase):
 
         # Ensure the run exists (may already exist from test_00).
         client.post('api/db_default/v4/nts/runs', data=data,
-                     headers={'AuthToken': 'test_token'})
+                    headers={'AuthToken': 'test_token'})
 
         # Now submit again with merge=reject to provoke a failure.
         resp = client.post('api/db_default/v4/nts/runs?merge=reject',
