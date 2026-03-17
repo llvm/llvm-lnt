@@ -55,7 +55,7 @@ main() {
     done
 
     # Execute command.
-    eval "$@"
+    "$@"
     local rc=$?
 
     kill -15 ${pid}
