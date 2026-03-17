@@ -135,8 +135,14 @@ class JSONAPIDeleteTester(unittest.TestCase):
         for run_id in run_ids:
             resp = check_json(client,
                               'api/db_default/v4/nts/runs/{}'.format(run_id))
-            sample_ids.append([s['id'] for s in resp['tests']])
+            sample_ids.extend([s['id'] for s in resp['tests']])
         self.assertNotEqual(len(sample_ids), 0)
+        # Verify that sample_ids are individual ints as we expect, and
+        # that they exist on the server.
+        for sid in sample_ids:
+            self.assertIsInstance(sid, int)
+            resp = client.get('api/db_default/v4/nts/samples/{}'.format(sid))
+            self.assertEqual(resp.status_code, 200)
 
         resp = client.delete('api/db_default/v4/nts/machines/2')
         self.assertEqual(resp.status_code, 401)
