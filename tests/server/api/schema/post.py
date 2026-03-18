@@ -1,11 +1,9 @@
 # This test checks the /schema POST API that allows creating a new schema.
 
 # RUN: rm -rf %t.instance
-# RUN: python %{shared_inputs}/create_temp_instance.py \
-# RUN:     %s %{shared_inputs}/SmallInstance \
-# RUN:     %t.instance %S/../../ui/Inputs/V4Pages_extra_records.sql
-#
-# RUN: python %s %t.instance
+# RUN: %{utils}/with_postgres.sh %t.pg.log \
+# RUN:     %{utils}/with_temporary_instance.py %t.instance \
+# RUN:         -- python %s %t.instance
 # END.
 
 import json
