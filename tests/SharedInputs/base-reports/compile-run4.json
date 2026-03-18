@@ -1,0 +1,19 @@
+{
+    "format_version": "2",
+    "schema": "compile",
+    "machine": {
+        "name": "MacBook-Pro.local",
+        "hardware": "MacBookPro10,1",
+        "os_version": "Darwin Kernel Version 14.0.0: Thu May 29 20:54:07 PDT 2014; root:xnu-2763~1/DEVELOPMENT_X86_64"
+    },
+    "run": {
+        "start_time": "2014-06-04T21:03:07",
+        "end_time": "2014-06-04T21:03:15",
+        "llvm_project_revision": "154339",
+        "cc_build": "PROD",
+        "cc_name": "apple_clang",
+        "cc_version_number": "6.0",
+        "inferred_run_order": "600.0.34.2"
+    },
+    "tests": []
+}

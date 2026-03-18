@@ -69,7 +69,7 @@ def main():
             with open(json_file) as f:
                 data = json.load(f)
             suite = data.get('schema', 'nts')
-            subprocess.check_call(['lnt', 'import', '-s', suite, dest_dir, json_file])
+            subprocess.check_call(['lnt', 'import', '-s', suite, '--merge', 'append', dest_dir, json_file])
 
     # 5. Exec the wrapped command.
     os.execvp(command[0], command)

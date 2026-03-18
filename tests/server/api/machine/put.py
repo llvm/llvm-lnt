@@ -1,10 +1,9 @@
 # Check that PUT to /machines/n updates machine fields.
 # RUN: rm -rf %t.instance
-# RUN: python %{shared_inputs}/create_temp_instance.py \
-# RUN:     %s %{shared_inputs}/SmallInstance \
-# RUN:     %t.instance %S/../../ui/Inputs/V4Pages_extra_records.sql
-#
-# RUN: python %s %t.instance
+# RUN: %{utils}/with_postgres.sh %t.pg.log \
+# RUN:     %{utils}/with_temporary_instance.py %t.instance \
+# RUN:         %{shared_inputs}/base-reports \
+# RUN:         -- python %s %t.instance
 
 import json
 import logging
@@ -35,10 +34,14 @@ class UpdateMachineTest(unittest.TestCase):
         """Check PUT request to /machines/n"""
         client = self.client
 
+        j = check_json(client, 'api/db_default/v4/nts/machines/')
+        machine_id = next(m['id'] for m in j['machines']
+                         if m['name'] == 'localhost__clang_DEV__x86_64')
+
         # We are going to set the 'os' field to none, remove the 'uname'
         # parameter and add the 'new_parameter' parameter.
         # Make sure none of those things happened yet:
-        machine_before = check_json(client, 'api/db_default/v4/nts/machines/1')
+        machine_before = check_json(client, 'api/db_default/v4/nts/machines/{}'.format(machine_id))
         machine_before = machine_before['machine']
         self.assertIsNotNone(machine_before.get('os', None))
         self.assertIsNone(machine_before.get('new_parameter', None))
@@ -53,11 +56,11 @@ class UpdateMachineTest(unittest.TestCase):
             },
         }
         json_data = json.dumps(data)
-        resp = client.put('api/db_default/v4/nts/machines/1', data=json_data,
+        resp = client.put('api/db_default/v4/nts/machines/{}'.format(machine_id), data=json_data,
                           headers={'AuthToken': 'test_token'})
         self.assertEqual(resp.status_code, 200)
 
-        machine_after = check_json(client, 'api/db_default/v4/nts/machines/1')
+        machine_after = check_json(client, 'api/db_default/v4/nts/machines/{}'.format(machine_id))
         machine_after = machine_after['machine']
         for key in ('hardware', 'os', 'hostname', 'new_parameter', 'uname'):
             self.assertEqual(machine_after.get(key, None),

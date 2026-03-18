@@ -1,10 +1,10 @@
 # Check that DELETE /machines/n deletes a machine and its runs/samples.
 # RUN: rm -rf %t.instance
-# RUN: python %{shared_inputs}/create_temp_instance.py \
-# RUN:     %s %{shared_inputs}/SmallInstance \
-# RUN:     %t.instance %S/../../ui/Inputs/V4Pages_extra_records.sql
-#
-# RUN: python %s %t.instance
+# RUN: %{utils}/with_postgres.sh %t.pg.log \
+# RUN:     %{utils}/with_temporary_instance.py %t.instance \
+# RUN:         %{shared_inputs}/base-reports \
+# RUN:         %S/../../ui/Inputs/extra-reports \
+# RUN:         -- python %s %t.instance
 
 import logging
 import os
@@ -34,7 +34,11 @@ class DeleteMachineTest(unittest.TestCase):
         """Check /machines/n can be deleted."""
         client = self.client
 
-        j = check_json(client, 'api/db_default/v4/nts/machines/2')
+        j = check_json(client, 'api/db_default/v4/nts/machines/')
+        machine_id = next(m['id'] for m in j['machines']
+                         if m['name'] == 'machine2')
+
+        j = check_json(client, 'api/db_default/v4/nts/machines/{}'.format(machine_id))
         run_ids = [s['id'] for s in j['runs']]
         self.assertNotEqual(len(run_ids), 0)
         sample_ids = []
@@ -50,22 +54,24 @@ class DeleteMachineTest(unittest.TestCase):
             resp = client.get('api/db_default/v4/nts/samples/{}'.format(sid))
             self.assertEqual(resp.status_code, 200)
 
-        resp = client.delete('api/db_default/v4/nts/machines/2')
+        resp = client.delete('api/db_default/v4/nts/machines/{}'.format(machine_id))
         self.assertEqual(resp.status_code, 401)
 
-        resp = client.delete('api/db_default/v4/nts/machines/2',
+        resp = client.delete('api/db_default/v4/nts/machines/{}'.format(machine_id),
                              headers={'AuthToken': 'wrong token'})
         self.assertEqual(resp.status_code, 401)
 
-        resp = client.delete('api/db_default/v4/nts/machines/2',
+        resp = client.delete('api/db_default/v4/nts/machines/{}'.format(machine_id),
                              headers={'AuthToken': 'test_token'})
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.get_data(as_text=True),
-                         '''Deleting runs 3 5 6 7 8 9 (6/6)
-Deleted machine machine2:2
-''')
+        run_id_str = ' '.join(str(rid) for rid in sorted(run_ids))
+        count = len(run_ids)
+        expected = ('Deleting runs {} ({}/{})\n'
+                    'Deleted machine machine2:{}\n').format(
+            run_id_str, count, count, machine_id)
+        self.assertEqual(resp.get_data(as_text=True), expected)
 
-        resp = client.get('api/db_default/v4/nts/machines/2')
+        resp = client.get('api/db_default/v4/nts/machines/{}'.format(machine_id))
         self.assertEqual(resp.status_code, 404)
 
         for run_id in run_ids:

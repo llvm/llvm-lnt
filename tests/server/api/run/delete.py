@@ -1,10 +1,9 @@
 # Check that DELETE /runs/n deletes a run and its samples.
 # RUN: rm -rf %t.instance
-# RUN: python %{shared_inputs}/create_temp_instance.py \
-# RUN:     %s %{shared_inputs}/SmallInstance \
-# RUN:     %t.instance %S/../../ui/Inputs/V4Pages_extra_records.sql
-#
-# RUN: python %s %t.instance
+# RUN: %{utils}/with_postgres.sh %t.pg.log \
+# RUN:     %{utils}/with_temporary_instance.py %t.instance \
+# RUN:         %{shared_inputs}/base-reports \
+# RUN:         -- python %s %t.instance
 
 import logging
 import os
@@ -34,25 +33,32 @@ class DeleteRunTest(unittest.TestCase):
         """Check /runs/n can be deleted."""
         client = self.client
 
-        j = check_json(client, 'api/db_default/v4/nts/runs/1')
+        j = check_json(client, 'api/db_default/v4/nts/machines/')
+        machine_id = next(m['id'] for m in j['machines']
+                         if m['name'] == 'localhost__clang_DEV__x86_64')
+        machine_data = check_json(client,
+            'api/db_default/v4/nts/machines/{}'.format(machine_id))
+        run_id = machine_data['runs'][0]['id']
+
+        j = check_json(client, 'api/db_default/v4/nts/runs/{}'.format(run_id))
         sample_ids = [s['id'] for s in j['tests']]
         self.assertNotEqual(len(sample_ids), 0)
         for sid in sample_ids:
             resp = client.get('api/db_default/v4/nts/samples/{}'.format(sid))
             self.assertEqual(resp.status_code, 200)
 
-        resp = client.delete('api/db_default/v4/nts/runs/1')
+        resp = client.delete('api/db_default/v4/nts/runs/{}'.format(run_id))
         self.assertEqual(resp.status_code, 401)
 
-        resp = client.delete('api/db_default/v4/nts/runs/1',
+        resp = client.delete('api/db_default/v4/nts/runs/{}'.format(run_id),
                              headers={'AuthToken': 'wrong token'})
         self.assertEqual(resp.status_code, 401)
 
-        resp = client.delete('api/db_default/v4/nts/runs/1',
+        resp = client.delete('api/db_default/v4/nts/runs/{}'.format(run_id),
                              headers={'AuthToken': 'test_token'})
         self.assertEqual(resp.status_code, 200)
 
-        resp = client.get('api/db_default/v4/nts/runs/1')
+        resp = client.get('api/db_default/v4/nts/runs/{}'.format(run_id))
         self.assertEqual(resp.status_code, 404)
 
         for sid in sample_ids:

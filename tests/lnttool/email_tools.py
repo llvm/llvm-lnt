@@ -4,12 +4,12 @@
 # Cleanup temporary directory in case one remained from a previous run - also
 # see PR9904.
 # RUN: rm -rf %t.instance
-# RUN: python %{shared_inputs}/create_temp_instance.py \
-# RUN:   %s %{shared_inputs}/SmallInstance %t.instance
-
-# RUN: lnt send-run-comparison --dry-run --to some@address.com \
-# RUN: --from some.other@address.com  \
-# RUN: --host localhost %t.instance 1 2 | filecheck %s --check-prefix CHECK0
+# RUN: %{utils}/with_postgres.sh %t.pg1.log \
+# RUN:     %{utils}/with_temporary_instance.py %t.instance \
+# RUN:         %{shared_inputs}/base-reports -- \
+# RUN:     lnt send-run-comparison --dry-run --to some@address.com \
+# RUN:         --from some.other@address.com --host localhost \
+# RUN:         %t.instance 1 2 | filecheck %s --check-prefix CHECK0
 #
 # CHECK0: From: some.other@address.com
 # CHECK0: To: some@address.com
@@ -34,10 +34,15 @@
 # CHECK0: </head>
 # ...
 # CHECK0: </html>
-
-# RUN: lnt send-daily-report --dry-run --from some.other@address.com \
-# RUN: --host localhost --testsuite nts --filter-machine-regex=machine.? \
-# RUN: %t.instance some@address.com | filecheck %s --check-prefix CHECK1
+#
+# RUN: rm -rf %t.instance
+# RUN: %{utils}/with_postgres.sh %t.pg2.log \
+# RUN:     %{utils}/with_temporary_instance.py %t.instance \
+# RUN:         %{shared_inputs}/base-reports -- \
+# RUN:     lnt send-daily-report --dry-run --from some.other@address.com \
+# RUN:         --host localhost --testsuite nts \
+# RUN:         --filter-machine-regex=machine.? \
+# RUN:         %t.instance some@address.com | filecheck %s --check-prefix CHECK1
 #
 # CHECK1: From: some.other@address.com
 # CHECK1: To: some@address.com
