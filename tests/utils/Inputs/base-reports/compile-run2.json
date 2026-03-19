@@ -15,5 +15,11 @@
         "cc_version_number": "6.0",
         "inferred_run_order": "600.0.34.2"
     },
-    "tests": []
+    "tests": [
+        {
+            "name": "compile/403.gcc/combine.c/init/(-O0)",
+            "wall_time": 0.5,
+            "mem_bytes": 1000000.0
+        }
+    ]
 }

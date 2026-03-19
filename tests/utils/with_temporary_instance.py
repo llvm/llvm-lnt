@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """Create a temporary LNT instance backed by PostgreSQL and optionally import
-JSON report files, then exec the given command.
+JSON report files or directories of JSON reports, then exec the given command.
 
 Expects LNT_TEST_DB_URI and LNT_TEST_DB_NAME environment variables
 (set by with_postgres.sh).
@@ -17,14 +17,16 @@ import sys
 def main():
     parser = argparse.ArgumentParser(
         description="Create a temporary LNT instance backed by PostgreSQL and optionally import "
-                    "JSON report files, then exec the given command. Expects LNT_TEST_DB_URI and "
-                    "LNT_TEST_DB_NAME environment variables (set by with_postgres.sh).",
+                    "JSON report files or directories of JSON reports, then exec the given command. "
+                    "Expects LNT_TEST_DB_URI and LNT_TEST_DB_NAME environment variables "
+                    "(set by with_postgres.sh).",
         usage="%(prog)s DEST_DIR [DATA_DIR ...] -- COMMAND [ARGS ...]",
     )
     parser.add_argument('dest_dir', metavar='DEST_DIR',
                         help='directory where the LNT instance will be created')
     parser.add_argument('data_dirs', metavar='DATA_DIR', nargs='*',
-                        help='directories containing JSON report files to import')
+                        help='directories containing JSON report files to import, '
+                             'or individual JSON report files')
 
     # Split at '--' to separate instance arguments from the command to exec.
     argv = sys.argv[1:]
@@ -62,9 +64,12 @@ def main():
         f.write("\napi_auth_token = \"test_token\"\n")
         f.write("zorgURL = 'http://localhost/perf'\n")
 
-    # 4. Import JSON report files from each DATA_DIR.
-    for data_dir in data_dirs:
-        json_files = sorted(glob.glob(os.path.join(data_dir, '*.json')))
+    # 4. Import JSON report files from each DATA_DIR (or individual file).
+    for data_path in data_dirs:
+        if os.path.isdir(data_path):
+            json_files = sorted(glob.glob(os.path.join(data_path, '*.json')))
+        else:
+            json_files = [data_path]
         for json_file in json_files:
             with open(json_file) as f:
                 data = json.load(f)

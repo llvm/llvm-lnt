@@ -4,22 +4,15 @@
 # Cleanup temporary directory in case one remained from a previous run - also
 # see PR9904.
 # RUN: rm -rf %t.instance
-# RUN: python %{utils}/create_temp_instance.py \
-# RUN:   %s %{shared_inputs}/SmallInstance %t.instance \
-# RUN:   %S/Inputs/V4Pages_extra_records.sql
-
-# Import a profile
-# RUN: lnt import %t.instance %{shared_inputs}/profile-report.json
-#
-# Import last run. The run in this report must be the most recent one and the
-# tests inside unique to test the comparator used when sorting the tests per
-# regression status in the global status page.
-# RUN: lnt import %t.instance %S/Inputs/last-run-report.json
-#
-# RUN: lnt import %t.instance %S/Inputs/sample-failed-report1.json
-# RUN: lnt import %t.instance %S/Inputs/sample-failed-report2.json
-#
-# RUN: python %s %t.instance %{tidylib}
+# RUN: %{utils}/with_postgres.sh %t.pg.log \
+# RUN:     %{utils}/with_temporary_instance.py %t.instance \
+# RUN:         %{shared_inputs}/base-reports \
+# RUN:         %{shared_inputs}/extra-reports \
+# RUN:         %{shared_inputs}/profile-report.json \
+# RUN:         %S/Inputs/last-run-report.json \
+# RUN:         %S/Inputs/sample-failed-report1.json \
+# RUN:         %S/Inputs/sample-failed-report2.json \
+# RUN:         -- python %s %t.instance %{tidylib}
 
 import logging
 import re
@@ -302,6 +295,90 @@ def main():
     # Create a test client.
     client = app.test_client()
 
+    # === Build ID maps for dynamic lookups ===
+
+    # NTS machines
+    nts_mj = check_json(client, 'api/db_default/v4/nts/machines/')
+    nts_m = {m['name']: m['id'] for m in nts_mj['machines']}
+    m1_id = nts_m['localhost__clang_DEV__x86_64']
+    m2_id = nts_m['machine2']
+    m3_id = nts_m['machine3']
+    profile_m_id = nts_m['e105293.local__clang_DEV__x86_64']
+    failed_m_id = nts_m['LNT SAMPLE MACHINE']
+
+    # NTS tests
+    nts_tj = check_json(client, 'api/db_default/v4/nts/tests')
+    nts_t = {t['name']: t['id'] for t in nts_tj['tests']}
+    fv_id = nts_t['SingleSource/UnitTests/2006-12-01-float_varg']
+    test1_id = nts_t['test1']
+    test2_id = nts_t['test2']
+    test6_id = nts_t['test6']
+    hash1_id = nts_t['test_hash1']
+    hash2_id = nts_t['test_hash2']
+    mhash_id = nts_t['test_mhash_on_run']
+    foo_id = nts_t['foo']
+
+    # NTS machine data and runs keyed by revision
+    def runs_by_rev(machine_data):
+        return {r.get('llvm_project_revision'): r
+                for r in machine_data['runs']
+                if r.get('llvm_project_revision')}
+
+    m1_data = check_json(
+        client, f'api/db_default/v4/nts/machines/{m1_id}')
+    m2_data = check_json(
+        client, f'api/db_default/v4/nts/machines/{m2_id}')
+    m3_data = check_json(
+        client, f'api/db_default/v4/nts/machines/{m3_id}')
+    profile_data = check_json(
+        client, f'api/db_default/v4/nts/machines/{profile_m_id}')
+    failed_data = check_json(
+        client, f'api/db_default/v4/nts/machines/{failed_m_id}')
+
+    m1_rbr = runs_by_rev(m1_data)
+    m2_rbr = runs_by_rev(m2_data)
+
+    # Key NTS run IDs
+    m1_run1_id = m1_rbr['154331']['id']
+    reg_run1_id = m2_rbr['152292']['id']
+    reg_run2_id = m2_rbr['152293']['id']
+    spark_run1_id = m2_rbr['152294']['id']
+    spark_run2_id = m2_rbr['152295']['id']
+    spark_run3_id = m2_rbr['152296']['id']
+
+    # NTS order ID (from a machine2 run)
+    m2_run_detail = check_json(
+        client, f"api/db_default/v4/nts/runs/{m2_data['runs'][0]['id']}")
+    nts_order_id = m2_run_detail['run']['order_id']
+
+    # Compile machines
+    compile_mj = check_json(client, 'api/db_default/v4/compile/machines/')
+    compile_m = {m['name']: m['id'] for m in compile_mj['machines']}
+    cm1_id = compile_m['localhost']
+    cm2_id = compile_m['MacBook-Pro.local']
+
+    cm1_data = check_json(
+        client, f'api/db_default/v4/compile/machines/{cm1_id}')
+    cm2_data = check_json(
+        client, f'api/db_default/v4/compile/machines/{cm2_id}')
+
+    # Compile tests
+    compile_tj = check_json(client, 'api/db_default/v4/compile/tests')
+    compile_t = {t['name']: t['id'] for t in compile_tj['tests']}
+
+    # Compile order
+    cm2_run_detail = check_json(
+        client, f"api/db_default/v4/compile/runs/{cm2_data['runs'][0]['id']}")
+    compile_order_id = cm2_run_detail['run']['order_id']
+
+    # Get a sample from sparkline-run1 for test6 (used in graph_for_sample)
+    spark_run1_samples = check_json(
+        client, f'api/db_default/v4/nts/samples?runid={spark_run1_id}')
+    test6_sample_id = next(s['id'] for s in spark_run1_samples['samples']
+                           if s['name'] == 'test6')
+
+    # === End ID maps ===
+
     # Fetch the index page.
     check_html(client, '/')
 
@@ -309,17 +386,17 @@ def main():
     check_html(client, '/v4/nts/')
 
     # Get a machine overview page.
-    check_html(client, '/v4/nts/machine/1')
+    check_html(client, f'/v4/nts/machine/{m1_id}')
     # Check invalid machine gives error.
     check_code(client, '/v4/nts/machine/9999', expected_code=HTTP_NOT_FOUND)
     # Get a machine overview page in JSON format.
-    check_json(client, '/v4/nts/machine/1?json=true')
+    check_json(client, f'/v4/nts/machine/{m1_id}?json=true')
 
     # Get the order summary page.
     check_html(client, '/v4/nts/all_orders')
 
     # Get an order page.
-    check_html(client, '/v4/nts/order/3')
+    check_html(client, f'/v4/nts/order/{nts_order_id}')
     # Check invalid order gives error.
     check_code(client, '/v4/nts/order/9999', expected_code=HTTP_NOT_FOUND)
 
@@ -327,17 +404,23 @@ def main():
     form_data = dict(name="foo_baseline",
                      description="foo_descrimport iption",
                      prmote=True)
-    r = client.post('/v4/nts/order/3', data=form_data)
+    r = client.post(f'/v4/nts/order/{nts_order_id}', data=form_data)
     # We should redirect to the last page and flash.
     assert r.status_code == HTTP_REDIRECT
 
     # Try with redirect.
-    r = client.post('/v4/nts/order/3',
+    r = client.post(f'/v4/nts/order/{nts_order_id}',
                     data=form_data,
                     follow_redirects=True)
     assert r.status_code == HTTP_OK
     # Should see baseline displayed in page body.
     assert "Baseline - foo_baseline" in r.get_data(as_text=True)
+
+    # Set the baseline before demoting (baseline ID 1 is the first created).
+    check_code(client, '/v4/nts/set_baseline/1', expected_code=HTTP_REDIRECT)
+    with app.test_client() as c:
+        c.get('/v4/nts/set_baseline/1')
+        session.get('baseline-default-nts') == 1
 
     # Now demote it.
     data2 = dict(name="foo_baseline",
@@ -345,24 +428,20 @@ def main():
                  update=False,
                  promote=False,
                  demote=True)
-    r = client.post('/v4/nts/order/3', data=data2, follow_redirects=True)
+    r = client.post(f'/v4/nts/order/{nts_order_id}',
+                    data=data2, follow_redirects=True)
     assert r.status_code == HTTP_OK
     # Baseline should no longer be shown in page baseline.
     assert "Baseline - foo_baseline" not in r.get_data(as_text=True)
 
     # Leave a baseline in place for the rest of the tests.
-    client.post('/v4/nts/order/3', data=form_data)
-
-    check_code(client, '/v4/nts/set_baseline/1', expected_code=HTTP_REDIRECT)
-    with app.test_client() as c:
-        c.get('/v4/nts/set_baseline/1')
-        session.get('baseline-default-nts') == 1
+    client.post(f'/v4/nts/order/{nts_order_id}', data=form_data)
 
     # Get a run result page (and associated views).
-    check_html(client, '/v4/nts/1')
-    check_json(client, '/v4/nts/1?json=true')
-    check_html(client, '/v4/nts/1/report')
-    check_code(client, '/v4/nts/1/text_report')
+    check_html(client, f'/v4/nts/{m1_run1_id}')
+    check_json(client, f'/v4/nts/{m1_run1_id}?json=true')
+    check_html(client, f'/v4/nts/{m1_run1_id}/report')
+    check_code(client, f'/v4/nts/{m1_run1_id}/text_report')
     # Check invalid run numbers give errors.
     check_code(client, '/v4/nts/9999',
                expected_code=HTTP_NOT_FOUND)
@@ -374,47 +453,48 @@ def main():
                expected_code=HTTP_NOT_FOUND)
 
     # Get a graph page. This has been changed to redirect.
-    check_redirect(client, '/v4/nts/1/graph?test.3=2',
-                   r'v4/nts/graph\?'
-                   r'(plot\.0=1\.3\.2&highlight_run=1'
-                   r'|highlight_run=1&plot\.0=1\.3\.2)$')
+    check_redirect(client,
+                   f'/v4/nts/{m1_run1_id}/graph?test.{fv_id}=2',
+                   rf'v4/nts/graph\?'
+                   rf'(plot\.0={m1_id}\.{fv_id}\.2&highlight_run={m1_run1_id}'
+                   rf'|highlight_run={m1_run1_id}&plot\.0={m1_id}\.{fv_id}\.2)$')
 
     # Get a run that contains generic producer information
-    check_producer_label(client, '/v4/nts/7',
-                         ['Current', '152293', '2012-05-10T16:28:23',
+    check_producer_label(client, f'/v4/nts/{spark_run1_id}',
+                         ['Current', '152294', '2012-05-10T16:28:23',
                           '0:00:35', 'Producer'])
-    check_producer_label(client, '/v4/nts/8',
-                         ['Current', '152294', '2012-05-11T16:28:23',
+    check_producer_label(client, f'/v4/nts/{spark_run2_id}',
+                         ['Current', '152295', '2012-05-11T16:28:23',
                           '0:00:35', 'Producer'])
 
     # Get a run that contains Buildbot producer information
-    check_producer_label(client, '/v4/nts/7',
-                         ['Previous', '152292', '2012-05-01T16:28:23',
+    check_producer_label(client, f'/v4/nts/{reg_run1_id}',
+                         ['Current', '152292', '2012-05-01T16:28:23',
                           '0:00:35', 'some-builder #987'])
-    check_producer_label(client, '/v4/nts/9',
-                         ['Current', '152295', '2012-05-12T16:28:23',
+    check_producer_label(client, f'/v4/nts/{spark_run3_id}',
+                         ['Current', '152296', '2012-05-12T16:28:23',
                           '0:00:35', 'some-builder #999'])
 
     # Get the new graph page.
-    check_html(client, '/v4/nts/graph?plot.0=1.3.2')
+    check_html(client, f'/v4/nts/graph?plot.0={m1_id}.{fv_id}.2')
     # Don't crash when requesting non-existing data
-    check_html(client, '/v4/nts/graph?plot.9999=1.3.2')
-    check_code(client, '/v4/nts/graph?plot.0=9999.3.2',
+    check_html(client, f'/v4/nts/graph?plot.9999={m1_id}.{fv_id}.2')
+    check_code(client, f'/v4/nts/graph?plot.0=9999.{fv_id}.2',
                expected_code=HTTP_NOT_FOUND)
-    check_code(client, '/v4/nts/graph?plot.0=1.9999.2',
+    check_code(client, f'/v4/nts/graph?plot.0={m1_id}.9999.2',
                expected_code=HTTP_NOT_FOUND)
-    check_code(client, '/v4/nts/graph?plot.0=1.3.9999',
+    check_code(client, f'/v4/nts/graph?plot.0={m1_id}.{fv_id}.9999',
                expected_code=HTTP_NOT_FOUND)
-    check_json(client, '/v4/nts/graph?plot.9999=1.3.2&json=True')
+    check_json(client, f'/v4/nts/graph?plot.9999={m1_id}.{fv_id}.2&json=True')
     # Get the mean graph page.
-    check_html(client, '/v4/nts/graph?mean=1.2')
+    check_html(client, f'/v4/nts/graph?mean={m1_id}.2')
     # Don't crash when requesting non-existing data
     check_code(client, '/v4/nts/graph?mean=9999.2',
                expected_code=HTTP_NOT_FOUND)
-    check_code(client, '/v4/nts/graph?mean=1.9999',
+    check_code(client, f'/v4/nts/graph?mean={m1_id}.9999',
                expected_code=HTTP_NOT_FOUND)
     #  Check baselines work.
-    check_html(client, '/v4/nts/graph?plot.0=1.3.2&baseline.60=3')
+    check_html(client, f'/v4/nts/graph?plot.0={m1_id}.{fv_id}.2&baseline.60={m1_run1_id}')
 
     # Check some variations of the daily report work.
     check_html(client, '/v4/nts/daily_report/2012/4/12')
@@ -461,9 +541,9 @@ def main():
                          ["", "machine2", "FAIL", "-", "-", ""]])
     check_table_links(result_table_20120504,
                       [[],
-                       ["/db_default/v4/nts/graph?plot.0=2.4.2&highlight_run=6"],
+                       [f"/db_default/v4/nts/graph?plot.0={m2_id}.{test1_id}.2&highlight_run={reg_run2_id}"],
                        [],
-                       ["/db_default/v4/nts/graph?plot.0=2.5.2&highlight_run=6"]])
+                       [f"/db_default/v4/nts/graph?plot.0={m2_id}.{test2_id}.2&highlight_run={reg_run2_id}"]])
 
     check_body_nr_tests_table(
         client, '/v4/nts/daily_report/2012/5/04',
@@ -484,13 +564,13 @@ def main():
                          ["", "machine2", "1.000", '1.000', '1.200', ""], ])
     check_table_links(result_table_20120513,
                       [[],
-                       ['/db_default/v4/nts/graph?plot.0=2.6.2&highlight_run=9'],
+                       [f'/db_default/v4/nts/graph?plot.0={m2_id}.{test6_id}.2&highlight_run={spark_run3_id}'],
                        [],
-                       ['/db_default/v4/nts/graph?plot.0=2.7.2&highlight_run=9'],
+                       [f'/db_default/v4/nts/graph?plot.0={m2_id}.{hash1_id}.2&highlight_run={spark_run3_id}'],
                        [],
-                       ['/db_default/v4/nts/graph?plot.0=2.8.2&highlight_run=9'],
+                       [f'/db_default/v4/nts/graph?plot.0={m2_id}.{hash2_id}.2&highlight_run={spark_run3_id}'],
                        [],
-                       ['/db_default/v4/nts/graph?plot.0=2.9.2&highlight_run=9']])
+                       [f'/db_default/v4/nts/graph?plot.0={m2_id}.{mhash_id}.2&highlight_run={spark_run3_id}']])
 
     sparkline_test6_xml = \
         get_sparkline(result_table_20120513, "test6", "machine2")
@@ -563,9 +643,10 @@ def main():
     check_html(client, '/v4/compile/')
 
     # Get a machine overview page.
-    check_html(client, '/v4/compile/machine/1')
-    check_html(client, '/v4/compile/machine/2')
-    check_code(client, '/v4/compile/machine/2/latest', expected_code=HTTP_REDIRECT)
+    check_html(client, f'/v4/compile/machine/{cm1_id}')
+    check_html(client, f'/v4/compile/machine/{cm2_id}')
+    check_code(client, f'/v4/compile/machine/{cm2_id}/latest',
+               expected_code=HTTP_REDIRECT)
     # Don't crash when requesting non-existing data
     check_code(client, '/v4/compile/machine/9999',
                expected_code=HTTP_NOT_FOUND)
@@ -573,73 +654,98 @@ def main():
     check_code(client, '/v4/compile/machine/a', expected_code=HTTP_NOT_FOUND)
 
     # Check the compare machine form gives correct redirects.
-    resp = check_code(client, '/v4/nts/machine/2/compare?compare_to_id=3', expected_code=HTTP_REDIRECT)
-    assert resp.headers['Location'] == "/db_default/v4/nts/9?compare_to=4"
-    resp = check_code(client, '/v4/nts/machine/3/compare?compare_to_id=2', expected_code=HTTP_REDIRECT)
-    assert resp.headers['Location'] == "/db_default/v4/nts/4?compare_to=9"
+    m2_latest = max(r['id'] for r in m2_data['runs'])
+    m3_latest = max(r['id'] for r in m3_data['runs'])
+    resp = check_code(
+        client,
+        f'/v4/nts/machine/{m2_id}/compare?compare_to_id={m3_id}',
+        expected_code=HTTP_REDIRECT)
+    assert resp.headers['Location'] == \
+        f"/db_default/v4/nts/{m2_latest}?compare_to={m3_latest}"
+    resp = check_code(
+        client,
+        f'/v4/nts/machine/{m3_id}/compare?compare_to_id={m2_id}',
+        expected_code=HTTP_REDIRECT)
+    assert resp.headers['Location'] == \
+        f"/db_default/v4/nts/{m3_latest}?compare_to={m2_latest}"
 
     # Get the order summary page.
     check_html(client, '/v4/compile/all_orders')
 
     # Get an order page.
-    check_html(client, '/v4/compile/order/3')
+    check_html(client, f'/v4/compile/order/{compile_order_id}')
 
     # Get a run result page (and associated views).
-    check_html(client, '/v4/compile/1')
-    check_html(client, '/v4/compile/2')
-    check_html(client, '/v4/compile/3')
-    check_html(client, '/v4/compile/4')
+    all_compile_runs = sorted(set(
+        r['id'] for r in cm1_data['runs'] + cm2_data['runs']))
+    for run_id in all_compile_runs:
+        check_html(client, f'/v4/compile/{run_id}')
     check_code(client, '/v4/compile/9999', expected_code=HTTP_NOT_FOUND)
 
-    check_html(client, '/v4/compile/1/report')
+    first_compile_run = cm1_data['runs'][0]['id']
+    check_html(client, f'/v4/compile/{first_compile_run}/report')
 
-    check_code(client, '/v4/compile/1/text_report')
+    check_code(client, f'/v4/compile/{first_compile_run}/text_report')
 
     # Get the new graph page.
-    check_html(client, '/v4/compile/graph?plot.3=2.3.9')
+    compile_test_id = compile_t['compile/403.gcc/combine.c/init/(-O0)']
+    check_html(client, f'/v4/compile/graph?plot.3={cm2_id}.{compile_test_id}.9')
 
     # Get the mean graph page.
-    check_html(client, 'v4/compile/graph?mean=2.9')
+    check_html(client, f'v4/compile/graph?mean={cm2_id}.9')
 
     # Check some variations of the daily report work.
     check_html(client, '/v4/compile/daily_report/2014/6/5?day_start=16')
     check_html(client, '/v4/compile/daily_report/2014/6/4')
 
-    check_redirect(client, '/v4/nts/regressions/new_from_graph/1/1/1/1', '/v4/nts/regressions/1')
+    new_from_graph_url = f'/v4/nts/regressions/new_from_graph/{m1_id}/{fv_id}/1/{m1_run1_id}'
+    regressions_resp = check_redirect(client, new_from_graph_url,
+                                      r'/v4/nts/regressions/\d+')
+    regression_url = regressions_resp.headers['Location']
     check_html(client, '/v4/nts/regressions/')
     check_html(client, '/v4/nts/regressions/?machine_filter=machine2')
     check_html(client, '/v4/nts/regressions/?machine_filter=machine0')
 
-    check_html(client, '/v4/nts/regressions/1')
-
-    check_json(client, '/v4/nts/regressions/1?json=True')
+    check_html(client, regression_url)
+    check_json(client, regression_url + '?json=True')
 
     # Check 404 is issues for inexistent Code
     check_code(client, 'v4/nts/profile/9999/9999', expected_code=HTTP_NOT_FOUND)
 
     # Profile Viewer Ajax functions
     # Check profiles page is responsive with expected IDs
-    check_code(client, 'v4/nts/profile/10/10')
+    profile_run_id = profile_data['runs'][0]['id']
+    check_code(client, f'v4/nts/profile/{profile_run_id}/{foo_id}')
     # Check ajax call
-    functions = check_json(client, 'v4/nts/profile/ajax/getFunctions?runid=10&testid=10')
+    functions = check_json(
+        client,
+        f'v4/nts/profile/ajax/getFunctions?runid={profile_run_id}&testid={foo_id}')
     number_of_functions = len(functions)
     first_function_name = functions[0][0]
     assert 1 == number_of_functions
     assert "fn1" == first_function_name
 
-    top_level_counters = check_json(client, 'v4/nts/profile/ajax/getTopLevelCounters?runids=10&testid=10')
+    top_level_counters = check_json(
+        client,
+        f'v4/nts/profile/ajax/getTopLevelCounters?runids={profile_run_id}&testid={foo_id}')
     assert "cycles" in top_level_counters
     assert "branch-misses" in top_level_counters
 
-    code_for_fn = check_json(client, 'v4/nts/profile/ajax/getCodeForFunction?runid=10&testid=10&f=fn1')
+    code_for_fn = check_json(
+        client,
+        f'v4/nts/profile/ajax/getCodeForFunction?runid={profile_run_id}&testid={foo_id}&f=fn1')
     lines_in_function = len(code_for_fn)
     assert 2 == lines_in_function
 
     # Test with various aggregation functions
+    agg_plot = f'{m2_id}.{hash1_id}.2'
     for fn in ['mean', 'median', 'min', 'max']:
-        check_html(client, f'/db_default/v4/nts/graph?aggregation_function={fn}&plot.7.2=2.7.2')
-        check_json(client, f'/db_default/v4/nts/graph?aggregation_function={fn}&plot.7.2=2.7.2&json=true')
-    check_html(client, '/db_default/v4/nts/graph?aggregation_function=nonexistent&plot.7.2=2.7.2', expected_code=404)
+        agg_url = f'/db_default/v4/nts/graph?aggregation_function={fn}&plot.7.2={agg_plot}'
+        check_html(client, agg_url)
+        check_json(client, agg_url + '&json=true')
+    check_html(client,
+               f'/db_default/v4/nts/graph?aggregation_function=nonexistent&plot.7.2={agg_plot}',
+               expected_code=404)
     app.testing = False
     error_page = check_html(client, '/explode', expected_code=500)
     assert re.search("InternalServerError", error_page.get_data(as_text=True))
@@ -658,21 +764,29 @@ def main():
     assert resp.get_data(as_text=True) == "pong"
 
     # Check we can convert a sample into a graph page.
-    graph_to_sample = check_code(client, '/db_default/v4/nts/graph_for_sample/10/compile_time?foo=bar',
-                                 expected_code=HTTP_REDIRECT)
+    expected_plot = f'{m2_id}.{test6_id}.0'
+    graph_to_sample = check_code(
+        client,
+        f'/db_default/v4/nts/graph_for_sample/{test6_sample_id}/compile_time?foo=bar',
+        expected_code=HTTP_REDIRECT)
     assert graph_to_sample.headers['Location'] in (
-            "/db_default/v4/nts/graph?foo=bar&plot.0=2.6.0",
-            "/db_default/v4/nts/graph?plot.0=2.6.0&foo=bar")
+        f"/db_default/v4/nts/graph?foo=bar&plot.0={expected_plot}",
+        f"/db_default/v4/nts/graph?plot.0={expected_plot}&foo=bar")
 
     # Check that is we ask for a sample or invalid field, we explode with 400s.
     check_code(client, '/db_default/v4/nts/graph_for_sample/10000/compile_time?foo=bar',
                expected_code=HTTP_NOT_FOUND)
-    check_code(client, '/db_default/v4/nts/graph_for_sample/10/not_a_metric?foo=bar',
-               expected_code=HTTP_BAD_REQUEST)
+    check_code(
+        client,
+        f'/db_default/v4/nts/graph_for_sample/{test6_sample_id}/not_a_metric?foo=bar',
+        expected_code=HTTP_BAD_REQUEST)
 
     # check get_geomean_comparison_result with empty unchanged_tests
-    check_html(client, '/v4/nts/11')
-    check_html(client, '/v4/nts/12')
+    profile_last_run = max(profile_data['runs'],
+                           key=lambda r: r.get('llvm_project_revision', ''))
+    failed_run = failed_data['runs'][0]
+    check_html(client, f'/v4/nts/{profile_last_run["id"]}')
+    check_html(client, f'/v4/nts/{failed_run["id"]}')
 
 
 if __name__ == '__main__':
