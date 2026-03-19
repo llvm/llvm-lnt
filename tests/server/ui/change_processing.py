@@ -1,11 +1,5 @@
 # Check that the LNT REST JSON API is working.
-# create temporary instance
-# RUN: rm -rf %t.instance
-# RUN: python %{shared_inputs}/create_temp_instance.py \
-# RUN:     %s %{shared_inputs}/SmallInstance \
-# RUN:     %t.instance %S/Inputs/V4Pages_extra_records.sql
-#
-# RUN: python %s %t.instance
+# RUN: python %s
 
 import datetime
 import logging
