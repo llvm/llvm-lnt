@@ -2,23 +2,24 @@
 # model itself. The heavy lifting of constructing a test suite's databases,
 # etc. is checked in CreateV4TestSuiteInstance.
 #
-# RUN: rm -f %t.db
-# RUN: python %s %t.db
+# RUN: rm -rf %t.instance
+# RUN: %{utils}/with_postgres.sh %t.pg.log \
+# RUN:     %{utils}/with_temporary_instance.py %t.instance \
+# RUN:         -- python %s %t.instance
 
-from lnt.server.config import Config
+import sys
+
+import lnt.server.instance
 from lnt.server.db import testsuite
-from lnt.server.db import v4db
 
-# Create an in memory database.
-db = v4db.V4DB("sqlite:///:memory:", Config.dummy_instance())
+# Load the database from the test instance.
+instance_path = sys.argv[1]
+db = lnt.server.instance.Instance.frompath(instance_path).get_database('default')
 session = db.make_session()
 
-# We expect exactly the NTS test suite.
-test_suites = list(session.query(testsuite.TestSuite))
-assert len(test_suites) == 1
-
-# Check the NTS test suite.
+# We expect the NTS test suite to be present.
 ts = session.query(testsuite.TestSuite).filter_by(name="nts").first()
+assert ts is not None
 assert ts.name == "nts"
 assert ts.db_key_name == "NT"
 assert len(ts.machine_fields) == 2

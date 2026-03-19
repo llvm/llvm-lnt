@@ -1,16 +1,19 @@
 # Check the model bindings for test suite instances.
 #
-# RUN: rm -f %t.db
-# RUN: python %s %t.db
+# RUN: rm -rf %t.instance
+# RUN: %{utils}/with_postgres.sh %t.pg.log \
+# RUN:     %{utils}/with_temporary_instance.py %t.instance \
+# RUN:         -- python %s %t.instance
 
 import datetime
+import sys
 
-from lnt.server.config import Config
-from lnt.server.db import v4db
+import lnt.server.instance
 from lnt.server.db.fieldchange import RegressionState
 
-# Create an in memory database.
-db = v4db.V4DB("sqlite:///:memory:", Config.dummy_instance())
+# Load the database from the test instance.
+instance_path = sys.argv[1]
+db = lnt.server.instance.Instance.frompath(instance_path).get_database('default')
 session = db.make_session()
 
 # Get the test suite wrapper.

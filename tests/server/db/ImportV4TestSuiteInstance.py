@@ -1,13 +1,13 @@
 # Check the import process into a v4 test suite DB.
 #
-# We first construct a temporary LNT instance.
-# RUN: rm -rf %t.install
-# RUN: lnt create %t.install
+# RUN: rm -rf "%t.install"
+# RUN: %{utils}/start_postgres.sh %t.pg.log > %t.pg.env
+# RUN: sh -c '. "%t.pg.env" && lnt create "%t.install" --db-dir "$LNT_TEST_DB_URI" --default-db "$LNT_TEST_DB_NAME"'
 
 # Import the first test set.
-# RUN: lnt import %t.install %{shared_inputs}/sample-a-small.plist \
-# RUN:     --show-sample-count > %t1.log
-# RUN: filecheck -check-prefix=IMPORT-A-1 %s < %t1.log
+# RUN: lnt import "%t.install" "%{shared_inputs}/sample-a-small.plist" \
+# RUN:     --show-sample-count > "%t.install/t1.log"
+# RUN: filecheck -check-prefix=IMPORT-A-1 %s < "%t.install/t1.log"
 #
 # IMPORT-A-1: Added Machines: 1
 # IMPORT-A-1: Added Runs : 1
@@ -17,17 +17,17 @@
 # IMPORT-A-1: PASS : 5
 
 # Import the second test set.
-# RUN: lnt import %t.install %{shared_inputs}/sample-b-small.plist \
-# RUN:     --show-sample-count --show-sql > %t2.log
-# RUN: filecheck -check-prefix=IMPORT-B %s < %t2.log
+# RUN: lnt import "%t.install" "%{shared_inputs}/sample-b-small.plist" \
+# RUN:     --show-sample-count --show-sql > "%t.install/t2.log"
+# RUN: filecheck -check-prefix=IMPORT-B %s < "%t.install/t2.log"
 #
 # IMPORT-B: Added Runs : 1
 # IMPORT-B: Added Samples : 1
 
-# Check appending to an existing order
-# RUN: lnt import %t.install %{shared_inputs}/sample-a-small.plist \
-# RUN:     --show-sample-count --merge=append >& %t_append.log
-# RUN: filecheck -check-prefix=IMPORT-A-APPEND %s < %t_append.log
+# Check appending to an existing order.
+# RUN: lnt import "%t.install" "%{shared_inputs}/sample-a-small.plist" \
+# RUN:     --show-sample-count --merge=append > "%t.install/t_append.log" 2>&1
+# RUN: filecheck -check-prefix=IMPORT-A-APPEND %s < "%t.install/t_append.log"
 #
 # IMPORT-A-APPEND-NOT: Added Machines
 # IMPORT-A-APPEND: Added Runs : 1
@@ -37,9 +37,9 @@
 # IMPORT-A-APPEND: PASS : 5
 
 # Check that reimporting replaces the existing run.
-# RUN: lnt import %t.install %{shared_inputs}/sample-a-small.plist \
-# RUN:     --show-sample-count --merge=replace >& %t_replace.log
-# RUN: filecheck -check-prefix=IMPORT-A-REPLACE %s < %t_replace.log
+# RUN: lnt import "%t.install" "%{shared_inputs}/sample-a-small.plist" \
+# RUN:     --show-sample-count --merge=replace > "%t.install/t_replace.log" 2>&1
+# RUN: filecheck -check-prefix=IMPORT-A-REPLACE %s < "%t.install/t_replace.log"
 #
 # IMPORT-A-REPLACE-NOT: Added Machines
 # IMPORT-A-REPLACE: Added Runs : -1
@@ -49,28 +49,32 @@
 # IMPORT-A-REPLACE: PASS : 5
 
 # Check that reimporting the first test set properly reports as a duplicate.
-# RUN: not lnt import %t.install %{shared_inputs}/sample-a-small.plist \
-# RUN:     --show-sample-count --merge=reject >& %t_reject.log
-# RUN: filecheck -check-prefix=IMPORT-A-REJECT %s < %t_reject.log
+# RUN: not lnt import "%t.install" "%{shared_inputs}/sample-a-small.plist" \
+# RUN:     --show-sample-count --merge=reject > "%t.install/t_reject.log" 2>&1
+# RUN: filecheck -check-prefix=IMPORT-A-REJECT %s < "%t.install/t_reject.log"
 #
 # IMPORT-A-REJECT: Duplicate submission for '1'
 
-# Dump a copy of the database, so it will show up in logs.
-# RUN: sqlite3 %t.install/data/lnt.db .dump
-
 # Run consistency checks on the final database, to validate the import.
-# RUN: python %s %t.install/data/lnt.db
+# RUN: python %s "%t.install"
+#
+# Stop the PostgreSQL container.
+# RUN: sh -c '. "%t.pg.env" && %{utils}/stop_postgres.sh "$LNT_PG_CONTAINER"'
 
+#
+# Database validation code
+#
 import datetime
 import sys
 
 import lnt.testing
-from lnt.server.config import Config
+import lnt.server.instance
 from lnt.server.db import testsuite
-from lnt.server.db import v4db
 
 # Load the test database.
-db = v4db.V4DB("sqlite:///%s" % sys.argv[1], Config.dummy_instance())
+instance_path = sys.argv[1]
+instance = lnt.server.instance.Instance.frompath(instance_path)
+db = instance.get_database('default')
 session = db.make_session()
 
 # Get the status kinds, and validate the IDs align with the testing IDs.
