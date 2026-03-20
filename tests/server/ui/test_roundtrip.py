@@ -53,12 +53,10 @@ class JSONAPIRoundTripTester(unittest.TestCase):
 
         j = check_json(client, 'api/db_default/v4/nts/machines/')
         machine_id = next(m['id'] for m in j['machines']
-                         if m['name'] == 'localhost__clang_DEV__x86_64')
-        machine_data = check_json(client,
-            'api/db_default/v4/nts/machines/{}'.format(machine_id))
+                          if m['name'] == 'localhost__clang_DEV__x86_64')
+        machine_data = check_json(client, 'api/db_default/v4/nts/machines/{}'.format(machine_id))
         first_run_id = machine_data['runs'][0]['id']
-        orig_api_run = check_json(client,
-            'api/db_default/v4/nts/runs/{}'.format(first_run_id))
+        orig_api_run = check_json(client, 'api/db_default/v4/nts/runs/{}'.format(first_run_id))
 
         # Do some slight modification to avoid LNT rejecting the new submission
         # as a duplicate.

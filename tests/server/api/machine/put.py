@@ -36,7 +36,7 @@ class UpdateMachineTest(unittest.TestCase):
 
         j = check_json(client, 'api/db_default/v4/nts/machines/')
         machine_id = next(m['id'] for m in j['machines']
-                         if m['name'] == 'localhost__clang_DEV__x86_64')
+                          if m['name'] == 'localhost__clang_DEV__x86_64')
 
         # We are going to set the 'os' field to none, remove the 'uname'
         # parameter and add the 'new_parameter' parameter.

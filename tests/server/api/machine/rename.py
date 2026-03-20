@@ -35,7 +35,7 @@ class RenameMachineTest(unittest.TestCase):
 
         j = check_json(client, 'api/db_default/v4/nts/machines/')
         machine_id = next(m['id'] for m in j['machines']
-                         if m['name'] == 'localhost__clang_DEV__x86_64')
+                          if m['name'] == 'localhost__clang_DEV__x86_64')
 
         # Make sure the environment is as expected.
         j = check_json(client, 'api/db_default/v4/nts/machines/{}'.format(machine_id))

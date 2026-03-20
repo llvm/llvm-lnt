@@ -36,7 +36,7 @@ class DeleteMachineTest(unittest.TestCase):
 
         j = check_json(client, 'api/db_default/v4/nts/machines/')
         machine_id = next(m['id'] for m in j['machines']
-                         if m['name'] == 'machine2')
+                          if m['name'] == 'machine2')
 
         j = check_json(client, 'api/db_default/v4/nts/machines/{}'.format(machine_id))
         run_ids = [s['id'] for s in j['runs']]

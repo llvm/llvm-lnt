@@ -34,14 +34,12 @@ class JSONAPIDeleteTester(unittest.TestCase):
 
         j = check_json(client, 'api/db_default/v4/nts/machines/')
         machine_id = next(m['id'] for m in j['machines']
-                         if m['name'] == 'localhost__clang_DEV__x86_64')
-        machine_data = check_json(client,
-            'api/db_default/v4/nts/machines/{}'.format(machine_id))
+                          if m['name'] == 'localhost__clang_DEV__x86_64')
+        machine_data = check_json(client, 'api/db_default/v4/nts/machines/{}'.format(machine_id))
         # Pick a run without tests (to avoid sample ID comparison issues)
         run_id = None
         for run_summary in machine_data['runs']:
-            run_data = check_json(client,
-                'api/db_default/v4/nts/runs/{}'.format(run_summary['id']))
+            run_data = check_json(client, 'api/db_default/v4/nts/runs/{}'.format(run_summary['id']))
             if not run_data['tests']:
                 run_id = run_summary['id']
                 break
