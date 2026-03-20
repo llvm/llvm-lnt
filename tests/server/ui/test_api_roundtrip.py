@@ -1,11 +1,10 @@
 # Check that the LNT REST JSON API is working.
 # create temporary instance
 # RUN: rm -rf %t.instance
-# RUN: python %{shared_inputs}/create_temp_instance.py \
-# RUN:     %s %{shared_inputs}/SmallInstance \
-# RUN:     %t.instance %S/Inputs/V4Pages_extra_records.sql
-#
-# RUN: python %s %t.instance %{shared_inputs}
+# RUN: %{utils}/with_postgres.sh %t.pg.log \
+# RUN:     %{utils}/with_temporary_instance.py %t.instance \
+# RUN:         %{shared_inputs}/base-reports \
+# RUN:         -- python %s %t.instance %{shared_inputs}
 
 import json
 import logging
@@ -33,11 +32,24 @@ class JSONAPIDeleteTester(unittest.TestCase):
         """Check /runs GET, POST roundtrip"""
         client = self.client
 
-        # Download originl
-        original = check_json(client, 'api/db_default/v4/nts/runs/2')
+        j = check_json(client, 'api/db_default/v4/nts/machines/')
+        machine_id = next(m['id'] for m in j['machines']
+                          if m['name'] == 'localhost__clang_DEV__x86_64')
+        machine_data = check_json(client, 'api/db_default/v4/nts/machines/{}'.format(machine_id))
+        # Pick a run without tests (to avoid sample ID comparison issues)
+        run_id = None
+        for run_summary in machine_data['runs']:
+            run_data = check_json(client, 'api/db_default/v4/nts/runs/{}'.format(run_summary['id']))
+            if not run_data['tests']:
+                run_id = run_summary['id']
+                break
+        self.assertIsNotNone(run_id, "Expected a run without tests")
+
+        # Download original
+        original = check_json(client, 'api/db_default/v4/nts/runs/{}'.format(run_id))
 
         # Remove the run
-        resp = client.delete('api/db_default/v4/nts/runs/2',
+        resp = client.delete('api/db_default/v4/nts/runs/{}'.format(run_id),
                              headers={'AuthToken': 'test_token'})
         self.assertEqual(resp.status_code, 200)
 

@@ -1,0 +1,33 @@
+{
+    "format_version": "2",
+    "machine": {
+        "name": "localhost__clang_DEV__x86_64",
+        "hardware": "x86_64",
+        "os": "Darwin 11.3.0",
+        "hostname": "localhost",
+        "uname": "Darwin localhost 11.3.0 Darwin Kernel Version 11.3.0: Thu Jan 12 18:47:41 PST 2012; root:xnu-1699.24.23~1/RELEASE_X86_64 x86_64"
+    },
+    "run": {
+        "start_time": "2012-04-11T16:28:23",
+        "end_time": "2012-04-11T16:28:58",
+        "llvm_project_revision": "154331",
+        "cc_build": "DEV",
+        "cc_name": "clang",
+        "cc_version_number": "3.1",
+        "cc_src_revision": "154331",
+        "inferred_run_order": "154331",
+        "no_errors": true
+    },
+    "tests": [
+        {
+            "name": "SingleSource/UnitTests/2006-12-01-float_varg",
+            "compile_time": 0.007,
+            "execution_time": 0.0003
+        },
+        {
+            "name": "SingleSource/UnitTests/2006-12-04-DynAllocAndRestore",
+            "compile_time": 0.0072,
+            "execution_time": 0.0003
+        }
+    ]
+}

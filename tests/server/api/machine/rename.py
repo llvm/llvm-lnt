@@ -1,10 +1,9 @@
 # Check that POST rename to /machines/n renames a machine.
 # RUN: rm -rf %t.instance
-# RUN: python %{shared_inputs}/create_temp_instance.py \
-# RUN:     %s %{shared_inputs}/SmallInstance \
-# RUN:     %t.instance %S/../../ui/Inputs/V4Pages_extra_records.sql
-#
-# RUN: python %s %t.instance
+# RUN: %{utils}/with_postgres.sh %t.pg.log \
+# RUN:     %{utils}/with_temporary_instance.py %t.instance \
+# RUN:         %{shared_inputs}/base-reports \
+# RUN:         -- python %s %t.instance
 
 import logging
 import os
@@ -34,27 +33,31 @@ class RenameMachineTest(unittest.TestCase):
         """Check rename POST request to /machines/n"""
         client = self.client
 
+        j = check_json(client, 'api/db_default/v4/nts/machines/')
+        machine_id = next(m['id'] for m in j['machines']
+                          if m['name'] == 'localhost__clang_DEV__x86_64')
+
         # Make sure the environment is as expected.
-        j = check_json(client, 'api/db_default/v4/nts/machines/1')
+        j = check_json(client, 'api/db_default/v4/nts/machines/{}'.format(machine_id))
         self.assertEqual(j['machine']['name'], 'localhost__clang_DEV__x86_64')
 
         data = {
             'action': 'rename',
             'name': 'new_machine_name',
         }
-        resp = client.post('api/db_default/v4/nts/machines/1', data=data)
+        resp = client.post('api/db_default/v4/nts/machines/{}'.format(machine_id), data=data)
         self.assertEqual(resp.status_code, 401)
 
-        resp = client.post('api/db_default/v4/nts/machines/1', data=data,
+        resp = client.post('api/db_default/v4/nts/machines/{}'.format(machine_id), data=data,
                            headers={'AuthToken': 'wrong token'})
         self.assertEqual(resp.status_code, 401)
 
-        resp = client.post('api/db_default/v4/nts/machines/1', data=data,
+        resp = client.post('api/db_default/v4/nts/machines/{}'.format(machine_id), data=data,
                            headers={'AuthToken': 'test_token'})
         self.assertEqual(resp.status_code, 200)
 
         # Machine should be renamed now.
-        j = check_json(client, 'api/db_default/v4/nts/machines/1')
+        j = check_json(client, 'api/db_default/v4/nts/machines/{}'.format(machine_id))
         self.assertEqual(j['machine']['name'], 'new_machine_name')
 
 

@@ -1,10 +1,10 @@
 # Check that POST merge into /machines/n merges machines.
 # RUN: rm -rf %t.instance
-# RUN: python %{shared_inputs}/create_temp_instance.py \
-# RUN:     %s %{shared_inputs}/SmallInstance \
-# RUN:     %t.instance %S/../../ui/Inputs/V4Pages_extra_records.sql
-#
-# RUN: python %s %t.instance
+# RUN: %{utils}/with_postgres.sh %t.pg.log \
+# RUN:     %{utils}/with_temporary_instance.py %t.instance \
+# RUN:         %{shared_inputs}/base-reports \
+# RUN:         %S/../../ui/Inputs/extra-reports \
+# RUN:         -- python %s %t.instance
 
 import logging
 import os
@@ -40,30 +40,36 @@ class MergeMachineTest(unittest.TestCase):
         """Check POST/merge into request for /machines."""
         client = self.client
 
+        j = check_json(client, 'api/db_default/v4/nts/machines/')
+        machine_1_id = next(m['id'] for m in j['machines']
+                            if m['name'] == 'localhost__clang_DEV__x86_64')
+        machine_3_id = next(m['id'] for m in j['machines']
+                            if m['name'] == 'machine3')
+
         # Download existing machines.
-        machine_1 = check_json(client, 'api/db_default/v4/nts/machines/1')
-        machine_3 = check_json(client, 'api/db_default/v4/nts/machines/3')
+        machine_1 = check_json(client, 'api/db_default/v4/nts/machines/{}'.format(machine_1_id))
+        machine_3 = check_json(client, 'api/db_default/v4/nts/machines/{}'.format(machine_3_id))
         # The test is boring if we don't have at least 1 run in each machine.
         self.assertTrue(len(machine_1['runs']) > 0)
         self.assertTrue(len(machine_3['runs']) > 0)
 
         data = {
             'action': 'merge',
-            'into': '3',
+            'into': str(machine_3_id),
         }
-        resp = client.post('api/db_default/v4/nts/machines/1', data=data,
+        resp = client.post('api/db_default/v4/nts/machines/{}'.format(machine_1_id), data=data,
                            headers={'AuthToken': 'test_token'})
         self.assertEqual(resp.status_code, 200)
 
         # Old machine should have disappeared.
-        resp_2 = client.get('api/db_default/v4/nts/machines/1')
+        resp_2 = client.get('api/db_default/v4/nts/machines/{}'.format(machine_1_id))
         self.assertEqual(resp_2.status_code, 404)
 
         # The other machine should have the union of all runs.
         machine_1['runs'] = [_hashabledict(run) for run in machine_1['runs']]
         machine_3['runs'] = [_hashabledict(run) for run in machine_3['runs']]
         allruns = set(machine_1['runs']).union(machine_3['runs'])
-        resp_3 = check_json(client, 'api/db_default/v4/nts/machines/3')
+        resp_3 = check_json(client, 'api/db_default/v4/nts/machines/{}'.format(machine_3_id))
         resp_3['runs'] = [_hashabledict(run) for run in resp_3['runs']]
         self.assertEqual(set(resp_3['runs']), allruns)
 

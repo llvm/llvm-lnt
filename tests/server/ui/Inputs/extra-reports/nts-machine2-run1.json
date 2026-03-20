@@ -1,0 +1,20 @@
+{
+    "format_version": "2",
+    "machine": {
+        "name": "machine2",
+        "hardware": "AArch64",
+        "os": "linux"
+    },
+    "run": {
+        "start_time": "2012-04-11T16:28:23",
+        "end_time": "2012-04-11T16:28:58",
+        "llvm_project_revision": "152290"
+    },
+    "tests": [
+        {
+            "name": "SingleSource/UnitTests/2006-12-01-float_varg",
+            "compile_time": 0.001,
+            "execution_time": 0.0001
+        }
+    ]
+}

@@ -1,0 +1,47 @@
+{
+    "format_version": "2",
+    "machine": {
+        "name": "machine2",
+        "hardware": "AArch64",
+        "os": "linux"
+    },
+    "run": {
+        "start_time": "2012-05-11T16:28:23",
+        "end_time": "2012-05-11T16:28:58",
+        "llvm_project_revision": "152295",
+        "producer": "https://my.build.server/buildResult"
+    },
+    "tests": [
+        {
+            "name": "test6",
+            "compile_status": 0,
+            "execution_status": 1,
+            "compile_time": 0.001,
+            "execution_time": 1.0
+        },
+        {
+            "name": "test_hash1",
+            "compile_status": 0,
+            "execution_status": 0,
+            "compile_time": 0.001,
+            "execution_time": 1.0
+        },
+        {
+            "name": "test_hash2",
+            "compile_status": 0,
+            "execution_status": 0,
+            "compile_time": 0.001,
+            "execution_time": 1.0,
+            "hash_status": 0,
+            "hash": "hash2"
+        },
+        {
+            "name": "test_mhash_on_run",
+            "compile_status": 0,
+            "execution_status": 0,
+            "compile_time": 0.001,
+            "execution_time": 1.0,
+            "hash_status": 1
+        }
+    ]
+}

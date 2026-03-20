@@ -1,0 +1,22 @@
+{
+    "format_version": "2",
+    "machine": {
+        "name": "machine2",
+        "hardware": "AArch64",
+        "os": "linux"
+    },
+    "run": {
+        "start_time": "2012-05-03T16:28:24",
+        "end_time": "2012-05-03T16:28:59",
+        "llvm_project_revision": "152293"
+    },
+    "tests": [
+        {
+            "name": "test1",
+            "compile_status": 0,
+            "execution_status": 0,
+            "compile_time": 0.001,
+            "execution_time": 10.0
+        }
+    ]
+}

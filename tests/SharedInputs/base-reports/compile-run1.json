@@ -1,0 +1,28 @@
+{
+    "format_version": "2",
+    "schema": "compile",
+    "machine": {
+        "name": "localhost",
+        "hardware": "MacBookPro8,2",
+        "os_version": "Darwin Kernel Version 11.3.0: Thu Jan 12 18:47:41 PST 2012; root:xnu-1699.24.23~1/RELEASE_X86_64"
+    },
+    "run": {
+        "start_time": "2012-04-11T16:30:33",
+        "end_time": "2012-04-11T16:40:13",
+        "llvm_project_revision": "154331",
+        "cc_build": "DEV",
+        "cc_name": "clang",
+        "cc_version_number": "3.1",
+        "inferred_run_order": "154331"
+    },
+    "tests": [
+        {
+            "name": "compile/OmniGroupFrameworks/NSBezierPath-OAExtensions.m/assembly/(-O0 -g)",
+            "user_time": [0.336512, 0.338633],
+            "sys_time": [0.02585, 0.027111],
+            "wall_time": [0.365776, 0.367148],
+            "size_bytes": [165852.0, 165852.0],
+            "mem_bytes": [33353728.0, 33353728.0]
+        }
+    ]
+}

@@ -1,0 +1,30 @@
+{
+    "format_version": "2",
+    "machine": {
+        "name": "machine2",
+        "hardware": "AArch64",
+        "os": "linux"
+    },
+    "run": {
+        "start_time": "2012-05-01T16:28:23",
+        "end_time": "2012-05-01T16:28:58",
+        "llvm_project_revision": "152292",
+        "producer": "http://buildbot.server.url/builders/some-builder/builds/987"
+    },
+    "tests": [
+        {
+            "name": "test1",
+            "compile_status": 0,
+            "execution_status": 0,
+            "compile_time": 0.001,
+            "execution_time": 1.0
+        },
+        {
+            "name": "test2",
+            "compile_status": [0, 0],
+            "execution_status": [1, 0],
+            "compile_time": [0.001, 0.001],
+            "execution_time": [1.0, 1.0]
+        }
+    ]
+}

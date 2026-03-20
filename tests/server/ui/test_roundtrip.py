@@ -1,11 +1,11 @@
 # Check that the LNT REST JSON API is working.
 # create temporary instance
 # RUN: rm -rf %t.instance
-# RUN: python %{shared_inputs}/create_temp_instance.py \
-# RUN:     %s %{shared_inputs}/SmallInstance \
-# RUN:     %t.instance %S/Inputs/V4Pages_extra_records.sql
-#
-# RUN: python %s %t.instance
+# RUN: %{utils}/with_postgres.sh %t.pg.log \
+# RUN:     %{utils}/with_temporary_instance.py %t.instance \
+# RUN:         %{shared_inputs}/base-reports \
+# RUN:         %S/Inputs/extra-reports \
+# RUN:         -- python %s %t.instance
 
 import json
 import logging
@@ -50,23 +50,22 @@ class JSONAPIRoundTripTester(unittest.TestCase):
         """Output of /runs/n can be fed back to /submitRun
         """
         client = self.client
-        orig_api_run = check_json(client, 'api/db_default/v4/nts/runs/1')
+
+        j = check_json(client, 'api/db_default/v4/nts/machines/')
+        machine_id = next(m['id'] for m in j['machines']
+                          if m['name'] == 'localhost__clang_DEV__x86_64')
+        machine_data = check_json(client, 'api/db_default/v4/nts/machines/{}'.format(machine_id))
+        first_run_id = machine_data['runs'][0]['id']
+        orig_api_run = check_json(client, 'api/db_default/v4/nts/runs/{}'.format(first_run_id))
 
         # Do some slight modification to avoid LNT rejecting the new submission
         # as a duplicate.
         orig_api_run['run']['llvm_project_revision'] = u'154333'
-        self.assertEqual(orig_api_run['run']['id'], 1)
-
-        # Machine and run id should be ignored on submission so we should be
-        # able to set them to anything without anyone complaining.
-        self.assertEqual(orig_api_run['machine']['id'], 1)
 
         modified_run = copy.deepcopy(orig_api_run)
         modified_run['run']['llvm_project_revision'] = u'666'
         new_api_run, result_url = self._resubmit(modified_run)
 
-        self.assertEqual(result_url, 'http://localhost/db_default/v4/nts/10')
-        self.assertEqual(new_api_run['run']['id'], 10)
         self.assertEqual(new_api_run['run']['llvm_project_revision'], u'666')
         new_api_run['run']['llvm_project_revision'] = orig_api_run['run']['llvm_project_revision']
 
