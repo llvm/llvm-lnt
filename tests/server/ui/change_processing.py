@@ -20,7 +20,7 @@ from lnt.server.db.rules import rule_update_fixed_regressions
 
 logging.basicConfig(level=logging.DEBUG)
 
-UTILS_DIR = sys.argv[1]
+UTILS_DIR = sys.argv.pop(1)
 START_POSTGRES = os.path.join(UTILS_DIR, 'start_postgres.sh')
 STOP_POSTGRES = os.path.join(UTILS_DIR, 'stop_postgres.sh')
 
