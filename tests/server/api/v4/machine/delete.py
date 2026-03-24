@@ -3,7 +3,7 @@
 # RUN: %{utils}/with_postgres.sh %t.pg.log \
 # RUN:     %{utils}/with_temporary_instance.py %t.instance \
 # RUN:         %{shared_inputs}/base-reports \
-# RUN:         %S/../../ui/Inputs/extra-reports \
+# RUN:         %S/../../../ui/Inputs/extra-reports \
 # RUN:         -- python %s %t.instance
 
 import logging
@@ -11,7 +11,7 @@ import os
 import sys
 import unittest
 
-TESTS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+TESTS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 UI_DIR = os.path.join(TESTS_DIR, 'ui')
 sys.path.insert(0, UI_DIR)
 
