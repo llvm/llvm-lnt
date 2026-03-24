@@ -8,7 +8,9 @@
 #   LNT_TEST_DB_URI      Base connection URL (no database), e.g. postgresql://postgres@127.0.0.1:PORT
 #   LNT_TEST_DB_NAME     Name of the ready-to-use database ("lnt_test")
 #
-# Shell callers can source this script to get the variables directly.
+# Shell callers can capture and eval the output, e.g.:
+#   pg_output=$(start_postgres.sh /tmp/pg.log)
+#   eval "${pg_output}"
 # Python callers can execute it and parse the KEY=VALUE stdout lines.
 #
 # LOG_FILE receives the PostgreSQL server logs (pass /dev/null to discard).

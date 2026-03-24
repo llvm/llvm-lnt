@@ -31,11 +31,12 @@ if [ -f "${LOG_FILE}" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Start the container via start_postgres.sh (sourced so variables are set
-# directly in this shell).
+# Start the container via start_postgres.sh and capture its output (environment
+# variables) so we can get the DB URI and name.
 # ---------------------------------------------------------------------------
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-source "${SCRIPT_DIR}/start_postgres.sh" "${LOG_FILE}"
+pg_output=$("${SCRIPT_DIR}/start_postgres.sh" "${LOG_FILE}")
+eval "${pg_output}"
 export LNT_TEST_DB_URI LNT_TEST_DB_NAME
 
 # ---------------------------------------------------------------------------
