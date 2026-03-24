@@ -30,12 +30,15 @@ machine = ts_db.Machine("test-machine")
 machine.os = "test-os"
 order = ts_db.Order()
 order.llvm_project_revision = "1234"
+order.ordinal = 0
 
 order2 = ts_db.Order()
 order2.llvm_project_revision = "1235"
+order2.ordinal = 1
 
 order3 = ts_db.Order()
 order3.llvm_project_revision = "1236"
+order3.ordinal = 2
 
 
 run = ts_db.Run(None, machine, order, start_time, end_time)
@@ -111,9 +114,8 @@ assert ri.regression.title == TEST_TITLE
 assert machine.name == "test-machine"
 assert machine.os == "test-os"
 
-assert order.next_order_id is None
-assert order.previous_order_id is None
 assert order.llvm_project_revision == "1234"
+assert order.ordinal is not None
 
 assert run.machine is machine
 assert run.order is order

@@ -6,9 +6,9 @@ suite metadata, so we only create the classes at runtime.
 """
 
 import datetime
+import functools
 import json
 import os
-import itertools
 
 import aniso8601
 import sqlalchemy
@@ -152,37 +152,35 @@ class TestSuiteDB(object):
                     # If we have an int, convert it to a proper string.
                     if isinstance(mach_base, int):
                         mach_base = '% 7d' % mach_base
+                    order = ts._find_order_for_revision(session, mach_base)
+                    if order is None:
+                        return None
                     return self.get_closest_previously_reported_run(
-                        session, ts.Order(llvm_project_revision=mach_base))
+                        session, order)
 
             def get_closest_previously_reported_run(self, session,
                                                     order_to_find):
                 """
-                Find the closest previous run to the requested order, for which
-                this machine also reported.
+                Find the closest run (at or after the requested order) for
+                which this machine also reported. order_to_find must be a
+                persistent Order with an ordinal.
                 """
-
-                # FIXME: Scalability! Pretty fast in practice, but still.
                 ts = Machine.testsuite
-                # Search for best order.
-                best_order = None
-                for order in session.query(ts.Order).\
-                        join(ts.Run).\
-                        filter(ts.Run.machine_id == self.id).distinct():
-                    if order >= order_to_find and \
-                          (best_order is None or order < best_order):
-                        best_order = order
+
+                best_order = session.query(ts.Order) \
+                    .join(ts.Run) \
+                    .filter(ts.Run.machine_id == self.id) \
+                    .filter(ts.Order.ordinal >= order_to_find.ordinal) \
+                    .order_by(ts.Order.ordinal.asc()).first()
 
                 # Find the most recent run on this machine that used
                 # that order.
-                closest_run = None
-                if best_order:
-                    closest_run = session.query(ts.Run)\
-                        .filter(ts.Run.machine_id == self.id)\
-                        .filter(ts.Run.order_id == best_order.id)\
-                        .order_by(ts.Run.start_time.desc()).first()
-
-                return closest_run
+                if best_order is None:
+                    return None
+                return session.query(ts.Run) \
+                    .filter(ts.Run.machine_id == self.id) \
+                    .filter(ts.Run.order_id == best_order.id) \
+                    .order_by(ts.Run.start_time.desc()).first()
 
             def set_from_dict(self, data):
                 data_name = data.pop('name', None)
@@ -201,6 +199,7 @@ class TestSuiteDB(object):
                 _dict_update_abort_on_duplicates(result, self.parameters)
                 return result
 
+        @functools.total_ordering
         class Order(self.base, ParameterizedMixin):
             __tablename__ = db_key_name + '_Order'
 
@@ -211,19 +210,7 @@ class TestSuiteDB(object):
                             key=lambda of: of.ordinal)
 
             id = Column("ID", Integer, primary_key=True)
-
-            # Define two common columns which are used to store the previous
-            # and next links for the total ordering amongst run orders.
-            next_order_id = Column("NextOrder", Integer, ForeignKey(id))
-            previous_order_id = Column("PreviousOrder", Integer,
-                                       ForeignKey(id))
-
-            # This will implicitly create the previous_order relation.
-            backref = sqlalchemy.orm.backref('previous_order', uselist=False,
-                                             remote_side=id)
-            join = 'Order.previous_order_id==Order.id'
-            next_order = relation("Order", backref=backref, primaryjoin=join,
-                                  uselist=False)
+            ordinal = Column("ordinal", Integer, index=True)
             order_name_cache = {}
 
             # Dynamically create fields for all of the test suite defined order
@@ -237,10 +224,8 @@ class TestSuiteDB(object):
                 class_dict[item.name] = item.column = Column(
                     item.name, String(256))
 
-            def __init__(self, previous_order_id=None, next_order_id=None,
-                         **kwargs):
-                self.previous_order_id = previous_order_id
-                self.next_order_id = next_order_id
+            def __init__(self, ordinal=None, **kwargs):
+                self.ordinal = ordinal
 
                 # Initialize fields (defaulting to None, for now).
                 for item in self.fields:
@@ -250,9 +235,7 @@ class TestSuiteDB(object):
                 fields = dict((item.name, self.get_field(item))
                               for item in self.fields)
 
-                return '%s_%s(%r, %r, **%r)' % (
-                    db_key_name, self.__class__.__name__,
-                    self.previous_order_id, self.next_order_id, fields)
+                return f'{db_key_name}_{self.__class__.__name__}(ordinal={self.ordinal!r}, **{fields!r})'
 
             def as_ordered_string(self):
                 """Return a readable value of the order object by printing the
@@ -271,67 +254,55 @@ class TestSuiteDB(object):
             def name(self):
                 return self.as_ordered_string()
 
-            def _get_comparison_discriminant(self, b):
-                """Return a representative pair of converted revision from self
-                and b. Order of the element on this pair is the same as the
-                order of self relative to b.
-                """
-                # SA occasionally uses comparison to check model instances
-                # versus some sentinels, so we ensure we support comparison
-                # against non-instances.
-                if self.__class__ is not b.__class__:
-                    return (0, 1)
+            @staticmethod
+            def _compare_by_fields(a, b):
+                """Compare two orders by their field values using
+                convert_revision(). Used only during insertion to determine
+                where a new order fits."""
+                for item in Order.fields:
+                    a_val = convert_revision(
+                        a.get_field(item), cache=Order.order_name_cache)
+                    b_val = convert_revision(
+                        b.get_field(item), cache=Order.order_name_cache)
+                    if a_val < b_val:
+                        return -1
+                    elif a_val > b_val:
+                        return 1
+                return 0
 
-                # Pair converted revision from self and b.
-                converted_revisions = map(
-                    lambda item: (
-                        convert_revision(
-                            self.get_field(item), cache=Order.order_name_cache
-                        ),
-                        convert_revision(
-                            b.get_field(item), cache=Order.order_name_cache
-                        ),
-                    ),
-                    self.fields,
-                )
-                # Return the first unequal pair, or (0, 0) otherwise.
-                return next(
-                    itertools.dropwhile(lambda x: x[0] == x[1], converted_revisions),
-                    (0, 0),
-                )
+            def _ordinal_or_field_cmp(self, b):
+                """Return (a_key, b_key) for comparison. Uses ordinal when
+                both are set, otherwise falls back to field comparison."""
+                if self.ordinal is not None and b.ordinal is not None:
+                    return (self.ordinal, b.ordinal)
+                # Fall back to field-based comparison.
+                cmp = Order._compare_by_fields(self, b)
+                if cmp < 0:
+                    return (0, 1)
+                elif cmp > 0:
+                    return (1, 0)
+                return (0, 0)
 
             def __hash__(self):
-                converted_fields = map(
-                    lambda item: convert_revision(
-                        self.get_field(item), cache=Order.order_name_cache
-                    ),
-                    self.fields,
-                )
-                return hash(tuple(converted_fields))
+                return hash(tuple(
+                    convert_revision(
+                        self.get_field(item),
+                        cache=Order.order_name_cache
+                    )
+                    for item in self.fields
+                ))
 
             def __eq__(self, b):
-                discriminant = self._get_comparison_discriminant(b)
-                return discriminant[0] == discriminant[1]
-
-            def __ne__(self, b):
-                discriminant = self._get_comparison_discriminant(b)
-                return discriminant[0] != discriminant[1]
+                if self.__class__ is not b.__class__:
+                    return NotImplemented
+                a_key, b_key = self._ordinal_or_field_cmp(b)
+                return a_key == b_key
 
             def __lt__(self, b):
-                discriminant = self._get_comparison_discriminant(b)
-                return discriminant[0] < discriminant[1]
-
-            def __le__(self, b):
-                discriminant = self._get_comparison_discriminant(b)
-                return discriminant[0] <= discriminant[1]
-
-            def __gt__(self, b):
-                discriminant = self._get_comparison_discriminant(b)
-                return discriminant[0] > discriminant[1]
-
-            def __ge__(self, b):
-                discriminant = self._get_comparison_discriminant(b)
-                return discriminant[0] >= discriminant[1]
+                if self.__class__ is not b.__class__:
+                    return NotImplemented
+                a_key, b_key = self._ordinal_or_field_cmp(b)
+                return a_key < b_key
 
             def __json__(self, include_id=True):
                 result = {}
@@ -888,6 +859,29 @@ class TestSuiteDB(object):
         self._updateMachine(existing_machine, machine)
         return existing_machine
 
+    def _find_order_for_revision(self, session, revision_string):
+        """Find the Order with the smallest ordinal whose revision is >=
+        the given revision_string (using convert_revision for comparison).
+        Returns None if no such order exists."""
+        # Try exact match first (common case).
+        exact = session.query(self.Order) \
+            .filter(self.Order.llvm_project_revision == revision_string) \
+            .first()
+        if exact is not None:
+            return exact
+
+        # No exact match — scan orders by ordinal to find the first one
+        # whose converted revision is >= the target.
+        target = convert_revision(revision_string,
+                                  cache=self.Order.order_name_cache)
+        for order in session.query(self.Order) \
+                .order_by(self.Order.ordinal).all():
+            val = convert_revision(order.llvm_project_revision,
+                                   cache=self.Order.order_name_cache)
+            if val >= target:
+                return order
+        return None
+
     def _getOrCreateOrder(self, session, run_parameters):
         """
         _getOrCreateOrder(data) -> Order
@@ -918,29 +912,34 @@ class TestSuiteDB(object):
         if existing is not None:
             return existing
 
-        # If not, then we need to insert this order into the total ordering
-        # linked list.
+        # If not, then we need to insert this order into the total ordering.
 
-        # Add the new order and commit, to assign an ID.
+        # Add the new order and flush to assign an ID. We use flush()
+        # instead of commit() so that if the import fails later, the
+        # transaction rollback will remove this incomplete order.
         session.add(order)
-        session.commit()
+        session.flush()
 
-        # Load all the orders and sort them to form the total ordering.
-        orders = sorted(session.query(self.Order))
+        # Load all existing orders sorted by ordinal, locking them to
+        # prevent concurrent insertions from corrupting ordinals.
+        existing_orders = session.query(self.Order) \
+            .filter(self.Order.id != order.id) \
+            .order_by(self.Order.ordinal) \
+            .with_for_update() \
+            .all()
 
-        # Find the order we just added.
-        index = orders.index(order)
+        # Find the insertion point for the new order using field comparison.
+        insert_at = len(existing_orders)
+        for i, existing in enumerate(existing_orders):
+            if self.Order._compare_by_fields(order, existing) <= 0:
+                insert_at = i
+                break
 
-        # Insert this order into the linked list which forms the total
-        # ordering.
-        if index > 0:
-            previous_order = orders[index - 1]
-            previous_order.next_order_id = order.id
-            order.previous_order_id = previous_order.id
-        if index + 1 < len(orders):
-            next_order = orders[index + 1]
-            next_order.previous_order_id = order.id
-            order.next_order_id = next_order.id
+        # Renumber ordinals: everything before insert_at keeps its position,
+        # the new order gets insert_at, everything after shifts up by 1.
+        for i in range(insert_at, len(existing_orders)):
+            existing_orders[i].ordinal = i + 1
+        order.ordinal = insert_at
 
         return order
 
@@ -1183,17 +1182,16 @@ class TestSuiteDB(object):
         # uniform. In practice, this appears to perform fine even for quite
         # large (~1GB, ~20k runs) databases.
 
-        # Find all the orders on this machine, then sort them.
+        # Find all the orders on this machine, sorted by ordinal.
         #
         # FIXME: Scalability! However, pretty fast in practice, see elaborate
         # explanation above.
-        all_machine_orders = sorted(
-            session.query(self.Order)
-            .join(self.Run)
-            .filter(self.Run.machine == run.machine)
-            .distinct()
+        all_machine_orders = session.query(self.Order) \
+            .join(self.Run) \
+            .filter(self.Run.machine == run.machine) \
+            .distinct() \
+            .order_by(self.Order.ordinal) \
             .all()
-        )
 
         # Find the index of the current run.
         index = all_machine_orders.index(run.order)

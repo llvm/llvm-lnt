@@ -14,15 +14,15 @@
 {% block body %}
   {# Provide links to the previous and next orders. #}
   <ul class="pager">
-    {% if order.previous_order_id is not none %}
-      <li class="previous"><a href="{{v4_url_for('.v4_order', id=order.previous_order_id)}}">
+    {% if previous_order is not none %}
+      <li class="previous"><a href="{{v4_url_for('.v4_order', id=previous_order.id)}}">
     {% else %}
       <li class="previous disabled"><a href="#">
     {% endif %}
     ← Previous</a></li>
 
-    {% if order.next_order_id is not none %}
-      <li class="next" ><a href="{{v4_url_for('.v4_order', id=order.next_order_id)}}">
+    {% if next_order is not none %}
+      <li class="next" ><a href="{{v4_url_for('.v4_order', id=next_order.id)}}">
     {% else %}
       <li class="next disabled"><a href="#">
     {% endif %}
@@ -53,8 +53,8 @@
       <tr>
         <td>Previous Order</td>
           <td>
-              <a href="{{ v4_url_for(".v4_order", id=order.previous_order_id) }}">
-                  {{order.previous_order_id}}
+              <a href="{{ v4_url_for(".v4_order", id=previous_order.id) }}">
+                  {{previous_order.id}}
               </a>
           </td>
           {% for field in previous_order.fields %}
@@ -68,7 +68,7 @@
       {% if next_order %}
       <tr>
         <td>Next Order</td>
-          <td><a href="{{ v4_url_for(".v4_order", id=order.next_order_id) }}">{{order.next_order_id}}</a></td>
+          <td><a href="{{ v4_url_for(".v4_order", id=next_order.id) }}">{{next_order.id}}</a></td>
           {% for field in next_order.fields %}
                 <td>{{next_order.get_field(field)}}</td>
           {% endfor %}

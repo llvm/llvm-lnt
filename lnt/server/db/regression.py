@@ -88,7 +88,7 @@ def get_all_orders_for_machine(session, ts, machine):
     return session.query(ts.Order) \
         .join(ts.Run) \
         .filter(ts.Run.machine_id == machine) \
-        .order_by(asc(ts.Order.llvm_project_revision)) \
+        .order_by(asc(ts.Order.ordinal)) \
         .all()
 
 
@@ -98,7 +98,7 @@ def get_last_order_for_machine(session, ts, machine):
     return session.query(ts.Order) \
         .join(ts.Run) \
         .filter(ts.Run.machine_id == machine) \
-        .order_by(desc(ts.Order.llvm_project_revision)) \
+        .order_by(desc(ts.Order.ordinal)) \
         .first()
 
 

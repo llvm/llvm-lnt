@@ -637,14 +637,12 @@ def v4_order(id):
     if order is None:
         abort(404, "Invalid order id {}".format(id))
 
-    previous_order = None
-    if order.previous_order_id:
-        previous_order = session.query(ts.Order) \
-            .filter(ts.Order.id == order.previous_order_id).one()
-    next_order = None
-    if order.next_order_id:
-        next_order = session.query(ts.Order) \
-            .filter(ts.Order.id == order.next_order_id).one()
+    previous_order = session.query(ts.Order) \
+        .filter(ts.Order.ordinal < order.ordinal) \
+        .order_by(ts.Order.ordinal.desc()).first()
+    next_order = session.query(ts.Order) \
+        .filter(ts.Order.ordinal > order.ordinal) \
+        .order_by(ts.Order.ordinal.asc()).first()
 
     runs = session.query(ts.Run) \
         .filter(ts.Run.order_id == id) \
@@ -679,7 +677,7 @@ def v4_all_orders():
     ts = request.get_testsuite()
 
     # Get the orders and sort them totally.
-    orders = sorted(session.query(ts.Order).all())
+    orders = session.query(ts.Order).order_by(ts.Order.ordinal).all()
 
     return render_template("v4_all_orders.html", orders=orders, **ts_data(ts))
 
@@ -883,6 +881,13 @@ def parse_mean_parameter(args, session, ts):
     return machine, field
 
 
+def _graph_data_order_key(entry):
+    """Sort key for graph data entries of the form (revision_string, [(val, order, ...)])."""
+    _rev, datapoints = entry
+    _val, order, *_rest = datapoints[0]
+    return order.ordinal
+
+
 def load_graph_data(plot_parameter, show_failures, limit, xaxis_date, revision_cache=None):
     """
     Load all the field values for this test on the same machine.
@@ -922,11 +927,12 @@ def load_graph_data(plot_parameter, show_failures, limit, xaxis_date, revision_c
         data.sort(key=lambda sample: sample[0])
     else:
         # Aggregate by order (revision).
+        # Each element is (revision_string, [(val, order, date, run_id, params), ...]).
         data = list(multidict.multidict(
             (order.llvm_project_revision, (val, order, date, run_id, parameters_data))
             for val, order, date, run_id, parameters_data in values).items())
-        # Sort data points according to order (revision).
-        data.sort(key=lambda sample: convert_revision(sample[0], cache=revision_cache))
+        # Sort by the ordinal of the first datapoint's order.
+        data.sort(key=_graph_data_order_key)
 
     return data
 
@@ -964,10 +970,11 @@ def load_geomean_data(field, machine, limit, xaxis_date, revision_cache=None):
         # Sort data points according to date.
         data.sort(key=lambda sample: sample[0])
     else:
+        # Each element is (revision_string, [(geomean, order, date)]).
         data = [(order.llvm_project_revision, [(calc_geomean(vals), order, date)])
                 for ((order, date), vals) in data]
-        # Sort data points according to order (revision).
-        data.sort(key=lambda sample: convert_revision(sample[0], cache=revision_cache))
+        # Sort by the ordinal of the first datapoint's order.
+        data.sort(key=_graph_data_order_key)
 
     return data
 
@@ -1557,12 +1564,17 @@ def v4_global_status():
     machine_run_info = []
     reported_run_ids = []
 
+    # Look up the Order for the requested revision once, outside the loop.
+    baseline_order = ts._find_order_for_revision(session, revision)
+
     for machine in recent_machines:
         runs = recent_runs_by_machine[machine]
 
         # Get the baseline run for this machine.
-        baseline = machine.get_closest_previously_reported_run(
-            session, ts.Order(llvm_project_revision=revision))
+        baseline = None
+        if baseline_order is not None:
+            baseline = machine.get_closest_previously_reported_run(
+                session, baseline_order)
 
         # Choose the "best" run to report on. We want the most recent one with
         # the most recent order.
@@ -1918,7 +1930,7 @@ def v4_matrix():
             .filter(ts.Run.machine_id == req.machine.id) \
             .filter(ts.Sample.test == req.test) \
             .filter(req.field.column.isnot(None)) \
-            .order_by(ts.Order.llvm_project_revision.desc())
+            .order_by(ts.Order.ordinal.desc())
 
         limit = request.args.get('limit', post_limit)
         if limit or post_limit:

@@ -13,8 +13,7 @@
   <thead>
     <tr>
       <th>ID</th>
-      <th>Previous Order ID</th>
-      <th>Next Order ID</th>
+      <th>Ordinal</th>
 {% for field in ts.order_fields %}
       <th>{{field.name}}</th>
 {% endfor %}
@@ -24,8 +23,7 @@
   <tr>
     <td><a href="{{v4_url_for('.v4_order', id=order.id)}}">{{
         order.id}}</a></td>
-    <td>{{order.previous_order_id}}</td>
-    <td>{{order.next_order_id}}</td>
+    <td>{{order.ordinal}}</td>
 {% for field in ts.order_fields %}
     <td>{{order.get_field(field)}}</td>
 {% endfor %}

@@ -9,7 +9,6 @@ from flask_restful import Resource, abort
 from sqlalchemy.orm import joinedload
 from sqlalchemy.orm.exc import NoResultFound
 
-from lnt.server.ui.util import convert_revision
 from lnt.server.ui.decorators import in_db
 from lnt.testing import PASS
 from lnt.util import logger
@@ -514,8 +513,7 @@ class Graph(Resource):
             .join(ts.Order) \
             .filter(ts.Run.machine_id == machine.id) \
             .filter(ts.Sample.test == test) \
-            .filter(field.column.isnot(None)) \
-            .order_by(ts.Order.llvm_project_revision.desc())
+            .filter(field.column.isnot(None))
 
         if field.status_field:
             q = q.filter((field.status_field.column == PASS) |
@@ -525,15 +523,21 @@ class Graph(Resource):
         if limit:
             limit = int(limit)
             if limit:
-                q = q.limit(limit)
+                # Order descending to get the most recent N, then reverse.
+                q = q.order_by(ts.Order.ordinal.desc()).limit(limit)
+                rows = q.all()[::-1]
+            else:
+                q = q.order_by(ts.Order.ordinal)
+                rows = q.all()
+        else:
+            q = q.order_by(ts.Order.ordinal)
+            rows = q.all()
 
-        samples = [
+        return [
             [rev, val,
              {'label': rev, 'date': str(time), 'runID': str(rid)}]
-            for val, rev, time, rid in q.all()[::-1]
+            for val, rev, time, rid in rows
         ]
-        samples.sort(key=lambda x: convert_revision(x[0]))
-        return samples
 
 
 class Regression(Resource):
