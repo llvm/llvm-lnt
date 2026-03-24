@@ -1,0 +1,75 @@
+# Test 'lnt create' end-to-end.
+
+###############################################################################
+# Default creation: verify the generated config and instance file hierarchy
+###############################################################################
+# RUN: rm -rf %t.instance
+# RUN: lnt create %t.instance > %t.create-output
+
+# -- Config file contains all expected fields with default values
+# RUN: filecheck --check-prefix CHECK-CFG %s < %t.instance/lnt.cfg
+
+# CHECK-CFG:      config_version = (0, 1, 0)
+# CHECK-CFG:      name = 'LNT'
+# CHECK-CFG:      zorgURL = 'http://localhost'
+# CHECK-CFG:      tmp_dir = 'lnt_tmp'
+# CHECK-CFG:      db_dir = 'data'
+# CHECK-CFG:      profile_dir = 'data/profiles'
+# CHECK-CFG:      secret_key =
+# CHECK-CFG:      # api_auth_token = 'secret'
+# CHECK-CFG:      databases = {
+# CHECK-CFG-NEXT:     'default' : { 'path' : 'lnt.db' },
+# CHECK-CFG:      nt_emailer = {
+
+# -- Directory structure is created
+# RUN: test -d %t.instance/lnt_tmp
+# RUN: test -d %t.instance/data
+# RUN: test -d %t.instance/schemas
+# RUN: test -f %t.instance/data/lnt.db
+
+###############################################################################
+# Make sure that custom options all take effect
+###############################################################################
+# RUN: rm -rf %t.custom
+# RUN: lnt create %t.custom              \
+# RUN:   --name "My LNT"                 \
+# RUN:   --url https://example.com/lnt   \
+# RUN:   --api-auth-token mytoken        \
+# RUN:   --secret-key deadbeef           \
+# RUN:   --default-db custom.db          \
+# RUN:   --db-dir databases              \
+# RUN:   --tmp-dir mytmp                 \
+# RUN:   --profile-dir my/profiles
+# RUN: filecheck --check-prefix CHECK-CUSTOM %s < %t.custom/lnt.cfg
+
+# CHECK-CUSTOM:      name = 'My LNT'
+# CHECK-CUSTOM:      zorgURL = 'https://example.com/lnt'
+# CHECK-CUSTOM:      tmp_dir = 'mytmp'
+# CHECK-CUSTOM:      db_dir = 'databases'
+# CHECK-CUSTOM:      profile_dir = 'my/profiles'
+# CHECK-CUSTOM:      secret_key = 'deadbeef'
+# CHECK-CUSTOM:      api_auth_token = 'mytoken'
+# CHECK-CUSTOM:      'default' : { 'path' : 'custom.db' },
+
+# RUN: test -d %t.custom/mytmp
+# RUN: test -d %t.custom/databases
+# RUN: test -f %t.custom/databases/custom.db
+
+###############################################################################
+# Error: creating into an existing path fails.
+###############################################################################
+# RUN: rm -rf %t.exists && mkdir %t.exists
+# RUN: not lnt create %t.exists 2> %t.exists-err
+# RUN: filecheck --check-prefix CHECK-EXISTS %s < %t.exists-err
+
+# CHECK-EXISTS: error: invalid path: {{.*}} already exists
+
+###############################################################################
+# The generated instance can be loaded by lnt runserver (smoke test: just
+# verify that 'lnt import' can talk to the instance, which requires loading
+# the config and database).
+###############################################################################
+# RUN: lnt import %t.instance %{shared_inputs}/sample-a-small.plist --show-sample-count > %t.import-output
+# RUN: filecheck --check-prefix CHECK-IMPORT %s < %t.import-output
+
+# CHECK-IMPORT: Import succeeded.
