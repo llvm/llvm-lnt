@@ -1,9 +1,9 @@
 #!/bin/bash
 # RUN: rm -rf %t.instance
 # RUN: rm -rf %t.tmp && mkdir -p %t.tmp
-# RUN: python %{shared_inputs}/create_temp_instance.py \
+# RUN: python %{utils}/create_temp_instance.py \
 # RUN:   %s %{shared_inputs}/SmallInstance %t.instance
-# RUN: %{shared_inputs}/server_wrapper.sh --fail-on-error %t.instance 9091 \
+# RUN: %{utils}/server_wrapper.sh --fail-on-error %t.instance 9091 \
 # RUN:    /bin/sh %s %t.tmp %S/Inputs %{shared_inputs} %{src_root}
 
 set -eux

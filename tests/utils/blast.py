@@ -4,9 +4,7 @@ Smash a LNT instance with random submissions.
 This should only be used for (load) testing.  It will add a bunch
 of bad data to your instance, so don't use it on a production instance.
 """
-## Just to make sure there are no syntax errors in this.  This does not
-## actually run a blast.
-# RUN: python %{src_root}/tests/utils/blast.py
+
 import time
 import subprocess
 import os

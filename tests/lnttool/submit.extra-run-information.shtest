@@ -1,7 +1,7 @@
 #!/bin/bash
 # RUN: rm -rf %t && mkdir -p %t
 # RUN: lnt create %t/instance
-# RUN: %{shared_inputs}/server_wrapper.sh --fail-on-error %t/instance 9094 \
+# RUN: %{utils}/server_wrapper.sh --fail-on-error %t/instance 9094 \
 # RUN:    /bin/sh %s %t
 
 #
