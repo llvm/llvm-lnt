@@ -1,10 +1,11 @@
 # Check that the LNT REST JSON API is working.
-# RUN: python %s
+# RUN: python %s %{utils}
 
 import datetime
 import logging
 import os
 import subprocess
+import sys
 import unittest
 
 from sqlalchemy import or_
@@ -19,10 +20,9 @@ from lnt.server.db.rules import rule_update_fixed_regressions
 
 logging.basicConfig(level=logging.DEBUG)
 
-_START_POSTGRES = os.path.join(os.path.dirname(__file__),
-                               '..', '..', 'utils', 'start_postgres.sh')
-_STOP_POSTGRES = os.path.join(os.path.dirname(__file__),
-                              '..', '..', 'utils', 'stop_postgres.sh')
+UTILS_DIR = sys.argv[1]
+START_POSTGRES = os.path.join(UTILS_DIR, 'start_postgres.sh')
+STOP_POSTGRES = os.path.join(UTILS_DIR, 'stop_postgres.sh')
 
 
 def _mkorder(session, ts, rev):
@@ -36,7 +36,7 @@ class ChangeProcessingTests(unittest.TestCase):
     """Test fieldchange and regression building."""
 
     def setUp(self):
-        output = subprocess.check_output([_START_POSTGRES, os.devnull], text=True)
+        output = subprocess.check_output([START_POSTGRES, os.devnull], text=True)
         env = dict(line.split('=', 1) for line in output.strip().splitlines())
         self._container = env['LNT_PG_CONTAINER']
 
@@ -129,7 +129,7 @@ class ChangeProcessingTests(unittest.TestCase):
     def tearDown(self):
         self.session.close()
         self.db.close()
-        subprocess.call([_STOP_POSTGRES, self._container],
+        subprocess.call([STOP_POSTGRES, self._container],
                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def test_startup(self):
