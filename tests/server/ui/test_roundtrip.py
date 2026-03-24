@@ -4,7 +4,7 @@
 # RUN: %{utils}/with_postgres.sh %t.pg.log \
 # RUN:     %{utils}/with_temporary_instance.py %t.instance \
 # RUN:         %{shared_inputs}/base-reports \
-# RUN:         %S/Inputs/extra-reports \
+# RUN:         %{shared_inputs}/extra-reports \
 # RUN:         -- python %s %t.instance
 
 import json
