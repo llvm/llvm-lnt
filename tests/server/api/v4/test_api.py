@@ -3,9 +3,16 @@
 # RUN: rm -rf %t.instance
 # RUN: python %{shared_inputs}/create_temp_instance.py \
 # RUN:     %s %{shared_inputs}/SmallInstance \
-# RUN:     %t.instance %S/Inputs/V4Pages_extra_records.sql
+# RUN:     %t.instance %S/../../ui/Inputs/V4Pages_extra_records.sql
 #
 # RUN: python %s %t.instance
+
+import os
+import sys
+
+TESTS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+UI_DIR = os.path.join(TESTS_DIR, 'ui')
+sys.path.insert(0, UI_DIR)
 
 from V4Pages import check_json
 import lnt.server.db.migrate
