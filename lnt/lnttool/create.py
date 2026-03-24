@@ -1,5 +1,4 @@
 import click
-import platform
 
 
 kConfigVersion = (0, 1, 0)
@@ -34,7 +33,7 @@ profile_dir = %(profile_dir)r
 secret_key = %(secret_key)r
 
 # REST API authentication
-# api_auth_token = 'secret'
+%(api_auth_token_line)s
 
 # The list of available databases, and their properties. At a minimum, there
 # should be a 'default' entry for the default database.
@@ -61,17 +60,9 @@ nt_emailer = {
 """
 
 kWSGITemplate = """\
-#!%(python_executable)s
-# -*- Python -*-
-
 import lnt.server.ui.app
 
-application = lnt.server.ui.app.App.create_standalone(
-  %(cfg_path)r)
-
-if __name__ == "__main__":
-    import werkzeug
-    werkzeug.run_simple('%(hostname)s', 8000, application)
+application = lnt.server.ui.app.App.create_standalone(%(cfg_path)r)
 """
 
 
@@ -93,14 +84,14 @@ if __name__ == "__main__":
               help="name for the default db")
 @click.option("--secret-key", default=None,
               help="secret key to use for this installation")
-@click.option("--hostname", default=platform.uname()[1], show_default=True,
-              help="host name of the server")
-@click.option("--hostsuffix", default="perf", show_default=True,
-              help="suffix at which WSGI app lives")
+@click.option("--url", default="http://localhost", show_default=True,
+              help="base URL of the server, used in email reports")
+@click.option("--api-auth-token", default=None,
+              help="authentication token for the REST API")
 @click.option("--show-sql", is_flag=True,
               help="show SQL statements executed during construction")
 def action_create(instance_path, name, config, wsgi, tmp_dir, db_dir,
-                  profile_dir, default_db, secret_key, hostname, hostsuffix,
+                  profile_dir, default_db, secret_key, url, api_auth_token,
                   show_sql):
     """create an LLVM nightly test installation
 
@@ -116,7 +107,6 @@ LNT configuration.
     import logging
     import os
     import random
-    import sys
 
     init_logger(logging.INFO if show_sql else logging.WARNING,
                 show_sql=show_sql)
@@ -125,9 +115,8 @@ LNT configuration.
     if os.path.exists(basepath):
         raise SystemExit("error: invalid path: %r already exists" % basepath)
 
-    hosturl = "http://%s/%s" % (hostname, hostsuffix)
+    hosturl = url
 
-    python_executable = sys.executable
     cfg_path = os.path.join(basepath, config)
     tmp_path = os.path.join(basepath, tmp_dir)
     wsgi_path = os.path.join(basepath, wsgi)
@@ -138,6 +127,11 @@ LNT configuration.
             bytes(str(random.getrandbits(256)), encoding="ascii")
         ).hexdigest()
     )
+
+    if api_auth_token is not None:
+        api_auth_token_line = "api_auth_token = %r" % api_auth_token
+    else:
+        api_auth_token_line = "# api_auth_token = 'secret'"
 
     os.mkdir(instance_path)
     os.mkdir(tmp_path)
@@ -172,7 +166,7 @@ LNT configuration.
     print('  host URL          : %s' % hosturl)
     print()
     print('You can execute:')
-    print('  %s' % wsgi_path)
+    print('  lnt runserver %s' % basepath)
     print('to test your installation with the builtin server.')
     print()
     print('For production use configure this application to run with any')

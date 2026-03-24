@@ -110,6 +110,10 @@ The following tools are used to interact with an LNT server:
     The default server will have a sqlite3 database named *default*. You can
     specify to use PostgreSQL using ``--db-dir postgresql://user@hostname``.
 
+    Use ``--url`` to set the externally-visible base URL of the server (used in
+    email reports). Use ``--api-auth-token`` to set the REST API authentication
+    token.
+
   ``lnt import <instance path> <file>+``
     Import an LNT data file into a database. You can use ``--database`` to
     select the database to write to. Note that by default this will also

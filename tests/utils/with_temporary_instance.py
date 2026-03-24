@@ -46,7 +46,13 @@ def main():
     db_name = os.environ['LNT_TEST_DB_NAME']
 
     # 1. Create the LNT instance.
-    subprocess.check_call(['lnt', 'create', dest_dir, '--db-dir', db_uri, '--default-db', db_name])
+    subprocess.check_call([
+        'lnt', 'create', dest_dir,
+        '--db-dir', db_uri,
+        '--default-db', db_name,
+        '--api-auth-token', 'test_token',
+        '--url', 'http://localhost/perf',
+    ])
 
     # 2. Symlink schema YAML files into the instance.
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -58,13 +64,7 @@ def main():
             os.path.join(schemas_dst, schema),
         )
 
-    # 3. Append test configuration to lnt.cfg.
-    cfg_path = os.path.join(dest_dir, 'lnt.cfg')
-    with open(cfg_path, 'a') as f:
-        f.write("\napi_auth_token = \"test_token\"\n")
-        f.write("zorgURL = 'http://localhost/perf'\n")
-
-    # 4. Import JSON report files from each DATA_DIR (or individual file).
+    # 3. Import JSON report files from each DATA_DIR (or individual file).
     for data_path in data_dirs:
         if os.path.isdir(data_path):
             json_files = sorted(glob.glob(os.path.join(data_path, '*.json')))
@@ -76,7 +76,7 @@ def main():
             suite = data.get('schema', 'nts')
             subprocess.check_call(['lnt', 'import', '-s', suite, '--merge', 'append', dest_dir, json_file])
 
-    # 5. Exec the wrapped command.
+    # 4. Exec the wrapped command.
     os.execvp(command[0], command)
 
 
