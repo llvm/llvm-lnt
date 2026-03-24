@@ -15,6 +15,11 @@
             "name": "SingleSource/UnitTests/2006-12-01-float_varg",
             "compile_time": 0.001,
             "execution_time": 0.0001
+        },
+        {
+            "name": "SingleSource/UnitTests/ObjC/block-byref-aggr",
+            "compile_time": 0.001,
+            "execution_time": 0.0001
         }
     ]
 }
