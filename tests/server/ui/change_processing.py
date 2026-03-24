@@ -1,8 +1,10 @@
 # Check that the LNT REST JSON API is working.
-# RUN: python %s
+# RUN: python %s %{utils}
 
 import datetime
 import logging
+import os
+import subprocess
 import sys
 import unittest
 
@@ -18,6 +20,10 @@ from lnt.server.db.rules import rule_update_fixed_regressions
 
 logging.basicConfig(level=logging.DEBUG)
 
+UTILS_DIR = sys.argv.pop(1)
+START_POSTGRES = os.path.join(UTILS_DIR, 'start_postgres.sh')
+STOP_POSTGRES = os.path.join(UTILS_DIR, 'stop_postgres.sh')
+
 
 def _mkorder(session, ts, rev):
     order = ts.Order()
@@ -30,9 +36,13 @@ class ChangeProcessingTests(unittest.TestCase):
     """Test fieldchange and regression building."""
 
     def setUp(self):
-        """Bind to the LNT test instance."""
+        output = subprocess.check_output([START_POSTGRES, os.devnull], text=True)
+        env = dict(line.split('=', 1) for line in output.strip().splitlines())
+        self._container = env['LNT_PG_CONTAINER']
 
-        self.db = v4db.V4DB("sqlite:///:memory:", Config.dummy_instance())
+        self.db = v4db.V4DB(
+            env['LNT_TEST_DB_URI'] + "/" + env['LNT_TEST_DB_NAME'],
+            Config.dummy_instance())
         session = self.session = self.db.make_session()
 
         # Get the test suite wrapper.
@@ -117,7 +127,10 @@ class ChangeProcessingTests(unittest.TestCase):
         session.commit()
 
     def tearDown(self):
+        self.session.close()
         self.db.close()
+        subprocess.call([STOP_POSTGRES, self._container],
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def test_startup(self):
         pass
@@ -254,4 +267,4 @@ class ChangeProcessingTests(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    unittest.main(argv=[sys.argv[0], ])
+    unittest.main()
