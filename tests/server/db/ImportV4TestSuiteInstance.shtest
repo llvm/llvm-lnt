@@ -1,9 +1,9 @@
 # Check the import process into a v4 test suite DB.
 #
-# RUN: rm -rf "%t.install"
+# RUN: rm -rf "%t.instance"
 # RUN: %{utils}/with_postgres.sh %t.pg.log \
-# RUN:     %{utils}/with_temporary_instance.py %t.install \
-# RUN:          -- /bin/sh %s %s %t.install %{shared_inputs}
+# RUN:     %{utils}/with_temporary_instance.py %t.instance \
+# RUN:          -- /bin/sh %s %s %t.instance %{shared_inputs}
 
 set -e
 
