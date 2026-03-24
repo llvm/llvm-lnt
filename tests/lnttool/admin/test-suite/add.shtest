@@ -2,7 +2,7 @@
 # RUN: rm -rf %t.tmp && mkdir -p %t.tmp
 # RUN: %{utils}/with_postgres.sh %t.pg.log \
 # RUN:     %{utils}/with_temporary_instance.py %t.instance \
-# RUN:         -- %{shared_inputs}/server_wrapper.sh %t.instance 9095 /bin/sh %s %t.tmp %{shared_inputs}
+# RUN:         -- %{utils}/server_wrapper.sh %t.instance 9095 /bin/sh %s %t.tmp %{shared_inputs}
 
 set -eux
 DIR="$1"

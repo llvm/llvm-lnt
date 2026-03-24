@@ -1,8 +1,8 @@
 # RUN: rm -rf %t.instance
 # RUN: rm -rf %t.tmp && mkdir -p %t.tmp
-# RUN: python %{shared_inputs}/create_temp_instance.py \
+# RUN: python %{utils}/create_temp_instance.py \
 # RUN:   %s %{shared_inputs}/SmallInstance %t.instance
-# RUN: %{shared_inputs}/server_wrapper.sh %t.instance 9092 /bin/sh %s %t.tmp %{shared_inputs}
+# RUN: %{utils}/server_wrapper.sh %t.instance 9092 /bin/sh %s %t.tmp %{shared_inputs}
 
 set -eux
 DIR="$1"
