@@ -935,10 +935,12 @@ class TestSuiteDB(object):
                 insert_at = i
                 break
 
-        # Renumber ordinals: everything before insert_at keeps its position,
-        # the new order gets insert_at, everything after shifts up by 1.
-        for i in range(insert_at, len(existing_orders)):
-            existing_orders[i].ordinal = i + 1
+        # Shift all ordinals at or after the insertion point up by 1.
+        session.query(self.Order) \
+            .filter(self.Order.id != order.id) \
+            .filter(self.Order.ordinal >= insert_at) \
+            .update({self.Order.ordinal: self.Order.ordinal + 1},
+                    synchronize_session=False)
         order.ordinal = insert_at
 
         return order
