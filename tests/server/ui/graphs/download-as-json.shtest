@@ -1,8 +1,11 @@
 #!/bin/bash
-# RUN: rm -rf %t && mkdir -p %t
-# RUN: lnt create %t/instance
-# RUN: %{utils}/server_wrapper.sh --fail-on-error %t/instance 9093 \
-# RUN:    /bin/sh %s %t
+# RUN: rm -rf %t.instance
+# RUN: rm -rf %t.tmp && mkdir -p %t.tmp
+# RUN: %{utils}/with_postgres.sh %t.pg.log \
+# RUN:     %{utils}/with_temporary_instance.py %t.instance \
+# RUN:         -- %{utils}/server_wrapper.sh --fail-on-error \
+# RUN:             %t.instance 9093 \
+# RUN:             /bin/sh %s %t.tmp
 # END.
 
 #
@@ -37,6 +40,11 @@ EOF
 
 lnt submit "${HOST}/db_default/v4/nts/submitRun" "$t/report.json"
 
+# Look up the machine, test, and field IDs dynamically via the API.
+MACHINE_ID=$(curl -sS "${HOST}/api/db_default/v4/nts/machines/" | jq '.machines[0].id')
+TEST_ID=$(curl -sS "${HOST}/api/db_default/v4/nts/tests" | jq '.tests[0].id')
+FIELD_ID=$(curl -sS "${HOST}/api/db_default/v4/nts/fields" | jq '[.fields[] | select(.column_name == "execution_time")][0].column_id')
+
 # Then, trigger the same GET request that would be triggered if we click the
 # button on the graph page, and ensure that doesn't fail.
-curl -X GET -sS --fail "${HOST}/db_default/v4/nts/graph?plot.1.3=1.1.3&download_json=Download+as+JSON"
+curl -X GET -sS --fail "${HOST}/db_default/v4/nts/graph?plot.1.${FIELD_ID}=${MACHINE_ID}.${TEST_ID}.${FIELD_ID}&download_json=Download+as+JSON"

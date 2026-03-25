@@ -1,8 +1,11 @@
 #!/bin/bash
-# RUN: rm -rf %t && mkdir -p %t
-# RUN: lnt create %t/instance
-# RUN: %{utils}/server_wrapper.sh --fail-on-error %t/instance 9094 \
-# RUN:    /bin/sh %s %t
+# RUN: rm -rf %t.instance
+# RUN: rm -rf %t.tmp && mkdir -p %t.tmp
+# RUN: %{utils}/with_postgres.sh %t.pg.log \
+# RUN:     %{utils}/with_temporary_instance.py %t.instance \
+# RUN:         -- %{utils}/server_wrapper.sh --fail-on-error \
+# RUN:             %t.instance 9094 \
+# RUN:             /bin/sh %s %t.tmp
 
 #
 # Make sure that we can have extra information in the run, and that such information
@@ -37,8 +40,9 @@ cat <<EOF > "$t/report1.json"
 }
 EOF
 
-lnt submit "${HOST}/db_default/v4/nts/submitRun" "$t/report1.json"
-curl -sS "${HOST}/api/db_default/v4/nts/runs/1" > "$t/run1.json"
+SUBMIT_URL=$(lnt submit "${HOST}/db_default/v4/nts/submitRun" "$t/report1.json")
+RUN1_ID=$(echo "$SUBMIT_URL" | grep -o '[0-9]*$')
+curl -sS "${HOST}/api/db_default/v4/nts/runs/${RUN1_ID}" > "$t/run1.json"
 jq .run.some_extra_information1 "$t/run1.json" | grep "some tokens"
 jq .run.some_extra_information2 "$t/run1.json" | grep "more tokens"
 
@@ -65,6 +69,7 @@ cat <<EOF > "$t/report2.json"
 }
 EOF
 
-lnt submit "${HOST}/db_default/v4/nts/submitRun" "$t/report2.json"
-curl -sS "${HOST}/api/db_default/v4/nts/runs/2" > "$t/run2.json"
+SUBMIT_URL=$(lnt submit "${HOST}/db_default/v4/nts/submitRun" "$t/report2.json")
+RUN2_ID=$(echo "$SUBMIT_URL" | grep -o '[0-9]*$')
+curl -sS "${HOST}/api/db_default/v4/nts/runs/${RUN2_ID}" > "$t/run2.json"
 jq .run.some_extra_information3 "$t/run2.json" | grep "some tokens 3"

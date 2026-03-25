@@ -1,7 +1,18 @@
 # RUN: rm -rf "%t.install"
-# RUN: lnt create "%t.install"
-# RUN: ln -sf %{src_root}/docs/my_suite.yaml "%t.install/schemas/"
-# RUN: lnt import "%t.install" -s my_suite %S/Inputs/customschema-report.json | filecheck %s
+# RUN: %{utils}/with_postgres.sh %t.pg.log \
+# RUN:     bash %s %s "%t.install" %{src_root} %S
+set -eu
+
+THIS_FILE="$1"
+INSTALL="$2"
+SRC_ROOT="$3"
+TEST_SRC_DIR="$4"
+
+lnt create "${INSTALL}" --db-dir ${LNT_TEST_DB_URI} --default-db ${LNT_TEST_DB_NAME}
+ln -sf "${SRC_ROOT}/docs/my_suite.yaml" "${INSTALL}/schemas/"
+
+lnt import "${INSTALL}" -s my_suite "${TEST_SRC_DIR}/Inputs/customschema-report.json" \
+    2>&1 | filecheck "${THIS_FILE}"
 
 # CHECK: Import succeeded.
 # CHECK: Imported Data
@@ -19,32 +30,37 @@
 # ===============
 #
 # Inserting with an extra field shouldn't work just yet
-# RUN: not lnt import "%t.install" -s my_suite "%S/Inputs/customschema-report2.json" 2>&1 | filecheck %s --check-prefix=NOTUPGRADED
+! lnt import "${INSTALL}" -s my_suite "${TEST_SRC_DIR}/Inputs/customschema-report2.json" \
+    2>&1 | filecheck --check-prefix=NOTUPGRADED "${THIS_FILE}"
 # NOTUPGRADED: Metric 'newfield' unknown in suite
 
 # Upgrading to a schema with metrics/fields removed should fail
-# RUN: rm -f "%t.install/schemas/my_suite.yaml"
-# RUN: ln -sf "%S/Inputs/schema-example-nomigration0.yaml" "%t.install/schemas/my_suite.yaml"
-# RUN: not lnt import "%t.install" -s my_suite "%S/Inputs/customschema-report.json" 2>&1 | filecheck %s --check-prefix=NOMIGRATION0
+rm -f "${INSTALL}/schemas/my_suite.yaml"
+ln -sf "${TEST_SRC_DIR}/Inputs/schema-example-nomigration0.yaml" "${INSTALL}/schemas/my_suite.yaml"
+! lnt import "${INSTALL}" -s my_suite "${TEST_SRC_DIR}/Inputs/customschema-report.json" \
+    2>&1 | filecheck --check-prefix=NOMIGRATION0 "${THIS_FILE}"
 # NOMIGRATION0: Cannot automatically migrate database: Metrics removed: data_size
-#
-# RUN: rm -f "%t.install/schemas/my_suite.yaml"
-# RUN: ln -sf "%S/Inputs/schema-example-nomigration1.yaml" "%t.install/schemas/my_suite.yaml"
-# RUN: not lnt import "%t.install" -s my_suite "%S/Inputs/customschema-report.json" 2>&1 | filecheck %s --check-prefix=NOMIGRATION1
+
+rm -f "${INSTALL}/schemas/my_suite.yaml"
+ln -sf "${TEST_SRC_DIR}/Inputs/schema-example-nomigration1.yaml" "${INSTALL}/schemas/my_suite.yaml"
+! lnt import "${INSTALL}" -s my_suite "${TEST_SRC_DIR}/Inputs/customschema-report.json" \
+    2>&1 | filecheck --check-prefix=NOMIGRATION1 "${THIS_FILE}"
 # NOMIGRATION1: Cannot automatically migrate database: Machine fields removed: os
-#
-# RUN: rm -f "%t.install/schemas/my_suite.yaml"
-# RUN: ln -sf "%S/Inputs/schema-example-nomigration2.yaml" "%t.install/schemas/my_suite.yaml"
-# RUN: not lnt import "%t.install" -s my_suite "%S/Inputs/customschema-report.json" 2>&1 | filecheck %s --check-prefix=NOMIGRATION2
+
+rm -f "${INSTALL}/schemas/my_suite.yaml"
+ln -sf "${TEST_SRC_DIR}/Inputs/schema-example-nomigration2.yaml" "${INSTALL}/schemas/my_suite.yaml"
+! lnt import "${INSTALL}" -s my_suite "${TEST_SRC_DIR}/Inputs/customschema-report.json" \
+    2>&1 | filecheck --check-prefix=NOMIGRATION2 "${THIS_FILE}"
 # NOMIGRATION2: Cannot automatically migrate database: Type mismatch in metric 'data_size'
 
 
 # This upgrade should finally work
-# RUN: rm -f "%t.install/schemas/my_suite.yaml"
-# RUN: ln -sf "%S/Inputs/schema-example-migratable.yaml" "%t.install/schemas/my_suite.yaml"
-# RUN: lnt import "%t.install" "%S/Inputs/customschema-report2.json" -s my_suite --show-sql 2>&1 | filecheck %s --check-prefix=MIGRATION
+rm -f "${INSTALL}/schemas/my_suite.yaml"
+ln -sf "${TEST_SRC_DIR}/Inputs/schema-example-migratable.yaml" "${INSTALL}/schemas/my_suite.yaml"
+lnt import "${INSTALL}" "${TEST_SRC_DIR}/Inputs/customschema-report2.json" -s my_suite --show-sql \
+    2>&1 | filecheck --check-prefix=MIGRATION "${THIS_FILE}"
 #
-# MIGRATION: ALTER TABLE "my_suite_Sample" ADD COLUMN newfield FLOAT
+# MIGRATION: ALTER TABLE "my_suite_Sample" ADD COLUMN newfield {{FLOAT|DOUBLE PRECISION}}
 # MIGRATION: ALTER TABLE "my_suite_Run" ADD COLUMN new_run_field VARCHAR(256)
 # MIGRATION: ALTER TABLE "my_suite_Machine" ADD COLUMN new_machine_field VARCHAR(256)
 #

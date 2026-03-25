@@ -1,12 +1,18 @@
 #!/bin/bash
 
 # RUN: rm -rf %t.instance
-# RUN: lnt create %t.instance
+# RUN: %{utils}/with_postgres.sh %t.pg.log \
+# RUN:     %{utils}/with_temporary_instance.py %t.instance \
+# RUN:         -- /bin/sh %s %t.instance %{shared_inputs}
+set -eu
+
+INSTANCE="$1"
+SHARED_INPUTS="$2"
 
 # Make sure we can import a basic test set
-# RUN: lnt import %t.instance %{shared_inputs}/sample-a-small.plist
+lnt import "${INSTANCE}" "${SHARED_INPUTS}/sample-a-small.plist"
 
 # Make sure we can import test sets where the only difference is the
 # case used in the test name.
-# RUN: lnt import %t.instance %{shared_inputs}/sample-arm.json --format=json
-# RUN: lnt import %t.instance %{shared_inputs}/sample-arm2.json --format=json
+lnt import "${INSTANCE}" "${SHARED_INPUTS}/sample-arm.json" --format=json
+lnt import "${INSTANCE}" "${SHARED_INPUTS}/sample-arm2.json" --format=json

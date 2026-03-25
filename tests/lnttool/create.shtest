@@ -1,66 +1,77 @@
 # Test 'lnt create' end-to-end.
+#
+# RUN: rm -rf %t.tmp && mkdir -p %t.tmp
+# RUN: %{utils}/with_postgres.sh %t.pg.log \
+# RUN:     /bin/sh %s %s %t.tmp %{shared_inputs}
+
+set -eux
+
+THIS_FILE="$1"
+TMPBASE="$2"
+SHARED_INPUTS="$3"
 
 ###############################################################################
 # Default creation: verify the generated config and instance file hierarchy
 ###############################################################################
-# RUN: rm -rf %t.instance
-# RUN: lnt create %t.instance > %t.create-output
+lnt create "${TMPBASE}/instance" \
+    --db-dir "${LNT_TEST_DB_URI}" \
+    --default-db "${LNT_TEST_DB_NAME}" \
+    > "${TMPBASE}/create-output"
 
 # -- Config file contains all expected fields with default values
-# RUN: filecheck --check-prefix CHECK-CFG %s < %t.instance/lnt.cfg
+filecheck --check-prefix CHECK-CFG "${THIS_FILE}" < "${TMPBASE}/instance/lnt.cfg"
 
 # CHECK-CFG:      config_version = (0, 1, 0)
 # CHECK-CFG:      name = 'LNT'
 # CHECK-CFG:      zorgURL = 'http://localhost'
 # CHECK-CFG:      tmp_dir = 'lnt_tmp'
-# CHECK-CFG:      db_dir = 'data'
+# CHECK-CFG:      db_dir = 'postgresql://postgres@127.0.0.1:{{[0-9]+}}'
 # CHECK-CFG:      profile_dir = 'data/profiles'
 # CHECK-CFG:      secret_key =
 # CHECK-CFG:      # api_auth_token = 'secret'
 # CHECK-CFG:      databases = {
-# CHECK-CFG-NEXT:     'default' : { 'path' : 'lnt.db' },
+# CHECK-CFG-NEXT:     'default' : { 'path' : 'lnt_test' },
 # CHECK-CFG:      nt_emailer = {
 
 # -- Directory structure is created
-# RUN: test -d %t.instance/lnt_tmp
-# RUN: test -d %t.instance/data
-# RUN: test -d %t.instance/schemas
-# RUN: test -f %t.instance/data/lnt.db
+test -d "${TMPBASE}/instance/lnt_tmp"
+test -d "${TMPBASE}/instance/schemas"
 
 ###############################################################################
 # Make sure that custom options all take effect
 ###############################################################################
-# RUN: rm -rf %t.custom
-# RUN: lnt create %t.custom              \
-# RUN:   --name "My LNT"                 \
-# RUN:   --url https://example.com/lnt   \
-# RUN:   --api-auth-token mytoken        \
-# RUN:   --secret-key deadbeef           \
-# RUN:   --default-db custom.db          \
-# RUN:   --db-dir databases              \
-# RUN:   --tmp-dir mytmp                 \
-# RUN:   --profile-dir my/profiles
-# RUN: filecheck --check-prefix CHECK-CUSTOM %s < %t.custom/lnt.cfg
+lnt create "${TMPBASE}/custom" \
+    --name "My LNT" \
+    --url https://example.com/lnt \
+    --api-auth-token mytoken \
+    --secret-key deadbeef \
+    --default-db "${LNT_TEST_DB_NAME}" \
+    --db-dir "${LNT_TEST_DB_URI}" \
+    --tmp-dir mytmp \
+    --profile-dir my/profiles
+
+filecheck --check-prefix CHECK-CUSTOM "${THIS_FILE}" < "${TMPBASE}/custom/lnt.cfg"
 
 # CHECK-CUSTOM:      name = 'My LNT'
 # CHECK-CUSTOM:      zorgURL = 'https://example.com/lnt'
 # CHECK-CUSTOM:      tmp_dir = 'mytmp'
-# CHECK-CUSTOM:      db_dir = 'databases'
+# CHECK-CUSTOM:      db_dir = 'postgresql://postgres@127.0.0.1:{{[0-9]+}}'
 # CHECK-CUSTOM:      profile_dir = 'my/profiles'
 # CHECK-CUSTOM:      secret_key = 'deadbeef'
 # CHECK-CUSTOM:      api_auth_token = 'mytoken'
-# CHECK-CUSTOM:      'default' : { 'path' : 'custom.db' },
+# CHECK-CUSTOM:      'default' : { 'path' : 'lnt_test' },
 
-# RUN: test -d %t.custom/mytmp
-# RUN: test -d %t.custom/databases
-# RUN: test -f %t.custom/databases/custom.db
+test -d "${TMPBASE}/custom/mytmp"
 
 ###############################################################################
 # Error: creating into an existing path fails.
 ###############################################################################
-# RUN: rm -rf %t.exists && mkdir %t.exists
-# RUN: not lnt create %t.exists 2> %t.exists-err
-# RUN: filecheck --check-prefix CHECK-EXISTS %s < %t.exists-err
+mkdir "${TMPBASE}/exists"
+if lnt create "${TMPBASE}/exists" 2> "${TMPBASE}/exists-err"; then
+    echo "Expected lnt create to fail on existing path" >&2
+    exit 1
+fi
+filecheck --check-prefix CHECK-EXISTS "${THIS_FILE}" < "${TMPBASE}/exists-err"
 
 # CHECK-EXISTS: error: invalid path: {{.*}} already exists
 
@@ -69,7 +80,8 @@
 # verify that 'lnt import' can talk to the instance, which requires loading
 # the config and database).
 ###############################################################################
-# RUN: lnt import %t.instance %{shared_inputs}/sample-a-small.plist --show-sample-count > %t.import-output
-# RUN: filecheck --check-prefix CHECK-IMPORT %s < %t.import-output
+lnt import "${TMPBASE}/instance" "${SHARED_INPUTS}/sample-a-small.plist" \
+    --show-sample-count \
+    | filecheck --check-prefix CHECK-IMPORT "${THIS_FILE}"
 
 # CHECK-IMPORT: Import succeeded.
