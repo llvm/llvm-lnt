@@ -81,9 +81,9 @@ data "cloudinit_config" "startup_scripts" {
           content     = file("${path.module}/../docker/compose.yaml")
         },
         {
-          path        = "/etc/lnt/ec2-volume-mapping.yaml"
+          path        = "/etc/lnt/compose.prod.yaml"
           permissions = "0400" # read-only for owner
-          content     = file("${path.module}/ec2-volume-mapping.yaml")
+          content     = file("${path.module}/compose.prod.yaml")
         },
         {
           path        = "/etc/lnt/compose.env"
@@ -93,7 +93,7 @@ data "cloudinit_config" "startup_scripts" {
             __auth_token__        = local.lnt_auth_token,
             __lnt_image__         = local.lnt_image,
             __lnt_nginx_config__  = "/etc/lnt/nginx.conf",
-            __lnt_external_port__ = local.lnt_external_port,
+            __lnt_nginx_external_port__ = local.lnt_external_port,
           })
         },
         {
