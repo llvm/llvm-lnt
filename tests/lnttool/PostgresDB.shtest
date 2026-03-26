@@ -44,3 +44,19 @@ lnt updatedb "${TESTDIR}/instance" --testsuite nts \
 # CHECK-MACHINERM: DELETE FROM "NT_Machine" WHERE "NT_Machine"."ID" = %(ID)s
 # CHECK-MACHINERM-NEXT: {'ID': 1}
 # CHECK-MACHINERM: COMMIT
+
+# Import a test set so we can test --delete-order.
+lnt import "${TESTDIR}/instance" "${SHARED_INPUTS}/sample-a-small.plist" --show-sample-count
+
+# Check that we remove both the samples and the run associated with that order
+# when we delete an order.
+#
+lnt updatedb "${TESTDIR}/instance" --testsuite nts --delete-order 1 \
+	--show-sql >& "${TESTDIR}/orderrm.out"
+# RUN: filecheck --check-prefix CHECK-ORDERRM %s < "%t.install/orderrm.out"
+
+# CHECK-ORDERRM: DELETE FROM "NT_Sample" WHERE "NT_Sample"."ID" = %(ID)s
+# CHECK-ORDERRM-NEXT: {{'ID': [0-9]+}}
+# CHECK-ORDERRM: DELETE FROM "NT_Run" WHERE "NT_Run"."ID" = %(ID)s
+# CHECK-ORDERRM-NEXT: {{'ID': [0-9]+}}
+# CHECK-ORDERRM: COMMIT

@@ -2,13 +2,10 @@
 #
 # We first construct a temporary LNT instance.
 # RUN: rm -rf %t.install
-# RUN: lnt create %t.install
-
-# Import the test set
-# RUN: lnt import %t.install  %{shared_inputs}/profile-report.json \
-# RUN:   --show-sample-count > %t2.log
-# RUN: ls %t.install/data/profiles
-# RUN: python %s %t.install
+# RUN: %{utils}/with_postgres.sh %t.pg.log \
+# RUN:     %{utils}/with_temporary_instance.py %t.install \
+# RUN:         %{shared_inputs}/profile-report.json \
+# RUN:         -- python %s %t.install
 
 import sys
 import glob

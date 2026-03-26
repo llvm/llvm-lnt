@@ -13,10 +13,10 @@
 # RUN:     --verbose \
 # RUN:     > %t.log 2> %t.err
 # RUN: rm -rf %t.DB
-# RUN: lnt create %t.DB >> %t.log 2>> %t.err
-# RUN: lnt import %t.DB %t.SANDBOX/build/report.json \
-# RUN:   --show-sample-count >> %t.log 2>> %t.err
-# RUN: python %s %t.DB
+# RUN: %{utils}/with_postgres.sh %t.pg.log \
+# RUN:     %{utils}/with_temporary_instance.py %t.DB \
+# RUN:         %t.SANDBOX/build/report.json \
+# RUN:         -- python %s %t.DB
 
 import sys
 import glob

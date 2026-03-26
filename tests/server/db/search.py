@@ -1,8 +1,10 @@
-# RUN: python %s %S
+# RUN: rm -rf %t.instance
+# RUN: %{utils}/with_postgres.sh %t.pg.log \
+# RUN:     %{utils}/with_temporary_instance.py %t.instance \
+# RUN:         -- python %s %t.instance %S
 
 import unittest
 import tempfile
-import shutil
 import sys
 import os
 import lnt.util.ImportData
@@ -10,17 +12,13 @@ import lnt.server.instance
 from lnt.server.db.search import search
 
 
-base_path = ''
-
-
 class SearchTest(unittest.TestCase):
-    def setUp(self):
+    @classmethod
+    def setUpClass(cls):
+        instance_path = sys.argv[1]
+        inputs_path = sys.argv[2]
 
-        master_path = os.path.join(base_path, 'Inputs/lnt_v0.4.0_filled_instance')
-        slave_path = os.path.join(tempfile.mkdtemp(), 'lnt')
-        shutil.copytree(master_path, slave_path)
-
-        instance = lnt.server.instance.Instance.frompath(slave_path)
+        instance = lnt.server.instance.Instance.frompath(instance_path)
         config = instance.config
 
         imported_runs = [('machine1', '5624'),
@@ -33,33 +31,49 @@ class SearchTest(unittest.TestCase):
                          ('machine3', '11324'),
                          ('supermachine', '1324'),
                          ('supermachine', '7623')]
+
         # Get the database.
-        self.db = config.get_database('default')
-        self.session = self.db.make_session()
+        cls.db = config.get_database('default')
+        cls.session = cls.db.make_session()
+        cls.ts = cls.db.testsuite.get('nts')
+
         # Load the database.
         for r in imported_runs:
-            with tempfile.NamedTemporaryFile() as f:
-                data = open(os.path.join(base_path, 'Inputs/report.json.in')) \
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.json') as f:
+                data = open(os.path.join(inputs_path, 'Inputs/report.json.in')) \
                     .read() \
                     .replace('@@MACHINE@@', r[0]) \
                     .replace('@@ORDER@@', r[1])
-                open(f.name, 'w').write(data)
+                f.write(data)
+                f.flush()
 
                 result = lnt.util.ImportData.import_and_report(
-                    None, 'default', self.db, self.session, f.name,
+                    None, 'default', cls.db, cls.session, f.name,
                     format='<auto>', ts_name='nts', show_sample_count=False,
                     disable_email=True, disable_report=True,
                     select_machine='match', merge_run='reject')
 
                 assert result.get('success', False)
 
+        # Look up machine2's ID dynamically for test_default_machine.
+        # The test_default_machine test verifies that when a default_machine
+        # is set, searching for an order number without a machine name
+        # restricts results to that machine.
+        machine2 = cls.session.query(cls.ts.Machine) \
+            .filter_by(name='machine2').one()
+        cls.machine2_id = machine2.id
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.session.close()
+
     def _mangleResults(self, rs):
         return [(r.machine.name, str(r.order.llvm_project_revision))
                 for r in rs]
 
     def test_specific(self):
-        session = self.session
-        ts = self.db.testsuite.get('nts')
+        session = self.__class__.session
+        ts = self.__class__.ts
 
         results = self._mangleResults(search(session, ts, 'machine1 #5625'))
         self.assertEqual(results, [
@@ -72,8 +86,8 @@ class SearchTest(unittest.TestCase):
         ])
 
     def test_multiple_orders(self):
-        session = self.session
-        ts = self.db.testsuite.get('nts')
+        session = self.__class__.session
+        ts = self.__class__.ts
 
         results = self._mangleResults(search(session, ts, 'machine1 #56'))
         self.assertEqual(results, [
@@ -81,8 +95,8 @@ class SearchTest(unittest.TestCase):
         ])
 
     def test_nohash(self):
-        session = self.session
-        ts = self.db.testsuite.get('nts')
+        session = self.__class__.session
+        ts = self.__class__.ts
 
         results = self._mangleResults(search(session, ts, 'machine1 r56'))
         self.assertEqual(results, [
@@ -95,8 +109,8 @@ class SearchTest(unittest.TestCase):
         ])
 
     def test_default_order(self):
-        session = self.session
-        ts = self.db.testsuite.get('nts')
+        session = self.__class__.session
+        ts = self.__class__.ts
 
         results = self._mangleResults(search(session, ts, 'machi ne3'))
         self.assertEqual(results, [
@@ -107,17 +121,15 @@ class SearchTest(unittest.TestCase):
         ])
 
     def test_default_machine(self):
-        session = self.session
-        ts = self.db.testsuite.get('nts')
+        session = self.__class__.session
+        ts = self.__class__.ts
 
         results = self._mangleResults(search(session, ts, '65',
-                                             default_machine=3))
+                                             default_machine=self.__class__.machine2_id))
         self.assertEqual(results, [
             ('machine2', '6512')
         ])
 
 
 if __name__ == '__main__':
-    if len(sys.argv) > 1:
-        base_path = sys.argv[1]
-    unittest.main(argv=[sys.argv[0], ])
+    unittest.main(argv=[sys.argv[0]])
