@@ -34,17 +34,18 @@ development work-flow, just like you do when developing on other LLVM
 sub-projects.
 
 We use ``tox`` as the high-level driver to run tests. To run them locally,
-simply run the ``tox`` command from the root of the repository. We also have
-various unit tests which execute using LLVM's ``lit`` utility. You can run
-individual unit tests with ``lit`` directly (assuming you have installed
-the development dependencies in your virtual environment)::
+simply run the ``tox`` command from the root of the repository::
 
-    lit -sv tests/lnttool/submit.shtest
+    tox
 
-For simple changes, adding a regression test and making sure all regression
-tests pass, is often a good enough testing approach. For some changes, the
-existing regression tests aren't good enough at the moment, and manual testing
-will be needed.
+You can also run individual tests through tox::
+
+    tox -e py3 -- tests/lnttool/submit.shtest
+
+Under the hood, ``tox`` runs tests via LLVM's ``lit`` utility. For simple changes,
+adding a regression test and making sure all regression tests pass, is often a
+good enough testing approach. For some changes, the existing regression tests aren't
+good enough at the moment, and manual testing will be needed.
 
 Optional Tests
 ~~~~~~~~~~~~~~
