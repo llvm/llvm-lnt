@@ -13,9 +13,11 @@ import os
 import aniso8601
 import sqlalchemy
 import flask
-from sqlalchemy import Float, String, Integer, Column, ForeignKey, Binary, DateTime
+from sqlalchemy import (Float, String, Integer, Column, ForeignKey, Binary,
+                        DateTime, UniqueConstraint)
 from sqlalchemy.orm import relation
 from sqlalchemy.orm.exc import ObjectDeletedError
+from sqlalchemy.exc import IntegrityError
 from lnt.util import logger
 
 from . import testsuite
@@ -210,7 +212,12 @@ class TestSuiteDB(object):
                             key=lambda of: of.ordinal)
 
             id = Column("ID", Integer, primary_key=True)
-            ordinal = Column("ordinal", Integer, index=True)
+            ordinal = Column("ordinal", Integer, nullable=False, index=True)
+            __table_args__ = (
+                UniqueConstraint('ordinal',
+                                 name=f'{db_key_name}_Order_ordinal_unique',
+                                 deferrable=True, initially='DEFERRED'),
+            )
             order_name_cache = {}
 
             # Dynamically create fields for all of the test suite defined order
@@ -913,35 +920,46 @@ class TestSuiteDB(object):
             return existing
 
         # If not, then we need to insert this order into the total ordering.
+        # We use a savepoint + retry loop to handle the rare case where a
+        # concurrent insertion causes a UNIQUE constraint violation on the
+        # ordinal column.
+        MAX_RETRIES = 3
+        for attempt in range(MAX_RETRIES):
+            savepoint = session.begin_nested()
+            try:
+                # Load all existing orders sorted by ordinal, locking them
+                # to prevent concurrent modifications.
+                existing_orders = session.query(self.Order) \
+                    .order_by(self.Order.ordinal) \
+                    .with_for_update() \
+                    .all()
 
-        # Add the new order and flush to assign an ID. We use flush()
-        # instead of commit() so that if the import fails later, the
-        # transaction rollback will remove this incomplete order.
-        session.add(order)
-        session.flush()
+                # Find the insertion point using field comparison.
+                insert_at = len(existing_orders)
+                for i, existing in enumerate(existing_orders):
+                    if self.Order._compare_by_fields(order, existing) <= 0:
+                        insert_at = i
+                        break
 
-        # Load all existing orders sorted by ordinal, locking them to
-        # prevent concurrent insertions from corrupting ordinals.
-        existing_orders = session.query(self.Order) \
-            .filter(self.Order.id != order.id) \
-            .order_by(self.Order.ordinal) \
-            .with_for_update() \
-            .all()
+                # Shift all ordinals at or after the insertion point up
+                # by 1. The UNIQUE constraint on ordinal is DEFERRABLE
+                # INITIALLY DEFERRED, so PostgreSQL won't check it until
+                # the transaction commits.
+                session.query(self.Order) \
+                    .filter(self.Order.ordinal >= insert_at) \
+                    .update({self.Order.ordinal: self.Order.ordinal + 1},
+                            synchronize_session=False)
 
-        # Find the insertion point for the new order using field comparison.
-        insert_at = len(existing_orders)
-        for i, existing in enumerate(existing_orders):
-            if self.Order._compare_by_fields(order, existing) <= 0:
-                insert_at = i
+                # Insert the new order with its ordinal and flush.
+                order.ordinal = insert_at
+                session.add(order)
+                session.flush()
+                savepoint.commit()
                 break
-
-        # Shift all ordinals at or after the insertion point up by 1.
-        session.query(self.Order) \
-            .filter(self.Order.id != order.id) \
-            .filter(self.Order.ordinal >= insert_at) \
-            .update({self.Order.ordinal: self.Order.ordinal + 1},
-                    synchronize_session=False)
-        order.ordinal = insert_at
+            except IntegrityError:
+                savepoint.rollback()
+                if attempt == MAX_RETRIES - 1:
+                    raise
 
         return order
 

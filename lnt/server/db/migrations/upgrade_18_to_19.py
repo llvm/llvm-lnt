@@ -13,116 +13,7 @@ from lnt.server.db.util import add_column
 from lnt.server.ui.util import convert_revision
 
 
-def _drop_columns_sqlite(engine, table_name, columns_to_drop):
-    """Drop columns from a SQLite table by recreating it.
-
-    SQLite's ALTER TABLE DROP COLUMN doesn't work when foreign key
-    constraints reference the dropped column.
-    """
-    with engine.begin() as conn:
-        # Get the current CREATE TABLE statement.
-        result = conn.execute(text(
-            "SELECT sql FROM sqlite_master WHERE type='table' AND name=:name"
-        ), name=table_name)
-        create_sql = result.scalar()
-
-        # Get the current column names.
-        result = conn.execute(text(
-            f'PRAGMA table_info("{table_name}")'
-        ))
-        all_columns = [row[1] for row in result]
-        keep_columns = [c for c in all_columns if c not in columns_to_drop]
-        quoted_keep = ', '.join(f'"{c}"' for c in keep_columns)
-
-        # Disable foreign key checks during rebuild.
-        conn.execute(text("PRAGMA foreign_keys=OFF"))
-
-        # Rename the old table.
-        tmp_name = f"{table_name}__old"
-        conn.execute(text(
-            f'ALTER TABLE "{table_name}" RENAME TO "{tmp_name}"'
-        ))
-
-        # Build a new CREATE TABLE statement without the dropped columns
-        # and without foreign key constraints referencing them.
-        # Parse column definitions and constraints from the original SQL.
-        # Find the content between the outer parentheses.
-        paren_start = create_sql.index('(')
-        inner = create_sql[paren_start + 1:]
-        # Remove trailing ")".
-        inner = inner.rstrip()
-        if inner.endswith(')'):
-            inner = inner[:-1]
-
-        # Split on commas, respecting parentheses.
-        parts = []
-        depth = 0
-        current = []
-        for ch in inner:
-            if ch == '(':
-                depth += 1
-            elif ch == ')':
-                depth -= 1
-            elif ch == ',' and depth == 0:
-                parts.append(''.join(current).strip())
-                current = []
-                continue
-            current.append(ch)
-        if current:
-            parts.append(''.join(current).strip())
-
-        # Filter out column definitions and constraints for dropped columns.
-        new_parts = []
-        for part in parts:
-            # Skip column definitions for dropped columns.
-            skip = False
-            for col in columns_to_drop:
-                if part.strip().startswith(f'"{col}"'):
-                    skip = True
-                    break
-            if skip:
-                continue
-            # Skip FOREIGN KEY constraints that reference dropped columns.
-            part_upper = part.upper()
-            if 'FOREIGN KEY' in part_upper:
-                references_dropped = False
-                for col in columns_to_drop:
-                    if f'"{col}"' in part or col in part:
-                        references_dropped = True
-                        break
-                if references_dropped:
-                    continue
-            new_parts.append(part)
-
-        new_create = 'CREATE TABLE "{}" (\n{}\n)'.format(
-            table_name, ',\n'.join('\t' + p for p in new_parts)
-        )
-        conn.execute(text(new_create))
-
-        # Copy data.
-        conn.execute(text(
-            f'INSERT INTO "{table_name}" ({quoted_keep}) SELECT {quoted_keep} FROM "{tmp_name}"'
-        ))
-
-        # Drop the old table.
-        conn.execute(text(f'DROP TABLE "{tmp_name}"'))
-
-        # Re-enable foreign keys.
-        conn.execute(text("PRAGMA foreign_keys=ON"))
-
-
-def _drop_columns_postgres(engine, table_name, columns_to_drop):
-    """Drop columns from a PostgreSQL table using ALTER TABLE."""
-    with engine.begin() as conn:
-        for col in columns_to_drop:
-            conn.execute(text(
-                f'ALTER TABLE "{table_name}" DROP COLUMN "{col}"'
-            ))
-
-
 def upgrade(engine):
-    is_sqlite = engine.dialect.name == 'sqlite'
-
     # Find all test suites so we can migrate each Order table.
     test_suite_table = introspect_table(engine, "TestSuite")
     order_fields_table = introspect_table(engine, "TestSuiteOrderFields")
@@ -136,7 +27,7 @@ def upgrade(engine):
     for (db_key_name,) in test_suites:
         order_table_name = f'{db_key_name}_Order'
 
-        # 1. Add ordinal column.
+        # 1. Add ordinal column (nullable initially so we can backfill).
         ordinal_col = Column("ordinal", Integer)
         add_column(engine, order_table_name, ordinal_col)
 
@@ -187,19 +78,25 @@ def upgrade(engine):
 
         session.commit()
 
-        # 3. Drop PreviousOrder and NextOrder columns.
-        if is_sqlite:
-            _drop_columns_sqlite(
-                engine, order_table_name,
-                ["NextOrder", "PreviousOrder"])
-        else:
-            _drop_columns_postgres(
-                engine, order_table_name,
-                ["NextOrder", "PreviousOrder"])
+        # 3. Drop PreviousOrder and NextOrder columns, set ordinal NOT NULL,
+        #    and add a deferred unique constraint.
+        with engine.begin() as conn:
+            for col in ["NextOrder", "PreviousOrder"]:
+                conn.execute(text(
+                    f'ALTER TABLE "{order_table_name}" '
+                    f'DROP COLUMN "{col}"'
+                ))
+            conn.execute(text(
+                f'ALTER TABLE "{order_table_name}" '
+                f'ALTER COLUMN "ordinal" SET NOT NULL'
+            ))
+            conn.execute(text(
+                f'ALTER TABLE "{order_table_name}" '
+                f'ADD CONSTRAINT "{order_table_name}_ordinal_unique" '
+                f'UNIQUE ("ordinal") DEFERRABLE INITIALLY DEFERRED'
+            ))
 
-        # 4. Create an index on the ordinal column (after column drop,
-        #    since SQLite table rebuild would lose it).
-        # Re-introspect to get the current table state.
+        # 4. Create an index on the ordinal column for query performance.
         new_order_table = introspect_table(engine, order_table_name)
         idx_name = f"ix_{db_key_name}_Order_ordinal"
         idx = sqlalchemy.Index(idx_name, new_order_table.c.ordinal)

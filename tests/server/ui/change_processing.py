@@ -25,9 +25,15 @@ START_POSTGRES = os.path.join(UTILS_DIR, 'start_postgres.sh')
 STOP_POSTGRES = os.path.join(UTILS_DIR, 'stop_postgres.sh')
 
 
+_next_ordinal = 0
+
+
 def _mkorder(session, ts, rev):
+    global _next_ordinal
     order = ts.Order()
     order.llvm_project_revision = rev
+    order.ordinal = _next_ordinal
+    _next_ordinal += 1
     session.add(order)
     return order
 
