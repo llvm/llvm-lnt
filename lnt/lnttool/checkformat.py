@@ -1,5 +1,4 @@
 import click
-import os
 import sys
 
 
@@ -10,7 +9,6 @@ def action_checkformat(files):
     import lnt.testing
     for file in files:
         result = lnt.testing.validate_report(file, '<auto>')
-        print("Importing %r" % os.path.basename(file))
         if result['success']:
             data = result['data']
             machine_name = data['machine'].get('name', 'unknown')
