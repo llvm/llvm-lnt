@@ -1,20 +1,25 @@
 import click
+import os
 import sys
 
 
 @click.command("checkformat")
 @click.argument("files", nargs=-1, type=click.Path(exists=True))
-@click.option("--testsuite", "-s", default='nts')
-def action_checkformat(files, testsuite):
+def action_checkformat(files):
     """check the format of LNT test report files"""
-    import lnt.server.config
-    import lnt.server.db.v4db
-    import lnt.util.ImportData
-    db = lnt.server.db.v4db.V4DB('sqlite:///:memory:',
-                                 lnt.server.config.Config.dummy_instance())
-    session = db.make_session()
+    import lnt.testing
     for file in files:
-        result = lnt.util.ImportData.import_and_report(
-            None, None, db, session, file, '<auto>', testsuite)
-        lnt.util.ImportData.print_report_result(result, sys.stdout,
-                                                sys.stderr, verbose=True)
+        result = lnt.testing.validate_report(file, '<auto>')
+        print("Importing %r" % os.path.basename(file))
+        if result['success']:
+            data = result['data']
+            machine_name = data['machine'].get('name', 'unknown')
+            num_tests = len(data['tests'])
+            print("Validation succeeded. Machine: %s / Tests: %d"
+                  % (machine_name, num_tests))
+        else:
+            print("Validation failed:", file=sys.stderr)
+            print(result['error'], file=sys.stderr)
+            message = result.get('message')
+            if message:
+                print(message, file=sys.stderr)
