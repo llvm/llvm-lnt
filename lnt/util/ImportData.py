@@ -3,7 +3,6 @@ from contextlib import closing
 from lnt.util import logger
 import collections
 import datetime
-import lnt.formats
 import lnt.server.reporting.analysis
 import lnt.testing
 import os
@@ -58,23 +57,21 @@ def import_and_report(config, db_name, db, session, file, format, ts_name,
         numSamples = ts.getNumSamples(session)
 
     startTime = time.time()
-    try:
-        data = lnt.formats.read_any(file, format)
-    except Exception:
-        import traceback
-        result['error'] = "could not parse input format"
-        result['message'] = traceback.format_exc()
-        return result
-
+    validation = lnt.testing.validate_report(file, format)
     result['load_time'] = time.time() - startTime
 
-    # Auto-upgrade the data, if necessary.
-    try:
-        data = lnt.testing.upgrade_and_normalize_report(data, ts_name)
-    except ValueError as e:
-        import traceback
-        result['error'] = "Invalid input format: %s" % e
-        result['message'] = traceback.format_exc()
+    if not validation['success']:
+        result['error'] = validation['error']
+        if 'message' in validation:
+            result['message'] = validation['message']
+        return result
+
+    data = validation['data']
+
+    data_schema = data.get('schema')
+    if data_schema is not None and data_schema != ts_name:
+        result['error'] = ("Importing '%s' data into test suite '%s'" %
+                           (data_schema, ts_name))
         return result
 
     # Find the database config, if we have a configuration object.
@@ -98,12 +95,6 @@ def import_and_report(config, db_name, db, session, file, format, ts_name,
 
     importStartTime = time.time()
     try:
-        data_schema = data.get('schema')
-        if data_schema is not None and data_schema != ts_name:
-            result['error'] = ("Importing '%s' data into test suite '%s'" %
-                               (data_schema, ts_name))
-            return result
-
         run = ts.importDataFromDict(session, data, config=db_config,
                                     select_machine=select_machine,
                                     merge_run=merge_run)
