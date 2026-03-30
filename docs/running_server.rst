@@ -27,6 +27,25 @@ lnt.llvm.org deployment), use the ``nginx`` profile::
 This starts the Nginx service on port 80 (configurable via
 ``LNT_NGINX_EXTERNAL_PORT``) in addition to the database and webserver.
 
+Manual deployment without Docker
+--------------------------------
+
+Manually deploying a LNT server outside of Docker is possible, but trickier and not
+recommended.
+
+#. Install ``lnt`` as explained in the :ref:`installation section <installation>`.
+
+#. Create a LNT installation, pointing to your database server::
+
+      lnt create path/to/installation --db-dir postgresql://user@host:port
+
+#. You can then run the server on that installation::
+
+      lnt runserver path/to/installation
+
+Note that running the server in this way is not recommended for production, since
+it runs a single-threaded Flask server instead of running behind ``gunicorn``.
+
 Server Architecture
 -------------------
 
