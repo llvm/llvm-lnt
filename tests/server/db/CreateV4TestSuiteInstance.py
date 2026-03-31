@@ -7,6 +7,7 @@
 
 import datetime
 import sys
+import uuid
 
 import lnt.server.instance
 from lnt.server.db.fieldchange import RegressionState
@@ -56,11 +57,13 @@ session.add(test)
 session.add(sample)
 field_change = ts_db.FieldChange(order, order2, machine, test,
                                  list(sample.get_primary_fields())[0].id)
+field_change.uuid = str(uuid.uuid4())
 
 session.add(field_change)
 
 field_change2 = ts_db.FieldChange(order2, order3, machine, test,
                                   list(sample.get_primary_fields())[1].id)
+field_change2.uuid = str(uuid.uuid4())
 session.add(field_change2)
 
 TEST_TITLE = "Some regression title"

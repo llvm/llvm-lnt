@@ -181,6 +181,12 @@ class App(LNTExceptionLoggerFlask):
                 return response
             return render_template('error.html', message=repr(e)), 500
 
+        # Load the v5 REST API (flask-smorest) AFTER the app-level error
+        # handlers above so that v5's per-status-code handlers can save
+        # them as fallbacks for non-v5 routes (see errors.py).
+        from lnt.server.api.v5 import create_v5_api
+        app.v5_api = create_v5_api(app)
+
         return app
 
     @staticmethod

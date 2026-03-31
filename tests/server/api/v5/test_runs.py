@@ -1,0 +1,1242 @@
+# Tests for the v5 run endpoints.
+#
+# RUN: rm -rf %t.instance %t.pg.log
+# RUN: %{utils}/with_postgres.sh %t.pg.log \
+# RUN:     %{utils}/with_temporary_instance.py %t.instance \
+# RUN:         -- python %s %t.instance
+# END.
+
+import datetime
+import json
+import sys
+import os
+import unittest
+import uuid
+
+sys.path.insert(0, os.path.dirname(__file__))
+from v5_test_helpers import (
+    create_app, create_client, admin_headers, make_scoped_headers,
+    create_machine, create_order, create_run, collect_all_pages,
+)
+
+
+TS = 'nts'
+PREFIX = f'/api/v5/{TS}'
+
+
+def _make_submission_payload(machine_name=None, revision=None,
+                             start_time=None, end_time=None):
+    """Build a valid v2-format JSON submission payload."""
+    if machine_name is None:
+        machine_name = f'submit-machine-{uuid.uuid4().hex[:8]}'
+    if revision is None:
+        revision = f'r{uuid.uuid4().hex[:8]}'
+    if start_time is None:
+        start_time = '2024-06-15T10:00:00'
+    if end_time is None:
+        end_time = '2024-06-15T10:30:00'
+
+    return json.dumps({
+        'format_version': '2',
+        'machine': {
+            'name': machine_name,
+        },
+        'run': {
+            'start_time': start_time,
+            'end_time': end_time,
+            'llvm_project_revision': revision,
+        },
+        'tests': [
+            {
+                'name': 'test.suite/benchmark1',
+                'execution_time': [0.1234, 0.1235],
+            },
+        ],
+    })
+
+
+class TestRunListEmpty(unittest.TestCase):
+    """Tests for GET /api/v5/{ts}/runs with no data."""
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+
+    def test_list_returns_200(self):
+        resp = self.client.get(PREFIX + '/runs')
+        self.assertEqual(resp.status_code, 200)
+
+    def test_list_has_items_key(self):
+        resp = self.client.get(PREFIX + '/runs')
+        data = resp.get_json()
+        self.assertIn('items', data)
+        self.assertIsInstance(data['items'], list)
+
+    def test_list_has_pagination_envelope(self):
+        resp = self.client.get(PREFIX + '/runs')
+        data = resp.get_json()
+        self.assertIn('cursor', data)
+        self.assertIn('next', data['cursor'])
+        self.assertIn('previous', data['cursor'])
+
+
+class TestRunListWithData(unittest.TestCase):
+    """Tests for GET /api/v5/{ts}/runs with existing data."""
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+
+    def test_list_includes_created_runs(self):
+        """Runs created via DB helpers appear in list."""
+        name = f'list-data-{uuid.uuid4().hex[:8]}'
+        db = self.app.instance.get_database("default")
+        session = db.make_session()
+        ts = db.testsuite[TS]
+        machine = create_machine(session, ts, name=name)
+        order = create_order(session, ts, revision=f'list-rev-{uuid.uuid4().hex[:6]}')
+        run = create_run(session, ts, machine, order)
+        run_uuid = run.uuid
+        session.commit()
+        session.close()
+
+        resp = self.client.get(PREFIX + f'/runs?machine={name}')
+        data = resp.get_json()
+        uuids = [item['uuid'] for item in data['items']]
+        self.assertIn(run_uuid, uuids)
+
+    def test_list_run_has_expected_fields(self):
+        """Each run in the list has uuid, machine_name, order, start_time, end_time."""
+        name = f'list-fields-{uuid.uuid4().hex[:8]}'
+        db = self.app.instance.get_database("default")
+        session = db.make_session()
+        ts = db.testsuite[TS]
+        machine = create_machine(session, ts, name=name)
+        order = create_order(session, ts, revision=f'fields-rev-{uuid.uuid4().hex[:6]}')
+        create_run(session, ts, machine, order)
+        session.commit()
+        session.close()
+
+        resp = self.client.get(PREFIX + f'/runs?machine={name}')
+        data = resp.get_json()
+        self.assertGreater(len(data['items']), 0)
+        item = data['items'][0]
+        self.assertIn('uuid', item)
+        self.assertIn('machine', item)
+        self.assertIn('order', item)
+        self.assertIn('start_time', item)
+        self.assertIn('end_time', item)
+        # Must NOT have internal IDs
+        self.assertNotIn('id', item)
+        self.assertNotIn('machine_id', item)
+
+    def test_list_never_exposes_internal_ids(self):
+        """Run list items never contain internal database IDs."""
+        name = f'no-ids-{uuid.uuid4().hex[:8]}'
+        db = self.app.instance.get_database("default")
+        session = db.make_session()
+        ts = db.testsuite[TS]
+        machine = create_machine(session, ts, name=name)
+        order = create_order(session, ts, revision=f'noid-rev-{uuid.uuid4().hex[:6]}')
+        create_run(session, ts, machine, order)
+        session.commit()
+        session.close()
+
+        resp = self.client.get(PREFIX + f'/runs?machine={name}')
+        data = resp.get_json()
+        for item in data['items']:
+            self.assertNotIn('id', item)
+            self.assertNotIn('machine_id', item)
+            self.assertNotIn('order_id', item)
+
+
+class TestRunListPagination(unittest.TestCase):
+    """Tests for run list pagination."""
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+
+    def test_pagination(self):
+        """Create multiple runs and paginate through them."""
+        name = f'page-{uuid.uuid4().hex[:8]}'
+        db = self.app.instance.get_database("default")
+        session = db.make_session()
+        ts = db.testsuite[TS]
+        machine = create_machine(session, ts, name=name)
+        for i in range(3):
+            order = create_order(session, ts, revision=f'page-rev-{uuid.uuid4().hex[:6]}-{i}')
+            create_run(session, ts, machine, order,
+                       start_time=datetime.datetime(2024, 1, 1 + i, 12, 0, 0))
+        session.commit()
+        session.close()
+
+        # Get first page with limit=2
+        resp = self.client.get(PREFIX + f'/runs?machine={name}&limit=2')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertEqual(len(data['items']), 2)
+        self.assertIsNotNone(data['cursor']['next'])
+
+        # Follow cursor
+        cursor = data['cursor']['next']
+        resp2 = self.client.get(
+            PREFIX + f'/runs?machine={name}&limit=2&cursor={cursor}')
+        self.assertEqual(resp2.status_code, 200)
+        data2 = resp2.get_json()
+        self.assertEqual(len(data2['items']), 1)
+        self.assertIsNone(data2['cursor']['next'])
+
+
+class TestRunSubmit(unittest.TestCase):
+    """Tests for POST /api/v5/{ts}/runs (run submission)."""
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+
+    def test_submit_valid_payload(self):
+        """Submit a valid JSON payload and verify response."""
+        payload = _make_submission_payload()
+        resp = self.client.post(
+            PREFIX + '/runs',
+            data=payload,
+            content_type='application/json',
+            headers=admin_headers(),
+        )
+        # The import pipeline returns 201 on success
+        self.assertIn(resp.status_code, [201, 301])
+        data = resp.get_json()
+        self.assertTrue(data.get('success'))
+        self.assertIn('run_uuid', data)
+        self.assertIsNotNone(data['run_uuid'])
+        self.assertIn('result_url', data)
+
+    def test_submit_returns_uuid(self):
+        """Submitted run has a valid UUID."""
+        payload = _make_submission_payload()
+        resp = self.client.post(
+            PREFIX + '/runs',
+            data=payload,
+            content_type='application/json',
+            headers=admin_headers(),
+        )
+        data = resp.get_json()
+        run_uuid = data.get('run_uuid')
+        self.assertIsNotNone(run_uuid)
+        # Verify UUID format (should be valid UUID4)
+        try:
+            uuid.UUID(run_uuid, version=4)
+        except ValueError:
+            self.fail(f"run_uuid is not a valid UUID: {run_uuid}")
+
+    def test_submit_run_appears_in_list(self):
+        """After submission, the run appears in the list endpoint."""
+        machine_name = f'submit-list-{uuid.uuid4().hex[:8]}'
+        payload = _make_submission_payload(machine_name=machine_name)
+        resp = self.client.post(
+            PREFIX + '/runs',
+            data=payload,
+            content_type='application/json',
+            headers=admin_headers(),
+        )
+        data = resp.get_json()
+        run_uuid = data['run_uuid']
+
+        # Verify the run appears in the list
+        list_resp = self.client.get(
+            PREFIX + f'/runs?machine={machine_name}')
+        list_data = list_resp.get_json()
+        uuids = [item['uuid'] for item in list_data['items']]
+        self.assertIn(run_uuid, uuids)
+
+    def test_submit_run_detail_accessible(self):
+        """After submission, the run detail is accessible by UUID."""
+        payload = _make_submission_payload()
+        resp = self.client.post(
+            PREFIX + '/runs',
+            data=payload,
+            content_type='application/json',
+            headers=admin_headers(),
+        )
+        data = resp.get_json()
+        run_uuid = data['run_uuid']
+
+        # Fetch run detail
+        detail_resp = self.client.get(PREFIX + f'/runs/{run_uuid}')
+        self.assertEqual(detail_resp.status_code, 200)
+        detail = detail_resp.get_json()
+        self.assertEqual(detail['uuid'], run_uuid)
+
+    def test_submit_invalid_payload_400(self):
+        """Submitting a JSON object without format_version returns 400."""
+        resp = self.client.post(
+            PREFIX + '/runs',
+            data='{"not": "valid report"}',
+            content_type='application/json',
+            headers=admin_headers(),
+        )
+        self.assertEqual(resp.status_code, 400)
+        data = resp.get_json()
+        self.assertIn('format_version', data['error']['message'])
+
+    def test_submit_empty_body_400(self):
+        """Submitting an empty body returns 400."""
+        resp = self.client.post(
+            PREFIX + '/runs',
+            data='',
+            content_type='application/json',
+            headers=admin_headers(),
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    def test_submit_no_auth_401(self):
+        """Submitting without auth returns 401."""
+        payload = _make_submission_payload()
+        resp = self.client.post(
+            PREFIX + '/runs',
+            data=payload,
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 401)
+
+    def test_submit_read_scope_403(self):
+        """Submitting with read scope returns 403."""
+        headers = make_scoped_headers(self.app, 'read')
+        payload = _make_submission_payload()
+        resp = self.client.post(
+            PREFIX + '/runs',
+            data=payload,
+            content_type='application/json',
+            headers=headers,
+        )
+        self.assertEqual(resp.status_code, 403)
+
+    def test_submit_with_submit_scope_succeeds(self):
+        """Submitting with submit scope succeeds."""
+        headers = make_scoped_headers(self.app, 'submit')
+        payload = _make_submission_payload()
+        resp = self.client.post(
+            PREFIX + '/runs',
+            data=payload,
+            content_type='application/json',
+            headers=headers,
+        )
+        self.assertIn(resp.status_code, [201, 301])
+
+    def test_submit_result_url_format(self):
+        """Result URL should point to the v5 run detail."""
+        payload = _make_submission_payload()
+        resp = self.client.post(
+            PREFIX + '/runs',
+            data=payload,
+            content_type='application/json',
+            headers=admin_headers(),
+        )
+        data = resp.get_json()
+        result_url = data.get('result_url')
+        self.assertIsNotNone(result_url)
+        self.assertIn(f'/api/v5/{TS}/runs/', result_url)
+
+
+class TestRunSubmitFormatValidation(unittest.TestCase):
+    """Tests that POST /api/v5/{ts}/runs mandates JSON format_version '2'."""
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+
+    def test_submit_non_json_body_400(self):
+        """Non-JSON request body returns 400."""
+        resp = self.client.post(
+            PREFIX + '/runs',
+            data='not json at all',
+            content_type='application/json',
+            headers=admin_headers(),
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn('JSON', resp.get_json()['error']['message'])
+
+    def test_submit_json_array_body_400(self):
+        """A JSON array (not object) returns 400."""
+        resp = self.client.post(
+            PREFIX + '/runs',
+            data='[1, 2, 3]',
+            content_type='application/json',
+            headers=admin_headers(),
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn('JSON object', resp.get_json()['error']['message'])
+
+    def test_submit_missing_format_version_400(self):
+        """A JSON object without format_version returns 400."""
+        payload = json.dumps({
+            'machine': {'name': 'dummy'},
+            'run': {'start_time': '2024-01-01', 'end_time': '2024-01-01',
+                    'llvm_project_revision': 'rev1'},
+            'tests': [],
+        })
+        resp = self.client.post(
+            PREFIX + '/runs',
+            data=payload,
+            content_type='application/json',
+            headers=admin_headers(),
+        )
+        self.assertEqual(resp.status_code, 400)
+        msg = resp.get_json()['error']['message']
+        self.assertIn('format_version', msg)
+        self.assertIn('missing', msg)
+
+    def test_submit_wrong_format_version_400(self):
+        """format_version '1' is rejected."""
+        payload = json.dumps({
+            'format_version': '1',
+            'machine': {'name': 'dummy'},
+            'run': {'start_time': '2024-01-01', 'end_time': '2024-01-01',
+                    'llvm_project_revision': 'rev1'},
+            'tests': [],
+        })
+        resp = self.client.post(
+            PREFIX + '/runs',
+            data=payload,
+            content_type='application/json',
+            headers=admin_headers(),
+        )
+        self.assertEqual(resp.status_code, 400)
+        msg = resp.get_json()['error']['message']
+        self.assertIn('format_version', msg)
+
+    def test_submit_integer_format_version_400(self):
+        """format_version as integer 2 (not string '2') is rejected."""
+        payload = json.dumps({
+            'format_version': 2,
+            'machine': {'name': 'dummy'},
+            'run': {'start_time': '2024-01-01', 'end_time': '2024-01-01',
+                    'llvm_project_revision': 'rev1'},
+            'tests': [],
+        })
+        resp = self.client.post(
+            PREFIX + '/runs',
+            data=payload,
+            content_type='application/json',
+            headers=admin_headers(),
+        )
+        self.assertEqual(resp.status_code, 400)
+        msg = resp.get_json()['error']['message']
+        self.assertIn('format_version', msg)
+
+    def test_submit_v2_format_accepted(self):
+        """A valid format_version '2' payload is accepted."""
+        payload = _make_submission_payload()
+        resp = self.client.post(
+            PREFIX + '/runs',
+            data=payload,
+            content_type='application/json',
+            headers=admin_headers(),
+        )
+        self.assertEqual(resp.status_code, 201)
+        self.assertTrue(resp.get_json().get('success'))
+
+
+class TestRunSubmitMachineConflict(unittest.TestCase):
+    """Tests for the on_machine_conflict query parameter on POST /runs."""
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+
+    def test_default_is_reject(self):
+        """Omitting on_machine_conflict uses reject by default."""
+        payload = _make_submission_payload()
+        resp = self.client.post(
+            PREFIX + '/runs',
+            data=payload,
+            content_type='application/json',
+            headers=admin_headers(),
+        )
+        self.assertEqual(resp.status_code, 201)
+        self.assertTrue(resp.get_json().get('success'))
+
+    def test_reject_value_accepted(self):
+        """on_machine_conflict=reject is accepted."""
+        payload = _make_submission_payload()
+        resp = self.client.post(
+            PREFIX + '/runs?on_machine_conflict=reject',
+            data=payload,
+            content_type='application/json',
+            headers=admin_headers(),
+        )
+        self.assertEqual(resp.status_code, 201)
+
+    def test_update_value_accepted(self):
+        """on_machine_conflict=update is accepted."""
+        payload = _make_submission_payload()
+        resp = self.client.post(
+            PREFIX + '/runs?on_machine_conflict=update',
+            data=payload,
+            content_type='application/json',
+            headers=admin_headers(),
+        )
+        self.assertEqual(resp.status_code, 201)
+
+    def test_invalid_value_returns_422(self):
+        """An invalid on_machine_conflict value returns 422."""
+        payload = _make_submission_payload()
+        resp = self.client.post(
+            PREFIX + '/runs?on_machine_conflict=bogus',
+            data=payload,
+            content_type='application/json',
+            headers=admin_headers(),
+        )
+        self.assertEqual(resp.status_code, 422)
+
+
+def _make_submission_with_info(machine_name, machine_info, revision=None):
+    """Build a v2-format JSON submission payload with machine info fields."""
+    if revision is None:
+        revision = f'r{uuid.uuid4().hex[:8]}'
+    machine = {'name': machine_name}
+    machine.update(machine_info)
+    return json.dumps({
+        'format_version': '2',
+        'machine': machine,
+        'run': {
+            'start_time': '2024-06-15T10:00:00',
+            'end_time': '2024-06-15T10:30:00',
+            'llvm_project_revision': revision,
+        },
+        'tests': [
+            {
+                'name': 'test.suite/benchmark1',
+                'execution_time': [0.1234],
+            },
+        ],
+    })
+
+
+class TestMachineConflictUpdateBehavior(unittest.TestCase):
+    """Behavioral tests for on_machine_conflict=update on POST /runs.
+
+    These tests verify that the 'update' strategy actually modifies
+    the existing machine's info rather than creating a duplicate.
+    """
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+
+    def _submit_run(self, machine_name, machine_info, conflict='update'):
+        """Helper: submit a run with the given machine info and conflict mode."""
+        payload = _make_submission_with_info(machine_name, machine_info)
+        url = PREFIX + '/runs'
+        if conflict is not None:
+            url += f'?on_machine_conflict={conflict}'
+        return self.client.post(
+            url,
+            data=payload,
+            content_type='application/json',
+            headers=admin_headers(),
+        )
+
+    def _get_machine(self, machine_name):
+        """Helper: GET a machine by name and return (status_code, json)."""
+        resp = self.client.get(PREFIX + f'/machines/{machine_name}')
+        return resp.status_code, resp.get_json()
+
+    def _list_machines_by_name(self, machine_name):
+        """Helper: list machines filtered by exact name prefix."""
+        resp = self.client.get(
+            PREFIX + f'/machines?name_prefix={machine_name}')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        # Filter to exact name matches (name_prefix could match longer names)
+        return [m for m in data['items'] if m['name'] == machine_name]
+
+    def test_update_does_not_create_new_machine(self):
+        """on_machine_conflict=update reuses the existing machine, no duplicate."""
+        name = f'mc-update-nodup-{uuid.uuid4().hex[:8]}'
+
+        # First submission creates the machine.
+        resp1 = self._submit_run(name, {'os': 'Linux'})
+        self.assertEqual(resp1.status_code, 201)
+
+        # Second submission with different info and update mode.
+        resp2 = self._submit_run(name, {'os': 'Linux-v2'}, conflict='update')
+        self.assertEqual(resp2.status_code, 201)
+
+        # Verify only one machine with this name exists.
+        machines = self._list_machines_by_name(name)
+        self.assertEqual(len(machines), 1,
+                         f"Expected 1 machine named '{name}', got {len(machines)}")
+
+    def test_update_changes_machine_info(self):
+        """on_machine_conflict=update actually modifies the machine's info."""
+        name = f'mc-update-info-{uuid.uuid4().hex[:8]}'
+
+        # First submission creates the machine with os=Linux.
+        resp1 = self._submit_run(name, {'os': 'Linux'})
+        self.assertEqual(resp1.status_code, 201)
+
+        # Verify initial info.
+        status, data = self._get_machine(name)
+        self.assertEqual(status, 200)
+        self.assertEqual(data['info']['os'], 'Linux')
+
+        # Second submission with updated os.
+        resp2 = self._submit_run(name, {'os': 'Linux-v2'}, conflict='update')
+        self.assertEqual(resp2.status_code, 201)
+
+        # Verify updated info.
+        status, data = self._get_machine(name)
+        self.assertEqual(status, 200)
+        self.assertEqual(data['info']['os'], 'Linux-v2')
+
+    def test_reject_default_raises_on_conflict(self):
+        """Default reject mode returns 400 when machine info has changed."""
+        name = f'mc-reject-err-{uuid.uuid4().hex[:8]}'
+
+        # First submission creates the machine.
+        resp1 = self._submit_run(name, {'os': 'Linux'}, conflict=None)
+        self.assertEqual(resp1.status_code, 201)
+
+        # Second submission with different info and default (reject) mode.
+        resp2 = self._submit_run(name, {'os': 'Linux-v2'}, conflict=None)
+        self.assertEqual(resp2.status_code, 400)
+
+    def test_update_with_same_info_succeeds(self):
+        """on_machine_conflict=update with identical info succeeds, no duplicate."""
+        name = f'mc-update-same-{uuid.uuid4().hex[:8]}'
+
+        # Both submissions use the same info.
+        resp1 = self._submit_run(name, {'os': 'Linux'}, conflict='update')
+        self.assertEqual(resp1.status_code, 201)
+
+        resp2 = self._submit_run(name, {'os': 'Linux'}, conflict='update')
+        self.assertEqual(resp2.status_code, 201)
+
+        # Still only one machine.
+        machines = self._list_machines_by_name(name)
+        self.assertEqual(len(machines), 1,
+                         f"Expected 1 machine named '{name}', got {len(machines)}")
+
+    def test_update_preserves_existing_fields_when_new_is_null(self):
+        """on_machine_conflict=update preserves fields not in the new submission."""
+        name = f'mc-update-preserve-{uuid.uuid4().hex[:8]}'
+
+        # First submission with both os and arch.
+        resp1 = self._submit_run(name, {'os': 'Linux', 'arch': 'x86_64'})
+        self.assertEqual(resp1.status_code, 201)
+
+        # Verify both fields are set.
+        status, data = self._get_machine(name)
+        self.assertEqual(status, 200)
+        self.assertEqual(data['info']['os'], 'Linux')
+        self.assertEqual(data['info']['arch'], 'x86_64')
+
+        # Second submission with only os (no arch).
+        resp2 = self._submit_run(name, {'os': 'Linux-v2'}, conflict='update')
+        self.assertEqual(resp2.status_code, 201)
+
+        # Verify os is updated but arch is preserved.
+        status, data = self._get_machine(name)
+        self.assertEqual(status, 200)
+        self.assertEqual(data['info']['os'], 'Linux-v2')
+        self.assertEqual(data['info']['arch'], 'x86_64')
+
+
+class TestRunSubmitOnExistingRun(unittest.TestCase):
+    """Tests for the on_existing_run query parameter on POST /runs."""
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+
+    def test_default_is_reject(self):
+        """Omitting on_existing_run uses reject by default."""
+        payload = _make_submission_payload()
+        resp = self.client.post(
+            PREFIX + '/runs',
+            data=payload,
+            content_type='application/json',
+            headers=admin_headers(),
+        )
+        self.assertEqual(resp.status_code, 201)
+        self.assertTrue(resp.get_json().get('success'))
+
+    def test_reject_value_accepted(self):
+        """on_existing_run=reject is accepted."""
+        payload = _make_submission_payload()
+        resp = self.client.post(
+            PREFIX + '/runs?on_existing_run=reject',
+            data=payload,
+            content_type='application/json',
+            headers=admin_headers(),
+        )
+        self.assertEqual(resp.status_code, 201)
+
+    def test_replace_value_accepted(self):
+        """on_existing_run=replace is accepted."""
+        payload = _make_submission_payload()
+        resp = self.client.post(
+            PREFIX + '/runs?on_existing_run=replace',
+            data=payload,
+            content_type='application/json',
+            headers=admin_headers(),
+        )
+        self.assertEqual(resp.status_code, 201)
+
+    def test_create_value_accepted(self):
+        """on_existing_run=create is accepted."""
+        payload = _make_submission_payload()
+        resp = self.client.post(
+            PREFIX + '/runs?on_existing_run=create',
+            data=payload,
+            content_type='application/json',
+            headers=admin_headers(),
+        )
+        self.assertEqual(resp.status_code, 201)
+
+    def test_invalid_value_returns_422(self):
+        """An invalid on_existing_run value returns 422."""
+        payload = _make_submission_payload()
+        resp = self.client.post(
+            PREFIX + '/runs?on_existing_run=bogus',
+            data=payload,
+            content_type='application/json',
+            headers=admin_headers(),
+        )
+        self.assertEqual(resp.status_code, 422)
+
+
+class TestRunDetail(unittest.TestCase):
+    """Tests for GET /api/v5/{ts}/runs/{uuid}."""
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+
+    def test_get_run_detail(self):
+        """Get run detail by UUID."""
+        name = f'detail-{uuid.uuid4().hex[:8]}'
+        db = self.app.instance.get_database("default")
+        session = db.make_session()
+        ts = db.testsuite[TS]
+        machine = create_machine(session, ts, name=name)
+        order = create_order(session, ts, revision=f'detail-rev-{uuid.uuid4().hex[:6]}')
+        run = create_run(session, ts, machine, order)
+        run_uuid = run.uuid
+        session.commit()
+        session.close()
+
+        resp = self.client.get(PREFIX + f'/runs/{run_uuid}')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertEqual(data['uuid'], run_uuid)
+        self.assertEqual(data['machine'], name)
+        self.assertIn('order', data)
+        self.assertIn('start_time', data)
+        self.assertIn('end_time', data)
+        self.assertIn('parameters', data)
+
+    def test_get_run_detail_has_no_internal_ids(self):
+        """Run detail does not expose internal IDs."""
+        name = f'detail-noid-{uuid.uuid4().hex[:8]}'
+        db = self.app.instance.get_database("default")
+        session = db.make_session()
+        ts = db.testsuite[TS]
+        machine = create_machine(session, ts, name=name)
+        order = create_order(session, ts, revision=f'noid-detail-rev-{uuid.uuid4().hex[:6]}')
+        run = create_run(session, ts, machine, order)
+        run_uuid = run.uuid
+        session.commit()
+        session.close()
+
+        resp = self.client.get(PREFIX + f'/runs/{run_uuid}')
+        data = resp.get_json()
+        self.assertNotIn('id', data)
+        self.assertNotIn('machine_id', data)
+        self.assertNotIn('order_id', data)
+
+    def test_get_nonexistent_uuid_404(self):
+        """Getting a run with a nonexistent UUID returns 404."""
+        fake_uuid = str(uuid.uuid4())
+        resp = self.client.get(PREFIX + f'/runs/{fake_uuid}')
+        self.assertEqual(resp.status_code, 404)
+
+    def test_get_invalid_uuid_format_404(self):
+        """Getting a run with an invalid UUID string returns 404."""
+        resp = self.client.get(PREFIX + '/runs/not-a-valid-uuid')
+        self.assertEqual(resp.status_code, 404)
+
+
+class TestRunDetailETag(unittest.TestCase):
+    """ETag tests for GET /api/v5/{ts}/runs/{uuid}."""
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+
+    def test_etag_present_on_detail(self):
+        """Run detail response should include an ETag header."""
+        name = f'etag-present-{uuid.uuid4().hex[:8]}'
+        db = self.app.instance.get_database("default")
+        session = db.make_session()
+        ts = db.testsuite[TS]
+        machine = create_machine(session, ts, name=name)
+        order = create_order(session, ts,
+                             revision=f'etag-rev-{uuid.uuid4().hex[:6]}')
+        run = create_run(session, ts, machine, order)
+        run_uuid = run.uuid
+        session.commit()
+        session.close()
+
+        resp = self.client.get(PREFIX + f'/runs/{run_uuid}')
+        self.assertEqual(resp.status_code, 200)
+        etag = resp.headers.get('ETag')
+        self.assertIsNotNone(etag)
+        self.assertTrue(etag.startswith('W/"'))
+
+    def test_etag_304_on_match(self):
+        """Sending If-None-Match with the same ETag returns 304."""
+        name = f'etag-304-{uuid.uuid4().hex[:8]}'
+        db = self.app.instance.get_database("default")
+        session = db.make_session()
+        ts = db.testsuite[TS]
+        machine = create_machine(session, ts, name=name)
+        order = create_order(session, ts,
+                             revision=f'etag-304-rev-{uuid.uuid4().hex[:6]}')
+        run = create_run(session, ts, machine, order)
+        run_uuid = run.uuid
+        session.commit()
+        session.close()
+
+        resp = self.client.get(PREFIX + f'/runs/{run_uuid}')
+        etag = resp.headers.get('ETag')
+
+        resp2 = self.client.get(
+            PREFIX + f'/runs/{run_uuid}',
+            headers={'If-None-Match': etag},
+        )
+        self.assertEqual(resp2.status_code, 304)
+
+    def test_etag_200_on_mismatch(self):
+        """Sending If-None-Match with a different ETag returns 200."""
+        name = f'etag-200-{uuid.uuid4().hex[:8]}'
+        db = self.app.instance.get_database("default")
+        session = db.make_session()
+        ts = db.testsuite[TS]
+        machine = create_machine(session, ts, name=name)
+        order = create_order(session, ts,
+                             revision=f'etag-200-rev-{uuid.uuid4().hex[:6]}')
+        run = create_run(session, ts, machine, order)
+        run_uuid = run.uuid
+        session.commit()
+        session.close()
+
+        resp = self.client.get(
+            PREFIX + f'/runs/{run_uuid}',
+            headers={'If-None-Match': 'W/"stale-etag-value"'},
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertIsNotNone(resp.get_json())
+
+
+class TestRunDelete(unittest.TestCase):
+    """Tests for DELETE /api/v5/{ts}/runs/{uuid}."""
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+
+    def test_delete_run(self):
+        """Delete a run and verify 204, then verify it's gone."""
+        name = f'delete-{uuid.uuid4().hex[:8]}'
+        db = self.app.instance.get_database("default")
+        session = db.make_session()
+        ts = db.testsuite[TS]
+        machine = create_machine(session, ts, name=name)
+        order = create_order(session, ts, revision=f'del-rev-{uuid.uuid4().hex[:6]}')
+        run = create_run(session, ts, machine, order)
+        run_uuid = run.uuid
+        session.commit()
+        session.close()
+
+        resp = self.client.delete(
+            PREFIX + f'/runs/{run_uuid}',
+            headers=admin_headers(),
+        )
+        self.assertEqual(resp.status_code, 204)
+
+        # Verify it's gone
+        resp = self.client.get(PREFIX + f'/runs/{run_uuid}')
+        self.assertEqual(resp.status_code, 404)
+
+    def test_delete_nonexistent_404(self):
+        """Deleting a nonexistent run returns 404."""
+        fake_uuid = str(uuid.uuid4())
+        resp = self.client.delete(
+            PREFIX + f'/runs/{fake_uuid}',
+            headers=admin_headers(),
+        )
+        self.assertEqual(resp.status_code, 404)
+
+    def test_delete_no_auth_401(self):
+        """Deleting without auth returns 401."""
+        name = f'del-noauth-{uuid.uuid4().hex[:8]}'
+        db = self.app.instance.get_database("default")
+        session = db.make_session()
+        ts = db.testsuite[TS]
+        machine = create_machine(session, ts, name=name)
+        order = create_order(session, ts, revision=f'del-noauth-{uuid.uuid4().hex[:6]}')
+        run = create_run(session, ts, machine, order)
+        run_uuid = run.uuid
+        session.commit()
+        session.close()
+
+        resp = self.client.delete(PREFIX + f'/runs/{run_uuid}')
+        self.assertEqual(resp.status_code, 401)
+
+    def test_delete_without_manage_scope_403(self):
+        """Deleting with submit scope (not manage) returns 403."""
+        name = f'del-scope-{uuid.uuid4().hex[:8]}'
+        db = self.app.instance.get_database("default")
+        session = db.make_session()
+        ts = db.testsuite[TS]
+        machine = create_machine(session, ts, name=name)
+        order = create_order(session, ts, revision=f'del-scope-{uuid.uuid4().hex[:6]}')
+        run = create_run(session, ts, machine, order)
+        run_uuid = run.uuid
+        session.commit()
+        session.close()
+
+        headers = make_scoped_headers(self.app, 'submit')
+        resp = self.client.delete(
+            PREFIX + f'/runs/{run_uuid}',
+            headers=headers,
+        )
+        self.assertEqual(resp.status_code, 403)
+
+
+class TestRunFilterByMachine(unittest.TestCase):
+    """Test filtering runs by machine name."""
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+
+    def test_filter_by_machine_name(self):
+        """Filter runs by machine name."""
+        name = f'filter-machine-{uuid.uuid4().hex[:8]}'
+        db = self.app.instance.get_database("default")
+        session = db.make_session()
+        ts = db.testsuite[TS]
+        machine = create_machine(session, ts, name=name)
+        order = create_order(session, ts, revision=f'fm-rev-{uuid.uuid4().hex[:6]}')
+        create_run(session, ts, machine, order)
+        session.commit()
+        session.close()
+
+        resp = self.client.get(PREFIX + f'/runs?machine={name}')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertGreater(len(data['items']), 0)
+        for item in data['items']:
+            self.assertEqual(item['machine'], name)
+
+    def test_filter_by_nonexistent_machine(self):
+        """Filtering by a machine that doesn't exist returns empty results."""
+        resp = self.client.get(
+            PREFIX + '/runs?machine=nonexistent-machine-xyz-abc')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertEqual(len(data['items']), 0)
+
+
+class TestRunFilterByDatetime(unittest.TestCase):
+    """Test filtering runs by after/before datetime."""
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+
+    def test_filter_after(self):
+        """Filter runs started after a given datetime."""
+        name = f'after-{uuid.uuid4().hex[:8]}'
+        db = self.app.instance.get_database("default")
+        session = db.make_session()
+        ts = db.testsuite[TS]
+        machine = create_machine(session, ts, name=name)
+        order1 = create_order(session, ts, revision=f'after-rev1-{uuid.uuid4().hex[:6]}')
+        create_run(session, ts, machine, order1,
+                   start_time=datetime.datetime(2024, 1, 1, 12, 0, 0),
+                   end_time=datetime.datetime(2024, 1, 1, 13, 0, 0))
+        order2 = create_order(session, ts, revision=f'after-rev2-{uuid.uuid4().hex[:6]}')
+        create_run(session, ts, machine, order2,
+                   start_time=datetime.datetime(2024, 6, 1, 12, 0, 0),
+                   end_time=datetime.datetime(2024, 6, 1, 13, 0, 0))
+        session.commit()
+        session.close()
+
+        resp = self.client.get(
+            PREFIX + f'/runs?machine={name}&after=2024-03-01T00:00:00')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertEqual(len(data['items']), 1)
+
+    def test_filter_before(self):
+        """Filter runs started before a given datetime."""
+        name = f'before-{uuid.uuid4().hex[:8]}'
+        db = self.app.instance.get_database("default")
+        session = db.make_session()
+        ts = db.testsuite[TS]
+        machine = create_machine(session, ts, name=name)
+        order1 = create_order(session, ts, revision=f'before-rev1-{uuid.uuid4().hex[:6]}')
+        create_run(session, ts, machine, order1,
+                   start_time=datetime.datetime(2024, 1, 1, 12, 0, 0),
+                   end_time=datetime.datetime(2024, 1, 1, 13, 0, 0))
+        order2 = create_order(session, ts, revision=f'before-rev2-{uuid.uuid4().hex[:6]}')
+        create_run(session, ts, machine, order2,
+                   start_time=datetime.datetime(2024, 6, 1, 12, 0, 0),
+                   end_time=datetime.datetime(2024, 6, 1, 13, 0, 0))
+        session.commit()
+        session.close()
+
+        resp = self.client.get(
+            PREFIX + f'/runs?machine={name}&before=2024-03-01T00:00:00')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertEqual(len(data['items']), 1)
+
+    def test_filter_after_and_before(self):
+        """Filter runs within a datetime range."""
+        name = f'range-{uuid.uuid4().hex[:8]}'
+        db = self.app.instance.get_database("default")
+        session = db.make_session()
+        ts = db.testsuite[TS]
+        machine = create_machine(session, ts, name=name)
+        for month in (1, 4, 7, 10):
+            order = create_order(session, ts,
+                                 revision=f'range-rev-{month}-{uuid.uuid4().hex[:6]}')
+            create_run(session, ts, machine, order,
+                       start_time=datetime.datetime(2024, month, 15, 12, 0, 0),
+                       end_time=datetime.datetime(2024, month, 15, 13, 0, 0))
+        session.commit()
+        session.close()
+
+        resp = self.client.get(
+            PREFIX + f'/runs?machine={name}&after=2024-03-01T00:00:00&before=2024-08-01T00:00:00')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        # Should match runs from month 4 and 7
+        self.assertEqual(len(data['items']), 2)
+
+    def test_filter_invalid_after_datetime_400(self):
+        """Invalid after datetime returns 400."""
+        resp = self.client.get(PREFIX + '/runs?after=not-a-date')
+        self.assertEqual(resp.status_code, 400)
+
+    def test_filter_invalid_before_datetime_400(self):
+        """Invalid before datetime returns 400."""
+        resp = self.client.get(PREFIX + '/runs?before=not-a-date')
+        self.assertEqual(resp.status_code, 400)
+
+
+class TestRunFilterByOrder(unittest.TestCase):
+    """Test filtering runs by order (primary order field value)."""
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+
+    def test_filter_by_order_value(self):
+        """Filter runs by primary order field value."""
+        name = f'order-filter-{uuid.uuid4().hex[:8]}'
+        db = self.app.instance.get_database("default")
+        session = db.make_session()
+        ts = db.testsuite[TS]
+        machine = create_machine(session, ts, name=name)
+        rev1 = f'ofilt-rev1-{uuid.uuid4().hex[:6]}'
+        rev2 = f'ofilt-rev2-{uuid.uuid4().hex[:6]}'
+        order1 = create_order(session, ts, revision=rev1)
+        order2 = create_order(session, ts, revision=rev2)
+        create_run(session, ts, machine, order1)
+        create_run(session, ts, machine, order2)
+        session.commit()
+        session.close()
+
+        resp = self.client.get(
+            PREFIX + f'/runs?machine={name}&order={rev1}')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertEqual(len(data['items']), 1)
+        self.assertIn(rev1, data['items'][0]['order'].values())
+
+    def test_filter_by_nonexistent_order(self):
+        """Filtering by a nonexistent order returns empty results."""
+        resp = self.client.get(
+            PREFIX + '/runs?order=nonexistent-revision-xyz-abc')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertEqual(len(data['items']), 0)
+
+
+class TestRunSort(unittest.TestCase):
+    """Test sorting runs."""
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+
+    def test_sort_descending_start_time(self):
+        """Sort runs by -start_time returns newest first."""
+        name = f'sort-run-{uuid.uuid4().hex[:8]}'
+        db = self.app.instance.get_database("default")
+        session = db.make_session()
+        ts = db.testsuite[TS]
+        machine = create_machine(session, ts, name=name)
+        for month in (1, 4, 7):
+            order = create_order(
+                session, ts,
+                revision=f'sort-rev-{month}-{uuid.uuid4().hex[:6]}')
+            create_run(session, ts, machine, order,
+                       start_time=datetime.datetime(2024, month, 1, 12, 0, 0),
+                       end_time=datetime.datetime(2024, month, 1, 13, 0, 0))
+        session.commit()
+        session.close()
+
+        # Default order (ascending by ID)
+        resp_default = self.client.get(
+            PREFIX + f'/runs?machine={name}')
+        self.assertEqual(resp_default.status_code, 200)
+        default_times = [
+            item['start_time'] for item in resp_default.get_json()['items']]
+
+        # Descending by start_time
+        resp_sorted = self.client.get(
+            PREFIX + f'/runs?machine={name}&sort=-start_time')
+        self.assertEqual(resp_sorted.status_code, 200)
+        sorted_times = [
+            item['start_time'] for item in resp_sorted.get_json()['items']]
+
+        self.assertEqual(len(sorted_times), 3)
+        self.assertEqual(sorted_times, list(reversed(default_times)))
+
+
+class TestRunPagination(unittest.TestCase):
+    """Exhaustive cursor pagination tests for GET /api/v5/{ts}/runs."""
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+        cls._machine_name = f'pag-machine-{uuid.uuid4().hex[:8]}'
+        db = cls.app.instance.get_database("default")
+        session = db.make_session()
+        ts = db.testsuite[TS]
+        machine = create_machine(session, ts, name=cls._machine_name)
+        for i in range(5):
+            order = create_order(
+                session, ts,
+                revision=f'pag-run-rev-{uuid.uuid4().hex[:6]}-{i}')
+            create_run(session, ts, machine, order,
+                       start_time=datetime.datetime(2024, 1, 1 + i, 12, 0, 0))
+        session.commit()
+        session.close()
+
+    def _collect_all_pages(self):
+        url = PREFIX + f'/runs?machine={self._machine_name}&limit=2'
+        return collect_all_pages(self, self.client, url)
+
+    def test_pagination_collects_all_items(self):
+        """Paginating through all pages collects all 5 runs."""
+        all_items = self._collect_all_pages()
+        self.assertEqual(len(all_items), 5)
+
+    def test_no_duplicate_items_across_pages(self):
+        """No duplicate run UUIDs across pages."""
+        all_items = self._collect_all_pages()
+        uuids = [item['uuid'] for item in all_items]
+        self.assertEqual(len(uuids), len(set(uuids)))
+
+
+class TestRunListInvalidCursor(unittest.TestCase):
+    """Tests that an invalid cursor returns 400 for the run list endpoint."""
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+
+    def test_invalid_cursor_returns_400(self):
+        """An invalid cursor string should return 400."""
+        resp = self.client.get(
+            PREFIX + '/runs?cursor=not-a-valid-cursor!!!')
+        self.assertEqual(resp.status_code, 400)
+
+
+class TestRunUnknownParams(unittest.TestCase):
+    """Test that unknown query parameters are rejected with 400."""
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+
+    def test_runs_list_unknown_param_returns_400(self):
+        resp = self.client.get(PREFIX + '/runs?bogus=1')
+        self.assertEqual(resp.status_code, 400)
+        data = resp.get_json()
+        self.assertIn('bogus', data['error']['message'])
+
+    def test_run_detail_unknown_param_returns_400(self):
+        name = f'unk-det-{uuid.uuid4().hex[:8]}'
+        db = self.app.instance.get_database("default")
+        session = db.make_session()
+        ts = db.testsuite[TS]
+        machine = create_machine(session, ts, name=name)
+        order = create_order(session, ts, revision=f'unk-det-rev-{uuid.uuid4().hex[:6]}')
+        run = create_run(session, ts, machine, order)
+        run_uuid = run.uuid
+        session.commit()
+        session.close()
+        resp = self.client.get(PREFIX + f'/runs/{run_uuid}?bogus=1')
+        self.assertEqual(resp.status_code, 400)
+
+    def test_run_submit_ignore_regressions_rejected(self):
+        """ignore_regressions is no longer accepted by v5 POST /runs."""
+        headers = admin_headers()
+        headers['Content-Type'] = 'application/json'
+        body = json.dumps({
+            'format_version': '2',
+            'machine': {'name': 'dummy'},
+            'run': {'start_time': '2024-01-01', 'end_time': '2024-01-01',
+                    'llvm_project_revision': 'rev-ignore-test'},
+            'tests': [],
+        })
+        resp = self.client.post(
+            PREFIX + '/runs?ignore_regressions=true',
+            data=body,
+            headers=headers,
+        )
+        self.assertEqual(resp.status_code, 400)
+        data = resp.get_json()
+        self.assertIn('ignore_regressions', data['error']['message'])
+
+
+if __name__ == '__main__':
+    unittest.main(argv=[sys.argv[0]], exit=True)

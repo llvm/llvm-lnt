@@ -1,0 +1,1363 @@
+# Tests for the v5 query endpoint (GET /api/v5/{ts}/query).
+#
+# RUN: rm -rf %t.instance %t.pg.log
+# RUN: %{utils}/with_postgres.sh %t.pg.log \
+# RUN:     %{utils}/with_temporary_instance.py %t.instance \
+# RUN:         -- python %s %t.instance
+# END.
+
+import datetime
+import sys
+import os
+import unittest
+import uuid
+
+sys.path.insert(0, os.path.dirname(__file__))
+from v5_test_helpers import (
+    create_app, create_client,
+    create_machine, create_order, create_run, create_test, create_sample,
+)
+
+TS = 'nts'
+PREFIX = f'/api/v5/{TS}'
+
+
+def _setup_query_data(app, machine_name, test_name, num_points=5):
+    """Create a machine, test, and several runs with samples.
+
+    Returns a dict with the created entities for assertions.
+    """
+    db = app.instance.get_database("default")
+    session = db.make_session()
+    ts = db.testsuite[TS]
+
+    machine = create_machine(session, ts, name=machine_name)
+    test = create_test(session, ts, name=test_name)
+
+    runs = []
+    orders = []
+    for i in range(num_points):
+        order = create_order(session, ts, revision=str(100 + i))
+        run = create_run(
+            session, ts, machine, order,
+            start_time=datetime.datetime(2024, 1, 1 + i, 12, 0, 0),
+            end_time=datetime.datetime(2024, 1, 1 + i, 12, 30, 0),
+        )
+        # Create sample with execution_time value
+        create_sample(
+            session, ts, run, test,
+            execution_time=float(i + 1) * 1.5,
+        )
+        runs.append(run)
+        orders.append(order)
+
+    run_uuids = [r.uuid for r in runs]
+    session.commit()
+    session.close()
+
+    return {
+        'machine': machine_name,
+        'test': test_name,
+        'run_uuids': run_uuids,
+        'num_points': num_points,
+    }
+
+
+class TestQueryNotFound(unittest.TestCase):
+    """Tests for 404 responses when entities don't exist."""
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+
+    def test_nonexistent_machine_returns_404(self):
+        resp = self.client.get(
+            PREFIX + '/query?machine=nonexistent-machine-xyz'
+            '&test=some_test&metric=execution_time')
+        self.assertEqual(resp.status_code, 404)
+        data = resp.get_json()
+        self.assertIn('error', data)
+
+    def test_nonexistent_test_returns_404(self):
+        # Create a real machine so only the test is missing
+        unique = uuid.uuid4().hex[:8]
+        name = f'series-nf-test-{unique}'
+        db = self.app.instance.get_database("default")
+        session = db.make_session()
+        ts = db.testsuite[TS]
+        create_machine(session, ts, name=name)
+        session.commit()
+        session.close()
+
+        resp = self.client.get(
+            PREFIX + f'/query?machine={name}'
+            '&test=nonexistent-test-xyz&metric=execution_time')
+        self.assertEqual(resp.status_code, 404)
+
+    def test_nonexistent_field_returns_400(self):
+        unique = uuid.uuid4().hex[:8]
+        mname = f'series-nf-field-m-{unique}'
+        tname = f'series-nf-field-t/{unique}'
+        db = self.app.instance.get_database("default")
+        session = db.make_session()
+        ts = db.testsuite[TS]
+        create_machine(session, ts, name=mname)
+        create_test(session, ts, name=tname)
+        session.commit()
+        session.close()
+
+        resp = self.client.get(
+            PREFIX + f'/query?machine={mname}'
+            f'&test={tname}&metric=nonexistent_field')
+        self.assertEqual(resp.status_code, 400)
+
+
+class TestQueryValidQuery(unittest.TestCase):
+    """Tests for valid queries that return data."""
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+        unique = uuid.uuid4().hex[:8]
+        cls._data = _setup_query_data(
+            cls.app,
+            machine_name=f'series-valid-m-{unique}',
+            test_name=f'series-valid-t/{unique}',
+            num_points=5,
+        )
+
+    def test_returns_200(self):
+        d = self._data
+        resp = self.client.get(
+            PREFIX + f'/query?machine={d['machine']}&test={d['test']}&metric=execution_time')
+        self.assertEqual(resp.status_code, 200)
+
+    def test_returns_items(self):
+        d = self._data
+        resp = self.client.get(
+            PREFIX + f'/query?machine={d['machine']}&test={d['test']}&metric=execution_time')
+        data = resp.get_json()
+        self.assertIn('items', data)
+        self.assertEqual(len(data['items']), d['num_points'])
+
+    def test_data_point_structure(self):
+        """Each data point must have all required fields."""
+        d = self._data
+        resp = self.client.get(
+            PREFIX + f'/query?machine={d['machine']}&test={d['test']}&metric=execution_time')
+        data = resp.get_json()
+        for item in data['items']:
+            self.assertIn('test', item)
+            self.assertIn('machine', item)
+            self.assertIn('metric', item)
+            self.assertIn('value', item)
+            self.assertIn('order', item)
+            self.assertIn('run_uuid', item)
+            self.assertIn('timestamp', item)
+            self.assertIsInstance(item['value'], (int, float))
+            self.assertIsInstance(item['order'], dict)
+            self.assertIsInstance(item['run_uuid'], str)
+            self.assertEqual(item['test'], d['test'])
+            self.assertEqual(item['machine'], d['machine'])
+            self.assertEqual(item['metric'], 'execution_time')
+
+    def test_order_has_field_names(self):
+        """Order dict should contain order field names as keys."""
+        d = self._data
+        resp = self.client.get(
+            PREFIX + f'/query?machine={d['machine']}&test={d['test']}&metric=execution_time')
+        data = resp.get_json()
+        for item in data['items']:
+            # NTS suite has llvm_project_revision
+            self.assertIn('llvm_project_revision', item['order'])
+
+    def test_run_uuids_are_valid(self):
+        """All run_uuid values should be from the runs we created."""
+        d = self._data
+        resp = self.client.get(
+            PREFIX + f'/query?machine={d['machine']}&test={d['test']}&metric=execution_time')
+        data = resp.get_json()
+        returned_uuids = {item['run_uuid'] for item in data['items']}
+        expected_uuids = set(d['run_uuids'])
+        self.assertEqual(returned_uuids, expected_uuids)
+
+    def test_values_are_correct(self):
+        """Values should match what we inserted."""
+        d = self._data
+        resp = self.client.get(
+            PREFIX + f'/query?machine={d['machine']}&test={d['test']}&metric=execution_time')
+        data = resp.get_json()
+        values = sorted([item['value'] for item in data['items']])
+        expected = sorted([float(i + 1) * 1.5 for i in range(d['num_points'])])
+        self.assertEqual(values, expected)
+
+    def test_cursor_envelope(self):
+        """Response should have cursor with next and previous."""
+        d = self._data
+        resp = self.client.get(
+            PREFIX + f'/query?machine={d['machine']}&test={d['test']}&metric=execution_time')
+        data = resp.get_json()
+        self.assertIn('cursor', data)
+        self.assertIn('next', data['cursor'])
+        self.assertIn('previous', data['cursor'])
+
+    def test_no_auth_required_for_read(self):
+        """Query endpoint should work without auth (read scope)."""
+        d = self._data
+        resp = self.client.get(
+            PREFIX + f'/query?machine={d['machine']}&test={d['test']}&metric=execution_time')
+        self.assertEqual(resp.status_code, 200)
+
+
+class TestQueryEmptyResult(unittest.TestCase):
+    """Tests for queries that match no data."""
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+
+    def test_valid_entities_no_samples_returns_empty(self):
+        """When machine/test/field exist but no samples match, return empty."""
+        unique = uuid.uuid4().hex[:8]
+        mname = f'series-empty-m-{unique}'
+        tname = f'series-empty-t/{unique}'
+
+        db = self.app.instance.get_database("default")
+        session = db.make_session()
+        ts = db.testsuite[TS]
+        create_machine(session, ts, name=mname)
+        create_test(session, ts, name=tname)
+        session.commit()
+        session.close()
+
+        resp = self.client.get(
+            PREFIX + f'/query?machine={mname}&test={tname}&metric=execution_time')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertEqual(len(data['items']), 0)
+        self.assertIsNone(data['cursor']['next'])
+
+
+class TestQueryOrdering(unittest.TestCase):
+    """Tests that data points are returned in order."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+        unique = uuid.uuid4().hex[:8]
+        mname = f'query-order-m-{unique}'
+        tname = f'query-order-t/{unique}'
+
+        db = cls.app.instance.get_database("default")
+        session = db.make_session()
+        ts = db.testsuite[TS]
+
+        machine = create_machine(session, ts, name=mname)
+        test = create_test(session, ts, name=tname)
+
+        # Create orders in sequential revision order so Order.id matches
+        revisions = ['100', '200', '300', '400', '500']
+        for rev in revisions:
+            order = create_order(session, ts, revision=rev)
+            run = create_run(
+                session, ts, machine, order,
+                start_time=datetime.datetime(2024, 1, 1, 12, 0, 0),
+            )
+            create_sample(
+                session, ts, run, test,
+                execution_time=float(rev),
+            )
+
+        session.commit()
+        session.close()
+
+        cls._data = {
+            'machine': mname,
+            'test': tname,
+            'expected_revisions': ['100', '200', '300', '400', '500'],
+        }
+
+    def test_data_sorted_by_order(self):
+        """Data points should be sorted by order (revision) value."""
+        d = self._data
+        resp = self.client.get(
+            PREFIX + f'/query?machine={d['machine']}&test={d['test']}&metric=execution_time')
+        data = resp.get_json()
+        revisions = [
+            item['order']['llvm_project_revision']
+            for item in data['items']
+        ]
+        self.assertEqual(revisions, d['expected_revisions'])
+
+
+class TestQueryRangeFilters(unittest.TestCase):
+    """Tests for after_order/before_order and after_time/before_time filtering."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+        unique = uuid.uuid4().hex[:8]
+        mname = f'query-filter-m-{unique}'
+        tname = f'query-filter-t/{unique}'
+
+        db = cls.app.instance.get_database("default")
+        session = db.make_session()
+        ts = db.testsuite[TS]
+
+        machine = create_machine(session, ts, name=mname)
+        test = create_test(session, ts, name=tname)
+
+        for i in range(10):
+            rev = str(100 + i * 10)  # 100, 110, ..., 190
+            order = create_order(session, ts, revision=rev)
+            run = create_run(
+                session, ts, machine, order,
+                start_time=datetime.datetime(2024, 1, 1 + i, 12, 0, 0),
+            )
+            create_sample(
+                session, ts, run, test,
+                execution_time=float(rev),
+            )
+
+        session.commit()
+        session.close()
+
+        cls._data = {
+            'machine': mname,
+            'test': tname,
+        }
+
+    def test_after_order_filter(self):
+        """Only data points after the given order should be returned."""
+        d = self._data
+        url = (PREFIX + f"/query?machine={d['machine']}&test={d['test']}"
+               "&metric=execution_time&after_order=150")
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200, resp.get_json())
+        data = resp.get_json()
+        self.assertGreater(len(data['items']), 0)
+        for item in data['items']:
+            rev = int(item['order']['llvm_project_revision'])
+            self.assertGreater(rev, 150)
+
+    def test_before_order_filter(self):
+        """Only data points before the given order should be returned."""
+        d = self._data
+        url = (PREFIX + f"/query?machine={d['machine']}&test={d['test']}"
+               "&metric=execution_time&before_order=150")
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200, resp.get_json())
+        data = resp.get_json()
+        self.assertGreater(len(data['items']), 0)
+        for item in data['items']:
+            rev = int(item['order']['llvm_project_revision'])
+            self.assertLess(rev, 150)
+
+    def test_after_order_and_before_order_combined(self):
+        """Combining after_order and before_order narrows the range."""
+        d = self._data
+        url = (PREFIX + f"/query?machine={d['machine']}&test={d['test']}"
+               "&metric=execution_time&after_order=120&before_order=170")
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200, resp.get_json())
+        data = resp.get_json()
+        for item in data['items']:
+            rev = int(item['order']['llvm_project_revision'])
+            self.assertGreater(rev, 120)
+            self.assertLess(rev, 170)
+        self.assertGreater(len(data['items']), 0)
+
+    def test_after_order_nonexistent_returns_404(self):
+        """Filtering with a non-existent order value returns 404."""
+        d = self._data
+        url = (PREFIX + f"/query?machine={d['machine']}&test={d['test']}"
+               "&metric=execution_time&after_order=999999")
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 404)
+
+    def test_before_order_nonexistent_returns_404(self):
+        """Filtering with a non-existent order value returns 404."""
+        d = self._data
+        url = (PREFIX + f"/query?machine={d['machine']}&test={d['test']}"
+               "&metric=execution_time&before_order=999999")
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 404)
+
+    def test_after_time_filter(self):
+        """Only data points from runs after the given time should be returned."""
+        d = self._data
+        url = (PREFIX + f"/query?machine={d['machine']}&test={d['test']}"
+               "&metric=execution_time&after_time=2024-01-06T00:00:00")
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200, resp.get_json())
+        data = resp.get_json()
+        self.assertGreater(len(data['items']), 0)
+        for item in data['items']:
+            self.assertGreater(item['timestamp'], '2024-01-06T00:00:00')
+
+    def test_before_time_filter(self):
+        """Only data points from runs before the given time should be returned."""
+        d = self._data
+        url = (PREFIX + f"/query?machine={d['machine']}&test={d['test']}"
+               "&metric=execution_time&before_time=2024-01-04T00:00:00")
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200, resp.get_json())
+        data = resp.get_json()
+        self.assertGreater(len(data['items']), 0)
+        for item in data['items']:
+            self.assertLess(item['timestamp'], '2024-01-04T00:00:00')
+
+    def test_after_time_and_before_time_combined(self):
+        """Combining time range filters narrows the results."""
+        d = self._data
+        url = (PREFIX + f"/query?machine={d['machine']}&test={d['test']}"
+               "&metric=execution_time"
+               "&after_time=2024-01-03T00:00:00&before_time=2024-01-07T00:00:00")
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200, resp.get_json())
+        data = resp.get_json()
+        self.assertGreater(len(data['items']), 0)
+        for item in data['items']:
+            self.assertGreater(item['timestamp'], '2024-01-03T00:00:00')
+            self.assertLess(item['timestamp'], '2024-01-07T00:00:00')
+
+    def test_order_and_time_filters_compose(self):
+        """Both order and time filters can be used together."""
+        d = self._data
+        url = (PREFIX + f"/query?machine={d['machine']}&test={d['test']}"
+               "&metric=execution_time"
+               "&after_order=120&before_time=2024-01-07T00:00:00")
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200, resp.get_json())
+        data = resp.get_json()
+        for item in data['items']:
+            rev = int(item['order']['llvm_project_revision'])
+            self.assertGreater(rev, 120)
+            self.assertLess(item['timestamp'], '2024-01-07T00:00:00')
+
+    def test_after_time_future_returns_empty(self):
+        """Filtering with after_time far in the future returns 0 items."""
+        d = self._data
+        url = (PREFIX + f"/query?machine={d['machine']}&test={d['test']}"
+               "&metric=execution_time&after_time=2027-02-23T15:01:11")
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200, resp.get_json())
+        data = resp.get_json()
+        self.assertEqual(len(data['items']), 0)
+
+    def test_before_time_past_returns_empty(self):
+        """Filtering with before_time far in the past returns 0 items."""
+        d = self._data
+        url = (PREFIX + f"/query?machine={d['machine']}&test={d['test']}"
+               "&metric=execution_time&before_time=2020-01-01T00:00:00")
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200, resp.get_json())
+        data = resp.get_json()
+        self.assertEqual(len(data['items']), 0)
+
+
+class TestQueryLimit(unittest.TestCase):
+    """Tests for the limit parameter."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+        unique = uuid.uuid4().hex[:8]
+        cls._data = _setup_query_data(
+            cls.app,
+            machine_name=f'series-limit-m-{unique}',
+            test_name=f'series-limit-t/{unique}',
+            num_points=10,
+        )
+
+    def test_limit_reduces_results(self):
+        d = self._data
+        resp = self.client.get(
+            PREFIX + f"/query?machine={d['machine']}&test={d['test']}"
+            "&metric=execution_time&limit=3")
+        data = resp.get_json()
+        self.assertEqual(len(data['items']), 3)
+
+    def test_limit_with_next_cursor(self):
+        """When limit truncates results, next cursor should be set."""
+        d = self._data
+        resp = self.client.get(
+            PREFIX + f"/query?machine={d['machine']}&test={d['test']}"
+            "&metric=execution_time&limit=3")
+        data = resp.get_json()
+        self.assertIsNotNone(data['cursor']['next'])
+
+    def test_limit_larger_than_data(self):
+        """When limit is larger than data, all data returned, no next cursor."""
+        d = self._data
+        resp = self.client.get(
+            PREFIX + f"/query?machine={d['machine']}&test={d['test']}"
+            "&metric=execution_time&limit=500")
+        data = resp.get_json()
+        self.assertEqual(len(data['items']), d['num_points'])
+        self.assertIsNone(data['cursor']['next'])
+
+
+class TestQueryPagination(unittest.TestCase):
+    """Tests for cursor-based pagination."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+        unique = uuid.uuid4().hex[:8]
+        cls._data = _setup_query_data(
+            cls.app,
+            machine_name=f'series-page-m-{unique}',
+            test_name=f'series-page-t/{unique}',
+            num_points=7,
+        )
+
+    def test_pagination_collects_all_items(self):
+        """Paginating through all pages should return all data points."""
+        d = self._data
+        all_items = []
+        url = (PREFIX + f"/query?machine={d['machine']}&test={d['test']}"
+               "&metric=execution_time&limit=3")
+
+        # First page
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        all_items.extend(data['items'])
+        cursor = data['cursor']['next']
+
+        # Keep fetching until no next cursor
+        pages = 1
+        while cursor:
+            resp = self.client.get(url + f'&cursor={cursor}')
+            self.assertEqual(resp.status_code, 200)
+            data = resp.get_json()
+            all_items.extend(data['items'])
+            cursor = data['cursor']['next']
+            pages += 1
+            if pages > 10:
+                self.fail("Too many pages; infinite loop detected")
+
+        self.assertEqual(len(all_items), d['num_points'])
+
+    def test_no_duplicate_items_across_pages(self):
+        """Items should not appear on multiple pages."""
+        d = self._data
+        all_uuids = []
+        url = (PREFIX + f"/query?machine={d['machine']}&test={d['test']}"
+               "&metric=execution_time&limit=2")
+
+        resp = self.client.get(url)
+        data = resp.get_json()
+        all_uuids.extend(item['run_uuid'] for item in data['items'])
+        cursor = data['cursor']['next']
+
+        pages = 1
+        while cursor:
+            resp = self.client.get(url + f'&cursor={cursor}')
+            data = resp.get_json()
+            all_uuids.extend(item['run_uuid'] for item in data['items'])
+            cursor = data['cursor']['next']
+            pages += 1
+            if pages > 10:
+                break
+
+        # Check no duplicates
+        self.assertEqual(len(all_uuids), len(set(all_uuids)))
+
+    def test_invalid_cursor_returns_400(self):
+        """An invalid cursor string should return 400."""
+        d = self._data
+        resp = self.client.get(
+            PREFIX + f"/query?machine={d['machine']}&test={d['test']}"
+            "&metric=execution_time&cursor=not-a-valid-cursor!!!")
+        self.assertEqual(resp.status_code, 400)
+
+
+def _setup_multi_test_data(app, machine_name, test_names, num_orders=5):
+    """Create a machine, multiple tests, and samples for each."""
+    db = app.instance.get_database("default")
+    session = db.make_session()
+    ts = db.testsuite[TS]
+
+    machine = create_machine(session, ts, name=machine_name)
+    tests = [create_test(session, ts, name=tn) for tn in test_names]
+
+    for i in range(num_orders):
+        order = create_order(session, ts, revision=str(1000 + i))
+        run = create_run(
+            session, ts, machine, order,
+            start_time=datetime.datetime(2024, 6, 1 + i, 12, 0, 0),
+        )
+        for j, test in enumerate(tests):
+            create_sample(
+                session, ts, run, test,
+                execution_time=float((i + 1) * 10 + j),
+            )
+
+    session.commit()
+    session.close()
+
+    return {
+        'machine': machine_name,
+        'test_names': test_names,
+        'num_orders': num_orders,
+    }
+
+
+class TestQueryOptionalParams(unittest.TestCase):
+    """Verify each filter parameter is independently optional."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+        unique = uuid.uuid4().hex[:8]
+        cls._data = _setup_multi_test_data(
+            cls.app,
+            machine_name=f'query-opt-m-{unique}',
+            test_names=[f'query-opt-t1/{unique}',
+                        f'query-opt-t2/{unique}',
+                        f'query-opt-t3/{unique}'],
+            num_orders=3,
+        )
+
+    def test_omitting_test_returns_all_tests(self):
+        d = self._data
+        resp = self.client.get(
+            PREFIX + f"/query?machine={d['machine']}&metric=execution_time")
+        self.assertEqual(resp.status_code, 200, resp.get_json())
+        data = resp.get_json()
+        returned_tests = {item['test'] for item in data['items']}
+        self.assertEqual(returned_tests, set(d['test_names']))
+
+    def test_omitting_machine_returns_data(self):
+        d = self._data
+        resp = self.client.get(
+            PREFIX + f"/query?test={d['test_names'][0]}&metric=execution_time")
+        self.assertEqual(resp.status_code, 200, resp.get_json())
+        data = resp.get_json()
+        self.assertGreater(len(data['items']), 0)
+
+    def test_omitting_field_returns_422(self):
+        d = self._data
+        resp = self.client.get(
+            PREFIX + f"/query?machine={d['machine']}"
+            f"&test={d['test_names'][0]}")
+        self.assertEqual(resp.status_code, 422)
+
+    def test_omitting_all_params_returns_422(self):
+        resp = self.client.get(PREFIX + '/query')
+        self.assertEqual(resp.status_code, 422)
+
+    def test_nonexistent_machine_returns_404(self):
+        resp = self.client.get(
+            PREFIX + '/query?machine=nonexistent-machine-xyz'
+            '&metric=execution_time')
+        self.assertEqual(resp.status_code, 404)
+
+    def test_nonexistent_test_returns_404(self):
+        resp = self.client.get(
+            PREFIX + '/query?test=nonexistent-test-xyz'
+            '&metric=execution_time')
+        self.assertEqual(resp.status_code, 404)
+
+    def test_nonexistent_field_returns_400(self):
+        resp = self.client.get(
+            PREFIX + '/query?metric=nonexistent_field')
+        self.assertEqual(resp.status_code, 400)
+
+
+class TestQueryResponseShape(unittest.TestCase):
+    """Response shape is always the same regardless of filters."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+        unique = uuid.uuid4().hex[:8]
+        cls._data = _setup_multi_test_data(
+            cls.app,
+            machine_name=f'query-shape-m-{unique}',
+            test_names=[f'query-shape-t/{unique}'],
+            num_orders=3,
+        )
+
+    def _assert_item_shape(self, item):
+        """Assert a single item has all required fields."""
+        for key in ('test', 'machine', 'metric',
+                    'value', 'order', 'run_uuid', 'timestamp'):
+            self.assertIn(key, item, f"Missing key: {key}")
+
+    def test_items_with_all_filters(self):
+        d = self._data
+        resp = self.client.get(
+            PREFIX + f"/query?machine={d['machine']}"
+            f"&test={d['test_names'][0]}&metric=execution_time")
+        data = resp.get_json()
+        for item in data['items']:
+            self._assert_item_shape(item)
+
+    def test_items_with_no_filters_returns_422(self):
+        resp = self.client.get(PREFIX + '/query')
+        self.assertEqual(resp.status_code, 422)
+
+    def test_items_with_only_machine_returns_422(self):
+        d = self._data
+        resp = self.client.get(
+            PREFIX + f"/query?machine={d['machine']}")
+        self.assertEqual(resp.status_code, 422)
+
+
+class TestQueryMultiTestPagination(unittest.TestCase):
+    """Pagination across multiple tests."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+        unique = uuid.uuid4().hex[:8]
+        cls._data = _setup_multi_test_data(
+            cls.app,
+            machine_name=f'query-mtp-m-{unique}',
+            test_names=[f'query-mtp-t1/{unique}',
+                        f'query-mtp-t2/{unique}',
+                        f'query-mtp-t3/{unique}'],
+            num_orders=5,
+        )
+
+    def test_pagination_collects_all_items(self):
+        """Paginating should return all 3 tests * 5 orders = 15 items."""
+        d = self._data
+        all_items = []
+        url = (PREFIX + f"/query?machine={d['machine']}"
+               "&metric=execution_time&limit=4")
+
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200, resp.get_json())
+        data = resp.get_json()
+        all_items.extend(data['items'])
+        cursor = data['cursor']['next']
+
+        pages = 1
+        while cursor:
+            resp = self.client.get(url + f'&cursor={cursor}')
+            self.assertEqual(resp.status_code, 200, resp.get_json())
+            data = resp.get_json()
+            all_items.extend(data['items'])
+            cursor = data['cursor']['next']
+            pages += 1
+            if pages > 20:
+                self.fail("Too many pages; infinite loop detected")
+
+        expected = len(d['test_names']) * d['num_orders']
+        self.assertEqual(len(all_items), expected)
+
+    def test_no_duplicates_across_pages(self):
+        d = self._data
+        all_keys = []
+        url = (PREFIX + f"/query?machine={d['machine']}"
+               "&metric=execution_time&limit=4")
+
+        resp = self.client.get(url)
+        data = resp.get_json()
+        all_keys.extend(
+            (item['test'], item['order']['llvm_project_revision'])
+            for item in data['items'])
+        cursor = data['cursor']['next']
+
+        pages = 1
+        while cursor:
+            resp = self.client.get(url + f'&cursor={cursor}')
+            data = resp.get_json()
+            all_keys.extend(
+                (item['test'], item['order']['llvm_project_revision'])
+                for item in data['items'])
+            cursor = data['cursor']['next']
+            pages += 1
+            if pages > 20:
+                break
+
+        self.assertEqual(len(all_keys), len(set(all_keys)))
+
+
+class TestQuerySort(unittest.TestCase):
+    """Tests for the sort parameter."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+        unique = uuid.uuid4().hex[:8]
+        cls._data = _setup_multi_test_data(
+            cls.app,
+            machine_name=f'query-sort-m-{unique}',
+            test_names=[f'query-sort-a/{unique}',
+                        f'query-sort-b/{unique}',
+                        f'query-sort-c/{unique}'],
+            num_orders=3,
+        )
+
+    def test_sort_by_test_order(self):
+        """sort=test,order groups results by test name."""
+        d = self._data
+        resp = self.client.get(
+            PREFIX + f"/query?machine={d['machine']}"
+            "&metric=execution_time&sort=test,order")
+        data = resp.get_json()
+        test_names = [item['test'] for item in data['items']]
+        self.assertEqual(test_names, sorted(test_names))
+
+    def test_sort_by_order_test(self):
+        """sort=order,test is the default ordering."""
+        d = self._data
+        resp = self.client.get(
+            PREFIX + f"/query?machine={d['machine']}"
+            "&metric=execution_time&sort=order,test")
+        data = resp.get_json()
+        # Items should be grouped by order
+        self.assertGreater(len(data['items']), 0)
+
+    def test_sort_descending(self):
+        """-order,test returns newest orders first."""
+        d = self._data
+        resp = self.client.get(
+            PREFIX + f"/query?machine={d['machine']}"
+            f"&test={d['test_names'][0]}"
+            "&metric=execution_time&sort=-order")
+        data = resp.get_json()
+        revisions = [
+            item['order']['llvm_project_revision']
+            for item in data['items']
+        ]
+        self.assertEqual(revisions, sorted(revisions, reverse=True))
+
+    def test_sort_invalid_field_returns_400(self):
+        resp = self.client.get(
+            PREFIX + '/query?metric=execution_time&sort=invalid_field')
+        self.assertEqual(resp.status_code, 400)
+
+    def test_sort_with_pagination(self):
+        """Sort order is preserved across cursor pages."""
+        d = self._data
+        all_test_names = []
+        url = (PREFIX + f"/query?machine={d['machine']}"
+               "&metric=execution_time&sort=test,order&limit=4")
+
+        resp = self.client.get(url)
+        data = resp.get_json()
+        all_test_names.extend(item['test'] for item in data['items'])
+        cursor = data['cursor']['next']
+
+        pages = 1
+        while cursor:
+            resp = self.client.get(url + f'&cursor={cursor}')
+            data = resp.get_json()
+            all_test_names.extend(item['test'] for item in data['items'])
+            cursor = data['cursor']['next']
+            pages += 1
+            if pages > 20:
+                break
+
+        self.assertEqual(all_test_names, sorted(all_test_names))
+
+
+class TestQueryCursorMixedAscDesc(unittest.TestCase):
+    """Test cursor pagination with mixed ascending/descending sort."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+        unique = uuid.uuid4().hex[:8]
+        cls._data = _setup_multi_test_data(
+            cls.app,
+            machine_name=f'query-mixed-m-{unique}',
+            test_names=[f'query-mixed-a/{unique}',
+                        f'query-mixed-b/{unique}'],
+            num_orders=5,
+        )
+
+    def test_desc_order_pagination_collects_all(self):
+        """Paginating with -order,test collects all items."""
+        d = self._data
+        all_items = []
+        url = (PREFIX + f"/query?machine={d['machine']}"
+               "&metric=execution_time&sort=-order,test&limit=3")
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200, resp.get_json())
+        data = resp.get_json()
+        all_items.extend(data['items'])
+        cursor = data['cursor']['next']
+        pages = 1
+        while cursor:
+            resp = self.client.get(url + f'&cursor={cursor}')
+            self.assertEqual(resp.status_code, 200, resp.get_json())
+            data = resp.get_json()
+            all_items.extend(data['items'])
+            cursor = data['cursor']['next']
+            pages += 1
+            if pages > 20:
+                self.fail("Too many pages")
+        expected = len(d['test_names']) * d['num_orders']
+        self.assertEqual(len(all_items), expected)
+
+    def test_desc_order_pagination_no_duplicates(self):
+        """No duplicates across pages with -order,test."""
+        d = self._data
+        all_keys = []
+        url = (PREFIX + f"/query?machine={d['machine']}"
+               "&metric=execution_time&sort=-order,test&limit=3")
+        resp = self.client.get(url)
+        data = resp.get_json()
+        all_keys.extend(
+            (item['test'], item['order']['llvm_project_revision'])
+            for item in data['items'])
+        cursor = data['cursor']['next']
+        pages = 1
+        while cursor:
+            resp = self.client.get(url + f'&cursor={cursor}')
+            data = resp.get_json()
+            all_keys.extend(
+                (item['test'], item['order']['llvm_project_revision'])
+                for item in data['items'])
+            cursor = data['cursor']['next']
+            pages += 1
+            if pages > 20:
+                break
+        self.assertEqual(len(all_keys), len(set(all_keys)))
+
+    def test_desc_order_is_actually_descending(self):
+        """Results with -order are in descending order."""
+        d = self._data
+        resp = self.client.get(
+            PREFIX + f"/query?machine={d['machine']}"
+            f"&test={d['test_names'][0]}"
+            "&metric=execution_time&sort=-order")
+        data = resp.get_json()
+        revisions = [
+            int(item['order']['llvm_project_revision'])
+            for item in data['items']
+        ]
+        self.assertEqual(revisions, sorted(revisions, reverse=True))
+
+
+class TestQueryMalformedTimestamp(unittest.TestCase):
+    """Test error handling for malformed timestamp filters."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+
+    def test_malformed_after_time_returns_400(self):
+        resp = self.client.get(
+            PREFIX + '/query?metric=execution_time&after_time=not-a-date')
+        self.assertEqual(resp.status_code, 400)
+        data = resp.get_json()
+        self.assertIn('error', data)
+
+    def test_malformed_before_time_returns_400(self):
+        resp = self.client.get(
+            PREFIX + '/query?metric=execution_time&before_time=yesterday')
+        self.assertEqual(resp.status_code, 400)
+        data = resp.get_json()
+        self.assertIn('error', data)
+
+
+class TestQueryMetricRequired(unittest.TestCase):
+    """Test that omitting the metric parameter returns 422."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+        unique = uuid.uuid4().hex[:8]
+        mname = f'query-mreq-m-{unique}'
+        tname = f'query-mreq-t/{unique}'
+        db = cls.app.instance.get_database("default")
+        session = db.make_session()
+        ts = db.testsuite[TS]
+        machine = create_machine(session, ts, name=mname)
+        test = create_test(session, ts, name=tname)
+        for i in range(3):
+            order = create_order(session, ts, revision=str(2000 + i))
+            run = create_run(session, ts, machine, order,
+                             start_time=datetime.datetime(2024, 6, 1 + i, 12, 0, 0))
+            create_sample(session, ts, run, test,
+                          execution_time=float(i + 1))
+        session.commit()
+        session.close()
+        cls._data = {'machine': mname, 'test': tname}
+
+    def test_omitting_metric_returns_422(self):
+        """Omitting the metric parameter should return 422."""
+        d = self._data
+        url = (PREFIX + f"/query?machine={d['machine']}"
+               f"&test={d['test']}&limit=2")
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 422)
+
+    def test_with_metric_returns_200(self):
+        """Providing metric should return 200 with data."""
+        d = self._data
+        url = (PREFIX + f"/query?machine={d['machine']}"
+               f"&test={d['test']}&metric=execution_time&limit=2")
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200, resp.get_json())
+        data = resp.get_json()
+        self.assertGreater(len(data['items']), 0)
+
+
+class TestQueryOrderRangeBoundaries(unittest.TestCase):
+    """Test boundary conditions for order range filters."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+        unique = uuid.uuid4().hex[:8]
+        mname = f'query-orb-m-{unique}'
+        tname = f'query-orb-t/{unique}'
+        db = cls.app.instance.get_database("default")
+        session = db.make_session()
+        ts = db.testsuite[TS]
+        machine = create_machine(session, ts, name=mname)
+        test = create_test(session, ts, name=tname)
+        for i in range(5):
+            rev = str(3000 + i * 10)  # 3000, 3010, 3020, 3030, 3040
+            order = create_order(session, ts, revision=rev)
+            run = create_run(session, ts, machine, order,
+                             start_time=datetime.datetime(2024, 7, 1 + i, 12, 0, 0))
+            create_sample(session, ts, run, test, execution_time=float(rev))
+        session.commit()
+        session.close()
+        cls._data = {'machine': mname, 'test': tname}
+
+    def test_same_after_and_before_order_returns_empty(self):
+        d = self._data
+        url = (PREFIX + f"/query?machine={d['machine']}&test={d['test']}"
+               "&metric=execution_time&after_order=3020&before_order=3020")
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200, resp.get_json())
+        data = resp.get_json()
+        self.assertEqual(len(data['items']), 0)
+
+    def test_inverted_order_range_returns_empty(self):
+        d = self._data
+        url = (PREFIX + f"/query?machine={d['machine']}&test={d['test']}"
+               "&metric=execution_time&after_order=3040&before_order=3000")
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200, resp.get_json())
+        data = resp.get_json()
+        self.assertEqual(len(data['items']), 0)
+
+
+class TestQueryLimitBoundaries(unittest.TestCase):
+    """Test boundary conditions for the limit parameter."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+        unique = uuid.uuid4().hex[:8]
+        cls._data = _setup_query_data(
+            cls.app,
+            machine_name=f'query-limb-m-{unique}',
+            test_name=f'query-limb-t/{unique}',
+            num_points=5,
+        )
+
+    def test_limit_one_returns_one_item(self):
+        d = self._data
+        resp = self.client.get(
+            PREFIX + f"/query?machine={d['machine']}&test={d['test']}"
+            "&metric=execution_time&limit=1")
+        data = resp.get_json()
+        self.assertEqual(len(data['items']), 1)
+        self.assertIsNotNone(data['cursor']['next'])
+
+    def test_limit_exceeding_max_is_clamped(self):
+        d = self._data
+        resp = self.client.get(
+            PREFIX + f"/query?machine={d['machine']}&test={d['test']}"
+            "&metric=execution_time&limit=99999")
+        self.assertEqual(resp.status_code, 200)
+        # Should not error; returns all 5 items (clamped limit > data size)
+        data = resp.get_json()
+        self.assertEqual(len(data['items']), d['num_points'])
+
+    def test_limit_non_integer_uses_default(self):
+        d = self._data
+        resp = self.client.get(
+            PREFIX + f"/query?machine={d['machine']}&test={d['test']}"
+            "&metric=execution_time&limit=abc")
+        # Marshmallow validates limit as Integer; non-integer values -> 422
+        self.assertEqual(resp.status_code, 422)
+
+    def test_limit_zero_is_clamped_to_one(self):
+        d = self._data
+        resp = self.client.get(
+            PREFIX + f"/query?machine={d['machine']}&test={d['test']}"
+            "&metric=execution_time&limit=0")
+        data = resp.get_json()
+        self.assertEqual(len(data['items']), 1)
+
+
+class TestQueryCursorEdgeCases(unittest.TestCase):
+    """Test cursor edge cases."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+        unique = uuid.uuid4().hex[:8]
+        cls._data = _setup_query_data(
+            cls.app,
+            machine_name=f'query-cec-m-{unique}',
+            test_name=f'query-cec-t/{unique}',
+            num_points=3,
+        )
+
+    def test_cursor_wrong_field_count_returns_400(self):
+        """Cursor with wrong number of fields should be rejected."""
+        import base64
+        import json
+        # Default sort is order,test -> 2 fields. Encode 3 fields.
+        bad_cursor = base64.urlsafe_b64encode(
+            json.dumps([1, "x", "extra"]).encode()).decode()
+        d = self._data
+        resp = self.client.get(
+            PREFIX + f"/query?machine={d['machine']}&test={d['test']}"
+            f"&metric=execution_time&cursor={bad_cursor}")
+        self.assertEqual(resp.status_code, 400)
+
+    def test_cursor_from_different_sort_order_is_rejected(self):
+        """Cursor from sort=order,test used with sort=test,order should fail
+        gracefully since the cursor values don't match the sort columns."""
+        d = self._data
+        # Get cursor from sort=order,test (default)
+        resp = self.client.get(
+            PREFIX + f"/query?machine={d['machine']}&test={d['test']}"
+            "&metric=execution_time&limit=1")
+        cursor = resp.get_json()['cursor']['next']
+        # Use with sort=test,order — mismatched cursor
+        resp2 = self.client.get(
+            PREFIX + f"/query?machine={d['machine']}&test={d['test']}"
+            f"&metric=execution_time&sort=test,order&cursor={cursor}")
+        self.assertEqual(resp2.status_code, 400)
+
+
+class TestQuerySortValidation(unittest.TestCase):
+    """Test sort parameter validation edge cases."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+
+    def test_sort_duplicate_field_is_deduplicated(self):
+        resp = self.client.get(
+            PREFIX + '/query?metric=execution_time&sort=order,order,test')
+        self.assertEqual(resp.status_code, 200)
+
+    def test_sort_empty_string_uses_default(self):
+        resp = self.client.get(PREFIX + '/query?metric=execution_time&sort=')
+        # Empty sort string should use default (order,test)
+        self.assertEqual(resp.status_code, 200)
+
+    def test_sort_dash_invalid_field_returns_400(self):
+        resp = self.client.get(PREFIX + '/query?metric=execution_time&sort=-bogus')
+        self.assertEqual(resp.status_code, 400)
+
+
+class TestQueryErrorResponseFormat(unittest.TestCase):
+    """Test that all error responses use the standard JSON format."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+
+    def _assert_error_format(self, resp):
+        """Assert the response body has the standard error format."""
+        data = resp.get_json()
+        self.assertIsNotNone(data, "Response body should be JSON")
+        self.assertIn('error', data)
+        self.assertIn('code', data['error'])
+        self.assertIn('message', data['error'])
+
+    def test_404_nonexistent_machine_has_error_format(self):
+        resp = self.client.get(
+            PREFIX + '/query?machine=nonexistent-xyz&metric=execution_time')
+        self.assertEqual(resp.status_code, 404)
+        self._assert_error_format(resp)
+
+    def test_404_nonexistent_test_has_error_format(self):
+        resp = self.client.get(
+            PREFIX + '/query?test=nonexistent-xyz&metric=execution_time')
+        self.assertEqual(resp.status_code, 404)
+        self._assert_error_format(resp)
+
+    def test_400_nonexistent_field_has_error_format(self):
+        resp = self.client.get(
+            PREFIX + '/query?metric=nonexistent_xyz')
+        self.assertEqual(resp.status_code, 400)
+        self._assert_error_format(resp)
+
+    def test_400_invalid_sort_has_error_format(self):
+        resp = self.client.get(
+            PREFIX + '/query?metric=execution_time&sort=invalid')
+        self.assertEqual(resp.status_code, 400)
+        self._assert_error_format(resp)
+
+    def test_400_invalid_cursor_has_error_format(self):
+        resp = self.client.get(
+            PREFIX + '/query?metric=execution_time&cursor=!!!invalid!!!')
+        self.assertEqual(resp.status_code, 400)
+        self._assert_error_format(resp)
+
+    def test_400_malformed_time_has_error_format(self):
+        resp = self.client.get(
+            PREFIX + '/query?metric=execution_time&after_time=not-a-date')
+        self.assertEqual(resp.status_code, 400)
+        self._assert_error_format(resp)
+
+
+class TestQueryNoInternalFieldsLeak(unittest.TestCase):
+    """Test that no internal fields (like _order_id) leak in response."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+        unique = uuid.uuid4().hex[:8]
+        cls._data = _setup_query_data(
+            cls.app,
+            machine_name=f'query-noleak-m-{unique}',
+            test_name=f'query-noleak-t/{unique}',
+            num_points=3,
+        )
+
+    def test_no_underscore_prefixed_fields(self):
+        d = self._data
+        resp = self.client.get(
+            PREFIX + f"/query?machine={d['machine']}&test={d['test']}"
+            "&metric=execution_time")
+        data = resp.get_json()
+        for item in data['items']:
+            internal_keys = [k for k in item.keys() if k.startswith('_')]
+            self.assertEqual(internal_keys, [],
+                             f"Internal fields leaked: {internal_keys}")
+
+
+class TestQueryUnknownParameters(unittest.TestCase):
+    """Test that unknown query parameters are rejected with 400."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+        unique = uuid.uuid4().hex[:8]
+        cls._data = _setup_query_data(
+            cls.app,
+            machine_name=f'query-unknown-m-{unique}',
+            test_name=f'query-unknown-t/{unique}',
+            num_points=3,
+        )
+
+    def test_single_unknown_param_returns_400(self):
+        """A single unknown parameter should be rejected."""
+        resp = self.client.get(PREFIX + '/query?metric=execution_time&bogus=value')
+        self.assertEqual(resp.status_code, 400)
+        data = resp.get_json()
+        self.assertIn('error', data)
+        self.assertIn('bogus', data['error']['message'])
+
+    def test_multiple_unknown_params_returns_400(self):
+        """Multiple unknown parameters should all be mentioned."""
+        resp = self.client.get(
+            PREFIX + '/query?metric=execution_time'
+            '&metric_name=execution_time'
+            '&after_timestamp=2027-02-23T15:01:11')
+        self.assertEqual(resp.status_code, 400)
+        data = resp.get_json()
+        self.assertIn('metric_name', data['error']['message'])
+        self.assertIn('after_timestamp', data['error']['message'])
+
+    def test_unknown_mixed_with_valid_returns_400(self):
+        """Unknown params mixed with valid ones should still be rejected."""
+        d = self._data
+        resp = self.client.get(
+            PREFIX + f"/query?machine={d['machine']}"
+            "&metric=execution_time&bad_param=1")
+        self.assertEqual(resp.status_code, 400)
+        data = resp.get_json()
+        self.assertIn('bad_param', data['error']['message'])
+
+    def test_error_message_lists_valid_params(self):
+        """The error message should list valid parameter names."""
+        resp = self.client.get(PREFIX + '/query?metric=execution_time&bogus=1')
+        data = resp.get_json()
+        msg = data['error']['message']
+        # Should mention the valid parameters
+        for valid in ('machine', 'test', 'metric', 'after_order',
+                      'before_order', 'after_time', 'before_time',
+                      'sort', 'limit', 'cursor'):
+            self.assertIn(valid, msg)
+
+    def test_error_response_has_standard_format(self):
+        """Unknown param error should use the standard error format."""
+        resp = self.client.get(PREFIX + '/query?metric=execution_time&unknown=1')
+        self.assertEqual(resp.status_code, 400)
+        data = resp.get_json()
+        self.assertIn('error', data)
+        self.assertIn('code', data['error'])
+        self.assertIn('message', data['error'])
+        self.assertEqual(data['error']['code'], 'validation_error')
+
+    def test_valid_params_still_work(self):
+        """All valid parameters should still be accepted."""
+        d = self._data
+        resp = self.client.get(
+            PREFIX + f"/query?machine={d['machine']}"
+            f"&test={d['test']}&metric=execution_time"
+            "&sort=order&limit=10")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertIn('items', data)
+        self.assertEqual(len(data['items']), d['num_points'])
+
+    def test_no_params_returns_422(self):
+        """Query with no parameters should return 422 (metric is required)."""
+        resp = self.client.get(PREFIX + '/query')
+        self.assertEqual(resp.status_code, 422)
+
+
+if __name__ == '__main__':
+    unittest.main(argv=[sys.argv[0]], exit=True)
