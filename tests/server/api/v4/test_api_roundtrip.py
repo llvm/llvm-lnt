@@ -12,7 +12,7 @@ import os
 import sys
 
 TESTS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-UI_DIR = os.path.join(TESTS_DIR, 'ui')
+UI_DIR = os.path.join(TESTS_DIR, 'ui', 'v4')
 sys.path.insert(0, UI_DIR)
 
 import unittest

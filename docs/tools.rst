@@ -12,12 +12,10 @@ Client-Side Tools
 -----------------
 
   ``lnt checkformat [<file>]``
-    Checks the syntax of an LNT test report file. In addition to verifying that
-    LNT can read the raw format (e.g., JSON or property list), this also creates
-    a temporary in-memory database instance and ensures that the test report
-    file can be imported correctly.
-
-    If run without arguments, this expects to read the input file from ``stdin``.
+    Checks the format of an LNT test report file. This verifies that LNT can
+    parse the raw format (e.g., JSON or property list) and that the report
+    structure is valid (correct format version, required top-level sections,
+    successful format upgrade for older report versions).
 
   ``lnt convert <input path> [<output path>]``
     Convert between LNT test report formats. By default, this will convert to

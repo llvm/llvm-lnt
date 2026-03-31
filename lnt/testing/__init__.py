@@ -9,6 +9,7 @@ convert them to JSON data suitable for submitting to the server.
 import datetime
 import json
 import re
+import lnt.formats
 from lnt.util import logger
 
 # We define the following constants for use as sample values by
@@ -525,7 +526,7 @@ _upgrades = {
 }
 
 
-def upgrade_1_to_2(data, ts_name):
+def upgrade_1_to_2(data):
     result = dict()
 
     # Pull version and database schema to toplevel
@@ -533,11 +534,8 @@ def upgrade_1_to_2(data, ts_name):
     report_version = data['Run']['Info'].pop('__report_version__', '1')
     # We should not be in upgrade_1_to_2 for other versions
     assert report_version == '1'
-    tag = data['Run']['Info'].pop('tag', None)
-    if tag is not None and tag != ts_name:
-        raise ValueError("Importing '%s' data into '%s' testsuite" %
-                         (tag, ts_name))
 
+    tag = data['Run']['Info'].pop('tag', None)
     upgrade = _upgrades.get(tag)
     if upgrade is None:
         logger.warning("No upgrade schema known for '%s'\n" % tag)
@@ -581,7 +579,9 @@ def upgrade_1_to_2(data, ts_name):
             # The Info record didn't work with the v4 database anyway...
             raise ValueError("Tests/%s: cannot convert non-empty Info record" %
                              test_Name)
-        tag_dot = '%s.' % ts_name
+        if tag is None:
+            raise ValueError("v1 report has no 'tag' field")
+        tag_dot = '%s.' % tag
         if not test_Name.startswith(tag_dot):
             raise ValueError("Tests/%s: test name does not start with '%s'" %
                              (test_Name, tag_dot))
@@ -627,7 +627,7 @@ def upgrade_1_to_2(data, ts_name):
     return result
 
 
-def upgrade_and_normalize_report(data, ts_name):
+def upgrade_and_normalize_report(data):
     # Get the report version. V2 has it at the top level, older version
     # in Run.Info.
     format_version = _get_format_version(data)
@@ -639,7 +639,7 @@ def upgrade_and_normalize_report(data, ts_name):
         data = upgrade_0_to_1(data)
         format_version = 1
     if format_version == 1:
-        data = upgrade_1_to_2(data, ts_name)
+        data = upgrade_1_to_2(data)
         format_version = 2
 
     if format_version != 2 or data['format_version'] != '2':
@@ -662,6 +662,48 @@ def upgrade_and_normalize_report(data, ts_name):
         run['end_time'] = run['start_time']
 
     return data
+
+
+def validate_report(file, format):
+    """
+    validate_report(file, format) -> result dict
+
+    Validate the format of an LNT test report file without importing it into
+    a database. This performs format-level validation: parsing the file and
+    upgrading/normalizing the report format.
+
+    Returns a result dict with:
+    - 'success': True/False
+    - 'error': error message string (on failure)
+    - 'message': detailed traceback (on failure, optional)
+    - 'data': the parsed and upgraded report data dict (on success)
+    - 'import_file': the file path that was validated
+    """
+    result = {
+        'success': False,
+        'error': None,
+        'import_file': file,
+    }
+
+    try:
+        data = lnt.formats.read_any(file, format)
+    except Exception:
+        import traceback
+        result['error'] = "could not parse input format"
+        result['message'] = traceback.format_exc()
+        return result
+
+    try:
+        data = upgrade_and_normalize_report(data)
+    except ValueError as e:
+        import traceback
+        result['error'] = "Invalid input format: %s" % e
+        result['message'] = traceback.format_exc()
+        return result
+
+    result['success'] = True
+    result['data'] = data
+    return result
 
 
 __all__ = ['Report', 'Machine', 'Run', 'TestSamples']
