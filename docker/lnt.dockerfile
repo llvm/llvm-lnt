@@ -1,4 +1,4 @@
-# This Dockerfile defines an image that contains a production LNT server.
+# This Dockerfile defines an image that contains a minimal LNT server.
 # It requires additional information passed as environment variables:
 #
 #   DB_USER

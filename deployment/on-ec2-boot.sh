@@ -32,6 +32,7 @@ fi
 
 echo "Starting LNT service with Docker compose"
 docker compose --file /etc/lnt/compose.yaml                 \
-               --file /etc/lnt/ec2-volume-mapping.yaml      \
+               --file /etc/lnt/compose.prod.yaml            \
+               --profile nginx                              \
                --env-file /etc/lnt/compose.env              \
                up
