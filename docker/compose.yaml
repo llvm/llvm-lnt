@@ -56,7 +56,7 @@ services:
     volumes:
       - instance:/var/lib/lnt
     ports:
-      - "8000"
+      - "8000:8000"
     networks:
       - lnt_network
 
