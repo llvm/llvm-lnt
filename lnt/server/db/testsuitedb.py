@@ -53,6 +53,7 @@ class TestSuiteDB(object):
         self.v4db = v4db
         self.name = name
         self.test_suite = test_suite
+        self._is_sqlite = (self.v4db.engine.dialect.name == 'sqlite')
 
         # Save caches of the various fields.
         self.machine_fields = list(self.test_suite.machine_fields)
@@ -201,6 +202,17 @@ class TestSuiteDB(object):
                 _dict_update_abort_on_duplicates(result, self.parameters)
                 return result
 
+        # On Postgres, enforce ordinal uniqueness with a deferred constraint
+        # (checked at commit time, allowing the bulk shift UPDATE to
+        # temporarily create duplicates). On SQLite, skip the constraint —
+        # SQLite doesn't support DEFERRABLE on UNIQUE, and its database-
+        # level write lock already prevents concurrent violations.
+        _order_table_args = () if self._is_sqlite else (
+            UniqueConstraint('ordinal',
+                             name=f'{db_key_name}_Order_ordinal_unique',
+                             deferrable=True, initially='DEFERRED'),
+        )
+
         @functools.total_ordering
         class Order(self.base, ParameterizedMixin):
             __tablename__ = db_key_name + '_Order'
@@ -213,11 +225,7 @@ class TestSuiteDB(object):
 
             id = Column("ID", Integer, primary_key=True)
             ordinal = Column("ordinal", Integer, nullable=False, index=True)
-            __table_args__ = (
-                UniqueConstraint('ordinal',
-                                 name=f'{db_key_name}_Order_ordinal_unique',
-                                 deferrable=True, initially='DEFERRED'),
-            )
+            __table_args__ = _order_table_args
             order_name_cache = {}
 
             # Dynamically create fields for all of the test suite defined order
@@ -920,46 +928,68 @@ class TestSuiteDB(object):
             return existing
 
         # If not, then we need to insert this order into the total ordering.
-        # We use a savepoint + retry loop to handle the rare case where a
-        # concurrent insertion causes a UNIQUE constraint violation on the
-        # ordinal column.
-        MAX_RETRIES = 3
-        for attempt in range(MAX_RETRIES):
-            savepoint = session.begin_nested()
-            try:
-                # Load all existing orders sorted by ordinal, locking them
-                # to prevent concurrent modifications.
-                existing_orders = session.query(self.Order) \
-                    .order_by(self.Order.ordinal) \
-                    .with_for_update() \
-                    .all()
+        if self._is_sqlite:
+            # SQLite uses database-level write locks, so no row-level
+            # locking or deferred constraints are needed.
+            existing_orders = session.query(self.Order) \
+                .order_by(self.Order.ordinal) \
+                .all()
 
-                # Find the insertion point using field comparison.
-                insert_at = len(existing_orders)
-                for i, existing in enumerate(existing_orders):
-                    if self.Order._compare_by_fields(order, existing) <= 0:
-                        insert_at = i
-                        break
+            insert_at = len(existing_orders)
+            for i, existing in enumerate(existing_orders):
+                if self.Order._compare_by_fields(order, existing) <= 0:
+                    insert_at = i
+                    break
 
-                # Shift all ordinals at or after the insertion point up
-                # by 1. The UNIQUE constraint on ordinal is DEFERRABLE
-                # INITIALLY DEFERRED, so PostgreSQL won't check it until
-                # the transaction commits.
-                session.query(self.Order) \
-                    .filter(self.Order.ordinal >= insert_at) \
-                    .update({self.Order.ordinal: self.Order.ordinal + 1},
-                            synchronize_session=False)
+            session.query(self.Order) \
+                .filter(self.Order.ordinal >= insert_at) \
+                .update({self.Order.ordinal: self.Order.ordinal + 1},
+                        synchronize_session=False)
 
-                # Insert the new order with its ordinal and flush.
-                order.ordinal = insert_at
-                session.add(order)
-                session.flush()
-                savepoint.commit()
-                break
-            except IntegrityError:
-                savepoint.rollback()
-                if attempt == MAX_RETRIES - 1:
-                    raise
+            order.ordinal = insert_at
+            session.add(order)
+            session.flush()
+        else:
+            # Postgres: use a savepoint + retry loop to handle the rare
+            # case where a concurrent insertion causes a UNIQUE constraint
+            # violation on the ordinal column.
+            MAX_RETRIES = 3
+            for attempt in range(MAX_RETRIES):
+                savepoint = session.begin_nested()
+                try:
+                    # Load all existing orders sorted by ordinal, locking
+                    # them to prevent concurrent modifications.
+                    existing_orders = session.query(self.Order) \
+                        .order_by(self.Order.ordinal) \
+                        .with_for_update() \
+                        .all()
+
+                    # Find the insertion point using field comparison.
+                    insert_at = len(existing_orders)
+                    for i, existing in enumerate(existing_orders):
+                        if self.Order._compare_by_fields(order, existing) <= 0:
+                            insert_at = i
+                            break
+
+                    # Shift all ordinals at or after the insertion point up
+                    # by 1. The UNIQUE constraint on ordinal is DEFERRABLE
+                    # INITIALLY DEFERRED, so PostgreSQL won't check it until
+                    # the transaction commits.
+                    session.query(self.Order) \
+                        .filter(self.Order.ordinal >= insert_at) \
+                        .update({self.Order.ordinal: self.Order.ordinal + 1},
+                                synchronize_session=False)
+
+                    # Insert the new order with its ordinal and flush.
+                    order.ordinal = insert_at
+                    session.add(order)
+                    session.flush()
+                    savepoint.commit()
+                    break
+                except IntegrityError:
+                    savepoint.rollback()
+                    if attempt == MAX_RETRIES - 1:
+                        raise
 
         return order
 

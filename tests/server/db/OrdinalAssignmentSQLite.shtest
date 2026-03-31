@@ -1,0 +1,118 @@
+# Check that ordinal assignment works correctly on SQLite.
+#
+# RUN: rm -rf "%t.instance" "%t.reports"
+# RUN: mkdir -p "%t.reports"
+# RUN: /bin/sh %s %s %t.instance %t.reports %{src_root}
+
+set -e
+
+THIS_FILE="${1}"
+INSTANCE="${2}"
+REPORTS="${3}"
+SRC_ROOT="${4}"
+
+# Create a SQLite-backed LNT instance.
+lnt create "${INSTANCE}"
+
+# Symlink schema files so the instance knows about the nts test suite.
+ln -sf "${SRC_ROOT}/schemas/nts.yaml" "${INSTANCE}/schemas/nts.yaml"
+ln -sf "${SRC_ROOT}/schemas/compile.yaml" "${INSTANCE}/schemas/compile.yaml"
+
+# Create JSON report files with specific run_order values.
+# We import them in a deliberate order to test edge cases.
+
+make_report() {
+    local ORDER="$1"
+    local FILE="$2"
+    cat > "${FILE}" <<ENDJSON
+{
+    "format_version": "2",
+    "machine": {
+        "name": "ordinal-test-machine",
+        "hardware": "x86_64",
+        "os": "test-os"
+    },
+    "run": {
+        "start_time": "2024-01-01T00:00:00",
+        "end_time": "2024-01-01T01:00:00",
+        "llvm_project_revision": "${ORDER}"
+    },
+    "tests": [
+        {"name": "test/compile", "compile_time": 1.0}
+    ]
+}
+ENDJSON
+}
+
+# --- Test 1: First order in empty DB gets ordinal 0 ---
+make_report "10" "${REPORTS}/r10.json"
+lnt import "${INSTANCE}" "${REPORTS}/r10.json" --show-sample-count | \
+    filecheck -check-prefix=IMPORT-10 "${THIS_FILE}"
+# IMPORT-10: Added Machines: 1
+# IMPORT-10: Added Runs : 1
+
+# --- Test 2: Import higher revision, gets ordinal 1 ---
+make_report "20" "${REPORTS}/r20.json"
+lnt import "${INSTANCE}" "${REPORTS}/r20.json" --show-sample-count | \
+    filecheck -check-prefix=IMPORT-20 "${THIS_FILE}"
+# IMPORT-20: Added Runs : 1
+
+# --- Test 3: Import revision BEFORE all existing, shifts everything ---
+make_report "5" "${REPORTS}/r5.json"
+lnt import "${INSTANCE}" "${REPORTS}/r5.json" --show-sample-count | \
+    filecheck -check-prefix=IMPORT-5 "${THIS_FILE}"
+# IMPORT-5: Added Runs : 1
+
+# --- Test 4: Import revision in the MIDDLE ---
+make_report "15" "${REPORTS}/r15.json"
+lnt import "${INSTANCE}" "${REPORTS}/r15.json" --show-sample-count | \
+    filecheck -check-prefix=IMPORT-15 "${THIS_FILE}"
+# IMPORT-15: Added Runs : 1
+
+# --- Test 5: Re-import existing order (should find existing, not create new) ---
+lnt import "${INSTANCE}" "${REPORTS}/r10.json" --show-sample-count --merge=append | \
+    filecheck -check-prefix=REIMPORT-10 "${THIS_FILE}"
+# REIMPORT-10: Added Runs : 1
+# REIMPORT-10-NOT: Added Machines
+
+# Verify ordinal assignments via Python.
+cat <<EOF | python - "${INSTANCE}"
+import sys
+import lnt.server.instance
+
+instance_path = sys.argv[1]
+instance = lnt.server.instance.Instance.frompath(instance_path)
+db = instance.get_database('default')
+session = db.make_session()
+ts = db.testsuite['nts']
+
+# Fetch all orders sorted by ordinal.
+orders = session.query(ts.Order).order_by(ts.Order.ordinal).all()
+
+# We should have exactly 4 distinct orders.
+assert len(orders) == 4, f"Expected 4 orders, got {len(orders)}"
+
+ordinals = [o.ordinal for o in orders]
+print(f"Ordinals: {ordinals}")
+
+# Verify ordinals are sequential starting from 0.
+assert ordinals == [0, 1, 2, 3], f"Expected [0, 1, 2, 3], got {ordinals}"
+
+# Verify comparison operators use ordinal.
+assert orders[0] < orders[1] < orders[2] < orders[3]
+assert orders[3] > orders[2] > orders[1] > orders[0]
+assert orders[0] == orders[0]
+assert orders[0] != orders[1]
+
+# Verify that re-importing didn't create a duplicate order.
+# Revision "10" was imported first then again; it ends up at ordinal 1
+# (after "5" was inserted before it). Check that ordinal 1 has 2 runs.
+order_at_1 = session.query(ts.Order) \
+    .filter(ts.Order.ordinal == 1).one()
+runs_for_order_1 = session.query(ts.Run) \
+    .filter(ts.Run.order_id == order_at_1.id).all()
+assert len(runs_for_order_1) == 2, \
+    f"Expected 2 runs for ordinal 1 (original + append), got {len(runs_for_order_1)}"
+
+print("All ordinal assignment checks passed.")
+EOF
