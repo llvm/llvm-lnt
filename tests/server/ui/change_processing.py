@@ -1,13 +1,14 @@
 # Check that the LNT REST JSON API is working.
-# RUN: python %s %{utils}
+# RUN: %{utils}/with_postgres.sh %t.pg.log \
+# RUN:     python %s
 
 import datetime
 import logging
 import os
-import subprocess
-import sys
 import unittest
+import uuid
 
+import sqlalchemy
 from sqlalchemy import or_
 from sqlalchemy.orm import joinedload
 
@@ -20,10 +21,6 @@ from lnt.server.db.rules import rule_update_fixed_regressions
 
 logging.basicConfig(level=logging.DEBUG)
 
-UTILS_DIR = sys.argv.pop(1)
-START_POSTGRES = os.path.join(UTILS_DIR, 'start_postgres.sh')
-STOP_POSTGRES = os.path.join(UTILS_DIR, 'stop_postgres.sh')
-
 
 def _mkorder(session, ts, rev):
     order = ts.Order()
@@ -35,13 +32,26 @@ def _mkorder(session, ts, rev):
 class ChangeProcessingTests(unittest.TestCase):
     """Test fieldchange and regression building."""
 
+    def _admin_execute(self, sql):
+        """Run a DDL statement (CREATE/DROP DATABASE) against the server."""
+        base_uri = os.environ['LNT_TEST_DB_URI']
+        engine = sqlalchemy.create_engine(base_uri + '/postgres', isolation_level='AUTOCOMMIT')
+        try:
+            with engine.connect() as conn:
+                conn.execute(sqlalchemy.text(sql))
+        finally:
+            engine.dispose()
+
     def setUp(self):
-        output = subprocess.check_output([START_POSTGRES, os.devnull], text=True)
-        env = dict(line.split('=', 1) for line in output.strip().splitlines())
-        self._container = env['LNT_PG_CONTAINER']
+        base_uri = os.environ['LNT_TEST_DB_URI']
+
+        # Create a fresh database for each test method so tests don't
+        # interfere with each other via leftover data.
+        self._db_name = 'lnt_test_' + uuid.uuid4().hex[:8]
+        self._admin_execute(f'CREATE DATABASE {self._db_name}')
 
         self.db = v4db.V4DB(
-            env['LNT_TEST_DB_URI'] + "/" + env['LNT_TEST_DB_NAME'],
+            base_uri + "/" + self._db_name,
             Config.dummy_instance())
         session = self.session = self.db.make_session()
 
@@ -129,8 +139,7 @@ class ChangeProcessingTests(unittest.TestCase):
     def tearDown(self):
         self.session.close()
         self.db.close()
-        subprocess.call([STOP_POSTGRES, self._container],
-                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self._admin_execute(f'DROP DATABASE IF EXISTS {self._db_name}')
 
     def test_startup(self):
         pass
