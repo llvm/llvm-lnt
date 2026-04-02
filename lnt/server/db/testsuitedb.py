@@ -17,7 +17,7 @@ from sqlalchemy import (Float, String, Integer, Column, ForeignKey, Binary,
                         DateTime, UniqueConstraint)
 from sqlalchemy.orm import relation
 from sqlalchemy.orm.exc import ObjectDeletedError
-from sqlalchemy.exc import IntegrityError
+
 from lnt.util import logger
 
 from . import testsuite
@@ -928,68 +928,27 @@ class TestSuiteDB(object):
             return existing
 
         # If not, then we need to insert this order into the total ordering.
-        if self._is_sqlite:
-            # SQLite uses database-level write locks, so no row-level
-            # locking or deferred constraints are needed.
-            existing_orders = session.query(self.Order) \
-                .order_by(self.Order.ordinal) \
-                .all()
+        # with_for_update() serializes concurrent writers on Postgres (it's
+        # a no-op on SQLite, where the database-level write lock suffices).
+        existing_orders = session.query(self.Order) \
+            .order_by(self.Order.ordinal) \
+            .with_for_update() \
+            .all()
 
-            insert_at = len(existing_orders)
-            for i, existing in enumerate(existing_orders):
-                if self.Order._compare_by_fields(order, existing) <= 0:
-                    insert_at = i
-                    break
+        # The new order has ordinal=None, so comparisons fall back to
+        # field-based ordering — which is consistent with how ordinals
+        # were assigned.
+        all_orders = sorted(existing_orders + [order])
+        insert_at = all_orders.index(order)
 
-            session.query(self.Order) \
-                .filter(self.Order.ordinal >= insert_at) \
-                .update({self.Order.ordinal: self.Order.ordinal + 1},
-                        synchronize_session=False)
+        session.query(self.Order) \
+            .filter(self.Order.ordinal >= insert_at) \
+            .update({self.Order.ordinal: self.Order.ordinal + 1},
+                    synchronize_session=False)
 
-            order.ordinal = insert_at
-            session.add(order)
-            session.flush()
-        else:
-            # Postgres: use a savepoint + retry loop to handle the rare
-            # case where a concurrent insertion causes a UNIQUE constraint
-            # violation on the ordinal column.
-            MAX_RETRIES = 3
-            for attempt in range(MAX_RETRIES):
-                savepoint = session.begin_nested()
-                try:
-                    # Load all existing orders sorted by ordinal, locking
-                    # them to prevent concurrent modifications.
-                    existing_orders = session.query(self.Order) \
-                        .order_by(self.Order.ordinal) \
-                        .with_for_update() \
-                        .all()
-
-                    # Find the insertion point using field comparison.
-                    insert_at = len(existing_orders)
-                    for i, existing in enumerate(existing_orders):
-                        if self.Order._compare_by_fields(order, existing) <= 0:
-                            insert_at = i
-                            break
-
-                    # Shift all ordinals at or after the insertion point up
-                    # by 1. The UNIQUE constraint on ordinal is DEFERRABLE
-                    # INITIALLY DEFERRED, so PostgreSQL won't check it until
-                    # the transaction commits.
-                    session.query(self.Order) \
-                        .filter(self.Order.ordinal >= insert_at) \
-                        .update({self.Order.ordinal: self.Order.ordinal + 1},
-                                synchronize_session=False)
-
-                    # Insert the new order with its ordinal and flush.
-                    order.ordinal = insert_at
-                    session.add(order)
-                    session.flush()
-                    savepoint.commit()
-                    break
-                except IntegrityError:
-                    savepoint.rollback()
-                    if attempt == MAX_RETRIES - 1:
-                        raise
+        order.ordinal = insert_at
+        session.add(order)
+        session.flush()
 
         return order
 
