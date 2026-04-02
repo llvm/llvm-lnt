@@ -28,17 +28,11 @@ end_time = datetime.datetime.utcnow()
 
 machine = ts_db.Machine("test-machine")
 machine.os = "test-os"
-order = ts_db.Order()
-order.llvm_project_revision = "1234"
-order.ordinal = 0
+order = ts_db.Order(ordinal=0, llvm_project_revision="1234")
 
-order2 = ts_db.Order()
-order2.llvm_project_revision = "1235"
-order2.ordinal = 1
+order2 = ts_db.Order(ordinal=1, llvm_project_revision="1235")
 
-order3 = ts_db.Order()
-order3.llvm_project_revision = "1236"
-order3.ordinal = 2
+order3 = ts_db.Order(ordinal=2, llvm_project_revision="1236")
 
 
 run = ts_db.Run(None, machine, order, start_time, end_time)

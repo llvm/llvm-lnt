@@ -30,9 +30,7 @@ _next_ordinal = 0
 
 def _mkorder(session, ts, rev):
     global _next_ordinal
-    order = ts.Order()
-    order.llvm_project_revision = rev
-    order.ordinal = _next_ordinal
+    order = ts.Order(ordinal=_next_ordinal, llvm_project_revision=rev)
     _next_ordinal += 1
     session.add(order)
     return order

@@ -226,7 +226,6 @@ class TestSuiteDB(object):
             id = Column("ID", Integer, primary_key=True)
             ordinal = Column("ordinal", Integer, nullable=False, index=True)
             __table_args__ = _order_table_args
-            order_name_cache = {}
 
             # Dynamically create fields for all of the test suite defined order
             # fields.
@@ -239,7 +238,7 @@ class TestSuiteDB(object):
                 class_dict[item.name] = item.column = Column(
                     item.name, String(256))
 
-            def __init__(self, ordinal=None, **kwargs):
+            def __init__(self, ordinal, **kwargs):
                 self.ordinal = ordinal
 
                 # Initialize fields (defaulting to None, for now).
@@ -269,55 +268,18 @@ class TestSuiteDB(object):
             def name(self):
                 return self.as_ordered_string()
 
-            @staticmethod
-            def _compare_by_fields(a, b):
-                """Compare two orders by their field values using
-                convert_revision(). Used only during insertion to determine
-                where a new order fits."""
-                for item in Order.fields:
-                    a_val = convert_revision(
-                        a.get_field(item), cache=Order.order_name_cache)
-                    b_val = convert_revision(
-                        b.get_field(item), cache=Order.order_name_cache)
-                    if a_val < b_val:
-                        return -1
-                    elif a_val > b_val:
-                        return 1
-                return 0
-
-            def _ordinal_or_field_cmp(self, b):
-                """Return (a_key, b_key) for comparison. Uses ordinal when
-                both are set, otherwise falls back to field comparison."""
-                if self.ordinal is not None and b.ordinal is not None:
-                    return (self.ordinal, b.ordinal)
-                # Fall back to field-based comparison.
-                cmp = Order._compare_by_fields(self, b)
-                if cmp < 0:
-                    return (0, 1)
-                elif cmp > 0:
-                    return (1, 0)
-                return (0, 0)
-
             def __hash__(self):
-                return hash(tuple(
-                    convert_revision(
-                        self.get_field(item),
-                        cache=Order.order_name_cache
-                    )
-                    for item in self.fields
-                ))
+                return hash(self.ordinal)
 
             def __eq__(self, b):
                 if self.__class__ is not b.__class__:
                     return NotImplemented
-                a_key, b_key = self._ordinal_or_field_cmp(b)
-                return a_key == b_key
+                return self.ordinal == b.ordinal
 
             def __lt__(self, b):
                 if self.__class__ is not b.__class__:
                     return NotImplemented
-                a_key, b_key = self._ordinal_or_field_cmp(b)
-                return a_key < b_key
+                return self.ordinal < b.ordinal
 
             def __json__(self, include_id=True):
                 result = {}
@@ -887,15 +849,25 @@ class TestSuiteDB(object):
 
         # No exact match — scan orders by ordinal to find the first one
         # whose converted revision is >= the target.
-        target = convert_revision(revision_string,
-                                  cache=self.Order.order_name_cache)
+        target = convert_revision(revision_string)
         for order in session.query(self.Order) \
                 .order_by(self.Order.ordinal).all():
-            val = convert_revision(order.llvm_project_revision,
-                                   cache=self.Order.order_name_cache)
+            val = convert_revision(order.llvm_project_revision)
             if val >= target:
                 return order
         return None
+
+    def _compare_order_fields(self, a_fields, b):
+        """Compare field values against an existing order using convert_revision().
+        a_fields is a dict mapping field name to value; b is an Order object."""
+        for item in self.order_fields:
+            a_val = convert_revision(a_fields[item.name])
+            b_val = convert_revision(b.get_field(item))
+            if a_val < b_val:
+                return -1
+            elif a_val > b_val:
+                return 1
+        return 0
 
     def _getOrCreateOrder(self, session, run_parameters):
         """
@@ -909,7 +881,7 @@ class TestSuiteDB(object):
         """
 
         query = session.query(self.Order)
-        order = self.Order()
+        field_values = {}
 
         # First, extract all of the specified order fields.
         for item in self.order_fields:
@@ -920,7 +892,7 @@ class TestSuiteDB(object):
                                  (item.name))
 
             query = query.filter(item.column == value)
-            order.set_field(item, value)
+            field_values[item.name] = value
 
         # Execute the query to see if we already have this order.
         existing = query.first()
@@ -935,18 +907,20 @@ class TestSuiteDB(object):
             .with_for_update() \
             .all()
 
-        # The new order has ordinal=None, so comparisons fall back to
-        # field-based ordering — which is consistent with how ordinals
-        # were assigned.
-        all_orders = sorted(existing_orders + [order])
-        insert_at = all_orders.index(order)
+        # Find insertion point by comparing field values.
+        insert_at = len(existing_orders)
+        for i, existing in enumerate(existing_orders):
+            cmp = self._compare_order_fields(field_values, existing)
+            if cmp <= 0:
+                insert_at = i
+                break
 
         session.query(self.Order) \
             .filter(self.Order.ordinal >= insert_at) \
             .update({self.Order.ordinal: self.Order.ordinal + 1},
                     synchronize_session=False)
 
-        order.ordinal = insert_at
+        order = self.Order(ordinal=insert_at, **field_values)
         session.add(order)
         session.flush()
 
