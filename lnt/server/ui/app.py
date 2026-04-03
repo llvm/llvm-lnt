@@ -148,6 +148,10 @@ class App(LNTExceptionLoggerFlask):
         # Load the application routes.
         app.register_blueprint(lnt.server.ui.views.frontend)
 
+        # Load the v5 frontend (comparison SPA, etc.).
+        from lnt.server.ui.v5 import v5_frontend
+        app.register_blueprint(v5_frontend)
+
         # Load the flaskRESTful API.
         app.api = Api(app)
         load_api_resources(app.api)

@@ -99,6 +99,12 @@ find = {namespaces = false}
     "templates/reporting/*.html",
     "templates/reporting/*.txt",
 ]
+"lnt.server.ui.v5" = [
+    "templates/*.html",
+    "static/v5/*.js",
+    "static/v5/*.css",
+    "static/v5/*.map",
+]
 "lnt.server.db" = [
     "migrations/*.py"
 ]
@@ -115,7 +121,7 @@ count = true
 plugins = ["sqlmypy"]
 
 [tool.tox]
-env_list = ["py3", "mypy", "flake8", "docs"]
+env_list = ["py3", "mypy", "flake8", "js", "docs"]
 
 [tool.tox.env.py3]
 description = "Run the unit tests"
@@ -130,6 +136,16 @@ commands = [
 description = "Run linter on the codebase"
 deps = [".[dev]"]
 commands = [["flake8", "--statistics", "--exclude=./lnt/external/", "./lnt/", "./tests/"]]
+skip_install = true
+
+[tool.tox.env.js]
+description = "Run JavaScript/TypeScript tests for the comparison SPA"
+allowlist_externals = ["npm"]
+commands = [
+    ["npm", "--prefix", "lnt/server/ui/v5/frontend", "install"],
+    ["npm", "--prefix", "lnt/server/ui/v5/frontend", "test"],
+    ["npm", "--prefix", "lnt/server/ui/v5/frontend", "run", "build"],
+]
 skip_install = true
 
 [tool.tox.env.mypy]

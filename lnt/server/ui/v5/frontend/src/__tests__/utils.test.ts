@@ -1,0 +1,337 @@
+// @vitest-environment jsdom
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import {
+  median, mean, safeMin, safeMax, getAggFn,
+  formatValue, formatPercent, formatRatio, formatTime,
+  truncate, primaryOrderValue,
+  debounce, el,
+} from '../utils';
+
+describe('median', () => {
+  it('returns 0 for empty array', () => {
+    expect(median([])).toBe(0);
+  });
+
+  it('returns the single value', () => {
+    expect(median([42])).toBe(42);
+  });
+
+  it('returns middle value for odd count', () => {
+    expect(median([1, 3, 5])).toBe(3);
+    expect(median([5, 1, 3])).toBe(3); // unsorted input
+  });
+
+  it('returns average of two middle values for even count', () => {
+    expect(median([1, 2, 3, 4])).toBe(2.5);
+    expect(median([4, 1, 3, 2])).toBe(2.5); // unsorted input
+  });
+});
+
+describe('mean', () => {
+  it('returns 0 for empty array', () => {
+    expect(mean([])).toBe(0);
+  });
+
+  it('returns the single value', () => {
+    expect(mean([7])).toBe(7);
+  });
+
+  it('returns average of multiple values', () => {
+    expect(mean([2, 4, 6])).toBe(4);
+    expect(mean([1, 2, 3, 4])).toBe(2.5);
+  });
+});
+
+describe('safeMin', () => {
+  it('returns 0 for empty array', () => {
+    expect(safeMin([])).toBe(0);
+  });
+
+  it('returns the minimum value', () => {
+    expect(safeMin([3, 1, 2])).toBe(1);
+    expect(safeMin([-5, 0, 5])).toBe(-5);
+  });
+});
+
+describe('safeMax', () => {
+  it('returns 0 for empty array', () => {
+    expect(safeMax([])).toBe(0);
+  });
+
+  it('returns the maximum value', () => {
+    expect(safeMax([3, 1, 2])).toBe(3);
+    expect(safeMax([-5, 0, 5])).toBe(5);
+  });
+});
+
+describe('getAggFn', () => {
+  it('returns the correct function for each name', () => {
+    expect(getAggFn('median')).toBe(median);
+    expect(getAggFn('mean')).toBe(mean);
+    expect(getAggFn('min')).toBe(safeMin);
+    expect(getAggFn('max')).toBe(safeMax);
+  });
+});
+
+describe('formatValue', () => {
+  it('returns N/A for null', () => {
+    expect(formatValue(null)).toBe('N/A');
+  });
+
+  it('returns "0" for zero', () => {
+    expect(formatValue(0)).toBe('0');
+  });
+
+  it('formats large numbers with 1 decimal', () => {
+    expect(formatValue(1234.567)).toBe('1234.6');
+    expect(formatValue(-5000.1)).toBe('-5000.1');
+  });
+
+  it('formats medium numbers with 4 significant digits', () => {
+    expect(formatValue(12.34)).toBe('12.34');
+    expect(formatValue(1.0)).toBe('1.000');
+  });
+
+  it('formats small numbers with 3 significant digits', () => {
+    expect(formatValue(0.001234)).toBe('0.00123');
+    expect(formatValue(0.5)).toBe('0.500');
+  });
+
+  it('formats negative small numbers', () => {
+    expect(formatValue(-0.005)).toBe('-0.00500');
+  });
+
+  describe('edge cases', () => {
+    it('returns "NaN" for NaN', () => {
+      expect(formatValue(NaN)).toBe('NaN');
+    });
+
+    it('returns "Infinity" for Infinity', () => {
+      expect(formatValue(Infinity)).toBe('Infinity');
+    });
+
+    it('returns "-Infinity" for -Infinity', () => {
+      expect(formatValue(-Infinity)).toBe('-Infinity');
+    });
+
+    it('returns "0" for zero', () => {
+      expect(formatValue(0)).toBe('0');
+    });
+  });
+});
+
+describe('formatPercent', () => {
+  it('returns N/A for null', () => {
+    expect(formatPercent(null)).toBe('N/A');
+  });
+
+  it('adds + sign for positive values', () => {
+    expect(formatPercent(5.123)).toBe('+5.12%');
+  });
+
+  it('keeps - sign for negative values', () => {
+    expect(formatPercent(-3.456)).toBe('-3.46%');
+  });
+
+  it('formats zero without sign', () => {
+    expect(formatPercent(0)).toBe('0.00%');
+  });
+});
+
+describe('formatRatio', () => {
+  it('returns N/A for null', () => {
+    expect(formatRatio(null)).toBe('N/A');
+  });
+
+  it('formats to 4 decimal places', () => {
+    expect(formatRatio(1.0)).toBe('1.0000');
+    expect(formatRatio(0.9876)).toBe('0.9876');
+    expect(formatRatio(1.23456)).toBe('1.2346');
+  });
+});
+
+describe('debounce', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('delays execution by the specified ms', () => {
+    const fn = vi.fn();
+    const debounced = debounce(fn, 200);
+
+    debounced();
+    expect(fn).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(199);
+    expect(fn).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(1);
+    expect(fn).toHaveBeenCalledOnce();
+  });
+
+  it('only executes the last of multiple rapid calls', () => {
+    const fn = vi.fn();
+    const debounced = debounce(fn, 100);
+
+    debounced();
+    debounced();
+    debounced();
+
+    vi.advanceTimersByTime(100);
+    expect(fn).toHaveBeenCalledOnce();
+  });
+
+  it('is actually called after the delay', () => {
+    const fn = vi.fn();
+    const debounced = debounce(fn, 50);
+
+    debounced();
+    vi.advanceTimersByTime(50);
+
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it('passes arguments through correctly', () => {
+    const fn = vi.fn();
+    const debounced = debounce(fn, 100);
+
+    debounced('hello', 42);
+    vi.advanceTimersByTime(100);
+
+    expect(fn).toHaveBeenCalledWith('hello', 42);
+  });
+
+  it('resets the timer when called again before it fires', () => {
+    const fn = vi.fn();
+    const debounced = debounce(fn, 100);
+
+    debounced();
+    vi.advanceTimersByTime(80);
+    expect(fn).not.toHaveBeenCalled();
+
+    // Call again — this should reset the 100ms timer
+    debounced();
+    vi.advanceTimersByTime(80);
+    expect(fn).not.toHaveBeenCalled();
+
+    // 20ms more completes the second timer (80 + 20 = 100 from second call)
+    vi.advanceTimersByTime(20);
+    expect(fn).toHaveBeenCalledOnce();
+  });
+});
+
+describe('el', () => {
+  it('creates an element with the correct tag name', () => {
+    const div = el('div');
+    expect(div.tagName).toBe('DIV');
+
+    const span = el('span');
+    expect(span.tagName).toBe('SPAN');
+  });
+
+  it('sets string attributes via setAttribute', () => {
+    const input = el('input', { type: 'text', id: 'my-input', class: 'form-control' });
+    expect(input.getAttribute('type')).toBe('text');
+    expect(input.getAttribute('id')).toBe('my-input');
+    expect(input.getAttribute('class')).toBe('form-control');
+  });
+
+  it('handles boolean attributes: true sets empty attribute, false omits it', () => {
+    const input = el('input', { disabled: true, hidden: false });
+    expect(input.hasAttribute('disabled')).toBe(true);
+    expect(input.getAttribute('disabled')).toBe('');
+    expect(input.hasAttribute('hidden')).toBe(false);
+  });
+
+  it('appends string children as text nodes', () => {
+    const p = el('p', undefined, 'Hello, world!');
+    expect(p.childNodes.length).toBe(1);
+    expect(p.textContent).toBe('Hello, world!');
+  });
+
+  it('appends Node children (e.g., another element)', () => {
+    const child = el('span');
+    const parent = el('div', undefined, child);
+    expect(parent.childNodes.length).toBe(1);
+    expect(parent.firstChild).toBe(child);
+  });
+
+  it('appends multiple children in order', () => {
+    const first = el('span', undefined, 'first');
+    const second = el('em', undefined, 'second');
+    const parent = el('div', undefined, first, 'middle', second);
+
+    expect(parent.childNodes.length).toBe(3);
+    expect(parent.childNodes[0]).toBe(first);
+    expect(parent.childNodes[1].textContent).toBe('middle');
+    expect(parent.childNodes[2]).toBe(second);
+  });
+
+  it('works correctly with no attributes (undefined)', () => {
+    const div = el('div', undefined, 'content');
+    expect(div.tagName).toBe('DIV');
+    expect(div.attributes.length).toBe(0);
+    expect(div.textContent).toBe('content');
+  });
+});
+
+describe('formatTime', () => {
+  it('returns em-dash for null', () => {
+    expect(formatTime(null)).toBe('\u2014');
+  });
+
+  it('returns empty string for null when custom fallback is empty', () => {
+    expect(formatTime(null, '')).toBe('');
+  });
+
+  it('returns custom fallback for null', () => {
+    expect(formatTime(null, 'N/A')).toBe('N/A');
+  });
+
+  it('returns em-dash for empty string', () => {
+    expect(formatTime('')).toBe('\u2014');
+  });
+
+  it('returns a locale string for a valid ISO date', () => {
+    const result = formatTime('2025-01-15T10:30:00');
+    // Just verify it returns a non-empty string (locale formatting varies)
+    expect(result.length).toBeGreaterThan(0);
+    expect(result).not.toBe('\u2014');
+  });
+});
+
+describe('truncate', () => {
+  it('returns original string when length <= max', () => {
+    expect(truncate('hello', 10)).toBe('hello');
+  });
+
+  it('returns original string when length equals max', () => {
+    expect(truncate('hello', 5)).toBe('hello');
+  });
+
+  it('truncates with ellipsis when length > max', () => {
+    expect(truncate('hello world', 5)).toBe('hello\u2026');
+  });
+
+  it('handles empty string', () => {
+    expect(truncate('', 5)).toBe('');
+  });
+});
+
+describe('primaryOrderValue', () => {
+  it('returns first value from a single-field record', () => {
+    expect(primaryOrderValue({ rev: '12345' })).toBe('12345');
+  });
+
+  it('returns first value from a multi-field record', () => {
+    expect(primaryOrderValue({ rev: '123', branch: 'main' })).toBe('123');
+  });
+
+  it('returns empty string for an empty record', () => {
+    expect(primaryOrderValue({})).toBe('');
+  });
+});
