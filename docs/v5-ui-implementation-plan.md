@@ -1707,7 +1707,7 @@ The Compare page was the first v5 frontend page and is already functional as a s
 - `comparison.ts` — Core comparison logic: aggregation (within-run, across-runs), delta/ratio/status computation, `bigger_is_better` handling, zero-baseline and null-metric edge cases
 - `selection.ts` — Renders the selection panel: per-side order/machine comboboxes, runs checkbox list, run/sample aggregation dropdowns, metric selector, noise threshold, test filter, hideNoise checkbox
 - `table.ts` — Renders the comparison table: columns (Test, Value A/B, Delta, Delta %, Ratio, Status), sortable headers, color-coded status, noise de-emphasis, missing-test section, chart-zoom filtering
-- `chart.ts` — Sorted ratio chart via Plotly: X=tests sorted by ratio, Y=percent change from baseline `(ratio - 1) * 100` on a **linear scale** (not log scale), connected line, noise band reference lines, hover tooltips, zoom/drag-select that filters the table
+- `chart.ts` — Sorted ratio chart via Plotly: X=tests sorted by ratio, Y=log₂(ratio) on a **log₂ scale** with adaptive percentage tick labels (±1%, ±5%, ±50%, etc.) auto-selected from "nice" values to fit the data range, bar chart, noise band reference lines (converted to log₂ space), hover tooltips, zoom/drag-select that filters the table
 - `combobox.ts` — Searchable dropdown widget used for order and machine selection, with typeahead filtering
 - `state.ts` — URL state management: encode/decode all selection params (`order_a`, `machine_a`, `runs_a`, `run_agg_a`, etc.), `replaceState`-based URL sync
 - `events.ts` — Custom event system for chart-table sync (`CHART_ZOOM`, `CHART_HOVER`, `TABLE_HOVER`, `SETTINGS_CHANGE`, `TEST_FILTER_CHANGE`)

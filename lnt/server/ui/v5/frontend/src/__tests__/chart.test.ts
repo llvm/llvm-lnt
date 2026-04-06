@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { prepareChartData } from '../chart';
+import { prepareChartData, generateChartTicks } from '../chart';
 import type { ComparisonRow } from '../types';
 
 /** Helper to build a ComparisonRow with sensible defaults. */
@@ -28,9 +28,11 @@ describe('prepareChartData', () => {
     expect(result!.sortedTests).toEqual(['both-ok']);
   });
 
-  it('filters out rows where ratio is null', () => {
+  it('filters out rows where ratio is null or non-positive', () => {
     const rows: ComparisonRow[] = [
       makeRow({ test: 'no-ratio', ratio: null }),
+      makeRow({ test: 'zero-ratio', ratio: 0 }),
+      makeRow({ test: 'neg-ratio', ratio: -1 }),
       makeRow({ test: 'has-ratio', ratio: 1.05 }),
     ];
     const result = prepareChartData(rows, null);
@@ -118,10 +120,10 @@ describe('prepareChartData', () => {
     expect(colorByTest.get('unc')).toBe('#1f77b4');       // unchanged/other = blue
   });
 
-  it('computes y values as (ratio - 1) * 100', () => {
+  it('computes y values as log2(ratio)', () => {
     const rows: ComparisonRow[] = [
-      makeRow({ test: 'a', ratio: 1.2, status: 'improved' }),
-      makeRow({ test: 'b', ratio: 0.8, status: 'regressed' }),
+      makeRow({ test: 'a', ratio: 2.0, status: 'regressed' }),
+      makeRow({ test: 'b', ratio: 0.5, status: 'improved' }),
       makeRow({ test: 'c', ratio: 1.0, status: 'noise' }),
     ];
     const result = prepareChartData(rows, null);
@@ -131,9 +133,26 @@ describe('prepareChartData', () => {
     const yByTest = new Map(
       result!.sortedTests.map((t, i) => [t, result!.y[i]])
     );
-    expect(yByTest.get('a')).toBeCloseTo(20);   // (1.2 - 1) * 100
-    expect(yByTest.get('b')).toBeCloseTo(-20);   // (0.8 - 1) * 100
-    expect(yByTest.get('c')).toBeCloseTo(0);     // (1.0 - 1) * 100
+    expect(yByTest.get('a')).toBeCloseTo(1);    // log2(2.0) = 1
+    expect(yByTest.get('b')).toBeCloseTo(-1);    // log2(0.5) = -1
+    expect(yByTest.get('c')).toBeCloseTo(0);     // log2(1.0) = 0
+  });
+
+  it('produces symmetric y values for equal multiplicative changes', () => {
+    const rows: ComparisonRow[] = [
+      makeRow({ test: 'fast', ratio: 0.25, status: 'improved' }),   // 4× faster
+      makeRow({ test: 'slow', ratio: 4.0, status: 'regressed' }),   // 4× slower
+    ];
+    const result = prepareChartData(rows, null);
+    expect(result).not.toBeNull();
+
+    const yByTest = new Map(
+      result!.sortedTests.map((t, i) => [t, result!.y[i]])
+    );
+    expect(yByTest.get('fast')).toBeCloseTo(-2);  // log2(0.25) = -2
+    expect(yByTest.get('slow')).toBeCloseTo(2);    // log2(4.0) = 2
+    // Symmetric: |y_fast| === |y_slow|
+    expect(Math.abs(yByTest.get('fast')!)).toBeCloseTo(Math.abs(yByTest.get('slow')!));
   });
 
   it('produces correct customdata format', () => {
@@ -223,5 +242,48 @@ describe('prepareChartData', () => {
     expect(result!.sortedTests).toHaveLength(2);
     expect(result!.sortedTests).toContain('keep');
     expect(result!.sortedTests).toContain('noise-keep');
+  });
+});
+
+describe('generateChartTicks', () => {
+  it('always includes 0%', () => {
+    const { tickvals, ticktext } = generateChartTicks(-1, 1);
+    expect(tickvals).toContain(0);
+    expect(ticktext[tickvals.indexOf(0)]).toBe('0%');
+  });
+
+  it('shows fine-grained ticks for small ranges (±5%)', () => {
+    // All data within ±5%: log₂(1.05) ≈ 0.07, log₂(0.95) ≈ -0.074
+    const { ticktext } = generateChartTicks(-0.074, 0.07);
+    // Should include small percentages like ±1%, ±2%, ±5%
+    expect(ticktext.some(t => t.includes('1%'))).toBe(true);
+    expect(ticktext.some(t => t.includes('5%'))).toBe(true);
+  });
+
+  it('shows coarser ticks for large ranges', () => {
+    // Range spanning -13 to +9 (huge: 1/8192× to 512×)
+    const { tickvals, ticktext } = generateChartTicks(-13, 9);
+    // Should not exceed 10 ticks
+    expect(tickvals.length).toBeLessThanOrEqual(10);
+    // Should still include 0%
+    expect(ticktext).toContain('0%');
+    // Should include large percentages
+    expect(ticktext.some(t => t.includes('100%') || t.includes('1,000%'))).toBe(true);
+  });
+
+  it('tickvals are sorted ascending', () => {
+    const { tickvals } = generateChartTicks(-2, 2);
+    for (let i = 1; i < tickvals.length; i++) {
+      expect(tickvals[i]).toBeGreaterThan(tickvals[i - 1]);
+    }
+  });
+
+  it('positive ticks use + prefix, negative ticks use − prefix', () => {
+    const { tickvals, ticktext } = generateChartTicks(-0.5, 0.5);
+    for (let i = 0; i < tickvals.length; i++) {
+      if (tickvals[i] > 0) expect(ticktext[i]).toMatch(/^\+/);
+      else if (tickvals[i] < 0) expect(ticktext[i]).toMatch(/^\u2212/);
+      else expect(ticktext[i]).toBe('0%');
+    }
   });
 });

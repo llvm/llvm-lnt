@@ -3,6 +3,103 @@ import { CHART_ZOOM, CHART_HOVER } from './events';
 import { getState } from './state';
 import { el } from './utils';
 
+/** Candidate "nice" percentage values for the positive side (B > A). */
+const NICE_PCTS_POS = [
+  0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50,
+  100, 200, 500, 1000, 2000, 5000, 10000, 50000,
+];
+/** Candidate "nice" percentage values for the negative side (B < A, all < 100). */
+const NICE_PCTS_NEG = [
+  0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 75, 90, 95, 99,
+];
+
+function formatNicePct(p: number): string {
+  if (p >= 1000 && p === Math.floor(p)) {
+    return p.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '%';
+  }
+  return p + '%';
+}
+
+/** Precomputed tick candidates — log₂ positions and labels for all nice percentages. */
+const TICK_CANDIDATES: ReadonlyArray<{ pos: number; label: string }> = [
+  { pos: 0, label: '0%' },
+  ...NICE_PCTS_POS.map(p => ({ pos: Math.log2(1 + p / 100), label: '+' + formatNicePct(p) })),
+  ...NICE_PCTS_NEG.map(p => ({ pos: Math.log2(1 - p / 100), label: '\u2212' + formatNicePct(p) })),
+];
+
+/**
+ * Generate "nice" tick values and labels for the log₂(ratio) y-axis.
+ * Ticks are placed at log₂ positions corresponding to nice percentage values,
+ * auto-adapting to the data range. For small ranges you get ±1%, ±2%, ±5%;
+ * for large ranges you get ±50%, ±100%, ±500%, etc.
+ */
+export function generateChartTicks(
+  yMin: number, yMax: number,
+): { tickvals: number[]; ticktext: string[] } {
+  // Filter precomputed candidates to data range with slight padding
+  const pad = Math.max((yMax - yMin) * 0.05, 0.001);
+  const inRange = TICK_CANDIDATES
+    .filter(c => c.pos >= yMin - pad && c.pos <= yMax + pad && Number.isFinite(c.pos))
+    .sort((a, b) => a.pos - b.pos);
+
+  if (inRange.length === 0) {
+    return { tickvals: [0], ticktext: ['0%'] };
+  }
+
+  // Thin to ~10 ticks with even visual spacing if too many
+  const MAX_TICKS = 10;
+  let ticks = inRange;
+  if (inRange.length > MAX_TICKS) {
+    // Keep 0% always; select remaining at evenly-spaced log₂ target positions
+    const zero = inRange.find(c => c.pos === 0);
+    const others = inRange.filter(c => c.pos !== 0);
+    const targetCount = Math.min(others.length, zero ? MAX_TICKS - 1 : MAX_TICKS);
+
+    const posMin = others[0].pos;
+    const posMax = others[others.length - 1].pos;
+    const step = targetCount > 1 ? (posMax - posMin) / (targetCount - 1) : 0;
+
+    const selected: Array<{ pos: number; label: string }> = [];
+    const used = new Set<number>();
+    for (let i = 0; i < targetCount; i++) {
+      const target = posMin + i * step;
+      let bestIdx = -1;
+      let bestDist = Infinity;
+      for (let j = 0; j < others.length; j++) {
+        if (used.has(j)) continue;
+        const dist = Math.abs(others[j].pos - target);
+        if (dist < bestDist) { bestDist = dist; bestIdx = j; }
+      }
+      if (bestIdx >= 0) {
+        used.add(bestIdx);
+        selected.push(others[bestIdx]);
+      }
+    }
+
+    if (zero) selected.push(zero);
+    selected.sort((a, b) => a.pos - b.pos);
+    ticks = selected;
+  }
+
+  // Enforce minimum visual gap so tick labels don't overlap.
+  // Walk left-to-right, keeping a tick only if it's far enough from the last
+  // kept tick. Always prefer 0% when it competes with a neighbor.
+  const range = yMax - yMin || 0.01;
+  const minGap = range * 0.06;
+  const spaced: Array<{ pos: number; label: string }> = [ticks[0]];
+  for (let i = 1; i < ticks.length; i++) {
+    const prev = spaced[spaced.length - 1];
+    if (ticks[i].pos - prev.pos >= minGap) {
+      spaced.push(ticks[i]);
+    } else if (ticks[i].pos === 0) {
+      // 0% wins over its neighbor
+      spaced[spaced.length - 1] = ticks[i];
+    }
+  }
+
+  return { tickvals: spaced.map(c => c.pos), ticktext: spaced.map(c => c.label) };
+}
+
 export interface ChartData {
   sortedTests: string[];
   x: number[];
@@ -20,9 +117,9 @@ export function prepareChartData(
   rows: ComparisonRow[],
   filterTests: Set<string> | null,
 ): ChartData | null {
-  // Filter to plottable rows
+  // Filter to plottable rows (ratio must be positive for log₂)
   let plottable = rows.filter(r =>
-    r.sidePresent === 'both' && r.ratio !== null && r.status !== 'na'
+    r.sidePresent === 'both' && r.ratio !== null && r.ratio > 0 && r.status !== 'na'
   );
 
   if (filterTests) {
@@ -38,7 +135,7 @@ export function prepareChartData(
   const sortedTests = plottable.map(r => r.test);
 
   const x = plottable.map((_, i) => i);
-  const y = plottable.map(r => (r.ratio! - 1) * 100);  // percent change from unity
+  const y = plottable.map(r => Math.log2(r.ratio!));  // log₂ scale: symmetric for equal multiplicative changes
 
   // Colors by status
   const colors = plottable.map(r => {
@@ -64,6 +161,7 @@ export function prepareChartData(
 declare const Plotly: {
   newPlot(el: HTMLElement, data: unknown[], layout: unknown, config?: unknown): Promise<HTMLElement>;
   react(el: HTMLElement, data: unknown[], layout: unknown, config?: unknown): Promise<HTMLElement>;
+  relayout(el: HTMLElement, update: Record<string, unknown>): Promise<void>;
   purge(el: HTMLElement): void;
   Fx: {
     hover(el: HTMLElement, data: Array<{ curveNumber: number; pointNumber: number }>): void;
@@ -77,6 +175,11 @@ let sortedTests: string[] = [];  // test names in chart order
 let wiredContainer: HTMLElement | null = null;  // track which container has listeners
 /** Last zoom filter passed to drawChart, preserved for refreshChart(). */
 let lastFilterTests: Set<string> | null = null;
+/** Guard flag to prevent infinite loop when we call Plotly.relayout() to update ticks. */
+let updatingTicks = false;
+/** Full data y-range, used to restore ticks on double-click autorange reset. */
+let dataYMin = 0;
+let dataYMax = 0;
 
 export function renderChart(container: HTMLElement, rows: ComparisonRow[], preserveZoom = false): void {
   // If switching to a different container, reset event wiring
@@ -90,6 +193,7 @@ export function renderChart(container: HTMLElement, rows: ComparisonRow[], prese
 
 // Plotly event handlers — receive data directly via gd.on() API
 function onPlotlyRelayout(data: Record<string, unknown>): void {
+  // X-axis zoom → dispatch CHART_ZOOM to sync table filtering
   if (data && data['xaxis.range[0]'] !== undefined) {
     const lo = Math.max(0, Math.floor(data['xaxis.range[0]'] as number));
     const hi = Math.min(sortedTests.length - 1, Math.ceil(data['xaxis.range[1]'] as number));
@@ -97,6 +201,28 @@ function onPlotlyRelayout(data: Record<string, unknown>): void {
     document.dispatchEvent(new CustomEvent(CHART_ZOOM, { detail: visibleTests }));
   } else if (data && (data['xaxis.autorange'] || data['autosize'])) {
     document.dispatchEvent(new CustomEvent(CHART_ZOOM, { detail: null }));
+  }
+
+  // Y-axis zoom → recompute tick labels for the new visible range
+  if (updatingTicks || !chartContainer) return;
+
+  let newYMin: number | undefined;
+  let newYMax: number | undefined;
+  if (data && data['yaxis.range[0]'] !== undefined) {
+    newYMin = data['yaxis.range[0]'] as number;
+    newYMax = data['yaxis.range[1]'] as number;
+  } else if (data && data['yaxis.autorange']) {
+    newYMin = dataYMin;
+    newYMax = dataYMax;
+  }
+
+  if (newYMin !== undefined && newYMax !== undefined) {
+    const { tickvals, ticktext } = generateChartTicks(newYMin, newYMax);
+    updatingTicks = true;
+    Plotly.relayout(chartContainer, {
+      'yaxis.tickvals': tickvals,
+      'yaxis.ticktext': ticktext,
+    }).finally(() => { updatingTicks = false; });
   }
 }
 
@@ -164,25 +290,41 @@ function drawChart(filterTests: Set<string> | null): void {
       '<extra></extra>',
   };
 
-  // Noise band shapes + unity line (at y=0 = no change)
+  // Noise band shapes in log₂ space.
+  // Noise threshold N% means ratios in [1-N/100, 1+N/100] are noise.
+  const noiseFrac = noiseThreshold / 100;
+  const noiseUpper = Math.log2(1 + noiseFrac);
+  const noiseLower = noiseFrac < 1 ? Math.log2(1 - noiseFrac) : -noiseUpper;
   const shapes = [
-    // Noise band lower
     {
       type: 'line' as const,
       x0: -0.5, x1: sortedTests.length - 0.5,
-      y0: -noiseThreshold, y1: -noiseThreshold,
+      y0: noiseLower, y1: noiseLower,
       xref: 'x' as const, yref: 'y' as const,
       line: { color: '#aaa', width: 1, dash: 'dash' as const },
     },
-    // Noise band upper
     {
       type: 'line' as const,
       x0: -0.5, x1: sortedTests.length - 0.5,
-      y0: noiseThreshold, y1: noiseThreshold,
+      y0: noiseUpper, y1: noiseUpper,
       xref: 'x' as const, yref: 'y' as const,
       line: { color: '#aaa', width: 1, dash: 'dash' as const },
     },
   ];
+
+  // Compute data y-range for tick generation and autorange restore.
+  let yMin = 0, yMax = 0;
+  for (const val of y) {
+    if (val < yMin) yMin = val;
+    if (val > yMax) yMax = val;
+  }
+  dataYMin = yMin;
+  dataYMax = yMax;
+
+  // Determine effective y-range for tick generation: use preserved zoom if active,
+  // otherwise use full data range. Ticks are computed once for whichever range applies.
+  let tickYMin = yMin;
+  let tickYMax = yMax;
 
   const layout: Record<string, unknown> = {
     xaxis: {
@@ -190,8 +332,7 @@ function drawChart(filterTests: Set<string> | null): void {
       showticklabels: false,
     },
     yaxis: {
-      title: { text: 'Change from baseline (%)', standoff: 15 },
-      ticksuffix: '%',
+      title: { text: 'Change from baseline (log scale)', standoff: 15 },
       zeroline: true,
       zerolinewidth: 2,
       zerolinecolor: '#333',
@@ -220,9 +361,15 @@ function drawChart(filterTests: Set<string> | null): void {
       if (ya && ya['autorange'] === false && ya['range']) {
         (layout['yaxis'] as Record<string, unknown>)['range'] = ya['range'];
         (layout['yaxis'] as Record<string, unknown>)['autorange'] = false;
+        tickYMin = ya['range'][0] as number;
+        tickYMax = ya['range'][1] as number;
       }
     }
   }
+
+  const { tickvals, ticktext } = generateChartTicks(tickYMin, tickYMax);
+  (layout['yaxis'] as Record<string, unknown>)['tickvals'] = tickvals;
+  (layout['yaxis'] as Record<string, unknown>)['ticktext'] = ticktext;
 
   const config = {
     responsive: true,
@@ -274,4 +421,7 @@ export function destroyChart(): void {
   sortedTests = [];
   wiredContainer = null;
   lastFilterTests = null;
+  updatingTicks = false;
+  dataYMin = 0;
+  dataYMax = 0;
 }

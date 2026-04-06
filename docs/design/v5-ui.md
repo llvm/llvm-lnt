@@ -221,7 +221,7 @@ There is no Compare button. The comparison triggers automatically whenever the s
 
 Sorted ratio chart (relative performance chart):
 - **X-axis**: tests, sorted by B/A ratio
-- **Y-axis**: percent change from baseline, linear scale — `(ratio - 1) * 100` so improvements and regressions are symmetric around zero
+- **Y-axis**: log₂(ratio) scale — equal multiplicative changes (e.g. 2× faster vs 2× slower) produce symmetric bars. Tick labels show percentage change at "nice" values (±1%, ±5%, ±10%, ±50%, ±100%, etc.), auto-adapting to the data range
 - Rendered as a connected line (not discrete bars) for readability at scale
 
 Interactivity:
@@ -230,6 +230,7 @@ Interactivity:
 - **Noise band**: horizontal reference lines at the +/- noise threshold to visually separate signal from noise
 - **Text filter**: the chart applies the text filter from the selection panel; the text filter stacks with the chart zoom filter (intersection)
 - **Zoom preservation**: changing noise settings, aggregation functions, text filter, or toggling row visibility preserves the current chart zoom. The user can double-click the chart to reset zoom.
+- **Adaptive tick labels on zoom**: tick labels recompute dynamically when the user zooms — zooming into a narrow range shows fine-grained percentage ticks (±1%, ±2%), while the full view shows coarser ticks (±50%, ±100%). Double-click reset restores ticks for the full data range.
 - **Empty state**: when there is no data to chart (no comparison triggered yet, or no tests match), the chart area displays "No data to chart." — consistent with the Graph page's empty-state pattern.
 
 #### Bidirectional Chart-Table Sync
