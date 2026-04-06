@@ -167,7 +167,6 @@
                               <li><a href="{{ v4_url_for('lnt.v4_daily_report_overview') }}">Daily Report</a></li>
                               <li><a href="{{ v4_url_for('lnt.v4_latest_runs_report') }}">Latest Runs Report</a></li>
                               <li><a href="{{ v4_url_for('lnt.v4_machines') }}">All Machines</a></li>
-                              <li><a href="/v5/{{ g.testsuite_name }}/">v5 UI</a></li>
                                <li class="divider"></li>
                               <li class="disabled"><a href="#">Changes</a></li>
                               <li><a href="{{ v4_url_for('lnt.v4_regression_list', state=0) }}">Detected</a></li>
@@ -204,6 +203,11 @@
                                 <li class="divider"></li>
                             </ul>
                         </li>
+                </ul>
+                {% endif %}
+                {% if g.testsuite_name is defined %}
+                <ul class="nav pull-right">
+                    <li><a href="/v5/{{ g.testsuite_name }}/">v5 UI</a></li>
                 </ul>
                 {% endif %}
                 <ul class="nav pull-right">

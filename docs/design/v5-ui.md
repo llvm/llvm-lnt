@@ -44,7 +44,7 @@ The shell template (`v5_app.html`) is a standalone HTML page (it does NOT extend
 
 ### v4/v5 Toggle
 
-- In the v4 navbar (`layout.html`): add a "v5 UI" link pointing to `/v5/{ts}/`
+- In the v4 navbar (`layout.html`): add a "v5 UI" link in the top-right of the nav bar (next to the "System" dropdown, not inside any dropdown menu) pointing to `/v5/{ts}/`
 - In the v5 SPA navbar: a "v4 UI" link pointing to `/v4/{ts}/recent_activity`
 
 ---

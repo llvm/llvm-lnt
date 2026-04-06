@@ -2022,13 +2022,15 @@ To add a "v5 UI" link in the v4 layout:
 
 **File**: `lnt/server/ui/templates/layout.html` (modify)
 
-In the test suite dropdown menu, add a link to the v5 UI:
+Add a standalone "v5 UI" link in the top-right of the nav bar (before the "System" dropdown), not inside any dropdown menu. The link is wrapped in `{% if g.testsuite_name is defined %}` since it requires a test suite context to construct the URL.
 
 ```html
-<li><a href="/v5/{{ g.testsuite_name }}/">v5 UI</a></li>
+{% if g.testsuite_name is defined %}
+<ul class="nav pull-right">
+    <li><a href="/v5/{{ g.testsuite_name }}/">v5 UI</a></li>
+</ul>
+{% endif %}
 ```
-
-This should be added near the existing "Compare" link in the suite dropdown.
 
 ### Static Asset Serving
 
