@@ -1,7 +1,61 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from 'vitest';
-import { buildTraces, computeActiveTests, buildRefsFromCache, setsEqual, TRACE_SEP } from '../../pages/graph';
-import type { QueryDataPoint } from '../../types';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+// Mock the API module — hoisted, but inert for pure function tests since
+// buildTraces/computeActiveTests/etc. don't call any API functions.
+vi.mock('../../api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../api')>();
+  return {
+    ...actual,
+    getFields: vi.fn(),
+    getOrders: vi.fn(),
+    fetchOneCursorPage: vi.fn(),
+    apiUrl: vi.fn(),
+    queryDataPoints: vi.fn(),
+  };
+});
+
+vi.mock('../../router', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../router')>();
+  return { ...actual, navigate: vi.fn() };
+});
+
+const mockMachineComboHandle = { destroy: vi.fn(), clear: vi.fn() };
+vi.mock('../../components/machine-combobox', () => ({
+  renderMachineCombobox: vi.fn(() => mockMachineComboHandle),
+}));
+
+const mockOrderSearchHandle = { destroy: vi.fn(), setSuggestions: vi.fn() };
+vi.mock('../../components/order-search', () => ({
+  renderOrderSearch: vi.fn(() => mockOrderSearchHandle),
+}));
+
+const mockChartHandle = { update: vi.fn(), destroy: vi.fn(), hoverTrace: vi.fn() };
+vi.mock('../../components/time-series-chart', () => ({
+  createTimeSeriesChart: vi.fn(() => mockChartHandle),
+}));
+
+const mockLegendHandle = { update: vi.fn(), destroy: vi.fn(), highlightRow: vi.fn() };
+vi.mock('../../components/legend-table', () => ({
+  createLegendTable: vi.fn(() => mockLegendHandle),
+}));
+
+(globalThis as unknown as Record<string, unknown>).Plotly = {
+  newPlot: vi.fn(),
+  react: vi.fn(),
+  purge: vi.fn(),
+  Fx: { hover: vi.fn(), unhover: vi.fn() },
+};
+
+import { getFields, getOrders, fetchOneCursorPage } from '../../api';
+import { buildTraces, computeActiveTests, buildRefsFromCache, setsEqual, TRACE_SEP, graphPage } from '../../pages/graph';
+import { renderMachineCombobox } from '../../components/machine-combobox';
+import { renderOrderSearch } from '../../components/order-search';
+import type { QueryDataPoint, FieldInfo } from '../../types';
+
+// ---------------------------------------------------------------------------
+// Pure function tests
+// ---------------------------------------------------------------------------
 
 function makePoint(test: string, orderValue: string, value: number, runUuid = 'r1'): QueryDataPoint {
   return {
@@ -398,5 +452,191 @@ describe('setsEqual', () => {
   it('returns false when one set is empty', () => {
     expect(setsEqual(new Set(), new Set(['a']))).toBe(false);
     expect(setsEqual(new Set(['a']), new Set())).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Mount-level tests
+// ---------------------------------------------------------------------------
+
+const mockFields: FieldInfo[] = [
+  { name: 'exec_time', type: 'Real', display_name: 'Execution Time', unit: 's', unit_abbrev: 's', bigger_is_better: false },
+  { name: 'compile_time', type: 'Real', display_name: 'Compile Time', unit: 's', unit_abbrev: 's', bigger_is_better: false },
+  { name: 'hash', type: 'Hash', display_name: 'Hash', unit: null, unit_abbrev: null, bigger_is_better: null },
+];
+
+describe('graphPage mount', () => {
+  let container: HTMLElement;
+  const savedLocation = window.location;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    container = document.createElement('div');
+
+    // Reset URL state
+    delete (window as Record<string, unknown>).location;
+    (window as Record<string, unknown>).location = {
+      ...savedLocation,
+      search: '',
+      pathname: '/v5/nts/graph',
+    };
+    vi.spyOn(window.history, 'replaceState').mockImplementation(() => {});
+
+    (getFields as ReturnType<typeof vi.fn>).mockResolvedValue(mockFields);
+    (getOrders as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (fetchOneCursorPage as ReturnType<typeof vi.fn>).mockResolvedValue({
+      items: [],
+      nextCursor: null,
+    });
+  });
+
+  afterEach(() => {
+    graphPage.unmount?.();
+    (window as Record<string, unknown>).location = savedLocation;
+  });
+
+  it('renders page header "Graph"', () => {
+    graphPage.mount(container, { testsuite: 'nts' });
+
+    expect(container.querySelector('.page-header')?.textContent).toBe('Graph');
+  });
+
+  it('renders controls panel', () => {
+    graphPage.mount(container, { testsuite: 'nts' });
+
+    expect(container.querySelector('.controls-panel')).toBeTruthy();
+  });
+
+  it('renders test filter input', () => {
+    graphPage.mount(container, { testsuite: 'nts' });
+
+    expect(container.querySelector('.test-filter-input')).toBeTruthy();
+  });
+
+  it('renders run and sample aggregation dropdowns', () => {
+    graphPage.mount(container, { testsuite: 'nts' });
+
+    const selects = container.querySelectorAll('.agg-select');
+    expect(selects).toHaveLength(2);
+
+    // Both should have median/mean/min/max options
+    const options = Array.from(selects[0].querySelectorAll('option')).map(o => o.value);
+    expect(options).toEqual(['median', 'mean', 'min', 'max']);
+  });
+
+  it('renders machine combobox area', () => {
+    graphPage.mount(container, { testsuite: 'nts' });
+
+    expect(renderMachineCombobox).toHaveBeenCalledWith(
+      expect.any(HTMLElement),
+      expect.objectContaining({ testsuite: 'nts' }),
+    );
+  });
+
+  it('renders pinned orders search area', () => {
+    graphPage.mount(container, { testsuite: 'nts' });
+
+    expect(renderOrderSearch).toHaveBeenCalledWith(
+      expect.any(HTMLElement),
+      expect.objectContaining({ testsuite: 'nts' }),
+    );
+  });
+
+  it('calls getFields on mount to load metrics', () => {
+    graphPage.mount(container, { testsuite: 'nts' });
+
+    expect(getFields).toHaveBeenCalledWith('nts');
+  });
+
+  it('shows metric loading message then selector after getFields resolves', async () => {
+    graphPage.mount(container, { testsuite: 'nts' });
+
+    // Loading state should exist synchronously
+    expect(container.querySelector('.progress-label')?.textContent).toBe('Loading metrics...');
+
+    // After fields load, metric selector should appear
+    await vi.waitFor(() => {
+      expect(container.querySelector('.metric-select')).toBeTruthy();
+    });
+  });
+
+  it('shows "No data to plot." when no machines selected', () => {
+    graphPage.mount(container, { testsuite: 'nts' });
+
+    expect(container.querySelector('.no-chart-data')?.textContent).toBe('No data to plot.');
+  });
+
+  it('shows error banner when fields load fails', async () => {
+    (getFields as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Network error'));
+
+    graphPage.mount(container, { testsuite: 'nts' });
+
+    await vi.waitFor(() => {
+      const banner = container.querySelector('.error-banner');
+      expect(banner).toBeTruthy();
+      expect(banner!.textContent).toContain('Failed to load fields');
+    });
+  });
+
+  it('parses machine URL params on mount', () => {
+    (window.location as Record<string, unknown>).search = '?machine=clang-x86&machine=gcc-arm&metric=exec_time';
+
+    graphPage.mount(container, { testsuite: 'nts' });
+
+    // Machine chips should be rendered for both machines
+    const chips = container.querySelectorAll('.chip');
+    expect(chips).toHaveLength(2);
+    expect(chips[0].textContent).toContain('clang-x86');
+    expect(chips[1].textContent).toContain('gcc-arm');
+  });
+
+  it('parses test_filter URL param on mount', () => {
+    (window.location as Record<string, unknown>).search = '?test_filter=compile';
+
+    graphPage.mount(container, { testsuite: 'nts' });
+
+    const filterInput = container.querySelector('.test-filter-input') as HTMLInputElement;
+    expect(filterInput.value).toBe('compile');
+  });
+
+  it('parses aggregation URL params on mount', () => {
+    (window.location as Record<string, unknown>).search = '?run_agg=mean&sample_agg=max';
+
+    graphPage.mount(container, { testsuite: 'nts' });
+
+    const selects = container.querySelectorAll('.agg-select') as NodeListOf<HTMLSelectElement>;
+    expect(selects[0].value).toBe('mean');
+    expect(selects[1].value).toBe('max');
+  });
+
+  it('parses pin URL params on mount and renders chips', () => {
+    (window.location as Record<string, unknown>).search = '?pin=100&pin=200';
+
+    graphPage.mount(container, { testsuite: 'nts' });
+
+    const chips = container.querySelectorAll('.chip');
+    expect(chips.length).toBeGreaterThanOrEqual(2);
+    const chipTexts = Array.from(chips).map(c => c.textContent);
+    expect(chipTexts.some(t => t?.includes('100'))).toBe(true);
+    expect(chipTexts.some(t => t?.includes('200'))).toBe(true);
+  });
+
+  // NOTE: Testing "machines + metric via URL triggers data loading" is not
+  // feasible because graph.ts intentionally preserves module-level cache and
+  // machineScaffolds across unmount/remount. Prior tests that parse machine
+  // URL params populate the cache, causing subsequent fetchScaffold calls to
+  // return early. This behavior is better verified via integration testing.
+
+  it('unmount calls destroy on component handles', () => {
+    graphPage.mount(container, { testsuite: 'nts' });
+    graphPage.unmount!();
+
+    expect(mockMachineComboHandle.destroy).toHaveBeenCalled();
+    expect(mockOrderSearchHandle.destroy).toHaveBeenCalled();
+  });
+
+  it('unmount is safe to call without errors', () => {
+    graphPage.mount(container, { testsuite: 'nts' });
+    expect(() => graphPage.unmount!()).not.toThrow();
   });
 });

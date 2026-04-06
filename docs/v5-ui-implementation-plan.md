@@ -2062,7 +2062,7 @@ const machineLink = spaLink(machineName, `/machines/${encodeURIComponent(machine
 |-------|-----------|-------------|
 | 1 | `router.test.ts`, `nav.test.ts` | Route matching, navigation, nav rendering, active link |
 | 2 | `api.test.ts` (extend), `data-table.test.ts`, `pagination.test.ts`, `order-search.test.ts`, `pages/dashboard.test.ts`, `pages/machine-list.test.ts`, `pages/machine-detail.test.ts`, `pages/run-detail.test.ts`, `pages/order-detail.test.ts` | API function signatures and URL construction, component rendering, page mount/data flow |
-| 3 | `time-series-chart.test.ts`, `pages/graph.test.ts` | Chart data preparation, aggregation, URL state |
+| 3 | `time-series-chart.test.ts`, `pages/graph.test.ts` | Pure function tests (buildTraces, computeActiveTests, buildRefsFromCache, setsEqual), mount-level tests (controls, URL state, metrics, error handling) |
 | 4 | `comparison.test.ts` (extend), `pages/compare.test.ts` | Geomean computation, SPA integration, unmount cleanup |
 | 5 | (minimal) | Stub rendering |
 | 6 | `pages/admin.test.ts` | API key CRUD, schema display, auth error handling |
