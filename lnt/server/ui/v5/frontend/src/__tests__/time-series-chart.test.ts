@@ -87,7 +87,7 @@ describe('buildPlotlyData', () => {
     expect(refTrace.hovertemplate).toContain('2.500');
   });
 
-  it('HTML-escapes user-controlled values in pinned order hover templates', () => {
+  it('HTML-escapes user-controlled values in baseline hover templates', () => {
     const refValues = new Map<string, number>();
     refValues.set('<script>alert("xss")</script>', 3.0);
 

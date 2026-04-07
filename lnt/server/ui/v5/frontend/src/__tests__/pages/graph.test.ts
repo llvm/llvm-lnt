@@ -8,7 +8,6 @@ vi.mock('../../api', async (importOriginal) => {
   return {
     ...actual,
     getFields: vi.fn(),
-    getOrders: vi.fn(),
     fetchOneCursorPage: vi.fn(),
     apiUrl: vi.fn(),
     queryDataPoints: vi.fn(),
@@ -47,7 +46,7 @@ vi.mock('../../components/legend-table', () => ({
   Fx: { hover: vi.fn(), unhover: vi.fn() },
 };
 
-import { getFields, getOrders, fetchOneCursorPage } from '../../api';
+import { getFields, fetchOneCursorPage } from '../../api';
 import { getTestsuites } from '../../router';
 import { buildTraces, computeActiveTests, buildBaselinesFromData, setsEqual, TRACE_SEP, graphPage } from '../../pages/graph';
 import { renderMachineCombobox } from '../../components/machine-combobox';
@@ -540,7 +539,6 @@ describe('graphPage mount', () => {
     // Re-establish mocks cleared by clearAllMocks
     (getTestsuites as ReturnType<typeof vi.fn>).mockReturnValue(['nts']);
     (getFields as ReturnType<typeof vi.fn>).mockResolvedValue(mockFields);
-    (getOrders as ReturnType<typeof vi.fn>).mockResolvedValue([]);
     (fetchOneCursorPage as ReturnType<typeof vi.fn>).mockResolvedValue({
       items: [],
       nextCursor: null,

@@ -93,6 +93,8 @@ function getOrCreateCache(machine: string, metric: string): MetricCache {
 // ---------------------------------------------------------------------------
 
 let machineComboCleanup: (() => void) | null = null;
+let blMachineCleanup: (() => void) | null = null;
+let blOrderCleanup: (() => void) | null = null;
 let chartHandle: ChartHandle | null = null;
 let legendHandle: LegendTableHandle | null = null;
 let manuallyHidden = new Set<string>();
@@ -216,6 +218,9 @@ export const graphPage: PageModule = {
       ? urlParams.get('run_agg') as AggFn : 'median';
     let sampleAgg: AggFn = (['median', 'mean', 'min', 'max'] as AggFn[]).includes(urlParams.get('sample_agg') as AggFn)
       ? urlParams.get('sample_agg') as AggFn : 'median';
+    // Baselines encoded as "suite::machine::order". The "::" separator is an
+    // in-band delimiter — names containing "::" would be misparsed. This is
+    // acceptable for an internal tool where such names are extremely unlikely.
     const baselineParams = urlParams.getAll('baseline');
     const baselines: Baseline[] = baselineParams.map(v => {
       const parts = v.split('::');
@@ -312,7 +317,7 @@ export const graphPage: PageModule = {
     sampleAggGroup.append(sampleAggSelect);
     controlsRow.append(sampleAggGroup);
 
-    // ----- Controls Row 2: Machines + Pinned Orders (side by side) -----
+    // ----- Controls Row 2: Machines + Baselines (side by side) -----
     const secondRow = el('div', { class: 'graph-controls' });
     controlsPanel.append(secondRow);
 
@@ -384,8 +389,6 @@ export const graphPage: PageModule = {
     const blMachineContainer = el('div', {});
     const blOrderContainer = el('div', {});
     const blAddBtn = el('button', { class: 'baseline-add-btn', disabled: 'true' }, 'Add');
-    let blMachineCleanup: (() => void) | null = null;
-    let blOrderCleanup: (() => void) | null = null;
     let blSelectedMachine = '';
     let blSelectedOrder = '';
     let blSelectedTag: string | null = null;
@@ -937,6 +940,15 @@ export const graphPage: PageModule = {
             }
           }
         }
+
+        // Fetch baseline data for the current metric (may differ from what's
+        // cached if the metric changed). This runs in parallel with lazy
+        // loading and re-renders when complete.
+        if (baselines.length > 0) {
+          fetchAllBaselineData().then(() => {
+            if (plotMetric === metric) renderFromAllCaches(false);
+          });
+        }
       })();
 
       updateUrlState();
@@ -1062,6 +1074,8 @@ export const graphPage: PageModule = {
 
   unmount(): void {
     if (machineComboCleanup) { machineComboCleanup(); machineComboCleanup = null; }
+    if (blMachineCleanup) { blMachineCleanup(); blMachineCleanup = null; }
+    if (blOrderCleanup) { blOrderCleanup(); blOrderCleanup = null; }
     if (scaffoldAbort) { scaffoldAbort.abort(); scaffoldAbort = null; }
     abortAllMetrics();
     if (pendingChartRAF !== null) { cancelAnimationFrame(pendingChartRAF); pendingChartRAF = null; }

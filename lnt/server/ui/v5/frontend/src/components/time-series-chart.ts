@@ -120,7 +120,7 @@ export function buildPlotlyData(options: TimeSeriesChartOptions): {
     data.push(traceObj);
   }
 
-  // Reference order traces (horizontal dashed lines with hover tooltips).
+  // Baseline traces (horizontal dashed lines with hover tooltips).
   // These are actual Plotly traces (not shapes) so they support hover.
   // Each trace is populated with a data point at every x-category so that
   // hover detection works anywhere along the line (not just at 2 endpoints).
@@ -224,9 +224,9 @@ export function createTimeSeriesChart(
   let initialized = false;
   let plotReady: Promise<void> = Promise.resolve();
   const config = { responsive: true, displayModeBar: true };
-  /** Ordered list of main trace test names (excludes reference order traces). */
+  /** Ordered list of main trace test names (excludes baseline traces). */
   let traceNames: string[] = [];
-  /** Total number of Plotly traces (main + reference order traces). */
+  /** Total number of Plotly traces (main + baseline traces). */
   let totalTraceCount = 0;
   /** Whether a temporary scatter trace is currently appended. */
   let hasScatterTrace = false;

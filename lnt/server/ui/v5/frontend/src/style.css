@@ -849,7 +849,7 @@ dl {
   margin: 10px 0;
 }
 
-/* Chip lists (machines, pinned orders) */
+/* Chip lists (machines, baselines) */
 .chip-list {
   display: flex;
   flex-direction: column;
