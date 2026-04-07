@@ -380,7 +380,7 @@ export const graphPage: PageModule = {
     const baselineFormContainer = el('div', { class: 'baseline-form', style: 'display: none' });
     const addBaselineBtn = el('button', { class: 'add-baseline-btn' }, '+ Add baseline');
 
-    // Baseline form: Suite → Machine → Order → Add
+    // Baseline form: Suite, Machine, Order in a horizontal row
     const blSuiteSelect = el('select', { class: 'suite-select baseline-suite' }) as HTMLSelectElement;
     blSuiteSelect.append(el('option', { value: '' }, '-- Suite --'));
     for (const name of getTestsuites()) {
@@ -388,16 +388,30 @@ export const graphPage: PageModule = {
     }
     const blMachineContainer = el('div', {});
     const blOrderContainer = el('div', {});
-    const blAddBtn = el('button', { class: 'baseline-add-btn', disabled: 'true' }, 'Add');
     let blSelectedMachine = '';
+
+    function addCurrentBaseline(): void {
+      const suite = blSuiteSelect.value;
+      if (!suite || !blSelectedMachine || !blSelectedOrder) return;
+      // Avoid duplicates
+      if (baselines.find(b => b.suite === suite && b.machine === blSelectedMachine && b.order === blSelectedOrder)) return;
+      baselines.push({ suite, machine: blSelectedMachine, order: blSelectedOrder, tag: null });
+      renderBaselineChips();
+      fetchAllBaselineData().then(() => renderFromAllCaches());
+      updateUrlState();
+      // Reset: keep form open for adding more, but clear selections
+      blSelectedMachine = '';
+      blSelectedOrder = '';
+      blSuiteSelect.value = '';
+      blSuiteSelect.dispatchEvent(new Event('change'));
+    }
+
+    // Track the selected order — set by onSelect callback from order search
     let blSelectedOrder = '';
-    let blSelectedTag: string | null = null;
 
     blSuiteSelect.addEventListener('change', () => {
       blSelectedMachine = '';
       blSelectedOrder = '';
-      blSelectedTag = null;
-      (blAddBtn as HTMLButtonElement).disabled = true;
       if (blMachineCleanup) { blMachineCleanup(); blMachineCleanup = null; }
       if (blOrderCleanup) { blOrderCleanup(); blOrderCleanup = null; }
       blMachineContainer.replaceChildren();
@@ -411,8 +425,6 @@ export const graphPage: PageModule = {
         onSelect: (name) => {
           blSelectedMachine = name;
           blSelectedOrder = '';
-          blSelectedTag = null;
-          (blAddBtn as HTMLButtonElement).disabled = true;
           if (blOrderCleanup) { blOrderCleanup(); blOrderCleanup = null; }
           blOrderContainer.replaceChildren();
           const orderHandle = renderOrderSearch(blOrderContainer, {
@@ -420,8 +432,8 @@ export const graphPage: PageModule = {
             placeholder: 'Select order...',
             onSelect: (value) => {
               blSelectedOrder = value;
-              blSelectedTag = null; // tag lookup could be added later
-              (blAddBtn as HTMLButtonElement).disabled = false;
+              // Auto-add the baseline when order is selected
+              addCurrentBaseline();
             },
           });
           blOrderCleanup = orderHandle.destroy;
@@ -430,33 +442,15 @@ export const graphPage: PageModule = {
       blMachineCleanup = handle.destroy;
     });
 
-    blAddBtn.addEventListener('click', () => {
-      const suite = blSuiteSelect.value;
-      if (!suite || !blSelectedMachine || !blSelectedOrder) return;
-      // Avoid duplicates
-      if (baselines.find(b => b.suite === suite && b.machine === blSelectedMachine && b.order === blSelectedOrder)) return;
-      baselines.push({ suite, machine: blSelectedMachine, order: blSelectedOrder, tag: blSelectedTag });
-      renderBaselineChips();
-      fetchAllBaselineData().then(() => renderFromAllCaches());
-      updateUrlState();
-      // Reset form
-      blSuiteSelect.value = '';
-      blSuiteSelect.dispatchEvent(new Event('change'));
-      baselineFormContainer.style.display = 'none';
-      addBaselineBtn.style.display = '';
-    });
-
     addBaselineBtn.addEventListener('click', () => {
       baselineFormContainer.style.display = '';
       addBaselineBtn.style.display = 'none';
     });
 
-    baselineFormContainer.append(
-      el('div', { class: 'baseline-form-row' }, blSuiteSelect),
-      el('div', { class: 'baseline-form-row' }, blMachineContainer),
-      el('div', { class: 'baseline-form-row' }, blOrderContainer),
-      blAddBtn,
-    );
+    // Horizontal row for Suite → Machine → Order
+    const formRow = el('div', { class: 'baseline-form-row' });
+    formRow.append(blSuiteSelect, blMachineContainer, blOrderContainer);
+    baselineFormContainer.append(formRow);
     baselineGroup.append(addBaselineBtn, baselineFormContainer, baselineChips);
     secondRow.append(baselineGroup);
 
@@ -1008,7 +1002,6 @@ export const graphPage: PageModule = {
       blOrderContainer.replaceChildren();
       blSelectedMachine = '';
       blSelectedOrder = '';
-      blSelectedTag = null;
       chartContainer.replaceChildren(el('p', { class: 'no-chart-data' }, 'No data to plot.'));
       legendContainer.replaceChildren();
       progressContainer.replaceChildren();

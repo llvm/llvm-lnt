@@ -244,10 +244,10 @@ dl {
 }
 
 .agg-select {
-  padding: 2px 6px;
+  padding: 4px 6px;
   border: 1px solid #ccc;
   border-radius: 3px;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .agg-select:disabled {
@@ -847,6 +847,19 @@ dl {
 .graph-chart {
   min-height: 400px;
   margin: 10px 0;
+}
+
+/* Baseline selector form */
+.baseline-form-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.add-baseline-btn {
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
 }
 
 /* Chip lists (machines, baselines) */
