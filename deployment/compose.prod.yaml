@@ -1,0 +1,27 @@
+#
+# This file contains overrides for production deployments of LNT:
+# - Bind volumes inside the Docker container to the EC2 host filesystem
+#   (e.g. /var/lib/lnt -> /var/lib/lnt) for ease of access.
+# - Pull a pre-built image of the LNT webserver instead of building from source.
+#   This allows controling the version of LNT used from Terraform.
+#
+
+services:
+  webserver:
+    build: !reset
+    image: ghcr.io/llvm/llvm-lnt:${LNT_IMAGE:-latest}
+
+volumes:
+  instance:
+    driver: local
+    driver_opts:
+      o: bind
+      type: none
+      device: /var/lib/lnt
+
+  database:
+    driver: local
+    driver_opts:
+      o: bind
+      type: none
+      device: /var/lib/postgresql

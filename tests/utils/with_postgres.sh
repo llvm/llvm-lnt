@@ -15,8 +15,13 @@
 set -euo pipefail
 
 # ---------------------------------------------------------------------------
-# Arguments
+# Prerequisites
 # ---------------------------------------------------------------------------
+if ! command -v docker > /dev/null 2>&1; then
+    echo 1>&2 "error: Could not find 'docker' -- Docker is required to run the tests"
+    exit 1
+fi
+
 if [ $# -lt 2 ]; then
     echo 1>&2 "usage: $(basename "$0") <LOG_FILE> <command> [args...]"
     exit 1
@@ -31,26 +36,89 @@ if [ -f "${LOG_FILE}" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Start the container via start_postgres.sh and capture its output (environment
-# variables) so we can get the DB URI and name.
+# Unique container name — allows parallel test runs without collision.
 # ---------------------------------------------------------------------------
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-pg_output=$("${SCRIPT_DIR}/start_postgres.sh" "${LOG_FILE}")
-eval "${pg_output}"
-export LNT_TEST_DB_URI LNT_TEST_DB_NAME
+CONTAINER_NAME="lnt_pg_$(uuidgen | tr '[:upper:]' '[:lower:]' | tr -d '-')"
+
+# ---------------------------------------------------------------------------
+# Start the container in the background and bind a random port from the host
+# to the container's 5432 port.
+#
+# Key flags:
+#   POSTGRES_HOST_AUTH_METHOD=trust     no password needed
+#   --tmpfs /var/lib/postgresql         store data in RAM — faster, no cleanup needed
+# ---------------------------------------------------------------------------
+echo 1>&2 "Starting container ${CONTAINER_NAME} ..."
+docker run \
+    --detach \
+    --name "${CONTAINER_NAME}" \
+    --publish "127.0.0.1::5432" \
+    --env POSTGRES_HOST_AUTH_METHOD=trust \
+    --tmpfs /var/lib/postgresql \
+    postgres:18-alpine \
+    > /dev/null 2>&1
 
 # ---------------------------------------------------------------------------
 # Cleanup — always stop and remove the container, success or failure.
+# Registered immediately after docker run so that failures during the
+# readiness wait or createdb don't leak the container.
 # ---------------------------------------------------------------------------
 cleanup() {
     local exit_code=$?
-    echo "Stopping container ${LNT_PG_CONTAINER} ..."
-    "${SCRIPT_DIR}/stop_postgres.sh" "${LNT_PG_CONTAINER}"
+    echo "Stopping container ${CONTAINER_NAME} ..."
+    docker stop "${CONTAINER_NAME}" > /dev/null 2>&1 || true
+    docker rm   "${CONTAINER_NAME}" > /dev/null 2>&1 || true
     exit "${exit_code}"
 }
 trap cleanup EXIT
 
+echo 1>&2 "Streaming PostgreSQL server logs into ${LOG_FILE}"
+docker logs --follow "${CONTAINER_NAME}" >> "${LOG_FILE}" 2>&1 &
+
 # ---------------------------------------------------------------------------
-# Run the wrapped command.
+# Discover the host port that Docker assigned.
 # ---------------------------------------------------------------------------
+HOST_PORT=$(docker port "${CONTAINER_NAME}" 5432/tcp | head -1 | sed 's/.*://')
+if [ -z "${HOST_PORT}" ]; then
+    echo 1>&2 "error: could not determine host port for container ${CONTAINER_NAME}"
+    docker logs "${CONTAINER_NAME}" 1>&2
+    exit 1
+fi
+
+echo 1>&2 "PostgreSQL available at: postgresql://postgres@127.0.0.1:${HOST_PORT}"
+
+# ---------------------------------------------------------------------------
+# Wait for PostgreSQL to accept connections (up to 30 seconds).
+#
+# NOTE: We use '-h localhost' to check via TCP rather than the Unix socket.
+# The official postgres image runs a temporary server during initdb that
+# listens only on the Unix socket (listen_addresses=''). Without '-h localhost',
+# pg_isready can succeed against that temp server, then createdb fails when
+# the socket disappears during the transition to the real server.
+# ---------------------------------------------------------------------------
+MAX_TRIES=30
+for i in $(seq 1 "${MAX_TRIES}"); do
+    if docker exec "${CONTAINER_NAME}" pg_isready --quiet -h localhost; then
+        echo 1>&2 "PostgreSQL ready after ${i} attempt(s)."
+        break
+    fi
+    if [ "${i}" -eq "${MAX_TRIES}" ]; then
+        echo 1>&2 "error: PostgreSQL did not become ready after ${MAX_TRIES}s."
+        docker logs "${CONTAINER_NAME}" 1>&2
+        exit 1
+    fi
+    sleep 1
+done
+
+# ---------------------------------------------------------------------------
+# Create a default database for tests to use.
+# ---------------------------------------------------------------------------
+docker exec "${CONTAINER_NAME}" createdb --username=postgres lnt_test
+
+# ---------------------------------------------------------------------------
+# Export the connection details and run the wrapped command.
+# ---------------------------------------------------------------------------
+export LNT_TEST_DB_URI="postgresql://postgres@127.0.0.1:${HOST_PORT}"
+export LNT_TEST_DB_NAME="lnt_test"
+
 "$@"
