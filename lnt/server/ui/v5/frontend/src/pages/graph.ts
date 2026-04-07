@@ -255,10 +255,10 @@ export const graphPage: PageModule = {
       suiteSelect.value = availSuites[0];
     }
     currentSuite = suiteSelect.value;
-    controlsPanel.append(suiteGroup);
 
-    // ----- Controls Row 1: Metric, Test Filter, Aggregation -----
+    // ----- Controls Row 1: Suite, Metric, Test Filter, Aggregation -----
     const controlsRow = el('div', { class: 'graph-controls' });
+    controlsRow.append(suiteGroup);
     controlsPanel.append(controlsRow);
 
     // Metric selector (loaded async — actual fetch deferred until suite is set)
