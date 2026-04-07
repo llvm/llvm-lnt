@@ -1,6 +1,6 @@
-import type { SideSelection } from './types';
+import type { SideSelection, MachineInfo } from './types';
 import { getMachines, getMachineRuns } from './api';
-import { debounce, el } from './utils';
+import { el } from './utils';
 
 // Per-side machine order filtering
 let machineOrdersA: Set<string> | null = null;
@@ -11,8 +11,6 @@ let orderInputB: HTMLInputElement | null = null;
 // Per-side AbortControllers for machine-order fetches
 let machineOrdersControllerA: AbortController | null = null;
 let machineOrdersControllerB: AbortController | null = null;
-// Shared controller for machine name search (only one search active at a time)
-let machineSearchController: AbortController | null = null;
 
 /** Shared state that the combobox module reads but does not own. */
 export interface ComboboxContext {
@@ -38,7 +36,6 @@ export function resetComboboxState(): void {
   orderInputB = null;
   if (machineOrdersControllerA) { machineOrdersControllerA.abort(); machineOrdersControllerA = null; }
   if (machineOrdersControllerB) { machineOrdersControllerB.abort(); machineOrdersControllerB = null; }
-  if (machineSearchController) { machineSearchController.abort(); machineSearchController = null; }
 }
 
 /**
@@ -198,6 +195,7 @@ export function createOrderPicker(opts: OrderPickerOptions): OrderPickerHandle {
       );
       dropdown.classList.add('open');
       setAriaExpanded(wrapper, true);
+      input.classList.remove('combobox-invalid');
       return;
     }
 
@@ -223,6 +221,7 @@ export function createOrderPicker(opts: OrderPickerOptions): OrderPickerHandle {
       const li = el('li', { class: 'combobox-item', role: 'option', tabindex: '-1' }, label);
       li.addEventListener('click', () => {
         input.value = label;
+        input.classList.remove('combobox-invalid');
         dropdown.classList.remove('open');
         setAriaExpanded(wrapper, false);
         opts.onSelect(v);
@@ -232,17 +231,56 @@ export function createOrderPicker(opts: OrderPickerOptions): OrderPickerHandle {
     const isOpen = limited.length > 0;
     dropdown.classList.toggle('open', isOpen);
     setAriaExpanded(wrapper, isOpen);
+
+    // Show/hide validation halo based on whether any orders match
+    if (input.value.trim() && matches.length === 0) {
+      input.classList.add('combobox-invalid');
+    } else {
+      input.classList.remove('combobox-invalid');
+    }
+  }
+
+  /** Check if a value is an exact match against available order values. */
+  function isValidOrder(raw: string): boolean {
+    const { values } = opts.getOrderData();
+    const machineOrders = opts.getMachineOrders?.() ?? null;
+    const source = machineOrders instanceof Set
+      ? values.filter(v => machineOrders.has(v))
+      : values;
+    return source.includes(raw);
   }
 
   input.addEventListener('focus', () => showDropdown(input.value));
   input.addEventListener('input', () => showDropdown(input.value));
-  input.addEventListener('blur', () => {
+  input.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (input.classList.contains('combobox-invalid')) return;
+      const raw = input.value.replace(/\s*\(.*\)$/, '').trim();
+      if (!raw) return;
+      if (!isValidOrder(raw)) {
+        input.classList.add('combobox-invalid');
+        return;
+      }
+      dropdown.classList.remove('open');
+      setAriaExpanded(wrapper, false);
+      opts.onSelect(raw);
+    }
+  });
+  input.addEventListener('blur', (e: FocusEvent) => {
+    if (wrapper.contains(e.relatedTarget as Node)) return;
     dropdown.classList.remove('open');
     setAriaExpanded(wrapper, false);
   });
   input.addEventListener('change', () => {
     // Strip tag suffix if present (e.g., "abc123 (release-1)" -> "abc123")
-    const raw = input.value.replace(/\s*\(.*\)$/, '');
+    if (input.classList.contains('combobox-invalid')) return;
+    const raw = input.value.replace(/\s*\(.*\)$/, '').trim();
+    if (!raw) { opts.onSelect(raw); return; }
+    if (!isValidOrder(raw)) {
+      input.classList.add('combobox-invalid');
+      return;
+    }
     opts.onSelect(raw);
   });
 
@@ -274,7 +312,7 @@ export function createOrderCombobox(
     initialValue: selection.order,
     placeholder: 'Type to search orders...',
     onSelect: (value) => {
-      setSide({ order: value });
+      setSide(value ? { order: value } : { order: '', runs: [] });
       onOrderChange();
     },
     getMachineOrders: () => {
@@ -288,6 +326,12 @@ export function createOrderCombobox(
   // Store refs for createMachineCombobox interaction
   if (side === 'a') orderInputA = picker.input;
   else orderInputB = picker.input;
+
+  // Disable order input until a machine is selected
+  if (!selection.machine) {
+    picker.input.disabled = true;
+    picker.input.placeholder = 'Select a machine first';
+  }
 
   return picker.element;
 }
@@ -341,54 +385,124 @@ export function createMachineCombobox(
     }
     const orderInput = side === 'a' ? orderInputA : orderInputB;
     if (orderInput) {
+      orderInput.disabled = false;
+      orderInput.placeholder = 'Type to search orders...';
       const { selection: updated } = ctx.getSideState(side);
       orderInput.value = updated.order || '';
     }
     onMachineChange();
   }
 
-  const doSearch = debounce(async () => {
-    // Abort any in-flight machine search request
-    if (machineSearchController) machineSearchController.abort();
-    machineSearchController = new AbortController();
-    const { signal } = machineSearchController;
+  // Fetch the full machine list once; filter locally on each keystroke.
+  let machines: MachineInfo[] | null = null;
+  const suite = ctx.getSuiteName(side);
+  if (suite) {
+    getMachines(suite, { limit: 500 })
+      .then((result) => {
+        machines = result.items;
+        // If the input has focus, refresh the dropdown with the loaded data
+        if (document.activeElement === input) {
+          showDropdown(input.value);
+        }
+      })
+      .catch(() => { /* ignore — combobox destroyed or suite changed */ });
+  }
 
-    const prefix = input.value;
-    try {
-      const result = await getMachines(ctx.getSuiteName(side), {
-        namePrefix: prefix || undefined,
-        limit: 20,
-      }, signal);
-      dropdown.replaceChildren();
-      for (const m of result.items) {
-        const li = el('li', { class: 'combobox-item', role: 'option', tabindex: '-1' }, m.name);
-        li.addEventListener('click', () => {
-          input.value = m.name;
-          dropdown.classList.remove('open');
-          setAriaExpanded(wrapper, false);
-          onMachineSelect(m.name);
-        });
-        dropdown.append(li);
-      }
-      const isOpen = result.items.length > 0;
-      dropdown.classList.toggle('open', isOpen);
-      setAriaExpanded(wrapper, isOpen);
-    } catch (err: unknown) {
-      // Silently ignore aborted requests — a newer one superseded this
-      if (err instanceof DOMException && err.name === 'AbortError') return;
-      // Ignore other errors during typeahead
+  function showDropdown(filter: string): void {
+    dropdown.replaceChildren();
+
+    // Still loading — show hint
+    if (machines === null) {
+      dropdown.replaceChildren(
+        el('li', { class: 'combobox-item', style: 'color: #999; pointer-events: none' }, 'Loading machines...'),
+      );
+      dropdown.classList.add('open');
+      setAriaExpanded(wrapper, true);
+      input.classList.remove('combobox-invalid');
+      return;
     }
-  }, 300);
 
-  input.addEventListener('focus', () => doSearch());
-  input.addEventListener('input', () => doSearch());
-  input.addEventListener('blur', () => {
+    const lf = filter.toLowerCase();
+    const matches = filter.trim()
+      ? machines.filter(m => m.name.toLowerCase().includes(lf))
+      : machines;
+
+    for (const m of matches) {
+      const li = el('li', { class: 'combobox-item', role: 'option', tabindex: '-1' }, m.name);
+      li.addEventListener('click', () => {
+        input.value = m.name;
+        input.classList.remove('combobox-invalid');
+        dropdown.classList.remove('open');
+        setAriaExpanded(wrapper, false);
+        onMachineSelect(m.name);
+      });
+      dropdown.append(li);
+    }
+
+    const isOpen = matches.length > 0;
+    dropdown.classList.toggle('open', isOpen);
+    setAriaExpanded(wrapper, isOpen);
+
+    // Validation halo
+    if (input.value.trim() && matches.length === 0) {
+      input.classList.add('combobox-invalid');
+    } else {
+      input.classList.remove('combobox-invalid');
+    }
+  }
+
+  input.addEventListener('focus', () => showDropdown(input.value));
+  input.addEventListener('input', () => showDropdown(input.value));
+  input.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const text = input.value.trim();
+      if (!text) return;
+      const hasItems = dropdown.querySelector('.combobox-item') !== null;
+      if (hasItems) {
+        input.classList.remove('combobox-invalid');
+        dropdown.classList.remove('open');
+        setAriaExpanded(wrapper, false);
+        onMachineSelect(text);
+      } else {
+        input.classList.add('combobox-invalid');
+      }
+    }
+  });
+  input.addEventListener('blur', (e: FocusEvent) => {
+    if (wrapper.contains(e.relatedTarget as Node)) return;
     dropdown.classList.remove('open');
     setAriaExpanded(wrapper, false);
   });
   input.addEventListener('change', () => {
-    onMachineSelect(input.value);
+    const text = input.value.trim();
+    if (!text) {
+      // Machine cleared — reset downstream state and disable order
+      setSide({ machine: '', order: '', runs: [] });
+      const orderInput = side === 'a' ? orderInputA : orderInputB;
+      if (orderInput) {
+        orderInput.disabled = true;
+        orderInput.placeholder = 'Select a machine first';
+        orderInput.value = '';
+      }
+      input.classList.remove('combobox-invalid');
+      onMachineChange();
+      return;
+    }
+    const hasItems = dropdown.querySelector('.combobox-item') !== null;
+    if (hasItems) {
+      input.classList.remove('combobox-invalid');
+      onMachineSelect(input.value);
+    } else {
+      input.classList.add('combobox-invalid');
+    }
   });
+
+  // Disable machine input until a suite is selected
+  if (!ctx.getSuiteName(side)) {
+    input.disabled = true;
+    input.placeholder = 'Select a suite first';
+  }
 
   return wrapper;
 }

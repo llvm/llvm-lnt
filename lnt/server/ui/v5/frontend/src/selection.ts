@@ -1,6 +1,7 @@
 import type { AggFn, FieldInfo, OrderSummary, SideSelection } from './types';
 import { SETTINGS_CHANGE, TEST_FILTER_CHANGE } from './events';
 import { getFields, getOrders, getRuns } from './api';
+import { getBasePath } from './router';
 import { getState, setSideA, setSideB, setState, swapSides } from './state';
 import { debounce, el } from './utils';
 import {
@@ -119,13 +120,8 @@ function createRunsPanel(side: 'a' | 'b', container: HTMLElement, setSide: (part
 
   const { selection: sideState } = getSideState(side);
 
-  if (!sideState.suite) {
-    container.replaceChildren(el('span', { class: 'runs-hint' }, 'Select a test suite first'));
-    return;
-  }
-
-  if (!sideState.order || !sideState.machine) {
-    container.replaceChildren(el('span', { class: 'runs-hint' }, 'Select order and machine first'));
+  if (!sideState.suite || !sideState.order || !sideState.machine) {
+    container.replaceChildren(el('span', { class: 'runs-hint' }, 'Select an order first'));
     return;
   }
 
@@ -155,10 +151,12 @@ function createRunsPanel(side: 'a' | 'b', container: HTMLElement, setSide: (part
         cb.checked = hasUrlMatch ? urlRuns.has(run.uuid) : true;
         const label = el('label', { for: id },
           run.start_time ? new Date(run.start_time).toLocaleString() : '(no time)',
-          ' ',
-          el('span', { class: 'run-uuid' }, `UUID ${run.uuid.slice(0, 8)}`),
         );
-        container.append(el('div', { class: 'run-row' }, cb, label));
+        const link = el('a', {
+          href: `${getBasePath()}/${encodeURIComponent(sideState.suite)}/runs/${encodeURIComponent(run.uuid)}`,
+          class: 'run-uuid',
+        }, `UUID ${run.uuid.slice(0, 8)}`);
+        container.append(el('div', { class: 'run-row' }, cb, label, link));
 
         cb.addEventListener('change', () => {
           const checked = container.querySelectorAll<HTMLInputElement>('input:checked');
@@ -232,10 +230,8 @@ function createSampleAggSelect(): HTMLSelectElement {
 export async function fetchSideData(
   side: 'a' | 'b',
   suite: string,
-  metricContainer?: HTMLElement,
 ): Promise<void> {
   const version = side === 'a' ? ++suiteLoadVersionA : ++suiteLoadVersionB;
-  const target = metricContainer ?? metricContainerRef;
 
   try {
     const [fields, orders] = await Promise.all([
@@ -255,7 +251,9 @@ export async function fetchSideData(
       cachedOrdersB = orders;
     }
 
-    // Re-render metric selector with union of fields if container available
+    // Re-render metric selector — read metricContainerRef AFTER await
+    // so it targets the current DOM element (not one from before re-render).
+    const target = metricContainerRef;
     if (target) {
       target.replaceChildren();
       renderMetricSelector(target, getMetricFields(), (metric) => {
@@ -284,10 +282,15 @@ export function renderSelectionPanel(root: HTMLElement): void {
   const globalRow = el('div', { class: 'global-controls' });
   const metricContainer = el('div', {});
   metricContainerRef = metricContainer;
-  renderMetricSelector(metricContainer, getMetricFields(), (metric) => {
-    setState({ metric });
-    tryAutoCompare();
-  }, getState().metric, { placeholder: true });
+  const metricFields = getMetricFields();
+  if (metricFields.length > 0) {
+    renderMetricSelector(metricContainer, metricFields, (metric) => {
+      setState({ metric });
+      tryAutoCompare();
+    }, getState().metric, { placeholder: true });
+  } else {
+    metricContainer.append(el('span', { class: 'progress-label' }, 'Select a suite to load metrics...'));
+  }
   globalRow.append(metricContainer);
 
   for (const side of ['a', 'b'] as const) {
@@ -311,7 +314,11 @@ export function renderSelectionPanel(root: HTMLElement): void {
       const newSuite = suiteSelect.value;
       setSide({ suite: newSuite, machine: '', order: '', runs: [] });
       if (newSuite) {
-        fetchSideData(side, newSuite, metricContainer);
+        fetchSideData(side, newSuite);
+      } else {
+        // Clear cached data for this side so metrics/orders don't linger
+        if (side === 'a') { cachedFieldsA = []; cachedOrdersA = []; }
+        else { cachedFieldsB = []; cachedOrdersB = []; }
       }
       // Re-render the panel to update comboboxes with new suite context
       renderSelectionPanel(root);

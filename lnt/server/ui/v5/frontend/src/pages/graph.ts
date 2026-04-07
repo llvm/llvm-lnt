@@ -433,6 +433,7 @@ export const graphPage: PageModule = {
           if (blOrderCleanup) { blOrderCleanup(); blOrderCleanup = null; }
           blOrderContainer.replaceChildren();
 
+
           // Fetch order list and machine orders in parallel
           const orderListPromise = (async () => {
             if (baselineOrderCache.has(suite)) return;
@@ -476,6 +477,13 @@ export const graphPage: PageModule = {
           // Apply machine orders once ready (may already be resolved)
           const machineOrders = await machineOrdersPromise;
           blMachineOrders = machineOrders;
+        },
+        onClear: () => {
+          blSelectedMachine = '';
+          blSelectedOrder = '';
+          blMachineOrders = null;
+          if (blOrderCleanup) { blOrderCleanup(); blOrderCleanup = null; }
+          blOrderContainer.replaceChildren();
         },
       });
       blMachineCleanup = handle.destroy;

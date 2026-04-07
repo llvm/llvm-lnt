@@ -162,6 +162,11 @@ dl {
   box-sizing: border-box;
 }
 
+.combobox-input.combobox-invalid {
+  border-color: #d62728 !important;
+  box-shadow: 0 0 0 2px rgba(214, 39, 40, 0.15) !important;
+}
+
 .combobox-dropdown {
   position: absolute;
   z-index: 1000;
@@ -189,8 +194,10 @@ dl {
   font-size: 13px;
 }
 
-.combobox-item:hover {
+.combobox-item:hover,
+.combobox-item:focus {
   background: #e9ecef;
+  outline: none;
 }
 
 /* Runs */
@@ -207,6 +214,7 @@ dl {
   font-size: 12px;
   color: #999;
   padding: 4px;
+  user-select: none;
 }
 
 .runs-error {

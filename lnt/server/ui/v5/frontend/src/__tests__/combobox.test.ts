@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { SideSelection } from '../types';
 
 // Mock the API module
@@ -9,10 +9,10 @@ vi.mock('../api', () => ({
   getRuns: vi.fn().mockResolvedValue([]),
 }));
 
-import { getMachineRuns } from '../api';
+import { getMachines, getMachineRuns } from '../api';
 import {
-  createOrderCombobox, createOrderPicker, fetchMachineOrderSet,
-  resetComboboxState, type ComboboxContext,
+  createMachineCombobox, createOrderCombobox, createOrderPicker,
+  fetchMachineOrderSet, resetComboboxState, type ComboboxContext,
 } from '../combobox';
 
 function makeContext(overrides?: Partial<ComboboxContext>): ComboboxContext {
@@ -186,10 +186,44 @@ describe('createOrderCombobox', () => {
 
     wrapper.remove();
   });
-});
 
-// ---------------------------------------------------------------------------
-// createOrderPicker tests
+  it('disables order input when no machine is selected', () => {
+    const sideA: SideSelection = { suite: 'nts', order: '', machine: '', runs: [], runAgg: 'median' };
+    const ctx = makeContext({
+      getSideState: () => ({
+        selection: sideA,
+        setSide: () => {},
+        label: 'Side A',
+      }),
+    });
+    const wrapper = createOrderCombobox('a', () => {}, () => {}, ctx);
+    document.body.append(wrapper);
+
+    const input = wrapper.querySelector('input')! as HTMLInputElement;
+    expect(input.disabled).toBe(true);
+    expect(input.placeholder).toBe('Select a machine first');
+
+    wrapper.remove();
+  });
+
+  it('does not disable order input when machine is selected', () => {
+    const sideA: SideSelection = { suite: 'nts', order: '', machine: 'clang-x86', runs: [], runAgg: 'median' };
+    const ctx = makeContext({
+      getSideState: () => ({
+        selection: sideA,
+        setSide: () => {},
+        label: 'Side A',
+      }),
+    });
+    const wrapper = createOrderCombobox('a', () => {}, () => {}, ctx);
+    document.body.append(wrapper);
+
+    const input = wrapper.querySelector('input')! as HTMLInputElement;
+    expect(input.disabled).toBe(false);
+
+    wrapper.remove();
+  });
+});
 // ---------------------------------------------------------------------------
 
 const ORDER_VALUES = ['100', '101', '102', '200'];
@@ -328,7 +362,28 @@ describe('createOrderPicker', () => {
     picker.element.remove();
   });
 
-  it('strips tag suffix on change event (Enter)', () => {
+  it('keeps dropdown open when ArrowDown moves focus to an item', () => {
+    const picker = createOrderPicker({
+      id: 'test',
+      getOrderData: () => ({ values: ORDER_VALUES, tags: ORDER_TAGS }),
+      onSelect: () => {},
+    });
+    document.body.append(picker.element);
+
+    picker.input.dispatchEvent(new Event('focus'));
+    const dropdown = picker.element.querySelector('ul') as HTMLElement;
+    expect(dropdown.classList.contains('open')).toBe(true);
+
+    const firstItem = dropdown.querySelector('li.combobox-item') as HTMLElement;
+    picker.input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }));
+    picker.input.dispatchEvent(new FocusEvent('blur', { relatedTarget: firstItem }));
+
+    expect(dropdown.classList.contains('open')).toBe(true);
+
+    picker.element.remove();
+  });
+
+  it('selects item via ArrowDown then Enter', () => {
     const onSelect = vi.fn();
     const picker = createOrderPicker({
       id: 'test',
@@ -337,10 +392,35 @@ describe('createOrderPicker', () => {
     });
     document.body.append(picker.element);
 
-    picker.input.value = 'abc123 (release-1)';
+    picker.input.dispatchEvent(new Event('focus'));
+    const dropdown = picker.element.querySelector('ul') as HTMLElement;
+
+    picker.input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }));
+    const firstItem = dropdown.querySelector('li.combobox-item') as HTMLElement;
+    picker.input.dispatchEvent(new FocusEvent('blur', { relatedTarget: firstItem }));
+
+    firstItem.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    expect(onSelect).toHaveBeenCalledWith('100');
+
+    picker.element.remove();
+  });
+
+  it('strips tag suffix on change event', () => {
+    const onSelect = vi.fn();
+    const picker = createOrderPicker({
+      id: 'test',
+      getOrderData: () => ({ values: ORDER_VALUES, tags: ORDER_TAGS }),
+      onSelect,
+    });
+    document.body.append(picker.element);
+
+    // Simulate: user clicked "100 (release-1)" from dropdown (which set the
+    // input value), then blurred — change event fires with the tagged display
+    // value. The handler strips the tag suffix before calling onSelect.
+    picker.input.value = '100 (release-1)';
     picker.input.dispatchEvent(new Event('change'));
 
-    expect(onSelect).toHaveBeenCalledWith('abc123');
+    expect(onSelect).toHaveBeenCalledWith('100');
 
     picker.element.remove();
   });
@@ -470,6 +550,477 @@ describe('createOrderPicker', () => {
     });
 
     expect(picker.input.placeholder).toBe('Custom placeholder');
+  });
+
+  // --- Validation tests ---
+
+  it('shows combobox-invalid on input when no orders match', () => {
+    const picker = createOrderPicker({
+      id: 'test',
+      getOrderData: () => ({ values: ORDER_VALUES, tags: ORDER_TAGS }),
+      onSelect: () => {},
+    });
+    document.body.append(picker.element);
+
+    picker.input.value = 'zzz-no-match';
+    picker.input.dispatchEvent(new Event('input'));
+
+    expect(picker.input.classList.contains('combobox-invalid')).toBe(true);
+
+    picker.element.remove();
+  });
+
+  it('removes combobox-invalid on input when orders match', () => {
+    const picker = createOrderPicker({
+      id: 'test',
+      getOrderData: () => ({ values: ORDER_VALUES, tags: ORDER_TAGS }),
+      onSelect: () => {},
+    });
+    document.body.append(picker.element);
+
+    // First: invalid
+    picker.input.value = 'zzz';
+    picker.input.dispatchEvent(new Event('input'));
+    expect(picker.input.classList.contains('combobox-invalid')).toBe(true);
+
+    // Then: valid prefix
+    picker.input.value = '10';
+    picker.input.dispatchEvent(new Event('input'));
+    expect(picker.input.classList.contains('combobox-invalid')).toBe(false);
+
+    picker.element.remove();
+  });
+
+  it('no combobox-invalid when input is empty', () => {
+    const picker = createOrderPicker({
+      id: 'test',
+      getOrderData: () => ({ values: ORDER_VALUES, tags: ORDER_TAGS }),
+      onSelect: () => {},
+    });
+    document.body.append(picker.element);
+
+    picker.input.value = '';
+    picker.input.dispatchEvent(new Event('input'));
+
+    expect(picker.input.classList.contains('combobox-invalid')).toBe(false);
+
+    picker.element.remove();
+  });
+
+  it('does not call onSelect on change when combobox-invalid', () => {
+    const onSelect = vi.fn();
+    const picker = createOrderPicker({
+      id: 'test',
+      getOrderData: () => ({ values: ORDER_VALUES, tags: ORDER_TAGS }),
+      onSelect,
+    });
+    document.body.append(picker.element);
+
+    picker.input.value = 'zzz-invalid';
+    picker.input.dispatchEvent(new Event('input')); // triggers invalid
+    picker.input.dispatchEvent(new Event('change'));
+
+    expect(onSelect).not.toHaveBeenCalled();
+
+    picker.element.remove();
+  });
+
+  it('calls onSelect on Enter when input is valid', () => {
+    const onSelect = vi.fn();
+    const picker = createOrderPicker({
+      id: 'test',
+      getOrderData: () => ({ values: ORDER_VALUES, tags: ORDER_TAGS }),
+      onSelect,
+    });
+    document.body.append(picker.element);
+
+    picker.input.value = '100';
+    picker.input.dispatchEvent(new Event('input')); // populate dropdown
+    picker.input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+
+    expect(onSelect).toHaveBeenCalledWith('100');
+
+    picker.element.remove();
+  });
+
+  it('does not call onSelect on Enter when input is invalid', () => {
+    const onSelect = vi.fn();
+    const picker = createOrderPicker({
+      id: 'test',
+      getOrderData: () => ({ values: ORDER_VALUES, tags: ORDER_TAGS }),
+      onSelect,
+    });
+    document.body.append(picker.element);
+
+    picker.input.value = 'zzz-invalid';
+    picker.input.dispatchEvent(new Event('input')); // triggers invalid
+    picker.input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+
+    expect(onSelect).not.toHaveBeenCalled();
+
+    picker.element.remove();
+  });
+
+  it('no combobox-invalid when getMachineOrders returns loading', () => {
+    const picker = createOrderPicker({
+      id: 'test',
+      getOrderData: () => ({ values: ORDER_VALUES, tags: ORDER_TAGS }),
+      onSelect: () => {},
+      getMachineOrders: () => 'loading',
+    });
+    document.body.append(picker.element);
+
+    picker.input.value = 'zzz-invalid';
+    picker.input.dispatchEvent(new Event('input'));
+
+    expect(picker.input.classList.contains('combobox-invalid')).toBe(false);
+
+    picker.element.remove();
+  });
+
+  it('validates against machine-filtered orders', () => {
+    const machineOrders = new Set(['100', '200']);
+    const picker = createOrderPicker({
+      id: 'test',
+      getOrderData: () => ({ values: ORDER_VALUES, tags: ORDER_TAGS }),
+      onSelect: () => {},
+      getMachineOrders: () => machineOrders,
+    });
+    document.body.append(picker.element);
+
+    // '101' is in ORDER_VALUES but not in machineOrders
+    picker.input.value = '101';
+    picker.input.dispatchEvent(new Event('input'));
+    expect(picker.input.classList.contains('combobox-invalid')).toBe(true);
+
+    // '100' is in machineOrders
+    picker.input.value = '100';
+    picker.input.dispatchEvent(new Event('input'));
+    expect(picker.input.classList.contains('combobox-invalid')).toBe(false);
+
+    picker.element.remove();
+  });
+
+  it('rejects partial match on Enter (exact-match required)', () => {
+    const onSelect = vi.fn();
+    const picker = createOrderPicker({
+      id: 'test',
+      getOrderData: () => ({ values: ORDER_VALUES, tags: ORDER_TAGS }),
+      onSelect,
+    });
+    document.body.append(picker.element);
+
+    // "10" substring-matches "100", "101", "102" but is not an exact match
+    picker.input.value = '10';
+    picker.input.dispatchEvent(new Event('input'));
+    expect(picker.input.classList.contains('combobox-invalid')).toBe(false); // suggestions exist
+
+    picker.input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(picker.input.classList.contains('combobox-invalid')).toBe(true);
+
+    picker.element.remove();
+  });
+
+  it('rejects partial match on change (exact-match required)', () => {
+    const onSelect = vi.fn();
+    const picker = createOrderPicker({
+      id: 'test',
+      getOrderData: () => ({ values: ORDER_VALUES, tags: ORDER_TAGS }),
+      onSelect,
+    });
+    document.body.append(picker.element);
+
+    picker.input.value = '10';
+    picker.input.dispatchEvent(new Event('input'));
+    picker.input.dispatchEvent(new Event('change'));
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(picker.input.classList.contains('combobox-invalid')).toBe(true);
+
+    picker.element.remove();
+  });
+
+  it('accepts exact match on Enter', () => {
+    const onSelect = vi.fn();
+    const picker = createOrderPicker({
+      id: 'test',
+      getOrderData: () => ({ values: ORDER_VALUES, tags: ORDER_TAGS }),
+      onSelect,
+    });
+    document.body.append(picker.element);
+
+    picker.input.value = '100';
+    picker.input.dispatchEvent(new Event('input'));
+    picker.input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+    expect(onSelect).toHaveBeenCalledWith('100');
+
+    picker.element.remove();
+  });
+
+  it('accepts exact match on change', () => {
+    const onSelect = vi.fn();
+    const picker = createOrderPicker({
+      id: 'test',
+      getOrderData: () => ({ values: ORDER_VALUES, tags: ORDER_TAGS }),
+      onSelect,
+    });
+    document.body.append(picker.element);
+
+    picker.input.value = '100';
+    picker.input.dispatchEvent(new Event('input'));
+    picker.input.dispatchEvent(new Event('change'));
+    expect(onSelect).toHaveBeenCalledWith('100');
+
+    picker.element.remove();
+  });
+
+  it('accepts exact match with tag suffix on Enter', () => {
+    const onSelect = vi.fn();
+    const picker = createOrderPicker({
+      id: 'test',
+      getOrderData: () => ({ values: ORDER_VALUES, tags: ORDER_TAGS }),
+      onSelect,
+    });
+    document.body.append(picker.element);
+
+    // Typing the display label "100 (release-1)" should strip to "100" and accept
+    picker.input.value = '100 (release-1)';
+    picker.input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+    expect(onSelect).toHaveBeenCalledWith('100');
+
+    picker.element.remove();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// createMachineCombobox validation tests
+// ---------------------------------------------------------------------------
+
+const mockGetMachines = getMachines as ReturnType<typeof vi.fn>;
+
+const MACHINES = [
+  { name: 'clang-x86', info: {} },
+  { name: 'clang-arm', info: {} },
+  { name: 'gcc-x86', info: {} },
+];
+
+describe('createMachineCombobox', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.clearAllMocks();
+    resetComboboxState();
+    document.body.innerHTML = '';
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function makeMachineCtx(overrides?: Partial<ComboboxContext>): ComboboxContext {
+    const sideA: SideSelection = { suite: 'nts', order: '', machine: '', runs: [], runAgg: 'median' };
+    return {
+      getOrderData: () => ({
+        cachedOrderValues: [],
+        orderTags: new Map<string, string | null>(),
+      }),
+      getSuiteName: () => 'nts',
+      getSideState: () => ({
+        selection: sideA,
+        setSide: (partial: Partial<SideSelection>) => Object.assign(sideA, partial),
+        label: 'Side A',
+      }),
+      ...overrides,
+    };
+  }
+
+  /** Create combobox and resolve the initial machine list fetch. */
+  async function createAndLoad(
+    ctx?: ComboboxContext,
+    setSide?: (partial: Partial<SideSelection>) => void,
+    onMachineChange?: () => void,
+    machines?: Array<{ name: string; info: Record<string, unknown> }>,
+  ): Promise<HTMLElement> {
+    mockGetMachines.mockResolvedValue({ items: machines ?? MACHINES, total: (machines ?? MACHINES).length });
+    const wrapper = createMachineCombobox('a', setSide ?? (() => {}), onMachineChange ?? (() => {}), ctx ?? makeMachineCtx());
+    document.body.append(wrapper);
+    await vi.advanceTimersByTimeAsync(0); // resolve fetch
+    return wrapper;
+  }
+
+  it('fetches full machine list once on creation', async () => {
+    mockGetMachines.mockResolvedValue({ items: MACHINES, total: 3 });
+    const ctx = makeMachineCtx();
+    const wrapper = createMachineCombobox('a', () => {}, () => {}, ctx);
+    document.body.append(wrapper);
+
+    expect(mockGetMachines).toHaveBeenCalledTimes(1);
+    expect(mockGetMachines).toHaveBeenCalledWith('nts', { limit: 500 });
+
+    wrapper.remove();
+  });
+
+  it('does not fetch when no suite is selected', () => {
+    mockGetMachines.mockResolvedValue({ items: [], total: 0 });
+    const ctx = makeMachineCtx({
+      getSuiteName: () => '',
+      getSideState: () => ({
+        selection: { suite: '', order: '', machine: '', runs: [], runAgg: 'median' as const },
+        setSide: () => {},
+        label: 'Side A',
+      }),
+    });
+    const wrapper = createMachineCombobox('a', () => {}, () => {}, ctx);
+    document.body.append(wrapper);
+
+    expect(mockGetMachines).not.toHaveBeenCalled();
+
+    wrapper.remove();
+  });
+
+  it('filters locally by substring — no additional API calls', async () => {
+    const wrapper = await createAndLoad();
+    const input = wrapper.querySelector('input') as HTMLInputElement;
+
+    mockGetMachines.mockClear();
+    input.value = 'x86';
+    input.dispatchEvent(new Event('input'));
+
+    expect(mockGetMachines).not.toHaveBeenCalled();
+    const items = wrapper.querySelectorAll('li.combobox-item');
+    expect(items).toHaveLength(2);
+    expect(items[0].textContent).toBe('clang-x86');
+    expect(items[1].textContent).toBe('gcc-x86');
+
+    wrapper.remove();
+  });
+
+  it('shows combobox-invalid when no machines match', async () => {
+    const wrapper = await createAndLoad();
+    const input = wrapper.querySelector('input') as HTMLInputElement;
+
+    input.value = 'nonexistent';
+    input.dispatchEvent(new Event('input'));
+    expect(input.classList.contains('combobox-invalid')).toBe(true);
+
+    wrapper.remove();
+  });
+
+  it('removes combobox-invalid when machines match again', async () => {
+    const wrapper = await createAndLoad();
+    const input = wrapper.querySelector('input') as HTMLInputElement;
+
+    input.value = 'nonexistent';
+    input.dispatchEvent(new Event('input'));
+    expect(input.classList.contains('combobox-invalid')).toBe(true);
+
+    input.value = 'clang';
+    input.dispatchEvent(new Event('input'));
+    expect(input.classList.contains('combobox-invalid')).toBe(false);
+
+    wrapper.remove();
+  });
+
+  it('accepts on Enter when dropdown has items', async () => {
+    const onMachineChange = vi.fn();
+    const wrapper = await createAndLoad(undefined, undefined, onMachineChange);
+    const input = wrapper.querySelector('input') as HTMLInputElement;
+
+    input.value = 'clang';
+    input.dispatchEvent(new Event('input'));
+    input.value = 'clang-x86';
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+
+    // onMachineChange is called asynchronously via onMachineSelect
+    await vi.advanceTimersByTimeAsync(0);
+    expect(onMachineChange).toHaveBeenCalled();
+    expect(input.classList.contains('combobox-invalid')).toBe(false);
+
+    wrapper.remove();
+  });
+
+  it('does not accept on Enter when dropdown is empty', async () => {
+    const onMachineChange = vi.fn();
+    const wrapper = await createAndLoad(undefined, undefined, onMachineChange);
+    const input = wrapper.querySelector('input') as HTMLInputElement;
+
+    input.value = 'nonexistent';
+    input.dispatchEvent(new Event('input'));
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(onMachineChange).not.toHaveBeenCalled();
+    expect(input.classList.contains('combobox-invalid')).toBe(true);
+
+    wrapper.remove();
+  });
+
+  it('disables order input when machine is cleared via change', async () => {
+    const sideA: SideSelection = { suite: 'nts', order: '100', machine: 'clang-x86', runs: ['r1'], runAgg: 'median' };
+    const setSide = vi.fn((partial: Partial<SideSelection>) => Object.assign(sideA, partial));
+    const onMachineChange = vi.fn();
+    const ctx = makeMachineCtx({
+      getSideState: () => ({
+        selection: sideA,
+        setSide,
+        label: 'Side A',
+      }),
+    });
+    const wrapper = await createAndLoad(ctx, setSide, onMachineChange);
+
+    // Create order combobox to set up orderInputA ref
+    const orderWrapper = createOrderCombobox('a', setSide, () => {}, ctx);
+    document.body.append(orderWrapper);
+    const orderInput = orderWrapper.querySelector('input')! as HTMLInputElement;
+    expect(orderInput.disabled).toBe(false); // machine is set
+
+    // Clear machine text and trigger change
+    const machineInput = wrapper.querySelector('input') as HTMLInputElement;
+    machineInput.value = '';
+    machineInput.dispatchEvent(new Event('change'));
+
+    expect(setSide).toHaveBeenCalledWith({ machine: '', order: '', runs: [] });
+    expect(orderInput.disabled).toBe(true);
+    expect(orderInput.placeholder).toBe('Select a machine first');
+    expect(onMachineChange).toHaveBeenCalled();
+
+    wrapper.remove();
+    orderWrapper.remove();
+  });
+
+  it('disables machine input when no suite is selected', () => {
+    const sideA: SideSelection = { suite: '', order: '', machine: '', runs: [], runAgg: 'median' };
+    const ctx = makeMachineCtx({
+      getSuiteName: () => '',
+      getSideState: () => ({
+        selection: sideA,
+        setSide: (partial: Partial<SideSelection>) => Object.assign(sideA, partial),
+        label: 'Side A',
+      }),
+    });
+    const wrapper = createMachineCombobox('a', () => {}, () => {}, ctx);
+    document.body.append(wrapper);
+
+    const input = wrapper.querySelector('input') as HTMLInputElement;
+    expect(input.disabled).toBe(true);
+    expect(input.placeholder).toBe('Select a suite first');
+
+    wrapper.remove();
+  });
+
+  it('shows "Loading machines..." before fetch resolves', () => {
+    mockGetMachines.mockReturnValue(new Promise(() => {})); // never resolves
+    const ctx = makeMachineCtx();
+    const wrapper = createMachineCombobox('a', () => {}, () => {}, ctx);
+    document.body.append(wrapper);
+
+    const input = wrapper.querySelector('input') as HTMLInputElement;
+    input.dispatchEvent(new Event('focus'));
+
+    const items = wrapper.querySelectorAll('li');
+    expect(items.length).toBe(1);
+    expect(items[0].textContent).toBe('Loading machines...');
+
+    wrapper.remove();
   });
 });
 

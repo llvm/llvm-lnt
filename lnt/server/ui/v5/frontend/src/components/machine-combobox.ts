@@ -1,12 +1,15 @@
 // components/machine-combobox.ts — Standalone machine typeahead selector.
 
-import { el, debounce } from '../utils';
+import { el } from '../utils';
 import { getMachines } from '../api';
+import type { MachineInfo } from '../types';
 
 export interface MachineComboboxOptions {
   testsuite: string;
   initialValue?: string;
   onSelect: (name: string) => void;
+  /** Called when the user clears the input and blurs (change event with empty text). */
+  onClear?: () => void;
 }
 
 let comboboxCounter = 0;
@@ -16,8 +19,8 @@ function setAriaExpanded(wrapper: HTMLElement, expanded: boolean): void {
 }
 
 /**
- * Render a machine name combobox with typeahead search.
- * Calls getMachines with namePrefix on each keystroke (debounced 300ms).
+ * Render a machine name combobox with local filtering.
+ * Fetches the full machine list once on creation; filters locally on each keystroke.
  */
 export function renderMachineCombobox(
   container: HTMLElement,
@@ -50,43 +53,87 @@ export function renderMachineCombobox(
 
   let abortCtrl: AbortController | null = null;
   let selectedValue = opts.initialValue || '';
+  let machines: MachineInfo[] | null = null; // null = still loading
 
-  const doSearch = debounce(async () => {
-    const text = input.value.trim();
-    if (abortCtrl) abortCtrl.abort();
+  // Fetch the full machine list once (skip if no testsuite yet)
+  if (opts.testsuite) {
     abortCtrl = new AbortController();
-    try {
-      const result = await getMachines(opts.testsuite, {
-        namePrefix: text || undefined, limit: 20,
-      }, abortCtrl.signal);
-      dropdown.replaceChildren();
-      if (result.items.length === 0) {
-        dropdown.classList.remove('open');
-        setAriaExpanded(wrapper, false);
-        return;
-      }
-      for (const machine of result.items) {
-        const li = el('li', { class: 'combobox-item', tabindex: '-1' }, machine.name);
-        li.addEventListener('click', () => {
-          input.value = machine.name;
-          selectedValue = machine.name;
-          dropdown.classList.remove('open');
-          setAriaExpanded(wrapper, false);
-          opts.onSelect(machine.name);
-        });
-        dropdown.append(li);
-      }
+    getMachines(opts.testsuite, { limit: 500 }, abortCtrl.signal)
+      .then((result) => {
+        machines = result.items;
+        // If the input has focus, refresh the dropdown with the loaded data
+        if (document.activeElement === input) {
+          showDropdown(input.value);
+        }
+      })
+      .catch((e: unknown) => {
+        if (e instanceof DOMException && e.name === 'AbortError') return;
+      });
+  } else {
+    input.disabled = true;
+    input.placeholder = 'Select a suite first';
+  }
+
+  function showDropdown(filter: string): void {
+    dropdown.replaceChildren();
+
+    // Still loading — show hint
+    if (machines === null) {
+      dropdown.replaceChildren(
+        el('li', { class: 'combobox-item', style: 'color: #999; pointer-events: none' }, 'Loading machines...'),
+      );
       dropdown.classList.add('open');
       setAriaExpanded(wrapper, true);
-    } catch (e: unknown) {
-      if (e instanceof DOMException && e.name === 'AbortError') return;
+      input.classList.remove('combobox-invalid');
+      return;
     }
-  }, 300);
 
-  input.addEventListener('input', doSearch as EventListener);
+    const lf = filter.toLowerCase();
+    const matches = filter.trim()
+      ? machines.filter(m => m.name.toLowerCase().includes(lf))
+      : machines;
+
+    for (const machine of matches) {
+      const li = el('li', { class: 'combobox-item', tabindex: '-1' }, machine.name);
+      li.addEventListener('click', () => {
+        input.value = machine.name;
+        selectedValue = machine.name;
+        input.classList.remove('combobox-invalid');
+        dropdown.classList.remove('open');
+        setAriaExpanded(wrapper, false);
+        opts.onSelect(machine.name);
+      });
+      dropdown.append(li);
+    }
+
+    const isOpen = matches.length > 0;
+    dropdown.classList.toggle('open', isOpen);
+    setAriaExpanded(wrapper, isOpen);
+
+    // Validation halo
+    if (input.value.trim() && matches.length === 0) {
+      input.classList.add('combobox-invalid');
+    } else {
+      input.classList.remove('combobox-invalid');
+    }
+  }
+
+  input.addEventListener('input', () => showDropdown(input.value));
   input.addEventListener('focus', () => {
-    if (!input.value.trim() && !dropdown.classList.contains('open')) {
-      doSearch();
+    if (!dropdown.classList.contains('open')) {
+      showDropdown(input.value);
+    }
+  });
+  input.addEventListener('blur', (e: FocusEvent) => {
+    if (wrapper.contains(e.relatedTarget as Node)) return;
+    dropdown.classList.remove('open');
+    setAriaExpanded(wrapper, false);
+  });
+  input.addEventListener('change', () => {
+    if (!input.value.trim() && opts.onClear) {
+      input.classList.remove('combobox-invalid');
+      selectedValue = '';
+      opts.onClear();
     }
   });
 
@@ -99,11 +146,16 @@ export function renderMachineCombobox(
     } else if (e.key === 'Enter') {
       e.preventDefault();
       const text = input.value.trim();
-      if (text) {
+      if (!text) return;
+      const hasItems = dropdown.querySelector('.combobox-item') !== null;
+      if (hasItems) {
         selectedValue = text;
+        input.classList.remove('combobox-invalid');
         dropdown.classList.remove('open');
         setAriaExpanded(wrapper, false);
         opts.onSelect(text);
+      } else {
+        input.classList.add('combobox-invalid');
       }
     } else if (e.key === 'Escape') {
       dropdown.classList.remove('open');
@@ -151,6 +203,7 @@ export function renderMachineCombobox(
     clear() {
       input.value = '';
       selectedValue = '';
+      input.classList.remove('combobox-invalid');
       dropdown.classList.remove('open');
       setAriaExpanded(wrapper, false);
     },
