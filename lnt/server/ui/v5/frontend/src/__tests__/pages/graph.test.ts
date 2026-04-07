@@ -8,6 +8,7 @@ vi.mock('../../api', async (importOriginal) => {
   return {
     ...actual,
     getFields: vi.fn(),
+    getOrders: vi.fn().mockResolvedValue([]),
     fetchOneCursorPage: vi.fn(),
     apiUrl: vi.fn(),
     queryDataPoints: vi.fn(),
@@ -24,10 +25,19 @@ vi.mock('../../components/machine-combobox', () => ({
   renderMachineCombobox: vi.fn(() => mockMachineComboHandle),
 }));
 
-const mockOrderSearchHandle = { destroy: vi.fn(), setSuggestions: vi.fn() };
-vi.mock('../../components/order-search', () => ({
-  renderOrderSearch: vi.fn(() => mockOrderSearchHandle),
-}));
+const mockOrderPickerHandle = {
+  element: document.createElement('div'),
+  input: document.createElement('input'),
+  destroy: vi.fn(),
+};
+vi.mock('../../combobox', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../combobox')>();
+  return {
+    ...actual,
+    createOrderPicker: vi.fn(() => mockOrderPickerHandle),
+    fetchMachineOrderSet: vi.fn().mockResolvedValue(new Set<string>()),
+  };
+});
 
 const mockChartHandle = { update: vi.fn(), destroy: vi.fn(), hoverTrace: vi.fn() };
 vi.mock('../../components/time-series-chart', () => ({
@@ -50,7 +60,6 @@ import { getFields, fetchOneCursorPage } from '../../api';
 import { getTestsuites } from '../../router';
 import { buildTraces, computeActiveTests, buildBaselinesFromData, setsEqual, TRACE_SEP, graphPage } from '../../pages/graph';
 import { renderMachineCombobox } from '../../components/machine-combobox';
-import { renderOrderSearch } from '../../components/order-search';
 import type { QueryDataPoint, FieldInfo } from '../../types';
 
 // ---------------------------------------------------------------------------
@@ -526,6 +535,10 @@ describe('graphPage mount', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     container = document.createElement('div');
+
+    // Reset mock picker handle element (consumed by append)
+    mockOrderPickerHandle.element = document.createElement('div');
+    mockOrderPickerHandle.input = document.createElement('input');
 
     // Reset URL state
     delete (window as Record<string, unknown>).location;

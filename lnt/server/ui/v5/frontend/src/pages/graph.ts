@@ -2,14 +2,14 @@
 
 import type { PageModule, RouteParams } from '../router';
 import type { AggFn, QueryDataPoint } from '../types';
-import { getFields, fetchOneCursorPage, apiUrl, queryDataPoints } from '../api';
+import { getFields, getOrders, fetchOneCursorPage, apiUrl, queryDataPoints } from '../api';
 import type { MachineRunInfo } from '../types';
 import { el, debounce, getAggFn, primaryOrderValue, TRACE_SEP } from '../utils';
 import { getTestsuites } from '../router';
 import { onCustomEvent, GRAPH_TABLE_HOVER, GRAPH_CHART_HOVER } from '../events';
 import { renderMachineCombobox } from '../components/machine-combobox';
 import { renderMetricSelector, filterMetricFields } from '../components/metric-selector';
-import { renderOrderSearch } from '../components/order-search';
+import { createOrderPicker, fetchMachineOrderSet } from '../combobox';
 import {
   type TimeSeriesTrace, type PinnedBaseline, type ChartHandle,
   createTimeSeriesChart,
@@ -51,6 +51,10 @@ let metricAborts = new Map<string, AbortController>();
 let scaffoldAbort: AbortController | null = null;
 /** Cache for baseline data: key = `suite::machine::order::metric`, value = QueryDataPoint[] */
 let baselineDataCache = new Map<string, QueryDataPoint[]>();
+/** Per-suite order list cache for baseline order picker. */
+let baselineOrderCache = new Map<string, { values: string[]; tags: Map<string, string | null> }>();
+/** Machine-order filter set for the baseline order picker (null = loading or no machine). */
+let blMachineOrders: Set<string> | null = null;
 
 /** A cross-suite baseline reference line. */
 export interface Baseline {
@@ -422,21 +426,56 @@ export const graphPage: PageModule = {
 
       const handle = renderMachineCombobox(blMachineContainer, {
         testsuite: suite,
-        onSelect: (name) => {
+        onSelect: async (name) => {
           blSelectedMachine = name;
           blSelectedOrder = '';
+          blMachineOrders = null;
           if (blOrderCleanup) { blOrderCleanup(); blOrderCleanup = null; }
           blOrderContainer.replaceChildren();
-          const orderHandle = renderOrderSearch(blOrderContainer, {
-            testsuite: suite,
-            placeholder: 'Select order...',
+
+          // Fetch order list and machine orders in parallel
+          const orderListPromise = (async () => {
+            if (baselineOrderCache.has(suite)) return;
+            try {
+              const orders = await getOrders(suite, scaffoldAbort?.signal);
+              const values: string[] = [];
+              const tags = new Map<string, string | null>();
+              for (const o of orders) {
+                const v = primaryOrderValue(o.fields);
+                values.push(v);
+                tags.set(v, o.tag ?? null);
+              }
+              baselineOrderCache.set(suite, { values, tags });
+            } catch (err: unknown) {
+              if (err instanceof DOMException && err.name === 'AbortError') return;
+              baselineOrderCache.set(suite, { values: [], tags: new Map() });
+            }
+          })();
+          const machineOrdersPromise = fetchMachineOrderSet(suite, name)
+            .catch(() => null as Set<string> | null);
+
+          await orderListPromise;
+
+          // Create order picker with machine-order filtering
+          const picker = createOrderPicker({
+            id: 'baseline-order',
+            getOrderData: () => {
+              const d = baselineOrderCache.get(suite);
+              return d ?? { values: [], tags: new Map() };
+            },
+            placeholder: 'Type to search orders...',
             onSelect: (value) => {
               blSelectedOrder = value;
-              // Auto-add the baseline when order is selected
               addCurrentBaseline();
             },
+            getMachineOrders: () => blSelectedMachine ? (blMachineOrders ?? 'loading') : null,
           });
-          blOrderCleanup = orderHandle.destroy;
+          blOrderContainer.append(picker.element);
+          blOrderCleanup = picker.destroy;
+
+          // Apply machine orders once ready (may already be resolved)
+          const machineOrders = await machineOrdersPromise;
+          blMachineOrders = machineOrders;
         },
       });
       blMachineCleanup = handle.destroy;
@@ -976,6 +1015,8 @@ export const graphPage: PageModule = {
       cache = new Map();
       machineScaffolds = new Map();
       baselineDataCache.clear();
+      baselineOrderCache.clear();
+      blMachineOrders = null;
       manuallyHidden = new Set();
       autoCapped = true;
       currentVisibleTraceNames = [];
@@ -1084,6 +1125,8 @@ export const graphPage: PageModule = {
     currentSuite = '';
     suiteGeneration = 0;
     baselineDataCache.clear();
+    baselineOrderCache.clear();
+    blMachineOrders = null;
     // Intentionally preserve cache and machineScaffolds across
     // unmount/remount so that navigating back renders instantly from
     // cache. The machines list is restored from URL on mount.

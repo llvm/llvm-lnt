@@ -41,6 +41,27 @@ export function resetComboboxState(): void {
   if (machineSearchController) { machineSearchController.abort(); machineSearchController = null; }
 }
 
+/**
+ * Fetch the set of order values for a given machine.
+ * Returns a Set of primary order values extracted from the machine's runs.
+ * Reusable by any consumer that needs machine-filtered orders.
+ */
+export async function fetchMachineOrderSet(
+  testsuite: string,
+  machine: string,
+  signal?: AbortSignal,
+): Promise<Set<string>> {
+  const page = await getMachineRuns(testsuite, machine, { limit: 500 }, signal);
+  const orders = new Set<string>();
+  for (const run of page.items) {
+    const keys = Object.keys(run.order);
+    if (keys.length > 0) {
+      orders.add(run.order[keys[0]]);
+    }
+  }
+  return orders;
+}
+
 async function fetchMachineOrders(
   side: 'a' | 'b',
   machine: string,
@@ -54,18 +75,7 @@ async function fetchMachineOrders(
   else machineOrdersControllerB = ctrl;
 
   try {
-    // Fetch a single large page of machine runs instead of all pages.
-    // getMachineRuns returns lighter payloads (no machine/parameters fields)
-    // and a limit of 500 avoids unbounded pagination for machines with
-    // thousands of runs while still covering most real-world cases.
-    const page = await getMachineRuns(testsuite, machine, { limit: 500 }, ctrl.signal);
-    const orders = new Set<string>();
-    for (const run of page.items) {
-      const keys = Object.keys(run.order);
-      if (keys.length > 0) {
-        orders.add(run.order[keys[0]]);
-      }
-    }
+    const orders = await fetchMachineOrderSet(testsuite, machine, ctrl.signal);
     if (side === 'a') machineOrdersA = orders;
     else machineOrdersB = orders;
   } catch (err: unknown) {
@@ -121,13 +131,33 @@ function setupComboboxKeyboard(
   });
 }
 
-export function createOrderCombobox(
-  side: 'a' | 'b',
-  setSide: (partial: Partial<SideSelection>) => void,
-  onOrderChange: () => void,
-  ctx: ComboboxContext,
-): HTMLElement {
-  const dropdownId = `order-dropdown-${side}`;
+// ---------------------------------------------------------------------------
+// createOrderPicker — reusable order combobox
+// ---------------------------------------------------------------------------
+
+export interface OrderPickerOptions {
+  id: string;
+  /** Called on each dropdown open/filter to get the current order data.
+   *  Lazy evaluation ensures data fetched after picker creation is visible. */
+  getOrderData: () => { values: string[]; tags: Map<string, string | null> };
+  initialValue?: string;
+  placeholder?: string;
+  onSelect: (value: string) => void;
+  /** Called on each dropdown render to get the machine-order filter state.
+   *  - Return a Set to filter orders by machine.
+   *  - Return 'loading' to show a loading hint (machine selected, orders not yet fetched).
+   *  - Return null (or omit) to disable filtering (show all orders). */
+  getMachineOrders?: () => Set<string> | 'loading' | null;
+}
+
+export interface OrderPickerHandle {
+  element: HTMLElement;
+  input: HTMLInputElement;
+  destroy: () => void;
+}
+
+export function createOrderPicker(opts: OrderPickerOptions): OrderPickerHandle {
+  const dropdownId = `order-dropdown-${opts.id}`;
   const wrapper = el('div', {
     class: 'combobox',
     role: 'combobox',
@@ -136,7 +166,7 @@ export function createOrderCombobox(
   });
   const input = el('input', {
     type: 'text',
-    placeholder: 'Type to search orders...',
+    placeholder: opts.placeholder || 'Type to search orders...',
     class: 'combobox-input',
     role: 'searchbox',
     'aria-autocomplete': 'list',
@@ -151,24 +181,18 @@ export function createOrderCombobox(
   // Keyboard navigation
   setupComboboxKeyboard(input, dropdown, wrapper);
 
-  // Store ref for external clearing
-  if (side === 'a') orderInputA = input;
-  else orderInputB = input;
-
-  const { selection } = ctx.getSideState(side);
-  if (selection.order) {
-    const { orderTags } = ctx.getOrderData(side);
-    const tag = orderTags.get(selection.order);
-    input.value = tag ? `${selection.order} (${tag})` : selection.order;
+  // Set initial value with tag if available
+  if (opts.initialValue) {
+    const { tags } = opts.getOrderData();
+    const tag = tags.get(opts.initialValue);
+    input.value = tag ? `${opts.initialValue} (${tag})` : opts.initialValue;
   }
 
   function showDropdown(filter: string): void {
-    const machineOrders = side === 'a' ? machineOrdersA : machineOrdersB;
-    const { selection: sideState } = ctx.getSideState(side);
+    const machineOrders = opts.getMachineOrders?.() ?? null;
 
-    // If a machine is selected but its orders haven't loaded yet,
-    // don't show unfiltered results — show a loading hint instead.
-    if (sideState.machine && !machineOrders) {
+    // Machine selected but orders not yet fetched — show loading hint.
+    if (machineOrders === 'loading') {
       dropdown.replaceChildren(
         el('li', { class: 'combobox-item', style: 'color: #999; pointer-events: none' }, 'Loading orders...'),
       );
@@ -177,16 +201,16 @@ export function createOrderCombobox(
       return;
     }
 
-    const { cachedOrderValues, orderTags } = ctx.getOrderData(side);
-    let source = cachedOrderValues;
-    if (machineOrders) {
+    const { values, tags } = opts.getOrderData();
+    let source = values;
+    if (machineOrders instanceof Set) {
       source = source.filter(v => machineOrders.has(v));
     }
     const lf = filter.toLowerCase();
     const matches = filter
       ? source.filter(v => {
           if (v.toLowerCase().includes(lf)) return true;
-          const tag = orderTags.get(v);
+          const tag = tags.get(v);
           return tag !== null && tag !== undefined && tag.toLowerCase().includes(lf);
         })
       : source;
@@ -194,15 +218,14 @@ export function createOrderCombobox(
 
     dropdown.replaceChildren();
     for (const v of limited) {
-      const tag = orderTags.get(v);
+      const tag = tags.get(v);
       const label = tag ? `${v} (${tag})` : v;
       const li = el('li', { class: 'combobox-item', role: 'option', tabindex: '-1' }, label);
       li.addEventListener('click', () => {
         input.value = label;
         dropdown.classList.remove('open');
         setAriaExpanded(wrapper, false);
-        setSide({ order: v });
-        onOrderChange();
+        opts.onSelect(v);
       });
       dropdown.append(li);
     }
@@ -218,13 +241,55 @@ export function createOrderCombobox(
     setAriaExpanded(wrapper, false);
   });
   input.addEventListener('change', () => {
-    // Strip tag suffix if present (e.g., "abc123 (release-1)" → "abc123")
+    // Strip tag suffix if present (e.g., "abc123 (release-1)" -> "abc123")
     const raw = input.value.replace(/\s*\(.*\)$/, '');
-    setSide({ order: raw });
-    onOrderChange();
+    opts.onSelect(raw);
   });
 
-  return wrapper;
+  return {
+    element: wrapper,
+    input,
+    destroy: () => { /* no internal fetches to abort */ },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// createOrderCombobox — Compare page wrapper around createOrderPicker
+// ---------------------------------------------------------------------------
+
+export function createOrderCombobox(
+  side: 'a' | 'b',
+  setSide: (partial: Partial<SideSelection>) => void,
+  onOrderChange: () => void,
+  ctx: ComboboxContext,
+): HTMLElement {
+  const { selection } = ctx.getSideState(side);
+
+  const picker = createOrderPicker({
+    id: `order-${side}`,
+    getOrderData: () => {
+      const { cachedOrderValues, orderTags } = ctx.getOrderData(side);
+      return { values: cachedOrderValues, tags: orderTags };
+    },
+    initialValue: selection.order,
+    placeholder: 'Type to search orders...',
+    onSelect: (value) => {
+      setSide({ order: value });
+      onOrderChange();
+    },
+    getMachineOrders: () => {
+      const orders = side === 'a' ? machineOrdersA : machineOrdersB;
+      if (orders) return orders;
+      const { selection: s } = ctx.getSideState(side);
+      return s.machine ? 'loading' : null;
+    },
+  });
+
+  // Store refs for createMachineCombobox interaction
+  if (side === 'a') orderInputA = picker.input;
+  else orderInputB = picker.input;
+
+  return picker.element;
 }
 
 export function createMachineCombobox(

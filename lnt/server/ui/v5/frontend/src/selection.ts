@@ -117,11 +117,17 @@ function createRunsPanel(side: 'a' | 'b', container: HTMLElement, setSide: (part
   // from a previous call knows it is stale and should not touch the DOM.
   const version = side === 'a' ? ++runsPanelVersionA : ++runsPanelVersionB;
 
-  container.replaceChildren(el('span', { class: 'runs-hint' }, 'Select order and machine first'));
-
   const { selection: sideState } = getSideState(side);
 
-  if (!sideState.suite || !sideState.order || !sideState.machine) return;
+  if (!sideState.suite) {
+    container.replaceChildren(el('span', { class: 'runs-hint' }, 'Select a test suite first'));
+    return;
+  }
+
+  if (!sideState.order || !sideState.machine) {
+    container.replaceChildren(el('span', { class: 'runs-hint' }, 'Select order and machine first'));
+    return;
+  }
 
   container.replaceChildren(el('span', { class: 'runs-loading' }, 'Loading runs...'));
 
@@ -315,13 +321,6 @@ export function renderSelectionPanel(root: HTMLElement): void {
     const runsContainer = el('div', { class: 'runs-container' });
     runsContainers[side] = runsContainer;
 
-    if (!sideState.suite) {
-      // No suite selected — show prompt, skip comboboxes
-      sideDiv.append(el('span', { class: 'runs-hint' }, 'Select a test suite first'));
-      sideDivs.push(sideDiv);
-      continue;
-    }
-
     const ctx = getComboboxContext();
     const refreshRuns = () => createRunsPanel(side, runsContainer, setSide);
 
@@ -422,12 +421,7 @@ export function renderSelectionPanel(root: HTMLElement): void {
 
   root.append(panel);
 
-  // Trigger initial runs load if state has suite+order+machine
-  const state = getState();
-  if (state.sideA.suite && state.sideA.order && state.sideA.machine) {
-    createRunsPanel('a', runsContainers['a'], setSideA);
-  }
-  if (state.sideB.suite && state.sideB.order && state.sideB.machine) {
-    createRunsPanel('b', runsContainers['b'], setSideB);
-  }
+  // Populate runs section (shows appropriate hint or loads runs)
+  createRunsPanel('a', runsContainers['a'], setSideA);
+  createRunsPanel('b', runsContainers['b'], setSideB);
 }
