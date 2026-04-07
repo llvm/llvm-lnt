@@ -2,16 +2,16 @@
 
 import type { PageModule, RouteParams } from '../router';
 import type { AggFn, QueryDataPoint } from '../types';
-import { getFields, getOrders, fetchOneCursorPage, apiUrl, queryDataPoints } from '../api';
-import type { MachineRunInfo, OrderSummary } from '../types';
+import { getFields, fetchOneCursorPage, apiUrl, queryDataPoints } from '../api';
+import type { MachineRunInfo } from '../types';
 import { el, debounce, getAggFn, primaryOrderValue, TRACE_SEP } from '../utils';
-import { navigate, getTestsuites } from '../router';
+import { getTestsuites } from '../router';
 import { onCustomEvent, GRAPH_TABLE_HOVER, GRAPH_CHART_HOVER } from '../events';
 import { renderMachineCombobox } from '../components/machine-combobox';
 import { renderMetricSelector, filterMetricFields } from '../components/metric-selector';
-import { renderOrderSearch, type OrderSuggestion } from '../components/order-search';
+import { renderOrderSearch } from '../components/order-search';
 import {
-  type TimeSeriesTrace, type PinnedOrder, type ChartHandle,
+  type TimeSeriesTrace, type PinnedBaseline, type ChartHandle,
   createTimeSeriesChart,
 } from '../components/time-series-chart';
 import { createLegendTable, type LegendEntry, type LegendTableHandle } from '../components/legend-table';
@@ -49,10 +49,16 @@ let machineScaffolds = new Map<string, string[]>();
 let metricAborts = new Map<string, AbortController>();
 /** AbortController for in-flight scaffold fetches; aborted on unmount. */
 let scaffoldAbort: AbortController | null = null;
-/** Cached suggestions for the pinned-order search (built from scaffold union + tags). */
-let cachedSuggestions: OrderSuggestion[] | null = null;
-/** Cached orders fetched via getOrders — avoids re-fetching on every rebuildSuggestions call. */
-let cachedOrders: OrderSummary[] | null = null;
+/** Cache for baseline data: key = `suite::machine::order::metric`, value = QueryDataPoint[] */
+let baselineDataCache = new Map<string, QueryDataPoint[]>();
+
+/** A cross-suite baseline reference line. */
+export interface Baseline {
+  suite: string;
+  machine: string;
+  order: string;
+  tag: string | null;
+}
 
 function cacheKey(machine: string, metric: string): string {
   return `${machine}::${metric}`;
@@ -87,7 +93,6 @@ function getOrCreateCache(machine: string, metric: string): MetricCache {
 // ---------------------------------------------------------------------------
 
 let machineComboCleanup: (() => void) | null = null;
-let orderSearchCleanup: (() => void) | null = null;
 let chartHandle: ChartHandle | null = null;
 let legendHandle: LegendTableHandle | null = null;
 let manuallyHidden = new Set<string>();
@@ -211,8 +216,11 @@ export const graphPage: PageModule = {
       ? urlParams.get('run_agg') as AggFn : 'median';
     let sampleAgg: AggFn = (['median', 'mean', 'min', 'max'] as AggFn[]).includes(urlParams.get('sample_agg') as AggFn)
       ? urlParams.get('sample_agg') as AggFn : 'median';
-    const pinValues = urlParams.getAll('pin');
-    const pinnedOrders: Array<{ value: string; tag: string | null }> = pinValues.map(v => ({ value: v, tag: null }));
+    const baselineParams = urlParams.getAll('baseline');
+    const baselines: Baseline[] = baselineParams.map(v => {
+      const parts = v.split('::');
+      return { suite: parts[0] || '', machine: parts[1] || '', order: parts[2] || '', tag: null };
+    }).filter(b => b.suite && b.machine && b.order);
 
     // Progress + chart containers
     const progressContainer = el('div', {});
@@ -330,7 +338,6 @@ export const graphPage: PageModule = {
             if (key.startsWith(m + '::')) cache.delete(key);
           }
           renderMachineChips();
-          rebuildSuggestions();
           if (machines.length > 0 && metric) {
             doPlot();
           } else {
@@ -361,48 +368,118 @@ export const graphPage: PageModule = {
     renderMachineChips();
     secondRow.append(machineGroup);
 
-    // Pinned Orders (same row as Machines)
-    const pinGroup = el('div', { class: 'control-group' });
-    pinGroup.append(el('label', {}, 'Pinned Orders'));
-    const pinSearchContainer = el('div', {});
-    const pinChips = el('div', { class: 'chip-list', style: 'margin-top: 4px' });
-    pinGroup.append(pinSearchContainer, pinChips);
-    secondRow.append(pinGroup);
+    // Baselines (same row as Machines)
+    const baselineGroup = el('div', { class: 'control-group' });
+    baselineGroup.append(el('label', {}, 'Baselines'));
+    const baselineChips = el('div', { class: 'chip-list', style: 'margin-top: 4px' });
+    const baselineFormContainer = el('div', { class: 'baseline-form', style: 'display: none' });
+    const addBaselineBtn = el('button', { class: 'add-baseline-btn' }, '+ Add baseline');
 
-    const pinSearchHandle = renderOrderSearch(pinSearchContainer, {
-      testsuite: currentSuite,
-      placeholder: 'Pin an order...',
-      suggestions: cachedSuggestions ?? [],
-      onSelect: (value) => {
-        if (!pinnedOrders.find(r => r.value === value)) {
-          const tag = cachedSuggestions?.find(s => s.orderValue === value)?.tag ?? null;
-          pinnedOrders.push({ value, tag });
-          renderPinChips();
-          renderFromAllCaches();
-          updateUrlState();
-        }
-      },
+    // Baseline form: Suite → Machine → Order → Add
+    const blSuiteSelect = el('select', { class: 'suite-select baseline-suite' }) as HTMLSelectElement;
+    blSuiteSelect.append(el('option', { value: '' }, '-- Suite --'));
+    for (const name of getTestsuites()) {
+      blSuiteSelect.append(el('option', { value: name }, name));
+    }
+    const blMachineContainer = el('div', {});
+    const blOrderContainer = el('div', {});
+    const blAddBtn = el('button', { class: 'baseline-add-btn', disabled: 'true' }, 'Add');
+    let blMachineCleanup: (() => void) | null = null;
+    let blOrderCleanup: (() => void) | null = null;
+    let blSelectedMachine = '';
+    let blSelectedOrder = '';
+    let blSelectedTag: string | null = null;
+
+    blSuiteSelect.addEventListener('change', () => {
+      blSelectedMachine = '';
+      blSelectedOrder = '';
+      blSelectedTag = null;
+      (blAddBtn as HTMLButtonElement).disabled = true;
+      if (blMachineCleanup) { blMachineCleanup(); blMachineCleanup = null; }
+      if (blOrderCleanup) { blOrderCleanup(); blOrderCleanup = null; }
+      blMachineContainer.replaceChildren();
+      blOrderContainer.replaceChildren();
+
+      const suite = blSuiteSelect.value;
+      if (!suite) return;
+
+      const handle = renderMachineCombobox(blMachineContainer, {
+        testsuite: suite,
+        onSelect: (name) => {
+          blSelectedMachine = name;
+          blSelectedOrder = '';
+          blSelectedTag = null;
+          (blAddBtn as HTMLButtonElement).disabled = true;
+          if (blOrderCleanup) { blOrderCleanup(); blOrderCleanup = null; }
+          blOrderContainer.replaceChildren();
+          const orderHandle = renderOrderSearch(blOrderContainer, {
+            testsuite: suite,
+            placeholder: 'Select order...',
+            onSelect: (value) => {
+              blSelectedOrder = value;
+              blSelectedTag = null; // tag lookup could be added later
+              (blAddBtn as HTMLButtonElement).disabled = false;
+            },
+          });
+          blOrderCleanup = orderHandle.destroy;
+        },
+      });
+      blMachineCleanup = handle.destroy;
     });
-    orderSearchCleanup = pinSearchHandle.destroy;
 
-    renderPinChips();
+    blAddBtn.addEventListener('click', () => {
+      const suite = blSuiteSelect.value;
+      if (!suite || !blSelectedMachine || !blSelectedOrder) return;
+      // Avoid duplicates
+      if (baselines.find(b => b.suite === suite && b.machine === blSelectedMachine && b.order === blSelectedOrder)) return;
+      baselines.push({ suite, machine: blSelectedMachine, order: blSelectedOrder, tag: blSelectedTag });
+      renderBaselineChips();
+      fetchAllBaselineData().then(() => renderFromAllCaches());
+      updateUrlState();
+      // Reset form
+      blSuiteSelect.value = '';
+      blSuiteSelect.dispatchEvent(new Event('change'));
+      baselineFormContainer.style.display = 'none';
+      addBaselineBtn.style.display = '';
+    });
 
-    function renderPinChips(): void {
-      pinChips.replaceChildren();
-      for (const ref of pinnedOrders) {
-        const chip = el('span', { class: 'chip' },
-          ref.tag ? `${ref.value} (${ref.tag})` : ref.value,
-        );
+    addBaselineBtn.addEventListener('click', () => {
+      baselineFormContainer.style.display = '';
+      addBaselineBtn.style.display = 'none';
+    });
+
+    baselineFormContainer.append(
+      el('div', { class: 'baseline-form-row' }, blSuiteSelect),
+      el('div', { class: 'baseline-form-row' }, blMachineContainer),
+      el('div', { class: 'baseline-form-row' }, blOrderContainer),
+      blAddBtn,
+    );
+    baselineGroup.append(addBaselineBtn, baselineFormContainer, baselineChips);
+    secondRow.append(baselineGroup);
+
+    renderBaselineChips();
+
+    function renderBaselineChips(): void {
+      baselineChips.replaceChildren();
+      for (const bl of baselines) {
+        const label = bl.tag ? `${bl.suite}/${bl.machine}/${bl.order} (${bl.tag})` : `${bl.suite}/${bl.machine}/${bl.order}`;
+        const chip = el('span', { class: 'chip' }, label);
         const removeBtn = el('button', { class: 'chip-remove' }, '\u00d7');
         removeBtn.addEventListener('click', () => {
-          const idx = pinnedOrders.indexOf(ref);
-          if (idx >= 0) pinnedOrders.splice(idx, 1);
-          renderPinChips();
+          const idx = baselines.indexOf(bl);
+          if (idx >= 0) baselines.splice(idx, 1);
+          // Remove cached data for this baseline
+          for (const key of [...baselineDataCache.keys()]) {
+            if (key.startsWith(`${bl.suite}::${bl.machine}::${bl.order}::`)) {
+              baselineDataCache.delete(key);
+            }
+          }
+          renderBaselineChips();
           renderFromAllCaches();
           updateUrlState();
         });
         chip.append(removeBtn);
-        pinChips.append(chip);
+        baselineChips.append(chip);
       }
     }
 
@@ -417,48 +494,6 @@ export const graphPage: PageModule = {
     cleanupChartHover = onCustomEvent<string | null>(GRAPH_CHART_HOVER, (tn) => {
       if (legendHandle) legendHandle.highlightRow(tn);
     });
-
-    // ----- Scaffold suggestions -----
-    function rebuildSuggestions(): void {
-      const myGen = suiteGeneration;
-      const scaffold = computeScaffoldUnion();
-      if (!scaffold) {
-        cachedSuggestions = [];
-        pinSearchHandle.setSuggestions([]);
-        return;
-      }
-      // Fetch tags (cached after first fetch to avoid repeated full-pagination calls)
-      const ordersPromise = cachedOrders
-        ? Promise.resolve(cachedOrders)
-        : getOrders(currentSuite).then(orders => { cachedOrders = orders; return orders; });
-      ordersPromise.then(allOrders => {
-        if (myGen !== suiteGeneration) return; // stale
-        const tagMap = new Map<string, string | null>();
-        for (const o of allOrders) {
-          tagMap.set(primaryOrderValue(o.fields), o.tag ?? null);
-        }
-        const suggestions: OrderSuggestion[] = scaffold.map(ov => ({
-          orderValue: ov,
-          tag: tagMap.get(ov) ?? null,
-        }));
-        suggestions.sort((a, b) => {
-          if (a.tag && !b.tag) return -1;
-          if (!a.tag && b.tag) return 1;
-          return 0;
-        });
-        cachedSuggestions = suggestions;
-        pinSearchHandle.setSuggestions(suggestions);
-        // Backfill tags for any pinned orders that were added before suggestions loaded
-        let tagsUpdated = false;
-        for (const pin of pinnedOrders) {
-          if (!pin.tag) {
-            const match = suggestions.find(s => s.orderValue === pin.value);
-            if (match?.tag) { pin.tag = match.tag; tagsUpdated = true; }
-          }
-        }
-        if (tagsUpdated) renderPinChips();
-      }).catch(() => { /* ok */ });
-    }
 
     // ----- Lazy loading (per machine) -----
 
@@ -502,9 +537,12 @@ export const graphPage: PageModule = {
             }
           }
 
-          // Fetch missing reference order data after loading completes
+          // Fetch baseline data after loading completes
           if (!ctrl.signal.aborted && machines.includes(machineName) && metricName === metric) {
-            await fetchMissingPinData(testsuite, machineName, metricName, entry, ctrl.signal);
+            await fetchAllBaselineData();
+            if (!ctrl.signal.aborted && machines.includes(machineName) && metricName === metric) {
+              renderFromAllCaches(false);
+            }
           }
         } catch (e: unknown) {
           if (e instanceof DOMException && e.name === 'AbortError') return;
@@ -703,13 +741,13 @@ export const graphPage: PageModule = {
         pendingChartRAF = null;
       }
 
-      // Collect all chronological points for reference orders and raw values
+      // Collect all chronological points for raw values callback
       const allPoints: QueryDataPoint[] = [];
       for (const { points } of allChronological) {
         for (const pt of points) allPoints.push(pt);
       }
 
-      const refs = buildRefsFromCache(allPoints, pinnedOrders, getAggFn(runAgg));
+      const refs = buildBaselinesFromData(baselines, baselineDataCache, metric, getAggFn(runAgg));
       const scaffold = computeScaffoldUnion();
 
       const rawValuesCallback = (testName: string, machineName: string, orderValue: string): number[] => {
@@ -729,7 +767,7 @@ export const graphPage: PageModule = {
         const chartOpts = {
           traces: activeTraces,
           yAxisLabel: metric,
-          pinnedOrders: refs.length > 0 ? refs : undefined,
+          baselines: refs.length > 0 ? refs : undefined,
           categoryOrder: scaffold ?? undefined,
           getRawValues: rawValuesCallback,
         };
@@ -751,7 +789,7 @@ export const graphPage: PageModule = {
           pendingChartRAF = requestAnimationFrame(renderAllTraces);
         }
       } else {
-        // User-initiated change (filter, toggle, aggregation, pinned orders):
+        // User-initiated change (filter, toggle, aggregation, baselines):
         // render traces in batches of CHART_BATCH_SIZE per animation frame.
         // This batching prevents the browser from freezing when a filter matches
         // thousands of tests and the 20-cap is disabled — the chart achieves
@@ -768,7 +806,7 @@ export const graphPage: PageModule = {
           const chartOpts = {
             traces: batchTraces,
             yAxisLabel: metric,
-            pinnedOrders: refs.length > 0 ? refs : undefined,
+            baselines: refs.length > 0 ? refs : undefined,
             categoryOrder: scaffold ?? undefined,
             getRawValues: rawValuesCallback,
           };
@@ -792,31 +830,29 @@ export const graphPage: PageModule = {
       }
     }
 
-    // ----- Reference orders -----
+    // ----- Baseline data fetching -----
 
-    async function fetchMissingPinData(
-      testsuite: string,
-      machineName: string,
-      metricName: string,
-      entry: MetricCache,
-      signal: AbortSignal,
-    ): Promise<void> {
-      for (const pin of pinnedOrders) {
-        const hasData = entry.points.some(pt => primaryOrderValue(pt.order) === pin.value);
-        if (hasData || !pin.value) continue;
+    async function fetchAllBaselineData(): Promise<void> {
+      if (!metric || baselines.length === 0) return;
+      const myGen = suiteGeneration;
+      const signal = scaffoldAbort?.signal;
+
+      for (const bl of baselines) {
+        const cacheKey = `${bl.suite}::${bl.machine}::${bl.order}::${metric}`;
+        if (baselineDataCache.has(cacheKey)) continue;
 
         try {
-          const pinPoints = await queryDataPoints(testsuite, {
-            machine: machineName, metric: metricName,
-            afterOrder: pin.value, beforeOrder: pin.value,
+          const points = await queryDataPoints(bl.suite, {
+            machine: bl.machine,
+            metric,
+            afterOrder: bl.order,
+            beforeOrder: bl.order,
           }, signal);
-          if (pinPoints.length > 0) {
-            entry.points.push(...pinPoints);
-            if (machines.includes(machineName) && metricName === metric) {
-              renderFromAllCaches(false);
-            }
-          }
-        } catch { /* ref order may not exist */ }
+          if (myGen !== suiteGeneration) return;
+          baselineDataCache.set(cacheKey, points);
+        } catch {
+          // Baseline data is optional — silently ignore errors
+        }
       }
     }
 
@@ -871,9 +907,6 @@ export const graphPage: PageModule = {
         // Fetch scaffolds for any machines that don't have one yet
         await Promise.all(plotMachines.map(m => fetchScaffold(currentSuite, m)));
 
-        // Rebuild suggestions after scaffolds load
-        rebuildSuggestions();
-
         // Render empty chart with scaffold if available
         const scaffold = computeScaffoldUnion();
         if (plotMetric === metric && scaffold) {
@@ -917,7 +950,7 @@ export const graphPage: PageModule = {
       if (testFilter) qs.set('test_filter', testFilter);
       if (runAgg !== 'median') qs.set('run_agg', runAgg);
       if (sampleAgg !== 'median') qs.set('sample_agg', sampleAgg);
-      for (const ref of pinnedOrders) qs.append('pin', ref.value);
+      for (const bl of baselines) qs.append('baseline', `${bl.suite}::${bl.machine}::${bl.order}`);
       window.history.replaceState(null, '', window.location.pathname + '?' + qs.toString());
     }
 
@@ -936,13 +969,12 @@ export const graphPage: PageModule = {
       machines = [];
       cache = new Map();
       machineScaffolds = new Map();
-      cachedOrders = null;
-      cachedSuggestions = null;
+      baselineDataCache.clear();
       manuallyHidden = new Set();
       autoCapped = true;
       currentVisibleTraceNames = [];
       prevActiveTraceNames = new Set();
-      pinnedOrders.length = 0;
+      baselines.length = 0;
       if (pendingChartRAF !== null) { cancelAnimationFrame(pendingChartRAF); pendingChartRAF = null; }
       chartRenderGen = 0;
 
@@ -950,11 +982,21 @@ export const graphPage: PageModule = {
       if (chartHandle) { chartHandle.destroy(); chartHandle = null; }
       if (legendHandle) { legendHandle.destroy(); legendHandle = null; }
       if (machineComboCleanup) { machineComboCleanup(); machineComboCleanup = null; }
-      if (orderSearchCleanup) { orderSearchCleanup(); orderSearchCleanup = null; }
+      if (blMachineCleanup) { blMachineCleanup(); blMachineCleanup = null; }
+      if (blOrderCleanup) { blOrderCleanup(); blOrderCleanup = null; }
 
       // Clear controls containers
       machineChipsEl.replaceChildren();
-      pinChips.replaceChildren();
+      baselineChips.replaceChildren();
+      // Reset baseline form
+      baselineFormContainer.style.display = 'none';
+      addBaselineBtn.style.display = '';
+      blSuiteSelect.value = '';
+      blMachineContainer.replaceChildren();
+      blOrderContainer.replaceChildren();
+      blSelectedMachine = '';
+      blSelectedOrder = '';
+      blSelectedTag = null;
       chartContainer.replaceChildren(el('p', { class: 'no-chart-data' }, 'No data to plot.'));
       legendContainer.replaceChildren();
       progressContainer.replaceChildren();
@@ -980,24 +1022,6 @@ export const graphPage: PageModule = {
         },
       });
       machineComboCleanup = newMachineHandle.destroy;
-
-      // Re-create order search for new suite
-      pinSearchContainer.replaceChildren();
-      const newPinHandle = renderOrderSearch(pinSearchContainer, {
-        testsuite: currentSuite,
-        placeholder: 'Pin an order...',
-        suggestions: [],
-        onSelect: (value) => {
-          if (!pinnedOrders.find(r => r.value === value)) {
-            const tag = cachedSuggestions?.find(s => s.orderValue === value)?.tag ?? null;
-            pinnedOrders.push({ value, tag });
-            renderPinChips();
-            renderFromAllCaches();
-            updateUrlState();
-          }
-        },
-      });
-      orderSearchCleanup = newPinHandle.destroy;
 
       // Re-fetch fields for new suite
       scaffoldAbort = new AbortController();
@@ -1038,7 +1062,6 @@ export const graphPage: PageModule = {
 
   unmount(): void {
     if (machineComboCleanup) { machineComboCleanup(); machineComboCleanup = null; }
-    if (orderSearchCleanup) { orderSearchCleanup(); orderSearchCleanup = null; }
     if (scaffoldAbort) { scaffoldAbort.abort(); scaffoldAbort = null; }
     abortAllMetrics();
     if (pendingChartRAF !== null) { cancelAnimationFrame(pendingChartRAF); pendingChartRAF = null; }
@@ -1053,7 +1076,7 @@ export const graphPage: PageModule = {
     chartRenderGen = 0;
     currentSuite = '';
     suiteGeneration = 0;
-    cachedSuggestions = null;
+    baselineDataCache.clear();
     // Intentionally preserve cache and machineScaffolds across
     // unmount/remount so that navigating back renders instantly from
     // cache. The machines list is restored from URL on mount.
@@ -1112,32 +1135,38 @@ export function buildTraces(
 }
 
 /**
- * Build PinnedOrder objects from cached data points, applying aggregation.
+ * Build PinnedBaseline objects from baseline data cache, applying aggregation.
  * Exported for testing.
  */
-export function buildRefsFromCache(
-  points: QueryDataPoint[],
-  refs: Array<{ value: string; tag: string | null }>,
+export function buildBaselinesFromData(
+  baselines: Array<{ suite: string; machine: string; order: string; tag: string | null }>,
+  baselineDataCache: Map<string, QueryDataPoint[]>,
+  metric: string,
   aggFn: (values: number[]) => number,
-): PinnedOrder[] {
-  return refs.map((ref, i) => {
-    // Collect all raw values per test at this order
+): PinnedBaseline[] {
+  return baselines.map((bl, i) => {
+    const cacheKey = `${bl.suite}::${bl.machine}::${bl.order}::${metric}`;
+    const points = baselineDataCache.get(cacheKey) ?? [];
+
     const rawPerTest = new Map<string, number[]>();
     for (const pt of points) {
-      if (primaryOrderValue(pt.order) === ref.value) {
-        let arr = rawPerTest.get(pt.test);
-        if (!arr) { arr = []; rawPerTest.set(pt.test, arr); }
-        arr.push(pt.value);
-      }
+      let arr = rawPerTest.get(pt.test);
+      if (!arr) { arr = []; rawPerTest.set(pt.test, arr); }
+      arr.push(pt.value);
     }
-    // Aggregate using the same function as the main traces
+
     const values = new Map<string, number>();
     for (const [test, raw] of rawPerTest) {
       values.set(test, aggFn(raw));
     }
+
+    const label = bl.tag
+      ? `${bl.suite}/${bl.machine}/${bl.order} (${bl.tag})`
+      : `${bl.suite}/${bl.machine}/${bl.order}`;
+
     return {
-      orderValue: ref.value,
-      tag: ref.tag,
+      label,
+      tag: bl.tag,
       values,
       color: PIN_COLORS[i % PIN_COLORS.length],
     };

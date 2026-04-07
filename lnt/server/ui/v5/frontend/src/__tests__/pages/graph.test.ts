@@ -49,7 +49,7 @@ vi.mock('../../components/legend-table', () => ({
 
 import { getFields, getOrders, fetchOneCursorPage } from '../../api';
 import { getTestsuites } from '../../router';
-import { buildTraces, computeActiveTests, buildRefsFromCache, setsEqual, TRACE_SEP, graphPage } from '../../pages/graph';
+import { buildTraces, computeActiveTests, buildBaselinesFromData, setsEqual, TRACE_SEP, graphPage } from '../../pages/graph';
 import { renderMachineCombobox } from '../../components/machine-combobox';
 import { renderOrderSearch } from '../../components/order-search';
 import type { QueryDataPoint, FieldInfo } from '../../types';
@@ -287,7 +287,7 @@ describe('computeActiveTests', () => {
   });
 });
 
-describe('buildRefsFromCache', () => {
+describe('buildBaselinesFromData', () => {
   function makeRefPoint(test: string, orderValue: string, value: number, machine = 'm1'): QueryDataPoint {
     return {
       test,
@@ -311,84 +311,103 @@ describe('buildRefsFromCache', () => {
   const mean = (values: number[]): number =>
     values.reduce((s, v) => s + v, 0) / values.length;
 
-  it('aggregates multiple runs at pinned order using the provided agg function', () => {
+  /** Helper to build a baseline data cache from a list of points for a given baseline. */
+  function buildCache(
+    baselines: Array<{ suite: string; machine: string; order: string; tag: string | null }>,
+    metric: string,
+    pointsPerBaseline: QueryDataPoint[][],
+  ): Map<string, QueryDataPoint[]> {
+    const cache = new Map<string, QueryDataPoint[]>();
+    for (let i = 0; i < baselines.length; i++) {
+      const bl = baselines[i];
+      const key = `${bl.suite}::${bl.machine}::${bl.order}::${metric}`;
+      cache.set(key, pointsPerBaseline[i] || []);
+    }
+    return cache;
+  }
+
+  it('aggregates multiple runs at baseline order using the provided agg function', () => {
+    const baselines = [{ suite: 'nts', machine: 'm1', order: '100', tag: null }];
     const points = [
       makeRefPoint('test-A', '100', 1.0),
       makeRefPoint('test-A', '100', 3.0),
       makeRefPoint('test-A', '100', 5.0),
     ];
-    const refs = [{ value: '100', tag: null }];
+    const cache = buildCache(baselines, 'exec_time', [points]);
 
-    const result = buildRefsFromCache(points, refs, median);
+    const result = buildBaselinesFromData(baselines, cache, 'exec_time', median);
 
     expect(result).toHaveLength(1);
     expect(result[0].values.get('test-A')).toBe(3.0); // median of [1, 3, 5]
   });
 
   it('uses the same agg as buildTraces (consistency check)', () => {
+    const baselines = [{ suite: 'nts', machine: 'm1', order: '100', tag: null }];
     const points = [
       makeRefPoint('test-A', '100', 1.0),
       makeRefPoint('test-A', '100', 3.0),
       makeRefPoint('test-A', '100', 5.0),
     ];
-    const refs = [{ value: '100', tag: null }];
+    const cache = buildCache(baselines, 'exec_time', [points]);
 
-    const pinResult = buildRefsFromCache(points, refs, median);
+    const blResult = buildBaselinesFromData(baselines, cache, 'exec_time', median);
     const traces = buildTraces(points, '', 'median', 'median');
 
     // Both should produce exactly the same value for test-A at order 100
     const traceValue = traces.find(t => t.testName === 'test-A')!.points
       .find(p => p.orderValue === '100')!.value;
-    expect(pinResult[0].values.get('test-A')).toBe(traceValue);
+    expect(blResult[0].values.get('test-A')).toBe(traceValue);
   });
 
   it('uses mean aggregation when provided', () => {
+    const baselines = [{ suite: 'nts', machine: 'm1', order: '100', tag: null }];
     const points = [
       makeRefPoint('test-A', '100', 1.0),
       makeRefPoint('test-A', '100', 3.0),
     ];
-    const refs = [{ value: '100', tag: null }];
+    const cache = buildCache(baselines, 'exec_time', [points]);
 
-    const result = buildRefsFromCache(points, refs, mean);
+    const result = buildBaselinesFromData(baselines, cache, 'exec_time', mean);
 
     expect(result[0].values.get('test-A')).toBe(2.0); // mean of [1, 3]
   });
 
   it('handles single data point (no aggregation needed)', () => {
+    const baselines = [{ suite: 'nts', machine: 'm1', order: '100', tag: null }];
     const points = [makeRefPoint('test-A', '100', 42.0)];
-    const refs = [{ value: '100', tag: null }];
+    const cache = buildCache(baselines, 'exec_time', [points]);
 
-    const result = buildRefsFromCache(points, refs, median);
+    const result = buildBaselinesFromData(baselines, cache, 'exec_time', median);
 
     expect(result[0].values.get('test-A')).toBe(42.0);
   });
 
-  it('handles multiple tests at the same pinned order', () => {
+  it('handles multiple tests at the same baseline order', () => {
+    const baselines = [{ suite: 'nts', machine: 'm1', order: '100', tag: null }];
     const points = [
       makeRefPoint('test-A', '100', 1.0),
       makeRefPoint('test-A', '100', 3.0),
       makeRefPoint('test-B', '100', 10.0),
       makeRefPoint('test-B', '100', 20.0),
     ];
-    const refs = [{ value: '100', tag: null }];
+    const cache = buildCache(baselines, 'exec_time', [points]);
 
-    const result = buildRefsFromCache(points, refs, median);
+    const result = buildBaselinesFromData(baselines, cache, 'exec_time', median);
 
     expect(result[0].values.get('test-A')).toBe(2.0); // median of [1, 3]
     expect(result[0].values.get('test-B')).toBe(15.0); // median of [10, 20]
   });
 
-  it('handles multiple pinned orders', () => {
-    const points = [
-      makeRefPoint('test-A', '100', 1.0),
-      makeRefPoint('test-A', '101', 5.0),
+  it('handles multiple baselines', () => {
+    const baselines = [
+      { suite: 'nts', machine: 'm1', order: '100', tag: 'v1' },
+      { suite: 'nts', machine: 'm1', order: '101', tag: null },
     ];
-    const refs = [
-      { value: '100', tag: 'v1' },
-      { value: '101', tag: null },
-    ];
+    const points1 = [makeRefPoint('test-A', '100', 1.0)];
+    const points2 = [makeRefPoint('test-A', '101', 5.0)];
+    const cache = buildCache(baselines, 'exec_time', [points1, points2]);
 
-    const result = buildRefsFromCache(points, refs, median);
+    const result = buildBaselinesFromData(baselines, cache, 'exec_time', median);
 
     expect(result).toHaveLength(2);
     expect(result[0].values.get('test-A')).toBe(1.0);
@@ -397,35 +416,70 @@ describe('buildRefsFromCache', () => {
     expect(result[1].tag).toBeNull();
   });
 
-  it('returns empty values map when pinned order has no matching data', () => {
-    const points = [makeRefPoint('test-A', '100', 1.0)];
-    const refs = [{ value: '999', tag: null }];
+  it('returns empty values map when baseline has no cached data', () => {
+    const baselines = [{ suite: 'nts', machine: 'm1', order: '999', tag: null }];
+    const cache = new Map<string, QueryDataPoint[]>();
 
-    const result = buildRefsFromCache(points, refs, median);
+    const result = buildBaselinesFromData(baselines, cache, 'exec_time', median);
 
     expect(result).toHaveLength(1);
     expect(result[0].values.size).toBe(0);
   });
 
-  it('returns empty array when no refs provided', () => {
-    const points = [makeRefPoint('test-A', '100', 1.0)];
-    const result = buildRefsFromCache(points, [], median);
+  it('returns empty array when no baselines provided', () => {
+    const cache = new Map<string, QueryDataPoint[]>();
+    const result = buildBaselinesFromData([], cache, 'exec_time', median);
     expect(result).toHaveLength(0);
   });
 
-  it('assigns distinct colors from PIN_COLORS to each pinned order', () => {
-    const points = [
-      makeRefPoint('test-A', '100', 1.0),
-      makeRefPoint('test-A', '101', 2.0),
+  it('assigns distinct colors from PIN_COLORS to each baseline', () => {
+    const baselines = [
+      { suite: 'nts', machine: 'm1', order: '100', tag: null },
+      { suite: 'nts', machine: 'm1', order: '101', tag: null },
     ];
-    const refs = [
-      { value: '100', tag: null },
-      { value: '101', tag: null },
-    ];
+    const points1 = [makeRefPoint('test-A', '100', 1.0)];
+    const points2 = [makeRefPoint('test-A', '101', 2.0)];
+    const cache = buildCache(baselines, 'exec_time', [points1, points2]);
 
-    const result = buildRefsFromCache(points, refs, median);
+    const result = buildBaselinesFromData(baselines, cache, 'exec_time', median);
 
     expect(result[0].color).not.toBe(result[1].color);
+  });
+
+  it('builds label with suite/machine/order format', () => {
+    const baselines = [{ suite: 'nts', machine: 'm1', order: '100', tag: null }];
+    const cache = new Map<string, QueryDataPoint[]>();
+
+    const result = buildBaselinesFromData(baselines, cache, 'exec_time', median);
+
+    expect(result[0].label).toBe('nts/m1/100');
+  });
+
+  it('includes tag in label when present', () => {
+    const baselines = [{ suite: 'nts', machine: 'm1', order: '100', tag: 'v1.0' }];
+    const cache = new Map<string, QueryDataPoint[]>();
+
+    const result = buildBaselinesFromData(baselines, cache, 'exec_time', median);
+
+    expect(result[0].label).toBe('nts/m1/100 (v1.0)');
+  });
+
+  it('supports cross-suite baselines', () => {
+    const baselines = [
+      { suite: 'nts', machine: 'm1', order: '100', tag: null },
+      { suite: 'other-suite', machine: 'm2', order: '200', tag: null },
+    ];
+    const points1 = [makeRefPoint('test-A', '100', 1.0)];
+    const points2 = [makeRefPoint('test-A', '200', 9.0)];
+    const cache = buildCache(baselines, 'exec_time', [points1, points2]);
+
+    const result = buildBaselinesFromData(baselines, cache, 'exec_time', median);
+
+    expect(result).toHaveLength(2);
+    expect(result[0].label).toBe('nts/m1/100');
+    expect(result[0].values.get('test-A')).toBe(1.0);
+    expect(result[1].label).toBe('other-suite/m2/200');
+    expect(result[1].values.get('test-A')).toBe(9.0);
   });
 });
 
@@ -536,13 +590,11 @@ describe('graphPage mount', () => {
     );
   });
 
-  it('renders pinned orders search area', () => {
+  it('renders baselines control group with add button', () => {
     graphPage.mount(container, { testsuite: 'nts' });
 
-    expect(renderOrderSearch).toHaveBeenCalledWith(
-      expect.any(HTMLElement),
-      expect.objectContaining({ testsuite: 'nts' }),
-    );
+    expect(container.querySelector('.add-baseline-btn')).toBeTruthy();
+    expect(container.querySelector('.add-baseline-btn')?.textContent).toBe('+ Add baseline');
   });
 
   it('calls getFields on mount to load metrics', () => {
@@ -612,16 +664,16 @@ describe('graphPage mount', () => {
     expect(selects[1].value).toBe('max');
   });
 
-  it('parses pin URL params on mount and renders chips', () => {
-    (window.location as Record<string, unknown>).search = '?suite=nts&pin=100&pin=200';
+  it('parses baseline URL params on mount and renders chips', () => {
+    (window.location as Record<string, unknown>).search = '?suite=nts&baseline=nts::m1::100&baseline=other::m2::200';
 
     graphPage.mount(container, { testsuite: 'nts' });
 
     const chips = container.querySelectorAll('.chip');
     expect(chips.length).toBeGreaterThanOrEqual(2);
     const chipTexts = Array.from(chips).map(c => c.textContent);
-    expect(chipTexts.some(t => t?.includes('100'))).toBe(true);
-    expect(chipTexts.some(t => t?.includes('200'))).toBe(true);
+    expect(chipTexts.some(t => t?.includes('nts/m1/100'))).toBe(true);
+    expect(chipTexts.some(t => t?.includes('other/m2/200'))).toBe(true);
   });
 
   // NOTE: Testing "machines + metric via URL triggers data loading" is not
@@ -635,7 +687,6 @@ describe('graphPage mount', () => {
     graphPage.unmount!();
 
     expect(mockMachineComboHandle.destroy).toHaveBeenCalled();
-    expect(mockOrderSearchHandle.destroy).toHaveBeenCalled();
   });
 
   it('unmount is safe to call without errors', () => {

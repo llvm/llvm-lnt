@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { buildPlotlyData, createTimeSeriesChart } from '../components/time-series-chart';
-import type { TimeSeriesTrace, PinnedOrder, TimeSeriesChartOptions, ChartHandle } from '../components/time-series-chart';
+import type { TimeSeriesTrace, PinnedBaseline, TimeSeriesChartOptions, ChartHandle } from '../components/time-series-chart';
 import { TRACE_SEP } from '../pages/graph';
 
 function makeTrace(name: string, points: Array<{ orderValue: string; value: number }>, machine = 'm1'): TimeSeriesTrace {
@@ -61,8 +61,8 @@ describe('buildPlotlyData', () => {
     const opts: TimeSeriesChartOptions = {
       traces: [makeTrace('test-A', [{ orderValue: '100', value: 1.5 }, { orderValue: '102', value: 2.0 }])],
       yAxisLabel: 'metric',
-      pinnedOrders: [{
-        orderValue: '101',
+      baselines: [{
+        label: '101 (release-18)',
         tag: 'release-18',
         values: refValues,
         color: '#e377c2',
@@ -82,7 +82,7 @@ describe('buildPlotlyData', () => {
     expect(refTrace.line.dash).toBe('dot');
     expect(refTrace.line.color).toBe('#e377c2');
     expect(refTrace.showlegend).toBe(false);
-    expect(refTrace.hovertemplate).toContain('Pinned: 101 (release-18)');
+    expect(refTrace.hovertemplate).toContain('Baseline: 101 (release-18)');
     expect(refTrace.hovertemplate).toContain('test-A');
     expect(refTrace.hovertemplate).toContain('2.500');
   });
@@ -94,8 +94,8 @@ describe('buildPlotlyData', () => {
     const opts: TimeSeriesChartOptions = {
       traces: [makeTrace('<script>alert("xss")</script>', [{ orderValue: '100', value: 1.5 }])],
       yAxisLabel: 'metric',
-      pinnedOrders: [{
-        orderValue: '101',
+      baselines: [{
+        label: '101 (<img onerror=alert(1)>)',
         tag: '<img onerror=alert(1)>',
         values: refValues,
         color: '#e377c2',
@@ -119,8 +119,8 @@ describe('buildPlotlyData', () => {
       traces: [makeTrace('test-A', [{ orderValue: '102', value: 1.5 }, { orderValue: '103', value: 2.0 }])],
       yAxisLabel: 'metric',
       categoryOrder: ['100', '101', '102', '103', '104', '105'],
-      pinnedOrders: [{
-        orderValue: '101',
+      baselines: [{
+        label: '101',
         tag: null,
         values: refValues,
         color: '#e377c2',
@@ -141,8 +141,8 @@ describe('buildPlotlyData', () => {
     const opts: TimeSeriesChartOptions = {
       traces: [makeTrace('test-A', [{ orderValue: '100', value: 1.0 }])],
       yAxisLabel: 'metric',
-      pinnedOrders: [{
-        orderValue: '100',
+      baselines: [{
+        label: '100',
         tag: null,
         values: refValues,
         color: '#ff0000',
@@ -504,8 +504,8 @@ describe('createTimeSeriesChart', () => {
         makeTrace('test-B', [{ orderValue: '100', value: 2.0 }]),
       ],
       yAxisLabel: 'metric',
-      pinnedOrders: [{
-        orderValue: '100', tag: null, values: refValues, color: '#e377c2',
+      baselines: [{
+        label: '100', tag: null, values: refValues, color: '#e377c2',
       }],
     });
 

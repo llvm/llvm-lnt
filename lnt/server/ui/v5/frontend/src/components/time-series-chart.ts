@@ -38,10 +38,11 @@ export interface TimeSeriesTrace {
   }>;
 }
 
-export interface PinnedOrder {
-  orderValue: string;
+export interface PinnedBaseline {
+  /** Display label, e.g. "libstdc++/gcc-x86/v13.2" or with " (tag)". */
+  label: string;
   tag: string | null;
-  /** Per-test values at this reference order. */
+  /** Per-test values at this baseline. */
   values: Map<string, number>;
   color: string;
 }
@@ -49,7 +50,7 @@ export interface PinnedOrder {
 export interface TimeSeriesChartOptions {
   traces: TimeSeriesTrace[];
   yAxisLabel: string;
-  pinnedOrders?: PinnedOrder[];
+  baselines?: PinnedBaseline[];
   onClick?: (orderValue: string) => void;
   /** Fixed x-axis category order. When set, the x-axis shows exactly these
    *  categories in this order and does not resize as data loads progressively. */
@@ -123,12 +124,11 @@ export function buildPlotlyData(options: TimeSeriesChartOptions): {
   // These are actual Plotly traces (not shapes) so they support hover.
   // Each trace is populated with a data point at every x-category so that
   // hover detection works anywhere along the line (not just at 2 endpoints).
-  if (options.pinnedOrders) {
+  if (options.baselines) {
     const pinXValues = options.categoryOrder ?? (allOrders.length > 0 ? allOrders : null);
 
     if (pinXValues) {
-      for (const ref of options.pinnedOrders) {
-        const label = ref.tag ? `${ref.orderValue} (${ref.tag})` : ref.orderValue;
+      for (const ref of options.baselines) {
         for (const [testName, value] of ref.values) {
           const trace = options.traces.find(t => t.testName === testName);
           if (!trace || trace.points.length === 0) continue;
@@ -141,7 +141,7 @@ export function buildPlotlyData(options: TimeSeriesChartOptions): {
             line: { color: ref.color, width: 1.5, dash: 'dot' },
             showlegend: false,
             hovertemplate:
-              `<b>Pinned: ${escapeHtml(label)}</b><br>` +
+              `<b>Baseline: ${escapeHtml(ref.label)}</b><br>` +
               `Test: ${escapeHtml(testName)}<br>` +
               `Value: ${value.toPrecision(4)}<extra></extra>`,
           });
