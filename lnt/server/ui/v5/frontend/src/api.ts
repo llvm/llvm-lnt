@@ -322,6 +322,7 @@ export async function queryDataPoints(
     machine?: string;
     metric?: string;
     test?: string;
+    order?: string;
     afterOrder?: string;
     beforeOrder?: string;
     sort?: string;
@@ -333,6 +334,7 @@ export async function queryDataPoints(
   if (opts.machine) params.machine = opts.machine;
   if (opts.metric) params.metric = opts.metric;
   if (opts.test) params.test = opts.test;
+  if (opts.order) params.order = opts.order;
   if (opts.afterOrder) params.after_order = opts.afterOrder;
   if (opts.beforeOrder) params.before_order = opts.beforeOrder;
   if (opts.sort) params.sort = opts.sort;

@@ -922,6 +922,19 @@ describe('queryDataPoints', () => {
     expect(url.searchParams.get('before_order')).toBe('200');
   });
 
+  it('passes order exact-match param', async () => {
+    mockFetch.mockResolvedValueOnce(mockResponse(cursorPage([])));
+
+    await queryDataPoints('nts', {
+      machine: 'm1', metric: 'exec_time', order: '100',
+    });
+
+    const url = new URL(mockFetch.mock.calls[0][0]);
+    expect(url.searchParams.get('order')).toBe('100');
+    expect(url.searchParams.has('after_order')).toBe(false);
+    expect(url.searchParams.has('before_order')).toBe(false);
+  });
+
   it('auto-paginates across multiple pages', async () => {
     mockFetch.mockResolvedValueOnce(mockResponse(cursorPage(
       [{ test: 't1', machine: 'm1', metric: 'exec_time', value: 1.0, order: { rev: '100' }, run_uuid: 'r1', timestamp: null }],

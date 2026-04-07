@@ -881,8 +881,7 @@ export const graphPage: PageModule = {
           const points = await queryDataPoints(bl.suite, {
             machine: bl.machine,
             metric,
-            afterOrder: bl.order,
-            beforeOrder: bl.order,
+            order: bl.order,
           }, signal);
           if (myGen !== suiteGeneration) return;
           baselineDataCache.set(cacheKey, points);
