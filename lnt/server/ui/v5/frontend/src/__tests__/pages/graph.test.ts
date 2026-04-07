@@ -86,7 +86,7 @@ describe('buildTraces', () => {
       makePoint('test-B', '100', 3.0),
     ];
 
-    const traces = buildTraces(points, '', 'median', 'median');
+    const traces = buildTraces(points, 'median', 'median');
 
     expect(traces).toHaveLength(2);
     expect(traces[0].testName).toBe('test-A');
@@ -95,17 +95,16 @@ describe('buildTraces', () => {
     expect(traces[1].points).toHaveLength(1);
   });
 
-  it('applies test filter (case-insensitive substring)', () => {
+  it('handles pre-filtered input (single test)', () => {
     const points = [
       makePoint('compile/test-A', '100', 1.0),
-      makePoint('exec/test-B', '100', 2.0),
-      makePoint('compile/test-C', '100', 3.0),
+      makePoint('compile/test-A', '101', 2.0),
     ];
 
-    const traces = buildTraces(points, 'compile', 'median', 'median');
+    const traces = buildTraces(points, 'median', 'median');
 
-    expect(traces).toHaveLength(2);
-    expect(traces.map(t => t.testName).sort()).toEqual(['compile/test-A', 'compile/test-C']);
+    expect(traces).toHaveLength(1);
+    expect(traces[0].testName).toBe('compile/test-A');
   });
 
   it('aggregates multiple runs at same order using run aggregation', () => {
@@ -116,7 +115,7 @@ describe('buildTraces', () => {
     ];
 
     // Median of [1.0, 3.0, 5.0] = 3.0
-    const traces = buildTraces(points, '', 'median', 'median');
+    const traces = buildTraces(points, 'median', 'median');
     expect(traces).toHaveLength(1);
     expect(traces[0].points).toHaveLength(1);
     expect(traces[0].points[0].value).toBe(3.0);
@@ -130,19 +129,17 @@ describe('buildTraces', () => {
     ];
 
     // Mean of [1.0, 3.0] = 2.0
-    const traces = buildTraces(points, '', 'mean', 'median');
+    const traces = buildTraces(points, 'mean', 'median');
     expect(traces[0].points[0].value).toBe(2.0);
   });
 
-  it('returns empty array when no points match filter', () => {
-    const points = [makePoint('test-A', '100', 1.0)];
-
-    const traces = buildTraces(points, 'nonexistent', 'median', 'median');
-    expect(traces).toHaveLength(0);
+  it('returns empty array for single empty-points input', () => {
+    const traces = buildTraces([makePoint('test-A', '100', 1.0)], 'median', 'median');
+    expect(traces).toHaveLength(1);
   });
 
   it('returns empty array for empty input', () => {
-    const traces = buildTraces([], '', 'median', 'median');
+    const traces = buildTraces([], 'median', 'median');
     expect(traces).toHaveLength(0);
   });
 
@@ -153,7 +150,7 @@ describe('buildTraces', () => {
       makePoint('middle', '100', 3.0),
     ];
 
-    const traces = buildTraces(points, '', 'median', 'median');
+    const traces = buildTraces(points, 'median', 'median');
     expect(traces.map(t => t.testName)).toEqual(['alpha', 'middle', 'zebra']);
   });
 
@@ -164,7 +161,7 @@ describe('buildTraces', () => {
       makePoint('test-A', '102', 3.0),
     ];
 
-    const traces = buildTraces(points, '', 'median', 'median');
+    const traces = buildTraces(points, 'median', 'median');
     const orderValues = traces[0].points.map(p => p.orderValue);
     expect(orderValues).toEqual(['100', '101', '102']);
   });
@@ -176,7 +173,7 @@ describe('buildTraces', () => {
       makePoint('test-A', '100', 1.0),
     ];
 
-    const traces = buildTraces(points, '', 'median', 'median');
+    const traces = buildTraces(points, 'median', 'median');
     // buildTraces preserves Map insertion order, so reversed input stays reversed
     const orderValues = traces[0].points.map(p => p.orderValue);
     expect(orderValues).toEqual(['102', '101', '100']);
@@ -192,7 +189,7 @@ describe('buildTraces', () => {
       makePoint('test-B', '100', 4.0),
     ];
 
-    const traces = buildTraces(points, '', 'median', 'median');
+    const traces = buildTraces(points, 'median', 'median');
     expect(traces).toHaveLength(2);
     // test-A comes first alphabetically
     expect(traces[0].testName).toBe('test-A');
@@ -209,89 +206,62 @@ describe('computeActiveTests', () => {
     'papa', 'quebec', 'romeo', 'sierra', 'tango',
     'uniform', 'victor', 'whiskey'];
 
-  it('caps at 20 when autoCapped=true and no filter/hidden', () => {
-    const active = computeActiveTests(names, '', new Set(), true);
-    expect(active.size).toBe(20);
-    expect(active.has('alpha')).toBe(true);
-    expect(active.has('tango')).toBe(true);  // 20th
-    expect(active.has('uniform')).toBe(false);  // 21st
-  });
-
-  it('disables cap when filter is non-empty', () => {
-    const active = computeActiveTests(names, 'a', new Set(), true);
-    // 'alpha', 'charlie', 'delta', 'tango', 'papa', 'sierra', 'whiskey' — all with 'a'
-    for (const n of names) {
-      if (n.toLowerCase().includes('a')) {
-        expect(active.has(n)).toBe(true);
-      } else {
-        expect(active.has(n)).toBe(false);
-      }
-    }
+  it('returns all names when no hidden set', () => {
+    const active = computeActiveTests(names, '', new Set());
+    expect(active.size).toBe(names.length);
   });
 
   it('removes manually hidden tests', () => {
     const hidden = new Set(['beta', 'charlie']);
-    const active = computeActiveTests(names, '', hidden, false);
+    const active = computeActiveTests(names, '', hidden);
     expect(active.has('alpha')).toBe(true);
     expect(active.has('beta')).toBe(false);
     expect(active.has('charlie')).toBe(false);
     expect(active.has('delta')).toBe(true);
   });
 
-  it('cap is disabled when manuallyHidden is non-empty', () => {
-    const hidden = new Set(['alpha']);
-    // autoCapped=true but hidden is non-empty → cap disabled
-    const active = computeActiveTests(names, '', hidden, true);
-    // All names except 'alpha' should be active (no 20-cap)
-    expect(active.size).toBe(names.length - 1);
-    expect(active.has('alpha')).toBe(false);
-    expect(active.has('uniform')).toBe(true);  // would be capped otherwise
-  });
-
   it('returns empty set for empty input', () => {
-    const active = computeActiveTests([], '', new Set(), true);
+    const active = computeActiveTests([], '', new Set());
     expect(active.size).toBe(0);
   });
 
   it('double-click isolation is just manuallyHidden with all others hidden', () => {
-    // Simulates what onIsolate does: hide all except 'charlie'
     const hidden = new Set(names.filter(n => n !== 'charlie'));
-    const active = computeActiveTests(names, '', hidden, false);
+    const active = computeActiveTests(names, '', hidden);
     expect(active.size).toBe(1);
     expect(active.has('charlie')).toBe(true);
   });
 
   it('after isolation, single-click unhide works naturally', () => {
-    // After isolating 'charlie', user single-clicks 'alpha' to unhide it
     const hidden = new Set(names.filter(n => n !== 'charlie'));
     hidden.delete('alpha');
-    const active = computeActiveTests(names, '', hidden, false);
+    const active = computeActiveTests(names, '', hidden);
     expect(active.size).toBe(2);
     expect(active.has('charlie')).toBe(true);
     expect(active.has('alpha')).toBe(true);
   });
 
-  it('filters multi-machine trace names by test name portion only', () => {
+  it('handles multi-machine trace names', () => {
     const traceNames = [
       `compile/test-A${TRACE_SEP}clang-x86`,
       `compile/test-A${TRACE_SEP}gcc-arm`,
       `exec/test-B${TRACE_SEP}clang-x86`,
       `exec/test-B${TRACE_SEP}gcc-arm`,
     ];
-    const active = computeActiveTests(traceNames, 'compile', new Set(), false);
-    expect(active.size).toBe(2);
-    expect(active.has(`compile/test-A${TRACE_SEP}clang-x86`)).toBe(true);
-    expect(active.has(`compile/test-A${TRACE_SEP}gcc-arm`)).toBe(true);
-    expect(active.has(`exec/test-B${TRACE_SEP}clang-x86`)).toBe(false);
+    const active = computeActiveTests(traceNames, 'compile', new Set());
+    // No client-side filtering — all traces are active
+    expect(active.size).toBe(4);
   });
 
-  it('filter does not match machine name', () => {
+  it('hidden traces are removed regardless of filter string', () => {
     const traceNames = [
       `test-A${TRACE_SEP}clang-x86`,
       `test-A${TRACE_SEP}gcc-arm`,
     ];
-    const active = computeActiveTests(traceNames, 'clang', new Set(), false);
-    expect(active.size).toBe(0);
+    const hidden = new Set([`test-A${TRACE_SEP}clang-x86`]);
+    const active = computeActiveTests(traceNames, '', hidden);
+    expect(active.size).toBe(1);
+    expect(active.has(`test-A${TRACE_SEP}gcc-arm`)).toBe(true);
   });
 });
 
@@ -359,7 +329,7 @@ describe('buildBaselinesFromData', () => {
     const cache = buildCache(baselines, 'exec_time', [points]);
 
     const blResult = buildBaselinesFromData(baselines, cache, 'exec_time', median);
-    const traces = buildTraces(points, '', 'median', 'median');
+    const traces = buildTraces(points, 'median', 'median');
 
     // Both should produce exactly the same value for test-A at order 100
     const traceValue = traces.find(t => t.testName === 'test-A')!.points

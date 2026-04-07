@@ -892,7 +892,7 @@ describe('updateOrderTag', () => {
 });
 
 describe('queryDataPoints', () => {
-  it('passes machine and metric as query params', async () => {
+  it('sends POST with JSON body containing machine and metric', async () => {
     const pt: QueryDataPoint = {
       test: 't1', machine: 'm1', metric: 'exec_time', value: 1.0,
       order: { rev: '100' }, run_uuid: 'r1', timestamp: null,
@@ -904,11 +904,14 @@ describe('queryDataPoints', () => {
     expect(result).toHaveLength(1);
     const url = new URL(mockFetch.mock.calls[0][0]);
     expect(url.pathname).toBe('/api/v5/nts/query');
-    expect(url.searchParams.get('machine')).toBe('m1');
-    expect(url.searchParams.get('metric')).toBe('exec_time');
+    const init = mockFetch.mock.calls[0][1] as RequestInit;
+    expect(init.method).toBe('POST');
+    const body = JSON.parse(init.body as string);
+    expect(body.machine).toBe('m1');
+    expect(body.metric).toBe('exec_time');
   });
 
-  it('passes optional filter params', async () => {
+  it('passes optional filter params in POST body', async () => {
     mockFetch.mockResolvedValueOnce(mockResponse(cursorPage([])));
 
     await queryDataPoints('nts', {
@@ -916,23 +919,25 @@ describe('queryDataPoints', () => {
       test: 't1', afterOrder: '100', beforeOrder: '200',
     });
 
-    const url = new URL(mockFetch.mock.calls[0][0]);
-    expect(url.searchParams.get('test')).toBe('t1');
-    expect(url.searchParams.get('after_order')).toBe('100');
-    expect(url.searchParams.get('before_order')).toBe('200');
+    const init = mockFetch.mock.calls[0][1] as RequestInit;
+    const body = JSON.parse(init.body as string);
+    expect(body.test).toEqual(['t1']);
+    expect(body.after_order).toBe('100');
+    expect(body.before_order).toBe('200');
   });
 
-  it('passes order exact-match param', async () => {
+  it('passes order exact-match param in POST body', async () => {
     mockFetch.mockResolvedValueOnce(mockResponse(cursorPage([])));
 
     await queryDataPoints('nts', {
       machine: 'm1', metric: 'exec_time', order: '100',
     });
 
-    const url = new URL(mockFetch.mock.calls[0][0]);
-    expect(url.searchParams.get('order')).toBe('100');
-    expect(url.searchParams.has('after_order')).toBe(false);
-    expect(url.searchParams.has('before_order')).toBe(false);
+    const init = mockFetch.mock.calls[0][1] as RequestInit;
+    const body = JSON.parse(init.body as string);
+    expect(body.order).toBe('100');
+    expect(body.after_order).toBeUndefined();
+    expect(body.before_order).toBeUndefined();
   });
 
   it('auto-paginates across multiple pages', async () => {
@@ -948,6 +953,10 @@ describe('queryDataPoints', () => {
 
     expect(result).toHaveLength(2);
     expect(mockFetch).toHaveBeenCalledTimes(2);
+    // Second call should include cursor in body
+    const init2 = mockFetch.mock.calls[1][1] as RequestInit;
+    const body2 = JSON.parse(init2.body as string);
+    expect(body2.cursor).toBe('cursor-2');
   });
 });
 

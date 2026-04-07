@@ -32,7 +32,7 @@ export function authErrorMessage(err: unknown): string {
 }
 
 interface FetchOptions {
-  params?: Record<string, string>;
+  params?: Record<string, string | string[]>;
   signal?: AbortSignal;
   method?: string;
   body?: unknown;
@@ -47,7 +47,11 @@ async function fetchJson<T>(url: string, opts?: FetchOptions): Promise<T> {
   const u = new URL(url, window.location.origin);
   if (params) {
     for (const [k, v] of Object.entries(params)) {
-      if (v !== undefined && v !== '') u.searchParams.set(k, v);
+      if (Array.isArray(v)) {
+        for (const item of v) u.searchParams.append(k, item);
+      } else if (v !== undefined && v !== '') {
+        u.searchParams.set(k, v);
+      }
     }
   }
   const headers: Record<string, string> = { 'Accept': 'application/json' };
@@ -74,7 +78,11 @@ async function fetchVoid(url: string, opts?: FetchOptions): Promise<void> {
   const u = new URL(url, window.location.origin);
   if (opts?.params) {
     for (const [k, v] of Object.entries(opts.params)) {
-      if (v !== undefined && v !== '') u.searchParams.set(k, v);
+      if (Array.isArray(v)) {
+        for (const item of v) u.searchParams.append(k, item);
+      } else if (v !== undefined && v !== '') {
+        u.searchParams.set(k, v);
+      }
     }
   }
   const headers: Record<string, string> = {};
@@ -93,18 +101,26 @@ async function fetchVoid(url: string, opts?: FetchOptions): Promise<void> {
 
 async function fetchAllCursorPages<T>(
   url: string,
-  params?: Record<string, string>,
+  params?: Record<string, string | string[]>,
   signal?: AbortSignal,
   onProgress?: (loaded: number) => void,
+  postBody?: Record<string, unknown>,
 ): Promise<T[]> {
   const all: T[] = [];
   let cursor: string | undefined;
-  const baseParams: Record<string, string> = { ...params, limit: '500' };
 
   while (true) {
-    const p: Record<string, string> = { ...baseParams };
-    if (cursor) p.cursor = cursor;
-    const page = await fetchJson<CursorPaginated<T>>(url, { params: p, signal });
+    let page: CursorPaginated<T>;
+    if (postBody !== undefined) {
+      // POST mode: parameters go in JSON body, cursor merged in.
+      const body = { ...postBody, limit: 500, ...(cursor ? { cursor } : {}) };
+      page = await fetchJson<CursorPaginated<T>>(url, { method: 'POST', body, signal });
+    } else {
+      // GET mode: parameters go in URL query string.
+      const p: Record<string, string | string[]> = { ...params, limit: '500' };
+      if (cursor) p.cursor = cursor;
+      page = await fetchJson<CursorPaginated<T>>(url, { params: p, signal });
+    }
     all.push(...page.items);
     if (onProgress) onProgress(all.length);
     if (!page.cursor.next) break;
@@ -128,10 +144,23 @@ export interface CursorPageResult<T> {
  */
 export async function fetchOneCursorPage<T>(
   url: string,
-  params?: Record<string, string>,
+  params?: Record<string, string | string[]>,
   signal?: AbortSignal,
 ): Promise<CursorPageResult<T>> {
   const page = await fetchJson<CursorPaginated<T>>(url, { params, signal });
+  return { items: page.items, nextCursor: page.cursor.next };
+}
+
+/**
+ * POST one page of cursor-paginated results with a JSON body.
+ * Used by the query endpoint where parameters are in the request body.
+ */
+export async function postOneCursorPage<T>(
+  url: string,
+  body: Record<string, unknown>,
+  signal?: AbortSignal,
+): Promise<CursorPageResult<T>> {
+  const page = await fetchJson<CursorPaginated<T>>(url, { method: 'POST', body, signal });
   return { items: page.items, nextCursor: page.cursor.next };
 }
 
@@ -321,7 +350,7 @@ export async function queryDataPoints(
   opts: {
     machine?: string;
     metric?: string;
-    test?: string;
+    test?: string | string[];
     order?: string;
     afterOrder?: string;
     beforeOrder?: string;
@@ -330,20 +359,34 @@ export async function queryDataPoints(
   signal?: AbortSignal,
   onProgress?: (loaded: number) => void,
 ): Promise<QueryDataPoint[]> {
-  const params: Record<string, string> = {};
-  if (opts.machine) params.machine = opts.machine;
-  if (opts.metric) params.metric = opts.metric;
-  if (opts.test) params.test = opts.test;
-  if (opts.order) params.order = opts.order;
-  if (opts.afterOrder) params.after_order = opts.afterOrder;
-  if (opts.beforeOrder) params.before_order = opts.beforeOrder;
-  if (opts.sort) params.sort = opts.sort;
+  const body: Record<string, unknown> = {};
+  if (opts.machine) body.machine = opts.machine;
+  if (opts.metric) body.metric = opts.metric;
+  if (opts.test) body.test = Array.isArray(opts.test) ? opts.test : [opts.test];
+  if (opts.order) body.order = opts.order;
+  if (opts.afterOrder) body.after_order = opts.afterOrder;
+  if (opts.beforeOrder) body.before_order = opts.beforeOrder;
+  if (opts.sort) body.sort = opts.sort;
   return fetchAllCursorPages<QueryDataPoint>(
     apiUrl(ts, 'query'),
-    params,
+    undefined,
     signal,
     onProgress,
+    body,
   );
+}
+
+export async function getTests(
+  ts: string,
+  opts?: { machine?: string; metric?: string; nameContains?: string; limit?: number },
+  signal?: AbortSignal,
+): Promise<CursorPageResult<{ name: string }>> {
+  const params: Record<string, string> = {};
+  if (opts?.machine) params.machine = opts.machine;
+  if (opts?.metric) params.metric = opts.metric;
+  if (opts?.nameContains) params.name_contains = opts.nameContains;
+  if (opts?.limit !== undefined) params.limit = String(opts.limit);
+  return fetchOneCursorPage<{ name: string }>(apiUrl(ts, 'tests'), params, signal);
 }
 
 // ---------------------------------------------------------------------------
