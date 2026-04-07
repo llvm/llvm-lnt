@@ -1,13 +1,12 @@
 """Query endpoint for the v5 API.
 
-GET /api/v5/{ts}/query?metric={name}&machine={name}&test={name}
-                      &order={order}
-                      &after_order={order}&before_order={order}
-                      &after_time={iso8601}&before_time={iso8601}
-                      &sort={fields}&limit={n}&cursor={c}
+POST /api/v5/{ts}/query
+  Body (JSON): {metric, machine, test, order, after_order, before_order,
+                after_time, before_time, sort, limit, cursor}
 
-Returns cursor-paginated data points. The metric parameter is required;
-all other filter parameters are optional.
+Returns cursor-paginated data points. The metric field is required;
+all other fields are optional. The test field accepts a list of names
+for disjunction queries.
 """
 
 import base64
@@ -20,7 +19,7 @@ from sqlalchemy import and_, or_
 from lnt.testing import PASS
 
 from ..auth import require_scope
-from ..errors import abort_with_error, reject_unknown_params
+from ..errors import abort_with_error
 from ..helpers import parse_datetime, resolve_metric
 from ..pagination import make_paginated_response
 from ..schemas.query import QueryEndpointQuerySchema, QueryResponseSchema
@@ -35,13 +34,6 @@ blp = Blueprint(
 # Default and maximum page sizes.
 _DEFAULT_LIMIT = 100
 _MAX_LIMIT = 10000
-
-# Valid query parameter names for the /query endpoint.
-_VALID_QUERY_PARAMS = {
-    'machine', 'test', 'metric', 'order',
-    'after_order', 'before_order', 'after_time', 'before_time',
-    'sort', 'limit', 'cursor',
-}
 
 # Allowed sort field names and the columns they map to.
 # The actual column references are resolved at query time since the
@@ -248,10 +240,12 @@ def _resolve_order(session, ts, order_value):
     return order, None
 
 
-def _query_for_field(session, ts, sample_field, machine, test,
+def _query_for_field(session, ts, sample_field, machine, test_ids,
                      sort_spec, cursor_values, order, after_order,
                      before_order, after_time, before_time, limit):
     """Build and execute a query for a single sample field.
+
+    *test_ids* is a list of test IDs to filter by, or None for no filter.
 
     Returns a list of dicts ready for serialization, plus a boolean
     indicating whether there are more results.
@@ -279,8 +273,11 @@ def _query_for_field(session, ts, sample_field, machine, test,
     # Apply optional filters.
     if machine is not None:
         q = q.filter(ts.Run.machine_id == machine.id)
-    if test is not None:
-        q = q.filter(ts.Sample.test_id == test.id)
+    if test_ids is not None:
+        if len(test_ids) == 1:
+            q = q.filter(ts.Sample.test_id == test_ids[0])
+        else:
+            q = q.filter(ts.Sample.test_id.in_(test_ids))
 
     # Apply exact order filter.
     if order is not None:
@@ -347,20 +344,15 @@ class QueryView(MethodView):
     """Query data points."""
 
     @require_scope('read')
-    @blp.arguments(QueryEndpointQuerySchema, location="query")
+    @blp.arguments(QueryEndpointQuerySchema, location="json")
     @blp.response(200, QueryResponseSchema)
-    def get(self, query_args, testsuite):
+    def post(self, query_args, testsuite):
         """Query data points.
 
-        Returns cursor-paginated data points. The metric parameter is
-        required; all other filter parameters are optional -- omit any
-        to get data across all values of that dimension.
+        Returns cursor-paginated data points. The metric field is
+        required; all other fields are optional -- omit any to get
+        data across all values of that dimension.
         """
-        # Reject unknown query parameters early so that typos like
-        # ``machine_name=`` or ``metric_name=`` don't silently return
-        # unfiltered data.
-        reject_unknown_params(_VALID_QUERY_PARAMS)
-
         ts = g.ts
         session = g.db_session
 
@@ -368,7 +360,7 @@ class QueryView(MethodView):
         # Parse filter parameters
         # ------------------------------------------------------------------
         machine_name = query_args.get('machine')
-        test_name = query_args.get('test')
+        test_names = query_args.get('test')
         field_name = query_args['metric']
 
         # Resolve entities when provided.
@@ -378,11 +370,19 @@ class QueryView(MethodView):
             if err:
                 abort_with_error(status, err)
 
-        test = None
-        if test_name:
-            test, err = _resolve_test(session, ts, test_name)
-            if err:
-                abort_with_error(404, err)
+        test_ids = None
+        if test_names:
+            test_ids = []
+            for tn in test_names:
+                test, err = _resolve_test(session, ts, tn)
+                if err:
+                    # Silently skip unknown test names — return no data
+                    # for them rather than 404-ing the entire request.
+                    continue
+                test_ids.append(test.id)
+            if not test_ids:
+                # All requested tests are unknown — return empty response.
+                return jsonify(make_paginated_response([], None))
 
         field = resolve_metric(ts, field_name)
 
@@ -461,7 +461,7 @@ class QueryView(MethodView):
         # Execute query
         # ------------------------------------------------------------------
         items, has_next = _query_for_field(
-            session, ts, field, machine, test,
+            session, ts, field, machine, test_ids,
             sort_spec, cursor_values, order, after_order, before_order,
             after_time, before_time, limit)
 

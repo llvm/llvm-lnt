@@ -11,7 +11,7 @@ from flask_smorest import Blueprint
 from ..auth import require_scope
 from ..errors import reject_unknown_params
 from ..etag import add_etag_to_response
-from ..helpers import escape_like, lookup_test
+from ..helpers import escape_like, lookup_machine, lookup_test, resolve_metric
 from ..pagination import (
     cursor_paginate,
     make_paginated_response,
@@ -44,11 +44,30 @@ class TestList(MethodView):
     @blp.response(200, PaginatedTestResponseSchema)
     def get(self, query_args, testsuite):
         """List tests (cursor-paginated, filterable)."""
-        reject_unknown_params({'name_contains', 'name_prefix', 'cursor', 'limit'})
+        reject_unknown_params({
+            'name_contains', 'name_prefix', 'machine', 'metric',
+            'cursor', 'limit',
+        })
         ts = g.ts
         session = g.db_session
 
         query = session.query(ts.Test)
+
+        # Machine / metric filters require joining through Sample
+        # (and additionally through Run when machine= is specified).
+        machine_name = query_args.get('machine')
+        metric_name = query_args.get('metric')
+        if machine_name or metric_name:
+            query = query.join(ts.Sample, ts.Sample.test_id == ts.Test.id)
+        if machine_name:
+            machine = lookup_machine(session, ts, machine_name)
+            query = query.join(ts.Run).filter(
+                ts.Run.machine_id == machine.id)
+        if metric_name:
+            field = resolve_metric(ts, metric_name)
+            query = query.filter(field.column.isnot(None))
+        if machine_name or metric_name:
+            query = query.distinct()
 
         # Apply filters
         name_contains = query_args.get('name_contains')

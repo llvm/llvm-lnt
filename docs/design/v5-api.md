@@ -50,6 +50,7 @@ Tests
 GET    /tests                        — List (cursor-paginated, filterable)
 GET    /tests/{test_name}            — Detail
 Read-only. Tests are created implicitly via run submission.
+Filters: name_contains=, name_prefix=, machine= (only tests with data for this machine), metric= (only tests with non-NULL values for this metric).
 
 Samples
 
@@ -106,12 +107,12 @@ Creating a field change requires: machine (name), test (name), metric (name), ol
 
 Time Series
 
-GET    /query
-  Query params: machine={name}&test={name}&metric={name}&order={order}
-                &after_order={order}&before_order={order}
-                &after_time={iso8601}&before_time={iso8601}&sort={fields}&limit={n}&cursor={c}
-The metric parameter is required; all other query parameters are optional.
-The order parameter filters for an exact order match and cannot be combined with after_order/before_order.
+POST   /query
+  Body (JSON): {metric, machine, test, order, after_order, before_order,
+                after_time, before_time, sort, limit, cursor}
+The metric field is required; all other fields are optional.
+The test field accepts a list of names for disjunction queries.
+The order field filters for an exact order match and cannot be combined with after_order/before_order.
 Returns cursor-paginated time-series data for graphing. Uses field names (not indices) to be self-documenting.
 
 Schema and Fields

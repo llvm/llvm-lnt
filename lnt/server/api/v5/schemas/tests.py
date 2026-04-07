@@ -41,3 +41,17 @@ class TestListQuerySchema(CursorPaginationQuerySchema):
         load_default=None,
         metadata={'description': 'Filter by test name prefix'},
     )
+    machine = ma.fields.String(
+        load_default=None,
+        metadata={
+            'description': 'Only return tests that have sample data '
+                           'for this machine',
+        },
+    )
+    metric = ma.fields.String(
+        load_default=None,
+        metadata={
+            'description': 'Only return tests that have non-NULL values '
+                           'for this metric',
+        },
+    )

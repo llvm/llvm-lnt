@@ -3,7 +3,7 @@
 import marshmallow as ma
 
 from . import BaseSchema
-from .common import BaseQuerySchema, CursorSchema
+from .common import CursorSchema
 
 
 class QueryDataPointSchema(BaseSchema):
@@ -44,7 +44,7 @@ class QueryDataPointSchema(BaseSchema):
 
 
 class QueryResponseSchema(BaseSchema):
-    """Response schema for GET /api/v5/{ts}/query."""
+    """Response schema for POST /api/v5/{ts}/query."""
     items = ma.fields.List(
         ma.fields.Nested(QueryDataPointSchema),
         required=True,
@@ -54,18 +54,26 @@ class QueryResponseSchema(BaseSchema):
 
 
 # ---------------------------------------------------------------------------
-# Query parameter schemas
+# Request body schema
 # ---------------------------------------------------------------------------
 
-class QueryEndpointQuerySchema(BaseQuerySchema):
-    """Query parameters for GET /query."""
+class QueryEndpointQuerySchema(BaseSchema):
+    """JSON body for POST /query."""
+
+    class Meta:
+        ordered = True
+        unknown = ma.RAISE
+
     machine = ma.fields.String(
         load_default=None,
         metadata={'description': 'Filter by machine name'},
     )
-    test = ma.fields.String(
+    test = ma.fields.List(
+        ma.fields.String(),
         load_default=None,
-        metadata={'description': 'Filter by test name'},
+        metadata={
+            'description': 'Filter by test name(s) (disjunction).',
+        },
     )
     metric = ma.fields.String(
         required=True,

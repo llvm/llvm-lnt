@@ -14,6 +14,7 @@ import uuid
 sys.path.insert(0, os.path.dirname(__file__))
 from v5_test_helpers import (
     create_app, create_client, create_test, collect_all_pages,
+    create_machine, create_order, create_run, create_sample,
 )
 
 
@@ -294,6 +295,128 @@ class TestTestUnknownParams(unittest.TestCase):
         session.close()
         resp = self.client.get(PREFIX + f'/tests/{name}?bogus=1')
         self.assertEqual(resp.status_code, 400)
+
+
+class TestTestMachineMetricFilter(unittest.TestCase):
+    """Tests for machine= and metric= filters on GET /tests."""
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+        cls._prefix = uuid.uuid4().hex[:8]
+
+        db = cls.app.instance.get_database("default")
+        session = db.make_session()
+        ts = db.testsuite[TS]
+
+        # Machine A has data for test_1 and test_2.
+        # Two runs on machine A to exercise DISTINCT deduplication.
+        cls.machine_a = f'mf-machA-{cls._prefix}'
+        machine_a = create_machine(session, ts, name=cls.machine_a)
+        cls.test_1 = f'mf-test1-{cls._prefix}'
+        cls.test_2 = f'mf-test2-{cls._prefix}'
+        test_1 = create_test(session, ts, name=cls.test_1)
+        test_2 = create_test(session, ts, name=cls.test_2)
+
+        order1 = create_order(session, ts, revision=str(700))
+        run_a1 = create_run(session, ts, machine_a, order1)
+        create_sample(session, ts, run_a1, test_1, execution_time=1.0)
+        create_sample(session, ts, run_a1, test_2, execution_time=2.0)
+
+        order1b = create_order(session, ts, revision=str(702))
+        run_a2 = create_run(session, ts, machine_a, order1b)
+        create_sample(session, ts, run_a2, test_1, execution_time=1.1)
+        create_sample(session, ts, run_a2, test_2, execution_time=2.1)
+
+        # Machine B has data for test_2 and test_3
+        cls.machine_b = f'mf-machB-{cls._prefix}'
+        machine_b = create_machine(session, ts, name=cls.machine_b)
+        cls.test_3 = f'mf-test3-{cls._prefix}'
+        test_3 = create_test(session, ts, name=cls.test_3)
+
+        order2 = create_order(session, ts, revision=str(701))
+        run_b = create_run(session, ts, machine_b, order2)
+        create_sample(session, ts, run_b, test_2, execution_time=3.0)
+        create_sample(session, ts, run_b, test_3, execution_time=4.0)
+
+        # test_4 has no samples (no data for any machine/metric)
+        cls.test_4 = f'mf-test4-{cls._prefix}'
+        create_test(session, ts, name=cls.test_4)
+
+        session.commit()
+        session.close()
+
+    def test_filter_by_machine_a(self):
+        resp = self.client.get(
+            PREFIX + f'/tests?machine={self.machine_a}'
+            f'&name_contains={self._prefix}')
+        self.assertEqual(resp.status_code, 200)
+        names = {t['name'] for t in resp.get_json()['items']}
+        self.assertEqual(names, {self.test_1, self.test_2})
+
+    def test_filter_by_machine_b(self):
+        resp = self.client.get(
+            PREFIX + f'/tests?machine={self.machine_b}'
+            f'&name_contains={self._prefix}')
+        self.assertEqual(resp.status_code, 200)
+        names = {t['name'] for t in resp.get_json()['items']}
+        self.assertEqual(names, {self.test_2, self.test_3})
+
+    def test_filter_by_metric(self):
+        resp = self.client.get(
+            PREFIX + f'/tests?metric=execution_time'
+            f'&name_contains={self._prefix}')
+        self.assertEqual(resp.status_code, 200)
+        names = {t['name'] for t in resp.get_json()['items']}
+        # test_4 has no samples, should be excluded
+        self.assertEqual(names, {self.test_1, self.test_2, self.test_3})
+
+    def test_filter_by_machine_and_metric(self):
+        resp = self.client.get(
+            PREFIX + f'/tests?machine={self.machine_a}'
+            f'&metric=execution_time&name_contains={self._prefix}')
+        self.assertEqual(resp.status_code, 200)
+        names = {t['name'] for t in resp.get_json()['items']}
+        self.assertEqual(names, {self.test_1, self.test_2})
+
+    def test_filter_by_machine_and_name_contains(self):
+        resp = self.client.get(
+            PREFIX + f'/tests?machine={self.machine_a}'
+            f'&name_contains=test1-{self._prefix}')
+        self.assertEqual(resp.status_code, 200)
+        names = {t['name'] for t in resp.get_json()['items']}
+        self.assertEqual(names, {self.test_1})
+
+    def test_unknown_machine_returns_404(self):
+        resp = self.client.get(
+            PREFIX + '/tests?machine=nonexistent-machine-xyz')
+        self.assertEqual(resp.status_code, 404)
+
+    def test_unknown_metric_returns_400(self):
+        resp = self.client.get(
+            PREFIX + '/tests?metric=nonexistent_metric')
+        self.assertEqual(resp.status_code, 400)
+
+    def test_multiple_samples_deduplicated(self):
+        """Machine A has two runs with samples for test_1 — test_1
+        should still appear only once in the results (DISTINCT)."""
+        resp = self.client.get(
+            PREFIX + f'/tests?machine={self.machine_a}'
+            f'&name_contains=test1-{self._prefix}')
+        self.assertEqual(resp.status_code, 200)
+        items = resp.get_json()['items']
+        names = [t['name'] for t in items]
+        self.assertEqual(names, [self.test_1])
+
+    def test_no_filters_includes_all(self):
+        resp = self.client.get(
+            PREFIX + f'/tests?name_contains={self._prefix}')
+        self.assertEqual(resp.status_code, 200)
+        names = {t['name'] for t in resp.get_json()['items']}
+        # All 4 tests should appear (including test_4 with no samples)
+        self.assertEqual(
+            names, {self.test_1, self.test_2, self.test_3, self.test_4})
 
 
 if __name__ == '__main__':

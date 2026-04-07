@@ -436,7 +436,10 @@ GET    /api/v5/{ts}/tests/{test_name}      — Detail
 **Key design decisions:**
 - Read-only. Tests created implicitly via run submission.
 - Use `<path:test_name>` converter for test names with slashes
-- Filter: `name_contains=`, `name_prefix=`
+- Filter: `name_contains=`, `name_prefix=`, `machine=`, `metric=`
+- `machine=` and `metric=` join through Sample → Run to return only tests
+  that have actual data for the given machine and/or metric. The query uses
+  `DISTINCT` to deduplicate.
 - Escape `%` and `_` in user-supplied LIKE patterns to prevent pattern injection
 - Auth: read only.
 
@@ -567,14 +570,20 @@ DELETE /api/v5/{ts}/field-changes/{uuid}/ignore    — Un-ignore
 
 **Endpoint:**
 ```
-GET /api/v5/{ts}/series?machine={name}&test={name}&field={name}&after={order}&before={order}&limit={n}
+POST /api/v5/{ts}/query
+Body (JSON): {metric, machine, test, order, after_order, before_order,
+              after_time, before_time, sort, limit, cursor}
 ```
 
 **Key design decisions:**
-- `machine`, `test`, `field` are all REQUIRED (by name, not ID)
+- Uses POST with a JSON body (not GET with query params) to avoid URL length
+  limits when querying many tests with long names.
+- `metric` is REQUIRED (by name, not ID). All other fields are optional.
+- `test` is a list of test names for disjunction queries.
+  Unknown test names are silently skipped (no 404).
 - Field name → Sample column resolution via `ts.sample_fields` name→column mapping
 - Core query: `SELECT field.column, order.*, run.* FROM Sample JOIN Run JOIN Order
-  WHERE machine_id=X AND test_id=Y AND field IS NOT NULL`
+  WHERE machine_id=X AND test_id IN (...) AND field IS NOT NULL`
 - Filter out failing tests if the field has a status_field
 - Order filtering: `order` for exact match (=), `after_order`/`before_order` for
   exclusive range (>/< on Order.id). `order` cannot be combined with range params.
