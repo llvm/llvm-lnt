@@ -1,6 +1,6 @@
 // components/nav.ts — Navigation bar for the v5 SPA.
 
-import { el } from '../utils';
+import { el, isModifiedClick } from '../utils';
 import { navigate } from '../router';
 
 export interface NavConfig {
@@ -18,16 +18,11 @@ let activeLink: HTMLElement | null = null;
  */
 export function renderNav(config: NavConfig): HTMLElement {
   const nav = el('nav', { class: 'v5-nav' });
+  const tsBasePath = config.testsuite
+    ? `${config.urlBase}/v5/${encodeURIComponent(config.testsuite)}`
+    : `${config.urlBase}/v5`;
 
-  // Brand
-  const brand = el('a', { class: 'v5-nav-brand', href: '#' }, 'LNT');
-  brand.addEventListener('click', (e) => {
-    e.preventDefault();
-    navigate('/');
-  });
-  nav.append(brand);
-
-  // Test suite selector
+  // Test suite selector (created first so brand and nav links can reference it)
   const suiteSelect = el('select', { class: 'v5-nav-suite-select' }) as HTMLSelectElement;
   for (const name of config.testsuites) {
     const opt = el('option', { value: name }, name);
@@ -40,9 +35,34 @@ export function renderNav(config: NavConfig): HTMLElement {
     const newSuite = suiteSelect.value;
     window.location.href = `${config.urlBase}/v5/${encodeURIComponent(newSuite)}/`;
   });
+
+  // Brand — in admin context, href points to the selected suite's dashboard
+  const brandHref = config.testsuite
+    ? tsBasePath + '/'
+    : `${config.urlBase}/v5/${encodeURIComponent(suiteSelect.value)}/`;
+  const brand = el('a', { class: 'v5-nav-brand', href: brandHref }, 'LNT');
+  if (!config.testsuite) {
+    suiteSelect.addEventListener('change', () => {
+      const suite = suiteSelect.value;
+      brand.setAttribute('href', `${config.urlBase}/v5/${encodeURIComponent(suite)}/`);
+    });
+  }
+  brand.addEventListener('click', (e) => {
+    if (isModifiedClick(e)) return;
+    e.preventDefault();
+    if (config.testsuite) {
+      navigate('/');
+    } else {
+      const suite = suiteSelect.value;
+      if (suite) {
+        window.location.href = `${config.urlBase}/v5/${encodeURIComponent(suite)}/`;
+      }
+    }
+  });
+  nav.append(brand);
+
   const suiteGroup = el('div', { class: 'v5-nav-suite' });
   suiteGroup.append(el('span', {}, 'Suite: '), suiteSelect);
-  nav.append(suiteGroup);
   nav.append(suiteGroup);
 
   // Navigation links
@@ -60,10 +80,11 @@ export function renderNav(config: NavConfig): HTMLElement {
       // Normal testsuite context — use SPA navigation
       const a = el('a', {
         class: 'v5-nav-link',
-        href: '#',
+        href: tsBasePath + link.path,
         'data-path': link.path,
       }, link.label);
       a.addEventListener('click', (e) => {
+        if (isModifiedClick(e)) return;
         e.preventDefault();
         navigate(link.path);
       });
@@ -75,7 +96,17 @@ export function renderNav(config: NavConfig): HTMLElement {
         class: 'v5-nav-link',
         'data-path': link.path,
       }, link.label);
+      // Set href dynamically so Cmd+Click opens in new tab
+      const updateHref = () => {
+        const suite = suiteSelect.value;
+        if (suite) {
+          a.setAttribute('href', `${config.urlBase}/v5/${encodeURIComponent(suite)}${link.path}`);
+        }
+      };
+      updateHref();
+      suiteSelect.addEventListener('change', updateHref);
       a.addEventListener('click', (e) => {
+        if (isModifiedClick(e)) return;
         e.preventDefault();
         const suite = suiteSelect.value;
         if (suite) {

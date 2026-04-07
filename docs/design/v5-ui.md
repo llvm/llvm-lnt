@@ -13,7 +13,7 @@ The v4 UI stays around as-is. The only integration point is a toggle link in eac
 - **Framework**: Vanilla TypeScript (no React/Vue) — matches the existing Compare SPA
 - **Build**: Vite, single IIFE bundle (`v5.js` + `v5.css`)
 - **Charts**: Plotly.js (loaded from CDN)
-- **Routing**: Simple path-based client-side router using History API
+- **Routing**: Simple path-based client-side router using History API. All internal links set their `href` to the real URL and intercept plain clicks for SPA navigation (no full page reload). Modified clicks (Cmd+Click, Ctrl+Click, Shift+Click, middle-click) bypass the SPA router and let the browser handle them natively (e.g. open in a new tab).
 - **State**: URL query params for shareable deep-links; localStorage for auth token
 
 **Design consistency**: All pages should share a consistent look and feel, using the v5 Compare page as the reference for UI patterns — comboboxes, metric selectors, table styling, progress/error feedback, color scheme, and layout spacing. Reuse the same components across pages rather than reinventing per-page. Pages with selection controls (dropdowns, filters, aggregation settings) wrap them in a shared controls panel — a lightly shaded box with a border — so the settings area is visually distinct from the page content.

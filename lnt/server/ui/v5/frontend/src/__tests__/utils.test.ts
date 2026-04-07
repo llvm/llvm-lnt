@@ -1,11 +1,18 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+vi.mock('../router', () => ({
+  navigate: vi.fn(),
+  getBasePath: vi.fn(() => '/v5/nts'),
+}));
+
 import {
   median, mean, safeMin, safeMax, getAggFn,
   formatValue, formatPercent, formatRatio, formatTime,
   truncate, primaryOrderValue,
-  debounce, el,
+  debounce, el, isModifiedClick, spaLink,
 } from '../utils';
+import { navigate } from '../router';
 
 describe('median', () => {
   it('returns 0 for empty array', () => {
@@ -333,5 +340,74 @@ describe('primaryOrderValue', () => {
 
   it('returns empty string for an empty record', () => {
     expect(primaryOrderValue({})).toBe('');
+  });
+});
+
+describe('isModifiedClick', () => {
+  it('returns false for a plain left click', () => {
+    const e = new MouseEvent('click', { button: 0 });
+    expect(isModifiedClick(e)).toBe(false);
+  });
+
+  it('returns true for metaKey (Cmd on macOS)', () => {
+    const e = new MouseEvent('click', { button: 0, metaKey: true });
+    expect(isModifiedClick(e)).toBe(true);
+  });
+
+  it('returns true for ctrlKey (Ctrl+Click)', () => {
+    const e = new MouseEvent('click', { button: 0, ctrlKey: true });
+    expect(isModifiedClick(e)).toBe(true);
+  });
+
+  it('returns true for shiftKey', () => {
+    const e = new MouseEvent('click', { button: 0, shiftKey: true });
+    expect(isModifiedClick(e)).toBe(true);
+  });
+
+  it('returns true for altKey', () => {
+    const e = new MouseEvent('click', { button: 0, altKey: true });
+    expect(isModifiedClick(e)).toBe(true);
+  });
+
+  it('returns true for middle-click (button 1)', () => {
+    const e = new MouseEvent('click', { button: 1 });
+    expect(isModifiedClick(e)).toBe(true);
+  });
+});
+
+describe('spaLink', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('creates an anchor with the correct href and text', () => {
+    const a = spaLink('Machines', '/machines');
+    expect(a.tagName).toBe('A');
+    expect(a.textContent).toBe('Machines');
+    expect(a.getAttribute('href')).toBe('/v5/nts/machines');
+  });
+
+  it('plain click calls navigate() and prevents default', () => {
+    const a = spaLink('Machines', '/machines');
+    document.body.append(a);
+
+    a.click();
+    expect(navigate).toHaveBeenCalledWith('/machines');
+  });
+
+  it('Cmd+Click does not call navigate()', () => {
+    const a = spaLink('Machines', '/machines');
+    document.body.append(a);
+
+    a.dispatchEvent(new MouseEvent('click', { bubbles: true, metaKey: true }));
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('Ctrl+Click does not call navigate()', () => {
+    const a = spaLink('Machines', '/machines');
+    document.body.append(a);
+
+    a.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true }));
+    expect(navigate).not.toHaveBeenCalled();
   });
 });

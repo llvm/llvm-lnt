@@ -564,24 +564,32 @@ if (document.readyState === 'loading') {
 
 **File**: `lnt/server/ui/v5/frontend/src/utils.ts` (extend)
 
-Add a `spaLink` helper that all page modules use for internal navigation. This ensures links use the SPA router instead of triggering full page reloads.
+Add a `spaLink` helper that all page modules use for internal navigation. This ensures links use the SPA router instead of triggering full page reloads. Modified clicks (Cmd+Click, Ctrl+Click, Shift+Click, middle-click) bypass the SPA router and let the browser handle them natively (e.g. open in a new tab), since the `href` is set to the real URL.
 
 ```typescript
-import { navigate } from './router';
+import { navigate, getBasePath } from './router';
+
+/** Return true when the click should be handled by the browser (new tab, etc.). */
+export function isModifiedClick(e: MouseEvent): boolean {
+  return e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0;
+}
 
 /**
  * Create an anchor element that navigates via the SPA router.
  * All internal links across all pages should use this helper.
  */
-export function spaLink(text: string, path: string): HTMLElement {
-  const a = el('a', { href: '#', class: 'spa-link' }, text);
+export function spaLink(text: string, path: string): HTMLAnchorElement {
+  const a = el('a', { href: getBasePath() + path, class: 'spa-link' }, text);
   a.addEventListener('click', (e) => {
+    if (isModifiedClick(e)) return;
     e.preventDefault();
     navigate(path);
   });
   return a;
 }
 ```
+
+The same `isModifiedClick` check is used in the nav bar component (`components/nav.ts`) for brand and navigation links. Nav links also use real `href` values (via `getBasePath() + link.path`) instead of `href="#"` so that Cmd+Click opens the correct page in a new tab.
 
 ### 1.9 Stub Page Modules for Phase 1
 

@@ -80,6 +80,86 @@ describe('renderNav', () => {
     expect(navigate).toHaveBeenCalledWith('/');
   });
 
+  it('brand link has real href (not #)', () => {
+    const nav = renderNav(config);
+    const brand = nav.querySelector('.v5-nav-brand') as HTMLAnchorElement;
+    expect(brand.getAttribute('href')).toBe('/v5/nts/');
+  });
+
+  it('nav links have real hrefs (not #)', () => {
+    const nav = renderNav(config);
+    const links = Array.from(nav.querySelectorAll('.v5-nav-link[data-path]')) as HTMLAnchorElement[];
+    const hrefs = links.map(l => ({ label: l.textContent, href: l.getAttribute('href') }));
+    // Testsuite-context links should have /v5/nts prefix
+    expect(hrefs).toContainEqual({ label: 'Dashboard', href: '/v5/nts/' });
+    expect(hrefs).toContainEqual({ label: 'Graph', href: '/v5/nts/graph' });
+    expect(hrefs).toContainEqual({ label: 'Compare', href: '/v5/nts/compare' });
+    expect(hrefs).toContainEqual({ label: 'Machines', href: '/v5/nts/machines' });
+    // Admin is outside the testsuite namespace
+    expect(hrefs).toContainEqual({ label: 'Admin', href: '/v5/admin' });
+  });
+
+  it('Cmd+Click on nav link does not call navigate()', () => {
+    const nav = renderNav(config);
+    document.body.append(nav);
+
+    const machinesLink = Array.from(nav.querySelectorAll('.v5-nav-link[data-path]'))
+      .find(l => l.textContent === 'Machines') as HTMLAnchorElement;
+
+    machinesLink.dispatchEvent(new MouseEvent('click', { bubbles: true, metaKey: true }));
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('Ctrl+Click on nav link does not call navigate()', () => {
+    const nav = renderNav(config);
+    document.body.append(nav);
+
+    const machinesLink = Array.from(nav.querySelectorAll('.v5-nav-link[data-path]'))
+      .find(l => l.textContent === 'Machines') as HTMLAnchorElement;
+
+    machinesLink.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true }));
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('Cmd+Click on brand does not call navigate()', () => {
+    const nav = renderNav(config);
+    document.body.append(nav);
+
+    const brand = nav.querySelector('.v5-nav-brand') as HTMLAnchorElement;
+    brand.dispatchEvent(new MouseEvent('click', { bubbles: true, metaKey: true }));
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('nav link hrefs include urlBase when set', () => {
+    const configWithBase = { ...config, urlBase: '/lnt' };
+    const nav = renderNav(configWithBase);
+    const links = Array.from(nav.querySelectorAll('.v5-nav-link[data-path]')) as HTMLAnchorElement[];
+    const hrefs = links.map(l => ({ label: l.textContent, href: l.getAttribute('href') }));
+    expect(hrefs).toContainEqual({ label: 'Graph', href: '/lnt/v5/nts/graph' });
+    expect(hrefs).toContainEqual({ label: 'Admin', href: '/lnt/v5/admin' });
+    const brand = nav.querySelector('.v5-nav-brand') as HTMLAnchorElement;
+    expect(brand.getAttribute('href')).toBe('/lnt/v5/nts/');
+  });
+
+  it('brand in admin context has href to first suite dashboard', () => {
+    const adminConfig = { ...config, testsuite: '' };
+    const nav = renderNav(adminConfig);
+    const brand = nav.querySelector('.v5-nav-brand') as HTMLAnchorElement;
+    // With no testsuite, brand should point to the first suite's dashboard
+    expect(brand.getAttribute('href')).toBe('/v5/nts/');
+  });
+
+  it('brand in admin context does not call navigate()', () => {
+    const adminConfig = { ...config, testsuite: '' };
+    const nav = renderNav(adminConfig);
+    document.body.append(nav);
+
+    const brand = nav.querySelector('.v5-nav-brand') as HTMLAnchorElement;
+    brand.click();
+    // Admin context uses full-page navigation, not SPA navigate()
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
   it('renders Settings link', () => {
     const nav = renderNav(config);
     const settingsLink = Array.from(nav.querySelectorAll('.v5-nav-link'))

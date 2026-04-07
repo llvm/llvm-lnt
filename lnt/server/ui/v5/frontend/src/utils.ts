@@ -110,16 +110,24 @@ export function el<K extends keyof HTMLElementTagNameMap>(
   return e;
 }
 
+/** Return true when the click should be handled by the browser (new tab, etc.). */
+export function isModifiedClick(e: MouseEvent): boolean {
+  return e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0;
+}
+
 /**
  * Create an anchor element that navigates via the SPA router.
  * All internal links across all pages should use this helper.
  *
  * The href is set to the real full path so that right-click "Open in new tab",
- * middle-click, browser status bar, and screen readers all work correctly.
+ * Cmd+Click / Ctrl+Click (open in new tab), middle-click, browser status bar,
+ * and screen readers all work correctly. Modified clicks (Cmd, Ctrl, Shift,
+ * middle-click) bypass the SPA router and let the browser handle them natively.
  */
 export function spaLink(text: string, path: string): HTMLAnchorElement {
   const a = el('a', { href: getBasePath() + path, class: 'spa-link' }, text);
   a.addEventListener('click', (e) => {
+    if (isModifiedClick(e)) return;
     e.preventDefault();
     navigate(path);
   });
