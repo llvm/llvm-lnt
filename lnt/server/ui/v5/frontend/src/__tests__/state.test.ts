@@ -5,8 +5,8 @@ import type { AppState } from '../types';
 
 function makeDefaults(): AppState {
   return {
-    sideA: { order: '', machine: '', runs: [], runAgg: 'median' },
-    sideB: { order: '', machine: '', runs: [], runAgg: 'median' },
+    sideA: { suite: '', order: '', machine: '', runs: [], runAgg: 'median' },
+    sideB: { suite: '', order: '', machine: '', runs: [], runAgg: 'median' },
     metric: '',
     sampleAgg: 'median',
     noise: 1,
@@ -149,8 +149,8 @@ describe('decodeFromUrl', () => {
 describe('round-trip', () => {
   it('encode then decode preserves full non-default state', () => {
     const state = makeDefaults();
-    state.sideA = { order: 'rev1', machine: 'mach-a', runs: ['u1', 'u2'], runAgg: 'mean' };
-    state.sideB = { order: 'rev2', machine: 'mach-b', runs: ['u3'], runAgg: 'max' };
+    state.sideA = { suite: 'nts', order: 'rev1', machine: 'mach-a', runs: ['u1', 'u2'], runAgg: 'mean' };
+    state.sideB = { suite: 'compile', order: 'rev2', machine: 'mach-b', runs: ['u3'], runAgg: 'max' };
     state.metric = 'exec_time';
     state.sampleAgg = 'min';
     state.noise = 3;
@@ -217,8 +217,8 @@ describe('applyUrlState', () => {
     expect(s.sortDir).toBe('desc'); // default
     expect(s.testFilter).toBe(''); // default
     expect(s.hideNoise).toBe(false); // default
-    expect(s.sideA).toEqual({ order: '', machine: '', runs: [], runAgg: 'median' });
-    expect(s.sideB).toEqual({ order: '', machine: '', runs: [], runAgg: 'median' });
+    expect(s.sideA).toEqual({ suite: '', order: '', machine: '', runs: [], runAgg: 'median' });
+    expect(s.sideB).toEqual({ suite: '', order: '', machine: '', runs: [], runAgg: 'median' });
   });
 
   it('with empty search string sets state to all defaults', () => {
@@ -241,7 +241,7 @@ describe('applyUrlState', () => {
     expect(s.hideNoise).toBe(true);
 
     // Unset fields should be defaults
-    expect(s.sideA).toEqual({ order: '', machine: '', runs: [], runAgg: 'median' });
+    expect(s.sideA).toEqual({ suite: '', order: '', machine: '', runs: [], runAgg: 'median' });
     expect(s.sideB.machine).toBe('');
     expect(s.sideB.runs).toEqual([]);
     expect(s.sideB.runAgg).toBe('median');
@@ -317,8 +317,8 @@ describe('getState / setState / setSideA / setSideB', () => {
     swapSides();
 
     const s = getState();
-    expect(s.sideA).toEqual({ order: 'rev2', machine: 'mach-b', runs: ['u2', 'u3'], runAgg: 'max' });
-    expect(s.sideB).toEqual({ order: 'rev1', machine: 'mach-a', runs: ['u1'], runAgg: 'mean' });
+    expect(s.sideA).toEqual({ suite: '', order: 'rev2', machine: 'mach-b', runs: ['u2', 'u3'], runAgg: 'max' });
+    expect(s.sideB).toEqual({ suite: '', order: 'rev1', machine: 'mach-a', runs: ['u1'], runAgg: 'mean' });
   });
 
   it('swapSides twice restores original state', () => {
@@ -387,8 +387,8 @@ describe('URL special characters round-trip', () => {
 
   it('full round-trip with mixed special characters', () => {
     const state = makeDefaults();
-    state.sideA = { order: 'rev 123+rc1', machine: 'host&name=prod', runs: ['uuid-1'], runAgg: 'mean' };
-    state.sideB = { order: 'a&b=c+d e', machine: 'machine two', runs: ['uuid-2', 'uuid-3'], runAgg: 'max' };
+    state.sideA = { suite: '', order: 'rev 123+rc1', machine: 'host&name=prod', runs: ['uuid-1'], runAgg: 'mean' };
+    state.sideB = { suite: '', order: 'a&b=c+d e', machine: 'machine two', runs: ['uuid-2', 'uuid-3'], runAgg: 'max' };
     state.metric = 'exec_time';
     state.testFilter = 'bench+suite & more';
     state.noise = 2;

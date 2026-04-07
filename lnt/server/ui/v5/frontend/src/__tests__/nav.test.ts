@@ -33,7 +33,7 @@ describe('renderNav', () => {
     const nav = renderNav(config);
     const links = nav.querySelectorAll('.v5-nav-link[data-path]');
     const labels = Array.from(links).map(l => l.textContent);
-    expect(labels).toEqual(['Dashboard', 'Graph', 'Compare', 'Regressions', 'Machines', 'Admin']);
+    expect(labels).toEqual(['Dashboard', 'Regressions', 'Machines', 'Graph', 'Compare', 'Admin']);
   });
 
   it('renders the LNT brand', () => {
@@ -92,9 +92,10 @@ describe('renderNav', () => {
     const hrefs = links.map(l => ({ label: l.textContent, href: l.getAttribute('href') }));
     // Testsuite-context links should have /v5/nts prefix
     expect(hrefs).toContainEqual({ label: 'Dashboard', href: '/v5/nts/' });
-    expect(hrefs).toContainEqual({ label: 'Graph', href: '/v5/nts/graph' });
-    expect(hrefs).toContainEqual({ label: 'Compare', href: '/v5/nts/compare' });
     expect(hrefs).toContainEqual({ label: 'Machines', href: '/v5/nts/machines' });
+    // Analysis links (Graph, Compare) are full-page links with suite query param
+    expect(hrefs).toContainEqual({ label: 'Graph', href: '/v5/graph?suite=nts' });
+    expect(hrefs).toContainEqual({ label: 'Compare', href: '/v5/compare?suite_a=nts' });
     // Admin is outside the testsuite namespace
     expect(hrefs).toContainEqual({ label: 'Admin', href: '/v5/admin' });
   });
@@ -135,7 +136,7 @@ describe('renderNav', () => {
     const nav = renderNav(configWithBase);
     const links = Array.from(nav.querySelectorAll('.v5-nav-link[data-path]')) as HTMLAnchorElement[];
     const hrefs = links.map(l => ({ label: l.textContent, href: l.getAttribute('href') }));
-    expect(hrefs).toContainEqual({ label: 'Graph', href: '/lnt/v5/nts/graph' });
+    expect(hrefs).toContainEqual({ label: 'Graph', href: '/lnt/v5/graph?suite=nts' });
     expect(hrefs).toContainEqual({ label: 'Admin', href: '/lnt/v5/admin' });
     const brand = nav.querySelector('.v5-nav-brand') as HTMLAnchorElement;
     expect(brand.getAttribute('href')).toBe('/lnt/v5/nts/');

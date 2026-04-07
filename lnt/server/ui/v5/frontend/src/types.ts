@@ -109,6 +109,7 @@ export type SortDir = 'asc' | 'desc';
 export type SortCol = 'test' | 'value_a' | 'value_b' | 'delta' | 'delta_pct' | 'ratio' | 'status';
 
 export interface SideSelection {
+  suite: string;
   order: string;
   machine: string;
   runs: string[];     // UUIDs

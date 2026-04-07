@@ -96,13 +96,34 @@ The `data-testsuites` attribute provides the list of available test suite names 
 
 **File**: `lnt/server/ui/v5/views.py`
 
-Add a catch-all route for the SPA and update the existing compare route. The v5 UI does not include `db_<db_name>` in its URL namespace.
+Two view functions serve the SPA shell. Pages are split into **suite-scoped** (browsing data within a test suite) and **suite-agnostic** (analysis tools and admin that manage suite selection internally).
 
 ```python
-from flask import render_template, request
+from flask import g, render_template, request
 
 from . import v5_frontend, _setup_testsuite
 from lnt.server.ui.views import ts_data
+from lnt.server.ui.decorators import _make_db_session
+
+
+@v5_frontend.route("/v5/admin", strict_slashes=False)
+@v5_frontend.route("/v5/graph", strict_slashes=False)
+@v5_frontend.route("/v5/compare", strict_slashes=False)
+def v5_global():
+    """Suite-agnostic pages (admin, graph, compare).
+
+    Serves the SPA shell with an empty testsuite. Each page manages
+    suite selection internally via its own UI controls. The list of
+    available test suites is provided via data-testsuites.
+    """
+    g.testsuite_name = ''
+    _make_db_session(None)
+    try:
+        db = request.get_db()
+        return render_template("v5_app.html",
+                               testsuites=sorted(db.testsuite.keys()))
+    finally:
+        request.session.close()
 
 
 @v5_frontend.route("/v5/<testsuite_name>/")
@@ -110,38 +131,27 @@ from lnt.server.ui.views import ts_data
 def v5_app(testsuite_name, subpath=None):
     """Catch-all route for the v5 SPA.
 
-    All client-side routes (dashboard, machines, graph, compare, etc.)
-    hit this single endpoint, which serves the SPA shell. The TypeScript
-    router handles the rest.
+    All suite-scoped client-side routes (dashboard, machines, regressions,
+    etc.) hit this single endpoint, which serves the SPA shell. The
+    TypeScript router handles the rest.
     """
     _setup_testsuite(testsuite_name)
     try:
         ts = request.get_testsuite()
         data = ts_data(ts)
-        # Add test suite names for the suite selector
         db = request.get_db()
         data['testsuites'] = sorted(db.testsuite.keys())
         return render_template("v5_app.html", **data)
     finally:
         request.session.close()
-
-
-# Keep the old compare route for backward compatibility during transition.
-# Once Phase 4 absorbs Compare into the SPA, this route can be removed.
-@v5_frontend.route("/v5/<testsuite_name>/compare")
-@v5_frontend.route("/db_<db_name>/v5/<testsuite_name>/compare")
-def v5_compare(testsuite_name, db_name=None):
-    _setup_testsuite(testsuite_name, db_name)
-    try:
-        ts = request.get_testsuite()
-        return render_template("v5_compare.html", **ts_data(ts))
-    finally:
-        request.session.close()
 ```
 
-**Important**: The catch-all route `<path:subpath>` will also match `/compare`. During Phases 1-3, the old `v5_compare` route (registered first, more specific) takes priority and serves the standalone Compare page via `v5_compare.html`. In Phase 4, the old route is deleted and the catch-all serves the SPA shell for all paths including `/compare`.
+**Key design decision**: Graph and Compare are suite-agnostic (`/v5/graph`, `/v5/compare`) rather than suite-scoped (`/v5/{ts}/graph`, `/v5/{ts}/compare`). This is because:
+- The Graph page has its own suite `<select>` dropdown and reads the suite from `?suite=...` URL params.
+- The Compare page has independent suite selectors per side (side A and side B can compare across different test suites), reading from `?suite_a=...` and `?suite_b=...` URL params.
+- Both pages use `getTestsuites()` from the router to populate their suite dropdowns.
 
-The simplest approach: remove the `db_<db_name>` variant of `v5_compare` immediately (it was never the intended v5 pattern), and keep the non-prefixed `v5_compare` route as a temporary bridge until Phase 4.
+The `v5_global()` function sets `g.testsuite_name = ''` and does not call `_setup_testsuite()` (no test suite context is needed). The template receives the `testsuites` list but no `old_config` or `ts_data` — the SPA template handles the empty-testsuite case.
 
 ### 1.5 Client-Side Router
 
@@ -177,7 +187,18 @@ interface RouteEntry {
 const routes: RouteEntry[] = [];
 let currentModule: PageModule | null = null;
 let appContainer: HTMLElement | null = null;
-let basePath = ''; // e.g. "/v5/nts"
+let basePath = ''; // e.g. "/v5/nts" (suite context) or "/v5" (agnostic context)
+let onAfterResolve: ((routePath: string) => void) | null = null;
+let routerTestsuite = '';
+let routerTestsuites: string[] = [];
+
+/**
+ * Return the list of available test suites.
+ * Populated from data-testsuites on the SPA shell.
+ */
+export function getTestsuites(): string[] {
+  return routerTestsuites;
+}
 
 /**
  * Register a route. Pattern uses Express-style `:param` syntax.
@@ -201,11 +222,21 @@ export function addRoute(pattern: string, module: PageModule): void {
 /**
  * Initialize the router.
  * @param container The DOM element to render pages into
- * @param tsBasePath The base path, e.g. "/v5/nts"
+ * @param tsBasePath The base path, e.g. "/v5/nts" or "/v5"
+ * @param afterResolve Optional callback after each route resolution (for nav highlighting)
+ * @param context Testsuite context from the SPA shell — { testsuite, testsuites }
  */
-export function initRouter(container: HTMLElement, tsBasePath: string): void {
+export function initRouter(
+  container: HTMLElement,
+  tsBasePath: string,
+  afterResolve?: (routePath: string) => void,
+  context?: { testsuite: string; testsuites: string[] },
+): void {
   appContainer = container;
   basePath = tsBasePath;
+  onAfterResolve = afterResolve || null;
+  routerTestsuite = context?.testsuite ?? '';
+  routerTestsuites = context?.testsuites ?? [];
 
   window.addEventListener('popstate', () => {
     resolve();
@@ -265,7 +296,7 @@ function resolve(): void {
     const match = routePath.match(route.regex);
     if (match) {
       const params: RouteParams = {
-        testsuite: basePath.split('/').pop() || '',
+        testsuite: routerTestsuite,
       };
       route.keys.forEach((key, i) => {
         params[key] = decodeURIComponent(match[i + 1]);
@@ -303,6 +334,10 @@ function resolve(): void {
 
 **Route table** (registered in `main.ts`):
 
+Routes are split into two contexts based on whether a test suite is set in the SPA shell's `data-testsuite` attribute:
+
+**Suite-scoped context** (`basePath = /v5/{ts}`):
+
 | Pattern | Page Module |
 |---------|-------------|
 | `/` | `pages/dashboard` |
@@ -310,12 +345,19 @@ function resolve(): void {
 | `/machines/:name` | `pages/machine-detail` |
 | `/runs/:uuid` | `pages/run-detail` |
 | `/orders/:value` | `pages/order-detail` |
-| `/graph` | `pages/graph` |
-| `/compare` | `pages/compare` |
 | `/regressions` | `pages/regression-list` |
 | `/regressions/:uuid` | `pages/regression-detail` |
 | `/field-changes` | `pages/field-change-triage` |
+
+**Suite-agnostic context** (`basePath = /v5`):
+
+| Pattern | Page Module |
+|---------|-------------|
+| `/graph` | `pages/graph` |
+| `/compare` | `pages/compare` |
 | `/admin` | `pages/admin` |
+
+Graph and Compare manage suite selection internally (Graph has a single suite `<select>`, Compare has per-side suite selects). Admin is not suite-specific.
 
 ### 1.6 Navigation Bar Component
 
@@ -323,10 +365,16 @@ function resolve(): void {
 
 Renders a persistent navigation bar above the page content. The nav bar is rendered once by `main.ts` and is not re-rendered on route changes; instead, the active link is updated.
 
+Nav links are organized into three categories with different navigation behavior depending on context:
+
+1. **Suite-scoped** (Dashboard, Regressions, Machines): SPA navigation in suite context; full-page navigation to the selected suite's URL in suite-agnostic context.
+2. **Analysis** (Graph, Compare): Full-page navigation with `?suite=` (or `?suite_a=`) pre-fill in suite context (since these pages live at `/v5/graph` and `/v5/compare`, not under `/v5/{ts}/`); SPA navigation in suite-agnostic context.
+3. **Admin**: Full-page navigation in suite context (since admin lives at `/v5/admin`); SPA navigation in suite-agnostic context.
+
 ```typescript
 // components/nav.ts — Navigation bar
 
-import { el } from '../utils';
+import { el, isModifiedClick } from '../utils';
 import { navigate } from '../router';
 
 export interface NavConfig {
@@ -344,16 +392,11 @@ let activeLink: HTMLElement | null = null;
  */
 export function renderNav(config: NavConfig): HTMLElement {
   const nav = el('nav', { class: 'v5-nav' });
+  const tsBasePath = config.testsuite
+    ? `${config.urlBase}/v5/${encodeURIComponent(config.testsuite)}`
+    : `${config.urlBase}/v5`;
 
-  // Brand
-  const brand = el('a', { class: 'v5-nav-brand', href: '#' }, 'LNT');
-  brand.addEventListener('click', (e) => {
-    e.preventDefault();
-    navigate('/');
-  });
-  nav.append(brand);
-
-  // Test suite selector
+  // Test suite selector (created first so brand and nav links can reference it)
   const suiteSelect = el('select', { class: 'v5-nav-suite-select' }) as HTMLSelectElement;
   for (const name of config.testsuites) {
     const opt = el('option', { value: name }, name);
@@ -363,37 +406,140 @@ export function renderNav(config: NavConfig): HTMLElement {
     suiteSelect.append(opt);
   }
   suiteSelect.addEventListener('change', () => {
-    // Navigate to the dashboard of the selected test suite
     const newSuite = suiteSelect.value;
     window.location.href = `${config.urlBase}/v5/${encodeURIComponent(newSuite)}/`;
   });
+
+  // Brand — in suite context, SPA-navigates to dashboard;
+  //         in agnostic context, full-page to selected suite's dashboard
+  const brandHref = config.testsuite
+    ? tsBasePath + '/'
+    : `${config.urlBase}/v5/${encodeURIComponent(suiteSelect.value)}/`;
+  const brand = el('a', { class: 'v5-nav-brand', href: brandHref }, 'LNT');
+  if (!config.testsuite) {
+    suiteSelect.addEventListener('change', () => {
+      const suite = suiteSelect.value;
+      brand.setAttribute('href', `${config.urlBase}/v5/${encodeURIComponent(suite)}/`);
+    });
+  }
+  brand.addEventListener('click', (e) => {
+    if (isModifiedClick(e)) return;
+    e.preventDefault();
+    if (config.testsuite) {
+      navigate('/');
+    } else {
+      const suite = suiteSelect.value;
+      if (suite) {
+        window.location.href = `${config.urlBase}/v5/${encodeURIComponent(suite)}/`;
+      }
+    }
+  });
+  nav.append(brand);
+
   const suiteGroup = el('div', { class: 'v5-nav-suite' });
   suiteGroup.append(el('span', {}, 'Suite: '), suiteSelect);
   nav.append(suiteGroup);
 
-  // Navigation links
-  const links: { label: string; path: string }[] = [
+  // Navigation links — three categories
+  const suiteLinks: { label: string; path: string }[] = [
     { label: 'Dashboard', path: '/' },
-    { label: 'Graph', path: '/graph' },
-    { label: 'Compare', path: '/compare' },
     { label: 'Regressions', path: '/regressions' },
     { label: 'Machines', path: '/machines' },
-    { label: 'Admin', path: '/admin' },
+  ];
+  const analysisLinks: { label: string; agnosticPath: string; suiteParam: string }[] = [
+    { label: 'Graph', agnosticPath: '/graph', suiteParam: 'suite' },
+    { label: 'Compare', agnosticPath: '/compare', suiteParam: 'suite_a' },
   ];
 
   const linksContainer = el('div', { class: 'v5-nav-links' });
-  for (const link of links) {
-    const a = el('a', {
-      class: 'v5-nav-link',
-      href: '#',
-      'data-path': link.path,
-    }, link.label);
-    a.addEventListener('click', (e) => {
-      e.preventDefault();
-      navigate(link.path);
-    });
-    linksContainer.append(a);
+
+  // Suite-scoped links
+  for (const link of suiteLinks) {
+    if (config.testsuite) {
+      // In suite context — SPA navigation
+      const a = el('a', {
+        class: 'v5-nav-link',
+        href: tsBasePath + link.path,
+        'data-path': link.path,
+      }, link.label);
+      a.addEventListener('click', (e) => {
+        if (isModifiedClick(e)) return;
+        e.preventDefault();
+        navigate(link.path);
+      });
+      linksContainer.append(a);
+    } else {
+      // In suite-agnostic context — full page to selected suite
+      const a = el('a', {
+        class: 'v5-nav-link',
+        'data-path': link.path,
+      }, link.label);
+      const updateHref = () => {
+        const suite = suiteSelect.value;
+        if (suite) {
+          a.setAttribute('href', `${config.urlBase}/v5/${encodeURIComponent(suite)}${link.path}`);
+        }
+      };
+      updateHref();
+      suiteSelect.addEventListener('change', updateHref);
+      a.addEventListener('click', (e) => {
+        if (isModifiedClick(e)) return;
+        e.preventDefault();
+        const suite = suiteSelect.value;
+        if (suite) {
+          window.location.href = `${config.urlBase}/v5/${encodeURIComponent(suite)}${link.path}`;
+        }
+      });
+      linksContainer.append(a);
+    }
   }
+
+  // Analysis links (Graph, Compare) — always at /v5/graph, /v5/compare
+  for (const link of analysisLinks) {
+    if (config.testsuite) {
+      // In suite context — full page link with suite pre-filled via query param
+      const href = `${config.urlBase}/v5${link.agnosticPath}?${link.suiteParam}=${encodeURIComponent(config.testsuite)}`;
+      const a = el('a', {
+        class: 'v5-nav-link',
+        href,
+        'data-path': link.agnosticPath,
+      }, link.label);
+      // No click handler — let browser do full page navigation
+      linksContainer.append(a);
+    } else {
+      // In suite-agnostic context — SPA navigation
+      const a = el('a', {
+        class: 'v5-nav-link',
+        href: `${config.urlBase}/v5${link.agnosticPath}`,
+        'data-path': link.agnosticPath,
+      }, link.label);
+      a.addEventListener('click', (e) => {
+        if (isModifiedClick(e)) return;
+        e.preventDefault();
+        navigate(link.agnosticPath);
+      });
+      linksContainer.append(a);
+    }
+  }
+
+  // Admin link — always at /v5/admin
+  const adminHref = `${config.urlBase}/v5/admin`;
+  const adminLink = el('a', {
+    class: 'v5-nav-link',
+    href: adminHref,
+    'data-path': '/admin',
+  }, 'Admin');
+  if (!config.testsuite) {
+    // In suite-agnostic context — SPA navigation
+    adminLink.addEventListener('click', (e) => {
+      if (isModifiedClick(e)) return;
+      e.preventDefault();
+      navigate('/admin');
+    });
+  }
+  // In suite context — no click handler, full page navigation to /v5/admin
+  linksContainer.append(adminLink);
+
   nav.append(linksContainer);
 
   // Right side: v4 toggle + Settings
@@ -510,11 +656,6 @@ function init(): void {
   if (!root) return;
 
   const testsuite = root.getAttribute('data-testsuite') || '';
-  if (!testsuite) {
-    root.textContent = 'Error: no testsuite specified.';
-    return;
-  }
-
   const testsuites: string[] = JSON.parse(
     root.getAttribute('data-testsuites') || '[]'
   );
@@ -532,22 +673,28 @@ function init(): void {
   const pageContainer = el('div', { id: 'v5-page' });
   root.append(pageContainer);
 
-  // Register routes
-  addRoute('/', dashboardPage);
-  addRoute('/machines', machineListPage);
-  addRoute('/machines/:name', machineDetailPage);
-  addRoute('/runs/:uuid', runDetailPage);
-  addRoute('/orders/:value', orderDetailPage);
-  addRoute('/graph', graphPage);
-  addRoute('/compare', comparePage);
-  addRoute('/regressions', regressionListPage);
-  addRoute('/regressions/:uuid', regressionDetailPage);
-  addRoute('/field-changes', fieldChangeTriagePage);
-  addRoute('/admin', adminPage);
+  if (testsuite) {
+    // Suite-scoped pages — browsing data within a single test suite
+    addRoute('/', dashboardPage);
+    addRoute('/machines', machineListPage);
+    addRoute('/machines/:name', machineDetailPage);
+    addRoute('/runs/:uuid', runDetailPage);
+    addRoute('/orders/:value', orderDetailPage);
+    addRoute('/regressions', regressionListPage);
+    addRoute('/regressions/:uuid', regressionDetailPage);
+    addRoute('/field-changes', fieldChangeTriagePage);
 
-  // Initialize router (resolves current URL)
-  const basePath = `${urlBase}/v5/${encodeURIComponent(testsuite)}`;
-  initRouter(pageContainer, basePath);
+    const basePath = `${urlBase}/v5/${encodeURIComponent(testsuite)}`;
+    initRouter(pageContainer, basePath, updateActiveNavLink, { testsuite, testsuites });
+  } else {
+    // Suite-agnostic pages — analysis tools and admin
+    addRoute('/admin', adminPage);
+    addRoute('/graph', graphPage);
+    addRoute('/compare', comparePage);
+
+    const basePath = `${urlBase}/v5`;
+    initRouter(pageContainer, basePath, updateActiveNavLink, { testsuite: '', testsuites });
+  }
 }
 
 // Start
@@ -557,6 +704,8 @@ if (document.readyState === 'loading') {
   init();
 }
 ```
+
+**Key change from original plan**: Graph, Compare, and Admin are registered in the **suite-agnostic** `else` branch (when `data-testsuite` is empty), with `basePath = /v5`. Suite-scoped pages (Dashboard, Machines, Regressions, etc.) are registered in the `if (testsuite)` branch with `basePath = /v5/{ts}`. This split means Graph and Compare are never routable under `/v5/{ts}/graph` — they always live at `/v5/graph` and `/v5/compare`.
 
 **During Phase 1**, most page modules will be stubs (see section 1.8). Only the router, nav, and skeleton need to work.
 
@@ -722,13 +871,18 @@ Add styles for the nav bar and page container. These extend the existing styles 
 - Route matching: exact paths, parameterized paths, no match yields 404
 - `navigate()` calls `pushState` and mounts the correct module
 - `popstate` event triggers re-resolution
-- `basePath` stripping works correctly
+- `basePath` stripping works correctly for both `/v5/nts` and `/v5`
 - Trailing slash normalization
+- `RouteParams.testsuite` derived from `context` parameter (not from basePath parsing)
+- `getTestsuites()` returns the list from context
 
 **Unit tests for `components/nav.ts`** (`__tests__/nav.test.ts`):
-- Renders all expected links
+- Renders all expected links in three categories
+- Suite-scoped links (Dashboard, Regressions, Machines): SPA navigation in suite context, full-page in agnostic
+- Analysis links (Graph, Compare): full-page with `?suite=`/`?suite_a=` in suite context, SPA navigation in agnostic
+- Admin link: full-page in suite context, SPA in agnostic
 - Suite selector contains all test suites with correct selected value
-- Click on nav link calls `navigate()`
+- Click on nav link calls `navigate()` (for SPA links) or triggers full-page navigation (for cross-context links)
 - Active link highlight updates correctly
 - Settings toggle creates/shows/hides the token panel
 
@@ -736,12 +890,15 @@ Add styles for the nav bar and page container. These extend the existing styles 
 1. Run `cd lnt/server/ui/v5/frontend && npm run build`
 2. Start dev server: `lnt runserver`
 3. Navigate to `http://localhost:8000/v5/nts/` — should see nav bar + Dashboard stub
-4. Click each nav link — URL changes, stub content updates, no full page reload
-5. Browser back/forward works
-6. Direct URL access (e.g., `/v5/nts/machines`) works (Flask catch-all serves SPA shell)
-7. Test suite selector changes URL and reloads
-8. v4 UI link navigates to v4 page
-9. Old Compare URL (`/v5/nts/compare`) still works (either via old route or catch-all)
+4. Click each suite-scoped nav link — URL changes, stub content updates, no full page reload
+5. Click Graph or Compare nav link — full page navigation to `/v5/graph?suite=nts` or `/v5/compare?suite_a=nts`
+6. Click Admin nav link — full page navigation to `/v5/admin`
+7. On `/v5/graph`: Graph, Compare, and Admin links use SPA navigation; Dashboard/Machines/Regressions use full-page navigation to selected suite
+8. Browser back/forward works
+9. Direct URL access (e.g., `/v5/nts/machines`, `/v5/graph`, `/v5/compare`, `/v5/admin`) works
+10. Test suite selector changes URL and reloads
+11. v4 UI link navigates to v4 page
+12. Old Compare URL (`/v5/nts/compare`) shows 404 (no longer a suite-scoped route)
 
 ---
 
@@ -1262,7 +1419,7 @@ The dashboard is intentionally minimal — just the Recent Orders table. Machine
   - Info key-value pairs as a definition list
   - Run history table with columns: UUID (link to Run Detail), Order (link to Order Detail), Start Time
   - Pagination controls for the run history table
-- Action links: "Graph for this machine" (links to `/graph?machine={name}`), "Compare" (links to `/compare?machine_a={name}`)
+- Action links: "Graph for this machine" (links to `/v5/graph?suite={ts}&machine={name}`), "Compare" (links to `/v5/compare?suite_a={ts}&machine_a={name}`)
 - **Delete section** at the bottom (visually separated):
   - "Delete Machine" button (red, danger style)
   - Clicking shows a confirmation prompt: text input where the user must type the exact machine name, plus Confirm/Cancel buttons
@@ -1290,7 +1447,7 @@ The dashboard is intentionally minimal — just the Recent Orders table. Machine
   - Test filter: text input (debounced 200ms) for case-insensitive substring matching on test names, with summary message showing filtered counts
   - Samples table: Test name, selected metric value — sorted by test name ascending by default (using data-table's `sortKey`/`sortDir` options)
   - The metric selector controls which metric column is shown
-- Action links: "Compare with..." button (navigates to `/compare?machine_a={machine}&order_a={orderValue}`)
+- Action links: "Compare with..." button (navigates to `/v5/compare?suite_a={ts}&machine_a={machine}&order_a={orderValue}`)
 - **Delete section** at the bottom (same pattern as machine-detail.ts):
   - "Delete Run" button (red, danger style)
   - Confirmation: type first 8 chars of run UUID to confirm
@@ -1586,8 +1743,11 @@ This function is generic and URL-agnostic — it takes a full URL (built via `ap
 
 The graph page is the most data-intensive page. It uses **lazy loading with per-metric client-side caching** to deliver a fast, interactive experience.
 
+**Suite-agnostic architecture**: The graph page is served at `/v5/graph` (not `/v5/{ts}/graph`). The suite is read from the URL parameter `?suite=...` on mount, and managed via a `<select>` dropdown at the top of the controls panel. A module-level `currentSuite` variable replaces the old closure-captured `ts` from `params.testsuite`. A `suiteGeneration` counter is incremented on every suite change and checked by all async callbacks to discard stale responses. The `updateUrlState()` function encodes the suite as `qs.set('suite', currentSuite)`.
+
 1. **Controls section** (top, wrapped in a `.controls-panel` box — same shared style as the Compare page's selection panel):
-   - Machine chip input: uses `renderMachineCombobox` from `components/machine-combobox.ts` for typeahead. When the user types a machine name and presses Enter, the machine is added to a `machines: string[]` list and a chip is rendered. Each chip has an × button to remove it. Adding or removing a machine triggers `doPlot()` if a metric is also selected. The machine list is always restored from URL params on mount (URL is the source of truth); the per-metric data cache is preserved at module scope so navigating back renders instantly.
+   - **Suite selector** (label: "Suite"): A `<select>` dropdown populated from `getTestsuites()` with an empty "-- Select suite --" option. Pre-selected from `?suite=` URL param, or auto-selected if only one suite exists. Changing the suite increments `suiteGeneration`, aborts all in-flight fetches, clears all module-level state (cache, machines, scaffolds, suggestions, etc.), re-fetches fields for the new suite, and calls `updateUrlState()`. All other controls are disabled until a suite is selected.
+   - Machine chip input: uses `renderMachineCombobox` from `components/machine-combobox.ts` for typeahead, passing `currentSuite` as the testsuite. When the user types a machine name and presses Enter, the machine is added to a `machines: string[]` list and a chip is rendered. Each chip has an x button to remove it. Adding or removing a machine triggers `doPlot()` if a metric is also selected. The machine list is always restored from URL params on mount (URL is the source of truth); the per-metric data cache is preserved at module scope so navigating back renders instantly.
    - Metric selector drop-down (uses `renderMetricSelector` from `components/metric-selector.ts`). Rendered with `placeholder: true` so it initially shows "-- Select metric --" with no metric pre-selected, consistent with the Compare page. Accepts an optional `initialValue` parameter to pre-select the metric from URL state. When changed (`onChange` callback), if at least one machine is selected, auto-triggers `doPlot()`.
    - "Filter tests" text input (label and placeholder consistent with Compare page, substring match, debounced 200ms). Matches on **test name only** (not machine name), showing/hiding the test across all machines simultaneously. Changes re-render from cache via `updateUrlState()` — no refetch.
    - Run aggregation drop-down (median/mean/min/max) in a labeled control group ("Run aggregation"), consistent with Compare's layout. Changes re-render from cache via `updateUrlState()`.
@@ -1634,7 +1794,9 @@ The graph page is the most data-intensive page. It uses **lazy loading with per-
 
 4. **Pinned orders — asynchronous fetch with aggregation**:
    - Pinned orders are fetched **after the first chart render**, so they do not block initial display.
-   - For each machine, check if the pinned order's data points are already in that machine's cache. If so, extract them directly. If not (e.g., the pinned order is outside the fetched range), make a targeted call per machine: `queryDataPoints(ts, { machine, metric, afterOrder: ref, beforeOrder: ref })`.
+   - For each machine, check if the pinned order's data points are already in that machine's cache. If so, extract them directly. If not (e.g., the pinned order is outside the fetched range), make a targeted call per machine: `queryDataPoints(currentSuite, { machine, metric, afterOrder: ref, beforeOrder: ref })`.
+   - **Phase A (current)**: Pinned orders are same-suite references using the graph's `currentSuite`. They reference orders within the currently selected suite.
+   - **Phase B (future)**: Pinned orders will be replaced with cross-suite "Baselines" — `(suite, machine, order)` tuples that can reference data from any test suite.
    - **Aggregation consistency**: Pinned order Y values must be computed using the same run aggregation function (`runAgg`) as the main traces. When multiple data points exist for the same test at the pinned order (multiple runs), they are collected and aggregated, not just taking the first value. The `buildRefsFromCache` function receives the `runAgg` function and applies it per test, so the pinned dashed line aligns exactly with the trace point at that order.
    - Once pinned order data is available, call `chartHandle.update()` to overlay the dashed lines.
 
@@ -1644,10 +1806,11 @@ The graph page is the most data-intensive page. It uses **lazy loading with per-
    - Pass to `createTimeSeriesChart()` (initial) or `chartHandle.update()` (incremental)
 
 6. **URL state**:
-   - `?machine={name}&machine={name2}&metric={name}&test_filter={text}&run_agg={fn}&sample_agg={fn}&pin={order1}&pin={order2}`
+   - `?suite={name}&machine={name}&machine={name2}&metric={name}&test_filter={text}&run_agg={fn}&sample_agg={fn}&pin={order1}&pin={order2}`
+   - The `suite` parameter identifies the currently selected test suite. On mount, it is read from the URL and used to pre-select the suite dropdown.
    - The `machine` parameter is repeated for each selected machine. On mount, parse all `machine` values from URL params and populate the chip list.
-   - On mount, parse URL params and auto-plot if machines and metric are provided. The metric selector uses `initialValue` to pre-select the URL metric. The chart container is initialized with a "No data to plot." message, which is replaced on the first successful plot.
-   - `updateUrlState()` is called from all interactive handlers (machine add/remove, test filter change, aggregation change, pinned order add/remove), not only from `doPlot()`. This ensures the URL always reflects the current UI state.
+   - On mount, parse URL params and auto-plot if suite, machines, and metric are provided. The metric selector uses `initialValue` to pre-select the URL metric. The chart container is initialized with a "No data to plot." message, which is replaced on the first successful plot.
+   - `updateUrlState()` is called from all interactive handlers (suite change, machine add/remove, test filter change, aggregation change, pinned order add/remove), not only from `doPlot()`. This ensures the URL always reflects the current UI state.
 
 ### 3.4 Phase 3 Testing
 
@@ -1672,11 +1835,13 @@ The graph page is the most data-intensive page. It uses **lazy loading with per-
 - Passes abort signal through to fetch
 
 **Tests for `pages/graph.ts`** (`__tests__/pages/graph.test.ts`):
-- Machine chip input: verify typing a machine name and pressing Enter adds a chip; verify × button removes it; verify removing the last machine clears the chart
+- Suite selector: verify `<select>` is populated from `getTestsuites()`; verify pre-selection from `?suite=` URL param; verify auto-select when only one suite; verify changing suite increments `suiteGeneration` and clears all state
+- Suite generation guard: verify stale async callbacks (from a previous suite selection) are discarded when `suiteGeneration` has advanced
+- Machine chip input: verify typing a machine name and pressing Enter adds a chip; verify x button removes it; verify removing the last machine clears the chart
 - Auto-plot: verify `doPlot()` is called when a machine is added and metric is set; verify no Plot button element exists
 - Multi-machine: verify that adding a second machine triggers its own fetch pipeline; verify traces from both machines appear in the chart options; verify trace names are `{test} - {machine}` format; verify marker symbols are assigned per machine index
-- URL state parsing: verify multiple `machine` params are restored from URL; verify metric/filter/pinned orders are restored; verify metric selector receives `initialValue` from URL
-- URL sync: verify `updateUrlState()` is called from machine add/remove, test filter, aggregation, and pinned order handlers; verify `machine` param is repeated for each selected machine
+- URL state parsing: verify `suite` param is restored from URL; verify multiple `machine` params are restored from URL; verify metric/filter/pinned orders are restored; verify metric selector receives `initialValue` from URL
+- URL sync: verify `updateUrlState()` encodes `suite` as `qs.set('suite', currentSuite)`; verify it is called from suite change, machine add/remove, test filter, aggregation, and pinned order handlers; verify `machine` param is repeated for each selected machine
 - Pinned orders: verify URL param is `pin` (not `ref`); verify label is "Pinned Orders" and placeholder is "Pin an order..."; verify pinned order Y values use the same run aggregation as main traces (not just the first raw value)
 - Order search suggestions: verify suggestions are populated from union of all machines' scaffolds + `getOrders()` (tags), with tagged orders first; verify prefix-based filtering; verify red border on no matches and Enter blocked
 - Test filter: verify filter matches test name only (not machine name); verify matching test shows all machine variants; verify non-matching test hides all machine variants
@@ -1705,7 +1870,7 @@ The graph page is the most data-intensive page. It uses **lazy loading with per-
 
 ## Phase 4: Compare Integration
 
-**Goal**: Absorb the existing Compare page into the SPA as a page module, add geomean summary row, and support pre-selected side A from URL params.
+**Goal**: Absorb the existing Compare page into the SPA as a page module, add geomean summary row, support pre-selected side A from URL params, and enable cross-suite comparison (each side independently selects a test suite).
 
 ### 4.0 Existing Implementation (what's already built)
 
@@ -1713,14 +1878,16 @@ The Compare page was the first v5 frontend page and is already functional as a s
 
 **Modules**:
 - `comparison.ts` — Core comparison logic: aggregation (within-run, across-runs), delta/ratio/status computation, `bigger_is_better` handling, zero-baseline and null-metric edge cases
-- `selection.ts` — Renders the selection panel: per-side order/machine comboboxes, runs checkbox list, run/sample aggregation dropdowns, metric selector, noise threshold, test filter, hideNoise checkbox
+- `selection.ts` — Renders the selection panel: per-side suite `<select>`, order/machine comboboxes, runs checkbox list, run/sample aggregation dropdowns, metric selector, noise threshold, test filter, hideNoise checkbox
 - `table.ts` — Renders the comparison table: columns (Test, Value A/B, Delta, Delta %, Ratio, Status), sortable headers, color-coded status, noise de-emphasis, missing-test section, chart-zoom filtering
-- `chart.ts` — Sorted ratio chart via Plotly: X=tests sorted by ratio, Y=log₂(ratio) on a **log₂ scale** with adaptive percentage tick labels (±1%, ±5%, ±50%, etc.) auto-selected from "nice" values to fit the data range, bar chart, noise band reference lines (converted to log₂ space), hover tooltips, zoom/drag-select that filters the table
+- `chart.ts` — Sorted ratio chart via Plotly: X=tests sorted by ratio, Y=log2(ratio) on a **log2 scale** with adaptive percentage tick labels (+/-1%, +/-5%, +/-50%, etc.) auto-selected from "nice" values to fit the data range, bar chart, noise band reference lines (converted to log2 space), hover tooltips, zoom/drag-select that filters the table
 - `combobox.ts` — Searchable dropdown widget used for order and machine selection, with typeahead filtering
-- `state.ts` — URL state management: encode/decode all selection params (`order_a`, `machine_a`, `runs_a`, `run_agg_a`, etc.), `replaceState`-based URL sync
+- `state.ts` — URL state management: encode/decode all selection params (`suite_a`, `suite_b`, `order_a`, `machine_a`, `runs_a`, `run_agg_a`, etc.), `replaceState`-based URL sync
 - `events.ts` — Custom event system for chart-table sync (`CHART_ZOOM`, `CHART_HOVER`, `TABLE_HOVER`, `SETTINGS_CHANGE`, `TEST_FILTER_CHANGE`)
 
-**Data flow**: On load, fetches metric metadata (`GET test-suites/{ts}`) and all orders (`GET orders`, cursor-paginated). On order+machine change per side, fetches runs. On comparison trigger, fetches samples per run (`GET runs/{uuid}/samples`). All subsequent interactions (filter, sort, zoom) are client-side.
+**Suite-agnostic architecture**: The Compare page is served at `/v5/compare` (not `/v5/{ts}/compare`). Each side has its own suite `<select>` dropdown. `SideSelection` includes a `suite: string` field. URL state includes `suite_a` and `suite_b` params. Fields and orders are fetched per-side via `fetchSideData(side, suite)`. Samples are fetched using each side's suite (side A runs use side A's suite, side B runs use side B's suite).
+
+**Data flow**: On load, calls `initSelection(testsuites, doCompare)` (replacing the old `setCachedData()`). Each side's suite `<select>` triggers `fetchSideData(side, suite)` which fetches metric metadata (`GET test-suites/{suite}`) and all orders (`GET orders`, cursor-paginated) for that side independently. On order+machine change per side, fetches runs. On comparison trigger, fetches samples per run using that side's suite (`GET runs/{uuid}/samples` against the correct suite). All subsequent interactions (filter, sort, zoom) are client-side.
 
 ### 4.1 Refactoring Existing Modules
 
@@ -1733,10 +1900,13 @@ The existing Compare code is spread across `comparison.ts`, `selection.ts`, `tab
 - `swapSides()` exchanges `sideA` and `sideB` in the global state and calls `replaceUrl()`. Used by the swap button in the selection panel.
 
 **`selection.ts` changes:**
-1. **Remove the Settings panel** (toggle button + token input) from `renderSelectionPanel()` — the SPA nav bar already provides the Settings panel with the API token input, so duplicating it on the Compare page is unnecessary. Also **remove the Compare button** — comparison is now auto-triggered via `tryAutoCompare()` whenever state is valid (both sides have runs + metric selected). `tryAutoCompare()` is called from: `createRunsPanel` (runs loaded or checkbox changed), metric select change, run agg change, sample agg change.
-2. **Always select all runs by default** in `createRunsPanel()`: all available runs are checked by default. The only exception is URL state restoration: if the URL contains `runs_a` or `runs_b` UUIDs that match available runs, that selection is restored (allowing shared URLs to preserve a specific run subset). When no URL runs match (fresh load, order change), all runs are selected.
-3. **Metric selector uses shared component**: Replace the inline `createMetricSelect()` with the shared `renderMetricSelector` from `components/metric-selector.ts` (with `placeholder: true`). The `getMetricFields()` function uses `filterMetricFields()` from the shared component to filter by `type === 'Real'` (consistent with all other pages). The `onChange` callback calls `setState({ metric })` then `tryAutoCompare()`.
-4. **Swap sides button**: A circular button (⇄) between the two side panels in the `.sides-row`. Clicking it calls `swapSides()` from `state.ts`, re-renders the selection panel, and triggers `tryAutoCompare()`. This lets users quickly reverse the baseline/new direction.
+1. **`initSelection(testsuites, doCompare)` replaces `setCachedData()`**: Instead of receiving pre-fetched fields and orders for a single suite, the selection module receives the list of available test suites and a compare callback. Per-side data is fetched lazily via `fetchSideData(side, suite)` when the user selects a suite.
+2. **Per-side suite `<select>`**: Each side panel renders a suite dropdown populated from the `testsuites` list. Changing a side's suite calls `fetchSideData(side, newSuite)` to fetch fields and orders for that suite, then re-renders the selection panel. Per-side cached data (`cachedOrdersA`/`cachedOrdersB`, `cachedFieldsA`/`cachedFieldsB`) and staleness counters (`suiteLoadVersionA`/`suiteLoadVersionB`) prevent stale responses from overwriting data when suites change rapidly.
+3. **`fetchSideData(side, suite, metricContainer?)`**: Fetches fields and orders for a side in parallel, updates per-side caches, and re-renders the metric selector with the union of both sides' fields.
+4. **Remove the Settings panel** (toggle button + token input) from `renderSelectionPanel()` — the SPA nav bar already provides the Settings panel with the API token input, so duplicating it on the Compare page is unnecessary. Also **remove the Compare button** — comparison is now auto-triggered via `tryAutoCompare()` whenever state is valid (both sides have runs + metric selected). `tryAutoCompare()` is called from: `createRunsPanel` (runs loaded or checkbox changed), metric select change, run agg change, sample agg change.
+5. **Always select all runs by default** in `createRunsPanel()`: all available runs are checked by default. The only exception is URL state restoration: if the URL contains `runs_a` or `runs_b` UUIDs that match available runs, that selection is restored (allowing shared URLs to preserve a specific run subset). When no URL runs match (fresh load, order change), all runs are selected.
+6. **Metric selector uses shared component**: Replace the inline `createMetricSelect()` with the shared `renderMetricSelector` from `components/metric-selector.ts` (with `placeholder: true`). The `getMetricFields()` function returns the union of both sides' fields, using `filterMetricFields()` from the shared component to filter by `type === 'Real'` (consistent with all other pages). The `onChange` callback calls `setState({ metric })` then `tryAutoCompare()`.
+7. **Swap sides button**: A circular button between the two side panels in the `.sides-row`. Clicking it calls `swapSides()` from `state.ts`, re-renders the selection panel, and triggers `tryAutoCompare()`. This lets users quickly reverse the baseline/new direction.
 
 **`chart.ts` changes:**
 3. **Apply text filter to chart**: `drawChart()` reads `state.testFilter` and applies it as an additional filter on top of the chart zoom filter (`filterTests`). When both are active, their intersection is used. This ensures the chart only shows tests matching the text filter.
@@ -1754,17 +1924,18 @@ The existing Compare code is spread across `comparison.ts`, `selection.ts`, `tab
 9. **`manuallyHidden: Set<string>`** at module scope. The compare page manages visibility: toggle adds/removes from the set; isolate hides all others (or restores if the target is the only visible test). `hideNoise` is a separate filter applied on top — a test is hidden if it's in `manuallyHidden` OR (its status is 'noise' AND `state.hideNoise` is true). The two filters are independent: manual toggles persist across hideNoise changes. The effective hidden set is computed by `computeEffectiveHidden()` and passed to both the table (for graying out rows) and the chart (by filtering rows before passing them). All chart updates use `preserveZoom: true`.
 
 **`combobox.ts` changes:**
-10. **Order tags in dropdown**: `ComboboxContext` gains an `orderTags: Map<string, string | null>` field (built from `cachedOrders` in `selection.ts`). The order dropdown displays tags alongside values (e.g., "abc123 (release-18)") and the text filter matches against both the order value and the tag.
-11. **Machine-filtered orders**: When a machine is selected but its orders haven't loaded yet (`machineOrders` is null), the dropdown shows "Loading orders..." instead of unfiltered results. On combobox creation, if a machine is pre-selected from URL state, `fetchMachineOrders` is called immediately so the dropdown is correctly filtered from the start.
-12. **Per-side abort controllers**: `fetchMachineOrders` uses per-side abort controllers (`machineOrdersControllerA`/`B`) instead of a single shared one, so fetching orders for side B doesn't abort side A's in-flight request.
-13. **Abort controllers in reset**: `resetComboboxState()` aborts in-flight `machineOrdersControllerA`/`B` and `machineSearchController` requests.
+10. **`ComboboxContext` uses per-side accessors**: Instead of a single `testsuite`/`cachedOrderValues`/`orderTags`, the context provides `getSuiteName(side: 'a' | 'b')` (returns the suite for that side) and `getOrderData(side: 'a' | 'b')` (returns `{ cachedOrderValues, orderTags }` for that side). This supports cross-suite comparison where each side may have different orders and tags.
+11. **Order tags in dropdown**: The order dropdown displays tags alongside values (e.g., "abc123 (release-18)") and the text filter matches against both the order value and the tag.
+12. **Machine-filtered orders**: When a machine is selected but its orders haven't loaded yet (`machineOrders` is null), the dropdown shows "Loading orders..." instead of unfiltered results. On combobox creation, if a machine is pre-selected from URL state, `fetchMachineOrders` is called immediately so the dropdown is correctly filtered from the start. `fetchMachineOrders(side, machine, testsuite)` takes an explicit `testsuite` parameter (from `getSuiteName(side)`) rather than reading from a shared context.
+13. **Per-side abort controllers**: `fetchMachineOrders` uses per-side abort controllers (`machineOrdersControllerA`/`B`) instead of a single shared one, so fetching orders for side B doesn't abort side A's in-flight request.
+14. **Abort controllers in reset**: `resetComboboxState()` aborts in-flight `machineOrdersControllerA`/`B` and `machineSearchController` requests.
 
 **File**: `lnt/server/ui/v5/frontend/src/pages/compare.ts`
 
 The compare page module implements:
-- `mount()`: Renders a page header (`<h2>Compare</h2>`), restores URL state, fetches fields/orders, renders selection panel, wires event listeners (`CHART_ZOOM`, `CHART_HOVER`, `TABLE_HOVER`, `SETTINGS_CHANGE`, `TEST_FILTER_CHANGE`), auto-compare via `tryAutoCompare()` in selection.ts. The chart container is initialized with a "No data to chart." message (consistent with the Graph page's empty state), which is replaced on the first comparison.
+- `mount()`: Renders a page header (`<h2>Compare</h2>`), restores URL state (including `suite_a`/`suite_b`), calls `initSelection(testsuites, doCompare)` to initialize the selection module with available suites and the compare callback, renders selection panel, wires event listeners (`CHART_ZOOM`, `CHART_HOVER`, `TABLE_HOVER`, `SETTINGS_CHANGE`, `TEST_FILTER_CHANGE`). If suites are pre-selected from URL state, `fetchSideData()` is called to load fields and orders for each side. Auto-compare via `tryAutoCompare()` in selection.ts. The chart container is initialized with a "No data to chart." message (consistent with the Graph page's empty state), which is replaced on the first comparison.
 - `unmount()`: Removes event listeners, aborts fetches, clears sample cache and `manuallyHidden`, calls `destroyChart()` and `resetTable()`
-- `doCompare()`: Checks sample cache, fetches only uncached runs, evicts stale cache entries, calls `recomputeFromCache()`
+- `doCompare()`: Checks sample cache, fetches only uncached runs (using each side's suite — side A runs call `getSamples(state.sideA.suite, uuid, ...)`, side B runs call `getSamples(state.sideB.suite, uuid, ...)`), evicts stale cache entries, calls `recomputeFromCache()`
 - `recomputeFromCache()`: Aggregates from cached samples, computes comparison, renders table and chart
 - `renderTableAndChart()`: Computes effective hidden set (`manuallyHidden` + hideNoise filter), passes visible rows to chart with `preserveZoom: true`, passes full rows + toggle/isolate callbacks to table
 - `computeEffectiveHidden()`: Unions `manuallyHidden` with noise tests when `state.hideNoise` is true
@@ -1795,11 +1966,9 @@ The geomean row is the first row of the tbody, showing all columns filled: Value
 
 ### 4.3 Pre-Selected Side A from URL
 
-When navigating from Machine Detail or Run Detail to Compare with a pre-selected machine and order on side A, the URL will contain `?machine_a={name}&order_a={value}`.
+When navigating from Machine Detail or Run Detail to Compare with a pre-selected machine and order on side A, the URL will contain `?suite_a={suite}&machine_a={name}&order_a={value}`. Since Graph and Compare are now suite-agnostic, the nav bar's Compare link in suite context generates `?suite_a={currentSuite}` to pre-fill the suite.
 
-This already works with the existing state management: `applyUrlState` in `state.ts` decodes `machine_a` and `order_a` from the URL and populates `state.sideA`. The selection panel renders with these values pre-filled. The user can then fill in side B and click Compare.
-
-No additional code is needed beyond ensuring the linking pages generate the correct URL params.
+This already works with the existing state management: `applyUrlState` in `state.ts` decodes `suite_a`, `machine_a`, and `order_a` from the URL and populates `state.sideA`. The selection panel renders with these values pre-filled, and `fetchSideData('a', suite)` is called to load fields and orders for the pre-selected suite. The user can then fill in side B and the comparison auto-triggers.
 
 ### 4.4 Remove Old Compare Files
 
@@ -1807,9 +1976,9 @@ After Phase 4 is complete and verified:
 
 1. Delete `v5_compare.html` (the old standalone template that extended `layout.html`)
 2. Delete `static/comparison/` directory (the old standalone build output)
-3. Remove the Compare link from the v4 navbar in `layout.html` — Compare is now only accessible via the v5 SPA
+3. Remove the Compare link from the v4 navbar in `layout.html` — Compare is now only accessible via the v5 SPA at `/v5/compare`
 
-Note: The old `v5_compare` route was already removed during Phase 1 (SPA scaffolding) — the catch-all route in `views.py` now handles `/v5/{ts}/compare`.
+Note: The old `v5_compare` route no longer exists — the suite-agnostic `v5_global()` route in `views.py` serves `/v5/compare` directly.
 
 ### 4.5 Phase 4 Testing
 
@@ -1821,9 +1990,11 @@ Note: The old `v5_compare` route was already removed during Phase 1 (SPA scaffol
 - All ratios = 1.0: ratio geomean = 1.0, delta = 0
 
 **Tests for Compare page module** (`__tests__/pages/compare.test.ts`):
-- Mount loads fields and orders
+- Mount calls `initSelection(testsuites, doCompare)` instead of `setCachedData()`
+- Mount restores `suite_a`/`suite_b` from URL state and calls `fetchSideData` for pre-selected suites
 - Shows error when fetch fails
 - Renders selection panel after data loads
+- Per-side sample fetching uses each side's suite
 - Unmount cleans up without errors
 - Unmount is safe before mount completes
 
@@ -1841,6 +2012,8 @@ Note: The old `v5_compare` route was already removed during Phase 1 (SPA scaffol
 - `onIsolate` called on double-click without triggering `onToggle`
 
 **Tests for combobox** (`__tests__/combobox.test.ts`):
+- `getSuiteName(side)` returns the correct suite per side
+- `getOrderData(side)` returns per-side order values and tags
 - Tags shown in dropdown items
 - Filter matches by tag text and by order value
 - Loading hint when machine set but orders not loaded
@@ -1848,6 +2021,7 @@ Note: The old `v5_compare` route was already removed during Phase 1 (SPA scaffol
 - Tag shown in input after selection
 - Tag shown in input on URL restore
 - Plain value shown when order has no tag
+- `fetchMachineOrders` uses correct per-side abort controller
 
 ---
 
@@ -1901,17 +2075,17 @@ No new unit tests needed beyond verifying the stubs render their placeholder tex
 
 **File**: `lnt/server/ui/v5/views.py`
 
-A new route `/v5/admin` serves the SPA shell with `g.testsuite_name = ''`. The template conditionally renders the title and v4 URL based on whether a testsuite is set.
+The admin page is served by the existing `v5_global()` route at `/v5/admin` (alongside `/v5/graph` and `/v5/compare`). No additional Flask route is needed — the same `v5_global()` function serves the SPA shell with `g.testsuite_name = ''`. The TypeScript router in the suite-agnostic context matches `/admin` and mounts the admin page module.
 
 ### 6.2 SPA Bootstrap
 
 **File**: `lnt/server/ui/v5/frontend/src/main.ts`
 
-When `data-testsuite` is empty (admin-only context), the SPA sets `basePath = /v5` and only registers the admin route. The nav bar is still rendered with the full testsuites list.
+When `data-testsuite` is empty (suite-agnostic context), the SPA sets `basePath = /v5` and registers the admin, graph, and compare routes. The admin page is one of the three suite-agnostic pages.
 
 **File**: `lnt/server/ui/v5/frontend/src/components/nav.ts`
 
-The Admin link uses a regular `<a href="/v5/admin">` (not SPA router navigation) so it works from any testsuite context and navigates to the global admin page.
+The Admin link always points to `/v5/admin`. In suite context, it triggers a full-page navigation (since `/v5/admin` is outside the suite-scoped basePath). In suite-agnostic context, it uses SPA navigation via `navigate('/admin')`. This is already handled by the three-category nav link architecture described in section 1.6.
 
 ### 6.3 Admin Page Module
 
@@ -2147,20 +2321,19 @@ lnt/server/ui/v5/frontend/src/__tests__/pages/admin.test.ts
 
 ```
 lnt/server/ui/v5/frontend/vite.config.ts          — Output v5.js/v5.css
-lnt/server/ui/v5/frontend/src/main.ts             — SPA bootstrap
+lnt/server/ui/v5/frontend/src/main.ts             — SPA bootstrap with suite-scoped vs suite-agnostic branching
 lnt/server/ui/v5/frontend/src/api.ts              — New API functions
-lnt/server/ui/v5/frontend/src/types.ts            — New interfaces
+lnt/server/ui/v5/frontend/src/types.ts            — New interfaces, SideSelection.suite field
 lnt/server/ui/v5/frontend/src/utils.ts            — spaLink helper
 lnt/server/ui/v5/frontend/src/comparison.ts       — computeGeomean (GeomeanResult with A/B values)
 lnt/server/ui/v5/frontend/src/table.ts            — Geomean row, row toggling, summary message, resetTable()
 lnt/server/ui/v5/frontend/src/chart.ts            — Text filter, destroyChart(), preserveZoom, removed hideNoise
-lnt/server/ui/v5/frontend/src/selection.ts        — Removed Settings panel and Compare button, auto-select runs, tryAutoCompare(), swap sides button
-lnt/server/ui/v5/frontend/src/state.ts           — swapSides() function
-lnt/server/ui/v5/frontend/src/combobox.ts         — Order tags, machine filtering, per-side abort controllers
+lnt/server/ui/v5/frontend/src/selection.ts        — Per-side suite selects, initSelection(testsuites, doCompare), fetchSideData, removed Settings panel and Compare button, auto-select runs, tryAutoCompare(), swap sides button
+lnt/server/ui/v5/frontend/src/state.ts           — swapSides() function, suite_a/suite_b URL params, SideSelection.suite field
+lnt/server/ui/v5/frontend/src/combobox.ts         — getSuiteName/getOrderData per-side accessors, order tags, machine filtering, per-side abort controllers
 lnt/server/ui/v5/frontend/src/style.css           — Nav bar + new page styles, row-hidden, table-message
-lnt/server/ui/v5/views.py                         — Catch-all route
-lnt/server/ui/templates/layout.html               — v5 UI link in v4 nav, removed Compare link
-lnt/server/ui/templates/layout.html               — v5 UI link in v4 nav, nonav support
+lnt/server/ui/v5/views.py                         — v5_global() for /v5/admin, /v5/graph, /v5/compare; v5_app() catch-all for suite-scoped routes
+lnt/server/ui/templates/layout.html               — v5 UI link in v4 nav, removed Compare link, nonav support
 lnt/server/ui/v5/templates/v5_app.html             — Standalone SPA shell (does not extend layout.html)
 lnt/server/ui/v5/frontend/src/__tests__/api.test.ts       — Tests for new API functions
 lnt/server/ui/v5/frontend/src/__tests__/comparison.test.ts — Tests for geomean

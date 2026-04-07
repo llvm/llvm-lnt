@@ -94,6 +94,22 @@ class TestSPAShell(unittest.TestCase):
         # Should include the list of available testsuites
         self.assertIn('data-testsuites=', html)
 
+    def test_graph_route_serves_spa(self):
+        """The /v5/graph route is global (suite-agnostic)."""
+        resp = self.client.get('/v5/graph')
+        self.assertEqual(resp.status_code, 200)
+        html = resp.get_data(as_text=True)
+        self.assertIn('id="v5-app"', html)
+        self.assertIn('data-testsuite=""', html)
+
+    def test_compare_route_serves_spa(self):
+        """The /v5/compare route is global (suite-agnostic)."""
+        resp = self.client.get('/v5/compare')
+        self.assertEqual(resp.status_code, 200)
+        html = resp.get_data(as_text=True)
+        self.assertIn('id="v5-app"', html)
+        self.assertIn('data-testsuite=""', html)
+
     def test_admin_route_trailing_slash(self):
         """/v5/admin/ (trailing slash) must hit the admin route, not the catch-all."""
         resp = self.client.get('/v5/admin/')

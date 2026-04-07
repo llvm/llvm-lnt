@@ -31,7 +31,7 @@ describe('addRoute + resolve', () => {
       writable: true,
     });
 
-    routerModule.initRouter(container, '/v5/nts');
+    routerModule.initRouter(container, '/v5/nts', undefined, { testsuite: 'nts', testsuites: ['nts'] });
 
     expect(mount).toHaveBeenCalledTimes(1);
     expect(mount.mock.calls[0][0]).toBe(container);
@@ -50,7 +50,7 @@ describe('addRoute + resolve', () => {
       writable: true,
     });
 
-    routerModule.initRouter(container, '/v5/nts');
+    routerModule.initRouter(container, '/v5/nts', undefined, { testsuite: 'nts', testsuites: ['nts'] });
 
     expect(mount).toHaveBeenCalledTimes(1);
     expect(mount.mock.calls[0][1]).toMatchObject({
@@ -71,7 +71,7 @@ describe('addRoute + resolve', () => {
       writable: true,
     });
 
-    routerModule.initRouter(container, '/v5/nts');
+    routerModule.initRouter(container, '/v5/nts', undefined, { testsuite: 'nts', testsuites: ['nts'] });
 
     expect(mount.mock.calls[0][1].name).toBe('machine with space');
   });
@@ -86,7 +86,7 @@ describe('addRoute + resolve', () => {
       writable: true,
     });
 
-    routerModule.initRouter(container, '/v5/nts');
+    routerModule.initRouter(container, '/v5/nts', undefined, { testsuite: 'nts', testsuites: ['nts'] });
 
     expect(container.innerHTML).toContain('Page Not Found');
   });
@@ -105,7 +105,7 @@ describe('addRoute + resolve', () => {
       writable: true,
     });
 
-    routerModule.initRouter(container, '/v5/nts');
+    routerModule.initRouter(container, '/v5/nts', undefined, { testsuite: 'nts', testsuites: ['nts'] });
     expect(moduleA.mount).toHaveBeenCalledTimes(1);
 
     // Navigate to /other
@@ -130,7 +130,7 @@ describe('addRoute + resolve', () => {
       writable: true,
     });
 
-    routerModule.initRouter(container, '/v5/nts');
+    routerModule.initRouter(container, '/v5/nts', undefined, { testsuite: 'nts', testsuites: ['nts'] });
     expect(mount).toHaveBeenCalledTimes(1);
   });
 });
@@ -149,7 +149,7 @@ describe('navigate', () => {
       writable: true,
     });
 
-    routerModule.initRouter(container, '/v5/nts');
+    routerModule.initRouter(container, '/v5/nts', undefined, { testsuite: 'nts', testsuites: ['nts'] });
     expect(mountA).toHaveBeenCalledTimes(1);
 
     // Navigate
@@ -177,7 +177,7 @@ describe('afterResolve callback', () => {
       writable: true,
     });
 
-    routerModule.initRouter(container, '/v5/nts', callback);
+    routerModule.initRouter(container, '/v5/nts', callback, { testsuite: 'nts', testsuites: ['nts'] });
 
     expect(callback).toHaveBeenCalledWith('/');
   });

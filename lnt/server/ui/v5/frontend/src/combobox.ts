@@ -16,10 +16,13 @@ let machineSearchController: AbortController | null = null;
 
 /** Shared state that the combobox module reads but does not own. */
 export interface ComboboxContext {
-  cachedOrderValues: string[];
-  /** Map from order value to tag (null if no tag). */
-  orderTags: Map<string, string | null>;
-  testsuite: string;
+  /** Get per-side order values and tags. */
+  getOrderData: (side: 'a' | 'b') => {
+    cachedOrderValues: string[];
+    orderTags: Map<string, string | null>;
+  };
+  /** Get the testsuite name for a given side. */
+  getSuiteName: (side: 'a' | 'b') => string;
   getSideState: (side: 'a' | 'b') => {
     selection: SideSelection;
     setSide: (partial: Partial<SideSelection>) => void;
@@ -154,7 +157,8 @@ export function createOrderCombobox(
 
   const { selection } = ctx.getSideState(side);
   if (selection.order) {
-    const tag = ctx.orderTags.get(selection.order);
+    const { orderTags } = ctx.getOrderData(side);
+    const tag = orderTags.get(selection.order);
     input.value = tag ? `${selection.order} (${tag})` : selection.order;
   }
 
@@ -173,7 +177,8 @@ export function createOrderCombobox(
       return;
     }
 
-    let source = ctx.cachedOrderValues;
+    const { cachedOrderValues, orderTags } = ctx.getOrderData(side);
+    let source = cachedOrderValues;
     if (machineOrders) {
       source = source.filter(v => machineOrders.has(v));
     }
@@ -181,7 +186,7 @@ export function createOrderCombobox(
     const matches = filter
       ? source.filter(v => {
           if (v.toLowerCase().includes(lf)) return true;
-          const tag = ctx.orderTags.get(v);
+          const tag = orderTags.get(v);
           return tag !== null && tag !== undefined && tag.toLowerCase().includes(lf);
         })
       : source;
@@ -189,7 +194,7 @@ export function createOrderCombobox(
 
     dropdown.replaceChildren();
     for (const v of limited) {
-      const tag = ctx.orderTags.get(v);
+      const tag = orderTags.get(v);
       const label = tag ? `${v} (${tag})` : v;
       const li = el('li', { class: 'combobox-item', role: 'option', tabindex: '-1' }, label);
       li.addEventListener('click', () => {
@@ -257,12 +262,12 @@ export function createMachineCombobox(
     input.value = selection.machine;
     // Pre-fetch orders for URL-restored machine so the order dropdown
     // is correctly filtered from the start (not showing all orders).
-    fetchMachineOrders(side, selection.machine, ctx.testsuite);
+    fetchMachineOrders(side, selection.machine, ctx.getSuiteName(side));
   }
 
   async function onMachineSelect(name: string): Promise<void> {
     setSide({ machine: name });
-    await fetchMachineOrders(side, name, ctx.testsuite);
+    await fetchMachineOrders(side, name, ctx.getSuiteName(side));
     // Clear order if it's no longer valid for this machine
     const machineOrders = side === 'a' ? machineOrdersA : machineOrdersB;
     const { selection: current } = ctx.getSideState(side);
@@ -285,7 +290,7 @@ export function createMachineCombobox(
 
     const prefix = input.value;
     try {
-      const result = await getMachines(ctx.testsuite, {
+      const result = await getMachines(ctx.getSuiteName(side), {
         namePrefix: prefix || undefined,
         limit: 20,
       }, signal);

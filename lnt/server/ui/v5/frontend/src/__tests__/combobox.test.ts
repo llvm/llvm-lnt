@@ -11,11 +11,13 @@ vi.mock('../api', () => ({
 import { createOrderCombobox, resetComboboxState, type ComboboxContext } from '../combobox';
 
 function makeContext(overrides?: Partial<ComboboxContext>): ComboboxContext {
-  const sideA: SideSelection = { order: '', machine: '', runs: [], runAgg: 'median' };
+  const sideA: SideSelection = { suite: '', order: '', machine: '', runs: [], runAgg: 'median' };
   return {
-    cachedOrderValues: ['100', '101', '102'],
-    orderTags: new Map([['100', 'release-1'], ['101', null], ['102', 'release-2']]),
-    testsuite: 'nts',
+    getOrderData: () => ({
+      cachedOrderValues: ['100', '101', '102'],
+      orderTags: new Map<string, string | null>([['100', 'release-1'], ['101', null], ['102', 'release-2']]),
+    }),
+    getSuiteName: () => 'nts',
     getSideState: () => ({
       selection: sideA,
       setSide: (partial: Partial<SideSelection>) => Object.assign(sideA, partial),
@@ -81,7 +83,7 @@ describe('createOrderCombobox', () => {
   });
 
   it('shows loading hint when machine is set but orders not loaded', () => {
-    const sideA: SideSelection = { order: '', machine: 'clang-x86', runs: [], runAgg: 'median' };
+    const sideA: SideSelection = { suite: '', order: '', machine: 'clang-x86', runs: [], runAgg: 'median' };
     const ctx = makeContext({
       getSideState: () => ({
         selection: sideA,
@@ -104,7 +106,7 @@ describe('createOrderCombobox', () => {
   });
 
   it('calls setSide with order value (not tag) on selection', () => {
-    const sideA: SideSelection = { order: '', machine: '', runs: [], runAgg: 'median' };
+    const sideA: SideSelection = { suite: '', order: '', machine: '', runs: [], runAgg: 'median' };
     const setSide = vi.fn();
     const ctx = makeContext({
       getSideState: () => ({
@@ -145,7 +147,7 @@ describe('createOrderCombobox', () => {
   });
 
   it('shows tag in input on URL restore', () => {
-    const sideA: SideSelection = { order: '102', machine: '', runs: [], runAgg: 'median' };
+    const sideA: SideSelection = { suite: '', order: '102', machine: '', runs: [], runAgg: 'median' };
     const ctx = makeContext({
       getSideState: () => ({
         selection: sideA,
@@ -163,7 +165,7 @@ describe('createOrderCombobox', () => {
   });
 
   it('shows plain value when order has no tag', () => {
-    const sideA: SideSelection = { order: '101', machine: '', runs: [], runAgg: 'median' };
+    const sideA: SideSelection = { suite: '', order: '101', machine: '', runs: [], runAgg: 'median' };
     const ctx = makeContext({
       getSideState: () => ({
         selection: sideA,

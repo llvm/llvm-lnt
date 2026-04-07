@@ -27,6 +27,16 @@ let currentModule: PageModule | null = null;
 let appContainer: HTMLElement | null = null;
 let basePath = ''; // e.g. "/v5/nts"
 let onAfterResolve: ((routePath: string) => void) | null = null;
+let routerTestsuite = '';
+let routerTestsuites: string[] = [];
+
+/**
+ * Return the list of available test suites.
+ * Populated from data-testsuites on the SPA shell.
+ */
+export function getTestsuites(): string[] {
+  return routerTestsuites;
+}
 
 /**
  * Return the current base path (e.g. "/v5/nts").
@@ -60,15 +70,19 @@ export function addRoute(pattern: string, module: PageModule): void {
  * @param container The DOM element to render pages into
  * @param tsBasePath The base path, e.g. "/v5/nts"
  * @param afterResolve Optional callback after each route resolution (for nav highlighting)
+ * @param context Testsuite context from the SPA shell
  */
 export function initRouter(
   container: HTMLElement,
   tsBasePath: string,
   afterResolve?: (routePath: string) => void,
+  context?: { testsuite: string; testsuites: string[] },
 ): void {
   appContainer = container;
   basePath = tsBasePath;
   onAfterResolve = afterResolve || null;
+  routerTestsuite = context?.testsuite ?? '';
+  routerTestsuites = context?.testsuites ?? [];
 
   window.addEventListener('popstate', () => {
     resolve();
@@ -128,7 +142,7 @@ function resolve(): void {
     const match = routePath.match(route.regex);
     if (match) {
       const params: RouteParams = {
-        testsuite: basePath.split('/').pop() || '',
+        testsuite: routerTestsuite,
       };
       route.keys.forEach((key, i) => {
         params[key] = decodeURIComponent(match[i + 1]);

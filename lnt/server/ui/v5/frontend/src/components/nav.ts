@@ -65,19 +65,27 @@ export function renderNav(config: NavConfig): HTMLElement {
   suiteGroup.append(el('span', {}, 'Suite: '), suiteSelect);
   nav.append(suiteGroup);
 
-  // Navigation links
-  const links: { label: string; path: string }[] = [
+  // Navigation links — three categories:
+  // 1. Suite-scoped: Dashboard, Machines, Regressions
+  // 2. Analysis (suite-agnostic): Graph, Compare
+  // 3. Admin (suite-agnostic, handled separately below)
+
+  const suiteLinks: { label: string; path: string }[] = [
     { label: 'Dashboard', path: '/' },
-    { label: 'Graph', path: '/graph' },
-    { label: 'Compare', path: '/compare' },
     { label: 'Regressions', path: '/regressions' },
     { label: 'Machines', path: '/machines' },
   ];
+  const analysisLinks: { label: string; agnosticPath: string; suiteParam: string }[] = [
+    { label: 'Graph', agnosticPath: '/graph', suiteParam: 'suite' },
+    { label: 'Compare', agnosticPath: '/compare', suiteParam: 'suite_a' },
+  ];
 
   const linksContainer = el('div', { class: 'v5-nav-links' });
-  for (const link of links) {
+
+  // Suite-scoped links
+  for (const link of suiteLinks) {
     if (config.testsuite) {
-      // Normal testsuite context — use SPA navigation
+      // In suite context — SPA navigation
       const a = el('a', {
         class: 'v5-nav-link',
         href: tsBasePath + link.path,
@@ -90,13 +98,11 @@ export function renderNav(config: NavConfig): HTMLElement {
       });
       linksContainer.append(a);
     } else {
-      // Admin context (no testsuite) — use full page navigation
-      // to the suite selected in the dropdown
+      // In suite-agnostic context — full page to selected suite
       const a = el('a', {
         class: 'v5-nav-link',
         'data-path': link.path,
       }, link.label);
-      // Set href dynamically so Cmd+Click opens in new tab
       const updateHref = () => {
         const suite = suiteSelect.value;
         if (suite) {
@@ -117,12 +123,49 @@ export function renderNav(config: NavConfig): HTMLElement {
     }
   }
 
-  // Admin link — goes to /v5/admin (outside testsuite namespace)
+  // Analysis links (suite-agnostic pages: Graph, Compare)
+  for (const link of analysisLinks) {
+    if (config.testsuite) {
+      // In suite context — full page link with suite pre-filled
+      const href = `${config.urlBase}/v5${link.agnosticPath}?${link.suiteParam}=${encodeURIComponent(config.testsuite)}`;
+      const a = el('a', {
+        class: 'v5-nav-link',
+        href,
+        'data-path': link.agnosticPath,
+      }, link.label);
+      // No click handler — let browser do full page navigation
+      linksContainer.append(a);
+    } else {
+      // In suite-agnostic context — SPA navigation
+      const a = el('a', {
+        class: 'v5-nav-link',
+        href: `${config.urlBase}/v5${link.agnosticPath}`,
+        'data-path': link.agnosticPath,
+      }, link.label);
+      a.addEventListener('click', (e) => {
+        if (isModifiedClick(e)) return;
+        e.preventDefault();
+        navigate(link.agnosticPath);
+      });
+      linksContainer.append(a);
+    }
+  }
+
+  // Admin link — always suite-agnostic
+  const adminHref = `${config.urlBase}/v5/admin`;
   const adminLink = el('a', {
     class: 'v5-nav-link',
-    href: `${config.urlBase}/v5/admin`,
+    href: adminHref,
     'data-path': '/admin',
   }, 'Admin');
+  if (!config.testsuite) {
+    // In suite-agnostic context — SPA navigation
+    adminLink.addEventListener('click', (e) => {
+      if (isModifiedClick(e)) return;
+      e.preventDefault();
+      navigate('/admin');
+    });
+  }
   linksContainer.append(adminLink);
 
   nav.append(linksContainer);

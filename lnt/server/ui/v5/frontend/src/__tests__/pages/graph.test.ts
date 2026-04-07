@@ -17,7 +17,7 @@ vi.mock('../../api', async (importOriginal) => {
 
 vi.mock('../../router', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../router')>();
-  return { ...actual, navigate: vi.fn() };
+  return { ...actual, navigate: vi.fn(), getTestsuites: vi.fn(() => ['nts']) };
 });
 
 const mockMachineComboHandle = { destroy: vi.fn(), clear: vi.fn() };
@@ -48,6 +48,7 @@ vi.mock('../../components/legend-table', () => ({
 };
 
 import { getFields, getOrders, fetchOneCursorPage } from '../../api';
+import { getTestsuites } from '../../router';
 import { buildTraces, computeActiveTests, buildRefsFromCache, setsEqual, TRACE_SEP, graphPage } from '../../pages/graph';
 import { renderMachineCombobox } from '../../components/machine-combobox';
 import { renderOrderSearch } from '../../components/order-search';
@@ -477,11 +478,13 @@ describe('graphPage mount', () => {
     delete (window as Record<string, unknown>).location;
     (window as Record<string, unknown>).location = {
       ...savedLocation,
-      search: '',
-      pathname: '/v5/nts/graph',
+      search: '?suite=nts',
+      pathname: '/v5/graph',
     };
     vi.spyOn(window.history, 'replaceState').mockImplementation(() => {});
 
+    // Re-establish mocks cleared by clearAllMocks
+    (getTestsuites as ReturnType<typeof vi.fn>).mockReturnValue(['nts']);
     (getFields as ReturnType<typeof vi.fn>).mockResolvedValue(mockFields);
     (getOrders as ReturnType<typeof vi.fn>).mockResolvedValue([]);
     (fetchOneCursorPage as ReturnType<typeof vi.fn>).mockResolvedValue({
@@ -579,7 +582,7 @@ describe('graphPage mount', () => {
   });
 
   it('parses machine URL params on mount', () => {
-    (window.location as Record<string, unknown>).search = '?machine=clang-x86&machine=gcc-arm&metric=exec_time';
+    (window.location as Record<string, unknown>).search = '?suite=nts&machine=clang-x86&machine=gcc-arm&metric=exec_time';
 
     graphPage.mount(container, { testsuite: 'nts' });
 
@@ -591,7 +594,7 @@ describe('graphPage mount', () => {
   });
 
   it('parses test_filter URL param on mount', () => {
-    (window.location as Record<string, unknown>).search = '?test_filter=compile';
+    (window.location as Record<string, unknown>).search = '?suite=nts&test_filter=compile';
 
     graphPage.mount(container, { testsuite: 'nts' });
 
@@ -600,7 +603,7 @@ describe('graphPage mount', () => {
   });
 
   it('parses aggregation URL params on mount', () => {
-    (window.location as Record<string, unknown>).search = '?run_agg=mean&sample_agg=max';
+    (window.location as Record<string, unknown>).search = '?suite=nts&run_agg=mean&sample_agg=max';
 
     graphPage.mount(container, { testsuite: 'nts' });
 
@@ -610,7 +613,7 @@ describe('graphPage mount', () => {
   });
 
   it('parses pin URL params on mount and renders chips', () => {
-    (window.location as Record<string, unknown>).search = '?pin=100&pin=200';
+    (window.location as Record<string, unknown>).search = '?suite=nts&pin=100&pin=200';
 
     graphPage.mount(container, { testsuite: 'nts' });
 

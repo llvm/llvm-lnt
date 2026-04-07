@@ -26,16 +26,24 @@ The v4 UI stays around as-is. The only integration point is a toggle link in eac
 - The Compare page already proves vanilla TS + Vite works well
 - All data comes from the v5 REST API — no server-side rendering needed
 
-### Flask Backend: One Catch-All Route
+### Flask Backend: Suite-Agnostic and Suite-Scoped Routes
 
 The v5 API only supports the default DB, so v5 frontend routes do not include `db_<db_name>` prefixes.
 
+Suite-agnostic pages (admin, graph, compare) are served at top-level `/v5/` routes with `data-testsuite=""`, while suite-scoped pages use the catch-all route which passes the test suite name as `data-testsuite`.
+
 ```python
 # lnt/server/ui/v5/views.py
+@v5_frontend.route("/v5/admin", strict_slashes=False)
+@v5_frontend.route("/v5/graph", strict_slashes=False)
+@v5_frontend.route("/v5/compare", strict_slashes=False)
+def v5_global():
+    ...renders v5_app.html shell with empty testsuite...
+
 @v5_frontend.route("/v5/<testsuite_name>/")
 @v5_frontend.route("/v5/<testsuite_name>/<path:subpath>")
 def v5_app(testsuite_name, subpath=None):
-    ...renders v5_app.html shell...
+    ...renders v5_app.html shell for suite-scoped pages...
 ```
 
 The existing Compare page route (`v5_compare`) also needs to be updated to remove its `db_<db_name>` variant.
@@ -57,11 +65,11 @@ The shell template (`v5_app.html`) is a standalone HTML page (it does NOT extend
 /v5/{ts}/machines/{name}               Machine Detail
 /v5/{ts}/runs/{uuid}                   Run Detail
 /v5/{ts}/orders/{value}                Order Detail
-/v5/{ts}/graph?machine=...&test=...    Graph (time series)
-/v5/{ts}/compare                       Compare (existing SPA, absorbed)
 /v5/{ts}/regressions?state=...         Regression List
 /v5/{ts}/regressions/{uuid}            Regression Detail
 /v5/{ts}/field-changes                 Field Change Triage
+/v5/graph?suite={ts}&machine=...       Graph (time series) — suite-agnostic
+/v5/compare?suite_a={ts}&...           Compare — suite-agnostic
 /v5/admin                              Admin (API keys, schemas — not test-suite specific)
 ```
 
@@ -70,6 +78,12 @@ The shell template (`v5_app.html`) is a standalone HTML page (it does NOT extend
 ```
 [LNT]  [Suite: nts ▾]  Dashboard  Graph  Compare  Regressions  Machines  Admin   [v4 UI]  [Settings]
 ```
+
+Navigation links fall into three categories based on their routing behavior:
+
+- **Suite-scoped links** (Dashboard, Machines, Regressions): In suite context (`/v5/{ts}/...`), these are SPA navigations within the current suite. In suite-agnostic context (`/v5/graph`, `/v5/compare`, `/v5/admin`), these are full-page links that navigate to `/v5/{ts}/...` (using the suite selector's current value).
+- **Analysis links** (Graph, Compare): In suite context, these are full-page links to `/v5/graph?suite={ts}` and `/v5/compare?suite_a={ts}`, pre-filling the current suite. In suite-agnostic context, these are SPA navigations within the agnostic shell.
+- **Admin**: In suite context, this is a full-page link to `/v5/admin`. In suite-agnostic context, this is SPA navigation.
 
 ---
 
@@ -143,9 +157,11 @@ The "what happened at this commit?" page. Key investigation page for developers.
 - API: `GET orders/{value}`, `PATCH orders/{value}` (tag editing), `GET runs?order={value}`
 - **Links out**: Run Detail, Machine Detail
 
-### 6. Graph (Time Series) — `/v5/{ts}/graph?machine={m}&metric={f}`
+### 6. Graph (Time Series) — `/v5/graph?suite={ts}&machine={m}&metric={f}`
 
-The primary performance-over-time visualization. Replaces v4's graph page.
+The primary performance-over-time visualization. Replaces v4's graph page. This page is suite-agnostic — the suite is a query parameter, not a path segment.
+
+- **Suite selector**: A required dropdown at the top of the page, populated from the `data-testsuites` HTML attribute. All other controls (machine, metric, test filter, aggregation, baselines) are disabled until a suite is selected. Changing the suite clears the machine list, all caches, and the chart. When the page is loaded with `suite=` in the URL, the dropdown is pre-selected.
 
 - **Machine chip input**: The machine selector is a chip-based multi-select input. The user types a machine name (with typeahead suggestions from `renderMachineCombobox`) and presses Enter to add it. Each added machine appears as a chip with an × button to remove it. Multiple machines can be added to overlay their data on the same chart. Removing the last machine clears the chart. The metric selector is shared across all machines — the same metric is plotted for every machine.
 - **Auto-plot**: No "Plot" button. The chart loads automatically as soon as at least one machine and a metric are selected. The metric selector initially shows a "-- Select metric --" placeholder (no metric pre-selected), consistent with the Compare page. Adding or removing a machine triggers data fetching (or cache hit) and re-renders the chart immediately.
@@ -158,36 +174,37 @@ The primary performance-over-time visualization. Replaces v4's graph page.
   - Sample aggregation: how to combine multiple samples within a run (median/mean/min/max)
 - **Lazy loading with progressive rendering**: Data is fetched newest-first (`sort=-order&limit=10000`) and rendered incrementally. The chart first appears with the full x-axis scaffold (if available) and then progressively fills in data as pages arrive via cursor-based pagination (`fetchOneCursorPage`). This avoids blocking the UI on large datasets.
 - **X-axis scaffolding**: To prevent the x-axis from resizing/shifting as lazy-loaded pages arrive, the graph page pre-fetches the complete list of order values for each selected machine via paginated calls to the `GET machines/{name}/runs` endpoint (using `fetchOneCursorPage` with `sort=order`). When multiple machines are selected, the scaffold is the **union** of all machines' order values, so the x-axis spans the full range across all machines. Traces naturally have gaps where their machine has no data at a given order. Each machine's scaffold is fetched and cached independently; the union is recomputed when machines are added or removed. If a scaffold fetch fails for one machine, that machine's orders are simply not included in the union — the chart still works.
-- **Per-metric client-side caching**: Fetched data is cached per metric key (`machine::metric` combination). Each machine's data is fetched and cached independently. Changing the test filter, aggregation mode, or pinned orders re-renders instantly from the cache without any additional API calls. Switching back to a previously-viewed metric is also instant. Adding a second machine starts its own fetch pipeline while the first machine's data is already displayed. The cache is preserved across page unmount/remount, so navigating away and pressing browser back renders instantly from cache. In-flight fetches are aborted on unmount, but resume from where they left off on remount. Each machine's cache is cleared when that machine is removed from the chip list.
-- **Interactive controls**: All settings — metric, test filter, aggregation mode, pinned orders — are interactive from cache. Changing any of them re-renders without an API refetch. All settings sync to the URL for shareability. The legend table updates synchronously (instant feedback while typing), while the chart update is **skipped entirely when the active trace set has not changed** (e.g., typing additional filter characters that match the same tests). When the active set does change, user-initiated changes use **batched rendering**: traces are rendered in batches of 10 via `requestAnimationFrame`, so the chart achieves eventual consistency without freezing the browser — this matters when a filter matches thousands of tests and the 20-cap is disabled. During progressive data loading (new pages arriving from the API), the chart is updated in a single deferred `requestAnimationFrame` call (no batching) to avoid the batch sequence being repeatedly canceled by rapid page arrivals.
+- **Per-metric client-side caching**: Fetched data is cached per metric key (`machine::metric` combination). Each machine's data is fetched and cached independently. Changing the test filter, aggregation mode, or baselines re-renders instantly from the cache without any additional API calls. Switching back to a previously-viewed metric is also instant. Adding a second machine starts its own fetch pipeline while the first machine's data is already displayed. The cache is preserved across page unmount/remount, so navigating away and pressing browser back renders instantly from cache. In-flight fetches are aborted on unmount, but resume from where they left off on remount. Each machine's cache is cleared when that machine is removed from the chip list.
+- **Interactive controls**: All settings — metric, test filter, aggregation mode, baselines — are interactive from cache. Changing any of them re-renders without an API refetch. All settings sync to the URL for shareability. The legend table updates synchronously (instant feedback while typing), while the chart update is **skipped entirely when the active trace set has not changed** (e.g., typing additional filter characters that match the same tests). When the active set does change, user-initiated changes use **batched rendering**: traces are rendered in batches of 10 via `requestAnimationFrame`, so the chart achieves eventual consistency without freezing the browser — this matters when a filter matches thousands of tests and the 20-cap is disabled. During progressive data loading (new pages arriving from the API), the chart is updated in a single deferred `requestAnimationFrame` call (no batching) to avoid the batch sequence being repeatedly canceled by rapid page arrivals.
 - **Incremental chart updates**: The chart component exposes a `ChartHandle` API (via `createTimeSeriesChart`) that supports incremental updates through `Plotly.react()` — the chart is updated in-place as new pages of data arrive, rather than being destroyed and re-created.
 - **Zoom preservation during progressive loading**: If the user zooms into the chart while data is still loading, the zoom is preserved across incremental updates. The x-axis range is always preserved (it was established by the scaffold or by user zoom). The y-axis range is preserved only when the user has explicitly zoomed; otherwise, it auto-ranges to accommodate new data as it arrives. Double-clicking the chart resets the zoom to the full range as usual.
 - **Legend table**: Below the chart, a table lists traces sorted alphabetically by name (not in a scrollable container — the table is part of the page flow, like the Compare page's table). A message line above the table rows always shows a matching count (e.g., "42 of 150 tests matching"); when the 20-cap is active, the cap warning replaces it. Each row represents one trace (`{test name} - {machine name}`), with a colored marker symbol character (●, ▲, ■, etc. in the trace's color) identifying both the test (by color) and the machine (by shape). The test filter matches on test name only — matching test names show all their machine variants; non-matching names are hidden entirely. Tests that are inactive (manually hidden or beyond the 20-cap) are grayed out in place. Clicking a row toggles the test's visibility on the chart. Double-clicking a row is a shortcut for hiding all other visible tests (equivalent to single-clicking every other test one by one) — it populates `manuallyHidden` with all visible tests except the double-clicked one. Double-clicking the same test again when it is the only visible test restores all tests. Subsequent single-clicks work naturally against the `manuallyHidden` set. Plotly's built-in legend is disabled; the table replaces it. Bidirectional hover highlighting: hovering a table row highlights the corresponding chart trace by emphasizing the entire trace line (thicker line, full opacity) while dimming all other traces via `Plotly.restyle()`; hovering a chart trace highlights the table row.
 - **Active state and 20-cap**: A trace is active (plotted) when its test name matches the text filter and it has not been manually hidden by clicking its row. A default 20-test cap auto-activates the first 20 alphabetical trace names when there is no text filter and no manual toggles. As soon as the user types a filter or manually toggles any row, the cap is permanently disabled for the rest of the page session. Colors are assigned by alphabetical index of all **test names** (not trace names) using a fixed palette, ensuring the same test on different machines shares the same color.
-- **Pinned Orders**: Users can overlay one or more pinned orders as horizontal dashed lines on the chart. The label is "Pinned Orders" and the text input placeholder is "Pin an order...". On focus, a suggestions dropdown appears showing all machine orders (from the scaffold data) with tagged orders listed first. Typing filters suggestions by prefix matching. A red border appears when the typed value has no prefix matches; pressing Enter is blocked for invalid values. Multiple pinned orders can be accumulated. Each pinned order renders as a horizontal dashed line per test trace, spanning the full chart width, in a distinct color per pinned order. The pinned order's Y value for each test is computed using the same run aggregation function as the main trace (e.g., median of all runs at that order), so the dashed line aligns exactly with the trace point at that order. Hovering a dashed line shows a tooltip with: the pinned order value, tag (if set), test name, and metric value at that order. Pinned orders are encoded in the URL query string for shareability (e.g., `&pin=abc123&pin=def456`). Pinned order data is fetched asynchronously after the first render, so it does not block initial chart display.
+- **Baselines**: Users can overlay one or more baselines as horizontal dashed lines on the chart. Each baseline is a (suite, machine, order) tuple, allowing cross-suite comparisons. The selector is an expandable panel with cascading dropdowns: Suite (populated from `data-testsuites`) → Machine (populated from the selected suite's machines endpoint) → Order (populated from the selected machine's orders). Added baselines appear as removable chips labeled `{suite}/{machine}/{order} ({tag})`. Baseline data is fetched from the baseline's suite via `GET /api/v5/{suite}/query?machine=...&metric=...&order=...`. Each baseline renders as a horizontal dashed line per test trace, spanning the full chart width, in a distinct color per baseline. The baseline's Y value for each test is computed using the same run aggregation function as the main trace (e.g., median of all runs at that order), so the dashed line aligns exactly with the trace point at that order. Hovering a dashed line shows a tooltip with: the baseline suite, machine, order value, tag (if set), test name, and metric value. Baselines are encoded in the URL query string for shareability (e.g., `&baseline=nts::machine1::abc123&baseline=other_suite::machine2::def456`). Baseline data is fetched asynchronously after the first render, so it does not block initial chart display.
 - **Concurrent background fetches**: Each machine×metric fetch uses its own AbortController, so navigating away or removing a machine cancels its in-flight requests cleanly without affecting other machines' fetches.
 - **Hover** a data point: tooltip showing test name, machine name, order value, aggregated metric value, run count. Hover distance is reduced (`hoverdistance: 5`, less sticky tooltips) so the tooltip only appears when the cursor is close to a data point. When hovering over an aggregated point that represents multiple runs, the individual pre-aggregation values are shown as a scatter of markers at the same x-position, in the same trace color but faded (opacity 0.3). This scatter is computed lazily via a callback and displayed as a temporary Plotly trace that is added on hover and removed on unhover.
 - **"No data to plot" annotation**: When no traces match the current filter/settings, the chart displays a Plotly annotation overlay ("No data to plot") centered on the chart area, preserving the x-axis scaffold so the user can see the order range.
-- API: `GET query?machine=...&metric=...&sort=-order&limit=10000` (one fetch pipeline per machine, newest-first with cursor pagination — returns data for all tests, filtered client-side), `GET machines/{name}/runs?sort=order` (x-axis scaffold, per machine), `GET orders` (tags for pinned-order suggestions), `GET machines` (machine combobox), `GET test-suites/{ts}` (fields/metrics)
-- **URL state**: `?machine={name}&machine={name2}&metric={name}&test_filter={text}&run_agg={fn}&sample_agg={fn}&pin={order1}&pin={order2}` — the `machine` parameter is repeated for each selected machine.
+- API: `GET query?machine=...&metric=...&sort=-order&limit=10000` (one fetch pipeline per machine, newest-first with cursor pagination — returns data for all tests, filtered client-side), `GET machines/{name}/runs?sort=order` (x-axis scaffold, per machine), `GET orders` (tags for baseline suggestions), `GET machines` (machine combobox), `GET test-suites/{ts}` (fields/metrics)
+- **URL state**: `?suite={ts}&machine={name}&machine={name2}&metric={name}&test_filter={text}&run_agg={fn}&sample_agg={fn}&baseline={suite}::{machine}::{order}&baseline={suite2}::{machine2}::{order2}` — the `machine` parameter is repeated for each selected machine; the `baseline` parameter is repeated for each baseline.
 - **Links out**: Compare
 
-### 7. Compare — `/v5/{ts}/compare`
+### 7. Compare — `/v5/compare?suite_a={ts}&...`
 
-Side-by-side comparison of two orders (or runs). The existing code in `comparison.ts`, `selection.ts`, `table.ts`, `chart.ts` becomes a page module. The SPA router delegates to it.
+Side-by-side comparison of two orders (or runs). The existing code in `comparison.ts`, `selection.ts`, `table.ts`, `chart.ts` becomes a page module. The SPA router delegates to it. This page is suite-agnostic — each side can independently select its suite.
 
 #### Selection Panel
 
 Each side (A and B) has independent controls:
+- **Suite**: dropdown selector populated from `data-testsuites`. Changing the suite clears the machine, order, and runs for that side and re-populates the machine combobox from the new suite's machines endpoint.
 - **Order**: combobox (searchable dropdown) over order values (primary order field only; multi-field orders use only the primary field). Displays tags alongside values (e.g., "abc123 (release-18)") and filters suggestions to only show orders where the selected machine has runs. The text filter matches against both the order value and the tag. When a machine is pre-selected from URL state, its orders are fetched on creation so the dropdown is correctly filtered from the start.
-- **Machine**: combobox over machine names, filtered via the machines endpoint's `name_prefix` parameter as the user types
+- **Machine**: combobox over machine names, querying the selected side's suite's machines endpoint, filtered via the `name_prefix` parameter as the user types
 - **Runs**: checkbox list of runs for the selected order+machine, populated by `GET /api/v5/{ts}/runs?machine=M&order=O`. Empty list shown when no runs exist. All runs are selected by default. The only exception is URL state restoration: if the shared URL specifies a subset of runs, that selection is restored.
 - **Run aggregation**: strategy for aggregating across selected runs (median/mean/min/max); grayed out when only one run selected
 
 A **Swap sides** button (circular, showing ⇄) sits between the two sides. Clicking it exchanges all of side A's state (order, machine, runs, run aggregation) with side B's, updates the URL, re-renders the selection panel, and triggers auto-compare. This is useful for quickly reversing the baseline/new direction.
 
 Global controls (shared across both sides):
-- **Metric**: single-select dropdown; one metric at a time, applies to both table and chart. Only metrics with `type === 'Real'` are shown (filtered client-side).
+- **Metric**: single-select dropdown; one metric at a time, applies to both table and chart. Shows the **union** of metrics from both sides' suites. Only metrics with `type === 'Real'` are shown (filtered client-side).
 - **Sample aggregation**: strategy for aggregating multiple samples within a single run (default: median). When a test appears multiple times in a run's samples, this strategy produces a single value per test per run.
 - **Noise threshold**: numeric input defining the minimum |Delta %| to consider significant (default: 1%)
 - **Test filter**: text input for substring matching on test names, applied to both table and chart
@@ -211,7 +228,7 @@ There is no Compare button. The comparison triggers automatically whenever the s
 - Sortable by any column (click header)
 - Color-coded status: green = improved, red = regressed (direction respects the metric's `bigger_is_better` flag)
 - **Noise handling**: rows with |Delta %| below the noise threshold are visually de-emphasized (lighter text, no color). The "Hide noise" checkbox hides them entirely.
-- **Missing tests**: tests present in only one side are grayed out in a separate section at the bottom, excluded from the chart
+- **Missing tests**: tests present in only one side show "—" for the missing side's values. These are grayed out in a separate section at the bottom, excluded from the chart. This includes tests absent due to cross-suite comparison (different suites may have different test sets).
 - **Null metrics**: when a test has a sample but no value for the selected metric, display "N/A" in the table and exclude from the chart
 - **Zero baseline**: when Value A is 0, display "N/A" for Delta %, Ratio, and Status (raw values are still shown)
 - **Interactive rows**: Clicking a row toggles its visibility on the chart. Double-clicking a row isolates it (hides all others), like the Graph page's legend table. Hidden rows are shown grayed out (not removed). The "Hide noise" checkbox is a separate filter applied on top of manual visibility — the two filters are independent: manual toggles persist across hideNoise changes, and changing the noise threshold correctly hides/unhides tests as their status changes.
@@ -255,8 +272,8 @@ The chart and table always represent the same dataset:
 #### URL State
 
 All selection state is encoded as query parameters for shareability:
-- `order_a`, `machine_a`, `runs_a` (comma-separated UUIDs), `run_agg_a`
-- `order_b`, `machine_b`, `runs_b`, `run_agg_b`
+- `suite_a`, `order_a`, `machine_a`, `runs_a` (comma-separated UUIDs), `run_agg_a`
+- `suite_b`, `order_b`, `machine_b`, `runs_b`, `run_agg_b`
 - `metric`, `sample_agg`, `noise`
 - Filter/sort state as applicable
 

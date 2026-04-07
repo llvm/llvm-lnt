@@ -1,6 +1,6 @@
 import type { AggFn, FieldInfo, OrderSummary, SideSelection } from './types';
 import { SETTINGS_CHANGE, TEST_FILTER_CHANGE } from './events';
-import { getRuns } from './api';
+import { getFields, getOrders, getRuns } from './api';
 import { getState, setSideA, setSideB, setState, swapSides } from './state';
 import { debounce, el } from './utils';
 import {
@@ -9,11 +9,12 @@ import {
 } from './combobox';
 import { renderMetricSelector, filterMetricFields } from './components/metric-selector';
 
-// Cached data
-let cachedOrders: OrderSummary[] = [];
-let cachedOrderValues: string[] = [];  // primary order values, computed once
-let cachedFields: FieldInfo[] = [];
-let testsuite = '';
+// Per-side cached data
+let cachedOrdersA: OrderSummary[] = [];
+let cachedOrdersB: OrderSummary[] = [];
+let cachedFieldsA: FieldInfo[] = [];
+let cachedFieldsB: FieldInfo[] = [];
+let testsuites: string[] = [];
 let onCompare: (() => void) | null = null;
 
 // Staleness counters for createRunsPanel — prevents earlier async calls
@@ -21,29 +22,41 @@ let onCompare: (() => void) | null = null;
 let runsPanelVersionA = 0;
 let runsPanelVersionB = 0;
 
-export function setCachedData(
-  orders: OrderSummary[],
-  fields: FieldInfo[],
-  ts: string,
+// Per-side suite data loading version counters — prevents stale fetches
+// from overwriting data when the suite changes rapidly.
+let suiteLoadVersionA = 0;
+let suiteLoadVersionB = 0;
+
+/** Module-level reference to the metric selector container for re-rendering. */
+let metricContainerRef: HTMLElement | null = null;
+
+/**
+ * Initialize the selection module.
+ * Replaces the old setCachedData() — no upfront data fetching.
+ */
+export function initSelection(
+  availableTestsuites: string[],
   compareFn?: () => void,
 ): void {
-  cachedOrders = orders;
-  cachedFields = fields;
-  testsuite = ts;
+  testsuites = availableTestsuites;
   if (compareFn) onCompare = compareFn;
-
-  // Pre-compute primary order values
-  cachedOrderValues = [];
-  for (const o of cachedOrders) {
-    const keys = Object.keys(o.fields);
-    if (keys.length > 0) {
-      cachedOrderValues.push(o.fields[keys[0]]);
-    }
-  }
+  cachedOrdersA = [];
+  cachedOrdersB = [];
+  cachedFieldsA = [];
+  cachedFieldsB = [];
 }
 
 export function getMetricFields(): FieldInfo[] {
-  return filterMetricFields(cachedFields);
+  // Union of fields from both sides, deduplicated by name
+  const seen = new Set<string>();
+  const merged: FieldInfo[] = [];
+  for (const f of [...cachedFieldsA, ...cachedFieldsB]) {
+    if (!seen.has(f.name)) {
+      seen.add(f.name);
+      merged.push(f);
+    }
+  }
+  return filterMetricFields(merged);
 }
 
 function getSideState(side: 'a' | 'b') {
@@ -55,18 +68,28 @@ function getSideState(side: 'a' | 'b') {
   };
 }
 
-function getComboboxContext(): ComboboxContext {
+function getOrderDataForSide(side: 'a' | 'b') {
+  const orders = side === 'a' ? cachedOrdersA : cachedOrdersB;
+  const cachedOrderValues: string[] = [];
   const orderTags = new Map<string, string | null>();
-  for (const o of cachedOrders) {
+  for (const o of orders) {
     const keys = Object.keys(o.fields);
     if (keys.length > 0) {
-      orderTags.set(o.fields[keys[0]], o.tag ?? null);
+      const v = o.fields[keys[0]];
+      cachedOrderValues.push(v);
+      orderTags.set(v, o.tag ?? null);
     }
   }
+  return { cachedOrderValues, orderTags };
+}
+
+function getComboboxContext(): ComboboxContext {
   return {
-    cachedOrderValues,
-    orderTags,
-    testsuite,
+    getOrderData: getOrderDataForSide,
+    getSuiteName: (side: 'a' | 'b') => {
+      const { selection } = getSideState(side);
+      return selection.suite;
+    },
     getSideState,
   };
 }
@@ -98,11 +121,11 @@ function createRunsPanel(side: 'a' | 'b', container: HTMLElement, setSide: (part
 
   const { selection: sideState } = getSideState(side);
 
-  if (!sideState.order || !sideState.machine) return;
+  if (!sideState.suite || !sideState.order || !sideState.machine) return;
 
   container.replaceChildren(el('span', { class: 'runs-loading' }, 'Loading runs...'));
 
-  getRuns(testsuite, { machine: sideState.machine, order: sideState.order })
+  getRuns(sideState.suite, { machine: sideState.machine, order: sideState.order })
     .then(runs => {
       // A newer createRunsPanel call was made while we were waiting —
       // discard this stale result to avoid overwriting fresh data.
@@ -196,6 +219,49 @@ function createSampleAggSelect(): HTMLSelectElement {
   return select;
 }
 
+/**
+ * Fetch orders and fields for a side when its suite changes.
+ * Updates the per-side cache and re-renders metric selector.
+ */
+export async function fetchSideData(
+  side: 'a' | 'b',
+  suite: string,
+  metricContainer?: HTMLElement,
+): Promise<void> {
+  const version = side === 'a' ? ++suiteLoadVersionA : ++suiteLoadVersionB;
+  const target = metricContainer ?? metricContainerRef;
+
+  try {
+    const [fields, orders] = await Promise.all([
+      getFields(suite),
+      getOrders(suite),
+    ]);
+
+    // Check for staleness
+    const currentVersion = side === 'a' ? suiteLoadVersionA : suiteLoadVersionB;
+    if (version !== currentVersion) return;
+
+    if (side === 'a') {
+      cachedFieldsA = fields;
+      cachedOrdersA = orders;
+    } else {
+      cachedFieldsB = fields;
+      cachedOrdersB = orders;
+    }
+
+    // Re-render metric selector with union of fields if container available
+    if (target) {
+      target.replaceChildren();
+      renderMetricSelector(target, getMetricFields(), (metric) => {
+        setState({ metric });
+        tryAutoCompare();
+      }, getState().metric, { placeholder: true });
+    }
+  } catch {
+    // Silently ignore fetch errors — controls stay disabled
+  }
+}
+
 // Main render
 export function renderSelectionPanel(root: HTMLElement): void {
   root.replaceChildren();
@@ -206,8 +272,17 @@ export function renderSelectionPanel(root: HTMLElement): void {
   // Side A and B
   const sidesRow = el('div', { class: 'sides-row' });
   const runsContainers: Record<string, HTMLElement> = {};
-  const ctx = getComboboxContext();
   const sideDivs: HTMLElement[] = [];
+
+  // Global controls (created early so fetchSideData can update metric selector)
+  const globalRow = el('div', { class: 'global-controls' });
+  const metricContainer = el('div', {});
+  metricContainerRef = metricContainer;
+  renderMetricSelector(metricContainer, getMetricFields(), (metric) => {
+    setState({ metric });
+    tryAutoCompare();
+  }, getState().metric, { placeholder: true });
+  globalRow.append(metricContainer);
 
   for (const side of ['a', 'b'] as const) {
     const { setSide, label } = getSideState(side);
@@ -215,9 +290,39 @@ export function renderSelectionPanel(root: HTMLElement): void {
     const sideDiv = el('div', { class: `side side-${side}` });
     sideDiv.append(el('h3', {}, label));
 
+    // Suite selector
+    sideDiv.append(el('label', {}, 'Suite'));
+    const suiteSelect = el('select', { class: 'suite-select' }) as HTMLSelectElement;
+    const emptyOpt = el('option', { value: '' }, '-- Select suite --');
+    suiteSelect.append(emptyOpt);
+    const { selection: sideState } = getSideState(side);
+    for (const name of testsuites) {
+      const opt = el('option', { value: name }, name);
+      if (name === sideState.suite) (opt as HTMLOptionElement).selected = true;
+      suiteSelect.append(opt);
+    }
+    suiteSelect.addEventListener('change', () => {
+      const newSuite = suiteSelect.value;
+      setSide({ suite: newSuite, machine: '', order: '', runs: [] });
+      if (newSuite) {
+        fetchSideData(side, newSuite, metricContainer);
+      }
+      // Re-render the panel to update comboboxes with new suite context
+      renderSelectionPanel(root);
+    });
+    sideDiv.append(suiteSelect);
+
     const runsContainer = el('div', { class: 'runs-container' });
     runsContainers[side] = runsContainer;
 
+    if (!sideState.suite) {
+      // No suite selected — show prompt, skip comboboxes
+      sideDiv.append(el('span', { class: 'runs-hint' }, 'Select a test suite first'));
+      sideDivs.push(sideDiv);
+      continue;
+    }
+
+    const ctx = getComboboxContext();
     const refreshRuns = () => createRunsPanel(side, runsContainer, setSide);
 
     // Machine
@@ -249,6 +354,13 @@ export function renderSelectionPanel(root: HTMLElement): void {
   }, '\u21C4');
   swapBtn.addEventListener('click', () => {
     swapSides();
+    // Also swap per-side caches
+    const tmpOrders = cachedOrdersA;
+    cachedOrdersA = cachedOrdersB;
+    cachedOrdersB = tmpOrders;
+    const tmpFields = cachedFieldsA;
+    cachedFieldsA = cachedFieldsB;
+    cachedFieldsB = tmpFields;
     renderSelectionPanel(root);
     tryAutoCompare();
   });
@@ -256,14 +368,7 @@ export function renderSelectionPanel(root: HTMLElement): void {
   sidesRow.append(sideDivs[0], swapBtn, sideDivs[1]);
   panel.append(sidesRow);
 
-  // Global controls
-  const globalRow = el('div', { class: 'global-controls' });
-
-  renderMetricSelector(globalRow, getMetricFields(), (metric) => {
-    setState({ metric });
-    tryAutoCompare();
-  }, getState().metric, { placeholder: true });
-
+  // Continue global controls
   const sampleAggGroup = el('div', { class: 'control-group' });
   sampleAggGroup.append(el('label', {}, 'Sample aggregation'));
   sampleAggGroup.append(createSampleAggSelect());
@@ -317,12 +422,12 @@ export function renderSelectionPanel(root: HTMLElement): void {
 
   root.append(panel);
 
-  // Trigger initial runs load if state has order+machine (use stored references)
+  // Trigger initial runs load if state has suite+order+machine
   const state = getState();
-  if (state.sideA.order && state.sideA.machine) {
+  if (state.sideA.suite && state.sideA.order && state.sideA.machine) {
     createRunsPanel('a', runsContainers['a'], setSideA);
   }
-  if (state.sideB.order && state.sideB.machine) {
+  if (state.sideB.suite && state.sideB.order && state.sideB.machine) {
     createRunsPanel('b', runsContainers['b'], setSideB);
   }
 }

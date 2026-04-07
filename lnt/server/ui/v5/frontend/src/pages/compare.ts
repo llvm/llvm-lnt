@@ -7,10 +7,14 @@
 // Per-run sample caching: fetched samples are cached by run UUID. Changing the
 // metric, aggregation, or noise re-aggregates from cache without API calls.
 // Only new run UUIDs (from order/machine changes) trigger fetches.
+//
+// Cross-suite support: each side can independently select a test suite.
+// Samples are fetched from the side's suite. The comparison joins on test name.
 
 import type { PageModule, RouteParams } from '../router';
-import type { FieldInfo, ComparisonRow, SampleInfo } from '../types';
-import { getFields, getOrders, getSamples } from '../api';
+import type { ComparisonRow, SampleInfo } from '../types';
+import { getTestsuites } from '../router';
+import { getSamples } from '../api';
 import {
   CHART_ZOOM, CHART_HOVER, TABLE_HOVER,
   TEST_FILTER_CHANGE, SETTINGS_CHANGE,
@@ -18,7 +22,7 @@ import {
 } from '../events';
 import { getState, applyUrlState } from '../state';
 import {
-  setCachedData, renderSelectionPanel,
+  initSelection, fetchSideData, getMetricFields, renderSelectionPanel,
 } from '../selection';
 import {
   aggregateSamplesWithinRun, aggregateAcrossRuns, computeComparison,
@@ -37,15 +41,12 @@ let sampleCache = new Map<string, SampleInfo[]>();
 let manuallyHidden = new Set<string>();
 
 export const comparePage: PageModule = {
-  mount(container: HTMLElement, params: RouteParams): void {
-    const ts = params.testsuite;
-
+  mount(container: HTMLElement, _params: RouteParams): void {
     // Restore state from URL query params
     applyUrlState(window.location.search);
 
     const header = el('h2', { class: 'page-header' }, 'Compare');
     container.append(header);
-    container.append(el('p', { class: 'progress-label' }, 'Loading fields and orders...'));
 
     // Containers
     const selectionContainer = el('div', {});
@@ -57,7 +58,6 @@ export const comparePage: PageModule = {
     const tableContainer = el('div', { class: 'table-container' });
 
     let lastRows: ComparisonRow[] = [];
-    let lastFields: FieldInfo[] = [];
 
     // ----- Compute effective hidden set and render -----
 
@@ -119,7 +119,8 @@ export const comparePage: PageModule = {
       const state = getState();
       if (!state.metric) return;
 
-      const metricField = lastFields.find(f => f.name === state.metric);
+      const metricFields = getMetricFields();
+      const metricField = metricFields.find(f => f.name === state.metric);
       const biggerIsBetter = metricField?.bigger_is_better ?? false;
 
       // Aggregate from cached samples
@@ -152,23 +153,20 @@ export const comparePage: PageModule = {
 
       errorContainer.replaceChildren();
 
-      // Check which runs need fetching
-      const allRunUuids = [...state.sideA.runs, ...state.sideB.runs];
-      const uncached = allRunUuids.filter(uuid => !sampleCache.has(uuid));
+      // Check which runs need fetching — separate by side for per-suite API calls
+      const uncachedA = state.sideA.runs.filter(uuid => !sampleCache.has(uuid));
+      const uncachedB = state.sideB.runs.filter(uuid => !sampleCache.has(uuid));
 
-      if (uncached.length === 0) {
+      if (uncachedA.length === 0 && uncachedB.length === 0) {
         // All data cached — recompute immediately without any API calls
         recomputeFromCache();
         return;
       }
 
-      // New runs to fetch — order or machine changed. Evict stale cache
-      // entries (old run UUIDs that are no longer selected). This is NOT
-      // done on toggle (all cached → early return above), so unchecking
-      // a run preserves its cached data for re-checking.
-      const inUse = new Set(allRunUuids);
+      // Evict stale cache entries (old run UUIDs no longer selected)
+      const allRunUuids = new Set([...state.sideA.runs, ...state.sideB.runs]);
       for (const uuid of sampleCache.keys()) {
-        if (!inUse.has(uuid)) sampleCache.delete(uuid);
+        if (!allRunUuids.has(uuid)) sampleCache.delete(uuid);
       }
 
       // Abort any previous fetch
@@ -191,12 +189,19 @@ export const comparePage: PageModule = {
         );
       }
 
-      // Fetch only uncached runs
-      const fetchPromises = uncached.map(uuid =>
-        getSamples(ts, uuid, signal, (loaded) => updateSampleProgress(uuid, loaded)).then(samples => {
-          sampleCache.set(uuid, samples);
-        }),
-      );
+      // Fetch uncached runs — each side uses its own suite
+      const fetchPromises = [
+        ...uncachedA.map(uuid =>
+          getSamples(state.sideA.suite, uuid, signal, (loaded) => updateSampleProgress(uuid, loaded)).then(samples => {
+            sampleCache.set(uuid, samples);
+          }),
+        ),
+        ...uncachedB.map(uuid =>
+          getSamples(state.sideB.suite, uuid, signal, (loaded) => updateSampleProgress(uuid, loaded)).then(samples => {
+            sampleCache.set(uuid, samples);
+          }),
+        ),
+      ];
 
       Promise.all(fetchPromises)
         .then(() => {
@@ -212,59 +217,48 @@ export const comparePage: PageModule = {
         });
     }
 
-    // ----- Fetch initial data -----
+    // ----- Initialize selection with testsuites list -----
 
-    Promise.all([getFields(ts), getOrders(ts)])
-      .then(([fields, orders]) => {
-        lastFields = fields;
-        container.replaceChildren(header);
+    initSelection(getTestsuites(), doCompare);
 
-        // Wire up selection panel with compare callback
-        setCachedData(orders, fields, ts, doCompare);
+    container.append(selectionContainer);
+    renderSelectionPanel(selectionContainer);
 
-        container.append(selectionContainer);
-        renderSelectionPanel(selectionContainer);
+    container.append(progressContainer, errorContainer, chartContainer, tableContainer);
 
-        container.append(progressContainer, errorContainer, chartContainer, tableContainer);
+    // Wire event listeners (all return cleanup functions)
+    eventCleanups.push(
+      onCustomEvent<Set<string> | null>(CHART_ZOOM, (tests) => {
+        filterToTests(tests);
+      }),
+      onCustomEvent<string | null>(CHART_HOVER, (testName) => {
+        highlightRow(testName);
+      }),
+      onCustomEvent<string | null>(TABLE_HOVER, (testName) => {
+        highlightPoint(testName);
+      }),
+      onCustomEvent(SETTINGS_CHANGE, () => {
+        // Noise % or hideNoise changed. Recompute from cache so status
+        // classifications update with the new threshold. hideNoise is
+        // applied as a separate filter in computeEffectiveHidden().
+        const state = getState();
+        if (state.sideA.runs.length > 0 && state.sideB.runs.length > 0 && state.metric) {
+          recomputeFromCache();
+        } else if (lastRows.length > 0) {
+          renderTableAndChart();
+        }
+      }),
+      onCustomEvent(TEST_FILTER_CHANGE, () => {
+        if (lastRows.length > 0) {
+          renderTableAndChart();
+        }
+      }),
+    );
 
-        // Wire event listeners (all return cleanup functions)
-        eventCleanups.push(
-          onCustomEvent<Set<string> | null>(CHART_ZOOM, (tests) => {
-            filterToTests(tests);
-          }),
-          onCustomEvent<string | null>(CHART_HOVER, (testName) => {
-            highlightRow(testName);
-          }),
-          onCustomEvent<string | null>(TABLE_HOVER, (testName) => {
-            highlightPoint(testName);
-          }),
-          onCustomEvent(SETTINGS_CHANGE, () => {
-            // Noise % or hideNoise changed. Recompute from cache so status
-            // classifications update with the new threshold. hideNoise is
-            // applied as a separate filter in computeEffectiveHidden().
-            const state = getState();
-            if (state.sideA.runs.length > 0 && state.sideB.runs.length > 0 && state.metric) {
-              recomputeFromCache();
-            } else if (lastRows.length > 0) {
-              renderTableAndChart();
-            }
-          }),
-          onCustomEvent(TEST_FILTER_CHANGE, () => {
-            if (lastRows.length > 0) {
-              renderTableAndChart();
-            }
-          }),
-        );
-
-        // Auto-compare is handled by tryAutoCompare() in selection.ts,
-        // triggered when runs finish loading and state is valid.
-      })
-      .catch((err: unknown) => {
-        container.replaceChildren(
-          header,
-          el('p', { class: 'error-banner' }, `Failed to load data: ${err}`),
-        );
-      });
+    // If URL state has suites, trigger per-side data loading
+    const state = getState();
+    if (state.sideA.suite) fetchSideData('a', state.sideA.suite);
+    if (state.sideB.suite) fetchSideData('b', state.sideB.suite);
   },
 
   unmount(): void {

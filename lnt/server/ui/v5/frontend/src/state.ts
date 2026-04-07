@@ -1,8 +1,8 @@
 import type { AggFn, AppState, SideSelection, SortCol, SortDir } from './types';
 
 const DEFAULTS: AppState = {
-  sideA: { order: '', machine: '', runs: [], runAgg: 'median' },
-  sideB: { order: '', machine: '', runs: [], runAgg: 'median' },
+  sideA: { suite: '', order: '', machine: '', runs: [], runAgg: 'median' },
+  sideB: { suite: '', order: '', machine: '', runs: [], runAgg: 'median' },
   metric: '',
   sampleAgg: 'median',
   noise: 1,
@@ -49,12 +49,14 @@ function parseAgg(v: string | null): AggFn | undefined {
 }
 
 function decodeSide(p: URLSearchParams, suffix: string): SideSelection | undefined {
+  const suite = p.get(`suite_${suffix}`);
   const order = p.get(`order_${suffix}`);
   const machine = p.get(`machine_${suffix}`);
   const runs = p.get(`runs_${suffix}`);
   const runAgg = parseAgg(p.get(`run_agg_${suffix}`));
-  if (order || machine || runs || runAgg) {
+  if (suite || order || machine || runs || runAgg) {
     return {
+      suite: suite || '',
       order: order || '',
       machine: machine || '',
       runs: runs ? runs.split(',').filter(Boolean) : [],
@@ -65,6 +67,7 @@ function decodeSide(p: URLSearchParams, suffix: string): SideSelection | undefin
 }
 
 function encodeSide(p: URLSearchParams, side: SideSelection, suffix: string): void {
+  if (side.suite) p.set(`suite_${suffix}`, side.suite);
   if (side.order) p.set(`order_${suffix}`, side.order);
   if (side.machine) p.set(`machine_${suffix}`, side.machine);
   if (side.runs.length) p.set(`runs_${suffix}`, side.runs.join(','));

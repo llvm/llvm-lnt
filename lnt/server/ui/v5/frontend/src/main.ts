@@ -44,26 +44,26 @@ function init(): void {
   root.append(pageContainer);
 
   if (testsuite) {
-    // Normal testsuite context — register all routes
+    // Suite-scoped pages — browsing data within a single test suite
     addRoute('/', dashboardPage);
     addRoute('/machines', machineListPage);
     addRoute('/machines/:name', machineDetailPage);
     addRoute('/runs/:uuid', runDetailPage);
     addRoute('/orders/:value', orderDetailPage);
-    addRoute('/graph', graphPage);
-    addRoute('/compare', comparePage);
     addRoute('/regressions', regressionListPage);
     addRoute('/regressions/:uuid', regressionDetailPage);
     addRoute('/field-changes', fieldChangeTriagePage);
 
     const basePath = `${urlBase}/v5/${encodeURIComponent(testsuite)}`;
-    initRouter(pageContainer, basePath, updateActiveNavLink);
+    initRouter(pageContainer, basePath, updateActiveNavLink, { testsuite, testsuites });
   } else {
-    // No testsuite — admin-only context (served at /v5/admin)
+    // Suite-agnostic pages — analysis tools and admin
     addRoute('/admin', adminPage);
+    addRoute('/graph', graphPage);
+    addRoute('/compare', comparePage);
 
     const basePath = `${urlBase}/v5`;
-    initRouter(pageContainer, basePath, updateActiveNavLink);
+    initRouter(pageContainer, basePath, updateActiveNavLink, { testsuite: '', testsuites });
   }
 }
 

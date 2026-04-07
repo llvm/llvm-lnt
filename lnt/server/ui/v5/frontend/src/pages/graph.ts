@@ -5,7 +5,7 @@ import type { AggFn, QueryDataPoint } from '../types';
 import { getFields, getOrders, fetchOneCursorPage, apiUrl, queryDataPoints } from '../api';
 import type { MachineRunInfo, OrderSummary } from '../types';
 import { el, debounce, getAggFn, primaryOrderValue, TRACE_SEP } from '../utils';
-import { navigate } from '../router';
+import { navigate, getTestsuites } from '../router';
 import { onCustomEvent, GRAPH_TABLE_HOVER, GRAPH_CHART_HOVER } from '../events';
 import { renderMachineCombobox } from '../components/machine-combobox';
 import { renderMetricSelector, filterMetricFields } from '../components/metric-selector';
@@ -100,6 +100,10 @@ let prevActiveTraceNames = new Set<string>();
 let pendingChartRAF: number | null = null;
 /** Generation counter to cancel stale batched chart renders. */
 let chartRenderGen = 0;
+/** The currently selected suite — replaces the old closure-captured `ts`. */
+let currentSuite = '';
+/** Generation counter: incremented on suite change, checked by async callbacks. */
+let suiteGeneration = 0;
 let cleanupTableHover: (() => void) | null = null;
 let cleanupChartHover: (() => void) | null = null;
 /** List of selected machines (preserved across unmount/remount). */
@@ -191,19 +195,22 @@ export function computeActiveTests(
 }
 
 export const graphPage: PageModule = {
-  mount(container: HTMLElement, params: RouteParams): void {
-    const ts = params.testsuite;
+  mount(container: HTMLElement, _params: RouteParams): void {
+    // Suite is no longer from the route — it's a URL parameter or user selection.
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlSuite = urlParams.get('suite') || '';
     // Create a fresh abort controller for scaffold fetches this mount cycle.
     scaffoldAbort = new AbortController();
     container.append(el('h2', { class: 'page-header' }, 'Graph'));
 
     // Parse URL state — URL is always the source of truth on mount.
-    const urlParams = new URLSearchParams(window.location.search);
     machines = urlParams.getAll('machine').filter(Boolean);
     let metric = urlParams.get('metric') || '';
     let testFilter = urlParams.get('test_filter') || '';
-    let runAgg: AggFn = (urlParams.get('run_agg') as AggFn) || 'median';
-    let sampleAgg: AggFn = (urlParams.get('sample_agg') as AggFn) || 'median';
+    let runAgg: AggFn = (['median', 'mean', 'min', 'max'] as AggFn[]).includes(urlParams.get('run_agg') as AggFn)
+      ? urlParams.get('run_agg') as AggFn : 'median';
+    let sampleAgg: AggFn = (['median', 'mean', 'min', 'max'] as AggFn[]).includes(urlParams.get('sample_agg') as AggFn)
+      ? urlParams.get('sample_agg') as AggFn : 'median';
     const pinValues = urlParams.getAll('pin');
     const pinnedOrders: Array<{ value: string; tag: string | null }> = pinValues.map(v => ({ value: v, tag: null }));
 
@@ -218,28 +225,33 @@ export const graphPage: PageModule = {
     const controlsPanel = el('div', { class: 'controls-panel' });
     container.append(controlsPanel);
 
+    // ----- Suite selector — required, all other controls disabled until selected -----
+    const suiteGroup = el('div', { class: 'control-group' });
+    suiteGroup.append(el('label', {}, 'Suite'));
+    const suiteSelect = el('select', { class: 'suite-select' }) as HTMLSelectElement;
+    const emptyOpt = el('option', { value: '' }, '-- Select suite --');
+    suiteSelect.append(emptyOpt);
+    const availSuites = getTestsuites();
+    for (const name of availSuites) {
+      const opt = el('option', { value: name }, name);
+      if (name === urlSuite) (opt as HTMLOptionElement).selected = true;
+      suiteSelect.append(opt);
+    }
+    // Auto-select if only one suite
+    if (!urlSuite && availSuites.length === 1) {
+      suiteSelect.value = availSuites[0];
+    }
+    currentSuite = suiteSelect.value;
+    controlsPanel.append(suiteGroup);
+
     // ----- Controls Row 1: Metric, Test Filter, Aggregation -----
     const controlsRow = el('div', { class: 'graph-controls' });
     controlsPanel.append(controlsRow);
 
-    // Metric selector (loaded async)
+    // Metric selector (loaded async — actual fetch deferred until suite is set)
     const metricGroup = el('div', {});
-    const metricLoading = el('span', { class: 'progress-label' }, 'Loading metrics...');
-    metricGroup.append(metricLoading);
+    metricGroup.append(el('span', { class: 'progress-label' }, 'Select a suite to load metrics...'));
     controlsRow.append(metricGroup);
-
-    getFields(ts).then(fields => {
-      metricLoading.remove();
-      const initial = renderMetricSelector(metricGroup, filterMetricFields(fields), (m) => {
-        metric = m;
-        updateUrlState();
-        if (machines.length > 0) doPlot();
-      }, metric || undefined, { placeholder: true });
-      if (!metric) metric = initial;
-    }).catch(() => {
-      metricLoading.remove();
-      metricGroup.append(el('p', { class: 'error-banner' }, 'Failed to load fields'));
-    });
 
     // Test filter
     const filterGroup = el('div', { class: 'control-group' });
@@ -333,7 +345,7 @@ export const graphPage: PageModule = {
     }
 
     const machineHandle = renderMachineCombobox(machineInputContainer, {
-      testsuite: ts,
+      testsuite: currentSuite,
       initialValue: '',
       onSelect: (name) => {
         if (name && !machines.includes(name)) {
@@ -358,7 +370,7 @@ export const graphPage: PageModule = {
     secondRow.append(pinGroup);
 
     const pinSearchHandle = renderOrderSearch(pinSearchContainer, {
-      testsuite: ts,
+      testsuite: currentSuite,
       placeholder: 'Pin an order...',
       suggestions: cachedSuggestions ?? [],
       onSelect: (value) => {
@@ -408,6 +420,7 @@ export const graphPage: PageModule = {
 
     // ----- Scaffold suggestions -----
     function rebuildSuggestions(): void {
+      const myGen = suiteGeneration;
       const scaffold = computeScaffoldUnion();
       if (!scaffold) {
         cachedSuggestions = [];
@@ -417,8 +430,9 @@ export const graphPage: PageModule = {
       // Fetch tags (cached after first fetch to avoid repeated full-pagination calls)
       const ordersPromise = cachedOrders
         ? Promise.resolve(cachedOrders)
-        : getOrders(ts).then(orders => { cachedOrders = orders; return orders; });
+        : getOrders(currentSuite).then(orders => { cachedOrders = orders; return orders; });
       ordersPromise.then(allOrders => {
+        if (myGen !== suiteGeneration) return; // stale
         const tagMap = new Map<string, string | null>();
         for (const o of allOrders) {
           tagMap.set(primaryOrderValue(o.fields), o.tag ?? null);
@@ -855,7 +869,7 @@ export const graphPage: PageModule = {
 
       (async () => {
         // Fetch scaffolds for any machines that don't have one yet
-        await Promise.all(plotMachines.map(m => fetchScaffold(ts, m)));
+        await Promise.all(plotMachines.map(m => fetchScaffold(currentSuite, m)));
 
         // Rebuild suggestions after scaffolds load
         rebuildSuggestions();
@@ -883,10 +897,10 @@ export const graphPage: PageModule = {
               // Already have data — render immediately
               renderFromAllCaches(false);
               if (!entry.complete && !entry.loading) {
-                startLazyLoad(ts, m, plotMetric);
+                startLazyLoad(currentSuite, m, plotMetric);
               }
             } else if (!entry.loading) {
-              startLazyLoad(ts, m, plotMetric);
+              startLazyLoad(currentSuite, m, plotMetric);
             }
           }
         }
@@ -897,6 +911,7 @@ export const graphPage: PageModule = {
 
     function updateUrlState(): void {
       const qs = new URLSearchParams();
+      qs.set('suite', currentSuite);
       for (const m of machines) qs.append('machine', m);
       qs.set('metric', metric);
       if (testFilter) qs.set('test_filter', testFilter);
@@ -904,6 +919,115 @@ export const graphPage: PageModule = {
       if (sampleAgg !== 'median') qs.set('sample_agg', sampleAgg);
       for (const ref of pinnedOrders) qs.append('pin', ref.value);
       window.history.replaceState(null, '', window.location.pathname + '?' + qs.toString());
+    }
+
+    // ----- Suite change handler -----
+    suiteSelect.addEventListener('change', () => {
+      const newSuite = suiteSelect.value;
+      if (newSuite === currentSuite) return;
+      currentSuite = newSuite;
+      suiteGeneration++;
+
+      // Abort all in-flight fetches
+      abortAllMetrics();
+      if (scaffoldAbort) { scaffoldAbort.abort(); scaffoldAbort = null; }
+
+      // Clear ALL module-level state
+      machines = [];
+      cache = new Map();
+      machineScaffolds = new Map();
+      cachedOrders = null;
+      cachedSuggestions = null;
+      manuallyHidden = new Set();
+      autoCapped = true;
+      currentVisibleTraceNames = [];
+      prevActiveTraceNames = new Set();
+      pinnedOrders.length = 0;
+      if (pendingChartRAF !== null) { cancelAnimationFrame(pendingChartRAF); pendingChartRAF = null; }
+      chartRenderGen = 0;
+
+      // Destroy UI components
+      if (chartHandle) { chartHandle.destroy(); chartHandle = null; }
+      if (legendHandle) { legendHandle.destroy(); legendHandle = null; }
+      if (machineComboCleanup) { machineComboCleanup(); machineComboCleanup = null; }
+      if (orderSearchCleanup) { orderSearchCleanup(); orderSearchCleanup = null; }
+
+      // Clear controls containers
+      machineChipsEl.replaceChildren();
+      pinChips.replaceChildren();
+      chartContainer.replaceChildren(el('p', { class: 'no-chart-data' }, 'No data to plot.'));
+      legendContainer.replaceChildren();
+      progressContainer.replaceChildren();
+      warningContainer.replaceChildren();
+
+      if (!newSuite) {
+        updateUrlState();
+        return;
+      }
+
+      // Re-create machine combobox for new suite
+      machineInputContainer.replaceChildren();
+      const newMachineHandle = renderMachineCombobox(machineInputContainer, {
+        testsuite: currentSuite,
+        onSelect: (name) => {
+          if (!machines.includes(name)) {
+            machines.push(name);
+            renderMachineChips();
+            newMachineHandle.clear();
+            if (metric) doPlot();
+            updateUrlState();
+          }
+        },
+      });
+      machineComboCleanup = newMachineHandle.destroy;
+
+      // Re-create order search for new suite
+      pinSearchContainer.replaceChildren();
+      const newPinHandle = renderOrderSearch(pinSearchContainer, {
+        testsuite: currentSuite,
+        placeholder: 'Pin an order...',
+        suggestions: [],
+        onSelect: (value) => {
+          if (!pinnedOrders.find(r => r.value === value)) {
+            const tag = cachedSuggestions?.find(s => s.orderValue === value)?.tag ?? null;
+            pinnedOrders.push({ value, tag });
+            renderPinChips();
+            renderFromAllCaches();
+            updateUrlState();
+          }
+        },
+      });
+      orderSearchCleanup = newPinHandle.destroy;
+
+      // Re-fetch fields for new suite
+      scaffoldAbort = new AbortController();
+      loadFieldsForSuite(currentSuite);
+
+      updateUrlState();
+    });
+    suiteGroup.append(suiteSelect);
+
+    // Fetch initial fields for the selected suite (deferred to here so
+    // currentSuite is set correctly from the suite selector).
+    function loadFieldsForSuite(suite: string): void {
+      const myGen = suiteGeneration;
+      metricGroup.replaceChildren(el('span', { class: 'progress-label' }, 'Loading metrics...'));
+      getFields(suite).then(fields => {
+        if (myGen !== suiteGeneration) return;
+        metricGroup.replaceChildren();
+        const initial = renderMetricSelector(metricGroup, filterMetricFields(fields), (m) => {
+          metric = m;
+          updateUrlState();
+          if (machines.length > 0) doPlot();
+        }, metric || undefined, { placeholder: true });
+        if (!metric) metric = initial;
+      }).catch(() => {
+        if (myGen !== suiteGeneration) return;
+        metricGroup.replaceChildren(el('p', { class: 'error-banner' }, 'Failed to load fields'));
+      });
+    }
+    if (currentSuite) {
+      loadFieldsForSuite(currentSuite);
     }
 
     // Auto-plot if machines and metric provided via URL
@@ -927,6 +1051,8 @@ export const graphPage: PageModule = {
     currentVisibleTraceNames = [];
     prevActiveTraceNames = new Set();
     chartRenderGen = 0;
+    currentSuite = '';
+    suiteGeneration = 0;
     cachedSuggestions = null;
     // Intentionally preserve cache and machineScaffolds across
     // unmount/remount so that navigating back renders instantly from
