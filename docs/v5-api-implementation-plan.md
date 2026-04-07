@@ -576,6 +576,8 @@ GET /api/v5/{ts}/series?machine={name}&test={name}&field={name}&after={order}&be
 - Core query: `SELECT field.column, order.*, run.* FROM Sample JOIN Run JOIN Order
   WHERE machine_id=X AND test_id=Y AND field IS NOT NULL`
 - Filter out failing tests if the field has a status_field
+- Order filtering: `order` for exact match (=), `after_order`/`before_order` for
+  exclusive range (>/< on Order.id). `order` cannot be combined with range params.
 - Ordering: fetch with SQL ORDER BY on Order.id, then post-sort in Python using
   `convert_revision()` for correctness. Apply `after`/`before` filters in Python.
   Cap SQL query at 10,000 rows as safety limit.

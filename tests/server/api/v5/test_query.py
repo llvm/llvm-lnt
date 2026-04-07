@@ -1071,6 +1071,59 @@ class TestQueryOrderRangeBoundaries(unittest.TestCase):
         data = resp.get_json()
         self.assertEqual(len(data['items']), 0)
 
+    def test_exact_order_filter(self):
+        """The order param returns data at exactly that order."""
+        d = self._data
+        url = (PREFIX + f"/query?machine={d['machine']}&test={d['test']}"
+               "&metric=execution_time&order=3020")
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200, resp.get_json())
+        data = resp.get_json()
+        self.assertEqual(len(data['items']), 1)
+        self.assertEqual(
+            data['items'][0]['order']['llvm_project_revision'], '3020')
+
+    def test_exact_order_nonexistent_returns_404(self):
+        d = self._data
+        url = (PREFIX + f"/query?machine={d['machine']}&test={d['test']}"
+               "&metric=execution_time&order=999999")
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 404)
+
+    def test_order_with_after_order_returns_400(self):
+        d = self._data
+        url = (PREFIX + f"/query?machine={d['machine']}&test={d['test']}"
+               "&metric=execution_time&order=3020&after_order=3000")
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 400)
+
+    def test_order_with_before_order_returns_400(self):
+        d = self._data
+        url = (PREFIX + f"/query?machine={d['machine']}&test={d['test']}"
+               "&metric=execution_time&order=3020&before_order=3040")
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 400)
+
+    def test_exact_order_with_time_filter(self):
+        """The order param can be combined with time filters."""
+        d = self._data
+        url = (PREFIX + f"/query?machine={d['machine']}&test={d['test']}"
+               "&metric=execution_time&order=3020"
+               "&after_time=2024-07-01T00:00:00&before_time=2024-07-10T00:00:00")
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200, resp.get_json())
+        data = resp.get_json()
+        self.assertEqual(len(data['items']), 1)
+
+    def test_exact_order_no_samples_for_machine(self):
+        """Order exists but has no data for the given machine — 200 empty."""
+        d = self._data
+        url = (PREFIX + f"/query?machine=nonexistent-machine-{d['machine']}"
+               f"&test={d['test']}&metric=execution_time&order=3020")
+        resp = self.client.get(url)
+        # Machine doesn't exist → 404 from _resolve_machine
+        self.assertEqual(resp.status_code, 404)
+
 
 class TestQueryLimitBoundaries(unittest.TestCase):
     """Test boundary conditions for the limit parameter."""
@@ -1326,9 +1379,9 @@ class TestQueryUnknownParameters(unittest.TestCase):
         data = resp.get_json()
         msg = data['error']['message']
         # Should mention the valid parameters
-        for valid in ('machine', 'test', 'metric', 'after_order',
-                      'before_order', 'after_time', 'before_time',
-                      'sort', 'limit', 'cursor'):
+        for valid in ('machine', 'test', 'metric', 'order',
+                      'after_order', 'before_order', 'after_time',
+                      'before_time', 'sort', 'limit', 'cursor'):
             self.assertIn(valid, msg)
 
     def test_error_response_has_standard_format(self):

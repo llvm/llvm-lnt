@@ -71,6 +71,10 @@ class QueryEndpointQuerySchema(BaseQuerySchema):
         required=True,
         metadata={'description': 'Metric name (required)'},
     )
+    order = ma.fields.String(
+        load_default=None,
+        metadata={'description': 'Filter by exact order value (mutually exclusive with after_order/before_order)'},
+    )
     after_order = ma.fields.String(
         load_default=None,
         metadata={'description': 'Only return data points after this order value'},

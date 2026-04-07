@@ -107,9 +107,11 @@ Creating a field change requires: machine (name), test (name), metric (name), ol
 Time Series
 
 GET    /query
-  Query params: machine={name}&test={name}&metric={name}&after_order={order}&before_order={order}
+  Query params: machine={name}&test={name}&metric={name}&order={order}
+                &after_order={order}&before_order={order}
                 &after_time={iso8601}&before_time={iso8601}&sort={fields}&limit={n}&cursor={c}
 The metric parameter is required; all other query parameters are optional.
+The order parameter filters for an exact order match and cannot be combined with after_order/before_order.
 Returns cursor-paginated time-series data for graphing. Uses field names (not indices) to be self-documenting.
 
 Schema and Fields

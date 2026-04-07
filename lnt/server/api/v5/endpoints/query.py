@@ -1,6 +1,7 @@
 """Query endpoint for the v5 API.
 
 GET /api/v5/{ts}/query?metric={name}&machine={name}&test={name}
+                      &order={order}
                       &after_order={order}&before_order={order}
                       &after_time={iso8601}&before_time={iso8601}
                       &sort={fields}&limit={n}&cursor={c}
@@ -37,7 +38,7 @@ _MAX_LIMIT = 10000
 
 # Valid query parameter names for the /query endpoint.
 _VALID_QUERY_PARAMS = {
-    'machine', 'test', 'metric',
+    'machine', 'test', 'metric', 'order',
     'after_order', 'before_order', 'after_time', 'before_time',
     'sort', 'limit', 'cursor',
 }
@@ -248,8 +249,8 @@ def _resolve_order(session, ts, order_value):
 
 
 def _query_for_field(session, ts, sample_field, machine, test,
-                     sort_spec, cursor_values, after_order, before_order,
-                     after_time, before_time, limit):
+                     sort_spec, cursor_values, order, after_order,
+                     before_order, after_time, before_time, limit):
     """Build and execute a query for a single sample field.
 
     Returns a list of dicts ready for serialization, plus a boolean
@@ -280,6 +281,10 @@ def _query_for_field(session, ts, sample_field, machine, test,
         q = q.filter(ts.Run.machine_id == machine.id)
     if test is not None:
         q = q.filter(ts.Sample.test_id == test.id)
+
+    # Apply exact order filter.
+    if order is not None:
+        q = q.filter(ts.Order.id == order.id)
 
     # Apply order range filters.
     if after_order is not None:
@@ -395,10 +400,23 @@ class QueryView(MethodView):
         # ------------------------------------------------------------------
         # Parse range filters
         # ------------------------------------------------------------------
+        order_str = query_args.get('order')
         after_order_str = query_args.get('after_order')
         before_order_str = query_args.get('before_order')
         after_time_str = query_args.get('after_time')
         before_time_str = query_args.get('before_time')
+
+        if order_str and (after_order_str or before_order_str):
+            abort_with_error(
+                400,
+                "The 'order' parameter cannot be combined with "
+                "'after_order' or 'before_order'")
+
+        order = None
+        if order_str:
+            order, err = _resolve_order(session, ts, order_str)
+            if err:
+                abort_with_error(404, err)
 
         after_order = None
         if after_order_str:
@@ -444,7 +462,7 @@ class QueryView(MethodView):
         # ------------------------------------------------------------------
         items, has_next = _query_for_field(
             session, ts, field, machine, test,
-            sort_spec, cursor_values, after_order, before_order,
+            sort_spec, cursor_values, order, after_order, before_order,
             after_time, before_time, limit)
 
         # ------------------------------------------------------------------
