@@ -318,7 +318,7 @@ export const graphPage: PageModule = {
     controlsRow.append(sampleAggGroup);
 
     // ----- Controls Row 2: Machines + Baselines (side by side) -----
-    const secondRow = el('div', { class: 'graph-controls' });
+    const secondRow = el('div', { class: 'graph-controls graph-controls-top' });
     controlsPanel.append(secondRow);
 
     // Machine chip input

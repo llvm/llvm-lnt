@@ -844,6 +844,10 @@ dl {
   margin-bottom: 12px;
 }
 
+.graph-controls-top {
+  align-items: flex-start;
+}
+
 .graph-chart {
   min-height: 400px;
   margin: 10px 0;
