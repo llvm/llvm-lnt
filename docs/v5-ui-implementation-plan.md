@@ -429,8 +429,6 @@ import './style.css';
 // Page modules (added incrementally across phases)
 import { homePage } from './pages/home';
 import { testSuitesPage } from './pages/test-suites';
-import { dashboardPage } from './pages/dashboard';
-import { machineListPage } from './pages/machine-list';
 import { machineDetailPage } from './pages/machine-detail';
 import { runDetailPage } from './pages/run-detail';
 import { orderDetailPage } from './pages/order-detail';
@@ -466,9 +464,14 @@ function init(): void {
   root.append(pageContainer);
 
   if (testsuite) {
-    // Suite-scoped pages — browsing data within a single test suite
-    addRoute('/', dashboardPage);
-    addRoute('/machines', machineListPage);
+    // Suite-scoped pages — detail views within a single test suite.
+    // The suite root redirects to the Test Suites page with suite pre-selected.
+    const suiteRedirectPage: PageModule = {
+      mount(): void {
+        window.location.replace(`${urlBase}/v5/test-suites?suite=${encodeURIComponent(testsuite)}`);
+      },
+    };
+    addRoute('/', suiteRedirectPage);
     addRoute('/machines/:name', machineDetailPage);
     addRoute('/runs/:uuid', runDetailPage);
     addRoute('/orders/:value', orderDetailPage);
@@ -540,13 +543,13 @@ During Phase 1, create minimal stub modules for every page. Each follows the `Pa
 
 **File pattern**: `lnt/server/ui/v5/frontend/src/pages/<name>.ts`
 
-Example stub (`pages/dashboard.ts`):
+Example stub (`pages/home.ts`):
 
 ```typescript
 import type { PageModule, RouteParams } from '../router';
 import { el } from '../utils';
 
-export const dashboardPage: PageModule = {
+export const homePage: PageModule = {
   mount(container: HTMLElement, params: RouteParams): void {
     container.append(
       el('div', { class: 'page-placeholder' },
@@ -558,7 +561,7 @@ export const dashboardPage: PageModule = {
 };
 ```
 
-Create identical stubs for all pages: `home.ts` (suite-agnostic dashboard placeholder), `test-suites.ts` (suite-agnostic placeholder), `machine-list.ts`, `machine-detail.ts`, `run-detail.ts`, `order-detail.ts`, `graph.ts`, `compare.ts`, `regression-list.ts`, `regression-detail.ts`, `field-change-triage.ts`, `admin.ts`.
+Create identical stubs for all pages: `home.ts` (suite-agnostic dashboard placeholder), `machine-detail.ts`, `run-detail.ts`, `order-detail.ts`, `graph.ts`, `compare.ts`, `regression-list.ts`, `regression-detail.ts`, `field-change-triage.ts`, `admin.ts`. The `test-suites.ts` page is fully implemented in Phase 2.
 
 For `compare.ts`, the stub should initially say "Coming soon" but will be replaced in Phase 4 with the full compare integration.
 
@@ -702,7 +705,7 @@ Suite-scoped context (`testsuite: 'nts'`):
 
 ## Phase 2: Core Browsing Pages
 
-**Goal**: Implement the five read-only browsing pages: Dashboard, Machine List, Machine Detail, Run Detail, and Order Detail.
+**Goal**: Implement the Test Suites page (suite picker + tabbed browsing), Machine Detail, Run Detail, and Order Detail.
 
 ### 2.1 New API Functions
 
@@ -1164,46 +1167,77 @@ export function renderOrderSearch(
 }
 ```
 
-### 2.3 Dashboard Page
+### 2.3 Test Suites Page
 
-**File**: `lnt/server/ui/v5/frontend/src/pages/dashboard.ts`
+**File**: `lnt/server/ui/v5/frontend/src/pages/test-suites.ts`
+
+The primary entry point for browsing test suite data. Suite-agnostic page at `/v5/test-suites` with an internal suite picker and tabbed content.
+
+**Suite picker**: A row of prominent card/button elements (`.suite-card`), one per test suite. List populated from `getTestsuites()` (router utility, reads `data-testsuites`). Clicking a card selects it (`.suite-card-active`), shows the tab bar, and loads the default tab (Recent Activity). When no suite is selected, only the suite picker is visible.
+
+**Tab bar**: Reuses `.v5-tab-bar` / `.v5-tab` / `.v5-tab-active` CSS classes (shared with Admin page). Four tabs: Recent Activity (default), Machines, Runs, Orders.
+
+**URL state**: `?suite={ts}&tab=machines&search=foo&offset=0` — all browsing state in query params. On mount, reads params to restore state. On every change (suite pick, tab switch, search, pagination), updates URL via `history.replaceState`.
+
+**Tab content:**
+
+- **Recent Activity tab** (default): Shows the last 25 runs sorted by `-start_time`. No search/filter — a quick-glance activity feed. Uses `getRunsPage(ts, { sort: '-start_time', limit: 25 })`. Columns: Machine, Order (primary value), Start Time, UUID (truncated, linked). "Load more" button fetches the next page via cursor.
+
+- **Machines tab**: Search by name (`name_contains`), offset pagination with "X–Y of Z" range. Uses `getMachines(ts, { nameContains, limit: 25, offset })`. Columns: Name (linked), Info (key-value summary).
+
+- **Runs tab**: Filter by machine name (exact match via `machine` param), cursor pagination (Previous/Next), sorted by `-start_time`. Uses `getRunsPage(ts, { machine, sort: '-start_time', limit: 25, cursor })`. Columns: UUID (truncated, linked), Machine, Order (primary value), Start Time.
+
+- **Orders tab**: Filter by tag prefix (`tag_prefix`), cursor pagination. Uses `getOrdersPage(ts, { tagPrefix, limit: 25, cursor })`. Columns: Order Value (primary field, linked), Tag.
+
+**Detail navigation**: All detail links (machine names, run UUIDs, order values) use `<a href=...>` targeting suite-scoped URLs (e.g., `/v5/{suite}/machines/{name}`). These are full page navigations (crossing from suite-agnostic to suite-scoped context).
+
+**Cursor pagination UX**: A stack of cursors is maintained per tab. "Next" pushes the current cursor and fetches with `nextCursor`. "Previous" pops the stack and re-fetches. The stack is reset on search/filter changes.
+
+**New API functions** (in `api.ts`):
 
 ```typescript
-// pages/dashboard.ts
+/** Fetch one page of runs with optional filters. */
+export async function getRunsPage(
+  ts: string,
+  opts?: { machine?: string; sort?: string; limit?: number; cursor?: string },
+  signal?: AbortSignal,
+): Promise<CursorPageResult<RunInfo>> {
+  const params: Record<string, string> = {};
+  if (opts?.machine) params.machine = opts.machine;
+  if (opts?.sort) params.sort = opts.sort;
+  if (opts?.limit !== undefined) params.limit = String(opts.limit);
+  if (opts?.cursor) params.cursor = opts.cursor;
+  return fetchOneCursorPage<RunInfo>(apiUrl(ts, 'runs'), params, signal);
+}
 
-import type { PageModule, RouteParams } from '../router';
-import type { OrderDetail } from '../types';
-import { getRecentRuns, getOrder } from '../api';
-import { el, spaLink, formatTime, truncate, primaryOrderValue } from '../utils';
-import { renderDataTable } from '../components/data-table';
-
-export const dashboardPage: PageModule = {
-  mount(container: HTMLElement, params: RouteParams): void {
-    const ts = params.testsuite;
-    container.append(el('h2', { class: 'page-header' }, 'Dashboard'));
-
-    const recentSection = el('div', { class: 'dashboard-section' });
-    container.append(recentSection);
-
-    loadRecentOrders(ts, recentSection);
-  },
-};
+/** Fetch one page of orders with optional tag_prefix filter. */
+export async function getOrdersPage(
+  ts: string,
+  opts?: { tagPrefix?: string; limit?: number; cursor?: string },
+  signal?: AbortSignal,
+): Promise<CursorPageResult<OrderSummary>> {
+  const params: Record<string, string> = {};
+  if (opts?.tagPrefix) params.tag_prefix = opts.tagPrefix;
+  if (opts?.limit !== undefined) params.limit = String(opts.limit);
+  if (opts?.cursor) params.cursor = opts.cursor;
+  return fetchOneCursorPage<OrderSummary>(apiUrl(ts, 'orders'), params, signal);
+}
 ```
 
-**Recent Orders section**: Fetches `getRecentRuns(ts, { limit: 50, sort: '-start_time' })`, groups runs by primary order field value, deduplicates to unique orders, and tracks the latest run UUID per order. Then batch-fetches `getOrder(ts, value)` for each unique order (typically <20 after dedup) to get their tags. Displays a two-column data table: **Order** (order value with tag suffix when set, e.g. "abc123 (release-18)", linked to Order Detail via `spaLink`) and **Latest Run** (timestamp linked to Run Detail via `spaLink`).
+**CSS additions** (in `style.css`):
 
-The dashboard is intentionally minimal — just the Recent Orders table. Machine List and Field Change Triage are accessible from the navbar; separate dashboard sections for them added no value.
+```css
+/* Suite picker cards */
+.suite-picker { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+.suite-card { padding: 12px 24px; border: 2px solid #dee2e6; border-radius: 6px;
+  background: #f8f9fa; cursor: pointer; font-size: 15px; font-weight: 600; color: #333; }
+.suite-card:hover { border-color: #0d6efd; background: #e7f1ff; }
+.suite-card-active { border-color: #0d6efd; background: #0d6efd; color: #fff; }
+```
 
-### 2.4 Machine List Page
+**Suite root redirect**: In `main.ts`, the suite-scoped root route (`/`) uses a redirect page module that navigates to `/v5/test-suites?suite={ts}` via `window.location.replace()`.
 
-**File**: `lnt/server/ui/v5/frontend/src/pages/machine-list.ts`
-
-- Renders a search input (name filter) and a data table
-- Calls `getMachines(ts, { nameContains, limit, offset })` with offset pagination
-- Table columns: Name (link to Machine Detail via `spaLink`), Info (key fields), Last Run (fetched lazily or omitted initially)
-- Uses `renderDataTable` from `components/data-table.ts`
-- URL state: `?search=` for the name filter (use `replaceState` on input change)
-- All internal links use `spaLink()` from `utils.ts` for SPA navigation (no full page reloads)
+**Nav bar update** (in `nav.ts`): Add `suiteParam: 'suite'` to the Test Suites nav link so that navigating from a suite-scoped detail page preserves suite context.
 
 ### 2.5 Machine Detail Page
 
@@ -1278,8 +1312,7 @@ Add the new interfaces listed in section 2.1: `OrderDetail`, `OrderNeighbor`, `R
 
 **Unit tests per page module** (in `__tests__/pages/`):
 
-- **dashboard.test.ts**: Mock API calls, verify correct sections render, verify links to other pages
-- **machine-list.test.ts**: Verify search filtering calls API with `name_contains`, verify table renders, verify click navigates
+- **test-suites.test.ts**: Verify suite picker renders cards, tabs appear after suite selection, Recent Activity loads recent runs, Machines tab shows search + offset pagination, Runs tab shows cursor pagination, Orders tab shows cursor pagination, query param state restoration
 - **machine-detail.test.ts**: Verify metadata display, run history table, pagination
 - **run-detail.test.ts**: Verify metadata, metric selector, samples table
 - **order-detail.test.ts**: Verify order fields, prev/next navigation, machine filter, runs table
@@ -2090,8 +2123,8 @@ lnt/server/ui/v5/frontend/src/components/pagination.ts
 lnt/server/ui/v5/frontend/src/components/order-search.ts
 lnt/server/ui/v5/frontend/src/components/machine-combobox.ts
 lnt/server/ui/v5/frontend/src/components/time-series-chart.ts
-lnt/server/ui/v5/frontend/src/pages/dashboard.ts
-lnt/server/ui/v5/frontend/src/pages/machine-list.ts
+lnt/server/ui/v5/frontend/src/pages/home.ts
+lnt/server/ui/v5/frontend/src/pages/test-suites.ts
 lnt/server/ui/v5/frontend/src/pages/machine-detail.ts
 lnt/server/ui/v5/frontend/src/pages/run-detail.ts
 lnt/server/ui/v5/frontend/src/pages/order-detail.ts

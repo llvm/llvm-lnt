@@ -9,8 +9,6 @@ import './style.css';
 // Page modules
 import { homePage } from './pages/home';
 import { testSuitesPage } from './pages/test-suites';
-import { dashboardPage } from './pages/dashboard';
-import { machineListPage } from './pages/machine-list';
 import { machineDetailPage } from './pages/machine-detail';
 import { runDetailPage } from './pages/run-detail';
 import { orderDetailPage } from './pages/order-detail';
@@ -20,6 +18,7 @@ import { regressionListPage } from './pages/regression-list';
 import { regressionDetailPage } from './pages/regression-detail';
 import { fieldChangeTriagePage } from './pages/field-change-triage';
 import { adminPage } from './pages/admin';
+import type { PageModule } from './router';
 
 declare const lnt_url_base: string;
 
@@ -46,9 +45,14 @@ function init(): void {
   root.append(pageContainer);
 
   if (testsuite) {
-    // Suite-scoped pages — browsing data within a single test suite
-    addRoute('/', dashboardPage);
-    addRoute('/machines', machineListPage);
+    // Suite-scoped pages — detail views within a single test suite.
+    // The suite root redirects to the Test Suites page with suite pre-selected.
+    const suiteRedirectPage: PageModule = {
+      mount(): void {
+        window.location.replace(`${urlBase}/v5/test-suites?suite=${encodeURIComponent(testsuite)}`);
+      },
+    };
+    addRoute('/', suiteRedirectPage);
     addRoute('/machines/:name', machineDetailPage);
     addRoute('/runs/:uuid', runDetailPage);
     addRoute('/orders/:value', orderDetailPage);

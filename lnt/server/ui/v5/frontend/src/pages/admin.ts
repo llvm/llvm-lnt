@@ -23,20 +23,20 @@ export const adminPage: PageModule = {
     container.append(el('h2', { class: 'page-header' }, 'Admin'));
 
     // Tab bar
-    const tabBar = el('div', { class: 'admin-tabs' });
-    const keysTab = el('button', { class: 'admin-tab admin-tab-active' }, 'API Keys');
-    const schemasTab = el('button', { class: 'admin-tab' }, 'Test Suites');
-    const createSuiteTab = el('button', { class: 'admin-tab' }, 'Create Suite');
+    const tabBar = el('div', { class: 'v5-tab-bar' });
+    const keysTab = el('button', { class: 'v5-tab v5-tab-active' }, 'API Keys');
+    const schemasTab = el('button', { class: 'v5-tab' }, 'Test Suites');
+    const createSuiteTab = el('button', { class: 'v5-tab' }, 'Create Suite');
     tabBar.append(keysTab, schemasTab, createSuiteTab);
     container.append(tabBar);
 
-    const tabContent = el('div', { class: 'admin-tab-content' });
+    const tabContent = el('div', { class: 'v5-tab-content' });
     container.append(tabContent);
 
     const allTabs = [keysTab, schemasTab, createSuiteTab];
     function activateTab(active: HTMLElement): void {
-      for (const t of allTabs) t.classList.remove('admin-tab-active');
-      active.classList.add('admin-tab-active');
+      for (const t of allTabs) t.classList.remove('v5-tab-active');
+      active.classList.add('v5-tab-active');
     }
 
     keysTab.addEventListener('click', () => {

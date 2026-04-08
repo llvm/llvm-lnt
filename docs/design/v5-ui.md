@@ -63,9 +63,8 @@ The shell template (`v5_app.html`) is a standalone HTML page (it does NOT extend
 
 ```
 /v5/                                   Dashboard (landing page — suite-agnostic placeholder)
-/v5/test-suites                        Test Suites (suite-agnostic placeholder)
-/v5/{ts}/                              Suite root (suite-specific dashboard)
-/v5/{ts}/machines                      Machine List
+/v5/test-suites?suite={ts}&tab=...     Test Suites (suite picker + browsing tabs)
+/v5/{ts}/                              Suite root (redirects to /v5/test-suites?suite={ts})
 /v5/{ts}/machines/{name}               Machine Detail
 /v5/{ts}/runs/{uuid}                   Run Detail
 /v5/{ts}/orders/{value}                Order Detail
@@ -88,7 +87,7 @@ All navbar links are suite-agnostic. The navbar behavior depends on the page con
 - **Suite-agnostic context** (`/v5/...` without a suite): All navbar links use SPA navigation. API opens in a new tab. v4 UI is external.
 - **Suite-scoped context** (`/v5/{ts}/...`): All navbar links use full-page navigation (since they target `/v5/...` which is outside the suite basePath `/v5/{ts}`).
 
-Graph and Compare links append `?suite={ts}` / `?suite_a={ts}` when navigated from suite-scoped context, pre-filling the current suite.
+Graph and Compare links append `?suite={ts}` / `?suite_a={ts}` when navigated from suite-scoped context, pre-filling the current suite. The Test Suites link appends `?suite={ts}` to preserve the suite context.
 
 ---
 
@@ -98,16 +97,34 @@ Graph and Compare links append `?suite={ts}` / `?suite_a={ts}` when navigated fr
 
 Suite-agnostic landing page. Currently a placeholder — content to be designed later.
 
-The existing suite-specific dashboard content (recent orders table) remains accessible at `/v5/{ts}/` as the suite root page.
+### 2. Test Suites — `/v5/test-suites?suite={ts}&tab=...`
 
-### 2. Machine List — `/v5/{ts}/machines`
+The primary entry point for browsing test suite data. Suite-agnostic page with an internal suite picker and tabbed content.
 
-Searchable/filterable table of all machines.
+**Suite picker**: A row of prominent card/button elements, one per test suite (from `data-testsuites`). Clicking a card selects it (highlighted) and shows the tab bar below. When no suite is selected, only the suite picker is visible.
 
-- Search by name (substring or prefix)
-- Columns: name, key info fields
-- API: `GET machines?name_contains={filter}`
-- **Links out**: Machine Detail
+**Tabs**: [Recent Activity] [Machines] [Runs] [Orders]. Default tab is Recent Activity.
+
+**URL state**: `?suite={ts}&tab=machines&search=foo&offset=0` — all state is in query params. On mount, reads params to restore state. On changes, updates URL via `replaceState`.
+
+| Tab | Content | API | Search/Filter |
+|-----|---------|-----|---------------|
+| Recent Activity | Last 25 runs sorted by time; "Load more" for next page | `GET runs?sort=-start_time&limit=25` | None |
+| Machines | Searchable machine list with offset pagination | `GET machines?name_contains=...&limit=25&offset=...` | Name substring |
+| Runs | Run list with cursor pagination | `GET runs?machine=...&sort=-start_time&limit=25` | Machine name (exact) |
+| Orders | Order list with cursor pagination | `GET orders?tag_prefix=...&limit=25` | Tag prefix |
+
+**Columns per tab:**
+- **Recent Activity**: Machine, Order (primary value), Start Time, UUID (truncated, linked)
+- **Machines**: Name (linked), Info (key-value summary)
+- **Runs**: UUID (truncated, linked), Machine, Order (primary value), Start Time
+- **Orders**: Order Value (primary field, linked), Tag
+
+**Detail navigation**: Clicking an item navigates to the full suite-scoped detail page (e.g., `/v5/{ts}/machines/{name}`) via full page navigation. This crosses from suite-agnostic context to suite-scoped context.
+
+**Suite root redirect**: `/v5/{ts}/` redirects to `/v5/test-suites?suite={ts}`.
+
+**Links out**: Machine Detail, Run Detail, Order Detail.
 
 ### 3. Machine Detail — `/v5/{ts}/machines/{name}`
 
@@ -348,9 +365,7 @@ lnt/server/ui/v5/frontend/src/
 ├── style.css                  Extend existing styles
 ├── pages/
 │   ├── home.ts                Suite-agnostic dashboard (placeholder)
-│   ├── test-suites.ts         Suite-agnostic test suites page (placeholder)
-│   ├── dashboard.ts           Suite-specific dashboard (recent orders)
-│   ├── machine-list.ts
+│   ├── test-suites.ts         Suite-agnostic test suites page (picker + tabs)
 │   ├── machine-detail.ts
 │   ├── run-detail.ts
 │   ├── order-detail.ts
@@ -407,7 +422,7 @@ One optional enhancement for performance:
 | Phase | Pages | Foundation Work |
 |-------|-------|-----------------|
 | 1 | (none visible) | SPA shell, router, nav bar, Flask catch-all route, build config |
-| 2 | Dashboard, Machine List, Machine Detail, Run Detail, Order Detail | Core browsing — read-only pages, data-table component, pagination |
+| 2 | Test Suites (picker + tabs), Machine Detail, Run Detail, Order Detail | Core browsing — data-table component, pagination, suite picker |
 | 3 | Graph | Time-series chart component, combobox integration, aggregation controls, field change annotations |
 | 4 | Compare | Absorb existing compare page into SPA as page module, add geomean summary |
 | 5 | Regression List, Regression Detail, Field Change Triage (stubs) | Stub pages with "Not implemented yet" message |

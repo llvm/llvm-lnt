@@ -72,7 +72,7 @@ export function renderNav(config: NavConfig): HTMLElement {
   const linksContainer = el('div', { class: 'v5-nav-links' });
 
   const leftLinks: NavLink[] = [
-    { label: 'Test Suites', path: '/test-suites' },
+    { label: 'Test Suites', path: '/test-suites', suiteParam: 'suite' },
     { label: 'Graph', path: '/graph', suiteParam: 'suite' },
     { label: 'Compare', path: '/compare', suiteParam: 'suite_a' },
   ];

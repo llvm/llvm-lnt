@@ -976,16 +976,16 @@ dl {
   margin-bottom: 8px;
 }
 
-/* Admin page */
+/* Reusable tab bar (used by Admin page, Test Suites page) */
 
-.admin-tabs {
+.v5-tab-bar {
   display: flex;
   gap: 0;
   border-bottom: 2px solid #ddd;
   margin-bottom: 16px;
 }
 
-.admin-tab {
+.v5-tab {
   padding: 8px 20px;
   border: none;
   background: none;
@@ -996,15 +996,49 @@ dl {
   margin-bottom: -2px;
 }
 
-.admin-tab:hover {
+.v5-tab:hover {
   color: #333;
 }
 
-.admin-tab-active {
+.v5-tab-active {
   color: #1f77b4;
   border-bottom-color: #1f77b4;
   font-weight: 600;
 }
+
+/* Suite picker cards */
+
+.suite-picker {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.suite-card {
+  padding: 12px 24px;
+  border: 2px solid #dee2e6;
+  border-radius: 6px;
+  background: #f8f9fa;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 600;
+  color: #333;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.suite-card:hover {
+  border-color: #0d6efd;
+  background: #e7f1ff;
+}
+
+.suite-card-active {
+  border-color: #0d6efd;
+  background: #0d6efd;
+  color: #fff;
+}
+
+/* Admin page */
 
 .admin-create-form {
   margin-bottom: 16px;

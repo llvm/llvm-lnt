@@ -291,20 +291,6 @@ export async function getRunsByOrder(
   );
 }
 
-export async function getRecentRuns(
-  ts: string,
-  opts?: { limit?: number; sort?: string },
-  signal?: AbortSignal,
-): Promise<CursorPaginated<RunInfo>> {
-  const params: Record<string, string> = {};
-  if (opts?.limit !== undefined) params.limit = String(opts.limit);
-  if (opts?.sort) params.sort = opts.sort;
-  return fetchJson<CursorPaginated<RunInfo>>(
-    apiUrl(ts, 'runs'),
-    { params, signal },
-  );
-}
-
 export async function getFieldChanges(
   ts: string,
   opts?: { limit?: number; cursor?: string },
@@ -331,6 +317,33 @@ export async function searchOrdersByTag(
     apiUrl(ts, 'orders'),
     { params, signal },
   );
+}
+
+/** Fetch one page of runs with optional filters (cursor-paginated). */
+export async function getRunsPage(
+  ts: string,
+  opts?: { machine?: string; sort?: string; limit?: number; cursor?: string },
+  signal?: AbortSignal,
+): Promise<CursorPageResult<RunInfo>> {
+  const params: Record<string, string> = {};
+  if (opts?.machine) params.machine = opts.machine;
+  if (opts?.sort) params.sort = opts.sort;
+  if (opts?.limit !== undefined) params.limit = String(opts.limit);
+  if (opts?.cursor) params.cursor = opts.cursor;
+  return fetchOneCursorPage<RunInfo>(apiUrl(ts, 'runs'), params, signal);
+}
+
+/** Fetch one page of orders with optional tag_prefix filter (cursor-paginated). */
+export async function getOrdersPage(
+  ts: string,
+  opts?: { tagPrefix?: string; limit?: number; cursor?: string },
+  signal?: AbortSignal,
+): Promise<CursorPageResult<OrderSummary>> {
+  const params: Record<string, string> = {};
+  if (opts?.tagPrefix) params.tag_prefix = opts.tagPrefix;
+  if (opts?.limit !== undefined) params.limit = String(opts.limit);
+  if (opts?.cursor) params.cursor = opts.cursor;
+  return fetchOneCursorPage<OrderSummary>(apiUrl(ts, 'orders'), params, signal);
 }
 
 export async function updateOrderTag(

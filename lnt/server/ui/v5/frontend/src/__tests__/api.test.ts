@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { setApiBase, getFields, getOrders, getMachines, getRuns, getSamples,
-  getMachine, getMachineRuns, deleteMachine, getRun, deleteRun, getOrder, getRunsByOrder, getRecentRuns,
+  getMachine, getMachineRuns, deleteMachine, getRun, deleteRun, getOrder, getRunsByOrder,
   getFieldChanges, searchOrdersByTag, updateOrderTag, queryDataPoints,
   fetchOneCursorPage, apiUrl, ApiError, authErrorMessage,
 } from '../api';
@@ -805,18 +805,6 @@ describe('getRunsByOrder', () => {
     expect(result).toHaveLength(1);
     const url = new URL(mockFetch.mock.calls[0][0]);
     expect(url.searchParams.get('order')).toBe('100');
-  });
-});
-
-describe('getRecentRuns', () => {
-  it('fetches a single page of runs with sort', async () => {
-    mockFetch.mockResolvedValueOnce(mockResponse(cursorPage<RunInfo>([], null)));
-
-    await getRecentRuns('nts', { limit: 50, sort: '-start_time' });
-
-    const url = new URL(mockFetch.mock.calls[0][0]);
-    expect(url.searchParams.get('limit')).toBe('50');
-    expect(url.searchParams.get('sort')).toBe('-start_time');
   });
 });
 

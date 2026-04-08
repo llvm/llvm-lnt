@@ -91,7 +91,7 @@ describe('adminPage', () => {
   it('renders tab bar with API Keys, Test Suites, and Create Suite tabs', () => {
     adminPage.mount(container, { testsuite: '' });
 
-    const tabs = container.querySelectorAll('.admin-tab');
+    const tabs = container.querySelectorAll('.v5-tab');
     expect(tabs).toHaveLength(3);
     expect(tabs[0].textContent).toBe('API Keys');
     expect(tabs[1].textContent).toBe('Test Suites');
@@ -137,7 +137,7 @@ describe('adminPage', () => {
     });
 
     // Click Test Suites tab
-    const tabs = container.querySelectorAll('.admin-tab');
+    const tabs = container.querySelectorAll('.v5-tab');
     (tabs[1] as HTMLElement).click();
 
     await vi.waitFor(() => {
@@ -162,7 +162,7 @@ describe('adminPage', () => {
     });
 
     // Switch to Test Suites tab
-    const tabs = container.querySelectorAll('.admin-tab');
+    const tabs = container.querySelectorAll('.v5-tab');
     (tabs[1] as HTMLElement).click();
 
     await vi.waitFor(() => {
@@ -188,10 +188,10 @@ describe('adminPage', () => {
     adminPage.mount(container, { testsuite: '' });
 
     await vi.waitFor(() => {
-      expect(container.querySelectorAll('.admin-tab')).toHaveLength(3);
+      expect(container.querySelectorAll('.v5-tab')).toHaveLength(3);
     });
 
-    const tabs = container.querySelectorAll('.admin-tab');
+    const tabs = container.querySelectorAll('.v5-tab');
     (tabs[2] as HTMLElement).click();
 
     const inputs = container.querySelectorAll('.admin-input');
@@ -206,7 +206,7 @@ describe('adminPage', () => {
       expect(container.querySelector('.admin-create-form')).toBeTruthy();
     });
 
-    const tabs = container.querySelectorAll('.admin-tab');
+    const tabs = container.querySelectorAll('.v5-tab');
     (tabs[1] as HTMLElement).click();
 
     await vi.waitFor(() => {
@@ -234,7 +234,7 @@ describe('adminPage', () => {
       expect(container.querySelector('.admin-create-form')).toBeTruthy();
     });
 
-    const tabs = container.querySelectorAll('.admin-tab');
+    const tabs = container.querySelectorAll('.v5-tab');
     (tabs[1] as HTMLElement).click();
 
     await vi.waitFor(() => {
