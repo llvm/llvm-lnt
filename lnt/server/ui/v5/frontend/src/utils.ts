@@ -1,5 +1,5 @@
 import type { AggFn } from './types';
-import { navigate, getBasePath } from './router';
+import { navigate, getBasePath, getUrlBase } from './router';
 
 /**
  * Separator between test name and machine name in trace names.
@@ -132,4 +132,26 @@ export function spaLink(text: string, path: string): HTMLAnchorElement {
     navigate(path);
   });
   return a;
+}
+
+/**
+ * Build a full URL for a suite-agnostic page.
+ * @param path  Path relative to /v5, e.g. "/compare?suite_a=nts"
+ */
+export function agnosticUrl(path: string): string {
+  return getUrlBase() + '/v5' + path;
+}
+
+/**
+ * Create an anchor element that links to a suite-agnostic page.
+ *
+ * Use this for cross-context links from suite-scoped pages to suite-agnostic
+ * pages (e.g. Graph, Compare). These links trigger a full page load since the
+ * SPA context changes (different route table, different basePath).
+ *
+ * @param text  Link text
+ * @param path  Path relative to /v5, e.g. "/compare?suite_a=nts&machine_a=..."
+ */
+export function agnosticLink(text: string, path: string): HTMLAnchorElement {
+  return el('a', { href: agnosticUrl(path), class: 'spa-link' }, text);
 }

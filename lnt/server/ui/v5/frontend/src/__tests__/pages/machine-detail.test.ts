@@ -15,7 +15,12 @@ vi.mock('../../api', async (importOriginal) => {
 // Mock router navigate
 vi.mock('../../router', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../router')>();
-  return { ...actual, navigate: vi.fn() };
+  return {
+    ...actual,
+    navigate: vi.fn(),
+    getBasePath: vi.fn(() => '/v5/nts'),
+    getUrlBase: vi.fn(() => ''),
+  };
 });
 
 // Mock Plotly (may be loaded by transitive imports)
@@ -26,7 +31,7 @@ vi.mock('../../router', async (importOriginal) => {
   Fx: { hover: vi.fn(), unhover: vi.fn() },
 };
 
-import { getMachine, getMachineRuns } from '../../api';
+import { getMachine, getMachineRuns, deleteMachine } from '../../api';
 import { machineDetailPage } from '../../pages/machine-detail';
 import type { MachineInfo, MachineRunInfo } from '../../types';
 
@@ -106,15 +111,27 @@ describe('machineDetailPage', () => {
     });
   });
 
-  it('renders View Graph and Compare action links with correct URLs', () => {
+  it('renders View Graph and Compare as agnostic links with suite params', () => {
     machineDetailPage.mount(container, { testsuite: 'nts', name: 'clang-x86' });
 
     const links = container.querySelectorAll('.action-links a');
     expect(links).toHaveLength(2);
+
+    // View Graph — agnostic link to /v5/graph
     expect(links[0].textContent).toBe('View Graph');
-    expect(links[0].getAttribute('href')).toContain('/graph?machine=clang-x86');
+    const graphHref = links[0].getAttribute('href')!;
+    expect(graphHref).toMatch(/^\/v5\/graph\?/);
+    expect(graphHref).not.toContain('/v5/nts/graph');
+    expect(graphHref).toContain('suite=nts');
+    expect(graphHref).toContain('machine=clang-x86');
+
+    // Compare — agnostic link to /v5/compare
     expect(links[1].textContent).toBe('Compare');
-    expect(links[1].getAttribute('href')).toContain('/compare?machine_a=clang-x86');
+    const compareHref = links[1].getAttribute('href')!;
+    expect(compareHref).toMatch(/^\/v5\/compare\?/);
+    expect(compareHref).not.toContain('/v5/nts/compare');
+    expect(compareHref).toContain('suite_a=nts');
+    expect(compareHref).toContain('machine_a=clang-x86');
   });
 
   it('calls getMachineRuns with correct params', () => {
@@ -138,13 +155,14 @@ describe('machineDetailPage', () => {
     });
   });
 
-  it('run UUIDs shown truncated to 8 chars as SPA links', async () => {
+  it('run UUIDs shown truncated to 8 chars as suite-scoped SPA links', async () => {
     machineDetailPage.mount(container, { testsuite: 'nts', name: 'clang-x86' });
 
     await vi.waitFor(() => {
-      const runLink = container.querySelector('a[href*="/runs/"]');
+      const runLink = container.querySelector('a[href*="/runs/"]') as HTMLAnchorElement;
       expect(runLink).toBeTruthy();
-      expect(runLink!.textContent).toBe('aaaaaaaa');
+      expect(runLink.textContent).toBe('aaaaaaaa');
+      expect(runLink.href).toContain('/v5/nts/runs/');
     });
   });
 
@@ -194,6 +212,47 @@ describe('machineDetailPage', () => {
     const deleteSection = container.querySelector('.delete-machine-section');
     expect(deleteSection).toBeTruthy();
     expect(deleteSection!.textContent).toContain('Delete Machine');
+  });
+
+  it('post-deletion redirects to suite-agnostic test-suites page', async () => {
+    (deleteMachine as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+    const originalLocation = window.location;
+    const assignMock = vi.fn();
+    Object.defineProperty(window, 'location', {
+      value: { ...window.location, assign: assignMock },
+      writable: true,
+      configurable: true,
+    });
+
+    try {
+      machineDetailPage.mount(container, { testsuite: 'nts', name: 'clang-x86' });
+
+      // Click the "Delete Machine" button to reveal confirmation
+      const deleteBtn = container.querySelector('.admin-btn-danger') as HTMLButtonElement;
+      deleteBtn.click();
+
+      // Type the machine name to enable confirm
+      const confirmInput = container.querySelector('.delete-machine-confirm input') as HTMLInputElement;
+      confirmInput.value = 'clang-x86';
+      confirmInput.dispatchEvent(new Event('input'));
+
+      // Click "Confirm Delete"
+      const confirmBtn = Array.from(container.querySelectorAll('.delete-machine-confirm .admin-btn-danger'))
+        .find(b => b.textContent?.includes('Confirm')) as HTMLButtonElement;
+      confirmBtn.click();
+
+      await vi.waitFor(() => {
+        expect(deleteMachine).toHaveBeenCalledWith('nts', 'clang-x86');
+        // Should redirect to suite-agnostic test-suites page (not suite-scoped /machines)
+        expect(assignMock).toHaveBeenCalledWith('/v5/test-suites?suite=nts');
+      });
+    } finally {
+      Object.defineProperty(window, 'location', {
+        value: originalLocation,
+        writable: true,
+        configurable: true,
+      });
+    }
   });
 
   it('unmount aborts without error', () => {

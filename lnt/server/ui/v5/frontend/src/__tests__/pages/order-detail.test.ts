@@ -16,7 +16,12 @@ vi.mock('../../api', async (importOriginal) => {
 // Mock router navigate
 vi.mock('../../router', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../router')>();
-  return { ...actual, navigate: vi.fn() };
+  return {
+    ...actual,
+    navigate: vi.fn(),
+    getBasePath: vi.fn(() => '/v5/nts'),
+    getUrlBase: vi.fn(() => ''),
+  };
 });
 
 // Mock Plotly (may be loaded by transitive imports)
@@ -275,6 +280,20 @@ describe('orderDetailPage', () => {
       expect(headers).toContain('Machine');
       expect(headers).toContain('Run UUID');
       expect(headers).toContain('Start Time');
+    });
+  });
+
+  it('machine and run links use suite-scoped hrefs', async () => {
+    orderDetailPage.mount(container, { testsuite: 'nts', value: '100' });
+
+    await vi.waitFor(() => {
+      const machineLink = container.querySelector('a[href*="/machines/"]') as HTMLAnchorElement;
+      expect(machineLink).toBeTruthy();
+      expect(machineLink.href).toContain('/v5/nts/machines/');
+
+      const runLink = container.querySelector('a[href*="/runs/"]') as HTMLAnchorElement;
+      expect(runLink).toBeTruthy();
+      expect(runLink.href).toContain('/v5/nts/runs/');
     });
   });
 

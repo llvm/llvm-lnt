@@ -17,7 +17,12 @@ vi.mock('../../api', async (importOriginal) => {
 // Mock router navigate
 vi.mock('../../router', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../router')>();
-  return { ...actual, navigate: vi.fn() };
+  return {
+    ...actual,
+    navigate: vi.fn(),
+    getBasePath: vi.fn(() => '/v5/nts'),
+    getUrlBase: vi.fn(() => ''),
+  };
 });
 
 // Mock Plotly (may be loaded by transitive imports)
@@ -108,27 +113,34 @@ describe('runDetailPage', () => {
     });
   });
 
-  it('Machine and Order render as SPA links', async () => {
+  it('Machine and Order render as SPA links with suite-scoped hrefs', async () => {
     runDetailPage.mount(container, { testsuite: 'nts', uuid: TEST_UUID });
 
     await vi.waitFor(() => {
-      const machineLink = container.querySelector('a[href*="/machines/clang-x86"]');
+      const machineLink = container.querySelector('a[href*="/machines/clang-x86"]') as HTMLAnchorElement;
       expect(machineLink).toBeTruthy();
-      expect(machineLink!.textContent).toBe('clang-x86');
+      expect(machineLink.textContent).toBe('clang-x86');
+      expect(machineLink.href).toContain('/v5/nts/machines/clang-x86');
 
-      const orderLink = container.querySelector('a[href*="/orders/100"]');
+      const orderLink = container.querySelector('a[href*="/orders/100"]') as HTMLAnchorElement;
       expect(orderLink).toBeTruthy();
+      expect(orderLink.href).toContain('/v5/nts/orders/100');
     });
   });
 
-  it('renders "Compare with…" action link with correct URL params', async () => {
+  it('renders "Compare with…" as agnostic link with suite_a param', async () => {
     runDetailPage.mount(container, { testsuite: 'nts', uuid: TEST_UUID });
 
     await vi.waitFor(() => {
-      const link = container.querySelector('.action-links a');
+      const link = container.querySelector('.action-links a') as HTMLAnchorElement;
       expect(link).toBeTruthy();
-      expect(link!.textContent).toContain('Compare with');
-      const href = link!.getAttribute('href')!;
+      expect(link.textContent).toContain('Compare with');
+      const href = link.getAttribute('href')!;
+      // Must be a suite-agnostic URL (not suite-scoped)
+      expect(href).toMatch(/^\/v5\/compare\?/);
+      expect(href).not.toContain('/v5/nts/compare');
+      // Must include suite_a param
+      expect(href).toContain('suite_a=nts');
       expect(href).toContain('machine_a=clang-x86');
       expect(href).toContain('order_a=100');
       expect(href).toContain(`runs_a=${encodeURIComponent(TEST_UUID)}`);

@@ -26,6 +26,7 @@ const routes: RouteEntry[] = [];
 let currentModule: PageModule | null = null;
 let appContainer: HTMLElement | null = null;
 let basePath = ''; // e.g. "/v5/nts"
+let urlBase = ''; // e.g. "" or "/lnt" — the LNT instance prefix
 let onAfterResolve: ((routePath: string) => void) | null = null;
 let routerTestsuite = '';
 let routerTestsuites: string[] = [];
@@ -44,6 +45,15 @@ export function getTestsuites(): string[] {
  */
 export function getBasePath(): string {
   return basePath;
+}
+
+/**
+ * Return the URL base (e.g. "" or "/lnt").
+ * This is the LNT instance prefix, without "/v5" or testsuite segments.
+ * Used by agnosticLink to construct cross-context hrefs.
+ */
+export function getUrlBase(): string {
+  return urlBase;
 }
 
 /**
@@ -76,10 +86,11 @@ export function initRouter(
   container: HTMLElement,
   tsBasePath: string,
   afterResolve?: (routePath: string) => void,
-  context?: { testsuite: string; testsuites: string[] },
+  context?: { testsuite: string; testsuites: string[]; urlBase?: string },
 ): void {
   appContainer = container;
   basePath = tsBasePath;
+  urlBase = context?.urlBase ?? '';
   onAfterResolve = afterResolve || null;
   routerTestsuite = context?.testsuite ?? '';
   routerTestsuites = context?.testsuites ?? [];

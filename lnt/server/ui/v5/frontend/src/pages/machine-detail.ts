@@ -3,8 +3,7 @@
 import type { PageModule, RouteParams } from '../router';
 import type { MachineRunInfo } from '../types';
 import { getMachine, getMachineRuns, deleteMachine } from '../api';
-import { navigate } from '../router';
-import { el, spaLink, formatTime, truncate, primaryOrderValue } from '../utils';
+import { el, spaLink, agnosticLink, agnosticUrl, formatTime, truncate, primaryOrderValue } from '../utils';
 import { renderDataTable } from '../components/data-table';
 import { renderPagination } from '../components/pagination';
 import { renderDeleteConfirm } from '../components/delete-confirm';
@@ -47,13 +46,11 @@ export const machineDetailPage: PageModule = {
     });
 
     // Action links
-    actionsContainer.append(
-      spaLink('View Graph', `/graph?machine=${encodeURIComponent(name)}`),
-      spaLink('Compare', `/compare?machine_a=${encodeURIComponent(name)}`),
-    );
-    for (const a of actionsContainer.querySelectorAll('a')) {
-      a.classList.add('action-link');
-    }
+    const graphLink = agnosticLink('View Graph', `/graph?suite=${encodeURIComponent(ts)}&machine=${encodeURIComponent(name)}`);
+    const compareLink = agnosticLink('Compare', `/compare?suite_a=${encodeURIComponent(ts)}&machine_a=${encodeURIComponent(name)}`);
+    graphLink.classList.add('action-link');
+    compareLink.classList.add('action-link');
+    actionsContainer.append(graphLink, compareLink);
 
     // Load runs with cursor-stack pagination
     const cursorStack: string[] = [];
@@ -121,7 +118,9 @@ export const machineDetailPage: PageModule = {
       placeholder: 'Machine name',
       deletingMessage: 'This may take a while for machines with many runs.',
       onDelete: () => deleteMachine(ts, name),
-      onSuccess: () => navigate('/machines'),
+      onSuccess: () => {
+        window.location.assign(agnosticUrl(`/test-suites?suite=${encodeURIComponent(ts)}`));
+      },
     });
   },
 

@@ -61,7 +61,7 @@ function init(): void {
     addRoute('/field-changes', fieldChangeTriagePage);
 
     const basePath = `${urlBase}/v5/${encodeURIComponent(testsuite)}`;
-    initRouter(pageContainer, basePath, updateActiveNavLink, { testsuite, testsuites });
+    initRouter(pageContainer, basePath, updateActiveNavLink, { testsuite, testsuites, urlBase });
   } else {
     // Suite-agnostic pages — dashboard, test suites, analysis tools, admin
     addRoute('/', homePage);
@@ -71,7 +71,7 @@ function init(): void {
     addRoute('/compare', comparePage);
 
     const basePath = `${urlBase}/v5`;
-    initRouter(pageContainer, basePath, updateActiveNavLink, { testsuite: '', testsuites });
+    initRouter(pageContainer, basePath, updateActiveNavLink, { testsuite: '', testsuites, urlBase });
   }
 }
 

@@ -4,7 +4,7 @@
 import type { PageModule, RouteParams } from '../router';
 import type { SampleInfo } from '../types';
 import { getRun, getFields, deleteRun, fetchOneCursorPage, apiUrl } from '../api';
-import { el, spaLink, formatValue, formatTime, primaryOrderValue, debounce } from '../utils';
+import { el, spaLink, agnosticLink, formatValue, formatTime, primaryOrderValue, debounce } from '../utils';
 import { navigate } from '../router';
 import { renderDataTable } from '../components/data-table';
 import { renderMetricSelector, filterMetricFields } from '../components/metric-selector';
@@ -73,15 +73,12 @@ export const runDetailPage: PageModule = {
       metaContainer.append(dl);
 
       // Actions
-      actionsContainer.append(
-        spaLink(
-          'Compare with\u2026',
-          `/compare?machine_a=${encodeURIComponent(run.machine)}&order_a=${encodeURIComponent(orderValue)}&runs_a=${encodeURIComponent(uuid)}`,
-        ),
+      const compareLink = agnosticLink(
+        'Compare with\u2026',
+        `/compare?suite_a=${encodeURIComponent(ts)}&machine_a=${encodeURIComponent(run.machine)}&order_a=${encodeURIComponent(orderValue)}&runs_a=${encodeURIComponent(uuid)}`,
       );
-      for (const a of actionsContainer.querySelectorAll('a')) {
-        a.classList.add('action-link');
-      }
+      compareLink.classList.add('action-link');
+      actionsContainer.append(compareLink);
 
       // Metric selector
       currentMetric = renderMetricSelector(controlsContainer, filterMetricFields(fields), (metric) => {
