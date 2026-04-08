@@ -198,7 +198,7 @@ class App(LNTExceptionLoggerFlask):
         handler = logging.StreamHandler()
         handler.setLevel(logging.DEBUG)
         handler.setFormatter(Formatter('%(levelname)s: %(message)s [in %(filename)s:%(lineno)d %(asctime)s]'))
-        logger.setLevel(logging.DEBUG)
+        logger.setLevel(logging.INFO)
         logger.addHandler(handler)
 
         instance = lnt.server.instance.Instance.frompath(config_path)
