@@ -10,8 +10,8 @@ vi.mock('../../api', async (importOriginal) => {
     getFields: vi.fn(),
     getOrders: vi.fn().mockResolvedValue([]),
     fetchOneCursorPage: vi.fn(),
-    apiUrl: vi.fn(),
-    queryDataPoints: vi.fn(),
+    postOneCursorPage: vi.fn(),
+    apiUrl: vi.fn((suite: string, path: string) => `/api/v5/${suite}/${path}`),
   };
 });
 
@@ -56,9 +56,9 @@ vi.mock('../../components/legend-table', () => ({
   Fx: { hover: vi.fn(), unhover: vi.fn() },
 };
 
-import { getFields, fetchOneCursorPage } from '../../api';
+import { getFields, fetchOneCursorPage, postOneCursorPage } from '../../api';
 import { getTestsuites } from '../../router';
-import { buildTraces, computeActiveTests, buildBaselinesFromData, setsEqual, TRACE_SEP, graphPage } from '../../pages/graph';
+import { buildTraces, computeActiveTests, buildBaselinesFromData, TRACE_SEP, graphPage } from '../../pages/graph';
 import { renderMachineCombobox } from '../../components/machine-combobox';
 import type { QueryDataPoint, FieldInfo } from '../../types';
 
@@ -289,19 +289,19 @@ describe('buildBaselinesFromData', () => {
   const mean = (values: number[]): number =>
     values.reduce((s, v) => s + v, 0) / values.length;
 
-  /** Helper to build a baseline data cache from a list of points for a given baseline. */
-  function buildCache(
+  /** Helper to build a lookup function from a list of points for a given baseline. */
+  function buildLookup(
     baselines: Array<{ suite: string; machine: string; order: string; tag: string | null }>,
     metric: string,
     pointsPerBaseline: QueryDataPoint[][],
-  ): Map<string, QueryDataPoint[]> {
+  ): (suite: string, machine: string, order: string, met: string) => QueryDataPoint[] {
     const cache = new Map<string, QueryDataPoint[]>();
     for (let i = 0; i < baselines.length; i++) {
       const bl = baselines[i];
       const key = `${bl.suite}::${bl.machine}::${bl.order}::${metric}`;
       cache.set(key, pointsPerBaseline[i] || []);
     }
-    return cache;
+    return (s, m, o, met) => cache.get(`${s}::${m}::${o}::${met}`) ?? [];
   }
 
   it('aggregates multiple runs at baseline order using the provided agg function', () => {
@@ -311,7 +311,7 @@ describe('buildBaselinesFromData', () => {
       makeRefPoint('test-A', '100', 3.0),
       makeRefPoint('test-A', '100', 5.0),
     ];
-    const cache = buildCache(baselines, 'exec_time', [points]);
+    const cache = buildLookup(baselines, 'exec_time', [points]);
 
     const result = buildBaselinesFromData(baselines, cache, 'exec_time', median);
 
@@ -326,7 +326,7 @@ describe('buildBaselinesFromData', () => {
       makeRefPoint('test-A', '100', 3.0),
       makeRefPoint('test-A', '100', 5.0),
     ];
-    const cache = buildCache(baselines, 'exec_time', [points]);
+    const cache = buildLookup(baselines, 'exec_time', [points]);
 
     const blResult = buildBaselinesFromData(baselines, cache, 'exec_time', median);
     const traces = buildTraces(points, 'median', 'median');
@@ -343,7 +343,7 @@ describe('buildBaselinesFromData', () => {
       makeRefPoint('test-A', '100', 1.0),
       makeRefPoint('test-A', '100', 3.0),
     ];
-    const cache = buildCache(baselines, 'exec_time', [points]);
+    const cache = buildLookup(baselines, 'exec_time', [points]);
 
     const result = buildBaselinesFromData(baselines, cache, 'exec_time', mean);
 
@@ -353,7 +353,7 @@ describe('buildBaselinesFromData', () => {
   it('handles single data point (no aggregation needed)', () => {
     const baselines = [{ suite: 'nts', machine: 'm1', order: '100', tag: null }];
     const points = [makeRefPoint('test-A', '100', 42.0)];
-    const cache = buildCache(baselines, 'exec_time', [points]);
+    const cache = buildLookup(baselines, 'exec_time', [points]);
 
     const result = buildBaselinesFromData(baselines, cache, 'exec_time', median);
 
@@ -368,7 +368,7 @@ describe('buildBaselinesFromData', () => {
       makeRefPoint('test-B', '100', 10.0),
       makeRefPoint('test-B', '100', 20.0),
     ];
-    const cache = buildCache(baselines, 'exec_time', [points]);
+    const cache = buildLookup(baselines, 'exec_time', [points]);
 
     const result = buildBaselinesFromData(baselines, cache, 'exec_time', median);
 
@@ -383,7 +383,7 @@ describe('buildBaselinesFromData', () => {
     ];
     const points1 = [makeRefPoint('test-A', '100', 1.0)];
     const points2 = [makeRefPoint('test-A', '101', 5.0)];
-    const cache = buildCache(baselines, 'exec_time', [points1, points2]);
+    const cache = buildLookup(baselines, 'exec_time', [points1, points2]);
 
     const result = buildBaselinesFromData(baselines, cache, 'exec_time', median);
 
@@ -394,19 +394,19 @@ describe('buildBaselinesFromData', () => {
     expect(result[1].tag).toBeNull();
   });
 
+  const emptyLookup = () => [] as QueryDataPoint[];
+
   it('returns empty values map when baseline has no cached data', () => {
     const baselines = [{ suite: 'nts', machine: 'm1', order: '999', tag: null }];
-    const cache = new Map<string, QueryDataPoint[]>();
 
-    const result = buildBaselinesFromData(baselines, cache, 'exec_time', median);
+    const result = buildBaselinesFromData(baselines, emptyLookup, 'exec_time', median);
 
     expect(result).toHaveLength(1);
     expect(result[0].values.size).toBe(0);
   });
 
   it('returns empty array when no baselines provided', () => {
-    const cache = new Map<string, QueryDataPoint[]>();
-    const result = buildBaselinesFromData([], cache, 'exec_time', median);
+    const result = buildBaselinesFromData([], emptyLookup, 'exec_time', median);
     expect(result).toHaveLength(0);
   });
 
@@ -417,7 +417,7 @@ describe('buildBaselinesFromData', () => {
     ];
     const points1 = [makeRefPoint('test-A', '100', 1.0)];
     const points2 = [makeRefPoint('test-A', '101', 2.0)];
-    const cache = buildCache(baselines, 'exec_time', [points1, points2]);
+    const cache = buildLookup(baselines, 'exec_time', [points1, points2]);
 
     const result = buildBaselinesFromData(baselines, cache, 'exec_time', median);
 
@@ -426,18 +426,16 @@ describe('buildBaselinesFromData', () => {
 
   it('builds label with suite/machine/order format', () => {
     const baselines = [{ suite: 'nts', machine: 'm1', order: '100', tag: null }];
-    const cache = new Map<string, QueryDataPoint[]>();
 
-    const result = buildBaselinesFromData(baselines, cache, 'exec_time', median);
+    const result = buildBaselinesFromData(baselines, emptyLookup, 'exec_time', median);
 
     expect(result[0].label).toBe('nts/m1/100');
   });
 
   it('includes tag in label when present', () => {
     const baselines = [{ suite: 'nts', machine: 'm1', order: '100', tag: 'v1.0' }];
-    const cache = new Map<string, QueryDataPoint[]>();
 
-    const result = buildBaselinesFromData(baselines, cache, 'exec_time', median);
+    const result = buildBaselinesFromData(baselines, emptyLookup, 'exec_time', median);
 
     expect(result[0].label).toBe('nts/m1/100 (v1.0)');
   });
@@ -449,7 +447,7 @@ describe('buildBaselinesFromData', () => {
     ];
     const points1 = [makeRefPoint('test-A', '100', 1.0)];
     const points2 = [makeRefPoint('test-A', '200', 9.0)];
-    const cache = buildCache(baselines, 'exec_time', [points1, points2]);
+    const cache = buildLookup(baselines, 'exec_time', [points1, points2]);
 
     const result = buildBaselinesFromData(baselines, cache, 'exec_time', median);
 
@@ -458,33 +456,6 @@ describe('buildBaselinesFromData', () => {
     expect(result[0].values.get('test-A')).toBe(1.0);
     expect(result[1].label).toBe('other-suite/m2/200');
     expect(result[1].values.get('test-A')).toBe(9.0);
-  });
-});
-
-describe('setsEqual', () => {
-  it('returns true for two empty sets', () => {
-    expect(setsEqual(new Set(), new Set())).toBe(true);
-  });
-
-  it('returns true for identical sets', () => {
-    expect(setsEqual(new Set(['a', 'b', 'c']), new Set(['a', 'b', 'c']))).toBe(true);
-  });
-
-  it('returns true regardless of insertion order', () => {
-    expect(setsEqual(new Set(['c', 'a', 'b']), new Set(['b', 'c', 'a']))).toBe(true);
-  });
-
-  it('returns false when sizes differ', () => {
-    expect(setsEqual(new Set(['a', 'b']), new Set(['a', 'b', 'c']))).toBe(false);
-  });
-
-  it('returns false when same size but different elements', () => {
-    expect(setsEqual(new Set(['a', 'b']), new Set(['a', 'c']))).toBe(false);
-  });
-
-  it('returns false when one set is empty', () => {
-    expect(setsEqual(new Set(), new Set(['a']))).toBe(false);
-    expect(setsEqual(new Set(['a']), new Set())).toBe(false);
   });
 });
 
@@ -523,6 +494,10 @@ describe('graphPage mount', () => {
     (getTestsuites as ReturnType<typeof vi.fn>).mockReturnValue(['nts']);
     (getFields as ReturnType<typeof vi.fn>).mockResolvedValue(mockFields);
     (fetchOneCursorPage as ReturnType<typeof vi.fn>).mockResolvedValue({
+      items: [],
+      nextCursor: null,
+    });
+    (postOneCursorPage as ReturnType<typeof vi.fn>).mockResolvedValue({
       items: [],
       nextCursor: null,
     });
@@ -658,10 +633,10 @@ describe('graphPage mount', () => {
   });
 
   // NOTE: Testing "machines + metric via URL triggers data loading" is not
-  // feasible because graph.ts intentionally preserves module-level cache and
-  // machineScaffolds across unmount/remount. Prior tests that parse machine
-  // URL params populate the cache, causing subsequent fetchScaffold calls to
-  // return early. This behavior is better verified via integration testing.
+  // feasible because graph.ts intentionally preserves the GraphDataCache
+  // instance across unmount/remount. Prior tests that parse machine URL
+  // params populate the cache, causing subsequent scaffold/test fetches to
+  // return from cache. This behavior is better verified via integration testing.
 
   it('unmount calls destroy on component handles', () => {
     graphPage.mount(container, { testsuite: 'nts' });

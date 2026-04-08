@@ -1,9 +1,8 @@
 // pages/graph.ts — Time-series graph page with lazy loading and client-side caching.
 
 import type { PageModule, RouteParams } from '../router';
-import type { AggFn, QueryDataPoint, CursorPaginated } from '../types';
-import { getFields, getOrders, fetchOneCursorPage, postOneCursorPage, apiUrl, queryDataPoints, getTests } from '../api';
-import type { MachineRunInfo } from '../types';
+import type { AggFn, QueryDataPoint } from '../types';
+import { getFields, getOrders, fetchOneCursorPage, postOneCursorPage, apiUrl } from '../api';
 import { el, debounce, getAggFn, primaryOrderValue, TRACE_SEP } from '../utils';
 import { getTestsuites } from '../router';
 import { onCustomEvent, GRAPH_TABLE_HOVER, GRAPH_CHART_HOVER } from '../events';
@@ -15,10 +14,9 @@ import {
   createTimeSeriesChart,
 } from '../components/time-series-chart';
 import { createLegendTable, type LegendEntry, type LegendTableHandle } from '../components/legend-table';
+import { GraphDataCache, filterTestNames } from './graph-data-cache';
 
 const MAX_DISPLAYED_TESTS = 50;
-const PAGE_LIMIT = '10000';
-const CHART_BATCH_SIZE = 10;
 const PIN_COLORS = ['#e377c2', '#ff7f0e', '#9467bd', '#8c564b', '#17becf'];
 const PLOTLY_COLORS = [
   '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
@@ -32,24 +30,12 @@ const MACHINE_SYMBOLS = [
 const SYMBOL_CHARS = ['●', '▲', '■', '◆', '✕', '+', '★', '⬠', '⬡', '✡'];
 
 // ---------------------------------------------------------------------------
-// Per-test cache — keyed by 'machine::metric::test'
+// Module-level cache — survives unmount/remount for instant back-nav
 // ---------------------------------------------------------------------------
 
-interface PerTestCache {
-  points: QueryDataPoint[];
-  complete: boolean;
-}
-
-const MAX_CACHE_ENTRIES = 500;
-let perTestCache = new Map<string, PerTestCache>();
-/** LRU access order — most recently accessed key at the end. */
-let cacheAccessOrder: string[] = [];
-
-/** Per-machine scaffolds (order values). */
-let machineScaffolds = new Map<string, string[]>();
+let cache = new GraphDataCache({ apiUrl, fetchOneCursorPage, postOneCursorPage });
 let fetchAbort: AbortController | null = null;
-/** Cache for baseline data: key = `suite::machine::order::metric`, value = QueryDataPoint[] */
-let baselineDataCache = new Map<string, QueryDataPoint[]>();
+let filterAbort: AbortController | null = null;
 /** Per-suite order list cache for baseline order picker. */
 let baselineOrderCache = new Map<string, { values: string[]; tags: Map<string, string | null> }>();
 /** Machine-order filter set for the baseline order picker (null = loading or no machine). */
@@ -61,25 +47,6 @@ export interface Baseline {
   machine: string;
   order: string;
   tag: string | null;
-}
-
-function perTestKey(machine: string, metric: string, test: string): string {
-  return `${machine}::${metric}::${test}`;
-}
-
-/** Touch a cache key in the LRU order and evict if over limit. */
-function touchCache(key: string): void {
-  const idx = cacheAccessOrder.indexOf(key);
-  if (idx >= 0) cacheAccessOrder.splice(idx, 1);
-  cacheAccessOrder.push(key);
-  while (cacheAccessOrder.length > MAX_CACHE_ENTRIES) {
-    const evict = cacheAccessOrder.shift()!;
-    perTestCache.delete(evict);
-  }
-}
-
-function abortFetches(): void {
-  if (fetchAbort) { fetchAbort.abort(); fetchAbort = null; }
 }
 
 /** The currently-discovered test names (from the last discoverTests call). */
@@ -99,8 +66,6 @@ let legendHandle: LegendTableHandle | null = null;
 let manuallyHidden = new Set<string>();
 /** Current visible trace names (updated on each render, used by legend callbacks). */
 let currentVisibleTraceNames: string[] = [];
-/** The active trace name set from the last chart render, used to skip no-op chart updates. */
-let prevActiveTraceNames = new Set<string>();
 /** Pending requestAnimationFrame ID for deferred chart updates. */
 let pendingChartRAF: number | null = null;
 /** Generation counter to cancel stale batched chart renders. */
@@ -113,15 +78,6 @@ let cleanupTableHover: (() => void) | null = null;
 let cleanupChartHover: (() => void) | null = null;
 /** List of selected machines (preserved across unmount/remount). */
 let machines: string[] = [];
-
-/** Check whether two sets contain the same elements. Exported for testing. */
-export function setsEqual(a: Set<string>, b: Set<string>): boolean {
-  if (a.size !== b.size) return false;
-  for (const item of a) {
-    if (!b.has(item)) return false;
-  }
-  return true;
-}
 
 function assignColor(index: number): string {
   return PLOTLY_COLORS[index % PLOTLY_COLORS.length];
@@ -149,22 +105,8 @@ function testNameFromTrace(tn: string): string {
   return idx >= 0 ? tn.slice(0, idx) : tn;
 }
 
-/**
- * Compute the union of all machines' scaffolds, preserving order.
- */
-function computeScaffoldUnion(): string[] | null {
-  if (machineScaffolds.size === 0) return null;
-  const seen = new Set<string>();
-  const union: string[] = [];
-  for (const scaffold of machineScaffolds.values()) {
-    for (const ov of scaffold) {
-      if (!seen.has(ov)) {
-        seen.add(ov);
-        union.push(ov);
-      }
-    }
-  }
-  return union.length > 0 ? union : null;
+function abortFetches(): void {
+  if (fetchAbort) { fetchAbort.abort(); fetchAbort = null; }
 }
 
 /**
@@ -236,15 +178,14 @@ export const graphPage: PageModule = {
     }
     currentSuite = suiteSelect.value;
 
-    // ----- Controls Row 1: Suite, Metric, Test Filter, Aggregation -----
-    const controlsRow = el('div', { class: 'graph-controls' });
-    controlsRow.append(suiteGroup);
-    controlsPanel.append(controlsRow);
+    // ----- Controls Row 1: Suite, Machines, Baselines (data sources) -----
+    const firstRow = el('div', { class: 'graph-controls graph-controls-top side' });
+    firstRow.append(suiteGroup);
+    controlsPanel.append(firstRow);
 
     // Metric selector (loaded async — actual fetch deferred until suite is set)
     const metricGroup = el('div', {});
     metricGroup.append(el('span', { class: 'progress-label' }, 'Select a suite to load metrics...'));
-    controlsRow.append(metricGroup);
 
     // Test filter
     const filterGroup = el('div', { class: 'control-group' });
@@ -258,10 +199,9 @@ export const graphPage: PageModule = {
     filterInput.addEventListener('input', debounce(() => {
       testFilter = filterInput.value.trim();
       updateUrlState();
-      if (machines.length > 0 && metric) doPlot();
+      if (machines.length > 0 && metric) handleFilterChange();
     }, 200) as EventListener);
     filterGroup.append(filterInput);
-    controlsRow.append(filterGroup);
 
     // Aggregation controls
     const runAggGroup = el('div', { class: 'control-group' });
@@ -278,7 +218,6 @@ export const graphPage: PageModule = {
       updateUrlState();
     });
     runAggGroup.append(runAggSelect);
-    controlsRow.append(runAggGroup);
 
     const sampleAggGroup = el('div', { class: 'control-group' });
     sampleAggGroup.append(el('label', {}, 'Sample aggregation'));
@@ -294,13 +233,8 @@ export const graphPage: PageModule = {
       updateUrlState();
     });
     sampleAggGroup.append(sampleAggSelect);
-    controlsRow.append(sampleAggGroup);
 
-    // ----- Controls Row 2: Machines + Baselines (side by side) -----
-    const secondRow = el('div', { class: 'graph-controls graph-controls-top' });
-    controlsPanel.append(secondRow);
-
-    // Machine chip input
+    // Machine chip input (in row 1)
     const machineGroup = el('div', { class: 'control-group' });
     machineGroup.append(el('label', {}, 'Machines'));
     const machineInputContainer = el('div', {});
@@ -316,18 +250,10 @@ export const graphPage: PageModule = {
         const removeBtn = el('button', { class: 'chip-remove' }, '\u00d7');
         removeBtn.addEventListener('click', () => {
           machines = machines.filter(x => x !== m);
-          machineScaffolds.delete(m);
-          for (const key of [...perTestCache.keys()]) {
-            if (key.startsWith(m + '::')) {
-              perTestCache.delete(key);
-              cacheAccessOrder = cacheAccessOrder.filter(k => k !== key);
-            }
-          }
           renderMachineChips();
           if (machines.length > 0 && metric) {
             doPlot();
           } else {
-            // No machines left — show empty state
             renderFromDiscoveredTests();
           }
           updateUrlState();
@@ -352,7 +278,7 @@ export const graphPage: PageModule = {
     });
     machineComboCleanup = machineHandle.destroy;
     renderMachineChips();
-    secondRow.append(machineGroup);
+    firstRow.append(machineGroup);
 
     // Baselines (same row as Machines)
     const baselineGroup = el('div', { class: 'control-group' });
@@ -378,7 +304,13 @@ export const graphPage: PageModule = {
       if (baselines.find(b => b.suite === suite && b.machine === blSelectedMachine && b.order === blSelectedOrder)) return;
       baselines.push({ suite, machine: blSelectedMachine, order: blSelectedOrder, tag: null });
       renderBaselineChips();
-      fetchAllBaselineData(discoveredTests).then(() => renderFromDiscoveredTests());
+      // Fetch baseline data and re-render
+      if (metric && discoveredTests.length > 0) {
+        const bl = baselines[baselines.length - 1];
+        cache.getBaselineData(bl.suite, bl.machine, bl.order, metric, discoveredTests, fetchAbort?.signal)
+          .then(() => renderFromDiscoveredTests())
+          .catch(() => { /* baseline data is optional */ });
+      }
       updateUrlState();
       // Reset: keep form open for adding more, but clear selections
       blSelectedMachine = '';
@@ -476,7 +408,7 @@ export const graphPage: PageModule = {
     formRow.append(blSuiteSelect, blMachineContainer, blOrderContainer);
     baselineFormContainer.append(formRow);
     baselineGroup.append(addBaselineBtn, baselineFormContainer, baselineChips);
-    secondRow.append(baselineGroup);
+    firstRow.append(baselineGroup);
 
     renderBaselineChips();
 
@@ -489,12 +421,6 @@ export const graphPage: PageModule = {
         removeBtn.addEventListener('click', () => {
           const idx = baselines.indexOf(bl);
           if (idx >= 0) baselines.splice(idx, 1);
-          // Remove cached data for this baseline
-          for (const key of [...baselineDataCache.keys()]) {
-            if (key.startsWith(`${bl.suite}::${bl.machine}::${bl.order}::`)) {
-              baselineDataCache.delete(key);
-            }
-          }
           renderBaselineChips();
           renderFromDiscoveredTests();
           updateUrlState();
@@ -503,6 +429,11 @@ export const graphPage: PageModule = {
         baselineChips.append(chip);
       }
     }
+
+    // ----- Controls Row 2: Metric, Aggregation, Test Filter (viewing) -----
+    const secondRow = el('div', { class: 'graph-controls' });
+    secondRow.append(metricGroup, runAggGroup, sampleAggGroup, filterGroup);
+    controlsPanel.append(secondRow);
 
     container.append(progressContainer, warningContainer, chartContainer);
     const legendContainer = el('div', { class: 'legend-container' });
@@ -516,113 +447,60 @@ export const graphPage: PageModule = {
       if (legendHandle) legendHandle.highlightRow(tn);
     });
 
-    // ----- Test discovery + targeted data loading -----
+    // ----- Filter change handler -----
 
-    /**
-     * Discover test names matching the current filter for the selected
-     * machines and metric. Calls GET /tests?machine=M&metric=Y&name_contains=...
-     * per machine, takes the union, and caps at MAX_DISPLAYED_TESTS.
-     */
-    async function discoverTests(
-      testsuite: string, machineList: string[], metricName: string,
+    async function discoverAndFilter(
+      suite: string, machineList: string[], metricName: string,
       filter: string, signal?: AbortSignal,
     ): Promise<{ names: string[]; truncated: boolean }> {
-      const allNames = new Set<string>();
-      let anyTruncated = false;
-      // Query each machine in parallel
-      const results = await Promise.all(machineList.map(m =>
-        getTests(testsuite, {
-          machine: m,
-          metric: metricName,
-          nameContains: filter || undefined,
-          limit: MAX_DISPLAYED_TESTS + 1,
-        }, signal),
-      ));
-      for (const page of results) {
-        for (const t of page.items) allNames.add(t.name);
-        if (page.nextCursor) anyTruncated = true;
-      }
-      const sorted = [...allNames].sort((a, b) => a.localeCompare(b));
-      if (sorted.length > MAX_DISPLAYED_TESTS) {
-        return { names: sorted.slice(0, MAX_DISPLAYED_TESTS), truncated: true };
-      }
-      return { names: sorted, truncated: anyTruncated };
+      const perMachine = await Promise.all(
+        machineList.map(m => cache.getTestNames(suite, m, metricName, signal)),
+      );
+      const union = [...new Set(perMachine.flat())].sort((a, b) => a.localeCompare(b));
+      return filterTestNames(union, filter, MAX_DISPLAYED_TESTS);
     }
 
-    /**
-     * Fetch data for uncached tests on a single machine. Issues one
-     * paginated GET /query?machine=M&metric=Y&test=T1&test=T2&...
-     * Distributes incoming points into per-test cache entries.
-     */
-    async function fetchUncachedTests(
-      testsuite: string, machineName: string, metricName: string,
-      testNames: string[], signal?: AbortSignal,
-    ): Promise<void> {
-      // Find which tests are not yet cached.
-      const uncached = testNames.filter(t => {
-        const key = perTestKey(machineName, metricName, t);
-        const entry = perTestCache.get(key);
-        return !entry || !entry.complete;
-      });
-      if (uncached.length === 0) return;
+    async function handleFilterChange(): Promise<void> {
+      filterAbort?.abort();
+      filterAbort = new AbortController();
+      const sig = filterAbort.signal;
 
-      // Initialize cache entries for uncached tests.
-      for (const t of uncached) {
-        const key = perTestKey(machineName, metricName, t);
-        if (!perTestCache.has(key)) {
-          perTestCache.set(key, { points: [], complete: false });
-        }
-        touchCache(key);
-      }
+      try {
+        const { names, truncated } = await discoverAndFilter(
+          currentSuite, machines, metric, testFilter, sig);
+        if (sig.aborted) return;
+        discoveredTests = names;
+        discoveredTruncated = truncated;
 
-      // Single paginated POST query for all uncached tests.
-      const queryUrl = apiUrl(testsuite, 'query');
-      let cursor: string | undefined;
-      while (true) {
-        if (signal?.aborted) return;
-        const body: Record<string, unknown> = {
-          machine: machineName,
-          metric: metricName,
-          test: uncached,
-          sort: 'test,order',
-          limit: parseInt(PAGE_LIMIT, 10),
-        };
-        if (cursor) body.cursor = cursor;
+        // Render immediately from cache
+        renderFromDiscoveredTests();
 
-        const page = await postOneCursorPage<QueryDataPoint>(queryUrl, body, signal);
+        // Fetch data for newly visible tests (no-op if already cached)
+        await Promise.all(machines.map(m =>
+          cache.ensureTestData(currentSuite, m, metric, names, { signal: sig })
+        ));
+        if (sig.aborted) return;
 
-        // Distribute points into per-test caches.
-        for (const pt of page.items) {
-          const key = perTestKey(machineName, metricName, pt.test);
-          const entry = perTestCache.get(key);
-          if (entry) entry.points.push(pt);
-        }
+        // Fetch baselines for new tests (re-fetches if test list expanded)
+        await Promise.all(baselines.map(bl =>
+          cache.getBaselineData(bl.suite, bl.machine, bl.order, metric, names, sig),
+        ));
+        if (sig.aborted) return;
 
-        if (!page.nextCursor) break;
-        cursor = page.nextCursor;
-
-        // Progressive render after each page.
-        if (machines.includes(machineName) && metricName === metric) {
-          renderFromDiscoveredTests(false);
-        }
-      }
-
-      // Mark all uncached tests as complete.
-      for (const t of uncached) {
-        const key = perTestKey(machineName, metricName, t);
-        const entry = perTestCache.get(key);
-        if (entry) entry.complete = true;
+        renderFromDiscoveredTests();
+      } catch (e: unknown) {
+        if (e instanceof DOMException && e.name === 'AbortError') return;
       }
     }
 
     // ----- Render from discovered tests -----
 
-    function renderFromDiscoveredTests(batch = true): void {
+    function renderFromDiscoveredTests(): void {
       if (discoveredTests.length === 0 || machines.length === 0 || !metric) {
         // No data yet — show empty chart with scaffold if available, clear legend
         progressContainer.replaceChildren();
         if (legendHandle) { legendHandle.update([], undefined); }
-        const scaffold = computeScaffoldUnion();
+        const scaffold = cache.scaffoldUnion(currentSuite, machines);
         chartRenderGen++;
         if (pendingChartRAF !== null) {
           cancelAnimationFrame(pendingChartRAF);
@@ -641,7 +519,7 @@ export const graphPage: PageModule = {
         return;
       }
 
-      // Collect data from per-test caches for each machine.
+      // Collect data from cache for each machine.
       let anyHasData = false;
       let allComplete = true;
       let totalPoints = 0;
@@ -654,23 +532,26 @@ export const graphPage: PageModule = {
       const colorMap = new Map<string, string>();
       discoveredTests.forEach((name, i) => colorMap.set(name, assignColor(i)));
 
+      // Collect all points for raw values callback.
+      const allPoints: QueryDataPoint[] = [];
+
       for (let mi = 0; mi < machines.length; mi++) {
         const m = machines[mi];
         const symbol = assignSymbol(mi);
 
         for (const testName of discoveredTests) {
-          const key = perTestKey(m, metric, testName);
-          const entry = perTestCache.get(key);
-          if (!entry || entry.points.length === 0) {
-            if (!entry?.complete) allComplete = false;
+          const points = cache.readCachedTestData(currentSuite, m, metric, testName);
+          if (points.length === 0) {
+            if (!cache.isComplete(currentSuite, m, metric, testName)) allComplete = false;
             continue;
           }
 
           anyHasData = true;
-          totalPoints += entry.points.length;
-          if (!entry.complete) allComplete = false;
+          totalPoints += points.length;
+          if (!cache.isComplete(currentSuite, m, metric, testName)) allComplete = false;
+          for (const pt of points) allPoints.push(pt);
 
-          const machineTraces = buildTraces(entry.points, runAgg, sampleAgg);
+          const machineTraces = buildTraces(points, runAgg, sampleAgg);
           for (const t of machineTraces) {
             const tn = traceName(t.testName, m);
             allTraces.push({
@@ -686,7 +567,7 @@ export const graphPage: PageModule = {
 
       if (!anyHasData) {
         // No data yet — show empty chart with scaffold
-        const scaffold = computeScaffoldUnion();
+        const scaffold = cache.scaffoldUnion(currentSuite, machines);
         chartRenderGen++;
         if (pendingChartRAF !== null) {
           cancelAnimationFrame(pendingChartRAF);
@@ -782,11 +663,6 @@ export const graphPage: PageModule = {
       }
 
       // --- Deferred chart update phase ---
-      if (batch && setsEqual(activeSet, prevActiveTraceNames)) {
-        return;
-      }
-      prevActiveTraceNames = new Set(activeSet);
-
       chartRenderGen++;
       const myGen = chartRenderGen;
       if (pendingChartRAF !== null) {
@@ -794,17 +670,9 @@ export const graphPage: PageModule = {
         pendingChartRAF = null;
       }
 
-      // Collect all points for raw values callback.
-      const allPoints: QueryDataPoint[] = [];
-      for (const testName of discoveredTests) {
-        for (const m of machines) {
-          const entry = perTestCache.get(perTestKey(m, metric, testName));
-          if (entry) for (const pt of entry.points) allPoints.push(pt);
-        }
-      }
-
-      const refs = buildBaselinesFromData(baselines, baselineDataCache, metric, getAggFn(runAgg));
-      const scaffold = computeScaffoldUnion();
+      const refs = buildBaselinesFromData(baselines,
+        (s, m, o, met) => cache.readCachedBaselineData(s, m, o, met), metric, getAggFn(runAgg));
+      const scaffold = cache.scaffoldUnion(currentSuite, machines);
 
       const rawValuesCallback = (testName: string, machineName: string, orderValue: string): number[] => {
         const values: number[] = [];
@@ -835,105 +703,10 @@ export const graphPage: PageModule = {
         }
       }
 
-      if (!batch) {
-        // Progressive data loading: render in a single deferred frame.
-        if (activeTraces.length === 0) {
-          renderAllTraces();
-        } else {
-          pendingChartRAF = requestAnimationFrame(renderAllTraces);
-        }
+      if (activeTraces.length === 0) {
+        renderAllTraces();
       } else {
-        // User-initiated change: render traces in batches.
-        let batchEnd = 0;
-
-        function renderNextBatch(): void {
-          pendingChartRAF = null;
-          if (myGen !== chartRenderGen) return;
-
-          batchEnd = Math.min(batchEnd + CHART_BATCH_SIZE, activeTraces.length);
-          const batchTraces = activeTraces.slice(0, batchEnd);
-
-          const chartOpts = {
-            traces: batchTraces,
-            yAxisLabel: metric,
-            baselines: refs.length > 0 ? refs : undefined,
-            categoryOrder: scaffold ?? undefined,
-            getRawValues: rawValuesCallback,
-          };
-
-          if (chartHandle) {
-            chartHandle.update(chartOpts);
-          } else {
-            chartHandle = createTimeSeriesChart(chartContainer, chartOpts);
-          }
-
-          if (batchEnd < activeTraces.length) {
-            pendingChartRAF = requestAnimationFrame(renderNextBatch);
-          }
-        }
-
-        if (activeTraces.length === 0) {
-          renderNextBatch();
-        } else {
-          pendingChartRAF = requestAnimationFrame(renderNextBatch);
-        }
-      }
-    }
-
-    // ----- Baseline data fetching -----
-
-    async function fetchAllBaselineData(testNames: string[]): Promise<void> {
-      if (!metric || baselines.length === 0 || testNames.length === 0) return;
-      const myGen = suiteGeneration;
-      const signal = fetchAbort?.signal;
-
-      for (const bl of baselines) {
-        const blCacheKey = `${bl.suite}::${bl.machine}::${bl.order}::${metric}`;
-        if (baselineDataCache.has(blCacheKey)) continue;
-
-        try {
-          const points = await queryDataPoints(bl.suite, {
-            machine: bl.machine,
-            metric,
-            order: bl.order,
-            test: testNames,
-          }, signal);
-          if (myGen !== suiteGeneration) return;
-          baselineDataCache.set(blCacheKey, points);
-        } catch {
-          // Baseline data is optional — silently ignore errors
-        }
-      }
-    }
-
-    // ----- Scaffold fetching (per machine) -----
-
-    async function fetchScaffold(testsuite: string, machineName: string): Promise<void> {
-      if (machineScaffolds.has(machineName)) return;
-      const signal = fetchAbort?.signal;
-      try {
-        const seen = new Set<string>();
-        const orders: string[] = [];
-        let cursor: string | undefined;
-        const runsUrl = apiUrl(testsuite, `machines/${encodeURIComponent(machineName)}/runs`);
-        while (true) {
-          if (signal?.aborted) return;
-          if (!machines.includes(machineName)) return;
-          const params: Record<string, string> = { sort: 'order', limit: '10000' };
-          if (cursor) params.cursor = cursor;
-          const page = await fetchOneCursorPage<MachineRunInfo>(runsUrl, params, signal);
-          for (const run of page.items) {
-            const ov = primaryOrderValue(run.order);
-            if (!seen.has(ov)) { seen.add(ov); orders.push(ov); }
-          }
-          if (!page.nextCursor) break;
-          cursor = page.nextCursor;
-        }
-        if (!machines.includes(machineName)) return;
-        machineScaffolds.set(machineName, orders);
-      } catch (e: unknown) {
-        if (e instanceof DOMException && e.name === 'AbortError') return;
-        /* scaffold is optional */
+        pendingChartRAF = requestAnimationFrame(renderAllTraces);
       }
     }
 
@@ -953,18 +726,19 @@ export const graphPage: PageModule = {
       const plotFilter = testFilter;
       const plotMachines = [...machines];
 
-      // Abort any in-flight fetches from a previous doPlot call.
+      // Abort any in-flight fetches from a previous doPlot or filter call.
       abortFetches();
+      if (filterAbort) { filterAbort.abort(); filterAbort = null; }
       fetchAbort = new AbortController();
       const signal = fetchAbort.signal;
 
       (async () => {
         try {
           // 1. Fetch scaffolds for any machines that don't have one yet.
-          await Promise.all(plotMachines.map(m => fetchScaffold(currentSuite, m)));
+          await Promise.all(plotMachines.map(m => cache.getScaffold(currentSuite, m, signal)));
 
           // Render empty chart with scaffold while loading.
-          const scaffold = computeScaffoldUnion();
+          const scaffold = cache.scaffoldUnion(currentSuite, plotMachines);
           if (plotMetric === metric && scaffold) {
             if (!chartHandle) {
               chartHandle = createTimeSeriesChart(chartContainer, {
@@ -978,31 +752,34 @@ export const graphPage: PageModule = {
             );
           }
 
-          // 2. Discover matching test names.
-          const { names, truncated } = await discoverTests(
+          // 2. Discover test names (fetch ALL, filter locally).
+          const { names, truncated } = await discoverAndFilter(
             currentSuite, plotMachines, plotMetric, plotFilter, signal);
           if (signal.aborted || plotMetric !== metric) return;
           discoveredTests = names;
           discoveredTruncated = truncated;
-          manuallyHidden = new Set(); // Reset toggles on new discovery.
-          baselineDataCache.clear(); // Baseline data is test-scoped; re-fetch for new tests.
+          manuallyHidden = new Set();
 
           // Render immediately from cache (tests that are already cached show instantly).
-          renderFromDiscoveredTests(false);
+          renderFromDiscoveredTests();
 
           // 3. Fetch uncached test data for each machine.
           await Promise.all(plotMachines.map(m =>
-            fetchUncachedTests(currentSuite, m, plotMetric, names, signal)));
+            cache.ensureTestData(currentSuite, m, plotMetric, names, {
+              signal, onProgress: () => renderFromDiscoveredTests(),
+            })));
           if (signal.aborted || plotMetric !== metric) return;
 
           // Final render with all data complete.
-          renderFromDiscoveredTests(false);
+          renderFromDiscoveredTests();
 
           // 4. Fetch baseline data.
           if (baselines.length > 0) {
-            await fetchAllBaselineData(names);
+            await Promise.all(baselines.map(bl =>
+              cache.getBaselineData(bl.suite, bl.machine, bl.order, plotMetric, names, signal),
+            ));
             if (!signal.aborted && plotMetric === metric) {
-              renderFromDiscoveredTests(false);
+              renderFromDiscoveredTests();
             }
           }
         } catch (e: unknown) {
@@ -1037,20 +814,17 @@ export const graphPage: PageModule = {
 
       // Abort all in-flight fetches
       abortFetches();
+      if (filterAbort) { filterAbort.abort(); filterAbort = null; }
 
       // Clear ALL module-level state
       machines = [];
-      perTestCache = new Map();
-      cacheAccessOrder = [];
+      cache.clear();
       discoveredTests = [];
       discoveredTruncated = false;
-      machineScaffolds = new Map();
-      baselineDataCache.clear();
       baselineOrderCache.clear();
       blMachineOrders = null;
       manuallyHidden = new Set();
       currentVisibleTraceNames = [];
-      prevActiveTraceNames = new Set();
       baselines.length = 0;
       if (pendingChartRAF !== null) { cancelAnimationFrame(pendingChartRAF); pendingChartRAF = null; }
       chartRenderGen = 0;
@@ -1141,6 +915,7 @@ export const graphPage: PageModule = {
     if (blMachineCleanup) { blMachineCleanup(); blMachineCleanup = null; }
     if (blOrderCleanup) { blOrderCleanup(); blOrderCleanup = null; }
     abortFetches();
+    if (filterAbort) { filterAbort.abort(); filterAbort = null; }
     if (pendingChartRAF !== null) { cancelAnimationFrame(pendingChartRAF); pendingChartRAF = null; }
     if (chartHandle) { chartHandle.destroy(); chartHandle = null; }
     if (legendHandle) { legendHandle.destroy(); legendHandle = null; }
@@ -1148,18 +923,16 @@ export const graphPage: PageModule = {
     if (cleanupChartHover) { cleanupChartHover(); cleanupChartHover = null; }
     manuallyHidden = new Set();
     currentVisibleTraceNames = [];
-    prevActiveTraceNames = new Set();
     chartRenderGen = 0;
     currentSuite = '';
     suiteGeneration = 0;
     discoveredTests = [];
     discoveredTruncated = false;
-    baselineDataCache.clear();
     baselineOrderCache.clear();
     blMachineOrders = null;
-    // Intentionally preserve perTestCache and machineScaffolds across
-    // unmount/remount so that navigating back renders instantly from
-    // cache. The machines list is restored from URL on mount.
+    // Intentionally preserve cache across unmount/remount so that
+    // navigating back renders instantly from cache. The machines list
+    // is restored from URL on mount.
   },
 };
 
@@ -1218,13 +991,12 @@ export function buildTraces(
  */
 export function buildBaselinesFromData(
   baselines: Array<{ suite: string; machine: string; order: string; tag: string | null }>,
-  baselineDataCache: Map<string, QueryDataPoint[]>,
+  getPoints: (suite: string, machine: string, order: string, metric: string) => QueryDataPoint[],
   metric: string,
   aggFn: (values: number[]) => number,
 ): PinnedBaseline[] {
   return baselines.map((bl, i) => {
-    const cacheKey = `${bl.suite}::${bl.machine}::${bl.order}::${metric}`;
-    const points = baselineDataCache.get(cacheKey) ?? [];
+    const points = getPoints(bl.suite, bl.machine, bl.order, metric);
 
     const rawPerTest = new Map<string, number[]>();
     for (const pt of points) {

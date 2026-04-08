@@ -1,0 +1,499 @@
+// @vitest-environment jsdom
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { GraphDataCache, filterTestNames, type GraphDataApi } from '../../pages/graph-data-cache';
+import type { QueryDataPoint } from '../../types';
+
+function makePoint(test: string, orderValue: string, value: number, machine = 'm1', metric = 'exec_time'): QueryDataPoint {
+  return {
+    test,
+    machine,
+    metric,
+    value,
+    order: { rev: orderValue },
+    run_uuid: 'r1',
+    timestamp: null,
+  };
+}
+
+function createMockApi(): GraphDataApi & {
+  fetchOneCursorPage: ReturnType<typeof vi.fn>;
+  postOneCursorPage: ReturnType<typeof vi.fn>;
+} {
+  return {
+    apiUrl: (suite: string, path: string) => `/api/v5/${suite}/${path}`,
+    fetchOneCursorPage: vi.fn(),
+    postOneCursorPage: vi.fn(),
+  };
+}
+
+describe('GraphDataCache', () => {
+  let api: ReturnType<typeof createMockApi>;
+  let cache: GraphDataCache;
+
+  beforeEach(() => {
+    api = createMockApi();
+    cache = new GraphDataCache(api);
+  });
+
+  // -------------------------------------------------------------------------
+  // getScaffold
+  // -------------------------------------------------------------------------
+
+  describe('getScaffold', () => {
+    it('fetches and caches scaffold orders', async () => {
+      api.fetchOneCursorPage.mockResolvedValueOnce({
+        items: [
+          { uuid: 'r1', order: { rev: '100' }, start_time: null, end_time: null },
+          { uuid: 'r2', order: { rev: '101' }, start_time: null, end_time: null },
+        ],
+        nextCursor: null,
+      });
+
+      const result = await cache.getScaffold('nts', 'm1');
+      expect(result).toEqual(['100', '101']);
+      expect(api.fetchOneCursorPage).toHaveBeenCalledTimes(1);
+
+      // Second call returns cached (no API hit)
+      const result2 = await cache.getScaffold('nts', 'm1');
+      expect(result2).toEqual(['100', '101']);
+      expect(api.fetchOneCursorPage).toHaveBeenCalledTimes(1);
+    });
+
+    it('paginates through all results', async () => {
+      api.fetchOneCursorPage
+        .mockResolvedValueOnce({
+          items: [{ uuid: 'r1', order: { rev: '100' }, start_time: null, end_time: null }],
+          nextCursor: 'cursor1',
+        })
+        .mockResolvedValueOnce({
+          items: [{ uuid: 'r2', order: { rev: '101' }, start_time: null, end_time: null }],
+          nextCursor: null,
+        });
+
+      const result = await cache.getScaffold('nts', 'm1');
+      expect(result).toEqual(['100', '101']);
+      expect(api.fetchOneCursorPage).toHaveBeenCalledTimes(2);
+    });
+
+    it('deduplicates order values', async () => {
+      api.fetchOneCursorPage.mockResolvedValueOnce({
+        items: [
+          { uuid: 'r1', order: { rev: '100' }, start_time: null, end_time: null },
+          { uuid: 'r2', order: { rev: '100' }, start_time: null, end_time: null },
+          { uuid: 'r3', order: { rev: '101' }, start_time: null, end_time: null },
+        ],
+        nextCursor: null,
+      });
+
+      const result = await cache.getScaffold('nts', 'm1');
+      expect(result).toEqual(['100', '101']);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // getTestNames
+  // -------------------------------------------------------------------------
+
+  describe('getTestNames', () => {
+    it('fetches once and caches', async () => {
+      api.fetchOneCursorPage.mockResolvedValueOnce({
+        items: [{ name: 'test-B' }, { name: 'test-A' }],
+        nextCursor: null,
+      });
+
+      const result = await cache.getTestNames('nts', 'm1', 'exec_time');
+      expect(result).toEqual(['test-A', 'test-B']); // sorted
+      expect(api.fetchOneCursorPage).toHaveBeenCalledTimes(1);
+
+      // Second call — no API hit
+      const result2 = await cache.getTestNames('nts', 'm1', 'exec_time');
+      expect(result2).toEqual(['test-A', 'test-B']);
+      expect(api.fetchOneCursorPage).toHaveBeenCalledTimes(1);
+    });
+
+    it('paginates through all results', async () => {
+      api.fetchOneCursorPage
+        .mockResolvedValueOnce({
+          items: [{ name: 'test-A' }],
+          nextCursor: 'cursor1',
+        })
+        .mockResolvedValueOnce({
+          items: [{ name: 'test-B' }],
+          nextCursor: null,
+        });
+
+      const result = await cache.getTestNames('nts', 'm1', 'exec_time');
+      expect(result).toEqual(['test-A', 'test-B']);
+      expect(api.fetchOneCursorPage).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // getTestData / ensureTestData / readCachedTestData
+  // -------------------------------------------------------------------------
+
+  describe('getTestData', () => {
+    it('fetches on demand if not pre-fetched', async () => {
+      const points = [makePoint('test-A', '100', 1.0), makePoint('test-A', '101', 2.0)];
+      api.postOneCursorPage.mockResolvedValueOnce({ items: points, nextCursor: null });
+
+      const result = await cache.getTestData('nts', 'm1', 'exec_time', 'test-A');
+      expect(result).toEqual(points);
+      expect(api.postOneCursorPage).toHaveBeenCalledTimes(1);
+    });
+
+    it('returns cached data on second call', async () => {
+      const points = [makePoint('test-A', '100', 1.0)];
+      api.postOneCursorPage.mockResolvedValueOnce({ items: points, nextCursor: null });
+
+      await cache.getTestData('nts', 'm1', 'exec_time', 'test-A');
+      const result2 = await cache.getTestData('nts', 'm1', 'exec_time', 'test-A');
+      expect(result2).toEqual(points);
+      expect(api.postOneCursorPage).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('ensureTestData', () => {
+    it('fetches only uncached tests', async () => {
+      // Pre-cache test-A
+      const pointsA = [makePoint('test-A', '100', 1.0)];
+      api.postOneCursorPage.mockResolvedValueOnce({ items: pointsA, nextCursor: null });
+      await cache.getTestData('nts', 'm1', 'exec_time', 'test-A');
+
+      // ensureTestData for test-A + test-B — only test-B should be fetched
+      const pointsB = [makePoint('test-B', '100', 3.0)];
+      api.postOneCursorPage.mockResolvedValueOnce({ items: pointsB, nextCursor: null });
+
+      await cache.ensureTestData('nts', 'm1', 'exec_time', ['test-A', 'test-B']);
+
+      // Should have called postOneCursorPage twice total (1 for test-A, 1 for test-B)
+      expect(api.postOneCursorPage).toHaveBeenCalledTimes(2);
+      // The second call should only include test-B
+      const secondCallBody = api.postOneCursorPage.mock.calls[1][1];
+      expect(secondCallBody.test).toEqual(['test-B']);
+    });
+
+    it('is a no-op for fully cached tests', async () => {
+      const pointsA = [makePoint('test-A', '100', 1.0)];
+      api.postOneCursorPage.mockResolvedValueOnce({ items: pointsA, nextCursor: null });
+      await cache.getTestData('nts', 'm1', 'exec_time', 'test-A');
+
+      await cache.ensureTestData('nts', 'm1', 'exec_time', ['test-A']);
+      // No additional API call
+      expect(api.postOneCursorPage).toHaveBeenCalledTimes(1);
+    });
+
+    it('calls onProgress after each page', async () => {
+      api.postOneCursorPage
+        .mockResolvedValueOnce({
+          items: [makePoint('test-A', '100', 1.0)],
+          nextCursor: 'cursor1',
+        })
+        .mockResolvedValueOnce({
+          items: [makePoint('test-A', '101', 2.0)],
+          nextCursor: null,
+        });
+
+      const onProgress = vi.fn();
+      await cache.ensureTestData('nts', 'm1', 'exec_time', ['test-A'], { onProgress });
+
+      // onProgress called after first page and after completion
+      expect(onProgress).toHaveBeenCalledTimes(2);
+    });
+
+    it('distributes points to per-test entries', async () => {
+      const points = [
+        makePoint('test-A', '100', 1.0),
+        makePoint('test-B', '100', 2.0),
+        makePoint('test-A', '101', 3.0),
+      ];
+      api.postOneCursorPage.mockResolvedValueOnce({ items: points, nextCursor: null });
+
+      await cache.ensureTestData('nts', 'm1', 'exec_time', ['test-A', 'test-B']);
+
+      expect(cache.readCachedTestData('nts', 'm1', 'exec_time', 'test-A')).toHaveLength(2);
+      expect(cache.readCachedTestData('nts', 'm1', 'exec_time', 'test-B')).toHaveLength(1);
+    });
+  });
+
+  describe('readCachedTestData', () => {
+    it('returns [] for uncached test', () => {
+      expect(cache.readCachedTestData('nts', 'm1', 'exec_time', 'test-A')).toEqual([]);
+    });
+
+    it('returns data for cached test', async () => {
+      const points = [makePoint('test-A', '100', 1.0)];
+      api.postOneCursorPage.mockResolvedValueOnce({ items: points, nextCursor: null });
+      await cache.getTestData('nts', 'm1', 'exec_time', 'test-A');
+
+      expect(cache.readCachedTestData('nts', 'm1', 'exec_time', 'test-A')).toEqual(points);
+    });
+  });
+
+  describe('isComplete', () => {
+    it('returns false for uncached', () => {
+      expect(cache.isComplete('nts', 'm1', 'exec_time', 'test-A')).toBe(false);
+    });
+
+    it('returns true after getTestData completes', async () => {
+      api.postOneCursorPage.mockResolvedValueOnce({ items: [], nextCursor: null });
+      await cache.getTestData('nts', 'm1', 'exec_time', 'test-A');
+      expect(cache.isComplete('nts', 'm1', 'exec_time', 'test-A')).toBe(true);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // getBaselineData / readCachedBaselineData
+  // -------------------------------------------------------------------------
+
+  describe('getBaselineData', () => {
+    it('fetches once and caches', async () => {
+      const points = [makePoint('test-A', '100', 5.0)];
+      api.postOneCursorPage.mockResolvedValueOnce({ items: points, nextCursor: null });
+
+      const result = await cache.getBaselineData('nts', 'm1', '100', 'exec_time', ['test-A']);
+      expect(result).toEqual(points);
+      expect(api.postOneCursorPage).toHaveBeenCalledTimes(1);
+
+      // Second call with same tests — no API hit
+      const result2 = await cache.getBaselineData('nts', 'm1', '100', 'exec_time', ['test-A']);
+      expect(result2).toEqual(points);
+      expect(api.postOneCursorPage).toHaveBeenCalledTimes(1);
+    });
+
+    it('re-fetches when requested test list includes new tests', async () => {
+      const points1 = [makePoint('test-A', '100', 5.0)];
+      api.postOneCursorPage.mockResolvedValueOnce({ items: points1, nextCursor: null });
+      await cache.getBaselineData('nts', 'm1', '100', 'exec_time', ['test-A']);
+
+      // Now request with test-B added
+      const points2 = [makePoint('test-A', '100', 5.0), makePoint('test-B', '100', 10.0)];
+      api.postOneCursorPage.mockResolvedValueOnce({ items: points2, nextCursor: null });
+      const result = await cache.getBaselineData('nts', 'm1', '100', 'exec_time', ['test-A', 'test-B']);
+
+      expect(result).toEqual(points2);
+      expect(api.postOneCursorPage).toHaveBeenCalledTimes(2);
+    });
+
+    it('no-op when all requested tests are covered', async () => {
+      const points = [makePoint('test-A', '100', 5.0), makePoint('test-B', '100', 10.0)];
+      api.postOneCursorPage.mockResolvedValueOnce({ items: points, nextCursor: null });
+      await cache.getBaselineData('nts', 'm1', '100', 'exec_time', ['test-A', 'test-B']);
+
+      // Request subset
+      const result = await cache.getBaselineData('nts', 'm1', '100', 'exec_time', ['test-A']);
+      expect(result).toEqual(points);
+      expect(api.postOneCursorPage).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('readCachedBaselineData', () => {
+    it('returns [] for uncached', () => {
+      expect(cache.readCachedBaselineData('nts', 'm1', '100', 'exec_time')).toEqual([]);
+    });
+
+    it('returns data for cached baseline', async () => {
+      const points = [makePoint('test-A', '100', 5.0)];
+      api.postOneCursorPage.mockResolvedValueOnce({ items: points, nextCursor: null });
+      await cache.getBaselineData('nts', 'm1', '100', 'exec_time', ['test-A']);
+
+      expect(cache.readCachedBaselineData('nts', 'm1', '100', 'exec_time')).toEqual(points);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Error handling
+  // -------------------------------------------------------------------------
+
+  describe('error handling', () => {
+    it('does not cache on API error (allows retry)', async () => {
+      api.postOneCursorPage.mockRejectedValueOnce(new Error('Network error'));
+
+      await expect(cache.getTestData('nts', 'm1', 'exec_time', 'test-A')).rejects.toThrow('Network error');
+
+      // Entry should not be cached — next call should retry
+      expect(cache.isComplete('nts', 'm1', 'exec_time', 'test-A')).toBe(false);
+
+      // Retry succeeds
+      const points = [makePoint('test-A', '100', 1.0)];
+      api.postOneCursorPage.mockResolvedValueOnce({ items: points, nextCursor: null });
+      const result = await cache.getTestData('nts', 'm1', 'exec_time', 'test-A');
+      expect(result).toEqual(points);
+    });
+
+    it('propagates error to caller', async () => {
+      api.fetchOneCursorPage.mockRejectedValueOnce(new Error('Server error'));
+      await expect(cache.getScaffold('nts', 'm1')).rejects.toThrow('Server error');
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Abort signal
+  // -------------------------------------------------------------------------
+
+  describe('abort signal', () => {
+    it('does not corrupt cache on abort during ensureTestData', async () => {
+      const controller = new AbortController();
+
+      api.postOneCursorPage.mockImplementation(async () => {
+        controller.abort();
+        return { items: [makePoint('test-A', '100', 1.0)], nextCursor: 'cursor1' };
+      });
+
+      await cache.ensureTestData('nts', 'm1', 'exec_time', ['test-A'], { signal: controller.signal });
+
+      // Entry should NOT be marked complete (abort happened mid-fetch)
+      expect(cache.isComplete('nts', 'm1', 'exec_time', 'test-A')).toBe(false);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // LRU eviction
+  // -------------------------------------------------------------------------
+
+  describe('LRU eviction', () => {
+    it('evicts oldest data entries when maxEntries reached', async () => {
+      const smallCache = new GraphDataCache(api, 3);
+
+      // Fill with 3 entries
+      for (let i = 0; i < 3; i++) {
+        api.postOneCursorPage.mockResolvedValueOnce({
+          items: [makePoint(`test-${i}`, '100', i)],
+          nextCursor: null,
+        });
+        await smallCache.getTestData('nts', 'm1', 'exec_time', `test-${i}`);
+      }
+
+      // All 3 should be cached
+      expect(smallCache.readCachedTestData('nts', 'm1', 'exec_time', 'test-0')).toHaveLength(1);
+      expect(smallCache.readCachedTestData('nts', 'm1', 'exec_time', 'test-1')).toHaveLength(1);
+      expect(smallCache.readCachedTestData('nts', 'm1', 'exec_time', 'test-2')).toHaveLength(1);
+
+      // Add a 4th entry — should evict test-0
+      api.postOneCursorPage.mockResolvedValueOnce({
+        items: [makePoint('test-3', '100', 3)],
+        nextCursor: null,
+      });
+      await smallCache.getTestData('nts', 'm1', 'exec_time', 'test-3');
+
+      expect(smallCache.readCachedTestData('nts', 'm1', 'exec_time', 'test-0')).toEqual([]);
+      expect(smallCache.readCachedTestData('nts', 'm1', 'exec_time', 'test-1')).toHaveLength(1);
+      expect(smallCache.readCachedTestData('nts', 'm1', 'exec_time', 'test-3')).toHaveLength(1);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // scaffoldUnion
+  // -------------------------------------------------------------------------
+
+  describe('scaffoldUnion', () => {
+    it('computes union across machines', async () => {
+      api.fetchOneCursorPage
+        .mockResolvedValueOnce({
+          items: [
+            { uuid: 'r1', order: { rev: '100' }, start_time: null, end_time: null },
+            { uuid: 'r2', order: { rev: '101' }, start_time: null, end_time: null },
+          ],
+          nextCursor: null,
+        })
+        .mockResolvedValueOnce({
+          items: [
+            { uuid: 'r3', order: { rev: '101' }, start_time: null, end_time: null },
+            { uuid: 'r4', order: { rev: '102' }, start_time: null, end_time: null },
+          ],
+          nextCursor: null,
+        });
+
+      await cache.getScaffold('nts', 'm1');
+      await cache.getScaffold('nts', 'm2');
+
+      const union = cache.scaffoldUnion('nts', ['m1', 'm2']);
+      expect(union).toEqual(['100', '101', '102']);
+    });
+
+    it('returns null when no scaffolds cached', () => {
+      expect(cache.scaffoldUnion('nts', ['m1'])).toBeNull();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // clear
+  // -------------------------------------------------------------------------
+
+  describe('clear', () => {
+    it('resets all caches', async () => {
+      // Populate each cache type
+      api.fetchOneCursorPage
+        .mockResolvedValueOnce({
+          items: [{ uuid: 'r1', order: { rev: '100' }, start_time: null, end_time: null }],
+          nextCursor: null,
+        })
+        .mockResolvedValueOnce({
+          items: [{ name: 'test-A' }],
+          nextCursor: null,
+        });
+      api.postOneCursorPage
+        .mockResolvedValueOnce({ items: [makePoint('test-A', '100', 1.0)], nextCursor: null })
+        .mockResolvedValueOnce({ items: [makePoint('test-A', '100', 5.0)], nextCursor: null });
+
+      await cache.getScaffold('nts', 'm1');
+      await cache.getTestNames('nts', 'm1', 'exec_time');
+      await cache.getTestData('nts', 'm1', 'exec_time', 'test-A');
+      await cache.getBaselineData('nts', 'm1', '100', 'exec_time', ['test-A']);
+
+      cache.clear();
+
+      expect(cache.scaffoldUnion('nts', ['m1'])).toBeNull();
+      expect(cache.readCachedTestData('nts', 'm1', 'exec_time', 'test-A')).toEqual([]);
+      expect(cache.readCachedBaselineData('nts', 'm1', '100', 'exec_time')).toEqual([]);
+      expect(cache.isComplete('nts', 'm1', 'exec_time', 'test-A')).toBe(false);
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// filterTestNames (standalone function)
+// ---------------------------------------------------------------------------
+
+describe('filterTestNames', () => {
+  it('filters by case-insensitive substring', () => {
+    const names = ['compile/test-A', 'compile/test-B', 'exec/test-C', 'COMPILE/test-D'];
+    const { names: result, truncated } = filterTestNames(names, 'compile');
+    expect(result).toEqual(['compile/test-A', 'compile/test-B', 'COMPILE/test-D']);
+    expect(truncated).toBe(false);
+  });
+
+  it('caps at maxResults and reports truncation', () => {
+    const names = Array.from({ length: 100 }, (_, i) => `test-${i}`);
+    const { names: result, truncated } = filterTestNames(names, '', 10);
+    expect(result).toHaveLength(10);
+    expect(truncated).toBe(true);
+  });
+
+  it('returns empty for empty input', () => {
+    const { names, truncated } = filterTestNames([], 'anything');
+    expect(names).toEqual([]);
+    expect(truncated).toBe(false);
+  });
+
+  it('returns all names when filter is empty and under max', () => {
+    const names = ['test-A', 'test-B'];
+    const { names: result, truncated } = filterTestNames(names, '');
+    expect(result).toEqual(['test-A', 'test-B']);
+    expect(truncated).toBe(false);
+  });
+
+  it('truncates when filter matches more than maxResults', () => {
+    const names = Array.from({ length: 20 }, (_, i) => `match-${i}`);
+    const { names: result, truncated } = filterTestNames(names, 'match', 5);
+    expect(result).toHaveLength(5);
+    expect(truncated).toBe(true);
+  });
+
+  it('defaults maxResults to 50', () => {
+    const names = Array.from({ length: 60 }, (_, i) => `test-${i}`);
+    const { names: result, truncated } = filterTestNames(names, '');
+    expect(result).toHaveLength(50);
+    expect(truncated).toBe(true);
+  });
+});
