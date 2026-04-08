@@ -191,15 +191,18 @@ class App(LNTExceptionLoggerFlask):
         :param config_path: path to lnt config (directory or config file).
         :return: a LNT Flask App, ready to be loaded into a wsgi server.
         """
-        instance = lnt.server.instance.Instance.frompath(config_path)
-        app = App.create_with_instance(instance)
-
         # Always log to stderr. In production, the webserver is generally run
         # inside a Docker container where logging to stderr is the de facto
-        # standard.
+        # standard. Set this up before loading the instance so that migration
+        # and initialization messages are visible.
         handler = logging.StreamHandler()
         handler.setLevel(logging.DEBUG)
         handler.setFormatter(Formatter('%(levelname)s: %(message)s [in %(filename)s:%(lineno)d %(asctime)s]'))
+        logger.setLevel(logging.DEBUG)
+        logger.addHandler(handler)
+
+        instance = lnt.server.instance.Instance.frompath(config_path)
+        app = App.create_with_instance(instance)
         app.logger.addHandler(handler)
 
         return app
