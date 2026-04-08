@@ -69,14 +69,29 @@ class V4DB(object):
         self.engine = sqlalchemy.create_engine(path,
                                                connect_args=connect_args)
 
-        # Update the database to the current version, if necessary. Only check
-        # this once per path.
-        lnt.server.db.migrate.update(self.engine)
+        # On Postgres, use an advisory lock to prevent multiple gunicorn
+        # workers from initializing the database concurrently. Without this,
+        # concurrent workers race on DDL statements in migrations, on
+        # TestSuite metadata inserts in _load_schemas(), and on CREATE TABLE
+        # in create_tables(). On SQLite, file-level locking already
+        # serializes access.
+        is_postgres = self.engine.dialect.name == 'postgresql'
+        conn = self.engine.connect() if is_postgres else None
+        try:
+            if conn is not None:
+                conn.execute(sqlalchemy.text("SELECT pg_advisory_lock(1)"))
 
-        self.sessionmaker = sqlalchemy.orm.sessionmaker(self.engine)
+            # Update the database to the current version, if necessary.
+            lnt.server.db.migrate.update(self.engine)
 
-        self.testsuite = dict()
-        self._load_schemas()
+            self.sessionmaker = sqlalchemy.orm.sessionmaker(self.engine)
+
+            self.testsuite = dict()
+            self._load_schemas()
+        finally:
+            if conn is not None:
+                conn.execute(sqlalchemy.text("SELECT pg_advisory_unlock(1)"))
+                conn.close()
 
     def close(self):
         self.engine.dispose()
