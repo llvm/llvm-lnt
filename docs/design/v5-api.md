@@ -180,3 +180,14 @@ R9: Not in Scope (Deferred)
 - Run comparison / derived analytics endpoints
 - Report endpoints (daily, summary, latest runs)
 - Machine merge
+
+R10: AI Agent Orientation
+
+- Serve a plain-text orientation document at GET /llms.txt (following the
+  llms.txt convention, analogous to robots.txt)
+- Content: what LNT is, key domain concepts, API structure, common workflows,
+  and links to Swagger UI / OpenAPI spec
+- Static content, no authentication required
+- Served as text/plain with UTF-8 charset
+- Registered as a plain Flask blueprint (not flask-smorest) so it does not
+  appear in the OpenAPI spec

@@ -630,6 +630,26 @@ DELETE /api/v5/admin/api-keys/{prefix}     — Revoke key by prefix (admin)
 - DELETE sets is_active=False (soft delete for audit trail)
 - Auth: admin scope required for all.
 
+### 5.13 AI Agent Orientation (`GET /llms.txt`)
+
+**File**: `lnt/server/api/v5/endpoints/agents.py`
+
+Serves a plain-text orientation document at `GET /llms.txt` following the llms.txt
+convention (analogous to robots.txt). Helps AI agents understand what LNT is, its
+domain concepts, and how to navigate the API.
+
+**Key design decisions:**
+- Plain Flask blueprint (not flask-smorest) — keeps it out of the OpenAPI spec
+- Registered on the Flask app directly in `create_v5_api()`
+- Static content defined as a Python string constant — no template or DB access
+- Content-Type: `text/plain; charset=utf-8`
+- No authentication required
+- Outside the `/api/v5/` prefix for conventional discoverability
+
+Content includes: LNT description, key concepts (test suite, machine, order, run,
+test, sample, regression, field change), endpoint listing, pagination format,
+links to Swagger UI and OpenAPI spec, and common workflows.
+
 ---
 
 ## 6. Testing Strategy

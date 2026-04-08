@@ -32,4 +32,7 @@ def create_v5_api(app):
     from .endpoints import register_all_endpoints
     register_all_endpoints(smorest_api)
 
+    from .endpoints.agents import llms_txt_bp
+    app.register_blueprint(llms_txt_bp)
+
     return smorest_api
