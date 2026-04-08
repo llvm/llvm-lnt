@@ -5,176 +5,100 @@ import { navigate } from '../router';
 
 export interface NavConfig {
   testsuite: string;
-  testsuites: string[];
   v4Url: string;
   urlBase: string; // lnt_url_base
 }
 
 let activeLink: HTMLElement | null = null;
 
+interface NavLink {
+  label: string;
+  path: string;
+  suiteParam?: string;
+}
+
+/**
+ * Build a suite-agnostic nav link element. In suite-agnostic context, clicks
+ * use SPA navigation; in suite-scoped context, the browser follows the href.
+ */
+function buildNavLink(link: NavLink, agnosticBase: string, config: NavConfig): HTMLAnchorElement {
+  let href = `${agnosticBase}${link.path}`;
+  if (config.testsuite && link.suiteParam) {
+    href += `?${link.suiteParam}=${encodeURIComponent(config.testsuite)}`;
+  }
+
+  const a = el('a', {
+    class: 'v5-nav-link',
+    href,
+    'data-path': link.path,
+  }, link.label) as HTMLAnchorElement;
+
+  if (!config.testsuite) {
+    a.addEventListener('click', (e) => {
+      if (isModifiedClick(e)) return;
+      e.preventDefault();
+      navigate(link.path);
+    });
+  }
+
+  return a;
+}
+
 /**
  * Render the navigation bar.
  * Returns the nav element to prepend to the app root.
+ *
+ * All navbar links are suite-agnostic. In suite-agnostic context they use
+ * SPA navigation; in suite-scoped context they use full-page navigation.
  */
 export function renderNav(config: NavConfig): HTMLElement {
   const nav = el('nav', { class: 'v5-nav' });
-  const tsBasePath = config.testsuite
-    ? `${config.urlBase}/v5/${encodeURIComponent(config.testsuite)}`
-    : `${config.urlBase}/v5`;
+  const agnosticBase = `${config.urlBase}/v5`;
 
-  // Test suite selector (created first so brand and nav links can reference it)
-  const suiteSelect = el('select', { class: 'v5-nav-suite-select' }) as HTMLSelectElement;
-  for (const name of config.testsuites) {
-    const opt = el('option', { value: name }, name);
-    if (name === config.testsuite) {
-      (opt as HTMLOptionElement).selected = true;
-    }
-    suiteSelect.append(opt);
-  }
-  suiteSelect.addEventListener('change', () => {
-    const newSuite = suiteSelect.value;
-    window.location.href = `${config.urlBase}/v5/${encodeURIComponent(newSuite)}/`;
-  });
-
-  // Brand — in admin context, href points to the selected suite's dashboard
-  const brandHref = config.testsuite
-    ? tsBasePath + '/'
-    : `${config.urlBase}/v5/${encodeURIComponent(suiteSelect.value)}/`;
+  // Brand — always links to the suite-agnostic dashboard at /v5/
+  const brandHref = `${agnosticBase}/`;
   const brand = el('a', { class: 'v5-nav-brand', href: brandHref }, 'LNT');
   if (!config.testsuite) {
-    suiteSelect.addEventListener('change', () => {
-      const suite = suiteSelect.value;
-      brand.setAttribute('href', `${config.urlBase}/v5/${encodeURIComponent(suite)}/`);
-    });
-  }
-  brand.addEventListener('click', (e) => {
-    if (isModifiedClick(e)) return;
-    e.preventDefault();
-    if (config.testsuite) {
-      navigate('/');
-    } else {
-      const suite = suiteSelect.value;
-      if (suite) {
-        window.location.href = `${config.urlBase}/v5/${encodeURIComponent(suite)}/`;
-      }
-    }
-  });
-  nav.append(brand);
-
-  const suiteGroup = el('div', { class: 'v5-nav-suite' });
-  suiteGroup.append(el('span', {}, 'Suite: '), suiteSelect);
-  nav.append(suiteGroup);
-
-  // Navigation links — three categories:
-  // 1. Suite-scoped: Dashboard, Machines, Regressions
-  // 2. Analysis (suite-agnostic): Graph, Compare
-  // 3. Admin (suite-agnostic, handled separately below)
-
-  const suiteLinks: { label: string; path: string }[] = [
-    { label: 'Dashboard', path: '/' },
-    { label: 'Regressions', path: '/regressions' },
-    { label: 'Machines', path: '/machines' },
-  ];
-  const analysisLinks: { label: string; agnosticPath: string; suiteParam: string }[] = [
-    { label: 'Graph', agnosticPath: '/graph', suiteParam: 'suite' },
-    { label: 'Compare', agnosticPath: '/compare', suiteParam: 'suite_a' },
-  ];
-
-  const linksContainer = el('div', { class: 'v5-nav-links' });
-
-  // Suite-scoped links
-  for (const link of suiteLinks) {
-    if (config.testsuite) {
-      // In suite context — SPA navigation
-      const a = el('a', {
-        class: 'v5-nav-link',
-        href: tsBasePath + link.path,
-        'data-path': link.path,
-      }, link.label);
-      a.addEventListener('click', (e) => {
-        if (isModifiedClick(e)) return;
-        e.preventDefault();
-        navigate(link.path);
-      });
-      linksContainer.append(a);
-    } else {
-      // In suite-agnostic context — full page to selected suite
-      const a = el('a', {
-        class: 'v5-nav-link',
-        'data-path': link.path,
-      }, link.label);
-      const updateHref = () => {
-        const suite = suiteSelect.value;
-        if (suite) {
-          a.setAttribute('href', `${config.urlBase}/v5/${encodeURIComponent(suite)}${link.path}`);
-        }
-      };
-      updateHref();
-      suiteSelect.addEventListener('change', updateHref);
-      a.addEventListener('click', (e) => {
-        if (isModifiedClick(e)) return;
-        e.preventDefault();
-        const suite = suiteSelect.value;
-        if (suite) {
-          window.location.href = `${config.urlBase}/v5/${encodeURIComponent(suite)}${link.path}`;
-        }
-      });
-      linksContainer.append(a);
-    }
-  }
-
-  // Analysis links (suite-agnostic pages: Graph, Compare)
-  for (const link of analysisLinks) {
-    if (config.testsuite) {
-      // In suite context — full page link with suite pre-filled
-      const href = `${config.urlBase}/v5${link.agnosticPath}?${link.suiteParam}=${encodeURIComponent(config.testsuite)}`;
-      const a = el('a', {
-        class: 'v5-nav-link',
-        href,
-        'data-path': link.agnosticPath,
-      }, link.label);
-      // No click handler — let browser do full page navigation
-      linksContainer.append(a);
-    } else {
-      // In suite-agnostic context — SPA navigation
-      const a = el('a', {
-        class: 'v5-nav-link',
-        href: `${config.urlBase}/v5${link.agnosticPath}`,
-        'data-path': link.agnosticPath,
-      }, link.label);
-      a.addEventListener('click', (e) => {
-        if (isModifiedClick(e)) return;
-        e.preventDefault();
-        navigate(link.agnosticPath);
-      });
-      linksContainer.append(a);
-    }
-  }
-
-  // Admin link — always suite-agnostic
-  const adminHref = `${config.urlBase}/v5/admin`;
-  const adminLink = el('a', {
-    class: 'v5-nav-link',
-    href: adminHref,
-    'data-path': '/admin',
-  }, 'Admin');
-  if (!config.testsuite) {
-    // In suite-agnostic context — SPA navigation
-    adminLink.addEventListener('click', (e) => {
+    brand.addEventListener('click', (e) => {
       if (isModifiedClick(e)) return;
       e.preventDefault();
-      navigate('/admin');
+      navigate('/');
     });
   }
-  linksContainer.append(adminLink);
+  // In suite-scoped context: no click handler — browser follows the href
+  nav.append(brand);
+
+  // Left-side links
+  const linksContainer = el('div', { class: 'v5-nav-links' });
+
+  const leftLinks: NavLink[] = [
+    { label: 'Test Suites', path: '/test-suites' },
+    { label: 'Graph', path: '/graph', suiteParam: 'suite' },
+    { label: 'Compare', path: '/compare', suiteParam: 'suite_a' },
+  ];
+
+  for (const link of leftLinks) {
+    linksContainer.append(buildNavLink(link, agnosticBase, config));
+  }
+
+  // API link — always opens Swagger UI in a new tab
+  const apiLink = el('a', {
+    class: 'v5-nav-link',
+    href: `${config.urlBase}/api/v5/openapi/swagger-ui`,
+    target: '_blank',
+    rel: 'noopener',
+  }, 'API');
+  linksContainer.append(apiLink);
 
   nav.append(linksContainer);
 
-  // Right side: v4 toggle + Settings
+  // Right side: v4 UI, Admin, Settings
   const rightGroup = el('div', { class: 'v5-nav-right' });
 
   const v4Link = el('a', { class: 'v5-nav-link', href: config.v4Url }, 'v4 UI');
   rightGroup.append(v4Link);
+
+  rightGroup.append(buildNavLink({ label: 'Admin', path: '/admin' }, agnosticBase, config));
 
   const settingsLink = el('a', {
     class: 'v5-nav-link',
@@ -205,46 +129,12 @@ export function updateActiveNavLink(currentPath: string): void {
     const path = link.getAttribute('data-path');
     if (!path) continue;
 
-    // Exact match for "/" (dashboard), prefix match for others
-    if (path === '/') {
-      if (currentPath === '/' || currentPath === '') {
-        link.classList.add('v5-nav-link-active');
-        activeLink = link;
-      }
-    } else if (currentPath.startsWith(path)) {
+    if (currentPath.startsWith(path)) {
       link.classList.add('v5-nav-link-active');
       activeLink = link;
-    }
-  }
-}
-
-/**
- * Remove a suite from the nav bar dropdown (e.g. after deletion).
- */
-export function removeSuiteFromNav(suiteName: string): void {
-  const select = document.querySelector('.v5-nav-suite-select') as HTMLSelectElement | null;
-  if (!select) return;
-  for (const opt of Array.from(select.options)) {
-    if (opt.value === suiteName) {
-      opt.remove();
       break;
     }
   }
-}
-
-/**
- * Add a suite to the nav bar dropdown in sorted position (e.g. after creation).
- */
-export function addSuiteToNav(suiteName: string): void {
-  const select = document.querySelector('.v5-nav-suite-select') as HTMLSelectElement | null;
-  if (!select) return;
-  const options = Array.from(select.options);
-  // Avoid duplicates
-  if (options.some(o => o.value === suiteName)) return;
-  const insertIndex = options.findIndex(o => o.value > suiteName);
-  const opt = new Option(suiteName, suiteName);
-  if (insertIndex === -1) select.add(opt);
-  else select.add(opt, insertIndex);
 }
 
 /** Settings panel toggle (token input). Reuses the existing pattern. */
@@ -272,8 +162,8 @@ function toggleSettings(): void {
   panel.append(tokenInput);
 
   // Insert after the nav
-  const nav = document.querySelector('.v5-nav');
-  if (nav && nav.parentElement) {
-    nav.parentElement.insertBefore(panel, nav.nextSibling);
+  const navEl = document.querySelector('.v5-nav');
+  if (navEl && navEl.parentElement) {
+    navEl.parentElement.insertBefore(panel, navEl.nextSibling);
   }
 }

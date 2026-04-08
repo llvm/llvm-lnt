@@ -83,6 +83,40 @@ class TestSPAShell(unittest.TestCase):
 
     # --- Global admin route (not testsuite-specific) ---
 
+    def test_root_route(self):
+        """The /v5/ route is the suite-agnostic dashboard."""
+        resp = self.client.get('/v5/')
+        self.assertEqual(resp.status_code, 200)
+        html = resp.get_data(as_text=True)
+        self.assertIn('id="v5-app"', html)
+        self.assertIn('data-testsuite=""', html)
+
+    def test_root_route_no_trailing_slash(self):
+        """GET /v5 (no trailing slash) redirects or serves the SPA."""
+        resp = self.client.get('/v5')
+        # Flask strict_slashes=False means it serves 200 directly
+        self.assertIn(resp.status_code, (200, 301, 302, 308))
+
+    def test_test_suites_route(self):
+        """The /v5/test-suites route is suite-agnostic."""
+        resp = self.client.get('/v5/test-suites')
+        self.assertEqual(resp.status_code, 200)
+        html = resp.get_data(as_text=True)
+        self.assertIn('id="v5-app"', html)
+        self.assertIn('data-testsuite=""', html)
+
+    def test_test_suites_route_trailing_slash(self):
+        """/v5/test-suites/ (trailing slash) should work."""
+        resp = self.client.get('/v5/test-suites/')
+        self.assertIn(resp.status_code, (200, 301, 302, 308))
+
+    def test_root_does_not_conflict_with_suite(self):
+        """GET /v5/nts/ still works with the new /v5/ route."""
+        resp = self.client.get('/v5/nts/')
+        self.assertEqual(resp.status_code, 200)
+        html = resp.get_data(as_text=True)
+        self.assertIn('data-testsuite="nts"', html)
+
     def test_admin_route(self):
         """The /v5/admin route is global, not under any testsuite."""
         resp = self.client.get('/v5/admin')
@@ -138,6 +172,8 @@ class TestSPAShell(unittest.TestCase):
         resp = self.client.get('/v5/nts/')
         html = resp.get_data(as_text=True)
         self.assertIn('data-v4-url=', html)
+        # v4 URL should be the root page, not suite-specific
+        self.assertNotIn('recent_activity', html)
 
     def test_spa_template_loads_v5_assets(self):
         resp = self.client.get('/v5/nts/')

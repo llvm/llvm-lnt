@@ -30,10 +30,12 @@ The v4 UI stays around as-is. The only integration point is a toggle link in eac
 
 The v5 API only supports the default DB, so v5 frontend routes do not include `db_<db_name>` prefixes.
 
-Suite-agnostic pages (admin, graph, compare) are served at top-level `/v5/` routes with `data-testsuite=""`, while suite-scoped pages use the catch-all route which passes the test suite name as `data-testsuite`.
+Suite-agnostic pages (dashboard, test suites, admin, graph, compare) are served at top-level `/v5/` routes with `data-testsuite=""`, while suite-scoped pages use the catch-all route which passes the test suite name as `data-testsuite`.
 
 ```python
 # lnt/server/ui/v5/views.py
+@v5_frontend.route("/v5/", strict_slashes=False)
+@v5_frontend.route("/v5/test-suites", strict_slashes=False)
 @v5_frontend.route("/v5/admin", strict_slashes=False)
 @v5_frontend.route("/v5/graph", strict_slashes=False)
 @v5_frontend.route("/v5/compare", strict_slashes=False)
@@ -53,14 +55,16 @@ The shell template (`v5_app.html`) is a standalone HTML page (it does NOT extend
 ### v4/v5 Toggle
 
 - In the v4 navbar (`layout.html`): add a "v5 UI" link in the top-right of the nav bar (next to the "System" dropdown, not inside any dropdown menu) pointing to `/v5/{ts}/`
-- In the v5 SPA navbar: a "v4 UI" link pointing to `/v4/{ts}/recent_activity`
+- In the v5 SPA navbar: a "v4 UI" link pointing to the v4 root page (`/`)
 
 ---
 
 ## Page Hierarchy
 
 ```
-/v5/{ts}/                              Dashboard (landing page)
+/v5/                                   Dashboard (landing page — suite-agnostic placeholder)
+/v5/test-suites                        Test Suites (suite-agnostic placeholder)
+/v5/{ts}/                              Suite root (suite-specific dashboard)
 /v5/{ts}/machines                      Machine List
 /v5/{ts}/machines/{name}               Machine Detail
 /v5/{ts}/runs/{uuid}                   Run Detail
@@ -76,28 +80,25 @@ The shell template (`v5_app.html`) is a standalone HTML page (it does NOT extend
 ### Navigation Bar
 
 ```
-[LNT]  [Suite: nts ▾]  Dashboard  Graph  Compare  Regressions  Machines  Admin   [v4 UI]  [Settings]
+[LNT] [Test Suites] [Graph] [Compare] [API]  <------------>  [v4 UI] [Admin] [Settings]
 ```
 
-Navigation links fall into three categories based on their routing behavior:
+All navbar links are suite-agnostic. The navbar behavior depends on the page context:
 
-- **Suite-scoped links** (Dashboard, Machines, Regressions): In suite context (`/v5/{ts}/...`), these are SPA navigations within the current suite. In suite-agnostic context (`/v5/graph`, `/v5/compare`, `/v5/admin`), these are full-page links that navigate to `/v5/{ts}/...` (using the suite selector's current value).
-- **Analysis links** (Graph, Compare): In suite context, these are full-page links to `/v5/graph?suite={ts}` and `/v5/compare?suite_a={ts}`, pre-filling the current suite. In suite-agnostic context, these are SPA navigations within the agnostic shell.
-- **Admin**: In suite context, this is a full-page link to `/v5/admin`. In suite-agnostic context, this is SPA navigation.
+- **Suite-agnostic context** (`/v5/...` without a suite): All navbar links use SPA navigation. API opens in a new tab. v4 UI is external.
+- **Suite-scoped context** (`/v5/{ts}/...`): All navbar links use full-page navigation (since they target `/v5/...` which is outside the suite basePath `/v5/{ts}`).
+
+Graph and Compare links append `?suite={ts}` / `?suite_a={ts}` when navigated from suite-scoped context, pre-filling the current suite.
 
 ---
 
 ## Page Details
 
-### 1. Dashboard — `/v5/{ts}/`
+### 1. Dashboard — `/v5/`
 
-The landing page. Order-centric view answering "what happened with recent commits?"
+Suite-agnostic landing page. Currently a placeholder — content to be designed later.
 
-| Section | Shows | API Calls |
-|---------|-------|-----------|
-| Recent Orders | Table of recent orders with two columns: order value with tag suffix when set (e.g. "abc123 (release-18)"), linked to Order Detail; and latest run timestamp, linked to Run Detail. | `GET runs?sort=-start_time&limit=...` (derive orders from runs), then `GET orders/{value}` per unique order to fetch tags |
-
-**Links out**: Order Detail, Run Detail.
+The existing suite-specific dashboard content (recent orders table) remains accessible at `/v5/{ts}/` as the suite root page.
 
 ### 2. Machine List — `/v5/{ts}/machines`
 
@@ -346,7 +347,9 @@ lnt/server/ui/v5/frontend/src/
 ├── combobox.ts                Reuse existing combobox widget
 ├── style.css                  Extend existing styles
 ├── pages/
-│   ├── dashboard.ts
+│   ├── home.ts                Suite-agnostic dashboard (placeholder)
+│   ├── test-suites.ts         Suite-agnostic test suites page (placeholder)
+│   ├── dashboard.ts           Suite-specific dashboard (recent orders)
 │   ├── machine-list.ts
 │   ├── machine-detail.ts
 │   ├── run-detail.ts

@@ -21,19 +21,36 @@ beforeEach(() => {
   });
 });
 
-describe('renderNav', () => {
+// --- Suite-agnostic context (no testsuite) ---
+
+describe('renderNav (suite-agnostic context)', () => {
   const config = {
-    testsuite: 'nts',
-    testsuites: ['nts', 'compile'],
-    v4Url: '/db_default/v4/nts/recent_activity',
+    testsuite: '',
+    v4Url: '/',
     urlBase: '',
   };
 
-  it('renders all expected navigation links', () => {
+  it('renders left-side nav links: Test Suites, Graph, Compare', () => {
     const nav = renderNav(config);
-    const links = nav.querySelectorAll('.v5-nav-link[data-path]');
+    const links = nav.querySelectorAll('.v5-nav-links .v5-nav-link[data-path]');
     const labels = Array.from(links).map(l => l.textContent);
-    expect(labels).toEqual(['Dashboard', 'Regressions', 'Machines', 'Graph', 'Compare', 'Admin']);
+    expect(labels).toEqual(['Test Suites', 'Graph', 'Compare']);
+  });
+
+  it('renders API link with target="_blank"', () => {
+    const nav = renderNav(config);
+    const apiLink = Array.from(nav.querySelectorAll('.v5-nav-link'))
+      .find(l => l.textContent === 'API') as HTMLAnchorElement;
+    expect(apiLink).toBeTruthy();
+    expect(apiLink.getAttribute('target')).toBe('_blank');
+    expect(apiLink.getAttribute('href')).toBe('/api/v5/openapi/swagger-ui');
+  });
+
+  it('renders right-side links: v4 UI, Admin, Settings', () => {
+    const nav = renderNav(config);
+    const rightLinks = nav.querySelectorAll('.v5-nav-right .v5-nav-link');
+    const labels = Array.from(rightLinks).map(l => l.textContent);
+    expect(labels).toEqual(['v4 UI', 'Admin', 'Settings']);
   });
 
   it('renders the LNT brand', () => {
@@ -42,33 +59,16 @@ describe('renderNav', () => {
     expect(brand?.textContent).toBe('LNT');
   });
 
-  it('renders suite selector with correct options', () => {
+  it('does not render a suite selector dropdown', () => {
     const nav = renderNav(config);
-    const select = nav.querySelector('.v5-nav-suite-select') as HTMLSelectElement;
-    expect(select).toBeTruthy();
-    const options = Array.from(select.options);
-    expect(options.map(o => o.value)).toEqual(['nts', 'compile']);
-    expect(select.value).toBe('nts');
+    const select = nav.querySelector('select');
+    expect(select).toBeNull();
   });
 
-  it('renders v4 UI link', () => {
+  it('brand href is /v5/', () => {
     const nav = renderNav(config);
-    const v4Link = Array.from(nav.querySelectorAll('.v5-nav-link'))
-      .find(l => l.textContent === 'v4 UI') as HTMLAnchorElement;
-    expect(v4Link).toBeTruthy();
-    expect(v4Link.href).toContain('/db_default/v4/nts/recent_activity');
-  });
-
-  it('clicking a nav link calls navigate()', () => {
-    const nav = renderNav(config);
-    document.body.append(nav);
-
-    const machinesLink = Array.from(nav.querySelectorAll('.v5-nav-link[data-path]'))
-      .find(l => l.textContent === 'Machines') as HTMLAnchorElement;
-    expect(machinesLink).toBeTruthy();
-
-    machinesLink.click();
-    expect(navigate).toHaveBeenCalledWith('/machines');
+    const brand = nav.querySelector('.v5-nav-brand') as HTMLAnchorElement;
+    expect(brand.getAttribute('href')).toBe('/v5/');
   });
 
   it('clicking brand calls navigate("/")', () => {
@@ -80,34 +80,67 @@ describe('renderNav', () => {
     expect(navigate).toHaveBeenCalledWith('/');
   });
 
-  it('brand link has real href (not #)', () => {
+  it('clicking Test Suites calls navigate("/test-suites")', () => {
     const nav = renderNav(config);
-    const brand = nav.querySelector('.v5-nav-brand') as HTMLAnchorElement;
-    expect(brand.getAttribute('href')).toBe('/v5/nts/');
+    document.body.append(nav);
+
+    const link = Array.from(nav.querySelectorAll('.v5-nav-link[data-path]'))
+      .find(l => l.textContent === 'Test Suites') as HTMLAnchorElement;
+    link.click();
+    expect(navigate).toHaveBeenCalledWith('/test-suites');
   });
 
-  it('nav links have real hrefs (not #)', () => {
+  it('clicking Graph calls navigate("/graph")', () => {
     const nav = renderNav(config);
-    const links = Array.from(nav.querySelectorAll('.v5-nav-link[data-path]')) as HTMLAnchorElement[];
-    const hrefs = links.map(l => ({ label: l.textContent, href: l.getAttribute('href') }));
-    // Testsuite-context links should have /v5/nts prefix
-    expect(hrefs).toContainEqual({ label: 'Dashboard', href: '/v5/nts/' });
-    expect(hrefs).toContainEqual({ label: 'Machines', href: '/v5/nts/machines' });
-    // Analysis links (Graph, Compare) are full-page links with suite query param
-    expect(hrefs).toContainEqual({ label: 'Graph', href: '/v5/graph?suite=nts' });
-    expect(hrefs).toContainEqual({ label: 'Compare', href: '/v5/compare?suite_a=nts' });
-    // Admin is outside the testsuite namespace
-    expect(hrefs).toContainEqual({ label: 'Admin', href: '/v5/admin' });
+    document.body.append(nav);
+
+    const link = Array.from(nav.querySelectorAll('.v5-nav-link[data-path]'))
+      .find(l => l.textContent === 'Graph') as HTMLAnchorElement;
+    link.click();
+    expect(navigate).toHaveBeenCalledWith('/graph');
+  });
+
+  it('clicking Compare calls navigate("/compare")', () => {
+    const nav = renderNav(config);
+    document.body.append(nav);
+
+    const link = Array.from(nav.querySelectorAll('.v5-nav-link[data-path]'))
+      .find(l => l.textContent === 'Compare') as HTMLAnchorElement;
+    link.click();
+    expect(navigate).toHaveBeenCalledWith('/compare');
+  });
+
+  it('clicking Admin calls navigate("/admin")', () => {
+    const nav = renderNav(config);
+    document.body.append(nav);
+
+    const link = Array.from(nav.querySelectorAll('.v5-nav-link[data-path]'))
+      .find(l => l.textContent === 'Admin') as HTMLAnchorElement;
+    link.click();
+    expect(navigate).toHaveBeenCalledWith('/admin');
+  });
+
+  it('v4 UI link has correct href from config', () => {
+    const nav = renderNav(config);
+    const v4Link = Array.from(nav.querySelectorAll('.v5-nav-link'))
+      .find(l => l.textContent === 'v4 UI') as HTMLAnchorElement;
+    expect(v4Link.getAttribute('href')).toBe('/');
+  });
+
+  it('Settings link renders', () => {
+    const nav = renderNav(config);
+    const settingsLink = Array.from(nav.querySelectorAll('.v5-nav-link'))
+      .find(l => l.textContent === 'Settings');
+    expect(settingsLink).toBeTruthy();
   });
 
   it('Cmd+Click on nav link does not call navigate()', () => {
     const nav = renderNav(config);
     document.body.append(nav);
 
-    const machinesLink = Array.from(nav.querySelectorAll('.v5-nav-link[data-path]'))
-      .find(l => l.textContent === 'Machines') as HTMLAnchorElement;
-
-    machinesLink.dispatchEvent(new MouseEvent('click', { bubbles: true, metaKey: true }));
+    const link = Array.from(nav.querySelectorAll('.v5-nav-link[data-path]'))
+      .find(l => l.textContent === 'Graph') as HTMLAnchorElement;
+    link.dispatchEvent(new MouseEvent('click', { bubbles: true, metaKey: true }));
     expect(navigate).not.toHaveBeenCalled();
   });
 
@@ -115,10 +148,9 @@ describe('renderNav', () => {
     const nav = renderNav(config);
     document.body.append(nav);
 
-    const machinesLink = Array.from(nav.querySelectorAll('.v5-nav-link[data-path]'))
-      .find(l => l.textContent === 'Machines') as HTMLAnchorElement;
-
-    machinesLink.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true }));
+    const link = Array.from(nav.querySelectorAll('.v5-nav-link[data-path]'))
+      .find(l => l.textContent === 'Graph') as HTMLAnchorElement;
+    link.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true }));
     expect(navigate).not.toHaveBeenCalled();
   });
 
@@ -131,102 +163,168 @@ describe('renderNav', () => {
     expect(navigate).not.toHaveBeenCalled();
   });
 
-  it('nav link hrefs include urlBase when set', () => {
+  it('nav links include urlBase when set', () => {
     const configWithBase = { ...config, urlBase: '/lnt' };
     const nav = renderNav(configWithBase);
     const links = Array.from(nav.querySelectorAll('.v5-nav-link[data-path]')) as HTMLAnchorElement[];
     const hrefs = links.map(l => ({ label: l.textContent, href: l.getAttribute('href') }));
-    expect(hrefs).toContainEqual({ label: 'Graph', href: '/lnt/v5/graph?suite=nts' });
+    expect(hrefs).toContainEqual({ label: 'Graph', href: '/lnt/v5/graph' });
     expect(hrefs).toContainEqual({ label: 'Admin', href: '/lnt/v5/admin' });
     const brand = nav.querySelector('.v5-nav-brand') as HTMLAnchorElement;
-    expect(brand.getAttribute('href')).toBe('/lnt/v5/nts/');
+    expect(brand.getAttribute('href')).toBe('/lnt/v5/');
+  });
+});
+
+// --- Suite-scoped context (testsuite: 'nts') ---
+
+describe('renderNav (suite-scoped context)', () => {
+  const config = {
+    testsuite: 'nts',
+    v4Url: '/db_default/v4/nts/recent_activity',
+    urlBase: '',
+  };
+
+  it('renders same links as agnostic context (navbar looks identical)', () => {
+    const nav = renderNav(config);
+    const leftLinks = nav.querySelectorAll('.v5-nav-links .v5-nav-link[data-path]');
+    const leftLabels = Array.from(leftLinks).map(l => l.textContent);
+    expect(leftLabels).toEqual(['Test Suites', 'Graph', 'Compare']);
+
+    const rightLinks = nav.querySelectorAll('.v5-nav-right .v5-nav-link');
+    const rightLabels = Array.from(rightLinks).map(l => l.textContent);
+    expect(rightLabels).toEqual(['v4 UI', 'Admin', 'Settings']);
   });
 
-  it('brand in admin context has href to first suite dashboard', () => {
-    const adminConfig = { ...config, testsuite: '' };
-    const nav = renderNav(adminConfig);
+  it('brand href is /v5/ (not suite-scoped)', () => {
+    const nav = renderNav(config);
     const brand = nav.querySelector('.v5-nav-brand') as HTMLAnchorElement;
-    // With no testsuite, brand should point to the first suite's dashboard
-    expect(brand.getAttribute('href')).toBe('/v5/nts/');
+    expect(brand.getAttribute('href')).toBe('/v5/');
   });
 
-  it('brand in admin context does not call navigate()', () => {
-    const adminConfig = { ...config, testsuite: '' };
-    const nav = renderNav(adminConfig);
+  it('clicking brand does NOT call navigate() (full-page nav)', () => {
+    const nav = renderNav(config);
     document.body.append(nav);
 
     const brand = nav.querySelector('.v5-nav-brand') as HTMLAnchorElement;
     brand.click();
-    // Admin context uses full-page navigation, not SPA navigate()
     expect(navigate).not.toHaveBeenCalled();
   });
 
-  it('renders Settings link', () => {
+  it('clicking Test Suites does NOT call navigate() (full-page nav)', () => {
     const nav = renderNav(config);
-    const settingsLink = Array.from(nav.querySelectorAll('.v5-nav-link'))
-      .find(l => l.textContent === 'Settings');
-    expect(settingsLink).toBeTruthy();
+    document.body.append(nav);
+
+    const link = Array.from(nav.querySelectorAll('.v5-nav-link[data-path]'))
+      .find(l => l.textContent === 'Test Suites') as HTMLAnchorElement;
+    link.click();
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('Graph link href includes ?suite=nts', () => {
+    const nav = renderNav(config);
+    const link = Array.from(nav.querySelectorAll('.v5-nav-link[data-path]'))
+      .find(l => l.textContent === 'Graph') as HTMLAnchorElement;
+    expect(link.getAttribute('href')).toBe('/v5/graph?suite=nts');
+  });
+
+  it('Compare link href includes ?suite_a=nts', () => {
+    const nav = renderNav(config);
+    const link = Array.from(nav.querySelectorAll('.v5-nav-link[data-path]'))
+      .find(l => l.textContent === 'Compare') as HTMLAnchorElement;
+    expect(link.getAttribute('href')).toBe('/v5/compare?suite_a=nts');
+  });
+
+  it('clicking Admin does NOT call navigate() (full-page nav)', () => {
+    const nav = renderNav(config);
+    document.body.append(nav);
+
+    const link = Array.from(nav.querySelectorAll('.v5-nav-link[data-path]'))
+      .find(l => l.textContent === 'Admin') as HTMLAnchorElement;
+    link.click();
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('no nav link calls navigate() in suite-scoped context', () => {
+    const nav = renderNav(config);
+    document.body.append(nav);
+
+    const links = Array.from(nav.querySelectorAll('.v5-nav-link[data-path]'));
+    for (const link of links) {
+      (link as HTMLElement).click();
+    }
+    expect(navigate).not.toHaveBeenCalled();
   });
 });
 
+// --- updateActiveNavLink ---
+
 describe('updateActiveNavLink', () => {
   const config = {
-    testsuite: 'nts',
-    testsuites: ['nts'],
-    v4Url: '#',
+    testsuite: '',
+    v4Url: '/',
     urlBase: '',
   };
 
-  it('highlights Dashboard for root path', () => {
+  it('highlights Test Suites for /test-suites path', () => {
+    const nav = renderNav(config);
+    document.body.append(nav);
+
+    updateActiveNavLink('/test-suites');
+
+    const link = document.querySelector('[data-path="/test-suites"]');
+    expect(link?.classList.contains('v5-nav-link-active')).toBe(true);
+  });
+
+  it('highlights Graph for /graph path', () => {
+    const nav = renderNav(config);
+    document.body.append(nav);
+
+    updateActiveNavLink('/graph');
+
+    const link = document.querySelector('[data-path="/graph"]');
+    expect(link?.classList.contains('v5-nav-link-active')).toBe(true);
+  });
+
+  it('highlights Compare for /compare path', () => {
+    const nav = renderNav(config);
+    document.body.append(nav);
+
+    updateActiveNavLink('/compare');
+
+    const link = document.querySelector('[data-path="/compare"]');
+    expect(link?.classList.contains('v5-nav-link-active')).toBe(true);
+  });
+
+  it('highlights Admin for /admin path', () => {
+    const nav = renderNav(config);
+    document.body.append(nav);
+
+    updateActiveNavLink('/admin');
+
+    const link = document.querySelector('[data-path="/admin"]');
+    expect(link?.classList.contains('v5-nav-link-active')).toBe(true);
+  });
+
+  it('no link highlighted for root path /', () => {
     const nav = renderNav(config);
     document.body.append(nav);
 
     updateActiveNavLink('/');
 
-    const dashLink = document.querySelector('[data-path="/"]');
-    expect(dashLink?.classList.contains('v5-nav-link-active')).toBe(true);
+    const activeLinks = document.querySelectorAll('.v5-nav-link-active');
+    expect(activeLinks).toHaveLength(0);
   });
 
-  it('highlights Machines for /machines path', () => {
+  it('clears previous highlight when path changes', () => {
     const nav = renderNav(config);
     document.body.append(nav);
 
-    updateActiveNavLink('/machines');
-
-    const machinesLink = document.querySelector('[data-path="/machines"]');
-    expect(machinesLink?.classList.contains('v5-nav-link-active')).toBe(true);
-  });
-
-  it('highlights Machines for /machines/foo sub-path', () => {
-    const nav = renderNav(config);
-    document.body.append(nav);
-
-    updateActiveNavLink('/machines/foo');
-
-    const machinesLink = document.querySelector('[data-path="/machines"]');
-    expect(machinesLink?.classList.contains('v5-nav-link-active')).toBe(true);
-  });
-
-  it('does not highlight Dashboard for non-root paths', () => {
-    const nav = renderNav(config);
-    document.body.append(nav);
-
-    updateActiveNavLink('/machines');
-
-    const dashLink = document.querySelector('[data-path="/"]');
-    expect(dashLink?.classList.contains('v5-nav-link-active')).toBe(false);
-  });
-
-  it('clears previous active link when path changes', () => {
-    const nav = renderNav(config);
-    document.body.append(nav);
-
-    updateActiveNavLink('/machines');
     updateActiveNavLink('/graph');
+    updateActiveNavLink('/admin');
 
-    const machinesLink = document.querySelector('[data-path="/machines"]');
     const graphLink = document.querySelector('[data-path="/graph"]');
-    expect(machinesLink?.classList.contains('v5-nav-link-active')).toBe(false);
-    expect(graphLink?.classList.contains('v5-nav-link-active')).toBe(true);
+    const adminLink = document.querySelector('[data-path="/admin"]');
+    expect(graphLink?.classList.contains('v5-nav-link-active')).toBe(false);
+    expect(adminLink?.classList.contains('v5-nav-link-active')).toBe(true);
   });
 });

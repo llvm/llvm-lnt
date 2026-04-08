@@ -4,7 +4,6 @@
 import type { PageModule, RouteParams } from '../router';
 import type { APIKeyItem, TestSuiteInfo } from '../types';
 import { getApiKeys, createApiKey, revokeApiKey, getTestSuiteInfo, createTestSuite, deleteTestSuite, authErrorMessage } from '../api';
-import { removeSuiteFromNav, addSuiteToNav } from '../components/nav';
 import { el, formatTime } from '../utils';
 
 let controller: AbortController | null = null;
@@ -145,7 +144,7 @@ function renderCreateForm(container: HTMLElement): void {
         // Refresh the keys table
         const tableContainer = container.querySelector('.admin-keys-table-container');
         if (tableContainer) {
-          getApiKeys().then(keys => {
+          getApiKeys(signal).then(keys => {
             renderKeysTable(container, keys);
           }).catch(() => { /* keep existing table */ });
         }
@@ -209,7 +208,7 @@ function renderKeysTable(container: HTMLElement, keys: APIKeyItem[]): void {
         revokeApiKey(key.prefix)
           .then(() => {
             // Refresh
-            getApiKeys().then(updated => {
+            getApiKeys(signal).then(updated => {
               renderKeysTable(container, updated);
             }).catch(() => {
               revokeBtn.removeAttribute('disabled');
@@ -371,7 +370,6 @@ function renderCreateSuiteTab(
           const updated = [...current, name].sort();
           root.setAttribute('data-testsuites', JSON.stringify(updated));
         }
-        addSuiteToNav(name);
         onCreated();
       })
       .catch(err => {
@@ -448,7 +446,6 @@ function renderDeleteSuite(
           const updated = current.filter(s => s !== suiteName);
           root.setAttribute('data-testsuites', JSON.stringify(updated));
         }
-        removeSuiteFromNav(suiteName);
         onDeleted();
       })
       .catch(err => {

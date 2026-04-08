@@ -7,6 +7,8 @@ import { el } from './utils';
 import './style.css';
 
 // Page modules
+import { homePage } from './pages/home';
+import { testSuitesPage } from './pages/test-suites';
 import { dashboardPage } from './pages/dashboard';
 import { machineListPage } from './pages/machine-list';
 import { machineDetailPage } from './pages/machine-detail';
@@ -36,7 +38,7 @@ function init(): void {
   setApiBase(urlBase);
 
   // Render nav bar (persistent across route changes)
-  const nav = renderNav({ testsuite, testsuites, v4Url, urlBase });
+  const nav = renderNav({ testsuite, v4Url, urlBase });
   root.append(nav);
 
   // Page content container
@@ -57,7 +59,9 @@ function init(): void {
     const basePath = `${urlBase}/v5/${encodeURIComponent(testsuite)}`;
     initRouter(pageContainer, basePath, updateActiveNavLink, { testsuite, testsuites });
   } else {
-    // Suite-agnostic pages — analysis tools and admin
+    // Suite-agnostic pages — dashboard, test suites, analysis tools, admin
+    addRoute('/', homePage);
+    addRoute('/test-suites', testSuitesPage);
     addRoute('/admin', adminPage);
     addRoute('/graph', graphPage);
     addRoute('/compare', comparePage);

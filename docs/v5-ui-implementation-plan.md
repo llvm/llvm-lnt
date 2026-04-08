@@ -81,7 +81,7 @@ This is a standalone HTML page (does NOT extend `layout.html`). The v5 SPA rende
 <div id="v5-app"
      data-testsuite="{{ g.testsuite_name }}"
      data-testsuites="{{ testsuites | tojson | forceescape }}"
-     data-v4-url="{{ v4_url_for('lnt.v4_recent_activity') }}">
+     data-v4-url="{{ url_for('lnt.index') }}">
 </div>
 <script src="{{ url_for('lnt_v5.static', filename='v5/v5.js') }}"></script>
 </body>
@@ -106,11 +106,13 @@ from lnt.server.ui.views import ts_data
 from lnt.server.ui.decorators import _make_db_session
 
 
+@v5_frontend.route("/v5/", strict_slashes=False)
+@v5_frontend.route("/v5/test-suites", strict_slashes=False)
 @v5_frontend.route("/v5/admin", strict_slashes=False)
 @v5_frontend.route("/v5/graph", strict_slashes=False)
 @v5_frontend.route("/v5/compare", strict_slashes=False)
 def v5_global():
-    """Suite-agnostic pages (admin, graph, compare).
+    """Suite-agnostic pages (dashboard, test suites, admin, graph, compare).
 
     Serves the SPA shell with an empty testsuite. Each page manages
     suite selection internally via its own UI controls. The list of
@@ -353,23 +355,24 @@ Routes are split into two contexts based on whether a test suite is set in the S
 
 | Pattern | Page Module |
 |---------|-------------|
+| `/` | `pages/home` |
+| `/test-suites` | `pages/test-suites` |
 | `/graph` | `pages/graph` |
 | `/compare` | `pages/compare` |
 | `/admin` | `pages/admin` |
 
-Graph and Compare manage suite selection internally (Graph has a single suite `<select>`, Compare has per-side suite selects). Admin is not suite-specific.
+Graph and Compare manage suite selection internally (Graph has a single suite `<select>`, Compare has per-side suite selects). Admin is not suite-specific. Home and Test Suites are placeholders.
 
 ### 1.6 Navigation Bar Component
 
-**File**: `lnt/server/ui/v5/frontend/src/components/nav.ts` (new file)
+**File**: `lnt/server/ui/v5/frontend/src/components/nav.ts`
 
 Renders a persistent navigation bar above the page content. The nav bar is rendered once by `main.ts` and is not re-rendered on route changes; instead, the active link is updated.
 
-Nav links are organized into three categories with different navigation behavior depending on context:
+All navbar links are suite-agnostic. The behavior depends on the page context:
 
-1. **Suite-scoped** (Dashboard, Regressions, Machines): SPA navigation in suite context; full-page navigation to the selected suite's URL in suite-agnostic context.
-2. **Analysis** (Graph, Compare): Full-page navigation with `?suite=` (or `?suite_a=`) pre-fill in suite context (since these pages live at `/v5/graph` and `/v5/compare`, not under `/v5/{ts}/`); SPA navigation in suite-agnostic context.
-3. **Admin**: Full-page navigation in suite context (since admin lives at `/v5/admin`); SPA navigation in suite-agnostic context.
+- **Suite-agnostic context** (`data-testsuite` is empty): All navbar links use SPA navigation via `navigate()`. The API link opens in a new tab. The v4 UI link is external.
+- **Suite-scoped context** (`data-testsuite` is set): All navbar links use full-page navigation (since they target `/v5/...` which is outside the suite basePath `/v5/{ts}`).
 
 ```typescript
 // components/nav.ts — Navigation bar
@@ -379,247 +382,34 @@ import { navigate } from '../router';
 
 export interface NavConfig {
   testsuite: string;
-  testsuites: string[];
   v4Url: string;
   urlBase: string; // lnt_url_base
 }
-
-let activeLink: HTMLElement | null = null;
-
-/**
- * Render the navigation bar.
- * Returns the nav element to prepend to the app root.
- */
-export function renderNav(config: NavConfig): HTMLElement {
-  const nav = el('nav', { class: 'v5-nav' });
-  const tsBasePath = config.testsuite
-    ? `${config.urlBase}/v5/${encodeURIComponent(config.testsuite)}`
-    : `${config.urlBase}/v5`;
-
-  // Test suite selector (created first so brand and nav links can reference it)
-  const suiteSelect = el('select', { class: 'v5-nav-suite-select' }) as HTMLSelectElement;
-  for (const name of config.testsuites) {
-    const opt = el('option', { value: name }, name);
-    if (name === config.testsuite) {
-      (opt as HTMLOptionElement).selected = true;
-    }
-    suiteSelect.append(opt);
-  }
-  suiteSelect.addEventListener('change', () => {
-    const newSuite = suiteSelect.value;
-    window.location.href = `${config.urlBase}/v5/${encodeURIComponent(newSuite)}/`;
-  });
-
-  // Brand — in suite context, SPA-navigates to dashboard;
-  //         in agnostic context, full-page to selected suite's dashboard
-  const brandHref = config.testsuite
-    ? tsBasePath + '/'
-    : `${config.urlBase}/v5/${encodeURIComponent(suiteSelect.value)}/`;
-  const brand = el('a', { class: 'v5-nav-brand', href: brandHref }, 'LNT');
-  if (!config.testsuite) {
-    suiteSelect.addEventListener('change', () => {
-      const suite = suiteSelect.value;
-      brand.setAttribute('href', `${config.urlBase}/v5/${encodeURIComponent(suite)}/`);
-    });
-  }
-  brand.addEventListener('click', (e) => {
-    if (isModifiedClick(e)) return;
-    e.preventDefault();
-    if (config.testsuite) {
-      navigate('/');
-    } else {
-      const suite = suiteSelect.value;
-      if (suite) {
-        window.location.href = `${config.urlBase}/v5/${encodeURIComponent(suite)}/`;
-      }
-    }
-  });
-  nav.append(brand);
-
-  const suiteGroup = el('div', { class: 'v5-nav-suite' });
-  suiteGroup.append(el('span', {}, 'Suite: '), suiteSelect);
-  nav.append(suiteGroup);
-
-  // Navigation links — three categories
-  const suiteLinks: { label: string; path: string }[] = [
-    { label: 'Dashboard', path: '/' },
-    { label: 'Regressions', path: '/regressions' },
-    { label: 'Machines', path: '/machines' },
-  ];
-  const analysisLinks: { label: string; agnosticPath: string; suiteParam: string }[] = [
-    { label: 'Graph', agnosticPath: '/graph', suiteParam: 'suite' },
-    { label: 'Compare', agnosticPath: '/compare', suiteParam: 'suite_a' },
-  ];
-
-  const linksContainer = el('div', { class: 'v5-nav-links' });
-
-  // Suite-scoped links
-  for (const link of suiteLinks) {
-    if (config.testsuite) {
-      // In suite context — SPA navigation
-      const a = el('a', {
-        class: 'v5-nav-link',
-        href: tsBasePath + link.path,
-        'data-path': link.path,
-      }, link.label);
-      a.addEventListener('click', (e) => {
-        if (isModifiedClick(e)) return;
-        e.preventDefault();
-        navigate(link.path);
-      });
-      linksContainer.append(a);
-    } else {
-      // In suite-agnostic context — full page to selected suite
-      const a = el('a', {
-        class: 'v5-nav-link',
-        'data-path': link.path,
-      }, link.label);
-      const updateHref = () => {
-        const suite = suiteSelect.value;
-        if (suite) {
-          a.setAttribute('href', `${config.urlBase}/v5/${encodeURIComponent(suite)}${link.path}`);
-        }
-      };
-      updateHref();
-      suiteSelect.addEventListener('change', updateHref);
-      a.addEventListener('click', (e) => {
-        if (isModifiedClick(e)) return;
-        e.preventDefault();
-        const suite = suiteSelect.value;
-        if (suite) {
-          window.location.href = `${config.urlBase}/v5/${encodeURIComponent(suite)}${link.path}`;
-        }
-      });
-      linksContainer.append(a);
-    }
-  }
-
-  // Analysis links (Graph, Compare) — always at /v5/graph, /v5/compare
-  for (const link of analysisLinks) {
-    if (config.testsuite) {
-      // In suite context — full page link with suite pre-filled via query param
-      const href = `${config.urlBase}/v5${link.agnosticPath}?${link.suiteParam}=${encodeURIComponent(config.testsuite)}`;
-      const a = el('a', {
-        class: 'v5-nav-link',
-        href,
-        'data-path': link.agnosticPath,
-      }, link.label);
-      // No click handler — let browser do full page navigation
-      linksContainer.append(a);
-    } else {
-      // In suite-agnostic context — SPA navigation
-      const a = el('a', {
-        class: 'v5-nav-link',
-        href: `${config.urlBase}/v5${link.agnosticPath}`,
-        'data-path': link.agnosticPath,
-      }, link.label);
-      a.addEventListener('click', (e) => {
-        if (isModifiedClick(e)) return;
-        e.preventDefault();
-        navigate(link.agnosticPath);
-      });
-      linksContainer.append(a);
-    }
-  }
-
-  // Admin link — always at /v5/admin
-  const adminHref = `${config.urlBase}/v5/admin`;
-  const adminLink = el('a', {
-    class: 'v5-nav-link',
-    href: adminHref,
-    'data-path': '/admin',
-  }, 'Admin');
-  if (!config.testsuite) {
-    // In suite-agnostic context — SPA navigation
-    adminLink.addEventListener('click', (e) => {
-      if (isModifiedClick(e)) return;
-      e.preventDefault();
-      navigate('/admin');
-    });
-  }
-  // In suite context — no click handler, full page navigation to /v5/admin
-  linksContainer.append(adminLink);
-
-  nav.append(linksContainer);
-
-  // Right side: v4 toggle + Settings
-  const rightGroup = el('div', { class: 'v5-nav-right' });
-
-  const v4Link = el('a', { class: 'v5-nav-link', href: config.v4Url }, 'v4 UI');
-  rightGroup.append(v4Link);
-
-  const settingsLink = el('a', {
-    class: 'v5-nav-link',
-    href: '#',
-  }, 'Settings');
-  settingsLink.addEventListener('click', (e) => {
-    e.preventDefault();
-    toggleSettings();
-  });
-  rightGroup.append(settingsLink);
-  nav.append(rightGroup);
-
-  return nav;
-}
-
-/**
- * Update the active link in the nav bar based on the current route.
- * Call this after each route resolution.
- */
-export function updateActiveNavLink(currentPath: string): void {
-  if (activeLink) {
-    activeLink.classList.remove('v5-nav-link-active');
-  }
-
-  const links = document.querySelectorAll<HTMLElement>('.v5-nav-link[data-path]');
-  for (const link of links) {
-    const path = link.getAttribute('data-path');
-    if (!path) continue;
-
-    // Exact match for "/" (dashboard), prefix match for others
-    if (path === '/') {
-      if (currentPath === '/' || currentPath === '') {
-        link.classList.add('v5-nav-link-active');
-        activeLink = link;
-      }
-    } else if (currentPath.startsWith(path)) {
-      link.classList.add('v5-nav-link-active');
-      activeLink = link;
-    }
-  }
-}
-
-/** Settings panel toggle (token input). Reuses the existing pattern. */
-function toggleSettings(): void {
-  let panel = document.getElementById('v5-settings-panel');
-  if (panel) {
-    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-    return;
-  }
-
-  // Create settings panel
-  panel = el('div', { id: 'v5-settings-panel', class: 'settings-panel' });
-  panel.append(el('label', {}, 'Auth Token'));
-  const tokenInput = el('input', {
-    type: 'password',
-    class: 'token-input',
-    placeholder: 'Paste v5 API token...',
-  }) as HTMLInputElement;
-  tokenInput.value = localStorage.getItem('lnt_v5_token') || '';
-  tokenInput.addEventListener('change', () => {
-    const val = tokenInput.value.trim();
-    if (val) localStorage.setItem('lnt_v5_token', val);
-    else localStorage.removeItem('lnt_v5_token');
-  });
-  panel.append(tokenInput);
-
-  // Insert after the nav
-  const nav = document.querySelector('.v5-nav');
-  if (nav && nav.parentElement) {
-    nav.parentElement.insertBefore(panel, nav.nextSibling);
-  }
-}
 ```
+
+**`buildNavLink(link, agnosticBase, config)` helper:** A shared function that constructs a nav link `<a>` element with the dual-mode behavior. It builds the href from `agnosticBase + link.path`, appends `?suiteParam={ts}` when in suite context, sets `data-path`, and attaches a SPA click handler only in suite-agnostic context. Used for all standard links (Test Suites, Graph, Compare) and the Admin link.
+
+**Link table:**
+
+Left-side links:
+| Label | Path | data-path | Notes |
+|-------|------|-----------|-------|
+| LNT (brand) | `{urlBase}/v5/` | — | Dashboard. SPA `navigate('/')` in agnostic context, full-page nav in suite context. |
+| Test Suites | `{urlBase}/v5/test-suites` | `/test-suites` | SPA or full-page depending on context. |
+| Graph | `{urlBase}/v5/graph` | `/graph` | In suite context, appends `?suite={ts}`. |
+| Compare | `{urlBase}/v5/compare` | `/compare` | In suite context, appends `?suite_a={ts}`. |
+| API | `/api/v5/openapi/swagger-ui` | — | Always opens in new tab (`target="_blank"`). No SPA navigation. |
+
+Right-side links:
+| Label | Path | data-path | Notes |
+|-------|------|-----------|-------|
+| v4 UI | `config.v4Url` | — | External link, no SPA nav. |
+| Admin | `{urlBase}/v5/admin` | `/admin` | SPA or full-page depending on context. |
+| Settings | `#` | — | Toggle panel (unchanged). |
+
+**`updateActiveNavLink(currentPath)`**: Queries `.v5-nav-link[data-path]` elements and highlights the one matching the current route path (exact match for specific paths, prefix match for sub-paths). The LNT brand has no `data-path`, so the home page (`/`) has no highlighted nav link.
+
+**Removed**: `removeSuiteFromNav()` and `addSuiteToNav()` — the navbar no longer has a suite dropdown.
 
 ### 1.7 Refactor main.ts
 
@@ -637,6 +427,8 @@ import { el } from './utils';
 import './style.css';
 
 // Page modules (added incrementally across phases)
+import { homePage } from './pages/home';
+import { testSuitesPage } from './pages/test-suites';
 import { dashboardPage } from './pages/dashboard';
 import { machineListPage } from './pages/machine-list';
 import { machineDetailPage } from './pages/machine-detail';
@@ -666,7 +458,7 @@ function init(): void {
   setApiBase(urlBase);
 
   // Render nav bar (persistent across route changes)
-  const nav = renderNav({ testsuite, testsuites, v4Url, urlBase });
+  const nav = renderNav({ testsuite, v4Url, urlBase });
   root.append(nav);
 
   // Page content container
@@ -687,7 +479,9 @@ function init(): void {
     const basePath = `${urlBase}/v5/${encodeURIComponent(testsuite)}`;
     initRouter(pageContainer, basePath, updateActiveNavLink, { testsuite, testsuites });
   } else {
-    // Suite-agnostic pages — analysis tools and admin
+    // Suite-agnostic pages — dashboard, test suites, analysis tools, admin
+    addRoute('/', homePage);
+    addRoute('/test-suites', testSuitesPage);
     addRoute('/admin', adminPage);
     addRoute('/graph', graphPage);
     addRoute('/compare', comparePage);
@@ -705,7 +499,7 @@ if (document.readyState === 'loading') {
 }
 ```
 
-**Key change from original plan**: Graph, Compare, and Admin are registered in the **suite-agnostic** `else` branch (when `data-testsuite` is empty), with `basePath = /v5`. Suite-scoped pages (Dashboard, Machines, Regressions, etc.) are registered in the `if (testsuite)` branch with `basePath = /v5/{ts}`. This split means Graph and Compare are never routable under `/v5/{ts}/graph` — they always live at `/v5/graph` and `/v5/compare`.
+**Key design decision**: Graph, Compare, Admin, Dashboard (home), and Test Suites are registered in the **suite-agnostic** `else` branch (when `data-testsuite` is empty), with `basePath = /v5`. Suite-scoped pages (suite root, Machines, Regressions, etc.) are registered in the `if (testsuite)` branch with `basePath = /v5/{ts}`. This split means all navbar-linked pages live at `/v5/...` — suite-scoped pages are only reachable via links within page content.
 
 **During Phase 1**, most page modules will be stubs (see section 1.8). Only the router, nav, and skeleton need to work.
 
@@ -764,7 +558,7 @@ export const dashboardPage: PageModule = {
 };
 ```
 
-Create identical stubs for all pages: `machine-list.ts`, `machine-detail.ts`, `run-detail.ts`, `order-detail.ts`, `graph.ts`, `compare.ts`, `regression-list.ts`, `regression-detail.ts`, `field-change-triage.ts`, `admin.ts`.
+Create identical stubs for all pages: `home.ts` (suite-agnostic dashboard placeholder), `test-suites.ts` (suite-agnostic placeholder), `machine-list.ts`, `machine-detail.ts`, `run-detail.ts`, `order-detail.ts`, `graph.ts`, `compare.ts`, `regression-list.ts`, `regression-detail.ts`, `field-change-triage.ts`, `admin.ts`.
 
 For `compare.ts`, the stub should initially say "Coming soon" but will be replaced in Phase 4 with the full compare integration.
 
@@ -800,23 +594,6 @@ Add styles for the nav bar and page container. These extend the existing styles 
 
 .v5-nav-brand:hover {
   color: #ddd;
-}
-
-.v5-nav-suite {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  color: #adb5bd;
-  font-size: 13px;
-}
-
-.v5-nav-suite-select {
-  padding: 2px 6px;
-  border: 1px solid #555;
-  border-radius: 3px;
-  background: #495057;
-  color: #fff;
-  font-size: 12px;
 }
 
 .v5-nav-links {
@@ -877,28 +654,49 @@ Add styles for the nav bar and page container. These extend the existing styles 
 - `getTestsuites()` returns the list from context
 
 **Unit tests for `components/nav.ts`** (`__tests__/nav.test.ts`):
-- Renders all expected links in three categories
-- Suite-scoped links (Dashboard, Regressions, Machines): SPA navigation in suite context, full-page in agnostic
-- Analysis links (Graph, Compare): full-page with `?suite=`/`?suite_a=` in suite context, SPA navigation in agnostic
-- Admin link: full-page in suite context, SPA in agnostic
-- Suite selector contains all test suites with correct selected value
-- Click on nav link calls `navigate()` (for SPA links) or triggers full-page navigation (for cross-context links)
-- Active link highlight updates correctly
-- Settings toggle creates/shows/hides the token panel
+
+Suite-agnostic context (`testsuite: ''`):
+- Renders left-side links: Test Suites, Graph, Compare (no Dashboard, Regressions, Machines)
+- Renders API link with `target="_blank"` and correct Swagger UI href
+- Renders right-side links: v4 UI, Admin, Settings
+- LNT brand renders with href `/v5/`
+- No suite selector dropdown rendered
+- Clicking nav links calls `navigate()` with correct paths
+- Clicking API link does NOT call `navigate()` (external, new tab)
+- Modifier clicks (Cmd+Click, Ctrl+Click) bypass SPA navigation
+- Nav links include `urlBase` prefix when set
+
+Suite-scoped context (`testsuite: 'nts'`):
+- Same links rendered (navbar looks identical)
+- Brand href is `/v5/` (not suite-scoped)
+- No nav link calls `navigate()` (all use full-page navigation)
+- Graph link href includes `?suite=nts`, Compare includes `?suite_a=nts`
+
+`updateActiveNavLink`:
+- Highlights correct link for `/test-suites`, `/graph`, `/compare`, `/admin`
+- No link highlighted for root `/` (brand has no `data-path`)
+- Clears previous highlight when path changes
+
+**Backend tests** (`tests/server/ui/v5/test_spa_shell.py`):
+- `/v5/` returns 200 with `data-testsuite=""`
+- `/v5` (no trailing slash) returns 200 or redirects
+- `/v5/test-suites` returns 200 with `data-testsuite=""`
+- `/v5/test-suites/` (trailing slash) works
+- `/v5/nts/` still returns 200 with `data-testsuite="nts"` (no conflict with `/v5/` route)
+- `data-v4-url` does not contain `recent_activity` (points to v4 root)
 
 **Manual verification**:
 1. Run `cd lnt/server/ui/v5/frontend && npm run build`
 2. Start dev server: `lnt runserver`
-3. Navigate to `http://localhost:8000/v5/nts/` — should see nav bar + Dashboard stub
-4. Click each suite-scoped nav link — URL changes, stub content updates, no full page reload
-5. Click Graph or Compare nav link — full page navigation to `/v5/graph?suite=nts` or `/v5/compare?suite_a=nts`
-6. Click Admin nav link — full page navigation to `/v5/admin`
-7. On `/v5/graph`: Graph, Compare, and Admin links use SPA navigation; Dashboard/Machines/Regressions use full-page navigation to selected suite
-8. Browser back/forward works
-9. Direct URL access (e.g., `/v5/nts/machines`, `/v5/graph`, `/v5/compare`, `/v5/admin`) works
-10. Test suite selector changes URL and reloads
-11. v4 UI link navigates to v4 page
-12. Old Compare URL (`/v5/nts/compare`) shows 404 (no longer a suite-scoped route)
+3. Navigate to `http://localhost:8000/v5/` — should see nav bar + Dashboard placeholder
+4. Click Test Suites — SPA navigation to placeholder page
+5. Click Graph, Compare — SPA navigation to each page
+6. Click API — opens Swagger UI in new tab
+7. Navigate to `http://localhost:8000/v5/nts/machines` — same nav bar, all links use full-page navigation
+8. From suite-scoped page, click Graph — navigates to `/v5/graph?suite=nts`
+9. Browser back/forward works
+10. Direct URL access (`/v5/`, `/v5/test-suites`, `/v5/graph`, `/v5/admin`, `/v5/nts/machines`) all work
+11. v4 UI link navigates to v4 root page
 
 ---
 

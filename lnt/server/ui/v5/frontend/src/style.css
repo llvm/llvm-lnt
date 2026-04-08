@@ -611,23 +611,6 @@ dl {
   color: #ddd;
 }
 
-.v5-nav-suite {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  color: #adb5bd;
-  font-size: 13px;
-}
-
-.v5-nav-suite-select {
-  padding: 2px 6px;
-  border: 1px solid #555;
-  border-radius: 3px;
-  background: #495057;
-  color: #fff;
-  font-size: 12px;
-}
-
 .v5-nav-links {
   display: flex;
   gap: 4px;

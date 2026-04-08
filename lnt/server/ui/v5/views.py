@@ -5,11 +5,13 @@ from lnt.server.ui.views import ts_data
 from lnt.server.ui.decorators import _make_db_session
 
 
+@v5_frontend.route("/v5/", strict_slashes=False)
+@v5_frontend.route("/v5/test-suites", strict_slashes=False)
 @v5_frontend.route("/v5/admin", strict_slashes=False)
 @v5_frontend.route("/v5/graph", strict_slashes=False)
 @v5_frontend.route("/v5/compare", strict_slashes=False)
 def v5_global():
-    """Suite-agnostic pages (admin, graph, compare).
+    """Suite-agnostic pages (dashboard, test suites, admin, graph, compare).
 
     Serves the SPA shell with an empty testsuite. Each page manages
     suite selection internally via its own UI controls. The list of

@@ -13,7 +13,7 @@
 <div id="v5-app"
      data-testsuite="{{ g.testsuite_name }}"
      data-testsuites="{{ testsuites | tojson | forceescape }}"
-     data-v4-url="{% if g.testsuite_name %}{{ v4_url_for('lnt.v4_recent_activity') }}{% else %}#{% endif %}">
+     data-v4-url="{{ url_for('lnt.index') }}">
 </div>
 <script src="{{ url_for('lnt_v5.static', filename='v5/v5.js') }}"></script>
 </body>
