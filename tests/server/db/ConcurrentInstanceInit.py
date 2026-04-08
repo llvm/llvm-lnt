@@ -43,7 +43,7 @@ lock = threading.Lock()
 
 def init_instance():
     try:
-        barrier.wait() # wait for all workers to arrive
+        barrier.wait()  # wait for all workers to arrive
         lnt.server.instance.Instance.frompath(instance_path)
     except Exception as e:
         with lock:
