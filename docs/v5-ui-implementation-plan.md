@@ -1090,7 +1090,7 @@ export function renderPagination(
 
 **File**: `lnt/server/ui/v5/frontend/src/components/order-search.ts` (new file)
 
-A search input for navigating to an order by value or tag. Used by Order Detail (for jumping to an arbitrary order) and later by Graph (for adding pinned orders).
+A search input for navigating to an order by value or tag. Used by Order Detail (for jumping to an arbitrary order) and later by Graph (for adding baselines).
 
 ```typescript
 // components/order-search.ts
@@ -1360,7 +1360,7 @@ Add the new interfaces listed in section 2.1: `OrderDetail`, `OrderNeighbor`, `R
 
 ## Phase 3: Graph Page
 
-**Goal**: Implement the time-series graph page with auto-plot (no Plot button), lazy-loaded Plotly line charts, per-metric client-side caching, test filtering, aggregation controls, and pinned order overlays. Data is fetched newest-first and rendered progressively so the chart appears immediately.
+**Goal**: Implement the time-series graph page with auto-plot (no Plot button), lazy-loaded Plotly line charts, per-metric client-side caching, test filtering, aggregation controls, and baseline overlays. Data is fetched newest-first and rendered progressively so the chart appears immediately.
 
 ### 3.1 Time Series Chart Component (`ChartHandle` API)
 
@@ -1395,13 +1395,13 @@ export interface TimeSeriesTrace {
   }>;
 }
 
-export interface PinnedOrder {
+export interface PinnedBaseline {
   orderValue: string;
   /** User-assigned label, if any. */
   tag: string | null;
-  /** Per-test values at this pinned order. */
+  /** Per-test values at this baseline. */
   values: Map<string, number>;
-  /** Color for the pinned order lines. */
+  /** Color for the baseline lines. */
   color: string;
 }
 
@@ -1409,8 +1409,8 @@ export interface TimeSeriesChartOptions {
   traces: TimeSeriesTrace[];
   /** Y-axis label (metric display name). */
   yAxisLabel: string;
-  /** Pinned orders to overlay as horizontal dashed lines. */
-  pinnedOrders?: PinnedOrder[];
+  /** Baselines to overlay as horizontal dashed lines. */
+  baselines?: PinnedBaseline[];
   /**
    * Pre-fetched complete list of order values for the x-axis.
    * When provided, sets Plotly's xaxis.categoryarray and
@@ -1435,7 +1435,7 @@ export interface ChartHandle {
    *  dimming all others. Uses Plotly.restyle() to set opacity and line width —
    *  the hovered trace gets full opacity and a thicker line (3px), while all
    *  other main traces are dimmed to 0.2 opacity. Passing null restores all
-   *  traces to their normal appearance. Pinned-order traces are
+   *  traces to their normal appearance. Baseline traces are
    *  dimmed along with non-hovered main traces. */
   hoverTrace(traceName: string | null): void;
   /** Clean up the chart (calls Plotly.purge). */
@@ -1471,12 +1471,12 @@ export function createTimeSeriesChart(
   // to lock the visible range, since Plotly's autorange ignores null
   // y-values in the scaffold and would shrink the axis otherwise.
   //
-  // Pinned orders: rendered as actual Plotly traces (not layout shapes)
-  // so they support hover tooltips. Each pinned order line is a scatter
+  // Baselines: rendered as actual Plotly traces (not layout shapes)
+  // so they support hover tooltips. Each baseline line is a scatter
   // trace with mode='lines', dash='dot', and showlegend=false,
   // populated with a data point at every x-category (scaffold or all
   // trace x-values as fallback) so that hover detection works anywhere
-  // along the line. The hovertemplate shows: pinned order value (with
+  // along the line. The hovertemplate shows: baseline order value (with
   // tag if set), test name, and metric value. Using traces instead of
   // shapes avoids the Plotly issue where shapes on category axes
   // require numeric indices rather than category name strings for x0/x1.
@@ -1583,7 +1583,7 @@ The graph page is the most data-intensive page. It uses **lazy loading with per-
    - "Filter tests" text input (label and placeholder consistent with Compare page, substring match, debounced 200ms). Matches on **test name only** (not machine name), showing/hiding the test across all machines simultaneously. Changes re-render from cache via `updateUrlState()` — no refetch.
    - Run aggregation drop-down (median/mean/min/max) in a labeled control group ("Run aggregation"), consistent with Compare's layout. Changes re-render from cache via `updateUrlState()`.
    - Sample aggregation drop-down (median/mean/min/max) in a separate labeled control group ("Sample aggregation"). Changes re-render from cache via `updateUrlState()`.
-   - Pinned order input (label: "Pinned Orders", placeholder: "Pin an order..."). Uses `renderOrderSearch` from `components/order-search.ts` in **suggestions mode** — `suggestions` is always passed (as `cachedSuggestions ?? []`), so the API fallback is never triggered. The suggestions are built from the **union** of all machines' scaffold order values combined with tags from `getOrders()` (fetched in parallel with the scaffolds), and cached at module scope (`cachedSuggestions`). `cachedSuggestions` is rebuilt when machines are added or removed. On focus, the suggestions dropdown shows all orders with tagged orders listed first. Typing filters suggestions by prefix matching. A red border appears when the typed value has no prefix matches; Enter is blocked for invalid values. Adding or removing a pinned order calls `updateUrlState()` — no refetch.
+   - Baselines panel (label: "Baselines", button: "+ Add baseline"). An expandable form with cascading dropdowns: Suite → Machine → Order. The suite dropdown is populated from `getTestsuites()`, the machine dropdown from `getMachines(suite)`, and the order dropdown from `getOrders(suite)` filtered by the selected machine's runs. Added baselines appear as removable chips labeled `{suite}/{machine}/{order} ({tag})`. Adding or removing a baseline calls `updateUrlState()` — no refetch.
    - No "Plot" button. Plotting is triggered automatically when at least one machine and a metric are selected.
 
 2. **Data fetching strategy — lazy loading with progressive rendering**:
@@ -1591,7 +1591,7 @@ The graph page is the most data-intensive page. It uses **lazy loading with per-
      - For **each machine** in the `machines` list, independently:
        - Check the **per-metric client-side cache** (keyed by `machine::metric`). If the cache has data for this combination, use it immediately — no API call needed.
        - If no cache hit, proceed in three sequential steps per machine:
-         1. **X-axis scaffold** (if not already cached for this machine): Paginated calls to `GET machines/{name}/runs` (via `fetchOneCursorPage<MachineRunInfo>` with `sort=order`) to fetch the complete list of order values. In parallel, `getOrders(ts)` is called to obtain tags for the pinned-order suggestions dropdown. The scaffold is cached per machine.
+         1. **X-axis scaffold** (if not already cached for this machine): Paginated calls to `GET machines/{name}/runs` (via `fetchOneCursorPage<MachineRunInfo>` with `sort=order`) to fetch the complete list of order values. In parallel, `getOrders(ts)` is called to obtain tags for the baseline order suggestions. The scaffold is cached per machine.
          2. **Compute union scaffold**: The x-axis scaffold passed to the chart is the **union** of all machines' scaffolds (preserving order). This is recomputed whenever a machine is added/removed or a scaffold finishes loading.
          3. **Lazy data loading**: Begin fetching data pages via `fetchOneCursorPage<QueryDataPoint>(apiUrl(ts, 'query'), { machine, metric, sort: '-order', limit: '10000' })`. After each page, merge into that machine's cache and call `renderFromCache()` to update the chart with traces from **all** machines.
      - Show a progress indicator during background fetching (e.g., "Loading: clang-x86 30000 points, gcc-arm 15000 points...").
@@ -1609,7 +1609,7 @@ The graph page is the most data-intensive page. It uses **lazy loading with per-
    - Clicking a row toggles visibility and triggers `renderFromCache()`. Double-clicking a row is a shortcut for hiding all other visible traces: the `onIsolate` callback populates `manuallyHidden` with all visible trace names except the double-clicked one. If the double-clicked trace is already the only non-hidden trace, `manuallyHidden` is cleared to restore all. This uses the same `manuallyHidden` mechanism as single-click, so subsequent single-clicks work naturally (e.g., single-clicking a hidden trace after a double-click simply unhides it). The click/dblclick interaction is handled with a 200ms delay on single-click to prevent spurious toggles during a double-click. The legend table exposes both `onToggle` and `onIsolate` callbacks.
    - Colors are assigned by alphabetical index of all **test names** (not trace names) using the D3 category10 palette (`PLOTLY_COLORS`), ensuring the same test on different machines shares the same color.
    - Plotly's built-in legend is disabled (`showlegend: false` always). Traces receive explicit `line.color` and `marker.color` from the color map, and `marker.symbol` from the machine symbol assignment.
-   - Bidirectional hover: the legend table dispatches `GRAPH_TABLE_HOVER` events; the chart dispatches `GRAPH_CHART_HOVER` events. The graph page wires these via `onCustomEvent()` (which now returns a cleanup function) to call `chartHandle.hoverTrace()` and `legendHandle.highlightRow()` respectively. `hoverTrace()` uses `Plotly.restyle()` to emphasize the entire trace line (line width 3px, opacity 1.0) and dim all other main traces (opacity 0.2) and pinned-order traces. Passing `null` restores all traces to their normal appearance (line width 1.5px, opacity 1.0). The restyle calls are chained after `plotReady` to avoid race conditions with newPlot/react.
+   - Bidirectional hover: the legend table dispatches `GRAPH_TABLE_HOVER` events; the chart dispatches `GRAPH_CHART_HOVER` events. The graph page wires these via `onCustomEvent()` (which now returns a cleanup function) to call `chartHandle.hoverTrace()` and `legendHandle.highlightRow()` respectively. `hoverTrace()` uses `Plotly.restyle()` to emphasize the entire trace line (line width 3px, opacity 1.0) and dim all other main traces (opacity 0.2) and baseline traces. Passing `null` restores all traces to their normal appearance (line width 1.5px, opacity 1.0). The restyle calls are chained after `plotReady` to avoid race conditions with newPlot/react.
    - `manuallyHidden` (Set of trace names — `'{test} · {machine}'`), `autoCapped` (boolean), and `legendHandle` are module-scope state. They are preserved across unmount/remount (like the cache). A module-level `GraphDataCache` instance serves as the sole data access layer — all test names, data points, scaffolds, and baseline data are accessed through it. `computeActiveTests()` takes four inputs (allTraceNames, testFilter, manuallyHidden, autoCapped) and returns the active set. The test filter matches against the **test name portion** of each trace name. Double-click isolation is implemented purely through `manuallyHidden` — no separate `isolatedTest` state.
 
 3. **`GraphDataCache` -- centralized data access layer**:
@@ -1620,13 +1620,11 @@ The graph page is the most data-intensive page. It uses **lazy loading with per-
      - **Deferred chart update phase**: feeds all traces to the chart via a single deferred `requestAnimationFrame` call. The chart is always updated (no no-op optimization). A module-scope `chartRenderGen` generation counter ensures stale render sequences are abandoned. A `pendingChartRAF` ID is also tracked so the pending frame can be canceled on `unmount()`. Baselines are included in every update so baseline lines appear from the first frame.
    - **Cache persists across navigation**: The `GraphDataCache` instance is a module-scope variable that survives `unmount()`/`mount()` cycles. When the user navigates away and presses browser back, `doPlot()` finds cached data and renders instantly. `cache.clear()` is called on suite change. Module-scope UI state (`manuallyHidden`, `currentVisibleTraceNames`, `chartRenderGen`) is reset on unmount -- the machines list is restored from URL params.
 
-4. **Pinned orders — asynchronous fetch with aggregation**:
-   - Pinned orders are fetched **after the first chart render**, so they do not block initial display.
-   - For each machine, check if the pinned order's data points are already in that machine's cache. If so, extract them directly. If not (e.g., the pinned order is outside the fetched range), make a targeted call per machine: `queryDataPoints(currentSuite, { machine, metric, afterOrder: ref, beforeOrder: ref })`.
-   - **Phase A (current)**: Pinned orders are same-suite references using the graph's `currentSuite`. They reference orders within the currently selected suite.
-   - **Phase B (future)**: Pinned orders will be replaced with cross-suite "Baselines" — `(suite, machine, order)` tuples that can reference data from any test suite.
-   - **Aggregation consistency**: Pinned order Y values must be computed using the same run aggregation function (`runAgg`) as the main traces. When multiple data points exist for the same test at the pinned order (multiple runs), they are collected and aggregated, not just taking the first value. The `buildRefsFromCache` function receives the `runAgg` function and applies it per test, so the pinned dashed line aligns exactly with the trace point at that order.
-   - Once pinned order data is available, call `chartHandle.update()` to overlay the dashed lines.
+4. **Baselines — asynchronous fetch with aggregation**:
+   - Baseline data is fetched **after the first chart render**, so it does not block initial display.
+   - Each baseline is a `(suite, machine, order)` tuple that can reference data from any test suite (cross-suite). For each baseline, data is fetched via `cache.getBaselineData(suite, machine, order, metric, tests, signal)`. If the data is already cached, it is used directly.
+   - **Aggregation consistency**: Baseline Y values must be computed using the same run aggregation function (`runAgg`) as the main traces. When multiple data points exist for the same test at the baseline's order (multiple runs), they are collected and aggregated, not just taking the first value. The `buildBaselinesFromData` function receives the `runAgg` function and applies it per test, so the baseline dashed line aligns exactly with the trace point at that order.
+   - Once baseline data is available, call `chartHandle.update()` to overlay the dashed lines.
 
 5. **Chart rendering**:
    - For each machine: group data points by test name and order, apply aggregation, produce `TimeSeriesTrace[]` with `machine` and `markerSymbol` fields set
@@ -1634,11 +1632,11 @@ The graph page is the most data-intensive page. It uses **lazy loading with per-
    - Pass to `createTimeSeriesChart()` (initial) or `chartHandle.update()` (incremental)
 
 6. **URL state**:
-   - `?suite={name}&machine={name}&machine={name2}&metric={name}&test_filter={text}&run_agg={fn}&sample_agg={fn}&pin={order1}&pin={order2}`
+   - `?suite={name}&machine={name}&machine={name2}&metric={name}&test_filter={text}&run_agg={fn}&sample_agg={fn}&baseline={suite}::{machine}::{order}&baseline={suite2}::{machine2}::{order2}`
    - The `suite` parameter identifies the currently selected test suite. On mount, it is read from the URL and used to pre-select the suite dropdown.
    - The `machine` parameter is repeated for each selected machine. On mount, parse all `machine` values from URL params and populate the chip list.
    - On mount, parse URL params and auto-plot if suite, machines, and metric are provided. The metric selector uses `initialValue` to pre-select the URL metric. The chart container is initialized with a "No data to plot." message, which is replaced on the first successful plot.
-   - `updateUrlState()` is called from all interactive handlers (suite change, machine add/remove, test filter change, aggregation change, pinned order add/remove), not only from `doPlot()`. This ensures the URL always reflects the current UI state.
+   - `updateUrlState()` is called from all interactive handlers (suite change, machine add/remove, test filter change, aggregation change, baseline add/remove), not only from `doPlot()`. This ensures the URL always reflects the current UI state.
 
 ### 3.4 Phase 3 Testing
 
@@ -1646,14 +1644,14 @@ The graph page is the most data-intensive page. It uses **lazy loading with per-
 - `createTimeSeriesChart` returns a valid `ChartHandle`
 - `ChartHandle.update()` calls `Plotly.react()` (not `newPlot`) for incremental updates
 - Data preparation: verify traces are built correctly from input data
-- Pinned orders: verify pinned-order traces (not shapes) are generated with correct y-values, dash style, color, `showlegend: false`, and hover template containing pinned order value, tag, test name, and metric value; verify scaffold x-range is used when `categoryOrder` is provided; verify no pinned-order traces are generated for tests not in the main traces
+- Baselines: verify baseline traces (not shapes) are generated with correct y-values, dash style, color, `showlegend: false`, and hover template containing baseline order value, tag, test name, and metric value; verify scaffold x-range is used when `categoryOrder` is provided; verify no baseline traces are generated for tests not in the main traces
 - X-axis scaffolding: verify that when `categoryOrder` is provided, the layout sets `xaxis.categoryarray` and `xaxis.categoryorder = 'array'`; verify that when `categoryOrder` is omitted, these layout properties are not set
 - Marker symbols: verify that `markerSymbol` on `TimeSeriesTrace` is passed through to Plotly's `marker.symbol`
 - Trace naming: verify that the Plotly trace name is `{testName} - {machine}`
 - Empty chart annotation: verify that when traces are empty and `categoryOrder` is set, a Plotly annotation is added at paper coordinates (0.5, 0.5) with "No data to plot"
 - `plotReady` promise: verify that `update()` chains `Plotly.react()` after the `plotReady` promise from `newPlot()`, preventing race conditions
 - `ChartHandle.destroy()` calls `Plotly.purge()`
-- Trace highlighting via `hoverTrace()`: verify that `hoverTrace(testName)` calls `Plotly.restyle()` to set the hovered trace to opacity 1.0 and line width 3, while dimming all other traces to opacity 0.2; verify that `hoverTrace(null)` restores all traces to opacity 1.0 and line width 1.5; verify that pinned-order traces are dimmed along with non-hovered main traces; verify restyle calls are chained after `plotReady`
+- Trace highlighting via `hoverTrace()`: verify that `hoverTrace(testName)` calls `Plotly.restyle()` to set the hovered trace to opacity 1.0 and line width 3, while dimming all other traces to opacity 0.2; verify that `hoverTrace(null)` restores all traces to opacity 1.0 and line width 1.5; verify that baseline traces are dimmed along with non-hovered main traces; verify restyle calls are chained after `plotReady`
 - Raw value scatter: verify that when `getRawValues` returns >1 values, `Plotly.addTraces()` is called with a markers-only scatter trace at the hovered x-position; verify the scatter trace uses the same color at opacity 0.3; verify `Plotly.deleteTraces()` is called on unhover; verify no scatter trace is added when `getRawValues` returns ≤1 values; verify no scatter trace is added when `getRawValues` is not provided
 - Zoom preservation: verify that `update()` passes the current `xaxis.range` and `xaxis.autorange` from `chartDiv.layout` to `Plotly.react()`, so x-axis zoom is preserved; verify that when `yaxis.autorange` is `false` on the chart div, the y-axis range is also preserved; verify that when `yaxis.autorange` is `true`, no explicit y-axis range is set (allowing auto-range); verify that after a zoom reset (both axes `autorange` set back to `true`), the next `update()` does not set explicit ranges
 
@@ -1668,9 +1666,9 @@ The graph page is the most data-intensive page. It uses **lazy loading with per-
 - Machine chip input: verify typing a machine name and pressing Enter adds a chip; verify x button removes it; verify removing the last machine clears the chart
 - Auto-plot: verify `doPlot()` is called when a machine is added and metric is set; verify no Plot button element exists
 - Multi-machine: verify that adding a second machine triggers its own fetch pipeline; verify traces from both machines appear in the chart options; verify trace names are `{test} - {machine}` format; verify marker symbols are assigned per machine index
-- URL state parsing: verify `suite` param is restored from URL; verify multiple `machine` params are restored from URL; verify metric/filter/pinned orders are restored; verify metric selector receives `initialValue` from URL
-- URL sync: verify `updateUrlState()` encodes `suite` as `qs.set('suite', currentSuite)`; verify it is called from suite change, machine add/remove, test filter, aggregation, and pinned order handlers; verify `machine` param is repeated for each selected machine
-- Pinned orders: verify URL param is `pin` (not `ref`); verify label is "Pinned Orders" and placeholder is "Pin an order..."; verify pinned order Y values use the same run aggregation as main traces (not just the first raw value)
+- URL state parsing: verify `suite` param is restored from URL; verify multiple `machine` params are restored from URL; verify metric/filter/baselines are restored; verify metric selector receives `initialValue` from URL
+- URL sync: verify `updateUrlState()` encodes `suite` as `qs.set('suite', currentSuite)`; verify it is called from suite change, machine add/remove, test filter, aggregation, and baseline handlers; verify `machine` param is repeated for each selected machine
+- Baselines: verify URL param is `baseline` (not `pin` or `ref`); verify label is "Baselines" and button is "+ Add baseline"; verify baseline Y values use the same run aggregation as main traces (not just the first raw value)
 - Order search suggestions: verify suggestions are populated from union of all machines' scaffolds + `getOrders()` (tags), with tagged orders first; verify prefix-based filtering; verify red border on no matches and Enter blocked
 - Test filter: verify filter matches test name only (not machine name); verify matching test shows all machine variants; verify non-matching test hides all machine variants
 - Color assignment: verify colors are assigned by alphabetical index of test names (not trace names); verify same test on different machines gets the same color

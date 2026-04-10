@@ -17,7 +17,7 @@ import { createLegendTable, type LegendEntry, type LegendTableHandle } from '../
 import { GraphDataCache, filterTestNames } from './graph-data-cache';
 
 const MAX_DISPLAYED_TESTS = 50;
-const PIN_COLORS = ['#e377c2', '#ff7f0e', '#9467bd', '#8c564b', '#17becf'];
+const BASELINE_COLORS = ['#e377c2', '#ff7f0e', '#9467bd', '#8c564b', '#17becf'];
 const PLOTLY_COLORS = [
   '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
   '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf',
@@ -1018,7 +1018,7 @@ export function buildBaselinesFromData(
       label,
       tag: bl.tag,
       values,
-      color: PIN_COLORS[i % PIN_COLORS.length],
+      color: BASELINE_COLORS[i % BASELINE_COLORS.length],
     };
   });
 }

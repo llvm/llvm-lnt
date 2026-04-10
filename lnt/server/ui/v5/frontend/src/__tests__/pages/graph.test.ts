@@ -410,7 +410,7 @@ describe('buildBaselinesFromData', () => {
     expect(result).toHaveLength(0);
   });
 
-  it('assigns distinct colors from PIN_COLORS to each baseline', () => {
+  it('assigns distinct colors from BASELINE_COLORS to each baseline', () => {
     const baselines = [
       { suite: 'nts', machine: 'm1', order: '100', tag: null },
       { suite: 'nts', machine: 'm1', order: '101', tag: null },
