@@ -410,18 +410,16 @@ describe('buildBaselinesFromData', () => {
     expect(result).toHaveLength(0);
   });
 
-  it('assigns distinct colors from BASELINE_COLORS to each baseline', () => {
+  it('does not include a color field on returned baselines', () => {
     const baselines = [
       { suite: 'nts', machine: 'm1', order: '100', tag: null },
-      { suite: 'nts', machine: 'm1', order: '101', tag: null },
     ];
     const points1 = [makeRefPoint('test-A', '100', 1.0)];
-    const points2 = [makeRefPoint('test-A', '101', 2.0)];
-    const cache = buildLookup(baselines, 'exec_time', [points1, points2]);
+    const cache = buildLookup(baselines, 'exec_time', [points1]);
 
     const result = buildBaselinesFromData(baselines, cache, 'exec_time', median);
 
-    expect(result[0].color).not.toBe(result[1].color);
+    expect(result[0]).not.toHaveProperty('color');
   });
 
   it('builds label with suite/machine/order format', () => {

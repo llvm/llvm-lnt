@@ -1401,8 +1401,6 @@ export interface PinnedBaseline {
   tag: string | null;
   /** Per-test values at this baseline. */
   values: Map<string, number>;
-  /** Color for the baseline lines. */
-  color: string;
 }
 
 export interface TimeSeriesChartOptions {
@@ -1644,7 +1642,7 @@ The graph page is the most data-intensive page. It uses **lazy loading with per-
 - `createTimeSeriesChart` returns a valid `ChartHandle`
 - `ChartHandle.update()` calls `Plotly.react()` (not `newPlot`) for incremental updates
 - Data preparation: verify traces are built correctly from input data
-- Baselines: verify baseline traces (not shapes) are generated with correct y-values, dash style, color, `showlegend: false`, and hover template containing baseline order value, tag, test name, and metric value; verify scaffold x-range is used when `categoryOrder` is provided; verify no baseline traces are generated for tests not in the main traces
+- Baselines: verify baseline traces (not shapes) are generated with correct y-values, dash style, `showlegend: false`, and hover template containing baseline order value, tag, test name, and metric value; verify each baseline trace's color matches the corresponding main trace's color; verify scaffold x-range is used when `categoryOrder` is provided; verify no baseline traces are generated for tests not in the main traces
 - X-axis scaffolding: verify that when `categoryOrder` is provided, the layout sets `xaxis.categoryarray` and `xaxis.categoryorder = 'array'`; verify that when `categoryOrder` is omitted, these layout properties are not set
 - Marker symbols: verify that `markerSymbol` on `TimeSeriesTrace` is passed through to Plotly's `marker.symbol`
 - Trace naming: verify that the Plotly trace name is `{testName} - {machine}`

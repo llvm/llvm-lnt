@@ -44,7 +44,6 @@ export interface PinnedBaseline {
   tag: string | null;
   /** Per-test values at this baseline. */
   values: Map<string, number>;
-  color: string;
 }
 
 export interface TimeSeriesChartOptions {
@@ -138,7 +137,7 @@ export function buildPlotlyData(options: TimeSeriesChartOptions): {
             y: Array(pinXValues.length).fill(value),
             mode: 'lines',
             type: 'scatter',
-            line: { color: ref.color, width: 1.5, dash: 'dot' },
+            line: { color: trace.color || '#999', width: 1.5, dash: 'dot' },
             showlegend: false,
             hovertemplate:
               `<b>Baseline: ${escapeHtml(ref.label)}</b><br>` +

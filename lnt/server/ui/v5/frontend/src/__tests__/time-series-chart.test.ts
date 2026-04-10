@@ -58,14 +58,15 @@ describe('buildPlotlyData', () => {
     const refValues = new Map<string, number>();
     refValues.set('test-A', 2.5);
 
+    const mainTrace = makeTrace('test-A', [{ orderValue: '100', value: 1.5 }, { orderValue: '102', value: 2.0 }]);
+    mainTrace.color = '#1f77b4';
     const opts: TimeSeriesChartOptions = {
-      traces: [makeTrace('test-A', [{ orderValue: '100', value: 1.5 }, { orderValue: '102', value: 2.0 }])],
+      traces: [mainTrace],
       yAxisLabel: 'metric',
       baselines: [{
         label: '101 (release-18)',
         tag: 'release-18',
         values: refValues,
-        color: '#e377c2',
       }],
     };
 
@@ -80,7 +81,7 @@ describe('buildPlotlyData', () => {
     expect(refTrace.y).toEqual([2.5, 2.5]);
     expect(refTrace.mode).toBe('lines');
     expect(refTrace.line.dash).toBe('dot');
-    expect(refTrace.line.color).toBe('#e377c2');
+    expect(refTrace.line.color).toBe('#1f77b4');
     expect(refTrace.showlegend).toBe(false);
     expect(refTrace.hovertemplate).toContain('Baseline: 101 (release-18)');
     expect(refTrace.hovertemplate).toContain('test-A');
@@ -98,7 +99,6 @@ describe('buildPlotlyData', () => {
         label: '101 (<img onerror=alert(1)>)',
         tag: '<img onerror=alert(1)>',
         values: refValues,
-        color: '#e377c2',
       }],
     };
 
@@ -123,7 +123,6 @@ describe('buildPlotlyData', () => {
         label: '101',
         tag: null,
         values: refValues,
-        color: '#e377c2',
       }],
     };
 
@@ -145,7 +144,6 @@ describe('buildPlotlyData', () => {
         label: '100',
         tag: null,
         values: refValues,
-        color: '#ff0000',
       }],
     };
 
@@ -505,7 +503,7 @@ describe('createTimeSeriesChart', () => {
       ],
       yAxisLabel: 'metric',
       baselines: [{
-        label: '100', tag: null, values: refValues, color: '#e377c2',
+        label: '100', tag: null, values: refValues,
       }],
     });
 
