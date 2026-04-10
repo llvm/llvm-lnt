@@ -778,12 +778,19 @@ Each endpoint must test:
 
 ### Phase 6: Time Series
 28. Series endpoint + tests
+29. Trends endpoint (`POST /trends`) — server-side geomean aggregation for Dashboard sparklines
+    - New files: `endpoints/trends.py`, `schemas/trends.py`
+    - Accepts: metric (required), machine (list, optional), after_time/before_time (optional)
+    - Returns: geomean-aggregated items per (machine, order), not paginated
+    - Python-side aggregation: fetch all rows, group by (machine_id, order_id), compute exp(mean(ln(positive_values)))
+    - Uses `lookup_machine()` from helpers.py for name resolution (404/409 on error)
+    - `@require_scope('read')`, `Meta.unknown = ma.RAISE`
 
 ### Phase 7: Polish
-29. OpenAPI spec review and validation
-30. ETag support on all detail endpoints
-31. End-to-end integration tests
-32. Documentation review
+30. OpenAPI spec review and validation
+31. ETag support on all detail endpoints
+32. End-to-end integration tests
+33. Documentation review
 
 ---
 

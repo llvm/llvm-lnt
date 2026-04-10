@@ -2,10 +2,10 @@
 // Suite-agnostic — served at /v5/.
 
 import type { PageModule, RouteParams } from '../router';
-import type { FieldInfo, QueryDataPoint } from '../types';
+import type { FieldInfo } from '../types';
 import { getTestsuites } from '../router';
-import { getTestSuiteInfo, getRunsPage, queryDataPoints } from '../api';
-import { el, geomean, primaryOrderValue, agnosticUrl } from '../utils';
+import { getTestSuiteInfo, getRunsPage, fetchTrends } from '../api';
+import { el, agnosticUrl } from '../utils';
 import type { SparklineTrace } from '../components/sparkline-card';
 import {
   createSparklineCard, createSparklineLoading, createSparklineError,
@@ -29,12 +29,12 @@ function isValidRange(s: string): s is RangePreset {
 }
 
 // ---------------------------------------------------------------------------
-// Data fetching abstraction — can be replaced by a server-side endpoint later
+// Data fetching — uses server-side trends endpoint for geomean aggregation
 // ---------------------------------------------------------------------------
 
 /**
  * Fetch trend data for one metric across multiple machines.
- * Returns sparkline traces with geomean-aggregated values per order.
+ * Returns sparkline traces with server-computed geomean values per order.
  */
 async function fetchSuiteTrends(
   suite: string,
@@ -43,54 +43,23 @@ async function fetchSuiteTrends(
   afterTime: string,
   signal: AbortSignal,
 ): Promise<SparklineTrace[]> {
-  // Fetch data for all machines in parallel
-  const allPoints = await Promise.all(
-    machines.map(machine =>
-      queryDataPoints(suite, { metric, machine, afterTime }, signal)
-    )
-  );
+  const items = await fetchTrends(suite, { metric, machine: machines, afterTime }, signal);
 
-  const traces: SparklineTrace[] = [];
-
-  for (let i = 0; i < machines.length; i++) {
-    const machine = machines[i];
-    const points = allPoints[i];
-
-    // Group by order value, compute geomean across all tests at each order
-    const byOrder = new Map<string, { values: number[]; timestamp: string | null }>();
-    for (const pt of points) {
-      const orderKey = primaryOrderValue(pt.order);
-      let entry = byOrder.get(orderKey);
-      if (!entry) {
-        entry = { values: [], timestamp: pt.timestamp };
-        byOrder.set(orderKey, entry);
-      }
-      entry.values.push(pt.value);
-      // Keep the latest timestamp for display
-      if (pt.timestamp && (!entry.timestamp || pt.timestamp > entry.timestamp)) {
-        entry.timestamp = pt.timestamp;
-      }
-    }
-
-    // Convert to sparkline points, sorted by timestamp
-    const sparkPoints: Array<{ timestamp: string; value: number }> = [];
-    for (const [, entry] of byOrder) {
-      const gm = geomean(entry.values);
-      if (gm !== null && entry.timestamp) {
-        sparkPoints.push({ timestamp: entry.timestamp, value: gm });
-      }
-    }
-    sparkPoints.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
-
-    if (sparkPoints.length > 0) {
-      traces.push({
-        machine,
-        color: machineColor(i),
-        points: sparkPoints,
-      });
-    }
+  // Group API response by machine, build SparklineTrace per machine
+  const byMachine = new Map<string, Array<{ timestamp: string; value: number }>>();
+  for (const item of items) {
+    if (!item.timestamp) continue;
+    let points = byMachine.get(item.machine);
+    if (!points) { points = []; byMachine.set(item.machine, points); }
+    points.push({ timestamp: item.timestamp, value: item.value });
   }
 
+  const traces: SparklineTrace[] = [];
+  for (const [machine, points] of byMachine) {
+    if (points.length === 0) continue;
+    const idx = machines.indexOf(machine);
+    traces.push({ machine, color: machineColor(idx >= 0 ? idx : traces.length), points });
+  }
   return traces;
 }
 
@@ -204,7 +173,9 @@ export const homePage: PageModule = {
 
         if (sig.aborted) return;
 
-        const metrics = suiteInfo.schema.metrics;
+        const metrics = suiteInfo.schema.metrics.filter(
+          m => m.type === 'Real' || m.type === 'Integer',
+        );
         if (metrics.length === 0) {
           grid.append(el('p', { class: 'sparkline-loading' }, 'No metrics defined.'));
           return;
@@ -265,17 +236,21 @@ export const homePage: PageModule = {
         const traces = await fetchSuiteTrends(suite, metricName, machines, afterTime, sig);
         if (sig.aborted) return;
 
-        const graphParams = new URLSearchParams();
-        graphParams.set('suite', suite);
-        for (const m of machines) graphParams.append('machine', m);
-        graphParams.set('metric', metricName);
-        const graphUrl = `/graph?${graphParams.toString()}`;
-
         const { element, destroy } = createSparklineCard({
           title: displayName,
           unit,
           traces,
-          onClick: () => { window.location.href = agnosticUrl(graphUrl); },
+          onClick: (machine?: string) => {
+            const params = new URLSearchParams();
+            params.set('suite', suite);
+            if (machine) {
+              params.append('machine', machine);
+            } else {
+              for (const m of machines) params.append('machine', m);
+            }
+            params.set('metric', metricName);
+            window.location.href = agnosticUrl(`/graph?${params.toString()}`);
+          },
         });
 
         destroyFns.push(destroy);

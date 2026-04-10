@@ -23,6 +23,7 @@ _ENDPOINT_MODULES = [
     'regressions',
     'field_changes',
     'query',
+    'trends',
     'admin',
 ]
 

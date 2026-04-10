@@ -115,6 +115,17 @@ The test field accepts a list of names for disjunction queries.
 The order field filters for an exact order match and cannot be combined with after_order/before_order.
 Returns cursor-paginated time-series data for graphing. Uses field names (not indices) to be self-documenting.
 
+Trends (Aggregated)
+
+POST   /trends
+  Body (JSON): {metric, machine, after_time, before_time}
+The metric field is required and must be a numeric type (Real or Integer); Status and Hash metrics are rejected with 400. All other fields are optional.
+Unlike the query endpoint's single machine string, machine accepts a list of names — the Dashboard needs data for multiple machines in one call.
+Order-based filters are intentionally omitted; the Dashboard uses time-based filtering exclusively.
+Returns geomean-aggregated trend data per (machine, order). Not paginated — the result set is bounded by (machines × orders in range), typically < 2000 rows.
+Each item contains: machine name, order dict, timestamp (latest run start_time), and geomean value.
+Geomean is computed server-side in Python: exp(mean(ln(positive_values))), skipping zero/negative values.
+
 Schema and Fields
 
 Schema definitions and metric field metadata are returned as part of the test suite

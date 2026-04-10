@@ -2,8 +2,12 @@
 
 import { el } from '../utils';
 
+type PlotlyGd = HTMLElement & {
+  on: (evt: string, cb: (data: { points: Array<{ curveNumber: number }> }) => void) => void;
+};
+
 declare const Plotly: {
-  newPlot(el: HTMLElement, data: unknown[], layout: unknown, config?: unknown): Promise<HTMLElement>;
+  newPlot(el: HTMLElement, data: unknown[], layout: unknown, config?: unknown): Promise<PlotlyGd>;
   purge(el: HTMLElement): void;
 };
 
@@ -19,7 +23,9 @@ export interface SparklineCardOptions {
   title: string;
   unit?: string;
   traces: SparklineTrace[];
-  onClick?: () => void;
+  /** Called on click. If a specific trace was clicked, `machine` is its name;
+   *  otherwise (card background / title click) `machine` is undefined. */
+  onClick?: (machine?: string) => void;
 }
 
 function formatLabel(title: string, unit?: string): string {
@@ -38,9 +44,19 @@ export function createSparklineCard(options: SparklineCardOptions): {
   const chartDiv = el('div', { class: 'sparkline-chart' });
   const card = el('div', { class: 'sparkline-card' }, titleEl, chartDiv);
 
+  // Flag to prevent double-firing: Plotly's plotly_click fires after the DOM
+  // click has already bubbled to the card, so we can't use stopPropagation.
+  let traceClicked = false;
+
   if (options.onClick) {
     const handler = options.onClick;
-    card.addEventListener('click', () => handler());
+    card.addEventListener('click', () => {
+      if (traceClicked) {
+        traceClicked = false;
+        return;
+      }
+      handler();
+    });
   }
 
   const plotlyData = options.traces.map(trace => ({
@@ -70,7 +86,18 @@ export function createSparklineCard(options: SparklineCardOptions): {
   let plotted = false;
   requestAnimationFrame(() => {
     if (chartDiv.isConnected) {
-      Plotly.newPlot(chartDiv, plotlyData, layout, config).catch(() => { /* ok */ });
+      Plotly.newPlot(chartDiv, plotlyData, layout, config).then((gd) => {
+        if (options.onClick) {
+          const handler = options.onClick;
+          gd.on('plotly_click', (eventData) => {
+            const machine = options.traces[eventData.points[0]?.curveNumber]?.machine;
+            if (machine) {
+              traceClicked = true;
+              handler(machine);
+            }
+          });
+        }
+      }).catch(() => { /* ok */ });
       plotted = true;
     }
   });

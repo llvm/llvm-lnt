@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { setApiBase, getFields, getOrders, getMachines, getRuns, getSamples,
   getMachine, getMachineRuns, deleteMachine, getRun, deleteRun, getOrder, getRunsByOrder,
-  getFieldChanges, searchOrdersByTag, updateOrderTag, queryDataPoints,
+  getFieldChanges, searchOrdersByTag, updateOrderTag, queryDataPoints, fetchTrends,
   fetchOneCursorPage, apiUrl, ApiError, authErrorMessage,
 } from '../api';
 import type {
@@ -1034,5 +1034,42 @@ describe('fetchOneCursorPage', () => {
     expect(url.searchParams.get('sort')).toBe('-order');
     expect(url.searchParams.get('limit')).toBe('10000');
     expect(url.searchParams.get('cursor')).toBe('abc');
+  });
+});
+
+// ===========================================================================
+// fetchTrends
+// ===========================================================================
+
+describe('fetchTrends', () => {
+  it('sends POST with JSON body containing metric and machine list', async () => {
+    mockFetch.mockResolvedValueOnce(mockResponse({
+      metric: 'exec_time',
+      items: [{ machine: 'm1', order: { rev: '100' }, timestamp: '2025-01-01T00:00:00Z', value: 42.0 }],
+    }));
+
+    const result = await fetchTrends('nts', { metric: 'exec_time', machine: ['m1', 'm2'], afterTime: '2025-01-01T00:00:00Z' });
+
+    expect(result).toHaveLength(1);
+    const url = new URL(mockFetch.mock.calls[0][0]);
+    expect(url.pathname).toBe('/api/v5/nts/trends');
+    const init = mockFetch.mock.calls[0][1] as RequestInit;
+    expect(init.method).toBe('POST');
+    const body = JSON.parse(init.body as string);
+    expect(body.metric).toBe('exec_time');
+    expect(body.machine).toEqual(['m1', 'm2']);
+    expect(body.after_time).toBe('2025-01-01T00:00:00Z');
+  });
+
+  it('omits machine and time filters when not provided', async () => {
+    mockFetch.mockResolvedValueOnce(mockResponse({ metric: 'exec_time', items: [] }));
+
+    await fetchTrends('nts', { metric: 'exec_time' });
+
+    const init = mockFetch.mock.calls[0][1] as RequestInit;
+    const body = JSON.parse(init.body as string);
+    expect(body.metric).toBe('exec_time');
+    expect(body.machine).toBeUndefined();
+    expect(body.after_time).toBeUndefined();
   });
 });

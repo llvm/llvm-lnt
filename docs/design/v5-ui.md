@@ -107,7 +107,7 @@ Suite-agnostic landing page providing an at-a-glance visual overview of performa
 - Up to 5 traces per chart, one per most-recently-active machine (determined from recent runs sorted by start_time). Each trace is a colored line.
 - X-axis: run timestamps. Y-axis: geometric mean of all test values at each order for that machine+metric combination.
 - Hover tooltip shows the value and machine name.
-- Clicking a sparkline navigates to the Graph page pre-populated with that suite, metric, and the displayed machines.
+- Clicking a sparkline navigates to the Graph page pre-populated with that suite, metric, and the displayed machines. Clicking directly on a specific trace navigates with just that machine.
 - Loading state: placeholder skeleton while data is being fetched.
 - Error state: "Failed to load" message if fetching fails.
 

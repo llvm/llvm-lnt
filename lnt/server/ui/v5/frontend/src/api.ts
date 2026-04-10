@@ -441,6 +441,31 @@ export async function deleteTestSuite(
 }
 
 // ---------------------------------------------------------------------------
+// Trends (server-side geomean aggregation for Dashboard)
+// ---------------------------------------------------------------------------
+
+export interface TrendsDataPoint {
+  machine: string;
+  order: Record<string, string>;
+  timestamp: string | null;
+  value: number;
+}
+
+export async function fetchTrends(
+  ts: string,
+  opts: { metric: string; machine?: string[]; afterTime?: string; beforeTime?: string },
+  signal?: AbortSignal,
+): Promise<TrendsDataPoint[]> {
+  const body: Record<string, unknown> = { metric: opts.metric };
+  if (opts.machine?.length) body.machine = opts.machine;
+  if (opts.afterTime) body.after_time = opts.afterTime;
+  if (opts.beforeTime) body.before_time = opts.beforeTime;
+  const data = await fetchJson<{ metric: string; items: TrendsDataPoint[] }>(
+    apiUrl(ts, 'trends'), { method: 'POST', body, signal });
+  return data.items;
+}
+
+// ---------------------------------------------------------------------------
 // Admin — API keys (requires admin-scoped token)
 // ---------------------------------------------------------------------------
 

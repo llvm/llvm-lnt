@@ -123,19 +123,24 @@ def lookup_regression(session, ts, regression_uuid):
 # Serialization helpers
 # ---------------------------------------------------------------------------
 
+def serialize_order(order):
+    """Convert an Order model to a dict of field names to string values."""
+    order_dict = {}
+    if order:
+        for field in order.fields:
+            val = order.get_field(field)
+            if val is not None:
+                order_dict[field.name] = str(val)
+    return order_dict
+
+
 def serialize_run(run, ts):
     """Serialize a Run model instance for API responses.
 
     Returns a dict with uuid, machine, order, start_time, end_time,
     and parameters.  Used by both the runs and machines endpoints.
     """
-    # Build order dict from order fields
-    order_dict = {}
-    if run.order:
-        for field in run.order.fields:
-            val = run.order.get_field(field)
-            if val is not None:
-                order_dict[field.name] = str(val)
+    order_dict = serialize_order(run.order)
 
     start_time = None
     if run.start_time:

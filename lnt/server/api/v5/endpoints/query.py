@@ -20,7 +20,7 @@ from lnt.testing import PASS
 
 from ..auth import require_scope
 from ..errors import abort_with_error
-from ..helpers import parse_datetime, resolve_metric
+from ..helpers import parse_datetime, resolve_metric, serialize_order
 from ..pagination import make_paginated_response
 from ..schemas.query import QueryEndpointQuerySchema, QueryResponseSchema
 
@@ -315,11 +315,7 @@ def _query_for_field(session, ts, sample_field, machine, test_ids,
 
     items = []
     for value, order, run, test_obj, machine_obj in rows:
-        order_dict = {}
-        for of in order.fields:
-            val = order.get_field(of)
-            if val is not None:
-                order_dict[of.name] = str(val)
+        order_dict = serialize_order(order)
 
         timestamp = None
         if run.start_time:

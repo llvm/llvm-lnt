@@ -8,7 +8,7 @@ vi.mock('../../api', async (importOriginal) => {
     ...actual,
     getTestSuiteInfo: vi.fn(),
     getRunsPage: vi.fn(),
-    queryDataPoints: vi.fn(),
+    fetchTrends: vi.fn(),
   };
 });
 
@@ -31,10 +31,10 @@ vi.mock('../../router', async (importOriginal) => {
 };
 (globalThis as unknown as Record<string, unknown>).lnt_url_base = '';
 
-import { getTestSuiteInfo, getRunsPage, queryDataPoints } from '../../api';
-import type { CursorPageResult } from '../../api';
+import { getTestSuiteInfo, getRunsPage, fetchTrends } from '../../api';
+import type { CursorPageResult, TrendsDataPoint } from '../../api';
 import { homePage } from '../../pages/home';
-import type { RunInfo, QueryDataPoint, TestSuiteInfo } from '../../types';
+import type { RunInfo, TestSuiteInfo } from '../../types';
 
 const mockSuiteInfo: TestSuiteInfo = {
   name: 'nts',
@@ -71,9 +71,8 @@ function mockRunsPage(items: RunInfo[], nextCursor: string | null = null): Curso
   return { items, nextCursor };
 }
 
-const mockDataPoints: QueryDataPoint[] = [
-  { test: 'test1', machine: 'machine-a', metric: 'execution_time', value: 10, order: { rev: '100' }, run_uuid: 'r1', timestamp: '2026-01-01T10:00:00Z' },
-  { test: 'test2', machine: 'machine-a', metric: 'execution_time', value: 20, order: { rev: '100' }, run_uuid: 'r1', timestamp: '2026-01-01T10:00:00Z' },
+const mockTrendsData: TrendsDataPoint[] = [
+  { machine: 'machine-a', order: { rev: '100' }, timestamp: '2026-01-01T10:00:00Z', value: 14.14 },
 ];
 
 let container: HTMLElement;
@@ -93,7 +92,7 @@ beforeEach(() => {
     return Promise.resolve(mockSuiteInfo2);
   });
   (getRunsPage as ReturnType<typeof vi.fn>).mockResolvedValue(mockRunsPage(mockRuns));
-  (queryDataPoints as ReturnType<typeof vi.fn>).mockResolvedValue(mockDataPoints);
+  (fetchTrends as ReturnType<typeof vi.fn>).mockResolvedValue(mockTrendsData);
 });
 
 afterEach(() => {

@@ -58,7 +58,7 @@ describe('createSparklineCard', () => {
     expect(chartDiv).not.toBeNull();
   });
 
-  it('click fires the onClick callback', () => {
+  it('click fires the onClick callback with no machine argument', () => {
     const onClick = vi.fn();
     const { element } = createSparklineCard({
       title: 'metric',
@@ -68,6 +68,7 @@ describe('createSparklineCard', () => {
 
     element.click();
     expect(onClick).toHaveBeenCalledOnce();
+    expect(onClick).toHaveBeenCalledWith();
   });
 
   it('destroy() calls Plotly.purge', async () => {
