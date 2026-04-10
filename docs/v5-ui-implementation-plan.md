@@ -1396,8 +1396,8 @@ export interface TimeSeriesTrace {
 }
 
 export interface PinnedBaseline {
-  orderValue: string;
-  /** User-assigned label, if any. */
+  /** Display label, e.g. "libstdc++/gcc-x86/v13.2" or with " (tag)". */
+  label: string;
   tag: string | null;
   /** Per-test values at this baseline. */
   values: Map<string, number>;
@@ -1595,20 +1595,20 @@ The graph page is the most data-intensive page. It uses **lazy loading with per-
      - Show a progress indicator during background fetching (e.g., "Loading: clang-x86 30000 points, gcc-arm 15000 points...").
      - **Per-machine×metric AbortControllers**: Each machine×metric fetch gets its own `AbortController`. Removing a machine aborts its in-flight fetch without affecting other machines.
    - `renderFromCache()` iterates over all machines' caches, builds traces for each machine (with `machine` field and `markerSymbol` set), merges them, and passes the combined trace list to the chart.
-   - `buildTraces()` is called per machine with an empty text filter to get ALL tests. The active set is computed by `computeActiveTests()` based on trace names ("`{test} - {machine}`"), the text filter (matching test name only), manual toggles, and auto-cap.
+   - `buildTraces()` is called per machine for each discovered test. The active set is computed by `computeActiveTests()` based on trace names ("`{test} - {machine}`") and manual toggles (the `manuallyHidden` set).
    - **Marker symbol assignment**: A fixed ordered list of Plotly marker symbols (`MACHINE_SYMBOLS = ['circle', 'triangle-up', 'square', 'diamond', 'x', 'cross', 'star', ...]`). The i-th machine in the `machines` list gets `MACHINE_SYMBOLS[i % MACHINE_SYMBOLS.length]`.
    - **Color assignment**: Colors are assigned by alphabetical index of all **test names** (not trace names) across all machines, using the D3 category10 palette. This ensures the same test on different machines shares the same color.
 
 3. **Legend table and visibility control**:
-   - A `createLegendTable` component (`components/legend-table.ts`) renders below the chart, listing traces sorted alphabetically by name. The table is part of the normal page flow (no `max-height`, no `overflow` — scrolling the table scrolls the page, consistent with the Compare page's table) but has a border for visual grouping. Each row represents one trace and shows: a colored marker symbol character (●, ▲, ■, etc. in the trace's color), the test name (left-justified), and the machine name (right-justified, grey). Tests not matching the text filter are hidden entirely (filter matches test name only, hiding all machine variants of non-matching tests). Inactive traces (manually hidden or beyond the 20-cap) are grayed out in place (not partitioned below active traces).
-   - The legend message area above the table rows always shows a count: when the 20-cap is active, it shows the cap warning (e.g., "Showing first 20 of 150 traces..."); otherwise it shows a matching count (e.g., "42 of 150 traces matching"). When all traces are visible, it shows just the total (e.g., "150 traces").
-   - A trace is active if: its test name matches the text filter, it has not been manually hidden, and (when the 20-cap is active) it is within the first 20 candidates.
-   - The 20-cap is only active when there is no text filter AND no manual toggles. Typing in the filter or clicking any row permanently disables the cap for the rest of the page session.
+   - A `createLegendTable` component (`components/legend-table.ts`) renders below the chart, listing traces sorted alphabetically by name. The table is part of the normal page flow (no `max-height`, no `overflow` — scrolling the table scrolls the page, consistent with the Compare page's table) but has a border for visual grouping. Each row represents one trace and shows: a colored marker symbol character (●, ▲, ■, etc. in the trace's color), the test name (left-justified), and the machine name (right-justified, grey). Tests not matching the text filter are not discovered at all (filtering happens at the discovery level, not the display level). Manually hidden traces are grayed out in place (not partitioned below active traces).
+   - The legend message area above the table rows always shows counts: "N tests, M traces". When the discovered test list was truncated (more than 50 tests match), it shows a warning: "Showing first 50 of 50+ matching tests. Refine the filter to see others."
+   - A trace is active if it has not been manually hidden (i.e., is not in the `manuallyHidden` set). There is no UI-level cap — all discovered tests are plotted unless manually hidden.
+   - Test discovery is capped at 50 tests at the data level via `filterTestNames()`. This cap applies always (with or without a text filter). Tests beyond the 50-cap are not shown in the legend or fetched from the API. This keeps the UI responsive for test suites with thousands of tests.
    - Clicking a row toggles visibility and triggers `renderFromCache()`. Double-clicking a row is a shortcut for hiding all other visible traces: the `onIsolate` callback populates `manuallyHidden` with all visible trace names except the double-clicked one. If the double-clicked trace is already the only non-hidden trace, `manuallyHidden` is cleared to restore all. This uses the same `manuallyHidden` mechanism as single-click, so subsequent single-clicks work naturally (e.g., single-clicking a hidden trace after a double-click simply unhides it). The click/dblclick interaction is handled with a 200ms delay on single-click to prevent spurious toggles during a double-click. The legend table exposes both `onToggle` and `onIsolate` callbacks.
    - Colors are assigned by alphabetical index of all **test names** (not trace names) using the D3 category10 palette (`PLOTLY_COLORS`), ensuring the same test on different machines shares the same color.
    - Plotly's built-in legend is disabled (`showlegend: false` always). Traces receive explicit `line.color` and `marker.color` from the color map, and `marker.symbol` from the machine symbol assignment.
    - Bidirectional hover: the legend table dispatches `GRAPH_TABLE_HOVER` events; the chart dispatches `GRAPH_CHART_HOVER` events. The graph page wires these via `onCustomEvent()` (which now returns a cleanup function) to call `chartHandle.hoverTrace()` and `legendHandle.highlightRow()` respectively. `hoverTrace()` uses `Plotly.restyle()` to emphasize the entire trace line (line width 3px, opacity 1.0) and dim all other main traces (opacity 0.2) and baseline traces. Passing `null` restores all traces to their normal appearance (line width 1.5px, opacity 1.0). The restyle calls are chained after `plotReady` to avoid race conditions with newPlot/react.
-   - `manuallyHidden` (Set of trace names — `'{test} · {machine}'`), `autoCapped` (boolean), and `legendHandle` are module-scope state. They are preserved across unmount/remount (like the cache). A module-level `GraphDataCache` instance serves as the sole data access layer — all test names, data points, scaffolds, and baseline data are accessed through it. `computeActiveTests()` takes four inputs (allTraceNames, testFilter, manuallyHidden, autoCapped) and returns the active set. The test filter matches against the **test name portion** of each trace name. Double-click isolation is implemented purely through `manuallyHidden` — no separate `isolatedTest` state.
+   - `manuallyHidden` (Set of trace names — `'{test} · {machine}'`) and `legendHandle` are module-scope state. They are preserved across unmount/remount (like the cache). A module-level `GraphDataCache` instance serves as the sole data access layer — all test names, data points, scaffolds, and baseline data are accessed through it. `computeActiveTests()` takes three inputs (allTraceNames, testFilter, manuallyHidden) and returns the active set — it simply filters out manually hidden traces (the test filter is applied earlier at the discovery level via `filterTestNames()`). Double-click isolation is implemented purely through `manuallyHidden` — no separate `isolatedTest` state.
 
 3. **`GraphDataCache` -- centralized data access layer**:
    - A `GraphDataCache` class (in `pages/graph-data-cache.ts`) manages all data access for the graph page. It provides both async methods (fetch on demand) and sync methods (read cache only, never trigger fetches).
@@ -1670,7 +1670,7 @@ The graph page is the most data-intensive page. It uses **lazy loading with per-
 - Order search suggestions: verify suggestions are populated from union of all machines' scaffolds + `getOrders()` (tags), with tagged orders first; verify prefix-based filtering; verify red border on no matches and Enter blocked
 - Test filter: verify filter matches test name only (not machine name); verify matching test shows all machine variants; verify non-matching test hides all machine variants
 - Color assignment: verify colors are assigned by alphabetical index of test names (not trace names); verify same test on different machines gets the same color
-- Test cap warning: verify warning shows when > N traces match
+- Test cap warning: verify warning shows when discovered tests are truncated (> 50 match)
 - Aggregation: verify data points are correctly aggregated before charting
 - Cache hit: verify that changing test filter re-renders from cache without API call (via `GraphDataCache` test names cache)
 - `GraphDataCache` unit tests: LRU eviction, error handling (no cache on error), abort signals, `ensureTestData` batch fetch, `getBaselineData` re-fetch on expanded test list, `filterTestNames` pure function, `scaffoldUnion` across machines
@@ -1679,7 +1679,7 @@ The graph page is the most data-intensive page. It uses **lazy loading with per-
 - Progressive rendering: verify `chartHandle.update()` is called after each page, with traces from all machines
 - AbortController: verify that removing a machine aborts its in-flight fetch without affecting other machines
 - X-axis scaffold: verify the machine runs endpoint is called per machine; verify scaffold union is passed as `categoryOrder` to the chart; verify scaffold is cached per machine; verify chart still renders if one machine's scaffold fetch fails
-- `computeActiveTests`: 20-cap with no filter, filter disables cap, manuallyHidden excludes traces, cap disabled when manuallyHidden non-empty, cap never re-enabled
+- `computeActiveTests`: manuallyHidden excludes traces; no cap logic (cap is at the discovery level via `filterTestNames`)
 
 **Tests for `legend-table.ts`** (`__tests__/legend-table.test.ts`):
 - Rows rendered in entry order with inactive rows grayed out (no partitioning)
