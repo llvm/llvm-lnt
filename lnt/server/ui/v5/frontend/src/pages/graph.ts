@@ -3,7 +3,7 @@
 import type { PageModule, RouteParams } from '../router';
 import type { AggFn, QueryDataPoint } from '../types';
 import { getFields, getOrders, fetchOneCursorPage, postOneCursorPage, apiUrl } from '../api';
-import { el, debounce, getAggFn, primaryOrderValue, TRACE_SEP } from '../utils';
+import { el, debounce, getAggFn, primaryOrderValue, TRACE_SEP, PLOTLY_COLORS, machineColor } from '../utils';
 import { getTestsuites } from '../router';
 import { onCustomEvent, GRAPH_TABLE_HOVER, GRAPH_CHART_HOVER } from '../events';
 import { renderMachineCombobox } from '../components/machine-combobox';
@@ -17,10 +17,6 @@ import { createLegendTable, type LegendEntry, type LegendTableHandle } from '../
 import { GraphDataCache, filterTestNames } from './graph-data-cache';
 
 const MAX_DISPLAYED_TESTS = 50;
-const PLOTLY_COLORS = [
-  '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
-  '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf',
-];
 const MACHINE_SYMBOLS = [
   'circle', 'triangle-up', 'square', 'diamond', 'x',
   'cross', 'star', 'pentagon', 'hexagon', 'hexagram',
@@ -77,10 +73,6 @@ let cleanupTableHover: (() => void) | null = null;
 let cleanupChartHover: (() => void) | null = null;
 /** List of selected machines (preserved across unmount/remount). */
 let machines: string[] = [];
-
-function assignColor(index: number): string {
-  return PLOTLY_COLORS[index % PLOTLY_COLORS.length];
-}
 
 function assignSymbol(machineIndex: number): string {
   return MACHINE_SYMBOLS[machineIndex % MACHINE_SYMBOLS.length];
@@ -529,7 +521,7 @@ export const graphPage: PageModule = {
 
       // Assign colors by test name (same test on different machines = same color).
       const colorMap = new Map<string, string>();
-      discoveredTests.forEach((name, i) => colorMap.set(name, assignColor(i)));
+      discoveredTests.forEach((name, i) => colorMap.set(name, machineColor(i)));
 
       // Collect all points for raw values callback.
       const allPoints: QueryDataPoint[] = [];

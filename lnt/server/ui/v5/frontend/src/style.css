@@ -692,15 +692,86 @@ dl {
 }
 
 /* Dashboard */
-.dashboard-section {
-  margin-bottom: 20px;
+.dashboard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
 }
 
-.dashboard-section h3 {
-  font-size: 15px;
+.dashboard-header .page-header {
+  margin-bottom: 0;
+}
+
+.dashboard-range-group {
+  display: flex;
+  gap: 4px;
+}
+
+.dashboard-range-btn {
+  padding: 4px 12px;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.dashboard-range-btn:hover {
+  background: #f0f0f0;
+}
+
+.dashboard-range-btn-active {
+  background: #0d6efd;
+  color: #fff;
+  border-color: #0d6efd;
+}
+
+.suite-section {
+  margin-bottom: 24px;
+}
+
+.sparkline-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.sparkline-card {
+  width: 300px;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  padding: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.sparkline-card:hover {
+  border-color: #0d6efd;
+}
+
+.sparkline-title {
+  font-size: 13px;
   font-weight: 600;
-  margin-bottom: 8px;
+  margin: 0 0 4px 0;
   color: #333;
+}
+
+.sparkline-chart {
+  height: 130px;
+}
+
+.sparkline-loading, .sparkline-error {
+  height: 130px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: #999;
+}
+
+.sparkline-error {
+  color: #d62728;
 }
 
 /* Page headers */

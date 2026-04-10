@@ -7,7 +7,7 @@ vi.mock('../router', () => ({
 }));
 
 import {
-  median, mean, safeMin, safeMax, getAggFn,
+  median, mean, safeMin, safeMax, getAggFn, geomean,
   formatValue, formatPercent, formatRatio, formatTime,
   truncate, primaryOrderValue,
   debounce, el, isModifiedClick, spaLink,
@@ -68,6 +68,29 @@ describe('safeMax', () => {
   it('returns the maximum value', () => {
     expect(safeMax([3, 1, 2])).toBe(3);
     expect(safeMax([-5, 0, 5])).toBe(5);
+  });
+});
+
+describe('geomean', () => {
+  it('computes geometric mean of positive values', () => {
+    expect(geomean([4, 16])).toBeCloseTo(8);
+  });
+
+  it('filters out zero and negative values', () => {
+    expect(geomean([4, 0, 16])).toBeCloseTo(8);
+    expect(geomean([4, -3, 16])).toBeCloseTo(8);
+  });
+
+  it('returns null when all values are invalid', () => {
+    expect(geomean([0, -1])).toBeNull();
+  });
+
+  it('returns null for empty array', () => {
+    expect(geomean([])).toBeNull();
+  });
+
+  it('returns the single value for a single-element array', () => {
+    expect(geomean([25])).toBeCloseTo(25);
   });
 });
 

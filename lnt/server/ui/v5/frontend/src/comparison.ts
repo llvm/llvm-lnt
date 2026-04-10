@@ -1,5 +1,5 @@
 import type { AggFn, ComparisonRow, RowStatus, SampleInfo } from './types';
-import { getAggFn } from './utils';
+import { getAggFn, geomean } from './utils';
 
 /**
  * Aggregate multiple samples within a single run for one metric.
@@ -167,16 +167,17 @@ export function computeGeomean(rows: ComparisonRow[]): GeomeanResult | null {
 
   if (valid.length === 0) return null;
 
-  const logSumA = valid.reduce((s, r) => s + Math.log(Math.abs(r.valueA!)), 0);
-  const logSumB = valid.reduce((s, r) => s + Math.log(Math.abs(r.valueB!)), 0);
-  const logSumRatio = valid.reduce((s, r) => s + Math.log(Math.abs(r.ratio!)), 0);
+  const geomeanA = geomean(valid.map(r => Math.abs(r.valueA!)));
+  const geomeanB = geomean(valid.map(r => Math.abs(r.valueB!)));
+  const ratioGeomean = geomean(valid.map(r => Math.abs(r.ratio!)));
 
-  const geomeanA = Math.exp(logSumA / valid.length);
-  const geomeanB = Math.exp(logSumB / valid.length);
+  // geomean() returns null only when all values are <= 0, but we already
+  // filtered out zeros above, so these will always be non-null.
+  if (geomeanA === null || geomeanB === null || ratioGeomean === null) return null;
+
   const delta = geomeanB - geomeanA;
   // Use Math.abs so deltaPct sign matches delta sign (see computeComparison).
   const deltaPct = geomeanA !== 0 ? (delta / Math.abs(geomeanA)) * 100 : null;
-  const ratioGeomean = Math.exp(logSumRatio / valid.length);
 
   return { geomeanA, geomeanB, delta, deltaPct, ratioGeomean };
 }

@@ -705,7 +705,7 @@ Suite-scoped context (`testsuite: 'nts'`):
 
 ## Phase 2: Core Browsing Pages
 
-**Goal**: Implement the Test Suites page (suite picker + tabbed browsing), Machine Detail, Run Detail, and Order Detail.
+**Goal**: Implement the Test Suites page (suite picker + tabbed browsing), Machine Detail, Run Detail, Order Detail, and Dashboard (sparkline trend overview).
 
 ### 2.1 New API Functions
 
@@ -1355,6 +1355,245 @@ Add the new interfaces listed in section 2.1: `OrderDetail`, `OrderNeighbor`, `R
 
 - `searchOrdersByTag`: correct URL with `tag_prefix` param
 - `updateOrderTag`: correct URL, PATCH method, JSON body with `tag` field, auth header
+
+### 2.10 Dashboard Page
+
+**Goal**: Replace the `home.ts` stub with a full Dashboard showing sparkline trend charts for every test suite and metric.
+
+#### 2.10.1 API Changes
+
+**File**: `lnt/server/ui/v5/frontend/src/api.ts`
+
+Add `afterTime` and `beforeTime` to `queryDataPoints`:
+
+```typescript
+export async function queryDataPoints(
+  ts: string,
+  opts: {
+    machine?: string;
+    metric?: string;
+    test?: string | string[];
+    order?: string;
+    afterOrder?: string;
+    beforeOrder?: string;
+    afterTime?: string;    // NEW — ISO 8601
+    beforeTime?: string;   // NEW — ISO 8601
+    sort?: string;
+  },
+  signal?: AbortSignal,
+  onProgress?: (loaded: number) => void,
+): Promise<QueryDataPoint[]> {
+  const body: Record<string, unknown> = {};
+  // ... existing fields ...
+  if (opts.afterTime) body.after_time = opts.afterTime;
+  if (opts.beforeTime) body.before_time = opts.beforeTime;
+  // ...
+}
+```
+
+#### 2.10.2 Shared Geomean Utility
+
+**File**: `lnt/server/ui/v5/frontend/src/utils.ts`
+
+```typescript
+/** Geometric mean of positive values. Returns null if no valid (> 0) values. */
+export function geomean(values: number[]): number | null {
+  const valid = values.filter(v => v > 0);
+  if (valid.length === 0) return null;
+  const sumLog = valid.reduce((s, v) => s + Math.log(v), 0);
+  return Math.exp(sumLog / valid.length);
+}
+```
+
+**File**: `lnt/server/ui/v5/frontend/src/comparison.ts`
+
+Refactor `computeGeomean()` to call the shared `geomean()` primitive from `utils.ts` instead of inlining the `exp(mean(ln(...)))` logic. Existing Compare tests must continue to pass.
+
+#### 2.10.3 Sparkline Card Component
+
+**File**: `lnt/server/ui/v5/frontend/src/components/sparkline-card.ts` (new)
+
+A lightweight Plotly wrapper for small trend charts:
+
+```typescript
+export interface SparklineTrace {
+  machine: string;
+  color: string;
+  points: Array<{ timestamp: string; value: number }>;
+}
+
+export interface SparklineCardOptions {
+  title: string;        // Metric display name or field name
+  unit?: string;        // e.g. "ms", "bytes"
+  traces: SparklineTrace[];
+  onClick?: () => void; // Navigation callback
+}
+
+/** Create a sparkline card element. Call destroy() on unmount to free Plotly. */
+export function createSparklineCard(options: SparklineCardOptions): {
+  element: HTMLElement;
+  destroy(): void;
+};
+```
+
+- Plotly config: `responsive: true`, `displayModeBar: false`
+- Layout: small margins (`t:8, r:8, b:30, l:40`), `showlegend: false`, x-axis type `date`, auto y-axis, `hovermode: 'closest'`
+- Hover template: value + machine name
+- Card container has `cursor: pointer` and fires `onClick` on click
+- Loading state: show a `.sparkline-loading` placeholder with "Loading..." text
+- Error state: show a `.sparkline-error` placeholder with "Failed to load" text
+
+#### 2.10.4 Dashboard Page Module
+
+**File**: `lnt/server/ui/v5/frontend/src/pages/home.ts` (replace stub)
+
+```
+mount(container, params):
+  1. Read ?range from URL (default '30d'), compute afterTime ISO string
+  2. Render page header with time range buttons (30d / 90d / 1y)
+  3. For each suite from getTestsuites():
+     a. Render suite <h3> header + empty sparkline grid container
+     b. Fetch getTestSuiteInfo(suite) → metrics list
+     c. Fetch getRunsPage(suite, {sort: '-start_time', limit: 50}) → extract top 5 distinct machine names
+     d. For each metric:
+        - Render loading-state sparkline card in the grid
+        - Call fetchSuiteTrends(suite, metric, machines, afterTime, signal)
+        - On success: render sparkline card with data, onClick navigates to Graph page
+        - On error: render error-state sparkline card
+  4. Time range button click: update URL, abort all in-flight requests, re-fetch everything
+
+unmount():
+  - Abort all in-flight requests via AbortController
+  - Destroy all Plotly sparkline instances
+```
+
+**`fetchSuiteTrends` abstraction** (in `home.ts` or a separate module):
+
+```typescript
+/** Fetch trend data for one metric across multiple machines.
+ *  Returns sparkline traces with geomean-aggregated values per order.
+ *  This is the seam where client-side computation can be replaced by
+ *  a server-side summary endpoint. */
+async function fetchSuiteTrends(
+  suite: string,
+  metric: string,
+  machines: string[],
+  afterTime: string,
+  signal: AbortSignal,
+): Promise<SparklineTrace[]> {
+  // For each machine, fetch all data points in parallel
+  // Group by (machine, primaryOrderValue)
+  // Compute geomean across all test values per group
+  // Return SparklineTrace[] with sorted points
+}
+```
+
+**Click-through URL**: When a sparkline is clicked, navigate to the Graph page with pre-populated params:
+```
+/v5/graph?suite={suite}&machine={m1}&machine={m2}&...&metric={metric}
+```
+
+#### 2.10.5 Dashboard CSS
+
+**File**: `lnt/server/ui/v5/frontend/src/style.css` (extend)
+
+```css
+/* Dashboard */
+.dashboard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.dashboard-range-group {
+  display: flex;
+  gap: 4px;
+}
+
+.dashboard-range-btn {
+  padding: 4px 12px;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.dashboard-range-btn:hover { background: #f0f0f0; }
+
+.dashboard-range-btn-active {
+  background: #0d6efd;
+  color: #fff;
+  border-color: #0d6efd;
+}
+
+.suite-section { margin-bottom: 24px; }
+
+.sparkline-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.sparkline-card {
+  width: 300px;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  padding: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.sparkline-card:hover { border-color: #0d6efd; }
+
+.sparkline-title {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0 0 4px 0;
+  color: #333;
+}
+
+.sparkline-chart { height: 130px; }
+
+.sparkline-loading, .sparkline-error {
+  height: 130px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: #999;
+}
+
+.sparkline-error { color: #d62728; }
+```
+
+#### 2.10.6 Dashboard Testing
+
+**Minimum required tests** (implementing agent may add more):
+
+- **`geomean()` utility** (`__tests__/utils.test.ts`):
+  - `geomean([4, 16])` returns 8
+  - `geomean([4, 0, 16])` filters zero, returns 8
+  - `geomean([0, -1])` returns null (all invalid)
+  - `geomean([])` returns null
+  - `geomean([25])` returns 25
+
+- **`computeGeomean` refactored** (existing `__tests__/comparison.test.ts` tests pass — no new tests, just no regressions)
+
+- **`queryDataPoints` with `afterTime`/`beforeTime`** (`__tests__/api.test.ts`):
+  - POST body includes `after_time` / `before_time` when provided
+
+- **Dashboard page** (`__tests__/home.test.ts`):
+  - Mounts and renders a suite section header for each test suite
+  - Time range buttons render; the active one reflects URL state
+  - Sparkline cards render with correct metric titles given mock data
+
+- **Sparkline card component** (`__tests__/sparkline-card.test.ts`):
+  - Renders a container with the metric title
+  - Shows loading state before data arrives
+  - Shows error state on fetch failure
+  - Click fires the navigation callback
 
 ---
 
@@ -2119,6 +2358,7 @@ lnt/server/ui/v5/frontend/src/components/pagination.ts
 lnt/server/ui/v5/frontend/src/components/order-search.ts
 lnt/server/ui/v5/frontend/src/components/machine-combobox.ts
 lnt/server/ui/v5/frontend/src/components/time-series-chart.ts
+lnt/server/ui/v5/frontend/src/components/sparkline-card.ts
 lnt/server/ui/v5/frontend/src/pages/home.ts
 lnt/server/ui/v5/frontend/src/pages/test-suites.ts
 lnt/server/ui/v5/frontend/src/pages/machine-detail.ts
@@ -2137,6 +2377,7 @@ lnt/server/ui/v5/frontend/src/__tests__/pagination.test.ts
 lnt/server/ui/v5/frontend/src/__tests__/order-search.test.ts
 lnt/server/ui/v5/frontend/src/__tests__/machine-combobox.test.ts
 lnt/server/ui/v5/frontend/src/__tests__/time-series-chart.test.ts
+lnt/server/ui/v5/frontend/src/__tests__/sparkline-card.test.ts
 lnt/server/ui/v5/frontend/src/__tests__/pages/dashboard.test.ts
 lnt/server/ui/v5/frontend/src/__tests__/pages/machine-list.test.ts
 lnt/server/ui/v5/frontend/src/__tests__/pages/machine-detail.test.ts

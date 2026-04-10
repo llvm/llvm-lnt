@@ -367,6 +367,8 @@ export async function queryDataPoints(
     order?: string;
     afterOrder?: string;
     beforeOrder?: string;
+    afterTime?: string;
+    beforeTime?: string;
     sort?: string;
   },
   signal?: AbortSignal,
@@ -379,6 +381,8 @@ export async function queryDataPoints(
   if (opts.order) body.order = opts.order;
   if (opts.afterOrder) body.after_order = opts.afterOrder;
   if (opts.beforeOrder) body.before_order = opts.beforeOrder;
+  if (opts.afterTime) body.after_time = opts.afterTime;
+  if (opts.beforeTime) body.before_time = opts.beforeTime;
   if (opts.sort) body.sort = opts.sort;
   return fetchAllCursorPages<QueryDataPoint>(
     apiUrl(ts, 'query'),

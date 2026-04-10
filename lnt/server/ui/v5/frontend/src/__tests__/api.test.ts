@@ -946,6 +946,21 @@ describe('queryDataPoints', () => {
     const body2 = JSON.parse(init2.body as string);
     expect(body2.cursor).toBe('cursor-2');
   });
+
+  it('passes afterTime and beforeTime as after_time and before_time in POST body', async () => {
+    mockFetch.mockResolvedValueOnce(mockResponse(cursorPage([])));
+
+    await queryDataPoints('nts', {
+      metric: 'exec_time',
+      afterTime: '2025-01-01T00:00:00Z',
+      beforeTime: '2025-02-01T00:00:00Z',
+    });
+
+    const init = mockFetch.mock.calls[0][1] as RequestInit;
+    const body = JSON.parse(init.body as string);
+    expect(body.after_time).toBe('2025-01-01T00:00:00Z');
+    expect(body.before_time).toBe('2025-02-01T00:00:00Z');
+  });
 });
 
 // ===========================================================================

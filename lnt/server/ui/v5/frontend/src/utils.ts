@@ -9,6 +9,17 @@ export const TRACE_SEP = ' \u00b7 ';
 
 // Aggregation functions
 
+/** Default Plotly color palette, shared across Graph and Dashboard sparklines. */
+export const PLOTLY_COLORS = [
+  '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
+  '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf',
+];
+
+/** Return a color from the shared palette by index (wraps around). */
+export function machineColor(index: number): string {
+  return PLOTLY_COLORS[index % PLOTLY_COLORS.length];
+}
+
 export function median(values: number[]): number {
   if (values.length === 0) return 0;
   const sorted = [...values].sort((a, b) => a - b);
@@ -31,6 +42,14 @@ export function safeMin(values: number[]): number {
 export function safeMax(values: number[]): number {
   if (values.length === 0) return 0;
   return values.reduce((a, b) => Math.max(a, b));
+}
+
+/** Geometric mean of positive values. Returns null if no valid (> 0) values. */
+export function geomean(values: number[]): number | null {
+  const valid = values.filter(v => v > 0);
+  if (valid.length === 0) return null;
+  const sumLog = valid.reduce((s, v) => s + Math.log(v), 0);
+  return Math.exp(sumLog / valid.length);
 }
 
 export function getAggFn(name: AggFn): (values: number[]) => number {
