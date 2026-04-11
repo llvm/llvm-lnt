@@ -124,7 +124,7 @@ Unlike the query endpoint's single machine string, machine accepts a list of nam
 Order-based filters are intentionally omitted; the Dashboard uses time-based filtering exclusively.
 Returns geomean-aggregated trend data per (machine, order). Not paginated — the result set is bounded by (machines × orders in range), typically < 2000 rows.
 Each item contains: machine name, order dict, timestamp (latest run start_time), and geomean value.
-Geomean is computed server-side in Python: exp(mean(ln(positive_values))), skipping zero/negative values.
+Geomean is computed in SQL: `exp(avg(ln(positive_values)))`, skipping zero/negative values.
 
 Schema and Fields
 

@@ -782,7 +782,7 @@ Each endpoint must test:
     - New files: `endpoints/trends.py`, `schemas/trends.py`
     - Accepts: metric (required), machine (list, optional), after_time/before_time (optional)
     - Returns: geomean-aggregated items per (machine, order), not paginated
-    - Python-side aggregation: fetch all rows, group by (machine_id, order_id), compute exp(mean(ln(positive_values)))
+    - SQL-level aggregation: GROUP BY (machine_name, order_id) with exp(avg(ln(value))); Order objects batch-loaded separately
     - Uses `lookup_machine()` from helpers.py for name resolution (404/409 on error)
     - `@require_scope('read')`, `Meta.unknown = ma.RAISE`
 

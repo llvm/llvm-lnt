@@ -7,7 +7,7 @@ Returns server-side geomean-aggregated trend data for the Dashboard.
 The metric field is required; all other fields are optional.
 """
 
-import math
+from sqlalchemy import func
 
 from flask import g, jsonify
 from flask.views import MethodView
@@ -34,23 +34,19 @@ def _compute_trends(session, ts, sample_field, machine_ids,
     """Build and execute a trends query, returning geomean-aggregated items.
 
     Groups all samples by (machine, order) and computes the geometric mean
-    of positive sample values within each group.
+    of positive sample values within each group using SQL-level aggregation:
+    exp(avg(ln(value))).
     """
     q = session.query(
-        sample_field.column,
-        ts.Order,
-        ts.Run.start_time,
-        ts.Machine.id,
         ts.Machine.name,
-        # Without Sample.id, SQLAlchemy deduplicates rows where all selected
-        # columns match (e.g. two tests with the same metric value at the
-        # same order), which silently drops samples from the geomean.
-        ts.Sample.id,
+        ts.Order.id,
+        func.exp(func.avg(func.ln(sample_field.column))),
+        func.max(ts.Run.start_time),
     ).select_from(ts.Sample) \
         .join(ts.Run) \
         .join(ts.Order) \
         .join(ts.Machine, ts.Run.machine_id == ts.Machine.id) \
-        .filter(sample_field.column.isnot(None))
+        .filter(sample_field.column > 0)
 
     if sample_field.status_field:
         q = q.filter(
@@ -65,41 +61,29 @@ def _compute_trends(session, ts, sample_field, machine_ids,
     if before_time:
         q = q.filter(ts.Run.start_time < before_time)
 
+    q = q.group_by(ts.Machine.name, ts.Order.id) \
+        .order_by(ts.Machine.name, func.max(ts.Run.start_time))
     rows = q.all()
 
-    # Group by (machine_id, order_id), compute geomean
-    groups = {}
-    for value, order, start_time, machine_id, machine_name, _sample_id in rows:
-        key = (machine_id, order.id)
-        if key not in groups:
-            groups[key] = {
-                'machine_name': machine_name,
-                'order': order,
-                'values': [],
-                'timestamp': start_time,
-            }
-        grp = groups[key]
-        grp['values'].append(value)
-        if start_time and (not grp['timestamp'] or
-                           start_time > grp['timestamp']):
-            grp['timestamp'] = start_time
+    # Batch-load the unique Order objects needed for serialization.
+    order_ids = {row[1] for row in rows}
+    orders_by_id = {}
+    if order_ids:
+        orders_by_id = {
+            o.id: o for o in
+            session.query(ts.Order)
+            .filter(ts.Order.id.in_(order_ids)).all()
+        }
 
     items = []
-    for grp in groups.values():
-        positive = [v for v in grp['values'] if v is not None and v > 0]
-        if not positive:
-            continue
-        gm = math.exp(math.fsum(math.log(v) for v in positive) / len(positive))
-
+    for machine_name, order_id, geomean_val, max_time in rows:
         items.append({
-            'machine': grp['machine_name'],
-            'order': serialize_order(grp['order']),
-            'timestamp': (grp['timestamp'].isoformat()
-                          if grp['timestamp'] else None),
-            'value': gm,
+            'machine': machine_name,
+            'order': serialize_order(orders_by_id.get(order_id)),
+            'timestamp': (max_time.isoformat() if max_time else None),
+            'value': geomean_val,
         })
 
-    items.sort(key=lambda x: (x['machine'], x['timestamp'] or ''))
     return items
 
 

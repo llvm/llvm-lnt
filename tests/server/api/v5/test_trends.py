@@ -324,5 +324,91 @@ class TestTrendsEdgeCases(unittest.TestCase):
         self.assertAlmostEqual(data['items'][0]['value'], 25.0, places=5)
 
 
+class TestTrendsAllZeroGroup(unittest.TestCase):
+    """Test that a group where ALL values are zero/negative is excluded."""
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+
+        unique = uuid.uuid4().hex[:8]
+        cls._machine_name = f'trends-allzero-m-{unique}'
+
+        db = cls.app.instance.get_database("default")
+        session = db.make_session()
+        ts = db.testsuite[TS]
+
+        machine = create_machine(session, ts, name=cls._machine_name)
+        test1 = create_test(session, ts, name=f'trends-allzero-t1/{unique}')
+        test2 = create_test(session, ts, name=f'trends-allzero-t2/{unique}')
+
+        # Order with all-zero values — should produce no result
+        order = create_order(session, ts, revision=f'allzero-{unique}')
+        run = create_run(
+            session, ts, machine, order,
+            start_time=datetime.datetime(2024, 8, 1, 12, 0, 0),
+        )
+        create_sample(session, ts, run, test1, execution_time=0.0)
+        create_sample(session, ts, run, test2, execution_time=0.0)
+
+        session.commit()
+        session.close()
+
+    def test_all_zero_group_excluded(self):
+        """A group where every sample is zero produces no result."""
+        resp = self.client.post(
+            PREFIX + '/trends',
+            json={'metric': 'execution_time',
+                  'machine': [self._machine_name]})
+        data = resp.get_json()
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(data['items']), 0)
+
+
+class TestTrendsNegativeValues(unittest.TestCase):
+    """Test that negative values are excluded from the geomean."""
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+
+        unique = uuid.uuid4().hex[:8]
+        cls._machine_name = f'trends-neg-m-{unique}'
+
+        db = cls.app.instance.get_database("default")
+        session = db.make_session()
+        ts = db.testsuite[TS]
+
+        machine = create_machine(session, ts, name=cls._machine_name)
+        test1 = create_test(session, ts, name=f'trends-neg-t1/{unique}')
+        test2 = create_test(session, ts, name=f'trends-neg-t2/{unique}')
+
+        # One negative, one positive — geomean should use only the positive
+        order = create_order(session, ts, revision=f'neg-{unique}')
+        run = create_run(
+            session, ts, machine, order,
+            start_time=datetime.datetime(2024, 8, 2, 12, 0, 0),
+        )
+        create_sample(session, ts, run, test1, execution_time=-5.0)
+        create_sample(session, ts, run, test2, execution_time=16.0)
+
+        session.commit()
+        session.close()
+
+    def test_negative_values_excluded(self):
+        """Negative values are excluded; geomean uses only positive values."""
+        resp = self.client.post(
+            PREFIX + '/trends',
+            json={'metric': 'execution_time',
+                  'machine': [self._machine_name]})
+        data = resp.get_json()
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(data['items']), 1)
+        # Only test2=16.0 contributes
+        self.assertAlmostEqual(data['items'][0]['value'], 16.0, places=5)
+
+
 if __name__ == '__main__':
     unittest.main(argv=[sys.argv[0]])
