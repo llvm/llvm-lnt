@@ -116,12 +116,10 @@ Suite-agnostic landing page providing an at-a-glance visual overview of performa
 **Data flow**:
 1. Suite names from `getTestsuites()` (embedded in HTML shell, no API call).
 2. Per suite: `getTestSuiteInfo()` for the metrics schema, `getRunsPage(sort=-start_time, limit=50)` to find the 5 most recently active machines.
-3. Per suite×metric: `queryDataPoints()` with `after_time` filter, one call per machine (all pages fetched). Client-side grouping by (machine, order) and geomean computation across all test values per group.
+3. Per suite×metric: `fetchTrends()` calls `POST /api/v5/{ts}/trends` with the metric, machine list, and `after_time` filter. The server groups all samples by (machine, order) and returns the geomean per group. The frontend groups the response by machine into `SparklineTrace[]`.
 4. Sparklines render progressively as each metric's data arrives.
 
-**Data volume note**: V1 computes geomean client-side. For large suites this may be slow. The data fetching is encapsulated behind a `fetchSuiteTrends()` abstraction so it can be replaced by a server-side summary endpoint without changing the UI.
-
-**Geomean**: `exp(mean(ln(values)))`, skipping zero/negative values. Shared utility in `utils.ts`, also used by the Compare page.
+**Geomean**: `exp(mean(ln(values)))`, skipping zero/negative values. Computed server-side in the trends endpoint. Shared utility in `utils.ts` also used by the Compare page.
 
 ### 2. Test Suites — `/v5/test-suites?suite={ts}&tab=...`
 

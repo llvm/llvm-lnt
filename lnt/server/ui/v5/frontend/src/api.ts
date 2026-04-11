@@ -1,7 +1,7 @@
 import type {
   APIKeyCreateResponse, APIKeyItem,
   CursorPaginated, FieldChangeInfo, FieldInfo, MachineInfo, MachineRunInfo,
-  OffsetPaginated, OrderDetail, OrderSummary, QueryDataPoint, RunDetail,
+  OffsetPaginated, OrderDetail, OrderSummary, RunDetail,
   RunInfo, SampleInfo, TestSuiteInfo,
 } from './types';
 
@@ -355,41 +355,6 @@ export async function updateOrderTag(
   return fetchJson<OrderDetail>(
     apiUrl(ts, `orders/${encodeURIComponent(orderValue)}`),
     { method: 'PATCH', body: { tag }, signal },
-  );
-}
-
-export async function queryDataPoints(
-  ts: string,
-  opts: {
-    machine?: string;
-    metric?: string;
-    test?: string | string[];
-    order?: string;
-    afterOrder?: string;
-    beforeOrder?: string;
-    afterTime?: string;
-    beforeTime?: string;
-    sort?: string;
-  },
-  signal?: AbortSignal,
-  onProgress?: (loaded: number) => void,
-): Promise<QueryDataPoint[]> {
-  const body: Record<string, unknown> = {};
-  if (opts.machine) body.machine = opts.machine;
-  if (opts.metric) body.metric = opts.metric;
-  if (opts.test) body.test = Array.isArray(opts.test) ? opts.test : [opts.test];
-  if (opts.order) body.order = opts.order;
-  if (opts.afterOrder) body.after_order = opts.afterOrder;
-  if (opts.beforeOrder) body.before_order = opts.beforeOrder;
-  if (opts.afterTime) body.after_time = opts.afterTime;
-  if (opts.beforeTime) body.before_time = opts.beforeTime;
-  if (opts.sort) body.sort = opts.sort;
-  return fetchAllCursorPages<QueryDataPoint>(
-    apiUrl(ts, 'query'),
-    undefined,
-    signal,
-    onProgress,
-    body,
   );
 }
 

@@ -1364,30 +1364,28 @@ Add the new interfaces listed in section 2.1: `OrderDetail`, `OrderNeighbor`, `R
 
 **File**: `lnt/server/ui/v5/frontend/src/api.ts`
 
-Add `afterTime` and `beforeTime` to `queryDataPoints`:
+Add a `fetchTrends` function that calls the server-side geomean aggregation endpoint:
 
 ```typescript
-export async function queryDataPoints(
+export interface TrendsDataPoint {
+  machine: string;
+  order: Record<string, string>;
+  timestamp: string | null;
+  value: number;
+}
+
+export async function fetchTrends(
   ts: string,
-  opts: {
-    machine?: string;
-    metric?: string;
-    test?: string | string[];
-    order?: string;
-    afterOrder?: string;
-    beforeOrder?: string;
-    afterTime?: string;    // NEW — ISO 8601
-    beforeTime?: string;   // NEW — ISO 8601
-    sort?: string;
-  },
+  opts: { metric: string; machine?: string[]; afterTime?: string; beforeTime?: string },
   signal?: AbortSignal,
-  onProgress?: (loaded: number) => void,
-): Promise<QueryDataPoint[]> {
-  const body: Record<string, unknown> = {};
-  // ... existing fields ...
+): Promise<TrendsDataPoint[]> {
+  const body: Record<string, unknown> = { metric: opts.metric };
+  if (opts.machine?.length) body.machine = opts.machine;
   if (opts.afterTime) body.after_time = opts.afterTime;
   if (opts.beforeTime) body.before_time = opts.beforeTime;
-  // ...
+  const data = await fetchJson<{ metric: string; items: TrendsDataPoint[] }>(
+    apiUrl(ts, 'trends'), { method: 'POST', body, signal });
+  return data.items;
 }
 ```
 
@@ -1426,7 +1424,9 @@ export interface SparklineCardOptions {
   title: string;        // Metric display name or field name
   unit?: string;        // e.g. "ms", "bytes"
   traces: SparklineTrace[];
-  onClick?: () => void; // Navigation callback
+  /** Called on click. If a specific trace was clicked, `machine` is its name;
+   *  otherwise (card background / title click) `machine` is undefined. */
+  onClick?: (machine?: string) => void;
 }
 
 /** Create a sparkline card element. Call destroy() on unmount to free Plotly. */
@@ -1439,7 +1439,7 @@ export function createSparklineCard(options: SparklineCardOptions): {
 - Plotly config: `responsive: true`, `displayModeBar: false`
 - Layout: small margins (`t:8, r:8, b:30, l:40`), `showlegend: false`, x-axis type `date`, auto y-axis, `hovermode: 'closest'`
 - Hover template: value + machine name
-- Card container has `cursor: pointer` and fires `onClick` on click
+- Card container has `cursor: pointer`. Clicking the card background/title fires `onClick()` with no argument; clicking a specific Plotly trace fires `onClick(machine)` with that machine's name (via `plotly_click` event). A flag prevents double-firing since Plotly's click fires after the DOM click has already bubbled.
 - Loading state: show a `.sparkline-loading` placeholder with "Loading..." text
 - Error state: show a `.sparkline-error` placeholder with "Failed to load" text
 
@@ -1467,13 +1467,11 @@ unmount():
   - Destroy all Plotly sparkline instances
 ```
 
-**`fetchSuiteTrends` abstraction** (in `home.ts` or a separate module):
+**`fetchSuiteTrends` abstraction** (in `home.ts`):
 
 ```typescript
 /** Fetch trend data for one metric across multiple machines.
- *  Returns sparkline traces with geomean-aggregated values per order.
- *  This is the seam where client-side computation can be replaced by
- *  a server-side summary endpoint. */
+ *  Returns sparkline traces with server-computed geomean values per order. */
 async function fetchSuiteTrends(
   suite: string,
   metric: string,
@@ -1481,14 +1479,29 @@ async function fetchSuiteTrends(
   afterTime: string,
   signal: AbortSignal,
 ): Promise<SparklineTrace[]> {
-  // For each machine, fetch all data points in parallel
-  // Group by (machine, primaryOrderValue)
-  // Compute geomean across all test values per group
-  // Return SparklineTrace[] with sorted points
+  // Call POST /api/v5/{suite}/trends — server returns geomean per (machine, order)
+  const items = await fetchTrends(suite, { metric, machine: machines, afterTime }, signal);
+
+  // Group API response by machine, build SparklineTrace per machine
+  const byMachine = new Map<string, Array<{ timestamp: string; value: number }>>();
+  for (const item of items) {
+    if (!item.timestamp) continue;
+    let points = byMachine.get(item.machine);
+    if (!points) { points = []; byMachine.set(item.machine, points); }
+    points.push({ timestamp: item.timestamp, value: item.value });
+  }
+
+  const traces: SparklineTrace[] = [];
+  for (const [machine, points] of byMachine) {
+    if (points.length === 0) continue;
+    const idx = machines.indexOf(machine);
+    traces.push({ machine, color: machineColor(idx >= 0 ? idx : traces.length), points });
+  }
+  return traces;
 }
 ```
 
-**Click-through URL**: When a sparkline is clicked, navigate to the Graph page with pre-populated params:
+**Click-through URL**: When a sparkline card background is clicked, navigate to the Graph page with all displayed machines. When a specific trace is clicked, navigate with just that machine:
 ```
 /v5/graph?suite={suite}&machine={m1}&machine={m2}&...&metric={metric}
 ```
@@ -1581,8 +1594,9 @@ async function fetchSuiteTrends(
 
 - **`computeGeomean` refactored** (existing `__tests__/comparison.test.ts` tests pass — no new tests, just no regressions)
 
-- **`queryDataPoints` with `afterTime`/`beforeTime`** (`__tests__/api.test.ts`):
-  - POST body includes `after_time` / `before_time` when provided
+- **`fetchTrends`** (`__tests__/api.test.ts`):
+  - POST body includes `metric`, `machine` list, and `after_time` when provided
+  - Omits optional fields when not provided
 
 - **Dashboard page** (`__tests__/home.test.ts`):
   - Mounts and renders a suite section header for each test suite

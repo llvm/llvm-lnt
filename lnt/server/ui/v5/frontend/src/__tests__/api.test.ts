@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { setApiBase, getFields, getOrders, getMachines, getRuns, getSamples,
   getMachine, getMachineRuns, deleteMachine, getRun, deleteRun, getOrder, getRunsByOrder,
-  getFieldChanges, searchOrdersByTag, updateOrderTag, queryDataPoints, fetchTrends,
+  getFieldChanges, searchOrdersByTag, updateOrderTag, fetchTrends,
   fetchOneCursorPage, apiUrl, ApiError, authErrorMessage,
 } from '../api';
 import type {
@@ -879,89 +879,6 @@ describe('updateOrderTag', () => {
   });
 });
 
-describe('queryDataPoints', () => {
-  it('sends POST with JSON body containing machine and metric', async () => {
-    const pt: QueryDataPoint = {
-      test: 't1', machine: 'm1', metric: 'exec_time', value: 1.0,
-      order: { rev: '100' }, run_uuid: 'r1', timestamp: null,
-    };
-    mockFetch.mockResolvedValueOnce(mockResponse(cursorPage([pt])));
-
-    const result = await queryDataPoints('nts', { machine: 'm1', metric: 'exec_time' });
-
-    expect(result).toHaveLength(1);
-    const url = new URL(mockFetch.mock.calls[0][0]);
-    expect(url.pathname).toBe('/api/v5/nts/query');
-    const init = mockFetch.mock.calls[0][1] as RequestInit;
-    expect(init.method).toBe('POST');
-    const body = JSON.parse(init.body as string);
-    expect(body.machine).toBe('m1');
-    expect(body.metric).toBe('exec_time');
-  });
-
-  it('passes optional filter params in POST body', async () => {
-    mockFetch.mockResolvedValueOnce(mockResponse(cursorPage([])));
-
-    await queryDataPoints('nts', {
-      machine: 'm1', metric: 'exec_time',
-      test: 't1', afterOrder: '100', beforeOrder: '200',
-    });
-
-    const init = mockFetch.mock.calls[0][1] as RequestInit;
-    const body = JSON.parse(init.body as string);
-    expect(body.test).toEqual(['t1']);
-    expect(body.after_order).toBe('100');
-    expect(body.before_order).toBe('200');
-  });
-
-  it('passes order exact-match param in POST body', async () => {
-    mockFetch.mockResolvedValueOnce(mockResponse(cursorPage([])));
-
-    await queryDataPoints('nts', {
-      machine: 'm1', metric: 'exec_time', order: '100',
-    });
-
-    const init = mockFetch.mock.calls[0][1] as RequestInit;
-    const body = JSON.parse(init.body as string);
-    expect(body.order).toBe('100');
-    expect(body.after_order).toBeUndefined();
-    expect(body.before_order).toBeUndefined();
-  });
-
-  it('auto-paginates across multiple pages', async () => {
-    mockFetch.mockResolvedValueOnce(mockResponse(cursorPage(
-      [{ test: 't1', machine: 'm1', metric: 'exec_time', value: 1.0, order: { rev: '100' }, run_uuid: 'r1', timestamp: null }],
-      'cursor-2',
-    )));
-    mockFetch.mockResolvedValueOnce(mockResponse(cursorPage(
-      [{ test: 't1', machine: 'm1', metric: 'exec_time', value: 2.0, order: { rev: '101' }, run_uuid: 'r2', timestamp: null }],
-    )));
-
-    const result = await queryDataPoints('nts', { machine: 'm1', metric: 'exec_time' });
-
-    expect(result).toHaveLength(2);
-    expect(mockFetch).toHaveBeenCalledTimes(2);
-    // Second call should include cursor in body
-    const init2 = mockFetch.mock.calls[1][1] as RequestInit;
-    const body2 = JSON.parse(init2.body as string);
-    expect(body2.cursor).toBe('cursor-2');
-  });
-
-  it('passes afterTime and beforeTime as after_time and before_time in POST body', async () => {
-    mockFetch.mockResolvedValueOnce(mockResponse(cursorPage([])));
-
-    await queryDataPoints('nts', {
-      metric: 'exec_time',
-      afterTime: '2025-01-01T00:00:00Z',
-      beforeTime: '2025-02-01T00:00:00Z',
-    });
-
-    const init = mockFetch.mock.calls[0][1] as RequestInit;
-    const body = JSON.parse(init.body as string);
-    expect(body.after_time).toBe('2025-01-01T00:00:00Z');
-    expect(body.before_time).toBe('2025-02-01T00:00:00Z');
-  });
-});
 
 // ===========================================================================
 // apiUrl
