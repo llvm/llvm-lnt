@@ -1,9 +1,9 @@
-// pages/graph.ts — Time-series graph page with lazy loading and client-side caching.
+// pages/graph.ts — Time-series graph page with explicit test selection and on-demand loading.
 
 import type { PageModule, RouteParams } from '../router';
 import type { AggFn, QueryDataPoint } from '../types';
 import { getFields, getOrders, fetchOneCursorPage, postOneCursorPage, apiUrl } from '../api';
-import { el, debounce, getAggFn, primaryOrderValue, TRACE_SEP, PLOTLY_COLORS, machineColor } from '../utils';
+import { el, debounce, getAggFn, primaryOrderValue, TRACE_SEP, machineColor } from '../utils';
 import { getTestsuites } from '../router';
 import { onCustomEvent, GRAPH_TABLE_HOVER, GRAPH_CHART_HOVER } from '../events';
 import { renderMachineCombobox } from '../components/machine-combobox';
@@ -13,10 +13,11 @@ import {
   type TimeSeriesTrace, type PinnedBaseline, type ChartHandle,
   createTimeSeriesChart,
 } from '../components/time-series-chart';
-import { createLegendTable, type LegendEntry, type LegendTableHandle } from '../components/legend-table';
-import { GraphDataCache, filterTestNames } from './graph-data-cache';
+import {
+  createTestSelectionTable, type TestSelectionEntry, type TestSelectionTableHandle,
+} from '../components/test-selection-table';
+import { GraphDataCache } from './graph-data-cache';
 
-const MAX_DISPLAYED_TESTS = 50;
 const MACHINE_SYMBOLS = [
   'circle', 'triangle-up', 'square', 'diamond', 'x',
   'cross', 'star', 'pentagon', 'hexagon', 'hexagram',
@@ -31,6 +32,7 @@ const SYMBOL_CHARS = ['●', '▲', '■', '◆', '✕', '+', '★', '⬠', '⬡
 let cache = new GraphDataCache({ apiUrl, fetchOneCursorPage, postOneCursorPage });
 let fetchAbort: AbortController | null = null;
 let filterAbort: AbortController | null = null;
+let selectionAbort: AbortController | null = null;
 /** Per-suite order list cache for baseline order picker. */
 let baselineOrderCache = new Map<string, { values: string[]; tags: Map<string, string | null> }>();
 /** Machine-order filter set for the baseline order picker (null = loading or no machine). */
@@ -44,23 +46,22 @@ export interface Baseline {
   tag: string | null;
 }
 
-/** The currently-discovered test names (from the last discoverTests call). */
-let discoveredTests: string[] = [];
-/** Whether there are more tests than MAX_DISPLAYED_TESTS matching the filter. */
-let discoveredTruncated = false;
+// ---------------------------------------------------------------------------
+// Module-scope state — some preserved across unmount/remount
+// ---------------------------------------------------------------------------
 
-// ---------------------------------------------------------------------------
-// Module-scope UI state
-// ---------------------------------------------------------------------------
+/** All test names matching the current filter (no cap). Preserved across unmount. */
+let allMatchingTests: string[] = [];
+/** User's explicit test selection. Preserved across unmount. */
+let selectedTests = new Set<string>();
+/** Tests with in-flight data fetches. Reset on unmount. */
+let loadingTests = new Set<string>();
 
 let machineComboCleanup: (() => void) | null = null;
 let blMachineCleanup: (() => void) | null = null;
 let blOrderCleanup: (() => void) | null = null;
 let chartHandle: ChartHandle | null = null;
-let legendHandle: LegendTableHandle | null = null;
-let manuallyHidden = new Set<string>();
-/** Current visible trace names (updated on each render, used by legend callbacks). */
-let currentVisibleTraceNames: string[] = [];
+let tableHandle: TestSelectionTableHandle | null = null;
 /** Pending requestAnimationFrame ID for deferred chart updates. */
 let pendingChartRAF: number | null = null;
 /** Generation counter to cancel stale batched chart renders. */
@@ -100,20 +101,6 @@ function abortFetches(): void {
   if (fetchAbort) { fetchAbort.abort(); fetchAbort = null; }
 }
 
-/**
- * Determine which traces are active (plotted).
- * The filter matches on the test name portion of the trace name only.
- * Exported for testing.
- */
-export function computeActiveTests(
-  allTraceNames: string[],
-  _testFilter: string,
-  hidden: Set<string>,
-): Set<string> {
-  // Remove manually hidden
-  return new Set(allTraceNames.filter(n => !hidden.has(n)));
-}
-
 export const graphPage: PageModule = {
   mount(container: HTMLElement, _params: RouteParams): void {
     // Suite is no longer from the route — it's a URL parameter or user selection.
@@ -131,9 +118,7 @@ export const graphPage: PageModule = {
       ? urlParams.get('run_agg') as AggFn : 'median';
     let sampleAgg: AggFn = (['median', 'mean', 'min', 'max'] as AggFn[]).includes(urlParams.get('sample_agg') as AggFn)
       ? urlParams.get('sample_agg') as AggFn : 'median';
-    // Baselines encoded as "suite::machine::order". The "::" separator is an
-    // in-band delimiter — names containing "::" would be misparsed. This is
-    // acceptable for an internal tool where such names are extremely unlikely.
+    // Baselines encoded as "suite::machine::order".
     const baselineParams = urlParams.getAll('baseline');
     const baselines: Baseline[] = baselineParams.map(v => {
       const parts = v.split('::');
@@ -205,7 +190,7 @@ export const graphPage: PageModule = {
     }
     runAggSelect.addEventListener('change', () => {
       runAgg = runAggSelect.value as AggFn;
-      renderFromDiscoveredTests();
+      renderFromSelection();
       updateUrlState();
     });
     runAggGroup.append(runAggSelect);
@@ -220,7 +205,7 @@ export const graphPage: PageModule = {
     }
     sampleAggSelect.addEventListener('change', () => {
       sampleAgg = sampleAggSelect.value as AggFn;
-      renderFromDiscoveredTests();
+      renderFromSelection();
       updateUrlState();
     });
     sampleAggGroup.append(sampleAggSelect);
@@ -245,7 +230,7 @@ export const graphPage: PageModule = {
           if (machines.length > 0 && metric) {
             doPlot();
           } else {
-            renderFromDiscoveredTests();
+            renderFromSelection();
           }
           updateUrlState();
         });
@@ -295,11 +280,11 @@ export const graphPage: PageModule = {
       if (baselines.find(b => b.suite === suite && b.machine === blSelectedMachine && b.order === blSelectedOrder)) return;
       baselines.push({ suite, machine: blSelectedMachine, order: blSelectedOrder, tag: null });
       renderBaselineChips();
-      // Fetch baseline data and re-render
-      if (metric && discoveredTests.length > 0) {
+      // Fetch baseline data for SELECTED tests and re-render
+      if (metric && selectedTests.size > 0) {
         const bl = baselines[baselines.length - 1];
-        cache.getBaselineData(bl.suite, bl.machine, bl.order, metric, discoveredTests, fetchAbort?.signal)
-          .then(() => renderFromDiscoveredTests())
+        cache.getBaselineData(bl.suite, bl.machine, bl.order, metric, [...selectedTests], fetchAbort?.signal)
+          .then(() => renderFromSelection())
           .catch(() => { /* baseline data is optional */ });
       }
       updateUrlState();
@@ -332,7 +317,6 @@ export const graphPage: PageModule = {
           blMachineOrders = null;
           if (blOrderCleanup) { blOrderCleanup(); blOrderCleanup = null; }
           blOrderContainer.replaceChildren();
-
 
           // Fetch order list and machine orders in parallel
           const orderListPromise = (async () => {
@@ -413,7 +397,7 @@ export const graphPage: PageModule = {
           const idx = baselines.indexOf(bl);
           if (idx >= 0) baselines.splice(idx, 1);
           renderBaselineChips();
-          renderFromDiscoveredTests();
+          renderFromSelection();
           updateUrlState();
         });
         chip.append(removeBtn);
@@ -427,29 +411,41 @@ export const graphPage: PageModule = {
     controlsPanel.append(secondRow);
 
     container.append(progressContainer, warningContainer, chartContainer);
-    const legendContainer = el('div', { class: 'legend-container' });
-    container.append(legendContainer);
+    const tableContainer = el('div', { class: 'test-selection-container' });
+    container.append(tableContainer);
 
     // ----- Hover sync -----
-    cleanupTableHover = onCustomEvent<string | null>(GRAPH_TABLE_HOVER, (tn) => {
-      if (chartHandle) chartHandle.hoverTrace(tn);
+    cleanupTableHover = onCustomEvent<string | null>(GRAPH_TABLE_HOVER, (testName) => {
+      if (!chartHandle) return;
+      if (!testName) { chartHandle.hoverTrace(null); return; }
+      // Map bare test name to trace name for the first machine
+      if (machines.length > 0) {
+        chartHandle.hoverTrace(traceName(testName, machines[0]));
+      }
     });
     cleanupChartHover = onCustomEvent<string | null>(GRAPH_CHART_HOVER, (tn) => {
-      if (legendHandle) legendHandle.highlightRow(tn);
+      if (!tableHandle) return;
+      if (!tn) { tableHandle.highlightRow(null); return; }
+      // Extract test name from trace name and highlight the row
+      tableHandle.highlightRow(testNameFromTrace(tn));
     });
 
-    // ----- Filter change handler -----
+    // ----- Test discovery (inline filter, no cap) -----
 
-    async function discoverAndFilter(
+    async function discoverTests(
       suite: string, machineList: string[], metricName: string,
       filter: string, signal?: AbortSignal,
-    ): Promise<{ names: string[]; truncated: boolean }> {
+    ): Promise<string[]> {
       const perMachine = await Promise.all(
         machineList.map(m => cache.getTestNames(suite, m, metricName, signal)),
       );
       const union = [...new Set(perMachine.flat())].sort((a, b) => a.localeCompare(b));
-      return filterTestNames(union, filter, MAX_DISPLAYED_TESTS);
+      if (!filter) return union;
+      const lower = filter.toLowerCase();
+      return union.filter(name => name.toLowerCase().includes(lower));
     }
+
+    // ----- Filter change handler -----
 
     async function handleFilterChange(): Promise<void> {
       filterAbort?.abort();
@@ -457,203 +453,127 @@ export const graphPage: PageModule = {
       const sig = filterAbort.signal;
 
       try {
-        const { names, truncated } = await discoverAndFilter(
+        allMatchingTests = await discoverTests(
           currentSuite, machines, metric, testFilter, sig);
         if (sig.aborted) return;
-        discoveredTests = names;
-        discoveredTruncated = truncated;
 
-        // Render immediately from cache
-        renderFromDiscoveredTests();
+        // Prune selections to only tests still matching the filter
+        const matchSet = new Set(allMatchingTests);
+        for (const t of selectedTests) {
+          if (!matchSet.has(t)) selectedTests.delete(t);
+        }
 
-        // Fetch data for newly visible tests (no-op if already cached)
-        await Promise.all(machines.map(m =>
-          cache.ensureTestData(currentSuite, m, metric, names, { signal: sig })
-        ));
-        if (sig.aborted) return;
-
-        // Fetch baselines for new tests (re-fetches if test list expanded)
-        await Promise.all(baselines.map(bl =>
-          cache.getBaselineData(bl.suite, bl.machine, bl.order, metric, names, sig),
-        ));
-        if (sig.aborted) return;
-
-        renderFromDiscoveredTests();
+        renderFromSelection();
       } catch (e: unknown) {
         if (e instanceof DOMException && e.name === 'AbortError') return;
       }
     }
 
-    // ----- Render from discovered tests -----
+    // ----- Selection change handler -----
 
-    function renderFromDiscoveredTests(): void {
-      if (discoveredTests.length === 0 || machines.length === 0 || !metric) {
-        // No data yet — show empty chart with scaffold if available, clear legend
-        progressContainer.replaceChildren();
-        if (legendHandle) { legendHandle.update([], undefined); }
-        const scaffold = cache.scaffoldUnion(currentSuite, machines);
-        chartRenderGen++;
-        if (pendingChartRAF !== null) {
-          cancelAnimationFrame(pendingChartRAF);
-          pendingChartRAF = null;
+    async function handleSelectionChange(newSelected: Set<string>): Promise<void> {
+      selectionAbort?.abort();
+      selectionAbort = new AbortController();
+      const sig = selectionAbort.signal;
+
+      selectedTests = newSelected;
+      // Clear stale loading entries from any previous aborted call.
+      // The new set() is synchronous, so there's no race with the new call.
+      loadingTests = new Set();
+
+      // Find tests needing data fetch
+      const needFetch: string[] = [];
+      for (const testName of selectedTests) {
+        for (const m of machines) {
+          if (!cache.isComplete(currentSuite, m, metric, testName)) {
+            needFetch.push(testName);
+            break;
+          }
         }
-        const chartOpts = {
-          traces: [] as TimeSeriesTrace[],
-          yAxisLabel: metric || '',
-          categoryOrder: scaffold ?? undefined,
-        };
-        if (chartHandle) {
-          chartHandle.update(chartOpts);
-        } else if (scaffold) {
-          chartHandle = createTimeSeriesChart(chartContainer, chartOpts);
-        }
-        return;
       }
 
-      // Collect data from cache for each machine.
-      let anyHasData = false;
-      let allComplete = true;
-      let totalPoints = 0;
+      // Show loading state immediately
+      for (const t of needFetch) loadingTests.add(t);
+      renderFromSelection();
 
-      // Build traces per machine.
-      const allTraces: TimeSeriesTrace[] = [];
-      const allTraceNames: string[] = [];
+      if (needFetch.length > 0) {
+        try {
+          // Batch fetch for all machines
+          await Promise.all(machines.map(m =>
+            cache.ensureTestData(currentSuite, m, metric, needFetch, {
+              signal: sig,
+              onProgress: () => scheduleChartUpdate(),
+            })
+          ));
+          if (sig.aborted) return;
 
-      // Assign colors by test name (same test on different machines = same color).
+          // Fetch baseline data for selected tests
+          if (baselines.length > 0) {
+            await Promise.all(baselines.map(bl =>
+              cache.getBaselineData(bl.suite, bl.machine, bl.order, metric,
+                [...selectedTests], sig),
+            ));
+          }
+        } catch (e: unknown) {
+          if (e instanceof DOMException && e.name === 'AbortError') return;
+        }
+        for (const t of needFetch) loadingTests.delete(t);
+        if (!sig.aborted) renderFromSelection();
+      }
+    }
+
+    // ----- Build chart data from selection -----
+
+    function buildColorMap(): Map<string, string> {
       const colorMap = new Map<string, string>();
-      discoveredTests.forEach((name, i) => colorMap.set(name, machineColor(i)));
+      allMatchingTests.forEach((name, i) => colorMap.set(name, machineColor(i)));
+      return colorMap;
+    }
 
-      // Collect all points for raw values callback.
+    function buildChartData(colorMap: Map<string, string>): {
+      traces: TimeSeriesTrace[];
+      allPoints: QueryDataPoint[];
+    } {
+      const allTraces: TimeSeriesTrace[] = [];
       const allPoints: QueryDataPoint[] = [];
+
+      const selectedSorted = [...selectedTests].sort((a, b) => a.localeCompare(b));
 
       for (let mi = 0; mi < machines.length; mi++) {
         const m = machines[mi];
         const symbol = assignSymbol(mi);
 
-        for (const testName of discoveredTests) {
+        for (const testName of selectedSorted) {
           const points = cache.readCachedTestData(currentSuite, m, metric, testName);
-          if (points.length === 0) {
-            if (!cache.isComplete(currentSuite, m, metric, testName)) allComplete = false;
-            continue;
-          }
+          if (points.length === 0) continue;
 
-          anyHasData = true;
-          totalPoints += points.length;
-          if (!cache.isComplete(currentSuite, m, metric, testName)) allComplete = false;
           for (const pt of points) allPoints.push(pt);
 
           const machineTraces = buildTraces(points, runAgg, sampleAgg);
           for (const t of machineTraces) {
-            const tn = traceName(t.testName, m);
             allTraces.push({
               ...t,
               machine: m,
               color: colorMap.get(t.testName),
               markerSymbol: symbol,
             });
-            allTraceNames.push(tn);
           }
         }
       }
 
-      if (!anyHasData) {
-        // No data yet — show empty chart with scaffold
-        const scaffold = cache.scaffoldUnion(currentSuite, machines);
-        chartRenderGen++;
-        if (pendingChartRAF !== null) {
-          cancelAnimationFrame(pendingChartRAF);
-          pendingChartRAF = null;
-        }
-        const chartOpts = {
-          traces: [] as TimeSeriesTrace[],
-          yAxisLabel: metric || '',
-          categoryOrder: scaffold ?? undefined,
-        };
-        if (chartHandle) {
-          chartHandle.update(chartOpts);
-        } else if (scaffold) {
-          chartHandle = createTimeSeriesChart(chartContainer, chartOpts);
-        }
-        progressContainer.replaceChildren(
-          el('span', { class: 'progress-label' }, 'Loading data...'),
-        );
-        return;
-      }
+      allTraces.sort((a, b) =>
+        traceName(a.testName, a.machine).localeCompare(traceName(b.testName, b.machine)));
 
-      // Sort all trace names for consistent ordering.
-      allTraceNames.sort((a, b) => a.localeCompare(b));
-      currentVisibleTraceNames = allTraceNames;
+      return { traces: allTraces, allPoints };
+    }
 
-      // Compute active set (remove manually hidden).
-      const activeSet = computeActiveTests(allTraceNames, testFilter, manuallyHidden);
+    /** Schedule a deferred chart update from the current selection's cached data. */
+    function scheduleChartUpdate(): void {
+      if (selectedTests.size === 0 || machines.length === 0 || !metric) return;
 
-      // Filter traces to only active ones.
-      const activeTraces = allTraces
-        .filter(t => activeSet.has(traceName(t.testName, t.machine)))
-        .sort((a, b) => traceName(a.testName, a.machine).localeCompare(traceName(b.testName, b.machine)));
+      const colorMap = buildColorMap();
+      const { traces: activeTraces, allPoints } = buildChartData(colorMap);
 
-      // --- Synchronous phase: legend table + progress ---
-
-      const legendEntries: LegendEntry[] = allTraceNames.map(tn => {
-        const testN = testNameFromTrace(tn);
-        const sepIdx = tn.lastIndexOf(TRACE_SEP);
-        const machN = sepIdx >= 0 ? tn.slice(sepIdx + TRACE_SEP.length) : undefined;
-        const machIdx = machN ? machines.indexOf(machN) : -1;
-        return {
-          testName: tn,
-          color: colorMap.get(testN) || '#999',
-          active: activeSet.has(tn),
-          machineName: machN,
-          symbolChar: machIdx >= 0 ? assignSymbolChar(machIdx) : undefined,
-        };
-      });
-
-      // Message
-      let legendMessage: string | undefined;
-      if (discoveredTruncated) {
-        legendMessage = `Showing first ${MAX_DISPLAYED_TESTS} of ${MAX_DISPLAYED_TESTS}+ matching tests. Refine the filter to see others.`;
-      } else if (allTraceNames.length > 0) {
-        legendMessage = `${discoveredTests.length} tests, ${allTraceNames.length} traces`;
-      }
-
-      if (legendHandle) {
-        legendHandle.update(legendEntries, legendMessage);
-      } else {
-        legendHandle = createLegendTable(legendContainer, {
-          entries: legendEntries,
-          message: legendMessage,
-          onToggle: (tn) => {
-            if (manuallyHidden.has(tn)) {
-              manuallyHidden.delete(tn);
-            } else {
-              manuallyHidden.add(tn);
-            }
-            renderFromDiscoveredTests();
-          },
-          onIsolate: (tn) => {
-            const othersAllHidden = currentVisibleTraceNames.every(
-              n => n === tn || manuallyHidden.has(n),
-            );
-            if (othersAllHidden) {
-              manuallyHidden = new Set();
-            } else {
-              manuallyHidden = new Set(currentVisibleTraceNames.filter(n => n !== tn));
-            }
-            renderFromDiscoveredTests();
-          },
-        });
-      }
-
-      // Progress
-      if (allComplete) {
-        progressContainer.replaceChildren();
-      } else {
-        progressContainer.replaceChildren(
-          el('span', { class: 'progress-label' }, `Loading ${totalPoints} samples...`),
-        );
-      }
-
-      // --- Deferred chart update phase ---
       chartRenderGen++;
       const myGen = chartRenderGen;
       if (pendingChartRAF !== null) {
@@ -675,7 +595,7 @@ export const graphPage: PageModule = {
         return values;
       };
 
-      function renderAllTraces(): void {
+      function doUpdate(): void {
         pendingChartRAF = null;
         if (myGen !== chartRenderGen) return;
 
@@ -695,10 +615,67 @@ export const graphPage: PageModule = {
       }
 
       if (activeTraces.length === 0) {
-        renderAllTraces();
+        doUpdate();
       } else {
-        pendingChartRAF = requestAnimationFrame(renderAllTraces);
+        pendingChartRAF = requestAnimationFrame(doUpdate);
       }
+    }
+
+    // ----- Render from selection (full table + chart update) -----
+
+    function renderFromSelection(): void {
+      // Build table entries from all matching tests
+      const colorMap = buildColorMap();
+
+      const tableEntries: TestSelectionEntry[] = allMatchingTests.map(testName => ({
+        testName,
+        selected: selectedTests.has(testName),
+        color: selectedTests.has(testName) ? colorMap.get(testName) : undefined,
+        loading: loadingTests.has(testName),
+      }));
+
+      // Message
+      const loadingCount = loadingTests.size;
+      let msg = `${selectedTests.size} of ${allMatchingTests.length} tests selected`;
+      if (loadingCount > 0) msg += `, loading...`;
+
+      // Update or create table
+      if (tableHandle) {
+        tableHandle.update(tableEntries, msg);
+      } else {
+        tableHandle = createTestSelectionTable(tableContainer, {
+          entries: tableEntries,
+          message: msg,
+          onSelectionChange: handleSelectionChange,
+        });
+      }
+
+      // Progress
+      progressContainer.replaceChildren();
+
+      // Build and render chart
+      if (selectedTests.size === 0 || machines.length === 0 || !metric) {
+        // Empty chart with scaffold
+        const scaffold = cache.scaffoldUnion(currentSuite, machines);
+        chartRenderGen++;
+        if (pendingChartRAF !== null) {
+          cancelAnimationFrame(pendingChartRAF);
+          pendingChartRAF = null;
+        }
+        const chartOpts = {
+          traces: [] as TimeSeriesTrace[],
+          yAxisLabel: metric || '',
+          categoryOrder: scaffold ?? undefined,
+        };
+        if (chartHandle) {
+          chartHandle.update(chartOpts);
+        } else if (scaffold) {
+          chartHandle = createTimeSeriesChart(chartContainer, chartOpts);
+        }
+        return;
+      }
+
+      scheduleChartUpdate();
     }
 
     // ----- Plot handler -----
@@ -720,6 +697,7 @@ export const graphPage: PageModule = {
       // Abort any in-flight fetches from a previous doPlot or filter call.
       abortFetches();
       if (filterAbort) { filterAbort.abort(); filterAbort = null; }
+      if (selectionAbort) { selectionAbort.abort(); selectionAbort = null; }
       fetchAbort = new AbortController();
       const signal = fetchAbort.signal;
 
@@ -728,7 +706,7 @@ export const graphPage: PageModule = {
           // 1. Fetch scaffolds for any machines that don't have one yet.
           await Promise.all(plotMachines.map(m => cache.getScaffold(currentSuite, m, signal)));
 
-          // Render empty chart with scaffold while loading.
+          // Render empty chart with scaffold while discovering tests.
           const scaffold = cache.scaffoldUnion(currentSuite, plotMachines);
           if (plotMetric === metric && scaffold) {
             if (!chartHandle) {
@@ -743,35 +721,25 @@ export const graphPage: PageModule = {
             );
           }
 
-          // 2. Discover test names (fetch ALL, filter locally).
-          const { names, truncated } = await discoverAndFilter(
+          // 2. Discover ALL test names (no cap).
+          allMatchingTests = await discoverTests(
             currentSuite, plotMachines, plotMetric, plotFilter, signal);
           if (signal.aborted || plotMetric !== metric) return;
-          discoveredTests = names;
-          discoveredTruncated = truncated;
-          manuallyHidden = new Set();
 
-          // Render immediately from cache (tests that are already cached show instantly).
-          renderFromDiscoveredTests();
+          // Prune selections to tests still present after re-discovery.
+          const newMatchSet = new Set(allMatchingTests);
+          for (const t of selectedTests) {
+            if (!newMatchSet.has(t)) selectedTests.delete(t);
+          }
+          loadingTests = new Set();
 
-          // 3. Fetch uncached test data for each machine.
-          await Promise.all(plotMachines.map(m =>
-            cache.ensureTestData(currentSuite, m, plotMetric, names, {
-              signal, onProgress: () => renderFromDiscoveredTests(),
-            })));
-          if (signal.aborted || plotMetric !== metric) return;
+          // 3. Render table (preserving selection) and fetch data for
+          // selected tests on any new/uncached machines.
+          progressContainer.replaceChildren();
+          renderFromSelection();
 
-          // Final render with all data complete.
-          renderFromDiscoveredTests();
-
-          // 4. Fetch baseline data.
-          if (baselines.length > 0) {
-            await Promise.all(baselines.map(bl =>
-              cache.getBaselineData(bl.suite, bl.machine, bl.order, plotMetric, names, signal),
-            ));
-            if (!signal.aborted && plotMetric === metric) {
-              renderFromDiscoveredTests();
-            }
+          if (selectedTests.size > 0) {
+            handleSelectionChange(new Set(selectedTests));
           }
         } catch (e: unknown) {
           if (e instanceof DOMException && e.name === 'AbortError') return;
@@ -806,23 +774,23 @@ export const graphPage: PageModule = {
       // Abort all in-flight fetches
       abortFetches();
       if (filterAbort) { filterAbort.abort(); filterAbort = null; }
+      if (selectionAbort) { selectionAbort.abort(); selectionAbort = null; }
 
       // Clear ALL module-level state
       machines = [];
       cache.clear();
-      discoveredTests = [];
-      discoveredTruncated = false;
+      allMatchingTests = [];
+      selectedTests = new Set();
+      loadingTests = new Set();
       baselineOrderCache.clear();
       blMachineOrders = null;
-      manuallyHidden = new Set();
-      currentVisibleTraceNames = [];
       baselines.length = 0;
       if (pendingChartRAF !== null) { cancelAnimationFrame(pendingChartRAF); pendingChartRAF = null; }
       chartRenderGen = 0;
 
       // Destroy UI components
       if (chartHandle) { chartHandle.destroy(); chartHandle = null; }
-      if (legendHandle) { legendHandle.destroy(); legendHandle = null; }
+      if (tableHandle) { tableHandle.destroy(); tableHandle = null; }
       if (machineComboCleanup) { machineComboCleanup(); machineComboCleanup = null; }
       if (blMachineCleanup) { blMachineCleanup(); blMachineCleanup = null; }
       if (blOrderCleanup) { blOrderCleanup(); blOrderCleanup = null; }
@@ -839,7 +807,7 @@ export const graphPage: PageModule = {
       blSelectedMachine = '';
       blSelectedOrder = '';
       chartContainer.replaceChildren(el('p', { class: 'no-chart-data' }, 'No data to plot.'));
-      legendContainer.replaceChildren();
+      tableContainer.replaceChildren();
       progressContainer.replaceChildren();
       warningContainer.replaceChildren();
 
@@ -872,8 +840,7 @@ export const graphPage: PageModule = {
     });
     suiteGroup.append(suiteSelect);
 
-    // Fetch initial fields for the selected suite (deferred to here so
-    // currentSuite is set correctly from the suite selector).
+    // Fetch initial fields for the selected suite
     function loadFieldsForSuite(suite: string): void {
       const myGen = suiteGeneration;
       metricGroup.replaceChildren(el('span', { class: 'progress-label' }, 'Loading metrics...'));
@@ -907,23 +874,22 @@ export const graphPage: PageModule = {
     if (blOrderCleanup) { blOrderCleanup(); blOrderCleanup = null; }
     abortFetches();
     if (filterAbort) { filterAbort.abort(); filterAbort = null; }
+    if (selectionAbort) { selectionAbort.abort(); selectionAbort = null; }
     if (pendingChartRAF !== null) { cancelAnimationFrame(pendingChartRAF); pendingChartRAF = null; }
     if (chartHandle) { chartHandle.destroy(); chartHandle = null; }
-    if (legendHandle) { legendHandle.destroy(); legendHandle = null; }
+    if (tableHandle) { tableHandle.destroy(); tableHandle = null; }
     if (cleanupTableHover) { cleanupTableHover(); cleanupTableHover = null; }
     if (cleanupChartHover) { cleanupChartHover(); cleanupChartHover = null; }
-    manuallyHidden = new Set();
-    currentVisibleTraceNames = [];
+    // Reset transient UI state
+    loadingTests = new Set();
     chartRenderGen = 0;
     currentSuite = '';
     suiteGeneration = 0;
-    discoveredTests = [];
-    discoveredTruncated = false;
     baselineOrderCache.clear();
     blMachineOrders = null;
-    // Intentionally preserve cache across unmount/remount so that
-    // navigating back renders instantly from cache. The machines list
-    // is restored from URL on mount.
+    // Intentionally preserve selectedTests, allMatchingTests, and cache across
+    // unmount/remount so that navigating back renders instantly from cache.
+    // machines is restored from URL on mount.
   },
 };
 
@@ -934,7 +900,7 @@ export const graphPage: PageModule = {
 export function buildTraces(
   points: QueryDataPoint[],
   runAgg: AggFn,
-  _sampleAgg: AggFn,
+  sampleAgg: AggFn,
 ): TimeSeriesTrace[] {
   // Group by test name
   const testMap = new Map<string, QueryDataPoint[]>();
@@ -944,7 +910,8 @@ export function buildTraces(
     arr.push(pt);
   }
 
-  const aggFn = getAggFn(runAgg);
+  const runAggFn = getAggFn(runAgg);
+  const sampleAggFn = getAggFn(sampleAgg);
   const traces: TimeSeriesTrace[] = [];
 
   for (const [testName, testPoints] of testMap) {
@@ -959,16 +926,25 @@ export function buildTraces(
 
     const tracePoints: TimeSeriesTrace['points'] = [];
     for (const [orderValue, orderPoints] of orderMap) {
-      const values = orderPoints.map(p => p.value);
+      // Step 1: group by run_uuid
+      const byRun = new Map<string, number[]>();
+      for (const pt of orderPoints) {
+        let arr = byRun.get(pt.run_uuid);
+        if (!arr) { arr = []; byRun.set(pt.run_uuid, arr); }
+        arr.push(pt.value);
+      }
+      // Step 2: aggregate samples within each run
+      const perRunValues = [...byRun.values()].map(v => sampleAggFn(v));
+      // Step 3: aggregate across runs
       tracePoints.push({
         orderValue,
-        value: aggFn(values),
-        runCount: orderPoints.length,
+        value: runAggFn(perRunValues),
+        runCount: byRun.size,
         timestamp: orderPoints[0].timestamp,
       });
     }
 
-    // Machine is set by the caller (renderFromDiscoveredTests) after buildTraces returns
+    // Machine is set by the caller after buildTraces returns
     traces.push({ testName, machine: '', points: tracePoints });
   }
 
@@ -986,7 +962,7 @@ export function buildBaselinesFromData(
   metric: string,
   aggFn: (values: number[]) => number,
 ): PinnedBaseline[] {
-  return baselines.map((bl, i) => {
+  return baselines.map((bl) => {
     const points = getPoints(bl.suite, bl.machine, bl.order, metric);
 
     const rawPerTest = new Map<string, number[]>();

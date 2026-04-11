@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { GraphDataCache, filterTestNames, type GraphDataApi } from '../../pages/graph-data-cache';
+import { GraphDataCache, type GraphDataApi } from '../../pages/graph-data-cache';
 import type { QueryDataPoint } from '../../types';
 
 function makePoint(test: string, orderValue: string, value: number, machine = 'm1', metric = 'exec_time'): QueryDataPoint {
@@ -348,41 +348,6 @@ describe('GraphDataCache', () => {
   });
 
   // -------------------------------------------------------------------------
-  // LRU eviction
-  // -------------------------------------------------------------------------
-
-  describe('LRU eviction', () => {
-    it('evicts oldest data entries when maxEntries reached', async () => {
-      const smallCache = new GraphDataCache(api, 3);
-
-      // Fill with 3 entries
-      for (let i = 0; i < 3; i++) {
-        api.postOneCursorPage.mockResolvedValueOnce({
-          items: [makePoint(`test-${i}`, '100', i)],
-          nextCursor: null,
-        });
-        await smallCache.getTestData('nts', 'm1', 'exec_time', `test-${i}`);
-      }
-
-      // All 3 should be cached
-      expect(smallCache.readCachedTestData('nts', 'm1', 'exec_time', 'test-0')).toHaveLength(1);
-      expect(smallCache.readCachedTestData('nts', 'm1', 'exec_time', 'test-1')).toHaveLength(1);
-      expect(smallCache.readCachedTestData('nts', 'm1', 'exec_time', 'test-2')).toHaveLength(1);
-
-      // Add a 4th entry — should evict test-0
-      api.postOneCursorPage.mockResolvedValueOnce({
-        items: [makePoint('test-3', '100', 3)],
-        nextCursor: null,
-      });
-      await smallCache.getTestData('nts', 'm1', 'exec_time', 'test-3');
-
-      expect(smallCache.readCachedTestData('nts', 'm1', 'exec_time', 'test-0')).toEqual([]);
-      expect(smallCache.readCachedTestData('nts', 'm1', 'exec_time', 'test-1')).toHaveLength(1);
-      expect(smallCache.readCachedTestData('nts', 'm1', 'exec_time', 'test-3')).toHaveLength(1);
-    });
-  });
-
-  // -------------------------------------------------------------------------
   // scaffoldUnion
   // -------------------------------------------------------------------------
 
@@ -448,52 +413,5 @@ describe('GraphDataCache', () => {
       expect(cache.readCachedBaselineData('nts', 'm1', '100', 'exec_time')).toEqual([]);
       expect(cache.isComplete('nts', 'm1', 'exec_time', 'test-A')).toBe(false);
     });
-  });
-});
-
-// ---------------------------------------------------------------------------
-// filterTestNames (standalone function)
-// ---------------------------------------------------------------------------
-
-describe('filterTestNames', () => {
-  it('filters by case-insensitive substring', () => {
-    const names = ['compile/test-A', 'compile/test-B', 'exec/test-C', 'COMPILE/test-D'];
-    const { names: result, truncated } = filterTestNames(names, 'compile');
-    expect(result).toEqual(['compile/test-A', 'compile/test-B', 'COMPILE/test-D']);
-    expect(truncated).toBe(false);
-  });
-
-  it('caps at maxResults and reports truncation', () => {
-    const names = Array.from({ length: 100 }, (_, i) => `test-${i}`);
-    const { names: result, truncated } = filterTestNames(names, '', 10);
-    expect(result).toHaveLength(10);
-    expect(truncated).toBe(true);
-  });
-
-  it('returns empty for empty input', () => {
-    const { names, truncated } = filterTestNames([], 'anything');
-    expect(names).toEqual([]);
-    expect(truncated).toBe(false);
-  });
-
-  it('returns all names when filter is empty and under max', () => {
-    const names = ['test-A', 'test-B'];
-    const { names: result, truncated } = filterTestNames(names, '');
-    expect(result).toEqual(['test-A', 'test-B']);
-    expect(truncated).toBe(false);
-  });
-
-  it('truncates when filter matches more than maxResults', () => {
-    const names = Array.from({ length: 20 }, (_, i) => `match-${i}`);
-    const { names: result, truncated } = filterTestNames(names, 'match', 5);
-    expect(result).toHaveLength(5);
-    expect(truncated).toBe(true);
-  });
-
-  it('defaults maxResults to 50', () => {
-    const names = Array.from({ length: 60 }, (_, i) => `test-${i}`);
-    const { names: result, truncated } = filterTestNames(names, '');
-    expect(result).toHaveLength(50);
-    expect(truncated).toBe(true);
   });
 });

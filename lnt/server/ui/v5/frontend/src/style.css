@@ -963,31 +963,40 @@ dl {
   color: #d62728;
 }
 
-/* Legend table (Graph Page) */
-.legend-container {
+/* Test selection table (Graph Page) */
+.test-selection-container {
   margin-top: 10px;
   border: 1px solid #dee2e6;
   border-radius: 4px;
 }
 
-.legend-table {
+.test-selection-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
 }
 
-.legend-table td {
+.test-selection-table td {
   padding: 4px 8px;
   border-bottom: 1px solid #eee;
   cursor: pointer;
   user-select: none;
 }
 
-.legend-table tbody tr:hover {
+.test-selection-table tbody tr:hover {
   background: #f5f5f5;
 }
 
-.legend-swatch-cell {
+.sel-checkbox-cell {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.sel-checkbox-cell input[type="checkbox"] {
+  cursor: pointer;
+}
+
+.sel-symbol-cell {
   white-space: nowrap;
   width: 1%;
 }
@@ -998,30 +1007,35 @@ dl {
   line-height: 1;
 }
 
-.legend-test-name {
+.sel-test-name {
   /* Left-justified (default) */
 }
 
-.legend-machine-name {
-  text-align: right;
-  color: #888;
-  font-size: 12px;
-  white-space: nowrap;
-  padding-left: 16px;
+.row-selected {
+  background: #e7f1ff;
 }
 
-.legend-row-inactive {
-  opacity: 0.4;
+.row-loading {
+  opacity: 0.6;
 }
 
-.legend-message {
+@keyframes loading-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 0.3; }
+}
+
+.row-loading .sel-checkbox-cell {
+  animation: loading-pulse 1.5s ease-in-out infinite;
+}
+
+.test-selection-message {
   padding: 6px 8px;
   font-size: 12px;
   color: #666;
   border-bottom: 1px solid #eee;
 }
 
-.legend-table .row-highlighted {
+.test-selection-table .row-highlighted {
   background: #fff3cd !important;
 }
 

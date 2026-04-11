@@ -187,7 +187,7 @@ describe('buildPlotlyData', () => {
     expect(xaxis.categoryarray).toBeUndefined();
   });
 
-  it('always hides built-in legend (replaced by legend table)', () => {
+  it('always hides built-in legend (replaced by test-selection table)', () => {
     const opts: TimeSeriesChartOptions = {
       traces: [
         makeTrace('t1', [{ orderValue: '100', value: 1.0 }]),

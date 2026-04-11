@@ -1823,129 +1823,114 @@ This function is generic and URL-agnostic — it takes a full URL (built via `ap
 
 **File**: `lnt/server/ui/v5/frontend/src/pages/graph.ts`
 
-The graph page is the most data-intensive page. It uses **lazy loading with per-metric client-side caching** to deliver a fast, interactive experience.
+The graph page is the most data-intensive page. It uses **on-demand loading with per-metric client-side caching** and an **explicit test selection model** — the table shows all matching tests, the user selects which to plot, and data is fetched only for selected tests.
 
 **Suite-agnostic architecture**: The graph page is served at `/v5/graph` (not `/v5/{ts}/graph`). The suite is read from the URL parameter `?suite=...` on mount, and managed via a `<select>` dropdown at the top of the controls panel. A module-level `currentSuite` variable replaces the old closure-captured `ts` from `params.testsuite`. A `suiteGeneration` counter is incremented on every suite change and checked by all async callbacks to discard stale responses. The `updateUrlState()` function encodes the suite as `qs.set('suite', currentSuite)`.
 
 1. **Controls section** (top, wrapped in a `.controls-panel` box — same shared style as the Compare page's selection panel):
-   - **Suite selector** (label: "Suite"): A `<select>` dropdown populated from `getTestsuites()` with an empty "-- Select suite --" option. Pre-selected from `?suite=` URL param, or auto-selected if only one suite exists. Changing the suite increments `suiteGeneration`, aborts all in-flight fetches, clears all module-level state (cache, machines, scaffolds, suggestions, etc.), re-fetches fields for the new suite, and calls `updateUrlState()`. All other controls are disabled until a suite is selected.
-   - Machine chip input: uses `renderMachineCombobox` from `components/machine-combobox.ts` for typeahead, passing `currentSuite` as the testsuite. If `currentSuite` is empty (no suite selected), the input is disabled with a "Select a suite first" placeholder and no fetch is made. Otherwise, the combobox fetches the full machine list once on creation via `getMachines(ts, { limit: 500 })` and filters locally by case-insensitive substring — no per-keystroke API calls. A "Loading machines..." hint is shown until the initial fetch completes. All matching machines are displayed (no cap). When the user types a machine name and presses Enter, the machine is added to a `machines: string[]` list and a chip is rendered. Each chip has an x button to remove it. Adding or removing a machine triggers `doPlot()` if a metric is also selected. The machine list is always restored from URL params on mount (URL is the source of truth); the per-metric data cache is preserved at module scope so navigating back renders instantly. A `.combobox-invalid` red halo appears when no machines match the typed text; Enter is blocked while the halo is showing.
-   - Metric selector drop-down (uses `renderMetricSelector` from `components/metric-selector.ts`). Rendered with `placeholder: true` so it initially shows "-- Select metric --" with no metric pre-selected, consistent with the Compare page. Accepts an optional `initialValue` parameter to pre-select the metric from URL state. When changed (`onChange` callback), if at least one machine is selected, auto-triggers `doPlot()`.
-   - "Filter tests" text input (label and placeholder consistent with Compare page, substring match, debounced 200ms). Matches on **test name only** (not machine name), showing/hiding the test across all machines simultaneously. Changes re-render from cache via `updateUrlState()` — no refetch.
-   - Run aggregation drop-down (median/mean/min/max) in a labeled control group ("Run aggregation"), consistent with Compare's layout. Changes re-render from cache via `updateUrlState()`.
-   - Sample aggregation drop-down (median/mean/min/max) in a separate labeled control group ("Sample aggregation"). Changes re-render from cache via `updateUrlState()`.
-   - Baselines panel (label: "Baselines", button: "+ Add baseline"). An expandable form with cascading dropdowns: Suite → Machine → Order. The suite dropdown is populated from `getTestsuites()`, the machine dropdown from `getMachines(suite)`, and the order dropdown from `getOrders(suite)` filtered by the selected machine's runs. Added baselines appear as removable chips labeled `{suite}/{machine}/{order} ({tag})`. Adding or removing a baseline calls `updateUrlState()` — no refetch.
-   - No "Plot" button. Plotting is triggered automatically when at least one machine and a metric are selected.
+   - **Suite selector** (label: "Suite"): A `<select>` dropdown populated from `getTestsuites()` with an empty "-- Select suite --" option. Pre-selected from `?suite=` URL param, or auto-selected if only one suite exists. Changing the suite increments `suiteGeneration`, aborts all in-flight fetches, clears all module-level state (cache, machines, selections, etc.), re-fetches fields for the new suite, and calls `updateUrlState()`. All other controls are disabled until a suite is selected.
+   - Machine chip input: uses `renderMachineCombobox` from `components/machine-combobox.ts` for typeahead, passing `currentSuite` as the testsuite. If `currentSuite` is empty (no suite selected), the input is disabled with a "Select a suite first" placeholder and no fetch is made. Otherwise, the combobox fetches the full machine list once on creation via `getMachines(ts, { limit: 500 })` and filters locally by case-insensitive substring — no per-keystroke API calls. When the user types a machine name and presses Enter, the machine is added to a `machines: string[]` list and a chip is rendered. Adding or removing a machine triggers `doPlot()` if a metric is also selected. A `.combobox-invalid` red halo appears when no machines match the typed text; Enter is blocked while the halo is showing.
+   - Metric selector drop-down (uses `renderMetricSelector` from `components/metric-selector.ts`). Rendered with `placeholder: true` so it initially shows "-- Select metric --". When changed, if at least one machine is selected, triggers `doPlot()`.
+   - "Filter tests" text input (substring match, debounced 200ms). Matches on **test name only**. Changes trigger `handleFilterChange()` which re-filters `allMatchingTests` and prunes `selectedTests`.
+   - Run aggregation drop-down (median/mean/min/max). Changes re-render from cache via `renderFromSelection()`.
+   - Sample aggregation drop-down (median/mean/min/max). Changes re-render from cache via `renderFromSelection()`.
+   - Baselines panel (label: "Baselines", button: "+ Add baseline"). An expandable form with cascading dropdowns: Suite → Machine → Order. Added baselines appear as removable chips. Adding or removing a baseline calls `updateUrlState()` and re-renders.
 
-2. **Data fetching strategy — lazy loading with progressive rendering**:
-   - On `doPlot()` (called automatically when the machine list and metric are both non-empty):
-     - For **each machine** in the `machines` list, independently:
-       - Check the **per-metric client-side cache** (keyed by `machine::metric`). If the cache has data for this combination, use it immediately — no API call needed.
-       - If no cache hit, proceed in three sequential steps per machine:
-         1. **X-axis scaffold** (if not already cached for this machine): Paginated calls to `GET machines/{name}/runs` (via `fetchOneCursorPage<MachineRunInfo>` with `sort=order`) to fetch the complete list of order values. In parallel, `getOrders(ts)` is called to obtain tags for the baseline order suggestions. The scaffold is cached per machine.
-         2. **Compute union scaffold**: The x-axis scaffold passed to the chart is the **union** of all machines' scaffolds (preserving order). This is recomputed whenever a machine is added/removed or a scaffold finishes loading.
-         3. **Lazy data loading**: Begin fetching data pages via `fetchOneCursorPage<QueryDataPoint>(apiUrl(ts, 'query'), { machine, metric, sort: '-order', limit: '10000' })`. After each page, merge into that machine's cache and call `renderFromCache()` to update the chart with traces from **all** machines.
-     - Show a progress indicator during background fetching (e.g., "Loading: clang-x86 30000 points, gcc-arm 15000 points...").
-     - **Per-machine×metric AbortControllers**: Each machine×metric fetch gets its own `AbortController`. Removing a machine aborts its in-flight fetch without affecting other machines.
-   - `renderFromCache()` iterates over all machines' caches, builds traces for each machine (with `machine` field and `markerSymbol` set), merges them, and passes the combined trace list to the chart.
-   - `buildTraces()` is called per machine for each discovered test. The active set is computed by `computeActiveTests()` based on trace names ("`{test} - {machine}`") and manual toggles (the `manuallyHidden` set).
+2. **Data flow — explicit test selection with on-demand loading**:
+   - On `doPlot()` (called when machine list or metric changes):
+     1. Fetch scaffolds for all machines (same as before).
+     2. Discover ALL test names for all machines × metric via `cache.getTestNames()` — union, sorted alphabetically. No cap.
+     3. Clear `selectedTests` (nothing plotted by default). Update `allMatchingTests`.
+     4. `renderFromSelection()` — shows the test selection table with all tests (none selected), chart empty with scaffold.
+   - When the user selects tests (click, shift-click, double-click):
+     1. `handleSelectionChange(newSelected)` is called by the table component.
+     2. Abort previous selection fetch (`selectionAbort`). Update `selectedTests`.
+     3. Find tests needing data fetch (check `cache.isComplete()` per machine).
+     4. Add to `loadingTests`, call `renderFromSelection()` to show loading state.
+     5. Batch fetch via `cache.ensureTestData()` per machine (POST /query with OR'd test names). During fetch, `onProgress` calls `renderChartOnly()` (not `renderFromSelection()` — avoids rebuilding the full table on every progress tick).
+     6. After fetch: fetch baseline data for selected tests. Remove from `loadingTests`. Call `renderFromSelection()` for final render.
    - **Marker symbol assignment**: A fixed ordered list of Plotly marker symbols (`MACHINE_SYMBOLS = ['circle', 'triangle-up', 'square', 'diamond', 'x', 'cross', 'star', ...]`). The i-th machine in the `machines` list gets `MACHINE_SYMBOLS[i % MACHINE_SYMBOLS.length]`.
-   - **Color assignment**: Colors are assigned by alphabetical index of all **test names** (not trace names) across all machines, using the D3 category10 palette. This ensures the same test on different machines shares the same color.
+   - **Color assignment**: Colors are assigned by the test's index in `allMatchingTests` (sorted alphabetically). This ensures stable colors across selection changes — adding or removing a selection does not shuffle existing colors. The same test on different machines shares the same color.
 
-3. **Legend table and visibility control**:
-   - A `createLegendTable` component (`components/legend-table.ts`) renders below the chart, listing traces sorted alphabetically by name. The table is part of the normal page flow (no `max-height`, no `overflow` — scrolling the table scrolls the page, consistent with the Compare page's table) but has a border for visual grouping. Each row represents one trace and shows: a colored marker symbol character (●, ▲, ■, etc. in the trace's color), the test name (left-justified), and the machine name (right-justified, grey). Tests not matching the text filter are not discovered at all (filtering happens at the discovery level, not the display level). Manually hidden traces are grayed out in place (not partitioned below active traces).
-   - The legend message area above the table rows always shows counts: "N tests, M traces". When the discovered test list was truncated (more than 50 tests match), it shows a warning: "Showing first 50 of 50+ matching tests. Refine the filter to see others."
-   - A trace is active if it has not been manually hidden (i.e., is not in the `manuallyHidden` set). There is no UI-level cap — all discovered tests are plotted unless manually hidden.
-   - Test discovery is capped at 50 tests at the data level via `filterTestNames()`. This cap applies always (with or without a text filter). Tests beyond the 50-cap are not shown in the legend or fetched from the API. This keeps the UI responsive for test suites with thousands of tests.
-   - Clicking a row toggles visibility and triggers `renderFromCache()`. Double-clicking a row is a shortcut for hiding all other visible traces: the `onIsolate` callback populates `manuallyHidden` with all visible trace names except the double-clicked one. If the double-clicked trace is already the only non-hidden trace, `manuallyHidden` is cleared to restore all. This uses the same `manuallyHidden` mechanism as single-click, so subsequent single-clicks work naturally (e.g., single-clicking a hidden trace after a double-click simply unhides it). The click/dblclick interaction is handled with a 200ms delay on single-click to prevent spurious toggles during a double-click. The legend table exposes both `onToggle` and `onIsolate` callbacks.
-   - Colors are assigned by alphabetical index of all **test names** (not trace names) using the D3 category10 palette (`PLOTLY_COLORS`), ensuring the same test on different machines shares the same color.
-   - Plotly's built-in legend is disabled (`showlegend: false` always). Traces receive explicit `line.color` and `marker.color` from the color map, and `marker.symbol` from the machine symbol assignment.
-   - Bidirectional hover: the legend table dispatches `GRAPH_TABLE_HOVER` events; the chart dispatches `GRAPH_CHART_HOVER` events. The graph page wires these via `onCustomEvent()` (which now returns a cleanup function) to call `chartHandle.hoverTrace()` and `legendHandle.highlightRow()` respectively. `hoverTrace()` uses `Plotly.restyle()` to emphasize the entire trace line (line width 3px, opacity 1.0) and dim all other main traces (opacity 0.2) and baseline traces. Passing `null` restores all traces to their normal appearance (line width 1.5px, opacity 1.0). The restyle calls are chained after `plotReady` to avoid race conditions with newPlot/react.
-   - `manuallyHidden` (Set of trace names — `'{test} · {machine}'`) and `legendHandle` are module-scope state. They are preserved across unmount/remount (like the cache). A module-level `GraphDataCache` instance serves as the sole data access layer — all test names, data points, scaffolds, and baseline data are accessed through it. `computeActiveTests()` takes three inputs (allTraceNames, testFilter, manuallyHidden) and returns the active set — it simply filters out manually hidden traces (the test filter is applied earlier at the discovery level via `filterTestNames()`). Double-click isolation is implemented purely through `manuallyHidden` — no separate `isolatedTest` state.
+3. **Test selection table** (`components/test-selection-table.ts`):
+   - Replaces the old `legend-table.ts`. One row per test name (not per test×machine).
+   - `TestSelectionEntry`: testName, selected, color? (only when selected), symbolChar?, loading?
+   - Checkbox column for selection state. Colored marker symbol shown only for selected tests.
+   - **Click** (200ms delay for double-click disambiguation): toggle selection, call `onSelectionChange`.
+   - **Shift-click** (immediate, no 200ms delay — modifier key is unambiguous): select range from last-clicked test to clicked test (additive). `lastClickedIndex` stored as test name (not position) to survive `update()` rebuilds; resolved to current index on shift-click. Reset when the stored name is pruned by a filter change.
+   - **Double-click** (cancels pending single-click): if this is the only selected test → select all visible tests (restore). Otherwise → select only this test (isolate).
+   - **Header "check all" checkbox**: A `<thead>` row with a tri-state checkbox. Unchecked when no tests selected, indeterminate when some selected, checked when all selected. Clicking it: if not all selected → select all visible tests; if all selected → deselect all. No 200ms delay (unambiguous target outside tbody). State updated via `updateHeaderCheckbox()` in `buildRows()`.
+   - Hover dispatches `GRAPH_TABLE_HOVER` with bare test name.
+   - `highlightRow(testName)` matches on `data-test` attribute (bare test names).
+   - `update()` rebuilds all rows via `tbody.replaceChildren()`.
 
-3. **`GraphDataCache` -- centralized data access layer**:
-   - A `GraphDataCache` class (in `pages/graph-data-cache.ts`) manages all data access for the graph page. It provides both async methods (fetch on demand) and sync methods (read cache only, never trigger fetches).
-   - **Main data** keyed by `(suite, machine, metric, test)` with the invariant that entries always contain ALL orders (full time series). LRU-bounded at 500 entries. **Baseline data** keyed by `(suite, machine, order, metric)` with `fetchedTests` tracking (separate, not LRU-bounded). **Test names** and **scaffolds** are simple Maps. All cleared on `cache.clear()`.
-   - **Instant interactions from cache**: When the user changes the test filter, aggregation mode, or baselines, the page re-processes cached data via `readCachedTestData()` and `readCachedBaselineData()`. The `renderFromDiscoveredTests()` function is split into two phases:
-     - **Synchronous phase** (legend table + progress): reads cached data, builds traces, computes active set, and updates the legend table.
-     - **Deferred chart update phase**: feeds all traces to the chart via a single deferred `requestAnimationFrame` call. The chart is always updated (no no-op optimization). A module-scope `chartRenderGen` generation counter ensures stale render sequences are abandoned. A `pendingChartRAF` ID is also tracked so the pending frame can be canceled on `unmount()`. Baselines are included in every update so baseline lines appear from the first frame.
-   - **Cache persists across navigation**: The `GraphDataCache` instance is a module-scope variable that survives `unmount()`/`mount()` cycles. When the user navigates away and presses browser back, `doPlot()` finds cached data and renders instantly. `cache.clear()` is called on suite change. Module-scope UI state (`manuallyHidden`, `currentVisibleTraceNames`, `chartRenderGen`) is reset on unmount -- the machines list is restored from URL params.
+4. **`renderFromSelection` — the main render function**:
+   - Builds `TestSelectionEntry[]` from `allMatchingTests`. Colors assigned by test index in `allMatchingTests` (stable across selection changes).
+   - Updates the test selection table (`tableHandle.update(entries, message)`).
+   - Message: `"3 of 1200 tests selected"` or `"3 of 1200 tests selected, loading..."`.
+   - Builds chart traces only from `selectedTests` using `buildTraces()` per machine per test. `buildTraces` applies two-step aggregation: first `sampleAgg` within each run (grouping by `run_uuid`), then `runAgg` across runs. This matches the Compare page's `aggregateSamplesWithinRun` + `aggregateAcrossRuns` pipeline.
+   - Deferred chart update via `requestAnimationFrame` with generation counter.
 
-4. **Baselines — asynchronous fetch with aggregation**:
-   - Baseline data is fetched **after the first chart render**, so it does not block initial display.
-   - Each baseline is a `(suite, machine, order)` tuple that can reference data from any test suite (cross-suite). For each baseline, data is fetched via `cache.getBaselineData(suite, machine, order, metric, tests, signal)`. If the data is already cached, it is used directly.
-   - **Aggregation consistency**: Baseline Y values must be computed using the same run aggregation function (`runAgg`) as the main traces. When multiple data points exist for the same test at the baseline's order (multiple runs), they are collected and aggregated, not just taking the first value. The `buildBaselinesFromData` function receives the `runAgg` function and applies it per test, so the baseline dashed line aligns exactly with the trace point at that order.
-   - Once baseline data is available, call `chartHandle.update()` to overlay the dashed lines.
+5. **`renderChartOnly` — progressive chart update without table rebuild**:
+   - Called from `onProgress` during data fetch. Reads cached data for selected tests, builds traces, updates chart. Does NOT touch the table (avoids rebuilding many rows per progress tick).
 
-5. **Chart rendering**:
-   - For each machine: group data points by test name and order, apply aggregation, produce `TimeSeriesTrace[]` with `machine` and `markerSymbol` fields set
-   - Merge all machines' traces into a single list, sorted alphabetically by trace name (`{test} - {machine}`)
-   - Pass to `createTimeSeriesChart()` (initial) or `chartHandle.update()` (incremental)
+6. **Hover sync** (wired in `mount()`):
+   - **Table→Chart**: `GRAPH_TABLE_HOVER` carries a bare test name. Listener maps to `traceName(testName, machines[0])` and calls `chartHandle.hoverTrace()`. For multi-machine, highlights the first machine's trace only (acceptable limitation without modifying time-series-chart.ts).
+   - **Chart→Table**: `GRAPH_CHART_HOVER` carries a trace name (`testName · machine`). Listener extracts test name via `testNameFromTrace(tn)` and calls `tableHandle.highlightRow(testName)`.
 
-6. **URL state**:
-   - `?suite={name}&machine={name}&machine={name2}&metric={name}&test_filter={text}&run_agg={fn}&sample_agg={fn}&baseline={suite}::{machine}::{order}&baseline={suite2}::{machine2}::{order2}`
-   - The `suite` parameter identifies the currently selected test suite. On mount, it is read from the URL and used to pre-select the suite dropdown.
-   - The `machine` parameter is repeated for each selected machine. On mount, parse all `machine` values from URL params and populate the chip list.
-   - On mount, parse URL params and auto-plot if suite, machines, and metric are provided. The metric selector uses `initialValue` to pre-select the URL metric. The chart container is initialized with a "No data to plot." message, which is replaced on the first successful plot.
-   - `updateUrlState()` is called from all interactive handlers (suite change, machine add/remove, test filter change, aggregation change, baseline add/remove), not only from `doPlot()`. This ensures the URL always reflects the current UI state.
+7. **`GraphDataCache` — centralized data access layer** (unchanged class):
+   - Same `GraphDataCache` class in `pages/graph-data-cache.ts`. All methods unchanged.
+   - `filterTestNames` standalone function is **deleted** — no longer needed. The graph page inlines the text filter logic (simple `.filter()` call).
+   - Cache persists across navigation. `cache.clear()` called on suite change.
+
+8. **Baselines — asynchronous fetch with aggregation**:
+   - Baseline data is fetched only for **selected** tests (not all discovered tests).
+   - `addCurrentBaseline` uses `[...selectedTests]` when calling `cache.getBaselineData()`.
+   - Aggregation consistency: same as before (runAgg applied per test).
+
+9. **Module-level state**:
+   - `allMatchingTests: string[]` — all test names matching the current filter (no cap). **Preserved across unmount/remount**.
+   - `selectedTests: Set<string>` — user's explicit selection. **Preserved across unmount/remount** (like `cache`), so back-nav restores previous chart.
+   - `loadingTests: Set<string>` — tests with in-flight data fetches. Reset on unmount.
+   - `tableHandle: TestSelectionTableHandle | null` — destroyed on unmount, recreated on mount.
+   - `selectionAbort: AbortController | null` — aborted on each new `handleSelectionChange` and on unmount.
+   - Removed: `discoveredTests`, `discoveredTruncated`, `manuallyHidden`, `currentVisibleTraceNames`, `legendHandle`, `MAX_DISPLAYED_TESTS`, `computeActiveTests`.
+
+10. **URL state**:
+   - `?suite={name}&machine={name}&machine={name2}&metric={name}&test_filter={text}&run_agg={fn}&sample_agg={fn}&baseline={suite}::{machine}::{order}`
+   - Selected tests are **NOT** in the URL (names can be very long). They are ephemeral page state preserved via module-scope variables across SPA navigation.
+   - `updateUrlState()` called from all interactive handlers.
 
 ### 3.4 Phase 3 Testing
 
 **Tests for `time-series-chart.ts`** (`__tests__/time-series-chart.test.ts`):
-- `createTimeSeriesChart` returns a valid `ChartHandle`
-- `ChartHandle.update()` calls `Plotly.react()` (not `newPlot`) for incremental updates
-- Data preparation: verify traces are built correctly from input data
-- Baselines: verify baseline traces (not shapes) are generated with correct y-values, dash style, `showlegend: false`, and hover template containing baseline order value, tag, test name, and metric value; verify each baseline trace's color matches the corresponding main trace's color; verify scaffold x-range is used when `categoryOrder` is provided; verify no baseline traces are generated for tests not in the main traces
-- X-axis scaffolding: verify that when `categoryOrder` is provided, the layout sets `xaxis.categoryarray` and `xaxis.categoryorder = 'array'`; verify that when `categoryOrder` is omitted, these layout properties are not set
-- Marker symbols: verify that `markerSymbol` on `TimeSeriesTrace` is passed through to Plotly's `marker.symbol`
-- Trace naming: verify that the Plotly trace name is `{testName} - {machine}`
-- Empty chart annotation: verify that when traces are empty and `categoryOrder` is set, a Plotly annotation is added at paper coordinates (0.5, 0.5) with "No data to plot"
-- `plotReady` promise: verify that `update()` chains `Plotly.react()` after the `plotReady` promise from `newPlot()`, preventing race conditions
-- `ChartHandle.destroy()` calls `Plotly.purge()`
-- Trace highlighting via `hoverTrace()`: verify that `hoverTrace(testName)` calls `Plotly.restyle()` to set the hovered trace to opacity 1.0 and line width 3, while dimming all other traces to opacity 0.2; verify that `hoverTrace(null)` restores all traces to opacity 1.0 and line width 1.5; verify that baseline traces are dimmed along with non-hovered main traces; verify restyle calls are chained after `plotReady`
-- Raw value scatter: verify that when `getRawValues` returns >1 values, `Plotly.addTraces()` is called with a markers-only scatter trace at the hovered x-position; verify the scatter trace uses the same color at opacity 0.3; verify `Plotly.deleteTraces()` is called on unhover; verify no scatter trace is added when `getRawValues` returns ≤1 values; verify no scatter trace is added when `getRawValues` is not provided
-- Zoom preservation: verify that `update()` passes the current `xaxis.range` and `xaxis.autorange` from `chartDiv.layout` to `Plotly.react()`, so x-axis zoom is preserved; verify that when `yaxis.autorange` is `false` on the chart div, the y-axis range is also preserved; verify that when `yaxis.autorange` is `true`, no explicit y-axis range is set (allowing auto-range); verify that after a zoom reset (both axes `autorange` set back to `true`), the next `update()` does not set explicit ranges
+- Unchanged — all existing tests remain valid.
 
-**Tests for `fetchOneCursorPage`** (`__tests__/api.test.ts`):
-- Returns data points and next cursor from a paginated response
-- Returns `nextCursor: null` on the last page
-- Passes abort signal through to fetch
+**Tests for `test-selection-table.ts`** (`__tests__/components/test-selection-table.test.ts`):
+- Renders all entries as rows with checkboxes; selected rows have checked checkboxes and colored symbol; unselected rows have unchecked checkboxes
+- Single click toggles selection, calls `onSelectionChange` after 200ms delay
+- Shift-click selects range immediately (no 200ms delay), calls `onSelectionChange` with batch
+- Shift-click with stale `lastClickedIndex` (test name no longer in entries) — treated as normal click
+- Double-click isolates (select only this test) or restores all (if already the sole selection)
+- Loading entries show loading indicator
+- Hover dispatches `GRAPH_TABLE_HOVER` with bare test name
+- `highlightRow` adds/removes `.row-highlighted` class matching on `data-test` (bare test name)
+- `update()` replaces content
+- `destroy()` cleans up
 
 **Tests for `pages/graph.ts`** (`__tests__/pages/graph.test.ts`):
-- Suite selector: verify `<select>` is populated from `getTestsuites()`; verify pre-selection from `?suite=` URL param; verify auto-select when only one suite; verify changing suite increments `suiteGeneration` and clears all state
-- Suite generation guard: verify stale async callbacks (from a previous suite selection) are discarded when `suiteGeneration` has advanced
-- Machine chip input: verify typing a machine name and pressing Enter adds a chip; verify x button removes it; verify removing the last machine clears the chart
-- Auto-plot: verify `doPlot()` is called when a machine is added and metric is set; verify no Plot button element exists
-- Multi-machine: verify that adding a second machine triggers its own fetch pipeline; verify traces from both machines appear in the chart options; verify trace names are `{test} - {machine}` format; verify marker symbols are assigned per machine index
-- URL state parsing: verify `suite` param is restored from URL; verify multiple `machine` params are restored from URL; verify metric/filter/baselines are restored; verify metric selector receives `initialValue` from URL
-- URL sync: verify `updateUrlState()` encodes `suite` as `qs.set('suite', currentSuite)`; verify it is called from suite change, machine add/remove, test filter, aggregation, and baseline handlers; verify `machine` param is repeated for each selected machine
-- Baselines: verify URL param is `baseline` (not `pin` or `ref`); verify label is "Baselines" and button is "+ Add baseline"; verify baseline Y values use the same run aggregation as main traces (not just the first raw value)
-- Order search suggestions: verify suggestions are populated from union of all machines' scaffolds + `getOrders()` (tags), with tagged orders first; verify prefix-based filtering; verify red border on no matches and Enter blocked
-- Test filter: verify filter matches test name only (not machine name); verify matching test shows all machine variants; verify non-matching test hides all machine variants
-- Color assignment: verify colors are assigned by alphabetical index of test names (not trace names); verify same test on different machines gets the same color
-- Test cap warning: verify warning shows when discovered tests are truncated (> 50 match)
-- Aggregation: verify data points are correctly aggregated before charting
-- Cache hit: verify that changing test filter re-renders from cache without API call (via `GraphDataCache` test names cache)
-- `GraphDataCache` unit tests: LRU eviction, error handling (no cache on error), abort signals, `ensureTestData` batch fetch, `getBaselineData` re-fetch on expanded test list, `filterTestNames` pure function, `scaffoldUnion` across machines
-- Bug fix integration: verify aggregation change triggers chart update; verify baseline add/remove triggers chart update; verify `setsEqual` returns true for identical sets and false for different sets
-- Cache miss: verify that a new machine triggers a fetch for that machine only
-- Progressive rendering: verify `chartHandle.update()` is called after each page, with traces from all machines
-- AbortController: verify that removing a machine aborts its in-flight fetch without affecting other machines
-- X-axis scaffold: verify the machine runs endpoint is called per machine; verify scaffold union is passed as `categoryOrder` to the chart; verify scaffold is cached per machine; verify chart still renders if one machine's scaffold fetch fails
-- `computeActiveTests`: manuallyHidden excludes traces; no cap logic (cap is at the discovery level via `filterTestNames`)
+- Remove `computeActiveTests` tests (function removed)
+- Update mock from `legend-table` to `test-selection-table` (`createTestSelectionTable`)
+- `buildTraces` tests: unchanged (pure function)
+- `buildBaselinesFromData` tests: unchanged (pure function)
+- Mount tests: update expectations, update mock references
+- Add test: hover sync mapping — `GRAPH_TABLE_HOVER` with test name triggers `hoverTrace` with trace name; `GRAPH_CHART_HOVER` with trace name triggers `highlightRow` with test name
 
-**Tests for `legend-table.ts`** (`__tests__/legend-table.test.ts`):
-- Rows rendered in entry order with inactive rows grayed out (no partitioning)
-- Colored symbol shows correct color and defaults to ● when no symbolChar specified
-- Single-click calls `onToggle` (after 200ms delay)
-- Double-click calls `onIsolate` without triggering `onToggle`
-- `update()` replaces table content
-- `highlightRow()` adds/removes highlight class
-- `GRAPH_TABLE_HOVER` events dispatched on hover
-- `destroy()` removes the table
+**Tests for `pages/graph-data-cache.ts`** (`__tests__/pages/graph-data-cache.test.ts`):
+- Remove `filterTestNames` tests (function deleted)
+- All `GraphDataCache` class tests: unchanged
 
 ---
-
 ## Phase 4: Compare Integration
 
 **Goal**: Absorb the existing Compare page into the SPA as a page module, add geomean summary row, support pre-selected side A from URL params, and enable cross-suite comparison (each side independently selects a test suite).

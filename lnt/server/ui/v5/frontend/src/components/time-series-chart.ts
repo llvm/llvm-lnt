@@ -247,7 +247,7 @@ export function createTimeSeriesChart(
       });
     }
 
-    // Dispatch hover events for bidirectional sync with legend table
+    // Dispatch hover events for bidirectional sync with test-selection table
     // and show raw value scatter for aggregated points
     gd.on('plotly_hover', (eventData) => {
       const pt = eventData.points[0];

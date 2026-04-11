@@ -11,7 +11,6 @@ export interface GraphDataApi {
   postOneCursorPage: <T>(url: string, body: Record<string, unknown>, signal?: AbortSignal) => Promise<CursorPageResult<T>>;
 }
 
-const DEFAULT_MAX_DATA_ENTRIES = 500;
 const PAGE_LIMIT = 10000;
 
 function dataKey(suite: string, machine: string, metric: string, test: string): string {
@@ -32,26 +31,13 @@ function scaffoldKey(suite: string, machine: string): string {
 
 export class GraphDataCache {
   private data = new Map<string, { points: QueryDataPoint[]; complete: boolean }>();
-  private lruOrder: string[] = [];
   private baselineData = new Map<string, { points: QueryDataPoint[]; fetchedTests: Set<string> }>();
   private testNames = new Map<string, string[]>();
   private scaffolds = new Map<string, string[]>();
-  private maxDataEntries: number;
   private api: GraphDataApi;
 
-  constructor(api: GraphDataApi, maxDataEntries?: number) {
+  constructor(api: GraphDataApi) {
     this.api = api;
-    this.maxDataEntries = maxDataEntries ?? DEFAULT_MAX_DATA_ENTRIES;
-  }
-
-  private touchLru(key: string): void {
-    const idx = this.lruOrder.indexOf(key);
-    if (idx >= 0) this.lruOrder.splice(idx, 1);
-    this.lruOrder.push(key);
-    while (this.lruOrder.length > this.maxDataEntries) {
-      const evict = this.lruOrder.shift()!;
-      this.data.delete(evict);
-    }
   }
 
   async getScaffold(suite: string, machine: string, signal?: AbortSignal): Promise<string[]> {
@@ -109,7 +95,6 @@ export class GraphDataCache {
     const key = dataKey(suite, machine, metric, test);
     const entry = this.data.get(key);
     if (entry?.complete) {
-      this.touchLru(key);
       return entry.points;
     }
 
@@ -132,7 +117,6 @@ export class GraphDataCache {
       cursor = page.nextCursor;
     }
     this.data.set(key, { points: allPoints, complete: true });
-    this.touchLru(key);
     return allPoints;
   }
 
@@ -150,7 +134,6 @@ export class GraphDataCache {
     for (const t of uncached) {
       const key = dataKey(suite, machine, metric, t);
       this.data.set(key, { points: [], complete: false });
-      this.touchLru(key);
     }
 
     const queryUrl = this.api.apiUrl(suite, 'query');
@@ -258,32 +241,8 @@ export class GraphDataCache {
 
   clear(): void {
     this.data.clear();
-    this.lruOrder = [];
     this.baselineData.clear();
     this.testNames.clear();
     this.scaffolds.clear();
   }
-}
-
-export function filterTestNames(
-  allNames: string[], filter: string, maxResults?: number,
-): { names: string[]; truncated: boolean } {
-  const max = maxResults ?? 50;
-  if (!filter) {
-    if (allNames.length > max) {
-      return { names: allNames.slice(0, max), truncated: true };
-    }
-    return { names: allNames, truncated: false };
-  }
-  const lower = filter.toLowerCase();
-  const matched: string[] = [];
-  for (const name of allNames) {
-    if (name.toLowerCase().includes(lower)) {
-      matched.push(name);
-      if (matched.length > max) {
-        return { names: matched.slice(0, max), truncated: true };
-      }
-    }
-  }
-  return { names: matched, truncated: false };
 }

@@ -181,7 +181,7 @@ function buildTable(rows: ComparisonRow[], sort: SortCol, sortDir: SortDir, hidd
     }
   }, true);
 
-  // Click/dblclick for toggle/isolate (200ms delay to distinguish, same as legend table)
+  // Click/dblclick for toggle/isolate (200ms delay to distinguish, same as test-selection-table)
   if (currentOptions.onToggle || currentOptions.onIsolate) {
     let clickTimer: ReturnType<typeof setTimeout> | null = null;
 

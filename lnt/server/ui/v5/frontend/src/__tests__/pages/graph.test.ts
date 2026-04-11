@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Mock the API module — hoisted, but inert for pure function tests since
-// buildTraces/computeActiveTests/etc. don't call any API functions.
+// buildTraces/etc. don't call any API functions.
 vi.mock('../../api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../api')>();
   return {
@@ -44,9 +44,9 @@ vi.mock('../../components/time-series-chart', () => ({
   createTimeSeriesChart: vi.fn(() => mockChartHandle),
 }));
 
-const mockLegendHandle = { update: vi.fn(), destroy: vi.fn(), highlightRow: vi.fn() };
-vi.mock('../../components/legend-table', () => ({
-  createLegendTable: vi.fn(() => mockLegendHandle),
+const mockTableHandle = { update: vi.fn(), destroy: vi.fn(), highlightRow: vi.fn() };
+vi.mock('../../components/test-selection-table', () => ({
+  createTestSelectionTable: vi.fn(() => mockTableHandle),
 }));
 
 (globalThis as unknown as Record<string, unknown>).Plotly = {
@@ -58,7 +58,7 @@ vi.mock('../../components/legend-table', () => ({
 
 import { getFields, fetchOneCursorPage, postOneCursorPage } from '../../api';
 import { getTestsuites } from '../../router';
-import { buildTraces, computeActiveTests, buildBaselinesFromData, TRACE_SEP, graphPage } from '../../pages/graph';
+import { buildTraces, buildBaselinesFromData, TRACE_SEP, graphPage } from '../../pages/graph';
 import { renderMachineCombobox } from '../../components/machine-combobox';
 import type { QueryDataPoint, FieldInfo } from '../../types';
 
@@ -133,6 +133,67 @@ describe('buildTraces', () => {
     expect(traces[0].points[0].value).toBe(2.0);
   });
 
+  it('applies sample aggregation within a single run', () => {
+    // One run with 3 samples (repetitions)
+    const points = [
+      makePoint('test-A', '100', 1.0, 'r1'),
+      makePoint('test-A', '100', 3.0, 'r1'),
+      makePoint('test-A', '100', 5.0, 'r1'),
+    ];
+
+    // sampleAgg(median) within run r1: median([1,3,5]) = 3.0
+    // runAgg(median) across 1 run: median([3.0]) = 3.0
+    const traces = buildTraces(points, 'median', 'median');
+    expect(traces[0].points[0].value).toBe(3.0);
+    // runCount should be 1 (one run), not 3 (three samples)
+    expect(traces[0].points[0].runCount).toBe(1);
+  });
+
+  it('applies sampleAgg then runAgg in two steps', () => {
+    // 2 runs, each with 2 samples
+    const points = [
+      makePoint('test-A', '100', 1.0, 'r1'),
+      makePoint('test-A', '100', 3.0, 'r1'),
+      makePoint('test-A', '100', 10.0, 'r2'),
+      makePoint('test-A', '100', 20.0, 'r2'),
+    ];
+
+    // sampleAgg(median): r1 → median([1,3]) = 2.0, r2 → median([10,20]) = 15.0
+    // runAgg(median): median([2.0, 15.0]) = 8.5
+    const traces = buildTraces(points, 'median', 'median');
+    expect(traces[0].points[0].value).toBe(8.5);
+    expect(traces[0].points[0].runCount).toBe(2);
+
+    // With mean sampleAgg:
+    // sampleAgg(mean): r1 → 2.0, r2 → 15.0
+    // runAgg(median): median([2.0, 15.0]) = 8.5 (same in this case)
+    const traces2 = buildTraces(points, 'median', 'mean');
+    expect(traces2[0].points[0].value).toBe(8.5);
+
+    // With mean runAgg + median sampleAgg:
+    // sampleAgg(median): r1 → 2.0, r2 → 15.0
+    // runAgg(mean): mean([2.0, 15.0]) = 8.5 (same in this case)
+    const traces3 = buildTraces(points, 'mean', 'median');
+    expect(traces3[0].points[0].value).toBe(8.5);
+  });
+
+  it('two-step aggregation differs from flat aggregation', () => {
+    // This test demonstrates that the two-step pipeline produces
+    // different results than flattening all samples together.
+    const points = [
+      makePoint('test-A', '100', 1.0, 'r1'),
+      makePoint('test-A', '100', 1.0, 'r1'),
+      makePoint('test-A', '100', 1.0, 'r1'),
+      makePoint('test-A', '100', 100.0, 'r2'),
+    ];
+
+    // Two-step: sampleAgg(median) r1 → 1.0, r2 → 100.0
+    //           runAgg(mean) → mean([1.0, 100.0]) = 50.5
+    // Flat:     mean([1.0, 1.0, 1.0, 100.0]) = 25.75
+    const traces = buildTraces(points, 'mean', 'median');
+    expect(traces[0].points[0].value).toBe(50.5); // NOT 25.75
+  });
+
   it('returns empty array for single empty-points input', () => {
     const traces = buildTraces([makePoint('test-A', '100', 1.0)], 'median', 'median');
     expect(traces).toHaveLength(1);
@@ -196,72 +257,6 @@ describe('buildTraces', () => {
     expect(traces[0].points.map(p => p.orderValue)).toEqual(['102', '101', '100']);
     expect(traces[1].testName).toBe('test-B');
     expect(traces[1].points.map(p => p.orderValue)).toEqual(['102', '101', '100']);
-  });
-});
-
-describe('computeActiveTests', () => {
-  const names = ['alpha', 'beta', 'charlie', 'delta', 'echo',
-    'foxtrot', 'golf', 'hotel', 'india', 'juliet',
-    'kilo', 'lima', 'mike', 'november', 'oscar',
-    'papa', 'quebec', 'romeo', 'sierra', 'tango',
-    'uniform', 'victor', 'whiskey'];
-
-  it('returns all names when no hidden set', () => {
-    const active = computeActiveTests(names, '', new Set());
-    expect(active.size).toBe(names.length);
-  });
-
-  it('removes manually hidden tests', () => {
-    const hidden = new Set(['beta', 'charlie']);
-    const active = computeActiveTests(names, '', hidden);
-    expect(active.has('alpha')).toBe(true);
-    expect(active.has('beta')).toBe(false);
-    expect(active.has('charlie')).toBe(false);
-    expect(active.has('delta')).toBe(true);
-  });
-
-  it('returns empty set for empty input', () => {
-    const active = computeActiveTests([], '', new Set());
-    expect(active.size).toBe(0);
-  });
-
-  it('double-click isolation is just manuallyHidden with all others hidden', () => {
-    const hidden = new Set(names.filter(n => n !== 'charlie'));
-    const active = computeActiveTests(names, '', hidden);
-    expect(active.size).toBe(1);
-    expect(active.has('charlie')).toBe(true);
-  });
-
-  it('after isolation, single-click unhide works naturally', () => {
-    const hidden = new Set(names.filter(n => n !== 'charlie'));
-    hidden.delete('alpha');
-    const active = computeActiveTests(names, '', hidden);
-    expect(active.size).toBe(2);
-    expect(active.has('charlie')).toBe(true);
-    expect(active.has('alpha')).toBe(true);
-  });
-
-  it('handles multi-machine trace names', () => {
-    const traceNames = [
-      `compile/test-A${TRACE_SEP}clang-x86`,
-      `compile/test-A${TRACE_SEP}gcc-arm`,
-      `exec/test-B${TRACE_SEP}clang-x86`,
-      `exec/test-B${TRACE_SEP}gcc-arm`,
-    ];
-    const active = computeActiveTests(traceNames, 'compile', new Set());
-    // No client-side filtering — all traces are active
-    expect(active.size).toBe(4);
-  });
-
-  it('hidden traces are removed regardless of filter string', () => {
-    const traceNames = [
-      `test-A${TRACE_SEP}clang-x86`,
-      `test-A${TRACE_SEP}gcc-arm`,
-    ];
-    const hidden = new Set([`test-A${TRACE_SEP}clang-x86`]);
-    const active = computeActiveTests(traceNames, '', hidden);
-    expect(active.size).toBe(1);
-    expect(active.has(`test-A${TRACE_SEP}gcc-arm`)).toBe(true);
   });
 });
 
@@ -629,12 +624,6 @@ describe('graphPage mount', () => {
     expect(chipTexts.some(t => t?.includes('nts/m1/100'))).toBe(true);
     expect(chipTexts.some(t => t?.includes('other/m2/200'))).toBe(true);
   });
-
-  // NOTE: Testing "machines + metric via URL triggers data loading" is not
-  // feasible because graph.ts intentionally preserves the GraphDataCache
-  // instance across unmount/remount. Prior tests that parse machine URL
-  // params populate the cache, causing subsequent scaffold/test fetches to
-  // return from cache. This behavior is better verified via integration testing.
 
   it('unmount calls destroy on component handles', () => {
     graphPage.mount(container, { testsuite: 'nts' });
