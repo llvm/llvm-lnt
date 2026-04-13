@@ -120,6 +120,7 @@ class TestAccessLogUser(_AccessLogTestCase):
 
     def test_named_api_key(self):
         headers = make_scoped_headers(self.app, 'read')
+        self.capture.clear()  # discard log from API key creation
         self.client.get(PREFIX + '/orders', headers=headers)
         m = COMBINED_RE.match(self.capture.lines[0])
         self.assertEqual(m.group('user'), 'test-read')

@@ -13,8 +13,8 @@ import uuid
 
 sys.path.insert(0, os.path.dirname(__file__))
 from v5_test_helpers import (
-    admin_headers, create_app, create_client, make_scoped_headers,
-    collect_all_pages,
+    create_app, create_client, make_scoped_headers,
+    collect_all_pages, submit_run, submit_fieldchange, submit_regression,
 )
 
 
@@ -33,12 +33,12 @@ def _setup_fieldchange(client, app):
     rev1 = f'reg-o1-{tag}'
     rev2 = f'reg-o2-{tag}'
     test = f'reg/test/{tag}'
-    _submit_run(client, machine, rev1,
-                [{'name': test, 'execution_time': [1.0]}])
-    _submit_run(client, machine, rev2,
-                [{'name': test, 'execution_time': [2.0]}])
-    fc = _create_fc(client, app, machine, test,
-                    'execution_time', rev1, rev2)
+    submit_run(client, machine, rev1,
+               [{'name': test, 'execution_time': [1.0]}])
+    submit_run(client, machine, rev2,
+               [{'name': test, 'execution_time': [2.0]}])
+    fc = submit_fieldchange(client, app, machine, test,
+                            'execution_time', rev1, rev2)
     return fc['uuid']
 
 
@@ -55,57 +55,19 @@ def _setup_regression_with_indicators(client, app, num_indicators=2):
         {'name': f'reg/test/{tag}/{i}', 'execution_time': [1.0 + i]}
         for i in range(num_indicators)
     ]
-    _submit_run(client, machine, rev1, tests)
-    _submit_run(client, machine, rev2, [
+    submit_run(client, machine, rev1, tests)
+    submit_run(client, machine, rev2, [
         {'name': f'reg/test/{tag}/{i}', 'execution_time': [2.0 + i]}
         for i in range(num_indicators)
     ])
     fc_uuids = []
     for i in range(num_indicators):
-        fc = _create_fc(client, app, machine, f'reg/test/{tag}/{i}',
-                        'execution_time', rev1, rev2)
+        fc = submit_fieldchange(client, app, machine,
+                                f'reg/test/{tag}/{i}',
+                                'execution_time', rev1, rev2)
         fc_uuids.append(fc['uuid'])
-    reg = _create_api_regression(client, app, fc_uuids)
+    reg = submit_regression(client, app, fc_uuids)
     return reg['uuid'], fc_uuids
-
-
-def _submit_run(client, machine_name, revision, tests):
-    """Submit a run via the API. Returns the response JSON."""
-    payload = {
-        'format_version': '2',
-        'machine': {'name': machine_name},
-        'run': {
-            'start_time': '2024-06-15T10:00:00',
-            'end_time': '2024-06-15T10:30:00',
-            'llvm_project_revision': revision,
-        },
-        'tests': tests,
-    }
-    resp = client.post(PREFIX + '/runs', json=payload,
-                       headers=admin_headers())
-    return resp.get_json()
-
-
-def _create_fc(client, app, machine, test, metric, start_rev, end_rev):
-    """Create a field change via the API. Returns the response JSON."""
-    body = {
-        'machine': machine, 'test': test, 'metric': metric,
-        'old_value': 10.0, 'new_value': 20.0,
-        'start_order': start_rev, 'end_order': end_rev,
-    }
-    headers = make_scoped_headers(app, 'submit')
-    resp = client.post(PREFIX + '/field-changes',
-                       json=body, headers=headers)
-    return resp.get_json()
-
-
-def _create_api_regression(client, app, fc_uuids, state='active'):
-    """Create a regression via the API. Returns the response JSON."""
-    headers = make_scoped_headers(app, 'triage')
-    body = {'field_change_uuids': fc_uuids, 'state': state}
-    resp = client.post(PREFIX + '/regressions',
-                       json=body, headers=headers)
-    return resp.get_json()
 
 
 # ==========================================================================
@@ -162,23 +124,23 @@ class TestRegressionList(unittest.TestCase):
         test1 = f'state-test/{tag}/1'
         test2 = f'state-test/{tag}/2'
 
-        _submit_run(self.client, machine, rev1, [
+        submit_run(self.client, machine, rev1, [
             {'name': test1, 'execution_time': [1.0]},
             {'name': test2, 'execution_time': [1.0]},
         ])
-        _submit_run(self.client, machine, rev2, [
+        submit_run(self.client, machine, rev2, [
             {'name': test1, 'execution_time': [2.0]},
             {'name': test2, 'execution_time': [2.0]},
         ])
 
-        fc1 = _create_fc(self.client, self.app, machine, test1,
-                         'execution_time', rev1, rev2)
-        fc2 = _create_fc(self.client, self.app, machine, test2,
-                         'execution_time', rev1, rev2)
-        _create_api_regression(self.client, self.app, [fc1['uuid']],
-                               state='active')
-        _create_api_regression(self.client, self.app, [fc2['uuid']],
-                               state='detected')
+        fc1 = submit_fieldchange(self.client, self.app, machine,
+                                 test1, 'execution_time', rev1, rev2)
+        fc2 = submit_fieldchange(self.client, self.app, machine,
+                                 test2, 'execution_time', rev1, rev2)
+        submit_regression(self.client, self.app, [fc1['uuid']],
+                          state='active')
+        submit_regression(self.client, self.app, [fc2['uuid']],
+                          state='detected')
 
         resp = self.client.get(
             PREFIX + '/regressions?state=active,detected')
@@ -239,14 +201,14 @@ class TestRegressionListFilters(unittest.TestCase):
         rev2 = f'filter-r2-{tag}'
         test_name = f'filter/test/{tag}'
 
-        _submit_run(self.client, machine_name, rev1,
-                    [{'name': test_name, 'execution_time': [1.0]}])
-        _submit_run(self.client, machine_name, rev2,
-                    [{'name': test_name, 'execution_time': [2.0]}])
+        submit_run(self.client, machine_name, rev1,
+                   [{'name': test_name, 'execution_time': [1.0]}])
+        submit_run(self.client, machine_name, rev2,
+                   [{'name': test_name, 'execution_time': [2.0]}])
 
-        fc = _create_fc(self.client, self.app, machine_name, test_name,
-                        'execution_time', rev1, rev2)
-        reg = _create_api_regression(self.client, self.app, [fc['uuid']])
+        fc = submit_fieldchange(self.client, self.app, machine_name,
+                                test_name, 'execution_time', rev1, rev2)
+        reg = submit_regression(self.client, self.app, [fc['uuid']])
 
         uuids = self._collect_filtered(f'machine={machine_name}')
         self.assertIn(reg['uuid'], uuids)
@@ -259,14 +221,14 @@ class TestRegressionListFilters(unittest.TestCase):
         rev2 = f'filter-tr2-{tag}'
         test_name = f'filter/testname/{tag}'
 
-        _submit_run(self.client, machine_name, rev1,
-                    [{'name': test_name, 'execution_time': [1.0]}])
-        _submit_run(self.client, machine_name, rev2,
-                    [{'name': test_name, 'execution_time': [2.0]}])
+        submit_run(self.client, machine_name, rev1,
+                   [{'name': test_name, 'execution_time': [1.0]}])
+        submit_run(self.client, machine_name, rev2,
+                   [{'name': test_name, 'execution_time': [2.0]}])
 
-        fc = _create_fc(self.client, self.app, machine_name, test_name,
-                        'execution_time', rev1, rev2)
-        reg = _create_api_regression(self.client, self.app, [fc['uuid']])
+        fc = submit_fieldchange(self.client, self.app, machine_name,
+                                test_name, 'execution_time', rev1, rev2)
+        reg = submit_regression(self.client, self.app, [fc['uuid']])
 
         uuids = self._collect_filtered(f'test={test_name}')
         self.assertIn(reg['uuid'], uuids)
@@ -281,26 +243,24 @@ class TestRegressionListFilters(unittest.TestCase):
         test_et = f'filter/exec/{tag}'
 
         # Submit runs with both metrics
-        _submit_run(self.client, machine_name, rev1, [
+        submit_run(self.client, machine_name, rev1, [
             {'name': test_ct, 'compile_time': [5.0]},
             {'name': test_et, 'execution_time': [1.0]},
         ])
-        _submit_run(self.client, machine_name, rev2, [
+        submit_run(self.client, machine_name, rev2, [
             {'name': test_ct, 'compile_time': [10.0]},
             {'name': test_et, 'execution_time': [2.0]},
         ])
 
         # Create field change + regression for compile_time
-        fc_ct = _create_fc(self.client, self.app, machine_name, test_ct,
-                           'compile_time', rev1, rev2)
-        reg_ct = _create_api_regression(self.client, self.app,
-                                        [fc_ct['uuid']])
+        fc_ct = submit_fieldchange(self.client, self.app, machine_name,
+                                   test_ct, 'compile_time', rev1, rev2)
+        reg_ct = submit_regression(self.client, self.app, [fc_ct['uuid']])
 
         # Create field change + regression for execution_time
-        fc_et = _create_fc(self.client, self.app, machine_name, test_et,
-                           'execution_time', rev1, rev2)
-        reg_et = _create_api_regression(self.client, self.app,
-                                        [fc_et['uuid']])
+        fc_et = submit_fieldchange(self.client, self.app, machine_name,
+                                   test_et, 'execution_time', rev1, rev2)
+        reg_et = submit_regression(self.client, self.app, [fc_et['uuid']])
 
         # Filter by execution_time -- should include reg_et, exclude reg_ct
         uuids = self._collect_filtered('metric=execution_time')
@@ -321,14 +281,14 @@ class TestRegressionListFilters(unittest.TestCase):
         rev2 = f'filter-cr2-{tag}'
         test_name = f'filter/combined/{tag}'
 
-        _submit_run(self.client, machine_name, rev1,
-                    [{'name': test_name, 'execution_time': [1.0]}])
-        _submit_run(self.client, machine_name, rev2,
-                    [{'name': test_name, 'execution_time': [2.0]}])
+        submit_run(self.client, machine_name, rev1,
+                   [{'name': test_name, 'execution_time': [1.0]}])
+        submit_run(self.client, machine_name, rev2,
+                   [{'name': test_name, 'execution_time': [2.0]}])
 
-        fc = _create_fc(self.client, self.app, machine_name, test_name,
-                        'execution_time', rev1, rev2)
-        reg = _create_api_regression(self.client, self.app, [fc['uuid']])
+        fc = submit_fieldchange(self.client, self.app, machine_name,
+                                test_name, 'execution_time', rev1, rev2)
+        reg = submit_regression(self.client, self.app, [fc['uuid']])
 
         uuids = self._collect_filtered(
             f'machine={machine_name}&test={test_name}'
@@ -750,24 +710,26 @@ class TestRegressionMerge(unittest.TestCase):
         test1 = f'dup-test/{tag}'
         test2 = f'dup-test2/{tag}'
 
-        _submit_run(self.client, machine, rev1, [
+        submit_run(self.client, machine, rev1, [
             {'name': test1, 'execution_time': [1.0]},
             {'name': test2, 'execution_time': [1.0]},
         ])
-        _submit_run(self.client, machine, rev2, [
+        submit_run(self.client, machine, rev2, [
             {'name': test1, 'execution_time': [2.0]},
             {'name': test2, 'execution_time': [2.0]},
         ])
 
-        shared_fc = _create_fc(self.client, self.app, machine, test1,
-                               'execution_time', rev1, rev2)
-        unique_fc = _create_fc(self.client, self.app, machine, test2,
-                               'execution_time', rev1, rev2)
+        shared_fc = submit_fieldchange(self.client, self.app, machine,
+                                       test1, 'execution_time',
+                                       rev1, rev2)
+        unique_fc = submit_fieldchange(self.client, self.app, machine,
+                                       test2, 'execution_time',
+                                       rev1, rev2)
 
-        target = _create_api_regression(
+        target = submit_regression(
             self.client, self.app,
             [shared_fc['uuid'], unique_fc['uuid']])
-        source = _create_api_regression(
+        source = submit_regression(
             self.client, self.app, [shared_fc['uuid']])
 
         target_uuid = target['uuid']

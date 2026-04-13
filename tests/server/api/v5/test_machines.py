@@ -6,7 +6,6 @@
 # RUN:         -- python %s %t.instance
 # END.
 
-import datetime
 import sys
 import os
 import unittest
@@ -15,8 +14,8 @@ import uuid
 sys.path.insert(0, os.path.dirname(__file__))
 from v5_test_helpers import (
     create_app, create_client, admin_headers, make_scoped_headers,
-    create_machine, create_order, create_run, collect_all_pages,
-    create_test, create_fieldchange, create_regression,
+    create_machine, collect_all_pages,
+    submit_run, submit_fieldchange, submit_regression,
 )
 
 
@@ -325,14 +324,8 @@ class TestMachineDelete(unittest.TestCase):
     def test_delete_machine_with_runs(self):
         """Delete machine that has runs -- verify cascading deletion works."""
         name = f'delete-runs-{uuid.uuid4().hex[:8]}'
-        db = self.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
-        machine = create_machine(session, ts, name=name)
-        order = create_order(session, ts, revision='del-rev-1')
-        create_run(session, ts, machine, order)
-        session.commit()
-        session.close()
+        submit_run(self.client, name, f'rev-{uuid.uuid4().hex[:6]}',
+                   [{'name': 'p/test', 'execution_time': [0.0]}])
 
         resp = self.client.delete(
             PREFIX + f'/machines/{name}',
@@ -353,32 +346,16 @@ class TestMachineDelete(unittest.TestCase):
         would raise an FK violation.
         """
         name = f'delete-ri-{uuid.uuid4().hex[:8]}'
-        db = self.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
-
-        # Create machine, two orders, a run, a test, a field change,
-        # and a regression with an indicator pointing to that field change.
-        machine = create_machine(session, ts, name=name)
-        order1 = create_order(session, ts, revision=f'ri-rev1-{name}')
-        order2 = create_order(session, ts, revision=f'ri-rev2-{name}')
-        run = create_run(session, ts, machine, order2)
-        test = create_test(
-            session, ts, name=f'ri/test/{uuid.uuid4().hex[:8]}')
-        field = ts.sample_fields[0]
-        fc = create_fieldchange(session, ts, order1, order2, machine, test,
-                                field, old_value=1.0, new_value=2.0, run=run)
-        create_regression(
-            session, ts, title=f'Reg for {name}', field_changes=[fc])
-
-        # Verify the indicator exists.
-        ri_count = session.query(ts.RegressionIndicator).filter(
-            ts.RegressionIndicator.field_change_id == fc.id
-        ).count()
-        self.assertEqual(ri_count, 1)
-
-        session.commit()
-        session.close()
+        rev1 = f'ri-rev1-{name}'
+        rev2 = f'ri-rev2-{name}'
+        test_name = f'ri/test/{uuid.uuid4().hex[:8]}'
+        submit_run(self.client, name, rev1,
+                   [{'name': test_name, 'execution_time': [1.0]}])
+        submit_run(self.client, name, rev2,
+                   [{'name': test_name, 'execution_time': [2.0]}])
+        fc = submit_fieldchange(self.client, self.app, name, test_name,
+                                'execution_time', rev1, rev2)
+        submit_regression(self.client, self.app, [fc['uuid']])
 
         # Delete the machine via the API.
         resp = self.client.delete(
@@ -411,16 +388,10 @@ class TestMachineRuns(unittest.TestCase):
     def test_list_runs_for_machine(self):
         """List runs for a machine."""
         name = f'runs-list-{uuid.uuid4().hex[:8]}'
-        db = self.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
-        machine = create_machine(session, ts, name=name)
-        order = create_order(session, ts, revision='run-rev-1')
-        create_run(session, ts, machine, order,
-                   start_time=datetime.datetime(2024, 6, 1, 12, 0, 0),
-                   end_time=datetime.datetime(2024, 6, 1, 12, 30, 0))
-        session.commit()
-        session.close()
+        submit_run(self.client, name, f'rev-{uuid.uuid4().hex[:6]}',
+                   [{'name': 'p/test', 'execution_time': [0.0]}],
+                   start_time='2024-06-01T12:00:00',
+                   end_time='2024-06-01T12:30:00')
 
         resp = self.client.get(PREFIX + f'/machines/{name}/runs')
         self.assertEqual(resp.status_code, 200)
@@ -450,17 +421,11 @@ class TestMachineRuns(unittest.TestCase):
     def test_list_runs_pagination(self):
         """Test pagination of runs for a machine."""
         name = f'runs-page-{uuid.uuid4().hex[:8]}'
-        db = self.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
-        machine = create_machine(session, ts, name=name)
         # Create 3 runs
         for i in range(3):
-            order = create_order(session, ts, revision=f'page-rev-{i}')
-            create_run(session, ts, machine, order,
-                       start_time=datetime.datetime(2024, 1, 1 + i, 12, 0, 0))
-        session.commit()
-        session.close()
+            submit_run(self.client, name, f'page-rev-{i}',
+                       [{'name': 'p/test', 'execution_time': [0.0]}],
+                       start_time=f'2024-01-{1 + i:02d}T12:00:00')
 
         # Request with limit=2
         resp = self.client.get(
@@ -482,18 +447,12 @@ class TestMachineRuns(unittest.TestCase):
     def test_list_runs_after_filter(self):
         """Filter runs by after datetime."""
         name = f'runs-after-{uuid.uuid4().hex[:8]}'
-        db = self.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
-        machine = create_machine(session, ts, name=name)
-        order1 = create_order(session, ts, revision='after-rev-1')
-        create_run(session, ts, machine, order1,
-                   start_time=datetime.datetime(2024, 1, 1, 12, 0, 0))
-        order2 = create_order(session, ts, revision='after-rev-2')
-        create_run(session, ts, machine, order2,
-                   start_time=datetime.datetime(2024, 6, 1, 12, 0, 0))
-        session.commit()
-        session.close()
+        submit_run(self.client, name, 'after-rev-1',
+                   [{'name': 'p/test', 'execution_time': [0.0]}],
+                   start_time='2024-01-01T12:00:00')
+        submit_run(self.client, name, 'after-rev-2',
+                   [{'name': 'p/test', 'execution_time': [0.0]}],
+                   start_time='2024-06-01T12:00:00')
 
         resp = self.client.get(
             PREFIX + f'/machines/{name}/runs?after=2024-03-01T00:00:00')
@@ -504,18 +463,12 @@ class TestMachineRuns(unittest.TestCase):
     def test_list_runs_before_filter(self):
         """Filter runs by before datetime."""
         name = f'runs-before-{uuid.uuid4().hex[:8]}'
-        db = self.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
-        machine = create_machine(session, ts, name=name)
-        order1 = create_order(session, ts, revision='before-rev-1')
-        create_run(session, ts, machine, order1,
-                   start_time=datetime.datetime(2024, 1, 1, 12, 0, 0))
-        order2 = create_order(session, ts, revision='before-rev-2')
-        create_run(session, ts, machine, order2,
-                   start_time=datetime.datetime(2024, 6, 1, 12, 0, 0))
-        session.commit()
-        session.close()
+        submit_run(self.client, name, 'before-rev-1',
+                   [{'name': 'p/test', 'execution_time': [0.0]}],
+                   start_time='2024-01-01T12:00:00')
+        submit_run(self.client, name, 'before-rev-2',
+                   [{'name': 'p/test', 'execution_time': [0.0]}],
+                   start_time='2024-06-01T12:00:00')
 
         resp = self.client.get(
             PREFIX + f'/machines/{name}/runs?before=2024-03-01T00:00:00')
@@ -526,18 +479,11 @@ class TestMachineRuns(unittest.TestCase):
     def test_list_runs_sort_descending(self):
         """Sort runs by -start_time returns newest first."""
         name = f'runs-sort-{uuid.uuid4().hex[:8]}'
-        db = self.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
-        machine = create_machine(session, ts, name=name)
         for month in (1, 4, 7):
-            order = create_order(
-                session, ts,
-                revision=f'sort-rev-{month}-{uuid.uuid4().hex[:6]}')
-            create_run(session, ts, machine, order,
-                       start_time=datetime.datetime(2024, month, 1, 12, 0, 0))
-        session.commit()
-        session.close()
+            submit_run(self.client, name,
+                       f'sort-rev-{month}-{uuid.uuid4().hex[:6]}',
+                       [{'name': 'p/test', 'execution_time': [0.0]}],
+                       start_time=f'2024-{month:02d}-01T12:00:00')
 
         # Default order (ascending by ID)
         resp_default = self.client.get(
@@ -565,12 +511,11 @@ class TestMachineRuns(unittest.TestCase):
     def test_invalid_cursor_returns_400(self):
         """An invalid cursor string should return 400."""
         name = f'cursor-bad-{uuid.uuid4().hex[:8]}'
-        db = self.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
-        create_machine(session, ts, name=name)
-        session.commit()
-        session.close()
+        self.client.post(
+            PREFIX + '/machines',
+            json={'name': name},
+            headers=admin_headers(),
+        )
 
         resp = self.client.get(
             PREFIX + f'/machines/{name}/runs?cursor=not-a-valid-cursor!!!')
@@ -585,18 +530,11 @@ class TestMachineRunsPagination(unittest.TestCase):
         cls.app = create_app(sys.argv[1])
         cls.client = create_client(cls.app)
         cls._machine_name = f'pag-mruns-{uuid.uuid4().hex[:8]}'
-        db = cls.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
-        machine = create_machine(session, ts, name=cls._machine_name)
         for i in range(5):
-            order = create_order(
-                session, ts,
-                revision=f'pag-mr-rev-{uuid.uuid4().hex[:6]}-{i}')
-            create_run(session, ts, machine, order,
-                       start_time=datetime.datetime(2024, 1, 1 + i, 12, 0, 0))
-        session.commit()
-        session.close()
+            submit_run(cls.client, cls._machine_name,
+                       f'pag-mr-rev-{uuid.uuid4().hex[:6]}-{i}',
+                       [{'name': 'p/test', 'execution_time': [0.0]}],
+                       start_time=f'2024-01-{1 + i:02d}T12:00:00')
 
     def _collect_all_pages(self):
         url = PREFIX + f'/machines/{self._machine_name}/runs?limit=2'

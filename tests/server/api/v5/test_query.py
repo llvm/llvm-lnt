@@ -6,7 +6,7 @@
 # RUN:         -- python %s %t.instance
 # END.
 
-import datetime
+import random
 import sys
 import os
 import unittest
@@ -14,46 +14,28 @@ import uuid
 
 sys.path.insert(0, os.path.dirname(__file__))
 from v5_test_helpers import (
-    create_app, create_client,
-    create_machine, create_order, create_run, create_test, create_sample,
+    create_app, create_client, submit_run,
 )
 
 TS = 'nts'
 PREFIX = f'/api/v5/{TS}'
 
 
-def _setup_query_data(app, machine_name, test_name, num_points=5):
+def _setup_query_data(client, machine_name, test_name, num_points=5):
     """Create a machine, test, and several runs with samples.
 
     Returns a dict with the created entities for assertions.
     """
-    db = app.instance.get_database("default")
-    session = db.make_session()
-    ts = db.testsuite[TS]
-
-    machine = create_machine(session, ts, name=machine_name)
-    test = create_test(session, ts, name=test_name)
-
-    runs = []
-    orders = []
+    rev_prefix = uuid.uuid4().hex[:6]
+    run_uuids = []
     for i in range(num_points):
-        order = create_order(session, ts, revision=str(100 + i))
-        run = create_run(
-            session, ts, machine, order,
-            start_time=datetime.datetime(2024, 1, 1 + i, 12, 0, 0),
-            end_time=datetime.datetime(2024, 1, 1 + i, 12, 30, 0),
+        data = submit_run(
+            client, machine_name, f'{100 + i}-{rev_prefix}',
+            [{'name': test_name, 'execution_time': [float(i + 1) * 1.5]}],
+            start_time=f'2024-01-{1 + i:02d}T12:00:00',
+            end_time=f'2024-01-{1 + i:02d}T12:30:00',
         )
-        # Create sample with execution_time value
-        create_sample(
-            session, ts, run, test,
-            execution_time=float(i + 1) * 1.5,
-        )
-        runs.append(run)
-        orders.append(order)
-
-    run_uuids = [r.uuid for r in runs]
-    session.commit()
-    session.close()
+        run_uuids.append(data['run_uuid'])
 
     return {
         'machine': machine_name,
@@ -86,12 +68,8 @@ class TestQueryNotFound(unittest.TestCase):
         # skipped, returning an empty result set instead of 404.
         unique = uuid.uuid4().hex[:8]
         name = f'series-nf-test-{unique}'
-        db = self.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
-        create_machine(session, ts, name=name)
-        session.commit()
-        session.close()
+        submit_run(self.client, name, f'1-{unique}',
+                   [{'name': f'dummy-{unique}', 'execution_time': [1.0]}])
 
         resp = self.client.post(
             PREFIX + '/query',
@@ -105,13 +83,8 @@ class TestQueryNotFound(unittest.TestCase):
         unique = uuid.uuid4().hex[:8]
         mname = f'series-nf-field-m-{unique}'
         tname = f'series-nf-field-t/{unique}'
-        db = self.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
-        create_machine(session, ts, name=mname)
-        create_test(session, ts, name=tname)
-        session.commit()
-        session.close()
+        submit_run(self.client, mname, f'1-{unique}',
+                   [{'name': tname, 'execution_time': [1.0]}])
 
         resp = self.client.post(
             PREFIX + '/query',
@@ -129,7 +102,7 @@ class TestQueryValidQuery(unittest.TestCase):
         cls.client = create_client(cls.app)
         unique = uuid.uuid4().hex[:8]
         cls._data = _setup_query_data(
-            cls.app,
+            cls.client,
             machine_name=f'series-valid-m-{unique}',
             test_name=f'series-valid-t/{unique}',
             num_points=5,
@@ -240,13 +213,10 @@ class TestQueryEmptyResult(unittest.TestCase):
         mname = f'series-empty-m-{unique}'
         tname = f'series-empty-t/{unique}'
 
-        db = self.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
-        create_machine(session, ts, name=mname)
-        create_test(session, ts, name=tname)
-        session.commit()
-        session.close()
+        # Create machine (and a dummy test) via submit_run, then query with
+        # a different test name that has no samples for this machine.
+        submit_run(self.client, mname, f'1-{unique}',
+                   [{'name': f'dummy-{unique}', 'execution_time': [1.0]}])
 
         resp = self.client.post(
             PREFIX + '/query',
@@ -269,33 +239,21 @@ class TestQueryOrdering(unittest.TestCase):
         mname = f'query-order-m-{unique}'
         tname = f'query-order-t/{unique}'
 
-        db = cls.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
-
-        machine = create_machine(session, ts, name=mname)
-        test = create_test(session, ts, name=tname)
-
         # Create orders in sequential revision order so Order.id matches
         revisions = ['100', '200', '300', '400', '500']
+        rev_prefix = uuid.uuid4().hex[:6]
         for rev in revisions:
-            order = create_order(session, ts, revision=rev)
-            run = create_run(
-                session, ts, machine, order,
-                start_time=datetime.datetime(2024, 1, 1, 12, 0, 0),
+            submit_run(
+                cls.client, mname, f'{rev}-{rev_prefix}',
+                [{'name': tname, 'execution_time': [float(rev)]}],
+                start_time='2024-01-01T12:00:00',
+                end_time='2024-01-01T12:30:00',
             )
-            create_sample(
-                session, ts, run, test,
-                execution_time=float(rev),
-            )
-
-        session.commit()
-        session.close()
 
         cls._data = {
             'machine': mname,
             'test': tname,
-            'expected_revisions': ['100', '200', '300', '400', '500'],
+            'expected_revisions': [f'{r}-{rev_prefix}' for r in revisions],
         }
 
     def test_data_sorted_by_order(self):
@@ -324,27 +282,14 @@ class TestQueryRangeFilters(unittest.TestCase):
         mname = f'query-filter-m-{unique}'
         tname = f'query-filter-t/{unique}'
 
-        db = cls.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
-
-        machine = create_machine(session, ts, name=mname)
-        test = create_test(session, ts, name=tname)
-
         for i in range(10):
             rev = str(100 + i * 10)  # 100, 110, ..., 190
-            order = create_order(session, ts, revision=rev)
-            run = create_run(
-                session, ts, machine, order,
-                start_time=datetime.datetime(2024, 1, 1 + i, 12, 0, 0),
+            submit_run(
+                cls.client, mname, rev,
+                [{'name': tname, 'execution_time': [float(100 + i * 10)]}],
+                start_time=f'2024-01-{1 + i:02d}T12:00:00',
+                end_time=f'2024-01-{1 + i:02d}T12:30:00',
             )
-            create_sample(
-                session, ts, run, test,
-                execution_time=float(rev),
-            )
-
-        session.commit()
-        session.close()
 
         cls._data = {
             'machine': mname,
@@ -508,7 +453,7 @@ class TestQueryLimit(unittest.TestCase):
         cls.client = create_client(cls.app)
         unique = uuid.uuid4().hex[:8]
         cls._data = _setup_query_data(
-            cls.app,
+            cls.client,
             machine_name=f'series-limit-m-{unique}',
             test_name=f'series-limit-t/{unique}',
             num_points=10,
@@ -555,7 +500,7 @@ class TestQueryPagination(unittest.TestCase):
         cls.client = create_client(cls.app)
         unique = uuid.uuid4().hex[:8]
         cls._data = _setup_query_data(
-            cls.app,
+            cls.client,
             machine_name=f'series-page-m-{unique}',
             test_name=f'series-page-t/{unique}',
             num_points=7,
@@ -627,29 +572,23 @@ class TestQueryPagination(unittest.TestCase):
         self.assertEqual(resp.status_code, 400)
 
 
-def _setup_multi_test_data(app, machine_name, test_names, num_orders=5):
+def _setup_multi_test_data(client, machine_name, test_names, num_orders=5):
     """Create a machine, multiple tests, and samples for each."""
-    db = app.instance.get_database("default")
-    session = db.make_session()
-    ts = db.testsuite[TS]
-
-    machine = create_machine(session, ts, name=machine_name)
-    tests = [create_test(session, ts, name=tn) for tn in test_names]
-
+    # Use a random base offset to avoid revision collisions across test
+    # classes while keeping revisions parseable as plain integers (some
+    # tests assert ordering via int()).
+    base = random.randint(100000, 999000)
     for i in range(num_orders):
-        order = create_order(session, ts, revision=str(1000 + i))
-        run = create_run(
-            session, ts, machine, order,
-            start_time=datetime.datetime(2024, 6, 1 + i, 12, 0, 0),
+        tests = [
+            {'name': tn, 'execution_time': [float((i + 1) * 10 + j)]}
+            for j, tn in enumerate(test_names)
+        ]
+        submit_run(
+            client, machine_name, str(base + i),
+            tests,
+            start_time=f'2024-06-{1 + i:02d}T12:00:00',
+            end_time=f'2024-06-{1 + i:02d}T12:30:00',
         )
-        for j, test in enumerate(tests):
-            create_sample(
-                session, ts, run, test,
-                execution_time=float((i + 1) * 10 + j),
-            )
-
-    session.commit()
-    session.close()
 
     return {
         'machine': machine_name,
@@ -668,7 +607,7 @@ class TestQueryOptionalParams(unittest.TestCase):
         cls.client = create_client(cls.app)
         unique = uuid.uuid4().hex[:8]
         cls._data = _setup_multi_test_data(
-            cls.app,
+            cls.client,
             machine_name=f'query-opt-m-{unique}',
             test_names=[f'query-opt-t1/{unique}',
                         f'query-opt-t2/{unique}',
@@ -739,7 +678,7 @@ class TestQueryResponseShape(unittest.TestCase):
         cls.client = create_client(cls.app)
         unique = uuid.uuid4().hex[:8]
         cls._data = _setup_multi_test_data(
-            cls.app,
+            cls.client,
             machine_name=f'query-shape-m-{unique}',
             test_names=[f'query-shape-t/{unique}'],
             num_orders=3,
@@ -783,7 +722,7 @@ class TestQueryMultiTestPagination(unittest.TestCase):
         cls.client = create_client(cls.app)
         unique = uuid.uuid4().hex[:8]
         cls._data = _setup_multi_test_data(
-            cls.app,
+            cls.client,
             machine_name=f'query-mtp-m-{unique}',
             test_names=[f'query-mtp-t1/{unique}',
                         f'query-mtp-t2/{unique}',
@@ -858,7 +797,7 @@ class TestQuerySort(unittest.TestCase):
         cls.client = create_client(cls.app)
         unique = uuid.uuid4().hex[:8]
         cls._data = _setup_multi_test_data(
-            cls.app,
+            cls.client,
             machine_name=f'query-sort-m-{unique}',
             test_names=[f'query-sort-a/{unique}',
                         f'query-sort-b/{unique}',
@@ -945,7 +884,7 @@ class TestQueryCursorMixedAscDesc(unittest.TestCase):
         cls.client = create_client(cls.app)
         unique = uuid.uuid4().hex[:8]
         cls._data = _setup_multi_test_data(
-            cls.app,
+            cls.client,
             machine_name=f'query-mixed-m-{unique}',
             test_names=[f'query-mixed-a/{unique}',
                         f'query-mixed-b/{unique}'],
@@ -1057,19 +996,14 @@ class TestQueryMetricRequired(unittest.TestCase):
         unique = uuid.uuid4().hex[:8]
         mname = f'query-mreq-m-{unique}'
         tname = f'query-mreq-t/{unique}'
-        db = cls.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
-        machine = create_machine(session, ts, name=mname)
-        test = create_test(session, ts, name=tname)
+        rev_prefix = uuid.uuid4().hex[:6]
         for i in range(3):
-            order = create_order(session, ts, revision=str(2000 + i))
-            run = create_run(session, ts, machine, order,
-                             start_time=datetime.datetime(2024, 6, 1 + i, 12, 0, 0))
-            create_sample(session, ts, run, test,
-                          execution_time=float(i + 1))
-        session.commit()
-        session.close()
+            submit_run(
+                cls.client, mname, f'{2000 + i}-{rev_prefix}',
+                [{'name': tname, 'execution_time': [float(i + 1)]}],
+                start_time=f'2024-06-{1 + i:02d}T12:00:00',
+                end_time=f'2024-06-{1 + i:02d}T12:30:00',
+            )
         cls._data = {'machine': mname, 'test': tname}
 
     def test_omitting_metric_returns_422(self):
@@ -1104,19 +1038,14 @@ class TestQueryOrderRangeBoundaries(unittest.TestCase):
         unique = uuid.uuid4().hex[:8]
         mname = f'query-orb-m-{unique}'
         tname = f'query-orb-t/{unique}'
-        db = cls.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
-        machine = create_machine(session, ts, name=mname)
-        test = create_test(session, ts, name=tname)
         for i in range(5):
             rev = str(3000 + i * 10)  # 3000, 3010, 3020, 3030, 3040
-            order = create_order(session, ts, revision=rev)
-            run = create_run(session, ts, machine, order,
-                             start_time=datetime.datetime(2024, 7, 1 + i, 12, 0, 0))
-            create_sample(session, ts, run, test, execution_time=float(rev))
-        session.commit()
-        session.close()
+            submit_run(
+                cls.client, mname, rev,
+                [{'name': tname, 'execution_time': [float(3000 + i * 10)]}],
+                start_time=f'2024-07-{1 + i:02d}T12:00:00',
+                end_time=f'2024-07-{1 + i:02d}T12:30:00',
+            )
         cls._data = {'machine': mname, 'test': tname}
 
     def test_same_after_and_before_order_returns_empty(self):
@@ -1215,7 +1144,7 @@ class TestQueryLimitBoundaries(unittest.TestCase):
         cls.client = create_client(cls.app)
         unique = uuid.uuid4().hex[:8]
         cls._data = _setup_query_data(
-            cls.app,
+            cls.client,
             machine_name=f'query-limb-m-{unique}',
             test_name=f'query-limb-t/{unique}',
             num_points=5,
@@ -1271,7 +1200,7 @@ class TestQueryCursorEdgeCases(unittest.TestCase):
         cls.client = create_client(cls.app)
         unique = uuid.uuid4().hex[:8]
         cls._data = _setup_query_data(
-            cls.app,
+            cls.client,
             machine_name=f'query-cec-m-{unique}',
             test_name=f'query-cec-t/{unique}',
             num_points=3,
@@ -1412,7 +1341,7 @@ class TestQueryNoInternalFieldsLeak(unittest.TestCase):
         cls.client = create_client(cls.app)
         unique = uuid.uuid4().hex[:8]
         cls._data = _setup_query_data(
-            cls.app,
+            cls.client,
             machine_name=f'query-noleak-m-{unique}',
             test_name=f'query-noleak-t/{unique}',
             num_points=3,
@@ -1441,7 +1370,7 @@ class TestQueryUnknownParameters(unittest.TestCase):
         cls.client = create_client(cls.app)
         unique = uuid.uuid4().hex[:8]
         cls._data = _setup_query_data(
-            cls.app,
+            cls.client,
             machine_name=f'query-unknown-m-{unique}',
             test_name=f'query-unknown-t/{unique}',
             num_points=3,
@@ -1528,32 +1457,20 @@ class TestQueryMultiValueTest(unittest.TestCase):
         cls.app = create_app(sys.argv[1])
         cls.client = create_client(cls.app)
         cls._prefix = uuid.uuid4().hex[:8]
+        rev_prefix = uuid.uuid4().hex[:6]
 
-        db = cls.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
-
-        machine = create_machine(session, ts, name=f'mv-m-{cls._prefix}')
+        cls.machine_name = f'mv-m-{cls._prefix}'
         cls.test_a = f'mv-test-alpha-{cls._prefix}'
         cls.test_b = f'mv-test-beta-{cls._prefix}'
         cls.test_c = f'mv-test-gamma-{cls._prefix}'
-        test_a = create_test(session, ts, name=cls.test_a)
-        test_b = create_test(session, ts, name=cls.test_b)
-        test_c = create_test(session, ts, name=cls.test_c)
 
-        for i, test_obj in enumerate([test_a, test_b, test_c]):
-            order = create_order(session, ts, revision=str(500 + i))
-            run = create_run(
-                session, ts, machine, order,
-                start_time=datetime.datetime(2024, 6, 1 + i, 12, 0, 0),
-                end_time=datetime.datetime(2024, 6, 1 + i, 12, 30, 0),
+        for i, tname in enumerate([cls.test_a, cls.test_b, cls.test_c]):
+            submit_run(
+                cls.client, cls.machine_name, f'{500 + i}-{rev_prefix}',
+                [{'name': tname, 'execution_time': [float(i + 1) * 2.0]}],
+                start_time=f'2024-06-{1 + i:02d}T12:00:00',
+                end_time=f'2024-06-{1 + i:02d}T12:30:00',
             )
-            create_sample(session, ts, run, test_obj,
-                          execution_time=float(i + 1) * 2.0)
-
-        cls.machine_name = f'mv-m-{cls._prefix}'
-        session.commit()
-        session.close()
 
     def test_single_test_param_returns_only_that_test(self):
         resp = self.client.post(

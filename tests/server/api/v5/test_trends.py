@@ -6,7 +6,6 @@
 # RUN:         -- python %s %t.instance
 # END.
 
-import datetime
 import sys
 import os
 import unittest
@@ -14,61 +13,48 @@ import uuid
 
 sys.path.insert(0, os.path.dirname(__file__))
 from v5_test_helpers import (
-    create_app, create_client,
-    create_machine, create_order, create_run, create_test, create_sample,
+    create_app, create_client, submit_run,
 )
 
 TS = 'nts'
 PREFIX = f'/api/v5/{TS}'
 
 
-def _setup_trends_data(app, unique=None):
+def _setup_trends_data(client, unique=None):
     """Create two machines, two tests, and several runs with samples.
 
     Returns a dict with metadata for assertions.
     """
     if unique is None:
         unique = uuid.uuid4().hex[:8]
-    db = app.instance.get_database("default")
-    session = db.make_session()
-    ts = db.testsuite[TS]
 
-    machine_a = create_machine(session, ts, name=f'trends-m-a-{unique}')
-    machine_b = create_machine(session, ts, name=f'trends-m-b-{unique}')
-    test1 = create_test(session, ts, name=f'trends-t1/{unique}')
-    test2 = create_test(session, ts, name=f'trends-t2/{unique}')
+    machine_a_name = f'trends-m-a-{unique}'
+    machine_b_name = f'trends-m-b-{unique}'
+    test1_name = f'trends-t1/{unique}'
+    test2_name = f'trends-t2/{unique}'
 
     # Machine A: 3 orders, each with 2 tests
     # Order 100: test1=4.0, test2=16.0  -> geomean = 8.0
     # Order 101: test1=9.0, test2=9.0   -> geomean = 9.0
     # Order 102: test1=1.0, test2=100.0 -> geomean = 10.0
     for i, (v1, v2) in enumerate([(4.0, 16.0), (9.0, 9.0), (1.0, 100.0)]):
-        order = create_order(session, ts, revision=str(100 + i))
-        run = create_run(
-            session, ts, machine_a, order,
-            start_time=datetime.datetime(2024, 6, 1 + i, 12, 0, 0),
-            end_time=datetime.datetime(2024, 6, 1 + i, 12, 30, 0),
-        )
-        create_sample(session, ts, run, test1, execution_time=v1)
-        create_sample(session, ts, run, test2, execution_time=v2)
+        submit_run(client, machine_a_name, f'{100 + i}-{unique}',
+                   [{'name': test1_name, 'execution_time': [v1]},
+                    {'name': test2_name, 'execution_time': [v2]}],
+                   start_time=f'2024-06-0{1 + i}T12:00:00',
+                   end_time=f'2024-06-0{1 + i}T12:30:00')
 
     # Machine B: 1 order with 1 test (earlier date, outside some time ranges)
-    order_b = create_order(session, ts, revision='200')
-    run_b = create_run(
-        session, ts, machine_b, order_b,
-        start_time=datetime.datetime(2024, 5, 1, 12, 0, 0),
-        end_time=datetime.datetime(2024, 5, 1, 12, 30, 0),
-    )
-    create_sample(session, ts, run_b, test1, execution_time=25.0)
-
-    session.commit()
-    session.close()
+    submit_run(client, machine_b_name, f'200-{unique}',
+               [{'name': test1_name, 'execution_time': [25.0]}],
+               start_time='2024-05-01T12:00:00',
+               end_time='2024-05-01T12:30:00')
 
     return {
-        'machine_a': f'trends-m-a-{unique}',
-        'machine_b': f'trends-m-b-{unique}',
-        'test1': f'trends-t1/{unique}',
-        'test2': f'trends-t2/{unique}',
+        'machine_a': machine_a_name,
+        'machine_b': machine_b_name,
+        'test1': test1_name,
+        'test2': test2_name,
     }
 
 
@@ -143,7 +129,7 @@ class TestTrendsValidQuery(unittest.TestCase):
         super().setUpClass()
         cls.app = create_app(sys.argv[1])
         cls.client = create_client(cls.app)
-        cls._data = _setup_trends_data(cls.app)
+        cls._data = _setup_trends_data(cls.client)
 
     def test_returns_200(self):
         d = self._data
@@ -292,25 +278,12 @@ class TestTrendsEdgeCases(unittest.TestCase):
         unique = uuid.uuid4().hex[:8]
         cls._machine_name = f'trends-edge-m-{unique}'
 
-        db = cls.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
-
-        machine = create_machine(session, ts, name=cls._machine_name)
-        test1 = create_test(session, ts, name=f'trends-edge-t1/{unique}')
-        test2 = create_test(session, ts, name=f'trends-edge-t2/{unique}')
-
         # One order with test1=0.0 (should be excluded) and test2=25.0
-        order = create_order(session, ts, revision=f'edge-{unique}')
-        run = create_run(
-            session, ts, machine, order,
-            start_time=datetime.datetime(2024, 7, 1, 12, 0, 0),
-        )
-        create_sample(session, ts, run, test1, execution_time=0.0)
-        create_sample(session, ts, run, test2, execution_time=25.0)
-
-        session.commit()
-        session.close()
+        submit_run(cls.client, cls._machine_name, f'edge-{unique}',
+                   [{'name': f'trends-edge-t1/{unique}', 'execution_time': [0.0]},
+                    {'name': f'trends-edge-t2/{unique}', 'execution_time': [25.0]}],
+                   start_time='2024-07-01T12:00:00',
+                   end_time='2024-07-01T12:30:00')
 
     def test_geomean_excludes_zero_values(self):
         """Zero values are excluded from the geomean computation."""
@@ -335,25 +308,12 @@ class TestTrendsAllZeroGroup(unittest.TestCase):
         unique = uuid.uuid4().hex[:8]
         cls._machine_name = f'trends-allzero-m-{unique}'
 
-        db = cls.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
-
-        machine = create_machine(session, ts, name=cls._machine_name)
-        test1 = create_test(session, ts, name=f'trends-allzero-t1/{unique}')
-        test2 = create_test(session, ts, name=f'trends-allzero-t2/{unique}')
-
         # Order with all-zero values — should produce no result
-        order = create_order(session, ts, revision=f'allzero-{unique}')
-        run = create_run(
-            session, ts, machine, order,
-            start_time=datetime.datetime(2024, 8, 1, 12, 0, 0),
-        )
-        create_sample(session, ts, run, test1, execution_time=0.0)
-        create_sample(session, ts, run, test2, execution_time=0.0)
-
-        session.commit()
-        session.close()
+        submit_run(cls.client, cls._machine_name, f'allzero-{unique}',
+                   [{'name': f'trends-allzero-t1/{unique}', 'execution_time': [0.0]},
+                    {'name': f'trends-allzero-t2/{unique}', 'execution_time': [0.0]}],
+                   start_time='2024-08-01T12:00:00',
+                   end_time='2024-08-01T12:30:00')
 
     def test_all_zero_group_excluded(self):
         """A group where every sample is zero produces no result."""
@@ -377,25 +337,12 @@ class TestTrendsNegativeValues(unittest.TestCase):
         unique = uuid.uuid4().hex[:8]
         cls._machine_name = f'trends-neg-m-{unique}'
 
-        db = cls.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
-
-        machine = create_machine(session, ts, name=cls._machine_name)
-        test1 = create_test(session, ts, name=f'trends-neg-t1/{unique}')
-        test2 = create_test(session, ts, name=f'trends-neg-t2/{unique}')
-
         # One negative, one positive — geomean should use only the positive
-        order = create_order(session, ts, revision=f'neg-{unique}')
-        run = create_run(
-            session, ts, machine, order,
-            start_time=datetime.datetime(2024, 8, 2, 12, 0, 0),
-        )
-        create_sample(session, ts, run, test1, execution_time=-5.0)
-        create_sample(session, ts, run, test2, execution_time=16.0)
-
-        session.commit()
-        session.close()
+        submit_run(cls.client, cls._machine_name, f'neg-{unique}',
+                   [{'name': f'trends-neg-t1/{unique}', 'execution_time': [-5.0]},
+                    {'name': f'trends-neg-t2/{unique}', 'execution_time': [16.0]}],
+                   start_time='2024-08-02T12:00:00',
+                   end_time='2024-08-02T12:30:00')
 
     def test_negative_values_excluded(self):
         """Negative values are excluded; geomean uses only positive values."""

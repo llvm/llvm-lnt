@@ -6,7 +6,6 @@
 # RUN:         -- python %s %t.instance
 # END.
 
-import datetime
 import json
 import sys
 import os
@@ -16,7 +15,7 @@ import uuid
 sys.path.insert(0, os.path.dirname(__file__))
 from v5_test_helpers import (
     create_app, create_client, admin_headers, make_scoped_headers,
-    create_machine, create_order, create_run, collect_all_pages,
+    collect_all_pages, submit_run,
 )
 
 
@@ -90,34 +89,23 @@ class TestRunListWithData(unittest.TestCase):
         cls.client = create_client(cls.app)
 
     def test_list_includes_created_runs(self):
-        """Runs created via DB helpers appear in list."""
+        """Runs created via API appear in list."""
         name = f'list-data-{uuid.uuid4().hex[:8]}'
-        db = self.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
-        machine = create_machine(session, ts, name=name)
-        order = create_order(session, ts, revision=f'list-rev-{uuid.uuid4().hex[:6]}')
-        run = create_run(session, ts, machine, order)
-        run_uuid = run.uuid
-        session.commit()
-        session.close()
+        rev = f'list-rev-{uuid.uuid4().hex[:6]}'
+        data = submit_run(self.client, name, rev,
+                          [{'name': 'p/test', 'execution_time': [0.0]}])
+        run_uuid = data['run_uuid']
 
         resp = self.client.get(PREFIX + f'/runs?machine={name}')
-        data = resp.get_json()
-        uuids = [item['uuid'] for item in data['items']]
+        rdata = resp.get_json()
+        uuids = [item['uuid'] for item in rdata['items']]
         self.assertIn(run_uuid, uuids)
 
     def test_list_run_has_expected_fields(self):
         """Each run in the list has uuid, machine_name, order, start_time, end_time."""
         name = f'list-fields-{uuid.uuid4().hex[:8]}'
-        db = self.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
-        machine = create_machine(session, ts, name=name)
-        order = create_order(session, ts, revision=f'fields-rev-{uuid.uuid4().hex[:6]}')
-        create_run(session, ts, machine, order)
-        session.commit()
-        session.close()
+        submit_run(self.client, name, f'fields-rev-{uuid.uuid4().hex[:6]}',
+                   [{'name': 'p/test', 'execution_time': [0.0]}])
 
         resp = self.client.get(PREFIX + f'/runs?machine={name}')
         data = resp.get_json()
@@ -135,14 +123,8 @@ class TestRunListWithData(unittest.TestCase):
     def test_list_never_exposes_internal_ids(self):
         """Run list items never contain internal database IDs."""
         name = f'no-ids-{uuid.uuid4().hex[:8]}'
-        db = self.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
-        machine = create_machine(session, ts, name=name)
-        order = create_order(session, ts, revision=f'noid-rev-{uuid.uuid4().hex[:6]}')
-        create_run(session, ts, machine, order)
-        session.commit()
-        session.close()
+        submit_run(self.client, name, f'noid-rev-{uuid.uuid4().hex[:6]}',
+                   [{'name': 'p/test', 'execution_time': [0.0]}])
 
         resp = self.client.get(PREFIX + f'/runs?machine={name}')
         data = resp.get_json()
@@ -163,16 +145,12 @@ class TestRunListPagination(unittest.TestCase):
     def test_pagination(self):
         """Create multiple runs and paginate through them."""
         name = f'page-{uuid.uuid4().hex[:8]}'
-        db = self.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
-        machine = create_machine(session, ts, name=name)
         for i in range(3):
-            order = create_order(session, ts, revision=f'page-rev-{uuid.uuid4().hex[:6]}-{i}')
-            create_run(session, ts, machine, order,
-                       start_time=datetime.datetime(2024, 1, 1 + i, 12, 0, 0))
-        session.commit()
-        session.close()
+            submit_run(self.client, name,
+                       f'page-rev-{uuid.uuid4().hex[:6]}-{i}',
+                       [{'name': 'p/test', 'execution_time': [0.0]}],
+                       start_time=f'2024-01-0{1 + i}T12:00:00',
+                       end_time=f'2024-01-0{1 + i}T13:00:00')
 
         # Get first page with limit=2
         resp = self.client.get(PREFIX + f'/runs?machine={name}&limit=2')
@@ -727,15 +705,9 @@ class TestRunDetail(unittest.TestCase):
     def test_get_run_detail(self):
         """Get run detail by UUID."""
         name = f'detail-{uuid.uuid4().hex[:8]}'
-        db = self.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
-        machine = create_machine(session, ts, name=name)
-        order = create_order(session, ts, revision=f'detail-rev-{uuid.uuid4().hex[:6]}')
-        run = create_run(session, ts, machine, order)
-        run_uuid = run.uuid
-        session.commit()
-        session.close()
+        data = submit_run(self.client, name, f'detail-rev-{uuid.uuid4().hex[:6]}',
+                          [{'name': 'p/test', 'execution_time': [0.0]}])
+        run_uuid = data['run_uuid']
 
         resp = self.client.get(PREFIX + f'/runs/{run_uuid}')
         self.assertEqual(resp.status_code, 200)
@@ -750,15 +722,9 @@ class TestRunDetail(unittest.TestCase):
     def test_get_run_detail_has_no_internal_ids(self):
         """Run detail does not expose internal IDs."""
         name = f'detail-noid-{uuid.uuid4().hex[:8]}'
-        db = self.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
-        machine = create_machine(session, ts, name=name)
-        order = create_order(session, ts, revision=f'noid-detail-rev-{uuid.uuid4().hex[:6]}')
-        run = create_run(session, ts, machine, order)
-        run_uuid = run.uuid
-        session.commit()
-        session.close()
+        data = submit_run(self.client, name, f'noid-detail-rev-{uuid.uuid4().hex[:6]}',
+                          [{'name': 'p/test', 'execution_time': [0.0]}])
+        run_uuid = data['run_uuid']
 
         resp = self.client.get(PREFIX + f'/runs/{run_uuid}')
         data = resp.get_json()
@@ -789,16 +755,9 @@ class TestRunDetailETag(unittest.TestCase):
     def test_etag_present_on_detail(self):
         """Run detail response should include an ETag header."""
         name = f'etag-present-{uuid.uuid4().hex[:8]}'
-        db = self.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
-        machine = create_machine(session, ts, name=name)
-        order = create_order(session, ts,
-                             revision=f'etag-rev-{uuid.uuid4().hex[:6]}')
-        run = create_run(session, ts, machine, order)
-        run_uuid = run.uuid
-        session.commit()
-        session.close()
+        data = submit_run(self.client, name, f'etag-rev-{uuid.uuid4().hex[:6]}',
+                          [{'name': 'p/test', 'execution_time': [0.0]}])
+        run_uuid = data['run_uuid']
 
         resp = self.client.get(PREFIX + f'/runs/{run_uuid}')
         self.assertEqual(resp.status_code, 200)
@@ -809,16 +768,9 @@ class TestRunDetailETag(unittest.TestCase):
     def test_etag_304_on_match(self):
         """Sending If-None-Match with the same ETag returns 304."""
         name = f'etag-304-{uuid.uuid4().hex[:8]}'
-        db = self.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
-        machine = create_machine(session, ts, name=name)
-        order = create_order(session, ts,
-                             revision=f'etag-304-rev-{uuid.uuid4().hex[:6]}')
-        run = create_run(session, ts, machine, order)
-        run_uuid = run.uuid
-        session.commit()
-        session.close()
+        data = submit_run(self.client, name, f'etag-304-rev-{uuid.uuid4().hex[:6]}',
+                          [{'name': 'p/test', 'execution_time': [0.0]}])
+        run_uuid = data['run_uuid']
 
         resp = self.client.get(PREFIX + f'/runs/{run_uuid}')
         etag = resp.headers.get('ETag')
@@ -832,16 +784,9 @@ class TestRunDetailETag(unittest.TestCase):
     def test_etag_200_on_mismatch(self):
         """Sending If-None-Match with a different ETag returns 200."""
         name = f'etag-200-{uuid.uuid4().hex[:8]}'
-        db = self.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
-        machine = create_machine(session, ts, name=name)
-        order = create_order(session, ts,
-                             revision=f'etag-200-rev-{uuid.uuid4().hex[:6]}')
-        run = create_run(session, ts, machine, order)
-        run_uuid = run.uuid
-        session.commit()
-        session.close()
+        data = submit_run(self.client, name, f'etag-200-rev-{uuid.uuid4().hex[:6]}',
+                          [{'name': 'p/test', 'execution_time': [0.0]}])
+        run_uuid = data['run_uuid']
 
         resp = self.client.get(
             PREFIX + f'/runs/{run_uuid}',
@@ -862,15 +807,9 @@ class TestRunDelete(unittest.TestCase):
     def test_delete_run(self):
         """Delete a run and verify 204, then verify it's gone."""
         name = f'delete-{uuid.uuid4().hex[:8]}'
-        db = self.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
-        machine = create_machine(session, ts, name=name)
-        order = create_order(session, ts, revision=f'del-rev-{uuid.uuid4().hex[:6]}')
-        run = create_run(session, ts, machine, order)
-        run_uuid = run.uuid
-        session.commit()
-        session.close()
+        data = submit_run(self.client, name, f'del-rev-{uuid.uuid4().hex[:6]}',
+                          [{'name': 'p/test', 'execution_time': [0.0]}])
+        run_uuid = data['run_uuid']
 
         resp = self.client.delete(
             PREFIX + f'/runs/{run_uuid}',
@@ -894,15 +833,9 @@ class TestRunDelete(unittest.TestCase):
     def test_delete_no_auth_401(self):
         """Deleting without auth returns 401."""
         name = f'del-noauth-{uuid.uuid4().hex[:8]}'
-        db = self.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
-        machine = create_machine(session, ts, name=name)
-        order = create_order(session, ts, revision=f'del-noauth-{uuid.uuid4().hex[:6]}')
-        run = create_run(session, ts, machine, order)
-        run_uuid = run.uuid
-        session.commit()
-        session.close()
+        data = submit_run(self.client, name, f'del-noauth-{uuid.uuid4().hex[:6]}',
+                          [{'name': 'p/test', 'execution_time': [0.0]}])
+        run_uuid = data['run_uuid']
 
         resp = self.client.delete(PREFIX + f'/runs/{run_uuid}')
         self.assertEqual(resp.status_code, 401)
@@ -910,15 +843,9 @@ class TestRunDelete(unittest.TestCase):
     def test_delete_without_manage_scope_403(self):
         """Deleting with submit scope (not manage) returns 403."""
         name = f'del-scope-{uuid.uuid4().hex[:8]}'
-        db = self.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
-        machine = create_machine(session, ts, name=name)
-        order = create_order(session, ts, revision=f'del-scope-{uuid.uuid4().hex[:6]}')
-        run = create_run(session, ts, machine, order)
-        run_uuid = run.uuid
-        session.commit()
-        session.close()
+        data = submit_run(self.client, name, f'del-scope-{uuid.uuid4().hex[:6]}',
+                          [{'name': 'p/test', 'execution_time': [0.0]}])
+        run_uuid = data['run_uuid']
 
         headers = make_scoped_headers(self.app, 'submit')
         resp = self.client.delete(
@@ -939,14 +866,8 @@ class TestRunFilterByMachine(unittest.TestCase):
     def test_filter_by_machine_name(self):
         """Filter runs by machine name."""
         name = f'filter-machine-{uuid.uuid4().hex[:8]}'
-        db = self.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
-        machine = create_machine(session, ts, name=name)
-        order = create_order(session, ts, revision=f'fm-rev-{uuid.uuid4().hex[:6]}')
-        create_run(session, ts, machine, order)
-        session.commit()
-        session.close()
+        submit_run(self.client, name, f'fm-rev-{uuid.uuid4().hex[:6]}',
+                   [{'name': 'p/test', 'execution_time': [0.0]}])
 
         resp = self.client.get(PREFIX + f'/runs?machine={name}')
         self.assertEqual(resp.status_code, 200)
@@ -975,20 +896,14 @@ class TestRunFilterByDatetime(unittest.TestCase):
     def test_filter_after(self):
         """Filter runs started after a given datetime."""
         name = f'after-{uuid.uuid4().hex[:8]}'
-        db = self.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
-        machine = create_machine(session, ts, name=name)
-        order1 = create_order(session, ts, revision=f'after-rev1-{uuid.uuid4().hex[:6]}')
-        create_run(session, ts, machine, order1,
-                   start_time=datetime.datetime(2024, 1, 1, 12, 0, 0),
-                   end_time=datetime.datetime(2024, 1, 1, 13, 0, 0))
-        order2 = create_order(session, ts, revision=f'after-rev2-{uuid.uuid4().hex[:6]}')
-        create_run(session, ts, machine, order2,
-                   start_time=datetime.datetime(2024, 6, 1, 12, 0, 0),
-                   end_time=datetime.datetime(2024, 6, 1, 13, 0, 0))
-        session.commit()
-        session.close()
+        submit_run(self.client, name, f'after-rev1-{uuid.uuid4().hex[:6]}',
+                   [{'name': 'p/test', 'execution_time': [0.0]}],
+                   start_time='2024-01-01T12:00:00',
+                   end_time='2024-01-01T13:00:00')
+        submit_run(self.client, name, f'after-rev2-{uuid.uuid4().hex[:6]}',
+                   [{'name': 'p/test', 'execution_time': [0.0]}],
+                   start_time='2024-06-01T12:00:00',
+                   end_time='2024-06-01T13:00:00')
 
         resp = self.client.get(
             PREFIX + f'/runs?machine={name}&after=2024-03-01T00:00:00')
@@ -999,20 +914,14 @@ class TestRunFilterByDatetime(unittest.TestCase):
     def test_filter_before(self):
         """Filter runs started before a given datetime."""
         name = f'before-{uuid.uuid4().hex[:8]}'
-        db = self.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
-        machine = create_machine(session, ts, name=name)
-        order1 = create_order(session, ts, revision=f'before-rev1-{uuid.uuid4().hex[:6]}')
-        create_run(session, ts, machine, order1,
-                   start_time=datetime.datetime(2024, 1, 1, 12, 0, 0),
-                   end_time=datetime.datetime(2024, 1, 1, 13, 0, 0))
-        order2 = create_order(session, ts, revision=f'before-rev2-{uuid.uuid4().hex[:6]}')
-        create_run(session, ts, machine, order2,
-                   start_time=datetime.datetime(2024, 6, 1, 12, 0, 0),
-                   end_time=datetime.datetime(2024, 6, 1, 13, 0, 0))
-        session.commit()
-        session.close()
+        submit_run(self.client, name, f'before-rev1-{uuid.uuid4().hex[:6]}',
+                   [{'name': 'p/test', 'execution_time': [0.0]}],
+                   start_time='2024-01-01T12:00:00',
+                   end_time='2024-01-01T13:00:00')
+        submit_run(self.client, name, f'before-rev2-{uuid.uuid4().hex[:6]}',
+                   [{'name': 'p/test', 'execution_time': [0.0]}],
+                   start_time='2024-06-01T12:00:00',
+                   end_time='2024-06-01T13:00:00')
 
         resp = self.client.get(
             PREFIX + f'/runs?machine={name}&before=2024-03-01T00:00:00')
@@ -1023,18 +932,12 @@ class TestRunFilterByDatetime(unittest.TestCase):
     def test_filter_after_and_before(self):
         """Filter runs within a datetime range."""
         name = f'range-{uuid.uuid4().hex[:8]}'
-        db = self.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
-        machine = create_machine(session, ts, name=name)
         for month in (1, 4, 7, 10):
-            order = create_order(session, ts,
-                                 revision=f'range-rev-{month}-{uuid.uuid4().hex[:6]}')
-            create_run(session, ts, machine, order,
-                       start_time=datetime.datetime(2024, month, 15, 12, 0, 0),
-                       end_time=datetime.datetime(2024, month, 15, 13, 0, 0))
-        session.commit()
-        session.close()
+            submit_run(self.client, name,
+                       f'range-rev-{month}-{uuid.uuid4().hex[:6]}',
+                       [{'name': 'p/test', 'execution_time': [0.0]}],
+                       start_time=f'2024-{month:02d}-15T12:00:00',
+                       end_time=f'2024-{month:02d}-15T13:00:00')
 
         resp = self.client.get(
             PREFIX + f'/runs?machine={name}&after=2024-03-01T00:00:00&before=2024-08-01T00:00:00')
@@ -1065,18 +968,12 @@ class TestRunFilterByOrder(unittest.TestCase):
     def test_filter_by_order_value(self):
         """Filter runs by primary order field value."""
         name = f'order-filter-{uuid.uuid4().hex[:8]}'
-        db = self.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
-        machine = create_machine(session, ts, name=name)
         rev1 = f'ofilt-rev1-{uuid.uuid4().hex[:6]}'
         rev2 = f'ofilt-rev2-{uuid.uuid4().hex[:6]}'
-        order1 = create_order(session, ts, revision=rev1)
-        order2 = create_order(session, ts, revision=rev2)
-        create_run(session, ts, machine, order1)
-        create_run(session, ts, machine, order2)
-        session.commit()
-        session.close()
+        submit_run(self.client, name, rev1,
+                   [{'name': 'p/test', 'execution_time': [0.0]}])
+        submit_run(self.client, name, rev2,
+                   [{'name': 'p/test', 'execution_time': [0.0]}])
 
         resp = self.client.get(
             PREFIX + f'/runs?machine={name}&order={rev1}')
@@ -1105,19 +1002,12 @@ class TestRunSort(unittest.TestCase):
     def test_sort_descending_start_time(self):
         """Sort runs by -start_time returns newest first."""
         name = f'sort-run-{uuid.uuid4().hex[:8]}'
-        db = self.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
-        machine = create_machine(session, ts, name=name)
         for month in (1, 4, 7):
-            order = create_order(
-                session, ts,
-                revision=f'sort-rev-{month}-{uuid.uuid4().hex[:6]}')
-            create_run(session, ts, machine, order,
-                       start_time=datetime.datetime(2024, month, 1, 12, 0, 0),
-                       end_time=datetime.datetime(2024, month, 1, 13, 0, 0))
-        session.commit()
-        session.close()
+            submit_run(self.client, name,
+                       f'sort-rev-{month}-{uuid.uuid4().hex[:6]}',
+                       [{'name': 'p/test', 'execution_time': [0.0]}],
+                       start_time=f'2024-{month:02d}-01T12:00:00',
+                       end_time=f'2024-{month:02d}-01T13:00:00')
 
         # Default order (ascending by ID)
         resp_default = self.client.get(
@@ -1145,18 +1035,12 @@ class TestRunPagination(unittest.TestCase):
         cls.app = create_app(sys.argv[1])
         cls.client = create_client(cls.app)
         cls._machine_name = f'pag-machine-{uuid.uuid4().hex[:8]}'
-        db = cls.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
-        machine = create_machine(session, ts, name=cls._machine_name)
         for i in range(5):
-            order = create_order(
-                session, ts,
-                revision=f'pag-run-rev-{uuid.uuid4().hex[:6]}-{i}')
-            create_run(session, ts, machine, order,
-                       start_time=datetime.datetime(2024, 1, 1 + i, 12, 0, 0))
-        session.commit()
-        session.close()
+            submit_run(cls.client, cls._machine_name,
+                       f'pag-run-rev-{uuid.uuid4().hex[:6]}-{i}',
+                       [{'name': 'p/test', 'execution_time': [0.0]}],
+                       start_time=f'2024-01-{1 + i:02d}T12:00:00',
+                       end_time=f'2024-01-{1 + i:02d}T13:00:00')
 
     def _collect_all_pages(self):
         url = PREFIX + f'/runs?machine={self._machine_name}&limit=2'
@@ -1205,15 +1089,9 @@ class TestRunUnknownParams(unittest.TestCase):
 
     def test_run_detail_unknown_param_returns_400(self):
         name = f'unk-det-{uuid.uuid4().hex[:8]}'
-        db = self.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
-        machine = create_machine(session, ts, name=name)
-        order = create_order(session, ts, revision=f'unk-det-rev-{uuid.uuid4().hex[:6]}')
-        run = create_run(session, ts, machine, order)
-        run_uuid = run.uuid
-        session.commit()
-        session.close()
+        data = submit_run(self.client, name, f'unk-det-rev-{uuid.uuid4().hex[:6]}',
+                          [{'name': 'p/test', 'execution_time': [0.0]}])
+        run_uuid = data['run_uuid']
         resp = self.client.get(PREFIX + f'/runs/{run_uuid}?bogus=1')
         self.assertEqual(resp.status_code, 400)
 

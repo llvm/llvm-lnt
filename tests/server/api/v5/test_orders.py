@@ -14,7 +14,7 @@ import uuid
 sys.path.insert(0, os.path.dirname(__file__))
 from v5_test_helpers import (
     create_app, create_client, admin_headers, make_scoped_headers,
-    create_order, collect_all_pages,
+    collect_all_pages,
 )
 
 
@@ -43,14 +43,13 @@ class TestOrderList(unittest.TestCase):
         self.assertIn('previous', data['cursor'])
 
     def test_list_returns_orders(self):
-        """Create an order via DB and verify it appears in the list."""
-        db = self.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
+        """Create an order via the API and verify it appears in the list."""
         rev = f'list-{uuid.uuid4().hex[:8]}'
-        create_order(session, ts, revision=rev)
-        session.commit()
-        session.close()
+        self.client.post(
+            PREFIX + '/orders',
+            json={'llvm_project_revision': rev},
+            headers=admin_headers(),
+        )
 
         resp = self.client.get(PREFIX + '/orders')
         data = resp.get_json()
@@ -62,14 +61,13 @@ class TestOrderList(unittest.TestCase):
 
     def test_list_pagination(self):
         """Verify cursor pagination works."""
-        db = self.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
         for i in range(3):
-            create_order(session, ts,
-                         revision=f'page-{uuid.uuid4().hex[:6]}-{i}')
-        session.commit()
-        session.close()
+            rev = f'page-{uuid.uuid4().hex[:6]}-{i}'
+            self.client.post(
+                PREFIX + '/orders',
+                json={'llvm_project_revision': rev},
+                headers=admin_headers(),
+            )
 
         resp = self.client.get(PREFIX + '/orders?limit=1')
         data = resp.get_json()
@@ -219,12 +217,11 @@ class TestOrderDetail(unittest.TestCase):
     def test_get_order_detail(self):
         """Get order detail by primary field value."""
         rev = f'detail-{uuid.uuid4().hex[:8]}'
-        db = self.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
-        create_order(session, ts, revision=rev)
-        session.commit()
-        session.close()
+        self.client.post(
+            PREFIX + '/orders',
+            json={'llvm_project_revision': rev},
+            headers=admin_headers(),
+        )
 
         resp = self.client.get(PREFIX + f'/orders/{rev}')
         self.assertEqual(resp.status_code, 200)
@@ -235,12 +232,11 @@ class TestOrderDetail(unittest.TestCase):
     def test_get_order_includes_prev_next(self):
         """Order detail includes previous_order and next_order."""
         rev = f'detail-pn-{uuid.uuid4().hex[:8]}'
-        db = self.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
-        create_order(session, ts, revision=rev)
-        session.commit()
-        session.close()
+        self.client.post(
+            PREFIX + '/orders',
+            json={'llvm_project_revision': rev},
+            headers=admin_headers(),
+        )
 
         resp = self.client.get(PREFIX + f'/orders/{rev}')
         data = resp.get_json()
@@ -413,15 +409,14 @@ class TestOrderPagination(unittest.TestCase):
         cls.app = create_app(sys.argv[1])
         cls.client = create_client(cls.app)
         cls._revisions = []
-        db = cls.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
         for i in range(5):
             rev = f'pag-{uuid.uuid4().hex[:8]}-{i}'
-            create_order(session, ts, revision=rev)
+            cls.client.post(
+                PREFIX + '/orders',
+                json={'llvm_project_revision': rev},
+                headers=admin_headers(),
+            )
             cls._revisions.append(rev)
-        session.commit()
-        session.close()
 
     def _collect_all_pages(self):
         url = PREFIX + '/orders?limit=2'

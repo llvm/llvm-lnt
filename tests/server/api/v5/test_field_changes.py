@@ -15,8 +15,7 @@ import uuid
 sys.path.insert(0, os.path.dirname(__file__))
 from v5_test_helpers import (
     create_app, create_client, make_scoped_headers, admin_headers,
-    create_machine, create_order, create_run, create_test,
-    create_fieldchange, create_regression, collect_all_pages,
+    collect_all_pages, submit_run, submit_fieldchange, submit_regression,
 )
 
 
@@ -32,83 +31,48 @@ def _triage_headers(app):
     return make_scoped_headers(app, 'triage')
 
 
-def _create_unassigned_fieldchange(app):
-    """Create a field change that is not assigned to any regression and not
-    ignored. Returns the field change UUID.
-    """
-    db = app.instance.get_database("default")
-    session = db.make_session()
-    ts = db.testsuite[TS]
-    machine = create_machine(
-        session, ts, name=f'fc-m-{uuid.uuid4().hex[:8]}')
-    order1 = create_order(
-        session, ts, revision=f'fc-o1-{uuid.uuid4().hex[:8]}')
-    order2 = create_order(
-        session, ts, revision=f'fc-o2-{uuid.uuid4().hex[:8]}')
-    test = create_test(
-        session, ts, name=f'fc/test/{uuid.uuid4().hex[:8]}')
-    run = create_run(session, ts, machine, order2)
-    field = ts.sample_fields[0]
-    fc = create_fieldchange(session, ts, order1, order2, machine, test,
-                            field, old_value=10.0, new_value=20.0, run=run)
-    fc_uuid = fc.uuid
-    session.commit()
-    session.close()
-    return fc_uuid
+def _create_fieldchange_fixture(client, app, prefix='fc',
+                                old_value=10.0, new_value=20.0):
+    """Create a machine, two runs, and a field change via the API.
 
-
-def _create_assigned_fieldchange(app):
-    """Create a field change that IS assigned to a regression (has a
-    RegressionIndicator). Returns the field change UUID.
-    """
-    db = app.instance.get_database("default")
-    session = db.make_session()
-    ts = db.testsuite[TS]
-    machine = create_machine(
-        session, ts, name=f'fc-assigned-{uuid.uuid4().hex[:8]}')
-    order1 = create_order(
-        session, ts, revision=f'fc-a-o1-{uuid.uuid4().hex[:8]}')
-    order2 = create_order(
-        session, ts, revision=f'fc-a-o2-{uuid.uuid4().hex[:8]}')
-    test = create_test(
-        session, ts, name=f'fc/assigned/{uuid.uuid4().hex[:8]}')
-    run = create_run(session, ts, machine, order2)
-    field = ts.sample_fields[0]
-    fc = create_fieldchange(session, ts, order1, order2, machine, test,
-                            field, old_value=1.0, new_value=2.0, run=run)
-    # Create a regression with this field change
-    create_regression(session, ts, title='Assigned Regression',
-                      state=10, field_changes=[fc])
-    fc_uuid = fc.uuid
-    session.commit()
-    session.close()
-    return fc_uuid
-
-
-def _create_ignored_fieldchange(app):
-    """Create a field change that is ignored (has a ChangeIgnore row).
     Returns the field change UUID.
     """
-    db = app.instance.get_database("default")
-    session = db.make_session()
-    ts = db.testsuite[TS]
-    machine = create_machine(
-        session, ts, name=f'fc-ign-{uuid.uuid4().hex[:8]}')
-    order1 = create_order(
-        session, ts, revision=f'fc-i-o1-{uuid.uuid4().hex[:8]}')
-    order2 = create_order(
-        session, ts, revision=f'fc-i-o2-{uuid.uuid4().hex[:8]}')
-    test = create_test(
-        session, ts, name=f'fc/ignored/{uuid.uuid4().hex[:8]}')
-    run = create_run(session, ts, machine, order2)
-    field = ts.sample_fields[0]
-    fc = create_fieldchange(session, ts, order1, order2, machine, test,
-                            field, old_value=5.0, new_value=10.0, run=run)
-    ignore = ts.ChangeIgnore(fc)
-    session.add(ignore)
-    fc_uuid = fc.uuid
-    session.commit()
-    session.close()
+    tag = uuid.uuid4().hex[:8]
+    machine = f'{prefix}-m-{tag}'
+    rev1 = f'{prefix}-o1-{tag}'
+    rev2 = f'{prefix}-o2-{tag}'
+    test = f'{prefix}/test/{tag}'
+    submit_run(client, machine, rev1,
+               [{'name': test, 'execution_time': [1.0]}])
+    submit_run(client, machine, rev2,
+               [{'name': test, 'execution_time': [2.0]}])
+    fc = submit_fieldchange(client, app, machine, test,
+                            'execution_time', rev1, rev2,
+                            old_value=old_value, new_value=new_value)
+    return fc['uuid']
+
+
+def _create_unassigned_fieldchange(client, app):
+    """Create an unassigned, non-ignored field change."""
+    return _create_fieldchange_fixture(client, app)
+
+
+def _create_assigned_fieldchange(client, app):
+    """Create a field change assigned to a regression."""
+    fc_uuid = _create_fieldchange_fixture(client, app, prefix='fc-assigned',
+                                          old_value=1.0, new_value=2.0)
+    submit_regression(client, app, [fc_uuid])
+    return fc_uuid
+
+
+def _create_ignored_fieldchange(client, app):
+    """Create an ignored field change."""
+    fc_uuid = _create_fieldchange_fixture(client, app, prefix='fc-ign',
+                                          old_value=5.0, new_value=10.0)
+    headers = make_scoped_headers(app, 'triage')
+    resp = client.post(f'/api/v5/nts/field-changes/{fc_uuid}/ignore',
+                       headers=headers)
+    assert resp.status_code == 201, f"Ignore failed: {resp.get_json()}"
     return fc_uuid
 
 
@@ -138,7 +102,7 @@ class TestFieldChangeList(unittest.TestCase):
         self.assertIn('previous', data['cursor'])
 
     def test_list_contains_unassigned_fc(self):
-        fc_uuid = _create_unassigned_fieldchange(self.app)
+        fc_uuid = _create_unassigned_fieldchange(self.client, self.app)
         resp = self.client.get(PREFIX + '/field-changes')
         data = resp.get_json()
         uuids = [fc['uuid'] for fc in data['items']]
@@ -146,7 +110,7 @@ class TestFieldChangeList(unittest.TestCase):
 
     def test_list_excludes_assigned_fc(self):
         """Field changes with a RegressionIndicator should NOT appear."""
-        assigned_uuid = _create_assigned_fieldchange(self.app)
+        assigned_uuid = _create_assigned_fieldchange(self.client, self.app)
         resp = self.client.get(PREFIX + '/field-changes')
         data = resp.get_json()
         uuids = [fc['uuid'] for fc in data['items']]
@@ -154,14 +118,14 @@ class TestFieldChangeList(unittest.TestCase):
 
     def test_list_excludes_ignored_fc(self):
         """Field changes with a ChangeIgnore should NOT appear."""
-        ignored_uuid = _create_ignored_fieldchange(self.app)
+        ignored_uuid = _create_ignored_fieldchange(self.client, self.app)
         resp = self.client.get(PREFIX + '/field-changes')
         data = resp.get_json()
         uuids = [fc['uuid'] for fc in data['items']]
         self.assertNotIn(ignored_uuid, uuids)
 
     def test_list_item_has_expected_fields(self):
-        _create_unassigned_fieldchange(self.app)
+        _create_unassigned_fieldchange(self.client, self.app)
         resp = self.client.get(PREFIX + '/field-changes')
         data = resp.get_json()
         if data['items']:
@@ -178,25 +142,18 @@ class TestFieldChangeList(unittest.TestCase):
 
     def test_list_filter_by_machine(self):
         """Filter unassigned field changes by machine name."""
-        db = self.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
         unique = uuid.uuid4().hex[:8]
         machine_name = f'fc-filter-m-{unique}'
-        machine = create_machine(session, ts, name=machine_name)
-        o1 = create_order(
-            session, ts, revision=f'fc-fm-o1-{uuid.uuid4().hex[:8]}')
-        o2 = create_order(
-            session, ts, revision=f'fc-fm-o2-{uuid.uuid4().hex[:8]}')
-        test = create_test(
-            session, ts, name=f'fc/filter-m/{uuid.uuid4().hex[:8]}')
-        run = create_run(session, ts, machine, o2)
-        field = ts.sample_fields[0]
-        fc = create_fieldchange(session, ts, o1, o2, machine, test,
-                                field, run=run)
-        fc_uuid = fc.uuid
-        session.commit()
-        session.close()
+        rev1 = f'fc-fm-o1-{uuid.uuid4().hex[:8]}'
+        rev2 = f'fc-fm-o2-{uuid.uuid4().hex[:8]}'
+        test_name = f'fc/filter-m/{uuid.uuid4().hex[:8]}'
+        submit_run(self.client, machine_name, rev1,
+                   [{'name': test_name, 'execution_time': [1.0]}])
+        submit_run(self.client, machine_name, rev2,
+                   [{'name': test_name, 'execution_time': [2.0]}])
+        fc = submit_fieldchange(self.client, self.app, machine_name,
+                                test_name, 'execution_time', rev1, rev2)
+        fc_uuid = fc['uuid']
 
         resp = self.client.get(
             PREFIX + f'/field-changes?machine={machine_name}')
@@ -209,25 +166,18 @@ class TestFieldChangeList(unittest.TestCase):
 
     def test_list_filter_by_test(self):
         """Filter unassigned field changes by test name."""
-        db = self.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
         unique = uuid.uuid4().hex[:8]
         test_name = f'fc/filter-t/{unique}'
-        machine = create_machine(
-            session, ts, name=f'fc-ft-m-{uuid.uuid4().hex[:8]}')
-        o1 = create_order(
-            session, ts, revision=f'fc-ft-o1-{uuid.uuid4().hex[:8]}')
-        o2 = create_order(
-            session, ts, revision=f'fc-ft-o2-{uuid.uuid4().hex[:8]}')
-        test = create_test(session, ts, name=test_name)
-        run = create_run(session, ts, machine, o2)
-        field = ts.sample_fields[0]
-        fc = create_fieldchange(session, ts, o1, o2, machine, test,
-                                field, run=run)
-        fc_uuid = fc.uuid
-        session.commit()
-        session.close()
+        machine_name = f'fc-ft-m-{uuid.uuid4().hex[:8]}'
+        rev1 = f'fc-ft-o1-{uuid.uuid4().hex[:8]}'
+        rev2 = f'fc-ft-o2-{uuid.uuid4().hex[:8]}'
+        submit_run(self.client, machine_name, rev1,
+                   [{'name': test_name, 'execution_time': [1.0]}])
+        submit_run(self.client, machine_name, rev2,
+                   [{'name': test_name, 'execution_time': [2.0]}])
+        fc = submit_fieldchange(self.client, self.app, machine_name,
+                                test_name, 'execution_time', rev1, rev2)
+        fc_uuid = fc['uuid']
 
         resp = self.client.get(
             PREFIX + f'/field-changes?test={test_name}')
@@ -240,39 +190,32 @@ class TestFieldChangeList(unittest.TestCase):
 
     def test_list_filter_by_metric(self):
         """Filter unassigned field changes by metric name."""
-        db = self.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
         unique = uuid.uuid4().hex[:8]
-        machine = create_machine(
-            session, ts, name=f'fc-filter-met-{unique}')
-        o1 = create_order(
-            session, ts, revision=f'fc-fmet-o1-{uuid.uuid4().hex[:8]}')
-        o2 = create_order(
-            session, ts, revision=f'fc-fmet-o2-{uuid.uuid4().hex[:8]}')
-        test = create_test(
-            session, ts, name=f'fc/filter-met/{uuid.uuid4().hex[:8]}')
-        run = create_run(session, ts, machine, o2)
-        field = ts.sample_fields[0]
-        fc = create_fieldchange(session, ts, o1, o2, machine, test,
-                                field, run=run)
-        fc_uuid = fc.uuid
-        session.commit()
-        session.close()
+        machine_name = f'fc-filter-met-{unique}'
+        rev1 = f'fc-fmet-o1-{uuid.uuid4().hex[:8]}'
+        rev2 = f'fc-fmet-o2-{uuid.uuid4().hex[:8]}'
+        test_name = f'fc/filter-met/{uuid.uuid4().hex[:8]}'
+        submit_run(self.client, machine_name, rev1,
+                   [{'name': test_name, 'execution_time': [1.0]}])
+        submit_run(self.client, machine_name, rev2,
+                   [{'name': test_name, 'execution_time': [2.0]}])
+        fc = submit_fieldchange(self.client, self.app, machine_name,
+                                test_name, 'execution_time', rev1, rev2)
+        fc_uuid = fc['uuid']
 
         resp = self.client.get(
-            PREFIX + f'/field-changes?metric={field.name}')
+            PREFIX + '/field-changes?metric=execution_time')
         self.assertEqual(resp.status_code, 200)
         data = resp.get_json()
         for item in data['items']:
-            self.assertEqual(item['metric'], field.name)
+            self.assertEqual(item['metric'], 'execution_time')
         uuids = [item['uuid'] for item in data['items']]
         self.assertIn(fc_uuid, uuids)
 
     def test_list_pagination(self):
         """Test pagination of unassigned field changes."""
         for _ in range(3):
-            _create_unassigned_fieldchange(self.app)
+            _create_unassigned_fieldchange(self.client, self.app)
         resp = self.client.get(PREFIX + '/field-changes?limit=2')
         self.assertEqual(resp.status_code, 200)
         data = resp.get_json()
@@ -302,7 +245,7 @@ class TestFieldChangeIgnore(unittest.TestCase):
         cls.client = create_client(cls.app)
 
     def test_ignore_field_change(self):
-        fc_uuid = _create_unassigned_fieldchange(self.app)
+        fc_uuid = _create_unassigned_fieldchange(self.client, self.app)
         headers = _triage_headers(self.app)
         resp = self.client.post(
             PREFIX + f'/field-changes/{fc_uuid}/ignore',
@@ -314,7 +257,7 @@ class TestFieldChangeIgnore(unittest.TestCase):
         self.assertEqual(data['field_change_uuid'], fc_uuid)
 
     def test_ignore_removes_from_unassigned_list(self):
-        fc_uuid = _create_unassigned_fieldchange(self.app)
+        fc_uuid = _create_unassigned_fieldchange(self.client, self.app)
         headers = _triage_headers(self.app)
 
         # Ignore it
@@ -331,7 +274,7 @@ class TestFieldChangeIgnore(unittest.TestCase):
         self.assertNotIn(fc_uuid, uuids)
 
     def test_ignore_already_ignored_409(self):
-        fc_uuid = _create_unassigned_fieldchange(self.app)
+        fc_uuid = _create_unassigned_fieldchange(self.client, self.app)
         headers = _triage_headers(self.app)
 
         # Ignore once
@@ -357,14 +300,14 @@ class TestFieldChangeIgnore(unittest.TestCase):
         self.assertEqual(resp.status_code, 404)
 
     def test_ignore_no_auth_401(self):
-        fc_uuid = _create_unassigned_fieldchange(self.app)
+        fc_uuid = _create_unassigned_fieldchange(self.client, self.app)
         resp = self.client.post(
             PREFIX + f'/field-changes/{fc_uuid}/ignore',
         )
         self.assertEqual(resp.status_code, 401)
 
     def test_ignore_read_scope_403(self):
-        fc_uuid = _create_unassigned_fieldchange(self.app)
+        fc_uuid = _create_unassigned_fieldchange(self.client, self.app)
         headers = make_scoped_headers(self.app, 'read')
         resp = self.client.post(
             PREFIX + f'/field-changes/{fc_uuid}/ignore',
@@ -385,7 +328,7 @@ class TestFieldChangeUnignore(unittest.TestCase):
         cls.client = create_client(cls.app)
 
     def test_unignore_field_change(self):
-        fc_uuid = _create_ignored_fieldchange(self.app)
+        fc_uuid = _create_ignored_fieldchange(self.client, self.app)
         headers = _triage_headers(self.app)
         resp = self.client.delete(
             PREFIX + f'/field-changes/{fc_uuid}/ignore',
@@ -394,7 +337,7 @@ class TestFieldChangeUnignore(unittest.TestCase):
         self.assertEqual(resp.status_code, 204)
 
     def test_unignore_restores_to_unassigned_list(self):
-        fc_uuid = _create_ignored_fieldchange(self.app)
+        fc_uuid = _create_ignored_fieldchange(self.client, self.app)
         headers = _triage_headers(self.app)
 
         # Un-ignore it
@@ -412,7 +355,7 @@ class TestFieldChangeUnignore(unittest.TestCase):
 
     def test_unignore_not_ignored_404(self):
         """Un-ignoring a field change that's not ignored should return 404."""
-        fc_uuid = _create_unassigned_fieldchange(self.app)
+        fc_uuid = _create_unassigned_fieldchange(self.client, self.app)
         headers = _triage_headers(self.app)
         resp = self.client.delete(
             PREFIX + f'/field-changes/{fc_uuid}/ignore',
@@ -429,14 +372,14 @@ class TestFieldChangeUnignore(unittest.TestCase):
         self.assertEqual(resp.status_code, 404)
 
     def test_unignore_no_auth_401(self):
-        fc_uuid = _create_ignored_fieldchange(self.app)
+        fc_uuid = _create_ignored_fieldchange(self.client, self.app)
         resp = self.client.delete(
             PREFIX + f'/field-changes/{fc_uuid}/ignore',
         )
         self.assertEqual(resp.status_code, 401)
 
     def test_unignore_read_scope_403(self):
-        fc_uuid = _create_ignored_fieldchange(self.app)
+        fc_uuid = _create_ignored_fieldchange(self.client, self.app)
         headers = make_scoped_headers(self.app, 'read')
         resp = self.client.delete(
             PREFIX + f'/field-changes/{fc_uuid}/ignore',
@@ -453,25 +396,19 @@ class TestFieldChangePagination(unittest.TestCase):
         cls.app = create_app(sys.argv[1])
         cls.client = create_client(cls.app)
         cls._machine_name = f'pag-fc-m-{uuid.uuid4().hex[:8]}'
-        db = cls.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
-        machine = create_machine(session, ts, name=cls._machine_name)
-        o1 = create_order(
-            session, ts, revision=f'pag-fc-o1-{uuid.uuid4().hex[:8]}')
-        o2 = create_order(
-            session, ts, revision=f'pag-fc-o2-{uuid.uuid4().hex[:8]}')
-        run = create_run(session, ts, machine, o2)
-        field = ts.sample_fields[0]
+        rev1 = f'pag-fc-o1-{uuid.uuid4().hex[:8]}'
+        rev2 = f'pag-fc-o2-{uuid.uuid4().hex[:8]}'
+        submit_run(cls.client, cls._machine_name, rev1,
+                   [{'name': f'pag-fc/test/{i}', 'execution_time': [1.0]}
+                    for i in range(5)])
+        submit_run(cls.client, cls._machine_name, rev2,
+                   [{'name': f'pag-fc/test/{i}', 'execution_time': [2.0]}
+                    for i in range(5)])
         for i in range(5):
-            test = create_test(
-                session, ts,
-                name=f'pag-fc/test/{uuid.uuid4().hex[:8]}/{i}')
-            create_fieldchange(session, ts, o1, o2, machine, test, field,
-                               old_value=float(i), new_value=float(i + 10),
-                               run=run)
-        session.commit()
-        session.close()
+            submit_fieldchange(cls.client, cls.app, cls._machine_name,
+                               f'pag-fc/test/{i}', 'execution_time',
+                               rev1, rev2,
+                               old_value=float(i), new_value=float(i + 10))
 
     def _collect_all_pages(self):
         url = PREFIX + f'/field-changes?machine={self._machine_name}&limit=2'
@@ -517,26 +454,17 @@ class TestFieldChangeCreate(unittest.TestCase):
         cls.app = create_app(sys.argv[1])
         cls.client = create_client(cls.app)
 
-        # Set up shared test data: a machine, test, two orders, and a run.
-        db = cls.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
-
         cls._machine_name = f'create-fc-m-{uuid.uuid4().hex[:8]}'
         cls._test_name = f'create-fc/test/{uuid.uuid4().hex[:8]}'
         cls._start_rev = f'create-fc-o1-{uuid.uuid4().hex[:8]}'
         cls._end_rev = f'create-fc-o2-{uuid.uuid4().hex[:8]}'
-        cls._field_name = ts.sample_fields[0].name
+        cls._field_name = 'execution_time'
 
-        machine = create_machine(session, ts, name=cls._machine_name)
-        create_order(session, ts, revision=cls._start_rev)
-        end_order = create_order(session, ts, revision=cls._end_rev)
-        create_test(session, ts, name=cls._test_name)
-        run = create_run(session, ts, machine, end_order)
-        cls._run_uuid = run.uuid
-
-        session.commit()
-        session.close()
+        submit_run(cls.client, cls._machine_name, cls._start_rev,
+                   [{'name': cls._test_name, 'execution_time': [1.0]}])
+        data = submit_run(cls.client, cls._machine_name, cls._end_rev,
+                          [{'name': cls._test_name, 'execution_time': [2.0]}])
+        cls._run_uuid = data['run_uuid']
 
     def _valid_body(self, **overrides):
         """Return a valid POST body dict with optional overrides."""

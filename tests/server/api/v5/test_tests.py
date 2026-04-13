@@ -13,21 +13,12 @@ import uuid
 
 sys.path.insert(0, os.path.dirname(__file__))
 from v5_test_helpers import (
-    create_app, create_client, create_test, collect_all_pages,
-    create_machine, create_order, create_run, create_sample,
+    create_app, create_client, collect_all_pages, submit_run,
 )
 
 
 TS = 'nts'
 PREFIX = f'/api/v5/{TS}'
-
-
-def _get_ts_and_session(app):
-    """Helper to get a testsuite DB object and session."""
-    db = app.instance.get_database("default")
-    session = db.make_session()
-    ts = db.testsuite[TS]
-    return ts, session
 
 
 class TestTestList(unittest.TestCase):
@@ -56,12 +47,10 @@ class TestTestList(unittest.TestCase):
 
     def test_list_with_data(self):
         """After creating a test, it appears in the list."""
-        ts, session = _get_ts_and_session(self.app)
         unique = uuid.uuid4().hex[:8]
         name = f'list-test-{unique}'
-        create_test(session, ts, name=name)
-        session.commit()
-        session.close()
+        submit_run(self.client, f'list-machine-{unique}', f'rev-{unique}',
+                   [{'name': name, 'execution_time': [1.0]}])
 
         resp = self.client.get(
             PREFIX + f'/tests?name_contains={unique}')
@@ -86,12 +75,10 @@ class TestTestDetail(unittest.TestCase):
 
     def test_get_test_detail(self):
         """Get test detail by name."""
-        ts, session = _get_ts_and_session(self.app)
         unique = uuid.uuid4().hex[:8]
         name = f'detail-test-{unique}'
-        create_test(session, ts, name=name)
-        session.commit()
-        session.close()
+        submit_run(self.client, f'detail-machine-{unique}', f'rev-{unique}',
+                   [{'name': name, 'execution_time': [1.0]}])
 
         resp = self.client.get(PREFIX + f'/tests/{name}')
         self.assertEqual(resp.status_code, 200)
@@ -100,12 +87,10 @@ class TestTestDetail(unittest.TestCase):
 
     def test_get_test_with_slashes(self):
         """Test names with slashes should work via path converter."""
-        ts, session = _get_ts_and_session(self.app)
         unique = uuid.uuid4().hex[:8]
         name = f'suite/sub/{unique}/benchmark'
-        create_test(session, ts, name=name)
-        session.commit()
-        session.close()
+        submit_run(self.client, f'slash-machine-{unique}', f'rev-{unique}',
+                   [{'name': name, 'execution_time': [1.0]}])
 
         resp = self.client.get(PREFIX + f'/tests/{name}')
         self.assertEqual(resp.status_code, 200)
@@ -129,12 +114,10 @@ class TestTestDetailETag(unittest.TestCase):
 
     def test_etag_present_on_detail(self):
         """Test detail response should include an ETag header."""
-        ts, session = _get_ts_and_session(self.app)
         unique = uuid.uuid4().hex[:8]
         name = f'etag-present-{unique}'
-        create_test(session, ts, name=name)
-        session.commit()
-        session.close()
+        submit_run(self.client, f'etag-machine-{unique}', f'rev-{unique}',
+                   [{'name': name, 'execution_time': [1.0]}])
 
         resp = self.client.get(PREFIX + f'/tests/{name}')
         self.assertEqual(resp.status_code, 200)
@@ -144,12 +127,10 @@ class TestTestDetailETag(unittest.TestCase):
 
     def test_etag_304_on_match(self):
         """Sending If-None-Match with the same ETag returns 304."""
-        ts, session = _get_ts_and_session(self.app)
         unique = uuid.uuid4().hex[:8]
         name = f'etag-304-{unique}'
-        create_test(session, ts, name=name)
-        session.commit()
-        session.close()
+        submit_run(self.client, f'etag304-machine-{unique}', f'rev-{unique}',
+                   [{'name': name, 'execution_time': [1.0]}])
 
         resp = self.client.get(PREFIX + f'/tests/{name}')
         etag = resp.headers.get('ETag')
@@ -162,12 +143,10 @@ class TestTestDetailETag(unittest.TestCase):
 
     def test_etag_200_on_mismatch(self):
         """Sending If-None-Match with a different ETag returns 200."""
-        ts, session = _get_ts_and_session(self.app)
         unique = uuid.uuid4().hex[:8]
         name = f'etag-200-{unique}'
-        create_test(session, ts, name=name)
-        session.commit()
-        session.close()
+        submit_run(self.client, f'etag200-machine-{unique}', f'rev-{unique}',
+                   [{'name': name, 'execution_time': [1.0]}])
 
         resp = self.client.get(
             PREFIX + f'/tests/{name}',
@@ -187,12 +166,10 @@ class TestTestFilters(unittest.TestCase):
 
     def test_filter_name_contains(self):
         """Filter tests by name_contains."""
-        ts, session = _get_ts_and_session(self.app)
         unique = uuid.uuid4().hex[:8]
         name = f'contains-test-{unique}'
-        create_test(session, ts, name=name)
-        session.commit()
-        session.close()
+        submit_run(self.client, f'contains-machine-{unique}', f'rev-{unique}',
+                   [{'name': name, 'execution_time': [1.0]}])
 
         resp = self.client.get(
             PREFIX + f'/tests?name_contains={unique}')
@@ -203,13 +180,11 @@ class TestTestFilters(unittest.TestCase):
 
     def test_filter_name_prefix(self):
         """Filter tests by name_prefix."""
-        ts, session = _get_ts_and_session(self.app)
         unique = uuid.uuid4().hex[:8]
         prefix = f'prefix-{unique}'
         name = f'{prefix}-test'
-        create_test(session, ts, name=name)
-        session.commit()
-        session.close()
+        submit_run(self.client, f'prefix-machine-{unique}', f'rev-{unique}',
+                   [{'name': name, 'execution_time': [1.0]}])
 
         resp = self.client.get(
             PREFIX + f'/tests?name_prefix={prefix}')
@@ -227,13 +202,11 @@ class TestTestFilters(unittest.TestCase):
 
     def test_filter_sql_wildcards_escaped(self):
         """Ensure % and _ in filter values are escaped (no SQL injection)."""
-        ts, session = _get_ts_and_session(self.app)
         unique = uuid.uuid4().hex[:8]
         # Create a test with a literal underscore
         name = f'esc_test_{unique}'
-        create_test(session, ts, name=name)
-        session.commit()
-        session.close()
+        submit_run(self.client, f'esc-machine-{unique}', f'rev-{unique}',
+                   [{'name': name, 'execution_time': [1.0]}])
 
         # Search for literal underscore -- should NOT match arbitrary chars
         resp = self.client.get(
@@ -250,11 +223,11 @@ class TestTestPagination(unittest.TestCase):
         cls.app = create_app(sys.argv[1])
         cls.client = create_client(cls.app)
         cls._prefix = f'pag-{uuid.uuid4().hex[:8]}'
-        ts, session = _get_ts_and_session(cls.app)
         for i in range(5):
-            create_test(session, ts, name=f'{cls._prefix}-test-{i}')
-        session.commit()
-        session.close()
+            submit_run(cls.client, f'{cls._prefix}-machine',
+                       f'rev-{cls._prefix}-{i}',
+                       [{'name': f'{cls._prefix}-test-{i}',
+                         'execution_time': [1.0]}])
 
     def _collect_all_pages(self):
         url = PREFIX + f'/tests?name_prefix={self._prefix}&limit=2'
@@ -287,12 +260,10 @@ class TestTestUnknownParams(unittest.TestCase):
         self.assertIn('bogus', data['error']['message'])
 
     def test_test_detail_unknown_param_returns_400(self):
-        ts, session = _get_ts_and_session(self.app)
         unique = uuid.uuid4().hex[:8]
         name = f'unk-det-{unique}'
-        create_test(session, ts, name=name)
-        session.commit()
-        session.close()
+        submit_run(self.client, f'unk-machine-{unique}', f'rev-{unique}',
+                   [{'name': name, 'execution_time': [1.0]}])
         resp = self.client.get(PREFIX + f'/tests/{name}?bogus=1')
         self.assertEqual(resp.status_code, 400)
 
@@ -306,46 +277,34 @@ class TestTestMachineMetricFilter(unittest.TestCase):
         cls.client = create_client(cls.app)
         cls._prefix = uuid.uuid4().hex[:8]
 
-        db = cls.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
-
         # Machine A has data for test_1 and test_2.
         # Two runs on machine A to exercise DISTINCT deduplication.
         cls.machine_a = f'mf-machA-{cls._prefix}'
-        machine_a = create_machine(session, ts, name=cls.machine_a)
         cls.test_1 = f'mf-test1-{cls._prefix}'
         cls.test_2 = f'mf-test2-{cls._prefix}'
-        test_1 = create_test(session, ts, name=cls.test_1)
-        test_2 = create_test(session, ts, name=cls.test_2)
 
-        order1 = create_order(session, ts, revision=str(700))
-        run_a1 = create_run(session, ts, machine_a, order1)
-        create_sample(session, ts, run_a1, test_1, execution_time=1.0)
-        create_sample(session, ts, run_a1, test_2, execution_time=2.0)
+        submit_run(cls.client, cls.machine_a, f'700-{cls._prefix}',
+                   [{'name': cls.test_1, 'execution_time': [1.0]},
+                    {'name': cls.test_2, 'execution_time': [2.0]}])
 
-        order1b = create_order(session, ts, revision=str(702))
-        run_a2 = create_run(session, ts, machine_a, order1b)
-        create_sample(session, ts, run_a2, test_1, execution_time=1.1)
-        create_sample(session, ts, run_a2, test_2, execution_time=2.1)
+        submit_run(cls.client, cls.machine_a, f'702-{cls._prefix}',
+                   [{'name': cls.test_1, 'execution_time': [1.1]},
+                    {'name': cls.test_2, 'execution_time': [2.1]}])
 
         # Machine B has data for test_2 and test_3
         cls.machine_b = f'mf-machB-{cls._prefix}'
-        machine_b = create_machine(session, ts, name=cls.machine_b)
         cls.test_3 = f'mf-test3-{cls._prefix}'
-        test_3 = create_test(session, ts, name=cls.test_3)
 
-        order2 = create_order(session, ts, revision=str(701))
-        run_b = create_run(session, ts, machine_b, order2)
-        create_sample(session, ts, run_b, test_2, execution_time=3.0)
-        create_sample(session, ts, run_b, test_3, execution_time=4.0)
+        submit_run(cls.client, cls.machine_b, f'701-{cls._prefix}',
+                   [{'name': cls.test_2, 'execution_time': [3.0]},
+                    {'name': cls.test_3, 'execution_time': [4.0]}])
 
-        # test_4 has no samples (no data for any machine/metric)
+        # test_4 has no execution_time samples -- submit with compile_time
+        # only on a separate machine so it exists but is excluded by both
+        # machine= and metric=execution_time filters.
         cls.test_4 = f'mf-test4-{cls._prefix}'
-        create_test(session, ts, name=cls.test_4)
-
-        session.commit()
-        session.close()
+        submit_run(cls.client, f'mf-machC-{cls._prefix}', f'703-{cls._prefix}',
+                   [{'name': cls.test_4, 'compile_time': [0.5]}])
 
     def test_filter_by_machine_a(self):
         resp = self.client.get(
@@ -369,7 +328,7 @@ class TestTestMachineMetricFilter(unittest.TestCase):
             f'&name_contains={self._prefix}')
         self.assertEqual(resp.status_code, 200)
         names = {t['name'] for t in resp.get_json()['items']}
-        # test_4 has no samples, should be excluded
+        # test_4 has no execution_time samples, should be excluded
         self.assertEqual(names, {self.test_1, self.test_2, self.test_3})
 
     def test_filter_by_machine_and_metric(self):
@@ -414,7 +373,7 @@ class TestTestMachineMetricFilter(unittest.TestCase):
             PREFIX + f'/tests?name_contains={self._prefix}')
         self.assertEqual(resp.status_code, 200)
         names = {t['name'] for t in resp.get_json()['items']}
-        # All 4 tests should appear (including test_4 with no samples)
+        # All 4 tests should appear (including test_4 with only compile_time)
         self.assertEqual(
             names, {self.test_1, self.test_2, self.test_3, self.test_4})
 
