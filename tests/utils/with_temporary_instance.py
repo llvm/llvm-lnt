@@ -14,6 +14,78 @@ import subprocess
 import sys
 
 
+def _setup_v5_instance(dest_dir):
+    """Patch a freshly-created LNT instance for v5 and create a test suite.
+
+    After ``lnt create`` has built the directory structure and lnt.cfg,
+    this function:
+    1. Patches lnt.cfg to set ``db_version: '5.0'`` on the default database.
+    2. Boots the app (which creates V5DB global tables).
+    3. Creates an NTS-equivalent test suite in the v5 schema.
+    """
+    import re
+
+    cfg_path = os.path.join(dest_dir, 'lnt.cfg')
+    with open(cfg_path) as f:
+        cfg_text = f.read()
+
+    # Insert db_version into the default database entry.  The template
+    # emits: 'default' : { 'path' : '...' }
+    cfg_text = re.sub(
+        r"('default'\s*:\s*\{)\s*'path'",
+        r"\1 'db_version': '5.0', 'path'",
+        cfg_text,
+    )
+    with open(cfg_path, 'w') as f:
+        f.write(cfg_text)
+
+    # Boot the app -- Config reads db_version and instantiates V5DB.
+    import lnt.server.ui.app
+    app = lnt.server.ui.app.App.create_standalone(dest_dir)
+
+    from lnt.server.db.v5.schema import parse_schema
+
+    nts_schema = parse_schema({
+        'name': 'nts',
+        'metrics': [
+            {'name': 'compile_time', 'type': 'real',
+             'display_name': 'Compile Time', 'unit': 'seconds',
+             'unit_abbrev': 's'},
+            {'name': 'compile_status', 'type': 'status'},
+            {'name': 'execution_time', 'type': 'real',
+             'display_name': 'Execution Time', 'unit': 'seconds',
+             'unit_abbrev': 's'},
+            {'name': 'execution_status', 'type': 'status'},
+            {'name': 'score', 'type': 'real', 'bigger_is_better': True,
+             'display_name': 'Score'},
+            {'name': 'mem_bytes', 'type': 'real',
+             'display_name': 'Memory Usage', 'unit': 'bytes',
+             'unit_abbrev': 'b'},
+            {'name': 'hash', 'type': 'hash'},
+            {'name': 'hash_status', 'type': 'status'},
+            {'name': 'code_size', 'type': 'real',
+             'display_name': 'Code Size', 'unit': 'bytes',
+             'unit_abbrev': 'b'},
+        ],
+        'commit_fields': [
+            {'name': 'llvm_project_revision', 'searchable': True,
+             'display': True},
+        ],
+        'machine_fields': [
+            {'name': 'hardware', 'searchable': True},
+            {'name': 'os', 'searchable': True},
+        ],
+    })
+
+    db = app.instance.get_database("default")
+    session = db.make_session()
+    try:
+        db.create_suite(session, nts_schema)
+        session.commit()
+    finally:
+        session.close()
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Create a temporary LNT instance backed by PostgreSQL and optionally import "
@@ -27,6 +99,8 @@ def main():
     parser.add_argument('data_dirs', metavar='DATA_DIR', nargs='*',
                         help='directories containing JSON report files to import, '
                              'or individual JSON report files')
+    parser.add_argument('--db-version', default='0.4', choices=['0.4', '5.0'],
+                        help='database version to use (default: 0.4)')
 
     # Split at '--' to separate instance arguments from the command to exec.
     argv = sys.argv[1:]
@@ -64,19 +138,25 @@ def main():
             os.path.join(schemas_dst, schema),
         )
 
-    # 3. Import JSON report files from each DATA_DIR (or individual file).
-    for data_path in data_dirs:
-        if os.path.isdir(data_path):
-            json_files = sorted(glob.glob(os.path.join(data_path, '*.json')))
-        else:
-            json_files = [data_path]
-        for json_file in json_files:
-            with open(json_file) as f:
-                data = json.load(f)
-            suite = data.get('schema', 'nts')
-            subprocess.check_call(['lnt', 'import', '-s', suite, '--merge', 'append', dest_dir, json_file])
+    # 3. For v5, patch the config and create the test suite programmatically.
+    if args.db_version == '5.0':
+        _setup_v5_instance(dest_dir)
 
-    # 4. Exec the wrapped command.
+    # 4. Import JSON report files from each DATA_DIR (or individual file).
+    #    Skip for v5 -- the v4 import pipeline won't work.
+    if args.db_version == '0.4':
+        for data_path in data_dirs:
+            if os.path.isdir(data_path):
+                json_files = sorted(glob.glob(os.path.join(data_path, '*.json')))
+            else:
+                json_files = [data_path]
+            for json_file in json_files:
+                with open(json_file) as f:
+                    data = json.load(f)
+                suite = data.get('schema', 'nts')
+                subprocess.check_call(['lnt', 'import', '-s', suite, '--merge', 'append', dest_dir, json_file])
+
+    # 5. Exec the wrapped command.
     os.execvp(command[0], command)
 
 

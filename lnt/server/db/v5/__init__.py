@@ -1,0 +1,1255 @@
+"""
+v5 database layer.
+
+Provides :class:`V5DB` (engine, sessions, schema loading) and
+:class:`V5TestSuiteDB` (per-suite CRUD operations).
+
+Postgres only.  No imports from v4 DB code.
+"""
+
+from __future__ import annotations
+
+import datetime
+import json
+import uuid as uuid_module
+from typing import Any
+
+import sqlalchemy
+import sqlalchemy.exc
+import sqlalchemy.orm
+from sqlalchemy import or_
+
+from .models import (
+    SuiteModels,
+    V5Schema,
+    V5SchemaVersion,
+    create_global_tables,
+    create_suite_models,
+)
+from .schema import TestSuiteSchema, parse_schema
+
+DEFAULT_LIMIT = 1000
+
+# Regression state values (see design D5).
+REGRESSION_STATES = {
+    0: "detected",
+    1: "staged",
+    2: "active",
+    3: "not_to_be_fixed",
+    4: "ignored",
+    5: "fixed",
+    6: "detected_fixed",
+}
+VALID_REGRESSION_STATES = frozenset(REGRESSION_STATES)
+
+
+def _escape_like(s: str) -> str:
+    """Escape SQL special characters for use in ILIKE patterns.
+
+    Replaces ``\\``, ``%``, and ``_`` with their escaped equivalents
+    so the caller can safely use ``ESCAPE '\\'`` in the ILIKE clause.
+    """
+    return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+class V5DB:
+    """Top-level database handle for a v5 LNT instance.
+
+    Owns the SQLAlchemy engine, session factory, and a dict of per-suite
+    :class:`V5TestSuiteDB` wrappers.  Schemas are stored in the database
+    (``v5_schema`` table), not on the filesystem.
+    """
+
+    def __init__(self, path: str, config: Any):
+        self.path = path
+        self.config = config
+        self.engine = sqlalchemy.create_engine(
+            path,
+            pool_size=10,
+            max_overflow=20,
+            pool_pre_ping=True,
+            pool_recycle=3600,
+        )
+        self.sessionmaker = sqlalchemy.orm.sessionmaker(self.engine)
+        self.testsuite: dict[str, V5TestSuiteDB] = {}
+        self._schema_version: int | None = None
+
+        create_global_tables(self.engine)
+        self._ensure_schema_version_row()
+        self._load_schemas_from_db()
+
+    # -- schema storage --------------------------------------------------------
+
+    @staticmethod
+    def _schema_to_dict(schema: TestSuiteSchema) -> dict[str, Any]:
+        """Serialize a TestSuiteSchema to a JSON-serializable dict."""
+        return {
+            "name": schema.name,
+            "metrics": [
+                {
+                    "name": m.name,
+                    "type": m.type,
+                    **({"display_name": m.display_name} if m.display_name else {}),
+                    **({"unit": m.unit} if m.unit else {}),
+                    **({"unit_abbrev": m.unit_abbrev} if m.unit_abbrev else {}),
+                    **({"bigger_is_better": True} if m.bigger_is_better else {}),
+                }
+                for m in schema.metrics
+            ],
+            "commit_fields": [
+                {
+                    "name": cf.name,
+                    **({"type": cf.type} if cf.type != "default" else {}),
+                    **({"searchable": True} if cf.searchable else {}),
+                    **({"display": True} if cf.display else {}),
+                }
+                for cf in schema.commit_fields
+            ],
+            "machine_fields": [
+                {
+                    "name": mf.name,
+                    **({"searchable": True} if mf.searchable else {}),
+                }
+                for mf in schema.machine_fields
+            ],
+        }
+
+    def _ensure_schema_version_row(self) -> None:
+        """Make sure the v5_schema_version table has its single row."""
+        session = self.sessionmaker()
+        try:
+            row = session.query(V5SchemaVersion).get(1)
+            if row is None:
+                row = V5SchemaVersion(id=1, version=0)
+                session.add(row)
+                session.commit()
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+
+    def _load_schemas_from_db(self) -> None:
+        """Read all rows from ``v5_schema``, parse each into a
+        TestSuiteSchema, build models, and create per-suite tables."""
+        session = self.sessionmaker()
+        try:
+            rows = session.query(V5Schema).all()
+            ver = session.query(V5SchemaVersion).get(1)
+            self._schema_version = ver.version if ver else 0
+
+            self.testsuite.clear()
+            for row in rows:
+                data = json.loads(row.schema_json)
+                schema = parse_schema(data)
+                models = create_suite_models(schema)
+                models.base.metadata.create_all(self.engine)
+                tsdb = V5TestSuiteDB(self, schema, models)
+                self.testsuite[schema.name] = tsdb
+        finally:
+            session.close()
+
+    def _check_schema_version(self, session: sqlalchemy.orm.Session) -> bool:
+        """Return True if the cached schema version is stale."""
+        row = session.query(V5SchemaVersion).get(1)
+        current = row.version if row else 0
+        return current != self._schema_version
+
+    @staticmethod
+    def _bump_schema_version(session: sqlalchemy.orm.Session) -> None:
+        """Increment the version counter (caller must commit)."""
+        row = session.query(V5SchemaVersion).get(1)
+        if row is None:
+            row = V5SchemaVersion(id=1, version=1)
+            session.add(row)
+        else:
+            row.version = row.version + 1
+
+    def get_suite(self, name: str, session: sqlalchemy.orm.Session | None = None) -> V5TestSuiteDB | None:
+        """Return a suite by name, transparently reloading if stale."""
+        if session is not None:
+            if self._check_schema_version(session):
+                self._load_schemas_from_db()
+        else:
+            session = self.sessionmaker()
+            try:
+                if self._check_schema_version(session):
+                    self._load_schemas_from_db()
+            finally:
+                session.close()
+        return self.testsuite.get(name)
+
+    def create_suite(
+        self,
+        session: sqlalchemy.orm.Session,
+        schema: TestSuiteSchema,
+    ) -> V5TestSuiteDB:
+        """Persist a new suite schema in the DB and create its tables."""
+        if schema.name in self.testsuite:
+            raise ValueError(f"suite {schema.name!r} already exists")
+        schema_dict = self._schema_to_dict(schema)
+        row = V5Schema(
+            name=schema.name,
+            schema_json=json.dumps(schema_dict),
+            created_at=datetime.datetime.now(datetime.timezone.utc),
+        )
+        session.add(row)
+        self._bump_schema_version(session)
+        session.flush()
+
+        models = create_suite_models(schema)
+        models.base.metadata.create_all(self.engine)
+        tsdb = V5TestSuiteDB(self, schema, models)
+        self.testsuite[schema.name] = tsdb
+
+        ver = session.query(V5SchemaVersion).get(1)
+        self._schema_version = ver.version if ver else 0
+
+        return tsdb
+
+    def delete_suite(
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+    ) -> None:
+        """Delete a suite schema from the DB and drop its tables."""
+        tsdb = self.testsuite.get(name)
+        if tsdb is None:
+            raise ValueError(f"suite {name!r} does not exist")
+
+        row = session.query(V5Schema).get(name)
+        if row is not None:
+            session.delete(row)
+        self._bump_schema_version(session)
+        session.flush()
+
+        tsdb.models.base.metadata.drop_all(self.engine)
+        del self.testsuite[name]
+
+        ver = session.query(V5SchemaVersion).get(1)
+        self._schema_version = ver.version if ver else 0
+
+    # -- session helpers -------------------------------------------------------
+
+    def make_session(self, expire_on_commit: bool = True) -> sqlalchemy.orm.Session:
+        """Return a new SQLAlchemy session."""
+        return self.sessionmaker(expire_on_commit=expire_on_commit)
+
+    def close(self) -> None:
+        self.engine.dispose()
+
+
+def _validate_regression_state(state: int) -> None:
+    """Raise ValueError if *state* is not a valid regression state."""
+    if state not in VALID_REGRESSION_STATES:
+        raise ValueError(
+            f"invalid regression state {state!r}; "
+            f"valid states: {sorted(VALID_REGRESSION_STATES)}"
+        )
+
+
+class V5TestSuiteDB:
+    """Per-suite database operations for the v5 layer.
+
+    Provides a clean CRUD interface consumed by the v5 API endpoints.
+    """
+
+    def __init__(self, v5db: V5DB, schema: TestSuiteSchema, models: SuiteModels):
+        self.v5db = v5db
+        self.name = schema.name
+        self.schema = schema
+        self.models = models
+        self._commit_field_names: frozenset[str] = frozenset(cf.name for cf in schema.commit_fields)
+        self._machine_field_names: frozenset[str] = frozenset(mf.name for mf in schema.machine_fields)
+        self._metric_names: frozenset[str] = frozenset(m.name for m in schema.metrics)
+        self.Commit = models.Commit
+        self.Machine = models.Machine
+        self.Run = models.Run
+        self.Test = models.Test
+        self.Sample = models.Sample
+        self.FieldChange = models.FieldChange
+        self.Regression = models.Regression
+        self.RegressionIndicator = models.RegressionIndicator
+
+    # ===================================================================
+    # Commits
+    # ===================================================================
+
+    def get_or_create_commit(
+        self,
+        session: sqlalchemy.orm.Session,
+        commit: str,
+        **metadata: Any,
+    ):
+        """Return existing Commit or create a new one.
+
+        *metadata* keys correspond to ``commit_fields`` defined in the schema.
+        On creation, all metadata is stored.  If the commit already exists,
+        metadata is NOT overwritten (first-write-wins).
+        """
+        if not commit:
+            raise ValueError("commit string must be non-empty")
+        existing = (
+            session.query(self.Commit)
+            .filter(self.Commit.commit == commit)
+            .first()
+        )
+        if existing is not None:
+            return existing
+
+        obj = self.Commit()
+        obj.commit = commit
+        # ordinal is always NULL on creation
+        for key, value in metadata.items():
+            if key in self._commit_field_names:
+                setattr(obj, key, value)
+        session.add(obj)
+        try:
+            session.flush()
+        except sqlalchemy.exc.IntegrityError:
+            session.rollback()
+            # Race condition: another session created it; fetch and return.
+            existing = (
+                session.query(self.Commit)
+                .filter(self.Commit.commit == commit)
+                .first()
+            )
+            if existing is None:
+                raise  # pragma: no cover
+            return existing
+        return obj
+
+    def get_commit(
+        self,
+        session: sqlalchemy.orm.Session,
+        *,
+        id: int | None = None,
+        commit: str | None = None,
+    ):
+        """Fetch a single Commit by id or commit string.  Returns None if not found."""
+        q = session.query(self.Commit)
+        if id is not None:
+            return q.filter(self.Commit.id == id).first()
+        if commit is not None:
+            return q.filter(self.Commit.commit == commit).first()
+        raise ValueError("must specify id or commit")
+
+    def update_commit(
+        self,
+        session: sqlalchemy.orm.Session,
+        commit_obj,
+        *,
+        ordinal: int | None = None,
+        clear_ordinal: bool = False,
+        **commit_fields: Any,
+    ):
+        """Update mutable fields on a Commit.
+
+        *ordinal* sets the ordering position.  Pass ``clear_ordinal=True``
+        to explicitly set ordinal to ``None``.
+        Additional keyword arguments correspond to ``commit_fields`` defined
+        in the schema and update the matching columns.
+        """
+        if clear_ordinal:
+            commit_obj.ordinal = None
+        elif ordinal is not None:
+            commit_obj.ordinal = ordinal
+        for key, value in commit_fields.items():
+            if key in self._commit_field_names:
+                setattr(commit_obj, key, value)
+        session.flush()
+        return commit_obj
+
+    def list_commits(
+        self,
+        session: sqlalchemy.orm.Session,
+        *,
+        search: str | None = None,
+        ordinal_range: tuple[int, int] | None = None,
+        limit: int | None = None,
+    ) -> list:
+        """List commits with optional search / ordinal-range filtering.
+
+        *search* performs OR prefix-matching across the ``commit`` column and
+        all ``searchable`` commit_fields.
+        """
+        q = session.query(self.Commit)
+
+        if search:
+            escaped = _escape_like(search)
+            prefix = f"{escaped}%"
+            clauses = [self.Commit.commit.ilike(prefix, escape="\\")]
+            for cf in self.schema.searchable_commit_fields:
+                col = getattr(self.Commit, cf.name)
+                clauses.append(col.ilike(prefix, escape="\\"))
+            q = q.filter(or_(*clauses))
+
+        if ordinal_range is not None:
+            lo, hi = ordinal_range
+            q = q.filter(
+                self.Commit.ordinal.isnot(None),
+                self.Commit.ordinal >= lo,
+                self.Commit.ordinal <= hi,
+            )
+
+        q = q.order_by(self.Commit.id)
+
+        q = q.limit(limit if limit is not None else DEFAULT_LIMIT)
+
+        return q.all()
+
+    def delete_commit(
+        self,
+        session: sqlalchemy.orm.Session,
+        commit_id: int,
+    ) -> None:
+        """Delete a commit by ID (cascades to runs and samples).
+
+        Raises ``ValueError`` if any FieldChanges reference this commit
+        (via ``start_commit_id`` or ``end_commit_id``).  Those must be
+        deleted first.
+        """
+        commit = session.query(self.Commit).get(commit_id)
+        if commit is None:
+            return
+
+        fc_count = (
+            session.query(self.FieldChange)
+            .filter(
+                or_(
+                    self.FieldChange.start_commit_id == commit_id,
+                    self.FieldChange.end_commit_id == commit_id,
+                )
+            )
+            .count()
+        )
+        if fc_count > 0:
+            raise ValueError(
+                f"Cannot delete commit {commit_id}: "
+                f"{fc_count} FieldChange(s) reference it; "
+                f"delete them first"
+            )
+
+        session.delete(commit)
+        session.flush()
+
+    # ===================================================================
+    # Machines
+    # ===================================================================
+
+    def get_or_create_machine(
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        *,
+        strategy: str = "reject",
+        parameters: dict[str, Any] | None = None,
+        **fields: Any,
+    ):
+        """Get or create a Machine by name.
+
+        With ``strategy='reject'`` (default), raises ``ValueError`` if the
+        existing machine's schema-defined fields differ from *fields*.
+        """
+        existing = (
+            session.query(self.Machine)
+            .filter(self.Machine.name == name)
+            .first()
+        )
+        if existing is not None:
+            if strategy == "reject":
+                for key, value in fields.items():
+                    if key not in self._machine_field_names or value is None:
+                        continue
+                    existing_value = getattr(existing, key, None)
+                    if existing_value is not None and existing_value != value:
+                        raise ValueError(
+                            f"Machine {name!r}: field {key!r} changed "
+                            f"from {existing_value!r} to {value!r}"
+                        )
+                    if existing_value is None:
+                        setattr(existing, key, value)
+                # Merge parameters
+                if parameters:
+                    merged = dict(existing.parameters or {})
+                    merged.update(parameters)
+                    existing.parameters = merged
+            elif strategy == "update":
+                for key, value in fields.items():
+                    if key in self._machine_field_names and value is not None:
+                        setattr(existing, key, value)
+                if parameters:
+                    merged = dict(existing.parameters or {})
+                    merged.update(parameters)
+                    existing.parameters = merged
+            return existing
+
+        machine = self.Machine()
+        machine.name = name
+        for key, value in fields.items():
+            if key in self._machine_field_names:
+                setattr(machine, key, value)
+        machine.parameters = parameters or {}
+        session.add(machine)
+        session.flush()
+        return machine
+
+    def get_machine(
+        self,
+        session: sqlalchemy.orm.Session,
+        *,
+        id: int | None = None,
+        name: str | None = None,
+    ):
+        """Fetch a single Machine by id or name."""
+        q = session.query(self.Machine)
+        if id is not None:
+            return q.filter(self.Machine.id == id).first()
+        if name is not None:
+            return q.filter(self.Machine.name == name).first()
+        raise ValueError("must specify id or name")
+
+    def list_machines(
+        self,
+        session: sqlalchemy.orm.Session,
+        *,
+        search: str | None = None,
+        limit: int | None = None,
+    ) -> list:
+        """List machines with optional search.
+
+        *search* performs OR prefix-matching across ``name`` and all
+        ``searchable`` machine_fields.
+        """
+        q = session.query(self.Machine)
+        if search:
+            escaped = _escape_like(search)
+            prefix = f"{escaped}%"
+            clauses = [self.Machine.name.ilike(prefix, escape="\\")]
+            for mf in self.schema.searchable_machine_fields:
+                col = getattr(self.Machine, mf.name)
+                clauses.append(col.ilike(prefix, escape="\\"))
+            q = q.filter(or_(*clauses))
+        return q.order_by(self.Machine.id).limit(limit if limit is not None else DEFAULT_LIMIT).all()
+
+    def delete_machine(self, session: sqlalchemy.orm.Session, machine_id: int) -> None:
+        """Delete a machine by ID (cascades to runs and samples)."""
+        machine = session.query(self.Machine).get(machine_id)
+        if machine is not None:
+            session.delete(machine)
+            session.flush()
+
+    def update_machine(
+        self,
+        session: sqlalchemy.orm.Session,
+        machine,
+        *,
+        name: str | None = None,
+        parameters: dict[str, Any] | None = None,
+        **fields: Any,
+    ):
+        """Update mutable fields on a Machine.
+
+        *name* renames the machine (caller must ensure uniqueness).
+        *parameters* replaces the JSONB blob.
+        Additional keyword arguments update schema-defined machine_fields.
+        """
+        if name is not None:
+            machine.name = name
+        if parameters is not None:
+            machine.parameters = parameters
+        for key, value in fields.items():
+            if key in self._machine_field_names:
+                setattr(machine, key, value)
+        session.flush()
+        return machine
+
+    # ===================================================================
+    # Runs
+    # ===================================================================
+
+    def create_run(
+        self,
+        session: sqlalchemy.orm.Session,
+        machine,
+        *,
+        commit,
+        submitted_at: datetime.datetime | None = None,
+        run_parameters: dict[str, Any] | None = None,
+    ):
+        """Create a new Run attached to *machine* and *commit*.
+
+        *commit* is required -- every run must have a commit (design D2).
+        """
+        if commit is None:
+            raise ValueError("commit is required (every run must have a commit)")
+        run = self.Run()
+        run.uuid = str(uuid_module.uuid4())
+        run.machine_id = machine.id
+        run.commit_id = commit.id
+        run.submitted_at = submitted_at or datetime.datetime.now(datetime.timezone.utc)
+        run.run_parameters = run_parameters or {}
+        session.add(run)
+        session.flush()
+        return run
+
+    def get_run(
+        self,
+        session: sqlalchemy.orm.Session,
+        *,
+        id: int | None = None,
+        uuid: str | None = None,
+    ):
+        """Fetch a single Run by id or uuid."""
+        q = session.query(self.Run)
+        if id is not None:
+            return q.filter(self.Run.id == id).first()
+        if uuid is not None:
+            return q.filter(self.Run.uuid == uuid).first()
+        raise ValueError("must specify id or uuid")
+
+    def list_runs(
+        self,
+        session: sqlalchemy.orm.Session,
+        *,
+        machine_id: int | None = None,
+        commit_id: int | None = None,
+        limit: int | None = None,
+    ) -> list:
+        """List runs with optional filters."""
+        q = session.query(self.Run)
+        if machine_id is not None:
+            q = q.filter(self.Run.machine_id == machine_id)
+        if commit_id is not None:
+            q = q.filter(self.Run.commit_id == commit_id)
+        q = q.order_by(self.Run.id)
+        q = q.limit(limit if limit is not None else DEFAULT_LIMIT)
+        return q.all()
+
+    def delete_run(self, session: sqlalchemy.orm.Session, run_id: int) -> None:
+        """Delete a run by ID (cascades to samples)."""
+        run = session.query(self.Run).get(run_id)
+        if run is not None:
+            session.delete(run)
+            session.flush()
+
+    # ===================================================================
+    # Tests & Samples
+    # ===================================================================
+
+    def get_or_create_test(self, session: sqlalchemy.orm.Session, name: str):
+        """Get or create a Test by name.
+
+        TODO: This is called per test entry in _parse_tests_data(), causing
+        one SELECT per test name (N+1). For large submissions (~3000 tests),
+        batch with a single SELECT ... WHERE name IN (...) + bulk INSERT.
+        """
+        existing = (
+            session.query(self.Test)
+            .filter(self.Test.name == name)
+            .first()
+        )
+        if existing is not None:
+            return existing
+        test = self.Test()
+        test.name = name
+        session.add(test)
+        try:
+            session.flush()
+        except sqlalchemy.exc.IntegrityError:
+            session.rollback()
+            return (
+                session.query(self.Test)
+                .filter(self.Test.name == name)
+                .first()
+            )
+        return test
+
+    def get_test(
+        self,
+        session: sqlalchemy.orm.Session,
+        *,
+        id: int | None = None,
+        name: str | None = None,
+    ):
+        """Fetch a single Test by id or name.  Returns None if not found."""
+        q = session.query(self.Test)
+        if id is not None:
+            return q.filter(self.Test.id == id).first()
+        if name is not None:
+            return q.filter(self.Test.name == name).first()
+        raise ValueError("must specify id or name")
+
+    def list_tests(
+        self,
+        session: sqlalchemy.orm.Session,
+        *,
+        search: str | None = None,
+        limit: int | None = None,
+    ) -> list:
+        """List tests with optional name prefix search."""
+        q = session.query(self.Test)
+        if search:
+            escaped = _escape_like(search)
+            q = q.filter(self.Test.name.ilike(f"{escaped}%", escape="\\"))
+        q = q.order_by(self.Test.id)
+        q = q.limit(limit if limit is not None else DEFAULT_LIMIT)
+        return q.all()
+
+    def list_samples(
+        self,
+        session: sqlalchemy.orm.Session,
+        *,
+        run_id: int | None = None,
+        test_id: int | None = None,
+        limit: int | None = None,
+    ) -> list:
+        """List samples with optional filters."""
+        q = session.query(self.Sample)
+        if run_id is not None:
+            q = q.filter(self.Sample.run_id == run_id)
+        if test_id is not None:
+            q = q.filter(self.Sample.test_id == test_id)
+        q = q.order_by(self.Sample.id)
+        q = q.limit(limit if limit is not None else DEFAULT_LIMIT)
+        return q.all()
+
+    def create_samples(
+        self,
+        session: sqlalchemy.orm.Session,
+        run,
+        samples: list[dict[str, Any]],
+    ) -> list:
+        """Create Sample rows for *run*.
+
+        Each dict in *samples* must have ``test_id`` plus metric fields.
+        """
+        metric_names = self._metric_names
+        created = []
+        for sample_data in samples:
+            s = self.Sample()
+            s.run_id = run.id
+            s.test_id = sample_data["test_id"]
+            for key, value in sample_data.items():
+                if key in ("test_id",):
+                    continue
+                if key in metric_names:
+                    setattr(s, key, value)
+            created.append(s)
+        session.add_all(created)
+        session.flush()
+        return created
+
+    # ===================================================================
+    # Time-series query
+    # ===================================================================
+
+    def query_time_series(
+        self,
+        session: sqlalchemy.orm.Session,
+        machine,
+        test,
+        metric: str,
+        *,
+        commit_range: tuple[int, int] | None = None,
+        time_range: tuple[datetime.datetime, datetime.datetime] | None = None,
+        sort: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """Query time-series data for a (machine, test, metric) triple.
+
+        Returns a list of dicts with keys: ``commit``, ``ordinal``,
+        ``value``, ``run_id``, ``submitted_at``.
+
+        *commit_range* filters by ordinal [lo, hi].  When sorting by ordinal,
+        commits without ordinals are excluded.
+        """
+        metric_col = getattr(self.Sample, metric, None)
+        if metric_col is None:
+            raise ValueError(f"unknown metric {metric!r}")
+
+        q = (
+            session.query(
+                self.Commit.commit,
+                self.Commit.ordinal,
+                metric_col.label("value"),
+                self.Run.id.label("run_id"),
+                self.Run.submitted_at,
+            )
+            .select_from(self.Sample)
+            .join(self.Run, self.Sample.run_id == self.Run.id)
+            .join(self.Commit, self.Run.commit_id == self.Commit.id)
+            .filter(self.Run.machine_id == machine.id)
+            .filter(self.Sample.test_id == test.id)
+            .filter(metric_col.isnot(None))
+        )
+
+        if commit_range is not None:
+            lo, hi = commit_range
+            q = q.filter(
+                self.Commit.ordinal.isnot(None),
+                self.Commit.ordinal >= lo,
+                self.Commit.ordinal <= hi,
+            )
+
+        if time_range is not None:
+            start, end = time_range
+            q = q.filter(
+                self.Run.submitted_at >= start,
+                self.Run.submitted_at <= end,
+            )
+
+        if sort == "ordinal":
+            q = q.filter(self.Commit.ordinal.isnot(None))
+            q = q.order_by(self.Commit.ordinal)
+        elif sort == "submitted_at":
+            q = q.order_by(self.Run.submitted_at)
+        else:
+            q = q.order_by(self.Run.id)
+
+        if limit is not None:
+            q = q.limit(limit)
+
+        results = []
+        for row in q.all():
+            results.append({
+                "commit": row.commit,
+                "ordinal": row.ordinal,
+                "value": row.value,
+                "run_id": row.run_id,
+                "submitted_at": row.submitted_at,
+            })
+        return results
+
+    def query_trends(
+        self,
+        session: sqlalchemy.orm.Session,
+        metric: str,
+        *,
+        machine_ids: list[int] | None = None,
+        time_range: tuple[datetime.datetime, datetime.datetime] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Query geomean-aggregated trend data grouped by (machine, commit).
+
+        Computes ``exp(avg(ln(metric)))`` over all samples for each
+        (machine, commit) pair.  Only positive metric values are included
+        (required for ``ln``).
+
+        Returns a list of dicts with keys: ``machine_name``, ``commit``,
+        ``ordinal``, ``value``, ``timestamp``.
+        """
+        from sqlalchemy import func
+
+        metric_col = getattr(self.Sample, metric, None)
+        if metric_col is None:
+            raise ValueError(f"unknown metric {metric!r}")
+
+        q = (
+            session.query(
+                self.Machine.name.label("machine_name"),
+                self.Commit.id.label("commit_id"),
+                self.Commit.commit,
+                self.Commit.ordinal,
+                func.exp(func.avg(func.ln(metric_col))).label("value"),
+                func.max(self.Run.submitted_at).label("submitted_at"),
+            )
+            .select_from(self.Sample)
+            .join(self.Run, self.Sample.run_id == self.Run.id)
+            .join(self.Commit, self.Run.commit_id == self.Commit.id)
+            .join(self.Machine, self.Run.machine_id == self.Machine.id)
+            .filter(metric_col > 0)
+        )
+
+        if machine_ids:
+            q = q.filter(self.Machine.id.in_(machine_ids))
+
+        if time_range is not None:
+            start, end = time_range
+            q = q.filter(self.Run.submitted_at >= start)
+            q = q.filter(self.Run.submitted_at <= end)
+
+        q = q.group_by(
+            self.Machine.name, self.Commit.id,
+            self.Commit.commit, self.Commit.ordinal,
+        )
+
+        # Order by ordinal when available, falling back to commit id.
+        # NULLs sort last so that commits without ordinals appear at the end.
+        q = q.order_by(
+            self.Machine.name,
+            self.Commit.ordinal.asc().nullslast(),
+            self.Commit.id,
+        )
+
+        results = []
+        for row in q.all():
+            results.append({
+                "machine_name": row.machine_name,
+                "commit": row.commit,
+                "ordinal": row.ordinal,
+                "value": row.value,
+                "submitted_at": row.submitted_at,
+            })
+        return results
+
+    # ===================================================================
+    # FieldChanges (CRUD only)
+    # ===================================================================
+
+    def create_field_change(
+        self,
+        session: sqlalchemy.orm.Session,
+        machine,
+        test,
+        field_name: str,
+        start_commit,
+        end_commit,
+        old_value: float | None,
+        new_value: float | None,
+    ):
+        """Create a FieldChange record."""
+        fc = self.FieldChange()
+        fc.uuid = str(uuid_module.uuid4())
+        fc.machine_id = machine.id
+        fc.test_id = test.id
+        fc.field_name = field_name
+        fc.start_commit_id = start_commit.id
+        fc.end_commit_id = end_commit.id
+        fc.old_value = old_value
+        fc.new_value = new_value
+        session.add(fc)
+        session.flush()
+        return fc
+
+    def get_field_change(
+        self,
+        session: sqlalchemy.orm.Session,
+        *,
+        id: int | None = None,
+        uuid: str | None = None,
+    ):
+        """Fetch a single FieldChange by id or uuid."""
+        q = session.query(self.FieldChange)
+        if id is not None:
+            return q.filter(self.FieldChange.id == id).first()
+        if uuid is not None:
+            return q.filter(self.FieldChange.uuid == uuid).first()
+        raise ValueError("must specify id or uuid")
+
+    def list_field_changes(
+        self,
+        session: sqlalchemy.orm.Session,
+        *,
+        machine=None,
+        test=None,
+        metric: str | None = None,
+        limit: int | None = None,
+    ) -> list:
+        """List field changes with optional filters."""
+        q = session.query(self.FieldChange)
+        if machine is not None:
+            q = q.filter(self.FieldChange.machine_id == machine.id)
+        if test is not None:
+            q = q.filter(self.FieldChange.test_id == test.id)
+        if metric is not None:
+            q = q.filter(self.FieldChange.field_name == metric)
+        return q.order_by(self.FieldChange.id).limit(limit if limit is not None else DEFAULT_LIMIT).all()
+
+    def delete_field_change(
+        self,
+        session: sqlalchemy.orm.Session,
+        field_change_id: int,
+    ) -> None:
+        """Delete a field change by ID (cascades to regression indicators)."""
+        fc = session.query(self.FieldChange).get(field_change_id)
+        if fc is not None:
+            session.delete(fc)
+            session.flush()
+
+    def create_regression(
+        self,
+        session: sqlalchemy.orm.Session,
+        title: str,
+        field_change_ids: list[int],
+        *,
+        bug: str | None = None,
+        state: int = 0,
+    ):
+        """Create a Regression with the given FieldChange indicators."""
+        _validate_regression_state(state)
+        reg = self.Regression()
+        reg.uuid = str(uuid_module.uuid4())
+        reg.title = title
+        reg.bug = bug
+        reg.state = state
+        session.add(reg)
+        session.flush()
+
+        indicators = []
+        for fc_id in field_change_ids:
+            ri = self.RegressionIndicator()
+            ri.regression_id = reg.id
+            ri.field_change_id = fc_id
+            indicators.append(ri)
+        session.add_all(indicators)
+        session.flush()
+        return reg
+
+    def get_regression(
+        self,
+        session: sqlalchemy.orm.Session,
+        *,
+        id: int | None = None,
+        uuid: str | None = None,
+    ):
+        """Fetch a single Regression by id or uuid."""
+        q = session.query(self.Regression)
+        if id is not None:
+            return q.filter(self.Regression.id == id).first()
+        if uuid is not None:
+            return q.filter(self.Regression.uuid == uuid).first()
+        raise ValueError("must specify id or uuid")
+
+    def update_regression(
+        self,
+        session: sqlalchemy.orm.Session,
+        regression,
+        *,
+        title: str | None = None,
+        bug: str | None = None,
+        state: int | None = None,
+    ):
+        """Update mutable fields on a Regression."""
+        if title is not None:
+            regression.title = title
+        if bug is not None:
+            regression.bug = bug
+        if state is not None:
+            _validate_regression_state(state)
+            regression.state = state
+        session.flush()
+        return regression
+
+    def list_regressions(
+        self,
+        session: sqlalchemy.orm.Session,
+        *,
+        state: int | None = None,
+        limit: int | None = None,
+    ) -> list:
+        """List regressions, optionally filtered by state."""
+        q = session.query(self.Regression)
+        if state is not None:
+            q = q.filter(self.Regression.state == state)
+        return q.order_by(self.Regression.id).limit(limit if limit is not None else DEFAULT_LIMIT).all()
+
+    def delete_regression(
+        self,
+        session: sqlalchemy.orm.Session,
+        regression_id: int,
+    ) -> None:
+        """Delete a regression by ID (cascades to indicators)."""
+        reg = session.query(self.Regression).get(regression_id)
+        if reg is not None:
+            session.delete(reg)
+            session.flush()
+
+    def add_regression_indicator(
+        self,
+        session: sqlalchemy.orm.Session,
+        regression,
+        field_change,
+    ):
+        """Add a FieldChange as an indicator on a Regression.
+
+        Returns the created RegressionIndicator.  Raises
+        ``sqlalchemy.exc.IntegrityError`` if the pair already exists.
+        """
+        ri = self.RegressionIndicator()
+        ri.regression_id = regression.id
+        ri.field_change_id = field_change.id
+        session.add(ri)
+        session.flush()
+        return ri
+
+    def remove_regression_indicator(
+        self,
+        session: sqlalchemy.orm.Session,
+        regression_id: int,
+        field_change_id: int,
+    ) -> bool:
+        """Remove a single indicator from a regression.
+
+        Returns True if an indicator was removed, False if none matched.
+        """
+        count = (
+            session.query(self.RegressionIndicator)
+            .filter(
+                self.RegressionIndicator.regression_id == regression_id,
+                self.RegressionIndicator.field_change_id == field_change_id,
+            )
+            .delete()
+        )
+        if count:
+            session.flush()
+        return count > 0
+
+    # ===================================================================
+    # Bulk import (run submission) -- helpers
+    # ===================================================================
+
+    def _parse_machine_data(
+        self,
+        data: dict[str, Any],
+    ) -> tuple[str, dict[str, Any], dict[str, Any]]:
+        """Extract machine name, schema-defined fields, and extra parameters
+        from the submission data.
+
+        Returns ``(name, fields, params)``.
+        """
+        machine_data = data.get("machine", {})
+        machine_name = machine_data.get("name")
+        if not machine_name:
+            raise ValueError("machine.name is required")
+
+        valid_machine_fields = self._machine_field_names
+        machine_fields: dict[str, Any] = {}
+        machine_params: dict[str, Any] = {}
+        for key, value in machine_data.items():
+            if key == "name":
+                continue
+            if key in valid_machine_fields:
+                machine_fields[key] = value
+            else:
+                machine_params[key] = value
+
+        return machine_name, machine_fields, machine_params
+
+    def _parse_commit_data(
+        self,
+        session: sqlalchemy.orm.Session,
+        data: dict[str, Any],
+    ):
+        """Extract and get-or-create the Commit from the submission data.
+
+        Returns the Commit object.
+        """
+        commit_str = data.get("commit")
+        if not commit_str:
+            raise ValueError("commit is required (every run must have a commit)")
+        commit_field_data = data.get("commit_fields", {})
+        return self.get_or_create_commit(session, commit_str, **commit_field_data)
+
+    def _parse_tests_data(
+        self,
+        session: sqlalchemy.orm.Session,
+        data: dict[str, Any],
+        run,
+    ) -> list:
+        """Parse test entries and create all samples in a single batch.
+
+        Metric values may be scalars or lists.  A list value (e.g.
+        ``"execution_time": [0.1, 0.2]``) creates one Sample per element.
+        All list values in a single test entry must have the same length;
+        scalar values are repeated across the resulting Samples.
+
+        Returns the list of created Sample objects.
+        """
+        tests_data = data.get("tests", [])
+        metric_names = self._metric_names
+        all_samples: list[dict[str, Any]] = []
+
+        for test_entry in tests_data:
+            test_name = test_entry.get("name")
+            if not test_name:
+                raise ValueError("each test entry must have a 'name'")
+
+            test = self.get_or_create_test(session, test_name)
+
+            metrics: dict[str, Any] = {}
+            for key, value in test_entry.items():
+                if key == "name":
+                    continue
+                if key in metric_names:
+                    metrics[key] = value
+
+            list_len = None
+            for key, value in metrics.items():
+                if isinstance(value, list):
+                    if list_len is None:
+                        list_len = len(value)
+                    elif len(value) != list_len:
+                        raise ValueError(
+                            f"metric lists for test '{test_name}' have "
+                            f"inconsistent lengths"
+                        )
+
+            if list_len is not None and list_len == 0:
+                raise ValueError(
+                    f"metric lists for test '{test_name}' must not be empty"
+                )
+
+            if list_len is None:
+                sample_dict: dict[str, Any] = {"test_id": test.id}
+                sample_dict.update(metrics)
+                all_samples.append(sample_dict)
+            else:
+                for i in range(list_len):
+                    sample_dict = {"test_id": test.id}
+                    for key, value in metrics.items():
+                        sample_dict[key] = value[i] if isinstance(value, list) else value
+                    all_samples.append(sample_dict)
+
+        if all_samples:
+            return self.create_samples(session, run, all_samples)
+        return []
+
+    # ===================================================================
+    # Bulk import (run submission)
+    # ===================================================================
+
+    def import_run(
+        self,
+        session: sqlalchemy.orm.Session,
+        data: dict[str, Any],
+        *,
+        machine_strategy: str = "reject",
+    ):
+        """Import a run from the v5 submission format.
+
+        See the implementation plan (Phase 1c) for the expected JSON schema.
+
+        Returns the created Run.
+        """
+        fmt = data.get("format_version")
+        if fmt != "5":
+            raise ValueError(
+                f"format_version is required and must be '5', got {fmt!r}"
+            )
+
+        # -- Machine --------------------------------------------------------
+        machine_name, machine_fields, machine_params = self._parse_machine_data(data)
+        machine = self.get_or_create_machine(
+            session,
+            machine_name,
+            strategy=machine_strategy,
+            parameters=machine_params if machine_params else None,
+            **machine_fields,
+        )
+
+        # -- Commit (required) ----------------------------------------------
+        commit_obj = self._parse_commit_data(session, data)
+
+        # -- Run ------------------------------------------------------------
+        run_parameters = data.get("run_parameters", {})
+        run = self.create_run(
+            session,
+            machine,
+            commit=commit_obj,
+            run_parameters=run_parameters,
+        )
+
+        # -- Tests & Samples (batched) --------------------------------------
+        self._parse_tests_data(session, data, run)
+
+        return run

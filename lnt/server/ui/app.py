@@ -145,16 +145,28 @@ class App(LNTExceptionLoggerFlask):
         # Load the application configuration.
         app.load_config(instance)
 
-        # Load the application routes.
-        app.register_blueprint(lnt.server.ui.views.frontend)
+        # Determine the db_version from the default database entry to decide
+        # which routes to register.  When multiple databases exist we use the
+        # default ('default') entry; fall back to '0.4' if absent.
+        _default_db_info = instance.config.databases.get('default')
+        _db_version = getattr(_default_db_info, 'db_version', '0.4') \
+            if _default_db_info else '0.4'
 
-        # Load the v5 frontend (comparison SPA, etc.).
-        from lnt.server.ui.v5 import v5_frontend
-        app.register_blueprint(v5_frontend)
+        if _db_version != '5.0':
+            # v4 mode: register the legacy views and flaskRESTful API.
+            app.register_blueprint(lnt.server.ui.views.frontend)
 
-        # Load the flaskRESTful API.
-        app.api = Api(app)
-        load_api_resources(app.api)
+            # Load the v5 frontend (comparison SPA, etc.).
+            from lnt.server.ui.v5 import v5_frontend
+            app.register_blueprint(v5_frontend)
+
+            # Load the flaskRESTful API.
+            app.api = Api(app)
+            load_api_resources(app.api)
+        else:
+            # v5-only mode: skip legacy v4 views entirely.
+            from lnt.server.ui.v5 import v5_frontend
+            app.register_blueprint(v5_frontend)
 
         @app.before_request
         def set_session():
@@ -190,6 +202,9 @@ class App(LNTExceptionLoggerFlask):
         # them as fallbacks for non-v5 routes (see errors.py).
         from lnt.server.api.v5 import create_v5_api
         app.v5_api = create_v5_api(app)
+
+        # Store the db_version on the app for use by request handlers.
+        app.db_version = _db_version
 
         return app
 

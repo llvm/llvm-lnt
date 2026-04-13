@@ -38,7 +38,7 @@ secret_key = %(secret_key)r
 # The list of available databases, and their properties. At a minimum, there
 # should be a 'default' entry for the default database.
 databases = {
-    'default' : { 'path' : %(default_db)r },
+    'default' : { %(db_version_line)s'path' : %(default_db)r },
     }
 
 # The LNT email configuration.
@@ -90,9 +90,12 @@ application = lnt.server.ui.app.App.create_standalone(%(cfg_path)r)
               help="authentication token for the REST API")
 @click.option("--show-sql", is_flag=True,
               help="show SQL statements executed during construction")
+@click.option("--db-version", default="0.4", type=click.Choice(["0.4", "5.0"]),
+              show_default=True,
+              help="database version (5.0 requires PostgreSQL)")
 def action_create(instance_path, name, config, wsgi, tmp_dir, db_dir,
                   profile_dir, default_db, secret_key, url, api_auth_token,
-                  show_sql):
+                  show_sql, db_version):
     """create an LLVM nightly test installation
 
 \b
@@ -132,6 +135,14 @@ LNT configuration.
         api_auth_token_line = "api_auth_token = %r" % api_auth_token
     else:
         api_auth_token_line = "# api_auth_token = 'secret'"
+
+    if db_version == '5.0':
+        db_version_line = "'db_version': '5.0', "
+        if lnt.server.db.util.path_has_no_database_type(db_dir):
+            print("warning: v5 requires PostgreSQL. The default SQLite "
+                  "path will not work. Use --db-dir with a PostgreSQL URI.")
+    else:
+        db_version_line = ""
 
     os.mkdir(instance_path)
     os.mkdir(tmp_path)
