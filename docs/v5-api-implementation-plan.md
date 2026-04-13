@@ -416,7 +416,7 @@ DELETE /api/v5/{ts}/runs/{uuid}         — Delete
   `g.db_name` must be set to `"default"` (done by middleware).
 - `machine=` filter accepts **machine name** (string), NOT machine ID.
   Internally: look up machine by name → filter by machine.id. Handle ambiguous names.
-- Response NEVER exposes internal IDs. Use `machine_name` instead of `machine_id`,
+- Response NEVER exposes internal IDs. Use `machine` instead of `machine_id`,
   `uuid` instead of `id`.
 - Run deletion: `session.delete(run)` with cascading. For runs with many samples,
   consider batched sample deletion.
@@ -454,7 +454,7 @@ GET    /api/v5/{ts}/runs/{uuid}/tests/{test_name}/samples        — Samples for
 
 **Key design decisions:**
 - Always accessed through parent run (no independent identifier)
-- Serialization: `test_name`, `has_profile`, `metrics: {field_name: value, ...}`
+- Serialization: `test`, `has_profile`, `metrics: {metric_name: value, ...}`
 - Dynamic metric fields serialized into a `metrics` dict
 - No internal IDs exposed
 - Auth: read only.
@@ -509,7 +509,7 @@ DELETE /api/v5/{ts}/regressions/{uuid}/indicators/{fc_uuid}  — Remove indicato
   "indicators": [
     {
       "field_change_uuid": "...",
-      "test_name": "...", "machine_name": "...", "field_name": "...",
+      "test": "...", "machine": "...", "metric": "...",
       "old_value": 0.5, "new_value": 0.8,
       "start_order": "154000", "end_order": "154331",
       "run_uuid": "..."
@@ -591,7 +591,7 @@ Body (JSON): {metric, machine, test, order, after_order, before_order,
   `convert_revision()` for correctness. Apply `after`/`before` filters in Python.
   Cap SQL query at 10,000 rows as safety limit.
 - Cursor: encode the last order's field values. On next request, use to resume.
-- Response per data point: `{value, order: {field_name: value}, run_uuid, timestamp}`
+- Response per data point: `{test, machine, metric, value, order: {field: value}, run_uuid, timestamp}`
 - Auth: read only.
 
 ### 5.11 Schema and Fields

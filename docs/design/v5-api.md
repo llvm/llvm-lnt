@@ -91,14 +91,14 @@ Regression detail response (GET /regressions/{uuid}) includes:
 - uuid, title, bug, state
 - Embedded list of indicators, each containing:
   - field_change_uuid
-  - test_name, machine_name, field_name
+  - test, machine, metric
   - old_value, new_value
   - start_order and end_order (the order field values, not internal IDs)
   - run_uuid (the run where the change was detected)
 
 Field Changes (triage)
 
-GET    /field-changes                — List unassigned field changes (cursor-paginated, filterable by machine=, test=, field=)
+GET    /field-changes                — List unassigned field changes (cursor-paginated, filterable by machine=, test=, metric=)
 POST   /field-changes                — Create a field change programmatically (references machine, test, metric, and orders by name)
 POST   /field-changes/{uuid}/ignore  — Ignore a field change
 DELETE /field-changes/{uuid}/ignore  — Un-ignore a field change
@@ -146,11 +146,11 @@ R5: Filtering and Sorting
 
 - Named query parameters per endpoint, documented in OpenAPI spec
 - Supported filter types per endpoint (examples):
-  - machine=, test=, field=, name_contains=, name_prefix=
+  - machine=, test=, metric=, name_contains=, name_prefix=
   - after=, before= (for timestamps and order values)
   - state= (for regressions, supports multiple values: ?state=active&state=detected)
   - has_profile=true (for samples)
-  - sort=field_name (prefix with - for descending: sort=-start_time)
+  - sort=<field> (prefix with - for descending: sort=-start_time)
 - Exact filters and available sort fields defined per endpoint in the OpenAPI spec
 
 R6: Response Format
