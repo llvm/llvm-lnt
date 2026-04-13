@@ -1,7 +1,7 @@
 // components/test-selection-table.ts — Test selection table for the graph page.
 // Shows all matching tests with checkboxes for explicit plot selection.
 
-import { el } from '../utils';
+import { el, DOUBLE_CLICK_DELAY_MS } from '../utils';
 import { GRAPH_TABLE_HOVER } from '../events';
 
 export interface TestSelectionEntry {
@@ -195,7 +195,7 @@ export function createTestSelectionTable(
       const sel = currentSelection();
       if (sel.has(testName)) { sel.delete(testName); } else { sel.add(testName); }
       currentOnSelectionChange(sel);
-    }, 200);
+    }, DOUBLE_CLICK_DELAY_MS);
   });
 
   tbody.addEventListener('dblclick', (e) => {

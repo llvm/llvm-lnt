@@ -7,6 +7,9 @@ import { navigate, getBasePath, getUrlBase } from './router';
  */
 export const TRACE_SEP = ' \u00b7 ';
 
+/** Delay (ms) to distinguish single-click from double-click. */
+export const DOUBLE_CLICK_DELAY_MS = 200;
+
 // Aggregation functions
 
 /** Default Plotly color palette, shared across Graph and Dashboard sparklines. */
