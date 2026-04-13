@@ -552,15 +552,19 @@ describe('graphPage mount', () => {
     expect(getFields).toHaveBeenCalledWith('nts');
   });
 
-  it('shows metric loading message then selector after getFields resolves', async () => {
+  it('shows disabled metric selector then enabled selector after getFields resolves', async () => {
     graphPage.mount(container, { testsuite: 'nts' });
 
-    // Loading state should exist synchronously
-    expect(container.querySelector('.progress-label')?.textContent).toBe('Loading metrics...');
+    // Loading state: disabled metric selector with placeholder
+    const loading = container.querySelector('.metric-select') as HTMLSelectElement;
+    expect(loading).toBeTruthy();
+    expect(loading.disabled).toBe(true);
 
-    // After fields load, metric selector should appear
+    // After fields load, metric selector should be enabled
     await vi.waitFor(() => {
-      expect(container.querySelector('.metric-select')).toBeTruthy();
+      const select = container.querySelector('.metric-select') as HTMLSelectElement;
+      expect(select).toBeTruthy();
+      expect(select.disabled).toBe(false);
     });
   });
 

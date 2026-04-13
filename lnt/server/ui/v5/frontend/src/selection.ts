@@ -8,7 +8,7 @@ import {
   createOrderCombobox, createMachineCombobox, resetComboboxState,
   type ComboboxContext,
 } from './combobox';
-import { renderMetricSelector, filterMetricFields } from './components/metric-selector';
+import { renderMetricSelector, renderEmptyMetricSelector, filterMetricFields } from './components/metric-selector';
 
 // Per-side cached data
 let cachedOrdersA: OrderSummary[] = [];
@@ -289,7 +289,7 @@ export function renderSelectionPanel(root: HTMLElement): void {
       tryAutoCompare();
     }, getState().metric, { placeholder: true });
   } else {
-    metricContainer.append(el('span', { class: 'progress-label' }, 'Select a suite to load metrics...'));
+    renderEmptyMetricSelector(metricContainer);
   }
   globalRow.append(metricContainer);
 

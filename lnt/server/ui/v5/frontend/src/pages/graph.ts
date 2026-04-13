@@ -7,7 +7,7 @@ import { el, debounce, getAggFn, primaryOrderValue, TRACE_SEP, machineColor } fr
 import { getTestsuites } from '../router';
 import { onCustomEvent, GRAPH_TABLE_HOVER, GRAPH_CHART_HOVER } from '../events';
 import { renderMachineCombobox } from '../components/machine-combobox';
-import { renderMetricSelector, filterMetricFields } from '../components/metric-selector';
+import { renderMetricSelector, renderEmptyMetricSelector, filterMetricFields } from '../components/metric-selector';
 import { createOrderPicker, fetchMachineOrderSet } from '../combobox';
 import {
   type TimeSeriesTrace, type PinnedBaseline, type ChartHandle,
@@ -161,7 +161,7 @@ export const graphPage: PageModule = {
 
     // Metric selector (loaded async — actual fetch deferred until suite is set)
     const metricGroup = el('div', {});
-    metricGroup.append(el('span', { class: 'progress-label' }, 'Select a suite to load metrics...'));
+    renderEmptyMetricSelector(metricGroup);
 
     // Test filter
     const filterGroup = el('div', { class: 'control-group' });
@@ -843,7 +843,8 @@ export const graphPage: PageModule = {
     // Fetch initial fields for the selected suite
     function loadFieldsForSuite(suite: string): void {
       const myGen = suiteGeneration;
-      metricGroup.replaceChildren(el('span', { class: 'progress-label' }, 'Loading metrics...'));
+      metricGroup.replaceChildren();
+      renderEmptyMetricSelector(metricGroup);
       getFields(suite).then(fields => {
         if (myGen !== suiteGeneration) return;
         metricGroup.replaceChildren();

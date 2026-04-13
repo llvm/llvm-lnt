@@ -19,6 +19,19 @@ export interface MetricSelectorOptions {
  * If initialValue matches a field name, that option is pre-selected.
  * Returns the effective initial metric name ('' when placeholder is active).
  */
+/**
+ * Render a disabled metric dropdown with a placeholder option.
+ * Used when no suite is selected yet and metrics aren't available.
+ */
+export function renderEmptyMetricSelector(container: HTMLElement): void {
+  const group = el('div', { class: 'control-group' });
+  group.append(el('label', {}, 'Metric'));
+  const select = el('select', { class: 'metric-select', disabled: '' }) as HTMLSelectElement;
+  select.append(el('option', { value: '' }, '-- Select metric --'));
+  group.append(select);
+  container.append(group);
+}
+
 export function renderMetricSelector(
   container: HTMLElement,
   fields: FieldInfo[],
