@@ -95,6 +95,25 @@ export function truncate(s: string, max: number): string {
 }
 
 
+/**
+ * Return the display value for a commit. If the schema defines a commit_field
+ * with display=true and the commit's fields dict has a non-null value for it,
+ * return that value. Otherwise, return the raw commit string.
+ */
+export function commitDisplayValue(
+  commit: string,
+  fields: Record<string, string>,
+  commitFields?: Array<{ name: string; display?: boolean }>,
+): string {
+  if (commitFields) {
+    const displayField = commitFields.find(f => f.display);
+    if (displayField && fields[displayField.name]) {
+      return fields[displayField.name];
+    }
+  }
+  return commit;
+}
+
 // DOM helpers
 
 export function debounce<T extends (...args: unknown[]) => void>(fn: T, ms: number): T {

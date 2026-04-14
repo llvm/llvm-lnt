@@ -11,6 +11,7 @@ import {
   formatValue, formatPercent, formatRatio, formatTime,
   truncate,
   debounce, el, isModifiedClick, spaLink,
+  commitDisplayValue,
 } from '../utils';
 import { navigate } from '../router';
 
@@ -418,5 +419,31 @@ describe('spaLink', () => {
 
     a.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true }));
     expect(navigate).not.toHaveBeenCalled();
+  });
+});
+
+describe('commitDisplayValue', () => {
+  it('returns commit string when no commitFields provided', () => {
+    expect(commitDisplayValue('abc123', { rev: 'v1.0' })).toBe('abc123');
+  });
+
+  it('returns commit string when no display field in schema', () => {
+    const fields = [{ name: 'rev' }];
+    expect(commitDisplayValue('abc123', { rev: 'v1.0' }, fields)).toBe('abc123');
+  });
+
+  it('returns display field value when display=true and value exists', () => {
+    const fields = [{ name: 'rev', display: true }];
+    expect(commitDisplayValue('abc123', { rev: 'v1.0' }, fields)).toBe('v1.0');
+  });
+
+  it('falls back to commit string when display field value is empty', () => {
+    const fields = [{ name: 'rev', display: true }];
+    expect(commitDisplayValue('abc123', {}, fields)).toBe('abc123');
+  });
+
+  it('falls back to commit string when display field value is missing', () => {
+    const fields = [{ name: 'tag', display: true }];
+    expect(commitDisplayValue('abc123', { rev: 'v1.0' }, fields)).toBe('abc123');
   });
 });

@@ -165,7 +165,7 @@ export interface TestSuiteInfo {
   schema: {
     metrics: FieldInfo[];
     run_fields: Array<{ name: string; type: string }>;
-    commit_fields: Array<{ name: string; type: string }>;
+    commit_fields: Array<{ name: string; type: string; display?: boolean }>;
     machine_fields: Array<{ name: string; type: string }>;
   };
 }
