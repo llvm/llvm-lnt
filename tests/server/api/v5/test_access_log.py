@@ -2,7 +2,7 @@
 #
 # RUN: rm -rf %t.instance %t.pg.log
 # RUN: %{utils}/with_postgres.sh %t.pg.log \
-# RUN:     %{utils}/with_temporary_instance.py %t.instance \
+# RUN:     %{utils}/with_temporary_instance.py --db-version 5.0 %t.instance \
 # RUN:         -- python %s %t.instance
 # END.
 
@@ -78,27 +78,27 @@ class TestAccessLogFormat(_AccessLogTestCase):
     """Verify the access log emits valid Apache combined format."""
 
     def test_log_line_matches_combined_format(self):
-        self.client.get(PREFIX + '/orders')
+        self.client.get(PREFIX + '/commits')
         self.assertEqual(len(self.capture.lines), 1)
         m = COMBINED_RE.match(self.capture.lines[0])
         self.assertIsNotNone(m, f'Log line does not match combined format: '
                                 f'{self.capture.lines[0]!r}')
 
     def test_method_and_path(self):
-        self.client.get(PREFIX + '/orders')
+        self.client.get(PREFIX + '/commits')
         m = COMBINED_RE.match(self.capture.lines[0])
         self.assertEqual(m.group('method'), 'GET')
-        self.assertIn('/api/v5/nts/orders', m.group('path'))
+        self.assertIn('/api/v5/nts/commits', m.group('path'))
 
     def test_status_code_200(self):
-        self.client.get(PREFIX + '/orders')
+        self.client.get(PREFIX + '/commits')
         m = COMBINED_RE.match(self.capture.lines[0])
         self.assertEqual(m.group('status'), '200')
 
     def test_post_status_code_201(self):
         rev = f'log-{uuid.uuid4().hex[:8]}'
-        self.client.post(PREFIX + '/orders',
-                         json={'llvm_project_revision': rev},
+        self.client.post(PREFIX + '/commits',
+                         json={'commit': rev},
                          headers=admin_headers())
         m = COMBINED_RE.match(self.capture.lines[0])
         self.assertEqual(m.group('status'), '201')
@@ -109,19 +109,19 @@ class TestAccessLogUser(_AccessLogTestCase):
     """Verify the user field reflects authentication state."""
 
     def test_unauthenticated_request(self):
-        self.client.get(PREFIX + '/orders')
+        self.client.get(PREFIX + '/commits')
         m = COMBINED_RE.match(self.capture.lines[0])
         self.assertEqual(m.group('user'), '-')
 
     def test_bootstrap_token(self):
-        self.client.get(PREFIX + '/orders', headers=admin_headers())
+        self.client.get(PREFIX + '/commits', headers=admin_headers())
         m = COMBINED_RE.match(self.capture.lines[0])
         self.assertEqual(m.group('user'), 'bootstrap')
 
     def test_named_api_key(self):
         headers = make_scoped_headers(self.app, 'read')
         self.capture.clear()  # discard log from API key creation
-        self.client.get(PREFIX + '/orders', headers=headers)
+        self.client.get(PREFIX + '/commits', headers=headers)
         m = COMBINED_RE.match(self.capture.lines[0])
         self.assertEqual(m.group('user'), 'test-read')
 
@@ -130,7 +130,7 @@ class TestAccessLogMiddleware404(_AccessLogTestCase):
     """Verify logging for requests that fail at the middleware level."""
 
     def test_nonexistent_testsuite(self):
-        resp = self.client.get('/api/v5/nonexistent/orders')
+        resp = self.client.get('/api/v5/nonexistent/commits')
         self.assertEqual(resp.status_code, 404)
         self.assertEqual(len(self.capture.lines), 1)
         m = COMBINED_RE.match(self.capture.lines[0])
@@ -142,25 +142,25 @@ class TestAccessLogHeaders(_AccessLogTestCase):
     """Verify Referer and User-Agent appear in the log."""
 
     def test_referer_present(self):
-        self.client.get(PREFIX + '/orders',
+        self.client.get(PREFIX + '/commits',
                         headers={'Referer': 'http://example.com/page'})
         m = COMBINED_RE.match(self.capture.lines[0])
         self.assertEqual(m.group('referer'), 'http://example.com/page')
 
     def test_referer_absent(self):
-        self.client.get(PREFIX + '/orders')
+        self.client.get(PREFIX + '/commits')
         m = COMBINED_RE.match(self.capture.lines[0])
         self.assertEqual(m.group('referer'), '-')
 
     def test_user_agent_present(self):
-        self.client.get(PREFIX + '/orders',
+        self.client.get(PREFIX + '/commits',
                         headers={'User-Agent': 'TestBot/1.0'})
         m = COMBINED_RE.match(self.capture.lines[0])
         self.assertEqual(m.group('ua'), 'TestBot/1.0')
 
     def test_user_agent_absent(self):
         # Werkzeug test client sends a default User-Agent; override to empty.
-        self.client.get(PREFIX + '/orders',
+        self.client.get(PREFIX + '/commits',
                         headers={'User-Agent': ''})
         m = COMBINED_RE.match(self.capture.lines[0])
         # Empty string or '-' are both acceptable for absent user agent.
@@ -171,7 +171,7 @@ class TestAccessLogContentLength(_AccessLogTestCase):
     """Verify the size field reflects response content length."""
 
     def test_response_with_body_has_size(self):
-        self.client.get(PREFIX + '/orders')
+        self.client.get(PREFIX + '/commits')
         m = COMBINED_RE.match(self.capture.lines[0])
         size = m.group('size')
         # Should be a positive integer, not '-'

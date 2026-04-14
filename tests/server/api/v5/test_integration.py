@@ -5,56 +5,34 @@
 #
 # RUN: rm -rf %t.instance %t.pg.log
 # RUN: %{utils}/with_postgres.sh %t.pg.log \
-# RUN:     %{utils}/with_temporary_instance.py %t.instance \
+# RUN:     %{utils}/with_temporary_instance.py --db-version 5.0 %t.instance \
 # RUN:         -- python %s %t.instance
 # END.
 
-import json
 import sys
 import os
 import unittest
 import uuid
 
 sys.path.insert(0, os.path.dirname(__file__))
-from v5_test_helpers import create_app, create_client, admin_headers
+from v5_test_helpers import create_app, create_client, admin_headers, submit_run
 
 
 TS = 'nts'
 PREFIX = f'/api/v5/{TS}'
 
 
-def _make_submission_payload(machine_name=None, revision=None,
-                             tests=None):
-    """Build a valid v2-format JSON submission payload."""
-    if machine_name is None:
-        machine_name = f'integ-machine-{uuid.uuid4().hex[:8]}'
-    if revision is None:
-        revision = f'r{uuid.uuid4().hex[:8]}'
-    if tests is None:
-        tests = [
-            {
-                'name': 'test.suite/benchmark1',
-                'execution_time': [0.1234, 0.1235],
-            },
-            {
-                'name': 'test.suite/benchmark2',
-                'compile_time': 13.12,
-                'execution_time': 0.2135,
-            },
-        ]
-
-    return json.dumps({
-        'format_version': '2',
-        'machine': {
-            'name': machine_name,
-        },
-        'run': {
-            'start_time': '2024-06-15T10:00:00',
-            'end_time': '2024-06-15T10:30:00',
-            'llvm_project_revision': revision,
-        },
-        'tests': tests,
-    })
+_DEFAULT_TESTS = [
+    {
+        'name': 'test.suite/benchmark1',
+        'execution_time': [0.1234, 0.1235],
+    },
+    {
+        'name': 'test.suite/benchmark2',
+        'compile_time': 13.12,
+        'execution_time': 0.2135,
+    },
+]
 
 
 # -----------------------------------------------------------------------
@@ -88,17 +66,8 @@ class TestRunSubmissionWorkflow(unittest.TestCase):
         cls.client = create_client(cls.app)
         cls._machine_name = f'submit-wf-{uuid.uuid4().hex[:8]}'
         cls._revision = f'r{uuid.uuid4().hex[:8]}'
-        payload = _make_submission_payload(
-            machine_name=cls._machine_name,
-            revision=cls._revision,
-        )
-        resp = cls.client.post(
-            PREFIX + '/runs',
-            data=payload,
-            content_type='application/json',
-            headers=admin_headers(),
-        )
-        data = resp.get_json()
+        data = submit_run(
+            cls.client, cls._machine_name, cls._revision, _DEFAULT_TESTS)
         cls._run_uuid = data.get('run_uuid')
 
     def test_01_submission_succeeded(self):
@@ -129,13 +98,12 @@ class TestRunSubmissionWorkflow(unittest.TestCase):
                          "Run detail UUID mismatch")
         self.assertEqual(data['machine'], self._machine_name,
                          "Run detail machine name mismatch")
-        self.assertIn('order', data,
-                      "Run detail missing 'order'")
+        self.assertIn('commit', data,
+                      "Run detail missing 'commit'")
         self.assertEqual(
-            data['order'].get('llvm_project_revision'), self._revision,
-            "Run detail order revision mismatch")
-        self.assertIn('start_time', data)
-        self.assertIn('end_time', data)
+            data['commit'], self._revision,
+            "Run detail commit mismatch")
+        self.assertIn('submitted_at', data)
 
     def test_04_run_samples_returned(self):
         """GET /runs/{uuid}/samples returns the submitted samples."""
@@ -227,11 +195,16 @@ class TestAPIKeyLifecycle(unittest.TestCase):
                          "New submit key cannot read discovery endpoint")
 
         # Step 3: Use the new key to submit a run (within its scope)
-        payload = _make_submission_payload()
+        machine = f'key-test-{uuid.uuid4().hex[:8]}'
+        commit = f'r{uuid.uuid4().hex[:8]}'
         submit_resp = self.client.post(
             PREFIX + '/runs',
-            data=payload,
-            content_type='application/json',
+            json={
+                'format_version': '5',
+                'machine': {'name': machine},
+                'commit': commit,
+                'tests': _DEFAULT_TESTS,
+            },
             headers=key_headers,
         )
         self.assertIn(submit_resp.status_code, [201, 301],
@@ -297,15 +270,10 @@ class TestMachineCRUDWorkflow(unittest.TestCase):
         self.assertEqual(create_resp.get_json()['name'], original_name)
 
         # Step 2: Submit a run to this machine
-        payload = _make_submission_payload(machine_name=original_name)
-        submit_resp = self.client.post(
-            PREFIX + '/runs',
-            data=payload,
-            content_type='application/json',
-            headers=admin_headers(),
-        )
-        submit_data = submit_resp.get_json()
-        run_uuid = submit_data.get('run_uuid')
+        commit = f'r{uuid.uuid4().hex[:8]}'
+        submit_data = submit_run(self.client, original_name, commit,
+                                 _DEFAULT_TESTS)
+        run_uuid = submit_data['run_uuid']
         self.assertIsNotNone(run_uuid,
                              "Run submission did not return a run_uuid")
 
@@ -435,7 +403,7 @@ class TestDiscoveryNavigability(unittest.TestCase):
         links = nts_suites[0]['links']
 
         expected_keys = {
-            'machines', 'orders', 'runs', 'tests',
+            'machines', 'commits', 'runs', 'tests',
             'regressions', 'field_changes', 'query',
         }
         self.assertEqual(set(links.keys()), expected_keys,
@@ -489,11 +457,16 @@ class TestCORSOnAllEndpoints(unittest.TestCase):
 
     def test_cors_on_run_submit(self):
         """CORS header on POST /runs."""
-        payload = _make_submission_payload()
+        machine = f'cors-m-{uuid.uuid4().hex[:8]}'
+        commit = f'r{uuid.uuid4().hex[:8]}'
         resp = self.client.post(
             PREFIX + '/runs',
-            data=payload,
-            content_type='application/json',
+            json={
+                'format_version': '5',
+                'machine': {'name': machine},
+                'commit': commit,
+                'tests': _DEFAULT_TESTS,
+            },
             headers=admin_headers(),
         )
         self._assert_cors(resp, 'POST /runs')
