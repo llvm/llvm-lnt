@@ -8,7 +8,7 @@ vi.mock('../../api', async (importOriginal) => {
     ...actual,
     getMachines: vi.fn(),
     getRunsPage: vi.fn(),
-    getOrdersPage: vi.fn(),
+    getCommitsPage: vi.fn(),
   };
 });
 
@@ -31,11 +31,11 @@ vi.mock('../../router', async (importOriginal) => {
 // Mock lnt_url_base
 (globalThis as unknown as Record<string, unknown>).lnt_url_base = '';
 
-import { getMachines, getRunsPage, getOrdersPage } from '../../api';
+import { getMachines, getRunsPage, getCommitsPage } from '../../api';
 import type { CursorPageResult } from '../../api';
 import { getTestsuites } from '../../router';
 import { testSuitesPage } from '../../pages/test-suites';
-import type { RunInfo, MachineInfo, OrderSummary } from '../../types';
+import type { RunInfo, MachineInfo, CommitSummary } from '../../types';
 
 const mockMachines: MachineInfo[] = [
   { name: 'clang-x86', info: { os: 'linux' } },
@@ -43,20 +43,20 @@ const mockMachines: MachineInfo[] = [
 ];
 
 const mockRuns: RunInfo[] = [
-  { uuid: 'aaaa-1111', machine: 'clang-x86', order: { rev: '100' }, start_time: '2026-01-01T10:00:00Z', end_time: null },
-  { uuid: 'bbbb-2222', machine: 'gcc-arm', order: { rev: '101' }, start_time: '2026-01-02T10:00:00Z', end_time: null },
+  { uuid: 'aaaa-1111', machine: 'clang-x86', commit: '100', submitted_at: '2026-01-01T10:00:00Z' },
+  { uuid: 'bbbb-2222', machine: 'gcc-arm', commit: '101', submitted_at: '2026-01-02T10:00:00Z' },
 ];
 
-const mockOrders: OrderSummary[] = [
-  { fields: { rev: '100' }, tag: 'v1.0' },
-  { fields: { rev: '101' }, tag: null },
+const mockCommits: CommitSummary[] = [
+  { commit: '100', ordinal: 1, fields: {} },
+  { commit: '101', ordinal: null, fields: {} },
 ];
 
 function mockRunsPage(items: RunInfo[], nextCursor: string | null = null): CursorPageResult<RunInfo> {
   return { items, nextCursor };
 }
 
-function mockOrdersPage(items: OrderSummary[], nextCursor: string | null = null): CursorPageResult<OrderSummary> {
+function mockCommitsPage(items: CommitSummary[], nextCursor: string | null = null): CursorPageResult<CommitSummary> {
   return { items, nextCursor };
 }
 
@@ -78,8 +78,8 @@ describe('testSuitesPage', () => {
     (getRunsPage as ReturnType<typeof vi.fn>).mockResolvedValue(
       mockRunsPage(mockRuns),
     );
-    (getOrdersPage as ReturnType<typeof vi.fn>).mockResolvedValue(
-      mockOrdersPage(mockOrders),
+    (getCommitsPage as ReturnType<typeof vi.fn>).mockResolvedValue(
+      mockCommitsPage(mockCommits),
     );
 
     // Clear URL query params
@@ -128,7 +128,7 @@ describe('testSuitesPage', () => {
     expect(tabs[0].textContent).toBe('Recent Activity');
     expect(tabs[1].textContent).toBe('Machines');
     expect(tabs[2].textContent).toBe('Runs');
-    expect(tabs[3].textContent).toBe('Orders');
+    expect(tabs[3].textContent).toBe('Commits');
   });
 
   it('highlights the selected suite card', () => {
@@ -154,7 +154,7 @@ describe('testSuitesPage', () => {
     await vi.waitFor(() => {
       expect(getRunsPage).toHaveBeenCalledWith(
         'nts',
-        expect.objectContaining({ sort: '-start_time', limit: 25 }),
+        expect.objectContaining({ sort: '-submitted_at', limit: 25 }),
         expect.any(AbortSignal),
       );
     });
@@ -167,8 +167,8 @@ describe('testSuitesPage', () => {
     await vi.waitFor(() => {
       const headers = Array.from(container.querySelectorAll('th')).map(h => h.textContent);
       expect(headers).toContain('Machine');
-      expect(headers).toContain('Order');
-      expect(headers).toContain('Start Time');
+      expect(headers).toContain('Commit');
+      expect(headers).toContain('Submitted');
       expect(headers).toContain('Run');
     });
   });
@@ -226,7 +226,7 @@ describe('testSuitesPage', () => {
       // Should call getRunsPage (once for Recent Activity, once for Runs tab)
       const calls = (getRunsPage as ReturnType<typeof vi.fn>).mock.calls;
       const runsTabCall = calls.find(
-        (c: unknown[]) => c[1]?.sort === '-start_time',
+        (c: unknown[]) => c[1]?.sort === '-submitted_at',
       );
       expect(runsTabCall).toBeTruthy();
     });
@@ -247,17 +247,17 @@ describe('testSuitesPage', () => {
     });
   });
 
-  it('Orders tab loads orders with cursor pagination', async () => {
+  it('Commits tab loads commits with cursor pagination', async () => {
     testSuitesPage.mount(container, { testsuite: '' });
     (container.querySelector('.suite-card') as HTMLElement).click();
 
-    // Click Orders tab
-    const ordersTab = Array.from(container.querySelectorAll('.v5-tab'))
-      .find(t => t.textContent === 'Orders') as HTMLElement;
-    ordersTab.click();
+    // Click Commits tab
+    const commitsTab = Array.from(container.querySelectorAll('.v5-tab'))
+      .find(t => t.textContent === 'Commits') as HTMLElement;
+    commitsTab.click();
 
     await vi.waitFor(() => {
-      expect(getOrdersPage).toHaveBeenCalledWith(
+      expect(getCommitsPage).toHaveBeenCalledWith(
         'nts',
         expect.objectContaining({ limit: 25 }),
         expect.any(AbortSignal),
@@ -265,7 +265,7 @@ describe('testSuitesPage', () => {
     });
   });
 
-  it('Orders tab shows order values and tags', async () => {
+  it('Commits tab shows commit values and ordinals', async () => {
     testSuitesPage.mount(container, { testsuite: '' });
     (container.querySelector('.suite-card') as HTMLElement).click();
 
@@ -274,17 +274,17 @@ describe('testSuitesPage', () => {
       expect(container.querySelector('table')).toBeTruthy();
     });
 
-    const ordersTab = Array.from(container.querySelectorAll('.v5-tab'))
-      .find(t => t.textContent === 'Orders') as HTMLElement;
-    ordersTab.click();
+    const commitsTab = Array.from(container.querySelectorAll('.v5-tab'))
+      .find(t => t.textContent === 'Commits') as HTMLElement;
+    commitsTab.click();
 
     await vi.waitFor(() => {
-      // Check the table has Order and Tag columns
+      // Check the table has Commit and Ordinal columns
       const headers = Array.from(container.querySelectorAll('th')).map(h => h.textContent);
-      expect(headers).toContain('Order');
-      expect(headers).toContain('Tag');
+      expect(headers).toContain('Commit');
+      expect(headers).toContain('Ordinal');
       expect(container.textContent).toContain('100');
-      expect(container.textContent).toContain('v1.0');
+      expect(container.textContent).toContain('1');
       expect(container.textContent).toContain('101');
     });
   });

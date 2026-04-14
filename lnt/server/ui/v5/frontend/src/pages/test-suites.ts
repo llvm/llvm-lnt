@@ -2,18 +2,18 @@
 // Suite-agnostic — served at /v5/test-suites.
 
 import type { PageModule, RouteParams } from '../router';
-import type { MachineInfo, RunInfo, OrderSummary } from '../types';
+import type { MachineInfo, RunInfo, CommitSummary } from '../types';
 import type { CursorPageResult } from '../api';
 import { getTestsuites } from '../router';
-import { getMachines, getRunsPage, getOrdersPage } from '../api';
+import { getMachines, getRunsPage, getCommitsPage } from '../api';
 import type { Column } from '../components/data-table';
-import { el, formatTime, truncate, primaryOrderValue, debounce } from '../utils';
+import { el, formatTime, truncate, debounce } from '../utils';
 import { renderDataTable } from '../components/data-table';
 import { renderPagination } from '../components/pagination';
 
 const PAGE_SIZE = 25;
 
-type TabId = 'recent' | 'machines' | 'runs' | 'orders';
+type TabId = 'recent' | 'machines' | 'runs' | 'commits';
 
 let tabController: AbortController | null = null;
 
@@ -72,7 +72,7 @@ export const testSuitesPage: PageModule = {
       { id: 'recent', label: 'Recent Activity' },
       { id: 'machines', label: 'Machines' },
       { id: 'runs', label: 'Runs' },
-      { id: 'orders', label: 'Orders' },
+      { id: 'commits', label: 'Commits' },
     ];
     const tabButtons: HTMLElement[] = [];
     for (const tab of tabDefs) {
@@ -148,23 +148,23 @@ export const testSuitesPage: PageModule = {
             'Failed to load runs',
             (s, opts, sig) => getRunsPage(s, {
               machine: opts.search || undefined,
-              sort: '-start_time',
+              sort: '-submitted_at',
               limit: opts.limit,
               cursor: opts.cursor,
             }, sig),
             runsColumns(selectedSuite),
             (search: string) => { currentSearch = search; syncUrl(); });
           break;
-        case 'orders':
+        case 'commits':
           renderCursorPaginatedTab(tabContent, selectedSuite, currentSearch, signal,
-            'Filter by tag...', 'Loading orders...', 'No orders found.',
-            'Failed to load orders',
-            (s, opts, sig) => getOrdersPage(s, {
-              tagPrefix: opts.search || undefined,
+            'Search commits...', 'Loading commits...', 'No commits found.',
+            'Failed to load commits',
+            (s, opts, sig) => getCommitsPage(s, {
+              search: opts.search || undefined,
               limit: opts.limit,
               cursor: opts.cursor,
             }, sig),
-            ordersColumns(selectedSuite),
+            commitsColumns(selectedSuite),
             (search: string) => { currentSearch = search; syncUrl(); });
           break;
       }
@@ -202,7 +202,7 @@ function renderRecentActivityTab(
   async function loadPage(): Promise<void> {
     try {
       const result = await getRunsPage(suite, {
-        sort: '-start_time',
+        sort: '-submitted_at',
         limit: PAGE_SIZE,
         cursor: nextCursor || undefined,
       }, signal);
@@ -251,13 +251,11 @@ function recentActivityColumns(suite: string): Column<RunInfo>[] {
     { key: 'machine', label: 'Machine',
       render: (r: RunInfo) =>
         detailLink(r.machine, suite, `/machines/${encodeURIComponent(r.machine)}`) },
-    { key: 'order', label: 'Order',
-      render: (r: RunInfo) => {
-        const val = primaryOrderValue(r.order);
-        return detailLink(val, suite, `/orders/${encodeURIComponent(val)}`);
-      } },
-    { key: 'start_time', label: 'Start Time',
-      render: (r: RunInfo) => formatTime(r.start_time) },
+    { key: 'commit', label: 'Commit',
+      render: (r: RunInfo) =>
+        detailLink(r.commit, suite, `/commits/${encodeURIComponent(r.commit)}`) },
+    { key: 'submitted_at', label: 'Submitted',
+      render: (r: RunInfo) => formatTime(r.submitted_at) },
     { key: 'uuid', label: 'Run',
       render: (r: RunInfo) =>
         detailLink(truncate(r.uuid, 8), suite, `/runs/${encodeURIComponent(r.uuid)}`) },
@@ -353,7 +351,7 @@ function formatMachineInfo(m: MachineInfo): string {
 }
 
 // ---------------------------------------------------------------------------
-// Cursor-paginated tab (shared by Runs and Orders)
+// Cursor-paginated tab (shared by Runs and Commits)
 // ---------------------------------------------------------------------------
 
 interface CursorFetchOpts {
@@ -364,7 +362,7 @@ interface CursorFetchOpts {
 
 /**
  * Generic cursor-paginated tab with search input, data table, and Previous/Next.
- * Used by the Runs and Orders tabs.
+ * Used by the Runs and Commits tabs.
  */
 function renderCursorPaginatedTab<T>(
   container: HTMLElement,
@@ -458,25 +456,21 @@ function runsColumns(suite: string): Column<RunInfo>[] {
     { key: 'machine', label: 'Machine',
       render: (r: RunInfo) =>
         detailLink(r.machine, suite, `/machines/${encodeURIComponent(r.machine)}`) },
-    { key: 'order', label: 'Order',
-      render: (r: RunInfo) => {
-        const val = primaryOrderValue(r.order);
-        return detailLink(truncate(val, 12), suite,
-          `/orders/${encodeURIComponent(val)}`);
-      } },
-    { key: 'start_time', label: 'Start Time',
-      render: (r: RunInfo) => formatTime(r.start_time) },
+    { key: 'commit', label: 'Commit',
+      render: (r: RunInfo) =>
+        detailLink(truncate(r.commit, 12), suite,
+          `/commits/${encodeURIComponent(r.commit)}`) },
+    { key: 'submitted_at', label: 'Submitted',
+      render: (r: RunInfo) => formatTime(r.submitted_at) },
   ];
 }
 
-function ordersColumns(suite: string): Column<OrderSummary>[] {
+function commitsColumns(suite: string): Column<CommitSummary>[] {
   return [
-    { key: 'order', label: 'Order',
-      render: (o: OrderSummary) => {
-        const val = primaryOrderValue(o.fields);
-        return detailLink(val, suite, `/orders/${encodeURIComponent(val)}`);
-      } },
-    { key: 'tag', label: 'Tag',
-      render: (o: OrderSummary) => o.tag || '\u2014' },
+    { key: 'commit', label: 'Commit',
+      render: (o: CommitSummary) =>
+        detailLink(o.commit, suite, `/commits/${encodeURIComponent(o.commit)}`) },
+    { key: 'ordinal', label: 'Ordinal',
+      render: (o: CommitSummary) => o.ordinal != null ? String(o.ordinal) : '\u2014' },
   ];
 }
