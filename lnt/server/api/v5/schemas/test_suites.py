@@ -15,16 +15,28 @@ class MachineFieldDefSchema(BaseSchema):
         required=True,
         metadata={'description': 'Machine field name'},
     )
+    searchable = ma.fields.Boolean(
+        load_default=False,
+        metadata={'description': 'Enable search on this field'},
+    )
 
 
-class RunFieldDefSchema(BaseSchema):
+class CommitFieldDefSchema(BaseSchema):
     name = ma.fields.String(
         required=True,
-        metadata={'description': 'Run field name'},
+        metadata={'description': 'Commit field name'},
     )
-    order = ma.fields.Boolean(
+    type = ma.fields.String(
+        load_default='default',
+        metadata={'description': 'Data type: default, text, integer, datetime'},
+    )
+    searchable = ma.fields.Boolean(
         load_default=False,
-        metadata={'description': 'Whether this field defines the ordering of runs'},
+        metadata={'description': 'Enable search on this field'},
+    )
+    display = ma.fields.Boolean(
+        load_default=False,
+        metadata={'description': 'Use this field for display instead of the commit string'},
     )
 
 
@@ -34,16 +46,12 @@ class MetricDefSchema(BaseSchema):
         metadata={'description': 'Metric name'},
     )
     type = ma.fields.String(
-        load_default='Real',
-        metadata={'description': 'Data type: Real or Status'},
+        load_default='real',
+        metadata={'description': 'Data type: real, status, or hash'},
     )
     bigger_is_better = ma.fields.Boolean(
         load_default=False,
         metadata={'description': 'Whether larger values indicate better performance'},
-    )
-    ignore_same_hash = ma.fields.Boolean(
-        load_default=False,
-        metadata={'description': 'Skip regression detection when hash is unchanged'},
     )
     display_name = ma.fields.String(
         load_default=None,
@@ -67,10 +75,6 @@ class MetricDefSchema(BaseSchema):
 # ---------------------------------------------------------------------------
 
 class TestSuiteCreateRequestSchema(BaseSchema):
-    format_version = ma.fields.String(
-        required=True,
-        validate=ma.validate.Equal('2'),
-    )
     name = ma.fields.String(
         required=True,
         validate=ma.validate.Regexp(
@@ -79,17 +83,17 @@ class TestSuiteCreateRequestSchema(BaseSchema):
                   'letters, digits, and underscores.',
         ),
     )
-    machine_fields = ma.fields.List(
-        ma.fields.Nested(MachineFieldDefSchema),
-        load_default=[],
-    )
-    run_fields = ma.fields.List(
-        ma.fields.Nested(RunFieldDefSchema),
-        load_default=[],
-    )
     metrics = ma.fields.List(
         ma.fields.Nested(MetricDefSchema),
         required=True,
+    )
+    commit_fields = ma.fields.List(
+        ma.fields.Nested(CommitFieldDefSchema),
+        load_default=[],
+    )
+    machine_fields = ma.fields.List(
+        ma.fields.Nested(MachineFieldDefSchema),
+        load_default=[],
     )
 
 

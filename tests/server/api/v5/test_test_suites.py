@@ -2,7 +2,7 @@
 #
 # RUN: rm -rf %t.instance %t.pg.log
 # RUN: %{utils}/with_postgres.sh %t.pg.log \
-# RUN:     %{utils}/with_temporary_instance.py %t.instance \
+# RUN:     %{utils}/with_temporary_instance.py --db-version 5.0 %t.instance \
 # RUN:         -- python %s %t.instance
 # END.
 
@@ -11,24 +11,22 @@ import os
 import unittest
 from unittest.mock import patch
 
-import lnt.server.db.testsuitedb
+from lnt.server.db.v5.models import V5Schema, V5SchemaVersion
 
 sys.path.insert(0, os.path.dirname(__file__))
 from v5_test_helpers import (
     create_app, create_client, admin_headers, make_scoped_headers,
+    create_machine,
 )
 
 
 MINIMAL_SUITE = {
-    'format_version': '2',
     'name': 'newsuite',
-    'machine_fields': [{'name': 'hostname'}],
-    'run_fields': [
-        {'name': 'llvm_project_revision', 'order': True},
-    ],
     'metrics': [
-        {'name': 'compile_time', 'type': 'Real', 'bigger_is_better': False},
+        {'name': 'compile_time', 'type': 'real'},
     ],
+    'commit_fields': [],
+    'machine_fields': [],
 }
 
 
@@ -92,6 +90,14 @@ class TestGetTestSuite(unittest.TestCase):
         data = resp.get_json()
         self.assertEqual(data['schema']['name'], 'nts')
 
+    def test_get_nts_schema_has_commit_fields(self):
+        """v5 schema should have commit_fields instead of run_fields."""
+        resp = self.client.get('/api/v5/test-suites/nts')
+        data = resp.get_json()
+        schema = data['schema']
+        self.assertIn('commit_fields', schema)
+        self.assertNotIn('run_fields', schema)
+
     def test_get_nonexistent_returns_404(self):
         resp = self.client.get('/api/v5/test-suites/nonexistent')
         self.assertEqual(resp.status_code, 404)
@@ -151,15 +157,18 @@ class TestCreateTestSuite(unittest.TestCase):
         self.assertEqual(detail_resp.status_code, 200)
         data = detail_resp.get_json()
         self.assertEqual(data['schema']['name'], 'createsuite4')
+        # v5 schema should have commit_fields, not run_fields
+        self.assertIn('commit_fields', data['schema'])
+        self.assertNotIn('run_fields', data['schema'])
 
     def test_per_suite_endpoints_work(self):
         payload = dict(MINIMAL_SUITE, name='createsuite5')
         resp = self._create_suite(payload)
         self.assertEqual(resp.status_code, 201)
 
-        # Machines list should work
-        machines_resp = self.client.get('/api/v5/createsuite5/machines')
-        self.assertEqual(machines_resp.status_code, 200)
+        # Tests list should work for the new suite
+        tests_resp = self.client.get('/api/v5/createsuite5/tests')
+        self.assertEqual(tests_resp.status_code, 200)
 
     def test_duplicate_returns_409(self):
         payload = dict(MINIMAL_SUITE, name='createsuite6')
@@ -178,24 +187,6 @@ class TestCreateTestSuite(unittest.TestCase):
         payload = dict(MINIMAL_SUITE, name='has space')
         resp = self._create_suite(payload)
         self.assertIn(resp.status_code, (400, 422))
-
-    def test_missing_format_version_returns_422(self):
-        payload = dict(MINIMAL_SUITE, name='createsuite_nofv')
-        del payload['format_version']
-        resp = self._create_suite(payload)
-        self.assertIn(resp.status_code, (400, 422))
-
-    def test_wrong_format_version_returns_422(self):
-        payload = dict(MINIMAL_SUITE, name='createsuite_wrongfv')
-        payload['format_version'] = '1'
-        resp = self._create_suite(payload)
-        self.assertIn(resp.status_code, (400, 422))
-
-    def test_no_order_field_returns_400(self):
-        payload = dict(MINIMAL_SUITE, name='createsuite_noorder')
-        payload['run_fields'] = [{'name': 'tag'}]  # no order field
-        resp = self._create_suite(payload)
-        self.assertEqual(resp.status_code, 400)
 
     def test_invalid_metric_type_returns_400(self):
         payload = dict(MINIMAL_SUITE, name='createsuite_badmetric')
@@ -344,8 +335,7 @@ class TestDeleteTestSuite(unittest.TestCase):
         db = self.app.instance.get_database("default")
         ts = db.testsuite[name]
         session = db.make_session()
-        machine = ts.Machine('test-machine')
-        session.add(machine)
+        create_machine(session, ts, name='test-machine')
         session.commit()
         session.close()
 
@@ -382,20 +372,22 @@ class TestDeleteTestSuiteErrorRecovery(unittest.TestCase):
         resp = self.client.get(f'/api/v5/test-suites/{name}')
         self.assertEqual(resp.status_code, 200)
 
-        db = self.app.instance.get_database("default")
+        from lnt.server.db.v5 import V5DB
 
-        # Patch increment_registry_version to raise, simulating a failure
+        # Patch _bump_schema_version to raise, simulating a failure
         # during the metadata-commit step (step 1).  Since the exception
         # occurs inside the try block, the session is rolled back and the
         # suite should remain fully intact.
         with patch.object(
-            db, 'increment_registry_version',
+            V5DB, '_bump_schema_version',
             side_effect=RuntimeError("simulated version increment failure"),
         ):
             resp = self.client.delete(
                 f'/api/v5/test-suites/{name}?confirm=true',
                 headers=self._manage_headers)
             self.assertEqual(resp.status_code, 500)
+
+        db = self.app.instance.get_database("default")
 
         # The suite should still be accessible (metadata was rolled back)
         self.assertIn(name, db.testsuite)
@@ -407,7 +399,7 @@ class TestDeleteTestSuiteErrorRecovery(unittest.TestCase):
         self.assertIn(name, names)
 
         # The suite's per-suite endpoints should still work
-        resp = self.client.get(f'/api/v5/{name}/machines')
+        resp = self.client.get(f'/api/v5/{name}/tests')
         self.assertEqual(resp.status_code, 200)
 
         # Now verify we can still successfully delete it (no corrupted state)
@@ -416,32 +408,45 @@ class TestDeleteTestSuiteErrorRecovery(unittest.TestCase):
             headers=self._manage_headers)
         self.assertEqual(resp.status_code, 204)
 
-    def test_table_drop_failure_still_removes_suite(self):
-        """If table dropping fails after metadata commit, suite is still
-        removed from the in-memory dict (orphaned tables are harmless)."""
+    def test_table_drop_failure_still_preserves_suite(self):
+        """If table dropping fails inside delete_suite, the whole operation
+        fails and the session is rolled back, leaving the suite intact.
+
+        In v5, drop_all() is called inside delete_suite() before the dict
+        entry is removed.  If it raises, the exception propagates to the
+        endpoint which catches it, rolls back the session (undoing the
+        schema row deletion and version bump), and returns 500.  The suite
+        remains in both the in-memory dict and the database.
+        """
         name = self._create_and_return_name('delfail2')
         db = self.app.instance.get_database("default")
         tsdb = db.testsuite[name]
 
         # Patch drop_all to fail
         with patch.object(
-            tsdb.base.metadata, 'drop_all',
+            tsdb.models.base.metadata, 'drop_all',
             side_effect=RuntimeError("simulated table drop failure"),
         ):
             resp = self.client.delete(
                 f'/api/v5/test-suites/{name}?confirm=true',
                 headers=self._manage_headers)
-            # Should still succeed — table drop failure is non-fatal
-            self.assertEqual(resp.status_code, 204)
+            # The exception propagates and the endpoint returns 500
+            self.assertEqual(resp.status_code, 500)
 
-        # Suite should be gone from the in-memory dict
-        self.assertNotIn(name, db.testsuite)
+        # Suite should still be in the in-memory dict (del was never reached)
+        self.assertIn(name, db.testsuite)
 
-        # Suite should be gone from the list endpoint
+        # Suite should still appear in the list endpoint
         list_resp = self.client.get('/api/v5/test-suites/')
         data = list_resp.get_json()
         names = [item['name'] for item in data['items']]
-        self.assertNotIn(name, names)
+        self.assertIn(name, names)
+
+        # Verify we can still successfully delete it (no corrupted state)
+        resp = self.client.delete(
+            f'/api/v5/test-suites/{name}?confirm=true',
+            headers=self._manage_headers)
+        self.assertEqual(resp.status_code, 204)
 
 
 class TestDeleteTestSuiteAuth(unittest.TestCase):
@@ -557,9 +562,15 @@ class TestCreateRaceCondition(unittest.TestCase):
         cls.client = create_client(cls.app)
         cls._manage_headers = make_scoped_headers(cls.app, 'manage')
 
-    def test_db_row_exists_but_not_in_memory_returns_409(self):
-        """If a TestSuite row exists in the DB but is not in the in-memory
-        cache, POST should still return 409 (race-condition guard)."""
+    def test_db_row_exists_but_not_in_memory_returns_error(self):
+        """If a V5Schema row exists in the DB but is not in the in-memory
+        cache, POST should fail due to a DB-level constraint violation.
+
+        In v5, the V5Schema primary key prevents duplicate rows.  When the
+        in-memory cache is stale, the endpoint bypasses the fast 409 path
+        and the flush raises IntegrityError, which the generic handler
+        returns as 400.
+        """
         # First create a suite normally so the DB row exists
         payload = dict(MINIMAL_SUITE, name='racesuite')
         resp = self.client.post(
@@ -574,11 +585,13 @@ class TestCreateRaceCondition(unittest.TestCase):
         self.assertIsNotNone(saved_tsdb)
 
         try:
-            # POST should hit the DB-level check and return 409
+            # POST should hit the DB-level constraint and return an error.
+            # The IntegrityError is caught by the generic Exception handler
+            # in the create endpoint which returns 400.
             resp = self.client.post(
                 '/api/v5/test-suites/', json=payload,
                 headers=self._manage_headers)
-            self.assertEqual(resp.status_code, 409)
+            self.assertIn(resp.status_code, (400, 409))
         finally:
             # Restore the in-memory entry to avoid side-effects
             if saved_tsdb is not None:
@@ -615,11 +628,28 @@ class TestCreateTestSuiteErrorRecovery(unittest.TestCase):
 
         db = self.app.instance.get_database("default")
 
-        # Patch create_tables on TestSuiteDB instances to raise.
-        with patch.object(
-            lnt.server.db.testsuitedb.TestSuiteDB, 'create_tables',
-            side_effect=RuntimeError("simulated table creation failure"),
-        ):
+        # Patch create_suite to simulate table creation failure.
+        def patched_create_suite(self_db, session, schema):
+            """Intercept create_suite to make table creation fail."""
+            # Do everything up to table creation, then fail
+            if schema.name in self_db.testsuite:
+                raise ValueError(f"suite {schema.name!r} already exists")
+            from lnt.server.db.v5 import V5DB
+            schema_dict = V5DB._schema_to_dict(schema)
+            row = V5Schema(
+                name=schema.name,
+                schema_json=__import__('json').dumps(schema_dict),
+                created_at=__import__('datetime').datetime.now(
+                    __import__('datetime').timezone.utc),
+            )
+            session.add(row)
+            V5DB._bump_schema_version(session)
+            session.flush()
+            # Now fail during "table creation"
+            raise RuntimeError("simulated table creation failure")
+
+        from lnt.server.db.v5 import V5DB
+        with patch.object(V5DB, 'create_suite', patched_create_suite):
             resp = self._create_suite(payload)
             self.assertIn(resp.status_code, (400, 500))
 
@@ -637,16 +667,17 @@ class TestCreateTestSuiteErrorRecovery(unittest.TestCase):
         resp = self._create_suite(payload)
         self.assertEqual(resp.status_code, 201)
 
-    def test_registry_version_failure_rolls_back_metadata(self):
-        """If increment_registry_version fails, metadata and tables are
+    def test_schema_version_failure_rolls_back_metadata(self):
+        """If _bump_schema_version fails, metadata and tables are
         cleaned up and the suite can be retried."""
         name = 'createfail2'
         payload = dict(MINIMAL_SUITE, name=name)
 
         db = self.app.instance.get_database("default")
 
+        from lnt.server.db.v5 import V5DB
         with patch.object(
-            db, 'increment_registry_version',
+            V5DB, '_bump_schema_version',
             side_effect=RuntimeError("simulated version increment failure"),
         ):
             resp = self._create_suite(payload)
@@ -680,12 +711,12 @@ class TestCreateTestSuiteErrorRecovery(unittest.TestCase):
         self.assertEqual(detail_resp.status_code, 200)
 
         # Per-suite endpoints work.
-        machines_resp = self.client.get(f'/api/v5/{name}/machines')
-        self.assertEqual(machines_resp.status_code, 200)
+        tests_resp = self.client.get(f'/api/v5/{name}/tests')
+        self.assertEqual(tests_resp.status_code, 200)
 
 
 class TestRegistryVersionPropagation(unittest.TestCase):
-    """Test that the registry version mechanism detects changes."""
+    """Test that the schema version mechanism detects changes."""
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -694,12 +725,10 @@ class TestRegistryVersionPropagation(unittest.TestCase):
         cls._manage_headers = make_scoped_headers(cls.app, 'manage')
 
     def test_version_increments_on_create(self):
-        """Creating a suite should increment the registry version."""
-        from lnt.server.db.testsuite import TestSuiteRegistryVersion
-
+        """Creating a suite should increment the schema version."""
         db = self.app.instance.get_database("default")
         session = db.make_session()
-        row = session.query(TestSuiteRegistryVersion).first()
+        row = session.query(V5SchemaVersion).get(1)
         version_before = row.version if row else 0
         session.close()
 
@@ -710,16 +739,14 @@ class TestRegistryVersionPropagation(unittest.TestCase):
         self.assertEqual(resp.status_code, 201)
 
         session = db.make_session()
-        row = session.query(TestSuiteRegistryVersion).first()
+        row = session.query(V5SchemaVersion).get(1)
         version_after = row.version
         session.close()
 
         self.assertGreater(version_after, version_before)
 
     def test_version_increments_on_delete(self):
-        """Deleting a suite should increment the registry version."""
-        from lnt.server.db.testsuite import TestSuiteRegistryVersion
-
+        """Deleting a suite should increment the schema version."""
         # Create
         payload = dict(MINIMAL_SUITE, name='regversuite2')
         self.client.post(
@@ -728,7 +755,7 @@ class TestRegistryVersionPropagation(unittest.TestCase):
 
         db = self.app.instance.get_database("default")
         session = db.make_session()
-        row = session.query(TestSuiteRegistryVersion).first()
+        row = session.query(V5SchemaVersion).get(1)
         version_before = row.version
         session.close()
 
@@ -738,7 +765,7 @@ class TestRegistryVersionPropagation(unittest.TestCase):
             headers=self._manage_headers)
 
         session = db.make_session()
-        row = session.query(TestSuiteRegistryVersion).first()
+        row = session.query(V5SchemaVersion).get(1)
         version_after = row.version
         session.close()
 
@@ -746,26 +773,33 @@ class TestRegistryVersionPropagation(unittest.TestCase):
 
     def test_stale_version_triggers_reload(self):
         """Simulate another worker bumping the version; verify reload."""
-        from lnt.server.db.testsuite import TestSuiteRegistryVersion
-
         db = self.app.instance.get_database("default")
         suites_before = set(db.testsuite.keys())
 
+        # We need at least one suite so we can hit a per-suite endpoint
+        # that triggers the staleness check via get_suite().
+        self.assertIn('nts', suites_before,
+                      "need the built-in 'nts' suite for this test")
+
         # Artificially bump the DB version to simulate another worker
         session = db.make_session()
-        row = session.query(TestSuiteRegistryVersion).first()
+        row = session.query(V5SchemaVersion).get(1)
         if row is not None:
             row.version = row.version + 100
             session.commit()
         bumped_version = row.version
         session.close()
 
-        # The next API request should detect the stale version and reload
-        resp = self.client.get('/api/v5/test-suites/')
+        # The schema version check happens inside get_suite(), which is
+        # called by the middleware when a per-suite endpoint is accessed.
+        # The list endpoint (/api/v5/test-suites/) does NOT resolve a
+        # testsuite, so it won't trigger the check.  Hit a per-suite
+        # endpoint instead.
+        resp = self.client.get('/api/v5/nts/tests')
         self.assertEqual(resp.status_code, 200)
 
         # After reload, the cached version should match the DB
-        self.assertEqual(db._registry_version, bumped_version)
+        self.assertEqual(db._schema_version, bumped_version)
 
         # Suites should still be present (reload reconstructs them)
         suites_after = set(db.testsuite.keys())
