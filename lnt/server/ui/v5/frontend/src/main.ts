@@ -55,7 +55,7 @@ function init(): void {
     addRoute('/', suiteRedirectPage);
     addRoute('/machines/:name', machineDetailPage);
     addRoute('/runs/:uuid', runDetailPage);
-    addRoute('/orders/:value', orderDetailPage);
+    addRoute('/commits/:value', orderDetailPage);
     addRoute('/regressions', regressionListPage);
     addRoute('/regressions/:uuid', regressionDetailPage);
     addRoute('/field-changes', fieldChangeTriagePage);

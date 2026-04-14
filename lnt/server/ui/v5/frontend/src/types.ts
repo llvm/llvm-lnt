@@ -9,20 +9,23 @@ export interface FieldInfo {
   bigger_is_better: boolean | null;
 }
 
-export interface OrderSummary {
+export interface CommitSummary {
+  commit: string;
+  ordinal: number | null;
   fields: Record<string, string>;
-  tag: string | null;
 }
 
-export interface OrderDetail {
+export interface CommitDetail {
+  commit: string;
+  ordinal: number | null;
   fields: Record<string, string>;
-  tag: string | null;
-  previous_order: OrderNeighbor | null;
-  next_order: OrderNeighbor | null;
+  previous_commit: CommitNeighbor | null;
+  next_commit: CommitNeighbor | null;
 }
 
-export interface OrderNeighbor {
-  fields: Record<string, string>;
+export interface CommitNeighbor {
+  commit: string;
+  ordinal: number | null;
   link: string;
 }
 
@@ -34,27 +37,24 @@ export interface MachineInfo {
 export interface RunInfo {
   uuid: string;
   machine: string;
-  order: Record<string, string>;
-  start_time: string | null;
-  end_time: string | null;
-  parameters?: Record<string, string>;
+  commit: string;
+  submitted_at: string | null;
+  run_parameters?: Record<string, string>;
 }
 
-/** Run as returned by GET /machines/{name}/runs (no machine or parameters). */
+/** Run as returned by GET /machines/{name}/runs. */
 export interface MachineRunInfo {
   uuid: string;
-  order: Record<string, string>;
-  start_time: string | null;
-  end_time: string | null;
+  commit: string;
+  submitted_at: string | null;
 }
 
 export interface RunDetail {
   uuid: string;
   machine: string;
-  order: Record<string, string>;
-  start_time: string | null;
-  end_time: string | null;
-  parameters: Record<string, string>;
+  commit: string;
+  submitted_at: string | null;
+  run_parameters: Record<string, string>;
 }
 
 export interface SampleInfo {
@@ -70,9 +70,8 @@ export interface FieldChangeInfo {
   metric: string | null;
   old_value: number;
   new_value: number;
-  start_order: string | null;
-  end_order: string | null;
-  run_uuid: string | null;
+  start_commit: string | null;
+  end_commit: string | null;
 }
 
 export interface QueryDataPoint {
@@ -80,9 +79,10 @@ export interface QueryDataPoint {
   machine: string;
   metric: string;
   value: number;
-  order: Record<string, string>;
+  commit: string;
+  ordinal: number | null;
   run_uuid: string;
-  timestamp: string | null;
+  submitted_at: string | null;
 }
 
 export interface CursorPaginated<T> {
@@ -110,7 +110,7 @@ export type SortCol = 'test' | 'value_a' | 'value_b' | 'delta' | 'delta_pct' | '
 
 export interface SideSelection {
   suite: string;
-  order: string;
+  commit: string;
   machine: string;
   runs: string[];     // UUIDs
   runAgg: AggFn;
@@ -165,7 +165,7 @@ export interface TestSuiteInfo {
   schema: {
     metrics: FieldInfo[];
     run_fields: Array<{ name: string; type: string }>;
-    order_fields: Array<{ name: string; type: string }>;
+    commit_fields: Array<{ name: string; type: string }>;
     machine_fields: Array<{ name: string; type: string }>;
   };
 }

@@ -1,8 +1,8 @@
 import type { AggFn, AppState, SideSelection, SortCol, SortDir } from './types';
 
 const DEFAULTS: AppState = {
-  sideA: { suite: '', order: '', machine: '', runs: [], runAgg: 'median' },
-  sideB: { suite: '', order: '', machine: '', runs: [], runAgg: 'median' },
+  sideA: { suite: '', commit: '', machine: '', runs: [], runAgg: 'median' },
+  sideB: { suite: '', commit: '', machine: '', runs: [], runAgg: 'median' },
   metric: '',
   sampleAgg: 'median',
   noise: 1,
@@ -50,14 +50,14 @@ function parseAgg(v: string | null): AggFn | undefined {
 
 function decodeSide(p: URLSearchParams, suffix: string): SideSelection | undefined {
   const suite = p.get(`suite_${suffix}`);
-  const order = p.get(`order_${suffix}`);
+  const commit = p.get(`commit_${suffix}`);
   const machine = p.get(`machine_${suffix}`);
   const runs = p.get(`runs_${suffix}`);
   const runAgg = parseAgg(p.get(`run_agg_${suffix}`));
-  if (suite || order || machine || runs || runAgg) {
+  if (suite || commit || machine || runs || runAgg) {
     return {
       suite: suite || '',
-      order: order || '',
+      commit: commit || '',
       machine: machine || '',
       runs: runs ? runs.split(',').filter(Boolean) : [],
       runAgg: runAgg || 'median',
@@ -68,7 +68,7 @@ function decodeSide(p: URLSearchParams, suffix: string): SideSelection | undefin
 
 function encodeSide(p: URLSearchParams, side: SideSelection, suffix: string): void {
   if (side.suite) p.set(`suite_${suffix}`, side.suite);
-  if (side.order) p.set(`order_${suffix}`, side.order);
+  if (side.commit) p.set(`commit_${suffix}`, side.commit);
   if (side.machine) p.set(`machine_${suffix}`, side.machine);
   if (side.runs.length) p.set(`runs_${suffix}`, side.runs.join(','));
   if (side.runAgg !== 'median') p.set(`run_agg_${suffix}`, side.runAgg);

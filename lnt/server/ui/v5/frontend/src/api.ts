@@ -1,7 +1,7 @@
 import type {
   APIKeyCreateResponse, APIKeyItem,
   CursorPaginated, FieldChangeInfo, FieldInfo, MachineInfo, MachineRunInfo,
-  OffsetPaginated, OrderDetail, OrderSummary, RunDetail,
+  OffsetPaginated, CommitDetail, CommitSummary, RunDetail,
   RunInfo, SampleInfo, TestSuiteInfo,
 } from './types';
 
@@ -172,12 +172,12 @@ export async function getFields(ts: string, signal?: AbortSignal): Promise<Field
   return data.schema.metrics;
 }
 
-export async function getOrders(
+export async function getCommits(
   ts: string,
   signal?: AbortSignal,
   onProgress?: (loaded: number) => void,
-): Promise<OrderSummary[]> {
-  return fetchAllCursorPages<OrderSummary>(apiUrl(ts, 'orders'), undefined, signal, onProgress);
+): Promise<CommitSummary[]> {
+  return fetchAllCursorPages<CommitSummary>(apiUrl(ts, 'commits'), undefined, signal, onProgress);
 }
 
 export async function getMachines(
@@ -196,11 +196,11 @@ export async function getMachines(
 
 export async function getRuns(
   ts: string,
-  opts: { machine: string; order?: string },
+  opts: { machine: string; commit?: string },
   signal?: AbortSignal,
 ): Promise<RunInfo[]> {
   const params: Record<string, string> = { machine: opts.machine };
-  if (opts.order) params.order = opts.order;
+  if (opts.commit) params.commit = opts.commit;
   return fetchAllCursorPages<RunInfo>(
     apiUrl(ts, 'runs'),
     params,
@@ -268,25 +268,25 @@ export async function deleteRun(ts: string, uuid: string): Promise<void> {
   return fetchVoid(apiUrl(ts, `runs/${encodeURIComponent(uuid)}`), { method: 'DELETE' });
 }
 
-export async function getOrder(
+export async function getCommit(
   ts: string,
   value: string,
   signal?: AbortSignal,
-): Promise<OrderDetail> {
-  return fetchJson<OrderDetail>(
-    apiUrl(ts, `orders/${encodeURIComponent(value)}`),
+): Promise<CommitDetail> {
+  return fetchJson<CommitDetail>(
+    apiUrl(ts, `commits/${encodeURIComponent(value)}`),
     { signal },
   );
 }
 
-export async function getRunsByOrder(
+export async function getRunsByCommit(
   ts: string,
-  orderValue: string,
+  commitValue: string,
   signal?: AbortSignal,
 ): Promise<RunInfo[]> {
   return fetchAllCursorPages<RunInfo>(
     apiUrl(ts, 'runs'),
-    { order: orderValue },
+    { commit: commitValue },
     signal,
   );
 }
@@ -305,16 +305,16 @@ export async function getFieldChanges(
   );
 }
 
-export async function searchOrdersByTag(
+export async function searchCommits(
   ts: string,
-  tagPrefix: string,
+  searchPrefix: string,
   opts?: { limit?: number },
   signal?: AbortSignal,
-): Promise<CursorPaginated<OrderSummary>> {
-  const params: Record<string, string> = { tag_prefix: tagPrefix };
+): Promise<CursorPaginated<CommitSummary>> {
+  const params: Record<string, string> = { search: searchPrefix };
   if (opts?.limit !== undefined) params.limit = String(opts.limit);
-  return fetchJson<CursorPaginated<OrderSummary>>(
-    apiUrl(ts, 'orders'),
+  return fetchJson<CursorPaginated<CommitSummary>>(
+    apiUrl(ts, 'commits'),
     { params, signal },
   );
 }
@@ -333,28 +333,28 @@ export async function getRunsPage(
   return fetchOneCursorPage<RunInfo>(apiUrl(ts, 'runs'), params, signal);
 }
 
-/** Fetch one page of orders with optional tag_prefix filter (cursor-paginated). */
-export async function getOrdersPage(
+/** Fetch one page of commits with optional search filter (cursor-paginated). */
+export async function getCommitsPage(
   ts: string,
-  opts?: { tagPrefix?: string; limit?: number; cursor?: string },
+  opts?: { search?: string; limit?: number; cursor?: string },
   signal?: AbortSignal,
-): Promise<CursorPageResult<OrderSummary>> {
+): Promise<CursorPageResult<CommitSummary>> {
   const params: Record<string, string> = {};
-  if (opts?.tagPrefix) params.tag_prefix = opts.tagPrefix;
+  if (opts?.search) params.search = opts.search;
   if (opts?.limit !== undefined) params.limit = String(opts.limit);
   if (opts?.cursor) params.cursor = opts.cursor;
-  return fetchOneCursorPage<OrderSummary>(apiUrl(ts, 'orders'), params, signal);
+  return fetchOneCursorPage<CommitSummary>(apiUrl(ts, 'commits'), params, signal);
 }
 
-export async function updateOrderTag(
+export async function updateCommit(
   ts: string,
-  orderValue: string,
-  tag: string | null,
+  commitValue: string,
+  updates: Record<string, unknown>,
   signal?: AbortSignal,
-): Promise<OrderDetail> {
-  return fetchJson<OrderDetail>(
-    apiUrl(ts, `orders/${encodeURIComponent(orderValue)}`),
-    { method: 'PATCH', body: { tag }, signal },
+): Promise<CommitDetail> {
+  return fetchJson<CommitDetail>(
+    apiUrl(ts, `commits/${encodeURIComponent(commitValue)}`),
+    { method: 'PATCH', body: updates, signal },
   );
 }
 
@@ -411,8 +411,9 @@ export async function deleteTestSuite(
 
 export interface TrendsDataPoint {
   machine: string;
-  order: Record<string, string>;
-  timestamp: string | null;
+  commit: string;
+  ordinal: number | null;
+  submitted_at: string | null;
   value: number;
 }
 

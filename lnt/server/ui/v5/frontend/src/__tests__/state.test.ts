@@ -5,8 +5,8 @@ import type { AppState } from '../types';
 
 function makeDefaults(): AppState {
   return {
-    sideA: { suite: '', order: '', machine: '', runs: [], runAgg: 'median' },
-    sideB: { suite: '', order: '', machine: '', runs: [], runAgg: 'median' },
+    sideA: { suite: '', commit: '', machine: '', runs: [], runAgg: 'median' },
+    sideB: { suite: '', commit: '', machine: '', runs: [], runAgg: 'median' },
     metric: '',
     sampleAgg: 'median',
     noise: 1,
@@ -24,10 +24,10 @@ describe('encodeToUrl', () => {
 
   it('includes non-default values', () => {
     const state = makeDefaults();
-    state.sideA.order = 'rev123';
+    state.sideA.commit = 'rev123';
     state.sideA.machine = 'machine-a';
     state.sideA.runs = ['uuid-1'];
-    state.sideB.order = 'rev456';
+    state.sideB.commit = 'rev456';
     state.sideB.machine = 'machine-b';
     state.sideB.runs = ['uuid-2', 'uuid-3'];
     state.sideB.runAgg = 'mean';
@@ -42,10 +42,10 @@ describe('encodeToUrl', () => {
     const qs = encodeToUrl(state);
     const params = new URLSearchParams(qs);
 
-    expect(params.get('order_a')).toBe('rev123');
+    expect(params.get('commit_a')).toBe('rev123');
     expect(params.get('machine_a')).toBe('machine-a');
     expect(params.get('runs_a')).toBe('uuid-1');
-    expect(params.get('order_b')).toBe('rev456');
+    expect(params.get('commit_b')).toBe('rev456');
     expect(params.get('machine_b')).toBe('machine-b');
     expect(params.get('runs_b')).toBe('uuid-2,uuid-3');
     expect(params.get('run_agg_b')).toBe('mean');
@@ -60,7 +60,7 @@ describe('encodeToUrl', () => {
 
   it('omits default runAgg (median)', () => {
     const state = makeDefaults();
-    state.sideA.order = 'rev';
+    state.sideA.commit = 'rev';
     state.sideA.runAgg = 'median';
     const params = new URLSearchParams(encodeToUrl(state));
     expect(params.has('run_agg_a')).toBe(false);
@@ -89,8 +89,8 @@ describe('decodeFromUrl', () => {
   });
 
   it('decodes side A parameters', () => {
-    const result = decodeFromUrl('?order_a=rev123&machine_a=machine-a&runs_a=uuid-1');
-    expect(result.sideA?.order).toBe('rev123');
+    const result = decodeFromUrl('?commit_a=rev123&machine_a=machine-a&runs_a=uuid-1');
+    expect(result.sideA?.commit).toBe('rev123');
     expect(result.sideA?.machine).toBe('machine-a');
     expect(result.sideA?.runs).toEqual(['uuid-1']);
   });
@@ -104,7 +104,7 @@ describe('decodeFromUrl', () => {
     const result = decodeFromUrl('?sample_agg=bogus&run_agg_a=invalid');
     expect(result.sampleAgg).toBeUndefined();
     // sideA should not be set since only run_agg_a was provided with invalid value
-    // But order_a/machine_a/runs_a are all absent, so runAggA is undefined,
+    // But commit_a/machine_a/runs_a are all absent, so runAggA is undefined,
     // and nothing triggers sideA creation
     expect(result.sideA).toBeUndefined();
   });
@@ -149,8 +149,8 @@ describe('decodeFromUrl', () => {
 describe('round-trip', () => {
   it('encode then decode preserves full non-default state', () => {
     const state = makeDefaults();
-    state.sideA = { suite: 'nts', order: 'rev1', machine: 'mach-a', runs: ['u1', 'u2'], runAgg: 'mean' };
-    state.sideB = { suite: 'compile', order: 'rev2', machine: 'mach-b', runs: ['u3'], runAgg: 'max' };
+    state.sideA = { suite: 'nts', commit: 'rev1', machine: 'mach-a', runs: ['u1', 'u2'], runAgg: 'mean' };
+    state.sideB = { suite: 'compile', commit: 'rev2', machine: 'mach-b', runs: ['u3'], runAgg: 'max' };
     state.metric = 'exec_time';
     state.sampleAgg = 'min';
     state.noise = 3;
@@ -176,7 +176,7 @@ describe('round-trip', () => {
   it('round-trips multiple run UUIDs', () => {
     const state = makeDefaults();
     state.sideA.runs = ['aaa-111', 'bbb-222', 'ccc-333'];
-    state.sideA.order = 'x'; // needed to trigger sideA encoding
+    state.sideA.commit = 'x'; // needed to trigger sideA encoding
 
     const qs = encodeToUrl(state);
     const decoded = decodeFromUrl(qs);
@@ -192,9 +192,9 @@ describe('applyUrlState', () => {
   });
 
   it('restores state from URL on page load', () => {
-    applyUrlState('?order_a=rev1&machine_a=mach-a&metric=exec_time&noise=3&sort=ratio&sort_dir=asc');
+    applyUrlState('?commit_a=rev1&machine_a=mach-a&metric=exec_time&noise=3&sort=ratio&sort_dir=asc');
     const s = getState();
-    expect(s.sideA.order).toBe('rev1');
+    expect(s.sideA.commit).toBe('rev1');
     expect(s.sideA.machine).toBe('mach-a');
     expect(s.metric).toBe('exec_time');
     expect(s.noise).toBe(3);
@@ -217,14 +217,14 @@ describe('applyUrlState', () => {
     expect(s.sortDir).toBe('desc'); // default
     expect(s.testFilter).toBe(''); // default
     expect(s.hideNoise).toBe(false); // default
-    expect(s.sideA).toEqual({ suite: '', order: '', machine: '', runs: [], runAgg: 'median' });
-    expect(s.sideB).toEqual({ suite: '', order: '', machine: '', runs: [], runAgg: 'median' });
+    expect(s.sideA).toEqual({ suite: '', commit: '', machine: '', runs: [], runAgg: 'median' });
+    expect(s.sideB).toEqual({ suite: '', commit: '', machine: '', runs: [], runAgg: 'median' });
   });
 
   it('with empty search string sets state to all defaults', () => {
     // Set non-default state first
     setState({ metric: 'exec_time', noise: 5 });
-    setSideA({ order: 'rev1', machine: 'mach-a' });
+    setSideA({ commit: 'rev1', machine: 'mach-a' });
 
     applyUrlState('');
     const s = getState();
@@ -232,16 +232,16 @@ describe('applyUrlState', () => {
   });
 
   it('with partial URL sets only specified fields, unset fields are defaults', () => {
-    applyUrlState('?order_b=rev2&sample_agg=min&hide_noise=1');
+    applyUrlState('?commit_b=rev2&sample_agg=min&hide_noise=1');
     const s = getState();
 
     // Specified fields
-    expect(s.sideB.order).toBe('rev2');
+    expect(s.sideB.commit).toBe('rev2');
     expect(s.sampleAgg).toBe('min');
     expect(s.hideNoise).toBe(true);
 
     // Unset fields should be defaults
-    expect(s.sideA).toEqual({ suite: '', order: '', machine: '', runs: [], runAgg: 'median' });
+    expect(s.sideA).toEqual({ suite: '', commit: '', machine: '', runs: [], runAgg: 'median' });
     expect(s.sideB.machine).toBe('');
     expect(s.sideB.runs).toEqual([]);
     expect(s.sideB.runAgg).toBe('median');
@@ -275,9 +275,9 @@ describe('getState / setState / setSideA / setSideB', () => {
   });
 
   it('setSideA merges partial side A selection', () => {
-    setSideA({ order: 'rev123', machine: 'mach-a' });
+    setSideA({ commit: 'rev123', machine: 'mach-a' });
     const s = getState();
-    expect(s.sideA.order).toBe('rev123');
+    expect(s.sideA.commit).toBe('rev123');
     expect(s.sideA.machine).toBe('mach-a');
     // Unset fields keep their defaults
     expect(s.sideA.runs).toEqual([]);
@@ -290,87 +290,87 @@ describe('getState / setState / setSideA / setSideB', () => {
     expect(s.sideB.runs).toEqual(['uuid-1', 'uuid-2']);
     expect(s.sideB.runAgg).toBe('mean');
     // Unset fields keep their defaults
-    expect(s.sideB.order).toBe('');
+    expect(s.sideB.commit).toBe('');
     expect(s.sideB.machine).toBe('');
   });
 
   it('state is preserved across calls (not reset)', () => {
     setState({ metric: 'exec_time' });
     setState({ noise: 3 });
-    setSideA({ order: 'rev1' });
+    setSideA({ commit: 'rev1' });
     setSideA({ machine: 'mach-a' });
-    setSideB({ order: 'rev2' });
+    setSideB({ commit: 'rev2' });
 
     const s = getState();
     // All previous calls should have been preserved
     expect(s.metric).toBe('exec_time');
     expect(s.noise).toBe(3);
-    expect(s.sideA.order).toBe('rev1');
+    expect(s.sideA.commit).toBe('rev1');
     expect(s.sideA.machine).toBe('mach-a');
-    expect(s.sideB.order).toBe('rev2');
+    expect(s.sideB.commit).toBe('rev2');
   });
 
   it('swapSides exchanges sideA and sideB', () => {
-    setSideA({ order: 'rev1', machine: 'mach-a', runs: ['u1'], runAgg: 'mean' });
-    setSideB({ order: 'rev2', machine: 'mach-b', runs: ['u2', 'u3'], runAgg: 'max' });
+    setSideA({ commit: 'rev1', machine: 'mach-a', runs: ['u1'], runAgg: 'mean' });
+    setSideB({ commit: 'rev2', machine: 'mach-b', runs: ['u2', 'u3'], runAgg: 'max' });
 
     swapSides();
 
     const s = getState();
-    expect(s.sideA).toEqual({ suite: '', order: 'rev2', machine: 'mach-b', runs: ['u2', 'u3'], runAgg: 'max' });
-    expect(s.sideB).toEqual({ suite: '', order: 'rev1', machine: 'mach-a', runs: ['u1'], runAgg: 'mean' });
+    expect(s.sideA).toEqual({ suite: '', commit: 'rev2', machine: 'mach-b', runs: ['u2', 'u3'], runAgg: 'max' });
+    expect(s.sideB).toEqual({ suite: '', commit: 'rev1', machine: 'mach-a', runs: ['u1'], runAgg: 'mean' });
   });
 
   it('swapSides twice restores original state', () => {
-    setSideA({ order: 'rev1', machine: 'mach-a' });
-    setSideB({ order: 'rev2', machine: 'mach-b' });
+    setSideA({ commit: 'rev1', machine: 'mach-a' });
+    setSideB({ commit: 'rev2', machine: 'mach-b' });
 
     swapSides();
     swapSides();
 
     const s = getState();
-    expect(s.sideA.order).toBe('rev1');
+    expect(s.sideA.commit).toBe('rev1');
     expect(s.sideA.machine).toBe('mach-a');
-    expect(s.sideB.order).toBe('rev2');
+    expect(s.sideB.commit).toBe('rev2');
     expect(s.sideB.machine).toBe('mach-b');
   });
 });
 
 describe('URL special characters round-trip', () => {
-  it('round-trips order and machine with spaces', () => {
+  it('round-trips commit and machine with spaces', () => {
     const state = makeDefaults();
-    state.sideA.order = 'rev 123';
+    state.sideA.commit = 'rev 123';
     state.sideA.machine = 'my machine';
 
     const qs = encodeToUrl(state);
     const decoded = decodeFromUrl(qs);
 
-    expect(decoded.sideA?.order).toBe('rev 123');
+    expect(decoded.sideA?.commit).toBe('rev 123');
     expect(decoded.sideA?.machine).toBe('my machine');
   });
 
   it('round-trips values with +', () => {
     const state = makeDefaults();
-    state.sideA.order = 'r+1';
+    state.sideA.commit = 'r+1';
     state.sideA.machine = 'host+name';
 
     const qs = encodeToUrl(state);
     const decoded = decodeFromUrl(qs);
 
-    expect(decoded.sideA?.order).toBe('r+1');
+    expect(decoded.sideA?.commit).toBe('r+1');
     expect(decoded.sideA?.machine).toBe('host+name');
   });
 
   it('round-trips values with &', () => {
     const state = makeDefaults();
-    state.sideA.order = 'a&b';
-    state.sideB.order = 'c&d';
+    state.sideA.commit = 'a&b';
+    state.sideB.commit = 'c&d';
 
     const qs = encodeToUrl(state);
     const decoded = decodeFromUrl(qs);
 
-    expect(decoded.sideA?.order).toBe('a&b');
-    expect(decoded.sideB?.order).toBe('c&d');
+    expect(decoded.sideA?.commit).toBe('a&b');
+    expect(decoded.sideB?.commit).toBe('c&d');
   });
 
   it('round-trips values with =', () => {
@@ -387,8 +387,8 @@ describe('URL special characters round-trip', () => {
 
   it('full round-trip with mixed special characters', () => {
     const state = makeDefaults();
-    state.sideA = { suite: '', order: 'rev 123+rc1', machine: 'host&name=prod', runs: ['uuid-1'], runAgg: 'mean' };
-    state.sideB = { suite: '', order: 'a&b=c+d e', machine: 'machine two', runs: ['uuid-2', 'uuid-3'], runAgg: 'max' };
+    state.sideA = { suite: '', commit: 'rev 123+rc1', machine: 'host&name=prod', runs: ['uuid-1'], runAgg: 'mean' };
+    state.sideB = { suite: '', commit: 'a&b=c+d e', machine: 'machine two', runs: ['uuid-2', 'uuid-3'], runAgg: 'max' };
     state.metric = 'exec_time';
     state.testFilter = 'bench+suite & more';
     state.noise = 2;

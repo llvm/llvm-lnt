@@ -94,10 +94,6 @@ export function truncate(s: string, max: number): string {
   return s.length > max ? s.slice(0, max) + '\u2026' : s;
 }
 
-/** Extract the primary (first) order field value from an order fields dict. */
-export function primaryOrderValue(fields: Record<string, string>): string {
-  return Object.values(fields)[0] || '';
-}
 
 // DOM helpers
 

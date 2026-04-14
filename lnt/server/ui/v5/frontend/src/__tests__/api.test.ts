@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { setApiBase, getFields, getOrders, getMachines, getRuns, getSamples,
-  getMachine, getMachineRuns, deleteMachine, getRun, deleteRun, getOrder, getRunsByOrder,
-  getFieldChanges, searchOrdersByTag, updateOrderTag, fetchTrends,
+import { setApiBase, getFields, getCommits, getMachines, getRuns, getSamples,
+  getMachine, getMachineRuns, deleteMachine, getRun, deleteRun, getCommit, getRunsByCommit,
+  getFieldChanges, searchCommits, updateCommit, fetchTrends,
   fetchOneCursorPage, apiUrl, ApiError, authErrorMessage,
 } from '../api';
 import type {
   CursorPaginated, FieldInfo, MachineInfo, MachineRunInfo, OffsetPaginated,
-  OrderSummary, OrderDetail, RunInfo, RunDetail, SampleInfo, FieldChangeInfo,
+  CommitSummary, CommitDetail, RunInfo, RunDetail, SampleInfo, FieldChangeInfo,
   QueryDataPoint,
 } from '../types';
 
@@ -225,10 +225,10 @@ describe('AbortSignal support', () => {
   it('passes signal to every fetch call in paginated requests', async () => {
     const controller = new AbortController();
     mockFetch
-      .mockResolvedValueOnce(mockResponse(cursorPage([{ fields: { llvm_project_revision: '100' } }], 'cursor1')))
-      .mockResolvedValueOnce(mockResponse(cursorPage([{ fields: { llvm_project_revision: '200' } }])));
+      .mockResolvedValueOnce(mockResponse(cursorPage([{ commit: '100', ordinal: 1, fields: {} }], 'cursor1')))
+      .mockResolvedValueOnce(mockResponse(cursorPage([{ commit: '200', ordinal: 2, fields: {} }])));
 
-    await getOrders('nts', controller.signal);
+    await getCommits('nts', controller.signal);
 
     expect(mockFetch.mock.calls).toHaveLength(2);
     expect(mockFetch.mock.calls[0][1].signal).toBe(controller.signal);
@@ -242,37 +242,37 @@ describe('AbortSignal support', () => {
 
 describe('cursor-based pagination', () => {
   it('fetches a single page when cursor.next is null', async () => {
-    const order: OrderSummary = { fields: { llvm_project_revision: '100' } };
-    mockFetch.mockResolvedValueOnce(mockResponse(cursorPage([order])));
+    const commit: CommitSummary = { commit: '100', ordinal: 1, fields: {} };
+    mockFetch.mockResolvedValueOnce(mockResponse(cursorPage([commit])));
 
-    const result = await getOrders('nts');
+    const result = await getCommits('nts');
 
-    expect(result).toEqual([order]);
+    expect(result).toEqual([commit]);
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
   it('fetches multiple pages and concatenates results', async () => {
-    const o1: OrderSummary = { fields: { llvm_project_revision: '100' } };
-    const o2: OrderSummary = { fields: { llvm_project_revision: '200' } };
-    const o3: OrderSummary = { fields: { llvm_project_revision: '300' } };
+    const c1: CommitSummary = { commit: '100', ordinal: 1, fields: {} };
+    const c2: CommitSummary = { commit: '200', ordinal: 2, fields: {} };
+    const c3: CommitSummary = { commit: '300', ordinal: 3, fields: {} };
 
     mockFetch
-      .mockResolvedValueOnce(mockResponse(cursorPage([o1], 'cursor-abc')))
-      .mockResolvedValueOnce(mockResponse(cursorPage([o2], 'cursor-def')))
-      .mockResolvedValueOnce(mockResponse(cursorPage([o3])));
+      .mockResolvedValueOnce(mockResponse(cursorPage([c1], 'cursor-abc')))
+      .mockResolvedValueOnce(mockResponse(cursorPage([c2], 'cursor-def')))
+      .mockResolvedValueOnce(mockResponse(cursorPage([c3])));
 
-    const result = await getOrders('nts');
+    const result = await getCommits('nts');
 
-    expect(result).toEqual([o1, o2, o3]);
+    expect(result).toEqual([c1, c2, c3]);
     expect(mockFetch).toHaveBeenCalledTimes(3);
   });
 
   it('passes cursor parameter on subsequent pages', async () => {
     mockFetch
-      .mockResolvedValueOnce(mockResponse(cursorPage([{ fields: { rev: '1' } }], 'next-page-cursor')))
-      .mockResolvedValueOnce(mockResponse(cursorPage([{ fields: { rev: '2' } }])));
+      .mockResolvedValueOnce(mockResponse(cursorPage([{ commit: '1', ordinal: 1, fields: {} }], 'next-page-cursor')))
+      .mockResolvedValueOnce(mockResponse(cursorPage([{ commit: '2', ordinal: 2, fields: {} }])));
 
-    await getOrders('nts');
+    await getCommits('nts');
 
     // First call should have no cursor
     const firstUrl = new URL(mockFetch.mock.calls[0][0]);
@@ -287,11 +287,11 @@ describe('cursor-based pagination', () => {
 
   it('calls onProgress callback with running total after each page', async () => {
     mockFetch
-      .mockResolvedValueOnce(mockResponse(cursorPage([{ fields: { rev: '1' } }, { fields: { rev: '2' } }], 'c1')))
-      .mockResolvedValueOnce(mockResponse(cursorPage([{ fields: { rev: '3' } }])));
+      .mockResolvedValueOnce(mockResponse(cursorPage([{ commit: '1', ordinal: 1, fields: {} }, { commit: '2', ordinal: 2, fields: {} }], 'c1')))
+      .mockResolvedValueOnce(mockResponse(cursorPage([{ commit: '3', ordinal: 3, fields: {} }])));
 
     const onProgress = vi.fn();
-    await getOrders('nts', undefined, onProgress);
+    await getCommits('nts', undefined, onProgress);
 
     expect(onProgress).toHaveBeenCalledTimes(2);
     expect(onProgress).toHaveBeenNthCalledWith(1, 2);
@@ -300,10 +300,10 @@ describe('cursor-based pagination', () => {
 
   it('stops paginating when error occurs mid-pagination', async () => {
     mockFetch
-      .mockResolvedValueOnce(mockResponse(cursorPage([{ fields: { rev: '1' } }], 'c1')))
+      .mockResolvedValueOnce(mockResponse(cursorPage([{ commit: '1', ordinal: 1, fields: {} }], 'c1')))
       .mockResolvedValueOnce(mockResponse('server error', 500, 'Internal Server Error'));
 
-    await expect(getOrders('nts')).rejects.toThrow('API 500');
+    await expect(getCommits('nts')).rejects.toThrow('API 500');
     expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 });
@@ -345,29 +345,29 @@ describe('getFields', () => {
 });
 
 // ===========================================================================
-// getOrders
+// getCommits
 // ===========================================================================
 
-describe('getOrders', () => {
-  it('returns all orders across multiple pages', async () => {
-    const o1: OrderSummary = { fields: { llvm_project_revision: '100' } };
-    const o2: OrderSummary = { fields: { llvm_project_revision: '200' } };
+describe('getCommits', () => {
+  it('returns all commits across multiple pages', async () => {
+    const c1: CommitSummary = { commit: '100', ordinal: 1, fields: {} };
+    const c2: CommitSummary = { commit: '200', ordinal: 2, fields: {} };
 
     mockFetch
-      .mockResolvedValueOnce(mockResponse(cursorPage([o1], 'c1')))
-      .mockResolvedValueOnce(mockResponse(cursorPage([o2])));
+      .mockResolvedValueOnce(mockResponse(cursorPage([c1], 'c1')))
+      .mockResolvedValueOnce(mockResponse(cursorPage([c2])));
 
-    const result = await getOrders('nts');
-    expect(result).toEqual([o1, o2]);
+    const result = await getCommits('nts');
+    expect(result).toEqual([c1, c2]);
   });
 
   it('constructs the correct URL with limit=500', async () => {
     mockFetch.mockResolvedValueOnce(mockResponse(cursorPage([])));
 
-    await getOrders('nts');
+    await getCommits('nts');
 
     const url = new URL(mockFetch.mock.calls[0][0]);
-    expect(url.pathname).toBe('/api/v5/nts/orders');
+    expect(url.pathname).toBe('/api/v5/nts/commits');
     expect(url.searchParams.get('limit')).toBe('500');
   });
 });
@@ -455,16 +455,16 @@ describe('getRuns', () => {
     const r1: RunInfo = {
       uuid: 'aaa-111',
       machine: 'machine-1',
-      order: { llvm_project_revision: '100' },
-      start_time: '2025-01-01T00:00:00',
-      end_time: '2025-01-01T01:00:00',
+      commit: '100',
+      submitted_at: '2025-01-01T00:00:00',
+      run_parameters: {},
     };
     const r2: RunInfo = {
       uuid: 'bbb-222',
       machine: 'machine-1',
-      order: { llvm_project_revision: '200' },
-      start_time: null,
-      end_time: null,
+      commit: '200',
+      submitted_at: null,
+      run_parameters: {},
     };
 
     mockFetch
@@ -475,24 +475,24 @@ describe('getRuns', () => {
     expect(result).toEqual([r1, r2]);
   });
 
-  it('passes machine and order as query params', async () => {
+  it('passes machine and commit as query params', async () => {
     mockFetch.mockResolvedValueOnce(mockResponse(cursorPage([])));
 
-    await getRuns('nts', { machine: 'machine-1', order: 'rev100' });
+    await getRuns('nts', { machine: 'machine-1', commit: 'rev100' });
 
     const url = new URL(mockFetch.mock.calls[0][0]);
     expect(url.searchParams.get('machine')).toBe('machine-1');
-    expect(url.searchParams.get('order')).toBe('rev100');
+    expect(url.searchParams.get('commit')).toBe('rev100');
     expect(url.searchParams.get('limit')).toBe('500');
   });
 
-  it('omits order when not provided', async () => {
+  it('omits commit when not provided', async () => {
     mockFetch.mockResolvedValueOnce(mockResponse(cursorPage([])));
 
     await getRuns('nts', { machine: 'machine-1' });
 
     const url = new URL(mockFetch.mock.calls[0][0]);
-    expect(url.searchParams.has('order')).toBe(false);
+    expect(url.searchParams.has('commit')).toBe(false);
   });
 
   it('constructs the correct URL path', async () => {
@@ -582,8 +582,8 @@ describe('URL construction', () => {
     expect(new URL(mockFetch.mock.calls[0][0]).pathname).toBe('/myapp/api/v5/test-suites/nts');
 
     mockFetch.mockResolvedValueOnce(mockResponse(cursorPage([])));
-    await getOrders('nts');
-    expect(new URL(mockFetch.mock.calls[1][0]).pathname).toBe('/myapp/api/v5/nts/orders');
+    await getCommits('nts');
+    expect(new URL(mockFetch.mock.calls[1][0]).pathname).toBe('/myapp/api/v5/nts/commits');
 
     mockFetch.mockResolvedValueOnce(mockResponse(offsetPage([], 0)));
     await getMachines('nts', {});
@@ -605,16 +605,16 @@ describe('URL construction', () => {
 
 describe('query parameter handling', () => {
   it('omits empty string params', async () => {
-    // getRuns with empty order should not include it
+    // getRuns with empty commit should not include it
     mockFetch.mockResolvedValueOnce(mockResponse(cursorPage([])));
 
-    await getRuns('nts', { machine: 'machine-1', order: '' });
+    await getRuns('nts', { machine: 'machine-1', commit: '' });
 
     const url = new URL(mockFetch.mock.calls[0][0]);
     expect(url.searchParams.get('machine')).toBe('machine-1');
-    // order is '' and should be excluded by the fetchJson params filtering
-    // (but actually getRuns conditionally adds order, so let's test via getMachines)
-    expect(url.searchParams.has('order')).toBe(false);
+    // commit is '' and should be excluded by the fetchJson params filtering
+    // (but actually getRuns conditionally adds commit, so let's test via getMachines)
+    expect(url.searchParams.has('commit')).toBe(false);
   });
 });
 
@@ -645,18 +645,18 @@ describe('getMachine', () => {
 describe('getMachineRuns', () => {
   it('fetches runs for a machine with sort and limit', async () => {
     const page = cursorPage<MachineRunInfo>(
-      [{ uuid: 'r1', order: { rev: '100' }, start_time: null, end_time: null }],
+      [{ uuid: 'r1', commit: '100', submitted_at: null }],
       'cursor-2',
     );
     mockFetch.mockResolvedValueOnce(mockResponse(page));
 
-    const result = await getMachineRuns('nts', 'clang-x86', { sort: '-start_time', limit: 10 });
+    const result = await getMachineRuns('nts', 'clang-x86', { sort: '-submitted_at', limit: 10 });
 
     expect(result.items).toHaveLength(1);
     expect(result.cursor.next).toBe('cursor-2');
     const url = new URL(mockFetch.mock.calls[0][0]);
     expect(url.pathname).toBe('/api/v5/nts/machines/clang-x86/runs');
-    expect(url.searchParams.get('sort')).toBe('-start_time');
+    expect(url.searchParams.get('sort')).toBe('-submitted_at');
     expect(url.searchParams.get('limit')).toBe('10');
   });
 
@@ -734,8 +734,8 @@ describe('ApiError and authErrorMessage', () => {
 describe('getRun', () => {
   it('fetches a single run by UUID', async () => {
     const run: RunDetail = {
-      uuid: 'abc-123', machine: 'm1', order: { rev: '100' },
-      start_time: '2025-01-01T00:00:00', end_time: null, parameters: {},
+      uuid: 'abc-123', machine: 'm1', commit: '100',
+      submitted_at: '2025-01-01T00:00:00', parameters: {},
     };
     mockFetch.mockResolvedValueOnce(mockResponse(run));
 
@@ -772,39 +772,37 @@ describe('deleteRun', () => {
   });
 });
 
-describe('getOrder', () => {
-  it('fetches order detail with prev/next and tag', async () => {
-    const order: OrderDetail = {
-      fields: { rev: '100' },
-      tag: 'release-18',
-      previous_order: { fields: { rev: '99' }, link: '/api/v5/nts/orders/99' },
-      next_order: null,
+describe('getCommit', () => {
+  it('fetches commit detail with prev/next', async () => {
+    const commit: CommitDetail = {
+      commit: '100', ordinal: 1, fields: {},
+      previous_commit: { commit: '99', ordinal: 0, link: '/api/v5/nts/commits/99' },
+      next_commit: null,
     };
-    mockFetch.mockResolvedValueOnce(mockResponse(order));
+    mockFetch.mockResolvedValueOnce(mockResponse(commit));
 
-    const result = await getOrder('nts', '100');
+    const result = await getCommit('nts', '100');
 
-    expect(result.tag).toBe('release-18');
-    expect(result.previous_order).not.toBeNull();
-    expect(result.next_order).toBeNull();
+    expect(result.previous_commit).not.toBeNull();
+    expect(result.next_commit).toBeNull();
     const url = new URL(mockFetch.mock.calls[0][0]);
-    expect(url.pathname).toBe('/api/v5/nts/orders/100');
+    expect(url.pathname).toBe('/api/v5/nts/commits/100');
   });
 });
 
-describe('getRunsByOrder', () => {
-  it('auto-paginates runs filtered by order value', async () => {
+describe('getRunsByCommit', () => {
+  it('auto-paginates runs filtered by commit value', async () => {
     const run: RunInfo = {
-      uuid: 'r1', machine: 'm1', order: { rev: '100' },
-      start_time: null, end_time: null,
+      uuid: 'r1', machine: 'm1', commit: '100',
+      submitted_at: null, run_parameters: {},
     };
     mockFetch.mockResolvedValueOnce(mockResponse(cursorPage([run])));
 
-    const result = await getRunsByOrder('nts', '100');
+    const result = await getRunsByCommit('nts', '100');
 
     expect(result).toHaveLength(1);
     const url = new URL(mockFetch.mock.calls[0][0]);
-    expect(url.searchParams.get('order')).toBe('100');
+    expect(url.searchParams.get('commit')).toBe('100');
   });
 });
 
@@ -812,8 +810,7 @@ describe('getFieldChanges', () => {
   it('fetches field changes with limit', async () => {
     const fc: FieldChangeInfo = {
       uuid: 'fc1', test: 't1', machine: 'm1', metric: 'compile_time',
-      old_value: 1.0, new_value: 2.0, start_order: '99', end_order: '100',
-      run_uuid: null,
+      old_value: 1.0, new_value: 2.0, start_commit: '99', end_commit: '100',
     };
     mockFetch.mockResolvedValueOnce(mockResponse(cursorPage([fc])));
 
@@ -826,35 +823,34 @@ describe('getFieldChanges', () => {
   });
 });
 
-describe('searchOrdersByTag', () => {
-  it('passes tag_prefix and limit params', async () => {
-    const order: OrderSummary = { fields: { rev: '100' }, tag: 'release-18' };
-    mockFetch.mockResolvedValueOnce(mockResponse(cursorPage([order])));
+describe('searchCommits', () => {
+  it('passes search and limit params', async () => {
+    const commit: CommitSummary = { commit: '100', ordinal: 1, fields: {} };
+    mockFetch.mockResolvedValueOnce(mockResponse(cursorPage([commit])));
 
-    const result = await searchOrdersByTag('nts', 'release', { limit: 10 });
+    const result = await searchCommits('nts', 'release', { limit: 10 });
 
     expect(result.items).toHaveLength(1);
-    expect(result.items[0].tag).toBe('release-18');
     const url = new URL(mockFetch.mock.calls[0][0]);
-    expect(url.pathname).toBe('/api/v5/nts/orders');
-    expect(url.searchParams.get('tag_prefix')).toBe('release');
+    expect(url.pathname).toBe('/api/v5/nts/commits');
+    expect(url.searchParams.get('search')).toBe('release');
     expect(url.searchParams.get('limit')).toBe('10');
   });
 });
 
-describe('updateOrderTag', () => {
-  it('sends PATCH with tag in JSON body', async () => {
-    const order: OrderDetail = {
-      fields: { rev: '100' }, tag: 'new-tag',
-      previous_order: null, next_order: null,
+describe('updateCommit', () => {
+  it('sends PATCH with updates in JSON body', async () => {
+    const commit: CommitDetail = {
+      commit: '100', ordinal: 1, fields: {},
+      previous_commit: null, next_commit: null,
     };
-    mockFetch.mockResolvedValueOnce(mockResponse(order));
+    mockFetch.mockResolvedValueOnce(mockResponse(commit));
 
-    const result = await updateOrderTag('nts', '100', 'new-tag');
+    const result = await updateCommit('nts', '100', { tag: 'new-tag' });
 
-    expect(result.tag).toBe('new-tag');
+    expect(result.commit).toBe('100');
     const [url, opts] = mockFetch.mock.calls[0];
-    expect(new URL(url).pathname).toBe('/api/v5/nts/orders/100');
+    expect(new URL(url).pathname).toBe('/api/v5/nts/commits/100');
     expect(opts.method).toBe('PATCH');
     expect(JSON.parse(opts.body)).toEqual({ tag: 'new-tag' });
     expect(opts.headers['Content-Type']).toBe('application/json');
@@ -863,10 +859,10 @@ describe('updateOrderTag', () => {
   it('includes auth token when set', async () => {
     storedToken = 'my-admin-token';
     mockFetch.mockResolvedValueOnce(mockResponse({
-      fields: { rev: '100' }, tag: null, previous_order: null, next_order: null,
+      commit: '100', ordinal: 1, fields: {}, previous_commit: null, next_commit: null,
     }));
 
-    await updateOrderTag('nts', '100', null);
+    await updateCommit('nts', '100', { tag: null });
 
     const [, opts] = mockFetch.mock.calls[0];
     expect(opts.headers['Authorization']).toBe('Bearer my-admin-token');
@@ -875,7 +871,7 @@ describe('updateOrderTag', () => {
   it('throws on non-ok response', async () => {
     mockFetch.mockResolvedValueOnce(mockResponse('Forbidden', 403, 'Forbidden'));
 
-    await expect(updateOrderTag('nts', '100', 'x')).rejects.toThrow('API 403');
+    await expect(updateCommit('nts', '100', { tag: 'x' })).rejects.toThrow('API 403');
   });
 });
 
@@ -897,7 +893,7 @@ describe('apiUrl', () => {
 
   it('encodes special characters in test suite name', () => {
     setApiBase('');
-    expect(apiUrl('my suite', 'orders')).toBe('/api/v5/my%20suite/orders');
+    expect(apiUrl('my suite', 'commits')).toBe('/api/v5/my%20suite/commits');
   });
 });
 
@@ -909,7 +905,7 @@ describe('fetchOneCursorPage', () => {
   it('returns items and nextCursor from a single page', async () => {
     const pt: QueryDataPoint = {
       test: 't1', machine: 'm1', metric: 'exec_time', value: 1.0,
-      order: { rev: '100' }, run_uuid: 'r1', timestamp: null,
+      commit: '100', ordinal: 1, run_uuid: 'r1', submitted_at: null,
     };
     mockFetch.mockResolvedValueOnce(mockResponse(cursorPage([pt], 'next-abc')));
 
@@ -962,7 +958,7 @@ describe('fetchTrends', () => {
   it('sends POST with JSON body containing metric and machine list', async () => {
     mockFetch.mockResolvedValueOnce(mockResponse({
       metric: 'exec_time',
-      items: [{ machine: 'm1', order: { rev: '100' }, timestamp: '2025-01-01T00:00:00Z', value: 42.0 }],
+      items: [{ machine: 'm1', commit: '100', ordinal: 1, submitted_at: '2025-01-01T00:00:00Z', value: 42.0 }],
     }));
 
     const result = await fetchTrends('nts', { metric: 'exec_time', machine: ['m1', 'm2'], afterTime: '2025-01-01T00:00:00Z' });

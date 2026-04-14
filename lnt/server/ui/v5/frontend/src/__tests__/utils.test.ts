@@ -9,7 +9,7 @@ vi.mock('../router', () => ({
 import {
   median, mean, safeMin, safeMax, getAggFn, geomean,
   formatValue, formatPercent, formatRatio, formatTime,
-  truncate, primaryOrderValue,
+  truncate,
   debounce, el, isModifiedClick, spaLink,
 } from '../utils';
 import { navigate } from '../router';
@@ -349,20 +349,6 @@ describe('truncate', () => {
 
   it('handles empty string', () => {
     expect(truncate('', 5)).toBe('');
-  });
-});
-
-describe('primaryOrderValue', () => {
-  it('returns first value from a single-field record', () => {
-    expect(primaryOrderValue({ rev: '12345' })).toBe('12345');
-  });
-
-  it('returns first value from a multi-field record', () => {
-    expect(primaryOrderValue({ rev: '123', branch: 'main' })).toBe('123');
-  });
-
-  it('returns empty string for an empty record', () => {
-    expect(primaryOrderValue({})).toBe('');
   });
 });
 
