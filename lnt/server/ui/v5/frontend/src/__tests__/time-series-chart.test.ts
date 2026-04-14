@@ -54,7 +54,7 @@ describe('buildPlotlyData', () => {
     expect(trace.customdata[0][5]).toBe('m1');              // machine
   });
 
-  it('generates reference order traces with hover', () => {
+  it('generates reference commit traces with hover', () => {
     const refValues = new Map<string, number>();
     refValues.set('test-A', 2.5);
 
@@ -487,7 +487,7 @@ describe('createTimeSeriesChart', () => {
     expect(mockRestyle.mock.calls[0][2]).toEqual([0, 1]);
   });
 
-  it('hoverTrace() dims reference-order traces along with non-hovered main traces', async () => {
+  it('hoverTrace() dims reference-commit traces along with non-hovered main traces', async () => {
     const container = document.createElement('div');
     const refValues = new Map<string, number>();
     refValues.set('test-A', 5.0);
@@ -531,7 +531,7 @@ describe('createTimeSeriesChart', () => {
         { testName: 'test-A', machine: 'm1', color: '#1f77b4', points: [{ commit: '100', value: 2.0, runCount: 3, submitted_at: null }] },
       ],
       yAxisLabel: 'metric',
-      getRawValues: (_test, _machine, _order) => [1.0, 2.0, 3.0],
+      getRawValues: (_test, _machine, _commit) => [1.0, 2.0, 3.0],
     });
 
     await new Promise(r => setTimeout(r, 0));

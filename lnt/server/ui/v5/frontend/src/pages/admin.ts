@@ -324,7 +324,7 @@ function renderCreateSuiteTab(
 
   const jsonArea = el('textarea', {
     class: 'admin-textarea',
-    placeholder: '{\n  "format_version": "2",\n  "name": "my_suite",\n  "metrics": [\n    {"name": "exec_time", "type": "Real", "bigger_is_better": false}\n  ],\n  "run_fields": [\n    {"name": "revision", "order": true}\n  ],\n  "machine_fields": [\n    {"name": "hostname"}\n  ]\n}',
+    placeholder: '{\n  "format_version": "5",\n  "name": "my_suite",\n  "metrics": [\n    {"name": "exec_time", "type": "Real", "bigger_is_better": false}\n  ],\n  "commit_fields": [\n    {"name": "revision"}\n  ],\n  "machine_fields": [\n    {"name": "hostname"}\n  ]\n}',
   }) as HTMLTextAreaElement;
   jsonArea.rows = 10;
 
@@ -348,7 +348,7 @@ function renderCreateSuiteTab(
 
     // Ensure name in payload matches the name input
     payload['name'] = name;
-    if (!payload['format_version']) payload['format_version'] = '2';
+    if (!payload['format_version']) payload['format_version'] = '5';
 
     createBtn.setAttribute('disabled', '');
     feedback.replaceChildren(el('span', { class: 'progress-label' }, 'Creating...'));
@@ -401,7 +401,7 @@ function renderDeleteSuite(
 
   confirmPanel.append(el('p', { class: 'admin-delete-warning' },
     `Deleting test suite '${suiteName}' will permanently destroy all machines, runs, ` +
-    'orders, samples, regressions, and field changes associated with it. ' +
+    'commits, samples, regressions, and field changes associated with it. ' +
     'This cannot be undone.',
   ));
 
@@ -507,7 +507,7 @@ function renderSchemaContent(container: HTMLElement, info: TestSuiteInfo): void 
 
   // Other schema sections
   for (const [label, fields] of [
-    ['Order Fields', info.schema.order_fields],
+    ['Commit Fields', info.schema.commit_fields],
     ['Machine Fields', info.schema.machine_fields],
     ['Run Fields', info.schema.run_fields],
   ] as const) {

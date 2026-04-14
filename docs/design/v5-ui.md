@@ -67,7 +67,7 @@ The shell template (`v5_app.html`) is a standalone HTML page (it does NOT extend
 /v5/{ts}/                              Suite root (redirects to /v5/test-suites?suite={ts})
 /v5/{ts}/machines/{name}               Machine Detail
 /v5/{ts}/runs/{uuid}                   Run Detail
-/v5/{ts}/orders/{value}                Order Detail
+/v5/{ts}/commits/{value}               Commit Detail
 /v5/{ts}/regressions?state=...         Regression List
 /v5/{ts}/regressions/{uuid}            Regression Detail
 /v5/{ts}/field-changes                 Field Change Triage
@@ -105,7 +105,7 @@ Suite-agnostic landing page providing an at-a-glance visual overview of performa
 **Sparkline cards**:
 - Each card shows a small time-series chart (~300×160px) with the metric name (and unit, if available) as the card title.
 - Up to 5 traces per chart, one per most-recently-active machine (determined from recent runs sorted by start_time). Each trace is a colored line.
-- X-axis: run timestamps. Y-axis: geometric mean of all test values at each order for that machine+metric combination.
+- X-axis: run timestamps. Y-axis: geometric mean of all test values at each commit for that machine+metric combination.
 - Hover tooltip shows the value and machine name.
 - Clicking a sparkline navigates to the Graph page pre-populated with that suite, metric, and the displayed machines. Clicking directly on a specific trace navigates with just that machine.
 - Loading state: placeholder skeleton while data is being fetched.
@@ -116,7 +116,7 @@ Suite-agnostic landing page providing an at-a-glance visual overview of performa
 **Data flow**:
 1. Suite names from `getTestsuites()` (embedded in HTML shell, no API call).
 2. Per suite: `getTestSuiteInfo()` for the metrics schema, `getRunsPage(sort=-start_time, limit=50)` to find the 5 most recently active machines.
-3. Per suite×metric: `fetchTrends()` calls `POST /api/v5/{ts}/trends` with the metric, machine list, and `after_time` filter. The server groups all samples by (machine, order) and returns the geomean per group. The frontend groups the response by machine into `SparklineTrace[]`.
+3. Per suite×metric: `fetchTrends()` calls `POST /api/v5/{ts}/trends` with the metric, machine list, and `after_time` filter. The server groups all samples by (machine, commit) and returns the geomean per group. The frontend groups the response by machine into `SparklineTrace[]`.
 4. Sparklines render progressively as each metric's data arrives.
 
 **Geomean**: `exp(mean(ln(values)))`, skipping zero/negative values. Computed server-side in the trends endpoint. Shared utility in `utils.ts` also used by the Compare page.
@@ -127,7 +127,7 @@ The primary entry point for browsing test suite data. Suite-agnostic page with a
 
 **Suite picker**: A row of prominent card/button elements, one per test suite (from `data-testsuites`). Clicking a card selects it (highlighted) and shows the tab bar below. When no suite is selected, only the suite picker is visible.
 
-**Tabs**: [Recent Activity] [Machines] [Runs] [Orders]. Default tab is Recent Activity.
+**Tabs**: [Recent Activity] [Machines] [Runs] [Commits]. Default tab is Recent Activity.
 
 **URL state**: `?suite={ts}&tab=machines&search=foo&offset=0` — all state is in query params. On mount, reads params to restore state. On changes, updates URL via `replaceState`.
 
@@ -136,19 +136,19 @@ The primary entry point for browsing test suite data. Suite-agnostic page with a
 | Recent Activity | Last 25 runs sorted by time; "Load more" for next page | `GET runs?sort=-start_time&limit=25` | None |
 | Machines | Searchable machine list with offset pagination | `GET machines?name_contains=...&limit=25&offset=...` | Name substring |
 | Runs | Run list with cursor pagination | `GET runs?machine=...&sort=-start_time&limit=25` | Machine name (exact) |
-| Orders | Order list with cursor pagination | `GET orders?tag_prefix=...&limit=25` | Tag prefix |
+| Commits | Commit list with cursor pagination | `GET commits?tag_prefix=...&limit=25` | Tag prefix |
 
 **Columns per tab:**
-- **Recent Activity**: Machine, Order (primary value), Start Time, UUID (truncated, linked)
+- **Recent Activity**: Machine, Commit (primary value), Start Time, UUID (truncated, linked)
 - **Machines**: Name (linked), Info (key-value summary)
-- **Runs**: UUID (truncated, linked), Machine, Order (primary value), Start Time
-- **Orders**: Order Value (primary field, linked), Tag
+- **Runs**: UUID (truncated, linked), Machine, Commit (primary value), Start Time
+- **Commits**: Commit Value (primary field, linked), Tag
 
 **Detail navigation**: Clicking an item navigates to the full suite-scoped detail page (e.g., `/v5/{ts}/machines/{name}`) via full page navigation. This crosses from suite-agnostic context to suite-scoped context.
 
 **Suite root redirect**: `/v5/{ts}/` redirects to `/v5/test-suites?suite={ts}`.
 
-**Links out**: Machine Detail, Run Detail, Order Detail.
+**Links out**: Machine Detail, Run Detail, Commit Detail.
 
 ### 3. Machine Detail — `/v5/{ts}/machines/{name}`
 
@@ -162,7 +162,7 @@ Deep dive into a single machine. Machine names are guaranteed unique.
 
 The delete section appears at the bottom. Clicking "Delete Machine" shows a confirmation prompt requiring the user to type the machine name. Deletion requires a valid API token with `manage` scope (set via the Settings panel in the nav bar). On success, navigates to the machine list. On auth failure (401/403), shows an error message reminding the user to set an API token with sufficient permissions. While the delete is in progress, a message reassures the user that deletion may take a while for machines with many runs.
 
-**Links out**: Run Detail, Order Detail, Graph (with machine pre-filled), Compare (with machine pre-selected).
+**Links out**: Run Detail, Commit Detail, Graph (with machine pre-filled), Compare (with machine pre-selected).
 
 ### 4. Run Detail — `/v5/{ts}/runs/{uuid}`
 
@@ -170,7 +170,7 @@ All data from a single test execution.
 
 | Section | Shows | API Calls |
 |---------|-------|-----------|
-| Metadata | Machine, order, start/end time, parameters | `GET runs/{uuid}` |
+| Metadata | Machine, commit, start/end time, parameters | `GET runs/{uuid}` |
 | Metric Selector | Drop-down to choose which metric to display (like Compare page) | `GET test-suites/{ts}` (fields from `schema.metrics`) |
 | Test Filter | Text input for substring matching on test names | (client-side) |
 | Samples Table | All samples + selected metric value, sorted by test name by default | `GET runs/{uuid}/samples` |
@@ -180,23 +180,23 @@ The metric selector drop-down controls which metric column is shown in the sampl
 
 Samples are loaded progressively — the table renders immediately with the first page and grows as more pages arrive, with a progress indicator showing the count. Multiple samples for the same test (repetitions) appear as separate rows.
 
-A "Compare with..." button navigates to the Compare page with this run's machine and order pre-selected on side A, leaving side B open for the user to fill in.
+A "Compare with..." button navigates to the Compare page with this run's machine and commit pre-selected on side A, leaving side B open for the user to fill in.
 
 The delete section appears at the bottom. Clicking "Delete Run" shows a confirmation prompt requiring the user to type the first 8 characters of the run UUID. Deletion requires a valid API token with `manage` scope. On success, navigates to the machine detail page.
 
-**Links out**: Machine Detail, Order Detail, Graph (test pre-filled), Profile, Compare (side A pre-selected).
+**Links out**: Machine Detail, Commit Detail, Graph (test pre-filled), Profile, Compare (side A pre-selected).
 
-### 5. Order Detail — `/v5/{ts}/orders/{value}`
+### 5. Commit Detail — `/v5/{ts}/commits/{value}`
 
 The "what happened at this commit?" page. Key investigation page for developers.
 
-- Order field values displayed prominently
-- **Tag display + editing**: Show the order's tag (if set) prominently next to the order field values (e.g., "Tag: release-18.1"). An inline edit button allows setting or clearing the tag. Editing requires an API token with `manage` scope (from Settings); show an auth error if the token is missing or insufficient.
-- **Navigation**: Prev/Next buttons (using the API's `previous_order`/`next_order` from the order detail response)
+- Commit field values displayed prominently
+- **Tag display + editing**: Show the commit's tag (if set) prominently next to the commit field values (e.g., "Tag: release-18.1"). An inline edit button allows setting or clearing the tag. Editing requires an API token with `manage` scope (from Settings); show an auth error if the token is missing or insufficient.
+- **Navigation**: Prev/Next buttons (using the API's `previous_commit`/`next_commit` from the commit detail response)
 - **Summary**: N runs across M machines
 - **Machine filter**: Text input for substring matching on machine names, filters the runs table. The summary updates to reflect filtered counts (e.g., "5 of 12 runs across 2 of 8 machines").
 - **Runs table**: Columns: machine (link to Machine Detail), run UUID (link to Run Detail), start time
-- API: `GET orders/{value}`, `PATCH orders/{value}` (tag editing), `GET runs?order={value}`
+- API: `GET commits/{value}`, `PATCH commits/{value}` (tag editing), `GET runs?commit={value}`
 - **Links out**: Run Detail, Machine Detail
 
 ### 6. Graph (Time Series) — `/v5/graph?suite={ts}&machine={m}&metric={f}`
@@ -206,44 +206,44 @@ The primary performance-over-time visualization. Replaces v4's graph page. This 
 - **Suite selector**: A required dropdown at the top of the page, populated from the `data-testsuites` HTML attribute. All other controls (machine, metric, test filter, aggregation, baselines) are disabled until a suite is selected. Changing the suite clears the machine list, all caches, and the chart. When the page is loaded with `suite=` in the URL, the dropdown is pre-selected.
 
 - **Machine chip input**: The machine selector is a chip-based multi-select input. The user types a machine name (with typeahead suggestions) and presses Enter to add it. Each added machine appears as a chip with an × button to remove it. Multiple machines can be added to overlay their data on the same chart. Removing the last machine clears the chart. The metric selector is shared across all machines — the same metric is plotted for every machine. The full machine list is fetched once when the combobox is created and filtered locally by case-insensitive substring as the user types (instant, no per-keystroke API calls). A "Loading machines..." hint is shown until the initial fetch completes.
-- **Input validation**: Machine and order comboboxes show a red halo (`.combobox-invalid` — red border + box-shadow) whenever the suggestion dropdown is empty, meaning no machine or order matches the typed text. Acceptance (Enter key, blur/change) is blocked while the halo is showing. The halo updates in real-time on every keystroke. Clicking a dropdown suggestion always clears the halo and accepts the value. For order comboboxes, acceptance via Enter or blur additionally requires an exact match against available order values — a partial substring match (e.g. typing "789" when the order is "566789") is rejected with the red halo even though suggestions are visible. All comboboxes support ArrowDown/ArrowUp keyboard navigation through suggestions, with Enter to select the focused item.
+- **Input validation**: Machine and commit comboboxes show a red halo (`.combobox-invalid` — red border + box-shadow) whenever the suggestion dropdown is empty, meaning no machine or commit matches the typed text. Acceptance (Enter key, blur/change) is blocked while the halo is showing. The halo updates in real-time on every keystroke. Clicking a dropdown suggestion always clears the halo and accepts the value. For commit comboboxes, acceptance via Enter or blur additionally requires an exact match against available commit values — a partial substring match (e.g. typing "789" when the commit is "566789") is rejected with the red halo even though suggestions are visible. All comboboxes support ArrowDown/ArrowUp keyboard navigation through suggestions, with Enter to select the focused item.
 - **Explicit test selection**: There is no "Plot" button or auto-plot. When at least one machine and a metric are selected, the test table is populated with ALL matching tests (no cap). **Nothing is plotted by default** — the chart starts empty with the x-axis scaffold. The user explicitly selects which tests to plot by clicking rows in the test table. Data is fetched on-demand when tests are selected. The metric selector initially shows a "-- Select metric --" placeholder (no metric pre-selected), consistent with the Compare page.
 - **Multi-machine trace naming and symbols**: Each trace is named `{test name} - {machine name}` (test name first for natural sorting). Machines are visually distinguished by marker symbols: the first machine uses circles (default), the second triangles, then squares, diamonds, etc. Colors represent test identity, assigned by the test's position in the alphabetically sorted full test list (not just the selected subset). This ensures stable colors — adding or removing a selection does not shuffle existing colors. The same test on different machines shares the same color but has a different marker shape.
 - **Test filter**: A text filter (like the Compare page) that controls which tests appear in the test table. The filter matches on **test name only** (not machine name) via case-insensitive substring. Changing the filter prunes selected tests that no longer match — their traces are removed from the chart. Clearing the filter restores the full test list (previously selected tests remain selected if they match).
-- **X-axis is always order** (not date — orders are not necessarily correlated to dates)
-- Plotly line chart: metric value vs order, one trace per matching test
+- **X-axis is always commit** (not date — commits are not necessarily correlated to dates)
+- Plotly line chart: metric value vs commit, one trace per matching test
 - **Aggregation controls** (consistent with Compare page):
-  - Run aggregation: how to combine multiple runs at the same order (median/mean/min/max)
+  - Run aggregation: how to combine multiple runs at the same commit (median/mean/min/max)
   - Sample aggregation: how to combine multiple samples within a run (median/mean/min/max)
 - **Lazy loading with progressive rendering**: Data is fetched on-demand when tests are selected (not eagerly on discovery). For each selected test, data is fetched via `POST /query` with OR'd test names and rendered incrementally. When shift-clicking to select a range, the batch of tests is fetched in a single query. The chart progressively fills in data as pages arrive via cursor-based pagination. This avoids blocking the UI on large datasets.
-- **X-axis scaffolding**: To prevent the x-axis from resizing/shifting as lazy-loaded pages arrive, the graph page pre-fetches the complete list of order values for each selected machine via paginated calls to the `GET machines/{name}/runs` endpoint (using `fetchOneCursorPage` with `sort=order`). When multiple machines are selected, the scaffold is the **union** of all machines' order values, so the x-axis spans the full range across all machines. Traces naturally have gaps where their machine has no data at a given order. Each machine's scaffold is fetched and cached independently; the union is recomputed when machines are added or removed. If a scaffold fetch fails for one machine, that machine's orders are simply not included in the union — the chart still works.
+- **X-axis scaffolding**: To prevent the x-axis from resizing/shifting as lazy-loaded pages arrive, the graph page pre-fetches the complete list of commit values for each selected machine via paginated calls to the `GET machines/{name}/runs` endpoint (using `fetchOneCursorPage` with `sort=commit`). When multiple machines are selected, the scaffold is the **union** of all machines' commit values, so the x-axis spans the full range across all machines. Traces naturally have gaps where their machine has no data at a given commit. Each machine's scaffold is fetched and cached independently; the union is recomputed when machines are added or removed. If a scaffold fetch fails for one machine, that machine's commits are simply not included in the union — the chart still works.
 - **Incremental chart updates**: The chart component exposes a `ChartHandle` API (via `createTimeSeriesChart`) that supports incremental updates through `Plotly.react()` — the chart is updated in-place as new pages of data arrive, rather than being destroyed and re-created.
 - **Zoom preservation during progressive loading**: If the user zooms into the chart while data is still loading, the zoom is preserved across incremental updates. The x-axis range is always preserved (it was established by the scaffold or by user zoom). The y-axis range is preserved only when the user has explicitly zoomed; otherwise, it auto-ranges to accommodate new data as it arrives. Double-clicking the chart resets the zoom to the full range as usual.
 - **Test selection table**: Below the chart, a table lists ALL tests matching the current filter, sorted alphabetically by test name. One row per test name (not per test×machine combination — selecting a test plots it on all active machines). The table is part of the normal page flow (no scrollable container). A message line above the rows shows counts (e.g., "3 of 1200 tests selected" or "3 of 1200 tests selected, loading..."). Each row has: a checkbox cell (checked = selected/plotted), a symbol cell (colored marker character ●/▲/■ only when selected, empty otherwise), and the test name. The test filter narrows the table; tests that no longer match are pruned from the selection.
 - **Selection interactions**: A header "check all" checkbox in the table header selects or deselects all visible tests (tri-state: unchecked, indeterminate when some selected, checked when all selected). Clicking a row toggles its selection (and triggers data fetch if selecting). Shift-clicking selects a contiguous range from the last-clicked row (additive — adds to existing selection). Double-clicking isolates that test (deselects all others); double-clicking the sole selected test restores all (selects every visible test). Selected tests with data still loading show a loading indicator. Plotly's built-in legend is disabled; the table replaces it. Bidirectional hover highlighting: hovering a table row highlights the corresponding chart trace(s); hovering a chart trace highlights the table row. Selected tests are NOT persisted in the URL (test names can be very long); the filter, suite, machine, metric, aggregation, and baselines remain in the URL.
 - **Client-side caching and state persistence**: Test names, data points, scaffolds, and baseline data are cached locally. Test names are fetched once per machine/metric combination (all names, no server-side filter) and filtered client-side. Changing the test filter or aggregation mode re-renders instantly from cache without any additional API calls. Adding a second machine starts its own fetch pipeline while the first machine's data is already displayed. The cache, the selected test set, and the matching test list are all preserved across page unmount/remount, so navigating away and pressing browser back renders the previous selection and chart instantly from cache. All caches and selections are cleared on suite change.
-- **Baselines**: Users can overlay one or more baselines as horizontal dashed lines on the chart. Each baseline is a (suite, machine, order) tuple, allowing cross-suite comparisons. The selector is an expandable panel with cascading dropdowns: Suite (populated from `data-testsuites`) → Machine (populated from the selected suite's machines endpoint) → Order (populated from the selected machine's orders). Added baselines appear as removable chips labeled `{suite}/{machine}/{order} ({tag})`. Baseline data is fetched from the baseline's suite via `POST /api/v5/{suite}/query` with `{machine, metric, order, test}` in the JSON body. Each baseline renders as a horizontal dashed line per test trace, spanning the full chart width, colored to match the corresponding test's main trace. The baseline's Y value for each test is computed using the same run aggregation function as the main trace (e.g., median of all runs at that order), so the dashed line aligns exactly with the trace point at that order. Hovering a dashed line shows a tooltip with: the baseline suite, machine, order value, tag (if set), test name, and metric value. Baselines are encoded in the URL query string for shareability (e.g., `&baseline=nts::machine1::abc123&baseline=other_suite::machine2::def456`). Baseline data is fetched asynchronously after the first render, so it does not block initial chart display.
+- **Baselines**: Users can overlay one or more baselines as horizontal dashed lines on the chart. Each baseline is a (suite, machine, commit) tuple, allowing cross-suite comparisons. The selector is an expandable panel with cascading dropdowns: Suite (populated from `data-testsuites`) → Machine (populated from the selected suite's machines endpoint) → Commit (populated from the selected machine's commits). Added baselines appear as removable chips labeled `{suite}/{machine}/{commit} ({tag})`. Baseline data is fetched from the baseline's suite via `POST /api/v5/{suite}/query` with `{machine, metric, commit, test}` in the JSON body. Each baseline renders as a horizontal dashed line per test trace, spanning the full chart width, colored to match the corresponding test's main trace. The baseline's Y value for each test is computed using the same run aggregation function as the main trace (e.g., median of all runs at that commit), so the dashed line aligns exactly with the trace point at that commit. Hovering a dashed line shows a tooltip with: the baseline suite, machine, commit value, tag (if set), test name, and metric value. Baselines are encoded in the URL query string for shareability (e.g., `&baseline=nts::machine1::abc123&baseline=other_suite::machine2::def456`). Baseline data is fetched asynchronously after the first render, so it does not block initial chart display.
 - **Concurrent background fetches**: Each machine×metric fetch uses its own AbortController, so navigating away or removing a machine cancels its in-flight requests cleanly without affecting other machines' fetches.
-- **Hover** a data point: tooltip showing test name, machine name, order value, aggregated metric value, run count. Hover distance is reduced (`hoverdistance: 5`, less sticky tooltips) so the tooltip only appears when the cursor is close to a data point. When hovering over an aggregated point that represents multiple runs, the individual pre-aggregation values are shown as a scatter of markers at the same x-position, in the same trace color but faded (opacity 0.3). This scatter is computed lazily via a callback and displayed as a temporary Plotly trace that is added on hover and removed on unhover.
-- **"No data to plot" annotation**: When no traces match the current filter/settings, the chart displays a Plotly annotation overlay ("No data to plot") centered on the chart area, preserving the x-axis scaffold so the user can see the order range.
-- API: `POST query` with JSON body `{machine, metric, test, sort, limit, cursor}` (one fetch pipeline per machine, targeted to discovered tests via multi-value `test`), `GET tests?machine=...&metric=...&name_contains=...` (test name discovery), `GET machines/{name}/runs?sort=order` (x-axis scaffold, per machine), `GET orders` (tags for baseline suggestions), `GET machines` (machine combobox), `GET test-suites/{ts}` (fields/metrics)
-- **URL state**: `?suite={ts}&machine={name}&machine={name2}&metric={name}&test_filter={text}&run_agg={fn}&sample_agg={fn}&baseline={suite}::{machine}::{order}&baseline={suite2}::{machine2}::{order2}` — the `machine` parameter is repeated for each selected machine; the `baseline` parameter is repeated for each baseline. Selected tests are NOT included in the URL (names can be very long); they are ephemeral page state preserved across SPA navigation but lost on page reload.
+- **Hover** a data point: tooltip showing test name, machine name, commit value, aggregated metric value, run count. Hover distance is reduced (`hoverdistance: 5`, less sticky tooltips) so the tooltip only appears when the cursor is close to a data point. When hovering over an aggregated point that represents multiple runs, the individual pre-aggregation values are shown as a scatter of markers at the same x-position, in the same trace color but faded (opacity 0.3). This scatter is computed lazily via a callback and displayed as a temporary Plotly trace that is added on hover and removed on unhover.
+- **"No data to plot" annotation**: When no traces match the current filter/settings, the chart displays a Plotly annotation overlay ("No data to plot") centered on the chart area, preserving the x-axis scaffold so the user can see the commit range.
+- API: `POST query` with JSON body `{machine, metric, test, sort, limit, cursor}` (one fetch pipeline per machine, targeted to discovered tests via multi-value `test`), `GET tests?machine=...&metric=...&name_contains=...` (test name discovery), `GET machines/{name}/runs?sort=commit` (x-axis scaffold, per machine), `GET commits` (tags for baseline suggestions), `GET machines` (machine combobox), `GET test-suites/{ts}` (fields/metrics)
+- **URL state**: `?suite={ts}&machine={name}&machine={name2}&metric={name}&test_filter={text}&run_agg={fn}&sample_agg={fn}&baseline={suite}::{machine}::{commit}&baseline={suite2}::{machine2}::{commit2}` — the `machine` parameter is repeated for each selected machine; the `baseline` parameter is repeated for each baseline. Selected tests are NOT included in the URL (names can be very long); they are ephemeral page state preserved across SPA navigation but lost on page reload.
 - **Links out**: Compare
 
 ### 7. Compare — `/v5/compare?suite_a={ts}&...`
 
-Side-by-side comparison of two orders (or runs). The existing code in `comparison.ts`, `selection.ts`, `table.ts`, `chart.ts` becomes a page module. The SPA router delegates to it. This page is suite-agnostic — each side can independently select its suite.
+Side-by-side comparison of two commits (or runs). The existing code in `comparison.ts`, `selection.ts`, `table.ts`, `chart.ts` becomes a page module. The SPA router delegates to it. This page is suite-agnostic — each side can independently select its suite.
 
 #### Selection Panel
 
 Each side (A and B) has independent controls:
-- **Suite**: dropdown selector populated from `data-testsuites`. Changing the suite clears the machine, order, and runs for that side and re-populates the machine combobox from the new suite's machines endpoint. Clearing the suite also clears cached fields and orders for that side so stale metrics don't linger.
-- **Order**: combobox (searchable dropdown) over order values (primary order field only; multi-field orders use only the primary field). Displays tags alongside values (e.g., "abc123 (release-18)") and filters suggestions to only show orders where the selected machine has runs. The text filter matches against both the order value and the tag. When a machine is pre-selected from URL state, its orders are fetched on creation so the dropdown is correctly filtered from the start. **Disabled until a machine is selected** — shows "Select a machine first" placeholder. Re-disabled if the machine is cleared. Clearing the order also clears the runs for that side.
-- **Machine**: combobox over machine names. The full machine list for the selected suite is fetched once and filtered locally by case-insensitive substring as the user types (instant, no per-keystroke API calls). **Disabled until a suite is selected** — shows "Select a suite first" placeholder. Clearing the machine text and blurring resets downstream state (order, runs) and disables the order input.
-- **Runs**: checkbox list of runs for the selected order+machine, populated by `GET /api/v5/{ts}/runs?machine=M&order=O`. Empty list shown when no runs exist. All runs are selected by default. The only exception is URL state restoration: if the shared URL specifies a subset of runs, that selection is restored. Each run shows its timestamp and a short UUID linking to the Run Detail page. Before an order is selected, a hint message ("Select an order first") is shown instead.
+- **Suite**: dropdown selector populated from `data-testsuites`. Changing the suite clears the machine, commit, and runs for that side and re-populates the machine combobox from the new suite's machines endpoint. Clearing the suite also clears cached fields and commits for that side so stale metrics don't linger.
+- **Commit**: combobox (searchable dropdown) over commit values (primary commit field only; multi-field commits use only the primary field). Displays tags alongside values (e.g., "abc123 (release-18)") and filters suggestions to only show commits where the selected machine has runs. The text filter matches against both the commit value and the tag. When a machine is pre-selected from URL state, its commits are fetched on creation so the dropdown is correctly filtered from the start. **Disabled until a machine is selected** — shows "Select a machine first" placeholder. Re-disabled if the machine is cleared. Clearing the commit also clears the runs for that side.
+- **Machine**: combobox over machine names. The full machine list for the selected suite is fetched once and filtered locally by case-insensitive substring as the user types (instant, no per-keystroke API calls). **Disabled until a suite is selected** — shows "Select a suite first" placeholder. Clearing the machine text and blurring resets downstream state (commit, runs) and disables the commit input.
+- **Runs**: checkbox list of runs for the selected commit+machine, populated by `GET /api/v5/{ts}/runs?machine=M&commit=O`. Empty list shown when no runs exist. All runs are selected by default. The only exception is URL state restoration: if the shared URL specifies a subset of runs, that selection is restored. Each run shows its timestamp and a short UUID linking to the Run Detail page. Before a commit is selected, a hint message ("Select a commit first") is shown instead.
 - **Run aggregation**: strategy for aggregating across selected runs (median/mean/min/max); grayed out when only one run selected
 
-A **Swap sides** button (circular, showing ⇄) sits between the two sides. Clicking it exchanges all of side A's state (order, machine, runs, run aggregation) with side B's, updates the URL, re-renders the selection panel, and triggers auto-compare. This is useful for quickly reversing the baseline/new direction.
+A **Swap sides** button (circular, showing ⇄) sits between the two sides. Clicking it exchanges all of side A's state (commit, machine, runs, run aggregation) with side B's, updates the URL, re-renders the selection panel, and triggers auto-compare. This is useful for quickly reversing the baseline/new direction.
 
 Global controls (shared across both sides):
 - **Metric**: single-select dropdown; one metric at a time, applies to both table and chart. Shows the **union** of metrics from both sides' suites. Only metrics with `type === 'Real'` are shown (filtered client-side). Before any suite is selected, the metric area shows a "Select a suite to load metrics..." hint instead of an empty dropdown.
@@ -252,7 +252,7 @@ Global controls (shared across both sides):
 - **Test filter**: text input for substring matching on test names, applied to both table and chart
 - **Hide noise**: checkbox that hides noise-status rows from the table and chart
 
-There is no Compare button. The comparison triggers automatically whenever the state becomes valid (both sides have runs and a metric is selected), like the Graph page's auto-plot. Changing the machine, order, metric, or aggregation settings re-triggers the comparison. Previous in-flight fetches are aborted.
+There is no Compare button. The comparison triggers automatically whenever the state becomes valid (both sides have runs and a metric is selected), like the Graph page's auto-plot. Changing the machine, commit, metric, or aggregation settings re-triggers the comparison. Previous in-flight fetches are aborted.
 
 #### Comparison Table
 
@@ -301,21 +301,21 @@ The chart and table always represent the same dataset:
 
 #### Data Flow
 
-1. Page loads: fetch metric metadata via `GET test-suites/{ts}` (fields from `schema.metrics`) and all orders via `GET orders` (cursor-paginated) to populate the order comboboxes.
-2. User selects order and machine on each side. On each change, fetch `GET runs?machine=M&order=O` to populate the runs checkbox list. If no runs exist, show an empty list.
+1. Page loads: fetch metric metadata via `GET test-suites/{ts}` (fields from `schema.metrics`) and all commits via `GET commits` (cursor-paginated) to populate the commit comboboxes.
+2. User selects commit and machine on each side. On each change, fetch `GET runs?machine=M&commit=O` to populate the runs checkbox list. If no runs exist, show an empty list.
 3. Once both sides have runs and a metric is selected, comparison triggers automatically. Fetch sample data for each selected run via `GET runs/{uuid}/samples` (cursor-paginated with `limit=500`). Show a progress indicator during fetch.
 4. Client-side: aggregate samples (within-run via sample aggregation), aggregate across runs (via run aggregation), join on test name, compute derived columns (delta, ratio, status).
 5. Render table and chart.
 6. Subsequent filter/sort/zoom operations are client-side (data already loaded).
 7. If the user changes selections while data is loading, abort the in-flight requests before starting new ones.
 
-**Per-run sample caching**: Fetched samples are cached per run UUID. Changing the metric, aggregation function, noise threshold, or run selection re-aggregates and re-compares from cache without any API calls. Only selecting a new order or machine (which produces different run UUIDs) triggers new fetches, and only for runs not already in the cache.
+**Per-run sample caching**: Fetched samples are cached per run UUID. Changing the metric, aggregation function, noise threshold, or run selection re-aggregates and re-compares from cache without any API calls. Only selecting a new commit or machine (which produces different run UUIDs) triggers new fetches, and only for runs not already in the cache.
 
 #### URL State
 
 All selection state is encoded as query parameters for shareability:
-- `suite_a`, `order_a`, `machine_a`, `runs_a` (comma-separated UUIDs), `run_agg_a`
-- `suite_b`, `order_b`, `machine_b`, `runs_b`, `run_agg_b`
+- `suite_a`, `commit_a`, `machine_a`, `runs_a` (comma-separated UUIDs), `run_agg_a`
+- `suite_b`, `commit_b`, `machine_b`, `runs_b`, `run_agg_b`
 - `metric`, `sample_agg`, `noise`
 - Filter/sort state as applicable
 
@@ -323,7 +323,7 @@ Auth token is stored in `localStorage`, not in URL state (to avoid leaking crede
 
 #### Known Limitations
 
-- Only single-field orders are supported for the order combobox. Multi-field orders use only the primary field.
+- Only single-field commits are supported for the commit combobox. Multi-field commits use only the primary field.
 
 **Links out**: Machine Detail, Run Detail, Graph (with machine pre-filled).
 
@@ -350,8 +350,8 @@ Not test-suite specific. Served at `/v5/admin` (outside the `{ts}` namespace) wi
 | Create Suite | Name input + JSON schema definition textarea | `POST test-suites` |
 
 **Test Suites tab details**:
-- **Suite selector**: Dropdown to switch between test suites. Selecting a suite loads and displays its schema (metrics, order fields, machine fields, run fields).
-- **Delete suite**: A delete button per suite. Clicking it shows an inline confirmation panel explaining that deleting a suite permanently destroys all machines, runs, orders, samples, regressions, and field changes, and is irreversible. The user must type the exact suite name to confirm. Calls `DELETE /api/v5/test-suites/{name}?confirm=true`. Requires `manage` scope.
+- **Suite selector**: Dropdown to switch between test suites. Selecting a suite loads and displays its schema (metrics, commit fields, machine fields, run fields).
+- **Delete suite**: A delete button per suite. Clicking it shows an inline confirmation panel explaining that deleting a suite permanently destroys all machines, runs, commits, samples, regressions, and field changes, and is irreversible. The user must type the exact suite name to confirm. Calls `DELETE /api/v5/test-suites/{name}?confirm=true`. Requires `manage` scope.
 
 **Create Suite tab**:
 - A name input and a JSON textarea where the user pastes the full suite definition (format_version, name, metrics, run_fields, machine_fields). The JSON format matches the `POST /api/v5/test-suites` API. On success, switches to the Schemas tab with the new suite auto-selected. Requires a token with `manage` scope.
@@ -391,7 +391,7 @@ lnt/server/ui/v5/frontend/src/
 │   ├── test-suites.ts         Suite-agnostic test suites page (picker + tabs)
 │   ├── machine-detail.ts
 │   ├── run-detail.ts
-│   ├── order-detail.ts
+│   ├── commit-detail.ts
 │   ├── graph.ts
 │   ├── compare.ts             Compare page module (auto-compare, caching, row toggling)
 │   ├── regression-list.ts
@@ -405,7 +405,7 @@ lnt/server/ui/v5/frontend/src/
     ├── time-series-chart.ts   Plotly time-series chart component
     ├── machine-combobox.ts    Standalone machine typeahead selector
     ├── metric-selector.ts     Reusable metric drop-down (supports optional placeholder)
-    ├── order-search.ts        Order search with tag-based autocomplete
+    ├── commit-search.ts        Commit search with tag-based autocomplete
     └── pagination.ts          Cursor/offset pagination controls
 ```
 
@@ -415,7 +415,7 @@ lnt/server/ui/v5/frontend/src/
 |----------------|----------------|
 | `api.ts` | Extend with new endpoint functions |
 | `types.ts` | Extend with new interfaces |
-| `combobox.ts` | Reuse for Compare page order/machine selectors (extended with tag display, machine filtering, input validation) |
+| `combobox.ts` | Reuse for Compare page commit/machine selectors (extended with tag display, machine filtering, input validation) |
 | `utils.ts` | Reuse `el()`, `formatValue()`, aggregation functions |
 | `chart.ts` | Compare page bar chart (extended with text filter, zoom preservation) |
 | `table.ts` | Compare page table (extended with row toggling, geomean, summary message) |
@@ -439,14 +439,14 @@ outDir: resolve(__dirname, '../static/v5'),
 **None are blocking.** All v4 workflows can be served by the existing v5 API.
 
 One optional enhancement for performance:
-- `GET /api/v5/{ts}/regressions?include=summary` — enriches list items with `indicator_count`, `earliest_order`, `latest_order` to avoid N+1 fetches on the regression list page. Without this, the frontend can fetch details lazily (regression lists are typically small).
+- `GET /api/v5/{ts}/regressions?include=summary` — enriches list items with `indicator_count`, `earliest_commit`, `latest_commit` to avoid N+1 fetches on the regression list page. Without this, the frontend can fetch details lazily (regression lists are typically small).
 
 ## Implementation Phases
 
 | Phase | Pages | Foundation Work |
 |-------|-------|-----------------|
 | 1 | (none visible) | SPA shell, router, nav bar, Flask catch-all route, build config |
-| 2 | Test Suites (picker + tabs), Machine Detail, Run Detail, Order Detail | Core browsing — data-table component, pagination, suite picker |
+| 2 | Test Suites (picker + tabs), Machine Detail, Run Detail, Commit Detail | Core browsing — data-table component, pagination, suite picker |
 | 3 | Graph | Time-series chart component, combobox integration, aggregation controls, field change annotations |
 | 4 | Compare | Absorb existing compare page into SPA as page module, add geomean summary |
 | 5 | Regression List, Regression Detail, Field Change Triage (stubs) | Stub pages with "Not implemented yet" message |

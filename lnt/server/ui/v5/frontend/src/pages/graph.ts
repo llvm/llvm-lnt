@@ -332,14 +332,14 @@ export const graphPage: PageModule = {
               baselineCommitCache.set(suite, []);
             }
           })();
-          const machineOrdersPromise = fetchMachineCommitSet(suite, name)
+          const machineCommitsPromise = fetchMachineCommitSet(suite, name)
             .catch(() => null as Set<string> | null);
 
           await commitListPromise;
 
-          // Create order picker with machine-commit filtering
+          // Create commit picker with machine-commit filtering
           const picker = createCommitPicker({
-            id: 'baseline-order',
+            id: 'baseline-commit',
             getCommitData: () => {
               const values = baselineCommitCache.get(suite);
               return { values: values ?? [] };
@@ -354,9 +354,9 @@ export const graphPage: PageModule = {
           blCommitContainer.append(picker.element);
           blCommitCleanup = picker.destroy;
 
-          // Apply machine orders once ready (may already be resolved)
-          const machineOrders = await machineOrdersPromise;
-          blMachineCommits = machineOrders;
+          // Apply machine commits once ready (may already be resolved)
+          const machineCommits = await machineCommitsPromise;
+          blMachineCommits = machineCommits;
         },
         onClear: () => {
           blSelectedMachine = '';
@@ -955,7 +955,7 @@ export function buildTraces(
  */
 export function buildBaselinesFromData(
   baselines: Array<{ suite: string; machine: string; commit: string }>,
-  getPoints: (suite: string, machine: string, order: string, metric: string) => QueryDataPoint[],
+  getPoints: (suite: string, machine: string, commit: string, metric: string) => QueryDataPoint[],
   metric: string,
   aggFn: (values: number[]) => number,
 ): PinnedBaseline[] {

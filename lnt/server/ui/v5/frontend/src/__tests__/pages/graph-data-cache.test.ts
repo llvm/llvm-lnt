@@ -3,13 +3,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GraphDataCache, type GraphDataApi } from '../../pages/graph-data-cache';
 import type { QueryDataPoint } from '../../types';
 
-function makePoint(test: string, orderValue: string, value: number, machine = 'm1', metric = 'exec_time'): QueryDataPoint {
+function makePoint(test: string, commitValue: string, value: number, machine = 'm1', metric = 'exec_time'): QueryDataPoint {
   return {
     test,
     machine,
     metric,
     value,
-    commit: orderValue,
+    commit: commitValue,
     ordinal: null,
     run_uuid: 'r1',
     submitted_at: null,

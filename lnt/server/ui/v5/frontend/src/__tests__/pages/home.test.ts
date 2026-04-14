@@ -44,7 +44,7 @@ const mockSuiteInfo: TestSuiteInfo = {
       { name: 'compile_time', type: 'Real', display_name: 'Compile Time', unit: 'seconds', unit_abbrev: 's', bigger_is_better: false },
     ],
     run_fields: [],
-    order_fields: [{ name: 'llvm_project_revision', type: 'String' }],
+    commit_fields: [{ name: 'llvm_project_revision', type: 'String' }],
     machine_fields: [],
   },
 };
@@ -56,15 +56,15 @@ const mockSuiteInfo2: TestSuiteInfo = {
       { name: 'score', type: 'Real', display_name: 'Score', unit: null, unit_abbrev: null, bigger_is_better: true },
     ],
     run_fields: [],
-    order_fields: [{ name: 'revision', type: 'String' }],
+    commit_fields: [{ name: 'revision', type: 'String' }],
     machine_fields: [],
   },
 };
 
 const mockRuns: RunInfo[] = [
-  { uuid: 'r1', machine: 'machine-a', order: { rev: '100' }, start_time: '2026-01-01T10:00:00Z', end_time: null },
-  { uuid: 'r2', machine: 'machine-b', order: { rev: '101' }, start_time: '2026-01-02T10:00:00Z', end_time: null },
-  { uuid: 'r3', machine: 'machine-a', order: { rev: '102' }, start_time: '2026-01-03T10:00:00Z', end_time: null },
+  { uuid: 'r1', machine: 'machine-a', commit: '100', submitted_at: '2026-01-01T10:00:00Z' },
+  { uuid: 'r2', machine: 'machine-b', commit: '101', submitted_at: '2026-01-02T10:00:00Z' },
+  { uuid: 'r3', machine: 'machine-a', commit: '102', submitted_at: '2026-01-03T10:00:00Z' },
 ];
 
 function mockRunsPage(items: RunInfo[], nextCursor: string | null = null): CursorPageResult<RunInfo> {
@@ -72,7 +72,7 @@ function mockRunsPage(items: RunInfo[], nextCursor: string | null = null): Curso
 }
 
 const mockTrendsData: TrendsDataPoint[] = [
-  { machine: 'machine-a', order: { rev: '100' }, timestamp: '2026-01-01T10:00:00Z', value: 14.14 },
+  { machine: 'machine-a', commit: '100', ordinal: null, submitted_at: '2026-01-01T10:00:00Z', value: 14.14 },
 ];
 
 let container: HTMLElement;

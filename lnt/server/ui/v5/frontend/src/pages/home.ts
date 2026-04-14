@@ -34,7 +34,7 @@ function isValidRange(s: string): s is RangePreset {
 
 /**
  * Fetch trend data for one metric across multiple machines.
- * Returns sparkline traces with server-computed geomean values per order.
+ * Returns sparkline traces with server-computed geomean values per commit.
  */
 async function fetchSuiteTrends(
   suite: string,

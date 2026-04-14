@@ -52,7 +52,7 @@ const mockSuiteInfo: TestSuiteInfo = {
     metrics: [
       { name: 'exec_time', type: 'Real', display_name: 'Execution Time', unit: 's', unit_abbrev: 's', bigger_is_better: false },
     ],
-    order_fields: [{ name: 'rev', type: 'String' }],
+    commit_fields: [{ name: 'rev', type: 'String' }],
     machine_fields: [{ name: 'hostname', type: 'String' }],
     run_fields: [],
   },
@@ -168,7 +168,7 @@ describe('adminPage', () => {
     await vi.waitFor(() => {
       expect(container.textContent).toContain('Metrics');
       expect(container.textContent).toContain('Execution Time');
-      expect(container.textContent).toContain('Order Fields');
+      expect(container.textContent).toContain('Commit Fields');
       expect(container.textContent).toContain('rev');
       expect(container.textContent).toContain('Machine Fields');
       expect(container.textContent).toContain('hostname');

@@ -66,13 +66,13 @@ import type { QueryDataPoint, FieldInfo } from '../../types';
 // Pure function tests
 // ---------------------------------------------------------------------------
 
-function makePoint(test: string, orderValue: string, value: number, runUuid = 'r1'): QueryDataPoint {
+function makePoint(test: string, commitValue: string, value: number, runUuid = 'r1'): QueryDataPoint {
   return {
     test,
     machine: 'm1',
     metric: 'exec_time',
     value,
-    commit: orderValue,
+    commit: commitValue,
     ordinal: null,
     run_uuid: runUuid,
     submitted_at: null,
@@ -224,8 +224,8 @@ describe('buildTraces', () => {
     ];
 
     const traces = buildTraces(points, 'median', 'median');
-    const orderValues = traces[0].points.map(p => p.commit);
-    expect(orderValues).toEqual(['100', '101', '102']);
+    const commitValues = traces[0].points.map(p => p.commit);
+    expect(commitValues).toEqual(['100', '101', '102']);
   });
 
   it('preserves insertion order for reversed input (newest-first)', () => {
@@ -237,8 +237,8 @@ describe('buildTraces', () => {
 
     const traces = buildTraces(points, 'median', 'median');
     // buildTraces preserves Map insertion order, so reversed input stays reversed
-    const orderValues = traces[0].points.map(p => p.commit);
-    expect(orderValues).toEqual(['102', '101', '100']);
+    const commitValues = traces[0].points.map(p => p.commit);
+    expect(commitValues).toEqual(['102', '101', '100']);
   });
 
   it('handles interleaved test data in reverse order', () => {
@@ -262,13 +262,13 @@ describe('buildTraces', () => {
 });
 
 describe('buildBaselinesFromData', () => {
-  function makeRefPoint(test: string, orderValue: string, value: number, machine = 'm1'): QueryDataPoint {
+  function makeRefPoint(test: string, commitValue: string, value: number, machine = 'm1'): QueryDataPoint {
     return {
       test,
       machine,
       metric: 'exec_time',
       value,
-      commit: orderValue,
+      commit: commitValue,
       ordinal: null,
       run_uuid: 'r1',
       submitted_at: null,

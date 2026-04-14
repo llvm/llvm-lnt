@@ -863,12 +863,12 @@ dl {
   box-shadow: 0 0 0 2px rgba(214, 39, 40, 0.15) !important;
 }
 
-/* Order detail */
-.order-fields {
+/* Commit detail */
+.commit-fields {
   margin-bottom: 10px;
 }
 
-.order-nav {
+.commit-nav {
   display: flex;
   gap: 10px;
   margin: 10px 0;

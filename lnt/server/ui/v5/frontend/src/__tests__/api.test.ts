@@ -938,13 +938,13 @@ describe('fetchOneCursorPage', () => {
     mockFetch.mockResolvedValueOnce(mockResponse(cursorPage([])));
 
     await fetchOneCursorPage('/api/v5/nts/query', {
-      machine: 'm1', metric: 'exec_time', sort: '-order', limit: '10000', cursor: 'abc',
+      machine: 'm1', metric: 'exec_time', sort: '-commit', limit: '10000', cursor: 'abc',
     });
 
     const url = new URL(mockFetch.mock.calls[0][0]);
     expect(url.searchParams.get('machine')).toBe('m1');
     expect(url.searchParams.get('metric')).toBe('exec_time');
-    expect(url.searchParams.get('sort')).toBe('-order');
+    expect(url.searchParams.get('sort')).toBe('-commit');
     expect(url.searchParams.get('limit')).toBe('10000');
     expect(url.searchParams.get('cursor')).toBe('abc');
   });

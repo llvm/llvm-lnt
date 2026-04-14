@@ -51,8 +51,8 @@ class TestSPAShell(unittest.TestCase):
         html = resp.get_data(as_text=True)
         self.assertIn('id="v5-app"', html)
 
-    def test_orders_route(self):
-        resp = self.client.get('/v5/nts/orders/some-value')
+    def test_commits_route(self):
+        resp = self.client.get('/v5/nts/commits/some-value')
         self.assertEqual(resp.status_code, 200)
         html = resp.get_data(as_text=True)
         self.assertIn('id="v5-app"', html)

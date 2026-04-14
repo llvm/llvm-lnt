@@ -215,7 +215,7 @@ function createSampleAggSelect(): HTMLSelectElement {
 }
 
 /**
- * Fetch orders and fields for a side when its suite changes.
+ * Fetch commits and fields for a side when its suite changes.
  * Updates the per-side cache and re-renders metric selector.
  */
 export async function fetchSideData(
@@ -307,7 +307,7 @@ export function renderSelectionPanel(root: HTMLElement): void {
       if (newSuite) {
         fetchSideData(side, newSuite);
       } else {
-        // Clear cached data for this side so metrics/orders don't linger
+        // Clear cached data for this side so metrics/commits don't linger
         if (side === 'a') { cachedFieldsA = []; cachedCommitsA = []; }
         else { cachedFieldsB = []; cachedCommitsB = []; }
       }
@@ -327,7 +327,7 @@ export function renderSelectionPanel(root: HTMLElement): void {
     sideDiv.append(createMachineCombobox(side, setSide, refreshRuns, ctx));
 
     // Order
-    sideDiv.append(el('label', {}, 'Order'));
+    sideDiv.append(el('label', {}, 'Commit'));
     sideDiv.append(createCommitCombobox(side, setSide, refreshRuns, ctx));
 
     // Runs
