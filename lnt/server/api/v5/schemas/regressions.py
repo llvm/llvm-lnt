@@ -85,17 +85,13 @@ class IndicatorResponseSchema(BaseSchema):
         allow_none=True,
         metadata={'description': 'New value'},
     )
-    start_order = ma.fields.String(
+    start_commit = ma.fields.String(
         allow_none=True,
-        metadata={'description': 'Start order field value'},
+        metadata={'description': 'Start commit identity string'},
     )
-    end_order = ma.fields.String(
+    end_commit = ma.fields.String(
         allow_none=True,
-        metadata={'description': 'End order field value'},
-    )
-    run_uuid = ma.fields.String(
-        allow_none=True,
-        metadata={'description': 'UUID of the run where the change was detected'},
+        metadata={'description': 'End commit identity string'},
     )
 
 
@@ -125,17 +121,13 @@ class FieldChangeResponseSchema(BaseSchema):
         allow_none=True,
         metadata={'description': 'New value'},
     )
-    start_order = ma.fields.String(
+    start_commit = ma.fields.String(
         allow_none=True,
-        metadata={'description': 'Start order field value'},
+        metadata={'description': 'Start commit identity string'},
     )
-    end_order = ma.fields.String(
+    end_commit = ma.fields.String(
         allow_none=True,
-        metadata={'description': 'End order field value'},
-    )
-    run_uuid = ma.fields.String(
-        allow_none=True,
-        metadata={'description': 'UUID of the run where the change was detected'},
+        metadata={'description': 'End commit identity string'},
     )
 
 
@@ -161,17 +153,13 @@ class FieldChangeCreateSchema(BaseSchema):
         required=True,
         metadata={'description': 'New value'},
     )
-    start_order = ma.fields.String(
+    start_commit = ma.fields.String(
         required=True,
-        metadata={'description': 'Primary order field value for start'},
+        metadata={'description': 'Commit identity string for start of change'},
     )
-    end_order = ma.fields.String(
+    end_commit = ma.fields.String(
         required=True,
-        metadata={'description': 'Primary order field value for end'},
-    )
-    run_uuid = ma.fields.String(
-        load_default=None,
-        metadata={'description': 'Optional UUID of the associated run'},
+        metadata={'description': 'Commit identity string for end of change'},
     )
 
 

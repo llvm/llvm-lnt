@@ -2,7 +2,7 @@
 #
 # RUN: rm -rf %t.instance %t.pg.log
 # RUN: %{utils}/with_postgres.sh %t.pg.log \
-# RUN:     %{utils}/with_temporary_instance.py %t.instance \
+# RUN:     %{utils}/with_temporary_instance.py --db-version 5.0 %t.instance \
 # RUN:         -- python %s %t.instance
 # END.
 
@@ -15,7 +15,9 @@ import uuid
 sys.path.insert(0, os.path.dirname(__file__))
 from v5_test_helpers import (
     create_app, create_client, make_scoped_headers, admin_headers,
-    collect_all_pages, submit_run, submit_fieldchange, submit_regression,
+    collect_all_pages, submit_run, submit_fieldchange,
+    create_machine, create_commit, create_test,
+    create_fieldchange, create_regression,
 )
 
 
@@ -25,10 +27,6 @@ def _submit_headers(app):
 
 TS = 'nts'
 PREFIX = f'/api/v5/{TS}'
-
-
-def _triage_headers(app):
-    return make_scoped_headers(app, 'triage')
 
 
 def _create_fieldchange_fixture(client, app, prefix='fc',
@@ -53,26 +51,32 @@ def _create_fieldchange_fixture(client, app, prefix='fc',
 
 
 def _create_unassigned_fieldchange(client, app):
-    """Create an unassigned, non-ignored field change."""
+    """Create an unassigned field change."""
     return _create_fieldchange_fixture(client, app)
 
 
-def _create_assigned_fieldchange(client, app):
-    """Create a field change assigned to a regression."""
-    fc_uuid = _create_fieldchange_fixture(client, app, prefix='fc-assigned',
-                                          old_value=1.0, new_value=2.0)
-    submit_regression(client, app, [fc_uuid])
-    return fc_uuid
+def _create_assigned_fieldchange(app):
+    """Create a field change assigned to a regression via direct DB helpers.
 
+    Uses direct DB helpers because the regressions endpoint is not yet
+    rewritten.
+    """
+    tag = uuid.uuid4().hex[:8]
+    db = app.instance.get_database("default")
+    session = db.make_session()
+    ts = db.testsuite[TS]
 
-def _create_ignored_fieldchange(client, app):
-    """Create an ignored field change."""
-    fc_uuid = _create_fieldchange_fixture(client, app, prefix='fc-ign',
-                                          old_value=5.0, new_value=10.0)
-    headers = make_scoped_headers(app, 'triage')
-    resp = client.post(f'/api/v5/nts/field-changes/{fc_uuid}/ignore',
-                       headers=headers)
-    assert resp.status_code == 201, f"Ignore failed: {resp.get_json()}"
+    machine = create_machine(session, ts, name=f'fc-assigned-m-{tag}')
+    test = create_test(session, ts, name=f'fc-assigned/test/{tag}')
+    c1 = create_commit(session, ts, commit=f'fc-assigned-c1-{tag}')
+    c2 = create_commit(session, ts, commit=f'fc-assigned-c2-{tag}')
+
+    fc = create_fieldchange(session, ts, c1, c2, machine, test,
+                            'execution_time', old_value=1.0, new_value=2.0)
+    create_regression(session, ts, field_changes=[fc])
+    session.commit()
+    fc_uuid = fc.uuid
+    session.close()
     return fc_uuid
 
 
@@ -110,19 +114,11 @@ class TestFieldChangeList(unittest.TestCase):
 
     def test_list_excludes_assigned_fc(self):
         """Field changes with a RegressionIndicator should NOT appear."""
-        assigned_uuid = _create_assigned_fieldchange(self.client, self.app)
+        assigned_uuid = _create_assigned_fieldchange(self.app)
         resp = self.client.get(PREFIX + '/field-changes')
         data = resp.get_json()
         uuids = [fc['uuid'] for fc in data['items']]
         self.assertNotIn(assigned_uuid, uuids)
-
-    def test_list_excludes_ignored_fc(self):
-        """Field changes with a ChangeIgnore should NOT appear."""
-        ignored_uuid = _create_ignored_fieldchange(self.client, self.app)
-        resp = self.client.get(PREFIX + '/field-changes')
-        data = resp.get_json()
-        uuids = [fc['uuid'] for fc in data['items']]
-        self.assertNotIn(ignored_uuid, uuids)
 
     def test_list_item_has_expected_fields(self):
         _create_unassigned_fieldchange(self.client, self.app)
@@ -136,9 +132,8 @@ class TestFieldChangeList(unittest.TestCase):
             self.assertIn('metric', item)
             self.assertIn('old_value', item)
             self.assertIn('new_value', item)
-            self.assertIn('start_order', item)
-            self.assertIn('end_order', item)
-            self.assertIn('run_uuid', item)
+            self.assertIn('start_commit', item)
+            self.assertIn('end_commit', item)
 
     def test_list_filter_by_machine(self):
         """Filter unassigned field changes by machine name."""
@@ -212,6 +207,24 @@ class TestFieldChangeList(unittest.TestCase):
         uuids = [item['uuid'] for item in data['items']]
         self.assertIn(fc_uuid, uuids)
 
+    def test_list_filter_nonexistent_machine_404(self):
+        """Filtering by a nonexistent machine name returns 404."""
+        resp = self.client.get(
+            PREFIX + '/field-changes?machine=no-such-machine-xyz')
+        self.assertEqual(resp.status_code, 404)
+
+    def test_list_filter_nonexistent_test_404(self):
+        """Filtering by a nonexistent test name returns 404."""
+        resp = self.client.get(
+            PREFIX + '/field-changes?test=no/such/test/xyz')
+        self.assertEqual(resp.status_code, 404)
+
+    def test_list_filter_unknown_metric_400(self):
+        """Filtering by an unknown metric name returns 400."""
+        resp = self.client.get(
+            PREFIX + '/field-changes?metric=no_such_metric_xyz')
+        self.assertEqual(resp.status_code, 400)
+
     def test_list_pagination(self):
         """Test pagination of unassigned field changes."""
         for _ in range(3):
@@ -234,159 +247,8 @@ class TestFieldChangeList(unittest.TestCase):
 
 
 # ==========================================================================
-# Ignore Tests
+# Pagination Tests
 # ==========================================================================
-
-class TestFieldChangeIgnore(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.app = create_app(sys.argv[1])
-        cls.client = create_client(cls.app)
-
-    def test_ignore_field_change(self):
-        fc_uuid = _create_unassigned_fieldchange(self.client, self.app)
-        headers = _triage_headers(self.app)
-        resp = self.client.post(
-            PREFIX + f'/field-changes/{fc_uuid}/ignore',
-            headers=headers,
-        )
-        self.assertEqual(resp.status_code, 201)
-        data = resp.get_json()
-        self.assertEqual(data['status'], 'ignored')
-        self.assertEqual(data['field_change_uuid'], fc_uuid)
-
-    def test_ignore_removes_from_unassigned_list(self):
-        fc_uuid = _create_unassigned_fieldchange(self.client, self.app)
-        headers = _triage_headers(self.app)
-
-        # Ignore it
-        resp = self.client.post(
-            PREFIX + f'/field-changes/{fc_uuid}/ignore',
-            headers=headers,
-        )
-        self.assertEqual(resp.status_code, 201)
-
-        # Verify it's no longer in the unassigned list
-        resp2 = self.client.get(PREFIX + '/field-changes')
-        data2 = resp2.get_json()
-        uuids = [fc['uuid'] for fc in data2['items']]
-        self.assertNotIn(fc_uuid, uuids)
-
-    def test_ignore_already_ignored_409(self):
-        fc_uuid = _create_unassigned_fieldchange(self.client, self.app)
-        headers = _triage_headers(self.app)
-
-        # Ignore once
-        resp = self.client.post(
-            PREFIX + f'/field-changes/{fc_uuid}/ignore',
-            headers=headers,
-        )
-        self.assertEqual(resp.status_code, 201)
-
-        # Ignore again -- should be 409
-        resp2 = self.client.post(
-            PREFIX + f'/field-changes/{fc_uuid}/ignore',
-            headers=headers,
-        )
-        self.assertEqual(resp2.status_code, 409)
-
-    def test_ignore_nonexistent_404(self):
-        headers = _triage_headers(self.app)
-        resp = self.client.post(
-            PREFIX + '/field-changes/nonexistent-uuid/ignore',
-            headers=headers,
-        )
-        self.assertEqual(resp.status_code, 404)
-
-    def test_ignore_no_auth_401(self):
-        fc_uuid = _create_unassigned_fieldchange(self.client, self.app)
-        resp = self.client.post(
-            PREFIX + f'/field-changes/{fc_uuid}/ignore',
-        )
-        self.assertEqual(resp.status_code, 401)
-
-    def test_ignore_read_scope_403(self):
-        fc_uuid = _create_unassigned_fieldchange(self.client, self.app)
-        headers = make_scoped_headers(self.app, 'read')
-        resp = self.client.post(
-            PREFIX + f'/field-changes/{fc_uuid}/ignore',
-            headers=headers,
-        )
-        self.assertEqual(resp.status_code, 403)
-
-
-# ==========================================================================
-# Un-ignore Tests
-# ==========================================================================
-
-class TestFieldChangeUnignore(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.app = create_app(sys.argv[1])
-        cls.client = create_client(cls.app)
-
-    def test_unignore_field_change(self):
-        fc_uuid = _create_ignored_fieldchange(self.client, self.app)
-        headers = _triage_headers(self.app)
-        resp = self.client.delete(
-            PREFIX + f'/field-changes/{fc_uuid}/ignore',
-            headers=headers,
-        )
-        self.assertEqual(resp.status_code, 204)
-
-    def test_unignore_restores_to_unassigned_list(self):
-        fc_uuid = _create_ignored_fieldchange(self.client, self.app)
-        headers = _triage_headers(self.app)
-
-        # Un-ignore it
-        resp = self.client.delete(
-            PREFIX + f'/field-changes/{fc_uuid}/ignore',
-            headers=headers,
-        )
-        self.assertEqual(resp.status_code, 204)
-
-        # Verify it appears in the unassigned list
-        resp2 = self.client.get(PREFIX + '/field-changes')
-        data2 = resp2.get_json()
-        uuids = [fc['uuid'] for fc in data2['items']]
-        self.assertIn(fc_uuid, uuids)
-
-    def test_unignore_not_ignored_404(self):
-        """Un-ignoring a field change that's not ignored should return 404."""
-        fc_uuid = _create_unassigned_fieldchange(self.client, self.app)
-        headers = _triage_headers(self.app)
-        resp = self.client.delete(
-            PREFIX + f'/field-changes/{fc_uuid}/ignore',
-            headers=headers,
-        )
-        self.assertEqual(resp.status_code, 404)
-
-    def test_unignore_nonexistent_404(self):
-        headers = _triage_headers(self.app)
-        resp = self.client.delete(
-            PREFIX + '/field-changes/nonexistent-uuid/ignore',
-            headers=headers,
-        )
-        self.assertEqual(resp.status_code, 404)
-
-    def test_unignore_no_auth_401(self):
-        fc_uuid = _create_ignored_fieldchange(self.client, self.app)
-        resp = self.client.delete(
-            PREFIX + f'/field-changes/{fc_uuid}/ignore',
-        )
-        self.assertEqual(resp.status_code, 401)
-
-    def test_unignore_read_scope_403(self):
-        fc_uuid = _create_ignored_fieldchange(self.client, self.app)
-        headers = make_scoped_headers(self.app, 'read')
-        resp = self.client.delete(
-            PREFIX + f'/field-changes/{fc_uuid}/ignore',
-            headers=headers,
-        )
-        self.assertEqual(resp.status_code, 403)
-
 
 class TestFieldChangePagination(unittest.TestCase):
     """Exhaustive cursor pagination tests for GET /api/v5/{ts}/field-changes."""
@@ -456,15 +318,14 @@ class TestFieldChangeCreate(unittest.TestCase):
 
         cls._machine_name = f'create-fc-m-{uuid.uuid4().hex[:8]}'
         cls._test_name = f'create-fc/test/{uuid.uuid4().hex[:8]}'
-        cls._start_rev = f'create-fc-o1-{uuid.uuid4().hex[:8]}'
-        cls._end_rev = f'create-fc-o2-{uuid.uuid4().hex[:8]}'
+        cls._start_commit = f'create-fc-c1-{uuid.uuid4().hex[:8]}'
+        cls._end_commit = f'create-fc-c2-{uuid.uuid4().hex[:8]}'
         cls._field_name = 'execution_time'
 
-        submit_run(cls.client, cls._machine_name, cls._start_rev,
+        submit_run(cls.client, cls._machine_name, cls._start_commit,
                    [{'name': cls._test_name, 'execution_time': [1.0]}])
-        data = submit_run(cls.client, cls._machine_name, cls._end_rev,
-                          [{'name': cls._test_name, 'execution_time': [2.0]}])
-        cls._run_uuid = data['run_uuid']
+        submit_run(cls.client, cls._machine_name, cls._end_commit,
+                   [{'name': cls._test_name, 'execution_time': [2.0]}])
 
     def _valid_body(self, **overrides):
         """Return a valid POST body dict with optional overrides."""
@@ -474,8 +335,8 @@ class TestFieldChangeCreate(unittest.TestCase):
             'metric': self._field_name,
             'old_value': 10.0,
             'new_value': 20.0,
-            'start_order': self._start_rev,
-            'end_order': self._end_rev,
+            'start_commit': self._start_commit,
+            'end_commit': self._end_commit,
         }
         body.update(overrides)
         return body
@@ -500,36 +361,8 @@ class TestFieldChangeCreate(unittest.TestCase):
         self.assertEqual(data['metric'], self._field_name)
         self.assertAlmostEqual(data['old_value'], 10.0)
         self.assertAlmostEqual(data['new_value'], 20.0)
-        self.assertEqual(data['start_order'], self._start_rev)
-        self.assertEqual(data['end_order'], self._end_rev)
-
-    def test_create_with_run_uuid(self):
-        """POST with optional run_uuid returns 201 with run_uuid in response."""
-        headers = _submit_headers(self.app)
-        headers['Content-Type'] = 'application/json'
-        body = self._valid_body(run_uuid=self._run_uuid)
-        resp = self.client.post(
-            PREFIX + '/field-changes',
-            data=json.dumps(body),
-            headers=headers,
-        )
-        self.assertEqual(resp.status_code, 201)
-        data = resp.get_json()
-        self.assertEqual(data['run_uuid'], self._run_uuid)
-
-    def test_create_without_run_uuid_returns_null(self):
-        """POST without run_uuid should return run_uuid as None."""
-        headers = _submit_headers(self.app)
-        headers['Content-Type'] = 'application/json'
-        body = self._valid_body()
-        resp = self.client.post(
-            PREFIX + '/field-changes',
-            data=json.dumps(body),
-            headers=headers,
-        )
-        self.assertEqual(resp.status_code, 201)
-        data = resp.get_json()
-        self.assertIsNone(data['run_uuid'])
+        self.assertEqual(data['start_commit'], self._start_commit)
+        self.assertEqual(data['end_commit'], self._end_commit)
 
     def test_each_create_gets_unique_uuid(self):
         """Two POSTs should produce field changes with different UUIDs."""
@@ -572,7 +405,7 @@ class TestFieldChangeCreate(unittest.TestCase):
 
     # -- Missing required fields --
 
-    def test_missing_machine_name_400(self):
+    def test_missing_machine_422(self):
         headers = _submit_headers(self.app)
         headers['Content-Type'] = 'application/json'
         body = self._valid_body()
@@ -584,7 +417,7 @@ class TestFieldChangeCreate(unittest.TestCase):
         )
         self.assertEqual(resp.status_code, 422)
 
-    def test_missing_test_name_400(self):
+    def test_missing_test_422(self):
         headers = _submit_headers(self.app)
         headers['Content-Type'] = 'application/json'
         body = self._valid_body()
@@ -596,7 +429,7 @@ class TestFieldChangeCreate(unittest.TestCase):
         )
         self.assertEqual(resp.status_code, 422)
 
-    def test_missing_field_name_400(self):
+    def test_missing_metric_422(self):
         headers = _submit_headers(self.app)
         headers['Content-Type'] = 'application/json'
         body = self._valid_body()
@@ -608,7 +441,7 @@ class TestFieldChangeCreate(unittest.TestCase):
         )
         self.assertEqual(resp.status_code, 422)
 
-    def test_missing_old_value_400(self):
+    def test_missing_old_value_422(self):
         headers = _submit_headers(self.app)
         headers['Content-Type'] = 'application/json'
         body = self._valid_body()
@@ -620,19 +453,7 @@ class TestFieldChangeCreate(unittest.TestCase):
         )
         self.assertEqual(resp.status_code, 422)
 
-    def test_missing_start_order_400(self):
-        headers = _submit_headers(self.app)
-        headers['Content-Type'] = 'application/json'
-        body = self._valid_body()
-        del body['start_order']
-        resp = self.client.post(
-            PREFIX + '/field-changes',
-            data=json.dumps(body),
-            headers=headers,
-        )
-        self.assertEqual(resp.status_code, 422)
-
-    def test_missing_new_value_400(self):
+    def test_missing_new_value_422(self):
         headers = _submit_headers(self.app)
         headers['Content-Type'] = 'application/json'
         body = self._valid_body()
@@ -644,11 +465,23 @@ class TestFieldChangeCreate(unittest.TestCase):
         )
         self.assertEqual(resp.status_code, 422)
 
-    def test_missing_end_order_400(self):
+    def test_missing_start_commit_422(self):
         headers = _submit_headers(self.app)
         headers['Content-Type'] = 'application/json'
         body = self._valid_body()
-        del body['end_order']
+        del body['start_commit']
+        resp = self.client.post(
+            PREFIX + '/field-changes',
+            data=json.dumps(body),
+            headers=headers,
+        )
+        self.assertEqual(resp.status_code, 422)
+
+    def test_missing_end_commit_422(self):
+        headers = _submit_headers(self.app)
+        headers['Content-Type'] = 'application/json'
+        body = self._valid_body()
+        del body['end_commit']
         resp = self.client.post(
             PREFIX + '/field-changes',
             data=json.dumps(body),
@@ -680,7 +513,7 @@ class TestFieldChangeCreate(unittest.TestCase):
         )
         self.assertEqual(resp.status_code, 404)
 
-    def test_unknown_field_name_400(self):
+    def test_unknown_metric_400(self):
         headers = _submit_headers(self.app)
         headers['Content-Type'] = 'application/json'
         body = self._valid_body(metric='no_such_field_xyz')
@@ -691,10 +524,10 @@ class TestFieldChangeCreate(unittest.TestCase):
         )
         self.assertEqual(resp.status_code, 400)
 
-    def test_nonexistent_start_order_404(self):
+    def test_nonexistent_start_commit_404(self):
         headers = _submit_headers(self.app)
         headers['Content-Type'] = 'application/json'
-        body = self._valid_body(start_order='nonexistent-rev-xyz')
+        body = self._valid_body(start_commit='nonexistent-commit-xyz')
         resp = self.client.post(
             PREFIX + '/field-changes',
             data=json.dumps(body),
@@ -702,21 +535,10 @@ class TestFieldChangeCreate(unittest.TestCase):
         )
         self.assertEqual(resp.status_code, 404)
 
-    def test_nonexistent_end_order_404(self):
+    def test_nonexistent_end_commit_404(self):
         headers = _submit_headers(self.app)
         headers['Content-Type'] = 'application/json'
-        body = self._valid_body(end_order='nonexistent-rev-xyz')
-        resp = self.client.post(
-            PREFIX + '/field-changes',
-            data=json.dumps(body),
-            headers=headers,
-        )
-        self.assertEqual(resp.status_code, 404)
-
-    def test_nonexistent_run_uuid_404(self):
-        headers = _submit_headers(self.app)
-        headers['Content-Type'] = 'application/json'
-        body = self._valid_body(run_uuid='nonexistent-run-uuid-xyz')
+        body = self._valid_body(end_commit='nonexistent-commit-xyz')
         resp = self.client.post(
             PREFIX + '/field-changes',
             data=json.dumps(body),

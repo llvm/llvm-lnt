@@ -79,22 +79,6 @@ class DiscoveryResponseSchema(BaseSchema):
 
 
 # ---------------------------------------------------------------------------
-# Field change ignore response schema
-# ---------------------------------------------------------------------------
-
-class FieldChangeIgnoreResponseSchema(BaseSchema):
-    """Response schema for POST /api/v5/{ts}/field-changes/{uuid}/ignore."""
-    status = ma.fields.String(
-        required=True,
-        metadata={'description': 'Result status (e.g. "ignored")'},
-    )
-    field_change_uuid = ma.fields.String(
-        required=True,
-        metadata={'description': 'UUID of the ignored field change'},
-    )
-
-
-# ---------------------------------------------------------------------------
 # Query parameter schemas
 # ---------------------------------------------------------------------------
 

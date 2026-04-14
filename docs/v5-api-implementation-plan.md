@@ -225,7 +225,7 @@ paths, and only resolve the testsuite when the URL contains one.
 |-------|-------|--------|
 | `read` | 0 | All GET endpoints |
 | `submit` | 1 | Submit runs (POST /runs) |
-| `triage` | 2 | Regression state/title/bug, ignore/un-ignore field changes, create/merge/split regressions |
+| `triage` | 2 | Regression state/title/bug, create/merge/split regressions, manage indicators |
 | `manage` | 3 | Create/update/delete machines, orders; delete runs |
 | `admin` | 4 | Create/revoke API keys |
 
@@ -511,8 +511,7 @@ DELETE /api/v5/{ts}/regressions/{uuid}/indicators/{fc_uuid}  — Remove indicato
       "field_change_uuid": "...",
       "test": "...", "machine": "...", "metric": "...",
       "old_value": 0.5, "new_value": 0.8,
-      "start_order": "154000", "end_order": "154331",
-      "run_uuid": "..."
+      "start_commit": "154000", "end_commit": "154331"
     }
   ]
 }
@@ -537,18 +536,15 @@ Auth: read=GET, triage=POST/PATCH/DELETE/merge/split/indicators.
 ```
 GET    /api/v5/{ts}/field-changes                 — List unassigned (cursor-paginated)
 POST   /api/v5/{ts}/field-changes                 — Create a field change
-POST   /api/v5/{ts}/field-changes/{uuid}/ignore    — Ignore
-DELETE /api/v5/{ts}/field-changes/{uuid}/ignore    — Un-ignore
 ```
 
 **Key design decisions:**
-- Identified by **UUID** (NOT integer ID). Requires migration.
-- "Unassigned" = no RegressionIndicator AND no ChangeIgnore (LEFT JOIN + IS NULL pattern
-  from regression_views.py line 77-85)
-- Filters: `machine=`, `test=`, `field=`
-- Ignore: create ChangeIgnore row. 409 if already ignored.
-- Un-ignore: delete ChangeIgnore row. 404 if not ignored.
-- Auth: read=GET, triage=POST (ignore/un-ignore), submit=POST (create).
+- Identified by **UUID**.
+- "Unassigned" = no RegressionIndicator (LEFT JOIN + IS NULL pattern).
+  No ChangeIgnore in v5 — field changes that are not relevant should not
+  be created (the external process is responsible for filtering).
+- Filters: `machine=`, `test=`, `metric=`
+- Auth: read=GET, submit=POST (create).
 
 **POST /field-changes (create):**
 - Allows creating a field change programmatically (e.g., from external analysis tools)
@@ -558,10 +554,10 @@ DELETE /api/v5/{ts}/field-changes/{uuid}/ignore    — Un-ignore
   - `metric` (string, required) — metric name as defined in the test suite schema
   - `old_value` (float, required) — previous value
   - `new_value` (float, required) — new value
-  - `start_order` (string, required) — primary order field value for the start of the change
-  - `end_order` (string, required) — primary order field value for the end of the change
-  - `run_uuid` (string, optional) — UUID of the associated run
-- Returns 404 if machine, test, metric, start_order, end_order, or run_uuid cannot be resolved
+  - `start_commit` (string, required) — commit identity string for the start of the change
+  - `end_commit` (string, required) — commit identity string for the end of the change
+- Returns 404 if machine, test, start_commit, or end_commit cannot be resolved
+- Returns 400 if metric is unknown
 - Server generates a UUID for the new field change
 - Returns 201 with the serialized field change on success
 - Auth: `submit` scope required

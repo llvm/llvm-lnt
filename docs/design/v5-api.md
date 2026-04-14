@@ -93,17 +93,14 @@ Regression detail response (GET /regressions/{uuid}) includes:
   - field_change_uuid
   - test, machine, metric
   - old_value, new_value
-  - start_order and end_order (the order field values, not internal IDs)
-  - run_uuid (the run where the change was detected)
+  - start_commit and end_commit (commit identity strings)
 
 Field Changes (triage)
 
 GET    /field-changes                — List unassigned field changes (cursor-paginated, filterable by machine=, test=, metric=)
-POST   /field-changes                — Create a field change programmatically (references machine, test, metric, and orders by name)
-POST   /field-changes/{uuid}/ignore  — Ignore a field change
-DELETE /field-changes/{uuid}/ignore  — Un-ignore a field change
-Field changes are identified by server-generated UUID (schema migration required).
-Creating a field change requires: machine (name), test (name), metric (name), old_value, new_value, start_order, end_order, and optionally run_uuid. All references are resolved by name/value, not internal ID.
+POST   /field-changes                — Create a field change programmatically (references machine, test, metric, and commits by name)
+Field changes are identified by server-generated UUID.
+Creating a field change requires: machine (name), test (name), metric (name), old_value, new_value, start_commit, end_commit. All references are resolved by name/value, not internal ID.
 
 Time Series
 
@@ -167,7 +164,7 @@ R7: Authentication and Authorization
 - API keys with scopes (each scope includes all scopes above it):
   - read — all GET endpoints
   - submit — submit runs (POST /runs), create orders (POST /orders)
-  - triage — modify regression state/title/bug, ignore/un-ignore field changes, create/merge/split regressions, manage regression indicators
+  - triage — modify regression state/title/bug, create/merge/split regressions, manage regression indicators
   - manage — create/update/delete machines; update orders; delete runs
   - admin — create/revoke API keys
 - Keys stored hashed in the database
