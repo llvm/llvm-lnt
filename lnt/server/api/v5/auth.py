@@ -1,5 +1,4 @@
-"""v5 API authentication: APIKey model, Bearer token validation, scope
-decorators.
+"""v5 API authentication: Bearer token validation and scope decorators.
 
 Scope hierarchy (linear, each level includes all below):
     read (0) < submit (1) < triage (2) < manage (3) < admin (4)
@@ -11,29 +10,9 @@ import hmac
 import functools
 
 from flask import current_app, g, request
-from sqlalchemy import Column, String, Integer, Boolean, DateTime
-from sqlalchemy.ext.declarative import declarative_base
 import sqlalchemy.exc
 
-# Separate declarative base so the APIKey table does not contaminate
-# per-testsuite metadata.
-APIKeyBase = declarative_base()
-
-
-class APIKey(APIKeyBase):
-    """API key stored in the global (non-per-testsuite) database."""
-
-    __tablename__ = 'APIKey'
-
-    id = Column("ID", Integer, primary_key=True)
-    name = Column("Name", String(256), nullable=False)
-    key_prefix = Column("KeyPrefix", String(8), nullable=False)
-    key_hash = Column("KeyHash", String(64), nullable=False, unique=True,
-                      index=True)
-    scope = Column("Scope", String(32), nullable=False)
-    created_at = Column("CreatedAt", DateTime, nullable=False)
-    last_used_at = Column("LastUsedAt", DateTime, nullable=True)
-    is_active = Column("IsActive", Boolean, nullable=False, default=True)
+from lnt.server.db.v5.models import APIKey
 
 
 # ---------------------------------------------------------------------------

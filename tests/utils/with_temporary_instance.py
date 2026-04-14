@@ -15,31 +15,13 @@ import sys
 
 
 def _setup_v5_instance(dest_dir):
-    """Patch a freshly-created LNT instance for v5 and create a test suite.
+    """Create a test suite in a freshly-created v5 LNT instance.
 
-    After ``lnt create`` has built the directory structure and lnt.cfg,
-    this function:
-    1. Patches lnt.cfg to set ``db_version: '5.0'`` on the default database.
-    2. Boots the app (which creates V5DB global tables).
-    3. Creates an NTS-equivalent test suite in the v5 schema.
+    After ``lnt create --db-version 5.0`` has built the directory structure,
+    config, and v5 global tables, this function:
+    1. Boots the app (reads existing v5 schema).
+    2. Creates an NTS-equivalent test suite.
     """
-    import re
-
-    cfg_path = os.path.join(dest_dir, 'lnt.cfg')
-    with open(cfg_path) as f:
-        cfg_text = f.read()
-
-    # Insert db_version into the default database entry.  The template
-    # emits: 'default' : { 'path' : '...' }
-    cfg_text = re.sub(
-        r"('default'\s*:\s*\{)\s*'path'",
-        r"\1 'db_version': '5.0', 'path'",
-        cfg_text,
-    )
-    with open(cfg_path, 'w') as f:
-        f.write(cfg_text)
-
-    # Boot the app -- Config reads db_version and instantiates V5DB.
     import lnt.server.ui.app
     app = lnt.server.ui.app.App.create_standalone(dest_dir)
 
@@ -126,6 +108,7 @@ def main():
         '--default-db', db_name,
         '--api-auth-token', 'test_token',
         '--url', 'http://localhost/perf',
+        '--db-version', args.db_version,
     ])
 
     # 2. Symlink schema YAML files into the instance.

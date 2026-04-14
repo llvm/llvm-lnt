@@ -167,7 +167,11 @@ LNT configuration.
     os.chmod(wsgi_path, 0o755)
 
     # Execute an upgrade on the database to initialize the schema.
-    lnt.server.db.migrate.update_path(db_path)
+    if db_version == '5.0':
+        from lnt.server.db.v5 import initialize_v5_database
+        initialize_v5_database(db_path)
+    else:
+        lnt.server.db.migrate.update_path(db_path)
 
     print('created LNT configuration in %r' % basepath)
     print('  configuration file: %s' % cfg_path)

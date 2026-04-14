@@ -52,6 +52,31 @@ def _escape_like(s: str) -> str:
     return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
+def initialize_v5_database(path: str) -> None:
+    """Create v5 global tables and seed rows.
+
+    Idempotent -- safe to call on an already-initialized database.
+    Called by ``lnt create --db-version 5.0``.
+    """
+    engine = sqlalchemy.create_engine(path)
+    try:
+        create_global_tables(engine)
+        session = sqlalchemy.orm.sessionmaker(engine)()
+        try:
+            if session.query(V5SchemaVersion).get(1) is None:
+                session.add(V5SchemaVersion(id=1, version=0))
+                session.commit()
+        except sqlalchemy.exc.IntegrityError:
+            session.rollback()
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+    finally:
+        engine.dispose()
+
+
 class V5DB:
     """Top-level database handle for a v5 LNT instance.
 
@@ -74,9 +99,19 @@ class V5DB:
         self.testsuite: dict[str, V5TestSuiteDB] = {}
         self._schema_version: int | None = None
 
-        create_global_tables(self.engine)
-        self._ensure_schema_version_row()
-        self._load_schemas_from_db()
+        try:
+            self._load_schemas_from_db()
+        except sqlalchemy.exc.ProgrammingError as e:
+            self.engine.dispose()
+            if "v5_schema" in str(e):
+                raise RuntimeError(
+                    "v5 database not initialized. "
+                    "Run: lnt create --db-version 5.0"
+                ) from e
+            raise
+        except Exception:
+            self.engine.dispose()
+            raise
 
     # -- schema storage --------------------------------------------------------
 
@@ -114,24 +149,8 @@ class V5DB:
             ],
         }
 
-    def _ensure_schema_version_row(self) -> None:
-        """Make sure the v5_schema_version table has its single row."""
-        session = self.sessionmaker()
-        try:
-            row = session.query(V5SchemaVersion).get(1)
-            if row is None:
-                row = V5SchemaVersion(id=1, version=0)
-                session.add(row)
-                session.commit()
-        except Exception:
-            session.rollback()
-            raise
-        finally:
-            session.close()
-
     def _load_schemas_from_db(self) -> None:
-        """Read all rows from ``v5_schema``, parse each into a
-        TestSuiteSchema, build models, and create per-suite tables."""
+        """Read all rows from ``v5_schema``, parse each, and build models."""
         session = self.sessionmaker()
         try:
             rows = session.query(V5Schema).all()
@@ -143,7 +162,6 @@ class V5DB:
                 data = json.loads(row.schema_json)
                 schema = parse_schema(data)
                 models = create_suite_models(schema)
-                models.base.metadata.create_all(self.engine)
                 tsdb = V5TestSuiteDB(self, schema, models)
                 self.testsuite[schema.name] = tsdb
         finally:

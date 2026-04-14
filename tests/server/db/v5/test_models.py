@@ -12,17 +12,22 @@ import sqlalchemy
 import sqlalchemy.exc
 
 from lnt.server.db.v5.schema import parse_schema
-from lnt.server.db.v5.models import create_suite_models
+from lnt.server.db.v5.models import _global_base, create_suite_models
+from lnt.server.db.v5 import V5DB, initialize_v5_database
 
 
-def _make_engine():
+def _db_path():
     db_uri = os.environ.get('LNT_TEST_DB_URI')
     db_name = os.environ.get('LNT_TEST_DB_NAME')
     if not db_uri or not db_name:
         raise unittest.SkipTest(
             "LNT_TEST_DB_URI / LNT_TEST_DB_NAME not set "
             "(run via with_postgres.sh)")
-    return sqlalchemy.create_engine(f"{db_uri}/{db_name}")
+    return f"{db_uri}/{db_name}"
+
+
+def _make_engine():
+    return sqlalchemy.create_engine(_db_path())
 
 
 def _test_schema():
@@ -620,6 +625,55 @@ class TestCascadingDeletes(unittest.TestCase):
         self.assertIsNone(
             session.query(self.models.Run).get(run_id))
         session.close()
+
+
+class TestInitializeV5Database(unittest.TestCase):
+    """Tests for initialize_v5_database and V5DB read-only init."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.engine = _make_engine()
+
+    @classmethod
+    def tearDownClass(cls):
+        _global_base.metadata.drop_all(cls.engine)
+        cls.engine.dispose()
+
+    def setUp(self):
+        _global_base.metadata.drop_all(self.engine)
+
+    def test_initialize_v5_database_idempotent(self):
+        """Calling initialize_v5_database twice should not raise."""
+        initialize_v5_database(_db_path())
+        initialize_v5_database(_db_path())
+
+        insp = sqlalchemy.inspect(self.engine)
+        tables = insp.get_table_names()
+        self.assertIn("v5_schema", tables)
+        self.assertIn("v5_schema_version", tables)
+        self.assertIn("APIKey", tables)
+
+    def test_v5db_init_on_initialized_database(self):
+        """V5DB.__init__ should succeed read-only on an initialized DB."""
+        initialize_v5_database(_db_path())
+
+        class _FakeConfig:
+            schemasDir = "/nonexistent"
+
+        db = V5DB(_db_path(), _FakeConfig())
+        self.assertEqual(db.testsuite, {})
+        self.assertEqual(db._schema_version, 0)
+        db.engine.dispose()
+
+    def test_v5db_init_without_initialization_gives_clear_error(self):
+        """V5DB.__init__ on an uninitialized DB should raise RuntimeError."""
+
+        class _FakeConfig:
+            schemasDir = "/nonexistent"
+
+        with self.assertRaises(RuntimeError) as ctx:
+            V5DB(_db_path(), _FakeConfig())
+        self.assertIn("not initialized", str(ctx.exception))
 
 
 if __name__ == '__main__':
