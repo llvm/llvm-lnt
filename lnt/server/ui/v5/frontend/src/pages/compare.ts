@@ -6,7 +6,7 @@
 //
 // Per-run sample caching: fetched samples are cached by run UUID. Changing the
 // metric, aggregation, or noise re-aggregates from cache without API calls.
-// Only new run UUIDs (from order/machine changes) trigger fetches.
+// Only new run UUIDs (from commit/machine changes) trigger fetches.
 //
 // Cross-suite support: each side can independently select a test suite.
 // Samples are fetched from the side's suite. The comparison joins on test name.

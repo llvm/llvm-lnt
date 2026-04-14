@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // Mock the API module before importing compare page
 vi.mock('../../api', () => ({
   getFields: vi.fn(),
-  getOrders: vi.fn(),
+  getCommits: vi.fn(),
   getSamples: vi.fn(),
   getRuns: vi.fn(),
   getMachines: vi.fn(),
@@ -29,18 +29,18 @@ const plotlyMock = {
 };
 (globalThis as unknown as Record<string, unknown>).Plotly = plotlyMock;
 
-import { getFields, getOrders, getSamples, getMachines } from '../../api';
+import { getFields, getCommits, getSamples, getMachines } from '../../api';
 import { getTestsuites } from '../../router';
 import { comparePage } from '../../pages/compare';
-import type { FieldInfo, OrderSummary, SampleInfo } from '../../types';
+import type { FieldInfo, CommitSummary, SampleInfo } from '../../types';
 
 const mockFields: FieldInfo[] = [
   { name: 'exec_time', type: 'Real', display_name: 'Execution Time', unit: 's', unit_abbrev: 's', bigger_is_better: false },
 ];
 
-const mockOrders: OrderSummary[] = [
-  { fields: { rev: '100' }, tag: null },
-  { fields: { rev: '101' }, tag: null },
+const mockCommits: CommitSummary[] = [
+  { commit: '100', ordinal: null, fields: {} },
+  { commit: '101', ordinal: null, fields: {} },
 ];
 
 const mockSamples: SampleInfo[] = [
@@ -53,7 +53,7 @@ const savedLocation = window.location;
 function setupMocks(): void {
   (getTestsuites as ReturnType<typeof vi.fn>).mockReturnValue(['nts']);
   (getFields as ReturnType<typeof vi.fn>).mockResolvedValue(mockFields);
-  (getOrders as ReturnType<typeof vi.fn>).mockResolvedValue(mockOrders);
+  (getCommits as ReturnType<typeof vi.fn>).mockResolvedValue(mockCommits);
   (getSamples as ReturnType<typeof vi.fn>).mockResolvedValue(mockSamples);
   (getMachines as ReturnType<typeof vi.fn>).mockResolvedValue({ items: [] });
 }
@@ -81,17 +81,17 @@ describe('comparePage', () => {
     (window as Record<string, unknown>).location = savedLocation;
   });
 
-  it('mount loads fields and orders for side with suite in URL', async () => {
+  it('mount loads fields and commits for side with suite in URL', async () => {
     comparePage.mount(container, { testsuite: '' });
 
     // fetchSideData is called for side A because suite_a=nts is in the URL
     await vi.waitFor(() => {
       expect(getFields).toHaveBeenCalledWith('nts');
-      expect(getOrders).toHaveBeenCalledWith('nts');
+      expect(getCommits).toHaveBeenCalledWith('nts');
     });
   });
 
-  it('shows error when fields/orders fetch fails', async () => {
+  it('shows error when fields/commits fetch fails', async () => {
     (getFields as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Network error'));
 
     comparePage.mount(container, { testsuite: '' });

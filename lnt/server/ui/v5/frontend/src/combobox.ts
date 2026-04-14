@@ -2,22 +2,21 @@ import type { SideSelection, MachineInfo } from './types';
 import { getMachines, getMachineRuns } from './api';
 import { el } from './utils';
 
-// Per-side machine order filtering
-let machineOrdersA: Set<string> | null = null;
-let machineOrdersB: Set<string> | null = null;
-let orderInputA: HTMLInputElement | null = null;
-let orderInputB: HTMLInputElement | null = null;
+// Per-side machine commit filtering
+let machineCommitsA: Set<string> | null = null;
+let machineCommitsB: Set<string> | null = null;
+let commitInputA: HTMLInputElement | null = null;
+let commitInputB: HTMLInputElement | null = null;
 
-// Per-side AbortControllers for machine-order fetches
-let machineOrdersControllerA: AbortController | null = null;
-let machineOrdersControllerB: AbortController | null = null;
+// Per-side AbortControllers for machine-commit fetches
+let machineCommitsControllerA: AbortController | null = null;
+let machineCommitsControllerB: AbortController | null = null;
 
 /** Shared state that the combobox module reads but does not own. */
 export interface ComboboxContext {
-  /** Get per-side order values and tags. */
-  getOrderData: (side: 'a' | 'b') => {
-    cachedOrderValues: string[];
-    orderTags: Map<string, string | null>;
+  /** Get per-side commit values. */
+  getCommitData: (side: 'a' | 'b') => {
+    cachedCommitValues: string[];
   };
   /** Get the testsuite name for a given side. */
   getSuiteName: (side: 'a' | 'b') => string;
@@ -30,57 +29,54 @@ export interface ComboboxContext {
 
 /** Reset per-panel mutable state.  Call this at the start of renderSelectionPanel. */
 export function resetComboboxState(): void {
-  machineOrdersA = null;
-  machineOrdersB = null;
-  orderInputA = null;
-  orderInputB = null;
-  if (machineOrdersControllerA) { machineOrdersControllerA.abort(); machineOrdersControllerA = null; }
-  if (machineOrdersControllerB) { machineOrdersControllerB.abort(); machineOrdersControllerB = null; }
+  machineCommitsA = null;
+  machineCommitsB = null;
+  commitInputA = null;
+  commitInputB = null;
+  if (machineCommitsControllerA) { machineCommitsControllerA.abort(); machineCommitsControllerA = null; }
+  if (machineCommitsControllerB) { machineCommitsControllerB.abort(); machineCommitsControllerB = null; }
 }
 
 /**
- * Fetch the set of order values for a given machine.
- * Returns a Set of primary order values extracted from the machine's runs.
- * Reusable by any consumer that needs machine-filtered orders.
+ * Fetch the set of commit values for a given machine.
+ * Returns a Set of commit strings extracted from the machine's runs.
+ * Reusable by any consumer that needs machine-filtered commits.
  */
-export async function fetchMachineOrderSet(
+export async function fetchMachineCommitSet(
   testsuite: string,
   machine: string,
   signal?: AbortSignal,
 ): Promise<Set<string>> {
   const page = await getMachineRuns(testsuite, machine, { limit: 500 }, signal);
-  const orders = new Set<string>();
+  const commits = new Set<string>();
   for (const run of page.items) {
-    const keys = Object.keys(run.order);
-    if (keys.length > 0) {
-      orders.add(run.order[keys[0]]);
-    }
+    commits.add(run.commit);
   }
-  return orders;
+  return commits;
 }
 
-async function fetchMachineOrders(
+async function fetchMachineCommits(
   side: 'a' | 'b',
   machine: string,
   testsuite: string,
 ): Promise<void> {
   // Abort any in-flight request for this side only
-  const prev = side === 'a' ? machineOrdersControllerA : machineOrdersControllerB;
+  const prev = side === 'a' ? machineCommitsControllerA : machineCommitsControllerB;
   if (prev) prev.abort();
   const ctrl = new AbortController();
-  if (side === 'a') machineOrdersControllerA = ctrl;
-  else machineOrdersControllerB = ctrl;
+  if (side === 'a') machineCommitsControllerA = ctrl;
+  else machineCommitsControllerB = ctrl;
 
   try {
-    const orders = await fetchMachineOrderSet(testsuite, machine, ctrl.signal);
-    if (side === 'a') machineOrdersA = orders;
-    else machineOrdersB = orders;
+    const commits = await fetchMachineCommitSet(testsuite, machine, ctrl.signal);
+    if (side === 'a') machineCommitsA = commits;
+    else machineCommitsB = commits;
   } catch (err: unknown) {
     // Silently ignore aborted requests — a newer one superseded this
     if (err instanceof DOMException && err.name === 'AbortError') return;
-    // On other errors, don't filter orders
-    if (side === 'a') machineOrdersA = null;
-    else machineOrdersB = null;
+    // On other errors, don't filter commits
+    if (side === 'a') machineCommitsA = null;
+    else machineCommitsB = null;
   }
 }
 
@@ -129,32 +125,32 @@ function setupComboboxKeyboard(
 }
 
 // ---------------------------------------------------------------------------
-// createOrderPicker — reusable order combobox
+// createCommitPicker — reusable commit combobox
 // ---------------------------------------------------------------------------
 
-export interface OrderPickerOptions {
+export interface CommitPickerOptions {
   id: string;
-  /** Called on each dropdown open/filter to get the current order data.
+  /** Called on each dropdown open/filter to get the current commit data.
    *  Lazy evaluation ensures data fetched after picker creation is visible. */
-  getOrderData: () => { values: string[]; tags: Map<string, string | null> };
+  getCommitData: () => { values: string[] };
   initialValue?: string;
   placeholder?: string;
   onSelect: (value: string) => void;
-  /** Called on each dropdown render to get the machine-order filter state.
-   *  - Return a Set to filter orders by machine.
-   *  - Return 'loading' to show a loading hint (machine selected, orders not yet fetched).
-   *  - Return null (or omit) to disable filtering (show all orders). */
-  getMachineOrders?: () => Set<string> | 'loading' | null;
+  /** Called on each dropdown render to get the machine-commit filter state.
+   *  - Return a Set to filter commits by machine.
+   *  - Return 'loading' to show a loading hint (machine selected, commits not yet fetched).
+   *  - Return null (or omit) to disable filtering (show all commits). */
+  getMachineCommits?: () => Set<string> | 'loading' | null;
 }
 
-export interface OrderPickerHandle {
+export interface CommitPickerHandle {
   element: HTMLElement;
   input: HTMLInputElement;
   destroy: () => void;
 }
 
-export function createOrderPicker(opts: OrderPickerOptions): OrderPickerHandle {
-  const dropdownId = `order-dropdown-${opts.id}`;
+export function createCommitPicker(opts: CommitPickerOptions): CommitPickerHandle {
+  const dropdownId = `commit-dropdown-${opts.id}`;
   const wrapper = el('div', {
     class: 'combobox',
     role: 'combobox',
@@ -163,7 +159,7 @@ export function createOrderPicker(opts: OrderPickerOptions): OrderPickerHandle {
   });
   const input = el('input', {
     type: 'text',
-    placeholder: opts.placeholder || 'Type to search orders...',
+    placeholder: opts.placeholder || 'Type to search commits...',
     class: 'combobox-input',
     role: 'searchbox',
     'aria-autocomplete': 'list',
@@ -178,20 +174,18 @@ export function createOrderPicker(opts: OrderPickerOptions): OrderPickerHandle {
   // Keyboard navigation
   setupComboboxKeyboard(input, dropdown, wrapper);
 
-  // Set initial value with tag if available
+  // Set initial value
   if (opts.initialValue) {
-    const { tags } = opts.getOrderData();
-    const tag = tags.get(opts.initialValue);
-    input.value = tag ? `${opts.initialValue} (${tag})` : opts.initialValue;
+    input.value = opts.initialValue;
   }
 
   function showDropdown(filter: string): void {
-    const machineOrders = opts.getMachineOrders?.() ?? null;
+    const machineCommits = opts.getMachineCommits?.() ?? null;
 
-    // Machine selected but orders not yet fetched — show loading hint.
-    if (machineOrders === 'loading') {
+    // Machine selected but commits not yet fetched — show loading hint.
+    if (machineCommits === 'loading') {
       dropdown.replaceChildren(
-        el('li', { class: 'combobox-item', style: 'color: #999; pointer-events: none' }, 'Loading orders...'),
+        el('li', { class: 'combobox-item', style: 'color: #999; pointer-events: none' }, 'Loading commits...'),
       );
       dropdown.classList.add('open');
       setAriaExpanded(wrapper, true);
@@ -199,28 +193,22 @@ export function createOrderPicker(opts: OrderPickerOptions): OrderPickerHandle {
       return;
     }
 
-    const { values, tags } = opts.getOrderData();
+    const { values } = opts.getCommitData();
     let source = values;
-    if (machineOrders instanceof Set) {
-      source = source.filter(v => machineOrders.has(v));
+    if (machineCommits instanceof Set) {
+      source = source.filter(v => machineCommits.has(v));
     }
     const lf = filter.toLowerCase();
     const matches = filter
-      ? source.filter(v => {
-          if (v.toLowerCase().includes(lf)) return true;
-          const tag = tags.get(v);
-          return tag !== null && tag !== undefined && tag.toLowerCase().includes(lf);
-        })
+      ? source.filter(v => v.toLowerCase().includes(lf))
       : source;
     const limited = matches.slice(0, 100);
 
     dropdown.replaceChildren();
     for (const v of limited) {
-      const tag = tags.get(v);
-      const label = tag ? `${v} (${tag})` : v;
-      const li = el('li', { class: 'combobox-item', role: 'option', tabindex: '-1' }, label);
+      const li = el('li', { class: 'combobox-item', role: 'option', tabindex: '-1' }, v);
       li.addEventListener('click', () => {
-        input.value = label;
+        input.value = v;
         input.classList.remove('combobox-invalid');
         dropdown.classList.remove('open');
         setAriaExpanded(wrapper, false);
@@ -232,7 +220,7 @@ export function createOrderPicker(opts: OrderPickerOptions): OrderPickerHandle {
     dropdown.classList.toggle('open', isOpen);
     setAriaExpanded(wrapper, isOpen);
 
-    // Show/hide validation halo based on whether any orders match
+    // Show/hide validation halo based on whether any commits match
     if (input.value.trim() && matches.length === 0) {
       input.classList.add('combobox-invalid');
     } else {
@@ -240,12 +228,12 @@ export function createOrderPicker(opts: OrderPickerOptions): OrderPickerHandle {
     }
   }
 
-  /** Check if a value is an exact match against available order values. */
-  function isValidOrder(raw: string): boolean {
-    const { values } = opts.getOrderData();
-    const machineOrders = opts.getMachineOrders?.() ?? null;
-    const source = machineOrders instanceof Set
-      ? values.filter(v => machineOrders.has(v))
+  /** Check if a value is an exact match against available commit values. */
+  function isValidCommit(raw: string): boolean {
+    const { values } = opts.getCommitData();
+    const machineCommits = opts.getMachineCommits?.() ?? null;
+    const source = machineCommits instanceof Set
+      ? values.filter(v => machineCommits.has(v))
       : values;
     return source.includes(raw);
   }
@@ -258,7 +246,7 @@ export function createOrderPicker(opts: OrderPickerOptions): OrderPickerHandle {
       if (input.classList.contains('combobox-invalid')) return;
       const raw = input.value.replace(/\s*\(.*\)$/, '').trim();
       if (!raw) return;
-      if (!isValidOrder(raw)) {
+      if (!isValidCommit(raw)) {
         input.classList.add('combobox-invalid');
         return;
       }
@@ -273,11 +261,11 @@ export function createOrderPicker(opts: OrderPickerOptions): OrderPickerHandle {
     setAriaExpanded(wrapper, false);
   });
   input.addEventListener('change', () => {
-    // Strip tag suffix if present (e.g., "abc123 (release-1)" -> "abc123")
+    // Strip any trailing parenthetical if present
     if (input.classList.contains('combobox-invalid')) return;
     const raw = input.value.replace(/\s*\(.*\)$/, '').trim();
     if (!raw) { opts.onSelect(raw); return; }
-    if (!isValidOrder(raw)) {
+    if (!isValidCommit(raw)) {
       input.classList.add('combobox-invalid');
       return;
     }
@@ -292,42 +280,42 @@ export function createOrderPicker(opts: OrderPickerOptions): OrderPickerHandle {
 }
 
 // ---------------------------------------------------------------------------
-// createOrderCombobox — Compare page wrapper around createOrderPicker
+// createCommitCombobox — Compare page wrapper around createCommitPicker
 // ---------------------------------------------------------------------------
 
-export function createOrderCombobox(
+export function createCommitCombobox(
   side: 'a' | 'b',
   setSide: (partial: Partial<SideSelection>) => void,
-  onOrderChange: () => void,
+  onCommitChange: () => void,
   ctx: ComboboxContext,
 ): HTMLElement {
   const { selection } = ctx.getSideState(side);
 
-  const picker = createOrderPicker({
-    id: `order-${side}`,
-    getOrderData: () => {
-      const { cachedOrderValues, orderTags } = ctx.getOrderData(side);
-      return { values: cachedOrderValues, tags: orderTags };
+  const picker = createCommitPicker({
+    id: `commit-${side}`,
+    getCommitData: () => {
+      const { cachedCommitValues } = ctx.getCommitData(side);
+      return { values: cachedCommitValues };
     },
-    initialValue: selection.order,
-    placeholder: 'Type to search orders...',
+    initialValue: selection.commit,
+    placeholder: 'Type to search commits...',
     onSelect: (value) => {
-      setSide(value ? { order: value } : { order: '', runs: [] });
-      onOrderChange();
+      setSide(value ? { commit: value } : { commit: '', runs: [] });
+      onCommitChange();
     },
-    getMachineOrders: () => {
-      const orders = side === 'a' ? machineOrdersA : machineOrdersB;
-      if (orders) return orders;
+    getMachineCommits: () => {
+      const commits = side === 'a' ? machineCommitsA : machineCommitsB;
+      if (commits) return commits;
       const { selection: s } = ctx.getSideState(side);
       return s.machine ? 'loading' : null;
     },
   });
 
   // Store refs for createMachineCombobox interaction
-  if (side === 'a') orderInputA = picker.input;
-  else orderInputB = picker.input;
+  if (side === 'a') commitInputA = picker.input;
+  else commitInputB = picker.input;
 
-  // Disable order input until a machine is selected
+  // Disable commit input until a machine is selected
   if (!selection.machine) {
     picker.input.disabled = true;
     picker.input.placeholder = 'Select a machine first';
@@ -369,26 +357,26 @@ export function createMachineCombobox(
   const { selection } = ctx.getSideState(side);
   if (selection.machine) {
     input.value = selection.machine;
-    // Pre-fetch orders for URL-restored machine so the order dropdown
-    // is correctly filtered from the start (not showing all orders).
-    fetchMachineOrders(side, selection.machine, ctx.getSuiteName(side));
+    // Pre-fetch commits for URL-restored machine so the commit dropdown
+    // is correctly filtered from the start (not showing all commits).
+    fetchMachineCommits(side, selection.machine, ctx.getSuiteName(side));
   }
 
   async function onMachineSelect(name: string): Promise<void> {
     setSide({ machine: name });
-    await fetchMachineOrders(side, name, ctx.getSuiteName(side));
-    // Clear order if it's no longer valid for this machine
-    const machineOrders = side === 'a' ? machineOrdersA : machineOrdersB;
+    await fetchMachineCommits(side, name, ctx.getSuiteName(side));
+    // Clear commit if it's no longer valid for this machine
+    const machineCommits = side === 'a' ? machineCommitsA : machineCommitsB;
     const { selection: current } = ctx.getSideState(side);
-    if (machineOrders && current.order && !machineOrders.has(current.order)) {
-      setSide({ order: '' });
+    if (machineCommits && current.commit && !machineCommits.has(current.commit)) {
+      setSide({ commit: '' });
     }
-    const orderInput = side === 'a' ? orderInputA : orderInputB;
-    if (orderInput) {
-      orderInput.disabled = false;
-      orderInput.placeholder = 'Type to search orders...';
+    const commitInput = side === 'a' ? commitInputA : commitInputB;
+    if (commitInput) {
+      commitInput.disabled = false;
+      commitInput.placeholder = 'Type to search commits...';
       const { selection: updated } = ctx.getSideState(side);
-      orderInput.value = updated.order || '';
+      commitInput.value = updated.commit || '';
     }
     onMachineChange();
   }
@@ -477,13 +465,13 @@ export function createMachineCombobox(
   input.addEventListener('change', () => {
     const text = input.value.trim();
     if (!text) {
-      // Machine cleared — reset downstream state and disable order
-      setSide({ machine: '', order: '', runs: [] });
-      const orderInput = side === 'a' ? orderInputA : orderInputB;
-      if (orderInput) {
-        orderInput.disabled = true;
-        orderInput.placeholder = 'Select a machine first';
-        orderInput.value = '';
+      // Machine cleared — reset downstream state and disable commit
+      setSide({ machine: '', commit: '', runs: [] });
+      const commitInput = side === 'a' ? commitInputA : commitInputB;
+      if (commitInput) {
+        commitInput.disabled = true;
+        commitInput.placeholder = 'Select a machine first';
+        commitInput.value = '';
       }
       input.classList.remove('combobox-invalid');
       onMachineChange();

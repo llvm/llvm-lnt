@@ -1,18 +1,18 @@
-import type { AggFn, FieldInfo, OrderSummary, SideSelection } from './types';
+import type { AggFn, FieldInfo, CommitSummary, SideSelection } from './types';
 import { SETTINGS_CHANGE, TEST_FILTER_CHANGE } from './events';
-import { getFields, getOrders, getRuns } from './api';
+import { getFields, getCommits, getRuns } from './api';
 import { getBasePath } from './router';
 import { getState, setSideA, setSideB, setState, swapSides } from './state';
 import { debounce, el } from './utils';
 import {
-  createOrderCombobox, createMachineCombobox, resetComboboxState,
+  createCommitCombobox, createMachineCombobox, resetComboboxState,
   type ComboboxContext,
 } from './combobox';
 import { renderMetricSelector, renderEmptyMetricSelector, filterMetricFields } from './components/metric-selector';
 
 // Per-side cached data
-let cachedOrdersA: OrderSummary[] = [];
-let cachedOrdersB: OrderSummary[] = [];
+let cachedCommitsA: CommitSummary[] = [];
+let cachedCommitsB: CommitSummary[] = [];
 let cachedFieldsA: FieldInfo[] = [];
 let cachedFieldsB: FieldInfo[] = [];
 let testsuites: string[] = [];
@@ -41,8 +41,8 @@ export function initSelection(
 ): void {
   testsuites = availableTestsuites;
   if (compareFn) onCompare = compareFn;
-  cachedOrdersA = [];
-  cachedOrdersB = [];
+  cachedCommitsA = [];
+  cachedCommitsB = [];
   cachedFieldsA = [];
   cachedFieldsB = [];
 }
@@ -69,24 +69,15 @@ function getSideState(side: 'a' | 'b') {
   };
 }
 
-function getOrderDataForSide(side: 'a' | 'b') {
-  const orders = side === 'a' ? cachedOrdersA : cachedOrdersB;
-  const cachedOrderValues: string[] = [];
-  const orderTags = new Map<string, string | null>();
-  for (const o of orders) {
-    const keys = Object.keys(o.fields);
-    if (keys.length > 0) {
-      const v = o.fields[keys[0]];
-      cachedOrderValues.push(v);
-      orderTags.set(v, o.tag ?? null);
-    }
-  }
-  return { cachedOrderValues, orderTags };
+function getCommitDataForSide(side: 'a' | 'b') {
+  const commits = side === 'a' ? cachedCommitsA : cachedCommitsB;
+  const cachedCommitValues = commits.map(c => c.commit);
+  return { cachedCommitValues };
 }
 
 function getComboboxContext(): ComboboxContext {
   return {
-    getOrderData: getOrderDataForSide,
+    getCommitData: getCommitDataForSide,
     getSuiteName: (side: 'a' | 'b') => {
       const { selection } = getSideState(side);
       return selection.suite;
@@ -120,14 +111,14 @@ function createRunsPanel(side: 'a' | 'b', container: HTMLElement, setSide: (part
 
   const { selection: sideState } = getSideState(side);
 
-  if (!sideState.suite || !sideState.order || !sideState.machine) {
-    container.replaceChildren(el('span', { class: 'runs-hint' }, 'Select an order first'));
+  if (!sideState.suite || !sideState.commit || !sideState.machine) {
+    container.replaceChildren(el('span', { class: 'runs-hint' }, 'Select a commit first'));
     return;
   }
 
   container.replaceChildren(el('span', { class: 'runs-loading' }, 'Loading runs...'));
 
-  getRuns(sideState.suite, { machine: sideState.machine, order: sideState.order })
+  getRuns(sideState.suite, { machine: sideState.machine, commit: sideState.commit })
     .then(runs => {
       // A newer createRunsPanel call was made while we were waiting —
       // discard this stale result to avoid overwriting fresh data.
@@ -150,7 +141,7 @@ function createRunsPanel(side: 'a' | 'b', container: HTMLElement, setSide: (part
         const cb = el('input', { type: 'checkbox', id, value: run.uuid });
         cb.checked = hasUrlMatch ? urlRuns.has(run.uuid) : true;
         const label = el('label', { for: id },
-          run.start_time ? new Date(run.start_time).toLocaleString() : '(no time)',
+          run.submitted_at ? new Date(run.submitted_at).toLocaleString() : '(no time)',
         );
         const link = el('a', {
           href: `${getBasePath()}/${encodeURIComponent(sideState.suite)}/runs/${encodeURIComponent(run.uuid)}`,
@@ -234,9 +225,9 @@ export async function fetchSideData(
   const version = side === 'a' ? ++suiteLoadVersionA : ++suiteLoadVersionB;
 
   try {
-    const [fields, orders] = await Promise.all([
+    const [fields, commits] = await Promise.all([
       getFields(suite),
-      getOrders(suite),
+      getCommits(suite),
     ]);
 
     // Check for staleness
@@ -245,10 +236,10 @@ export async function fetchSideData(
 
     if (side === 'a') {
       cachedFieldsA = fields;
-      cachedOrdersA = orders;
+      cachedCommitsA = commits;
     } else {
       cachedFieldsB = fields;
-      cachedOrdersB = orders;
+      cachedCommitsB = commits;
     }
 
     // Re-render metric selector — read metricContainerRef AFTER await
@@ -312,13 +303,13 @@ export function renderSelectionPanel(root: HTMLElement): void {
     }
     suiteSelect.addEventListener('change', () => {
       const newSuite = suiteSelect.value;
-      setSide({ suite: newSuite, machine: '', order: '', runs: [] });
+      setSide({ suite: newSuite, machine: '', commit: '', runs: [] });
       if (newSuite) {
         fetchSideData(side, newSuite);
       } else {
         // Clear cached data for this side so metrics/orders don't linger
-        if (side === 'a') { cachedFieldsA = []; cachedOrdersA = []; }
-        else { cachedFieldsB = []; cachedOrdersB = []; }
+        if (side === 'a') { cachedFieldsA = []; cachedCommitsA = []; }
+        else { cachedFieldsB = []; cachedCommitsB = []; }
       }
       // Re-render the panel to update comboboxes with new suite context
       renderSelectionPanel(root);
@@ -337,7 +328,7 @@ export function renderSelectionPanel(root: HTMLElement): void {
 
     // Order
     sideDiv.append(el('label', {}, 'Order'));
-    sideDiv.append(createOrderCombobox(side, setSide, refreshRuns, ctx));
+    sideDiv.append(createCommitCombobox(side, setSide, refreshRuns, ctx));
 
     // Runs
     sideDiv.append(el('label', {}, 'Runs'));
@@ -361,9 +352,9 @@ export function renderSelectionPanel(root: HTMLElement): void {
   swapBtn.addEventListener('click', () => {
     swapSides();
     // Also swap per-side caches
-    const tmpOrders = cachedOrdersA;
-    cachedOrdersA = cachedOrdersB;
-    cachedOrdersB = tmpOrders;
+    const tmpCommits = cachedCommitsA;
+    cachedCommitsA = cachedCommitsB;
+    cachedCommitsB = tmpCommits;
     const tmpFields = cachedFieldsA;
     cachedFieldsA = cachedFieldsB;
     cachedFieldsB = tmpFields;

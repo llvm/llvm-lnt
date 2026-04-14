@@ -8,7 +8,7 @@ import { getTestsuites } from '../router';
 import { onCustomEvent, GRAPH_TABLE_HOVER, GRAPH_CHART_HOVER } from '../events';
 import { renderMachineCombobox } from '../components/machine-combobox';
 import { renderMetricSelector, renderEmptyMetricSelector, filterMetricFields } from '../components/metric-selector';
-import { createOrderPicker, fetchMachineOrderSet } from '../combobox';
+import { createCommitPicker, fetchMachineCommitSet } from '../combobox';
 import {
   type TimeSeriesTrace, type PinnedBaseline, type ChartHandle,
   createTimeSeriesChart,
@@ -332,24 +332,24 @@ export const graphPage: PageModule = {
               baselineCommitCache.set(suite, []);
             }
           })();
-          const machineOrdersPromise = fetchMachineOrderSet(suite, name)
+          const machineOrdersPromise = fetchMachineCommitSet(suite, name)
             .catch(() => null as Set<string> | null);
 
           await commitListPromise;
 
           // Create order picker with machine-commit filtering
-          const picker = createOrderPicker({
+          const picker = createCommitPicker({
             id: 'baseline-order',
-            getOrderData: () => {
+            getCommitData: () => {
               const values = baselineCommitCache.get(suite);
-              return { cachedOrderValues: values ?? null, orderTags: new Map() };
+              return { values: values ?? [] };
             },
-            placeholder: 'Type to search orders...',
+            placeholder: 'Type to search commits...',
             onSelect: (value) => {
               blSelectedCommit = value;
               addCurrentBaseline();
             },
-            getMachineOrders: () => blSelectedMachine ? (blMachineCommits ?? 'loading') : null,
+            getMachineCommits: () => blSelectedMachine ? (blMachineCommits ?? 'loading') : null,
           });
           blCommitContainer.append(picker.element);
           blCommitCleanup = picker.destroy;

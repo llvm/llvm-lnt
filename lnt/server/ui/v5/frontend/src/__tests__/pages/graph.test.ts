@@ -25,7 +25,7 @@ vi.mock('../../components/machine-combobox', () => ({
   renderMachineCombobox: vi.fn(() => mockMachineComboHandle),
 }));
 
-const mockOrderPickerHandle = {
+const mockCommitPickerHandle = {
   element: document.createElement('div'),
   input: document.createElement('input'),
   destroy: vi.fn(),
@@ -34,8 +34,8 @@ vi.mock('../../combobox', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../combobox')>();
   return {
     ...actual,
-    createOrderPicker: vi.fn(() => mockOrderPickerHandle),
-    fetchMachineOrderSet: vi.fn().mockResolvedValue(new Set<string>()),
+    createCommitPicker: vi.fn(() => mockCommitPickerHandle),
+    fetchMachineCommitSet: vi.fn().mockResolvedValue(new Set<string>()),
   };
 });
 
@@ -463,8 +463,8 @@ describe('graphPage mount', () => {
     container = document.createElement('div');
 
     // Reset mock picker handle element (consumed by append)
-    mockOrderPickerHandle.element = document.createElement('div');
-    mockOrderPickerHandle.input = document.createElement('input');
+    mockCommitPickerHandle.element = document.createElement('div');
+    mockCommitPickerHandle.input = document.createElement('input');
 
     // Reset URL state
     delete (window as Record<string, unknown>).location;

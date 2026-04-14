@@ -11,16 +11,15 @@ vi.mock('../api', () => ({
 
 import { getMachines, getMachineRuns } from '../api';
 import {
-  createMachineCombobox, createOrderCombobox, createOrderPicker,
-  fetchMachineOrderSet, resetComboboxState, type ComboboxContext,
+  createMachineCombobox, createCommitCombobox, createCommitPicker,
+  fetchMachineCommitSet, resetComboboxState, type ComboboxContext,
 } from '../combobox';
 
 function makeContext(overrides?: Partial<ComboboxContext>): ComboboxContext {
-  const sideA: SideSelection = { suite: '', order: '', machine: '', runs: [], runAgg: 'median' };
+  const sideA: SideSelection = { suite: '', commit: '', machine: '', runs: [], runAgg: 'median' };
   return {
-    getOrderData: () => ({
-      cachedOrderValues: ['100', '101', '102'],
-      orderTags: new Map<string, string | null>([['100', 'release-1'], ['101', null], ['102', 'release-2']]),
+    getCommitData: () => ({
+      cachedCommitValues: ['100', '101', '102'],
     }),
     getSuiteName: () => 'nts',
     getSideState: () => ({
@@ -32,15 +31,15 @@ function makeContext(overrides?: Partial<ComboboxContext>): ComboboxContext {
   };
 }
 
-describe('createOrderCombobox', () => {
+describe('createCommitCombobox', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetComboboxState();
   });
 
-  it('shows tags in dropdown items', () => {
+  it('shows values in dropdown items', () => {
     const ctx = makeContext();
-    const wrapper = createOrderCombobox('a', () => {}, () => {}, ctx);
+    const wrapper = createCommitCombobox('a', () => {}, () => {}, ctx);
     document.body.append(wrapper);
 
     const input = wrapper.querySelector('input')!;
@@ -48,32 +47,32 @@ describe('createOrderCombobox', () => {
 
     const items = wrapper.querySelectorAll('.combobox-item');
     const texts = Array.from(items).map(li => li.textContent);
-    expect(texts).toContain('100 (release-1)');
+    expect(texts).toContain('100');
     expect(texts).toContain('101');
-    expect(texts).toContain('102 (release-2)');
+    expect(texts).toContain('102');
 
     wrapper.remove();
   });
 
-  it('filters by tag text', () => {
+  it('filters by commit value substring', () => {
     const ctx = makeContext();
-    const wrapper = createOrderCombobox('a', () => {}, () => {}, ctx);
+    const wrapper = createCommitCombobox('a', () => {}, () => {}, ctx);
     document.body.append(wrapper);
 
     const input = wrapper.querySelector('input')! as HTMLInputElement;
-    input.value = 'release-2';
+    input.value = '102';
     input.dispatchEvent(new Event('input'));
 
     const items = wrapper.querySelectorAll('.combobox-item');
     expect(items).toHaveLength(1);
-    expect(items[0].textContent).toBe('102 (release-2)');
+    expect(items[0].textContent).toBe('102');
 
     wrapper.remove();
   });
 
-  it('filters by order value', () => {
+  it('filters by commit value', () => {
     const ctx = makeContext();
-    const wrapper = createOrderCombobox('a', () => {}, () => {}, ctx);
+    const wrapper = createCommitCombobox('a', () => {}, () => {}, ctx);
     document.body.append(wrapper);
 
     const input = wrapper.querySelector('input')! as HTMLInputElement;
@@ -87,8 +86,8 @@ describe('createOrderCombobox', () => {
     wrapper.remove();
   });
 
-  it('shows loading hint when machine is set but orders not loaded', () => {
-    const sideA: SideSelection = { suite: '', order: '', machine: 'clang-x86', runs: [], runAgg: 'median' };
+  it('shows loading hint when machine is set but commits not loaded', () => {
+    const sideA: SideSelection = { suite: '', commit: '', machine: 'clang-x86', runs: [], runAgg: 'median' };
     const ctx = makeContext({
       getSideState: () => ({
         selection: sideA,
@@ -96,8 +95,8 @@ describe('createOrderCombobox', () => {
         label: 'Side A',
       }),
     });
-    // machineOrdersA is null (not loaded) — resetComboboxState ensures this
-    const wrapper = createOrderCombobox('a', () => {}, () => {}, ctx);
+    // machineCommitsA is null (not loaded) — resetComboboxState ensures this
+    const wrapper = createCommitCombobox('a', () => {}, () => {}, ctx);
     document.body.append(wrapper);
 
     const input = wrapper.querySelector('input')!;
@@ -105,13 +104,13 @@ describe('createOrderCombobox', () => {
 
     const items = wrapper.querySelectorAll('.combobox-item');
     expect(items).toHaveLength(1);
-    expect(items[0].textContent).toBe('Loading orders...');
+    expect(items[0].textContent).toBe('Loading commits...');
 
     wrapper.remove();
   });
 
-  it('calls setSide with order value (not tag) on selection', () => {
-    const sideA: SideSelection = { suite: '', order: '', machine: '', runs: [], runAgg: 'median' };
+  it('calls setSide with commit value on selection', () => {
+    const sideA: SideSelection = { suite: '', commit: '', machine: '', runs: [], runAgg: 'median' };
     const setSide = vi.fn();
     const ctx = makeContext({
       getSideState: () => ({
@@ -120,24 +119,24 @@ describe('createOrderCombobox', () => {
         label: 'Side A',
       }),
     });
-    const wrapper = createOrderCombobox('a', setSide, () => {}, ctx);
+    const wrapper = createCommitCombobox('a', setSide, () => {}, ctx);
     document.body.append(wrapper);
 
     const input = wrapper.querySelector('input')!;
     input.dispatchEvent(new Event('focus'));
 
     const items = wrapper.querySelectorAll('.combobox-item');
-    // Click the tagged item "100 (release-1)"
+    // Click the first item "100"
     (items[0] as HTMLElement).click();
 
-    expect(setSide).toHaveBeenCalledWith({ order: '100' });
+    expect(setSide).toHaveBeenCalledWith({ commit: '100' });
 
     wrapper.remove();
   });
 
-  it('shows tag in input after selection', () => {
+  it('shows value in input after selection', () => {
     const ctx = makeContext();
-    const wrapper = createOrderCombobox('a', () => {}, () => {}, ctx);
+    const wrapper = createCommitCombobox('a', () => {}, () => {}, ctx);
     document.body.append(wrapper);
 
     const input = wrapper.querySelector('input')! as HTMLInputElement;
@@ -146,13 +145,13 @@ describe('createOrderCombobox', () => {
     const items = wrapper.querySelectorAll('.combobox-item');
     (items[0] as HTMLElement).click();
 
-    expect(input.value).toBe('100 (release-1)');
+    expect(input.value).toBe('100');
 
     wrapper.remove();
   });
 
-  it('shows tag in input on URL restore', () => {
-    const sideA: SideSelection = { suite: '', order: '102', machine: '', runs: [], runAgg: 'median' };
+  it('shows value in input on URL restore', () => {
+    const sideA: SideSelection = { suite: '', commit: '102', machine: '', runs: [], runAgg: 'median' };
     const ctx = makeContext({
       getSideState: () => ({
         selection: sideA,
@@ -160,17 +159,17 @@ describe('createOrderCombobox', () => {
         label: 'Side A',
       }),
     });
-    const wrapper = createOrderCombobox('a', () => {}, () => {}, ctx);
+    const wrapper = createCommitCombobox('a', () => {}, () => {}, ctx);
     document.body.append(wrapper);
 
     const input = wrapper.querySelector('input')! as HTMLInputElement;
-    expect(input.value).toBe('102 (release-2)');
+    expect(input.value).toBe('102');
 
     wrapper.remove();
   });
 
-  it('shows plain value when order has no tag', () => {
-    const sideA: SideSelection = { suite: '', order: '101', machine: '', runs: [], runAgg: 'median' };
+  it('shows value in input for existing commit', () => {
+    const sideA: SideSelection = { suite: '', commit: '101', machine: '', runs: [], runAgg: 'median' };
     const ctx = makeContext({
       getSideState: () => ({
         selection: sideA,
@@ -178,7 +177,7 @@ describe('createOrderCombobox', () => {
         label: 'Side A',
       }),
     });
-    const wrapper = createOrderCombobox('a', () => {}, () => {}, ctx);
+    const wrapper = createCommitCombobox('a', () => {}, () => {}, ctx);
     document.body.append(wrapper);
 
     const input = wrapper.querySelector('input')! as HTMLInputElement;
@@ -187,8 +186,8 @@ describe('createOrderCombobox', () => {
     wrapper.remove();
   });
 
-  it('disables order input when no machine is selected', () => {
-    const sideA: SideSelection = { suite: 'nts', order: '', machine: '', runs: [], runAgg: 'median' };
+  it('disables commit input when no machine is selected', () => {
+    const sideA: SideSelection = { suite: 'nts', commit: '', machine: '', runs: [], runAgg: 'median' };
     const ctx = makeContext({
       getSideState: () => ({
         selection: sideA,
@@ -196,7 +195,7 @@ describe('createOrderCombobox', () => {
         label: 'Side A',
       }),
     });
-    const wrapper = createOrderCombobox('a', () => {}, () => {}, ctx);
+    const wrapper = createCommitCombobox('a', () => {}, () => {}, ctx);
     document.body.append(wrapper);
 
     const input = wrapper.querySelector('input')! as HTMLInputElement;
@@ -206,8 +205,8 @@ describe('createOrderCombobox', () => {
     wrapper.remove();
   });
 
-  it('does not disable order input when machine is selected', () => {
-    const sideA: SideSelection = { suite: 'nts', order: '', machine: 'clang-x86', runs: [], runAgg: 'median' };
+  it('does not disable commit input when machine is selected', () => {
+    const sideA: SideSelection = { suite: 'nts', commit: '', machine: 'clang-x86', runs: [], runAgg: 'median' };
     const ctx = makeContext({
       getSideState: () => ({
         selection: sideA,
@@ -215,7 +214,7 @@ describe('createOrderCombobox', () => {
         label: 'Side A',
       }),
     });
-    const wrapper = createOrderCombobox('a', () => {}, () => {}, ctx);
+    const wrapper = createCommitCombobox('a', () => {}, () => {}, ctx);
     document.body.append(wrapper);
 
     const input = wrapper.querySelector('input')! as HTMLInputElement;
@@ -226,23 +225,17 @@ describe('createOrderCombobox', () => {
 });
 // ---------------------------------------------------------------------------
 
-const ORDER_VALUES = ['100', '101', '102', '200'];
-const ORDER_TAGS = new Map<string, string | null>([
-  ['100', 'release-1'],
-  ['101', null],
-  ['102', 'release-2'],
-  ['200', 'beta-1'],
-]);
+const COMMIT_VALUES = ['100', '101', '102', '200'];
 
-describe('createOrderPicker', () => {
+describe('createCommitPicker', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it('renders a combobox wrapper with input and dropdown', () => {
-    const picker = createOrderPicker({
+    const picker = createCommitPicker({
       id: 'test',
-      getOrderData: () => ({ values: ORDER_VALUES, tags: ORDER_TAGS }),
+      getCommitData: () => ({ values: COMMIT_VALUES }),
       onSelect: () => {},
     });
     document.body.append(picker.element);
@@ -254,10 +247,10 @@ describe('createOrderPicker', () => {
     picker.element.remove();
   });
 
-  it('shows all orders on focus', () => {
-    const picker = createOrderPicker({
+  it('shows all commits on focus', () => {
+    const picker = createCommitPicker({
       id: 'test',
-      getOrderData: () => ({ values: ORDER_VALUES, tags: ORDER_TAGS }),
+      getCommitData: () => ({ values: COMMIT_VALUES }),
       onSelect: () => {},
     });
     document.body.append(picker.element);
@@ -270,10 +263,10 @@ describe('createOrderPicker', () => {
     picker.element.remove();
   });
 
-  it('displays tags in dropdown items', () => {
-    const picker = createOrderPicker({
+  it('displays values in dropdown items', () => {
+    const picker = createCommitPicker({
       id: 'test',
-      getOrderData: () => ({ values: ORDER_VALUES, tags: ORDER_TAGS }),
+      getCommitData: () => ({ values: COMMIT_VALUES }),
       onSelect: () => {},
     });
     document.body.append(picker.element);
@@ -282,18 +275,18 @@ describe('createOrderPicker', () => {
 
     const items = picker.element.querySelectorAll('.combobox-item');
     const texts = Array.from(items).map(li => li.textContent);
-    expect(texts).toContain('100 (release-1)');
+    expect(texts).toContain('100');
     expect(texts).toContain('101');
-    expect(texts).toContain('102 (release-2)');
-    expect(texts).toContain('200 (beta-1)');
+    expect(texts).toContain('102');
+    expect(texts).toContain('200');
 
     picker.element.remove();
   });
 
-  it('filters by order value', () => {
-    const picker = createOrderPicker({
+  it('filters by commit value', () => {
+    const picker = createCommitPicker({
       id: 'test',
-      getOrderData: () => ({ values: ORDER_VALUES, tags: ORDER_TAGS }),
+      getCommitData: () => ({ values: COMMIT_VALUES }),
       onSelect: () => {},
     });
     document.body.append(picker.element);
@@ -303,34 +296,34 @@ describe('createOrderPicker', () => {
 
     const items = picker.element.querySelectorAll('.combobox-item');
     expect(items).toHaveLength(3); // 100, 101, 102
-    expect(Array.from(items).map(li => li.textContent)).not.toContain('200 (beta-1)');
+    expect(Array.from(items).map(li => li.textContent)).not.toContain('200');
 
     picker.element.remove();
   });
 
-  it('filters by tag text', () => {
-    const picker = createOrderPicker({
+  it('filters by commit value prefix', () => {
+    const picker = createCommitPicker({
       id: 'test',
-      getOrderData: () => ({ values: ORDER_VALUES, tags: ORDER_TAGS }),
+      getCommitData: () => ({ values: COMMIT_VALUES }),
       onSelect: () => {},
     });
     document.body.append(picker.element);
 
-    picker.input.value = 'beta';
+    picker.input.value = '200';
     picker.input.dispatchEvent(new Event('input'));
 
     const items = picker.element.querySelectorAll('.combobox-item');
     expect(items).toHaveLength(1);
-    expect(items[0].textContent).toBe('200 (beta-1)');
+    expect(items[0].textContent).toBe('200');
 
     picker.element.remove();
   });
 
-  it('calls onSelect with order value (not tag) on click', () => {
+  it('calls onSelect with commit value on click', () => {
     const onSelect = vi.fn();
-    const picker = createOrderPicker({
+    const picker = createCommitPicker({
       id: 'test',
-      getOrderData: () => ({ values: ORDER_VALUES, tags: ORDER_TAGS }),
+      getCommitData: () => ({ values: COMMIT_VALUES }),
       onSelect,
     });
     document.body.append(picker.element);
@@ -338,17 +331,17 @@ describe('createOrderPicker', () => {
     picker.input.dispatchEvent(new Event('focus'));
 
     const items = picker.element.querySelectorAll('.combobox-item');
-    (items[0] as HTMLElement).click(); // "100 (release-1)"
+    (items[0] as HTMLElement).click(); // "100"
 
     expect(onSelect).toHaveBeenCalledWith('100');
 
     picker.element.remove();
   });
 
-  it('sets input value with tag on selection', () => {
-    const picker = createOrderPicker({
+  it('sets input value on selection', () => {
+    const picker = createCommitPicker({
       id: 'test',
-      getOrderData: () => ({ values: ORDER_VALUES, tags: ORDER_TAGS }),
+      getCommitData: () => ({ values: COMMIT_VALUES }),
       onSelect: () => {},
     });
     document.body.append(picker.element);
@@ -357,15 +350,15 @@ describe('createOrderPicker', () => {
     const items = picker.element.querySelectorAll('.combobox-item');
     (items[0] as HTMLElement).click();
 
-    expect(picker.input.value).toBe('100 (release-1)');
+    expect(picker.input.value).toBe('100');
 
     picker.element.remove();
   });
 
   it('keeps dropdown open when ArrowDown moves focus to an item', () => {
-    const picker = createOrderPicker({
+    const picker = createCommitPicker({
       id: 'test',
-      getOrderData: () => ({ values: ORDER_VALUES, tags: ORDER_TAGS }),
+      getCommitData: () => ({ values: COMMIT_VALUES }),
       onSelect: () => {},
     });
     document.body.append(picker.element);
@@ -385,9 +378,9 @@ describe('createOrderPicker', () => {
 
   it('selects item via ArrowDown then Enter', () => {
     const onSelect = vi.fn();
-    const picker = createOrderPicker({
+    const picker = createCommitPicker({
       id: 'test',
-      getOrderData: () => ({ values: ORDER_VALUES, tags: ORDER_TAGS }),
+      getCommitData: () => ({ values: COMMIT_VALUES }),
       onSelect,
     });
     document.body.append(picker.element);
@@ -405,19 +398,16 @@ describe('createOrderPicker', () => {
     picker.element.remove();
   });
 
-  it('strips tag suffix on change event', () => {
+  it('accepts value on change event', () => {
     const onSelect = vi.fn();
-    const picker = createOrderPicker({
+    const picker = createCommitPicker({
       id: 'test',
-      getOrderData: () => ({ values: ORDER_VALUES, tags: ORDER_TAGS }),
+      getCommitData: () => ({ values: COMMIT_VALUES }),
       onSelect,
     });
     document.body.append(picker.element);
 
-    // Simulate: user clicked "100 (release-1)" from dropdown (which set the
-    // input value), then blurred — change event fires with the tagged display
-    // value. The handler strips the tag suffix before calling onSelect.
-    picker.input.value = '100 (release-1)';
+    picker.input.value = '100';
     picker.input.dispatchEvent(new Event('change'));
 
     expect(onSelect).toHaveBeenCalledWith('100');
@@ -425,24 +415,24 @@ describe('createOrderPicker', () => {
     picker.element.remove();
   });
 
-  it('sets initial value with tag', () => {
-    const picker = createOrderPicker({
+  it('sets initial value', () => {
+    const picker = createCommitPicker({
       id: 'test',
-      getOrderData: () => ({ values: ORDER_VALUES, tags: ORDER_TAGS }),
+      getCommitData: () => ({ values: COMMIT_VALUES }),
       initialValue: '100',
       onSelect: () => {},
     });
     document.body.append(picker.element);
 
-    expect(picker.input.value).toBe('100 (release-1)');
+    expect(picker.input.value).toBe('100');
 
     picker.element.remove();
   });
 
-  it('sets initial value without tag when tag is null', () => {
-    const picker = createOrderPicker({
+  it('sets initial value for any commit', () => {
+    const picker = createCommitPicker({
       id: 'test',
-      getOrderData: () => ({ values: ORDER_VALUES, tags: ORDER_TAGS }),
+      getCommitData: () => ({ values: COMMIT_VALUES }),
       initialValue: '101',
       onSelect: () => {},
     });
@@ -450,13 +440,13 @@ describe('createOrderPicker', () => {
     expect(picker.input.value).toBe('101');
   });
 
-  it('respects getMachineOrders filter', () => {
-    const machineOrders = new Set(['100', '200']);
-    const picker = createOrderPicker({
+  it('respects getMachineCommits filter', () => {
+    const machineCommits = new Set(['100', '200']);
+    const picker = createCommitPicker({
       id: 'test',
-      getOrderData: () => ({ values: ORDER_VALUES, tags: ORDER_TAGS }),
+      getCommitData: () => ({ values: COMMIT_VALUES }),
       onSelect: () => {},
-      getMachineOrders: () => machineOrders,
+      getMachineCommits: () => machineCommits,
     });
     document.body.append(picker.element);
 
@@ -465,18 +455,18 @@ describe('createOrderPicker', () => {
     const items = picker.element.querySelectorAll('.combobox-item');
     expect(items).toHaveLength(2);
     const texts = Array.from(items).map(li => li.textContent);
-    expect(texts).toContain('100 (release-1)');
-    expect(texts).toContain('200 (beta-1)');
+    expect(texts).toContain('100');
+    expect(texts).toContain('200');
 
     picker.element.remove();
   });
 
-  it('shows loading hint when getMachineOrders returns loading', () => {
-    const picker = createOrderPicker({
+  it('shows loading hint when getMachineCommits returns loading', () => {
+    const picker = createCommitPicker({
       id: 'test',
-      getOrderData: () => ({ values: ORDER_VALUES, tags: ORDER_TAGS }),
+      getCommitData: () => ({ values: COMMIT_VALUES }),
       onSelect: () => {},
-      getMachineOrders: () => 'loading',
+      getMachineCommits: () => 'loading',
     });
     document.body.append(picker.element);
 
@@ -484,17 +474,17 @@ describe('createOrderPicker', () => {
 
     const items = picker.element.querySelectorAll('.combobox-item');
     expect(items).toHaveLength(1);
-    expect(items[0].textContent).toBe('Loading orders...');
+    expect(items[0].textContent).toBe('Loading commits...');
 
     picker.element.remove();
   });
 
-  it('shows all orders when getMachineOrders returns null', () => {
-    const picker = createOrderPicker({
+  it('shows all commits when getMachineCommits returns null', () => {
+    const picker = createCommitPicker({
       id: 'test',
-      getOrderData: () => ({ values: ORDER_VALUES, tags: ORDER_TAGS }),
+      getCommitData: () => ({ values: COMMIT_VALUES }),
       onSelect: () => {},
-      getMachineOrders: () => null,
+      getMachineCommits: () => null,
     });
     document.body.append(picker.element);
 
@@ -508,10 +498,9 @@ describe('createOrderPicker', () => {
 
   it('limits dropdown to 100 items', () => {
     const values = Array.from({ length: 150 }, (_, i) => String(i));
-    const tags = new Map<string, string | null>(values.map(v => [v, null]));
-    const picker = createOrderPicker({
+    const picker = createCommitPicker({
       id: 'test',
-      getOrderData: () => ({ values, tags }),
+      getCommitData: () => ({ values }),
       onSelect: () => {},
     });
     document.body.append(picker.element);
@@ -525,9 +514,9 @@ describe('createOrderPicker', () => {
   });
 
   it('closes dropdown on blur', () => {
-    const picker = createOrderPicker({
+    const picker = createCommitPicker({
       id: 'test',
-      getOrderData: () => ({ values: ORDER_VALUES, tags: ORDER_TAGS }),
+      getCommitData: () => ({ values: COMMIT_VALUES }),
       onSelect: () => {},
     });
     document.body.append(picker.element);
@@ -542,9 +531,9 @@ describe('createOrderPicker', () => {
   });
 
   it('uses custom placeholder', () => {
-    const picker = createOrderPicker({
+    const picker = createCommitPicker({
       id: 'test',
-      getOrderData: () => ({ values: ORDER_VALUES, tags: ORDER_TAGS }),
+      getCommitData: () => ({ values: COMMIT_VALUES }),
       placeholder: 'Custom placeholder',
       onSelect: () => {},
     });
@@ -554,10 +543,10 @@ describe('createOrderPicker', () => {
 
   // --- Validation tests ---
 
-  it('shows combobox-invalid on input when no orders match', () => {
-    const picker = createOrderPicker({
+  it('shows combobox-invalid on input when no commits match', () => {
+    const picker = createCommitPicker({
       id: 'test',
-      getOrderData: () => ({ values: ORDER_VALUES, tags: ORDER_TAGS }),
+      getCommitData: () => ({ values: COMMIT_VALUES }),
       onSelect: () => {},
     });
     document.body.append(picker.element);
@@ -570,10 +559,10 @@ describe('createOrderPicker', () => {
     picker.element.remove();
   });
 
-  it('removes combobox-invalid on input when orders match', () => {
-    const picker = createOrderPicker({
+  it('removes combobox-invalid on input when commits match', () => {
+    const picker = createCommitPicker({
       id: 'test',
-      getOrderData: () => ({ values: ORDER_VALUES, tags: ORDER_TAGS }),
+      getCommitData: () => ({ values: COMMIT_VALUES }),
       onSelect: () => {},
     });
     document.body.append(picker.element);
@@ -592,9 +581,9 @@ describe('createOrderPicker', () => {
   });
 
   it('no combobox-invalid when input is empty', () => {
-    const picker = createOrderPicker({
+    const picker = createCommitPicker({
       id: 'test',
-      getOrderData: () => ({ values: ORDER_VALUES, tags: ORDER_TAGS }),
+      getCommitData: () => ({ values: COMMIT_VALUES }),
       onSelect: () => {},
     });
     document.body.append(picker.element);
@@ -609,9 +598,9 @@ describe('createOrderPicker', () => {
 
   it('does not call onSelect on change when combobox-invalid', () => {
     const onSelect = vi.fn();
-    const picker = createOrderPicker({
+    const picker = createCommitPicker({
       id: 'test',
-      getOrderData: () => ({ values: ORDER_VALUES, tags: ORDER_TAGS }),
+      getCommitData: () => ({ values: COMMIT_VALUES }),
       onSelect,
     });
     document.body.append(picker.element);
@@ -627,9 +616,9 @@ describe('createOrderPicker', () => {
 
   it('calls onSelect on Enter when input is valid', () => {
     const onSelect = vi.fn();
-    const picker = createOrderPicker({
+    const picker = createCommitPicker({
       id: 'test',
-      getOrderData: () => ({ values: ORDER_VALUES, tags: ORDER_TAGS }),
+      getCommitData: () => ({ values: COMMIT_VALUES }),
       onSelect,
     });
     document.body.append(picker.element);
@@ -645,9 +634,9 @@ describe('createOrderPicker', () => {
 
   it('does not call onSelect on Enter when input is invalid', () => {
     const onSelect = vi.fn();
-    const picker = createOrderPicker({
+    const picker = createCommitPicker({
       id: 'test',
-      getOrderData: () => ({ values: ORDER_VALUES, tags: ORDER_TAGS }),
+      getCommitData: () => ({ values: COMMIT_VALUES }),
       onSelect,
     });
     document.body.append(picker.element);
@@ -661,12 +650,12 @@ describe('createOrderPicker', () => {
     picker.element.remove();
   });
 
-  it('no combobox-invalid when getMachineOrders returns loading', () => {
-    const picker = createOrderPicker({
+  it('no combobox-invalid when getMachineCommits returns loading', () => {
+    const picker = createCommitPicker({
       id: 'test',
-      getOrderData: () => ({ values: ORDER_VALUES, tags: ORDER_TAGS }),
+      getCommitData: () => ({ values: COMMIT_VALUES }),
       onSelect: () => {},
-      getMachineOrders: () => 'loading',
+      getMachineCommits: () => 'loading',
     });
     document.body.append(picker.element);
 
@@ -678,22 +667,22 @@ describe('createOrderPicker', () => {
     picker.element.remove();
   });
 
-  it('validates against machine-filtered orders', () => {
-    const machineOrders = new Set(['100', '200']);
-    const picker = createOrderPicker({
+  it('validates against machine-filtered commits', () => {
+    const machineCommits = new Set(['100', '200']);
+    const picker = createCommitPicker({
       id: 'test',
-      getOrderData: () => ({ values: ORDER_VALUES, tags: ORDER_TAGS }),
+      getCommitData: () => ({ values: COMMIT_VALUES }),
       onSelect: () => {},
-      getMachineOrders: () => machineOrders,
+      getMachineCommits: () => machineCommits,
     });
     document.body.append(picker.element);
 
-    // '101' is in ORDER_VALUES but not in machineOrders
+    // '101' is in COMMIT_VALUES but not in machineCommits
     picker.input.value = '101';
     picker.input.dispatchEvent(new Event('input'));
     expect(picker.input.classList.contains('combobox-invalid')).toBe(true);
 
-    // '100' is in machineOrders
+    // '100' is in machineCommits
     picker.input.value = '100';
     picker.input.dispatchEvent(new Event('input'));
     expect(picker.input.classList.contains('combobox-invalid')).toBe(false);
@@ -703,9 +692,9 @@ describe('createOrderPicker', () => {
 
   it('rejects partial match on Enter (exact-match required)', () => {
     const onSelect = vi.fn();
-    const picker = createOrderPicker({
+    const picker = createCommitPicker({
       id: 'test',
-      getOrderData: () => ({ values: ORDER_VALUES, tags: ORDER_TAGS }),
+      getCommitData: () => ({ values: COMMIT_VALUES }),
       onSelect,
     });
     document.body.append(picker.element);
@@ -724,9 +713,9 @@ describe('createOrderPicker', () => {
 
   it('rejects partial match on change (exact-match required)', () => {
     const onSelect = vi.fn();
-    const picker = createOrderPicker({
+    const picker = createCommitPicker({
       id: 'test',
-      getOrderData: () => ({ values: ORDER_VALUES, tags: ORDER_TAGS }),
+      getCommitData: () => ({ values: COMMIT_VALUES }),
       onSelect,
     });
     document.body.append(picker.element);
@@ -742,9 +731,9 @@ describe('createOrderPicker', () => {
 
   it('accepts exact match on Enter', () => {
     const onSelect = vi.fn();
-    const picker = createOrderPicker({
+    const picker = createCommitPicker({
       id: 'test',
-      getOrderData: () => ({ values: ORDER_VALUES, tags: ORDER_TAGS }),
+      getCommitData: () => ({ values: COMMIT_VALUES }),
       onSelect,
     });
     document.body.append(picker.element);
@@ -759,9 +748,9 @@ describe('createOrderPicker', () => {
 
   it('accepts exact match on change', () => {
     const onSelect = vi.fn();
-    const picker = createOrderPicker({
+    const picker = createCommitPicker({
       id: 'test',
-      getOrderData: () => ({ values: ORDER_VALUES, tags: ORDER_TAGS }),
+      getCommitData: () => ({ values: COMMIT_VALUES }),
       onSelect,
     });
     document.body.append(picker.element);
@@ -774,17 +763,16 @@ describe('createOrderPicker', () => {
     picker.element.remove();
   });
 
-  it('accepts exact match with tag suffix on Enter', () => {
+  it('accepts exact match on Enter via display value', () => {
     const onSelect = vi.fn();
-    const picker = createOrderPicker({
+    const picker = createCommitPicker({
       id: 'test',
-      getOrderData: () => ({ values: ORDER_VALUES, tags: ORDER_TAGS }),
+      getCommitData: () => ({ values: COMMIT_VALUES }),
       onSelect,
     });
     document.body.append(picker.element);
 
-    // Typing the display label "100 (release-1)" should strip to "100" and accept
-    picker.input.value = '100 (release-1)';
+    picker.input.value = '100';
     picker.input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
     expect(onSelect).toHaveBeenCalledWith('100');
 
@@ -817,11 +805,10 @@ describe('createMachineCombobox', () => {
   });
 
   function makeMachineCtx(overrides?: Partial<ComboboxContext>): ComboboxContext {
-    const sideA: SideSelection = { suite: 'nts', order: '', machine: '', runs: [], runAgg: 'median' };
+    const sideA: SideSelection = { suite: 'nts', commit: '', machine: '', runs: [], runAgg: 'median' };
     return {
-      getOrderData: () => ({
-        cachedOrderValues: [],
-        orderTags: new Map<string, string | null>(),
+      getCommitData: () => ({
+        cachedCommitValues: [],
       }),
       getSuiteName: () => 'nts',
       getSideState: () => ({
@@ -864,7 +851,7 @@ describe('createMachineCombobox', () => {
     const ctx = makeMachineCtx({
       getSuiteName: () => '',
       getSideState: () => ({
-        selection: { suite: '', order: '', machine: '', runs: [], runAgg: 'median' as const },
+        selection: { suite: '', commit: '', machine: '', runs: [], runAgg: 'median' as const },
         setSide: () => {},
         label: 'Side A',
       }),
@@ -954,8 +941,8 @@ describe('createMachineCombobox', () => {
     wrapper.remove();
   });
 
-  it('disables order input when machine is cleared via change', async () => {
-    const sideA: SideSelection = { suite: 'nts', order: '100', machine: 'clang-x86', runs: ['r1'], runAgg: 'median' };
+  it('disables commit input when machine is cleared via change', async () => {
+    const sideA: SideSelection = { suite: 'nts', commit: '100', machine: 'clang-x86', runs: ['r1'], runAgg: 'median' };
     const setSide = vi.fn((partial: Partial<SideSelection>) => Object.assign(sideA, partial));
     const onMachineChange = vi.fn();
     const ctx = makeMachineCtx({
@@ -967,28 +954,28 @@ describe('createMachineCombobox', () => {
     });
     const wrapper = await createAndLoad(ctx, setSide, onMachineChange);
 
-    // Create order combobox to set up orderInputA ref
-    const orderWrapper = createOrderCombobox('a', setSide, () => {}, ctx);
-    document.body.append(orderWrapper);
-    const orderInput = orderWrapper.querySelector('input')! as HTMLInputElement;
-    expect(orderInput.disabled).toBe(false); // machine is set
+    // Create commit combobox to set up commitInputA ref
+    const commitWrapper = createCommitCombobox('a', setSide, () => {}, ctx);
+    document.body.append(commitWrapper);
+    const commitInput = commitWrapper.querySelector('input')! as HTMLInputElement;
+    expect(commitInput.disabled).toBe(false); // machine is set
 
     // Clear machine text and trigger change
     const machineInput = wrapper.querySelector('input') as HTMLInputElement;
     machineInput.value = '';
     machineInput.dispatchEvent(new Event('change'));
 
-    expect(setSide).toHaveBeenCalledWith({ machine: '', order: '', runs: [] });
-    expect(orderInput.disabled).toBe(true);
-    expect(orderInput.placeholder).toBe('Select a machine first');
+    expect(setSide).toHaveBeenCalledWith({ machine: '', commit: '', runs: [] });
+    expect(commitInput.disabled).toBe(true);
+    expect(commitInput.placeholder).toBe('Select a machine first');
     expect(onMachineChange).toHaveBeenCalled();
 
     wrapper.remove();
-    orderWrapper.remove();
+    commitWrapper.remove();
   });
 
   it('disables machine input when no suite is selected', () => {
-    const sideA: SideSelection = { suite: '', order: '', machine: '', runs: [], runAgg: 'median' };
+    const sideA: SideSelection = { suite: '', commit: '', machine: '', runs: [], runAgg: 'median' };
     const ctx = makeMachineCtx({
       getSuiteName: () => '',
       getSideState: () => ({
@@ -1025,27 +1012,27 @@ describe('createMachineCombobox', () => {
 });
 
 // ---------------------------------------------------------------------------
-// fetchMachineOrderSet tests
+// fetchMachineCommitSet tests
 // ---------------------------------------------------------------------------
 
-describe('fetchMachineOrderSet', () => {
+describe('fetchMachineCommitSet', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('returns set of primary order values from machine runs', async () => {
+  it('returns set of commit values from machine runs', async () => {
     (getMachineRuns as ReturnType<typeof vi.fn>).mockResolvedValue({
       items: [
-        { order: { rev: '100' }, uuid: 'r1', start_time: null, end_time: null },
-        { order: { rev: '101' }, uuid: 'r2', start_time: null, end_time: null },
-        { order: { rev: '100' }, uuid: 'r3', start_time: null, end_time: null },
+        { commit: '100', uuid: 'r1', submitted_at: null },
+        { commit: '101', uuid: 'r2', submitted_at: null },
+        { commit: '100', uuid: 'r3', submitted_at: null },
       ],
       cursor: { next: null },
     });
 
-    const orders = await fetchMachineOrderSet('nts', 'clang-x86');
+    const commits = await fetchMachineCommitSet('nts', 'clang-x86');
 
-    expect(orders).toEqual(new Set(['100', '101']));
+    expect(commits).toEqual(new Set(['100', '101']));
     expect(getMachineRuns).toHaveBeenCalledWith('nts', 'clang-x86', { limit: 500 }, undefined);
   });
 
@@ -1055,9 +1042,9 @@ describe('fetchMachineOrderSet', () => {
       cursor: { next: null },
     });
 
-    const orders = await fetchMachineOrderSet('nts', 'empty-machine');
+    const commits = await fetchMachineCommitSet('nts', 'empty-machine');
 
-    expect(orders).toEqual(new Set());
+    expect(commits).toEqual(new Set());
   });
 
   it('passes abort signal to getMachineRuns', async () => {
@@ -1067,7 +1054,7 @@ describe('fetchMachineOrderSet', () => {
     });
     const ctrl = new AbortController();
 
-    await fetchMachineOrderSet('nts', 'clang-x86', ctrl.signal);
+    await fetchMachineCommitSet('nts', 'clang-x86', ctrl.signal);
 
     expect(getMachineRuns).toHaveBeenCalledWith('nts', 'clang-x86', { limit: 500 }, ctrl.signal);
   });
