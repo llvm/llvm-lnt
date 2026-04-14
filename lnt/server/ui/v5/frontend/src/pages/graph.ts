@@ -2,8 +2,8 @@
 
 import type { PageModule, RouteParams } from '../router';
 import type { AggFn, QueryDataPoint } from '../types';
-import { getFields, getOrders, fetchOneCursorPage, postOneCursorPage, apiUrl } from '../api';
-import { el, debounce, getAggFn, primaryOrderValue, TRACE_SEP, machineColor } from '../utils';
+import { getFields, getCommits, fetchOneCursorPage, postOneCursorPage, apiUrl } from '../api';
+import { el, debounce, getAggFn, TRACE_SEP, machineColor } from '../utils';
 import { getTestsuites } from '../router';
 import { onCustomEvent, GRAPH_TABLE_HOVER, GRAPH_CHART_HOVER } from '../events';
 import { renderMachineCombobox } from '../components/machine-combobox';
@@ -33,17 +33,16 @@ let cache = new GraphDataCache({ apiUrl, fetchOneCursorPage, postOneCursorPage }
 let fetchAbort: AbortController | null = null;
 let filterAbort: AbortController | null = null;
 let selectionAbort: AbortController | null = null;
-/** Per-suite order list cache for baseline order picker. */
-let baselineOrderCache = new Map<string, { values: string[]; tags: Map<string, string | null> }>();
-/** Machine-order filter set for the baseline order picker (null = loading or no machine). */
-let blMachineOrders: Set<string> | null = null;
+/** Per-suite commit list cache for baseline commit picker. */
+let baselineCommitCache = new Map<string, string[]>();
+/** Machine-commit filter set for the baseline commit picker (null = loading or no machine). */
+let blMachineCommits: Set<string> | null = null;
 
 /** A cross-suite baseline reference line. */
 export interface Baseline {
   suite: string;
   machine: string;
-  order: string;
-  tag: string | null;
+  commit: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -59,7 +58,7 @@ let loadingTests = new Set<string>();
 
 let machineComboCleanup: (() => void) | null = null;
 let blMachineCleanup: (() => void) | null = null;
-let blOrderCleanup: (() => void) | null = null;
+let blCommitCleanup: (() => void) | null = null;
 let chartHandle: ChartHandle | null = null;
 let tableHandle: TestSelectionTableHandle | null = null;
 /** Pending requestAnimationFrame ID for deferred chart updates. */
@@ -118,12 +117,12 @@ export const graphPage: PageModule = {
       ? urlParams.get('run_agg') as AggFn : 'median';
     let sampleAgg: AggFn = (['median', 'mean', 'min', 'max'] as AggFn[]).includes(urlParams.get('sample_agg') as AggFn)
       ? urlParams.get('sample_agg') as AggFn : 'median';
-    // Baselines encoded as "suite::machine::order".
+    // Baselines encoded as "suite::machine::commit".
     const baselineParams = urlParams.getAll('baseline');
     const baselines: Baseline[] = baselineParams.map(v => {
       const parts = v.split('::');
-      return { suite: parts[0] || '', machine: parts[1] || '', order: parts[2] || '', tag: null };
-    }).filter(b => b.suite && b.machine && b.order);
+      return { suite: parts[0] || '', machine: parts[1] || '', commit: parts[2] || '' };
+    }).filter(b => b.suite && b.machine && b.commit);
 
     // Progress + chart containers
     const progressContainer = el('div', {});
@@ -263,48 +262,48 @@ export const graphPage: PageModule = {
     const baselineFormContainer = el('div', { class: 'baseline-form', style: 'display: none' });
     const addBaselineBtn = el('button', { class: 'add-baseline-btn' }, '+ Add baseline');
 
-    // Baseline form: Suite, Machine, Order in a horizontal row
+    // Baseline form: Suite, Machine, Commit in a horizontal row
     const blSuiteSelect = el('select', { class: 'suite-select baseline-suite' }) as HTMLSelectElement;
     blSuiteSelect.append(el('option', { value: '' }, '-- Suite --'));
     for (const name of getTestsuites()) {
       blSuiteSelect.append(el('option', { value: name }, name));
     }
     const blMachineContainer = el('div', {});
-    const blOrderContainer = el('div', {});
+    const blCommitContainer = el('div', {});
     let blSelectedMachine = '';
 
     function addCurrentBaseline(): void {
       const suite = blSuiteSelect.value;
-      if (!suite || !blSelectedMachine || !blSelectedOrder) return;
+      if (!suite || !blSelectedMachine || !blSelectedCommit) return;
       // Avoid duplicates
-      if (baselines.find(b => b.suite === suite && b.machine === blSelectedMachine && b.order === blSelectedOrder)) return;
-      baselines.push({ suite, machine: blSelectedMachine, order: blSelectedOrder, tag: null });
+      if (baselines.find(b => b.suite === suite && b.machine === blSelectedMachine && b.commit === blSelectedCommit)) return;
+      baselines.push({ suite, machine: blSelectedMachine, commit: blSelectedCommit });
       renderBaselineChips();
       // Fetch baseline data for SELECTED tests and re-render
       if (metric && selectedTests.size > 0) {
         const bl = baselines[baselines.length - 1];
-        cache.getBaselineData(bl.suite, bl.machine, bl.order, metric, [...selectedTests], fetchAbort?.signal)
+        cache.getBaselineData(bl.suite, bl.machine, bl.commit, metric, [...selectedTests], fetchAbort?.signal)
           .then(() => renderFromSelection())
           .catch(() => { /* baseline data is optional */ });
       }
       updateUrlState();
       // Reset: keep form open for adding more, but clear selections
       blSelectedMachine = '';
-      blSelectedOrder = '';
+      blSelectedCommit = '';
       blSuiteSelect.value = '';
       blSuiteSelect.dispatchEvent(new Event('change'));
     }
 
-    // Track the selected order — set by onSelect callback from order search
-    let blSelectedOrder = '';
+    // Track the selected commit — set by onSelect callback from commit search
+    let blSelectedCommit = '';
 
     blSuiteSelect.addEventListener('change', () => {
       blSelectedMachine = '';
-      blSelectedOrder = '';
+      blSelectedCommit = '';
       if (blMachineCleanup) { blMachineCleanup(); blMachineCleanup = null; }
-      if (blOrderCleanup) { blOrderCleanup(); blOrderCleanup = null; }
+      if (blCommitCleanup) { blCommitCleanup(); blCommitCleanup = null; }
       blMachineContainer.replaceChildren();
-      blOrderContainer.replaceChildren();
+      blCommitContainer.replaceChildren();
 
       const suite = blSuiteSelect.value;
       if (!suite) return;
@@ -313,61 +312,58 @@ export const graphPage: PageModule = {
         testsuite: suite,
         onSelect: async (name) => {
           blSelectedMachine = name;
-          blSelectedOrder = '';
-          blMachineOrders = null;
-          if (blOrderCleanup) { blOrderCleanup(); blOrderCleanup = null; }
-          blOrderContainer.replaceChildren();
+          blSelectedCommit = '';
+          blMachineCommits = null;
+          if (blCommitCleanup) { blCommitCleanup(); blCommitCleanup = null; }
+          blCommitContainer.replaceChildren();
 
-          // Fetch order list and machine orders in parallel
-          const orderListPromise = (async () => {
-            if (baselineOrderCache.has(suite)) return;
+          // Fetch commit list and machine commits in parallel
+          const commitListPromise = (async () => {
+            if (baselineCommitCache.has(suite)) return;
             try {
-              const orders = await getOrders(suite, fetchAbort?.signal);
+              const commits = await getCommits(suite, fetchAbort?.signal);
               const values: string[] = [];
-              const tags = new Map<string, string | null>();
-              for (const o of orders) {
-                const v = primaryOrderValue(o.fields);
-                values.push(v);
-                tags.set(v, o.tag ?? null);
+              for (const o of commits) {
+                values.push(o.commit);
               }
-              baselineOrderCache.set(suite, { values, tags });
+              baselineCommitCache.set(suite, values);
             } catch (err: unknown) {
               if (err instanceof DOMException && err.name === 'AbortError') return;
-              baselineOrderCache.set(suite, { values: [], tags: new Map() });
+              baselineCommitCache.set(suite, []);
             }
           })();
           const machineOrdersPromise = fetchMachineOrderSet(suite, name)
             .catch(() => null as Set<string> | null);
 
-          await orderListPromise;
+          await commitListPromise;
 
-          // Create order picker with machine-order filtering
+          // Create order picker with machine-commit filtering
           const picker = createOrderPicker({
             id: 'baseline-order',
             getOrderData: () => {
-              const d = baselineOrderCache.get(suite);
-              return d ?? { values: [], tags: new Map() };
+              const values = baselineCommitCache.get(suite);
+              return { cachedOrderValues: values ?? null, orderTags: new Map() };
             },
             placeholder: 'Type to search orders...',
             onSelect: (value) => {
-              blSelectedOrder = value;
+              blSelectedCommit = value;
               addCurrentBaseline();
             },
-            getMachineOrders: () => blSelectedMachine ? (blMachineOrders ?? 'loading') : null,
+            getMachineOrders: () => blSelectedMachine ? (blMachineCommits ?? 'loading') : null,
           });
-          blOrderContainer.append(picker.element);
-          blOrderCleanup = picker.destroy;
+          blCommitContainer.append(picker.element);
+          blCommitCleanup = picker.destroy;
 
           // Apply machine orders once ready (may already be resolved)
           const machineOrders = await machineOrdersPromise;
-          blMachineOrders = machineOrders;
+          blMachineCommits = machineOrders;
         },
         onClear: () => {
           blSelectedMachine = '';
-          blSelectedOrder = '';
-          blMachineOrders = null;
-          if (blOrderCleanup) { blOrderCleanup(); blOrderCleanup = null; }
-          blOrderContainer.replaceChildren();
+          blSelectedCommit = '';
+          blMachineCommits = null;
+          if (blCommitCleanup) { blCommitCleanup(); blCommitCleanup = null; }
+          blCommitContainer.replaceChildren();
         },
       });
       blMachineCleanup = handle.destroy;
@@ -378,9 +374,9 @@ export const graphPage: PageModule = {
       addBaselineBtn.style.display = 'none';
     });
 
-    // Horizontal row for Suite → Machine → Order
+    // Horizontal row for Suite → Machine → Commit
     const formRow = el('div', { class: 'baseline-form-row' });
-    formRow.append(blSuiteSelect, blMachineContainer, blOrderContainer);
+    formRow.append(blSuiteSelect, blMachineContainer, blCommitContainer);
     baselineFormContainer.append(formRow);
     baselineGroup.append(addBaselineBtn, baselineFormContainer, baselineChips);
     firstRow.append(baselineGroup);
@@ -390,7 +386,7 @@ export const graphPage: PageModule = {
     function renderBaselineChips(): void {
       baselineChips.replaceChildren();
       for (const bl of baselines) {
-        const label = bl.tag ? `${bl.suite}/${bl.machine}/${bl.order} (${bl.tag})` : `${bl.suite}/${bl.machine}/${bl.order}`;
+        const label = `${bl.suite}/${bl.machine}/${bl.commit}`;
         const chip = el('span', { class: 'chip' }, label);
         const removeBtn = el('button', { class: 'chip-remove' }, '\u00d7');
         removeBtn.addEventListener('click', () => {
@@ -510,7 +506,7 @@ export const graphPage: PageModule = {
           // Fetch baseline data for selected tests
           if (baselines.length > 0) {
             await Promise.all(baselines.map(bl =>
-              cache.getBaselineData(bl.suite, bl.machine, bl.order, metric,
+              cache.getBaselineData(bl.suite, bl.machine, bl.commit, metric,
                 [...selectedTests], sig),
             ));
           }
@@ -585,10 +581,10 @@ export const graphPage: PageModule = {
         (s, m, o, met) => cache.readCachedBaselineData(s, m, o, met), metric, getAggFn(runAgg));
       const scaffold = cache.scaffoldUnion(currentSuite, machines);
 
-      const rawValuesCallback = (testName: string, machineName: string, orderValue: string): number[] => {
+      const rawValuesCallback = (testName: string, machineName: string, commitValue: string): number[] => {
         const values: number[] = [];
         for (const pt of allPoints) {
-          if (pt.test === testName && pt.machine === machineName && primaryOrderValue(pt.order) === orderValue) {
+          if (pt.test === testName && pt.machine === machineName && pt.commit === commitValue) {
             values.push(pt.value);
           }
         }
@@ -760,7 +756,7 @@ export const graphPage: PageModule = {
       if (testFilter) qs.set('test_filter', testFilter);
       if (runAgg !== 'median') qs.set('run_agg', runAgg);
       if (sampleAgg !== 'median') qs.set('sample_agg', sampleAgg);
-      for (const bl of baselines) qs.append('baseline', `${bl.suite}::${bl.machine}::${bl.order}`);
+      for (const bl of baselines) qs.append('baseline', `${bl.suite}::${bl.machine}::${bl.commit}`);
       window.history.replaceState(null, '', window.location.pathname + '?' + qs.toString());
     }
 
@@ -782,8 +778,8 @@ export const graphPage: PageModule = {
       allMatchingTests = [];
       selectedTests = new Set();
       loadingTests = new Set();
-      baselineOrderCache.clear();
-      blMachineOrders = null;
+      baselineCommitCache.clear();
+      blMachineCommits = null;
       baselines.length = 0;
       if (pendingChartRAF !== null) { cancelAnimationFrame(pendingChartRAF); pendingChartRAF = null; }
       chartRenderGen = 0;
@@ -793,7 +789,7 @@ export const graphPage: PageModule = {
       if (tableHandle) { tableHandle.destroy(); tableHandle = null; }
       if (machineComboCleanup) { machineComboCleanup(); machineComboCleanup = null; }
       if (blMachineCleanup) { blMachineCleanup(); blMachineCleanup = null; }
-      if (blOrderCleanup) { blOrderCleanup(); blOrderCleanup = null; }
+      if (blCommitCleanup) { blCommitCleanup(); blCommitCleanup = null; }
 
       // Clear controls containers
       machineChipsEl.replaceChildren();
@@ -803,9 +799,9 @@ export const graphPage: PageModule = {
       addBaselineBtn.style.display = '';
       blSuiteSelect.value = '';
       blMachineContainer.replaceChildren();
-      blOrderContainer.replaceChildren();
+      blCommitContainer.replaceChildren();
       blSelectedMachine = '';
-      blSelectedOrder = '';
+      blSelectedCommit = '';
       chartContainer.replaceChildren(el('p', { class: 'no-chart-data' }, 'No data to plot.'));
       tableContainer.replaceChildren();
       progressContainer.replaceChildren();
@@ -872,7 +868,7 @@ export const graphPage: PageModule = {
   unmount(): void {
     if (machineComboCleanup) { machineComboCleanup(); machineComboCleanup = null; }
     if (blMachineCleanup) { blMachineCleanup(); blMachineCleanup = null; }
-    if (blOrderCleanup) { blOrderCleanup(); blOrderCleanup = null; }
+    if (blCommitCleanup) { blCommitCleanup(); blCommitCleanup = null; }
     abortFetches();
     if (filterAbort) { filterAbort.abort(); filterAbort = null; }
     if (selectionAbort) { selectionAbort.abort(); selectionAbort = null; }
@@ -886,8 +882,8 @@ export const graphPage: PageModule = {
     chartRenderGen = 0;
     currentSuite = '';
     suiteGeneration = 0;
-    baselineOrderCache.clear();
-    blMachineOrders = null;
+    baselineCommitCache.clear();
+    blMachineCommits = null;
     // Intentionally preserve selectedTests, allMatchingTests, and cache across
     // unmount/remount so that navigating back renders instantly from cache.
     // machines is restored from URL on mount.
@@ -916,20 +912,20 @@ export function buildTraces(
   const traces: TimeSeriesTrace[] = [];
 
   for (const [testName, testPoints] of testMap) {
-    // Group by order value
-    const orderMap = new Map<string, QueryDataPoint[]>();
+    // Group by commit value
+    const commitMap = new Map<string, QueryDataPoint[]>();
     for (const pt of testPoints) {
-      const ov = primaryOrderValue(pt.order);
-      let arr = orderMap.get(ov);
-      if (!arr) { arr = []; orderMap.set(ov, arr); }
+      const ov = pt.commit;
+      let arr = commitMap.get(ov);
+      if (!arr) { arr = []; commitMap.set(ov, arr); }
       arr.push(pt);
     }
 
     const tracePoints: TimeSeriesTrace['points'] = [];
-    for (const [orderValue, orderPoints] of orderMap) {
+    for (const [commitValue, commitPoints] of commitMap) {
       // Step 1: group by run_uuid
       const byRun = new Map<string, number[]>();
-      for (const pt of orderPoints) {
+      for (const pt of commitPoints) {
         let arr = byRun.get(pt.run_uuid);
         if (!arr) { arr = []; byRun.set(pt.run_uuid, arr); }
         arr.push(pt.value);
@@ -938,10 +934,10 @@ export function buildTraces(
       const perRunValues = [...byRun.values()].map(v => sampleAggFn(v));
       // Step 3: aggregate across runs
       tracePoints.push({
-        orderValue,
+        commit: commitValue,
         value: runAggFn(perRunValues),
         runCount: byRun.size,
-        timestamp: orderPoints[0].timestamp,
+        submitted_at: commitPoints[0].submitted_at,
       });
     }
 
@@ -958,13 +954,13 @@ export function buildTraces(
  * Exported for testing.
  */
 export function buildBaselinesFromData(
-  baselines: Array<{ suite: string; machine: string; order: string; tag: string | null }>,
+  baselines: Array<{ suite: string; machine: string; commit: string }>,
   getPoints: (suite: string, machine: string, order: string, metric: string) => QueryDataPoint[],
   metric: string,
   aggFn: (values: number[]) => number,
 ): PinnedBaseline[] {
   return baselines.map((bl) => {
-    const points = getPoints(bl.suite, bl.machine, bl.order, metric);
+    const points = getPoints(bl.suite, bl.machine, bl.commit, metric);
 
     const rawPerTest = new Map<string, number[]>();
     for (const pt of points) {
@@ -978,13 +974,10 @@ export function buildBaselinesFromData(
       values.set(test, aggFn(raw));
     }
 
-    const label = bl.tag
-      ? `${bl.suite}/${bl.machine}/${bl.order} (${bl.tag})`
-      : `${bl.suite}/${bl.machine}/${bl.order}`;
+    const label = `${bl.suite}/${bl.machine}/${bl.commit}`;
 
     return {
       label,
-      tag: bl.tag,
       values,
     };
   });

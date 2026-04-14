@@ -31,17 +31,16 @@ export interface TimeSeriesTrace {
   /** Plotly marker symbol (e.g., 'circle', 'triangle-up', 'square'). */
   markerSymbol?: string;
   points: Array<{
-    orderValue: string;
+    commit: string;
     value: number;
     runCount: number;
-    timestamp: string | null;
+    submitted_at: string | null;
   }>;
 }
 
 export interface PinnedBaseline {
-  /** Display label, e.g. "libstdc++/gcc-x86/v13.2" or with " (tag)". */
+  /** Display label, e.g. "libstdc++/gcc-x86/v13.2". */
   label: string;
-  tag: string | null;
   /** Per-test values at this baseline. */
   values: Map<string, number>;
 }
@@ -50,14 +49,14 @@ export interface TimeSeriesChartOptions {
   traces: TimeSeriesTrace[];
   yAxisLabel: string;
   baselines?: PinnedBaseline[];
-  onClick?: (orderValue: string) => void;
+  onClick?: (commit: string) => void;
   /** Fixed x-axis category order. When set, the x-axis shows exactly these
    *  categories in this order and does not resize as data loads progressively. */
   categoryOrder?: string[];
   /** Lazy callback to get individual pre-aggregation values for a data point.
    *  Called on hover; if it returns >1 values, a scatter of the raw values
    *  is shown at the hovered x-position. */
-  getRawValues?: (testName: string, machine: string, orderValue: string) => number[];
+  getRawValues?: (testName: string, machine: string, commit: string) => number[];
 }
 
 /**
@@ -70,24 +69,24 @@ export function buildPlotlyData(options: TimeSeriesChartOptions): {
 } {
   const data: unknown[] = [];
 
-  // Collect all unique order values across all traces (for consistent x-axis)
-  const allOrders: string[] = [];
-  const orderSet = new Set<string>();
+  // Collect all unique commit values across all traces (for consistent x-axis)
+  const allCommits: string[] = [];
+  const commitSet = new Set<string>();
   for (const trace of options.traces) {
     for (const pt of trace.points) {
-      if (!orderSet.has(pt.orderValue)) {
-        orderSet.add(pt.orderValue);
-        allOrders.push(pt.orderValue);
+      if (!commitSet.has(pt.commit)) {
+        commitSet.add(pt.commit);
+        allCommits.push(pt.commit);
       }
     }
   }
 
   for (const trace of options.traces) {
-    const x = trace.points.map(p => p.orderValue);
+    const x = trace.points.map(p => p.commit);
     const y = trace.points.map(p => p.value);
     const traceName = `${trace.testName}${TRACE_SEP}${trace.machine}`;
     const customdata = trace.points.map(p => [
-      p.orderValue,
+      p.commit,
       traceName,
       p.value.toPrecision(4),
       String(p.runCount),
@@ -111,7 +110,7 @@ export function buildPlotlyData(options: TimeSeriesChartOptions): {
       hovertemplate:
         '<b>%{customdata[4]}</b><br>' +
         'Machine: %{customdata[5]}<br>' +
-        'Order: %{customdata[0]}<br>' +
+        'Commit: %{customdata[0]}<br>' +
         'Value: %{customdata[2]}<br>' +
         'Runs: %{customdata[3]}<extra></extra>',
     };
@@ -124,7 +123,7 @@ export function buildPlotlyData(options: TimeSeriesChartOptions): {
   // Each trace is populated with a data point at every x-category so that
   // hover detection works anywhere along the line (not just at 2 endpoints).
   if (options.baselines) {
-    const pinXValues = options.categoryOrder ?? (allOrders.length > 0 ? allOrders : null);
+    const pinXValues = options.categoryOrder ?? (allCommits.length > 0 ? allCommits : null);
 
     if (pinXValues) {
       for (const ref of options.baselines) {
@@ -151,7 +150,7 @@ export function buildPlotlyData(options: TimeSeriesChartOptions): {
 
   const xaxis: Record<string, unknown> = {
     type: 'category',
-    title: 'Order',
+    title: 'Commit',
     tickangle: -45,
     automargin: true,
   };
@@ -258,10 +257,10 @@ export function createTimeSeriesChart(
 
       // Show raw value scatter if getRawValues is available
       if (!getRawValues || !chartDiv) return;
-      const orderValue = pt?.customdata?.[0];
+      const commitValue = pt?.customdata?.[0];
       const testName = pt?.customdata?.[4];
       const machineName = pt?.customdata?.[5];
-      if (!testName || !machineName || !orderValue) return;
+      if (!testName || !machineName || !commitValue) return;
 
       // Remove any existing scatter trace first
       plotReady = plotReady.then(() => {
@@ -280,12 +279,12 @@ export function createTimeSeriesChart(
           hasScatterTrace = false;
         }
         if (!getRawValues) return;
-        const rawValues = getRawValues(testName, machineName, orderValue);
+        const rawValues = getRawValues(testName, machineName, commitValue);
         if (rawValues.length <= 1) return;
 
         const color = traceColorMap.get(`${testName}${TRACE_SEP}${machineName}`) || '#999';
         const scatter = {
-          x: rawValues.map(() => orderValue),
+          x: rawValues.map(() => commitValue),
           y: rawValues,
           mode: 'markers',
           type: 'scatter',

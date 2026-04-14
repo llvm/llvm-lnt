@@ -9,9 +9,10 @@ function makePoint(test: string, orderValue: string, value: number, machine = 'm
     machine,
     metric,
     value,
-    order: { rev: orderValue },
+    commit: orderValue,
+    ordinal: null,
     run_uuid: 'r1',
-    timestamp: null,
+    submitted_at: null,
   };
 }
 
@@ -40,11 +41,11 @@ describe('GraphDataCache', () => {
   // -------------------------------------------------------------------------
 
   describe('getScaffold', () => {
-    it('fetches and caches scaffold orders', async () => {
+    it('fetches and caches scaffold commits', async () => {
       api.fetchOneCursorPage.mockResolvedValueOnce({
         items: [
-          { uuid: 'r1', order: { rev: '100' }, start_time: null, end_time: null },
-          { uuid: 'r2', order: { rev: '101' }, start_time: null, end_time: null },
+          { uuid: 'r1', commit: '100', submitted_at: null },
+          { uuid: 'r2', commit: '101', submitted_at: null },
         ],
         nextCursor: null,
       });
@@ -62,11 +63,11 @@ describe('GraphDataCache', () => {
     it('paginates through all results', async () => {
       api.fetchOneCursorPage
         .mockResolvedValueOnce({
-          items: [{ uuid: 'r1', order: { rev: '100' }, start_time: null, end_time: null }],
+          items: [{ uuid: 'r1', commit: '100', submitted_at: null }],
           nextCursor: 'cursor1',
         })
         .mockResolvedValueOnce({
-          items: [{ uuid: 'r2', order: { rev: '101' }, start_time: null, end_time: null }],
+          items: [{ uuid: 'r2', commit: '101', submitted_at: null }],
           nextCursor: null,
         });
 
@@ -75,12 +76,12 @@ describe('GraphDataCache', () => {
       expect(api.fetchOneCursorPage).toHaveBeenCalledTimes(2);
     });
 
-    it('deduplicates order values', async () => {
+    it('deduplicates commit values', async () => {
       api.fetchOneCursorPage.mockResolvedValueOnce({
         items: [
-          { uuid: 'r1', order: { rev: '100' }, start_time: null, end_time: null },
-          { uuid: 'r2', order: { rev: '100' }, start_time: null, end_time: null },
-          { uuid: 'r3', order: { rev: '101' }, start_time: null, end_time: null },
+          { uuid: 'r1', commit: '100', submitted_at: null },
+          { uuid: 'r2', commit: '100', submitted_at: null },
+          { uuid: 'r3', commit: '101', submitted_at: null },
         ],
         nextCursor: null,
       });
@@ -356,15 +357,15 @@ describe('GraphDataCache', () => {
       api.fetchOneCursorPage
         .mockResolvedValueOnce({
           items: [
-            { uuid: 'r1', order: { rev: '100' }, start_time: null, end_time: null },
-            { uuid: 'r2', order: { rev: '101' }, start_time: null, end_time: null },
+            { uuid: 'r1', commit: '100', submitted_at: null },
+            { uuid: 'r2', commit: '101', submitted_at: null },
           ],
           nextCursor: null,
         })
         .mockResolvedValueOnce({
           items: [
-            { uuid: 'r3', order: { rev: '101' }, start_time: null, end_time: null },
-            { uuid: 'r4', order: { rev: '102' }, start_time: null, end_time: null },
+            { uuid: 'r3', commit: '101', submitted_at: null },
+            { uuid: 'r4', commit: '102', submitted_at: null },
           ],
           nextCursor: null,
         });
@@ -390,7 +391,7 @@ describe('GraphDataCache', () => {
       // Populate each cache type
       api.fetchOneCursorPage
         .mockResolvedValueOnce({
-          items: [{ uuid: 'r1', order: { rev: '100' }, start_time: null, end_time: null }],
+          items: [{ uuid: 'r1', commit: '100', submitted_at: null }],
           nextCursor: null,
         })
         .mockResolvedValueOnce({

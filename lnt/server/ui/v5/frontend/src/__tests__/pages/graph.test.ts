@@ -8,7 +8,7 @@ vi.mock('../../api', async (importOriginal) => {
   return {
     ...actual,
     getFields: vi.fn(),
-    getOrders: vi.fn().mockResolvedValue([]),
+    getCommits: vi.fn().mockResolvedValue([]),
     fetchOneCursorPage: vi.fn(),
     postOneCursorPage: vi.fn(),
     apiUrl: vi.fn((suite: string, path: string) => `/api/v5/${suite}/${path}`),
@@ -72,9 +72,10 @@ function makePoint(test: string, orderValue: string, value: number, runUuid = 'r
     machine: 'm1',
     metric: 'exec_time',
     value,
-    order: { rev: orderValue },
+    commit: orderValue,
+    ordinal: null,
     run_uuid: runUuid,
-    timestamp: null,
+    submitted_at: null,
   };
 }
 
@@ -107,7 +108,7 @@ describe('buildTraces', () => {
     expect(traces[0].testName).toBe('compile/test-A');
   });
 
-  it('aggregates multiple runs at same order using run aggregation', () => {
+  it('aggregates multiple runs at same commit using run aggregation', () => {
     const points = [
       makePoint('test-A', '100', 1.0, 'r1'),
       makePoint('test-A', '100', 3.0, 'r2'),
@@ -215,7 +216,7 @@ describe('buildTraces', () => {
     expect(traces.map(t => t.testName)).toEqual(['alpha', 'middle', 'zebra']);
   });
 
-  it('preserves order value across aggregation', () => {
+  it('preserves commit value across aggregation', () => {
     const points = [
       makePoint('test-A', '100', 1.0),
       makePoint('test-A', '101', 2.0),
@@ -223,7 +224,7 @@ describe('buildTraces', () => {
     ];
 
     const traces = buildTraces(points, 'median', 'median');
-    const orderValues = traces[0].points.map(p => p.orderValue);
+    const orderValues = traces[0].points.map(p => p.commit);
     expect(orderValues).toEqual(['100', '101', '102']);
   });
 
@@ -236,7 +237,7 @@ describe('buildTraces', () => {
 
     const traces = buildTraces(points, 'median', 'median');
     // buildTraces preserves Map insertion order, so reversed input stays reversed
-    const orderValues = traces[0].points.map(p => p.orderValue);
+    const orderValues = traces[0].points.map(p => p.commit);
     expect(orderValues).toEqual(['102', '101', '100']);
   });
 
@@ -254,9 +255,9 @@ describe('buildTraces', () => {
     expect(traces).toHaveLength(2);
     // test-A comes first alphabetically
     expect(traces[0].testName).toBe('test-A');
-    expect(traces[0].points.map(p => p.orderValue)).toEqual(['102', '101', '100']);
+    expect(traces[0].points.map(p => p.commit)).toEqual(['102', '101', '100']);
     expect(traces[1].testName).toBe('test-B');
-    expect(traces[1].points.map(p => p.orderValue)).toEqual(['102', '101', '100']);
+    expect(traces[1].points.map(p => p.commit)).toEqual(['102', '101', '100']);
   });
 });
 
@@ -267,9 +268,10 @@ describe('buildBaselinesFromData', () => {
       machine,
       metric: 'exec_time',
       value,
-      order: { rev: orderValue },
+      commit: orderValue,
+      ordinal: null,
       run_uuid: 'r1',
-      timestamp: null,
+      submitted_at: null,
     };
   }
 
@@ -286,21 +288,21 @@ describe('buildBaselinesFromData', () => {
 
   /** Helper to build a lookup function from a list of points for a given baseline. */
   function buildLookup(
-    baselines: Array<{ suite: string; machine: string; order: string; tag: string | null }>,
+    baselines: Array<{ suite: string; machine: string; commit: string }>,
     metric: string,
     pointsPerBaseline: QueryDataPoint[][],
-  ): (suite: string, machine: string, order: string, met: string) => QueryDataPoint[] {
+  ): (suite: string, machine: string, commit: string, met: string) => QueryDataPoint[] {
     const cache = new Map<string, QueryDataPoint[]>();
     for (let i = 0; i < baselines.length; i++) {
       const bl = baselines[i];
-      const key = `${bl.suite}::${bl.machine}::${bl.order}::${metric}`;
+      const key = `${bl.suite}::${bl.machine}::${bl.commit}::${metric}`;
       cache.set(key, pointsPerBaseline[i] || []);
     }
     return (s, m, o, met) => cache.get(`${s}::${m}::${o}::${met}`) ?? [];
   }
 
-  it('aggregates multiple runs at baseline order using the provided agg function', () => {
-    const baselines = [{ suite: 'nts', machine: 'm1', order: '100', tag: null }];
+  it('aggregates multiple runs at baseline commit using the provided agg function', () => {
+    const baselines = [{ suite: 'nts', machine: 'm1', commit: '100' }];
     const points = [
       makeRefPoint('test-A', '100', 1.0),
       makeRefPoint('test-A', '100', 3.0),
@@ -315,7 +317,7 @@ describe('buildBaselinesFromData', () => {
   });
 
   it('uses the same agg as buildTraces (consistency check)', () => {
-    const baselines = [{ suite: 'nts', machine: 'm1', order: '100', tag: null }];
+    const baselines = [{ suite: 'nts', machine: 'm1', commit: '100' }];
     const points = [
       makeRefPoint('test-A', '100', 1.0),
       makeRefPoint('test-A', '100', 3.0),
@@ -326,14 +328,14 @@ describe('buildBaselinesFromData', () => {
     const blResult = buildBaselinesFromData(baselines, cache, 'exec_time', median);
     const traces = buildTraces(points, 'median', 'median');
 
-    // Both should produce exactly the same value for test-A at order 100
+    // Both should produce exactly the same value for test-A at commit 100
     const traceValue = traces.find(t => t.testName === 'test-A')!.points
-      .find(p => p.orderValue === '100')!.value;
+      .find(p => p.commit === '100')!.value;
     expect(blResult[0].values.get('test-A')).toBe(traceValue);
   });
 
   it('uses mean aggregation when provided', () => {
-    const baselines = [{ suite: 'nts', machine: 'm1', order: '100', tag: null }];
+    const baselines = [{ suite: 'nts', machine: 'm1', commit: '100' }];
     const points = [
       makeRefPoint('test-A', '100', 1.0),
       makeRefPoint('test-A', '100', 3.0),
@@ -346,7 +348,7 @@ describe('buildBaselinesFromData', () => {
   });
 
   it('handles single data point (no aggregation needed)', () => {
-    const baselines = [{ suite: 'nts', machine: 'm1', order: '100', tag: null }];
+    const baselines = [{ suite: 'nts', machine: 'm1', commit: '100' }];
     const points = [makeRefPoint('test-A', '100', 42.0)];
     const cache = buildLookup(baselines, 'exec_time', [points]);
 
@@ -355,8 +357,8 @@ describe('buildBaselinesFromData', () => {
     expect(result[0].values.get('test-A')).toBe(42.0);
   });
 
-  it('handles multiple tests at the same baseline order', () => {
-    const baselines = [{ suite: 'nts', machine: 'm1', order: '100', tag: null }];
+  it('handles multiple tests at the same baseline commit', () => {
+    const baselines = [{ suite: 'nts', machine: 'm1', commit: '100' }];
     const points = [
       makeRefPoint('test-A', '100', 1.0),
       makeRefPoint('test-A', '100', 3.0),
@@ -373,8 +375,8 @@ describe('buildBaselinesFromData', () => {
 
   it('handles multiple baselines', () => {
     const baselines = [
-      { suite: 'nts', machine: 'm1', order: '100', tag: 'v1' },
-      { suite: 'nts', machine: 'm1', order: '101', tag: null },
+      { suite: 'nts', machine: 'm1', commit: '100' },
+      { suite: 'nts', machine: 'm1', commit: '101' },
     ];
     const points1 = [makeRefPoint('test-A', '100', 1.0)];
     const points2 = [makeRefPoint('test-A', '101', 5.0)];
@@ -384,15 +386,13 @@ describe('buildBaselinesFromData', () => {
 
     expect(result).toHaveLength(2);
     expect(result[0].values.get('test-A')).toBe(1.0);
-    expect(result[0].tag).toBe('v1');
     expect(result[1].values.get('test-A')).toBe(5.0);
-    expect(result[1].tag).toBeNull();
   });
 
   const emptyLookup = () => [] as QueryDataPoint[];
 
   it('returns empty values map when baseline has no cached data', () => {
-    const baselines = [{ suite: 'nts', machine: 'm1', order: '999', tag: null }];
+    const baselines = [{ suite: 'nts', machine: 'm1', commit: '999' }];
 
     const result = buildBaselinesFromData(baselines, emptyLookup, 'exec_time', median);
 
@@ -407,7 +407,7 @@ describe('buildBaselinesFromData', () => {
 
   it('does not include a color field on returned baselines', () => {
     const baselines = [
-      { suite: 'nts', machine: 'm1', order: '100', tag: null },
+      { suite: 'nts', machine: 'm1', commit: '100' },
     ];
     const points1 = [makeRefPoint('test-A', '100', 1.0)];
     const cache = buildLookup(baselines, 'exec_time', [points1]);
@@ -417,26 +417,18 @@ describe('buildBaselinesFromData', () => {
     expect(result[0]).not.toHaveProperty('color');
   });
 
-  it('builds label with suite/machine/order format', () => {
-    const baselines = [{ suite: 'nts', machine: 'm1', order: '100', tag: null }];
+  it('builds label with suite/machine/commit format', () => {
+    const baselines = [{ suite: 'nts', machine: 'm1', commit: '100' }];
 
     const result = buildBaselinesFromData(baselines, emptyLookup, 'exec_time', median);
 
     expect(result[0].label).toBe('nts/m1/100');
   });
 
-  it('includes tag in label when present', () => {
-    const baselines = [{ suite: 'nts', machine: 'm1', order: '100', tag: 'v1.0' }];
-
-    const result = buildBaselinesFromData(baselines, emptyLookup, 'exec_time', median);
-
-    expect(result[0].label).toBe('nts/m1/100 (v1.0)');
-  });
-
   it('supports cross-suite baselines', () => {
     const baselines = [
-      { suite: 'nts', machine: 'm1', order: '100', tag: null },
-      { suite: 'other-suite', machine: 'm2', order: '200', tag: null },
+      { suite: 'nts', machine: 'm1', commit: '100' },
+      { suite: 'other-suite', machine: 'm2', commit: '200' },
     ];
     const points1 = [makeRefPoint('test-A', '100', 1.0)];
     const points2 = [makeRefPoint('test-A', '200', 9.0)];

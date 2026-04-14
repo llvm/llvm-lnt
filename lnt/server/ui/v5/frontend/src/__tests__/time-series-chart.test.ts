@@ -4,11 +4,11 @@ import { buildPlotlyData, createTimeSeriesChart } from '../components/time-serie
 import type { TimeSeriesTrace, PinnedBaseline, TimeSeriesChartOptions, ChartHandle } from '../components/time-series-chart';
 import { TRACE_SEP } from '../pages/graph';
 
-function makeTrace(name: string, points: Array<{ orderValue: string; value: number }>, machine = 'm1'): TimeSeriesTrace {
+function makeTrace(name: string, points: Array<{ commit: string; value: number }>, machine = 'm1'): TimeSeriesTrace {
   return {
     testName: name,
     machine,
-    points: points.map(p => ({ ...p, runCount: 1, timestamp: null })),
+    points: points.map(p => ({ ...p, runCount: 1, submitted_at: null })),
   };
 }
 
@@ -16,8 +16,8 @@ describe('buildPlotlyData', () => {
   it('builds one Plotly trace per test', () => {
     const opts: TimeSeriesChartOptions = {
       traces: [
-        makeTrace('test-A', [{ orderValue: '100', value: 1.5 }, { orderValue: '101', value: 2.0 }]),
-        makeTrace('test-B', [{ orderValue: '100', value: 3.0 }]),
+        makeTrace('test-A', [{ commit: '100', value: 1.5 }, { commit: '101', value: 2.0 }]),
+        makeTrace('test-B', [{ commit: '100', value: 3.0 }]),
       ],
       yAxisLabel: 'exec_time',
     };
@@ -32,7 +32,7 @@ describe('buildPlotlyData', () => {
 
   it('sets x-axis to category type', () => {
     const opts: TimeSeriesChartOptions = {
-      traces: [makeTrace('t', [{ orderValue: '100', value: 1.0 }])],
+      traces: [makeTrace('t', [{ commit: '100', value: 1.0 }])],
       yAxisLabel: 'metric',
     };
 
@@ -42,13 +42,13 @@ describe('buildPlotlyData', () => {
 
   it('includes customdata for hover template', () => {
     const opts: TimeSeriesChartOptions = {
-      traces: [makeTrace('test-A', [{ orderValue: '100', value: 1.5 }])],
+      traces: [makeTrace('test-A', [{ commit: '100', value: 1.5 }])],
       yAxisLabel: 'metric',
     };
 
     const { data } = buildPlotlyData(opts);
     const trace = data[0] as { customdata: string[][] };
-    expect(trace.customdata[0][0]).toBe('100');             // orderValue
+    expect(trace.customdata[0][0]).toBe('100');             // commit
     expect(trace.customdata[0][1]).toBe(`test-A${TRACE_SEP}m1`);     // traceName
     expect(trace.customdata[0][4]).toBe('test-A');          // testName
     expect(trace.customdata[0][5]).toBe('m1');              // machine
@@ -58,14 +58,13 @@ describe('buildPlotlyData', () => {
     const refValues = new Map<string, number>();
     refValues.set('test-A', 2.5);
 
-    const mainTrace = makeTrace('test-A', [{ orderValue: '100', value: 1.5 }, { orderValue: '102', value: 2.0 }]);
+    const mainTrace = makeTrace('test-A', [{ commit: '100', value: 1.5 }, { commit: '102', value: 2.0 }]);
     mainTrace.color = '#1f77b4';
     const opts: TimeSeriesChartOptions = {
       traces: [mainTrace],
       yAxisLabel: 'metric',
       baselines: [{
         label: '101 (release-18)',
-        tag: 'release-18',
         values: refValues,
       }],
     };
@@ -93,11 +92,10 @@ describe('buildPlotlyData', () => {
     refValues.set('<script>alert("xss")</script>', 3.0);
 
     const opts: TimeSeriesChartOptions = {
-      traces: [makeTrace('<script>alert("xss")</script>', [{ orderValue: '100', value: 1.5 }])],
+      traces: [makeTrace('<script>alert("xss")</script>', [{ commit: '100', value: 1.5 }])],
       yAxisLabel: 'metric',
       baselines: [{
         label: '101 (<img onerror=alert(1)>)',
-        tag: '<img onerror=alert(1)>',
         values: refValues,
       }],
     };
@@ -116,12 +114,11 @@ describe('buildPlotlyData', () => {
     refValues.set('test-A', 2.5);
 
     const opts: TimeSeriesChartOptions = {
-      traces: [makeTrace('test-A', [{ orderValue: '102', value: 1.5 }, { orderValue: '103', value: 2.0 }])],
+      traces: [makeTrace('test-A', [{ commit: '102', value: 1.5 }, { commit: '103', value: 2.0 }])],
       yAxisLabel: 'metric',
       categoryOrder: ['100', '101', '102', '103', '104', '105'],
       baselines: [{
         label: '101',
-        tag: null,
         values: refValues,
       }],
     };
@@ -138,11 +135,10 @@ describe('buildPlotlyData', () => {
     refValues.set('nonexistent-test', 5.0);
 
     const opts: TimeSeriesChartOptions = {
-      traces: [makeTrace('test-A', [{ orderValue: '100', value: 1.0 }])],
+      traces: [makeTrace('test-A', [{ commit: '100', value: 1.0 }])],
       yAxisLabel: 'metric',
       baselines: [{
         label: '100',
-        tag: null,
         values: refValues,
       }],
     };
@@ -154,7 +150,7 @@ describe('buildPlotlyData', () => {
 
   it('hides legend when only one trace', () => {
     const opts: TimeSeriesChartOptions = {
-      traces: [makeTrace('t', [{ orderValue: '100', value: 1.0 }])],
+      traces: [makeTrace('t', [{ commit: '100', value: 1.0 }])],
       yAxisLabel: 'metric',
     };
 
@@ -164,7 +160,7 @@ describe('buildPlotlyData', () => {
 
   it('sets categoryarray when categoryOrder is provided', () => {
     const opts: TimeSeriesChartOptions = {
-      traces: [makeTrace('t', [{ orderValue: '102', value: 1.0 }])],
+      traces: [makeTrace('t', [{ commit: '102', value: 1.0 }])],
       yAxisLabel: 'metric',
       categoryOrder: ['100', '101', '102', '103'],
     };
@@ -177,7 +173,7 @@ describe('buildPlotlyData', () => {
 
   it('does not set categoryarray when categoryOrder is omitted', () => {
     const opts: TimeSeriesChartOptions = {
-      traces: [makeTrace('t', [{ orderValue: '100', value: 1.0 }])],
+      traces: [makeTrace('t', [{ commit: '100', value: 1.0 }])],
       yAxisLabel: 'metric',
     };
 
@@ -190,8 +186,8 @@ describe('buildPlotlyData', () => {
   it('always hides built-in legend (replaced by test-selection table)', () => {
     const opts: TimeSeriesChartOptions = {
       traces: [
-        makeTrace('t1', [{ orderValue: '100', value: 1.0 }]),
-        makeTrace('t2', [{ orderValue: '100', value: 2.0 }]),
+        makeTrace('t1', [{ commit: '100', value: 1.0 }]),
+        makeTrace('t2', [{ commit: '100', value: 2.0 }]),
       ],
       yAxisLabel: 'metric',
     };
@@ -245,7 +241,7 @@ describe('createTimeSeriesChart', () => {
   it('calls Plotly.newPlot on creation', () => {
     const container = document.createElement('div');
     createTimeSeriesChart(container, {
-      traces: [makeTrace('t1', [{ orderValue: '100', value: 1.0 }])],
+      traces: [makeTrace('t1', [{ commit: '100', value: 1.0 }])],
       yAxisLabel: 'metric',
     });
 
@@ -256,12 +252,12 @@ describe('createTimeSeriesChart', () => {
   it('calls Plotly.react on update()', async () => {
     const container = document.createElement('div');
     const handle = createTimeSeriesChart(container, {
-      traces: [makeTrace('t1', [{ orderValue: '100', value: 1.0 }])],
+      traces: [makeTrace('t1', [{ commit: '100', value: 1.0 }])],
       yAxisLabel: 'metric',
     });
 
     handle.update({
-      traces: [makeTrace('t1', [{ orderValue: '100', value: 2.0 }])],
+      traces: [makeTrace('t1', [{ commit: '100', value: 2.0 }])],
       yAxisLabel: 'metric',
     });
 
@@ -275,7 +271,7 @@ describe('createTimeSeriesChart', () => {
   it('calls Plotly.purge on destroy()', () => {
     const container = document.createElement('div');
     const handle = createTimeSeriesChart(container, {
-      traces: [makeTrace('t1', [{ orderValue: '100', value: 1.0 }])],
+      traces: [makeTrace('t1', [{ commit: '100', value: 1.0 }])],
       yAxisLabel: 'metric',
     });
 
@@ -303,7 +299,7 @@ describe('createTimeSeriesChart', () => {
     });
 
     handle.update({
-      traces: [makeTrace('t1', [{ orderValue: '100', value: 1.0 }])],
+      traces: [makeTrace('t1', [{ commit: '100', value: 1.0 }])],
       yAxisLabel: 'metric',
     });
 
@@ -326,13 +322,13 @@ describe('createTimeSeriesChart', () => {
     });
 
     const handle = createTimeSeriesChart(container, {
-      traces: [makeTrace('t1', [{ orderValue: '100', value: 1.0 }])],
+      traces: [makeTrace('t1', [{ commit: '100', value: 1.0 }])],
       yAxisLabel: 'metric',
       categoryOrder: ['100', '101', '102'],
     });
 
     handle.update({
-      traces: [makeTrace('t1', [{ orderValue: '100', value: 2.0 }, { orderValue: '101', value: 3.0 }])],
+      traces: [makeTrace('t1', [{ commit: '100', value: 2.0 }, { commit: '101', value: 3.0 }])],
       yAxisLabel: 'metric',
       categoryOrder: ['100', '101', '102'],
     });
@@ -359,12 +355,12 @@ describe('createTimeSeriesChart', () => {
     });
 
     const handle = createTimeSeriesChart(container, {
-      traces: [makeTrace('t1', [{ orderValue: '100', value: 1.0 }])],
+      traces: [makeTrace('t1', [{ commit: '100', value: 1.0 }])],
       yAxisLabel: 'metric',
     });
 
     handle.update({
-      traces: [makeTrace('t1', [{ orderValue: '100', value: 2.0 }])],
+      traces: [makeTrace('t1', [{ commit: '100', value: 2.0 }])],
       yAxisLabel: 'metric',
     });
 
@@ -389,12 +385,12 @@ describe('createTimeSeriesChart', () => {
     });
 
     const handle = createTimeSeriesChart(container, {
-      traces: [makeTrace('t1', [{ orderValue: '100', value: 1.0 }])],
+      traces: [makeTrace('t1', [{ commit: '100', value: 1.0 }])],
       yAxisLabel: 'metric',
     });
 
     handle.update({
-      traces: [makeTrace('t1', [{ orderValue: '100', value: 2.0 }])],
+      traces: [makeTrace('t1', [{ commit: '100', value: 2.0 }])],
       yAxisLabel: 'metric',
     });
 
@@ -421,13 +417,13 @@ describe('createTimeSeriesChart', () => {
     });
 
     const handle = createTimeSeriesChart(container, {
-      traces: [makeTrace('t1', [{ orderValue: '100', value: 1.0 }])],
+      traces: [makeTrace('t1', [{ commit: '100', value: 1.0 }])],
       yAxisLabel: 'metric',
       categoryOrder: ['100', '101', '102'],
     });
 
     handle.update({
-      traces: [makeTrace('t1', [{ orderValue: '100', value: 2.0 }])],
+      traces: [makeTrace('t1', [{ commit: '100', value: 2.0 }])],
       yAxisLabel: 'metric',
       categoryOrder: ['100', '101', '102'],
     });
@@ -449,9 +445,9 @@ describe('createTimeSeriesChart', () => {
     const container = document.createElement('div');
     const handle = createTimeSeriesChart(container, {
       traces: [
-        makeTrace('test-A', [{ orderValue: '100', value: 1.0 }]),
-        makeTrace('test-B', [{ orderValue: '100', value: 2.0 }]),
-        makeTrace('test-C', [{ orderValue: '100', value: 3.0 }]),
+        makeTrace('test-A', [{ commit: '100', value: 1.0 }]),
+        makeTrace('test-B', [{ commit: '100', value: 2.0 }]),
+        makeTrace('test-C', [{ commit: '100', value: 3.0 }]),
       ],
       yAxisLabel: 'metric',
     });
@@ -475,8 +471,8 @@ describe('createTimeSeriesChart', () => {
     const container = document.createElement('div');
     const handle = createTimeSeriesChart(container, {
       traces: [
-        makeTrace('test-A', [{ orderValue: '100', value: 1.0 }]),
-        makeTrace('test-B', [{ orderValue: '100', value: 2.0 }]),
+        makeTrace('test-A', [{ commit: '100', value: 1.0 }]),
+        makeTrace('test-B', [{ commit: '100', value: 2.0 }]),
       ],
       yAxisLabel: 'metric',
     });
@@ -498,12 +494,12 @@ describe('createTimeSeriesChart', () => {
 
     const handle = createTimeSeriesChart(container, {
       traces: [
-        makeTrace('test-A', [{ orderValue: '100', value: 1.0 }]),
-        makeTrace('test-B', [{ orderValue: '100', value: 2.0 }]),
+        makeTrace('test-A', [{ commit: '100', value: 1.0 }]),
+        makeTrace('test-B', [{ commit: '100', value: 2.0 }]),
       ],
       yAxisLabel: 'metric',
       baselines: [{
-        label: '100', tag: null, values: refValues,
+        label: '100', values: refValues,
       }],
     });
 
@@ -532,7 +528,7 @@ describe('createTimeSeriesChart', () => {
 
     createTimeSeriesChart(container, {
       traces: [
-        { testName: 'test-A', machine: 'm1', color: '#1f77b4', points: [{ orderValue: '100', value: 2.0, runCount: 3, timestamp: null }] },
+        { testName: 'test-A', machine: 'm1', color: '#1f77b4', points: [{ commit: '100', value: 2.0, runCount: 3, submitted_at: null }] },
       ],
       yAxisLabel: 'metric',
       getRawValues: (_test, _machine, _order) => [1.0, 2.0, 3.0],
@@ -568,7 +564,7 @@ describe('createTimeSeriesChart', () => {
 
     createTimeSeriesChart(container, {
       traces: [
-        { testName: 'test-A', machine: 'm1', color: '#1f77b4', points: [{ orderValue: '100', value: 1.0, runCount: 1, timestamp: null }] },
+        { testName: 'test-A', machine: 'm1', color: '#1f77b4', points: [{ commit: '100', value: 1.0, runCount: 1, submitted_at: null }] },
       ],
       yAxisLabel: 'metric',
       getRawValues: () => [1.0],
@@ -593,7 +589,7 @@ describe('createTimeSeriesChart', () => {
 
     createTimeSeriesChart(container, {
       traces: [
-        { testName: 'test-A', machine: 'm1', color: '#1f77b4', points: [{ orderValue: '100', value: 2.0, runCount: 3, timestamp: null }] },
+        { testName: 'test-A', machine: 'm1', color: '#1f77b4', points: [{ commit: '100', value: 2.0, runCount: 3, submitted_at: null }] },
       ],
       yAxisLabel: 'metric',
       getRawValues: () => [1.0, 2.0, 3.0],
@@ -624,7 +620,7 @@ describe('createTimeSeriesChart', () => {
 
     createTimeSeriesChart(container, {
       traces: [
-        { testName: 'test-A', machine: 'm1', color: '#1f77b4', points: [{ orderValue: '100', value: 2.0, runCount: 3, timestamp: null }] },
+        { testName: 'test-A', machine: 'm1', color: '#1f77b4', points: [{ commit: '100', value: 2.0, runCount: 3, submitted_at: null }] },
       ],
       yAxisLabel: 'metric',
       // no getRawValues

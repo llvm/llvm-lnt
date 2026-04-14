@@ -3,7 +3,6 @@
 import type { QueryDataPoint } from '../types';
 import type { CursorPageResult } from '../api';
 import type { MachineRunInfo } from '../types';
-import { primaryOrderValue } from '../utils';
 
 export interface GraphDataApi {
   apiUrl: (suite: string, path: string) => string;
@@ -17,8 +16,8 @@ function dataKey(suite: string, machine: string, metric: string, test: string): 
   return `${suite}::${machine}::${metric}::${test}`;
 }
 
-function baselineKey(suite: string, machine: string, order: string, metric: string): string {
-  return `${suite}::${machine}::${order}::${metric}`;
+function baselineKey(suite: string, machine: string, commit: string, metric: string): string {
+  return `${suite}::${machine}::${commit}::${metric}`;
 }
 
 function testNamesKey(suite: string, machine: string, metric: string): string {
@@ -46,23 +45,23 @@ export class GraphDataCache {
     if (cached) return cached;
 
     const seen = new Set<string>();
-    const orders: string[] = [];
+    const commits: string[] = [];
     let cursor: string | undefined;
     const runsUrl = this.api.apiUrl(suite, `machines/${encodeURIComponent(machine)}/runs`);
     while (true) {
       if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-      const params: Record<string, string> = { sort: 'order', limit: '10000' };
+      const params: Record<string, string> = { sort: 'submitted_at', limit: '10000' };
       if (cursor) params.cursor = cursor;
       const page = await this.api.fetchOneCursorPage<MachineRunInfo>(runsUrl, params, signal);
       for (const run of page.items) {
-        const ov = primaryOrderValue(run.order);
-        if (!seen.has(ov)) { seen.add(ov); orders.push(ov); }
+        const ov = run.commit;
+        if (!seen.has(ov)) { seen.add(ov); commits.push(ov); }
       }
       if (!page.nextCursor) break;
       cursor = page.nextCursor;
     }
-    this.scaffolds.set(key, orders);
-    return orders;
+    this.scaffolds.set(key, commits);
+    return commits;
   }
 
   async getTestNames(suite: string, machine: string, metric: string, signal?: AbortSignal): Promise<string[]> {
@@ -107,7 +106,7 @@ export class GraphDataCache {
         machine,
         metric,
         test: [test],
-        sort: 'test,order',
+        sort: 'test,commit',
         limit: PAGE_LIMIT,
       };
       if (cursor) body.cursor = cursor;
@@ -144,7 +143,7 @@ export class GraphDataCache {
         machine,
         metric,
         test: uncached,
-        sort: 'test,order',
+        sort: 'test,commit',
         limit: PAGE_LIMIT,
       };
       if (cursor) body.cursor = cursor;
@@ -173,10 +172,10 @@ export class GraphDataCache {
   }
 
   async getBaselineData(
-    suite: string, machine: string, order: string, metric: string,
+    suite: string, machine: string, commit: string, metric: string,
     tests: string[], signal?: AbortSignal,
   ): Promise<QueryDataPoint[]> {
-    const key = baselineKey(suite, machine, order, metric);
+    const key = baselineKey(suite, machine, commit, metric);
     const cached = this.baselineData.get(key);
 
     if (cached) {
@@ -192,7 +191,7 @@ export class GraphDataCache {
       const body: Record<string, unknown> = {
         machine,
         metric,
-        order,
+        commit,
         test: tests,
         limit: PAGE_LIMIT,
       };
@@ -218,8 +217,8 @@ export class GraphDataCache {
     return entry?.complete ?? false;
   }
 
-  readCachedBaselineData(suite: string, machine: string, order: string, metric: string): QueryDataPoint[] {
-    const key = baselineKey(suite, machine, order, metric);
+  readCachedBaselineData(suite: string, machine: string, commit: string, metric: string): QueryDataPoint[] {
+    const key = baselineKey(suite, machine, commit, metric);
     const entry = this.baselineData.get(key);
     return entry ? entry.points : [];
   }
