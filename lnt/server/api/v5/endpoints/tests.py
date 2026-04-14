@@ -11,7 +11,7 @@ from flask_smorest import Blueprint
 from ..auth import require_scope
 from ..errors import reject_unknown_params
 from ..etag import add_etag_to_response
-from ..helpers import escape_like, lookup_machine, lookup_test, resolve_metric
+from ..helpers import escape_like, lookup_machine, lookup_test, validate_metric_name
 from ..pagination import (
     cursor_paginate,
     make_paginated_response,
@@ -64,8 +64,9 @@ class TestList(MethodView):
             query = query.join(ts.Run).filter(
                 ts.Run.machine_id == machine.id)
         if metric_name:
-            field = resolve_metric(ts, metric_name)
-            query = query.filter(field.column.isnot(None))
+            validate_metric_name(ts, metric_name)
+            metric_col = getattr(ts.Sample, metric_name)
+            query = query.filter(metric_col.isnot(None))
         if machine_name or metric_name:
             query = query.distinct()
 

@@ -10,8 +10,8 @@ from flask import after_this_request, g
 from flask.views import MethodView
 from flask_smorest import Blueprint
 
-from lnt.server.db import testsuite
-import lnt.server.db.testsuitedb
+from lnt.server.db.v5 import V5DB
+from lnt.server.db.v5.schema import SchemaError, parse_schema
 
 from ..auth import require_scope
 from ..errors import abort_with_error, reject_unknown_params
@@ -38,7 +38,7 @@ def _suite_links(name):
     prefix = '/api/v5/%s' % name
     return {
         'machines': prefix + '/machines',
-        'orders': prefix + '/orders',
+        'commits': prefix + '/commits',
         'runs': prefix + '/runs',
         'tests': prefix + '/tests',
         'regressions': prefix + '/regressions',
@@ -52,7 +52,7 @@ def _suite_detail(db, name):
     tsdb = db.testsuite[name]
     return {
         'name': name,
-        'schema': tsdb.test_suite.__json__(),
+        'schema': V5DB._schema_to_dict(tsdb.schema),
         'links': _suite_links(name),
     }
 
@@ -86,79 +86,35 @@ class TestSuiteCollection(MethodView):
         session = g.db_session
         name = payload['name']
 
-        # Check the in-memory cache first
+        # Check the in-memory cache first.
         if name in db.testsuite:
             abort_with_error(409, "Test suite '%s' already exists" % name)
 
-        # Also check the DB metatable to guard against races
-        existing = session.query(testsuite.TestSuite).filter(
-            testsuite.TestSuite.name == name
-        ).first()
-        if existing is not None:
-            abort_with_error(409, "Test suite '%s' already exists" % name)
-
-        # Build the TestSuite object from the payload
+        # Parse the payload into a v5 TestSuiteSchema.
         try:
-            suite = testsuite.TestSuite.from_json(payload)
-        except (ValueError, AssertionError, KeyError) as exc:
+            schema = parse_schema(payload)
+        except SchemaError as exc:
             abort_with_error(400, str(exc))
 
-        # All creation steps are wrapped so that if any step fails,
-        # metadata is rolled back and any created tables are dropped.
-        # This avoids the bug where an early commit persists metadata
-        # rows but a later failure (e.g. in create_tables) leaves the
-        # database in an inconsistent state with no corresponding tables.
-        tsdb = None
+        # Create the suite (tables, schema row, version bump).
         try:
-            # Stage metadata rows without committing.  For a brand-new
-            # suite we add the JSON schema row directly instead of calling
-            # check_testsuite_schema_changes (which commits internally).
-            schema = testsuite.TestSuiteJSONSchema(name, suite.jsonschema)
-            session.add(schema)
-            suite = testsuite.sync_testsuite_with_metatables(session, suite)
-            session.flush()
-
-            # Create physical per-suite tables (DDL).  We pass the
-            # session's connection instead of the engine so that the
-            # CREATE TABLE statements execute within the same transaction
-            # (and on the same DB connection) as the flushed metadata
-            # inserts.  Using a separate connection would deadlock on
-            # PostgreSQL because FieldChange has a FK to SampleField:
-            # connection A holds ROW EXCLUSIVE on TestSuiteSampleFields
-            # from the flush, while connection B's CREATE TABLE needs
-            # SHARE ROW EXCLUSIVE on that same table.
-            tsdb = lnt.server.db.testsuitedb.TestSuiteDB(db, name, suite)
-            tsdb.create_tables(session.connection())
-
-            # Bump registry version so other workers pick up the change.
-            db.increment_registry_version(session)
+            db.create_suite(session, schema)
             session.commit()
+        except ValueError as exc:
+            session.rollback()
+            abort_with_error(409, str(exc))
         except Exception as exc:
             session.rollback()
-            # Best-effort cleanup: drop tables that may have been created
-            # before the failure.
-            if tsdb is not None:
-                try:
-                    tsdb.base.metadata.drop_all(db.engine)
-                except Exception:
-                    pass
             abort_with_error(400,
                              "Failed to create test suite '%s': %s"
                              % (name, exc))
-
-        db.testsuite[name] = tsdb
-        db.testsuite = dict(sorted(db.testsuite.items()))
 
         @after_this_request
         def add_location_header(response):
             response.headers['Location'] = '/api/v5/test-suites/%s' % name
             return response
 
-        return {
-            'name': name,
-            'schema': suite.__json__(),
-            'links': _suite_links(name),
-        }
+        return _suite_detail(db, name)
 
 
 @blp.route('/<suite_name>')
@@ -197,60 +153,13 @@ class TestSuiteDetail(MethodView):
         if suite_name not in db.testsuite:
             abort_with_error(404, "Test suite '%s' not found" % suite_name)
 
-        tsdb = db.testsuite[suite_name]
-
-        # Deletion order is chosen for safety: metadata first, then tables,
-        # then in-memory dict.  If metadata deletion fails, no tables are
-        # dropped and we can roll back cleanly.  If table dropping fails
-        # *after* metadata is committed, we end up with orphaned tables
-        # (harmless) rather than metadata pointing at missing tables.
-
-        # 1. Delete metadata rows and commit
         try:
-            ts_row = session.query(testsuite.TestSuite).filter(
-                testsuite.TestSuite.name == suite_name
-            ).first()
-            if ts_row is not None:
-                ts_id = ts_row.id
-                # Null out self-referential FK before deleting SampleFields
-                session.query(testsuite.SampleField).filter(
-                    testsuite.SampleField.test_suite_id == ts_id
-                ).update({testsuite.SampleField.status_field_id: None},
-                         synchronize_session='fetch')
-                session.flush()
-
-                # Delete field rows
-                for model in (testsuite.SampleField, testsuite.MachineField,
-                              testsuite.OrderField, testsuite.RunField):
-                    session.query(model).filter(
-                        model.test_suite_id == ts_id
-                    ).delete(synchronize_session='fetch')
-
-                # Delete JSON schema row
-                session.query(testsuite.TestSuiteJSONSchema).filter(
-                    testsuite.TestSuiteJSONSchema.testsuite_name == suite_name
-                ).delete(synchronize_session='fetch')
-
-                # Delete the TestSuite row itself
-                session.delete(ts_row)
-
-            db.increment_registry_version(session)
+            db.delete_suite(session, suite_name)
             session.commit()
         except Exception as exc:
             session.rollback()
             abort_with_error(
                 500,
-                "Failed to delete metadata for '%s': %s" % (suite_name, exc))
-
-        # 2. Drop per-suite tables (best-effort after metadata is gone)
-        try:
-            tsdb.base.metadata.drop_all(db.engine)
-        except Exception:
-            # Tables are orphaned but metadata is already gone — harmless.
-            # A future CREATE of the same suite will recreate them.
-            pass
-
-        # 3. Remove from in-memory dict
-        del db.testsuite[suite_name]
+                "Failed to delete test suite '%s': %s" % (suite_name, exc))
 
         return '', 204

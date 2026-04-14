@@ -51,7 +51,7 @@ class PaginatedResponseSchema(BaseSchema):
 class TestSuiteLinksSchema(BaseSchema):
     """Links to resources within a test suite."""
     machines = ma.fields.String()
-    orders = ma.fields.String()
+    commits = ma.fields.String()
     runs = ma.fields.String()
     tests = ma.fields.String()
     regressions = ma.fields.String()

@@ -24,18 +24,19 @@ for the LLVM compiler project, it can be used for any software project.
 ## Key Concepts
 
 - **Test Suite**: A schema defining what metrics to collect (e.g., "nts" for
-  the LLVM nightly test suite). Each suite has its own set of machines, orders,
+  the LLVM nightly test suite). Each suite has its own set of machines, commits,
   runs, and tests. All data queries are scoped to a specific test suite.
 
 - **Machine**: A build/test environment identified by name (e.g.,
   "clang-x86_64-linux"). Machines have key-value info fields describing
   their configuration.
 
-- **Order**: A point in the revision history (e.g., a commit hash or revision
-  number). Orders define the sequence for time-series analysis. They may have
-  multiple fields (e.g., primary revision + dependent project revisions).
+- **Commit**: A named point that groups runs (e.g., a Git SHA, version number,
+  or ad-hoc label). Each commit has an optional integer ordinal that places it
+  in a total order for time-series analysis. Commits may have metadata fields
+  (e.g., author, commit_message) defined by the test suite schema.
 
-- **Run**: A single test execution on a machine at a specific order. Contains
+- **Run**: A single test execution on a machine at a specific commit. Contains
   samples (individual test results) with metric values. Identified by UUID.
 
 - **Test**: A named benchmark or test case (e.g., "SingleSource/Benchmarks/
@@ -50,7 +51,7 @@ for the LLVM compiler project, it can be used for any software project.
   title, and optional bug tracker link.
 
 - **Field Change**: A statistically significant change in a metric value
-  between two orders for a specific test on a specific machine.
+  between two commits for a specific test on a specific machine.
 
 ## REST API (v5)
 
@@ -67,8 +68,8 @@ by default. Write operations require tokens with appropriate scopes
 
   GET    /api/v5/{ts}/machines              List machines
   GET    /api/v5/{ts}/machines/{name}       Machine detail
-  GET    /api/v5/{ts}/orders                List orders
-  GET    /api/v5/{ts}/orders/{value}        Order detail (with prev/next)
+  GET    /api/v5/{ts}/commits               List commits
+  GET    /api/v5/{ts}/commits/{value}       Commit detail (with prev/next)
   GET    /api/v5/{ts}/runs                  List runs
   POST   /api/v5/{ts}/runs                  Submit a run
   GET    /api/v5/{ts}/runs/{uuid}           Run detail
@@ -84,7 +85,7 @@ by default. Write operations require tokens with appropriate scopes
   GET    /api/v5/admin/api-keys            List API keys (admin)
 
 The endpoints above cover the most common read operations. The API also
-supports write operations (creating/updating/deleting machines, orders,
+supports write operations (creating/updating/deleting machines, commits,
 runs, regressions, field changes, test suites, and API keys) which require
 appropriate authentication scopes. See the OpenAPI spec or Swagger UI for
 the complete endpoint list including all write operations.
@@ -109,14 +110,17 @@ Pass cursor=<next> to get the next page. Use limit= to control page size.
    { "metric": "execution_time", "machine": "machine-name",
      "test": ["test/name"] } to get time-series data points.
 
-3. Submit a run: POST /api/v5/{ts}/runs with the LNT JSON report format.
-   Requires a token with "submit" scope.
+3. Submit a run: POST /api/v5/{ts}/runs with a JSON payload containing
+   format_version "5", machine, commit, and tests. Requires a token with
+   "submit" scope.
 
 4. Check for regressions: GET /api/v5/{ts}/regressions?state=detected
    to find new regressions. PATCH to update state, title, or bug link.
 
-5. Inspect a specific order: GET /api/v5/{ts}/orders/{value} returns
-   the order detail with previous/next navigation links.
+5. Inspect a specific commit: GET /api/v5/{ts}/commits/{value} returns
+   the commit detail with previous/next navigation links. Use
+   PATCH /api/v5/{ts}/commits/{value} to assign an ordinal for time-series
+   ordering.
 """
 
 _ETAG = hashlib.md5(LLMS_TEXT.encode()).hexdigest()

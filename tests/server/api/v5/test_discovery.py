@@ -2,7 +2,7 @@
 #
 # RUN: rm -rf %t.instance %t.pg.log
 # RUN: %{utils}/with_postgres.sh %t.pg.log \
-# RUN:     %{utils}/with_temporary_instance.py %t.instance \
+# RUN:     %{utils}/with_temporary_instance.py --db-version 5.0 %t.instance \
 # RUN:         -- python %s %t.instance
 # END.
 
@@ -45,7 +45,7 @@ class TestDiscovery(unittest.TestCase):
         suite = data['test_suites'][0]
         links = suite['links']
         expected_keys = {
-            'machines', 'orders', 'runs', 'tests',
+            'machines', 'commits', 'runs', 'tests',
             'regressions', 'field_changes', 'query'
         }
         self.assertEqual(set(links.keys()), expected_keys)

@@ -33,18 +33,17 @@ blp = Blueprint(
 def _serialize_sample(sample, ts):
     """Serialize a Sample model instance for the API response.
 
-    Returns a dict with test_name, has_profile, and a metrics dict
-    containing all non-null sample field values.
+    Returns a dict with test name and a metrics dict containing all
+    non-null metric values.
     """
     metrics = {}
-    for field in ts.sample_fields:
-        value = sample.get_field(field)
+    for metric in ts.schema.metrics:
+        value = getattr(sample, metric.name, None)
         if value is not None:
-            metrics[field.name] = value
+            metrics[metric.name] = value
 
     return {
         'test': sample.test.name,
-        'has_profile': sample.profile_id is not None,
         'metrics': metrics,
     }
 
@@ -58,7 +57,7 @@ class RunSamples(MethodView):
     @blp.response(200, PaginatedSampleResponseSchema)
     def get(self, query_args, testsuite, run_uuid):
         """List samples for a run (cursor-paginated)."""
-        reject_unknown_params({'has_profile', 'cursor', 'limit'})
+        reject_unknown_params({'cursor', 'limit'})
         ts = g.ts
         session = g.db_session
         run = lookup_run_by_uuid(session, ts, run_uuid)
@@ -68,10 +67,6 @@ class RunSamples(MethodView):
         ).filter(
             ts.Sample.run_id == run.id
         )
-
-        # Apply has_profile filter
-        if query_args.get('has_profile') is True:
-            query = query.filter(ts.Sample.profile_id.isnot(None))
 
         cursor_str = query_args.get('cursor')
         limit = query_args['limit']
