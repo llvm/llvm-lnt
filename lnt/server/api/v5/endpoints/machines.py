@@ -11,6 +11,7 @@ GET    /api/v5/{ts}/machines/{machine_name}/runs   -- List runs for machine
 from flask import g, jsonify, make_response
 from flask.views import MethodView
 from flask_smorest import Blueprint
+from sqlalchemy import or_
 
 from ..auth import require_scope
 from ..errors import abort_with_error, reject_unknown_params
@@ -38,21 +39,34 @@ blp = Blueprint(
 )
 
 
-def _serialize_machine(machine):
+def _split_machine_info(info, ts):
+    """Split an info dict into (schema_fields, parameters).
+
+    Keys matching schema-defined machine_fields go into schema_fields;
+    everything else goes into parameters.
+    """
+    field_names = ts._machine_field_names
+    schema_fields = {}
+    params = {}
+    for key, value in info.items():
+        if key in field_names:
+            schema_fields[key] = value
+        else:
+            params[key] = value
+    return schema_fields, params
+
+
+def _serialize_machine(machine, ts):
     """Serialize a Machine model instance for the API response."""
     info = {}
-    # Add declared machine fields
-    for field in machine.fields:
-        val = machine.get_field(field)
+    for mf in ts.schema.machine_fields:
+        val = getattr(machine, mf.name, None)
         if val is not None:
-            info[field.name] = str(val)
-    # Add parameters blob
-    try:
-        params = machine.parameters
+            info[mf.name] = str(val)
+    params = machine.parameters
+    if params:
         for k, v in params.items():
             info[k] = str(v)
-    except (TypeError, ValueError):
-        pass
     return {
         'name': machine.name,
         'info': info,
@@ -68,28 +82,25 @@ class MachineList(MethodView):
     @blp.response(200, PaginatedMachineResponseSchema)
     def get(self, query_args, testsuite):
         """List machines (offset-paginated, filterable)."""
-        reject_unknown_params({'name_contains', 'name_prefix', 'limit', 'offset'})
+        reject_unknown_params({'search', 'limit', 'offset'})
         ts = g.ts
         session = g.db_session
 
         query = session.query(ts.Machine)
 
-        # Apply filters
-        name_contains = query_args.get('name_contains')
-        if name_contains:
-            escaped = escape_like(name_contains)
-            query = query.filter(
-                ts.Machine.name.like('%' + escaped + '%', escape='\\'))
-
-        name_prefix = query_args.get('name_prefix')
-        if name_prefix:
-            escaped = escape_like(name_prefix)
-            query = query.filter(
-                ts.Machine.name.like(escaped + '%', escape='\\'))
+        search = query_args.get('search')
+        if search:
+            escaped = escape_like(search)
+            conditions = [
+                ts.Machine.name.like(escaped + '%', escape='\\')]
+            for mf in ts.schema.searchable_machine_fields:
+                col = getattr(ts.Machine, mf.name)
+                conditions.append(
+                    col.like(escaped + '%', escape='\\'))
+            query = query.filter(or_(*conditions))
 
         query = query.order_by(ts.Machine.name.asc())
 
-        # Offset pagination for machines (bounded list)
         total = query.count()
 
         limit = query_args['limit']
@@ -100,7 +111,7 @@ class MachineList(MethodView):
 
         machines = query.offset(offset).limit(limit).all()
 
-        items = [_serialize_machine(m) for m in machines]
+        items = [_serialize_machine(m, ts) for m in machines]
         return jsonify(make_paginated_response(items, None, total=total))
 
     @require_scope('manage')
@@ -113,33 +124,21 @@ class MachineList(MethodView):
 
         name = body['name'].strip()
 
-        # Check for existing machine with same name
-        existing = session.query(ts.Machine).filter(
-            ts.Machine.name == name
-        ).first()
+        existing = ts.get_machine(session, name=name)
         if existing:
             abort_with_error(
                 409, "A machine named '%s' already exists" % name)
 
-        machine = ts.Machine(name)
         info = body.get('info') or {}
-        if info and isinstance(info, dict):
-            # Set declared fields and parameters
-            declared = {f.name for f in ts.machine_fields}
-            params = {}
-            for key, value in info.items():
-                if key in declared:
-                    setattr(machine, key, value)
-                else:
-                    params[key] = value
-            machine.parameters = params
-        else:
-            machine.parameters = {}
+        schema_fields, params = _split_machine_info(info, ts)
 
-        session.add(machine)
+        machine = ts.get_or_create_machine(
+            session, name,
+            parameters=params if params else None,
+            **schema_fields)
         session.flush()
 
-        resp = jsonify(_serialize_machine(machine))
+        resp = jsonify(_serialize_machine(machine, ts))
         resp.status_code = 201
         return resp
 
@@ -156,7 +155,7 @@ class MachineDetail(MethodView):
         ts = g.ts
         session = g.db_session
         machine = lookup_machine(session, ts, machine_name)
-        data = _serialize_machine(machine)
+        data = _serialize_machine(machine, ts)
         return add_etag_to_response(jsonify(data), data)
 
     @require_scope('manage')
@@ -176,33 +175,24 @@ class MachineDetail(MethodView):
 
         if new_name is not None:
             new_name = new_name.strip()
-
             if new_name != machine.name:
-                # Check uniqueness of new name
-                existing = session.query(ts.Machine).filter(
-                    ts.Machine.name == new_name
-                ).first()
+                existing = ts.get_machine(session, name=new_name)
                 if existing:
                     abort_with_error(
                         409,
                         "A machine named '%s' already exists" % new_name)
-                machine.name = new_name
+                ts.update_machine(session, machine, name=new_name)
                 renamed = True
 
         new_info = body.get('info')
         if new_info is not None and isinstance(new_info, dict):
-            declared = {f.name for f in ts.machine_fields}
-            params = {}
-            for key, value in new_info.items():
-                if key in declared:
-                    setattr(machine, key, value)
-                else:
-                    params[key] = value
-            machine.parameters = params
+            schema_updates, params = _split_machine_info(new_info, ts)
+            ts.update_machine(session, machine,
+                              parameters=params, **schema_updates)
 
         session.flush()
 
-        result = _serialize_machine(machine)
+        result = _serialize_machine(machine, ts)
         resp = jsonify(result)
 
         if renamed:
@@ -220,44 +210,14 @@ class MachineDetail(MethodView):
         session = g.db_session
         machine = lookup_machine(session, ts, machine_name)
 
-        # Step 1: Clean up FK references to this machine's FieldChanges.
-        # Both ChangeIgnore and RegressionIndicator have FKs to FieldChange
-        # but may not cascade properly on all backends (especially Postgres),
-        # so we must delete these manually before the machine cascade deletes
-        # FieldChanges.
-        field_change_ids = session.query(ts.FieldChange.id).filter(
+        # FieldChange.machine_id has no CASCADE, so delete them first.
+        # RegressionIndicator.field_change_id has ondelete=CASCADE,
+        # so those are auto-cleaned when the FieldChange is deleted.
+        session.query(ts.FieldChange).filter(
             ts.FieldChange.machine_id == machine.id
-        ).all()
-        fc_ids = [fc_id for (fc_id,) in field_change_ids]
+        ).delete(synchronize_session='fetch')
 
-        if fc_ids:
-            # Delete in batches to avoid large IN clauses
-            batch_size = 100
-            for i in range(0, len(fc_ids), batch_size):
-                batch = fc_ids[i:i + batch_size]
-                session.query(ts.RegressionIndicator).filter(
-                    ts.RegressionIndicator.field_change_id.in_(batch)
-                ).delete(synchronize_session='fetch')
-                session.query(ts.ChangeIgnore).filter(
-                    ts.ChangeIgnore.field_change_id.in_(batch)
-                ).delete(synchronize_session='fetch')
-            session.flush()
-
-        # Step 2: Delete runs in chunks (each run cascades to its samples,
-        # field changes, etc.)
-        batch_size = 50
-        while True:
-            runs = session.query(ts.Run).filter(
-                ts.Run.machine_id == machine.id
-            ).limit(batch_size).all()
-            if not runs:
-                break
-            for run in runs:
-                session.delete(run)
-            session.flush()
-
-        # Step 3: Delete the machine itself
-        session.delete(machine)
+        ts.delete_machine(session, machine.id)
         session.flush()
 
         return make_response('', 204)
@@ -281,25 +241,22 @@ class MachineRuns(MethodView):
             ts.Run.machine_id == machine.id
         )
 
-        # Apply datetime filters
         after_str = query_args.get('after')
         if after_str:
             after_dt = parse_datetime(after_str)
             if after_dt is None:
                 abort_with_error(400, "Invalid 'after' datetime format")
-            query = query.filter(ts.Run.start_time > after_dt)
+            query = query.filter(ts.Run.submitted_at > after_dt)
 
         before_str = query_args.get('before')
         if before_str:
             before_dt = parse_datetime(before_str)
             if before_dt is None:
                 abort_with_error(400, "Invalid 'before' datetime format")
-            query = query.filter(ts.Run.start_time < before_dt)
+            query = query.filter(ts.Run.submitted_at < before_dt)
 
-        # Sort: default is ascending by ID (insertion order).
-        # If sort=-start_time, order descending by ID (most recent first).
         sort = query_args.get('sort')
-        descending = (sort == '-start_time')
+        descending = (sort == '-submitted_at')
 
         cursor_str = query_args.get('cursor')
         limit = query_args['limit']

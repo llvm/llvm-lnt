@@ -2,10 +2,11 @@
 #
 # RUN: rm -rf %t.instance %t.pg.log
 # RUN: %{utils}/with_postgres.sh %t.pg.log \
-# RUN:     %{utils}/with_temporary_instance.py %t.instance \
+# RUN:     %{utils}/with_temporary_instance.py --db-version 5.0 %t.instance \
 # RUN:         -- python %s %t.instance
 # END.
 
+import datetime
 import sys
 import os
 import unittest
@@ -14,8 +15,9 @@ import uuid
 sys.path.insert(0, os.path.dirname(__file__))
 from v5_test_helpers import (
     create_app, create_client, admin_headers, make_scoped_headers,
-    create_machine, collect_all_pages,
-    submit_run, submit_fieldchange, submit_regression,
+    create_machine, create_commit, create_run,
+    create_test, create_fieldchange, create_regression,
+    collect_all_pages, submit_run,
 )
 
 
@@ -253,7 +255,6 @@ class TestMachineUpdate(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         data = resp.get_json()
         self.assertEqual(data['name'], new_name)
-        # Check Location header
         location = resp.headers.get('Location')
         self.assertIsNotNone(location)
         self.assertIn(new_name, location)
@@ -337,25 +338,32 @@ class TestMachineDelete(unittest.TestCase):
         resp = self.client.get(PREFIX + f'/machines/{name}')
         self.assertEqual(resp.status_code, 404)
 
-    def test_delete_machine_with_regression_indicators(self):
+    def test_delete_machine_with_fieldchanges(self):
         """Delete machine whose FieldChanges are linked to RegressionIndicators.
 
-        This verifies that the delete handler cleans up RegressionIndicator
-        rows (which have an FK to FieldChange) before cascading deletion of
-        the machine's runs and field changes.  Without the cleanup, Postgres
-        would raise an FK violation.
+        Verifies the delete handler cleans up FieldChanges (which have no
+        CASCADE from machine_id) before deleting the machine.
+        RegressionIndicator.field_change_id has ondelete=CASCADE, so
+        those are auto-cleaned when the FieldChange is deleted.
         """
         name = f'delete-ri-{uuid.uuid4().hex[:8]}'
-        rev1 = f'ri-rev1-{name}'
-        rev2 = f'ri-rev2-{name}'
-        test_name = f'ri/test/{uuid.uuid4().hex[:8]}'
-        submit_run(self.client, name, rev1,
-                   [{'name': test_name, 'execution_time': [1.0]}])
-        submit_run(self.client, name, rev2,
-                   [{'name': test_name, 'execution_time': [2.0]}])
-        fc = submit_fieldchange(self.client, self.app, name, test_name,
-                                'execution_time', rev1, rev2)
-        submit_regression(self.client, self.app, [fc['uuid']])
+        db = self.app.instance.get_database("default")
+        session = db.make_session()
+        ts = db.testsuite[TS]
+
+        machine = create_machine(session, ts, name=name)
+        c1 = create_commit(
+            session, ts, commit=f'ri-c1-{uuid.uuid4().hex[:8]}')
+        c2 = create_commit(
+            session, ts, commit=f'ri-c2-{uuid.uuid4().hex[:8]}')
+        test = create_test(
+            session, ts, name=f'ri/test/{uuid.uuid4().hex[:8]}')
+        fc = create_fieldchange(session, ts, c1, c2, machine, test,
+                                'execution_time')
+        create_regression(
+            session, ts, title=f'Reg for {name}', field_changes=[fc])
+        session.commit()
+        session.close()
 
         # Delete the machine via the API.
         resp = self.client.delete(
@@ -389,9 +397,7 @@ class TestMachineRuns(unittest.TestCase):
         """List runs for a machine."""
         name = f'runs-list-{uuid.uuid4().hex[:8]}'
         submit_run(self.client, name, f'rev-{uuid.uuid4().hex[:6]}',
-                   [{'name': 'p/test', 'execution_time': [0.0]}],
-                   start_time='2024-06-01T12:00:00',
-                   end_time='2024-06-01T12:30:00')
+                   [{'name': 'p/test', 'execution_time': [0.0]}])
 
         resp = self.client.get(PREFIX + f'/machines/{name}/runs')
         self.assertEqual(resp.status_code, 200)
@@ -401,9 +407,8 @@ class TestMachineRuns(unittest.TestCase):
         # Verify run fields
         item = data['items'][0]
         self.assertIn('uuid', item)
-        self.assertIn('order', item)
-        self.assertIn('start_time', item)
-        self.assertIn('end_time', item)
+        self.assertIn('commit', item)
+        self.assertIn('submitted_at', item)
 
     def test_list_runs_empty(self):
         """Machine with no runs returns empty list."""
@@ -421,11 +426,20 @@ class TestMachineRuns(unittest.TestCase):
     def test_list_runs_pagination(self):
         """Test pagination of runs for a machine."""
         name = f'runs-page-{uuid.uuid4().hex[:8]}'
-        # Create 3 runs
+        db = self.app.instance.get_database("default")
+        session = db.make_session()
+        ts = db.testsuite[TS]
+        machine = create_machine(session, ts, name=name)
+        # Create 3 runs with distinct timestamps
         for i in range(3):
-            submit_run(self.client, name, f'page-rev-{i}',
-                       [{'name': 'p/test', 'execution_time': [0.0]}],
-                       start_time=f'2024-01-{1 + i:02d}T12:00:00')
+            commit = create_commit(
+                session, ts,
+                commit=f'page-rev-{uuid.uuid4().hex[:8]}')
+            create_run(session, ts, machine, commit,
+                       submitted_at=datetime.datetime(
+                           2024, 1, 1 + i, 12, 0, 0))
+        session.commit()
+        session.close()
 
         # Request with limit=2
         resp = self.client.get(
@@ -447,12 +461,20 @@ class TestMachineRuns(unittest.TestCase):
     def test_list_runs_after_filter(self):
         """Filter runs by after datetime."""
         name = f'runs-after-{uuid.uuid4().hex[:8]}'
-        submit_run(self.client, name, 'after-rev-1',
-                   [{'name': 'p/test', 'execution_time': [0.0]}],
-                   start_time='2024-01-01T12:00:00')
-        submit_run(self.client, name, 'after-rev-2',
-                   [{'name': 'p/test', 'execution_time': [0.0]}],
-                   start_time='2024-06-01T12:00:00')
+        db = self.app.instance.get_database("default")
+        session = db.make_session()
+        ts = db.testsuite[TS]
+        machine = create_machine(session, ts, name=name)
+        c1 = create_commit(
+            session, ts, commit=f'after-1-{uuid.uuid4().hex[:8]}')
+        create_run(session, ts, machine, c1,
+                   submitted_at=datetime.datetime(2024, 1, 1, 12, 0, 0))
+        c2 = create_commit(
+            session, ts, commit=f'after-2-{uuid.uuid4().hex[:8]}')
+        create_run(session, ts, machine, c2,
+                   submitted_at=datetime.datetime(2024, 6, 1, 12, 0, 0))
+        session.commit()
+        session.close()
 
         resp = self.client.get(
             PREFIX + f'/machines/{name}/runs?after=2024-03-01T00:00:00')
@@ -460,44 +482,36 @@ class TestMachineRuns(unittest.TestCase):
         data = resp.get_json()
         self.assertEqual(len(data['items']), 1)
 
-    def test_list_runs_before_filter(self):
-        """Filter runs by before datetime."""
-        name = f'runs-before-{uuid.uuid4().hex[:8]}'
-        submit_run(self.client, name, 'before-rev-1',
-                   [{'name': 'p/test', 'execution_time': [0.0]}],
-                   start_time='2024-01-01T12:00:00')
-        submit_run(self.client, name, 'before-rev-2',
-                   [{'name': 'p/test', 'execution_time': [0.0]}],
-                   start_time='2024-06-01T12:00:00')
-
-        resp = self.client.get(
-            PREFIX + f'/machines/{name}/runs?before=2024-03-01T00:00:00')
-        self.assertEqual(resp.status_code, 200)
-        data = resp.get_json()
-        self.assertEqual(len(data['items']), 1)
-
     def test_list_runs_sort_descending(self):
-        """Sort runs by -start_time returns newest first."""
+        """Sort runs by -submitted_at returns newest first."""
         name = f'runs-sort-{uuid.uuid4().hex[:8]}'
+        db = self.app.instance.get_database("default")
+        session = db.make_session()
+        ts = db.testsuite[TS]
+        machine = create_machine(session, ts, name=name)
         for month in (1, 4, 7):
-            submit_run(self.client, name,
-                       f'sort-rev-{month}-{uuid.uuid4().hex[:6]}',
-                       [{'name': 'p/test', 'execution_time': [0.0]}],
-                       start_time=f'2024-{month:02d}-01T12:00:00')
+            c = create_commit(
+                session, ts,
+                commit=f'sort-{month}-{uuid.uuid4().hex[:8]}')
+            create_run(session, ts, machine, c,
+                       submitted_at=datetime.datetime(
+                           2024, month, 1, 12, 0, 0))
+        session.commit()
+        session.close()
 
         # Default order (ascending by ID)
         resp_default = self.client.get(
             PREFIX + f'/machines/{name}/runs')
-        self.assertEqual(resp_default.status_code, 200)
         default_times = [
-            item['start_time'] for item in resp_default.get_json()['items']]
+            item['submitted_at']
+            for item in resp_default.get_json()['items']]
 
-        # Descending by start_time
+        # Descending by submitted_at
         resp_sorted = self.client.get(
-            PREFIX + f'/machines/{name}/runs?sort=-start_time')
-        self.assertEqual(resp_sorted.status_code, 200)
+            PREFIX + f'/machines/{name}/runs?sort=-submitted_at')
         sorted_times = [
-            item['start_time'] for item in resp_sorted.get_json()['items']]
+            item['submitted_at']
+            for item in resp_sorted.get_json()['items']]
 
         self.assertEqual(len(sorted_times), 3)
         self.assertEqual(sorted_times, list(reversed(default_times)))
@@ -508,79 +522,77 @@ class TestMachineRuns(unittest.TestCase):
             PREFIX + '/machines/nonexistent-machine-runs/runs')
         self.assertEqual(resp.status_code, 404)
 
+    def test_list_runs_before_filter(self):
+        """Filter runs by before datetime."""
+        name = f'runs-before-{uuid.uuid4().hex[:8]}'
+        db = self.app.instance.get_database("default")
+        session = db.make_session()
+        ts = db.testsuite[TS]
+        machine = create_machine(session, ts, name=name)
+        c1 = create_commit(
+            session, ts, commit=f'before-1-{uuid.uuid4().hex[:8]}')
+        create_run(session, ts, machine, c1,
+                   submitted_at=datetime.datetime(2024, 1, 1, 12, 0, 0))
+        c2 = create_commit(
+            session, ts, commit=f'before-2-{uuid.uuid4().hex[:8]}')
+        create_run(session, ts, machine, c2,
+                   submitted_at=datetime.datetime(2024, 6, 1, 12, 0, 0))
+        session.commit()
+        session.close()
+
+        resp = self.client.get(
+            PREFIX + f'/machines/{name}/runs?before=2024-03-01T00:00:00')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertEqual(len(data['items']), 1)
+
     def test_invalid_cursor_returns_400(self):
-        """An invalid cursor string should return 400."""
+        """An invalid cursor string on machine runs should return 400."""
         name = f'cursor-bad-{uuid.uuid4().hex[:8]}'
         self.client.post(
             PREFIX + '/machines',
             json={'name': name},
             headers=admin_headers(),
         )
-
         resp = self.client.get(
             PREFIX + f'/machines/{name}/runs?cursor=not-a-valid-cursor!!!')
         self.assertEqual(resp.status_code, 400)
 
-
-class TestMachineRunsPagination(unittest.TestCase):
-    """Exhaustive cursor pagination tests for GET /api/v5/{ts}/machines/{name}/runs."""
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.app = create_app(sys.argv[1])
-        cls.client = create_client(cls.app)
-        cls._machine_name = f'pag-mruns-{uuid.uuid4().hex[:8]}'
+    def test_machine_runs_pagination(self):
+        """Paginating through machine runs collects all items."""
+        name = f'pag-mruns-{uuid.uuid4().hex[:8]}'
+        db = self.app.instance.get_database("default")
+        session = db.make_session()
+        ts = db.testsuite[TS]
+        machine = create_machine(session, ts, name=name)
         for i in range(5):
-            submit_run(cls.client, cls._machine_name,
-                       f'pag-mr-rev-{uuid.uuid4().hex[:6]}-{i}',
-                       [{'name': 'p/test', 'execution_time': [0.0]}],
-                       start_time=f'2024-01-{1 + i:02d}T12:00:00')
+            c = create_commit(
+                session, ts,
+                commit=f'pag-mr-{i}-{uuid.uuid4().hex[:8]}')
+            create_run(session, ts, machine, c,
+                       submitted_at=datetime.datetime(2024, 1, 1 + i, 12, 0, 0))
+        session.commit()
+        session.close()
 
-    def _collect_all_pages(self):
-        url = PREFIX + f'/machines/{self._machine_name}/runs?limit=2'
-        return collect_all_pages(self, self.client, url)
-
-    def test_pagination_collects_all_items(self):
-        """Paginating through all pages collects all 5 runs."""
-        all_items = self._collect_all_pages()
+        url = PREFIX + f'/machines/{name}/runs?limit=2'
+        all_items = collect_all_pages(self, self.client, url)
         self.assertEqual(len(all_items), 5)
-
-    def test_no_duplicate_items_across_pages(self):
-        """No duplicate run UUIDs across pages."""
-        all_items = self._collect_all_pages()
         uuids = [item['uuid'] for item in all_items]
-        self.assertEqual(len(uuids), len(set(uuids)))
+        self.assertEqual(len(set(uuids)), 5)
 
 
-class TestMachineFilter(unittest.TestCase):
-    """Test machine list filtering."""
+class TestMachineSearch(unittest.TestCase):
+    """Test machine list search parameter."""
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.app = create_app(sys.argv[1])
         cls.client = create_client(cls.app)
 
-    def test_filter_name_contains(self):
-        """Filter machines by name_contains."""
+    def test_search_by_name_prefix(self):
+        """Search machines by name prefix."""
         unique = uuid.uuid4().hex[:8]
-        name = f'filter-contains-{unique}'
-        self.client.post(
-            PREFIX + '/machines',
-            json={'name': name},
-            headers=admin_headers(),
-        )
-        resp = self.client.get(
-            PREFIX + f'/machines?name_contains={unique}')
-        self.assertEqual(resp.status_code, 200)
-        data = resp.get_json()
-        self.assertGreater(len(data['items']), 0)
-        for m in data['items']:
-            self.assertIn(unique, m['name'])
-
-    def test_filter_name_prefix(self):
-        """Filter machines by name_prefix."""
-        unique = uuid.uuid4().hex[:8]
-        prefix = f'prefix-{unique}'
+        prefix = f'search-{unique}'
         name = f'{prefix}-machine'
         self.client.post(
             PREFIX + '/machines',
@@ -588,12 +600,31 @@ class TestMachineFilter(unittest.TestCase):
             headers=admin_headers(),
         )
         resp = self.client.get(
-            PREFIX + f'/machines?name_prefix={prefix}')
+            PREFIX + f'/machines?search={prefix}')
         self.assertEqual(resp.status_code, 200)
         data = resp.get_json()
         self.assertGreater(len(data['items']), 0)
         for m in data['items']:
             self.assertTrue(m['name'].startswith(prefix))
+
+    def test_search_by_machine_field(self):
+        """Search matches against searchable machine fields, not just name."""
+        unique = uuid.uuid4().hex[:8]
+        name = f'field-search-{unique}'
+        os_value = f'SpecialOS-{unique}'
+        self.client.post(
+            PREFIX + '/machines',
+            json={'name': name, 'info': {'os': os_value}},
+            headers=admin_headers(),
+        )
+        # Search by the os field value prefix — should find the machine
+        # even though the name doesn't match the search term.
+        resp = self.client.get(
+            PREFIX + f'/machines?search=SpecialOS-{unique}')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        names = [m['name'] for m in data['items']]
+        self.assertIn(name, names)
 
 
 class TestMachineUnknownParams(unittest.TestCase):
@@ -609,12 +640,6 @@ class TestMachineUnknownParams(unittest.TestCase):
         self.assertEqual(resp.status_code, 400)
         data = resp.get_json()
         self.assertIn('bogus', data['error']['message'])
-
-    def test_machines_list_typo_param_returns_400(self):
-        resp = self.client.get(PREFIX + '/machines?name_contain=foo')
-        self.assertEqual(resp.status_code, 400)
-        data = resp.get_json()
-        self.assertIn('name_contain', data['error']['message'])
 
     def test_machine_detail_unknown_param_returns_400(self):
         name = f'unk-det-{uuid.uuid4().hex[:8]}'
@@ -636,64 +661,6 @@ class TestMachineUnknownParams(unittest.TestCase):
         resp = self.client.get(
             PREFIX + f'/machines/{name}/runs?bogus=1')
         self.assertEqual(resp.status_code, 400)
-
-
-class TestDuplicateMachineNames(unittest.TestCase):
-    """Tests that duplicate machine names produce 409 Conflict.
-
-    Machine names are NOT unique in the DB.  When a lookup-by-name finds
-    more than one row the API must return 409 (not silently pick one).
-    """
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.app = create_app(sys.argv[1])
-        cls.client = create_client(cls.app)
-        # Insert two machines with the same name directly in the DB
-        cls.dup_name = f'dup-machine-{uuid.uuid4().hex[:8]}'
-        db = cls.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite[TS]
-        create_machine(session, ts, name=cls.dup_name)
-        create_machine(session, ts, name=cls.dup_name)
-        session.commit()
-        session.close()
-
-    def test_get_detail_returns_409(self):
-        """GET /machines/{name} returns 409 when name is ambiguous."""
-        resp = self.client.get(PREFIX + f'/machines/{self.dup_name}')
-        self.assertEqual(resp.status_code, 409)
-        data = resp.get_json()
-        self.assertIn('Multiple machines', data['error']['message'])
-
-    def test_patch_returns_409(self):
-        """PATCH /machines/{name} returns 409 when name is ambiguous."""
-        resp = self.client.patch(
-            PREFIX + f'/machines/{self.dup_name}',
-            json={'info': {'key': 'value'}},
-            headers=admin_headers(),
-        )
-        self.assertEqual(resp.status_code, 409)
-        data = resp.get_json()
-        self.assertIn('Multiple machines', data['error']['message'])
-
-    def test_delete_returns_409(self):
-        """DELETE /machines/{name} returns 409 when name is ambiguous."""
-        resp = self.client.delete(
-            PREFIX + f'/machines/{self.dup_name}',
-            headers=admin_headers(),
-        )
-        self.assertEqual(resp.status_code, 409)
-        data = resp.get_json()
-        self.assertIn('Multiple machines', data['error']['message'])
-
-    def test_get_runs_returns_409(self):
-        """GET /machines/{name}/runs returns 409 when name is ambiguous."""
-        resp = self.client.get(
-            PREFIX + f'/machines/{self.dup_name}/runs')
-        self.assertEqual(resp.status_code, 409)
-        data = resp.get_json()
-        self.assertIn('Multiple machines', data['error']['message'])
 
 
 if __name__ == '__main__':

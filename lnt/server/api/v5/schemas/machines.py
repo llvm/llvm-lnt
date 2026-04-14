@@ -66,21 +66,13 @@ class MachineResponseSchema(BaseSchema):
 class MachineRunResponseSchema(BaseSchema):
     """Schema for a run in the machine runs sub-resource."""
     uuid = ma.fields.String(required=True)
-    order = ma.fields.Dict(
-        keys=ma.fields.String(),
-        values=ma.fields.String(),
-        metadata={
-            'description': 'Order field values',
-            'example': {'llvm_project_revision': 'abc123'},
-        },
-    )
-    start_time = ma.fields.String(
+    commit = ma.fields.String(
         allow_none=True,
-        metadata={'description': 'Run start time (ISO 8601)'},
+        metadata={'description': 'Commit string for this run'},
     )
-    end_time = ma.fields.String(
+    submitted_at = ma.fields.String(
         allow_none=True,
-        metadata={'description': 'Run end time (ISO 8601)'},
+        metadata={'description': 'Run submission time (ISO 8601)'},
     )
 
 
@@ -104,13 +96,10 @@ class PaginatedMachineRunResponseSchema(PaginatedResponseSchema):
 
 class MachineListQuerySchema(OffsetPaginationQuerySchema):
     """Query parameters for GET /machines."""
-    name_contains = ma.fields.String(
+    search = ma.fields.String(
         load_default=None,
-        metadata={'description': 'Filter by substring in machine name'},
-    )
-    name_prefix = ma.fields.String(
-        load_default=None,
-        metadata={'description': 'Filter by machine name prefix'},
+        metadata={'description': 'Search machines by prefix across name '
+                  'and searchable machine fields'},
     )
 
 
@@ -118,13 +107,13 @@ class MachineRunsQuerySchema(CursorPaginationQuerySchema):
     """Query parameters for GET /machines/{name}/runs."""
     after = ma.fields.String(
         load_default=None,
-        metadata={'description': 'ISO datetime, only runs started after this time'},
+        metadata={'description': 'ISO datetime, only runs submitted after this time'},
     )
     before = ma.fields.String(
         load_default=None,
-        metadata={'description': 'ISO datetime, only runs started before this time'},
+        metadata={'description': 'ISO datetime, only runs submitted before this time'},
     )
     sort = ma.fields.String(
         load_default=None,
-        metadata={'description': 'Sort order. Use -start_time for newest first'},
+        metadata={'description': 'Sort order. Use -submitted_at for newest first'},
     )
