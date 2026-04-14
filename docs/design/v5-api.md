@@ -28,14 +28,15 @@ DELETE /machines/{machine_name}      — Delete machine and its runs
 GET    /machines/{machine_name}/runs — List runs for this machine (cursor-paginated)
 Machines are also created implicitly if a run is submitted for a nonexistent machine.
 
-Orders
+Commits
 
-GET    /orders                       — List (cursor-paginated, filterable)
-POST   /orders                       — Create with metadata (git commit info, etc.)
-GET    /orders/{order_id}            — Detail (includes previous/next order references)
-PATCH  /orders/{order_id}            — Update metadata
-Orders are read/create/update only — no delete. The order_id in the path is the primary order field value (e.g. the revision hash). If order fields are multi-valued and ambiguous, query parameters
-disambiguate. Orders are also created implicitly during run submission.
+GET    /commits                      — List (cursor-paginated, searchable)
+POST   /commits                      — Create with metadata (commit_fields)
+GET    /commits/{value}              — Detail (includes previous/next commit by ordinal)
+PATCH  /commits/{value}              — Update ordinal and/or commit_fields
+DELETE /commits/{value}              — Delete commit (cascades to runs/samples; 409 if referenced by field changes)
+The {value} in the path is the commit identity string. Commits are also created implicitly during run submission.
+Ordinals are always NULL on creation and assigned exclusively via PATCH (see D11 in v5-db.md).
 
 Runs
 
