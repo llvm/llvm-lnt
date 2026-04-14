@@ -359,12 +359,8 @@ GET    /api/v5/{ts}/machines/{machine_name}/runs  — List runs (cursor-paginate
   for race conditions. Consider adding a DB unique constraint via migration.
 - On PATCH with name change: check new name uniqueness. Response includes new URL in
   `Location` header.
-- On DELETE: chunked deletion (batches of 50-100 runs) to avoid OOM/timeout.
-  **Important**: `ChangeIgnore` rows have an FK to `FieldChange` but NO cascade configured.
-  On Postgres, deleting FieldChanges (via machine cascade) will fail with FK violations
-  unless ChangeIgnore rows are deleted first. This is a pre-existing bug in v4. The v5
-  delete code must explicitly delete ChangeIgnore rows for the machine's FieldChanges
-  before the cascade delete runs.
+- On DELETE: cascades to runs (and their samples), field changes, and
+  regression indicators via FK cascade. No ChangeIgnore in v5.
 - Auth: read=GET, manage=POST/PATCH/DELETE.
 
 **Filters** (on list): `name_contains=`, `name_prefix=`

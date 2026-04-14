@@ -149,6 +149,7 @@ R5: Filtering and Sorting
   - has_profile=true (for samples)
   - sort=<field> (prefix with - for descending: sort=-start_time)
 - Exact filters and available sort fields defined per endpoint in the OpenAPI spec
+- Filtering by a nonexistent entity name (machine=, test=) returns 404. Filtering by an unknown metric returns 400.
 
 R6: Response Format
 

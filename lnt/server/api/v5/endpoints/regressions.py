@@ -12,19 +12,21 @@ POST   /api/v5/{ts}/regressions/{uuid}/indicators            -- Add indicator
 DELETE /api/v5/{ts}/regressions/{uuid}/indicators/{fc_uuid}  -- Remove indicator
 """
 
-import uuid as uuid_module
-
 from flask import g, jsonify, make_response
 from flask.views import MethodView
 from flask_smorest import Blueprint
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import joinedload
 
 from ..auth import require_scope
 from ..errors import abort_with_error, reject_unknown_params
 from ..helpers import (
     lookup_fieldchange,
+    lookup_machine,
     lookup_regression,
-    resolve_metric,
+    lookup_test,
     serialize_fieldchange,
+    validate_metric_name,
 )
 from ..etag import add_etag_to_response
 from ..pagination import (
@@ -60,12 +62,34 @@ blp = Blueprint(
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _serialize_indicator(ri, ts):
+def _fc_load_branches(base, ts):
+    """Append FieldChange relationship loads to a joinedload base."""
+    return [
+        base.joinedload(ts.FieldChange.test),
+        base.joinedload(ts.FieldChange.machine),
+        base.joinedload(ts.FieldChange.start_commit),
+        base.joinedload(ts.FieldChange.end_commit),
+    ]
+
+
+def _indicator_load_options(ts):
+    """Return joinedload options for eager-loading indicator relationships."""
+    base = joinedload(ts.Regression.indicators) \
+        .joinedload(ts.RegressionIndicator.field_change)
+    return _fc_load_branches(base, ts)
+
+
+def _indicator_query_options(ts):
+    """Return joinedload options for a RegressionIndicator query."""
+    base = joinedload(ts.RegressionIndicator.field_change)
+    return _fc_load_branches(base, ts)
+
+
+def _serialize_indicator(ri):
     """Serialize a RegressionIndicator into the API response dict."""
     fc = ri.field_change
     if fc is None:
         return None
-
     result = serialize_fieldchange(fc)
     result['field_change_uuid'] = fc.uuid
     return result
@@ -81,15 +105,14 @@ def _serialize_regression_list(regression):
     }
 
 
-def _serialize_regression_detail(regression, session, ts):
-    """Serialize a Regression for the detail endpoint (with indicators)."""
-    indicators = session.query(ts.RegressionIndicator).filter(
-        ts.RegressionIndicator.regression_id == regression.id
-    ).all()
+def _serialize_regression_detail(regression):
+    """Serialize a Regression for the detail endpoint (with indicators).
 
+    Requires indicators to be eager-loaded via _indicator_load_options().
+    """
     serialized_indicators = []
-    for ri in indicators:
-        ind = _serialize_indicator(ri, ts)
+    for ri in regression.indicators:
+        ind = _serialize_indicator(ri)
         if ind is not None:
             serialized_indicators.append(ind)
 
@@ -100,6 +123,34 @@ def _serialize_regression_detail(regression, session, ts):
         'state': state_to_api(regression.state),
         'indicators': serialized_indicators,
     }
+
+
+def _validate_state(state_str):
+    """Validate and convert a state string to its DB integer.
+
+    Aborts with 400 if invalid.
+    """
+    db_state = state_to_db(state_str)
+    if db_state is None:
+        abort_with_error(
+            400,
+            "Invalid state '%s'. Valid states: %s"
+            % (state_str, ', '.join(sorted(STATE_TO_DB.keys()))))
+    return db_state
+
+
+def _lookup_regression_with_indicators(session, ts, regression_uuid):
+    """Look up a regression by UUID with eager-loaded indicators.
+
+    Aborts with 404 if not found.
+    """
+    reg = session.query(ts.Regression) \
+        .options(*_indicator_load_options(ts)) \
+        .filter(ts.Regression.uuid == regression_uuid) \
+        .first()
+    if reg is None:
+        abort_with_error(404, "Regression '%s' not found" % regression_uuid)
+    return reg
 
 
 # ---------------------------------------------------------------------------
@@ -122,32 +173,26 @@ class RegressionList(MethodView):
 
         query = session.query(ts.Regression)
 
-        # Filter by state (supports comma-separated values)
         state_values = query_args['state']
         if state_values:
-            db_states = []
-            for sv in state_values:
-                db_val = state_to_db(sv)
-                if db_val is None:
-                    abort_with_error(
-                        400,
-                        "Invalid state '%s'. Valid states: %s"
-                        % (sv, ', '.join(sorted(STATE_TO_DB.keys()))))
-                db_states.append(db_val)
+            db_states = [_validate_state(sv) for sv in state_values]
             query = query.filter(ts.Regression.state.in_(db_states))
 
-        # Filter by machine, test, and/or metric name. All three need
-        # the same base JOINs through indicators -> field changes.
         machine_name = query_args.get('machine')
         test_name = query_args.get('test')
         field_name = query_args.get('metric')
 
-        # Resolve metric name to field ID (no DB query needed)
-        matching_field = None
+        # Validate entity names before building JOINs (404/400 on bad names)
+        machine = None
+        if machine_name:
+            machine = lookup_machine(session, ts, machine_name)
+        test = None
+        if test_name:
+            test = lookup_test(session, ts, test_name)
         if field_name:
-            matching_field = resolve_metric(ts, field_name)
+            validate_metric_name(ts, field_name)
 
-        if machine_name or test_name or field_name:
+        if machine or test or field_name:
             query = query.join(
                 ts.RegressionIndicator,
                 ts.RegressionIndicator.regression_id == ts.Regression.id
@@ -156,23 +201,19 @@ class RegressionList(MethodView):
                 ts.RegressionIndicator.field_change_id == ts.FieldChange.id
             )
 
-        if machine_name:
-            query = query.join(
-                ts.Machine,
-                ts.FieldChange.machine_id == ts.Machine.id
-            ).filter(ts.Machine.name == machine_name)
+        if machine:
+            query = query.filter(
+                ts.FieldChange.machine_id == machine.id)
 
-        if test_name:
-            query = query.join(
-                ts.Test,
-                ts.FieldChange.test_id == ts.Test.id
-            ).filter(ts.Test.name == test_name)
+        if test:
+            query = query.filter(
+                ts.FieldChange.test_id == test.id)
 
         if field_name:
             query = query.filter(
-                ts.FieldChange.field_id == matching_field.id)
+                ts.FieldChange.field_name == field_name)
 
-        if machine_name or test_name or field_name:
+        if machine or test or field_name:
             query = query.distinct()
 
         cursor_str = query_args.get('cursor')
@@ -192,39 +233,24 @@ class RegressionList(MethodView):
         session = g.db_session
 
         fc_uuids = body['field_change_uuids']
+        field_changes = [lookup_fieldchange(session, ts, u) for u in fc_uuids]
 
-        # Look up all field changes by UUID
-        field_changes = []
-        for fc_uuid in fc_uuids:
-            fc = lookup_fieldchange(session, ts, fc_uuid)
-            field_changes.append(fc)
-
-        # Determine state
         state_str = body.get('state') or 'detected'
-        db_state = state_to_db(state_str)
-        if db_state is None:
-            abort_with_error(
-                400,
-                "Invalid state '%s'. Valid states: %s"
-                % (state_str, ', '.join(sorted(STATE_TO_DB.keys()))))
+        db_state = _validate_state(state_str)
 
-        # Create regression
         title = body.get('title') or 'Regression of %d benchmarks' % len(
             field_changes)
         bug = body.get('bug') or ''
 
-        regression = ts.Regression(title, bug, db_state)
-        regression.uuid = str(uuid_module.uuid4())
-        session.add(regression)
-        session.flush()
+        regression = ts.create_regression(
+            session, title, [fc.id for fc in field_changes],
+            bug=bug, state=db_state)
 
-        # Add indicators
-        for fc in field_changes:
-            ri = ts.RegressionIndicator(regression, fc)
-            session.add(ri)
-        session.flush()
+        # Reload with eager-loaded indicators for serialization
+        regression = _lookup_regression_with_indicators(
+            session, ts, regression.uuid)
 
-        result = _serialize_regression_detail(regression, session, ts)
+        result = _serialize_regression_detail(regression)
         resp = jsonify(result)
         resp.status_code = 201
         return resp
@@ -245,47 +271,31 @@ class RegressionDetail(MethodView):
         reject_unknown_params(set())
         ts = g.ts
         session = g.db_session
-        regression = lookup_regression(session, ts, regression_uuid)
-        data = _serialize_regression_detail(regression, session, ts)
+        regression = _lookup_regression_with_indicators(
+            session, ts, regression_uuid)
+        data = _serialize_regression_detail(regression)
         return add_etag_to_response(jsonify(data), data)
 
     @require_scope('triage')
     @blp.arguments(RegressionUpdateSchema)
     @blp.response(200, RegressionDetailSchema)
     def patch(self, body, testsuite, regression_uuid):
-        """Update regression title, bug URL, and/or state.
-
-        Request body (all fields optional):
-        {
-            "title": "new title",
-            "bug": "new bug URL",
-            "state": "active"
-        }
-        """
+        """Update regression title, bug URL, and/or state."""
         ts = g.ts
         session = g.db_session
-        regression = lookup_regression(session, ts, regression_uuid)
+        regression = _lookup_regression_with_indicators(
+            session, ts, regression_uuid)
 
-        if 'title' in body:
-            regression.title = body['title']
-
-        if 'bug' in body:
-            regression.bug = body['bug']
-
+        title = body.get('title')
+        bug = body.get('bug')
+        state = None
         if 'state' in body:
-            db_state = state_to_db(body['state'])
-            if db_state is None:
-                abort_with_error(
-                    400,
-                    "Invalid state '%s'. Valid states: %s"
-                    % (body['state'],
-                       ', '.join(sorted(STATE_TO_DB.keys()))))
-            regression.state = db_state
+            state = _validate_state(body['state'])
 
-        session.flush()
+        ts.update_regression(
+            session, regression, title=title, bug=bug, state=state)
 
-        return jsonify(
-            _serialize_regression_detail(regression, session, ts))
+        return jsonify(_serialize_regression_detail(regression))
 
     @require_scope('triage')
     @blp.response(204)
@@ -294,15 +304,7 @@ class RegressionDetail(MethodView):
         ts = g.ts
         session = g.db_session
         regression = lookup_regression(session, ts, regression_uuid)
-
-        # Delete indicators first
-        session.query(ts.RegressionIndicator).filter(
-            ts.RegressionIndicator.regression_id == regression.id
-        ).delete(synchronize_session='fetch')
-
-        session.delete(regression)
-        session.flush()
-
+        ts.delete_regression(session, regression.id)
         return make_response('', 204)
 
 
@@ -330,14 +332,12 @@ class RegressionMerge(MethodView):
 
         source_uuids = body['source_regression_uuids']
 
-        # Validate: cannot merge into self
         for suuid in source_uuids:
             if suuid == regression_uuid:
                 abort_with_error(
                     400, "Cannot merge a regression into itself")
 
-        # Collect existing indicator field_change_ids for the target
-        # (for deduplication)
+        # Collect existing indicator field_change_ids for deduplication
         existing_fc_ids = set()
         target_indicators = session.query(ts.RegressionIndicator).filter(
             ts.RegressionIndicator.regression_id == target.id
@@ -345,14 +345,9 @@ class RegressionMerge(MethodView):
         for ri in target_indicators:
             existing_fc_ids.add(ri.field_change_id)
 
-        # Process each source regression
-        sources = []
-        for suuid in source_uuids:
-            source = lookup_regression(session, ts, suuid)
-            sources.append(source)
+        sources = [lookup_regression(session, ts, u) for u in source_uuids]
 
         for source in sources:
-            # Move indicators from source to target (with dedup)
             source_indicators = session.query(ts.RegressionIndicator).filter(
                 ts.RegressionIndicator.regression_id == source.id
             ).all()
@@ -360,19 +355,19 @@ class RegressionMerge(MethodView):
             for ri in source_indicators:
                 if ri.field_change_id not in existing_fc_ids:
                     ri.regression_id = target.id
-                    ri.regression = target
                     existing_fc_ids.add(ri.field_change_id)
                 else:
-                    # Duplicate -- remove it
                     session.delete(ri)
 
-            # Mark source as IGNORED
-            source.state = STATE_TO_DB['ignored']
+            ts.update_regression(
+                session, source, state=STATE_TO_DB['ignored'])
 
         session.flush()
 
-        return jsonify(
-            _serialize_regression_detail(target, session, ts))
+        # Reload with eager-loaded indicators for serialization
+        target = _lookup_regression_with_indicators(
+            session, ts, regression_uuid)
+        return jsonify(_serialize_regression_detail(target))
 
 
 # ---------------------------------------------------------------------------
@@ -397,17 +392,12 @@ class RegressionSplit(MethodView):
 
         fc_uuids = body['field_change_uuids']
 
-        # Get all current indicators for the source regression
         all_indicators = session.query(ts.RegressionIndicator).filter(
             ts.RegressionIndicator.regression_id == source.id
         ).all()
 
-        # Build a map from field_change_id to indicator
-        fc_id_to_ri = {}
-        for ri in all_indicators:
-            fc_id_to_ri[ri.field_change_id] = ri
+        fc_id_to_ri = {ri.field_change_id: ri for ri in all_indicators}
 
-        # Resolve the field change UUIDs to indicators
         indicators_to_move = []
         for fc_uuid in fc_uuids:
             fc = lookup_fieldchange(session, ts, fc_uuid)
@@ -419,29 +409,27 @@ class RegressionSplit(MethodView):
                     "'%s'" % (fc_uuid, regression_uuid))
             indicators_to_move.append(ri)
 
-        # Validate: cannot split ALL indicators
         if len(indicators_to_move) >= len(all_indicators):
             abort_with_error(
                 400,
                 "Cannot split all indicators from a regression. "
                 "At least one indicator must remain.")
 
-        # Create new regression
-        new_regression = ts.Regression(
-            source.title, source.bug or '', source.state)
-        new_regression.uuid = str(uuid_module.uuid4())
-        session.add(new_regression)
-        session.flush()
+        # Create new regression (empty indicators, then move them)
+        new_regression = ts.create_regression(
+            session, source.title, [], bug=source.bug or '',
+            state=source.state)
 
-        # Move indicators to the new regression
         for ri in indicators_to_move:
             ri.regression_id = new_regression.id
-            ri.regression = new_regression
 
         session.flush()
 
+        # Reload with eager-loaded indicators for serialization
+        new_regression = _lookup_regression_with_indicators(
+            session, ts, new_regression.uuid)
         return jsonify(
-            _serialize_regression_detail(new_regression, session, ts)), 201
+            _serialize_regression_detail(new_regression)), 201
 
 
 # ---------------------------------------------------------------------------
@@ -462,9 +450,10 @@ class RegressionIndicators(MethodView):
         session = g.db_session
         regression = lookup_regression(session, ts, regression_uuid)
 
-        query = session.query(ts.RegressionIndicator).filter(
-            ts.RegressionIndicator.regression_id == regression.id
-        )
+        query = session.query(ts.RegressionIndicator) \
+            .options(*_indicator_query_options(ts)) \
+            .filter(
+                ts.RegressionIndicator.regression_id == regression.id)
 
         cursor_str = query_args.get('cursor')
         limit = query_args['limit']
@@ -473,7 +462,7 @@ class RegressionIndicators(MethodView):
 
         serialized = []
         for ri in items:
-            ind = _serialize_indicator(ri, ts)
+            ind = _serialize_indicator(ri)
             if ind is not None:
                 serialized.append(ind)
 
@@ -483,11 +472,7 @@ class RegressionIndicators(MethodView):
     @blp.arguments(IndicatorAddSchema)
     @blp.response(201, IndicatorResponseSchema)
     def post(self, body, testsuite, regression_uuid):
-        """Add a field change as an indicator to this regression.
-
-        Request body:
-        {"field_change_uuid": "..."}
-        """
+        """Add a field change as an indicator to this regression."""
         ts = g.ts
         session = g.db_session
         regression = lookup_regression(session, ts, regression_uuid)
@@ -495,22 +480,16 @@ class RegressionIndicators(MethodView):
         fc_uuid = body['field_change_uuid']
         fc = lookup_fieldchange(session, ts, fc_uuid)
 
-        # Check for duplicate
-        existing = session.query(ts.RegressionIndicator).filter(
-            ts.RegressionIndicator.regression_id == regression.id,
-            ts.RegressionIndicator.field_change_id == fc.id,
-        ).first()
-        if existing:
+        try:
+            ri = ts.add_regression_indicator(session, regression, fc)
+        except IntegrityError:
+            session.rollback()
             abort_with_error(
                 409,
                 "Field change '%s' is already an indicator of this "
                 "regression" % fc_uuid)
 
-        ri = ts.RegressionIndicator(regression, fc)
-        session.add(ri)
-        session.flush()
-
-        result = _serialize_indicator(ri, ts)
+        result = _serialize_indicator(ri)
         resp = jsonify(result)
         resp.status_code = 201
         return resp
@@ -528,27 +507,14 @@ class RegressionIndicatorRemove(MethodView):
         ts = g.ts
         session = g.db_session
         regression = lookup_regression(session, ts, regression_uuid)
+        fc = lookup_fieldchange(session, ts, fc_uuid)
 
-        # Find the field change by UUID
-        fc = session.query(ts.FieldChange).filter(
-            ts.FieldChange.uuid == fc_uuid
-        ).first()
-        if fc is None:
-            abort_with_error(
-                404, "Field change '%s' not found" % fc_uuid)
-
-        # Find the indicator linking this field change to this regression
-        ri = session.query(ts.RegressionIndicator).filter(
-            ts.RegressionIndicator.regression_id == regression.id,
-            ts.RegressionIndicator.field_change_id == fc.id,
-        ).first()
-        if ri is None:
+        removed = ts.remove_regression_indicator(
+            session, regression.id, fc.id)
+        if not removed:
             abort_with_error(
                 404,
                 "Field change '%s' is not an indicator of regression "
                 "'%s'" % (fc_uuid, regression_uuid))
-
-        session.delete(ri)
-        session.flush()
 
         return make_response('', 204)

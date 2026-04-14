@@ -2,7 +2,7 @@
 #
 # RUN: rm -rf %t.instance %t.pg.log
 # RUN: %{utils}/with_postgres.sh %t.pg.log \
-# RUN:     %{utils}/with_temporary_instance.py %t.instance \
+# RUN:     %{utils}/with_temporary_instance.py --db-version 5.0 %t.instance \
 # RUN:         -- python %s %t.instance
 # END.
 
@@ -273,6 +273,18 @@ class TestRegressionListFilters(unittest.TestCase):
             PREFIX + '/regressions?metric=nonexistent_metric')
         self.assertEqual(resp.status_code, 400)
 
+    def test_list_filter_nonexistent_machine_404(self):
+        """Filtering by a nonexistent machine name returns 404."""
+        resp = self.client.get(
+            PREFIX + '/regressions?machine=no-such-machine-xyz')
+        self.assertEqual(resp.status_code, 404)
+
+    def test_list_filter_nonexistent_test_404(self):
+        """Filtering by a nonexistent test name returns 404."""
+        resp = self.client.get(
+            PREFIX + '/regressions?test=no/such/test/xyz')
+        self.assertEqual(resp.status_code, 404)
+
     def test_list_filter_combined(self):
         """Combined machine + test + metric filter narrows results."""
         tag = uuid.uuid4().hex[:8]
@@ -450,9 +462,8 @@ class TestRegressionDetail(unittest.TestCase):
         self.assertIn('metric', ind)
         self.assertIn('old_value', ind)
         self.assertIn('new_value', ind)
-        self.assertIn('start_order', ind)
-        self.assertIn('end_order', ind)
-        self.assertIn('run_uuid', ind)
+        self.assertIn('start_commit', ind)
+        self.assertIn('end_commit', ind)
 
     def test_detail_nonexistent_404(self):
         resp = self.client.get(
@@ -464,7 +475,7 @@ class TestRegressionDetail(unittest.TestCase):
         resp = self.client.get(PREFIX + f'/regressions/{reg_uuid}')
         data = resp.get_json()
         self.assertIsInstance(data['state'], str)
-        self.assertEqual(data['state'], 'active')  # state=10 -> 'active'
+        self.assertEqual(data['state'], 'active')
 
 
 class TestRegressionDetailETag(unittest.TestCase):
