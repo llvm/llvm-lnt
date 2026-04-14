@@ -37,18 +37,20 @@ class TrendsItemSchema(BaseSchema):
         required=True,
         metadata={'description': 'Name of the machine'},
     )
-    order = ma.fields.Dict(
-        keys=ma.fields.String(),
-        values=ma.fields.String(),
+    commit = ma.fields.String(
         required=True,
         metadata={
-            'description': 'Order field values (e.g. llvm_project_revision)',
-            'example': {'llvm_project_revision': 'abc123'},
+            'description': 'Commit string (e.g. revision hash)',
+            'example': 'abc123',
         },
     )
-    timestamp = ma.fields.String(
+    ordinal = ma.fields.Integer(
         allow_none=True,
-        metadata={'description': 'Run start time (ISO 8601)'},
+        metadata={'description': 'Commit ordinal position (may be null)'},
+    )
+    submitted_at = ma.fields.String(
+        allow_none=True,
+        metadata={'description': 'Latest run submission time (ISO 8601)'},
     )
     value = ma.fields.Float(
         required=True,

@@ -122,8 +122,8 @@ POST   /trends
 The metric field is required and must be a numeric type (Real or Integer); Status and Hash metrics are rejected with 400. All other fields are optional.
 Unlike the query endpoint's single machine string, machine accepts a list of names — the Dashboard needs data for multiple machines in one call.
 Order-based filters are intentionally omitted; the Dashboard uses time-based filtering exclusively.
-Returns geomean-aggregated trend data per (machine, order). Not paginated — the result set is bounded by (machines × orders in range), typically < 2000 rows.
-Each item contains: machine name, order dict, timestamp (latest run start_time), and geomean value.
+Returns geomean-aggregated trend data per (machine, commit). Not paginated — the result set is bounded by (machines × commits in range), typically < 2000 rows.
+Each item contains: machine name, commit string, ordinal (nullable), submitted_at (latest run submission time), and geomean value.
 Geomean is computed in SQL: `exp(avg(ln(positive_values)))`, skipping zero/negative values.
 
 Schema and Fields

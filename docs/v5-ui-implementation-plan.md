@@ -1367,10 +1367,12 @@ Add the new interfaces listed in section 2.1: `OrderDetail`, `OrderNeighbor`, `R
 Add a `fetchTrends` function that calls the server-side geomean aggregation endpoint:
 
 ```typescript
+// TODO: update frontend code to match (api.ts still uses old field names)
 export interface TrendsDataPoint {
   machine: string;
-  order: Record<string, string>;
-  timestamp: string | null;
+  commit: string;
+  ordinal: number | null;
+  submitted_at: string | null;
   value: number;
 }
 
@@ -1414,6 +1416,8 @@ Refactor `computeGeomean()` to call the shared `geomean()` primitive from `utils
 A lightweight Plotly wrapper for small trend charts:
 
 ```typescript
+// TODO: update frontend code — SparklineTrace.points uses timestamp,
+// but the API now returns submitted_at.
 export interface SparklineTrace {
   machine: string;
   color: string;
@@ -1479,16 +1483,17 @@ async function fetchSuiteTrends(
   afterTime: string,
   signal: AbortSignal,
 ): Promise<SparklineTrace[]> {
-  // Call POST /api/v5/{suite}/trends — server returns geomean per (machine, order)
+  // Call POST /api/v5/{suite}/trends — server returns geomean per (machine, commit)
   const items = await fetchTrends(suite, { metric, machine: machines, afterTime }, signal);
 
   // Group API response by machine, build SparklineTrace per machine
-  const byMachine = new Map<string, Array<{ timestamp: string; value: number }>>();
+  // TODO: update frontend code to match (home.ts still uses old field names)
+  const byMachine = new Map<string, Array<{ submitted_at: string; value: number }>>();
   for (const item of items) {
-    if (!item.timestamp) continue;
+    if (!item.submitted_at) continue;
     let points = byMachine.get(item.machine);
     if (!points) { points = []; byMachine.set(item.machine, points); }
-    points.push({ timestamp: item.timestamp, value: item.value });
+    points.push({ submitted_at: item.submitted_at, value: item.value });
   }
 
   const traces: SparklineTrace[] = [];

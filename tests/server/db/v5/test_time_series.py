@@ -270,7 +270,6 @@ class TestQueryTrends(unittest.TestCase):
 
     def test_query_trends_geomean_value(self):
         """Verify the geomean is computed correctly for machine_a."""
-        import math
         session = self.Session()
         results = self.tsdb.query_trends(
             session, "execution_time",
@@ -303,7 +302,7 @@ class TestQueryTrends(unittest.TestCase):
         end = datetime.datetime(2024, 3, 1, 13, 30, 0)
         results = self.tsdb.query_trends(
             session, "execution_time",
-            time_range=(start, end))
+            after_time=start, before_time=end)
         # Only commits within the time range for machine_a
         for r in results:
             self.assertIsNotNone(r["submitted_at"])

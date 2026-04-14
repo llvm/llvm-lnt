@@ -591,7 +591,7 @@ Body (JSON): {metric, machine, test, order, after_order, before_order,
   `convert_revision()` for correctness. Apply `after`/`before` filters in Python.
   Cap SQL query at 10,000 rows as safety limit.
 - Cursor: encode the last order's field values. On next request, use to resume.
-- Response per data point: `{test, machine, metric, value, order: {field: value}, run_uuid, timestamp}`
+- Response per data point: `{test, machine, metric, value, commit, ordinal, submitted_at}`
 - Auth: read only.
 
 ### 5.11 Schema and Fields
@@ -781,8 +781,8 @@ Each endpoint must test:
 29. Trends endpoint (`POST /trends`) — server-side geomean aggregation for Dashboard sparklines
     - New files: `endpoints/trends.py`, `schemas/trends.py`
     - Accepts: metric (required), machine (list, optional), after_time/before_time (optional)
-    - Returns: geomean-aggregated items per (machine, order), not paginated
-    - SQL-level aggregation: GROUP BY (machine_name, order_id) with exp(avg(ln(value))); Order objects batch-loaded separately
+    - Returns: geomean-aggregated items per (machine, commit), not paginated
+    - SQL-level aggregation: GROUP BY (machine_name, commit_id) with exp(avg(ln(value)))
     - Uses `lookup_machine()` from helpers.py for name resolution (404/409 on error)
     - `@require_scope('read')`, `Meta.unknown = ma.RAISE`
 

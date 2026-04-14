@@ -827,7 +827,9 @@ class V5TestSuiteDB:
         metric: str,
         *,
         machine_ids: list[int] | None = None,
-        time_range: tuple[datetime.datetime, datetime.datetime] | None = None,
+        after_time: datetime.datetime | None = None,
+        before_time: datetime.datetime | None = None,
+        limit: int | None = None,
     ) -> list[dict[str, Any]]:
         """Query geomean-aggregated trend data grouped by (machine, commit).
 
@@ -835,8 +837,11 @@ class V5TestSuiteDB:
         (machine, commit) pair.  Only positive metric values are included
         (required for ``ln``).
 
+        *after_time* / *before_time* filter on ``Run.submitted_at``.
+        *limit* caps the number of rows returned.
+
         Returns a list of dicts with keys: ``machine_name``, ``commit``,
-        ``ordinal``, ``value``, ``timestamp``.
+        ``ordinal``, ``value``, ``submitted_at``.
         """
         from sqlalchemy import func
 
@@ -863,10 +868,11 @@ class V5TestSuiteDB:
         if machine_ids:
             q = q.filter(self.Machine.id.in_(machine_ids))
 
-        if time_range is not None:
-            start, end = time_range
-            q = q.filter(self.Run.submitted_at >= start)
-            q = q.filter(self.Run.submitted_at <= end)
+        if after_time is not None:
+            q = q.filter(self.Run.submitted_at >= after_time)
+
+        if before_time is not None:
+            q = q.filter(self.Run.submitted_at <= before_time)
 
         q = q.group_by(
             self.Machine.name, self.Commit.id,
@@ -880,6 +886,9 @@ class V5TestSuiteDB:
             self.Commit.ordinal.asc().nullslast(),
             self.Commit.id,
         )
+
+        if limit is not None:
+            q = q.limit(limit)
 
         results = []
         for row in q.all():

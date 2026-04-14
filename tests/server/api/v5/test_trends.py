@@ -2,10 +2,11 @@
 #
 # RUN: rm -rf %t.instance %t.pg.log
 # RUN: %{utils}/with_postgres.sh %t.pg.log \
-# RUN:     %{utils}/with_temporary_instance.py %t.instance \
+# RUN:     %{utils}/with_temporary_instance.py --db-version 5.0 %t.instance \
 # RUN:         -- python %s %t.instance
 # END.
 
+import datetime
 import sys
 import os
 import unittest
@@ -13,15 +14,19 @@ import uuid
 
 sys.path.insert(0, os.path.dirname(__file__))
 from v5_test_helpers import (
-    create_app, create_client, submit_run,
+    create_app, create_client,
+    create_machine, create_commit, create_run,
+    create_test, create_sample,
 )
 
 TS = 'nts'
 PREFIX = f'/api/v5/{TS}'
 
 
-def _setup_trends_data(client, unique=None):
+def _setup_trends_data(app, unique=None):
     """Create two machines, two tests, and several runs with samples.
+
+    Uses direct DB helpers for timestamp control.
 
     Returns a dict with metadata for assertions.
     """
@@ -33,22 +38,38 @@ def _setup_trends_data(client, unique=None):
     test1_name = f'trends-t1/{unique}'
     test2_name = f'trends-t2/{unique}'
 
-    # Machine A: 3 orders, each with 2 tests
-    # Order 100: test1=4.0, test2=16.0  -> geomean = 8.0
-    # Order 101: test1=9.0, test2=9.0   -> geomean = 9.0
-    # Order 102: test1=1.0, test2=100.0 -> geomean = 10.0
-    for i, (v1, v2) in enumerate([(4.0, 16.0), (9.0, 9.0), (1.0, 100.0)]):
-        submit_run(client, machine_a_name, f'{100 + i}-{unique}',
-                   [{'name': test1_name, 'execution_time': [v1]},
-                    {'name': test2_name, 'execution_time': [v2]}],
-                   start_time=f'2024-06-0{1 + i}T12:00:00',
-                   end_time=f'2024-06-0{1 + i}T12:30:00')
+    db = app.instance.get_database("default")
+    session = db.make_session()
+    ts = db.testsuite[TS]
 
-    # Machine B: 1 order with 1 test (earlier date, outside some time ranges)
-    submit_run(client, machine_b_name, f'200-{unique}',
-               [{'name': test1_name, 'execution_time': [25.0]}],
-               start_time='2024-05-01T12:00:00',
-               end_time='2024-05-01T12:30:00')
+    machine_a = create_machine(session, ts, name=machine_a_name)
+    machine_b = create_machine(session, ts, name=machine_b_name)
+    test1 = create_test(session, ts, name=test1_name)
+    test2 = create_test(session, ts, name=test2_name)
+
+    # Machine A: 3 commits, each with 2 tests
+    # Commit 100: test1=4.0, test2=16.0  -> geomean = 8.0
+    # Commit 101: test1=9.0, test2=9.0   -> geomean = 9.0
+    # Commit 102: test1=1.0, test2=100.0 -> geomean = 10.0
+    for i, (v1, v2) in enumerate([(4.0, 16.0), (9.0, 9.0), (1.0, 100.0)]):
+        commit = create_commit(
+            session, ts, commit=f'{100 + i}-{unique}')
+        run = create_run(
+            session, ts, machine_a, commit,
+            submitted_at=datetime.datetime(2024, 6, 1 + i, 12, 0, 0))
+        create_sample(session, ts, run, test1, execution_time=v1)
+        create_sample(session, ts, run, test2, execution_time=v2)
+
+    # Machine B: 1 commit with 1 test (earlier date, outside some time ranges)
+    commit_b = create_commit(
+        session, ts, commit=f'200-{unique}')
+    run_b = create_run(
+        session, ts, machine_b, commit_b,
+        submitted_at=datetime.datetime(2024, 5, 1, 12, 0, 0))
+    create_sample(session, ts, run_b, test1, execution_time=25.0)
+
+    session.commit()
+    session.close()
 
     return {
         'machine_a': machine_a_name,
@@ -56,6 +77,33 @@ def _setup_trends_data(client, unique=None):
         'test1': test1_name,
         'test2': test2_name,
     }
+
+
+def _setup_single_commit(app, *, values, commit_prefix, submitted_at):
+    """Create a machine with two tests and one commit for edge-case testing.
+
+    *values* is a dict mapping test suffix ('t1', 't2') to sample value.
+    Returns the machine name.
+    """
+    unique = uuid.uuid4().hex[:8]
+    machine_name = f'trends-{commit_prefix}-m-{unique}'
+
+    db = app.instance.get_database("default")
+    session = db.make_session()
+    ts = db.testsuite[TS]
+
+    machine = create_machine(session, ts, name=machine_name)
+    test1 = create_test(session, ts, name=f'trends-{commit_prefix}-t1/{unique}')
+    test2 = create_test(session, ts, name=f'trends-{commit_prefix}-t2/{unique}')
+    commit = create_commit(session, ts, commit=f'{commit_prefix}-{unique}')
+    run = create_run(
+        session, ts, machine, commit, submitted_at=submitted_at)
+    create_sample(session, ts, run, test1, execution_time=values['t1'])
+    create_sample(session, ts, run, test2, execution_time=values['t2'])
+
+    session.commit()
+    session.close()
+    return machine_name
 
 
 class TestTrendsErrors(unittest.TestCase):
@@ -119,7 +167,7 @@ class TestTrendsErrors(unittest.TestCase):
         self.assertEqual(resp.status_code, 400)
         data = resp.get_json()
         self.assertIn('error', data)
-        self.assertIn('numeric', data['error']['message'])
+        self.assertIn("'real'", data['error']['message'])
 
 
 class TestTrendsValidQuery(unittest.TestCase):
@@ -129,7 +177,7 @@ class TestTrendsValidQuery(unittest.TestCase):
         super().setUpClass()
         cls.app = create_app(sys.argv[1])
         cls.client = create_client(cls.app)
-        cls._data = _setup_trends_data(cls.client)
+        cls._data = _setup_trends_data(cls.app)
 
     def test_returns_200(self):
         d = self._data
@@ -161,10 +209,11 @@ class TestTrendsValidQuery(unittest.TestCase):
         self.assertGreater(len(data['items']), 0)
         item = data['items'][0]
         self.assertIn('machine', item)
-        self.assertIn('order', item)
-        self.assertIn('timestamp', item)
+        self.assertIn('commit', item)
+        self.assertIn('ordinal', item)
+        self.assertIn('submitted_at', item)
         self.assertIn('value', item)
-        self.assertIsInstance(item['order'], dict)
+        self.assertIsInstance(item['commit'], str)
 
     def test_geomean_correctness(self):
         """Verify geomean is computed correctly from known values."""
@@ -177,10 +226,10 @@ class TestTrendsValidQuery(unittest.TestCase):
         items = data['items']
         self.assertEqual(len(items), 3)
 
-        # Items should be sorted by timestamp
-        # Order 100: geomean(4, 16) = 8.0
-        # Order 101: geomean(9, 9) = 9.0
-        # Order 102: geomean(1, 100) = 10.0
+        # Items should be sorted by submitted_at
+        # Commit 100: geomean(4, 16) = 8.0
+        # Commit 101: geomean(9, 9) = 9.0
+        # Commit 102: geomean(1, 100) = 10.0
         values = [item['value'] for item in items]
         self.assertAlmostEqual(values[0], 8.0, places=5)
         self.assertAlmostEqual(values[1], 9.0, places=5)
@@ -223,7 +272,7 @@ class TestTrendsValidQuery(unittest.TestCase):
         """after_time/before_time correctly filters results."""
         d = self._data
         # Machine B's data is from 2024-05-01, Machine A from 2024-06-01+
-        # Filter to only June — should exclude Machine B
+        # Filter to only June -- should exclude Machine B
         resp = self.client.post(
             PREFIX + '/trends',
             json={'metric': 'execution_time',
@@ -246,8 +295,8 @@ class TestTrendsValidQuery(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(len(data['items']), 0)
 
-    def test_sorted_by_machine_then_timestamp(self):
-        """Items are sorted by machine name ascending, then timestamp."""
+    def test_sorted_by_machine_then_submitted_at(self):
+        """Items are sorted by machine name ascending, then submitted_at."""
         d = self._data
         resp = self.client.post(
             PREFIX + '/trends',
@@ -260,10 +309,10 @@ class TestTrendsValidQuery(unittest.TestCase):
         machine_names = [item['machine'] for item in items]
         self.assertEqual(machine_names, sorted(machine_names))
 
-        # Within each machine, timestamps should be ascending
+        # Within each machine, submitted_at should be ascending
         from itertools import groupby
         for _, group in groupby(items, key=lambda x: x['machine']):
-            timestamps = [item['timestamp'] for item in group]
+            timestamps = [item['submitted_at'] for item in group]
             self.assertEqual(timestamps, sorted(timestamps))
 
 
@@ -274,16 +323,12 @@ class TestTrendsEdgeCases(unittest.TestCase):
         super().setUpClass()
         cls.app = create_app(sys.argv[1])
         cls.client = create_client(cls.app)
-
-        unique = uuid.uuid4().hex[:8]
-        cls._machine_name = f'trends-edge-m-{unique}'
-
-        # One order with test1=0.0 (should be excluded) and test2=25.0
-        submit_run(cls.client, cls._machine_name, f'edge-{unique}',
-                   [{'name': f'trends-edge-t1/{unique}', 'execution_time': [0.0]},
-                    {'name': f'trends-edge-t2/{unique}', 'execution_time': [25.0]}],
-                   start_time='2024-07-01T12:00:00',
-                   end_time='2024-07-01T12:30:00')
+        # One commit with test1=0.0 (should be excluded) and test2=25.0
+        cls._machine_name = _setup_single_commit(
+            cls.app,
+            values={'t1': 0.0, 't2': 25.0},
+            commit_prefix='edge',
+            submitted_at=datetime.datetime(2024, 7, 1, 12, 0, 0))
 
     def test_geomean_excludes_zero_values(self):
         """Zero values are excluded from the geomean computation."""
@@ -304,16 +349,12 @@ class TestTrendsAllZeroGroup(unittest.TestCase):
         super().setUpClass()
         cls.app = create_app(sys.argv[1])
         cls.client = create_client(cls.app)
-
-        unique = uuid.uuid4().hex[:8]
-        cls._machine_name = f'trends-allzero-m-{unique}'
-
-        # Order with all-zero values — should produce no result
-        submit_run(cls.client, cls._machine_name, f'allzero-{unique}',
-                   [{'name': f'trends-allzero-t1/{unique}', 'execution_time': [0.0]},
-                    {'name': f'trends-allzero-t2/{unique}', 'execution_time': [0.0]}],
-                   start_time='2024-08-01T12:00:00',
-                   end_time='2024-08-01T12:30:00')
+        # Commit with all-zero values -- should produce no result
+        cls._machine_name = _setup_single_commit(
+            cls.app,
+            values={'t1': 0.0, 't2': 0.0},
+            commit_prefix='allzero',
+            submitted_at=datetime.datetime(2024, 8, 1, 12, 0, 0))
 
     def test_all_zero_group_excluded(self):
         """A group where every sample is zero produces no result."""
@@ -333,16 +374,12 @@ class TestTrendsNegativeValues(unittest.TestCase):
         super().setUpClass()
         cls.app = create_app(sys.argv[1])
         cls.client = create_client(cls.app)
-
-        unique = uuid.uuid4().hex[:8]
-        cls._machine_name = f'trends-neg-m-{unique}'
-
-        # One negative, one positive — geomean should use only the positive
-        submit_run(cls.client, cls._machine_name, f'neg-{unique}',
-                   [{'name': f'trends-neg-t1/{unique}', 'execution_time': [-5.0]},
-                    {'name': f'trends-neg-t2/{unique}', 'execution_time': [16.0]}],
-                   start_time='2024-08-02T12:00:00',
-                   end_time='2024-08-02T12:30:00')
+        # One negative, one positive -- geomean should use only the positive
+        cls._machine_name = _setup_single_commit(
+            cls.app,
+            values={'t1': -5.0, 't2': 16.0},
+            commit_prefix='neg',
+            submitted_at=datetime.datetime(2024, 8, 2, 12, 0, 0))
 
     def test_negative_values_excluded(self):
         """Negative values are excluded; geomean uses only positive values."""
