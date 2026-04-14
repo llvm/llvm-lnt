@@ -1,0 +1,95 @@
+"""Marshmallow schemas for commit request/response in the v5 API.
+
+Commits replace the v4 "orders" concept.  Each commit has a unique
+commit string, an optional integer ordinal for sorting, and dynamic
+commit_fields defined in the test suite schema.
+"""
+
+import marshmallow as ma
+
+from . import BaseSchema
+from .common import BaseQuerySchema, CursorPaginationQuerySchema, PaginatedResponseSchema
+
+
+# ---------------------------------------------------------------------------
+# Response schemas
+# ---------------------------------------------------------------------------
+
+class CommitSummarySchema(BaseSchema):
+    """A single commit in a list response."""
+    commit = ma.fields.String(
+        required=True,
+        metadata={'description': 'Unique commit identifier (e.g. git SHA)'},
+    )
+    ordinal = ma.fields.Integer(
+        allow_none=True,
+        metadata={'description': 'Optional integer for total ordering'},
+    )
+    fields = ma.fields.Dict(
+        keys=ma.fields.String(),
+        values=ma.fields.Raw(allow_none=True),
+        metadata={
+            'description': 'Commit field values defined by the test suite schema',
+            'example': {'llvm_project_revision': 'abc123'},
+        },
+    )
+
+
+class CommitNeighborSchema(BaseSchema):
+    """Reference to a previous or next commit."""
+    commit = ma.fields.String(
+        metadata={'description': 'Commit identifier'},
+    )
+    ordinal = ma.fields.Integer(
+        allow_none=True,
+        metadata={'description': 'Ordinal value'},
+    )
+    link = ma.fields.String(
+        allow_none=True,
+        metadata={'description': 'URL to fetch the referenced commit'},
+    )
+
+
+class CommitDetailSchema(BaseSchema):
+    """Full commit detail including previous/next neighbors."""
+    commit = ma.fields.String(required=True)
+    ordinal = ma.fields.Integer(allow_none=True)
+    fields = ma.fields.Dict(
+        keys=ma.fields.String(),
+        values=ma.fields.Raw(allow_none=True),
+    )
+    previous_commit = ma.fields.Nested(
+        CommitNeighborSchema, allow_none=True,
+        metadata={'description': 'Previous commit by ordinal'},
+    )
+    next_commit = ma.fields.Nested(
+        CommitNeighborSchema, allow_none=True,
+        metadata={'description': 'Next commit by ordinal'},
+    )
+
+
+# ---------------------------------------------------------------------------
+# Paginated response schemas
+# ---------------------------------------------------------------------------
+
+class PaginatedCommitResponseSchema(PaginatedResponseSchema):
+    """Paginated list of commits."""
+    items = ma.fields.List(ma.fields.Nested(CommitSummarySchema))
+
+
+# ---------------------------------------------------------------------------
+# Query parameter schemas
+# ---------------------------------------------------------------------------
+
+class CommitListQuerySchema(CursorPaginationQuerySchema):
+    """Query parameters for GET /commits."""
+    search = ma.fields.String(
+        load_default=None,
+        metadata={'description': 'Search commits by prefix across commit '
+                  'string and searchable commit fields'},
+    )
+
+
+class CommitDetailQuerySchema(BaseQuerySchema):
+    """Query parameters for GET /commits/{value}."""
+    pass

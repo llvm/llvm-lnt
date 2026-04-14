@@ -31,28 +31,28 @@ def escape_like(pattern):
     return pattern.replace('\\', '\\\\').replace('%', r'\%').replace('_', r'\_')
 
 
-def validate_tag(tag):
-    """Validate and normalize a tag value.
+def validate_metric_name(ts, field_name):
+    """Validate that *field_name* is a known metric for this test suite.
 
-    Returns the normalized tag (None for empty strings) or aborts with
-    400 if the value is invalid.
+    Aborts with 400 if the metric is not found.  Returns *field_name*
+    unchanged on success.
     """
-    if tag is not None and (not isinstance(tag, str) or len(tag) > 64):
-        abort_with_error(400, "'tag' must be a string of at most 64 characters")
-    return tag or None
+    if field_name not in ts._metric_names:
+        abort_with_error(400, "Unknown metric name '%s'" % field_name)
+    return field_name
 
 
-def resolve_metric(ts, field_name):
-    """Resolve a metric name to its SampleField object.
+def get_metric_def(ts, metric_name):
+    """Validate *metric_name* and return its schema Metric definition.
 
-    Searches the test suite's cached ``sample_fields`` list for a field
-    whose name matches *field_name*. Returns the :class:`SampleField` on
-    success, or aborts with a 400 error if no match is found.
+    Aborts with 400 if the metric is not found.
     """
-    for sf in ts.sample_fields:
-        if sf.name == field_name:
-            return sf
-    abort_with_error(400, "Unknown metric name '%s'" % field_name)
+    validate_metric_name(ts, metric_name)
+    for m in ts.schema.metrics:
+        if m.name == metric_name:
+            return m
+    # Unreachable if validate_metric_name passed
+    abort_with_error(400, "Unknown metric name '%s'" % metric_name)
 
 
 # ---------------------------------------------------------------------------
@@ -60,30 +60,16 @@ def resolve_metric(ts, field_name):
 # ---------------------------------------------------------------------------
 
 def lookup_machine(session, ts, machine_name):
-    """Look up a machine by name.
-
-    Returns the machine, or aborts with 404 if not found, or 409 if
-    multiple machines share the same name.
-    """
-    machines = session.query(ts.Machine).filter(
-        ts.Machine.name == machine_name
-    ).all()
-    if len(machines) == 0:
+    """Look up a machine by name.  Aborts with 404 if not found."""
+    machine = ts.get_machine(session, name=machine_name)
+    if machine is None:
         abort_with_error(404, "Machine '%s' not found" % machine_name)
-    if len(machines) > 1:
-        ids = ', '.join(str(m.id) for m in machines)
-        abort_with_error(
-            409,
-            "Multiple machines named '%s' exist (IDs: %s). "
-            "Use the v4 UI to merge or rename them." % (machine_name, ids))
-    return machines[0]
+    return machine
 
 
 def lookup_run_by_uuid(session, ts, run_uuid):
     """Look up a Run by UUID. Aborts with 404 if not found."""
-    run = session.query(ts.Run).filter(
-        ts.Run.uuid == run_uuid
-    ).first()
+    run = ts.get_run(session, uuid=run_uuid)
     if run is None:
         abort_with_error(404, "Run '%s' not found" % run_uuid)
     return run
@@ -91,19 +77,26 @@ def lookup_run_by_uuid(session, ts, run_uuid):
 
 def lookup_fieldchange(session, ts, fc_uuid):
     """Look up a FieldChange by UUID. Aborts with 404 if not found."""
-    fc = session.query(ts.FieldChange).filter(
-        ts.FieldChange.uuid == fc_uuid
-    ).first()
+    fc = ts.get_field_change(session, uuid=fc_uuid)
     if fc is None:
         abort_with_error(404, "Field change '%s' not found" % fc_uuid)
     return fc
 
 
+def lookup_commit(session, ts, commit_id):
+    """Look up a Commit by its identity string (e.g. git SHA).
+
+    Aborts with 404 if not found.
+    """
+    commit_obj = ts.get_commit(session, commit=commit_id)
+    if commit_obj is None:
+        abort_with_error(404, "Commit '%s' not found" % commit_id)
+    return commit_obj
+
+
 def lookup_test(session, ts, test_name):
     """Look up a Test by name. Aborts with 404 if not found."""
-    test = session.query(ts.Test).filter(
-        ts.Test.name == test_name
-    ).first()
+    test = ts.get_test(session, name=test_name)
     if test is None:
         abort_with_error(404, "Test '%s' not found" % test_name)
     return test
@@ -111,9 +104,7 @@ def lookup_test(session, ts, test_name):
 
 def lookup_regression(session, ts, regression_uuid):
     """Look up a Regression by UUID. Aborts with 404 if not found."""
-    regression = session.query(ts.Regression).filter(
-        ts.Regression.uuid == regression_uuid
-    ).first()
+    regression = ts.get_regression(session, uuid=regression_uuid)
     if regression is None:
         abort_with_error(404, "Regression '%s' not found" % regression_uuid)
     return regression
@@ -123,54 +114,24 @@ def lookup_regression(session, ts, regression_uuid):
 # Serialization helpers
 # ---------------------------------------------------------------------------
 
-def serialize_order(order):
-    """Convert an Order model to a dict of field names to string values."""
-    order_dict = {}
-    if order:
-        for field in order.fields:
-            val = order.get_field(field)
-            if val is not None:
-                order_dict[field.name] = str(val)
-    return order_dict
-
-
 def serialize_run(run, ts):
     """Serialize a Run model instance for API responses.
 
-    Returns a dict with uuid, machine, order, start_time, end_time,
-    and parameters.  Used by both the runs and machines endpoints.
+    Returns a dict with uuid, machine, commit, submitted_at,
+    and run_parameters.
     """
-    order_dict = serialize_order(run.order)
+    machine_name = run.machine.name if run.machine else None
 
-    start_time = None
-    if run.start_time:
-        start_time = run.start_time.isoformat()
-    end_time = None
-    if run.end_time:
-        end_time = run.end_time.isoformat()
-
-    # Machine name
-    machine_name = None
-    if run.machine:
-        machine_name = run.machine.name
-
-    # Run parameters
-    parameters = {}
-    try:
-        params = run.parameters
-        if params:
-            for k, v in params.items():
-                parameters[k] = str(v)
-    except (TypeError, ValueError):
-        pass
+    submitted_at = None
+    if run.submitted_at:
+        submitted_at = run.submitted_at.isoformat()
 
     return {
         'uuid': run.uuid,
         'machine': machine_name,
-        'order': order_dict,
-        'start_time': start_time,
-        'end_time': end_time,
-        'parameters': parameters,
+        'commit': run.commit_obj.commit if run.commit_obj else None,
+        'submitted_at': submitted_at,
+        'run_parameters': dict(run.run_parameters) if run.run_parameters else {},
     }
 
 
@@ -178,44 +139,16 @@ def serialize_fieldchange(fc):
     """Serialize the common fields of a FieldChange for API responses.
 
     Returns a dict with test, machine, metric, old_value, new_value,
-    start_order, end_order, and run_uuid.  Callers should add an
-    identifier key (``uuid`` or ``field_change_uuid``) to the result
-    before returning it to the client.
+    start_commit, and end_commit.  Callers should add an identifier key
+    (``uuid`` or ``field_change_uuid``) to the result before returning
+    it to the client.
     """
-    # Get field name from the SampleField relation
-    field_name = None
-    if fc.field is not None:
-        field_name = fc.field.name
-
-    # Get order field values
-    start_order_val = None
-    if fc.start_order is not None:
-        for field in fc.start_order.fields:
-            val = fc.start_order.get_field(field)
-            if val is not None:
-                start_order_val = str(val)
-                break
-
-    end_order_val = None
-    if fc.end_order is not None:
-        for field in fc.end_order.fields:
-            val = fc.end_order.get_field(field)
-            if val is not None:
-                end_order_val = str(val)
-                break
-
-    # Get run UUID
-    run_uuid = None
-    if fc.run is not None:
-        run_uuid = fc.run.uuid
-
     return {
         'test': fc.test.name if fc.test else None,
         'machine': fc.machine.name if fc.machine else None,
-        'metric': field_name,
+        'metric': fc.field_name,
         'old_value': fc.old_value,
         'new_value': fc.new_value,
-        'start_order': start_order_val,
-        'end_order': end_order_val,
-        'run_uuid': run_uuid,
+        'start_commit': fc.start_commit.commit if fc.start_commit else None,
+        'end_commit': fc.end_commit.commit if fc.end_commit else None,
     }

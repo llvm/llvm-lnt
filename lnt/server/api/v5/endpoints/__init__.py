@@ -14,15 +14,15 @@ logger = logging.getLogger(__name__)
 _ENDPOINT_MODULES = [
     'discovery',
     'test_suites',
+    'commits',
     'machines',
-    'orders',
     'runs',
     'tests',
     'samples',
     'profiles',
-    'regressions',
-    'field_changes',
     'query',
+    'field_changes',
+    'regressions',
     'trends',
     'admin',
 ]

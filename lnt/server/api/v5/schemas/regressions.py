@@ -13,17 +13,17 @@ from .common import CursorPaginationQuerySchema, PaginatedResponseSchema
 
 
 # ---------------------------------------------------------------------------
-# State mapping: API string <-> DB integer
+# State mapping: API string <-> DB integer (v5 values: 0-6)
 # ---------------------------------------------------------------------------
 
 STATE_TO_DB = {
     'detected': 0,
     'staged': 1,
-    'active': 10,
-    'not_to_be_fixed': 20,
-    'ignored': 21,
-    'fixed': 22,
-    'detected_fixed': 23,
+    'active': 2,
+    'not_to_be_fixed': 3,
+    'ignored': 4,
+    'fixed': 5,
+    'detected_fixed': 6,
 }
 
 DB_TO_STATE = {v: k for k, v in STATE_TO_DB.items()}

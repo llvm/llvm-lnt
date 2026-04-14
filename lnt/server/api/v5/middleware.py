@@ -40,18 +40,15 @@ def register_middleware(app):
         g.db_name = "default"
         g.db_session = db.make_session()
 
-        # Check whether another worker has created/deleted a suite.
-        db.check_registry_version(g.db_session)
-
         # Resolve testsuite from view_args if the URL contains one.
         # Discovery (/api/v5/) and admin (/api/v5/admin/) paths have no
-        # testsuite in the URL.
+        # testsuite in the URL.  get_suite() handles schema version
+        # staleness checks transparently.
         view_args = request.view_args or {}
         testsuite = view_args.get('testsuite')
         if testsuite:
-            if testsuite not in db.testsuite:
-                # Return a proper JSON error directly from middleware,
-                # avoiding the v4 HTML error handler.
+            ts = db.get_suite(testsuite, g.db_session)
+            if ts is None:
                 resp = jsonify({
                     'error': {
                         'code': 'not_found',
@@ -60,7 +57,7 @@ def register_middleware(app):
                 })
                 resp.status_code = 404
                 return resp
-            g.ts = db.testsuite[testsuite]
+            g.ts = ts
 
     @app.teardown_request
     def v5_teardown_request(exc):
