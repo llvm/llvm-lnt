@@ -105,12 +105,13 @@ Creating a field change requires: machine (name), test (name), metric (name), ol
 Time Series
 
 POST   /query
-  Body (JSON): {metric, machine, test, order, after_order, before_order,
+  Body (JSON): {metric, machine, test, commit, after_commit, before_commit,
                 after_time, before_time, sort, limit, cursor}
 The metric field is required; all other fields are optional.
 The test field accepts a list of names for disjunction queries.
-The order field filters for an exact order match and cannot be combined with after_order/before_order.
-Returns cursor-paginated time-series data for graphing. Uses field names (not indices) to be self-documenting.
+The commit field filters for an exact commit match and cannot be combined with after_commit/before_commit.
+Returns cursor-paginated time-series data for graphing. Each data point contains: test, machine, metric, value, commit, ordinal, run_uuid, submitted_at.
+Sort fields: test, commit (by ordinal), submitted_at. Default sort: commit,test.
 
 Trends (Aggregated)
 

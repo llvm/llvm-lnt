@@ -1,7 +1,7 @@
 """Query endpoint for the v5 API.
 
 POST /api/v5/{ts}/query
-  Body (JSON): {metric, machine, test, order, after_order, before_order,
+  Body (JSON): {metric, machine, test, commit, after_commit, before_commit,
                 after_time, before_time, sort, limit, cursor}
 
 Returns cursor-paginated data points. The metric field is required;
@@ -10,17 +10,21 @@ for disjunction queries.
 """
 
 import base64
+import json
 
 from flask import g, jsonify
 from flask.views import MethodView
 from flask_smorest import Blueprint
 from sqlalchemy import and_, or_
 
-from lnt.testing import PASS
-
 from ..auth import require_scope
 from ..errors import abort_with_error
-from ..helpers import parse_datetime, resolve_metric, serialize_order
+from ..helpers import (
+    lookup_commit,
+    lookup_machine,
+    parse_datetime,
+    validate_metric_name,
+)
 from ..pagination import make_paginated_response
 from ..schemas.query import QueryEndpointQuerySchema, QueryResponseSchema
 
@@ -31,27 +35,23 @@ blp = Blueprint(
     description='Query time-series performance data across machines, tests, and metrics',
 )
 
-# Default and maximum page sizes.
 _DEFAULT_LIMIT = 100
 _MAX_LIMIT = 10000
 
-# Allowed sort field names and the columns they map to.
-# The actual column references are resolved at query time since the
-# model classes are dynamic per test suite.
-_ALLOWED_SORT_FIELDS = {'test', 'order', 'timestamp'}
+_ALLOWED_SORT_FIELDS = {'test', 'commit', 'submitted_at'}
 
 
 def _parse_sort(sort_str):
     """Parse a comma-separated sort string into (field_name, ascending) pairs.
 
     Examples:
-        "test,order"     -> [("test", True), ("order", True)]
-        "-timestamp,test" -> [("timestamp", False), ("test", True)]
+        "test,commit"         -> [("test", True), ("commit", True)]
+        "-submitted_at,test"  -> [("submitted_at", False), ("test", True)]
 
     Returns a list of (field_name, ascending) tuples, or None on error.
     """
     if not sort_str:
-        return [('order', True), ('test', True)]
+        return [('commit', True), ('test', True)]
 
     result = []
     seen = set()
@@ -76,7 +76,7 @@ def _parse_sort(sort_str):
         return None
 
     # Append tiebreakers for deterministic ordering.
-    for tiebreaker in ('order', 'test'):
+    for tiebreaker in ('commit', 'test'):
         if tiebreaker not in seen:
             result.append((tiebreaker, True))
             seen.add(tiebreaker)
@@ -88,10 +88,10 @@ def _resolve_sort_column(ts, field_name):
     """Map a sort field name to its SQLAlchemy column."""
     if field_name == 'test':
         return ts.Test.name
-    elif field_name == 'order':
-        return ts.Order.id
-    elif field_name == 'timestamp':
-        return ts.Run.start_time
+    elif field_name == 'commit':
+        return ts.Commit.ordinal
+    elif field_name == 'submitted_at':
+        return ts.Run.submitted_at
     raise ValueError("Unknown sort field: %s" % field_name)
 
 
@@ -101,7 +101,6 @@ def _encode_cursor(values):
     Values are JSON-encoded then base64-wrapped to safely handle
     values containing any characters (colons, unicode, etc.).
     """
-    import json
     payload = json.dumps(values, separators=(',', ':'))
     return base64.urlsafe_b64encode(payload.encode('utf-8')).decode('ascii')
 
@@ -111,7 +110,6 @@ def _decode_cursor(cursor_str, num_fields):
 
     Returns None if the cursor is malformed.
     """
-    import json
     if not cursor_str:
         return None
     try:
@@ -169,108 +167,57 @@ def _coerce_cursor_value(field_name, value):
     in most cases. This handles edge cases and type enforcement.
     Raises ValueError if the value cannot be coerced.
     """
-    if field_name == 'order':
+    if field_name == 'commit':
         return int(value)
     elif field_name == 'test':
         return str(value) if value is not None else ''
-    elif field_name == 'timestamp':
+    elif field_name == 'submitted_at':
         return value  # None or string, both valid
     return value
 
 
-def _extract_cursor_values(sort_spec, ts, row_data):
+def _extract_cursor_values(sort_spec, row_data):
     """Extract cursor values from a result row for encoding.
 
-    row_data is a dict with keys: test_name, order_id, timestamp.
+    row_data is a dict with keys: test_name, ordinal, submitted_at.
     """
     values = []
     for field_name, _ in sort_spec:
         if field_name == 'test':
             values.append(row_data['test_name'])
-        elif field_name == 'order':
-            values.append(row_data['order_id'])
-        elif field_name == 'timestamp':
-            values.append(row_data['timestamp'])
+        elif field_name == 'commit':
+            values.append(row_data['ordinal'])
+        elif field_name == 'submitted_at':
+            values.append(row_data['submitted_at'])
     return values
 
 
-def _resolve_machine(session, ts, machine_name):
-    """Resolve a machine name to its model instance.
-
-    Returns (machine, None, None) on success, or
-    (None, error_message, http_status) on failure.
-    """
-    machines = session.query(ts.Machine).filter(
-        ts.Machine.name == machine_name
-    ).all()
-    if len(machines) == 0:
-        return None, "Machine '%s' not found" % machine_name, 404
-    if len(machines) > 1:
-        ids = ', '.join(str(m.id) for m in machines)
-        return None, (
-            "Multiple machines named '%s' exist (IDs: %s). "
-            "Use the v4 UI to merge or rename them."
-            % (machine_name, ids)), 409
-    return machines[0], None, None
-
-
-def _resolve_test(session, ts, test_name):
-    """Resolve a test name to its model instance."""
-    test = session.query(ts.Test).filter(
-        ts.Test.name == test_name
-    ).first()
-    if test is None:
-        return None, "Test '%s' not found" % test_name
-    return test, None
-
-
-def _resolve_order(session, ts, order_value):
-    """Resolve an order field value to its model instance.
-
-    Matches against the first (primary) order field.
-    """
-    if not ts.order_fields:
-        return None, "Test suite has no order fields"
-    primary_field = ts.order_fields[0]
-    order = session.query(ts.Order).filter(
-        primary_field.column == order_value
-    ).first()
-    if order is None:
-        return None, "Order '%s' not found" % order_value
-    return order, None
-
-
-def _query_for_field(session, ts, sample_field, machine, test_ids,
-                     sort_spec, cursor_values, order, after_order,
-                     before_order, after_time, before_time, limit):
-    """Build and execute a query for a single sample field.
-
-    *test_ids* is a list of test IDs to filter by, or None for no filter.
+def _build_query(session, ts, metric_col, metric_name, machine, test_ids,
+                 sort_spec, cursor_values, commit, after_commit,
+                 before_commit, after_time, before_time, limit):
+    """Build and execute the time-series query.
 
     Returns a list of dicts ready for serialization, plus a boolean
     indicating whether there are more results.
     """
-    q = session.query(
-        sample_field.column,
-        ts.Order,
-        ts.Run,
-        ts.Test,
-        ts.Machine,
-    ).select_from(ts.Sample) \
-        .join(ts.Run) \
-        .join(ts.Order) \
-        .join(ts.Test) \
-        .join(ts.Machine, ts.Run.machine_id == ts.Machine.id) \
-        .filter(sample_field.column.isnot(None))
-
-    # Filter out failing tests if the field has a status_field.
-    if sample_field.status_field:
-        q = q.filter(
-            (sample_field.status_field.column == PASS) |
-            (sample_field.status_field.column.is_(None))
+    q = (
+        session.query(
+            metric_col.label('metric_value'),
+            ts.Commit.commit,
+            ts.Commit.ordinal,
+            ts.Run.uuid,
+            ts.Run.submitted_at,
+            ts.Test.name.label('test_name'),
+            ts.Machine.name.label('machine_name'),
         )
+        .select_from(ts.Sample)
+        .join(ts.Run, ts.Sample.run_id == ts.Run.id)
+        .join(ts.Commit, ts.Run.commit_id == ts.Commit.id)
+        .join(ts.Test, ts.Sample.test_id == ts.Test.id)
+        .join(ts.Machine, ts.Run.machine_id == ts.Machine.id)
+        .filter(metric_col.isnot(None))
+    )
 
-    # Apply optional filters.
     if machine is not None:
         q = q.filter(ts.Run.machine_id == machine.id)
     if test_ids is not None:
@@ -279,30 +226,35 @@ def _query_for_field(session, ts, sample_field, machine, test_ids,
         else:
             q = q.filter(ts.Sample.test_id.in_(test_ids))
 
-    # Apply exact order filter.
-    if order is not None:
-        q = q.filter(ts.Order.id == order.id)
+    # Exact commit filter — by commit identity, not ordinal.
+    if commit is not None:
+        q = q.filter(ts.Run.commit_id == commit.id)
 
-    # Apply order range filters.
-    if after_order is not None:
-        q = q.filter(ts.Order.id > after_order.id)
-    if before_order is not None:
-        q = q.filter(ts.Order.id < before_order.id)
+    # Commit range filters — by ordinal.
+    if after_commit is not None:
+        q = q.filter(ts.Commit.ordinal > after_commit.ordinal)
+    if before_commit is not None:
+        q = q.filter(ts.Commit.ordinal < before_commit.ordinal)
 
-    # Apply timestamp range filters.
+    # When sorting by commit (ordinal), exclude NULL ordinals.
+    sort_fields = {fn for fn, _ in sort_spec}
+    if 'commit' in sort_fields:
+        q = q.filter(ts.Commit.ordinal.isnot(None))
+
+    # Time range filters.
     if after_time is not None:
-        q = q.filter(ts.Run.start_time > after_time)
+        q = q.filter(ts.Run.submitted_at > after_time)
     if before_time is not None:
-        q = q.filter(ts.Run.start_time < before_time)
+        q = q.filter(ts.Run.submitted_at < before_time)
 
-    # Apply cursor filter.
+    # Cursor filter.
     if cursor_values is not None:
         try:
             q = q.filter(_build_cursor_filter(ts, sort_spec, cursor_values))
         except (ValueError, TypeError):
             abort_with_error(400, "Invalid pagination cursor")
 
-    # Apply ordering.
+    # Ordering.
     for field_name, ascending in sort_spec:
         col = _resolve_sort_column(ts, field_name)
         q = q.order_by(col.asc() if ascending else col.desc())
@@ -314,22 +266,20 @@ def _query_for_field(session, ts, sample_field, machine, test_ids,
     rows = rows[:limit]
 
     items = []
-    for value, order, run, test_obj, machine_obj in rows:
-        order_dict = serialize_order(order)
-
-        timestamp = None
-        if run.start_time:
-            timestamp = run.start_time.isoformat()
+    for row in rows:
+        submitted_at = None
+        if row.submitted_at:
+            submitted_at = row.submitted_at.isoformat()
 
         items.append({
-            'test': test_obj.name,
-            'machine': machine_obj.name,
-            'metric': sample_field.name,
-            'value': value,
-            'order': order_dict,
-            'run_uuid': run.uuid,
-            'timestamp': timestamp,
-            '_order_id': order.id,
+            'test': row.test_name,
+            'machine': row.machine_name,
+            'metric': metric_name,
+            'value': row.metric_value,
+            'commit': row.commit,
+            'ordinal': row.ordinal,
+            'run_uuid': row.uuid,
+            'submitted_at': submitted_at,
         })
 
     return items, has_next
@@ -359,28 +309,24 @@ class QueryView(MethodView):
         test_names = query_args.get('test')
         field_name = query_args['metric']
 
-        # Resolve entities when provided.
         machine = None
         if machine_name:
-            machine, err, status = _resolve_machine(session, ts, machine_name)
-            if err:
-                abort_with_error(status, err)
+            machine = lookup_machine(session, ts, machine_name)
 
+        # Silently skip unknown test names — return no data for them
+        # rather than 404-ing the entire request.
         test_ids = None
         if test_names:
             test_ids = []
             for tn in test_names:
-                test, err = _resolve_test(session, ts, tn)
-                if err:
-                    # Silently skip unknown test names — return no data
-                    # for them rather than 404-ing the entire request.
-                    continue
-                test_ids.append(test.id)
+                test = ts.get_test(session, name=tn)
+                if test is not None:
+                    test_ids.append(test.id)
             if not test_ids:
-                # All requested tests are unknown — return empty response.
                 return jsonify(make_paginated_response([], None))
 
-        field = resolve_metric(ts, field_name)
+        validate_metric_name(ts, field_name)
+        metric_col = getattr(ts.Sample, field_name)
 
         # ------------------------------------------------------------------
         # Parse sort parameter
@@ -396,35 +342,37 @@ class QueryView(MethodView):
         # ------------------------------------------------------------------
         # Parse range filters
         # ------------------------------------------------------------------
-        order_str = query_args.get('order')
-        after_order_str = query_args.get('after_order')
-        before_order_str = query_args.get('before_order')
+        commit_str = query_args.get('commit')
+        after_commit_str = query_args.get('after_commit')
+        before_commit_str = query_args.get('before_commit')
         after_time_str = query_args.get('after_time')
         before_time_str = query_args.get('before_time')
 
-        if order_str and (after_order_str or before_order_str):
+        if commit_str and (after_commit_str or before_commit_str):
             abort_with_error(
                 400,
-                "The 'order' parameter cannot be combined with "
-                "'after_order' or 'before_order'")
+                "The 'commit' parameter cannot be combined with "
+                "'after_commit' or 'before_commit'")
 
-        order = None
-        if order_str:
-            order, err = _resolve_order(session, ts, order_str)
-            if err:
-                abort_with_error(404, err)
+        commit = None
+        if commit_str:
+            commit = lookup_commit(session, ts, commit_str)
 
-        after_order = None
-        if after_order_str:
-            after_order, err = _resolve_order(session, ts, after_order_str)
-            if err:
-                abort_with_error(404, err)
+        after_commit = None
+        if after_commit_str:
+            after_commit = lookup_commit(session, ts, after_commit_str)
+            if after_commit.ordinal is None:
+                abort_with_error(
+                    400, "Commit '%s' has no ordinal; cannot use as "
+                    "range boundary" % after_commit_str)
 
-        before_order = None
-        if before_order_str:
-            before_order, err = _resolve_order(session, ts, before_order_str)
-            if err:
-                abort_with_error(404, err)
+        before_commit = None
+        if before_commit_str:
+            before_commit = lookup_commit(session, ts, before_commit_str)
+            if before_commit.ordinal is None:
+                abort_with_error(
+                    400, "Commit '%s' has no ordinal; cannot use as "
+                    "range boundary" % before_commit_str)
 
         after_time = None
         if after_time_str:
@@ -456,9 +404,9 @@ class QueryView(MethodView):
         # ------------------------------------------------------------------
         # Execute query
         # ------------------------------------------------------------------
-        items, has_next = _query_for_field(
-            session, ts, field, machine, test_ids,
-            sort_spec, cursor_values, order, after_order, before_order,
+        items, has_next = _build_query(
+            session, ts, metric_col, field_name, machine, test_ids,
+            sort_spec, cursor_values, commit, after_commit, before_commit,
             after_time, before_time, limit)
 
         # ------------------------------------------------------------------
@@ -467,15 +415,11 @@ class QueryView(MethodView):
         next_cursor = None
         if has_next and items:
             last = items[-1]
-            cursor_vals = _extract_cursor_values(sort_spec, ts, {
+            cursor_vals = _extract_cursor_values(sort_spec, {
                 'test_name': last['test'],
-                'order_id': last['_order_id'],
-                'timestamp': last['timestamp'],
+                'ordinal': last['ordinal'],
+                'submitted_at': last['submitted_at'],
             })
             next_cursor = _encode_cursor(cursor_vals)
-
-        # Strip internal fields before returning.
-        for item in items:
-            item.pop('_order_id', None)
 
         return jsonify(make_paginated_response(items, next_cursor))

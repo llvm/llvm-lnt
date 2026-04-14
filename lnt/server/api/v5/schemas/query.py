@@ -24,22 +24,24 @@ class QueryDataPointSchema(BaseSchema):
         required=True,
         metadata={'description': 'The sample value for the field'},
     )
-    order = ma.fields.Dict(
-        keys=ma.fields.String(),
-        values=ma.fields.String(),
+    commit = ma.fields.String(
         required=True,
         metadata={
-            'description': 'Order field values (e.g. llvm_project_revision)',
-            'example': {'llvm_project_revision': 'abc123'},
+            'description': 'Commit identity string (e.g. revision hash)',
+            'example': 'abc123',
         },
+    )
+    ordinal = ma.fields.Integer(
+        allow_none=True,
+        metadata={'description': 'Commit ordinal position (may be null)'},
     )
     run_uuid = ma.fields.String(
         required=True,
         metadata={'description': 'UUID of the run this data point belongs to'},
     )
-    timestamp = ma.fields.String(
+    submitted_at = ma.fields.String(
         allow_none=True,
-        metadata={'description': 'Run start time (ISO 8601)'},
+        metadata={'description': 'Run submission time (ISO 8601)'},
     )
 
 
@@ -79,17 +81,17 @@ class QueryEndpointQuerySchema(BaseSchema):
         required=True,
         metadata={'description': 'Metric name (required)'},
     )
-    order = ma.fields.String(
+    commit = ma.fields.String(
         load_default=None,
-        metadata={'description': 'Filter by exact order value (mutually exclusive with after_order/before_order)'},
+        metadata={'description': 'Filter by exact commit (mutually exclusive with after_commit/before_commit)'},
     )
-    after_order = ma.fields.String(
+    after_commit = ma.fields.String(
         load_default=None,
-        metadata={'description': 'Only return data points after this order value'},
+        metadata={'description': 'Only return data points after this commit (by ordinal)'},
     )
-    before_order = ma.fields.String(
+    before_commit = ma.fields.String(
         load_default=None,
-        metadata={'description': 'Only return data points before this order value'},
+        metadata={'description': 'Only return data points before this commit (by ordinal)'},
     )
     after_time = ma.fields.String(
         load_default=None,
@@ -101,7 +103,8 @@ class QueryEndpointQuerySchema(BaseSchema):
     )
     sort = ma.fields.String(
         load_default=None,
-        metadata={'description': 'Comma-separated sort fields: test, order, timestamp (prefix with - for descending)'},
+        metadata={'description': 'Comma-separated sort fields: test, commit, '
+                  'submitted_at (prefix with - for descending)'},
     )
     limit = ma.fields.Integer(
         load_default=100,

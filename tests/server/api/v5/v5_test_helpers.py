@@ -156,6 +156,17 @@ def collect_all_pages(test_case, client, url, page_limit=20):
 # API-based fixture helpers
 # ---------------------------------------------------------------------------
 
+def set_ordinal(client, commit, ordinal, testsuite='nts'):
+    """Assign an ordinal to a commit via PATCH /commits/{value}."""
+    resp = client.patch(
+        f'/api/v5/{testsuite}/commits/{commit}',
+        json={'ordinal': ordinal},
+        headers=admin_headers(),
+    )
+    assert resp.status_code == 200, \
+        "set_ordinal(%s, %d) failed: %s" % (commit, ordinal, resp.data)
+
+
 def submit_run(client, machine_name, commit, tests,
                machine_info=None, testsuite='nts'):
     """Submit a run via POST and return response JSON (includes run_uuid)."""

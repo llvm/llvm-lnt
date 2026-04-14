@@ -2,10 +2,11 @@
 #
 # RUN: rm -rf %t.instance %t.pg.log
 # RUN: %{utils}/with_postgres.sh %t.pg.log \
-# RUN:     %{utils}/with_temporary_instance.py %t.instance \
+# RUN:     %{utils}/with_temporary_instance.py --db-version 5.0 %t.instance \
 # RUN:         -- python %s %t.instance
 # END.
 
+import datetime
 import random
 import sys
 import os
@@ -13,35 +14,50 @@ import unittest
 import uuid
 
 sys.path.insert(0, os.path.dirname(__file__))
-from v5_test_helpers import (
-    create_app, create_client, submit_run,
-)
+from v5_test_helpers import create_app, create_client, set_ordinal, submit_run
 
 TS = 'nts'
 PREFIX = f'/api/v5/{TS}'
 
 
-def _setup_query_data(client, machine_name, test_name, num_points=5):
+def _setup_query_data(client, app, machine_name, test_name, num_points=5):
     """Create a machine, test, and several runs with samples.
 
     Returns a dict with the created entities for assertions.
     """
     rev_prefix = uuid.uuid4().hex[:6]
+    # Use a random base to avoid ordinal collisions across test classes.
+    ordinal_base = int(uuid.uuid4().hex[:6], 16)
     run_uuids = []
+    commits = []
     for i in range(num_points):
+        commit_str = f'{100 + i}-{rev_prefix}'
         data = submit_run(
-            client, machine_name, f'{100 + i}-{rev_prefix}',
-            [{'name': test_name, 'execution_time': [float(i + 1) * 1.5]}],
-            start_time=f'2024-01-{1 + i:02d}T12:00:00',
-            end_time=f'2024-01-{1 + i:02d}T12:30:00',
-        )
+            client, machine_name, commit_str,
+            [{'name': test_name, 'execution_time': [float(i + 1) * 1.5]}])
         run_uuids.append(data['run_uuid'])
+        commits.append(commit_str)
+
+    # Assign ordinals via API (D11: ordinals set exclusively via PATCH)
+    for i, commit_str in enumerate(commits):
+        set_ordinal(client, commit_str, ordinal_base + i)
+
+    # Set sequential timestamps via direct DB (no API for submitted_at)
+    db = app.instance.get_database("default")
+    session = db.make_session()
+    ts = db.testsuite[TS]
+    for i, run_uuid in enumerate(run_uuids):
+        run = ts.get_run(session, uuid=run_uuid)
+        run.submitted_at = datetime.datetime(2024, 1, 1 + i, 12, 0, 0)
+    session.commit()
+    session.close()
 
     return {
         'machine': machine_name,
         'test': test_name,
         'run_uuids': run_uuids,
         'num_points': num_points,
+        'commits': commits,
     }
 
 
@@ -103,6 +119,7 @@ class TestQueryValidQuery(unittest.TestCase):
         unique = uuid.uuid4().hex[:8]
         cls._data = _setup_query_data(
             cls.client,
+            cls.app,
             machine_name=f'series-valid-m-{unique}',
             test_name=f'series-valid-t/{unique}',
             num_points=5,
@@ -136,26 +153,25 @@ class TestQueryValidQuery(unittest.TestCase):
             self.assertIn('machine', item)
             self.assertIn('metric', item)
             self.assertIn('value', item)
-            self.assertIn('order', item)
+            self.assertIn('commit', item)
             self.assertIn('run_uuid', item)
-            self.assertIn('timestamp', item)
+            self.assertIn('submitted_at', item)
             self.assertIsInstance(item['value'], (int, float))
-            self.assertIsInstance(item['order'], dict)
+            self.assertIsInstance(item['commit'], str)
             self.assertIsInstance(item['run_uuid'], str)
             self.assertEqual(item['test'], d['test'])
             self.assertEqual(item['machine'], d['machine'])
             self.assertEqual(item['metric'], 'execution_time')
 
-    def test_order_has_field_names(self):
-        """Order dict should contain order field names as keys."""
+    def test_commit_is_a_string(self):
+        """Commit field should be a plain string (not a dict)."""
         d = self._data
         resp = self.client.post(
             PREFIX + '/query',
             json={'machine': d['machine'], 'test': [d['test']], 'metric': 'execution_time'})
         data = resp.get_json()
         for item in data['items']:
-            # NTS suite has llvm_project_revision
-            self.assertIn('llvm_project_revision', item['order'])
+            self.assertIsInstance(item['commit'], str)
 
     def test_run_uuids_are_valid(self):
         """All run_uuid values should be from the runs we created."""
@@ -239,16 +255,20 @@ class TestQueryOrdering(unittest.TestCase):
         mname = f'query-order-m-{unique}'
         tname = f'query-order-t/{unique}'
 
-        # Create orders in sequential revision order so Order.id matches
+        # Create orders in sequential revision order
         revisions = ['100', '200', '300', '400', '500']
         rev_prefix = uuid.uuid4().hex[:6]
         for rev in revisions:
             submit_run(
                 cls.client, mname, f'{rev}-{rev_prefix}',
                 [{'name': tname, 'execution_time': [float(rev)]}],
-                start_time='2024-01-01T12:00:00',
-                end_time='2024-01-01T12:30:00',
             )
+
+        # Assign ordinals via API (D11: ordinals set exclusively via PATCH)
+        ordinal_base = int(uuid.uuid4().hex[:6], 16)
+        for i, rev in enumerate(revisions):
+            commit_str = f'{rev}-{rev_prefix}'
+            set_ordinal(cls.client, commit_str, ordinal_base + i)
 
         cls._data = {
             'machine': mname,
@@ -256,22 +276,19 @@ class TestQueryOrdering(unittest.TestCase):
             'expected_revisions': [f'{r}-{rev_prefix}' for r in revisions],
         }
 
-    def test_data_sorted_by_order(self):
-        """Data points should be sorted by order (revision) value."""
+    def test_data_sorted_by_ordinal(self):
+        """Data points should be sorted by ordinal value."""
         d = self._data
         resp = self.client.post(
             PREFIX + '/query',
             json={'machine': d['machine'], 'test': [d['test']], 'metric': 'execution_time'})
         data = resp.get_json()
-        revisions = [
-            item['order']['llvm_project_revision']
-            for item in data['items']
-        ]
-        self.assertEqual(revisions, d['expected_revisions'])
+        ordinals = [item['ordinal'] for item in data['items']]
+        self.assertEqual(ordinals, sorted(ordinals))
 
 
 class TestQueryRangeFilters(unittest.TestCase):
-    """Tests for after_order/before_order and after_time/before_time filtering."""
+    """Tests for after_commit/before_commit and after_time/before_time filtering."""
 
     @classmethod
     def setUpClass(cls):
@@ -282,80 +299,97 @@ class TestQueryRangeFilters(unittest.TestCase):
         mname = f'query-filter-m-{unique}'
         tname = f'query-filter-t/{unique}'
 
+        cls._commits = []
         for i in range(10):
             rev = str(100 + i * 10)  # 100, 110, ..., 190
             submit_run(
                 cls.client, mname, rev,
                 [{'name': tname, 'execution_time': [float(100 + i * 10)]}],
-                start_time=f'2024-01-{1 + i:02d}T12:00:00',
-                end_time=f'2024-01-{1 + i:02d}T12:30:00',
             )
+            cls._commits.append(rev)
+
+        # Assign ordinals via API (D11: ordinals set exclusively via PATCH)
+        ordinal_base = int(uuid.uuid4().hex[:6], 16)
+        for i, commit_str in enumerate(cls._commits):
+            set_ordinal(cls.client, commit_str, ordinal_base + i)
+
+        # Set sequential timestamps via direct DB (no API for submitted_at)
+        db = cls.app.instance.get_database("default")
+        session = db.make_session()
+        ts = db.testsuite[TS]
+        for i, commit_str in enumerate(cls._commits):
+            c = ts.get_commit(session, commit=commit_str)
+            runs = ts.list_runs(session, commit_id=c.id)
+            for run in runs:
+                run.submitted_at = datetime.datetime(2024, 1, 1 + i, 12, 0, 0)
+        session.commit()
+        session.close()
 
         cls._data = {
             'machine': mname,
             'test': tname,
         }
 
-    def test_after_order_filter(self):
-        """Only data points after the given order should be returned."""
+    def test_after_commit_filter(self):
+        """Only data points after the given commit should be returned."""
         d = self._data
         resp = self.client.post(
             PREFIX + '/query',
             json={'machine': d['machine'], 'test': [d['test']],
-                  'metric': 'execution_time', 'after_order': '150'})
+                  'metric': 'execution_time', 'after_commit': '150'})
         self.assertEqual(resp.status_code, 200, resp.get_json())
         data = resp.get_json()
         self.assertGreater(len(data['items']), 0)
         for item in data['items']:
-            rev = int(item['order']['llvm_project_revision'])
+            rev = int(item['commit'])
             self.assertGreater(rev, 150)
 
-    def test_before_order_filter(self):
-        """Only data points before the given order should be returned."""
+    def test_before_commit_filter(self):
+        """Only data points before the given commit should be returned."""
         d = self._data
         resp = self.client.post(
             PREFIX + '/query',
             json={'machine': d['machine'], 'test': [d['test']],
-                  'metric': 'execution_time', 'before_order': '150'})
+                  'metric': 'execution_time', 'before_commit': '150'})
         self.assertEqual(resp.status_code, 200, resp.get_json())
         data = resp.get_json()
         self.assertGreater(len(data['items']), 0)
         for item in data['items']:
-            rev = int(item['order']['llvm_project_revision'])
+            rev = int(item['commit'])
             self.assertLess(rev, 150)
 
-    def test_after_order_and_before_order_combined(self):
-        """Combining after_order and before_order narrows the range."""
+    def test_after_commit_and_before_commit_combined(self):
+        """Combining after_commit and before_commit narrows the range."""
         d = self._data
         resp = self.client.post(
             PREFIX + '/query',
             json={'machine': d['machine'], 'test': [d['test']],
-                  'metric': 'execution_time', 'after_order': '120',
-                  'before_order': '170'})
+                  'metric': 'execution_time', 'after_commit': '120',
+                  'before_commit': '170'})
         self.assertEqual(resp.status_code, 200, resp.get_json())
         data = resp.get_json()
         for item in data['items']:
-            rev = int(item['order']['llvm_project_revision'])
+            rev = int(item['commit'])
             self.assertGreater(rev, 120)
             self.assertLess(rev, 170)
         self.assertGreater(len(data['items']), 0)
 
-    def test_after_order_nonexistent_returns_404(self):
-        """Filtering with a non-existent order value returns 404."""
+    def test_after_commit_nonexistent_returns_404(self):
+        """Filtering with a non-existent commit value returns 404."""
         d = self._data
         resp = self.client.post(
             PREFIX + '/query',
             json={'machine': d['machine'], 'test': [d['test']],
-                  'metric': 'execution_time', 'after_order': '999999'})
+                  'metric': 'execution_time', 'after_commit': '999999'})
         self.assertEqual(resp.status_code, 404)
 
-    def test_before_order_nonexistent_returns_404(self):
-        """Filtering with a non-existent order value returns 404."""
+    def test_before_commit_nonexistent_returns_404(self):
+        """Filtering with a non-existent commit value returns 404."""
         d = self._data
         resp = self.client.post(
             PREFIX + '/query',
             json={'machine': d['machine'], 'test': [d['test']],
-                  'metric': 'execution_time', 'before_order': '999999'})
+                  'metric': 'execution_time', 'before_commit': '999999'})
         self.assertEqual(resp.status_code, 404)
 
     def test_after_time_filter(self):
@@ -370,7 +404,7 @@ class TestQueryRangeFilters(unittest.TestCase):
         data = resp.get_json()
         self.assertGreater(len(data['items']), 0)
         for item in data['items']:
-            self.assertGreater(item['timestamp'], '2024-01-06T00:00:00')
+            self.assertGreater(item['submitted_at'], '2024-01-06T00:00:00')
 
     def test_before_time_filter(self):
         """Only data points from runs before the given time should be returned."""
@@ -384,7 +418,7 @@ class TestQueryRangeFilters(unittest.TestCase):
         data = resp.get_json()
         self.assertGreater(len(data['items']), 0)
         for item in data['items']:
-            self.assertLess(item['timestamp'], '2024-01-04T00:00:00')
+            self.assertLess(item['submitted_at'], '2024-01-04T00:00:00')
 
     def test_after_time_and_before_time_combined(self):
         """Combining time range filters narrows the results."""
@@ -399,24 +433,24 @@ class TestQueryRangeFilters(unittest.TestCase):
         data = resp.get_json()
         self.assertGreater(len(data['items']), 0)
         for item in data['items']:
-            self.assertGreater(item['timestamp'], '2024-01-03T00:00:00')
-            self.assertLess(item['timestamp'], '2024-01-07T00:00:00')
+            self.assertGreater(item['submitted_at'], '2024-01-03T00:00:00')
+            self.assertLess(item['submitted_at'], '2024-01-07T00:00:00')
 
-    def test_order_and_time_filters_compose(self):
-        """Both order and time filters can be used together."""
+    def test_commit_and_time_filters_compose(self):
+        """Both commit and time filters can be used together."""
         d = self._data
         resp = self.client.post(
             PREFIX + '/query',
             json={'machine': d['machine'], 'test': [d['test']],
                   'metric': 'execution_time',
-                  'after_order': '120',
+                  'after_commit': '120',
                   'before_time': '2024-01-07T00:00:00'})
         self.assertEqual(resp.status_code, 200, resp.get_json())
         data = resp.get_json()
         for item in data['items']:
-            rev = int(item['order']['llvm_project_revision'])
+            rev = int(item['commit'])
             self.assertGreater(rev, 120)
-            self.assertLess(item['timestamp'], '2024-01-07T00:00:00')
+            self.assertLess(item['submitted_at'], '2024-01-07T00:00:00')
 
     def test_after_time_future_returns_empty(self):
         """Filtering with after_time far in the future returns 0 items."""
@@ -454,6 +488,7 @@ class TestQueryLimit(unittest.TestCase):
         unique = uuid.uuid4().hex[:8]
         cls._data = _setup_query_data(
             cls.client,
+            cls.app,
             machine_name=f'series-limit-m-{unique}',
             test_name=f'series-limit-t/{unique}',
             num_points=10,
@@ -501,6 +536,7 @@ class TestQueryPagination(unittest.TestCase):
         unique = uuid.uuid4().hex[:8]
         cls._data = _setup_query_data(
             cls.client,
+            cls.app,
             machine_name=f'series-page-m-{unique}',
             test_name=f'series-page-t/{unique}',
             num_points=7,
@@ -572,28 +608,44 @@ class TestQueryPagination(unittest.TestCase):
         self.assertEqual(resp.status_code, 400)
 
 
-def _setup_multi_test_data(client, machine_name, test_names, num_orders=5):
+def _setup_multi_test_data(client, app, machine_name, test_names, num_orders=5):
     """Create a machine, multiple tests, and samples for each."""
-    # Use a random base offset to avoid revision collisions across test
-    # classes while keeping revisions parseable as plain integers (some
-    # tests assert ordering via int()).
     base = random.randint(100000, 999000)
+    ordinal_base = int(uuid.uuid4().hex[:6], 16)
+    commits = []
     for i in range(num_orders):
         tests = [
             {'name': tn, 'execution_time': [float((i + 1) * 10 + j)]}
             for j, tn in enumerate(test_names)
         ]
+        commit_str = str(base + i)
         submit_run(
-            client, machine_name, str(base + i),
+            client, machine_name, commit_str,
             tests,
-            start_time=f'2024-06-{1 + i:02d}T12:00:00',
-            end_time=f'2024-06-{1 + i:02d}T12:30:00',
         )
+        commits.append(commit_str)
+
+    # Assign ordinals via API (D11: ordinals set exclusively via PATCH)
+    for i, commit_str in enumerate(commits):
+        set_ordinal(client, commit_str, ordinal_base + i)
+
+    # Set sequential timestamps via direct DB (no API for submitted_at)
+    db = app.instance.get_database("default")
+    session = db.make_session()
+    ts = db.testsuite[TS]
+    for i, commit_str in enumerate(commits):
+        c = ts.get_commit(session, commit=commit_str)
+        runs = ts.list_runs(session, commit_id=c.id)
+        for run in runs:
+            run.submitted_at = datetime.datetime(2024, 6, 1 + i, 12, 0, 0)
+    session.commit()
+    session.close()
 
     return {
         'machine': machine_name,
         'test_names': test_names,
         'num_orders': num_orders,
+        'commits': commits,
     }
 
 
@@ -608,6 +660,7 @@ class TestQueryOptionalParams(unittest.TestCase):
         unique = uuid.uuid4().hex[:8]
         cls._data = _setup_multi_test_data(
             cls.client,
+            cls.app,
             machine_name=f'query-opt-m-{unique}',
             test_names=[f'query-opt-t1/{unique}',
                         f'query-opt-t2/{unique}',
@@ -679,6 +732,7 @@ class TestQueryResponseShape(unittest.TestCase):
         unique = uuid.uuid4().hex[:8]
         cls._data = _setup_multi_test_data(
             cls.client,
+            cls.app,
             machine_name=f'query-shape-m-{unique}',
             test_names=[f'query-shape-t/{unique}'],
             num_orders=3,
@@ -687,7 +741,7 @@ class TestQueryResponseShape(unittest.TestCase):
     def _assert_item_shape(self, item):
         """Assert a single item has all required fields."""
         for key in ('test', 'machine', 'metric',
-                    'value', 'order', 'run_uuid', 'timestamp'):
+                    'value', 'commit', 'run_uuid', 'submitted_at'):
             self.assertIn(key, item, f"Missing key: {key}")
 
     def test_items_with_all_filters(self):
@@ -723,6 +777,7 @@ class TestQueryMultiTestPagination(unittest.TestCase):
         unique = uuid.uuid4().hex[:8]
         cls._data = _setup_multi_test_data(
             cls.client,
+            cls.app,
             machine_name=f'query-mtp-m-{unique}',
             test_names=[f'query-mtp-t1/{unique}',
                         f'query-mtp-t2/{unique}',
@@ -767,7 +822,7 @@ class TestQueryMultiTestPagination(unittest.TestCase):
         resp = self.client.post(PREFIX + '/query', json=params)
         data = resp.get_json()
         all_keys.extend(
-            (item['test'], item['order']['llvm_project_revision'])
+            (item['test'], item['commit'])
             for item in data['items'])
         cursor = data['cursor']['next']
 
@@ -777,7 +832,7 @@ class TestQueryMultiTestPagination(unittest.TestCase):
                 PREFIX + '/query', json={**params, 'cursor': cursor})
             data = resp.get_json()
             all_keys.extend(
-                (item['test'], item['order']['llvm_project_revision'])
+                (item['test'], item['commit'])
                 for item in data['items'])
             cursor = data['cursor']['next']
             pages += 1
@@ -798,6 +853,7 @@ class TestQuerySort(unittest.TestCase):
         unique = uuid.uuid4().hex[:8]
         cls._data = _setup_multi_test_data(
             cls.client,
+            cls.app,
             machine_name=f'query-sort-m-{unique}',
             test_names=[f'query-sort-a/{unique}',
                         f'query-sort-b/{unique}',
@@ -805,41 +861,41 @@ class TestQuerySort(unittest.TestCase):
             num_orders=3,
         )
 
-    def test_sort_by_test_order(self):
-        """sort=test,order groups results by test name."""
+    def test_sort_by_test_commit(self):
+        """sort=test,commit groups results by test name."""
         d = self._data
         resp = self.client.post(
             PREFIX + '/query',
             json={'machine': d['machine'],
-                  'metric': 'execution_time', 'sort': 'test,order'})
+                  'metric': 'execution_time', 'sort': 'test,commit'})
         data = resp.get_json()
         test_names = [item['test'] for item in data['items']]
         self.assertEqual(test_names, sorted(test_names))
 
-    def test_sort_by_order_test(self):
-        """sort=order,test is the default ordering."""
+    def test_sort_by_commit_test(self):
+        """sort=commit,test is the default ordering."""
         d = self._data
         resp = self.client.post(
             PREFIX + '/query',
             json={'machine': d['machine'],
-                  'metric': 'execution_time', 'sort': 'order,test'})
+                  'metric': 'execution_time', 'sort': 'commit,test'})
         data = resp.get_json()
-        # Items should be grouped by order
+        # Items should be grouped by commit
         self.assertGreater(len(data['items']), 0)
 
     def test_sort_descending(self):
-        """-order,test returns newest orders first."""
+        """-commit,test returns newest commits first."""
         d = self._data
         resp = self.client.post(
             PREFIX + '/query',
             json={'machine': d['machine'], 'test': [d['test_names'][0]],
-                  'metric': 'execution_time', 'sort': '-order'})
+                  'metric': 'execution_time', 'sort': '-commit'})
         data = resp.get_json()
-        revisions = [
-            item['order']['llvm_project_revision']
+        commits = [
+            item['commit']
             for item in data['items']
         ]
-        self.assertEqual(revisions, sorted(revisions, reverse=True))
+        self.assertEqual(commits, sorted(commits, reverse=True))
 
     def test_sort_invalid_field_returns_400(self):
         resp = self.client.post(
@@ -852,7 +908,7 @@ class TestQuerySort(unittest.TestCase):
         d = self._data
         all_test_names = []
         params = {'machine': d['machine'],
-                  'metric': 'execution_time', 'sort': 'test,order',
+                  'metric': 'execution_time', 'sort': 'test,commit',
                   'limit': 4}
 
         resp = self.client.post(PREFIX + '/query', json=params)
@@ -885,18 +941,19 @@ class TestQueryCursorMixedAscDesc(unittest.TestCase):
         unique = uuid.uuid4().hex[:8]
         cls._data = _setup_multi_test_data(
             cls.client,
+            cls.app,
             machine_name=f'query-mixed-m-{unique}',
             test_names=[f'query-mixed-a/{unique}',
                         f'query-mixed-b/{unique}'],
             num_orders=5,
         )
 
-    def test_desc_order_pagination_collects_all(self):
-        """Paginating with -order,test collects all items."""
+    def test_desc_commit_pagination_collects_all(self):
+        """Paginating with -commit,test collects all items."""
         d = self._data
         all_items = []
         params = {'machine': d['machine'],
-                  'metric': 'execution_time', 'sort': '-order,test',
+                  'metric': 'execution_time', 'sort': '-commit,test',
                   'limit': 3}
         resp = self.client.post(PREFIX + '/query', json=params)
         self.assertEqual(resp.status_code, 200, resp.get_json())
@@ -917,17 +974,17 @@ class TestQueryCursorMixedAscDesc(unittest.TestCase):
         expected = len(d['test_names']) * d['num_orders']
         self.assertEqual(len(all_items), expected)
 
-    def test_desc_order_pagination_no_duplicates(self):
-        """No duplicates across pages with -order,test."""
+    def test_desc_commit_pagination_no_duplicates(self):
+        """No duplicates across pages with -commit,test."""
         d = self._data
         all_keys = []
         params = {'machine': d['machine'],
-                  'metric': 'execution_time', 'sort': '-order,test',
+                  'metric': 'execution_time', 'sort': '-commit,test',
                   'limit': 3}
         resp = self.client.post(PREFIX + '/query', json=params)
         data = resp.get_json()
         all_keys.extend(
-            (item['test'], item['order']['llvm_project_revision'])
+            (item['test'], item['commit'])
             for item in data['items'])
         cursor = data['cursor']['next']
         pages = 1
@@ -936,7 +993,7 @@ class TestQueryCursorMixedAscDesc(unittest.TestCase):
                 PREFIX + '/query', json={**params, 'cursor': cursor})
             data = resp.get_json()
             all_keys.extend(
-                (item['test'], item['order']['llvm_project_revision'])
+                (item['test'], item['commit'])
                 for item in data['items'])
             cursor = data['cursor']['next']
             pages += 1
@@ -944,19 +1001,19 @@ class TestQueryCursorMixedAscDesc(unittest.TestCase):
                 break
         self.assertEqual(len(all_keys), len(set(all_keys)))
 
-    def test_desc_order_is_actually_descending(self):
-        """Results with -order are in descending order."""
+    def test_desc_commit_is_actually_descending(self):
+        """Results with -commit are in descending order."""
         d = self._data
         resp = self.client.post(
             PREFIX + '/query',
             json={'machine': d['machine'], 'test': [d['test_names'][0]],
-                  'metric': 'execution_time', 'sort': '-order'})
+                  'metric': 'execution_time', 'sort': '-commit'})
         data = resp.get_json()
-        revisions = [
-            int(item['order']['llvm_project_revision'])
+        commits = [
+            int(item['commit'])
             for item in data['items']
         ]
-        self.assertEqual(revisions, sorted(revisions, reverse=True))
+        self.assertEqual(commits, sorted(commits, reverse=True))
 
 
 class TestQueryMalformedTimestamp(unittest.TestCase):
@@ -997,13 +1054,19 @@ class TestQueryMetricRequired(unittest.TestCase):
         mname = f'query-mreq-m-{unique}'
         tname = f'query-mreq-t/{unique}'
         rev_prefix = uuid.uuid4().hex[:6]
+        commits = []
         for i in range(3):
+            commit_str = f'{2000 + i}-{rev_prefix}'
             submit_run(
-                cls.client, mname, f'{2000 + i}-{rev_prefix}',
+                cls.client, mname, commit_str,
                 [{'name': tname, 'execution_time': [float(i + 1)]}],
-                start_time=f'2024-06-{1 + i:02d}T12:00:00',
-                end_time=f'2024-06-{1 + i:02d}T12:30:00',
             )
+            commits.append(commit_str)
+
+        # Assign ordinals via API (D11: ordinals set exclusively via PATCH)
+        ordinal_base = int(uuid.uuid4().hex[:6], 16)
+        for i, cs in enumerate(commits):
+            set_ordinal(cls.client, cs, ordinal_base + i)
         cls._data = {'machine': mname, 'test': tname}
 
     def test_omitting_metric_returns_422(self):
@@ -1028,7 +1091,7 @@ class TestQueryMetricRequired(unittest.TestCase):
 
 
 class TestQueryOrderRangeBoundaries(unittest.TestCase):
-    """Test boundary conditions for order range filters."""
+    """Test boundary conditions for commit range filters."""
 
     @classmethod
     def setUpClass(cls):
@@ -1038,99 +1101,116 @@ class TestQueryOrderRangeBoundaries(unittest.TestCase):
         unique = uuid.uuid4().hex[:8]
         mname = f'query-orb-m-{unique}'
         tname = f'query-orb-t/{unique}'
+        cls._commits = []
         for i in range(5):
             rev = str(3000 + i * 10)  # 3000, 3010, 3020, 3030, 3040
             submit_run(
                 cls.client, mname, rev,
                 [{'name': tname, 'execution_time': [float(3000 + i * 10)]}],
-                start_time=f'2024-07-{1 + i:02d}T12:00:00',
-                end_time=f'2024-07-{1 + i:02d}T12:30:00',
             )
+            cls._commits.append(rev)
+
+        # Assign ordinals via API (D11: ordinals set exclusively via PATCH)
+        ordinal_base = int(uuid.uuid4().hex[:6], 16)
+        for i, commit_str in enumerate(cls._commits):
+            set_ordinal(cls.client, commit_str, ordinal_base + i)
+
+        # Set sequential timestamps via direct DB (no API for submitted_at)
+        db = cls.app.instance.get_database("default")
+        session = db.make_session()
+        ts = db.testsuite[TS]
+        for i, commit_str in enumerate(cls._commits):
+            c = ts.get_commit(session, commit=commit_str)
+            runs = ts.list_runs(session, commit_id=c.id)
+            for run in runs:
+                run.submitted_at = datetime.datetime(2024, 7, 1 + i, 12, 0, 0)
+        session.commit()
+        session.close()
+
         cls._data = {'machine': mname, 'test': tname}
 
-    def test_same_after_and_before_order_returns_empty(self):
+    def test_same_after_and_before_commit_returns_empty(self):
         d = self._data
         resp = self.client.post(
             PREFIX + '/query',
             json={'machine': d['machine'], 'test': [d['test']],
-                  'metric': 'execution_time', 'after_order': '3020',
-                  'before_order': '3020'})
+                  'metric': 'execution_time', 'after_commit': '3020',
+                  'before_commit': '3020'})
         self.assertEqual(resp.status_code, 200, resp.get_json())
         data = resp.get_json()
         self.assertEqual(len(data['items']), 0)
 
-    def test_inverted_order_range_returns_empty(self):
+    def test_inverted_commit_range_returns_empty(self):
         d = self._data
         resp = self.client.post(
             PREFIX + '/query',
             json={'machine': d['machine'], 'test': [d['test']],
-                  'metric': 'execution_time', 'after_order': '3040',
-                  'before_order': '3000'})
+                  'metric': 'execution_time', 'after_commit': '3040',
+                  'before_commit': '3000'})
         self.assertEqual(resp.status_code, 200, resp.get_json())
         data = resp.get_json()
         self.assertEqual(len(data['items']), 0)
 
-    def test_exact_order_filter(self):
-        """The order param returns data at exactly that order."""
+    def test_exact_commit_filter(self):
+        """The commit param returns data at exactly that commit."""
         d = self._data
         resp = self.client.post(
             PREFIX + '/query',
             json={'machine': d['machine'], 'test': [d['test']],
-                  'metric': 'execution_time', 'order': '3020'})
+                  'metric': 'execution_time', 'commit': '3020'})
         self.assertEqual(resp.status_code, 200, resp.get_json())
         data = resp.get_json()
         self.assertEqual(len(data['items']), 1)
-        self.assertEqual(
-            data['items'][0]['order']['llvm_project_revision'], '3020')
+        self.assertEqual(data['items'][0]['commit'], '3020')
 
-    def test_exact_order_nonexistent_returns_404(self):
+    def test_exact_commit_nonexistent_returns_404(self):
         d = self._data
         resp = self.client.post(
             PREFIX + '/query',
             json={'machine': d['machine'], 'test': [d['test']],
-                  'metric': 'execution_time', 'order': '999999'})
+                  'metric': 'execution_time', 'commit': '999999'})
         self.assertEqual(resp.status_code, 404)
 
-    def test_order_with_after_order_returns_400(self):
+    def test_commit_with_after_commit_returns_400(self):
         d = self._data
         resp = self.client.post(
             PREFIX + '/query',
             json={'machine': d['machine'], 'test': [d['test']],
-                  'metric': 'execution_time', 'order': '3020',
-                  'after_order': '3000'})
+                  'metric': 'execution_time', 'commit': '3020',
+                  'after_commit': '3000'})
         self.assertEqual(resp.status_code, 400)
 
-    def test_order_with_before_order_returns_400(self):
+    def test_commit_with_before_commit_returns_400(self):
         d = self._data
         resp = self.client.post(
             PREFIX + '/query',
             json={'machine': d['machine'], 'test': [d['test']],
-                  'metric': 'execution_time', 'order': '3020',
-                  'before_order': '3040'})
+                  'metric': 'execution_time', 'commit': '3020',
+                  'before_commit': '3040'})
         self.assertEqual(resp.status_code, 400)
 
-    def test_exact_order_with_time_filter(self):
-        """The order param can be combined with time filters."""
+    def test_exact_commit_with_time_filter(self):
+        """The commit param can be combined with time filters."""
         d = self._data
         resp = self.client.post(
             PREFIX + '/query',
             json={'machine': d['machine'], 'test': [d['test']],
-                  'metric': 'execution_time', 'order': '3020',
+                  'metric': 'execution_time', 'commit': '3020',
                   'after_time': '2024-07-01T00:00:00',
                   'before_time': '2024-07-10T00:00:00'})
         self.assertEqual(resp.status_code, 200, resp.get_json())
         data = resp.get_json()
         self.assertEqual(len(data['items']), 1)
 
-    def test_exact_order_no_samples_for_machine(self):
-        """Order exists but has no data for the given machine — 200 empty."""
+    def test_exact_commit_no_samples_for_machine(self):
+        """Commit exists but has no data for the given machine -- 200 empty."""
         d = self._data
         resp = self.client.post(
             PREFIX + '/query',
             json={'machine': 'nonexistent-machine-' + d['machine'],
                   'test': [d['test']], 'metric': 'execution_time',
-                  'order': '3020'})
-        # Machine doesn't exist → 404 from _resolve_machine
+                  'commit': '3020'})
+        # Machine doesn't exist -> 404 from _resolve_machine
         self.assertEqual(resp.status_code, 404)
 
 
@@ -1145,6 +1225,7 @@ class TestQueryLimitBoundaries(unittest.TestCase):
         unique = uuid.uuid4().hex[:8]
         cls._data = _setup_query_data(
             cls.client,
+            cls.app,
             machine_name=f'query-limb-m-{unique}',
             test_name=f'query-limb-t/{unique}',
             num_points=5,
@@ -1201,6 +1282,7 @@ class TestQueryCursorEdgeCases(unittest.TestCase):
         unique = uuid.uuid4().hex[:8]
         cls._data = _setup_query_data(
             cls.client,
+            cls.app,
             machine_name=f'query-cec-m-{unique}',
             test_name=f'query-cec-t/{unique}',
             num_points=3,
@@ -1210,7 +1292,7 @@ class TestQueryCursorEdgeCases(unittest.TestCase):
         """Cursor with wrong number of fields should be rejected."""
         import base64
         import json
-        # Default sort is order,test -> 2 fields. Encode 3 fields.
+        # Default sort is commit,test -> 2 fields. Encode 3 fields.
         bad_cursor = base64.urlsafe_b64encode(
             json.dumps([1, "x", "extra"]).encode()).decode()
         d = self._data
@@ -1221,20 +1303,20 @@ class TestQueryCursorEdgeCases(unittest.TestCase):
         self.assertEqual(resp.status_code, 400)
 
     def test_cursor_from_different_sort_order_is_rejected(self):
-        """Cursor from sort=order,test used with sort=test,order should fail
+        """Cursor from sort=commit,test used with sort=test,commit should fail
         gracefully since the cursor values don't match the sort columns."""
         d = self._data
-        # Get cursor from sort=order,test (default)
+        # Get cursor from sort=commit,test (default)
         resp = self.client.post(
             PREFIX + '/query',
             json={'machine': d['machine'], 'test': [d['test']],
                   'metric': 'execution_time', 'limit': 1})
         cursor = resp.get_json()['cursor']['next']
-        # Use with sort=test,order — mismatched cursor
+        # Use with sort=test,commit -- mismatched cursor
         resp2 = self.client.post(
             PREFIX + '/query',
             json={'machine': d['machine'], 'test': [d['test']],
-                  'metric': 'execution_time', 'sort': 'test,order',
+                  'metric': 'execution_time', 'sort': 'test,commit',
                   'cursor': cursor})
         self.assertEqual(resp2.status_code, 400)
 
@@ -1251,14 +1333,14 @@ class TestQuerySortValidation(unittest.TestCase):
     def test_sort_duplicate_field_is_deduplicated(self):
         resp = self.client.post(
             PREFIX + '/query',
-            json={'metric': 'execution_time', 'sort': 'order,order,test'})
+            json={'metric': 'execution_time', 'sort': 'commit,commit,test'})
         self.assertEqual(resp.status_code, 200)
 
     def test_sort_empty_string_uses_default(self):
         resp = self.client.post(
             PREFIX + '/query',
             json={'metric': 'execution_time', 'sort': ''})
-        # Empty sort string should use default (order,test)
+        # Empty sort string should use default (commit,test)
         self.assertEqual(resp.status_code, 200)
 
     def test_sort_dash_invalid_field_returns_400(self):
@@ -1332,7 +1414,7 @@ class TestQueryErrorResponseFormat(unittest.TestCase):
 
 
 class TestQueryNoInternalFieldsLeak(unittest.TestCase):
-    """Test that no internal fields (like _order_id) leak in response."""
+    """Test that no internal fields (starting with _) leak in response."""
 
     @classmethod
     def setUpClass(cls):
@@ -1342,6 +1424,7 @@ class TestQueryNoInternalFieldsLeak(unittest.TestCase):
         unique = uuid.uuid4().hex[:8]
         cls._data = _setup_query_data(
             cls.client,
+            cls.app,
             machine_name=f'query-noleak-m-{unique}',
             test_name=f'query-noleak-t/{unique}',
             num_points=3,
@@ -1371,6 +1454,7 @@ class TestQueryUnknownParameters(unittest.TestCase):
         unique = uuid.uuid4().hex[:8]
         cls._data = _setup_query_data(
             cls.client,
+            cls.app,
             machine_name=f'query-unknown-m-{unique}',
             test_name=f'query-unknown-t/{unique}',
             num_points=3,
@@ -1436,7 +1520,7 @@ class TestQueryUnknownParameters(unittest.TestCase):
         resp = self.client.post(
             PREFIX + '/query',
             json={'machine': d['machine'], 'test': [d['test']],
-                  'metric': 'execution_time', 'sort': 'order',
+                  'metric': 'execution_time', 'sort': 'commit',
                   'limit': 10})
         self.assertEqual(resp.status_code, 200)
         data = resp.get_json()
@@ -1468,9 +1552,13 @@ class TestQueryMultiValueTest(unittest.TestCase):
             submit_run(
                 cls.client, cls.machine_name, f'{500 + i}-{rev_prefix}',
                 [{'name': tname, 'execution_time': [float(i + 1) * 2.0]}],
-                start_time=f'2024-06-{1 + i:02d}T12:00:00',
-                end_time=f'2024-06-{1 + i:02d}T12:30:00',
             )
+
+        # Assign ordinals via API (D11: ordinals set exclusively via PATCH)
+        ordinal_base = int(uuid.uuid4().hex[:6], 16)
+        for i in range(3):
+            set_ordinal(cls.client, f'{500 + i}-{rev_prefix}',
+                        ordinal_base + i)
 
     def test_single_test_param_returns_only_that_test(self):
         resp = self.client.post(

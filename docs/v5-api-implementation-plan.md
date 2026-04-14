@@ -563,7 +563,7 @@ POST   /api/v5/{ts}/field-changes                 — Create a field change
 **Endpoint:**
 ```
 POST /api/v5/{ts}/query
-Body (JSON): {metric, machine, test, order, after_order, before_order,
+Body (JSON): {metric, machine, test, commit, after_commit, before_commit,
               after_time, before_time, sort, limit, cursor}
 ```
 
@@ -573,17 +573,18 @@ Body (JSON): {metric, machine, test, order, after_order, before_order,
 - `metric` is REQUIRED (by name, not ID). All other fields are optional.
 - `test` is a list of test names for disjunction queries.
   Unknown test names are silently skipped (no 404).
-- Field name → Sample column resolution via `ts.sample_fields` name→column mapping
-- Core query: `SELECT field.column, order.*, run.* FROM Sample JOIN Run JOIN Order
-  WHERE machine_id=X AND test_id IN (...) AND field IS NOT NULL`
-- Filter out failing tests if the field has a status_field
-- Order filtering: `order` for exact match (=), `after_order`/`before_order` for
-  exclusive range (>/< on Order.id). `order` cannot be combined with range params.
-- Ordering: fetch with SQL ORDER BY on Order.id, then post-sort in Python using
-  `convert_revision()` for correctness. Apply `after`/`before` filters in Python.
-  Cap SQL query at 10,000 rows as safety limit.
-- Cursor: encode the last order's field values. On next request, use to resume.
-- Response per data point: `{test, machine, metric, value, commit, ordinal, submitted_at}`
+- Metric → Sample column resolution via `getattr(ts.Sample, metric_name)`
+- Core query: `SELECT metric_col, commit.*, run.uuid, run.submitted_at
+  FROM Sample JOIN Run JOIN Commit WHERE machine_id=X AND test_id IN (...)
+  AND metric IS NOT NULL`
+- Commit filtering: `commit` for exact match (by commit_id),
+  `after_commit`/`before_commit` for ordinal range (>/< on Commit.ordinal).
+  `commit` cannot be combined with range params. Commits with NULL ordinal
+  are excluded when sorting by commit.
+- Sort fields: `test` (Test.name), `commit` (Commit.ordinal),
+  `submitted_at` (Run.submitted_at). Default: `commit,test`.
+- Cursor: encode the last row's sort-field values. On next request, resume.
+- Response per data point: `{test, machine, metric, value, commit, ordinal, run_uuid, submitted_at}`
 - Auth: read only.
 
 ### 5.11 Schema and Fields
