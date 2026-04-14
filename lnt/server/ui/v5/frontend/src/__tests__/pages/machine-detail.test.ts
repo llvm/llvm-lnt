@@ -41,8 +41,8 @@ const mockMachine: MachineInfo = {
 };
 
 const mockRuns: MachineRunInfo[] = [
-  { uuid: 'aaaaaaaa-1111-2222-3333-444444444444', order: { rev: '100' }, start_time: '2026-01-01T10:00:00Z', end_time: null },
-  { uuid: 'bbbbbbbb-1111-2222-3333-444444444444', order: { rev: '101' }, start_time: '2026-01-02T10:00:00Z', end_time: null },
+  { uuid: 'aaaaaaaa-1111-2222-3333-444444444444', commit: '100', submitted_at: '2026-01-01T10:00:00Z' },
+  { uuid: 'bbbbbbbb-1111-2222-3333-444444444444', commit: '101', submitted_at: '2026-01-02T10:00:00Z' },
 ];
 
 function runsResponse(items: MachineRunInfo[], nextCursor: string | null = null) {
@@ -139,19 +139,19 @@ describe('machineDetailPage', () => {
 
     expect(getMachineRuns).toHaveBeenCalledWith(
       'nts', 'clang-x86',
-      { sort: '-start_time', limit: 25, cursor: undefined },
+      { sort: '-submitted_at', limit: 25, cursor: undefined },
       expect.any(AbortSignal),
     );
   });
 
-  it('renders run history table with UUID, Order, Start Time columns', async () => {
+  it('renders run history table with UUID, Commit, Submitted columns', async () => {
     machineDetailPage.mount(container, { testsuite: 'nts', name: 'clang-x86' });
 
     await vi.waitFor(() => {
       const headers = Array.from(container.querySelectorAll('th')).map(h => h.textContent);
       expect(headers).toContain('Run UUID');
-      expect(headers).toContain('Order');
-      expect(headers).toContain('Start Time');
+      expect(headers).toContain('Commit');
+      expect(headers).toContain('Submitted');
     });
   });
 

@@ -3,7 +3,7 @@
 import type { PageModule, RouteParams } from '../router';
 import type { MachineRunInfo } from '../types';
 import { getMachine, getMachineRuns, deleteMachine } from '../api';
-import { el, spaLink, agnosticLink, agnosticUrl, formatTime, truncate, primaryOrderValue } from '../utils';
+import { el, spaLink, agnosticLink, agnosticUrl, formatTime, truncate } from '../utils';
 import { renderDataTable } from '../components/data-table';
 import { renderPagination } from '../components/pagination';
 import { renderDeleteConfirm } from '../components/delete-confirm';
@@ -63,7 +63,7 @@ export const machineDetailPage: PageModule = {
 
       try {
         const result = await getMachineRuns(ts, name, {
-          sort: '-start_time',
+          sort: '-submitted_at',
           limit: PAGE_SIZE,
           cursor: currentCursor,
         }, signal);
@@ -76,13 +76,11 @@ export const machineDetailPage: PageModule = {
           columns: [
             { key: 'uuid', label: 'Run UUID',
               render: (r: MachineRunInfo) => spaLink(r.uuid.slice(0, 8), `/runs/${encodeURIComponent(r.uuid)}`) },
-            { key: 'order', label: 'Order',
-              render: (r: MachineRunInfo) => {
-                const ov = primaryOrderValue(r.order);
-                return spaLink(truncate(ov, 12), `/orders/${encodeURIComponent(ov)}`);
-              } },
-            { key: 'start_time', label: 'Start Time',
-              render: (r: MachineRunInfo) => formatTime(r.start_time) },
+            { key: 'commit', label: 'Commit',
+              render: (r: MachineRunInfo) =>
+                spaLink(truncate(r.commit, 12), `/commits/${encodeURIComponent(r.commit)}`) },
+            { key: 'submitted_at', label: 'Submitted',
+              render: (r: MachineRunInfo) => formatTime(r.submitted_at) },
           ],
           rows: result.items,
           emptyMessage: 'No runs found.',

@@ -42,10 +42,9 @@ const TEST_UUID = 'abcdef01-2345-6789-abcd-ef0123456789';
 const mockRun: RunDetail = {
   uuid: TEST_UUID,
   machine: 'clang-x86',
-  order: { rev: '100' },
-  start_time: '2026-01-01T10:00:00Z',
-  end_time: '2026-01-01T11:00:00Z',
-  parameters: { compiler: 'clang-18', opt_level: '-O2' },
+  commit: '100',
+  submitted_at: '2026-01-01T10:00:00Z',
+  run_parameters: { compiler: 'clang-18', opt_level: '-O2' },
 };
 
 const mockFields: FieldInfo[] = [
@@ -94,7 +93,7 @@ describe('runDetailPage', () => {
     expect(getFields).toHaveBeenCalledWith('nts');
   });
 
-  it('renders metadata with UUID, Machine, Order, Start Time, End Time, parameters', async () => {
+  it('renders metadata with UUID, Machine, Commit, Submitted, parameters', async () => {
     runDetailPage.mount(container, { testsuite: 'nts', uuid: TEST_UUID });
 
     await vi.waitFor(() => {
@@ -103,9 +102,8 @@ describe('runDetailPage', () => {
       expect(dl!.textContent).toContain('UUID');
       expect(dl!.textContent).toContain(TEST_UUID);
       expect(dl!.textContent).toContain('Machine');
-      expect(dl!.textContent).toContain('Order');
-      expect(dl!.textContent).toContain('Start Time');
-      expect(dl!.textContent).toContain('End Time');
+      expect(dl!.textContent).toContain('Commit');
+      expect(dl!.textContent).toContain('Submitted');
       expect(dl!.textContent).toContain('compiler');
       expect(dl!.textContent).toContain('clang-18');
       expect(dl!.textContent).toContain('opt_level');
@@ -113,7 +111,7 @@ describe('runDetailPage', () => {
     });
   });
 
-  it('Machine and Order render as SPA links with suite-scoped hrefs', async () => {
+  it('Machine and Commit render as SPA links with suite-scoped hrefs', async () => {
     runDetailPage.mount(container, { testsuite: 'nts', uuid: TEST_UUID });
 
     await vi.waitFor(() => {
@@ -122,9 +120,9 @@ describe('runDetailPage', () => {
       expect(machineLink.textContent).toBe('clang-x86');
       expect(machineLink.href).toContain('/v5/nts/machines/clang-x86');
 
-      const orderLink = container.querySelector('a[href*="/orders/100"]') as HTMLAnchorElement;
-      expect(orderLink).toBeTruthy();
-      expect(orderLink.href).toContain('/v5/nts/orders/100');
+      const commitLink = container.querySelector('a[href*="/commits/100"]') as HTMLAnchorElement;
+      expect(commitLink).toBeTruthy();
+      expect(commitLink.href).toContain('/v5/nts/commits/100');
     });
   });
 
@@ -142,7 +140,7 @@ describe('runDetailPage', () => {
       // Must include suite_a param
       expect(href).toContain('suite_a=nts');
       expect(href).toContain('machine_a=clang-x86');
-      expect(href).toContain('order_a=100');
+      expect(href).toContain('commit_a=100');
       expect(href).toContain(`runs_a=${encodeURIComponent(TEST_UUID)}`);
     });
   });

@@ -4,7 +4,7 @@
 import type { PageModule, RouteParams } from '../router';
 import type { SampleInfo } from '../types';
 import { getRun, getFields, deleteRun, fetchOneCursorPage, apiUrl } from '../api';
-import { el, spaLink, agnosticLink, formatValue, formatTime, primaryOrderValue, debounce } from '../utils';
+import { el, spaLink, agnosticLink, formatValue, formatTime, debounce } from '../utils';
 import { navigate } from '../router';
 import { renderDataTable } from '../components/data-table';
 import { renderMetricSelector, filterMetricFields } from '../components/metric-selector';
@@ -59,15 +59,13 @@ export const runDetailPage: PageModule = {
       machineDd.append(spaLink(run.machine, `/machines/${encodeURIComponent(run.machine)}`));
       dl.append(el('dt', {}, 'Machine'), machineDd);
 
-      const orderValue = primaryOrderValue(run.order);
-      const orderDd = el('dd', {});
-      orderDd.append(spaLink(orderValue, `/orders/${encodeURIComponent(orderValue)}`));
-      dl.append(el('dt', {}, 'Order'), orderDd);
+      const commitDd = el('dd', {});
+      commitDd.append(spaLink(run.commit, `/commits/${encodeURIComponent(run.commit)}`));
+      dl.append(el('dt', {}, 'Commit'), commitDd);
 
-      dl.append(el('dt', {}, 'Start Time'), el('dd', {}, formatTime(run.start_time)));
-      dl.append(el('dt', {}, 'End Time'), el('dd', {}, formatTime(run.end_time)));
+      dl.append(el('dt', {}, 'Submitted'), el('dd', {}, formatTime(run.submitted_at)));
 
-      for (const [k, v] of Object.entries(run.parameters || {})) {
+      for (const [k, v] of Object.entries(run.run_parameters || {})) {
         dl.append(el('dt', {}, k), el('dd', {}, v));
       }
       metaContainer.append(dl);
@@ -75,7 +73,7 @@ export const runDetailPage: PageModule = {
       // Actions
       const compareLink = agnosticLink(
         'Compare with\u2026',
-        `/compare?suite_a=${encodeURIComponent(ts)}&machine_a=${encodeURIComponent(run.machine)}&order_a=${encodeURIComponent(orderValue)}&runs_a=${encodeURIComponent(uuid)}`,
+        `/compare?suite_a=${encodeURIComponent(ts)}&machine_a=${encodeURIComponent(run.machine)}&commit_a=${encodeURIComponent(run.commit)}&runs_a=${encodeURIComponent(uuid)}`,
       );
       compareLink.classList.add('action-link');
       actionsContainer.append(compareLink);
