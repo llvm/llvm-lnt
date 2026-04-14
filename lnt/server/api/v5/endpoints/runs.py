@@ -1,15 +1,14 @@
 """Run endpoints for the v5 API.
 
 GET    /api/v5/{ts}/runs                -- List runs (cursor-paginated)
-POST   /api/v5/{ts}/runs                -- Submit run (reuses import pipeline)
+POST   /api/v5/{ts}/runs                -- Submit run (v5 format)
 GET    /api/v5/{ts}/runs/{uuid}         -- Run detail
 DELETE /api/v5/{ts}/runs/{uuid}         -- Delete run
 """
 
 import json
 
-import lnt.util.ImportData
-from flask import current_app, g, jsonify, make_response, request
+from flask import g, jsonify, make_response, request
 from flask.views import MethodView
 from flask_smorest import Blueprint
 from sqlalchemy.orm import joinedload
@@ -17,7 +16,7 @@ from sqlalchemy.orm import joinedload
 from ..auth import require_scope
 from ..errors import abort_with_error, reject_unknown_params
 from ..etag import add_etag_to_response
-from ..helpers import parse_datetime, serialize_run
+from ..helpers import lookup_run_by_uuid, parse_datetime, serialize_run
 from ..pagination import (
     cursor_paginate,
     make_paginated_response,
@@ -29,12 +28,6 @@ from ..schemas.runs import (
     RunSubmitQuerySchema,
     RunSubmitResponseSchema,
 )
-
-# Maps v5 on_machine_conflict values to internal select_machine values.
-_CONFLICT_MAP = {'reject': 'match', 'update': 'update'}
-
-# Maps v5 on_existing_run values to internal merge_run values.
-_MERGE_MAP = {'reject': 'reject', 'replace': 'replace', 'create': 'append'}
 
 blp = Blueprint(
     'Runs',
@@ -54,37 +47,31 @@ class RunList(MethodView):
     def get(self, query_args, testsuite):
         """List runs (cursor-paginated, filterable)."""
         reject_unknown_params(
-            {'machine', 'order', 'after', 'before', 'sort', 'cursor', 'limit'})
+            {'machine', 'commit', 'after', 'before', 'sort',
+             'cursor', 'limit'})
         ts = g.ts
         session = g.db_session
 
         query = session.query(ts.Run).options(
             joinedload(ts.Run.machine),
-            joinedload(ts.Run.order),
+            joinedload(ts.Run.commit_obj),
         )
 
         # Filter by machine name
         machine_name = query_args.get('machine')
         if machine_name:
-            machine = session.query(ts.Machine).filter(
-                ts.Machine.name == machine_name
-            ).first()
+            machine = ts.get_machine(session, name=machine_name)
             if machine is None:
                 return jsonify(make_paginated_response([], None))
             query = query.filter(ts.Run.machine_id == machine.id)
 
-        # Filter by order (primary order field value)
-        order_value = query_args.get('order')
-        if order_value:
-            # Look up orders matching the primary field value
-            primary_field = ts.order_fields[0]
-            matching_orders = session.query(ts.Order).filter(
-                primary_field.column == order_value
-            ).all()
-            if not matching_orders:
+        # Filter by commit string
+        commit_value = query_args.get('commit')
+        if commit_value:
+            commit_obj = ts.get_commit(session, commit=commit_value)
+            if commit_obj is None:
                 return jsonify(make_paginated_response([], None))
-            order_ids = [o.id for o in matching_orders]
-            query = query.filter(ts.Run.order_id.in_(order_ids))
+            query = query.filter(ts.Run.commit_id == commit_obj.id)
 
         # Filter by after/before datetime
         after_str = query_args.get('after')
@@ -92,18 +79,18 @@ class RunList(MethodView):
             after_dt = parse_datetime(after_str)
             if after_dt is None:
                 abort_with_error(400, "Invalid 'after' datetime format")
-            query = query.filter(ts.Run.start_time > after_dt)
+            query = query.filter(ts.Run.submitted_at > after_dt)
 
         before_str = query_args.get('before')
         if before_str:
             before_dt = parse_datetime(before_str)
             if before_dt is None:
                 abort_with_error(400, "Invalid 'before' datetime format")
-            query = query.filter(ts.Run.start_time < before_dt)
+            query = query.filter(ts.Run.submitted_at < before_dt)
 
         # Sort: default is ascending by ID (insertion order).
         sort = query_args.get('sort')
-        descending = (sort == '-start_time')
+        descending = (sort == '-submitted_at')
 
         cursor_str = query_args.get('cursor')
         limit = query_args['limit']
@@ -119,22 +106,19 @@ class RunList(MethodView):
     def post(self, query_args, testsuite):
         """Submit a new run.
 
-        Accepts the LNT JSON report format (format_version '2' only).
-        Legacy formats (v0, v1) and non-JSON payloads (e.g. plist)
-        are rejected. A UUID is assigned to the run automatically.
-
+        Accepts the v5 JSON report format (format_version '5').
         Regression detection is always skipped; create field changes
         separately via POST /field-changes.
         """
-        reject_unknown_params({'on_machine_conflict', 'on_existing_run'})
-        db = g.db
+        reject_unknown_params({'on_machine_conflict'})
+        ts = g.ts
         session = g.db_session
 
         data = request.get_data(as_text=True)
         if not data or not data.strip():
-            abort_with_error(400, "Request body must be a non-empty JSON payload")
+            abort_with_error(400,
+                             "Request body must be a non-empty JSON payload")
 
-        # Mandate JSON format with format_version '2' for the v5 API.
         try:
             parsed = json.loads(data)
         except ValueError as exc:
@@ -142,46 +126,25 @@ class RunList(MethodView):
         if not isinstance(parsed, dict):
             abort_with_error(400, "Request body must be a JSON object, "
                              "not %s" % type(parsed).__name__)
+
         version = parsed.get('format_version')
         if version is None:
-            abort_with_error(400, "v5 API requires format_version '2', "
+            abort_with_error(400, "v5 API requires format_version '5', "
                              "but it is missing")
-        if version != '2':
-            abort_with_error(400, "v5 API requires format_version '2', "
+        if version != '5':
+            abort_with_error(400, "v5 API requires format_version '5', "
                              "got %r" % (version,))
 
-        select_machine = _CONFLICT_MAP[query_args['on_machine_conflict']]
-        merge_run = _MERGE_MAP[query_args['on_existing_run']]
+        try:
+            run = ts.import_run(
+                session, parsed,
+                machine_strategy=query_args['on_machine_conflict'])
+        except ValueError as exc:
+            abort_with_error(400, str(exc))
 
-        result = lnt.util.ImportData.import_from_string(
-            current_app.old_config, g.db_name, db, session,
-            testsuite, data,
-            select_machine=select_machine,
-            merge_run=merge_run,
-            ignore_regressions=True,
-        )
-
-        error = result.get('error')
-        if error is not None:
-            abort_with_error(400, str(error))
-
-        # The import pipeline assigned a UUID in _getOrCreateRun().
-        # Retrieve the run to get its UUID.
-        run_id = result.get('run_id')
-        if run_id is None:
-            abort_with_error(500, "Import succeeded but no run_id returned")
-
-        # Re-query to get the UUID (the session may have committed already).
-        ts = db.testsuite.get(testsuite)
-        if ts is None:
-            abort_with_error(500, "Testsuite not found after import")
-
-        run = session.query(ts.Run).filter(ts.Run.id == run_id).first()
-        if run is None:
-            abort_with_error(500, "Run not found after import")
+        session.flush()
 
         run_uuid = run.uuid
-
         result_url = '/api/v5/%s/runs/%s' % (testsuite, run_uuid)
 
         response = jsonify({
@@ -208,7 +171,7 @@ class RunDetail(MethodView):
 
         run = session.query(ts.Run).options(
             joinedload(ts.Run.machine),
-            joinedload(ts.Run.order),
+            joinedload(ts.Run.commit_obj),
         ).filter(ts.Run.uuid == run_uuid).first()
 
         if run is None:
@@ -224,14 +187,9 @@ class RunDetail(MethodView):
         ts = g.ts
         session = g.db_session
 
-        run = session.query(ts.Run).filter(
-            ts.Run.uuid == run_uuid
-        ).first()
+        run = lookup_run_by_uuid(session, ts, run_uuid)
 
-        if run is None:
-            abort_with_error(404, "Run '%s' not found" % run_uuid)
-
-        session.delete(run)
+        ts.delete_run(session, run.id)
         session.flush()
 
         return make_response('', 204)

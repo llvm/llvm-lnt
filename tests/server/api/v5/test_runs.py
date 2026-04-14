@@ -2,10 +2,11 @@
 #
 # RUN: rm -rf %t.instance %t.pg.log
 # RUN: %{utils}/with_postgres.sh %t.pg.log \
-# RUN:     %{utils}/with_temporary_instance.py %t.instance \
+# RUN:     %{utils}/with_temporary_instance.py --db-version 5.0 %t.instance \
 # RUN:         -- python %s %t.instance
 # END.
 
+import datetime
 import json
 import sys
 import os
@@ -15,6 +16,7 @@ import uuid
 sys.path.insert(0, os.path.dirname(__file__))
 from v5_test_helpers import (
     create_app, create_client, admin_headers, make_scoped_headers,
+    create_machine, create_commit, create_run,
     collect_all_pages, submit_run,
 )
 
@@ -23,32 +25,23 @@ TS = 'nts'
 PREFIX = f'/api/v5/{TS}'
 
 
-def _make_submission_payload(machine_name=None, revision=None,
-                             start_time=None, end_time=None):
-    """Build a valid v2-format JSON submission payload."""
+def _make_submission_payload(machine_name=None, commit_str=None):
+    """Build a valid v5-format JSON submission payload."""
     if machine_name is None:
         machine_name = f'submit-machine-{uuid.uuid4().hex[:8]}'
-    if revision is None:
-        revision = f'r{uuid.uuid4().hex[:8]}'
-    if start_time is None:
-        start_time = '2024-06-15T10:00:00'
-    if end_time is None:
-        end_time = '2024-06-15T10:30:00'
+    if commit_str is None:
+        commit_str = f'r{uuid.uuid4().hex[:8]}'
 
     return json.dumps({
-        'format_version': '2',
+        'format_version': '5',
         'machine': {
             'name': machine_name,
         },
-        'run': {
-            'start_time': start_time,
-            'end_time': end_time,
-            'llvm_project_revision': revision,
-        },
+        'commit': commit_str,
         'tests': [
             {
                 'name': 'test.suite/benchmark1',
-                'execution_time': [0.1234, 0.1235],
+                'execution_time': 0.1234,
             },
         ],
     })
@@ -93,7 +86,7 @@ class TestRunListWithData(unittest.TestCase):
         name = f'list-data-{uuid.uuid4().hex[:8]}'
         rev = f'list-rev-{uuid.uuid4().hex[:6]}'
         data = submit_run(self.client, name, rev,
-                          [{'name': 'p/test', 'execution_time': [0.0]}])
+                          [{'name': 'p/test', 'execution_time': 0.0}])
         run_uuid = data['run_uuid']
 
         resp = self.client.get(PREFIX + f'/runs?machine={name}')
@@ -102,10 +95,10 @@ class TestRunListWithData(unittest.TestCase):
         self.assertIn(run_uuid, uuids)
 
     def test_list_run_has_expected_fields(self):
-        """Each run in the list has uuid, machine_name, order, start_time, end_time."""
+        """Each run in the list has uuid, machine, commit, submitted_at, run_parameters."""
         name = f'list-fields-{uuid.uuid4().hex[:8]}'
         submit_run(self.client, name, f'fields-rev-{uuid.uuid4().hex[:6]}',
-                   [{'name': 'p/test', 'execution_time': [0.0]}])
+                   [{'name': 'p/test', 'execution_time': 0.0}])
 
         resp = self.client.get(PREFIX + f'/runs?machine={name}')
         data = resp.get_json()
@@ -113,25 +106,29 @@ class TestRunListWithData(unittest.TestCase):
         item = data['items'][0]
         self.assertIn('uuid', item)
         self.assertIn('machine', item)
-        self.assertIn('order', item)
-        self.assertIn('start_time', item)
-        self.assertIn('end_time', item)
-        # Must NOT have internal IDs
+        self.assertIn('commit', item)
+        self.assertIn('submitted_at', item)
+        self.assertIn('run_parameters', item)
+        # Must NOT have internal IDs or v4 fields
         self.assertNotIn('id', item)
         self.assertNotIn('machine_id', item)
+        self.assertNotIn('order', item)
+        self.assertNotIn('start_time', item)
+        self.assertNotIn('end_time', item)
+        self.assertNotIn('parameters', item)
 
     def test_list_never_exposes_internal_ids(self):
         """Run list items never contain internal database IDs."""
         name = f'no-ids-{uuid.uuid4().hex[:8]}'
         submit_run(self.client, name, f'noid-rev-{uuid.uuid4().hex[:6]}',
-                   [{'name': 'p/test', 'execution_time': [0.0]}])
+                   [{'name': 'p/test', 'execution_time': 0.0}])
 
         resp = self.client.get(PREFIX + f'/runs?machine={name}')
         data = resp.get_json()
         for item in data['items']:
             self.assertNotIn('id', item)
             self.assertNotIn('machine_id', item)
-            self.assertNotIn('order_id', item)
+            self.assertNotIn('commit_id', item)
 
 
 class TestRunListPagination(unittest.TestCase):
@@ -148,9 +145,7 @@ class TestRunListPagination(unittest.TestCase):
         for i in range(3):
             submit_run(self.client, name,
                        f'page-rev-{uuid.uuid4().hex[:6]}-{i}',
-                       [{'name': 'p/test', 'execution_time': [0.0]}],
-                       start_time=f'2024-01-0{1 + i}T12:00:00',
-                       end_time=f'2024-01-0{1 + i}T13:00:00')
+                       [{'name': 'p/test', 'execution_time': 0.0}])
 
         # Get first page with limit=2
         resp = self.client.get(PREFIX + f'/runs?machine={name}&limit=2')
@@ -186,8 +181,7 @@ class TestRunSubmit(unittest.TestCase):
             content_type='application/json',
             headers=admin_headers(),
         )
-        # The import pipeline returns 201 on success
-        self.assertIn(resp.status_code, [201, 301])
+        self.assertEqual(resp.status_code, 201)
         data = resp.get_json()
         self.assertTrue(data.get('success'))
         self.assertIn('run_uuid', data)
@@ -304,7 +298,7 @@ class TestRunSubmit(unittest.TestCase):
             content_type='application/json',
             headers=headers,
         )
-        self.assertIn(resp.status_code, [201, 301])
+        self.assertEqual(resp.status_code, 201)
 
     def test_submit_result_url_format(self):
         """Result URL should point to the v5 run detail."""
@@ -322,7 +316,7 @@ class TestRunSubmit(unittest.TestCase):
 
 
 class TestRunSubmitFormatValidation(unittest.TestCase):
-    """Tests that POST /api/v5/{ts}/runs mandates JSON format_version '2'."""
+    """Tests that POST /api/v5/{ts}/runs mandates format_version '5'."""
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -355,8 +349,7 @@ class TestRunSubmitFormatValidation(unittest.TestCase):
         """A JSON object without format_version returns 400."""
         payload = json.dumps({
             'machine': {'name': 'dummy'},
-            'run': {'start_time': '2024-01-01', 'end_time': '2024-01-01',
-                    'llvm_project_revision': 'rev1'},
+            'commit': 'rev1',
             'tests': [],
         })
         resp = self.client.post(
@@ -371,12 +364,11 @@ class TestRunSubmitFormatValidation(unittest.TestCase):
         self.assertIn('missing', msg)
 
     def test_submit_wrong_format_version_400(self):
-        """format_version '1' is rejected."""
+        """format_version '2' (v4 format) is rejected."""
         payload = json.dumps({
-            'format_version': '1',
+            'format_version': '2',
             'machine': {'name': 'dummy'},
-            'run': {'start_time': '2024-01-01', 'end_time': '2024-01-01',
-                    'llvm_project_revision': 'rev1'},
+            'commit': 'rev1',
             'tests': [],
         })
         resp = self.client.post(
@@ -390,12 +382,11 @@ class TestRunSubmitFormatValidation(unittest.TestCase):
         self.assertIn('format_version', msg)
 
     def test_submit_integer_format_version_400(self):
-        """format_version as integer 2 (not string '2') is rejected."""
+        """format_version as integer 5 (not string '5') is rejected."""
         payload = json.dumps({
-            'format_version': 2,
+            'format_version': 5,
             'machine': {'name': 'dummy'},
-            'run': {'start_time': '2024-01-01', 'end_time': '2024-01-01',
-                    'llvm_project_revision': 'rev1'},
+            'commit': 'rev1',
             'tests': [],
         })
         resp = self.client.post(
@@ -408,8 +399,8 @@ class TestRunSubmitFormatValidation(unittest.TestCase):
         msg = resp.get_json()['error']['message']
         self.assertIn('format_version', msg)
 
-    def test_submit_v2_format_accepted(self):
-        """A valid format_version '2' payload is accepted."""
+    def test_submit_v5_format_accepted(self):
+        """A valid format_version '5' payload is accepted."""
         payload = _make_submission_payload()
         resp = self.client.post(
             PREFIX + '/runs',
@@ -475,34 +466,31 @@ class TestRunSubmitMachineConflict(unittest.TestCase):
         self.assertEqual(resp.status_code, 422)
 
 
-def _make_submission_with_info(machine_name, machine_info, revision=None):
-    """Build a v2-format JSON submission payload with machine info fields."""
-    if revision is None:
-        revision = f'r{uuid.uuid4().hex[:8]}'
+def _make_submission_with_info(machine_name, machine_info, commit_str=None):
+    """Build a v5-format JSON submission payload with machine info fields."""
+    if commit_str is None:
+        commit_str = f'r{uuid.uuid4().hex[:8]}'
     machine = {'name': machine_name}
     machine.update(machine_info)
     return json.dumps({
-        'format_version': '2',
+        'format_version': '5',
         'machine': machine,
-        'run': {
-            'start_time': '2024-06-15T10:00:00',
-            'end_time': '2024-06-15T10:30:00',
-            'llvm_project_revision': revision,
-        },
+        'commit': commit_str,
         'tests': [
             {
                 'name': 'test.suite/benchmark1',
-                'execution_time': [0.1234],
+                'execution_time': 0.1234,
             },
         ],
     })
 
 
 class TestMachineConflictUpdateBehavior(unittest.TestCase):
-    """Behavioral tests for on_machine_conflict=update on POST /runs.
+    """Behavioral tests for on_machine_conflict on POST /runs.
 
-    These tests verify that the 'update' strategy actually modifies
-    the existing machine's info rather than creating a duplicate.
+    These tests verify that the 'reject' strategy raises on
+    machine field conflicts, and that the 'update' strategy does not
+    create duplicates.
     """
     @classmethod
     def setUpClass(cls):
@@ -523,19 +511,19 @@ class TestMachineConflictUpdateBehavior(unittest.TestCase):
             headers=admin_headers(),
         )
 
+    def _list_machines_by_name(self, machine_name):
+        """Helper: list machines filtered by exact name prefix."""
+        resp = self.client.get(
+            PREFIX + f'/machines?search={machine_name}')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        # Filter to exact name matches (search could match longer names)
+        return [m for m in data['items'] if m['name'] == machine_name]
+
     def _get_machine(self, machine_name):
         """Helper: GET a machine by name and return (status_code, json)."""
         resp = self.client.get(PREFIX + f'/machines/{machine_name}')
         return resp.status_code, resp.get_json()
-
-    def _list_machines_by_name(self, machine_name):
-        """Helper: list machines filtered by exact name prefix."""
-        resp = self.client.get(
-            PREFIX + f'/machines?name_prefix={machine_name}')
-        self.assertEqual(resp.status_code, 200)
-        data = resp.get_json()
-        # Filter to exact name matches (name_prefix could match longer names)
-        return [m for m in data['items'] if m['name'] == machine_name]
 
     def test_update_does_not_create_new_machine(self):
         """on_machine_conflict=update reuses the existing machine, no duplicate."""
@@ -580,11 +568,11 @@ class TestMachineConflictUpdateBehavior(unittest.TestCase):
         """Default reject mode returns 400 when machine info has changed."""
         name = f'mc-reject-err-{uuid.uuid4().hex[:8]}'
 
-        # First submission creates the machine.
+        # First submission creates the machine with os=Linux.
         resp1 = self._submit_run(name, {'os': 'Linux'}, conflict=None)
         self.assertEqual(resp1.status_code, 201)
 
-        # Second submission with different info and default (reject) mode.
+        # Second submission with different os and default (reject) mode.
         resp2 = self._submit_run(name, {'os': 'Linux-v2'}, conflict=None)
         self.assertEqual(resp2.status_code, 400)
 
@@ -608,90 +596,25 @@ class TestMachineConflictUpdateBehavior(unittest.TestCase):
         """on_machine_conflict=update preserves fields not in the new submission."""
         name = f'mc-update-preserve-{uuid.uuid4().hex[:8]}'
 
-        # First submission with both os and arch.
-        resp1 = self._submit_run(name, {'os': 'Linux', 'arch': 'x86_64'})
+        # First submission with both os and hardware.
+        resp1 = self._submit_run(name, {'os': 'Linux', 'hardware': 'x86_64'})
         self.assertEqual(resp1.status_code, 201)
 
         # Verify both fields are set.
         status, data = self._get_machine(name)
         self.assertEqual(status, 200)
         self.assertEqual(data['info']['os'], 'Linux')
-        self.assertEqual(data['info']['arch'], 'x86_64')
+        self.assertEqual(data['info']['hardware'], 'x86_64')
 
-        # Second submission with only os (no arch).
+        # Second submission with only os (no hardware).
         resp2 = self._submit_run(name, {'os': 'Linux-v2'}, conflict='update')
         self.assertEqual(resp2.status_code, 201)
 
-        # Verify os is updated but arch is preserved.
+        # Verify os is updated but hardware is preserved.
         status, data = self._get_machine(name)
         self.assertEqual(status, 200)
         self.assertEqual(data['info']['os'], 'Linux-v2')
-        self.assertEqual(data['info']['arch'], 'x86_64')
-
-
-class TestRunSubmitOnExistingRun(unittest.TestCase):
-    """Tests for the on_existing_run query parameter on POST /runs."""
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.app = create_app(sys.argv[1])
-        cls.client = create_client(cls.app)
-
-    def test_default_is_reject(self):
-        """Omitting on_existing_run uses reject by default."""
-        payload = _make_submission_payload()
-        resp = self.client.post(
-            PREFIX + '/runs',
-            data=payload,
-            content_type='application/json',
-            headers=admin_headers(),
-        )
-        self.assertEqual(resp.status_code, 201)
-        self.assertTrue(resp.get_json().get('success'))
-
-    def test_reject_value_accepted(self):
-        """on_existing_run=reject is accepted."""
-        payload = _make_submission_payload()
-        resp = self.client.post(
-            PREFIX + '/runs?on_existing_run=reject',
-            data=payload,
-            content_type='application/json',
-            headers=admin_headers(),
-        )
-        self.assertEqual(resp.status_code, 201)
-
-    def test_replace_value_accepted(self):
-        """on_existing_run=replace is accepted."""
-        payload = _make_submission_payload()
-        resp = self.client.post(
-            PREFIX + '/runs?on_existing_run=replace',
-            data=payload,
-            content_type='application/json',
-            headers=admin_headers(),
-        )
-        self.assertEqual(resp.status_code, 201)
-
-    def test_create_value_accepted(self):
-        """on_existing_run=create is accepted."""
-        payload = _make_submission_payload()
-        resp = self.client.post(
-            PREFIX + '/runs?on_existing_run=create',
-            data=payload,
-            content_type='application/json',
-            headers=admin_headers(),
-        )
-        self.assertEqual(resp.status_code, 201)
-
-    def test_invalid_value_returns_422(self):
-        """An invalid on_existing_run value returns 422."""
-        payload = _make_submission_payload()
-        resp = self.client.post(
-            PREFIX + '/runs?on_existing_run=bogus',
-            data=payload,
-            content_type='application/json',
-            headers=admin_headers(),
-        )
-        self.assertEqual(resp.status_code, 422)
+        self.assertEqual(data['info']['hardware'], 'x86_64')
 
 
 class TestRunDetail(unittest.TestCase):
@@ -706,7 +629,7 @@ class TestRunDetail(unittest.TestCase):
         """Get run detail by UUID."""
         name = f'detail-{uuid.uuid4().hex[:8]}'
         data = submit_run(self.client, name, f'detail-rev-{uuid.uuid4().hex[:6]}',
-                          [{'name': 'p/test', 'execution_time': [0.0]}])
+                          [{'name': 'p/test', 'execution_time': 0.0}])
         run_uuid = data['run_uuid']
 
         resp = self.client.get(PREFIX + f'/runs/{run_uuid}')
@@ -714,23 +637,22 @@ class TestRunDetail(unittest.TestCase):
         data = resp.get_json()
         self.assertEqual(data['uuid'], run_uuid)
         self.assertEqual(data['machine'], name)
-        self.assertIn('order', data)
-        self.assertIn('start_time', data)
-        self.assertIn('end_time', data)
-        self.assertIn('parameters', data)
+        self.assertIn('commit', data)
+        self.assertIn('submitted_at', data)
+        self.assertIn('run_parameters', data)
 
     def test_get_run_detail_has_no_internal_ids(self):
         """Run detail does not expose internal IDs."""
         name = f'detail-noid-{uuid.uuid4().hex[:8]}'
         data = submit_run(self.client, name, f'noid-detail-rev-{uuid.uuid4().hex[:6]}',
-                          [{'name': 'p/test', 'execution_time': [0.0]}])
+                          [{'name': 'p/test', 'execution_time': 0.0}])
         run_uuid = data['run_uuid']
 
         resp = self.client.get(PREFIX + f'/runs/{run_uuid}')
         data = resp.get_json()
         self.assertNotIn('id', data)
         self.assertNotIn('machine_id', data)
-        self.assertNotIn('order_id', data)
+        self.assertNotIn('commit_id', data)
 
     def test_get_nonexistent_uuid_404(self):
         """Getting a run with a nonexistent UUID returns 404."""
@@ -756,7 +678,7 @@ class TestRunDetailETag(unittest.TestCase):
         """Run detail response should include an ETag header."""
         name = f'etag-present-{uuid.uuid4().hex[:8]}'
         data = submit_run(self.client, name, f'etag-rev-{uuid.uuid4().hex[:6]}',
-                          [{'name': 'p/test', 'execution_time': [0.0]}])
+                          [{'name': 'p/test', 'execution_time': 0.0}])
         run_uuid = data['run_uuid']
 
         resp = self.client.get(PREFIX + f'/runs/{run_uuid}')
@@ -769,7 +691,7 @@ class TestRunDetailETag(unittest.TestCase):
         """Sending If-None-Match with the same ETag returns 304."""
         name = f'etag-304-{uuid.uuid4().hex[:8]}'
         data = submit_run(self.client, name, f'etag-304-rev-{uuid.uuid4().hex[:6]}',
-                          [{'name': 'p/test', 'execution_time': [0.0]}])
+                          [{'name': 'p/test', 'execution_time': 0.0}])
         run_uuid = data['run_uuid']
 
         resp = self.client.get(PREFIX + f'/runs/{run_uuid}')
@@ -785,7 +707,7 @@ class TestRunDetailETag(unittest.TestCase):
         """Sending If-None-Match with a different ETag returns 200."""
         name = f'etag-200-{uuid.uuid4().hex[:8]}'
         data = submit_run(self.client, name, f'etag-200-rev-{uuid.uuid4().hex[:6]}',
-                          [{'name': 'p/test', 'execution_time': [0.0]}])
+                          [{'name': 'p/test', 'execution_time': 0.0}])
         run_uuid = data['run_uuid']
 
         resp = self.client.get(
@@ -808,7 +730,7 @@ class TestRunDelete(unittest.TestCase):
         """Delete a run and verify 204, then verify it's gone."""
         name = f'delete-{uuid.uuid4().hex[:8]}'
         data = submit_run(self.client, name, f'del-rev-{uuid.uuid4().hex[:6]}',
-                          [{'name': 'p/test', 'execution_time': [0.0]}])
+                          [{'name': 'p/test', 'execution_time': 0.0}])
         run_uuid = data['run_uuid']
 
         resp = self.client.delete(
@@ -834,7 +756,7 @@ class TestRunDelete(unittest.TestCase):
         """Deleting without auth returns 401."""
         name = f'del-noauth-{uuid.uuid4().hex[:8]}'
         data = submit_run(self.client, name, f'del-noauth-{uuid.uuid4().hex[:6]}',
-                          [{'name': 'p/test', 'execution_time': [0.0]}])
+                          [{'name': 'p/test', 'execution_time': 0.0}])
         run_uuid = data['run_uuid']
 
         resp = self.client.delete(PREFIX + f'/runs/{run_uuid}')
@@ -844,7 +766,7 @@ class TestRunDelete(unittest.TestCase):
         """Deleting with submit scope (not manage) returns 403."""
         name = f'del-scope-{uuid.uuid4().hex[:8]}'
         data = submit_run(self.client, name, f'del-scope-{uuid.uuid4().hex[:6]}',
-                          [{'name': 'p/test', 'execution_time': [0.0]}])
+                          [{'name': 'p/test', 'execution_time': 0.0}])
         run_uuid = data['run_uuid']
 
         headers = make_scoped_headers(self.app, 'submit')
@@ -867,7 +789,7 @@ class TestRunFilterByMachine(unittest.TestCase):
         """Filter runs by machine name."""
         name = f'filter-machine-{uuid.uuid4().hex[:8]}'
         submit_run(self.client, name, f'fm-rev-{uuid.uuid4().hex[:6]}',
-                   [{'name': 'p/test', 'execution_time': [0.0]}])
+                   [{'name': 'p/test', 'execution_time': 0.0}])
 
         resp = self.client.get(PREFIX + f'/runs?machine={name}')
         self.assertEqual(resp.status_code, 200)
@@ -885,8 +807,46 @@ class TestRunFilterByMachine(unittest.TestCase):
         self.assertEqual(len(data['items']), 0)
 
 
+class TestRunFilterByCommit(unittest.TestCase):
+    """Test filtering runs by commit string."""
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+
+    def test_filter_by_commit(self):
+        """Filter runs by commit string."""
+        name = f'commit-filter-{uuid.uuid4().hex[:8]}'
+        rev1 = f'cfilt-rev1-{uuid.uuid4().hex[:6]}'
+        rev2 = f'cfilt-rev2-{uuid.uuid4().hex[:6]}'
+        submit_run(self.client, name, rev1,
+                   [{'name': 'p/test', 'execution_time': 0.0}])
+        submit_run(self.client, name, rev2,
+                   [{'name': 'p/test', 'execution_time': 0.0}])
+
+        resp = self.client.get(
+            PREFIX + f'/runs?machine={name}&commit={rev1}')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertEqual(len(data['items']), 1)
+        self.assertEqual(data['items'][0]['commit'], rev1)
+
+    def test_filter_by_nonexistent_commit(self):
+        """Filtering by a nonexistent commit returns empty results."""
+        resp = self.client.get(
+            PREFIX + '/runs?commit=nonexistent-commit-xyz-abc')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertEqual(len(data['items']), 0)
+
+
 class TestRunFilterByDatetime(unittest.TestCase):
-    """Test filtering runs by after/before datetime."""
+    """Test filtering runs by after/before datetime (submitted_at).
+
+    Since submitted_at is set server-side, we use direct DB helpers
+    to create runs with specific timestamps.
+    """
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -894,16 +854,24 @@ class TestRunFilterByDatetime(unittest.TestCase):
         cls.client = create_client(cls.app)
 
     def test_filter_after(self):
-        """Filter runs started after a given datetime."""
+        """Filter runs submitted after a given datetime."""
         name = f'after-{uuid.uuid4().hex[:8]}'
-        submit_run(self.client, name, f'after-rev1-{uuid.uuid4().hex[:6]}',
-                   [{'name': 'p/test', 'execution_time': [0.0]}],
-                   start_time='2024-01-01T12:00:00',
-                   end_time='2024-01-01T13:00:00')
-        submit_run(self.client, name, f'after-rev2-{uuid.uuid4().hex[:6]}',
-                   [{'name': 'p/test', 'execution_time': [0.0]}],
-                   start_time='2024-06-01T12:00:00',
-                   end_time='2024-06-01T13:00:00')
+        db = self.app.instance.get_database("default")
+        session = db.make_session()
+        ts = db.testsuite[TS]
+        machine = create_machine(session, ts, name=name)
+        c1 = create_commit(
+            session, ts,
+            commit=f'after-rev1-{uuid.uuid4().hex[:6]}')
+        create_run(session, ts, machine, c1,
+                   submitted_at=datetime.datetime(2024, 1, 1, 12, 0, 0))
+        c2 = create_commit(
+            session, ts,
+            commit=f'after-rev2-{uuid.uuid4().hex[:6]}')
+        create_run(session, ts, machine, c2,
+                   submitted_at=datetime.datetime(2024, 6, 1, 12, 0, 0))
+        session.commit()
+        session.close()
 
         resp = self.client.get(
             PREFIX + f'/runs?machine={name}&after=2024-03-01T00:00:00')
@@ -912,16 +880,24 @@ class TestRunFilterByDatetime(unittest.TestCase):
         self.assertEqual(len(data['items']), 1)
 
     def test_filter_before(self):
-        """Filter runs started before a given datetime."""
+        """Filter runs submitted before a given datetime."""
         name = f'before-{uuid.uuid4().hex[:8]}'
-        submit_run(self.client, name, f'before-rev1-{uuid.uuid4().hex[:6]}',
-                   [{'name': 'p/test', 'execution_time': [0.0]}],
-                   start_time='2024-01-01T12:00:00',
-                   end_time='2024-01-01T13:00:00')
-        submit_run(self.client, name, f'before-rev2-{uuid.uuid4().hex[:6]}',
-                   [{'name': 'p/test', 'execution_time': [0.0]}],
-                   start_time='2024-06-01T12:00:00',
-                   end_time='2024-06-01T13:00:00')
+        db = self.app.instance.get_database("default")
+        session = db.make_session()
+        ts = db.testsuite[TS]
+        machine = create_machine(session, ts, name=name)
+        c1 = create_commit(
+            session, ts,
+            commit=f'before-rev1-{uuid.uuid4().hex[:6]}')
+        create_run(session, ts, machine, c1,
+                   submitted_at=datetime.datetime(2024, 1, 1, 12, 0, 0))
+        c2 = create_commit(
+            session, ts,
+            commit=f'before-rev2-{uuid.uuid4().hex[:6]}')
+        create_run(session, ts, machine, c2,
+                   submitted_at=datetime.datetime(2024, 6, 1, 12, 0, 0))
+        session.commit()
+        session.close()
 
         resp = self.client.get(
             PREFIX + f'/runs?machine={name}&before=2024-03-01T00:00:00')
@@ -932,12 +908,19 @@ class TestRunFilterByDatetime(unittest.TestCase):
     def test_filter_after_and_before(self):
         """Filter runs within a datetime range."""
         name = f'range-{uuid.uuid4().hex[:8]}'
+        db = self.app.instance.get_database("default")
+        session = db.make_session()
+        ts = db.testsuite[TS]
+        machine = create_machine(session, ts, name=name)
         for month in (1, 4, 7, 10):
-            submit_run(self.client, name,
-                       f'range-rev-{month}-{uuid.uuid4().hex[:6]}',
-                       [{'name': 'p/test', 'execution_time': [0.0]}],
-                       start_time=f'2024-{month:02d}-15T12:00:00',
-                       end_time=f'2024-{month:02d}-15T13:00:00')
+            c = create_commit(
+                session, ts,
+                commit=f'range-rev-{month}-{uuid.uuid4().hex[:6]}')
+            create_run(session, ts, machine, c,
+                       submitted_at=datetime.datetime(
+                           2024, month, 15, 12, 0, 0))
+        session.commit()
+        session.close()
 
         resp = self.client.get(
             PREFIX + f'/runs?machine={name}&after=2024-03-01T00:00:00&before=2024-08-01T00:00:00')
@@ -957,40 +940,6 @@ class TestRunFilterByDatetime(unittest.TestCase):
         self.assertEqual(resp.status_code, 400)
 
 
-class TestRunFilterByOrder(unittest.TestCase):
-    """Test filtering runs by order (primary order field value)."""
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.app = create_app(sys.argv[1])
-        cls.client = create_client(cls.app)
-
-    def test_filter_by_order_value(self):
-        """Filter runs by primary order field value."""
-        name = f'order-filter-{uuid.uuid4().hex[:8]}'
-        rev1 = f'ofilt-rev1-{uuid.uuid4().hex[:6]}'
-        rev2 = f'ofilt-rev2-{uuid.uuid4().hex[:6]}'
-        submit_run(self.client, name, rev1,
-                   [{'name': 'p/test', 'execution_time': [0.0]}])
-        submit_run(self.client, name, rev2,
-                   [{'name': 'p/test', 'execution_time': [0.0]}])
-
-        resp = self.client.get(
-            PREFIX + f'/runs?machine={name}&order={rev1}')
-        self.assertEqual(resp.status_code, 200)
-        data = resp.get_json()
-        self.assertEqual(len(data['items']), 1)
-        self.assertIn(rev1, data['items'][0]['order'].values())
-
-    def test_filter_by_nonexistent_order(self):
-        """Filtering by a nonexistent order returns empty results."""
-        resp = self.client.get(
-            PREFIX + '/runs?order=nonexistent-revision-xyz-abc')
-        self.assertEqual(resp.status_code, 200)
-        data = resp.get_json()
-        self.assertEqual(len(data['items']), 0)
-
-
 class TestRunSort(unittest.TestCase):
     """Test sorting runs."""
     @classmethod
@@ -999,29 +948,38 @@ class TestRunSort(unittest.TestCase):
         cls.app = create_app(sys.argv[1])
         cls.client = create_client(cls.app)
 
-    def test_sort_descending_start_time(self):
-        """Sort runs by -start_time returns newest first."""
+    def test_sort_descending_submitted_at(self):
+        """Sort runs by -submitted_at returns newest first."""
         name = f'sort-run-{uuid.uuid4().hex[:8]}'
+        db = self.app.instance.get_database("default")
+        session = db.make_session()
+        ts = db.testsuite[TS]
+        machine = create_machine(session, ts, name=name)
         for month in (1, 4, 7):
-            submit_run(self.client, name,
-                       f'sort-rev-{month}-{uuid.uuid4().hex[:6]}',
-                       [{'name': 'p/test', 'execution_time': [0.0]}],
-                       start_time=f'2024-{month:02d}-01T12:00:00',
-                       end_time=f'2024-{month:02d}-01T13:00:00')
+            c = create_commit(
+                session, ts,
+                commit=f'sort-rev-{month}-{uuid.uuid4().hex[:6]}')
+            create_run(session, ts, machine, c,
+                       submitted_at=datetime.datetime(
+                           2024, month, 1, 12, 0, 0))
+        session.commit()
+        session.close()
 
         # Default order (ascending by ID)
         resp_default = self.client.get(
             PREFIX + f'/runs?machine={name}')
         self.assertEqual(resp_default.status_code, 200)
         default_times = [
-            item['start_time'] for item in resp_default.get_json()['items']]
+            item['submitted_at']
+            for item in resp_default.get_json()['items']]
 
-        # Descending by start_time
+        # Descending by submitted_at
         resp_sorted = self.client.get(
-            PREFIX + f'/runs?machine={name}&sort=-start_time')
+            PREFIX + f'/runs?machine={name}&sort=-submitted_at')
         self.assertEqual(resp_sorted.status_code, 200)
         sorted_times = [
-            item['start_time'] for item in resp_sorted.get_json()['items']]
+            item['submitted_at']
+            for item in resp_sorted.get_json()['items']]
 
         self.assertEqual(len(sorted_times), 3)
         self.assertEqual(sorted_times, list(reversed(default_times)))
@@ -1038,9 +996,7 @@ class TestRunPagination(unittest.TestCase):
         for i in range(5):
             submit_run(cls.client, cls._machine_name,
                        f'pag-run-rev-{uuid.uuid4().hex[:6]}-{i}',
-                       [{'name': 'p/test', 'execution_time': [0.0]}],
-                       start_time=f'2024-01-{1 + i:02d}T12:00:00',
-                       end_time=f'2024-01-{1 + i:02d}T13:00:00')
+                       [{'name': 'p/test', 'execution_time': 0.0}])
 
     def _collect_all_pages(self):
         url = PREFIX + f'/runs?machine={self._machine_name}&limit=2'
@@ -1090,7 +1046,7 @@ class TestRunUnknownParams(unittest.TestCase):
     def test_run_detail_unknown_param_returns_400(self):
         name = f'unk-det-{uuid.uuid4().hex[:8]}'
         data = submit_run(self.client, name, f'unk-det-rev-{uuid.uuid4().hex[:6]}',
-                          [{'name': 'p/test', 'execution_time': [0.0]}])
+                          [{'name': 'p/test', 'execution_time': 0.0}])
         run_uuid = data['run_uuid']
         resp = self.client.get(PREFIX + f'/runs/{run_uuid}?bogus=1')
         self.assertEqual(resp.status_code, 400)
@@ -1100,10 +1056,9 @@ class TestRunUnknownParams(unittest.TestCase):
         headers = admin_headers()
         headers['Content-Type'] = 'application/json'
         body = json.dumps({
-            'format_version': '2',
+            'format_version': '5',
             'machine': {'name': 'dummy'},
-            'run': {'start_time': '2024-01-01', 'end_time': '2024-01-01',
-                    'llvm_project_revision': 'rev-ignore-test'},
+            'commit': 'rev-ignore-test',
             'tests': [],
         })
         resp = self.client.post(

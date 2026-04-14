@@ -20,25 +20,20 @@ class RunResponseSchema(BaseSchema):
         required=True,
         metadata={'description': 'Name of the machine this run was on'},
     )
-    order = ma.fields.Dict(
-        keys=ma.fields.String(),
-        values=ma.fields.String(),
+    commit = ma.fields.String(
+        allow_none=True,
         metadata={
-            'description': 'Order field values (e.g. revision)',
-            'example': {'llvm_project_revision': 'abc123'},
+            'description': 'Commit string for this run',
+            'example': 'abc123def456',
         },
     )
-    start_time = ma.fields.String(
+    submitted_at = ma.fields.String(
         allow_none=True,
-        metadata={'description': 'Run start time (ISO 8601)'},
+        metadata={'description': 'Run submission time (ISO 8601)'},
     )
-    end_time = ma.fields.String(
-        allow_none=True,
-        metadata={'description': 'Run end time (ISO 8601)'},
-    )
-    parameters = ma.fields.Dict(
+    run_parameters = ma.fields.Dict(
         keys=ma.fields.String(),
-        values=ma.fields.String(),
+        values=ma.fields.Raw(),
         load_default=None,
         metadata={
             'description': 'Additional run parameters',
@@ -78,21 +73,21 @@ class RunListQuerySchema(CursorPaginationQuerySchema):
         load_default=None,
         metadata={'description': 'Filter by machine name'},
     )
-    order = ma.fields.String(
+    commit = ma.fields.String(
         load_default=None,
-        metadata={'description': 'Filter by primary order field value'},
+        metadata={'description': 'Filter by commit string'},
     )
     after = ma.fields.String(
         load_default=None,
-        metadata={'description': 'ISO datetime, only runs started after this time'},
+        metadata={'description': 'ISO datetime, only runs submitted after this time'},
     )
     before = ma.fields.String(
         load_default=None,
-        metadata={'description': 'ISO datetime, only runs started before this time'},
+        metadata={'description': 'ISO datetime, only runs submitted before this time'},
     )
     sort = ma.fields.String(
         load_default=None,
-        metadata={'description': 'Sort order. Use -start_time for newest first'},
+        metadata={'description': 'Sort order. Use -submitted_at for newest first'},
     )
 
 
@@ -103,11 +98,4 @@ class RunSubmitQuerySchema(BaseQuerySchema):
         validate=ma.validate.OneOf(['reject', 'update']),
         metadata={'description': "What to do when machine metadata differs: "
                   "'reject' aborts, 'update' updates the existing machine"},
-    )
-    on_existing_run = ma.fields.String(
-        load_default='reject',
-        validate=ma.validate.OneOf(['reject', 'replace', 'create']),
-        metadata={'description': "What to do when a run already exists for "
-                  "this machine+order: 'reject' aborts, 'replace' overwrites "
-                  "the existing run, 'create' creates a new run alongside it"},
     )
