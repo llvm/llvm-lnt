@@ -1,53 +1,51 @@
-// components/order-search.ts — Order search with tag-based autocomplete.
+// components/commit-search.ts — Commit search with prefix autocomplete.
 
-import { el, debounce, primaryOrderValue } from '../utils';
-import { searchOrdersByTag } from '../api';
+import { el, debounce, commitDisplayValue } from '../utils';
+import { searchCommits } from '../api';
+import type { CommitSummary } from '../types';
 import { navigate } from '../router';
 
-export interface OrderSuggestion {
-  orderValue: string;
-  tag: string | null;
-}
-
-export interface OrderSearchOptions {
+export interface CommitSearchOptions {
   testsuite: string;
   placeholder?: string;
-  /** If provided, called instead of navigating to Order Detail. */
-  onSelect?: (orderValue: string) => void;
-  /** Pre-loaded suggestions shown on focus. Tagged orders should come first. */
-  suggestions?: OrderSuggestion[];
+  /** If provided, called instead of navigating to Commit Detail. */
+  onSelect?: (commitValue: string) => void;
+  /** Pre-loaded suggestions shown on focus. Commits with ordinals should come first. */
+  suggestions?: CommitSummary[];
+  /** Schema commit_fields for display field resolution. */
+  commitFields?: Array<{ name: string; display?: boolean }>;
 }
 
-let orderSearchCounter = 0;
+let commitSearchCounter = 0;
 
 /**
- * Render an order search input with autocomplete dropdown.
+ * Render a commit search input with autocomplete dropdown.
  *
  * - If suggestions are provided, shows them on focus (filtered by input text)
- * - Otherwise, typing triggers a debounced tag_prefix search via the API
+ * - Otherwise, typing triggers a debounced search via the API
  * - Enter selects the current input value directly
- * - Clicking a dropdown item selects that order
+ * - Clicking a dropdown item selects that commit
  */
-export function renderOrderSearch(
+export function renderCommitSearch(
   container: HTMLElement,
-  options: OrderSearchOptions,
-): { destroy: () => void; setSuggestions: (s: OrderSuggestion[]) => void } {
-  const dropdownId = `order-search-list-${++orderSearchCounter}`;
+  options: CommitSearchOptions,
+): { destroy: () => void; setSuggestions: (s: CommitSummary[]) => void } {
+  const dropdownId = `commit-search-list-${++commitSearchCounter}`;
   const wrapper = el('div', {
-    class: 'order-search',
+    class: 'commit-search',
     role: 'combobox',
     'aria-expanded': 'false',
     'aria-haspopup': 'listbox',
   });
   const input = el('input', {
     type: 'text',
-    class: 'order-search-input combobox-input',
-    placeholder: options.placeholder || 'Search by order value or tag...',
+    class: 'commit-search-input combobox-input',
+    placeholder: options.placeholder || 'Search commits...',
     role: 'searchbox',
     'aria-autocomplete': 'list',
     'aria-controls': dropdownId,
   }) as HTMLInputElement;
-  const dropdown = el('ul', { class: 'order-search-dropdown combobox-dropdown', role: 'listbox', id: dropdownId });
+  const dropdown = el('ul', { class: 'commit-search-dropdown combobox-dropdown', role: 'listbox', id: dropdownId });
   wrapper.append(input, dropdown);
   container.append(wrapper);
 
@@ -55,19 +53,19 @@ export function renderOrderSearch(
   dropdown.addEventListener('mousedown', (e) => e.preventDefault());
 
   let abortCtrl: AbortController | null = null;
-  let suggestions: OrderSuggestion[] = options.suggestions || [];
+  let suggestions: CommitSummary[] = options.suggestions || [];
   // When suggestions are explicitly provided (even as []), use suggestions mode:
   // only show from the suggestions list, never fall back to API search.
   const useSuggestionsMode = options.suggestions !== undefined;
 
-  function selectOrder(value: string): void {
+  function selectCommit(value: string): void {
     input.value = '';
     dropdown.classList.remove('open');
     wrapper.setAttribute('aria-expanded', 'false');
     if (options.onSelect) {
       options.onSelect(value);
     } else {
-      navigate(`/orders/${encodeURIComponent(value)}`);
+      navigate(`/commits/${encodeURIComponent(value)}`);
     }
   }
 
@@ -75,8 +73,8 @@ export function renderOrderSearch(
     const text = input.value.trim().toLowerCase();
     const filtered = text
       ? suggestions.filter(s =>
-          s.orderValue.toLowerCase().startsWith(text) ||
-          (s.tag && s.tag.toLowerCase().startsWith(text)))
+          s.commit.toLowerCase().startsWith(text) ||
+          Object.values(s.fields).some(v => v.toLowerCase().startsWith(text)))
       : suggestions;
 
     dropdown.replaceChildren();
@@ -87,11 +85,14 @@ export function renderOrderSearch(
     }
     for (const s of filtered) {
       const li = el('li', { class: 'combobox-item', tabindex: '-1' });
-      li.append(el('span', {}, s.orderValue));
-      if (s.tag) {
-        li.append(el('span', { class: 'order-search-tag' }, ` (${s.tag})`));
+      li.append(el('span', {}, s.commit));
+      const display = commitDisplayValue(s.commit, s.fields, options.commitFields);
+      if (display !== s.commit) {
+        li.append(el('span', { class: 'commit-search-field' }, ` (${display})`));
+      } else if (s.ordinal != null) {
+        li.append(el('span', { class: 'commit-search-field' }, ` #${s.ordinal}`));
       }
-      li.addEventListener('click', () => selectOrder(s.orderValue));
+      li.addEventListener('click', () => selectCommit(s.commit));
       dropdown.append(li);
     }
     dropdown.classList.add('open');
@@ -109,7 +110,7 @@ export function renderOrderSearch(
     if (abortCtrl) abortCtrl.abort();
     abortCtrl = new AbortController();
     try {
-      const result = await searchOrdersByTag(
+      const result = await searchCommits(
         options.testsuite, text, { limit: 10 }, abortCtrl.signal,
       );
       dropdown.replaceChildren();
@@ -118,14 +119,16 @@ export function renderOrderSearch(
         wrapper.setAttribute('aria-expanded', 'false');
         return;
       }
-      for (const order of result.items) {
-        const pv = primaryOrderValue(order.fields);
+      for (const item of result.items) {
         const li = el('li', { class: 'combobox-item', tabindex: '-1' });
-        li.append(el('span', {}, pv));
-        if (order.tag) {
-          li.append(el('span', { class: 'order-search-tag' }, ` (${order.tag})`));
+        li.append(el('span', {}, item.commit));
+        const display = commitDisplayValue(item.commit, item.fields, options.commitFields);
+        if (display !== item.commit) {
+          li.append(el('span', { class: 'commit-search-field' }, ` (${display})`));
+        } else if (item.ordinal != null) {
+          li.append(el('span', { class: 'commit-search-field' }, ` #${item.ordinal}`));
         }
-        li.addEventListener('click', () => selectOrder(pv));
+        li.addEventListener('click', () => selectCommit(item.commit));
         dropdown.append(li);
       }
       dropdown.classList.add('open');
@@ -135,24 +138,24 @@ export function renderOrderSearch(
     }
   }, 300);
 
-  function isValidOrder(value: string): boolean {
+  function isValidCommit(value: string): boolean {
     if (!useSuggestionsMode) return true;
-    return suggestions.some(s => s.orderValue === value);
+    return suggestions.some(s => s.commit === value);
   }
 
   function updateValidationState(): void {
     const text = input.value.trim();
     if (!text || !useSuggestionsMode) {
-      input.classList.remove('order-search-invalid');
+      input.classList.remove('commit-search-invalid');
     } else {
       // Only show invalid when there are no partial matches (dropdown is empty)
       const hasMatches = suggestions.some(s =>
-        s.orderValue.toLowerCase().startsWith(text.toLowerCase()) ||
-        (s.tag && s.tag.toLowerCase().startsWith(text.toLowerCase())));
+        s.commit.toLowerCase().startsWith(text.toLowerCase()) ||
+        Object.values(s.fields).some(v => v.toLowerCase().startsWith(text.toLowerCase())));
       if (hasMatches) {
-        input.classList.remove('order-search-invalid');
+        input.classList.remove('commit-search-invalid');
       } else {
-        input.classList.add('order-search-invalid');
+        input.classList.add('commit-search-invalid');
       }
     }
   }
@@ -180,7 +183,7 @@ export function renderOrderSearch(
     } else if (e.key === 'Enter') {
       e.preventDefault();
       const text = input.value.trim();
-      if (text && isValidOrder(text)) selectOrder(text);
+      if (text && isValidCommit(text)) selectCommit(text);
     } else if (e.key === 'Escape') {
       dropdown.classList.remove('open');
       wrapper.setAttribute('aria-expanded', 'false');
@@ -222,7 +225,7 @@ export function renderOrderSearch(
       document.removeEventListener('click', onDocClick);
       if (abortCtrl) abortCtrl.abort();
     },
-    setSuggestions(s: OrderSuggestion[]) {
+    setSuggestions(s: CommitSummary[]) {
       suggestions = s;
     },
   };

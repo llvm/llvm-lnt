@@ -821,17 +821,17 @@ dl {
   color: #fff;
 }
 
-/* Order search */
-.order-search {
+/* Commit search */
+.commit-search {
   position: relative;
   display: inline-block;
 }
 
-.order-search-input {
+.commit-search-input {
   width: 280px;
 }
 
-.order-search-dropdown {
+.commit-search-dropdown {
   position: absolute;
   z-index: 1000;
   width: 100%;
@@ -848,17 +848,17 @@ dl {
   box-shadow: 0 2px 8px rgba(0,0,0,0.15);
 }
 
-.order-search-dropdown.open {
+.commit-search-dropdown.open {
   display: block;
 }
 
-.order-search-tag {
+.commit-search-field {
   color: #0d6efd;
   font-size: 12px;
   margin-left: 4px;
 }
 
-.order-search-invalid {
+.commit-search-invalid {
   border-color: #d62728 !important;
   box-shadow: 0 0 0 2px rgba(214, 39, 40, 0.15) !important;
 }
