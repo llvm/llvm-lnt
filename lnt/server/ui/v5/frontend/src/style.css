@@ -874,7 +874,7 @@ dl {
   margin: 10px 0;
 }
 
-.tag-display {
+.ordinal-display {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -882,7 +882,7 @@ dl {
   font-size: 13px;
 }
 
-.tag-edit-input {
+.ordinal-edit-input {
   padding: 4px 8px;
   border: 1px solid #ccc;
   border-radius: 3px;

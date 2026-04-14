@@ -97,10 +97,10 @@ describe('commitDetailPage', () => {
     commitDetailPage.mount(container, { testsuite: 'nts', value: '100' });
 
     await vi.waitFor(() => {
-      const tagDisplay = container.querySelector('.tag-display');
-      expect(tagDisplay).toBeTruthy();
-      expect(tagDisplay!.textContent).toContain('42');
-      expect(tagDisplay!.querySelector('button')?.textContent).toBe('Edit');
+      const ordinalDisplay = container.querySelector('.ordinal-display');
+      expect(ordinalDisplay).toBeTruthy();
+      expect(ordinalDisplay!.textContent).toContain('42');
+      expect(ordinalDisplay!.querySelector('button')?.textContent).toBe('Edit');
     });
   });
 
@@ -110,8 +110,8 @@ describe('commitDetailPage', () => {
     commitDetailPage.mount(container, { testsuite: 'nts', value: '100' });
 
     await vi.waitFor(() => {
-      const tagDisplay = container.querySelector('.tag-display');
-      expect(tagDisplay!.textContent).toContain('(none)');
+      const ordinalDisplay = container.querySelector('.ordinal-display');
+      expect(ordinalDisplay!.textContent).toContain('(none)');
     });
   });
 
@@ -119,20 +119,20 @@ describe('commitDetailPage', () => {
     commitDetailPage.mount(container, { testsuite: 'nts', value: '100' });
 
     await vi.waitFor(() => {
-      expect(container.querySelector('.tag-display button')).toBeTruthy();
+      expect(container.querySelector('.ordinal-display button')).toBeTruthy();
     });
 
     // Click Edit
-    const editBtn = container.querySelector('.tag-display button') as HTMLElement;
+    const editBtn = container.querySelector('.ordinal-display button') as HTMLElement;
     editBtn.click();
 
     // Should now show input, Save, Cancel
-    const tagContainer = container.querySelector('.tag-display')!;
-    const input = tagContainer.querySelector('input') as HTMLInputElement;
+    const ordinalContainer = container.querySelector('.ordinal-display')!;
+    const input = ordinalContainer.querySelector('input') as HTMLInputElement;
     expect(input).toBeTruthy();
     expect(input.value).toBe('42'); // pre-filled
 
-    const buttons = tagContainer.querySelectorAll('button');
+    const buttons = ordinalContainer.querySelectorAll('button');
     const buttonTexts = Array.from(buttons).map(b => b.textContent);
     expect(buttonTexts).toContain('Save');
     expect(buttonTexts).toContain('Cancel');
@@ -142,20 +142,20 @@ describe('commitDetailPage', () => {
     commitDetailPage.mount(container, { testsuite: 'nts', value: '100' });
 
     await vi.waitFor(() => {
-      expect(container.querySelector('.tag-display button')).toBeTruthy();
+      expect(container.querySelector('.ordinal-display button')).toBeTruthy();
     });
 
     // Click Edit
-    (container.querySelector('.tag-display button') as HTMLElement).click();
+    (container.querySelector('.ordinal-display button') as HTMLElement).click();
 
     // Click Cancel
-    const cancelBtn = Array.from(container.querySelectorAll('.tag-display button'))
+    const cancelBtn = Array.from(container.querySelectorAll('.ordinal-display button'))
       .find(b => b.textContent === 'Cancel') as HTMLElement;
     cancelBtn.click();
 
     // Should be back to display mode
-    expect(container.querySelector('.tag-display')!.textContent).toContain('42');
-    expect(container.querySelector('.tag-display')!.textContent).toContain('Edit');
+    expect(container.querySelector('.ordinal-display')!.textContent).toContain('42');
+    expect(container.querySelector('.ordinal-display')!.textContent).toContain('Edit');
     expect(updateCommit).not.toHaveBeenCalled();
   });
 
@@ -163,24 +163,24 @@ describe('commitDetailPage', () => {
     commitDetailPage.mount(container, { testsuite: 'nts', value: '100' });
 
     await vi.waitFor(() => {
-      expect(container.querySelector('.tag-display button')).toBeTruthy();
+      expect(container.querySelector('.ordinal-display button')).toBeTruthy();
     });
 
     // Click Edit
-    (container.querySelector('.tag-display button') as HTMLElement).click();
+    (container.querySelector('.ordinal-display button') as HTMLElement).click();
 
     // Change value and click Save
-    const input = container.querySelector('.tag-display input') as HTMLInputElement;
+    const input = container.querySelector('.ordinal-display input') as HTMLInputElement;
     input.value = '99';
 
-    const saveBtn = Array.from(container.querySelectorAll('.tag-display button'))
+    const saveBtn = Array.from(container.querySelectorAll('.ordinal-display button'))
       .find(b => b.textContent === 'Save') as HTMLElement;
     saveBtn.click();
 
     await vi.waitFor(() => {
       expect(updateCommit).toHaveBeenCalledWith('nts', '100', { ordinal: 99 });
       // Should be back in display mode with new ordinal
-      expect(container.querySelector('.tag-display')!.textContent).toContain('99');
+      expect(container.querySelector('.ordinal-display')!.textContent).toContain('99');
     });
   });
 
@@ -190,21 +190,21 @@ describe('commitDetailPage', () => {
     commitDetailPage.mount(container, { testsuite: 'nts', value: '100' });
 
     await vi.waitFor(() => {
-      expect(container.querySelector('.tag-display button')).toBeTruthy();
+      expect(container.querySelector('.ordinal-display button')).toBeTruthy();
     });
 
-    (container.querySelector('.tag-display button') as HTMLElement).click();
+    (container.querySelector('.ordinal-display button') as HTMLElement).click();
 
-    const saveBtn = Array.from(container.querySelectorAll('.tag-display button'))
+    const saveBtn = Array.from(container.querySelectorAll('.ordinal-display button'))
       .find(b => b.textContent === 'Save') as HTMLButtonElement;
     saveBtn.click();
 
     await vi.waitFor(() => {
       expect(authErrorMessage).toHaveBeenCalled();
-      const errorEl = container.querySelector('.tag-display .error-banner');
+      const errorEl = container.querySelector('.ordinal-display .error-banner');
       expect(errorEl).toBeTruthy();
       // Save button should be re-enabled
-      const currentSaveBtn = Array.from(container.querySelectorAll('.tag-display button'))
+      const currentSaveBtn = Array.from(container.querySelectorAll('.ordinal-display button'))
         .find(b => b.textContent === 'Save') as HTMLButtonElement;
       expect(currentSaveBtn.disabled).toBe(false);
     });

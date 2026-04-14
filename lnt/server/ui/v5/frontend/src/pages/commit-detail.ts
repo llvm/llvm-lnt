@@ -21,13 +21,13 @@ export const commitDetailPage: PageModule = {
     container.append(el('h2', { class: 'page-header' }, `Commit: ${commitValue}`));
 
     const fieldsContainer = el('div', { class: 'commit-fields' });
-    const tagContainer = el('div', { class: 'tag-display' });
+    const ordinalContainer = el('div', { class: 'ordinal-display' });
     const navContainer = el('div', { class: 'commit-nav' });
     const summaryContainer = el('div', {});
     const filterContainer = el('div', { class: 'table-controls' });
     const tableContainer = el('div', {});
     container.append(
-      fieldsContainer, tagContainer, navContainer,
+      fieldsContainer, ordinalContainer, navContainer,
       summaryContainer, filterContainer, tableContainer,
     );
 
@@ -44,7 +44,7 @@ export const commitDetailPage: PageModule = {
       loading.remove();
       runs = commitRuns;
 
-      // Order fields
+      // Commit fields
       const dl = el('dl', { class: 'metadata-dl' });
       for (const [k, v] of Object.entries(commit.fields)) {
         dl.append(el('dt', {}, k), el('dd', {}, v || ''));
@@ -52,7 +52,7 @@ export const commitDetailPage: PageModule = {
       fieldsContainer.append(dl);
 
       // Tag display + edit
-      renderOrdinal(tagContainer, ts, commitValue, commit);
+      renderOrdinal(ordinalContainer, ts, commitValue, commit);
 
       // Prev/Next navigation
       if (commit.previous_commit) {
@@ -146,7 +146,7 @@ function renderOrdinal(
 
     const input = el('input', {
       type: 'text',
-      class: 'tag-edit-input combobox-input',
+      class: 'ordinal-edit-input combobox-input',
       placeholder: 'Enter ordinal (integer)...',
     }) as HTMLInputElement;
     input.value = commit.ordinal != null ? String(commit.ordinal) : '';
