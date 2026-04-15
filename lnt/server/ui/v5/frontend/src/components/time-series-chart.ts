@@ -57,6 +57,15 @@ export interface TimeSeriesChartOptions {
    *  Called on hover; if it returns >1 values, a scatter of the raw values
    *  is shown at the hovered x-position. */
   getRawValues?: (testName: string, machine: string, commit: string) => number[];
+  /** Additional Plotly shapes and annotations to overlay on the chart
+   *  (e.g. regression markers). Merged into layout on each update. */
+  overlays?: ChartOverlays;
+}
+
+/** Extra Plotly layout elements to overlay on the chart. */
+export interface ChartOverlays {
+  shapes?: unknown[];
+  annotations?: unknown[];
 }
 
 /**
@@ -183,7 +192,11 @@ export function buildPlotlyData(options: TimeSeriesChartOptions): {
       title: options.yAxisLabel,
       automargin: true,
     },
-    annotations,
+    annotations: [
+      ...annotations,
+      ...(options.overlays?.annotations ?? []),
+    ],
+    shapes: options.overlays?.shapes ?? [],
     margin: { t: 30, r: 20 },
     hovermode: 'closest' as const,
     hoverdistance: 5,

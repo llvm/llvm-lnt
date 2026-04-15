@@ -1256,3 +1256,330 @@ dl {
   font-weight: 500;
   margin-bottom: 8px;
 }
+
+/* ============================================================
+   Regression Pages
+   ============================================================ */
+
+/* State badges — used on regression list and detail pages */
+.state-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.state-detected {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.state-active {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.state-not-to-be-fixed {
+  background: #e2e3e5;
+  color: #383d41;
+}
+
+.state-fixed {
+  background: #d4edda;
+  color: #155724;
+}
+
+.state-false-positive {
+  background: #d1ecf1;
+  color: #0c5460;
+}
+
+/* State filter chips — regression list page */
+.state-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.state-chip {
+  padding: 4px 12px;
+  border: 1px solid #ccc;
+  border-radius: 16px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.state-chip:hover {
+  background: #f0f0f0;
+}
+
+.state-chip-active {
+  border-color: #0d6efd;
+  background: #e7f1ff;
+  color: #0d6efd;
+}
+
+/* Regression filter panel */
+.regression-filters {
+  margin-bottom: 15px;
+  padding: 12px;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  background: #f8f9fa;
+}
+
+.filter-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.filter-row:last-child {
+  margin-bottom: 0;
+}
+
+.title-search-input {
+  flex: 1;
+  min-width: 200px;
+}
+
+/* Regression actions bar */
+.regression-actions {
+  margin-bottom: 12px;
+}
+
+/* Create form */
+.create-form-container {
+  margin-bottom: 15px;
+  padding: 12px;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  background: #fff;
+}
+
+.create-form-container .admin-input {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.create-form-error {
+  margin-top: 8px;
+}
+
+/* Row delete button (inline in table row) */
+.row-delete-btn {
+  background: none;
+  border: none;
+  color: #999;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  line-height: 1;
+}
+
+.row-delete-btn:hover {
+  color: #d62728;
+  background: #fff5f5;
+}
+
+/* Regression detail — header fields */
+.regression-header {
+  margin-bottom: 20px;
+}
+
+.field-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.field-row label {
+  font-weight: 600;
+  color: #666;
+  min-width: 70px;
+}
+
+.editable-value {
+  font-size: 14px;
+}
+
+.edit-btn {
+  background: none;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  padding: 2px 8px;
+  cursor: pointer;
+  font-size: 12px;
+  color: #666;
+}
+
+.edit-btn:hover {
+  background: #f0f0f0;
+  color: #333;
+}
+
+/* Notes textarea */
+.regression-notes-input {
+  width: 100%;
+  min-height: 60px;
+  padding: 6px 8px;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  font-family: inherit;
+  font-size: 13px;
+  resize: vertical;
+}
+
+/* Indicator actions (batch remove) */
+.indicator-actions {
+  margin-bottom: 8px;
+}
+
+/* Add indicators panel */
+.add-indicators-panel {
+  margin-top: 15px;
+  padding: 12px;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  background: #f8f9fa;
+}
+
+.add-indicator-selectors {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.add-indicator-selectors .control-group {
+  min-width: 180px;
+}
+
+.add-indicator-preview {
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: #666;
+}
+
+.add-indicator-actions {
+  margin-top: 8px;
+}
+
+/* Cross-page regression sections */
+.machine-regressions-section,
+.run-regressions-section,
+.commit-regressions-section {
+  margin-top: 20px;
+  margin-bottom: 20px;
+}
+
+/* Compare page — Add to Regression panel */
+.add-to-regression-panel {
+  margin-top: 20px;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+}
+
+.add-to-regression-panel > summary {
+  padding: 10px 12px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  background: #f8f9fa;
+  border-radius: 4px;
+}
+
+.add-to-regression-panel[open] > summary {
+  border-bottom: 1px solid #dee2e6;
+  border-radius: 4px 4px 0 0;
+}
+
+.add-to-regression-content {
+  padding: 12px;
+}
+
+.regression-mode-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.tab-btn {
+  padding: 4px 12px;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.tab-btn:hover {
+  background: #f0f0f0;
+}
+
+.tab-btn-active {
+  background: #0d6efd;
+  color: #fff;
+  border-color: #0d6efd;
+}
+
+.regression-label-muted {
+  font-size: 12px;
+  color: #666;
+  padding: 4px 8px;
+}
+
+.regression-feedback-ok {
+  color: #155724;
+  font-size: 13px;
+}
+
+.regression-search-results {
+  max-height: 150px;
+  overflow-y: auto;
+  border: 1px solid #eee;
+  border-radius: 3px;
+  margin: 8px 0;
+}
+
+.regression-search-row {
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 12px;
+  border-bottom: 1px solid #eee;
+}
+
+.regression-search-row:hover {
+  background: #f0f0f0;
+}
+
+.test-list-container {
+  border: 1px solid #eee;
+  border-radius: 3px;
+  padding: 4px;
+  margin-top: 4px;
+}
+
+.test-list-hint {
+  font-size: 12px;
+  color: #999;
+}
+
+.test-list-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+  font-size: 12px;
+}

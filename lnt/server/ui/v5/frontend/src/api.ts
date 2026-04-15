@@ -3,6 +3,7 @@ import type {
   CursorPaginated, FieldChangeInfo, FieldInfo, MachineInfo, MachineRunInfo,
   OffsetPaginated, CommitDetail, CommitSummary, RunDetail,
   RunInfo, SampleInfo, TestSuiteInfo,
+  RegressionListItem, RegressionDetail, RegressionState,
 } from './types';
 
 let apiBase = '';
@@ -12,7 +13,7 @@ export function setApiBase(base: string): void {
   apiBase = base.replace(/\/$/, '');
 }
 
-function getToken(): string | null {
+export function getToken(): string | null {
   return localStorage.getItem('lnt_v5_token');
 }
 
@@ -461,5 +462,143 @@ export async function revokeApiKey(
   return fetchVoid(
     `${apiBase}/api/v5/admin/api-keys/${encodeURIComponent(prefix)}`,
     { method: 'DELETE', signal },
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Regressions
+// ---------------------------------------------------------------------------
+
+/** Query parameters for listing regressions. */
+export interface RegressionListParams {
+  state?: RegressionState[];
+  machine?: string;
+  test?: string;
+  metric?: string;
+  commit?: string;
+  has_commit?: boolean;
+  cursor?: string;
+  limit?: number;
+}
+
+function buildRegressionParams(opts?: Partial<RegressionListParams>): Record<string, string> {
+  const params: Record<string, string> = {};
+  if (opts?.state?.length) params.state = opts.state.join(',');
+  if (opts?.machine) params.machine = opts.machine;
+  if (opts?.test) params.test = opts.test;
+  if (opts?.metric) params.metric = opts.metric;
+  if (opts?.commit) params.commit = opts.commit;
+  if (opts?.has_commit === true) params.has_commit = 'true';
+  if (opts?.has_commit === false) params.has_commit = 'false';
+  if (opts?.limit !== undefined) params.limit = String(opts.limit);
+  if (opts?.cursor) params.cursor = opts.cursor;
+  return params;
+}
+
+/** Fetch one page of regressions with optional filters. */
+export async function getRegressions(
+  ts: string,
+  opts?: RegressionListParams,
+  signal?: AbortSignal,
+): Promise<CursorPageResult<RegressionListItem>> {
+  return fetchOneCursorPage<RegressionListItem>(
+    apiUrl(ts, 'regressions'), buildRegressionParams(opts), signal);
+}
+
+/** Fetch all regressions matching filters (auto-paginate). */
+export async function getAllRegressions(
+  ts: string,
+  opts?: Omit<RegressionListParams, 'cursor' | 'limit'>,
+  signal?: AbortSignal,
+): Promise<RegressionListItem[]> {
+  return fetchAllCursorPages<RegressionListItem>(
+    apiUrl(ts, 'regressions'), buildRegressionParams(opts), signal);
+}
+
+/** Create a new regression. */
+export async function createRegression(
+  ts: string,
+  body: {
+    title?: string;
+    bug?: string;
+    notes?: string;
+    state?: RegressionState;
+    commit?: string;
+    indicators?: Array<{ machine: string; test: string; metric: string }>;
+  },
+  signal?: AbortSignal,
+): Promise<RegressionDetail> {
+  return fetchJson<RegressionDetail>(
+    apiUrl(ts, 'regressions'),
+    { method: 'POST', body, signal },
+  );
+}
+
+/** Fetch a single regression by UUID. */
+export async function getRegression(
+  ts: string,
+  uuid: string,
+  signal?: AbortSignal,
+): Promise<RegressionDetail> {
+  return fetchJson<RegressionDetail>(
+    apiUrl(ts, `regressions/${encodeURIComponent(uuid)}`),
+    { signal },
+  );
+}
+
+/** Update regression fields (PATCH -- only included fields are changed). */
+export async function updateRegression(
+  ts: string,
+  uuid: string,
+  updates: {
+    title?: string;
+    bug?: string | null;
+    notes?: string | null;
+    state?: RegressionState;
+    commit?: string | null;
+  },
+  signal?: AbortSignal,
+): Promise<RegressionDetail> {
+  return fetchJson<RegressionDetail>(
+    apiUrl(ts, `regressions/${encodeURIComponent(uuid)}`),
+    { method: 'PATCH', body: updates, signal },
+  );
+}
+
+/** Delete a regression. */
+export async function deleteRegression(
+  ts: string,
+  uuid: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  return fetchVoid(
+    apiUrl(ts, `regressions/${encodeURIComponent(uuid)}`),
+    { method: 'DELETE', signal },
+  );
+}
+
+/** Add indicators to a regression (batch). Returns updated detail. */
+export async function addRegressionIndicators(
+  ts: string,
+  regressionUuid: string,
+  indicators: Array<{ machine: string; test: string; metric: string }>,
+  signal?: AbortSignal,
+): Promise<RegressionDetail> {
+  return fetchJson<RegressionDetail>(
+    apiUrl(ts, `regressions/${encodeURIComponent(regressionUuid)}/indicators`),
+    { method: 'POST', body: { indicators }, signal },
+  );
+}
+
+/** Remove indicators from a regression (batch, by UUID). Returns updated detail. */
+export async function removeRegressionIndicators(
+  ts: string,
+  regressionUuid: string,
+  indicatorUuids: string[],
+  signal?: AbortSignal,
+): Promise<RegressionDetail> {
+  return fetchJson<RegressionDetail>(
+    apiUrl(ts, `regressions/${encodeURIComponent(regressionUuid)}/indicators`),
+    { method: 'DELETE', body: { indicator_uuids: indicatorUuids }, signal },
   );
 }

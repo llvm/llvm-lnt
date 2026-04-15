@@ -1,11 +1,12 @@
 // pages/commit-detail.ts — Commit detail with ordinal editing, prev/next, machine filter, runs table.
 
 import type { PageModule, RouteParams } from '../router';
-import type { RunInfo, CommitDetail } from '../types';
-import { getCommit, getRunsByCommit, updateCommit, authErrorMessage } from '../api';
-import { el, spaLink, formatTime, debounce } from '../utils';
+import type { RunInfo, CommitDetail, RegressionListItem } from '../types';
+import { getCommit, getRunsByCommit, updateCommit, authErrorMessage, getRegressions } from '../api';
+import { el, spaLink, formatTime, truncate, debounce } from '../utils';
 import { navigate } from '../router';
 import { renderDataTable } from '../components/data-table';
+import { renderStateBadge } from '../regression-utils';
 
 let controller: AbortController | null = null;
 
@@ -26,9 +27,11 @@ export const commitDetailPage: PageModule = {
     const summaryContainer = el('div', {});
     const filterContainer = el('div', { class: 'table-controls' });
     const tableContainer = el('div', {});
+    const regressionsContainer = el('div', { class: 'commit-regressions-section' });
     container.append(
       fieldsContainer, ordinalContainer, navContainer,
       summaryContainer, filterContainer, tableContainer,
+      regressionsContainer,
     );
 
     const loading = el('p', { class: 'progress-label' }, 'Loading commit data...');
@@ -80,6 +83,9 @@ export const commitDetailPage: PageModule = {
       filterContainer.append(filterInput);
 
       renderSummaryAndTable();
+
+      // Load matching regressions (non-blocking)
+      loadCommitRegressions(ts, commitValue, regressionsContainer, signal);
     }).catch(e => {
       loading.remove();
       container.append(el('p', { class: 'error-banner' }, `Failed to load commit: ${e}`));
@@ -181,4 +187,57 @@ function renderOrdinal(
       }
     });
   });
+}
+
+async function loadCommitRegressions(
+  ts: string,
+  commit: string,
+  container: HTMLElement,
+  signal: AbortSignal,
+): Promise<void> {
+  container.append(el('h3', {}, 'Regressions'));
+
+  try {
+    const result = await getRegressions(ts, { commit, limit: 25 }, signal);
+    const regressions = result.items;
+
+    if (regressions.length === 0) {
+      container.append(el('p', { class: 'no-results' },
+        'No regressions at this commit.'));
+      return;
+    }
+
+    renderDataTable(container, {
+      columns: [
+        {
+          key: 'title',
+          label: 'Regression',
+          render: (r: RegressionListItem) => spaLink(
+            truncate(r.title || '(untitled)', 50),
+            `/regressions/${encodeURIComponent(r.uuid)}`),
+        },
+        {
+          key: 'state',
+          label: 'State',
+          render: (r: RegressionListItem) => renderStateBadge(r.state),
+        },
+        {
+          key: 'machine_count',
+          label: 'Machines',
+          cellClass: 'col-num',
+        },
+        {
+          key: 'test_count',
+          label: 'Tests',
+          cellClass: 'col-num',
+        },
+      ],
+      rows: regressions,
+      emptyMessage: 'No matching regressions.',
+    });
+  } catch (e: unknown) {
+    if (e instanceof DOMException && e.name === 'AbortError') return;
+    container.append(el('p', { class: 'error-banner' },
+      `Failed to load regressions: ${e}`));
+  }
 }

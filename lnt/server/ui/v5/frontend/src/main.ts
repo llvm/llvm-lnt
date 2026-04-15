@@ -16,7 +16,6 @@ import { graphPage } from './pages/graph';
 import { comparePage } from './pages/compare';
 import { regressionListPage } from './pages/regression-list';
 import { regressionDetailPage } from './pages/regression-detail';
-import { fieldChangeTriagePage } from './pages/field-change-triage';
 import { adminPage } from './pages/admin';
 import type { PageModule } from './router';
 
@@ -58,7 +57,6 @@ function init(): void {
     addRoute('/commits/:value', commitDetailPage);
     addRoute('/regressions', regressionListPage);
     addRoute('/regressions/:uuid', regressionDetailPage);
-    addRoute('/field-changes', fieldChangeTriagePage);
 
     const basePath = `${urlBase}/v5/${encodeURIComponent(testsuite)}`;
     initRouter(pageContainer, basePath, updateActiveNavLink, { testsuite, testsuites, urlBase });

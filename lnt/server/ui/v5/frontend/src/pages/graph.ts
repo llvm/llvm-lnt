@@ -1,8 +1,8 @@
 // pages/graph.ts — Time-series graph page with explicit test selection and on-demand loading.
 
 import type { PageModule, RouteParams } from '../router';
-import type { AggFn, QueryDataPoint } from '../types';
-import { getFields, getCommits, fetchOneCursorPage, postOneCursorPage, apiUrl } from '../api';
+import type { AggFn, QueryDataPoint, RegressionListItem, RegressionState } from '../types';
+import { getFields, getCommits, fetchOneCursorPage, postOneCursorPage, apiUrl, getAllRegressions } from '../api';
 import { el, debounce, getAggFn, TRACE_SEP, machineColor } from '../utils';
 import { getTestsuites } from '../router';
 import { onCustomEvent, GRAPH_TABLE_HOVER, GRAPH_CHART_HOVER } from '../events';
@@ -10,12 +10,13 @@ import { renderMachineCombobox } from '../components/machine-combobox';
 import { renderMetricSelector, renderEmptyMetricSelector, filterMetricFields } from '../components/metric-selector';
 import { createCommitPicker, fetchMachineCommitSet } from '../combobox';
 import {
-  type TimeSeriesTrace, type PinnedBaseline, type ChartHandle,
+  type TimeSeriesTrace, type PinnedBaseline, type ChartHandle, type ChartOverlays,
   createTimeSeriesChart,
 } from '../components/time-series-chart';
 import {
   createTestSelectionTable, type TestSelectionEntry, type TestSelectionTableHandle,
 } from '../components/test-selection-table';
+import { UNRESOLVED_STATES } from '../regression-utils';
 import { GraphDataCache } from './graph-data-cache';
 
 const MACHINE_SYMBOLS = [
@@ -73,6 +74,17 @@ let cleanupTableHover: (() => void) | null = null;
 let cleanupChartHover: (() => void) | null = null;
 /** List of selected machines (preserved across unmount/remount). */
 let machines: string[] = [];
+
+type RegressionAnnotationMode = 'off' | 'active' | 'all';
+
+/** Regression annotation mode. */
+let regressionMode: RegressionAnnotationMode = 'off';
+/** Cached regressions for annotation overlay, keyed by mode. */
+let regressionCache: Map<RegressionAnnotationMode, RegressionListItem[]> = new Map();
+/** Abort controller for regression fetches. */
+let regressionFetchAbort: AbortController | null = null;
+/** Current regression overlay (shapes + annotations). */
+let regressionOverlays: ChartOverlays = {};
 
 function assignSymbol(machineIndex: number): string {
   return MACHINE_SYMBOLS[machineIndex % MACHINE_SYMBOLS.length];
@@ -403,7 +415,30 @@ export const graphPage: PageModule = {
 
     // ----- Controls Row 2: Metric, Aggregation, Test Filter (viewing) -----
     const secondRow = el('div', { class: 'graph-controls' });
-    secondRow.append(metricGroup, runAggGroup, sampleAggGroup, filterGroup);
+
+    // Regression annotations dropdown
+    const regressionGroup = el('div', { class: 'control-group' });
+    regressionGroup.append(el('label', {}, 'Regressions'));
+    const regressionModeSelect = el('select', { class: 'metric-select' }) as HTMLSelectElement;
+    regressionModeSelect.append(
+      el('option', { value: 'off' }, 'Off'),
+      el('option', { value: 'active' }, 'Active'),
+      el('option', { value: 'all' }, 'All'),
+    );
+    regressionModeSelect.value = regressionMode;
+    regressionModeSelect.addEventListener('change', () => {
+      regressionMode = regressionModeSelect.value as RegressionAnnotationMode;
+      if (regressionMode === 'off') {
+        regressionCache.clear();
+        regressionOverlays = {};
+        scheduleChartUpdate();
+      } else if (currentSuite) {
+        fetchAndApplyRegressionAnnotations(currentSuite, regressionMode);
+      }
+    });
+    regressionGroup.append(regressionModeSelect);
+
+    secondRow.append(metricGroup, runAggGroup, sampleAggGroup, filterGroup, regressionGroup);
     controlsPanel.append(secondRow);
 
     container.append(progressContainer, warningContainer, chartContainer);
@@ -601,6 +636,7 @@ export const graphPage: PageModule = {
           baselines: refs.length > 0 ? refs : undefined,
           categoryOrder: scaffold ?? undefined,
           getRawValues: rawValuesCallback,
+          overlays: regressionMode !== 'off' ? regressionOverlays : undefined,
         };
 
         if (chartHandle) {
@@ -662,6 +698,7 @@ export const graphPage: PageModule = {
           traces: [] as TimeSeriesTrace[],
           yAxisLabel: metric || '',
           categoryOrder: scaffold ?? undefined,
+          overlays: regressionMode !== 'off' ? regressionOverlays : undefined,
         };
         if (chartHandle) {
           chartHandle.update(chartOpts);
@@ -760,6 +797,73 @@ export const graphPage: PageModule = {
       window.history.replaceState(null, '', window.location.pathname + '?' + qs.toString());
     }
 
+    // ----- Regression annotations -----
+
+    async function fetchAndApplyRegressionAnnotations(
+      suite: string,
+      mode: 'active' | 'all',
+    ): Promise<void> {
+      // Use cached data if available for this mode
+      const cached = regressionCache.get(mode);
+      if (cached) {
+        regressionOverlays = buildRegressionOverlays(cached);
+        scheduleChartUpdate();
+        return;
+      }
+      // Cancel any in-flight regression fetch
+      if (regressionFetchAbort) regressionFetchAbort.abort();
+      regressionFetchAbort = new AbortController();
+      const signal = regressionFetchAbort.signal;
+      try {
+        const opts: { state?: RegressionState[] } = {};
+        if (mode === 'active') {
+          opts.state = [...UNRESOLVED_STATES];
+        }
+        const regressions = await getAllRegressions(suite, opts, signal);
+        regressionCache.set(mode, regressions);
+        regressionOverlays = buildRegressionOverlays(regressions);
+        scheduleChartUpdate();
+      } catch (e: unknown) {
+        if (e instanceof DOMException && e.name === 'AbortError') return;
+      }
+    }
+
+    function buildRegressionOverlays(regressions: RegressionListItem[]): ChartOverlays {
+      const shapes: unknown[] = [];
+      const plotlyAnnotations: unknown[] = [];
+
+      for (const r of regressions) {
+        if (!r.commit) continue;
+
+        const color = r.state === 'active' ? '#d62728'
+                    : r.state === 'detected' ? '#ff7f0e'
+                    : '#999';
+
+        shapes.push({
+          type: 'line',
+          x0: r.commit,
+          x1: r.commit,
+          y0: 0,
+          y1: 1,
+          yref: 'paper',
+          line: { color, width: 1.5, dash: 'dash' },
+        });
+
+        plotlyAnnotations.push({
+          x: r.commit,
+          y: 1,
+          yref: 'paper',
+          text: r.title || 'Regression',
+          showarrow: false,
+          font: { size: 10, color },
+          yanchor: 'bottom',
+          captureevents: true,
+        });
+      }
+
+      return { shapes, annotations: plotlyAnnotations };
+    }
+
     // ----- Suite change handler -----
     suiteSelect.addEventListener('change', () => {
       const newSuite = suiteSelect.value;
@@ -781,6 +885,10 @@ export const graphPage: PageModule = {
       baselineCommitCache.clear();
       blMachineCommits = null;
       baselines.length = 0;
+      regressionCache.clear();
+      regressionOverlays = {};
+      regressionMode = 'off';
+      regressionModeSelect.value = 'off';
       if (pendingChartRAF !== null) { cancelAnimationFrame(pendingChartRAF); pendingChartRAF = null; }
       chartRenderGen = 0;
 
@@ -884,6 +992,10 @@ export const graphPage: PageModule = {
     suiteGeneration = 0;
     baselineCommitCache.clear();
     blMachineCommits = null;
+    if (regressionFetchAbort) { regressionFetchAbort.abort(); regressionFetchAbort = null; }
+    regressionCache.clear();
+    regressionOverlays = {};
+    regressionMode = 'off';
     // Intentionally preserve selectedTests, allMatchingTests, and cache across
     // unmount/remount so that navigating back renders instantly from cache.
     // machines is restored from URL on mount.

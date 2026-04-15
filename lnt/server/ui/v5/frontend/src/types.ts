@@ -168,3 +168,41 @@ export interface TestSuiteInfo {
     machine_fields: Array<{ name: string; type: string }>;
   };
 }
+
+// Regression types
+
+export type RegressionState =
+  | 'detected'
+  | 'active'
+  | 'not_to_be_fixed'
+  | 'fixed'
+  | 'false_positive';
+
+export interface RegressionIndicator {
+  uuid: string;
+  machine: string | null;
+  test: string | null;
+  metric: string;
+}
+
+/** Regression as returned by GET /regressions (list endpoint). */
+export interface RegressionListItem {
+  uuid: string;
+  title: string | null;
+  bug: string | null;
+  state: RegressionState;
+  commit: string | null;
+  machine_count: number;
+  test_count: number;
+}
+
+/** Regression as returned by GET /regressions/{uuid} (detail endpoint). */
+export interface RegressionDetail {
+  uuid: string;
+  title: string | null;
+  bug: string | null;
+  notes: string | null;
+  state: RegressionState;
+  commit: string | null;
+  indicators: RegressionIndicator[];
+}

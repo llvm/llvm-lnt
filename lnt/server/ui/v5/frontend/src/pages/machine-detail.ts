@@ -1,12 +1,13 @@
 // pages/machine-detail.ts — Machine metadata and run history.
 
 import type { PageModule, RouteParams } from '../router';
-import type { MachineRunInfo } from '../types';
-import { getMachine, getMachineRuns, deleteMachine } from '../api';
+import type { MachineRunInfo, RegressionListItem } from '../types';
+import { getMachine, getMachineRuns, deleteMachine, getRegressions } from '../api';
 import { el, spaLink, agnosticLink, agnosticUrl, formatTime, truncate } from '../utils';
 import { renderDataTable } from '../components/data-table';
 import { renderPagination } from '../components/pagination';
 import { renderDeleteConfirm } from '../components/delete-confirm';
+import { UNRESOLVED_STATES, renderStateBadge } from '../regression-utils';
 
 const PAGE_SIZE = 25;
 
@@ -26,8 +27,9 @@ export const machineDetailPage: PageModule = {
     const metaContainer = el('div', {});
     const actionsContainer = el('div', { class: 'action-links' });
     const runsContainer = el('div', {});
+    const regressionsContainer = el('div', { class: 'machine-regressions-section' });
     const deleteContainer = el('div', { class: 'delete-machine-section' });
-    container.append(metaContainer, actionsContainer, runsContainer, deleteContainer);
+    container.append(metaContainer, actionsContainer, runsContainer, regressionsContainer, deleteContainer);
 
     // Load metadata
     getMachine(ts, name, signal).then(machine => {
@@ -108,6 +110,9 @@ export const machineDetailPage: PageModule = {
 
     loadRuns();
 
+    // Active regressions on this machine
+    loadMachineRegressions(ts, name, regressionsContainer, signal);
+
     // Delete section
     renderDeleteConfirm(deleteContainer, {
       label: 'Delete Machine',
@@ -126,3 +131,55 @@ export const machineDetailPage: PageModule = {
     if (controller) { controller.abort(); controller = null; }
   },
 };
+
+async function loadMachineRegressions(
+  ts: string,
+  machineName: string,
+  container: HTMLElement,
+  signal: AbortSignal,
+): Promise<void> {
+  container.append(el('h3', {}, 'Active Regressions'));
+
+  try {
+    const result = await getRegressions(ts, {
+      machine: machineName,
+      state: UNRESOLVED_STATES,
+      limit: 25,
+    }, signal);
+    const regressions = result.items;
+
+    if (regressions.length === 0) {
+      container.append(el('p', { class: 'no-results' },
+        'No active regressions on this machine.'));
+      return;
+    }
+
+    renderDataTable(container, {
+      columns: [
+        {
+          key: 'title',
+          label: 'Regression',
+          render: (r: RegressionListItem) => spaLink(
+            truncate(r.title || '(untitled)', 50),
+            `/regressions/${encodeURIComponent(r.uuid)}`),
+        },
+        {
+          key: 'state',
+          label: 'State',
+          render: (r: RegressionListItem) => renderStateBadge(r.state),
+        },
+        {
+          key: 'test_count',
+          label: 'Tests',
+          cellClass: 'col-num',
+        },
+      ],
+      rows: regressions,
+      emptyMessage: 'No active regressions.',
+    });
+  } catch (e: unknown) {
+    if (e instanceof DOMException && e.name === 'AbortError') return;
+    container.append(el('p', { class: 'error-banner' },
+      `Failed to load regressions: ${e}`));
+  }
+}
