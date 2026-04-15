@@ -128,7 +128,7 @@ Trends (Aggregated)
 
 POST   /trends
   Body (JSON): {metric, machine, after_time, before_time}
-The metric field is required and must be a numeric type (Real or Integer); Status and Hash metrics are rejected with 400. All other fields are optional.
+The metric field is required and must have type `real`; `status` and `hash` metrics are rejected with 400. All other fields are optional.
 Unlike the query endpoint's single machine string, machine accepts a list of names — the Dashboard needs data for multiple machines in one call.
 Order-based filters are intentionally omitted; the Dashboard uses time-based filtering exclusively.
 Returns geomean-aggregated trend data per (machine, commit). Not paginated — the result set is bounded by (machines × commits in range), typically < 2000 rows.

@@ -315,8 +315,8 @@ describe('cursor-based pagination', () => {
 describe('getFields', () => {
   it('returns the metrics array from the test-suite schema', async () => {
     const fields: FieldInfo[] = [
-      { name: 'compile_time', type: 'Real', display_name: 'Compile Time', unit: 'seconds', unit_abbrev: 's', bigger_is_better: false },
-      { name: 'exec_time', type: 'Real', display_name: 'Execution Time', unit: 'seconds', unit_abbrev: 's', bigger_is_better: false },
+      { name: 'compile_time', type: 'real', display_name: 'Compile Time', unit: 'seconds', unit_abbrev: 's', bigger_is_better: false },
+      { name: 'exec_time', type: 'real', display_name: 'Execution Time', unit: 'seconds', unit_abbrev: 's', bigger_is_better: false },
     ];
     mockFetch.mockResolvedValueOnce(mockResponse({ schema: { metrics: fields } }));
 

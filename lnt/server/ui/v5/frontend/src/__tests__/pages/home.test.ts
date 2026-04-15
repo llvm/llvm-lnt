@@ -40,11 +40,10 @@ const mockSuiteInfo: TestSuiteInfo = {
   name: 'nts',
   schema: {
     metrics: [
-      { name: 'execution_time', type: 'Real', display_name: 'Execution Time', unit: 'seconds', unit_abbrev: 's', bigger_is_better: false },
-      { name: 'compile_time', type: 'Real', display_name: 'Compile Time', unit: 'seconds', unit_abbrev: 's', bigger_is_better: false },
+      { name: 'execution_time', type: 'real', display_name: 'Execution Time', unit: 'seconds', unit_abbrev: 's', bigger_is_better: false },
+      { name: 'compile_time', type: 'real', display_name: 'Compile Time', unit: 'seconds', unit_abbrev: 's', bigger_is_better: false },
     ],
-    run_fields: [],
-    commit_fields: [{ name: 'llvm_project_revision', type: 'String' }],
+    commit_fields: [{ name: 'llvm_project_revision', type: 'text' }],
     machine_fields: [],
   },
 };
@@ -53,10 +52,9 @@ const mockSuiteInfo2: TestSuiteInfo = {
   name: 'compile-suite',
   schema: {
     metrics: [
-      { name: 'score', type: 'Real', display_name: 'Score', unit: null, unit_abbrev: null, bigger_is_better: true },
+      { name: 'score', type: 'real', display_name: 'Score', unit: null, unit_abbrev: null, bigger_is_better: true },
     ],
-    run_fields: [],
-    commit_fields: [{ name: 'revision', type: 'String' }],
+    commit_fields: [{ name: 'revision', type: 'text' }],
     machine_fields: [],
   },
 };

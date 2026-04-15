@@ -6,6 +6,7 @@ import type { FieldInfo } from '../types';
 import { getTestsuites } from '../router';
 import { getTestSuiteInfo, getRunsPage, fetchTrends } from '../api';
 import { el, agnosticUrl } from '../utils';
+import { filterMetricFields } from '../components/metric-selector';
 import type { SparklineTrace } from '../components/sparkline-card';
 import {
   createSparklineCard, createSparklineLoading, createSparklineError,
@@ -173,9 +174,7 @@ export const homePage: PageModule = {
 
         if (sig.aborted) return;
 
-        const metrics = suiteInfo.schema.metrics.filter(
-          m => m.type === 'Real' || m.type === 'Integer',
-        );
+        const metrics = filterMetricFields(suiteInfo.schema.metrics);
         if (metrics.length === 0) {
           grid.append(el('p', { class: 'sparkline-loading' }, 'No metrics defined.'));
           return;

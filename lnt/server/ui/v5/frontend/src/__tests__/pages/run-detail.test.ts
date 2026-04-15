@@ -48,9 +48,9 @@ const mockRun: RunDetail = {
 };
 
 const mockFields: FieldInfo[] = [
-  { name: 'exec_time', type: 'Real', display_name: 'Execution Time', unit: 's', unit_abbrev: 's', bigger_is_better: false },
-  { name: 'compile_time', type: 'Real', display_name: 'Compile Time', unit: 's', unit_abbrev: 's', bigger_is_better: false },
-  { name: 'hash', type: 'Hash', display_name: 'Hash', unit: null, unit_abbrev: null, bigger_is_better: null },
+  { name: 'exec_time', type: 'real', display_name: 'Execution Time', unit: 's', unit_abbrev: 's', bigger_is_better: false },
+  { name: 'compile_time', type: 'real', display_name: 'Compile Time', unit: 's', unit_abbrev: 's', bigger_is_better: false },
+  { name: 'hash', type: 'hash', display_name: 'Hash', unit: null, unit_abbrev: null, bigger_is_better: null },
 ];
 
 const mockSamples: SampleInfo[] = [

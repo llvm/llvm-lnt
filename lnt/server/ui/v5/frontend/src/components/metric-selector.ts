@@ -3,9 +3,15 @@
 import { el } from '../utils';
 import type { FieldInfo } from '../types';
 
-/** Filter fields to only plottable numeric metrics (type === 'Real'). */
+/**
+ * Valid v5 metric types. Must match the backend's VALID_METRIC_TYPES
+ * in lnt/server/db/v5/schema.py.
+ */
+export const METRIC_TYPES = { REAL: 'real', STATUS: 'status', HASH: 'hash' } as const;
+
+/** Filter fields to only plottable numeric metrics (type === 'real'). */
 export function filterMetricFields(fields: FieldInfo[]): FieldInfo[] {
-  return fields.filter(f => f.type === 'Real');
+  return fields.filter(f => f.type === METRIC_TYPES.REAL);
 }
 
 export interface MetricSelectorOptions {

@@ -50,11 +50,10 @@ const mockSuiteInfo: TestSuiteInfo = {
   name: 'nts',
   schema: {
     metrics: [
-      { name: 'exec_time', type: 'Real', display_name: 'Execution Time', unit: 's', unit_abbrev: 's', bigger_is_better: false },
+      { name: 'exec_time', type: 'real', display_name: 'Execution Time', unit: 's', unit_abbrev: 's', bigger_is_better: false },
     ],
-    commit_fields: [{ name: 'rev', type: 'String' }],
-    machine_fields: [{ name: 'hostname', type: 'String' }],
-    run_fields: [],
+    commit_fields: [{ name: 'rev', type: 'text' }],
+    machine_fields: [{ name: 'hostname', type: 'text' }],
   },
 };
 

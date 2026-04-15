@@ -563,9 +563,9 @@ GET /api/v5/test-suites/{name}  — Returns schema + fields in the response body
 ```
 
 The `GET /api/v5/test-suites/{name}` response includes a `schema` object (produced by
-`ts.test_suite.__json__()`) containing `machine_fields`, `run_fields`, and `metrics`.
+`V5DB._schema_to_dict()`) containing `metrics`, `commit_fields`, and `machine_fields`.
 Each metric entry includes: `name`, `type`, `display_name`, `unit`, `unit_abbrev`,
-`bigger_is_better`, `ignore_same_hash`.
+`bigger_is_better`.
 
 There are no separate `/fields` or `/schema` endpoints. Clients that need field
 metadata should call `GET /api/v5/test-suites/{name}` and read the `schema` object.

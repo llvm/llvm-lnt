@@ -35,7 +35,7 @@ import { comparePage } from '../../pages/compare';
 import type { FieldInfo, CommitSummary, SampleInfo } from '../../types';
 
 const mockFields: FieldInfo[] = [
-  { name: 'exec_time', type: 'Real', display_name: 'Execution Time', unit: 's', unit_abbrev: 's', bigger_is_better: false },
+  { name: 'exec_time', type: 'real', display_name: 'Execution Time', unit: 's', unit_abbrev: 's', bigger_is_better: false },
 ];
 
 const mockCommits: CommitSummary[] = [

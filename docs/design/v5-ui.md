@@ -255,7 +255,7 @@ Each side (A and B) has independent controls:
 A **Swap sides** button (circular, showing ⇄) sits between the two sides. Clicking it exchanges all of side A's state (commit, machine, runs, run aggregation) with side B's, updates the URL, re-renders the selection panel, and triggers auto-compare. This is useful for quickly reversing the baseline/new direction.
 
 Global controls (shared across both sides):
-- **Metric**: single-select dropdown; one metric at a time, applies to both table and chart. Shows the **union** of metrics from both sides' suites. Only metrics with `type === 'Real'` are shown (filtered client-side). Before any suite is selected, the metric area shows a "Select a suite to load metrics..." hint instead of an empty dropdown.
+- **Metric**: single-select dropdown; one metric at a time, applies to both table and chart. Shows the **union** of metrics from both sides' suites. Only metrics with `type === 'real'` are shown (filtered client-side). Before any suite is selected, the metric area shows a "Select a suite to load metrics..." hint instead of an empty dropdown.
 - **Sample aggregation**: strategy for aggregating multiple samples within a single run (default: median). When a test appears multiple times in a run's samples, this strategy produces a single value per test per run.
 - **Noise threshold**: numeric input defining the minimum |Delta %| to consider significant (default: 1%)
 - **Test filter**: text input for substring matching on test names, applied to both table and chart
@@ -409,7 +409,7 @@ Not test-suite specific. Served at `/v5/admin` (outside the `{ts}` namespace) wi
 - **Delete suite**: A delete button per suite. Clicking it shows an inline confirmation panel explaining that deleting a suite permanently destroys all machines, runs, commits, samples, and regressions, and is irreversible. The user must type the exact suite name to confirm. Calls `DELETE /api/v5/test-suites/{name}?confirm=true`. Requires `manage` scope.
 
 **Create Suite tab**:
-- A name input and a JSON textarea where the user pastes the full suite definition (format_version, name, metrics, run_fields, machine_fields). The JSON format matches the `POST /api/v5/test-suites` API. On success, switches to the Schemas tab with the new suite auto-selected. Requires a token with `manage` scope.
+- A name input and a JSON textarea where the user pastes the full suite definition (name, metrics, commit_fields, machine_fields). The JSON format matches the `POST /api/v5/test-suites` API. On success, switches to the Schemas tab with the new suite auto-selected. Requires a token with `manage` scope.
 
 ---
 

@@ -1,26 +1,26 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest';
-import { renderMetricSelector, filterMetricFields } from '../components/metric-selector';
+import { renderMetricSelector, filterMetricFields, METRIC_TYPES } from '../components/metric-selector';
 import type { FieldInfo } from '../types';
 
-function makeField(name: string, type = 'Real', displayName: string | null = null): FieldInfo {
+function makeField(name: string, type = METRIC_TYPES.REAL, displayName: string | null = null): FieldInfo {
   return { name, type, display_name: displayName, unit: null, unit_abbrev: null, bigger_is_better: null };
 }
 
 describe('filterMetricFields', () => {
-  it('returns only Real-typed fields', () => {
+  it('returns only real-typed fields', () => {
     const fields = [
-      makeField('status', 'Status'),
-      makeField('compile_time', 'Real'),
-      makeField('exec_time', 'Real'),
+      makeField('status', METRIC_TYPES.STATUS),
+      makeField('compile_time', METRIC_TYPES.REAL),
+      makeField('exec_time', METRIC_TYPES.REAL),
     ];
     const result = filterMetricFields(fields);
     expect(result).toHaveLength(2);
     expect(result.map(f => f.name)).toEqual(['compile_time', 'exec_time']);
   });
 
-  it('returns empty array when no Real fields', () => {
-    const result = filterMetricFields([makeField('status', 'Status')]);
+  it('returns empty array when no real fields', () => {
+    const result = filterMetricFields([makeField('status', METRIC_TYPES.STATUS)]);
     expect(result).toHaveLength(0);
   });
 });
@@ -37,8 +37,8 @@ describe('renderMetricSelector', () => {
   it('renders all fields passed to it', () => {
     const container = document.createElement('div');
     renderMetricSelector(container, [
-      makeField('compile_time', 'Real'),
-      makeField('exec_time', 'Real'),
+      makeField('compile_time'),
+      makeField('exec_time'),
     ], vi.fn());
 
     const options = container.querySelectorAll('option');
@@ -48,8 +48,8 @@ describe('renderMetricSelector', () => {
   it('returns the first field name as initial metric', () => {
     const container = document.createElement('div');
     const result = renderMetricSelector(container, [
-      makeField('compile_time', 'Real'),
-      makeField('exec_time', 'Real'),
+      makeField('compile_time'),
+      makeField('exec_time'),
     ], vi.fn());
 
     expect(result).toBe('compile_time');
@@ -58,7 +58,7 @@ describe('renderMetricSelector', () => {
   it('uses display_name when available', () => {
     const container = document.createElement('div');
     renderMetricSelector(container, [
-      makeField('ct', 'Real', 'Compile Time'),
+      makeField('ct', METRIC_TYPES.REAL, 'Compile Time'),
     ], vi.fn());
 
     const option = container.querySelector('option');
@@ -69,7 +69,7 @@ describe('renderMetricSelector', () => {
   it('falls back to name when display_name is null', () => {
     const container = document.createElement('div');
     renderMetricSelector(container, [
-      makeField('exec_time', 'Real'),
+      makeField('exec_time'),
     ], vi.fn());
 
     const option = container.querySelector('option');
@@ -80,8 +80,8 @@ describe('renderMetricSelector', () => {
     const onChange = vi.fn();
     const container = document.createElement('div');
     renderMetricSelector(container, [
-      makeField('compile_time', 'Real'),
-      makeField('exec_time', 'Real'),
+      makeField('compile_time'),
+      makeField('exec_time'),
     ], onChange);
 
     const select = container.querySelector('select') as HTMLSelectElement;
@@ -94,8 +94,8 @@ describe('renderMetricSelector', () => {
   it('shows placeholder option when placeholder: true', () => {
     const container = document.createElement('div');
     const result = renderMetricSelector(container, [
-      makeField('compile_time', 'Real'),
-      makeField('exec_time', 'Real'),
+      makeField('compile_time'),
+      makeField('exec_time'),
     ], vi.fn(), undefined, { placeholder: true });
 
     const options = container.querySelectorAll('option');
@@ -108,8 +108,8 @@ describe('renderMetricSelector', () => {
   it('selects initialValue even with placeholder', () => {
     const container = document.createElement('div');
     const result = renderMetricSelector(container, [
-      makeField('compile_time', 'Real'),
-      makeField('exec_time', 'Real'),
+      makeField('compile_time'),
+      makeField('exec_time'),
     ], vi.fn(), 'exec_time', { placeholder: true });
 
     expect(result).toBe('exec_time');

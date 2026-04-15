@@ -509,7 +509,6 @@ function renderSchemaContent(container: HTMLElement, info: TestSuiteInfo): void 
   for (const [label, fields] of [
     ['Commit Fields', info.schema.commit_fields],
     ['Machine Fields', info.schema.machine_fields],
-    ['Run Fields', info.schema.run_fields],
   ] as const) {
     if (fields && fields.length > 0) {
       container.append(el('h4', {}, label));

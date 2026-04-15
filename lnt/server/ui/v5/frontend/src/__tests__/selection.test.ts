@@ -14,7 +14,7 @@ import type { FieldInfo } from '../types';
 
 function makeField(overrides: Partial<FieldInfo> & { name: string }): FieldInfo {
   return {
-    type: 'Real',
+    type: 'real',
     display_name: null,
     unit: null,
     unit_abbrev: null,
@@ -32,11 +32,11 @@ describe('getMetricFields', () => {
     (getCommits as ReturnType<typeof vi.fn>).mockResolvedValue([]);
   });
 
-  it('returns only Real-typed fields', async () => {
+  it('returns only real-typed fields', async () => {
     const fields: FieldInfo[] = [
-      makeField({ name: 'exec_time', type: 'Real' }),
-      makeField({ name: 'score', type: 'Real' }),
-      makeField({ name: 'hash', type: 'Status' }),
+      makeField({ name: 'exec_time', type: 'real' }),
+      makeField({ name: 'score', type: 'real' }),
+      makeField({ name: 'hash', type: 'status' }),
     ];
     (getFields as ReturnType<typeof vi.fn>).mockResolvedValue(fields);
 
@@ -48,10 +48,10 @@ describe('getMetricFields', () => {
     expect(result.map(f => f.name)).toEqual(['exec_time', 'score']);
   });
 
-  it('excludes Status-typed fields', async () => {
+  it('excludes status-typed fields', async () => {
     const fields: FieldInfo[] = [
-      makeField({ name: 'hash', type: 'Status' }),
-      makeField({ name: 'status_field', type: 'Status' }),
+      makeField({ name: 'hash', type: 'status' }),
+      makeField({ name: 'status_field', type: 'status' }),
     ];
     (getFields as ReturnType<typeof vi.fn>).mockResolvedValue(fields);
 
@@ -71,10 +71,10 @@ describe('getMetricFields', () => {
 
   it('preserves field order from input', async () => {
     const fields: FieldInfo[] = [
-      makeField({ name: 'z_metric', type: 'Real' }),
-      makeField({ name: 'non_metric', type: 'Status' }),
-      makeField({ name: 'a_metric', type: 'Real' }),
-      makeField({ name: 'm_metric', type: 'Real' }),
+      makeField({ name: 'z_metric', type: 'real' }),
+      makeField({ name: 'non_metric', type: 'status' }),
+      makeField({ name: 'a_metric', type: 'real' }),
+      makeField({ name: 'm_metric', type: 'real' }),
     ];
     (getFields as ReturnType<typeof vi.fn>).mockResolvedValue(fields);
 
