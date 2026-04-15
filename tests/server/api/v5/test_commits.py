@@ -545,7 +545,7 @@ class TestCommitDelete(unittest.TestCase):
         create_regression(
             session, ts,
             indicators=[{'machine_id': m.id, 'test_id': t.id,
-                          'metric': 'execution_time'}],
+                         'metric': 'execution_time'}],
             commit=c)
         session.commit()
         session.close()

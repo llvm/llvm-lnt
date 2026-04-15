@@ -15,7 +15,6 @@ sys.path.insert(0, os.path.dirname(__file__))
 from v5_test_helpers import (
     create_app, create_client, make_scoped_headers,
     collect_all_pages, submit_run, submit_regression,
-    create_machine, create_commit, create_test,
 )
 
 
@@ -131,12 +130,12 @@ class TestRegressionList(unittest.TestCase):
         submit_regression(
             self.client,
             indicators=[{'machine': machine, 'test': test1,
-                          'metric': 'execution_time'}],
+                         'metric': 'execution_time'}],
             state='active')
         submit_regression(
             self.client,
             indicators=[{'machine': machine, 'test': test2,
-                          'metric': 'execution_time'}],
+                         'metric': 'execution_time'}],
             state='detected')
 
         resp = self.client.get(
@@ -202,7 +201,7 @@ class TestRegressionListFilters(unittest.TestCase):
         reg = submit_regression(
             self.client,
             indicators=[{'machine': machine_name, 'test': test_name,
-                          'metric': 'execution_time'}])
+                         'metric': 'execution_time'}])
 
         uuids = self._collect_filtered(f'machine={machine_name}')
         self.assertIn(reg['uuid'], uuids)
@@ -219,7 +218,7 @@ class TestRegressionListFilters(unittest.TestCase):
         reg = submit_regression(
             self.client,
             indicators=[{'machine': machine_name, 'test': test_name,
-                          'metric': 'execution_time'}])
+                         'metric': 'execution_time'}])
 
         uuids = self._collect_filtered(f'test={test_name}')
         self.assertIn(reg['uuid'], uuids)
@@ -241,13 +240,13 @@ class TestRegressionListFilters(unittest.TestCase):
         reg_ct = submit_regression(
             self.client,
             indicators=[{'machine': machine_name, 'test': test_ct,
-                          'metric': 'compile_time'}])
+                         'metric': 'compile_time'}])
 
         # Create regression for execution_time
         reg_et = submit_regression(
             self.client,
             indicators=[{'machine': machine_name, 'test': test_et,
-                          'metric': 'execution_time'}])
+                         'metric': 'execution_time'}])
 
         # Filter by execution_time -- should include reg_et, exclude reg_ct
         uuids = self._collect_filtered('metric=execution_time')
@@ -284,7 +283,7 @@ class TestRegressionListFilters(unittest.TestCase):
         reg = submit_regression(
             self.client,
             indicators=[{'machine': machine_name, 'test': test_name,
-                          'metric': 'execution_time'}])
+                         'metric': 'execution_time'}])
 
         uuids = self._collect_filtered(
             f'machine={machine_name}&test={test_name}'
@@ -307,12 +306,12 @@ class TestRegressionListFilters(unittest.TestCase):
         reg1 = submit_regression(
             self.client,
             indicators=[{'machine': machine, 'test': test,
-                          'metric': 'execution_time'}],
+                         'metric': 'execution_time'}],
             commit=rev1)
         reg2 = submit_regression(
             self.client,
             indicators=[{'machine': machine, 'test': test,
-                          'metric': 'execution_time'}],
+                         'metric': 'execution_time'}],
             commit=rev2)
 
         uuids = self._collect_filtered(f'commit={rev1}')
@@ -335,12 +334,12 @@ class TestRegressionListFilters(unittest.TestCase):
         reg_with = submit_regression(
             self.client,
             indicators=[{'machine': machine, 'test': test1,
-                          'metric': 'execution_time'}],
+                         'metric': 'execution_time'}],
             commit=rev)
         reg_without = submit_regression(
             self.client,
             indicators=[{'machine': machine, 'test': test2,
-                          'metric': 'execution_time'}])
+                         'metric': 'execution_time'}])
 
         for filter_val, in_with, in_without in [
             ('true', True, False),
@@ -366,7 +365,7 @@ class TestRegressionListFilters(unittest.TestCase):
         reg = submit_regression(
             self.client,
             indicators=[{'machine': machine, 'test': test,
-                          'metric': 'execution_time'}],
+                         'metric': 'execution_time'}],
             commit=rev)
 
         resp = self.client.get(PREFIX + '/regressions?limit=500')

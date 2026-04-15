@@ -31,7 +31,6 @@ from ..pagination import (
 from ..schemas.regressions import (
     IndicatorAddSchema,
     IndicatorRemoveSchema,
-    IndicatorResponseSchema,
     PaginatedRegressionListSchema,
     RegressionCreateSchema,
     RegressionDetailSchema,
@@ -159,9 +158,9 @@ def _eager_load_regression(session, ts, regression_uuid):
         .options(
             joinedload(ts.Regression.commit_obj),
             subqueryload(ts.Regression.indicators)
-                .joinedload(ts.RegressionIndicator.machine),
+            .joinedload(ts.RegressionIndicator.machine),
             subqueryload(ts.Regression.indicators)
-                .joinedload(ts.RegressionIndicator.test),
+            .joinedload(ts.RegressionIndicator.test),
         )
         .filter(ts.Regression.uuid == regression_uuid)
         .first()

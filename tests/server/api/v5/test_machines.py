@@ -357,7 +357,7 @@ class TestMachineDelete(unittest.TestCase):
         create_regression(
             session, ts, title=f'Reg for {name}',
             indicators=[{'machine_id': machine.id, 'test_id': test.id,
-                          'metric': 'execution_time'}])
+                         'metric': 'execution_time'}])
         session.commit()
         session.close()
 
