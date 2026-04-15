@@ -1,15 +1,36 @@
 from flask import g, render_template, request
 
 from . import v5_frontend, _setup_testsuite
-from lnt.server.ui.views import ts_data
 from lnt.server.ui.decorators import _make_db_session
+
+
+def _v5_url_base():
+    """Compute the LNT URL base for the v5 SPA.
+
+    Uses the v4 blueprint's index URL when available (keeps parity with
+    v4 instances), otherwise falls back to the request's script root.
+    """
+    try:
+        from flask import url_for
+        return url_for('lnt.index', _external=False).rstrip('/')
+    except Exception:
+        return request.script_root
+
+
+def _v4_url():
+    """Return the v4 UI root URL, or empty string if v4 is not available."""
+    try:
+        from flask import url_for
+        return url_for('lnt.index')
+    except Exception:
+        return ''
 
 
 def _v5_render(**kwargs):
     """Render the v5 SPA shell with common template variables."""
     return render_template("v5_app.html",
-                           lnt_url_base='',
-                           v4_url='',
+                           lnt_url_base=_v5_url_base(),
+                           v4_url=_v4_url(),
                            **kwargs)
 
 
@@ -46,9 +67,7 @@ def v5_app(testsuite_name, subpath=None):
     _setup_testsuite(testsuite_name)
     try:
         ts = request.get_testsuite()
-        data = ts_data(ts)
         db = request.get_db()
-        data['testsuites'] = sorted(db.testsuite.keys())
-        return _v5_render(**data)
+        return _v5_render(testsuites=sorted(db.testsuite.keys()))
     finally:
         request.session.close()

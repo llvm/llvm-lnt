@@ -104,6 +104,7 @@ class TestRunSubmissionWorkflow(unittest.TestCase):
             data['commit'], self._revision,
             "Run detail commit mismatch")
         self.assertIn('submitted_at', data)
+        self.assertIn('run_parameters', data)
 
     def test_04_run_samples_returned(self):
         """GET /runs/{uuid}/samples returns the submitted samples."""
@@ -148,6 +149,14 @@ class TestRunSubmissionWorkflow(unittest.TestCase):
         has_benchmark1 = any('benchmark1' in n for n in names)
         self.assertTrue(has_benchmark1,
                         f"benchmark1 test not found in tests list: {names}")
+
+    def test_07_commit_created_implicitly(self):
+        """The commit is implicitly created by the run submission."""
+        resp = self.client.get(
+            PREFIX + f'/commits/{self._revision}')
+        self.assertEqual(resp.status_code, 200,
+                         "Commit not found after run submission")
+        self.assertEqual(resp.get_json()['commit'], self._revision)
 
 
 # -----------------------------------------------------------------------
@@ -504,6 +513,98 @@ class TestCORSOnAllEndpoints(unittest.TestCase):
             'Authorization',
             resp.headers.get('Access-Control-Allow-Headers', ''),
             "OPTIONS response missing Authorization in Allow-Headers")
+
+
+# -----------------------------------------------------------------------
+# 7. TestQueryWorkflow
+# -----------------------------------------------------------------------
+
+class TestQueryWorkflow(unittest.TestCase):
+    """Submit runs with data, then query them via POST /query.
+
+    This workflow exercises:
+      POST   /runs                          (submit with data)
+      PATCH  /commits/{value}               (assign ordinals)
+      POST   /query                         (time-series query)
+    """
+
+    app = None
+    client = None
+
+    _machine = None
+    _test = None
+    _commits = None
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+        cls._machine = f'query-wf-m-{uuid.uuid4().hex[:8]}'
+        cls._test = f'query-wf/test/{uuid.uuid4().hex[:8]}'
+        cls._commits = []
+
+        import datetime
+        from v5_test_helpers import (
+            create_machine, create_commit, create_run,
+            create_test, create_sample,
+        )
+        db = cls.app.instance.get_database("default")
+        session = db.make_session()
+        ts = db.testsuite[TS]
+        machine = create_machine(session, ts, name=cls._machine)
+        test = create_test(session, ts, name=cls._test)
+        for i in range(5):
+            c = create_commit(session, ts,
+                              commit=f'qwf-c-{uuid.uuid4().hex[:8]}')
+            ts.update_commit(session, c, ordinal=5000 + i)
+            run = create_run(session, ts, machine, c,
+                             submitted_at=datetime.datetime(
+                                 2024, 1, 1 + i, 12, 0, 0))
+            create_sample(session, ts, run, test,
+                          execution_time=10.0 + i)
+            cls._commits.append(c.commit)
+        session.commit()
+        session.close()
+
+    def test_query_returns_all_data(self):
+        """POST /query returns all 5 submitted data points."""
+        resp = self.client.post(
+            PREFIX + '/query',
+            json={
+                'metric': 'execution_time',
+                'machine': self._machine,
+                'test': [self._test],
+            },
+        )
+        self.assertEqual(resp.status_code, 200,
+                         f"POST /query returned {resp.status_code}")
+        items = resp.get_json()['items']
+        self.assertEqual(len(items), 5,
+                         f"Expected 5 items, got {len(items)}")
+        for item in items:
+            self.assertIn('commit', item)
+            self.assertIn('ordinal', item)
+            self.assertIn('submitted_at', item)
+            self.assertNotIn('order', item,
+                             "v4 'order' field leaked into v5 response")
+            self.assertNotIn('timestamp', item,
+                             "v4 'timestamp' field leaked into v5 response")
+
+    def test_query_filter_by_time_range(self):
+        """POST /query with after_time/before_time filters correctly."""
+        resp = self.client.post(
+            PREFIX + '/query',
+            json={
+                'metric': 'execution_time',
+                'machine': self._machine,
+                'after_time': '2024-01-02T00:00:00',
+                'before_time': '2024-01-04T00:00:00',
+            },
+        )
+        self.assertEqual(resp.status_code, 200)
+        items = resp.get_json()['items']
+        self.assertEqual(len(items), 2)
 
 
 if __name__ == '__main__':
