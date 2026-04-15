@@ -233,18 +233,17 @@ Per-suite tables are dynamically named (e.g., `nts_Commit`, `nts_Run`).
 | title | String(256) | nullable |
 | bug | String(256) | nullable |
 | state | Integer | not null, indexed |
+| notes | Text | nullable |
 
 Regression state values:
 
 | Value | Name             |
 |-------|------------------|
 | 0     | detected         |
-| 1     | staged           |
-| 2     | active           |
-| 3     | not_to_be_fixed  |
-| 4     | ignored          |
-| 5     | fixed            |
-| 6     | detected_fixed   |
+| 1     | active           |
+| 2     | not_to_be_fixed  |
+| 3     | fixed            |
+| 4     | false_positive   |
 
 The DB layer validates state values on create and update.
 
@@ -262,9 +261,11 @@ The DB layer validates state values on create and update.
 ### Tables dropped from v4
 
 - **Baseline**: v5 comparisons are stateless API operations.
-- **ChangeIgnore**: There is no "ignore" state on FieldChanges. If a field
-  change is not relevant, it should not be created. The external process that
-  creates field changes is responsible for filtering.
+- **ChangeIgnore**: There is no "ignore" state on FieldChanges. FieldChanges
+  are stateless observations — they have no lifecycle of their own. Dismissal
+  of noise happens at the regression level: group field changes into a
+  `false_positive` regression with notes explaining the reasoning. The external
+  process that creates field changes is responsible for filtering upstream.
 - **Profile**: Profiling is a separate concern.
 - **Order**: Replaced by Commit.
 

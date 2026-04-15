@@ -54,7 +54,7 @@ The DB layer provides filtering, sorting, and limit only.
 
 ### 1b.3 Regression state validation
 
-Add `VALID_REGRESSION_STATES` constant (mapping integers 0-6 to state names)
+Add `VALID_REGRESSION_STATES` constant (mapping integers 0-4 to state names)
 and validate in `create_regression()` and `update_regression()`.
 
 ### 1b.4 Add missing CRUD methods to `V5TestSuiteDB`
@@ -337,8 +337,8 @@ FK on v5 FieldChange).
 ### 2.8 Endpoint: Regressions (`regressions.py`)
 
 **State mapping**: Update `STATE_TO_DB` to v5 integer values:
-`detected=0, staged=1, active=2, not_to_be_fixed=3, ignored=4, fixed=5,
-detected_fixed=6`.
+`detected=0, active=1, not_to_be_fixed=2, fixed=3,
+false_positive=4`.
 
 **`POST /regressions`** — Use `ts.create_regression(session, title,
 [fc.id ...], bug=bug, state=state)`.
@@ -347,8 +347,8 @@ detected_fixed=6`.
 
 **`DELETE /regressions/{uuid}`** — Use `ts.delete_regression()`.
 
-**`POST .../merge`** — Use `ts.update_regression()` for state changes.
-Keep indicator-moving logic using `ts.RegressionIndicator` queries.
+**`POST .../merge`** — Delete source regressions after moving their indicators
+to the target. Keep indicator-moving logic using `ts.RegressionIndicator` queries.
 
 **`POST .../split`** — Use `ts.create_regression(session, title, [],
 ...)` then move indicators.

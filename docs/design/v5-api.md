@@ -72,11 +72,11 @@ Profiles are submitted as base64-encoded data within the run submission payload 
 Regressions
 
 GET    /regressions                              — List (cursor-paginated, filterable by state=, machine=, test=)
-POST   /regressions                              — Create from field changes
+POST   /regressions                              — Create from field changes (accepts title, bug, notes, state)
 GET    /regressions/{uuid}                       — Detail (see response contents below)
-PATCH  /regressions/{uuid}                       — Update title, bug URL, state
+PATCH  /regressions/{uuid}                       — Update title, bug URL, state, notes
 DELETE /regressions/{uuid}                       — Delete
-POST   /regressions/{uuid}/merge                 — Merge source regressions into this one
+POST   /regressions/{uuid}/merge                 — Merge source regressions into this one (sources are deleted)
 POST   /regressions/{uuid}/split                 — Split field changes into a new regression
 GET    /regressions/{uuid}/indicators            — List field changes (cursor-paginated)
 POST   /regressions/{uuid}/indicators            — Add field change
@@ -84,24 +84,35 @@ DELETE /regressions/{uuid}/indicators/{fc_uuid}  — Remove field change
 Regressions are identified by server-generated UUID (schema migration required).
 
 Regression states (string enum):
-detected, staged, active, not_to_be_fixed, ignored, detected_fixed, fixed
+detected, active, not_to_be_fixed, fixed, false_positive
 
 State transitions are unconstrained — any state can be set to any other state via PATCH.
 
 Regression detail response (GET /regressions/{uuid}) includes:
-- uuid, title, bug, state
+- uuid, title, bug, state, notes
 - Embedded list of indicators, each containing:
   - field_change_uuid
   - test, machine, metric
   - old_value, new_value
   - start_commit and end_commit (commit identity strings)
 
+The `notes` field (free-text, for investigation findings, A/B results, root
+cause analysis, false_positive reasoning, etc.) is included in the detail
+response only, not in list responses.
+
 Field Changes (triage)
 
-GET    /field-changes                — List unassigned field changes (cursor-paginated, filterable by machine=, test=, metric=)
+GET    /field-changes                — List field changes (cursor-paginated, filterable by machine=, test=, metric=, assigned=)
 POST   /field-changes                — Create a field change programmatically (references machine, test, metric, and commits by name)
-Field changes are identified by server-generated UUID.
+Field changes are identified by server-generated UUID. They are stateless
+observations — they have no lifecycle of their own.
 Creating a field change requires: machine (name), test (name), metric (name), old_value, new_value, start_commit, end_commit. All references are resolved by name/value, not internal ID.
+
+Field change response shape (GET list and embedded in regression indicators):
+- uuid, test, machine, metric
+- old_value, new_value
+- start_commit, end_commit (commit identity strings)
+- regression_uuids (list of regression UUIDs this FC belongs to, empty if unassigned)
 
 Time Series
 
@@ -135,7 +146,7 @@ There are no separate /fields or /schema endpoints.
 
 R4: Pagination
 
-- Cursor-based pagination for unbounded lists: runs, tests, orders, samples, field changes, regressions, regression indicators, time series
+- Cursor-based pagination for unbounded lists: runs, tests, commits, samples, field changes, regressions, regression indicators, time series
 - Simple offset-based or unpaginated for bounded/small lists: machines, API keys
 - Cursor-paginated response envelope: {"items": [...], "cursor": {"next": "...", "previous": "..."}}
 - Default page size with configurable limit parameter
@@ -148,6 +159,7 @@ R5: Filtering and Sorting
   - machine=, test=, metric=, name_contains=, name_prefix=
   - after=, before= (for timestamps and order values)
   - state= (for regressions, supports multiple values: ?state=active&state=detected)
+  - assigned= (for field changes, boolean: true/false)
   - has_profile=true (for samples)
   - sort=<field> (prefix with - for descending: sort=-start_time)
 - Exact filters and available sort fields defined per endpoint in the OpenAPI spec

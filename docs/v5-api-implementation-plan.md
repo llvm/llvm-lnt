@@ -494,14 +494,14 @@ DELETE /api/v5/{ts}/regressions/{uuid}/indicators/{fc_uuid}  — Remove indicato
 **Key design decisions:**
 - Identified by **UUID** (NOT integer ID). Requires migration.
 - State mapping: API strings ↔ DB integers:
-  `detected`↔0, `staged`↔1, `active`↔10, `not_to_be_fixed`↔20,
-  `ignored`↔21, `fixed`↔22, `detected_fixed`↔23
+  `detected`↔0, `active`↔1, `not_to_be_fixed`↔2,
+  `fixed`↔3, `false_positive`↔4
 - State transitions unconstrained.
 
 **Detail response** includes embedded indicators:
 ```json
 {
-  "uuid": "...", "title": "...", "bug": "...", "state": "active",
+  "uuid": "...", "title": "...", "bug": "...", "state": "active", "notes": "...",
   "indicators": [
     {
       "field_change_uuid": "...",
@@ -513,8 +513,9 @@ DELETE /api/v5/{ts}/regressions/{uuid}/indicators/{fc_uuid}  — Remove indicato
 }
 ```
 
-**Merge**: target absorbs sources. Sources marked as IGNORED. Indicators moved to target.
-Deduplicate indicators (don't link same field change twice). Validate: cannot merge into self.
+**Merge**: target absorbs sources. Sources are deleted after their indicators
+are moved to the target. Deduplicate indicators (don't link same field change twice).
+Validate: cannot merge into self.
 Request body uses UUIDs: `{"source_regression_uuids": ["...", "..."]}`.
 
 **Split**: move specified field changes to a new regression. Validate: cannot split ALL
@@ -530,16 +531,16 @@ Auth: read=GET, triage=POST/PATCH/DELETE/merge/split/indicators.
 
 **Endpoints:**
 ```
-GET    /api/v5/{ts}/field-changes                 — List unassigned (cursor-paginated)
+GET    /api/v5/{ts}/field-changes                 — List all field changes (cursor-paginated)
 POST   /api/v5/{ts}/field-changes                 — Create a field change
 ```
 
 **Key design decisions:**
 - Identified by **UUID**.
-- "Unassigned" = no RegressionIndicator (LEFT JOIN + IS NULL pattern).
-  No ChangeIgnore in v5 — field changes that are not relevant should not
-  be created (the external process is responsible for filtering).
-- Filters: `machine=`, `test=`, `metric=`
+- Returns all FCs enriched with `regression_uuids` (list of regression UUIDs
+  the FC belongs to, empty if unassigned). Filter `?assigned=true/false`
+  controls inclusion. No ChangeIgnore in v5.
+- Filters: `machine=`, `test=`, `metric=`, `assigned=`
 - Auth: read=GET, submit=POST (create).
 
 **POST /field-changes (create):**

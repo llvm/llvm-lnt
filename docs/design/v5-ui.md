@@ -68,7 +68,7 @@ The shell template (`v5_app.html`) is a standalone HTML page (it does NOT extend
 /v5/{ts}/machines/{name}               Machine Detail
 /v5/{ts}/runs/{uuid}                   Run Detail
 /v5/{ts}/commits/{value}               Commit Detail
-/v5/{ts}/regressions?state=...         Regression List
+/v5/{ts}/regressions?state=...         Regression List (states: detected, active, not_to_be_fixed, fixed, false_positive)
 /v5/{ts}/regressions/{uuid}            Regression Detail
 /v5/{ts}/field-changes                 Field Change Triage
 /v5/graph?suite={ts}&machine=...       Graph (time series) — suite-agnostic
