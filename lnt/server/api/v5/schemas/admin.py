@@ -66,12 +66,30 @@ class APIKeyItemSchema(BaseSchema):
     Never includes the key hash or the raw token.
     """
 
-    prefix = ma.fields.String(required=True)
-    name = ma.fields.String(required=True)
-    scope = ma.fields.String(required=True)
-    created_at = ma.fields.DateTime(required=True)
-    last_used_at = ma.fields.DateTime(allow_none=True)
-    is_active = ma.fields.Boolean(required=True)
+    prefix = ma.fields.String(
+        required=True,
+        metadata={'description': 'First 8 characters of the token (identifier)'},
+    )
+    name = ma.fields.String(
+        required=True,
+        metadata={'description': 'Human-readable key name'},
+    )
+    scope = ma.fields.String(
+        required=True,
+        metadata={'description': 'Granted scope level'},
+    )
+    created_at = ma.fields.DateTime(
+        required=True,
+        metadata={'description': 'When the key was created'},
+    )
+    last_used_at = ma.fields.DateTime(
+        allow_none=True,
+        metadata={'description': 'When the key was last used'},
+    )
+    is_active = ma.fields.Boolean(
+        required=True,
+        metadata={'description': 'Whether the key is active (not revoked)'},
+    )
 
 
 class APIKeyListResponseSchema(BaseSchema):

@@ -52,7 +52,10 @@ class MachineUpdateSchema(BaseSchema):
 
 class MachineResponseSchema(BaseSchema):
     """Schema for a single machine in responses."""
-    name = ma.fields.String(required=True)
+    name = ma.fields.String(
+        required=True,
+        metadata={'description': 'Machine name'},
+    )
     info = ma.fields.Dict(
         keys=ma.fields.String(),
         values=ma.fields.String(),
@@ -65,7 +68,10 @@ class MachineResponseSchema(BaseSchema):
 
 class MachineRunResponseSchema(BaseSchema):
     """Schema for a run in the machine runs sub-resource."""
-    uuid = ma.fields.String(required=True)
+    uuid = ma.fields.String(
+        required=True,
+        metadata={'description': 'Server-generated UUID for the run'},
+    )
     commit = ma.fields.String(
         allow_none=True,
         metadata={'description': 'Commit string for this run'},

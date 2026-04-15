@@ -7,6 +7,86 @@ from .common import BaseQuerySchema, CursorPaginationQuerySchema, PaginatedRespo
 
 
 # ---------------------------------------------------------------------------
+# Request body schemas
+# ---------------------------------------------------------------------------
+
+class RunSubmitMachineSchema(BaseSchema):
+    """Machine section of a run submission."""
+    class Meta:
+        unknown = ma.INCLUDE
+
+    name = ma.fields.String(
+        required=True,
+        metadata={'description': 'Machine name'},
+    )
+
+
+class RunSubmitTestEntrySchema(BaseSchema):
+    """A single test entry in a run submission."""
+    class Meta:
+        unknown = ma.INCLUDE
+
+    name = ma.fields.String(
+        required=True,
+        metadata={'description': 'Test name'},
+    )
+
+
+class RunSubmitBodySchema(BaseSchema):
+    """Request body for POST /runs (v5 report format).
+
+    The ``tests`` entries may contain additional metric fields (e.g.
+    ``execution_time``, ``compile_time``) whose names are defined by
+    the test suite schema.  Metric values can be scalars or arrays;
+    arrays create one sample per element.
+    """
+    class Meta:
+        unknown = ma.INCLUDE
+
+    format_version = ma.fields.Raw(
+        required=True,
+        metadata={'description': "Must be the string '5'", 'example': '5'},
+    )
+    machine = ma.fields.Nested(
+        RunSubmitMachineSchema,
+        required=True,
+        metadata={'description': 'Machine definition (name + optional info fields)'},
+    )
+    commit = ma.fields.String(
+        required=True,
+        metadata={
+            'description': 'Commit identifier for this run',
+            'example': 'abc123def456',
+        },
+    )
+    commit_fields = ma.fields.Dict(
+        keys=ma.fields.String(),
+        values=ma.fields.Raw(),
+        load_default={},
+        metadata={
+            'description': 'Optional commit metadata (first-write-wins)',
+            'example': {'llvm_project_revision': 'abc123'},
+        },
+    )
+    run_parameters = ma.fields.Dict(
+        keys=ma.fields.String(),
+        values=ma.fields.Raw(),
+        load_default={},
+        metadata={
+            'description': 'Optional run parameters stored as JSONB',
+            'example': {'build_config': 'Release'},
+        },
+    )
+    tests = ma.fields.List(
+        ma.fields.Nested(RunSubmitTestEntrySchema),
+        required=True,
+        metadata={
+            'description': 'Test results with metric values',
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
 # Response schemas
 # ---------------------------------------------------------------------------
 

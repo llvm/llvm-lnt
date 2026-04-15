@@ -180,9 +180,18 @@ class RegressionUpdateSchema(BaseSchema):
 
 class RegressionListItemSchema(BaseSchema):
     """Schema for a regression in list responses."""
-    uuid = ma.fields.String(required=True)
-    title = ma.fields.String(allow_none=True)
-    bug = ma.fields.String(allow_none=True)
+    uuid = ma.fields.String(
+        required=True,
+        metadata={'description': 'Regression UUID'},
+    )
+    title = ma.fields.String(
+        allow_none=True,
+        metadata={'description': 'Regression title'},
+    )
+    bug = ma.fields.String(
+        allow_none=True,
+        metadata={'description': 'Bug tracker URL'},
+    )
     state = ma.fields.String(
         required=True,
         metadata={'description': 'Regression state', 'enum': VALID_STATES},
@@ -201,9 +210,18 @@ class RegressionListItemSchema(BaseSchema):
 
 class RegressionDetailSchema(BaseSchema):
     """Schema for a single regression detail response."""
-    uuid = ma.fields.String(required=True)
-    title = ma.fields.String(allow_none=True)
-    bug = ma.fields.String(allow_none=True)
+    uuid = ma.fields.String(
+        required=True,
+        metadata={'description': 'Regression UUID'},
+    )
+    title = ma.fields.String(
+        allow_none=True,
+        metadata={'description': 'Regression title'},
+    )
+    bug = ma.fields.String(
+        allow_none=True,
+        metadata={'description': 'Bug tracker URL'},
+    )
     notes = ma.fields.String(
         allow_none=True,
         metadata={'description': 'Investigation notes'},

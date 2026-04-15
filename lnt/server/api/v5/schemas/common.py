@@ -50,12 +50,12 @@ class PaginatedResponseSchema(BaseSchema):
 
 class TestSuiteLinksSchema(BaseSchema):
     """Links to resources within a test suite."""
-    machines = ma.fields.String()
-    commits = ma.fields.String()
-    runs = ma.fields.String()
-    tests = ma.fields.String()
-    regressions = ma.fields.String()
-    query = ma.fields.String()
+    machines = ma.fields.String(metadata={'description': 'URL for machines list'})
+    commits = ma.fields.String(metadata={'description': 'URL for commits list'})
+    runs = ma.fields.String(metadata={'description': 'URL for runs list'})
+    tests = ma.fields.String(metadata={'description': 'URL for tests list'})
+    regressions = ma.fields.String(metadata={'description': 'URL for regressions list'})
+    query = ma.fields.String(metadata={'description': 'URL for time-series query endpoint'})
 
 
 class TestSuiteDiscoverySchema(BaseSchema):
@@ -66,9 +66,9 @@ class TestSuiteDiscoverySchema(BaseSchema):
 
 class DiscoveryLinksSchema(BaseSchema):
     """Top-level links in the discovery response."""
-    openapi = ma.fields.String()
-    swagger_ui = ma.fields.String()
-    test_suites = ma.fields.String()
+    openapi = ma.fields.String(metadata={'description': 'URL for OpenAPI JSON spec'})
+    swagger_ui = ma.fields.String(metadata={'description': 'URL for Swagger UI'})
+    test_suites = ma.fields.String(metadata={'description': 'URL for test suites list'})
 
 
 class DiscoveryResponseSchema(BaseSchema):

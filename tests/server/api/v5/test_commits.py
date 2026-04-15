@@ -217,23 +217,23 @@ class TestCommitCreate(unittest.TestCase):
         )
         self.assertEqual(resp.status_code, 409)
 
-    def test_create_missing_commit_400(self):
-        """Creating without required commit field returns 400."""
+    def test_create_missing_commit_422(self):
+        """Creating without required commit field returns 422."""
         resp = self.client.post(
             PREFIX + '/commits',
             json={},
             headers=admin_headers(),
         )
-        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(resp.status_code, 422)
 
-    def test_create_no_body_400(self):
-        """POST without body returns 400."""
+    def test_create_no_body_422(self):
+        """POST without body returns 422."""
         resp = self.client.post(
             PREFIX + '/commits',
             headers=admin_headers(),
             content_type='application/json',
         )
-        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(resp.status_code, 422)
 
     def test_create_no_auth_401(self):
         """Creating without auth should return 401."""

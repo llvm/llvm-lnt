@@ -6,9 +6,7 @@ GET    /api/v5/{ts}/runs/{uuid}         -- Run detail
 DELETE /api/v5/{ts}/runs/{uuid}         -- Delete run
 """
 
-import json
-
-from flask import g, jsonify, make_response, request
+from flask import g, jsonify, make_response
 from flask.views import MethodView
 from flask_smorest import Blueprint
 from sqlalchemy.orm import joinedload
@@ -25,6 +23,7 @@ from ..schemas.runs import (
     PaginatedRunResponseSchema,
     RunListQuerySchema,
     RunResponseSchema,
+    RunSubmitBodySchema,
     RunSubmitQuerySchema,
     RunSubmitResponseSchema,
 )
@@ -102,8 +101,9 @@ class RunList(MethodView):
 
     @require_scope('submit')
     @blp.arguments(RunSubmitQuerySchema, location="query")
+    @blp.arguments(RunSubmitBodySchema)
     @blp.response(201, RunSubmitResponseSchema)
-    def post(self, query_args, testsuite):
+    def post(self, query_args, body, testsuite):
         """Submit a new run.
 
         Accepts the v5 JSON report format (format_version '5').
@@ -114,20 +114,7 @@ class RunList(MethodView):
         ts = g.ts
         session = g.db_session
 
-        data = request.get_data(as_text=True)
-        if not data or not data.strip():
-            abort_with_error(400,
-                             "Request body must be a non-empty JSON payload")
-
-        try:
-            parsed = json.loads(data)
-        except ValueError as exc:
-            abort_with_error(400, "Request body is not valid JSON: %s" % exc)
-        if not isinstance(parsed, dict):
-            abort_with_error(400, "Request body must be a JSON object, "
-                             "not %s" % type(parsed).__name__)
-
-        version = parsed.get('format_version')
+        version = body.get('format_version')
         if version is None:
             abort_with_error(400, "v5 API requires format_version '5', "
                              "but it is missing")
@@ -137,7 +124,7 @@ class RunList(MethodView):
 
         try:
             run = ts.import_run(
-                session, parsed,
+                session, body,
                 machine_strategy=query_args['on_machine_conflict'])
         except ValueError as exc:
             abort_with_error(400, str(exc))

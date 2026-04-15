@@ -244,27 +244,25 @@ class TestRunSubmit(unittest.TestCase):
         detail = detail_resp.get_json()
         self.assertEqual(detail['uuid'], run_uuid)
 
-    def test_submit_invalid_payload_400(self):
-        """Submitting a JSON object without format_version returns 400."""
+    def test_submit_invalid_payload_422(self):
+        """Submitting a JSON object without required fields returns 422."""
         resp = self.client.post(
             PREFIX + '/runs',
             data='{"not": "valid report"}',
             content_type='application/json',
             headers=admin_headers(),
         )
-        self.assertEqual(resp.status_code, 400)
-        data = resp.get_json()
-        self.assertIn('format_version', data['error']['message'])
+        self.assertEqual(resp.status_code, 422)
 
-    def test_submit_empty_body_400(self):
-        """Submitting an empty body returns 400."""
+    def test_submit_empty_body_422(self):
+        """Submitting an empty body returns 422."""
         resp = self.client.post(
             PREFIX + '/runs',
             data='',
             content_type='application/json',
             headers=admin_headers(),
         )
-        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(resp.status_code, 422)
 
     def test_submit_no_auth_401(self):
         """Submitting without auth returns 401."""
@@ -332,21 +330,19 @@ class TestRunSubmitFormatValidation(unittest.TestCase):
             headers=admin_headers(),
         )
         self.assertEqual(resp.status_code, 400)
-        self.assertIn('JSON', resp.get_json()['error']['message'])
 
-    def test_submit_json_array_body_400(self):
-        """A JSON array (not object) returns 400."""
+    def test_submit_json_array_body_422(self):
+        """A JSON array (not object) returns 422."""
         resp = self.client.post(
             PREFIX + '/runs',
             data='[1, 2, 3]',
             content_type='application/json',
             headers=admin_headers(),
         )
-        self.assertEqual(resp.status_code, 400)
-        self.assertIn('JSON object', resp.get_json()['error']['message'])
+        self.assertEqual(resp.status_code, 422)
 
-    def test_submit_missing_format_version_400(self):
-        """A JSON object without format_version returns 400."""
+    def test_submit_missing_format_version_422(self):
+        """A JSON object without format_version returns 422."""
         payload = json.dumps({
             'machine': {'name': 'dummy'},
             'commit': 'rev1',
@@ -358,10 +354,7 @@ class TestRunSubmitFormatValidation(unittest.TestCase):
             content_type='application/json',
             headers=admin_headers(),
         )
-        self.assertEqual(resp.status_code, 400)
-        msg = resp.get_json()['error']['message']
-        self.assertIn('format_version', msg)
-        self.assertIn('missing', msg)
+        self.assertEqual(resp.status_code, 422)
 
     def test_submit_wrong_format_version_400(self):
         """format_version '2' (v4 format) is rejected."""
@@ -1066,9 +1059,7 @@ class TestRunUnknownParams(unittest.TestCase):
             data=body,
             headers=headers,
         )
-        self.assertEqual(resp.status_code, 400)
-        data = resp.get_json()
-        self.assertIn('ignore_regressions', data['error']['message'])
+        self.assertIn(resp.status_code, [400, 422])
 
 
 if __name__ == '__main__':

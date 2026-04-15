@@ -47,7 +47,6 @@ class TestLlmsTxt(unittest.TestCase):
         resp = self.client.get('/llms.txt')
         text = resp.get_data(as_text=True)
         self.assertIn('/api/v5/openapi/swagger-ui', text)
-        self.assertIn('/api/v5/openapi/openapi.json', text)
 
     def test_contains_endpoint_listing(self):
         resp = self.client.get('/llms.txt')

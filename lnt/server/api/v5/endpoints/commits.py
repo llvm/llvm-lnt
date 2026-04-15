@@ -7,7 +7,7 @@ PATCH  /api/v5/{ts}/commits/{value}          -- Update commit (ordinal, fields)
 DELETE /api/v5/{ts}/commits/{value}          -- Delete commit (cascade)
 """
 
-from flask import g, jsonify, request
+from flask import g, jsonify
 from flask.views import MethodView
 from flask_smorest import Blueprint
 from sqlalchemy import or_
@@ -21,9 +21,11 @@ from ..pagination import (
     make_paginated_response,
 )
 from ..schemas.commits import (
+    CommitCreateSchema,
     CommitDetailQuerySchema,
     CommitDetailSchema,
     CommitListQuerySchema,
+    CommitUpdateSchema,
     PaginatedCommitResponseSchema,
 )
 
@@ -153,30 +155,25 @@ class CommitList(MethodView):
         return jsonify(make_paginated_response(serialized, next_cursor))
 
     @require_scope('submit')
+    @blp.arguments(CommitCreateSchema)
     @blp.response(201, CommitDetailSchema)
-    def post(self, testsuite):
+    def post(self, body, testsuite):
         """Create a commit explicitly."""
         ts = g.ts
         session = g.db_session
 
-        data = request.get_json(silent=True)
-        if not data:
-            abort_with_error(400, "Request body must be valid JSON")
-
-        commit_str = data.get('commit')
-        if not commit_str:
-            abort_with_error(400, "Missing required field: 'commit'")
+        commit_str = body['commit']
 
         # Check if commit already exists.
         existing = ts.get_commit(session, commit=commit_str)
         if existing is not None:
             abort_with_error(409, "Commit '%s' already exists" % commit_str)
 
-        metadata = _extract_commit_fields(data, ts)
+        metadata = _extract_commit_fields(body, ts)
         commit_obj = ts.get_or_create_commit(session, commit_str, **metadata)
 
         # Set ordinal if provided.
-        ordinal = data.get('ordinal')
+        ordinal = body.get('ordinal')
         if ordinal is not None:
             ts.update_commit(session, commit_obj, ordinal=ordinal)
 
@@ -213,8 +210,9 @@ class CommitDetail(MethodView):
         return add_etag_to_response(jsonify(data), data)
 
     @require_scope('manage')
+    @blp.arguments(CommitUpdateSchema)
     @blp.response(200, CommitDetailSchema)
-    def patch(self, testsuite, commit_value):
+    def patch(self, body, testsuite, commit_value):
         """Update commit ordinal and/or commit_fields."""
         ts = g.ts
         session = g.db_session
@@ -223,20 +221,16 @@ class CommitDetail(MethodView):
         if commit_obj is None:
             abort_with_error(404, "Commit '%s' not found" % commit_value)
 
-        data = request.get_json(silent=True)
-        if not data:
-            abort_with_error(400, "Request body must be valid JSON")
-
         # Update ordinal if provided.
-        if 'ordinal' in data:
-            ordinal_val = data['ordinal']
+        if 'ordinal' in body:
+            ordinal_val = body['ordinal']
             if ordinal_val is None:
                 ts.update_commit(session, commit_obj, clear_ordinal=True)
             else:
                 ts.update_commit(session, commit_obj, ordinal=ordinal_val)
 
         # Update commit_fields.
-        field_updates = _extract_commit_fields(data, ts, skip=('ordinal',))
+        field_updates = _extract_commit_fields(body, ts, skip=('ordinal',))
         if field_updates:
             ts.update_commit(session, commit_obj, **field_updates)
 

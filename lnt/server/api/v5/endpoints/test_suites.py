@@ -132,6 +132,7 @@ class TestSuiteDetail(MethodView):
 
     @require_scope('manage')
     @blp.arguments(TestSuiteDeleteQuerySchema, location='query')
+    @blp.response(204)
     def delete(self, query_args, suite_name):
         """Delete a test suite and all its data (irreversible).
 

@@ -52,11 +52,18 @@ class CommitNeighborSchema(BaseSchema):
 
 class CommitDetailSchema(BaseSchema):
     """Full commit detail including previous/next neighbors."""
-    commit = ma.fields.String(required=True)
-    ordinal = ma.fields.Integer(allow_none=True)
+    commit = ma.fields.String(
+        required=True,
+        metadata={'description': 'Unique commit identifier (e.g. git SHA)'},
+    )
+    ordinal = ma.fields.Integer(
+        allow_none=True,
+        metadata={'description': 'Optional integer for total ordering'},
+    )
     fields = ma.fields.Dict(
         keys=ma.fields.String(),
         values=ma.fields.Raw(allow_none=True),
+        metadata={'description': 'Commit field values defined by the test suite schema'},
     )
     previous_commit = ma.fields.Nested(
         CommitNeighborSchema, allow_none=True,
@@ -93,3 +100,35 @@ class CommitListQuerySchema(CursorPaginationQuerySchema):
 class CommitDetailQuerySchema(BaseQuerySchema):
     """Query parameters for GET /commits/{value}."""
     pass
+
+
+# ---------------------------------------------------------------------------
+# Request body schemas
+# ---------------------------------------------------------------------------
+
+class CommitCreateSchema(BaseSchema):
+    """Request body for POST /commits."""
+    class Meta:
+        unknown = ma.INCLUDE
+
+    commit = ma.fields.String(
+        required=True,
+        metadata={'description': 'Unique commit identifier (e.g. git SHA)'},
+    )
+    ordinal = ma.fields.Integer(
+        load_default=None,
+        allow_none=True,
+        metadata={'description': 'Optional integer for total ordering'},
+    )
+
+
+class CommitUpdateSchema(BaseSchema):
+    """Request body for PATCH /commits/{value}."""
+    class Meta:
+        unknown = ma.INCLUDE
+
+    ordinal = ma.fields.Integer(
+        load_default=None,
+        allow_none=True,
+        metadata={'description': 'Integer for total ordering, or null to clear'},
+    )

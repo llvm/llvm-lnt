@@ -66,7 +66,6 @@ def v5_app(testsuite_name, subpath=None):
     """
     _setup_testsuite(testsuite_name)
     try:
-        ts = request.get_testsuite()
         db = request.get_db()
         return _v5_render(testsuites=sorted(db.testsuite.keys()))
     finally:

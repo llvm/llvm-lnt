@@ -70,26 +70,25 @@ by default. Write operations require tokens with appropriate scopes
   GET    /api/v5/{ts}/runs                  List runs
   POST   /api/v5/{ts}/runs                  Submit a run
   GET    /api/v5/{ts}/runs/{uuid}           Run detail
+  GET    /api/v5/{ts}/runs/{uuid}/samples   Samples for a run
   GET    /api/v5/{ts}/tests                 List tests
+  GET    /api/v5/{ts}/tests/{name}          Test detail
   POST   /api/v5/{ts}/query                 Query time-series data
+  POST   /api/v5/{ts}/trends                Aggregated trend data (geomean)
   GET    /api/v5/{ts}/regressions           List regressions
+  POST   /api/v5/{ts}/regressions           Create regression
 
 ### Global Endpoints
 
   GET    /api/v5/test-suites               List all test suites
   GET    /api/v5/test-suites/{name}        Suite detail (schema + metrics)
+  POST   /api/v5/test-suites               Create test suite (admin)
   GET    /api/v5/admin/api-keys            List API keys (admin)
+  POST   /api/v5/admin/api-keys            Create API key (admin)
+  DELETE /api/v5/admin/api-keys/{prefix}   Revoke API key (admin)
 
-The endpoints above cover the most common read operations. The API also
-supports write operations (creating/updating/deleting machines, commits,
-runs, regressions, test suites, and API keys) which require
-appropriate authentication scopes. See the OpenAPI spec or Swagger UI for
-the complete endpoint list including all write operations.
-
-### Interactive Documentation
-
-  OpenAPI spec:  /api/v5/openapi/openapi.json
-  Swagger UI:    /api/v5/openapi/swagger-ui
+Full endpoint list including all PATCH/DELETE operations:
+  /api/v5/openapi/swagger-ui
 
 ### Pagination
 
@@ -105,10 +104,19 @@ Pass cursor=<next> to get the next page. Use limit= to control page size.
 2. Query performance history: POST /api/v5/{ts}/query with
    { "metric": "execution_time", "machine": "machine-name",
      "test": ["test/name"] } to get time-series data points.
+   Optional filters: after_commit, before_commit, after_time, before_time.
+   Optional sort: "test", "commit", "submitted_at" (prefix with - for desc).
 
-3. Submit a run: POST /api/v5/{ts}/runs with a JSON payload containing
-   format_version "5", machine, commit, and tests. Requires a token with
-   "submit" scope.
+3. Submit a run: POST /api/v5/{ts}/runs with a JSON body:
+   { "format_version": "5",
+     "machine": { "name": "machine-name" },
+     "commit": "abc123",
+     "tests": [
+       { "name": "test/name", "execution_time": 1.23, "compile_time": 0.45 },
+       { "name": "test/name", "execution_time": [1.0, 2.0] }
+     ] }
+   Metric values can be scalars or arrays (arrays create multiple samples).
+   Requires a token with "submit" scope.
 
 4. Check for regressions: GET /api/v5/{ts}/regressions?state=detected
    to find new regressions. PATCH to update state, title, bug link, notes,
@@ -118,6 +126,10 @@ Pass cursor=<next> to get the next page. Use limit= to control page size.
    the commit detail with previous/next navigation links. Use
    PATCH /api/v5/{ts}/commits/{value} to assign an ordinal for time-series
    ordering.
+
+6. Aggregated trends: POST /api/v5/{ts}/trends with
+   { "metric": "execution_time", "machine": ["m1", "m2"] } to get
+   geomean-aggregated performance per (machine, commit) pair.
 """
 
 _ETAG = hashlib.md5(LLMS_TEXT.encode()).hexdigest()
