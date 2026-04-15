@@ -480,83 +480,48 @@ GET  /api/v5/{ts}/runs/{uuid}/tests/{test_name}/profile/functions/{fn_name}  —
 **Endpoints:**
 ```
 GET    /api/v5/{ts}/regressions                              — List (cursor-paginated)
-POST   /api/v5/{ts}/regressions                              — Create from field changes
-GET    /api/v5/{ts}/regressions/{uuid}                       — Detail with indicators
+POST   /api/v5/{ts}/regressions                              — Create
+GET    /api/v5/{ts}/regressions/{uuid}                       — Detail (indicators embedded)
 PATCH  /api/v5/{ts}/regressions/{uuid}                       — Update
-DELETE /api/v5/{ts}/regressions/{uuid}                       — Delete
-POST   /api/v5/{ts}/regressions/{uuid}/merge                 — Merge
-POST   /api/v5/{ts}/regressions/{uuid}/split                 — Split
-GET    /api/v5/{ts}/regressions/{uuid}/indicators            — List indicators
-POST   /api/v5/{ts}/regressions/{uuid}/indicators            — Add indicator
-DELETE /api/v5/{ts}/regressions/{uuid}/indicators/{fc_uuid}  — Remove indicator
+DELETE /api/v5/{ts}/regressions/{uuid}                       — Delete (cascades indicators)
+POST   /api/v5/{ts}/regressions/{uuid}/indicators            — Add indicator(s) (batch)
+DELETE /api/v5/{ts}/regressions/{uuid}/indicators            — Remove indicator(s) (batch)
 ```
 
 **Key design decisions:**
-- Identified by **UUID** (NOT integer ID). Requires migration.
+- Identified by **UUID** (NOT integer ID).
 - State mapping: API strings ↔ DB integers:
   `detected`↔0, `active`↔1, `not_to_be_fixed`↔2,
   `fixed`↔3, `false_positive`↔4
 - State transitions unconstrained.
+- Indicators are (machine, test, metric) tuples directly on the regression,
+  no FieldChange indirection.
+- Regression has a nullable `commit` FK — the suspected introduction point.
 
 **Detail response** includes embedded indicators:
 ```json
 {
   "uuid": "...", "title": "...", "bug": "...", "state": "active", "notes": "...",
+  "commit": "abc123",
   "indicators": [
     {
-      "field_change_uuid": "...",
-      "test": "...", "machine": "...", "metric": "...",
-      "old_value": 0.5, "new_value": 0.8,
-      "start_commit": "154000", "end_commit": "154331"
+      "uuid": "...",
+      "test": "...", "machine": "...", "metric": "..."
     }
   ]
 }
 ```
 
-**Merge**: target absorbs sources. Sources are deleted after their indicators
-are moved to the target. Deduplicate indicators (don't link same field change twice).
-Validate: cannot merge into self.
-Request body uses UUIDs: `{"source_regression_uuids": ["...", "..."]}`.
+**Filtering**: `state=` (multiple values), `machine=` (name, JOIN through
+indicators→machines), `test=` (name, JOIN through indicators→tests),
+`metric=`, `commit=`, `has_commit=`.
 
-**Split**: move specified field changes to a new regression. Validate: cannot split ALL
-indicators (would leave source empty). Request body uses UUIDs:
-`{"field_change_uuids": ["...", "..."]}`.
+Auth: read=GET, triage=POST/PATCH/DELETE and indicator management.
 
-**Filtering**: `state=` (multiple values), `machine=` (name, requires JOIN through
-indicators→field_changes→machines), `test=` (name, similar JOIN).
+### 5.9 Field Changes — REMOVED
 
-Auth: read=GET, triage=POST/PATCH/DELETE/merge/split/indicators.
-
-### 5.9 Field Changes
-
-**Endpoints:**
-```
-GET    /api/v5/{ts}/field-changes                 — List all field changes (cursor-paginated)
-POST   /api/v5/{ts}/field-changes                 — Create a field change
-```
-
-**Key design decisions:**
-- Identified by **UUID**.
-- Returns all FCs enriched with `regression_uuids` (list of regression UUIDs
-  the FC belongs to, empty if unassigned). Filter `?assigned=true/false`
-  controls inclusion. No ChangeIgnore in v5.
-- Filters: `machine=`, `test=`, `metric=`, `assigned=`
-- Auth: read=GET, submit=POST (create).
-
-**POST /field-changes (create):**
-- Allows creating a field change programmatically (e.g., from external analysis tools)
-- Request body fields (all resolved by name, not internal ID):
-  - `machine` (string, required) — machine name
-  - `test` (string, required) — test name
-  - `metric` (string, required) — metric name as defined in the test suite schema
-  - `old_value` (float, required) — previous value
-  - `new_value` (float, required) — new value
-  - `start_commit` (string, required) — commit identity string for the start of the change
-  - `end_commit` (string, required) — commit identity string for the end of the change
-- Returns 404 if machine, test, start_commit, or end_commit cannot be resolved
-- Returns 400 if metric is unknown
-- Server generates a UUID for the new field change
-- Returns 201 with the serialized field change on success
+Field changes have been removed from the v5 API. Regressions directly
+reference affected machines, tests, and metrics via RegressionIndicator.
 - Auth: `submit` scope required
 
 ### 5.10 Time Series

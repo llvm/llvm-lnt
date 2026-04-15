@@ -316,50 +316,36 @@ Rename sort parameter value from `-start_time` to `-submitted_at` (update
 `MachineRunsQuerySchema` to match). Use new `serialize_run()`.
 Add `joinedload(ts.Run.commit_obj)` for serialization.
 
-### 2.7 Endpoint: Field Changes (`field_changes.py`)
+### 2.7 Endpoint: Field Changes — REMOVED
 
-**Delete** ignore/un-ignore endpoints entirely (`POST .../ignore`,
-`DELETE .../ignore`). No ChangeIgnore in v5.
-
-**`GET /field-changes`** — Remove ChangeIgnore LEFT JOIN. Replace
-`resolve_metric()` call and `ts.FieldChange.field_id` filter with direct
-string filter: `ts.FieldChange.field_name == metric_name` (no SampleField
-lookup needed). Use new `serialize_fieldchange()`.
-
-**`POST /field-changes`** — Replace `start_order`/`end_order` with
-`start_commit`/`end_commit` (strings). Look up commits via
-`ts.get_commit()`. Use `ts.create_field_change(session, machine, test,
-metric_name, start_commit, end_commit, old_value, new_value)` — pass all
-values as arguments (replaces the v4 pattern of constructing then setting
-attributes separately). Remove entire `run_uuid` resolution block (no run
-FK on v5 FieldChange).
+Field changes have been removed from v5. The `field_changes.py` endpoint
+file should be deleted. Regressions directly reference affected machines,
+tests, and metrics via RegressionIndicator.
 
 ### 2.8 Endpoint: Regressions (`regressions.py`)
 
-**State mapping**: Update `STATE_TO_DB` to v5 integer values:
+**State mapping**: `STATE_TO_DB` uses v5 integer values:
 `detected=0, active=1, not_to_be_fixed=2, fixed=3,
 false_positive=4`.
 
-**`POST /regressions`** — Use `ts.create_regression(session, title,
-[fc.id ...], bug=bug, state=state)`.
+**New model**: Regressions have a nullable `commit_id` FK and `notes` TEXT
+column. RegressionIndicator contains `(regression_id, machine_id, test_id,
+metric)` directly — no FieldChange indirection.
 
-**`PATCH /regressions/{uuid}`** — Use `ts.update_regression()`.
+**`POST /regressions`** — Create regression with optional commit, notes, and
+inline indicators. Each indicator is `{machine, test, metric}` resolved by name.
 
-**`DELETE /regressions/{uuid}`** — Use `ts.delete_regression()`.
+**`PATCH /regressions/{uuid}`** — Update title, bug, notes, state, commit.
 
-**`POST .../merge`** — Delete source regressions after moving their indicators
-to the target. Keep indicator-moving logic using `ts.RegressionIndicator` queries.
+**`DELETE /regressions/{uuid}`** — Cascades to indicators.
 
-**`POST .../split`** — Use `ts.create_regression(session, title, [],
-...)` then move indicators.
+**`POST .../indicators`** — Batch add. Each indicator is `{machine, test,
+metric}` resolved by name. Duplicates silently ignored.
 
-**`POST .../indicators`** — Use `ts.add_regression_indicator()`. Catch
-`IntegrityError` → 409.
+**`DELETE .../indicators`** — Batch remove by indicator UUIDs in body.
 
-**`DELETE .../indicators/{fc_uuid}`** — Use
-`ts.remove_regression_indicator()`. If returns `False`, 404.
-
-**Metric filter**: Remove `resolve_metric()` call entirely. Filter by
+**Filtering**: `state=` (multiple values), `machine=`, `test=`, `metric=`,
+`commit=`, `has_commit=`. Machine/test filters JOIN through indicators.
 `ts.FieldChange.field_name == metric_name` directly (no SampleField
 lookup, no `field_id`).
 

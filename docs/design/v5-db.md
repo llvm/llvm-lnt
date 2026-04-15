@@ -12,7 +12,7 @@ For the exploration and discussion that led to these decisions, see
 - The v5 DB layer lives in `lnt/server/db/v5/`, a self-contained package with
   its own schema parsing, models, and CRUD interface.
 - No imports from v4 DB code (`lnt.server.db.testsuite`, `testsuitedb`,
-  `v4db`, `fieldchange`, `regression`). The v5 package is fully independent.
+  `v4db`, `regression`). The v5 package is fully independent.
 - v4 and v5 coexist in the same codebase, selected by `db_version` in the LNT
   config file (`'0.4'` for v4, `'5.0'` for v5).
 - A v5 instance serves only v5 API endpoints. A v4 instance serves v4 views
@@ -150,8 +150,8 @@ Per-suite tables are dynamically named (e.g., `nts_Commit`, `nts_Run`).
 - No `label` built-in column. If labeling is needed, define a `label` field
   in `commit_fields`.
 - Commits are deletable. Deleting a commit cascades to its runs (and their
-  samples). FieldChanges referencing a deleted commit must be deleted first
-  (the API enforces this).
+  samples). Commits referenced by a Regression's commit_id cannot be deleted
+  (the API returns 409).
 - Schema-defined `commit_fields` names must not collide with built-in column
   names (`id`, `commit`, `ordinal`). The schema parser rejects these.
 
@@ -206,24 +206,6 @@ Per-suite tables are dynamically named (e.g., `nts_Commit`, `nts_Run`).
 - Dynamic columns from schema metrics: `real` → Float, `status` → Integer,
   `hash` → String(256).
 
-### `{suite}_FieldChange`
-
-| Column | Type | Constraints |
-|--------|------|-------------|
-| id | Integer | PK |
-| uuid | String(36) | unique, not null, indexed |
-| test_id | Integer FK → Test | not null |
-| machine_id | Integer FK → Machine | not null |
-| field_name | String(256) | not null |
-| start_commit_id | Integer FK → Commit | not null |
-| end_commit_id | Integer FK → Commit | not null |
-| old_value | Float | nullable |
-| new_value | Float | nullable |
-
-- `field_name` is a plain string (metric name), not a FK to a metatable.
-  Simpler for an API-driven system.
-- Compound index on `(machine_id, test_id, field_name)`.
-
 ### `{suite}_Regression`
 
 | Column | Type | Constraints |
@@ -232,8 +214,9 @@ Per-suite tables are dynamically named (e.g., `nts_Commit`, `nts_Run`).
 | uuid | String(36) | unique, not null, indexed |
 | title | String(256) | nullable |
 | bug | String(256) | nullable |
-| state | Integer | not null, indexed |
 | notes | Text | nullable |
+| state | Integer | not null, indexed |
+| commit_id | Integer FK → Commit | nullable, indexed |
 
 Regression state values:
 
@@ -252,20 +235,23 @@ The DB layer validates state values on create and update.
 | Column | Type | Constraints |
 |--------|------|-------------|
 | id | Integer | PK |
+| uuid | String(36) | unique, not null, indexed |
 | regression_id | Integer FK → Regression | not null, indexed |
-| field_change_id | Integer FK → FieldChange | not null |
+| machine_id | Integer FK → Machine | not null |
+| test_id | Integer FK → Test | not null |
+| metric | String(256) | not null |
 
-- Unique constraint on `(regression_id, field_change_id)`.
-- Many-to-many join table between Regression and FieldChange.
+- Unique constraint on `(regression_id, machine_id, test_id, metric)`.
+- Each indicator represents one (machine, test, metric) combination
+  affected by the regression.
 
 ### Tables dropped from v4
 
 - **Baseline**: v5 comparisons are stateless API operations.
-- **ChangeIgnore**: There is no "ignore" state on FieldChanges. FieldChanges
-  are stateless observations — they have no lifecycle of their own. Dismissal
-  of noise happens at the regression level: group field changes into a
-  `false_positive` regression with notes explaining the reasoning. The external
-  process that creates field changes is responsible for filtering upstream.
+- **ChangeIgnore**: Dropped. Noise dismissal happens at the regression level
+  via the `false_positive` state with notes.
+- **FieldChange**: Dropped. Regressions directly reference affected machines,
+  tests, and metrics via RegressionIndicator.
 - **Profile**: Profiling is a separate concern.
 - **Order**: Replaced by Commit.
 
@@ -331,13 +317,12 @@ Ordinals are set exclusively via PATCH (see D11).
 
 ## D8: No Regression Auto-Detection
 
-All FieldChanges and Regressions are created, updated, and deleted via the API.
-There is no `regenerate_fieldchanges_for_run()` or
-`identify_related_changes()`. The v5 DB layer provides CRUD only.
+All Regressions and their indicators are created, updated, and deleted via the
+API. There is no auto-detection in the v5 DB layer — it provides CRUD only.
 
 Regression detection is the responsibility of an external process (a separate
-tool or CI job) that analyzes time-series data and creates FieldChanges via the
-API when it detects significant changes.
+tool or AI agent) that analyzes time-series data and creates Regressions via
+the API when it detects significant changes.
 
 
 ## D9: Search
@@ -389,8 +374,8 @@ a v5 Postgres database:
   linked-list position becomes the ordinal.
 - v4 `tag` column on Order → a `label` commit_field (if defined in the schema).
 - Run.order_id → Run.commit_id; Run.start_time → Run.submitted_at.
-- FieldChange.field_id FK → FieldChange.field_name string (resolved from
-  the SampleField metatable).
+- v4 FieldChange + RegressionIndicator → v5 RegressionIndicator (machine_id,
+  test_id, metric resolved from FieldChange; field_change_id FK removed).
 - Baseline, ChangeIgnore, Profile tables are not migrated.
 
 

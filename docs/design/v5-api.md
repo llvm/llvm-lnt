@@ -13,7 +13,7 @@ R2: URL Structure and Identifiers
 
 - Base path: /api/v5/{testsuite}/
 - Always uses the default database (no db_<database> prefix)
-- Entities addressed by natural keys (machine name, test name) or server-generated UUIDs (runs, regressions, field changes) — never by internal auto-increment database IDs
+- Entities addressed by natural keys (machine name, test name) or server-generated UUIDs (runs, regressions) — never by internal auto-increment database IDs
 - A discovery endpoint at GET /api/v5/ lists available test suites with links to their resources
 
 R3: Entity Endpoints
@@ -34,7 +34,7 @@ GET    /commits                      — List (cursor-paginated, searchable)
 POST   /commits                      — Create with metadata (commit_fields)
 GET    /commits/{value}              — Detail (includes previous/next commit by ordinal)
 PATCH  /commits/{value}              — Update ordinal and/or commit_fields
-DELETE /commits/{value}              — Delete commit (cascades to runs/samples; 409 if referenced by field changes)
+DELETE /commits/{value}              — Delete commit (cascades to runs/samples; 409 if referenced by regressions)
 The {value} in the path is the commit identity string. Commits are also created implicitly during run submission.
 Ordinals are always NULL on creation and assigned exclusively via PATCH (see D11 in v5-db.md).
 
@@ -44,7 +44,7 @@ GET    /runs                         — List (cursor-paginated, filterable by m
 POST   /runs                         — Submit run (server generates UUID, returns it)
 GET    /runs/{uuid}                  — Detail
 DELETE /runs/{uuid}                  — Delete run
-The UUID is a new field, generated server-side on submission. This requires a database schema migration to add the column. The submission endpoint requires JSON format with format_version '2'. Legacy formats (v0, v1) and non-JSON payloads are rejected.
+The UUID is a new field, generated server-side on submission. The submission endpoint requires JSON format with format_version '5'. Legacy formats (v0, v1, v2) and non-JSON payloads are rejected.
 
 Tests
 
@@ -71,48 +71,47 @@ Profiles are submitted as base64-encoded data within the run submission payload 
 
 Regressions
 
-GET    /regressions                              — List (cursor-paginated, filterable by state=, machine=, test=)
-POST   /regressions                              — Create from field changes (accepts title, bug, notes, state)
-GET    /regressions/{uuid}                       — Detail (see response contents below)
-PATCH  /regressions/{uuid}                       — Update title, bug URL, state, notes
-DELETE /regressions/{uuid}                       — Delete
-POST   /regressions/{uuid}/merge                 — Merge source regressions into this one (sources are deleted)
-POST   /regressions/{uuid}/split                 — Split field changes into a new regression
-GET    /regressions/{uuid}/indicators            — List field changes (cursor-paginated)
-POST   /regressions/{uuid}/indicators            — Add field change
-DELETE /regressions/{uuid}/indicators/{fc_uuid}  — Remove field change
-Regressions are identified by server-generated UUID (schema migration required).
+GET    /regressions                              — List (cursor-paginated, filterable by state=, machine=, test=, metric=, commit=, has_commit=)
+POST   /regressions                              — Create (accepts title, bug, notes, state, commit, indicators)
+GET    /regressions/{uuid}                       — Detail (indicators embedded)
+PATCH  /regressions/{uuid}                       — Update title, bug, notes, state, commit
+DELETE /regressions/{uuid}                       — Delete (cascades indicators)
+POST   /regressions/{uuid}/indicators            — Add indicator(s) (batch)
+DELETE /regressions/{uuid}/indicators            — Remove indicator(s) (batch, UUIDs in body)
+
+Auth scopes: read=GET, triage=POST/PATCH/DELETE and indicator management.
+
+Regressions are identified by server-generated UUID.
 
 Regression states (string enum):
 detected, active, not_to_be_fixed, fixed, false_positive
 
-State transitions are unconstrained — any state can be set to any other state via PATCH.
+State transitions are unconstrained — any state can be set to any other
+state via PATCH.
 
-Regression detail response (GET /regressions/{uuid}) includes:
-- uuid, title, bug, state, notes
-- Embedded list of indicators, each containing:
-  - field_change_uuid
-  - test, machine, metric
-  - old_value, new_value
-  - start_commit and end_commit (commit identity strings)
+Create request body:
+- title (string, optional — auto-generated if omitted)
+- bug (string, optional — URL to external bug tracker)
+- notes (string, optional — investigation findings, A/B results, etc.)
+- state (string, optional — default: detected)
+- commit (string, optional — suspected introduction commit, resolved by value)
+- indicators (array, optional — list of {machine, test, metric} objects,
+  all resolved by name)
 
-The `notes` field (free-text, for investigation findings, A/B results, root
-cause analysis, false_positive reasoning, etc.) is included in the detail
-response only, not in list responses.
+Detail response (GET /regressions/{uuid}):
+- uuid, title, bug, notes, state
+- commit (commit identity string, or null)
+- indicators: list of {uuid, machine, test, metric}
 
-Field Changes (triage)
+List response items include: uuid, title, bug, state, commit, machine_count, test_count.
+The notes field is included in detail responses only, not in list.
 
-GET    /field-changes                — List field changes (cursor-paginated, filterable by machine=, test=, metric=, assigned=)
-POST   /field-changes                — Create a field change programmatically (references machine, test, metric, and commits by name)
-Field changes are identified by server-generated UUID. They are stateless
-observations — they have no lifecycle of their own.
-Creating a field change requires: machine (name), test (name), metric (name), old_value, new_value, start_commit, end_commit. All references are resolved by name/value, not internal ID.
+Indicator add request (POST /regressions/{uuid}/indicators):
+- Array of {machine, test, metric} objects. Each object is one indicator.
+  Duplicates (same regression+machine+test+metric) are silently ignored.
 
-Field change response shape (GET list and embedded in regression indicators):
-- uuid, test, machine, metric
-- old_value, new_value
-- start_commit, end_commit (commit identity strings)
-- regression_uuids (list of regression UUIDs this FC belongs to, empty if unassigned)
+Indicator remove request (DELETE /regressions/{uuid}/indicators):
+- Body: {"indicator_uuids": ["...", "..."]}
 
 Time Series
 
@@ -140,13 +139,13 @@ Schema and Fields
 
 Schema definitions and metric field metadata are returned as part of the test suite
 detail response (GET /api/v5/test-suites/{name}) rather than as standalone endpoints.
-The response includes a "schema" object containing machine_fields, run_fields, and
+The response includes a "schema" object containing machine_fields, commit_fields, and
 metrics (with name, type, display_name, unit, unit_abbrev, bigger_is_better for each).
 There are no separate /fields or /schema endpoints.
 
 R4: Pagination
 
-- Cursor-based pagination for unbounded lists: runs, tests, commits, samples, field changes, regressions, regression indicators, time series
+- Cursor-based pagination for unbounded lists: runs, tests, commits, samples, regressions, regression indicators, time series
 - Simple offset-based or unpaginated for bounded/small lists: machines, API keys
 - Cursor-paginated response envelope: {"items": [...], "cursor": {"next": "...", "previous": "..."}}
 - Default page size with configurable limit parameter
@@ -159,7 +158,7 @@ R5: Filtering and Sorting
   - machine=, test=, metric=, name_contains=, name_prefix=
   - after=, before= (for timestamps and order values)
   - state= (for regressions, supports multiple values: ?state=active&state=detected)
-  - assigned= (for field changes, boolean: true/false)
+  - commit=, has_commit= (for regressions)
   - has_profile=true (for samples)
   - sort=<field> (prefix with - for descending: sort=-start_time)
 - Exact filters and available sort fields defined per endpoint in the OpenAPI spec
@@ -178,9 +177,9 @@ R7: Authentication and Authorization
 - Authorization: Bearer <token> header on all requests
 - API keys with scopes (each scope includes all scopes above it):
   - read — all GET endpoints
-  - submit — submit runs (POST /runs), create orders (POST /orders)
-  - triage — modify regression state/title/bug, create/merge/split regressions, manage regression indicators
-  - manage — create/update/delete machines; update orders; delete runs
+  - submit — submit runs (POST /runs), create commits (POST /commits)
+  - triage — create/update/delete regressions, manage regression indicators
+  - manage — create/update/delete machines; update commits; delete runs
   - admin — create/revoke API keys
 - Keys stored hashed in the database
 - Admin endpoints (outside any test suite):

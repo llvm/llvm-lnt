@@ -195,5 +195,5 @@ All GET endpoints allow unauthenticated access by default.
   `commit_fields` in the submission are ignored. Use
   `PATCH /api/v5/<suite>/commits/<value>` to update.
 - **No regression auto-detection** — v5 does not auto-detect regressions.
-  Use `POST /api/v5/<suite>/field-changes` to create them externally.
+  Use `POST /api/v5/<suite>/regressions` to create them externally.
 - **Postgres required** — v5 instances only work with PostgreSQL.

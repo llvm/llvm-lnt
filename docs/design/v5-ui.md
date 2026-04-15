@@ -70,7 +70,6 @@ The shell template (`v5_app.html`) is a standalone HTML page (it does NOT extend
 /v5/{ts}/commits/{value}               Commit Detail
 /v5/{ts}/regressions?state=...         Regression List (states: detected, active, not_to_be_fixed, fixed, false_positive)
 /v5/{ts}/regressions/{uuid}            Regression Detail
-/v5/{ts}/field-changes                 Field Change Triage
 /v5/graph?suite={ts}&machine=...       Graph (time series) — suite-agnostic
 /v5/compare?suite_a={ts}&...           Compare — suite-agnostic
 /v5/admin                              Admin (API keys, schemas — not test-suite specific)
@@ -127,7 +126,7 @@ The primary entry point for browsing test suite data. Suite-agnostic page with a
 
 **Suite picker**: A row of prominent card/button elements, one per test suite (from `data-testsuites`). Clicking a card selects it (highlighted) and shows the tab bar below. When no suite is selected, only the suite picker is visible.
 
-**Tabs**: [Recent Activity] [Machines] [Runs] [Commits]. Default tab is Recent Activity.
+**Tabs**: [Recent Activity] [Machines] [Runs] [Commits] [Regressions]. Default tab is Recent Activity.
 
 **URL state**: `?suite={ts}&tab=machines&search=foo&offset=0` — all state is in query params. On mount, reads params to restore state. On changes, updates URL via `replaceState`.
 
@@ -137,12 +136,14 @@ The primary entry point for browsing test suite data. Suite-agnostic page with a
 | Machines | Searchable machine list with offset pagination | `GET machines?name_contains=...&limit=25&offset=...` | Name substring |
 | Runs | Run list with cursor pagination | `GET runs?machine=...&sort=-start_time&limit=25` | Machine name (exact) |
 | Commits | Commit list with cursor pagination | `GET commits?tag_prefix=...&limit=25` | Tag prefix |
+| Regressions | Active regressions in this suite | `GET regressions?state=detected&state=active&limit=25` | State filter |
 
 **Columns per tab:**
 - **Recent Activity**: Machine, Commit (primary value), Start Time, UUID (truncated, linked)
 - **Machines**: Name (linked), Info (key-value summary)
 - **Runs**: UUID (truncated, linked), Machine, Commit (primary value), Start Time
 - **Commits**: Commit Value (primary field, linked), Tag
+- **Regressions**: Title (linked), State (badge), Commit (linked), Machine count, Test count
 
 **Detail navigation**: Clicking an item navigates to the full suite-scoped detail page (e.g., `/v5/{ts}/machines/{name}`) via full page navigation. This crosses from suite-agnostic context to suite-scoped context.
 
@@ -162,7 +163,9 @@ Deep dive into a single machine. Machine names are guaranteed unique.
 
 The delete section appears at the bottom. Clicking "Delete Machine" shows a confirmation prompt requiring the user to type the machine name. Deletion requires a valid API token with `manage` scope (set via the Settings panel in the nav bar). On success, navigates to the machine list. On auth failure (401/403), shows an error message reminding the user to set an API token with sufficient permissions. While the delete is in progress, a message reassures the user that deletion may take a while for machines with many runs.
 
-**Links out**: Run Detail, Commit Detail, Graph (with machine pre-filled), Compare (with machine pre-selected).
+**Links out**: Run Detail, Commit Detail, Graph (with machine pre-filled), Compare (with machine pre-selected), Regression Detail.
+
+**Active regressions**: Below the run history, a section showing non-resolved regressions (state: detected, active) with at least one indicator on this machine. Each links to its regression detail page. A "Show all" link navigates to the Regression List pre-filtered by this machine.
 
 ### 4. Run Detail — `/v5/{ts}/runs/{uuid}`
 
@@ -184,7 +187,9 @@ A "Compare with..." button navigates to the Compare page with this run's machine
 
 The delete section appears at the bottom. Clicking "Delete Run" shows a confirmation prompt requiring the user to type the first 8 characters of the run UUID. Deletion requires a valid API token with `manage` scope. On success, navigates to the machine detail page.
 
-**Links out**: Machine Detail, Commit Detail, Graph (test pre-filled), Profile, Compare (side A pre-selected).
+**Links out**: Machine Detail, Commit Detail, Graph (test pre-filled), Profile, Compare (side A pre-selected), Regression Detail.
+
+**Regressions**: Below the samples table, a section showing regressions where the regression's commit matches the run's commit AND at least one indicator matches the run's machine. Each links to its regression detail page.
 
 ### 5. Commit Detail — `/v5/{ts}/commits/{value}`
 
@@ -197,7 +202,9 @@ The "what happened at this commit?" page. Key investigation page for developers.
 - **Machine filter**: Text input for substring matching on machine names, filters the runs table. The summary updates to reflect filtered counts (e.g., "5 of 12 runs across 2 of 8 machines").
 - **Runs table**: Columns: machine (link to Machine Detail), run UUID (link to Run Detail), start time
 - API: `GET commits/{value}`, `PATCH commits/{value}` (tag editing), `GET runs?commit={value}`
-- **Links out**: Run Detail, Machine Detail
+- **Links out**: Run Detail, Machine Detail, Regression Detail
+
+**Regressions at this commit**: Below the runs table, a section listing regressions where `commit` matches this commit's value. Each links to its regression detail page.
 
 ### 6. Graph (Time Series) — `/v5/graph?suite={ts}&machine={m}&metric={f}`
 
@@ -228,7 +235,9 @@ The primary performance-over-time visualization. Replaces v4's graph page. This 
 - **"No data to plot" annotation**: When no traces match the current filter/settings, the chart displays a Plotly annotation overlay ("No data to plot") centered on the chart area, preserving the x-axis scaffold so the user can see the commit range.
 - API: `POST query` with JSON body `{machine, metric, test, sort, limit, cursor}` (one fetch pipeline per machine, targeted to discovered tests via multi-value `test`), `GET tests?machine=...&metric=...&name_contains=...` (test name discovery), `GET machines/{name}/runs?sort=commit` (x-axis scaffold, per machine), `GET commits` (tags for baseline suggestions), `GET machines` (machine combobox), `GET test-suites/{ts}` (fields/metrics)
 - **URL state**: `?suite={ts}&machine={name}&machine={name2}&metric={name}&test_filter={text}&run_agg={fn}&sample_agg={fn}&baseline={suite}::{machine}::{commit}&baseline={suite2}::{machine2}::{commit2}` — the `machine` parameter is repeated for each selected machine; the `baseline` parameter is repeated for each baseline. Selected tests are NOT included in the URL (names can be very long); they are ephemeral page state preserved across SPA navigation but lost on page reload.
-- **Links out**: Compare
+- **Links out**: Compare, Regression Detail
+
+**Regression annotations**: A dropdown toggle "Regressions: Off | Active | All" (default Off) in the controls panel. When enabled, vertical dashed lines are drawn at the regression's commit position for regressions with indicators matching the current graph's test/machine/metric. Lines are color-coded by state (red=active, yellow=detected, gray=resolved). Hover shows the regression title and affected tests; click navigates to the regression detail page.
 
 ### 7. Compare — `/v5/compare?suite_a={ts}&...`
 
@@ -325,21 +334,67 @@ Auth token is stored in `localStorage`, not in URL state (to avoid leaking crede
 
 - Only single-field commits are supported for the commit combobox. Multi-field commits use only the primary field.
 
-**Links out**: Machine Detail, Run Detail, Graph (with machine pre-filled).
+**Links out**: Machine Detail, Run Detail, Graph (with machine pre-filled), Regression Detail.
 
-### 8. Regression List — `/v5/{ts}/regressions` (STUB)
+**Add to regression**: A collapsible panel (button: "Add to regression" in the controls area). When expanded, offers:
+- "Create new regression" — pre-fills commit, machines, tests, and metrics from the current comparison into a new regression
+- "Add to existing" — a regression search combobox; adds the comparison's indicators to the selected regression
+The panel collapses back to the button when done.
 
-Placeholder page displaying "Not implemented yet." Will be designed in a later deep dive.
+### 8. Regression List — `/v5/{ts}/regressions`
 
-### 9. Regression Detail — `/v5/{ts}/regressions/{uuid}` (STUB)
+Main triage page for performance regressions.
 
-Placeholder page displaying "Not implemented yet." Will be designed in a later deep dive.
+**Layout**: Filterable, sortable table of regressions.
 
-### 10. Field Change Triage — `/v5/{ts}/field-changes` (STUB)
+**Columns**: Title (linked to detail), State (badge), Commit (linked to commit detail), Machine count, Test count, Bug (external link).
 
-Placeholder page displaying "Not implemented yet." Will be designed in a later deep dive.
+**Filters** (control panel above table):
+- State: multi-select chips (detected, active, not_to_be_fixed, fixed, false_positive)
+- Machine: combobox with typeahead
+- Test: combobox with typeahead
+- Metric: dropdown
+- Has commit: checkbox (surfaces regressions with unset commit)
+- Free-text search on title
 
-### 11. Admin — `/v5/admin`
+**Actions**:
+- "New regression" button → opens create form (inline or modal) with title, bug, state, commit fields. Indicators added after creation from the detail page.
+- Row click → navigates to regression detail page.
+- Delete: per-row action with confirmation prompt.
+
+**Pagination**: Cursor-based, consistent with other list pages.
+
+Auth: requires `triage` scope for create/delete actions.
+
+### 9. Regression Detail — `/v5/{ts}/regressions/{uuid}`
+
+Investigation and management page for a single regression.
+
+**Header section** (editable fields):
+- Title: inline-editable text
+- State: dropdown selector (detected, active, not_to_be_fixed, fixed, false_positive)
+- Bug: URL input (opens in new tab when set)
+- Commit: combobox with typeahead (nullable — the suspected introduction point). Linked to commit detail page when set.
+- Notes: expandable textarea for investigation findings, A/B results, root cause analysis, etc.
+
+**Indicators table**:
+- Columns: Machine, Test, Metric, remove button (×)
+- Multi-select rows for batch remove
+- "View on graph" link per indicator: opens Graph page pre-populated with the indicator's machine, test, metric, and the regression's commit as context
+
+**Add indicators panel** (below table):
+- Three multi-select comboboxes with typeahead: Metric, Machine, Test
+- Test list filtered by selected machines and metrics (only shows tests with data for the selected combination)
+- Preview: "This will add N indicators" with expandable list
+- "Add" button creates all (machine × test × metric) indicator combinations
+- Duplicates (same machine+test+metric already on this regression) are silently ignored
+
+**Actions**:
+- Delete regression button (with confirmation)
+
+Auth: requires `triage` scope for all modifications.
+
+### 10. Admin — `/v5/admin`
 
 Not test-suite specific. Served at `/v5/admin` (outside the `{ts}` namespace) with its own Flask route. The SPA shell is served without a testsuite; the admin page reads the list of available test suites from the HTML `data-testsuites` attribute.
 
@@ -351,7 +406,7 @@ Not test-suite specific. Served at `/v5/admin` (outside the `{ts}` namespace) wi
 
 **Test Suites tab details**:
 - **Suite selector**: Dropdown to switch between test suites. Selecting a suite loads and displays its schema (metrics, commit fields, machine fields, run fields).
-- **Delete suite**: A delete button per suite. Clicking it shows an inline confirmation panel explaining that deleting a suite permanently destroys all machines, runs, commits, samples, regressions, and field changes, and is irreversible. The user must type the exact suite name to confirm. Calls `DELETE /api/v5/test-suites/{name}?confirm=true`. Requires `manage` scope.
+- **Delete suite**: A delete button per suite. Clicking it shows an inline confirmation panel explaining that deleting a suite permanently destroys all machines, runs, commits, samples, and regressions, and is irreversible. The user must type the exact suite name to confirm. Calls `DELETE /api/v5/test-suites/{name}?confirm=true`. Requires `manage` scope.
 
 **Create Suite tab**:
 - A name input and a JSON textarea where the user pastes the full suite definition (format_version, name, metrics, run_fields, machine_fields). The JSON format matches the `POST /api/v5/test-suites` API. On success, switches to the Schemas tab with the new suite auto-selected. Requires a token with `manage` scope.
@@ -396,7 +451,6 @@ lnt/server/ui/v5/frontend/src/
 │   ├── compare.ts             Compare page module (auto-compare, caching, row toggling)
 │   ├── regression-list.ts
 │   ├── regression-detail.ts
-│   ├── field-change-triage.ts
 │   └── admin.ts
 └── components/
     ├── nav.ts                 Navigation bar
@@ -436,10 +490,7 @@ outDir: resolve(__dirname, '../static/v5'),
 
 ## API Additions Needed
 
-**None are blocking.** All v4 workflows can be served by the existing v5 API.
-
-One optional enhancement for performance:
-- `GET /api/v5/{ts}/regressions?include=summary` — enriches list items with `indicator_count`, `earliest_commit`, `latest_commit` to avoid N+1 fetches on the regression list page. Without this, the frontend can fetch details lazily (regression lists are typically small).
+**None are blocking.** All workflows can be served by the existing v5 API. The regression list endpoint returns machine/test counts directly (via indicator joins), so no additional summary endpoint is needed.
 
 ## Implementation Phases
 
@@ -447,9 +498,9 @@ One optional enhancement for performance:
 |-------|-------|-----------------|
 | 1 | (none visible) | SPA shell, router, nav bar, Flask catch-all route, build config |
 | 2 | Test Suites (picker + tabs), Machine Detail, Run Detail, Commit Detail | Core browsing — data-table component, pagination, suite picker |
-| 3 | Graph | Time-series chart component, combobox integration, aggregation controls, field change annotations |
+| 3 | Graph | Time-series chart component, combobox integration, aggregation controls, regression annotations |
 | 4 | Compare | Absorb existing compare page into SPA as page module, add geomean summary |
-| 5 | Regression List, Regression Detail, Field Change Triage (stubs) | Stub pages with "Not implemented yet" message |
+| 5 | Regression List, Regression Detail | Full regression management pages, cross-page integration |
 | 6 | Admin, polish | API key management, error handling, loading states |
 
 ## Verification
