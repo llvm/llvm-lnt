@@ -55,7 +55,6 @@ class TestSuiteLinksSchema(BaseSchema):
     runs = ma.fields.String()
     tests = ma.fields.String()
     regressions = ma.fields.String()
-    field_changes = ma.fields.String()
     query = ma.fields.String()
 
 

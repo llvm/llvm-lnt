@@ -1,5 +1,5 @@
-"""Marshmallow schemas for regression, indicator, and field change
-request/response in the v5 API.
+"""Marshmallow schemas for regression and indicator request/response
+in the v5 API.
 """
 
 import logging
@@ -13,17 +13,15 @@ from .common import CursorPaginationQuerySchema, PaginatedResponseSchema
 
 
 # ---------------------------------------------------------------------------
-# State mapping: API string <-> DB integer (v5 values: 0-6)
+# State mapping: API string <-> DB integer (v5 values: 0-4)
 # ---------------------------------------------------------------------------
 
 STATE_TO_DB = {
     'detected': 0,
-    'staged': 1,
-    'active': 2,
-    'not_to_be_fixed': 3,
-    'ignored': 4,
-    'fixed': 5,
-    'detected_fixed': 6,
+    'active': 1,
+    'not_to_be_fixed': 2,
+    'fixed': 3,
+    'false_positive': 4,
 }
 
 DB_TO_STATE = {v: k for k, v in STATE_TO_DB.items()}
@@ -54,85 +52,15 @@ def state_to_db(api_string):
 
 
 # ---------------------------------------------------------------------------
-# Indicator / field change schemas
+# Indicator schemas
 # ---------------------------------------------------------------------------
 
 class IndicatorResponseSchema(BaseSchema):
-    """Schema for a single regression indicator (embedded in regression
-    detail or in the indicators list endpoint).
-    """
-    field_change_uuid = ma.fields.String(
-        required=True,
-        metadata={'description': 'UUID of the field change'},
-    )
-    test = ma.fields.String(
-        required=True,
-        metadata={'description': 'Name of the test'},
-    )
-    machine = ma.fields.String(
-        required=True,
-        metadata={'description': 'Name of the machine'},
-    )
-    metric = ma.fields.String(
-        required=True,
-        metadata={'description': 'Metric name (as defined in the test suite schema)'},
-    )
-    old_value = ma.fields.Float(
-        allow_none=True,
-        metadata={'description': 'Previous value'},
-    )
-    new_value = ma.fields.Float(
-        allow_none=True,
-        metadata={'description': 'New value'},
-    )
-    start_commit = ma.fields.String(
-        allow_none=True,
-        metadata={'description': 'Start commit identity string'},
-    )
-    end_commit = ma.fields.String(
-        allow_none=True,
-        metadata={'description': 'End commit identity string'},
-    )
-
-
-class FieldChangeResponseSchema(BaseSchema):
-    """Schema for an unassigned field change in the field-changes list."""
+    """Schema for a single regression indicator."""
     uuid = ma.fields.String(
         required=True,
-        metadata={'description': 'Field change UUID'},
+        metadata={'description': 'Indicator UUID'},
     )
-    test = ma.fields.String(
-        required=True,
-        metadata={'description': 'Name of the test'},
-    )
-    machine = ma.fields.String(
-        required=True,
-        metadata={'description': 'Name of the machine'},
-    )
-    metric = ma.fields.String(
-        required=True,
-        metadata={'description': 'Metric name (as defined in the test suite schema)'},
-    )
-    old_value = ma.fields.Float(
-        allow_none=True,
-        metadata={'description': 'Previous value'},
-    )
-    new_value = ma.fields.Float(
-        allow_none=True,
-        metadata={'description': 'New value'},
-    )
-    start_commit = ma.fields.String(
-        allow_none=True,
-        metadata={'description': 'Start commit identity string'},
-    )
-    end_commit = ma.fields.String(
-        allow_none=True,
-        metadata={'description': 'End commit identity string'},
-    )
-
-
-class FieldChangeCreateSchema(BaseSchema):
-    """Schema for POST /field-changes request body."""
     machine = ma.fields.String(
         required=True,
         metadata={'description': 'Name of the machine'},
@@ -143,23 +71,43 @@ class FieldChangeCreateSchema(BaseSchema):
     )
     metric = ma.fields.String(
         required=True,
-        metadata={'description': 'Metric name (as defined in the test suite schema)'},
+        metadata={'description': 'Metric name'},
     )
-    old_value = ma.fields.Float(
+
+
+class IndicatorInputSchema(BaseSchema):
+    """Schema for a single indicator input ({machine, test, metric})."""
+    machine = ma.fields.String(
         required=True,
-        metadata={'description': 'Previous value'},
+        metadata={'description': 'Machine name'},
     )
-    new_value = ma.fields.Float(
+    test = ma.fields.String(
         required=True,
-        metadata={'description': 'New value'},
+        metadata={'description': 'Test name'},
     )
-    start_commit = ma.fields.String(
+    metric = ma.fields.String(
         required=True,
-        metadata={'description': 'Commit identity string for start of change'},
+        metadata={'description': 'Metric name'},
     )
-    end_commit = ma.fields.String(
+
+
+class IndicatorAddSchema(BaseSchema):
+    """Schema for POST /regressions/{uuid}/indicators request body."""
+    indicators = ma.fields.List(
+        ma.fields.Nested(IndicatorInputSchema),
         required=True,
-        metadata={'description': 'Commit identity string for end of change'},
+        validate=ma.validate.Length(min=1),
+        metadata={'description': 'List of {machine, test, metric} indicators to add'},
+    )
+
+
+class IndicatorRemoveSchema(BaseSchema):
+    """Schema for DELETE /regressions/{uuid}/indicators request body."""
+    indicator_uuids = ma.fields.List(
+        ma.fields.String(),
+        required=True,
+        validate=ma.validate.Length(min=1),
+        metadata={'description': 'UUIDs of indicators to remove'},
     )
 
 
@@ -169,12 +117,6 @@ class FieldChangeCreateSchema(BaseSchema):
 
 class RegressionCreateSchema(BaseSchema):
     """Schema for POST /regressions request body."""
-    field_change_uuids = ma.fields.List(
-        ma.fields.String(),
-        required=True,
-        validate=ma.validate.Length(min=1),
-        metadata={'description': 'List of field change UUIDs to include'},
-    )
     title = ma.fields.String(
         load_default=None,
         metadata={'description': 'Optional title (auto-generated if omitted)'},
@@ -183,53 +125,52 @@ class RegressionCreateSchema(BaseSchema):
         load_default=None,
         metadata={'description': 'Optional bug URL'},
     )
+    notes = ma.fields.String(
+        load_default=None,
+        metadata={'description': 'Optional investigation notes'},
+    )
     state = ma.fields.String(
         load_default=None,
         validate=ma.validate.OneOf(VALID_STATES),
         metadata={'description': 'Optional initial state (default: detected)',
                   'enum': VALID_STATES},
     )
+    commit = ma.fields.String(
+        load_default=None,
+        metadata={'description': 'Optional suspected introduction commit (resolved by value)'},
+    )
+    indicators = ma.fields.List(
+        ma.fields.Nested(IndicatorInputSchema),
+        load_default=[],
+        metadata={'description': 'Optional list of {machine, test, metric} indicators'},
+    )
 
 
 class RegressionUpdateSchema(BaseSchema):
-    """Schema for PATCH /regressions/{uuid} request body."""
+    """Schema for PATCH /regressions/{uuid} request body.
+
+    Fields must NOT have ``load_default`` — the PATCH handler uses
+    ``'key' in body`` to distinguish absent fields (leave unchanged) from
+    fields sent as ``null`` (clear the value).
+    """
     title = ma.fields.String(
         metadata={'description': 'New title'},
     )
     bug = ma.fields.String(
-        metadata={'description': 'New bug URL'},
+        allow_none=True,
+        metadata={'description': 'New bug URL (null to clear)'},
+    )
+    notes = ma.fields.String(
+        allow_none=True,
+        metadata={'description': 'New notes (null to clear)'},
     )
     state = ma.fields.String(
         validate=ma.validate.OneOf(VALID_STATES),
         metadata={'description': 'New state', 'enum': VALID_STATES},
     )
-
-
-class RegressionMergeSchema(BaseSchema):
-    """Schema for POST /regressions/{uuid}/merge request body."""
-    source_regression_uuids = ma.fields.List(
-        ma.fields.String(),
-        required=True,
-        validate=ma.validate.Length(min=1),
-        metadata={'description': 'UUIDs of regressions to merge into this one'},
-    )
-
-
-class RegressionSplitSchema(BaseSchema):
-    """Schema for POST /regressions/{uuid}/split request body."""
-    field_change_uuids = ma.fields.List(
-        ma.fields.String(),
-        required=True,
-        validate=ma.validate.Length(min=1),
-        metadata={'description': 'Field change UUIDs to split into a new regression'},
-    )
-
-
-class IndicatorAddSchema(BaseSchema):
-    """Schema for POST /regressions/{uuid}/indicators request body."""
-    field_change_uuid = ma.fields.String(
-        required=True,
-        metadata={'description': 'UUID of the field change to add'},
+    commit = ma.fields.String(
+        allow_none=True,
+        metadata={'description': 'Suspected introduction commit (null to clear)'},
     )
 
 
@@ -238,9 +179,7 @@ class IndicatorAddSchema(BaseSchema):
 # ---------------------------------------------------------------------------
 
 class RegressionListItemSchema(BaseSchema):
-    """Schema for a regression in list responses (without embedded
-    indicators).
-    """
+    """Schema for a regression in list responses."""
     uuid = ma.fields.String(required=True)
     title = ma.fields.String(allow_none=True)
     bug = ma.fields.String(allow_none=True)
@@ -248,18 +187,34 @@ class RegressionListItemSchema(BaseSchema):
         required=True,
         metadata={'description': 'Regression state', 'enum': VALID_STATES},
     )
+    commit = ma.fields.String(
+        allow_none=True,
+        metadata={'description': 'Suspected introduction commit (identity string)'},
+    )
+    machine_count = ma.fields.Integer(
+        metadata={'description': 'Number of distinct machines across indicators'},
+    )
+    test_count = ma.fields.Integer(
+        metadata={'description': 'Number of distinct tests across indicators'},
+    )
 
 
 class RegressionDetailSchema(BaseSchema):
-    """Schema for a single regression detail response (with embedded
-    indicators).
-    """
+    """Schema for a single regression detail response."""
     uuid = ma.fields.String(required=True)
     title = ma.fields.String(allow_none=True)
     bug = ma.fields.String(allow_none=True)
+    notes = ma.fields.String(
+        allow_none=True,
+        metadata={'description': 'Investigation notes'},
+    )
     state = ma.fields.String(
         required=True,
         metadata={'description': 'Regression state', 'enum': VALID_STATES},
+    )
+    commit = ma.fields.String(
+        allow_none=True,
+        metadata={'description': 'Suspected introduction commit (identity string)'},
     )
     indicators = ma.fields.List(
         ma.fields.Nested(IndicatorResponseSchema),
@@ -272,18 +227,8 @@ class RegressionDetailSchema(BaseSchema):
 # ---------------------------------------------------------------------------
 
 class PaginatedRegressionListSchema(PaginatedResponseSchema):
-    """Paginated list of regressions (without embedded indicators)."""
+    """Paginated list of regressions."""
     items = ma.fields.List(ma.fields.Nested(RegressionListItemSchema))
-
-
-class PaginatedIndicatorResponseSchema(PaginatedResponseSchema):
-    """Paginated list of regression indicators."""
-    items = ma.fields.List(ma.fields.Nested(IndicatorResponseSchema))
-
-
-class PaginatedFieldChangeResponseSchema(PaginatedResponseSchema):
-    """Paginated list of unassigned field changes."""
-    items = ma.fields.List(ma.fields.Nested(FieldChangeResponseSchema))
 
 
 # ---------------------------------------------------------------------------
@@ -295,7 +240,7 @@ class RegressionListQuerySchema(CursorPaginationQuerySchema):
     state = webargs_fields.DelimitedList(
         ma.fields.String(),
         load_default=[],
-        metadata={'description': 'Filter by state (comma-separated, e.g. active,detected)'},
+        metadata={'description': 'Filter by state (comma-separated)'},
     )
     machine = ma.fields.String(
         load_default=None,
@@ -309,24 +254,11 @@ class RegressionListQuerySchema(CursorPaginationQuerySchema):
         load_default=None,
         metadata={'description': 'Filter by metric name'},
     )
-
-
-class RegressionIndicatorsQuerySchema(CursorPaginationQuerySchema):
-    """Query parameters for GET /regressions/{uuid}/indicators."""
-    pass
-
-
-class FieldChangeListQuerySchema(CursorPaginationQuerySchema):
-    """Query parameters for GET /field-changes."""
-    machine = ma.fields.String(
+    commit = ma.fields.String(
         load_default=None,
-        metadata={'description': 'Filter by machine name'},
+        metadata={'description': 'Filter by commit (regressions whose commit_id matches)'},
     )
-    test = ma.fields.String(
+    has_commit = ma.fields.Boolean(
         load_default=None,
-        metadata={'description': 'Filter by test name'},
-    )
-    metric = ma.fields.String(
-        load_default=None,
-        metadata={'description': 'Filter by metric name'},
+        metadata={'description': 'Filter: true = has commit, false = no commit'},
     )

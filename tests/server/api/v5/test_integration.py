@@ -413,7 +413,7 @@ class TestDiscoveryNavigability(unittest.TestCase):
 
         expected_keys = {
             'machines', 'commits', 'runs', 'tests',
-            'regressions', 'field_changes', 'query',
+            'regressions', 'query',
         }
         self.assertEqual(set(links.keys()), expected_keys,
                          "Discovery links mismatch")

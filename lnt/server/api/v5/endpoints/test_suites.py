@@ -42,7 +42,6 @@ def _suite_links(name):
         'runs': prefix + '/runs',
         'tests': prefix + '/tests',
         'regressions': prefix + '/regressions',
-        'field_changes': prefix + '/field-changes',
         'query': prefix + '/query',
     }
 

@@ -75,14 +75,6 @@ def lookup_run_by_uuid(session, ts, run_uuid):
     return run
 
 
-def lookup_fieldchange(session, ts, fc_uuid):
-    """Look up a FieldChange by UUID. Aborts with 404 if not found."""
-    fc = ts.get_field_change(session, uuid=fc_uuid)
-    if fc is None:
-        abort_with_error(404, "Field change '%s' not found" % fc_uuid)
-    return fc
-
-
 def lookup_commit(session, ts, commit_id):
     """Look up a Commit by its identity string (e.g. git SHA).
 
@@ -132,23 +124,4 @@ def serialize_run(run, ts):
         'commit': run.commit_obj.commit if run.commit_obj else None,
         'submitted_at': submitted_at,
         'run_parameters': dict(run.run_parameters) if run.run_parameters else {},
-    }
-
-
-def serialize_fieldchange(fc):
-    """Serialize the common fields of a FieldChange for API responses.
-
-    Returns a dict with test, machine, metric, old_value, new_value,
-    start_commit, and end_commit.  Callers should add an identifier key
-    (``uuid`` or ``field_change_uuid``) to the result before returning
-    it to the client.
-    """
-    return {
-        'test': fc.test.name if fc.test else None,
-        'machine': fc.machine.name if fc.machine else None,
-        'metric': fc.field_name,
-        'old_value': fc.old_value,
-        'new_value': fc.new_value,
-        'start_commit': fc.start_commit.commit if fc.start_commit else None,
-        'end_commit': fc.end_commit.commit if fc.end_commit else None,
     }

@@ -255,7 +255,7 @@ class CommitDetail(MethodView):
     def delete(self, testsuite, commit_value):
         """Delete a commit and cascade to its runs/samples.
 
-        Returns 409 if FieldChanges reference this commit.
+        Returns 409 if regressions reference this commit.
         """
         ts = g.ts
         session = g.db_session

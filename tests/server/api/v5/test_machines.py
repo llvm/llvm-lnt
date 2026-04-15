@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 from v5_test_helpers import (
     create_app, create_client, admin_headers, make_scoped_headers,
     create_machine, create_commit, create_run,
-    create_test, create_fieldchange, create_regression,
+    create_test, create_regression,
     collect_all_pages, submit_run,
 )
 
@@ -338,13 +338,13 @@ class TestMachineDelete(unittest.TestCase):
         resp = self.client.get(PREFIX + f'/machines/{name}')
         self.assertEqual(resp.status_code, 404)
 
-    def test_delete_machine_with_fieldchanges(self):
-        """Delete machine whose FieldChanges are linked to RegressionIndicators.
+    def test_delete_machine_with_regression_indicators(self):
+        """Delete machine whose RegressionIndicators reference it.
 
-        Verifies the delete handler cleans up FieldChanges (which have no
-        CASCADE from machine_id) before deleting the machine.
-        RegressionIndicator.field_change_id has ondelete=CASCADE, so
-        those are auto-cleaned when the FieldChange is deleted.
+        Verifies the delete handler cleans up RegressionIndicators (which
+        have no CASCADE from machine_id) before deleting the machine.
+        The Regression itself remains (it may have other indicators on
+        different machines).
         """
         name = f'delete-ri-{uuid.uuid4().hex[:8]}'
         db = self.app.instance.get_database("default")
@@ -352,16 +352,12 @@ class TestMachineDelete(unittest.TestCase):
         ts = db.testsuite[TS]
 
         machine = create_machine(session, ts, name=name)
-        c1 = create_commit(
-            session, ts, commit=f'ri-c1-{uuid.uuid4().hex[:8]}')
-        c2 = create_commit(
-            session, ts, commit=f'ri-c2-{uuid.uuid4().hex[:8]}')
         test = create_test(
             session, ts, name=f'ri/test/{uuid.uuid4().hex[:8]}')
-        fc = create_fieldchange(session, ts, c1, c2, machine, test,
-                                'execution_time')
         create_regression(
-            session, ts, title=f'Reg for {name}', field_changes=[fc])
+            session, ts, title=f'Reg for {name}',
+            indicators=[{'machine_id': machine.id, 'test_id': test.id,
+                          'metric': 'execution_time'}])
         session.commit()
         session.close()
 

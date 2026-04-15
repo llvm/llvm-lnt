@@ -21,7 +21,6 @@ _ENDPOINT_MODULES = [
     'samples',
     'profiles',
     'query',
-    'field_changes',
     'regressions',
     'trends',
     'admin',

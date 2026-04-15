@@ -526,31 +526,32 @@ class TestCommitDelete(unittest.TestCase):
         )
         self.assertEqual(resp.status_code, 404)
 
-    def test_delete_with_fieldchange_409(self):
-        """Delete a commit referenced by a FieldChange returns 409."""
-        from v5_test_helpers import (
-            create_machine, create_test, create_fieldchange,
-        )
+    def test_delete_with_regression_409(self):
+        """Delete a commit referenced by a Regression returns 409."""
+        from v5_test_helpers import create_machine, create_test
         db = self.app.instance.get_database("default")
         session = db.make_session()
         ts = db.testsuite[TS]
 
-        c1 = create_commit(session, ts,
-                           commit=f'fc-start-{uuid.uuid4().hex[:8]}')
-        c2 = create_commit(session, ts,
-                           commit=f'fc-end-{uuid.uuid4().hex[:8]}')
-        c1_commit = c1.commit  # save before closing session
-        machine = create_machine(
-            session, ts, name=f'fc-del-{uuid.uuid4().hex[:8]}')
-        test = create_test(
-            session, ts, name=f'fc-del/test/{uuid.uuid4().hex[:8]}')
-        create_fieldchange(session, ts, c1, c2, machine, test,
-                           'execution_time')
+        c = create_commit(session, ts,
+                          commit=f'reg-ref-{uuid.uuid4().hex[:8]}')
+        c_commit = c.commit
+        m = create_machine(session, ts,
+                           name=f'reg-del-{uuid.uuid4().hex[:8]}')
+        t = create_test(session, ts,
+                        name=f'reg-del/test/{uuid.uuid4().hex[:8]}')
+
+        from v5_test_helpers import create_regression
+        create_regression(
+            session, ts,
+            indicators=[{'machine_id': m.id, 'test_id': t.id,
+                          'metric': 'execution_time'}],
+            commit=c)
         session.commit()
         session.close()
 
         resp = self.client.delete(
-            PREFIX + f'/commits/{c1_commit}',
+            PREFIX + f'/commits/{c_commit}',
             headers=admin_headers(),
         )
         self.assertEqual(resp.status_code, 409)

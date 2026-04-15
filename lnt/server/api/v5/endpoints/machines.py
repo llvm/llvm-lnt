@@ -210,11 +210,11 @@ class MachineDetail(MethodView):
         session = g.db_session
         machine = lookup_machine(session, ts, machine_name)
 
-        # FieldChange.machine_id has no CASCADE, so delete them first.
-        # RegressionIndicator.field_change_id has ondelete=CASCADE,
-        # so those are auto-cleaned when the FieldChange is deleted.
-        session.query(ts.FieldChange).filter(
-            ts.FieldChange.machine_id == machine.id
+        # RegressionIndicator.machine_id has no CASCADE, so delete them
+        # before the machine. The Regression itself remains (it may have
+        # other indicators on different machines).
+        session.query(ts.RegressionIndicator).filter(
+            ts.RegressionIndicator.machine_id == machine.id
         ).delete(synchronize_session='fetch')
 
         ts.delete_machine(session, machine.id)

@@ -107,8 +107,8 @@ class RunList(MethodView):
         """Submit a new run.
 
         Accepts the v5 JSON report format (format_version '5').
-        Regression detection is always skipped; create field changes
-        separately via POST /field-changes.
+        Regression detection is external; create regressions
+        separately via POST /regressions.
         """
         reject_unknown_params({'on_machine_conflict'})
         ts = g.ts

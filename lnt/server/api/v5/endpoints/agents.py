@@ -46,12 +46,9 @@ for the LLVM compiler project, it can be used for any software project.
   Each sample records values for the metrics defined by the test suite schema
   (e.g., execution_time, compile_time, code_size).
 
-- **Regression**: A detected performance change, grouping one or more field
-  changes. Has a state (detected, active, fixed, ignored, etc.), optional
-  title, and optional bug tracker link.
-
-- **Field Change**: A statistically significant change in a metric value
-  between two commits for a specific test on a specific machine.
+- **Regression**: A tracked performance change, grouping one or more indicators
+  (machine, test, metric triples). Has a state (detected, active, fixed,
+  etc.), optional title, bug link, notes, and suspected introduction commit.
 
 ## REST API (v5)
 
@@ -76,7 +73,6 @@ by default. Write operations require tokens with appropriate scopes
   GET    /api/v5/{ts}/tests                 List tests
   POST   /api/v5/{ts}/query                 Query time-series data
   GET    /api/v5/{ts}/regressions           List regressions
-  GET    /api/v5/{ts}/field-changes         List unassigned field changes
 
 ### Global Endpoints
 
@@ -86,7 +82,7 @@ by default. Write operations require tokens with appropriate scopes
 
 The endpoints above cover the most common read operations. The API also
 supports write operations (creating/updating/deleting machines, commits,
-runs, regressions, field changes, test suites, and API keys) which require
+runs, regressions, test suites, and API keys) which require
 appropriate authentication scopes. See the OpenAPI spec or Swagger UI for
 the complete endpoint list including all write operations.
 
@@ -115,7 +111,8 @@ Pass cursor=<next> to get the next page. Use limit= to control page size.
    "submit" scope.
 
 4. Check for regressions: GET /api/v5/{ts}/regressions?state=detected
-   to find new regressions. PATCH to update state, title, or bug link.
+   to find new regressions. PATCH to update state, title, bug link, notes,
+   or commit. Add indicators via POST /regressions/{uuid}/indicators.
 
 5. Inspect a specific commit: GET /api/v5/{ts}/commits/{value} returns
    the commit detail with previous/next navigation links. Use

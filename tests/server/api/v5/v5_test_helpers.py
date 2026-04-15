@@ -5,7 +5,7 @@ Provides:
 - ``create_client`` -- Return a Flask test client
 - Auth helpers for creating API keys and headers
 - Data creation helpers using V5TestSuiteDB methods
-- API-based fixture helpers (submit_run, submit_fieldchange, etc.)
+- API-based fixture helpers (submit_run, submit_regression, etc.)
 """
 
 import datetime
@@ -107,19 +107,17 @@ def create_sample(session, ts, run, test, **field_values):
     return samples[0]
 
 
-def create_fieldchange(session, ts, start_commit, end_commit, machine, test,
-                       field_name, old_value=1.0, new_value=2.0):
-    """Create a FieldChange via V5TestSuiteDB and return it."""
-    return ts.create_field_change(
-        session, machine, test, field_name,
-        start_commit, end_commit, old_value, new_value)
-
-
 def create_regression(session, ts, title='Test Regression',
-                      state=0, field_changes=None):
-    """Create a Regression (optionally with indicators) and return it."""
-    fc_ids = [fc.id for fc in field_changes] if field_changes else []
-    return ts.create_regression(session, title, fc_ids, state=state)
+                      state=0, indicators=None, commit=None,
+                      notes=None, bug=None):
+    """Create a Regression (optionally with indicators) and return it.
+
+    *indicators* is a list of dicts with keys machine_id, test_id, metric.
+    """
+    indicator_list = indicators or []
+    return ts.create_regression(
+        session, title, indicator_list,
+        state=state, commit=commit, notes=notes, bug=bug)
 
 
 # ---------------------------------------------------------------------------
@@ -186,29 +184,50 @@ def submit_run(client, machine_name, commit, tests,
     return resp.get_json()
 
 
-def submit_fieldchange(client, app, machine, test, metric,
-                       start_commit, end_commit,
-                       old_value=10.0, new_value=20.0,
-                       testsuite='nts'):
-    """Create a field change via POST and return response JSON."""
-    body = {
-        'machine': machine, 'test': test, 'metric': metric,
-        'old_value': old_value, 'new_value': new_value,
-        'start_commit': start_commit, 'end_commit': end_commit,
-    }
-    resp = client.post(f'/api/v5/{testsuite}/field-changes',
-                       json=body, headers=admin_headers())
-    assert resp.status_code == 201, (
-        f"FC creation failed: {resp.get_json()}")
-    return resp.get_json()
-
-
-def submit_regression(client, app, fc_uuids, state='active',
+def submit_regression(client, app, indicators=None, state='active',
+                      title=None, commit=None, notes=None, bug=None,
                       testsuite='nts'):
-    """Create a regression via POST and return response JSON."""
-    body = {'field_change_uuids': fc_uuids, 'state': state}
+    """Create a regression via POST and return response JSON.
+
+    *indicators* is a list of {machine, test, metric} dicts.
+    """
+    body = {'state': state}
+    if indicators:
+        body['indicators'] = indicators
+    if title:
+        body['title'] = title
+    if commit:
+        body['commit'] = commit
+    if notes:
+        body['notes'] = notes
+    if bug:
+        body['bug'] = bug
     resp = client.post(f'/api/v5/{testsuite}/regressions',
                        json=body, headers=admin_headers())
     assert resp.status_code == 201, (
         f"Regression creation failed: {resp.get_json()}")
+    return resp.get_json()
+
+
+def submit_indicator_add(client, app, regression_uuid, indicators,
+                         testsuite='nts'):
+    """Add indicators to a regression via POST and return response JSON."""
+    resp = client.post(
+        f'/api/v5/{testsuite}/regressions/{regression_uuid}/indicators',
+        json={'indicators': indicators},
+        headers=admin_headers())
+    assert resp.status_code == 200, (
+        f"Indicator add failed: {resp.get_json()}")
+    return resp.get_json()
+
+
+def submit_indicator_remove(client, app, regression_uuid, indicator_uuids,
+                            testsuite='nts'):
+    """Remove indicators from a regression via DELETE and return response JSON."""
+    resp = client.delete(
+        f'/api/v5/{testsuite}/regressions/{regression_uuid}/indicators',
+        json={'indicator_uuids': indicator_uuids},
+        headers=admin_headers())
+    assert resp.status_code == 200, (
+        f"Indicator remove failed: {resp.get_json()}")
     return resp.get_json()

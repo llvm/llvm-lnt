@@ -1,31 +1,26 @@
 """Regression endpoints for the v5 API.
 
-GET    /api/v5/{ts}/regressions                              -- List
-POST   /api/v5/{ts}/regressions                              -- Create
-GET    /api/v5/{ts}/regressions/{uuid}                       -- Detail
-PATCH  /api/v5/{ts}/regressions/{uuid}                       -- Update
-DELETE /api/v5/{ts}/regressions/{uuid}                       -- Delete
-POST   /api/v5/{ts}/regressions/{uuid}/merge                 -- Merge
-POST   /api/v5/{ts}/regressions/{uuid}/split                 -- Split
-GET    /api/v5/{ts}/regressions/{uuid}/indicators            -- List indicators
-POST   /api/v5/{ts}/regressions/{uuid}/indicators            -- Add indicator
-DELETE /api/v5/{ts}/regressions/{uuid}/indicators/{fc_uuid}  -- Remove indicator
+GET    /api/v5/{ts}/regressions                     -- List
+POST   /api/v5/{ts}/regressions                     -- Create
+GET    /api/v5/{ts}/regressions/{uuid}              -- Detail
+PATCH  /api/v5/{ts}/regressions/{uuid}              -- Update
+DELETE /api/v5/{ts}/regressions/{uuid}              -- Delete
+POST   /api/v5/{ts}/regressions/{uuid}/indicators   -- Add indicators (batch)
+DELETE /api/v5/{ts}/regressions/{uuid}/indicators   -- Remove indicators (batch)
 """
 
 from flask import g, jsonify, make_response
 from flask.views import MethodView
 from flask_smorest import Blueprint
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, subqueryload
 
 from ..auth import require_scope
 from ..errors import abort_with_error, reject_unknown_params
 from ..helpers import (
-    lookup_fieldchange,
+    lookup_commit,
     lookup_machine,
     lookup_regression,
     lookup_test,
-    serialize_fieldchange,
     validate_metric_name,
 )
 from ..etag import add_etag_to_response
@@ -35,15 +30,12 @@ from ..pagination import (
 )
 from ..schemas.regressions import (
     IndicatorAddSchema,
+    IndicatorRemoveSchema,
     IndicatorResponseSchema,
-    PaginatedIndicatorResponseSchema,
     PaginatedRegressionListSchema,
     RegressionCreateSchema,
     RegressionDetailSchema,
-    RegressionIndicatorsQuerySchema,
     RegressionListQuerySchema,
-    RegressionMergeSchema,
-    RegressionSplitSchema,
     RegressionUpdateSchema,
     STATE_TO_DB,
     state_to_api,
@@ -54,7 +46,7 @@ blp = Blueprint(
     'Regressions',
     __name__,
     url_prefix='/api/v5/<testsuite>',
-    description='Triage performance regressions: create, merge, split, and manage indicators',
+    description='Triage performance regressions: create, update, delete, and manage indicators',
 )
 
 
@@ -62,67 +54,54 @@ blp = Blueprint(
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _fc_load_branches(base, ts):
-    """Append FieldChange relationship loads to a joinedload base."""
-    return [
-        base.joinedload(ts.FieldChange.test),
-        base.joinedload(ts.FieldChange.machine),
-        base.joinedload(ts.FieldChange.start_commit),
-        base.joinedload(ts.FieldChange.end_commit),
-    ]
-
-
-def _indicator_load_options(ts):
-    """Return joinedload options for eager-loading indicator relationships."""
-    base = joinedload(ts.Regression.indicators) \
-        .joinedload(ts.RegressionIndicator.field_change)
-    return _fc_load_branches(base, ts)
-
-
-def _indicator_query_options(ts):
-    """Return joinedload options for a RegressionIndicator query."""
-    base = joinedload(ts.RegressionIndicator.field_change)
-    return _fc_load_branches(base, ts)
-
-
 def _serialize_indicator(ri):
     """Serialize a RegressionIndicator into the API response dict."""
-    fc = ri.field_change
-    if fc is None:
-        return None
-    result = serialize_fieldchange(fc)
-    result['field_change_uuid'] = fc.uuid
-    return result
+    return {
+        'uuid': ri.uuid,
+        'machine': ri.machine.name if ri.machine else None,
+        'test': ri.test.name if ri.test else None,
+        'metric': ri.metric,
+    }
+
+
+def _serialize_regression_base(regression):
+    """Shared fields for both list and detail regression responses."""
+    return {
+        'uuid': regression.uuid,
+        'title': regression.title,
+        'bug': regression.bug,
+        'state': state_to_api(regression.state),
+        'commit': (regression.commit_obj.commit
+                   if regression.commit_obj else None),
+    }
 
 
 def _serialize_regression_list(regression):
-    """Serialize a Regression for the list endpoint (no indicators)."""
-    return {
-        'uuid': regression.uuid,
-        'title': regression.title,
-        'bug': regression.bug,
-        'state': state_to_api(regression.state),
-    }
+    """Serialize a Regression for the list endpoint.
+
+    Requires the regression to have indicators eagerly loaded (or
+    accessible) for computing machine_count and test_count.
+    """
+    machines = set()
+    tests = set()
+    for ri in regression.indicators:
+        machines.add(ri.machine_id)
+        tests.add(ri.test_id)
+
+    result = _serialize_regression_base(regression)
+    result['machine_count'] = len(machines)
+    result['test_count'] = len(tests)
+    return result
 
 
 def _serialize_regression_detail(regression):
-    """Serialize a Regression for the detail endpoint (with indicators).
-
-    Requires indicators to be eager-loaded via _indicator_load_options().
-    """
-    serialized_indicators = []
-    for ri in regression.indicators:
-        ind = _serialize_indicator(ri)
-        if ind is not None:
-            serialized_indicators.append(ind)
-
-    return {
-        'uuid': regression.uuid,
-        'title': regression.title,
-        'bug': regression.bug,
-        'state': state_to_api(regression.state),
-        'indicators': serialized_indicators,
-    }
+    """Serialize a Regression for the detail endpoint (with indicators)."""
+    result = _serialize_regression_base(regression)
+    result['notes'] = regression.notes
+    result['indicators'] = [
+        _serialize_indicator(ri) for ri in regression.indicators
+    ]
+    return result
 
 
 def _validate_state(state_str):
@@ -139,15 +118,54 @@ def _validate_state(state_str):
     return db_state
 
 
-def _lookup_regression_with_indicators(session, ts, regression_uuid):
-    """Look up a regression by UUID with eager-loaded indicators.
+def _resolve_indicators(session, ts, indicator_dicts):
+    """Resolve indicator input dicts to DB-ready dicts.
 
-    Aborts with 404 if not found.
+    Each input dict has {machine, test, metric} (names). This function
+    looks up each entity and returns a list of dicts with
+    {machine_id, test_id, metric}.
+
+    Aborts with 404 if any machine or test is not found, 400 if metric is
+    unknown.
     """
-    reg = session.query(ts.Regression) \
-        .options(*_indicator_load_options(ts)) \
-        .filter(ts.Regression.uuid == regression_uuid) \
+    resolved = []
+    machine_cache = {}
+    test_cache = {}
+    for ind in indicator_dicts:
+        m_name = ind['machine']
+        if m_name not in machine_cache:
+            machine_cache[m_name] = lookup_machine(session, ts, m_name)
+        t_name = ind['test']
+        if t_name not in test_cache:
+            test_cache[t_name] = lookup_test(session, ts, t_name)
+        validate_metric_name(ts, ind['metric'])
+        resolved.append({
+            'machine_id': machine_cache[m_name].id,
+            'test_id': test_cache[t_name].id,
+            'metric': ind['metric'],
+        })
+    return resolved
+
+
+def _eager_load_regression(session, ts, regression_uuid):
+    """Look up a regression by UUID with eager-loaded relationships.
+
+    Loads indicators with their machine and test relationships for
+    serialization. Aborts with 404 if not found.
+    """
+    reg = (
+        session.query(ts.Regression)
+        .populate_existing()
+        .options(
+            joinedload(ts.Regression.commit_obj),
+            subqueryload(ts.Regression.indicators)
+                .joinedload(ts.RegressionIndicator.machine),
+            subqueryload(ts.Regression.indicators)
+                .joinedload(ts.RegressionIndicator.test),
+        )
+        .filter(ts.Regression.uuid == regression_uuid)
         .first()
+    )
     if reg is None:
         abort_with_error(404, "Regression '%s' not found" % regression_uuid)
     return reg
@@ -167,53 +185,68 @@ class RegressionList(MethodView):
     def get(self, query_args, testsuite):
         """List regressions (cursor-paginated, filterable)."""
         reject_unknown_params(
-            {'state', 'machine', 'test', 'metric', 'cursor', 'limit'})
+            {'state', 'machine', 'test', 'metric', 'commit',
+             'has_commit', 'cursor', 'limit'})
         ts = g.ts
         session = g.db_session
 
-        query = session.query(ts.Regression)
+        query = session.query(ts.Regression).options(
+            joinedload(ts.Regression.commit_obj),
+            subqueryload(ts.Regression.indicators),
+        )
 
+        # -- State filter --
         state_values = query_args['state']
         if state_values:
             db_states = [_validate_state(sv) for sv in state_values]
             query = query.filter(ts.Regression.state.in_(db_states))
 
+        # -- Commit filters --
+        commit_value = query_args.get('commit')
+        if commit_value:
+            commit_obj = lookup_commit(session, ts, commit_value)
+            query = query.filter(
+                ts.Regression.commit_id == commit_obj.id)
+
+        has_commit = query_args.get('has_commit')
+        if has_commit is True:
+            query = query.filter(
+                ts.Regression.commit_id.isnot(None))
+        elif has_commit is False:
+            query = query.filter(
+                ts.Regression.commit_id.is_(None))
+
+        # -- Machine / test / metric filters (via indicator JOIN) --
         machine_name = query_args.get('machine')
         test_name = query_args.get('test')
-        field_name = query_args.get('metric')
+        metric_name = query_args.get('metric')
 
-        # Validate entity names before building JOINs (404/400 on bad names)
         machine = None
         if machine_name:
             machine = lookup_machine(session, ts, machine_name)
         test = None
         if test_name:
             test = lookup_test(session, ts, test_name)
-        if field_name:
-            validate_metric_name(ts, field_name)
+        if metric_name:
+            validate_metric_name(ts, metric_name)
 
-        if machine or test or field_name:
+        if machine or test or metric_name:
             query = query.join(
                 ts.RegressionIndicator,
                 ts.RegressionIndicator.regression_id == ts.Regression.id
-            ).join(
-                ts.FieldChange,
-                ts.RegressionIndicator.field_change_id == ts.FieldChange.id
             )
 
         if machine:
             query = query.filter(
-                ts.FieldChange.machine_id == machine.id)
-
+                ts.RegressionIndicator.machine_id == machine.id)
         if test:
             query = query.filter(
-                ts.FieldChange.test_id == test.id)
-
-        if field_name:
+                ts.RegressionIndicator.test_id == test.id)
+        if metric_name:
             query = query.filter(
-                ts.FieldChange.field_name == field_name)
+                ts.RegressionIndicator.metric == metric_name)
 
-        if machine or test or field_name:
+        if machine or test or metric_name:
             query = query.distinct()
 
         cursor_str = query_args.get('cursor')
@@ -228,26 +261,35 @@ class RegressionList(MethodView):
     @blp.arguments(RegressionCreateSchema)
     @blp.response(201, RegressionDetailSchema)
     def post(self, body, testsuite):
-        """Create a new regression from field changes."""
+        """Create a new regression."""
         ts = g.ts
         session = g.db_session
-
-        fc_uuids = body['field_change_uuids']
-        field_changes = [lookup_fieldchange(session, ts, u) for u in fc_uuids]
 
         state_str = body.get('state') or 'detected'
         db_state = _validate_state(state_str)
 
-        title = body.get('title') or 'Regression of %d benchmarks' % len(
-            field_changes)
-        bug = body.get('bug') or ''
+        # Resolve commit by value (optional)
+        commit_obj = None
+        commit_value = body.get('commit')
+        if commit_value:
+            commit_obj = lookup_commit(session, ts, commit_value)
+
+        # Resolve indicators (optional)
+        indicator_dicts = body.get('indicators') or []
+        resolved = _resolve_indicators(session, ts, indicator_dicts)
+
+        title = body.get('title') or (
+            'Regression of %d benchmarks' % len(resolved)
+            if resolved else 'New regression')
+        bug = body.get('bug')
+        notes = body.get('notes')
 
         regression = ts.create_regression(
-            session, title, [fc.id for fc in field_changes],
-            bug=bug, state=db_state)
+            session, title, resolved,
+            bug=bug, notes=notes, commit=commit_obj, state=db_state)
 
-        # Reload with eager-loaded indicators for serialization
-        regression = _lookup_regression_with_indicators(
+        # Reload with eager-loaded relationships for serialization
+        regression = _eager_load_regression(
             session, ts, regression.uuid)
 
         result = _serialize_regression_detail(regression)
@@ -271,8 +313,7 @@ class RegressionDetail(MethodView):
         reject_unknown_params(set())
         ts = g.ts
         session = g.db_session
-        regression = _lookup_regression_with_indicators(
-            session, ts, regression_uuid)
+        regression = _eager_load_regression(session, ts, regression_uuid)
         data = _serialize_regression_detail(regression)
         return add_etag_to_response(jsonify(data), data)
 
@@ -280,21 +321,38 @@ class RegressionDetail(MethodView):
     @blp.arguments(RegressionUpdateSchema)
     @blp.response(200, RegressionDetailSchema)
     def patch(self, body, testsuite, regression_uuid):
-        """Update regression title, bug URL, and/or state."""
+        """Update regression title, bug, notes, state, and/or commit."""
         ts = g.ts
         session = g.db_session
-        regression = _lookup_regression_with_indicators(
-            session, ts, regression_uuid)
+        regression = lookup_regression(session, ts, regression_uuid)
 
-        title = body.get('title')
-        bug = body.get('bug')
-        state = None
+        # Fields present in body are updated; None values clear the field.
+        # Fields absent from body are left unchanged.
+        kwargs = {}
+
+        if 'title' in body:
+            kwargs['title'] = body['title']
+
+        if 'bug' in body:
+            kwargs['bug'] = body['bug']
+
+        if 'notes' in body:
+            kwargs['notes'] = body['notes']
+
         if 'state' in body:
-            state = _validate_state(body['state'])
+            kwargs['state'] = _validate_state(body['state'])
 
-        ts.update_regression(
-            session, regression, title=title, bug=bug, state=state)
+        if 'commit' in body:
+            commit_value = body['commit']
+            if commit_value is None:
+                kwargs['commit'] = None  # clear
+            else:
+                kwargs['commit'] = lookup_commit(session, ts, commit_value)
 
+        ts.update_regression(session, regression, **kwargs)
+
+        # Reload for serialization (relationships may have changed)
+        regression = _eager_load_regression(session, ts, regression_uuid)
         return jsonify(_serialize_regression_detail(regression))
 
     @require_scope('triage')
@@ -309,212 +367,55 @@ class RegressionDetail(MethodView):
 
 
 # ---------------------------------------------------------------------------
-# Merge
-# ---------------------------------------------------------------------------
-
-@blp.route('/regressions/<string:regression_uuid>/merge')
-class RegressionMerge(MethodView):
-    """Merge source regressions into the target regression."""
-
-    @require_scope('triage')
-    @blp.arguments(RegressionMergeSchema)
-    @blp.response(200, RegressionDetailSchema)
-    def post(self, body, testsuite, regression_uuid):
-        """Merge source regressions into this one.
-
-        The target absorbs all indicators from the source regressions.
-        Sources are marked as ignored. Duplicate indicators are
-        deduplicated.
-        """
-        ts = g.ts
-        session = g.db_session
-        target = lookup_regression(session, ts, regression_uuid)
-
-        source_uuids = body['source_regression_uuids']
-
-        for suuid in source_uuids:
-            if suuid == regression_uuid:
-                abort_with_error(
-                    400, "Cannot merge a regression into itself")
-
-        # Collect existing indicator field_change_ids for deduplication
-        existing_fc_ids = set()
-        target_indicators = session.query(ts.RegressionIndicator).filter(
-            ts.RegressionIndicator.regression_id == target.id
-        ).all()
-        for ri in target_indicators:
-            existing_fc_ids.add(ri.field_change_id)
-
-        sources = [lookup_regression(session, ts, u) for u in source_uuids]
-
-        for source in sources:
-            source_indicators = session.query(ts.RegressionIndicator).filter(
-                ts.RegressionIndicator.regression_id == source.id
-            ).all()
-
-            for ri in source_indicators:
-                if ri.field_change_id not in existing_fc_ids:
-                    ri.regression_id = target.id
-                    existing_fc_ids.add(ri.field_change_id)
-                else:
-                    session.delete(ri)
-
-            ts.update_regression(
-                session, source, state=STATE_TO_DB['ignored'])
-
-        session.flush()
-
-        # Reload with eager-loaded indicators for serialization
-        target = _lookup_regression_with_indicators(
-            session, ts, regression_uuid)
-        return jsonify(_serialize_regression_detail(target))
-
-
-# ---------------------------------------------------------------------------
-# Split
-# ---------------------------------------------------------------------------
-
-@blp.route('/regressions/<string:regression_uuid>/split')
-class RegressionSplit(MethodView):
-    """Split field changes from a regression into a new regression."""
-
-    @require_scope('triage')
-    @blp.arguments(RegressionSplitSchema)
-    @blp.response(201, RegressionDetailSchema)
-    def post(self, body, testsuite, regression_uuid):
-        """Split specified field changes into a new regression.
-
-        At least one indicator must remain in the source regression.
-        """
-        ts = g.ts
-        session = g.db_session
-        source = lookup_regression(session, ts, regression_uuid)
-
-        fc_uuids = body['field_change_uuids']
-
-        all_indicators = session.query(ts.RegressionIndicator).filter(
-            ts.RegressionIndicator.regression_id == source.id
-        ).all()
-
-        fc_id_to_ri = {ri.field_change_id: ri for ri in all_indicators}
-
-        indicators_to_move = []
-        for fc_uuid in fc_uuids:
-            fc = lookup_fieldchange(session, ts, fc_uuid)
-            ri = fc_id_to_ri.get(fc.id)
-            if ri is None:
-                abort_with_error(
-                    400,
-                    "Field change '%s' is not an indicator of regression "
-                    "'%s'" % (fc_uuid, regression_uuid))
-            indicators_to_move.append(ri)
-
-        if len(indicators_to_move) >= len(all_indicators):
-            abort_with_error(
-                400,
-                "Cannot split all indicators from a regression. "
-                "At least one indicator must remain.")
-
-        # Create new regression (empty indicators, then move them)
-        new_regression = ts.create_regression(
-            session, source.title, [], bug=source.bug or '',
-            state=source.state)
-
-        for ri in indicators_to_move:
-            ri.regression_id = new_regression.id
-
-        session.flush()
-
-        # Reload with eager-loaded indicators for serialization
-        new_regression = _lookup_regression_with_indicators(
-            session, ts, new_regression.uuid)
-        return jsonify(
-            _serialize_regression_detail(new_regression)), 201
-
-
-# ---------------------------------------------------------------------------
 # Indicators
 # ---------------------------------------------------------------------------
 
 @blp.route('/regressions/<string:regression_uuid>/indicators')
 class RegressionIndicators(MethodView):
-    """List and add indicators for a regression."""
-
-    @require_scope('read')
-    @blp.arguments(RegressionIndicatorsQuerySchema, location="query")
-    @blp.response(200, PaginatedIndicatorResponseSchema)
-    def get(self, query_args, testsuite, regression_uuid):
-        """List indicators for a regression (cursor-paginated)."""
-        reject_unknown_params({'cursor', 'limit'})
-        ts = g.ts
-        session = g.db_session
-        regression = lookup_regression(session, ts, regression_uuid)
-
-        query = session.query(ts.RegressionIndicator) \
-            .options(*_indicator_query_options(ts)) \
-            .filter(
-                ts.RegressionIndicator.regression_id == regression.id)
-
-        cursor_str = query_args.get('cursor')
-        limit = query_args['limit']
-        items, next_cursor = cursor_paginate(
-            query, ts.RegressionIndicator.id, cursor_str, limit)
-
-        serialized = []
-        for ri in items:
-            ind = _serialize_indicator(ri)
-            if ind is not None:
-                serialized.append(ind)
-
-        return jsonify(make_paginated_response(serialized, next_cursor))
+    """Add and remove indicators for a regression (batch operations)."""
 
     @require_scope('triage')
     @blp.arguments(IndicatorAddSchema)
-    @blp.response(201, IndicatorResponseSchema)
+    @blp.response(200, RegressionDetailSchema)
     def post(self, body, testsuite, regression_uuid):
-        """Add a field change as an indicator to this regression."""
+        """Add indicators to a regression (batch).
+
+        Duplicates (same regression+machine+test+metric) are silently
+        ignored.
+        """
         ts = g.ts
         session = g.db_session
         regression = lookup_regression(session, ts, regression_uuid)
 
-        fc_uuid = body['field_change_uuid']
-        fc = lookup_fieldchange(session, ts, fc_uuid)
+        indicator_dicts = body['indicators']
+        resolved = _resolve_indicators(session, ts, indicator_dicts)
 
-        try:
-            ri = ts.add_regression_indicator(session, regression, fc)
-        except IntegrityError:
-            session.rollback()
-            abort_with_error(
-                409,
-                "Field change '%s' is already an indicator of this "
-                "regression" % fc_uuid)
+        ts.add_regression_indicators_batch(session, regression, resolved)
 
-        result = _serialize_indicator(ri)
-        resp = jsonify(result)
-        resp.status_code = 201
-        return resp
-
-
-@blp.route(
-    '/regressions/<string:regression_uuid>/indicators/<string:fc_uuid>')
-class RegressionIndicatorRemove(MethodView):
-    """Remove a field change indicator from a regression."""
+        # Reload and return full detail
+        regression = _eager_load_regression(
+            session, ts, regression_uuid)
+        return jsonify(_serialize_regression_detail(regression))
 
     @require_scope('triage')
-    @blp.response(204)
-    def delete(self, testsuite, regression_uuid, fc_uuid):
-        """Remove a field change indicator from a regression."""
+    @blp.arguments(IndicatorRemoveSchema)
+    @blp.response(200, RegressionDetailSchema)
+    def delete(self, body, testsuite, regression_uuid):
+        """Remove indicators from a regression (batch, by UUID).
+
+        Unknown UUIDs are silently ignored.
+        """
         ts = g.ts
         session = g.db_session
         regression = lookup_regression(session, ts, regression_uuid)
-        fc = lookup_fieldchange(session, ts, fc_uuid)
 
-        removed = ts.remove_regression_indicator(
-            session, regression.id, fc.id)
-        if not removed:
-            abort_with_error(
-                404,
-                "Field change '%s' is not an indicator of regression "
-                "'%s'" % (fc_uuid, regression_uuid))
+        session.query(ts.RegressionIndicator).filter(
+            ts.RegressionIndicator.regression_id == regression.id,
+            ts.RegressionIndicator.uuid.in_(body['indicator_uuids']),
+        ).delete(synchronize_session='fetch')
+        session.flush()
 
-        return make_response('', 204)
+        # Reload and return full detail
+        regression = _eager_load_regression(
+            session, ts, regression_uuid)
+        return jsonify(_serialize_regression_detail(regression))
