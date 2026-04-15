@@ -48,10 +48,10 @@ async function fetchSuiteTrends(
   // Group API response by machine, build SparklineTrace per machine
   const byMachine = new Map<string, Array<{ timestamp: string; value: number }>>();
   for (const item of items) {
-    if (!item.timestamp) continue;
+    if (!item.submitted_at) continue;
     let points = byMachine.get(item.machine);
     if (!points) { points = []; byMachine.set(item.machine, points); }
-    points.push({ timestamp: item.timestamp, value: item.value });
+    points.push({ timestamp: item.submitted_at, value: item.value });
   }
 
   const traces: SparklineTrace[] = [];
@@ -168,7 +168,7 @@ export const homePage: PageModule = {
         // Fetch suite info and recent runs in parallel
         const [suiteInfo, runsPage] = await Promise.all([
           getTestSuiteInfo(suite, sig),
-          getRunsPage(suite, { sort: '-start_time', limit: 50 }, sig),
+          getRunsPage(suite, { sort: '-submitted_at', limit: 50 }, sig),
         ]);
 
         if (sig.aborted) return;

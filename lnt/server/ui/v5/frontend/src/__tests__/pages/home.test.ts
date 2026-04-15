@@ -81,6 +81,7 @@ let savedReplaceState: typeof window.history.replaceState;
 beforeEach(() => {
   vi.clearAllMocks();
   container = document.createElement('div');
+  document.body.append(container);
 
   // Mock window.history.replaceState
   savedReplaceState = window.history.replaceState;
@@ -97,6 +98,7 @@ beforeEach(() => {
 
 afterEach(() => {
   if (homePage.unmount) homePage.unmount();
+  container.remove();
   window.history.replaceState = savedReplaceState;
 });
 
@@ -151,6 +153,19 @@ describe('Dashboard page', () => {
       expect(getTestSuiteInfo).toHaveBeenCalledWith('nts', expect.anything());
       expect(getTestSuiteInfo).toHaveBeenCalledWith('compile-suite', expect.anything());
       expect(getRunsPage).toHaveBeenCalledTimes(2);
+    }, { timeout: 500 });
+  });
+
+  it('passes trend data through to Plotly sparkline charts', async () => {
+    homePage.mount(container, { testsuite: '' });
+
+    await vi.waitFor(() => {
+      const calls = ((globalThis as Record<string, unknown>).Plotly as Record<string, ReturnType<typeof vi.fn>>).newPlot.mock.calls;
+      // Find a call with non-empty trace data (not a loading placeholder)
+      const dataCall = calls.find(
+        (c: unknown[]) => Array.isArray(c[1]) && c[1].length > 0 && c[1][0].x?.length > 0,
+      );
+      expect(dataCall).toBeTruthy();
     }, { timeout: 500 });
   });
 });
