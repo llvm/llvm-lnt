@@ -1,4 +1,4 @@
-from flask import g, render_template, request
+from flask import abort, g, render_template, request
 
 from . import v5_frontend, _setup_testsuite
 from lnt.server.ui.decorators import _make_db_session
@@ -67,6 +67,8 @@ def v5_app(testsuite_name, subpath=None):
     _setup_testsuite(testsuite_name)
     try:
         db = request.get_db()
+        if testsuite_name not in db.testsuite:
+            abort(404)
         return _v5_render(testsuites=sorted(db.testsuite.keys()))
     finally:
         request.session.close()
