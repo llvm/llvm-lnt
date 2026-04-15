@@ -776,11 +776,6 @@ class TestRegistryVersionPropagation(unittest.TestCase):
         db = self.app.instance.get_database("default")
         suites_before = set(db.testsuite.keys())
 
-        # We need at least one suite so we can hit a per-suite endpoint
-        # that triggers the staleness check via get_suite().
-        self.assertIn('nts', suites_before,
-                      "need the built-in 'nts' suite for this test")
-
         # Artificially bump the DB version to simulate another worker
         session = db.make_session()
         row = session.query(V5SchemaVersion).get(1)
@@ -790,12 +785,10 @@ class TestRegistryVersionPropagation(unittest.TestCase):
         bumped_version = row.version
         session.close()
 
-        # The schema version check happens inside get_suite(), which is
-        # called by the middleware when a per-suite endpoint is accessed.
-        # The list endpoint (/api/v5/test-suites/) does NOT resolve a
-        # testsuite, so it won't trigger the check.  Hit a per-suite
-        # endpoint instead.
-        resp = self.client.get('/api/v5/nts/tests')
+        # Middleware calls ensure_fresh() on every /api/v5/ request, so
+        # even non-per-suite endpoints like the list endpoint trigger a
+        # schema reload when the version is stale.
+        resp = self.client.get('/api/v5/test-suites/')
         self.assertEqual(resp.status_code, 200)
 
         # After reload, the cached version should match the DB

@@ -722,7 +722,10 @@ class TestSchemaStorageInDB(unittest.TestCase):
         session.commit()
         session.close()
 
-        # v5db2 should detect staleness on next get_suite call
+        # v5db2 should detect staleness via ensure_fresh()
+        session2 = v5db2.make_session()
+        v5db2.ensure_fresh(session2)
+        session2.close()
         result = v5db2.get_suite("stale_test")
         self.assertIsNone(result)
 

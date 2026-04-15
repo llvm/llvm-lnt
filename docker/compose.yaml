@@ -47,7 +47,6 @@ services:
       - DB_NAME=lnt
       - DB_PASSWORD_FILE=/run/secrets/lnt-db-password
       - AUTH_TOKEN_FILE=/run/secrets/lnt-auth-token
-      - GUNICORN_WORKERS=${GUNICORN_WORKERS:-8}
     secrets:
       - lnt-db-password
       - lnt-auth-token

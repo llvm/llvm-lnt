@@ -70,10 +70,10 @@ is cached.
 
 **Multi-process safety**: In a multi-worker deployment (e.g., gunicorn), when
 one worker creates or deletes a suite, it bumps the `v5_schema_version` counter
-in the same transaction. Other workers detect the stale cache on their next
-request and reload schemas from the DB. The check is a single-row query per
-request. Callers access suites via `V5DB.get_suite(name)`, which handles the
-staleness check transparently.
+in the same transaction. The v5 API middleware calls `V5DB.ensure_fresh()` at
+the start of every request, which compares the cached version against the DB
+and reloads all schemas when they differ. The check is a single-row integer
+read per request.
 
 
 ## D4: Schema Format

@@ -27,9 +27,6 @@ SUITE="smoketest"
 export LNT_DB_PASSWORD="smoke-test-password"
 export LNT_AUTH_TOKEN="${AUTH_TOKEN}"
 export LNT_HOST_PORT="${HOST_PORT}"
-# Use 1 worker to avoid multi-worker schema cache reload issues
-# (the test creates a suite at runtime; other workers wouldn't see it).
-export GUNICORN_WORKERS=1
 
 # Common compose flags: use isolated project name.
 COMPOSE_CMD=(docker compose -f "$COMPOSE_FILE" -p "$PROJECT_NAME")

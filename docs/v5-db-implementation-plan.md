@@ -112,12 +112,10 @@ import from their schema modules. Do each endpoint+schema pair together.
 ### 2.1 Middleware (`middleware.py`)
 
 Replace testsuite resolution:
-- Remove `db.check_registry_version(g.db_session)` call (v4 method).
-  `V5DB.get_suite()` handles staleness checks internally.
-- Replace the `if testsuite not in db.testsuite` check + `g.ts =
-  db.testsuite[testsuite]` with a single call: `g.ts =
-  db.get_suite(testsuite, g.db_session)`. Return 404 if `None`. This avoids
-  a TOCTOU race between the `in` check and the dict lookup.
+- Call `db.ensure_fresh(g.db_session)` on every `/api/v5/` request to detect
+  schema changes made by other workers.
+- Resolve the testsuite (if any) with `g.ts = db.get_suite(testsuite)`.
+  Return 404 if `None`.
 - `g.db` is now always a `V5DB`. No dual-path code.
 - `v5_teardown_request()` unchanged (session commit/rollback/close).
 

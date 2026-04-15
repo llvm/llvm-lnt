@@ -54,14 +54,17 @@ def register_middleware(app):
         g.db_name = "default"
         g.db_session = db.make_session()
 
+        # Ensure the in-memory schema cache is up-to-date.  In a
+        # multi-worker deployment another worker may have created or
+        # deleted a test suite; this single-row integer check detects
+        # that and reloads the cache before any endpoint runs.
+        db.ensure_fresh(g.db_session)
+
         # Resolve testsuite from view_args if the URL contains one.
-        # Discovery (/api/v5/) and admin (/api/v5/admin/) paths have no
-        # testsuite in the URL.  get_suite() handles schema version
-        # staleness checks transparently.
         view_args = request.view_args or {}
         testsuite = view_args.get('testsuite')
         if testsuite:
-            ts = db.get_suite(testsuite, g.db_session)
+            ts = db.get_suite(testsuite)
             if ts is None:
                 return _make_error_response(
                     'not_found',

@@ -183,18 +183,18 @@ class V5DB:
         else:
             row.version = row.version + 1
 
-    def get_suite(self, name: str, session: sqlalchemy.orm.Session | None = None) -> V5TestSuiteDB | None:
-        """Return a suite by name, transparently reloading if stale."""
-        if session is not None:
-            if self._check_schema_version(session):
-                self._load_schemas_from_db()
-        else:
-            session = self.sessionmaker()
-            try:
-                if self._check_schema_version(session):
-                    self._load_schemas_from_db()
-            finally:
-                session.close()
+    def ensure_fresh(self, session: sqlalchemy.orm.Session) -> None:
+        """Reload schemas from the DB if the cached version is stale.
+
+        Call this once per request (e.g. in middleware) so that all
+        endpoints see up-to-date test-suite definitions, even when
+        another worker created or deleted a suite.
+        """
+        if self._check_schema_version(session):
+            self._load_schemas_from_db()
+
+    def get_suite(self, name: str) -> V5TestSuiteDB | None:
+        """Return a suite by name, or None."""
         return self.testsuite.get(name)
 
     def create_suite(
