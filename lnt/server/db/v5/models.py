@@ -105,7 +105,6 @@ class SuiteModels:
     Run: Any = None
     Test: Any = None
     Sample: Any = None
-    FieldChange: Any = None
     Regression: Any = None
     RegressionIndicator: Any = None
 
@@ -259,59 +258,6 @@ def create_suite_models(schema: TestSuiteSchema) -> SuiteModels:
     )
 
     # -----------------------------------------------------------------------
-    # FieldChange
-    # -----------------------------------------------------------------------
-    fc_attrs: dict[str, Any] = {
-        "__tablename__": f"{prefix}_FieldChange",
-        "id": Column("id", Integer, primary_key=True),
-        "uuid": Column(
-            "uuid", String(36), unique=True, nullable=False, index=True,
-            default=lambda: str(uuid_module.uuid4()),
-        ),
-        "test_id": Column(
-            "test_id", Integer,
-            ForeignKey(f"{prefix}_Test.id"),
-            nullable=False, index=True,
-        ),
-        "machine_id": Column(
-            "machine_id", Integer,
-            ForeignKey(f"{prefix}_Machine.id"),
-            nullable=False, index=True,
-        ),
-        "field_name": Column("field_name", String(256), nullable=False),
-        "start_commit_id": Column(
-            "start_commit_id", Integer,
-            ForeignKey(f"{prefix}_Commit.id"),
-            nullable=False, index=True,
-        ),
-        "end_commit_id": Column(
-            "end_commit_id", Integer,
-            ForeignKey(f"{prefix}_Commit.id"),
-            nullable=False, index=True,
-        ),
-        "old_value": Column("old_value", Float, nullable=True),
-        "new_value": Column("new_value", Float, nullable=True),
-        "test": relation("Test", foreign_keys=f"{prefix}_FieldChange.c.test_id"),
-        "machine": relation("Machine", foreign_keys=f"{prefix}_FieldChange.c.machine_id"),
-        "start_commit": relation(
-            "Commit",
-            foreign_keys=f"{prefix}_FieldChange.c.start_commit_id",
-        ),
-        "end_commit": relation(
-            "Commit",
-            foreign_keys=f"{prefix}_FieldChange.c.end_commit_id",
-        ),
-    }
-    FieldChange = type("FieldChange", (base,), fc_attrs)
-
-    # Covers regression lookup: "field changes for a specific test on a machine"
-    # Compound index on (machine_id, test_id, field_name)
-    Index(
-        f"ix_{prefix}_FieldChange_machine_test_field",
-        FieldChange.machine_id, FieldChange.test_id, FieldChange.field_name,  # type: ignore[attr-defined]
-    )
-
-    # -----------------------------------------------------------------------
     # Regression
     # -----------------------------------------------------------------------
     reg_attrs: dict[str, Any] = {
@@ -323,7 +269,16 @@ def create_suite_models(schema: TestSuiteSchema) -> SuiteModels:
         ),
         "title": Column("title", String(256), nullable=True),
         "bug": Column("bug", String(256), nullable=True),
+        "notes": Column("notes", Text, nullable=True),
         "state": Column("state", Integer, nullable=False, index=True),
+        "commit_id": Column(
+            "commit_id", Integer,
+            ForeignKey(f"{prefix}_Commit.id"),
+            nullable=True, index=True,
+        ),
+        "commit_obj": relation(
+            "Commit", foreign_keys=f"{prefix}_Regression.c.commit_id",
+        ),
     }
     Regression = type("Regression", (base,), reg_attrs)
 
@@ -333,27 +288,43 @@ def create_suite_models(schema: TestSuiteSchema) -> SuiteModels:
     ri_attrs: dict[str, Any] = {
         "__tablename__": f"{prefix}_RegressionIndicator",
         "id": Column("id", Integer, primary_key=True),
+        "uuid": Column(
+            "uuid", String(36), unique=True, nullable=False, index=True,
+            default=lambda: str(uuid_module.uuid4()),
+        ),
         "regression_id": Column(
             "regression_id", Integer,
             ForeignKey(f"{prefix}_Regression.id", ondelete="CASCADE"),
             nullable=False, index=True,
         ),
-        "field_change_id": Column(
-            "field_change_id", Integer,
-            ForeignKey(f"{prefix}_FieldChange.id", ondelete="CASCADE"),
+        "machine_id": Column(
+            "machine_id", Integer,
+            ForeignKey(f"{prefix}_Machine.id"),
             nullable=False, index=True,
         ),
+        "test_id": Column(
+            "test_id", Integer,
+            ForeignKey(f"{prefix}_Test.id"),
+            nullable=False, index=True,
+        ),
+        "metric": Column("metric", String(256), nullable=False),
         "__table_args__": (
-            UniqueConstraint("regression_id", "field_change_id",
-                             name=f"uq_{prefix}_ri_regression_fieldchange"),
+            UniqueConstraint(
+                "regression_id", "machine_id", "test_id", "metric",
+                name=f"uq_{prefix}_ri_reg_machine_test_metric",
+            ),
         ),
         "regression": relation(
             "Regression",
             foreign_keys=f"{prefix}_RegressionIndicator.c.regression_id",
         ),
-        "field_change": relation(
-            "FieldChange",
-            foreign_keys=f"{prefix}_RegressionIndicator.c.field_change_id",
+        "machine": relation(
+            "Machine",
+            foreign_keys=f"{prefix}_RegressionIndicator.c.machine_id",
+        ),
+        "test": relation(
+            "Test",
+            foreign_keys=f"{prefix}_RegressionIndicator.c.test_id",
         ),
     }
     RegressionIndicator = type("RegressionIndicator", (base,), ri_attrs)
@@ -389,13 +360,6 @@ def create_suite_models(schema: TestSuiteSchema) -> SuiteModels:
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
-    FieldChange.regression_indicators = relation(  # type: ignore[attr-defined]
-        RegressionIndicator,
-        foreign_keys=[RegressionIndicator.field_change_id],  # type: ignore[attr-defined]
-        back_populates="field_change",
-        cascade="all, delete-orphan",
-        passive_deletes=True,
-    )
     Regression.indicators = relation(  # type: ignore[attr-defined]
         RegressionIndicator,
         foreign_keys=[RegressionIndicator.regression_id],  # type: ignore[attr-defined]
@@ -411,7 +375,6 @@ def create_suite_models(schema: TestSuiteSchema) -> SuiteModels:
         Run=Run,
         Test=Test,
         Sample=Sample,
-        FieldChange=FieldChange,
         Regression=Regression,
         RegressionIndicator=RegressionIndicator,
     )

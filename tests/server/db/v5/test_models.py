@@ -93,12 +93,12 @@ class TestModelCreation(unittest.TestCase):
         self.assertIn("compile_status", cols)
 
     def test_all_tables_created(self):
-        """All 8 per-suite tables should exist."""
+        """All 7 per-suite tables should exist."""
         insp = sqlalchemy.inspect(self.engine)
         tables = set(insp.get_table_names())
         expected = {
             "t_Commit", "t_Machine", "t_Run", "t_Test",
-            "t_Sample", "t_FieldChange", "t_Regression",
+            "t_Sample", "t_Regression",
             "t_RegressionIndicator",
         }
         self.assertTrue(expected.issubset(tables), f"Missing: {expected - tables}")
@@ -261,7 +261,8 @@ class TestMachineCRUD(unittest.TestCase):
         session.close()
 
 
-class TestRunCRUD(unittest.TestCase):
+class _ModelTestBase(unittest.TestCase):
+    """Shared setup/teardown and helpers for model-level tests."""
 
     @classmethod
     def setUpClass(cls):
@@ -277,7 +278,7 @@ class TestRunCRUD(unittest.TestCase):
         cls.models.base.metadata.drop_all(cls.engine)
         cls.engine.dispose()
 
-    def _make_machine(self, session, name="run-test-machine"):
+    def _make_machine(self, session, name):
         m = self.models.Machine()
         m.name = name
         m.parameters = {}
@@ -285,12 +286,22 @@ class TestRunCRUD(unittest.TestCase):
         session.flush()
         return m
 
-    def _make_commit(self, session, commit_str="test-commit"):
+    def _make_test(self, session, name):
+        t = self.models.Test()
+        t.name = name
+        session.add(t)
+        session.flush()
+        return t
+
+    def _make_commit(self, session, commit_str):
         c = self.models.Commit()
         c.commit = commit_str
         session.add(c)
         session.flush()
         return c
+
+
+class TestRunCRUD(_ModelTestBase):
 
     def test_create_run_with_commit(self):
         session = self.Session()
@@ -447,96 +458,191 @@ class TestSampleCreation(unittest.TestCase):
         session.close()
 
 
-class TestFieldChangeAndRegression(unittest.TestCase):
+class TestRegressionAndIndicatorModels(_ModelTestBase):
 
-    @classmethod
-    def setUpClass(cls):
-        cls.engine = _make_engine()
-        cls.schema = _test_schema()
-        cls.models = create_suite_models(cls.schema)
-        cls.models.base.metadata.drop_all(cls.engine)
-        cls.models.base.metadata.create_all(cls.engine)
-        cls.Session = sqlalchemy.orm.sessionmaker(cls.engine)
-
-    @classmethod
-    def tearDownClass(cls):
-        cls.models.base.metadata.drop_all(cls.engine)
-        cls.engine.dispose()
-
-    def _setup(self, session, suffix=""):
-        m = self.models.Machine()
-        m.name = f"fc-machine{suffix}"
-        m.parameters = {}
-        session.add(m)
-
-        t = self.models.Test()
-        t.name = f"fc-test{suffix}"
-        session.add(t)
-
-        c1 = self.models.Commit()
-        c1.commit = f"fc-start{suffix}"
-        session.add(c1)
-
-        c2 = self.models.Commit()
-        c2.commit = f"fc-end{suffix}"
-        session.add(c2)
-
-        session.flush()
-        return m, t, c1, c2
-
-    def test_create_field_change(self):
+    def test_create_regression_with_commit_and_notes(self):
+        """Create a Regression with commit_id and notes."""
         session = self.Session()
-        m, t, c1, c2 = self._setup(session, "-create")
+        c = self._make_commit(session, "reg-model-c1")
 
-        fc = self.models.FieldChange()
-        fc.uuid = "fc-uuid-0000000000000000000000000"[:36]
-        fc.machine_id = m.id
-        fc.test_id = t.id
-        fc.field_name = "compile_time"
-        fc.start_commit_id = c1.id
-        fc.end_commit_id = c2.id
-        fc.old_value = 1.0
-        fc.new_value = 2.0
-        session.add(fc)
+        reg = self.models.Regression()
+        reg.uuid = "reg-model-uuid-00000000000000000"[:36]
+        reg.title = "Test Regression"
+        reg.bug = "BUG-1"
+        reg.notes = "Some notes about the regression"
+        reg.state = 0
+        reg.commit_id = c.id
+        session.add(reg)
         session.commit()
-        self.assertIsNotNone(fc.id)
+
+        self.assertIsNotNone(reg.id)
+        self.assertEqual(reg.notes, "Some notes about the regression")
+        self.assertEqual(reg.commit_id, c.id)
+        session.close()
+
+    def test_regression_commit_id_nullable(self):
+        """Regression without a commit_id should persist with NULL."""
+        session = self.Session()
+        reg = self.models.Regression()
+        reg.uuid = "reg-model-uuid-null-commit0000000"[:36]
+        reg.title = "No commit regression"
+        reg.state = 0
+        session.add(reg)
+        session.commit()
+
+        self.assertIsNotNone(reg.id)
+        self.assertIsNone(reg.commit_id)
+        session.close()
+
+    def test_regression_indicator_has_uuid(self):
+        """RegressionIndicator should have a uuid field."""
+        session = self.Session()
+        m = self._make_machine(session, "ri-model-m1")
+        t = self._make_test(session, "ri-model-t1")
+
+        reg = self.models.Regression()
+        reg.uuid = "reg-model-uuid-ri-uuid0000000000"[:36]
+        reg.title = "RI UUID test"
+        reg.state = 0
+        session.add(reg)
+        session.flush()
+
+        ri = self.models.RegressionIndicator()
+        ri.uuid = "ri-model-uuid-000000000000000000"[:36]
+        ri.regression_id = reg.id
+        ri.machine_id = m.id
+        ri.test_id = t.id
+        ri.metric = "execution_time"
+        session.add(ri)
+        session.commit()
+
+        self.assertIsNotNone(ri.id)
+        self.assertEqual(ri.uuid, "ri-model-uuid-000000000000000000"[:36])
         session.close()
 
     def test_regression_indicator_unique_constraint(self):
-        """Duplicate (regression_id, field_change_id) should fail."""
+        """Duplicate (regression_id, machine_id, test_id, metric) should fail."""
         session = self.Session()
-        m, t, c1, c2 = self._setup(session, "-uniq")
-
-        fc = self.models.FieldChange()
-        fc.uuid = "fc-uuid-uniq00000000000000000000"[:36]
-        fc.machine_id = m.id
-        fc.test_id = t.id
-        fc.field_name = "execution_time"
-        fc.start_commit_id = c1.id
-        fc.end_commit_id = c2.id
-        fc.old_value = 1.0
-        fc.new_value = 2.0
-        session.add(fc)
-        session.flush()
+        m = self._make_machine(session, "ri-model-m-uniq")
+        t = self._make_test(session, "ri-model-t-uniq")
 
         reg = self.models.Regression()
-        reg.uuid = "reg-uuid-uniq0000000000000000000"[:36]
-        reg.title = "Test Regression"
+        reg.uuid = "reg-model-uuid-uniq00000000000000"[:36]
+        reg.title = "Unique constraint test"
         reg.state = 0
         session.add(reg)
         session.flush()
 
         ri1 = self.models.RegressionIndicator()
+        ri1.uuid = "ri-model-uuid-uniq1-00000000000000"[:36]
         ri1.regression_id = reg.id
-        ri1.field_change_id = fc.id
+        ri1.machine_id = m.id
+        ri1.test_id = t.id
+        ri1.metric = "execution_time"
         session.add(ri1)
         session.flush()
 
         ri2 = self.models.RegressionIndicator()
+        ri2.uuid = "ri-model-uuid-uniq2-00000000000000"[:36]
         ri2.regression_id = reg.id
-        ri2.field_change_id = fc.id
+        ri2.machine_id = m.id
+        ri2.test_id = t.id
+        ri2.metric = "execution_time"
         session.add(ri2)
         with self.assertRaises(sqlalchemy.exc.IntegrityError):
+            session.flush()
+        session.rollback()
+        session.close()
+
+    def test_same_triple_on_different_regressions_ok(self):
+        """Same (machine, test, metric) on different regressions should succeed."""
+        session = self.Session()
+        m = self._make_machine(session, "ri-model-m-multi")
+        t = self._make_test(session, "ri-model-t-multi")
+
+        reg1 = self.models.Regression()
+        reg1.uuid = "reg-model-uuid-multi1-000000000000"[:36]
+        reg1.title = "Reg 1"
+        reg1.state = 0
+        session.add(reg1)
+
+        reg2 = self.models.Regression()
+        reg2.uuid = "reg-model-uuid-multi2-000000000000"[:36]
+        reg2.title = "Reg 2"
+        reg2.state = 0
+        session.add(reg2)
+        session.flush()
+
+        ri1 = self.models.RegressionIndicator()
+        ri1.uuid = "ri-model-uuid-multi1-000000000000"[:36]
+        ri1.regression_id = reg1.id
+        ri1.machine_id = m.id
+        ri1.test_id = t.id
+        ri1.metric = "execution_time"
+        session.add(ri1)
+
+        ri2 = self.models.RegressionIndicator()
+        ri2.uuid = "ri-model-uuid-multi2-000000000000"[:36]
+        ri2.regression_id = reg2.id
+        ri2.machine_id = m.id
+        ri2.test_id = t.id
+        ri2.metric = "execution_time"
+        session.add(ri2)
+        session.commit()
+
+        self.assertIsNotNone(ri1.id)
+        self.assertIsNotNone(ri2.id)
+        session.close()
+
+    def test_delete_regression_cascades_to_indicators(self):
+        """Deleting a Regression should cascade-delete its indicators."""
+        session = self.Session()
+        m = self._make_machine(session, "ri-model-m-cascade")
+        t = self._make_test(session, "ri-model-t-cascade")
+
+        reg = self.models.Regression()
+        reg.uuid = "reg-model-uuid-cascade00000000000"[:36]
+        reg.title = "Cascade test"
+        reg.state = 0
+        session.add(reg)
+        session.flush()
+
+        ri = self.models.RegressionIndicator()
+        ri.uuid = "ri-model-uuid-cascade00000000000"[:36]
+        ri.regression_id = reg.id
+        ri.machine_id = m.id
+        ri.test_id = t.id
+        ri.metric = "execution_time"
+        session.add(ri)
+        session.flush()
+
+        reg_id = reg.id
+        session.delete(reg)
+        session.commit()
+
+        remaining = (
+            session.query(self.models.RegressionIndicator)
+            .filter_by(regression_id=reg_id)
+            .all()
+        )
+        self.assertEqual(len(remaining), 0)
+        session.close()
+
+    def test_commit_referenced_by_regression_cannot_be_deleted(self):
+        """Deleting a Commit referenced by Regression.commit_id should fail."""
+        session = self.Session()
+        c = self._make_commit(session, "reg-model-c-fk")
+
+        reg = self.models.Regression()
+        reg.uuid = "reg-model-uuid-fk-commit0000000"[:36]
+        reg.title = "FK test"
+        reg.state = 0
+        reg.commit_id = c.id
+        session.add(reg)
+        session.commit()
+
+        with self.assertRaises(sqlalchemy.exc.IntegrityError):
+            session.delete(c)
             session.flush()
         session.rollback()
         session.close()

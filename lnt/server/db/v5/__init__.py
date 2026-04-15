@@ -33,12 +33,10 @@ DEFAULT_LIMIT = 1000
 # Regression state values (see design D5).
 REGRESSION_STATES = {
     0: "detected",
-    1: "staged",
-    2: "active",
-    3: "not_to_be_fixed",
-    4: "ignored",
-    5: "fixed",
-    6: "detected_fixed",
+    1: "active",
+    2: "not_to_be_fixed",
+    3: "fixed",
+    4: "false_positive",
 }
 VALID_REGRESSION_STATES = frozenset(REGRESSION_STATES)
 
@@ -285,7 +283,6 @@ class V5TestSuiteDB:
         self.Run = models.Run
         self.Test = models.Test
         self.Sample = models.Sample
-        self.FieldChange = models.FieldChange
         self.Regression = models.Regression
         self.RegressionIndicator = models.RegressionIndicator
 
@@ -423,29 +420,23 @@ class V5TestSuiteDB:
     ) -> None:
         """Delete a commit by ID (cascades to runs and samples).
 
-        Raises ``ValueError`` if any FieldChanges reference this commit
-        (via ``start_commit_id`` or ``end_commit_id``).  Those must be
-        deleted first.
+        Raises ``ValueError`` if any Regressions reference this commit
+        (via ``commit_id``).  Those must be updated first.
         """
         commit = session.query(self.Commit).get(commit_id)
         if commit is None:
             return
 
-        fc_count = (
-            session.query(self.FieldChange)
-            .filter(
-                or_(
-                    self.FieldChange.start_commit_id == commit_id,
-                    self.FieldChange.end_commit_id == commit_id,
-                )
-            )
+        reg_count = (
+            session.query(self.Regression)
+            .filter(self.Regression.commit_id == commit_id)
             .count()
         )
-        if fc_count > 0:
+        if reg_count > 0:
             raise ValueError(
                 f"Cannot delete commit {commit_id}: "
-                f"{fc_count} FieldChange(s) reference it; "
-                f"delete them first"
+                f"{reg_count} Regression(s) reference it; "
+                f"clear their commit_id first"
             )
 
         session.delete(commit)
@@ -920,105 +911,45 @@ class V5TestSuiteDB:
         return results
 
     # ===================================================================
-    # FieldChanges (CRUD only)
+    # Regressions (CRUD)
     # ===================================================================
-
-    def create_field_change(
-        self,
-        session: sqlalchemy.orm.Session,
-        machine,
-        test,
-        field_name: str,
-        start_commit,
-        end_commit,
-        old_value: float | None,
-        new_value: float | None,
-    ):
-        """Create a FieldChange record."""
-        fc = self.FieldChange()
-        fc.uuid = str(uuid_module.uuid4())
-        fc.machine_id = machine.id
-        fc.test_id = test.id
-        fc.field_name = field_name
-        fc.start_commit_id = start_commit.id
-        fc.end_commit_id = end_commit.id
-        fc.old_value = old_value
-        fc.new_value = new_value
-        session.add(fc)
-        session.flush()
-        return fc
-
-    def get_field_change(
-        self,
-        session: sqlalchemy.orm.Session,
-        *,
-        id: int | None = None,
-        uuid: str | None = None,
-    ):
-        """Fetch a single FieldChange by id or uuid."""
-        q = session.query(self.FieldChange)
-        if id is not None:
-            return q.filter(self.FieldChange.id == id).first()
-        if uuid is not None:
-            return q.filter(self.FieldChange.uuid == uuid).first()
-        raise ValueError("must specify id or uuid")
-
-    def list_field_changes(
-        self,
-        session: sqlalchemy.orm.Session,
-        *,
-        machine=None,
-        test=None,
-        metric: str | None = None,
-        limit: int | None = None,
-    ) -> list:
-        """List field changes with optional filters."""
-        q = session.query(self.FieldChange)
-        if machine is not None:
-            q = q.filter(self.FieldChange.machine_id == machine.id)
-        if test is not None:
-            q = q.filter(self.FieldChange.test_id == test.id)
-        if metric is not None:
-            q = q.filter(self.FieldChange.field_name == metric)
-        return q.order_by(self.FieldChange.id).limit(limit if limit is not None else DEFAULT_LIMIT).all()
-
-    def delete_field_change(
-        self,
-        session: sqlalchemy.orm.Session,
-        field_change_id: int,
-    ) -> None:
-        """Delete a field change by ID (cascades to regression indicators)."""
-        fc = session.query(self.FieldChange).get(field_change_id)
-        if fc is not None:
-            session.delete(fc)
-            session.flush()
 
     def create_regression(
         self,
         session: sqlalchemy.orm.Session,
         title: str,
-        field_change_ids: list[int],
+        indicators: list[dict[str, Any]],
         *,
         bug: str | None = None,
+        notes: str | None = None,
+        commit: Any | None = None,
         state: int = 0,
     ):
-        """Create a Regression with the given FieldChange indicators."""
+        """Create a Regression with the given indicators.
+
+        Each dict in *indicators* must have keys ``machine_id`` (int),
+        ``test_id`` (int), and ``metric`` (str).
+
+        *commit* is an optional Commit object whose id is stored on the
+        Regression (nullable FK).
+        """
         _validate_regression_state(state)
         reg = self.Regression()
         reg.uuid = str(uuid_module.uuid4())
         reg.title = title
         reg.bug = bug
+        reg.notes = notes
         reg.state = state
+        reg.commit_id = commit.id if commit is not None else None
         session.add(reg)
         session.flush()
 
-        indicators = []
-        for fc_id in field_change_ids:
-            ri = self.RegressionIndicator()
-            ri.regression_id = reg.id
-            ri.field_change_id = fc_id
-            indicators.append(ri)
-        session.add_all(indicators)
+        ri_objects = []
+        for ind in indicators:
+            ri_objects.append(
+                self._build_indicator(reg.id, ind["machine_id"],
+                                      ind["test_id"], ind["metric"]))
+        session.add_all(ri_objects)
         session.flush()
         return reg
 
@@ -1037,20 +968,33 @@ class V5TestSuiteDB:
             return q.filter(self.Regression.uuid == uuid).first()
         raise ValueError("must specify id or uuid")
 
+    _UNSET = object()
+
     def update_regression(
         self,
         session: sqlalchemy.orm.Session,
         regression,
         *,
-        title: str | None = None,
-        bug: str | None = None,
+        title: Any = _UNSET,
+        bug: Any = _UNSET,
+        notes: Any = _UNSET,
+        commit: Any = _UNSET,
         state: int | None = None,
     ):
-        """Update mutable fields on a Regression."""
-        if title is not None:
+        """Update mutable fields on a Regression.
+
+        For *title*, *bug*, *notes*, and *commit*: pass a value to set,
+        ``None`` to clear, or omit (default ``_UNSET``) to leave unchanged.
+        *state* uses ``None`` as "leave unchanged" (state cannot be null).
+        """
+        if title is not self._UNSET:
             regression.title = title
-        if bug is not None:
+        if bug is not self._UNSET:
             regression.bug = bug
+        if notes is not self._UNSET:
+            regression.notes = notes
+        if commit is not self._UNSET:
+            regression.commit_id = commit.id if commit is not None else None
         if state is not None:
             _validate_regression_state(state)
             regression.state = state
@@ -1081,31 +1025,86 @@ class V5TestSuiteDB:
             session.delete(reg)
             session.flush()
 
+    def _build_indicator(self, regression_id, machine_id, test_id, metric):
+        """Construct a RegressionIndicator object (not yet added to session)."""
+        ri = self.RegressionIndicator()
+        ri.uuid = str(uuid_module.uuid4())
+        ri.regression_id = regression_id
+        ri.machine_id = machine_id
+        ri.test_id = test_id
+        ri.metric = metric
+        return ri
+
     def add_regression_indicator(
         self,
         session: sqlalchemy.orm.Session,
         regression,
-        field_change,
+        machine_id: int,
+        test_id: int,
+        metric: str,
     ):
-        """Add a FieldChange as an indicator on a Regression.
+        """Add an indicator to a Regression.
 
         Returns the created RegressionIndicator.  Raises
-        ``sqlalchemy.exc.IntegrityError`` if the pair already exists.
+        ``sqlalchemy.exc.IntegrityError`` if the (regression, machine,
+        test, metric) combination already exists.
         """
-        ri = self.RegressionIndicator()
-        ri.regression_id = regression.id
-        ri.field_change_id = field_change.id
+        ri = self._build_indicator(regression.id, machine_id, test_id, metric)
         session.add(ri)
         session.flush()
         return ri
+
+    def add_regression_indicators_batch(
+        self,
+        session: sqlalchemy.orm.Session,
+        regression,
+        indicators: list[dict[str, Any]],
+    ) -> list:
+        """Add multiple indicators to a Regression, silently ignoring duplicates.
+
+        Each dict must have keys ``machine_id``, ``test_id``, ``metric``.
+        Returns the list of newly created RegressionIndicator objects
+        (excludes duplicates that were skipped).
+
+        Note: the check-then-insert has a TOCTOU window under concurrent
+        access.  The unique constraint catches this at the DB level; the
+        API layer is expected to serialize regression updates.
+        """
+        # Fetch all existing indicators for this regression in one query.
+        existing_rows = (
+            session.query(
+                self.RegressionIndicator.machine_id,
+                self.RegressionIndicator.test_id,
+                self.RegressionIndicator.metric,
+            )
+            .filter_by(regression_id=regression.id)
+            .all()
+        )
+        existing_keys = {
+            (r.machine_id, r.test_id, r.metric) for r in existing_rows
+        }
+
+        created = []
+        for ind in indicators:
+            key = (ind["machine_id"], ind["test_id"], ind["metric"])
+            if key in existing_keys:
+                continue
+            ri = self._build_indicator(
+                regression.id, ind["machine_id"],
+                ind["test_id"], ind["metric"])
+            session.add(ri)
+            created.append(ri)
+            existing_keys.add(key)
+        session.flush()
+        return created
 
     def remove_regression_indicator(
         self,
         session: sqlalchemy.orm.Session,
         regression_id: int,
-        field_change_id: int,
+        indicator_uuid: str,
     ) -> bool:
-        """Remove a single indicator from a regression.
+        """Remove an indicator from a regression by UUID.
 
         Returns True if an indicator was removed, False if none matched.
         """
@@ -1113,13 +1112,28 @@ class V5TestSuiteDB:
             session.query(self.RegressionIndicator)
             .filter(
                 self.RegressionIndicator.regression_id == regression_id,
-                self.RegressionIndicator.field_change_id == field_change_id,
+                self.RegressionIndicator.uuid == indicator_uuid,
             )
             .delete()
         )
         if count:
             session.flush()
         return count > 0
+
+    def get_regression_indicator(
+        self,
+        session: sqlalchemy.orm.Session,
+        *,
+        id: int | None = None,
+        uuid: str | None = None,
+    ):
+        """Fetch a single RegressionIndicator by id or uuid."""
+        q = session.query(self.RegressionIndicator)
+        if id is not None:
+            return q.filter(self.RegressionIndicator.id == id).first()
+        if uuid is not None:
+            return q.filter(self.RegressionIndicator.uuid == uuid).first()
+        raise ValueError("must specify id or uuid")
 
     # ===================================================================
     # Bulk import (run submission) -- helpers

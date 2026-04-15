@@ -154,108 +154,203 @@ class TestUpdateCommit(unittest.TestCase):
         session.close()
 
 
-class TestFieldChangeCRUD(unittest.TestCase):
+class TestRegressionCRUD(_CRUDTestBase):
 
-    @classmethod
-    def setUpClass(cls):
-        cls.engine = _make_engine()
-        cls.schema = _test_schema()
-        cls.suite_models = create_suite_models(cls.schema)
-        cls.suite_models.base.metadata.drop_all(cls.engine)
-        cls.suite_models.base.metadata.create_all(cls.engine)
-        cls.Session = sqlalchemy.orm.sessionmaker(cls.engine)
-
-        class _FakeV5DB:
-            pass
-        cls.tsdb = V5TestSuiteDB(_FakeV5DB(), cls.schema, cls.suite_models)
-
-    @classmethod
-    def tearDownClass(cls):
-        cls.suite_models.base.metadata.drop_all(cls.engine)
-        cls.engine.dispose()
-
-    def test_field_change_crud(self):
+    def test_create_regression_with_indicators(self):
+        """Create a regression with machine/test/metric indicators."""
         session = self.Session()
-        machine = self.tsdb.get_or_create_machine(session, "fc-crud-m")
-        test = self.tsdb.get_or_create_test(session, "fc-crud-test")
-        c1 = self.tsdb.get_or_create_commit(session, "fc-crud-c1")
-        c2 = self.tsdb.get_or_create_commit(session, "fc-crud-c2")
-
-        fc = self.tsdb.create_field_change(
-            session, machine, test, "execution_time", c1, c2, 1.0, 2.0)
-        session.commit()
-
-        # Fetch by uuid
-        fetched = self.tsdb.get_field_change(session, uuid=fc.uuid)
-        self.assertIsNotNone(fetched)
-        self.assertEqual(fetched.field_name, "execution_time")
-        self.assertEqual(fetched.old_value, 1.0)
-        self.assertEqual(fetched.new_value, 2.0)
-
-        # List
-        all_fcs = self.tsdb.list_field_changes(session, machine=machine)
-        self.assertGreater(len(all_fcs), 0)
-        session.close()
-
-    def test_regression_crud(self):
-        session = self.Session()
-        machine = self.tsdb.get_or_create_machine(session, "reg-crud-m")
-        test = self.tsdb.get_or_create_test(session, "reg-crud-test")
-        c1 = self.tsdb.get_or_create_commit(session, "reg-crud-c1")
-        c2 = self.tsdb.get_or_create_commit(session, "reg-crud-c2")
-        fc = self.tsdb.create_field_change(
-            session, machine, test, "execution_time", c1, c2, 1.0, 3.0)
+        machine = self.tsdb.get_or_create_machine(session, "reg-m")
+        test = self.tsdb.get_or_create_test(session, "reg-test")
         session.flush()
 
         reg = self.tsdb.create_regression(
-            session, "Perf regression", [fc.id], bug="BUG-123", state=0)
+            session, "Perf regression",
+            [{"machine_id": machine.id, "test_id": test.id,
+              "metric": "execution_time"}],
+            bug="BUG-123", state=0)
         session.commit()
+
         self.assertIsNotNone(reg.uuid)
+        self.assertEqual(reg.title, "Perf regression")
+        self.assertEqual(reg.bug, "BUG-123")
+        self.assertEqual(reg.state, 0)
+        self.assertIsNone(reg.notes)
+        self.assertIsNone(reg.commit_id)
 
-        # Update
-        self.tsdb.update_regression(
-            session, reg, title="Updated title", state=1)
-        session.commit()
-        fetched = self.tsdb.get_regression(session, uuid=reg.uuid)
-        self.assertEqual(fetched.title, "Updated title")
-        self.assertEqual(fetched.state, 1)
-
-        # List
-        all_regs = self.tsdb.list_regressions(session)
-        self.assertGreater(len(all_regs), 0)
-
-        # Delete
-        reg_id = reg.id
-        self.tsdb.delete_regression(session, reg_id)
-        session.commit()
-        self.assertIsNone(self.tsdb.get_regression(session, id=reg_id))
+        indicators = (
+            session.query(self.tsdb.RegressionIndicator)
+            .filter_by(regression_id=reg.id)
+            .all()
+        )
+        self.assertEqual(len(indicators), 1)
+        self.assertEqual(indicators[0].machine_id, machine.id)
+        self.assertEqual(indicators[0].test_id, test.id)
+        self.assertEqual(indicators[0].metric, "execution_time")
+        self.assertIsNotNone(indicators[0].uuid)
         session.close()
 
-    def test_regression_with_empty_field_change_ids(self):
+    def test_create_regression_with_notes_and_commit(self):
+        session = self.Session()
+        commit = self.tsdb.get_or_create_commit(session, "reg-commit-1")
+        session.flush()
+
+        reg = self.tsdb.create_regression(
+            session, "Noted regression", [],
+            notes="Caused by vectorizer change",
+            commit=commit,
+            state=1)
+        session.commit()
+
+        self.assertEqual(reg.notes, "Caused by vectorizer change")
+        self.assertEqual(reg.commit_id, commit.id)
+        session.close()
+
+    def test_create_regression_with_empty_indicators(self):
         session = self.Session()
         reg = self.tsdb.create_regression(
             session, "Empty regression", [], state=0)
         session.commit()
-
         self.assertIsNotNone(reg.id)
-        self.assertIsNotNone(reg.uuid)
-
-        # Verify no indicators were created
         indicators = (
             session.query(self.tsdb.RegressionIndicator)
             .filter_by(regression_id=reg.id)
             .all()
         )
         self.assertEqual(len(indicators), 0)
+        session.close()
 
-        # Cleanup
-        self.tsdb.delete_regression(session, reg.id)
+    def test_update_regression_notes(self):
+        session = self.Session()
+        reg = self.tsdb.create_regression(
+            session, "title", [], state=0)
         session.commit()
+
+        self.tsdb.update_regression(
+            session, reg, notes="New notes")
+        session.commit()
+
+        fetched = self.tsdb.get_regression(session, id=reg.id)
+        self.assertEqual(fetched.notes, "New notes")
+        session.close()
+
+    def test_update_regression_commit(self):
+        session = self.Session()
+        commit = self.tsdb.get_or_create_commit(session, "upd-reg-c")
+        reg = self.tsdb.create_regression(
+            session, "title", [], state=0)
+        session.commit()
+
+        self.tsdb.update_regression(
+            session, reg, commit=commit)
+        session.commit()
+        self.assertEqual(reg.commit_id, commit.id)
+
+        self.tsdb.update_regression(
+            session, reg, commit=None)
+        session.commit()
+        self.assertIsNone(reg.commit_id)
+        session.close()
+
+    def test_update_regression_state_and_title(self):
+        session = self.Session()
+        reg = self.tsdb.create_regression(
+            session, "original", [], state=0)
+        session.commit()
+
+        self.tsdb.update_regression(
+            session, reg, title="Updated", state=1)
+        session.commit()
+
+        fetched = self.tsdb.get_regression(session, uuid=reg.uuid)
+        self.assertEqual(fetched.title, "Updated")
+        self.assertEqual(fetched.state, 1)
+        session.close()
+
+    def test_delete_regression_cascades_to_indicators(self):
+        session = self.Session()
+        machine = self.tsdb.get_or_create_machine(session, "del-reg-m")
+        test = self.tsdb.get_or_create_test(session, "del-reg-test")
+        session.flush()
+
+        reg = self.tsdb.create_regression(
+            session, "to delete",
+            [{"machine_id": machine.id, "test_id": test.id,
+              "metric": "execution_time"}],
+            state=0)
+        session.commit()
+        reg_id = reg.id
+
+        self.tsdb.delete_regression(session, reg_id)
+        session.commit()
+
+        self.assertIsNone(self.tsdb.get_regression(session, id=reg_id))
+        indicators = (
+            session.query(self.tsdb.RegressionIndicator)
+            .filter_by(regression_id=reg_id)
+            .all()
+        )
+        self.assertEqual(len(indicators), 0)
+        session.close()
+
+    def test_list_regressions_by_state(self):
+        session = self.Session()
+        self.tsdb.create_regression(
+            session, "active-one", [], state=1)
+        self.tsdb.create_regression(
+            session, "detected-one", [], state=0)
+        session.commit()
+
+        active = self.tsdb.list_regressions(session, state=1)
+        self.assertGreater(len(active), 0)
+        self.assertTrue(
+            all(r.state == 1 for r in active))
+        session.close()
+
+    def test_update_regression_clear_nullable_fields(self):
+        """Verify _UNSET pattern allows clearing nullable fields to None."""
+        cases = [
+            ("notes", "some notes"),
+            ("bug", "BUG-1"),
+        ]
+        for field, initial in cases:
+            with self.subTest(field=field):
+                session = self.Session()
+                reg = self.tsdb.create_regression(
+                    session, "title", [], **{field: initial}, state=0)
+                session.commit()
+                self.assertEqual(getattr(reg, field), initial)
+
+                self.tsdb.update_regression(session, reg, **{field: None})
+                session.commit()
+                self.assertIsNone(getattr(reg, field))
+                session.close()
+
+    def test_update_regression_clear_title(self):
+        """Verify _UNSET pattern allows clearing title to None."""
+        session = self.Session()
+        reg = self.tsdb.create_regression(
+            session, "a title", [], state=0)
+        session.commit()
+
+        self.tsdb.update_regression(session, reg, title=None)
+        session.commit()
+        self.assertIsNone(reg.title)
+        session.close()
+
+    def test_old_state_values_rejected(self):
+        """States 5 and 6 (old staged/detected_fixed) must be rejected."""
+        session = self.Session()
+        with self.assertRaises(ValueError):
+            self.tsdb.create_regression(
+                session, "old state", [], state=5)
+        with self.assertRaises(ValueError):
+            self.tsdb.create_regression(
+                session, "old state", [], state=6)
         session.close()
 
 
 class TestDeleteCommit(unittest.TestCase):
-    """Deletion cascades to runs/samples but is blocked by FieldChanges."""
+    """Deletion cascades to runs/samples but is blocked by Regressions."""
 
     @classmethod
     def setUpClass(cls):
@@ -307,25 +402,19 @@ class TestDeleteCommit(unittest.TestCase):
         self.assertEqual(len(samples), 0)
         session.close()
 
-    def test_delete_commit_blocked_by_field_changes(self):
-        """Cannot delete a commit referenced by FieldChanges."""
+    def test_delete_commit_blocked_by_regression_commit_ref(self):
+        """Cannot delete a commit referenced by a Regression's commit_id."""
         session = self.Session()
-        machine = self.tsdb.get_or_create_machine(session, "del-commit-m2")
-        test = self.tsdb.get_or_create_test(session, "del-commit-test2")
-        c1 = self.tsdb.get_or_create_commit(session, "del-commit-fc-c1")
-        c2 = self.tsdb.get_or_create_commit(session, "del-commit-fc-c2")
-
-        self.tsdb.create_field_change(
-            session, machine, test, "execution_time", c1, c2, 1.0, 2.0)
+        commit = self.tsdb.get_or_create_commit(session, "del-commit-reg-c")
         session.flush()
 
-        # Cannot delete c1 (start_commit_id)
-        with self.assertRaises(ValueError):
-            self.tsdb.delete_commit(session, c1.id)
+        self.tsdb.create_regression(
+            session, "blocking reg", [],
+            commit=commit, state=0)
+        session.flush()
 
-        # Cannot delete c2 (end_commit_id)
         with self.assertRaises(ValueError):
-            self.tsdb.delete_commit(session, c2.id)
+            self.tsdb.delete_commit(session, commit.id)
 
         session.close()
 
@@ -497,122 +586,177 @@ class TestUpdateMachine(_CRUDTestBase):
         session.close()
 
 
-class TestDeleteFieldChange(_CRUDTestBase):
-
-    def test_delete_field_change(self):
-        session = self.Session()
-        machine = self.tsdb.get_or_create_machine(session, "dfc-m")
-        test = self.tsdb.get_or_create_test(session, "dfc-test")
-        c1 = self.tsdb.get_or_create_commit(session, "dfc-c1")
-        c2 = self.tsdb.get_or_create_commit(session, "dfc-c2")
-        fc = self.tsdb.create_field_change(
-            session, machine, test, "execution_time", c1, c2, 1.0, 2.0)
-        session.commit()
-        fc_id = fc.id
-
-        self.tsdb.delete_field_change(session, fc_id)
-        session.commit()
-
-        self.assertIsNone(self.tsdb.get_field_change(session, id=fc_id))
-        session.close()
-
-    def test_delete_field_change_cascades_to_indicators(self):
-        session = self.Session()
-        machine = self.tsdb.get_or_create_machine(session, "dfc-m2")
-        test = self.tsdb.get_or_create_test(session, "dfc-test2")
-        c1 = self.tsdb.get_or_create_commit(session, "dfc-c3")
-        c2 = self.tsdb.get_or_create_commit(session, "dfc-c4")
-        fc = self.tsdb.create_field_change(
-            session, machine, test, "execution_time", c1, c2, 1.0, 2.0)
-        reg = self.tsdb.create_regression(
-            session, "test reg", [fc.id], state=0)
-        session.commit()
-
-        fc_id = fc.id
-        reg_id = reg.id
-
-        # Delete field change -- should also remove the indicator
-        self.tsdb.delete_field_change(session, fc_id)
-        session.commit()
-
-        indicators = (
-            session.query(self.tsdb.RegressionIndicator)
-            .filter_by(regression_id=reg_id)
-            .all()
-        )
-        self.assertEqual(len(indicators), 0)
-        session.close()
-
-    def test_delete_nonexistent_field_change(self):
-        session = self.Session()
-        # Should not raise
-        self.tsdb.delete_field_change(session, 999999)
-        session.close()
-
-
 class TestRegressionIndicatorManagement(_CRUDTestBase):
-
-    def _make_fc(self, session, suffix=""):
-        machine = self.tsdb.get_or_create_machine(session, f"ri-m{suffix}")
-        test = self.tsdb.get_or_create_test(session, f"ri-test{suffix}")
-        c1 = self.tsdb.get_or_create_commit(session, f"ri-c1{suffix}")
-        c2 = self.tsdb.get_or_create_commit(session, f"ri-c2{suffix}")
-        return self.tsdb.create_field_change(
-            session, machine, test, "execution_time", c1, c2, 1.0, 2.0)
 
     def test_add_regression_indicator(self):
         session = self.Session()
-        fc = self._make_fc(session, "-add")
-        reg = self.tsdb.create_regression(session, "add-ind", [], state=0)
+        machine = self.tsdb.get_or_create_machine(session, "ri-add-m")
+        test = self.tsdb.get_or_create_test(session, "ri-add-test")
+        reg = self.tsdb.create_regression(
+            session, "add-ind", [], state=0)
         session.flush()
 
-        ri = self.tsdb.add_regression_indicator(session, reg, fc)
+        ri = self.tsdb.add_regression_indicator(
+            session, reg, machine.id, test.id, "execution_time")
         session.commit()
 
         self.assertIsNotNone(ri.id)
-        indicators = (
-            session.query(self.tsdb.RegressionIndicator)
-            .filter_by(regression_id=reg.id)
-            .all()
-        )
-        self.assertEqual(len(indicators), 1)
+        self.assertIsNotNone(ri.uuid)
+        self.assertEqual(ri.machine_id, machine.id)
+        self.assertEqual(ri.test_id, test.id)
+        self.assertEqual(ri.metric, "execution_time")
         session.close()
 
     def test_add_duplicate_indicator_rejected(self):
         session = self.Session()
-        fc = self._make_fc(session, "-dup")
-        reg = self.tsdb.create_regression(session, "dup-ind", [fc.id], state=0)
+        machine = self.tsdb.get_or_create_machine(session, "ri-dup-m")
+        test = self.tsdb.get_or_create_test(session, "ri-dup-test")
+        reg = self.tsdb.create_regression(
+            session, "dup-ind",
+            [{"machine_id": machine.id, "test_id": test.id,
+              "metric": "execution_time"}],
+            state=0)
         session.commit()
 
-        # Adding the same indicator again should fail
         with self.assertRaises(sqlalchemy.exc.IntegrityError):
-            self.tsdb.add_regression_indicator(session, reg, fc)
+            self.tsdb.add_regression_indicator(
+                session, reg, machine.id, test.id, "execution_time")
         session.rollback()
         session.close()
 
-    def test_remove_regression_indicator(self):
+    def test_same_triple_on_different_regressions_ok(self):
         session = self.Session()
-        fc = self._make_fc(session, "-rem")
-        reg = self.tsdb.create_regression(session, "rem-ind", [fc.id], state=0)
+        machine = self.tsdb.get_or_create_machine(session, "ri-multi-m")
+        test = self.tsdb.get_or_create_test(session, "ri-multi-test")
+        reg1 = self.tsdb.create_regression(
+            session, "reg1", [], state=0)
+        reg2 = self.tsdb.create_regression(
+            session, "reg2", [], state=0)
+        session.flush()
+
+        ri1 = self.tsdb.add_regression_indicator(
+            session, reg1, machine.id, test.id, "execution_time")
+        ri2 = self.tsdb.add_regression_indicator(
+            session, reg2, machine.id, test.id, "execution_time")
         session.commit()
 
+        self.assertIsNotNone(ri1.id)
+        self.assertIsNotNone(ri2.id)
+        session.close()
+
+    def test_remove_regression_indicator_by_uuid(self):
+        session = self.Session()
+        machine = self.tsdb.get_or_create_machine(session, "ri-rem-m")
+        test = self.tsdb.get_or_create_test(session, "ri-rem-test")
+        reg = self.tsdb.create_regression(
+            session, "rem-ind",
+            [{"machine_id": machine.id, "test_id": test.id,
+              "metric": "execution_time"}],
+            state=0)
+        session.commit()
+
+        indicator = (
+            session.query(self.tsdb.RegressionIndicator)
+            .filter_by(regression_id=reg.id)
+            .first()
+        )
         removed = self.tsdb.remove_regression_indicator(
-            session, reg.id, fc.id)
+            session, reg.id, indicator.uuid)
         session.commit()
         self.assertTrue(removed)
 
-        indicators = (
+        remaining = (
             session.query(self.tsdb.RegressionIndicator)
             .filter_by(regression_id=reg.id)
             .all()
         )
-        self.assertEqual(len(indicators), 0)
+        self.assertEqual(len(remaining), 0)
         session.close()
 
     def test_remove_nonexistent_indicator(self):
         session = self.Session()
-        removed = self.tsdb.remove_regression_indicator(session, 999, 999)
+        removed = self.tsdb.remove_regression_indicator(
+            session, 999, "nonexistent-uuid")
         self.assertFalse(removed)
+        session.close()
+
+    def test_remove_indicator_wrong_regression(self):
+        """Indicator exists but belongs to a different regression."""
+        session = self.Session()
+        machine = self.tsdb.get_or_create_machine(session, "ri-wrong-m")
+        test = self.tsdb.get_or_create_test(session, "ri-wrong-test")
+        reg1 = self.tsdb.create_regression(
+            session, "reg1",
+            [{"machine_id": machine.id, "test_id": test.id,
+              "metric": "execution_time"}],
+            state=0)
+        reg2 = self.tsdb.create_regression(
+            session, "reg2", [], state=0)
+        session.commit()
+
+        indicator = (
+            session.query(self.tsdb.RegressionIndicator)
+            .filter_by(regression_id=reg1.id)
+            .first()
+        )
+        # Try to remove reg1's indicator using reg2's id
+        removed = self.tsdb.remove_regression_indicator(
+            session, reg2.id, indicator.uuid)
+        self.assertFalse(removed)
+        session.close()
+
+    def test_get_regression_indicator_by_uuid(self):
+        session = self.Session()
+        machine = self.tsdb.get_or_create_machine(session, "ri-get-m")
+        test = self.tsdb.get_or_create_test(session, "ri-get-test")
+        reg = self.tsdb.create_regression(
+            session, "get-ind",
+            [{"machine_id": machine.id, "test_id": test.id,
+              "metric": "execution_time"}],
+            state=0)
+        session.commit()
+
+        indicator = (
+            session.query(self.tsdb.RegressionIndicator)
+            .filter_by(regression_id=reg.id)
+            .first()
+        )
+        fetched = self.tsdb.get_regression_indicator(
+            session, uuid=indicator.uuid)
+        self.assertEqual(fetched.id, indicator.id)
+        session.close()
+
+    def test_get_regression_indicator_requires_id_or_uuid(self):
+        session = self.Session()
+        with self.assertRaises(ValueError):
+            self.tsdb.get_regression_indicator(session)
+        session.close()
+
+    def test_batch_add_indicators_silently_ignores_duplicates(self):
+        session = self.Session()
+        machine = self.tsdb.get_or_create_machine(session, "ri-batch-m")
+        test = self.tsdb.get_or_create_test(session, "ri-batch-test")
+        reg = self.tsdb.create_regression(
+            session, "batch",
+            [{"machine_id": machine.id, "test_id": test.id,
+              "metric": "execution_time"}],
+            state=0)
+        session.commit()
+
+        test2 = self.tsdb.get_or_create_test(session, "ri-batch-test2")
+        session.flush()
+        created = self.tsdb.add_regression_indicators_batch(
+            session, reg,
+            [
+                {"machine_id": machine.id, "test_id": test.id,
+                 "metric": "execution_time"},  # duplicate
+                {"machine_id": machine.id, "test_id": test2.id,
+                 "metric": "execution_time"},  # new
+            ])
+        session.commit()
+
+        self.assertEqual(len(created), 1)
+        self.assertEqual(created[0].test_id, test2.id)
         session.close()
 
 
