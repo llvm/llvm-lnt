@@ -104,6 +104,7 @@ find = {namespaces = false}
     "static/v5/*.js",
     "static/v5/*.css",
     "static/v5/*.map",
+    "static/v5/*.ico",
 ]
 "lnt.server.db" = [
     "migrations/*.py"
@@ -158,6 +159,12 @@ deps = [
     "types-PyYAML",
 ]
 commands = [["mypy", "--ignore-missing-imports", "lnt"]]
+skip_install = true
+
+[tool.tox.env.docker]
+description = "Run Docker integration tests (requires Docker)"
+allowlist_externals = ["tests/docker/smoke-test.sh"]
+commands = [["tests/docker/smoke-test.sh"]]
 skip_install = true
 
 [tool.tox.env.docs]

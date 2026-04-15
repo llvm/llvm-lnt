@@ -5,7 +5,10 @@ import datetime
 import logging
 import sys
 
-from flask import current_app, g, jsonify, request
+from flask import current_app, g, request
+
+from lnt.server.db.v5 import V5DB
+from lnt.server.api.v5.errors import _make_error_response
 
 access_logger = logging.getLogger('lnt.server.api.v5.access')
 
@@ -35,7 +38,18 @@ def register_middleware(app):
         # Always open a DB session for v5 paths (needed for auth, discovery, etc.)
         db = current_app.instance.get_database("default")
         if db is None:
-            return
+            return _make_error_response(
+                'configuration_error',
+                "No default database configured.",
+                500,
+            )
+        if not isinstance(db, V5DB):
+            return _make_error_response(
+                'configuration_error',
+                "The v5 API requires a v5 database "
+                "(set db_version to '5.0' in lnt.cfg).",
+                500,
+            )
         g.db = db
         g.db_name = "default"
         g.db_session = db.make_session()
@@ -49,14 +63,11 @@ def register_middleware(app):
         if testsuite:
             ts = db.get_suite(testsuite, g.db_session)
             if ts is None:
-                resp = jsonify({
-                    'error': {
-                        'code': 'not_found',
-                        'message': "Test suite '%s' not found" % testsuite,
-                    }
-                })
-                resp.status_code = 404
-                return resp
+                return _make_error_response(
+                    'not_found',
+                    "Test suite '%s' not found" % testsuite,
+                    404,
+                )
             g.ts = ts
 
     @app.teardown_request

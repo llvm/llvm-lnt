@@ -21,6 +21,9 @@
 #
 # Additionally, the following aspects can be customized:
 #
+#   LNT_HOST_PORT
+#     The host port to expose the webserver on. Defaults to '8000'.
+#
 #   LNT_NGINX_CONFIG
 #     The path to the configuration file to use for Nginx. By default, './nginx.conf'
 #     is used, however this must be specified whenever running from a host where the
@@ -35,16 +38,16 @@ name: llvm-lnt
 
 services:
   webserver:
-    container_name: webserver
     build:
       context: ../
       dockerfile: docker/lnt.dockerfile
     environment:
       - DB_USER=lntuser
-      - DB_HOST=dbserver
+      - DB_HOST=db
       - DB_NAME=lnt
       - DB_PASSWORD_FILE=/run/secrets/lnt-db-password
       - AUTH_TOKEN_FILE=/run/secrets/lnt-auth-token
+      - GUNICORN_WORKERS=${GUNICORN_WORKERS:-8}
     secrets:
       - lnt-db-password
       - lnt-auth-token
@@ -56,12 +59,11 @@ services:
     volumes:
       - instance:/var/lib/lnt
     ports:
-      - "8000:8000"
+      - "${LNT_HOST_PORT:-8000}:8000"
     networks:
       - lnt_network
 
   db:
-    container_name: dbserver
     image: docker.io/postgres:18-alpine
     environment:
       - POSTGRES_PASSWORD_FILE=/run/secrets/lnt-db-password
