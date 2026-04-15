@@ -184,7 +184,7 @@ def submit_run(client, machine_name, commit, tests,
     return resp.get_json()
 
 
-def submit_regression(client, app, indicators=None, state='active',
+def submit_regression(client, indicators=None, state='active',
                       title=None, commit=None, notes=None, bug=None,
                       testsuite='nts'):
     """Create a regression via POST and return response JSON.
@@ -209,7 +209,7 @@ def submit_regression(client, app, indicators=None, state='active',
     return resp.get_json()
 
 
-def submit_indicator_add(client, app, regression_uuid, indicators,
+def submit_indicator_add(client, regression_uuid, indicators,
                          testsuite='nts'):
     """Add indicators to a regression via POST and return response JSON."""
     resp = client.post(
@@ -221,7 +221,7 @@ def submit_indicator_add(client, app, regression_uuid, indicators,
     return resp.get_json()
 
 
-def submit_indicator_remove(client, app, regression_uuid, indicator_uuids,
+def submit_indicator_remove(client, regression_uuid, indicator_uuids,
                             testsuite='nts'):
     """Remove indicators from a regression via DELETE and return response JSON."""
     resp = client.delete(

@@ -27,7 +27,7 @@ def _triage_headers(app):
     return make_scoped_headers(app, 'triage')
 
 
-def _setup_regression_with_indicators(client, app, num_indicators=2,
+def _setup_regression_with_indicators(client, num_indicators=2,
                                       state='active', commit=None):
     """Create a regression with indicators via the API.
 
@@ -46,7 +46,7 @@ def _setup_regression_with_indicators(client, app, num_indicators=2,
         {'machine': machine, 'test': t, 'metric': 'execution_time'}
         for t in tests
     ]
-    reg = submit_regression(client, app, indicators=indicators,
+    reg = submit_regression(client, indicators=indicators,
                             state=state, commit=commit)
     indicator_uuids = [ind['uuid'] for ind in reg['indicators']]
     return reg['uuid'], indicator_uuids
@@ -82,7 +82,7 @@ class TestRegressionList(unittest.TestCase):
         self.assertIn('previous', data['cursor'])
 
     def test_list_item_has_expected_fields(self):
-        reg_uuid, _ = _setup_regression_with_indicators(self.client, self.app, 1)
+        reg_uuid, _ = _setup_regression_with_indicators(self.client, 1)
         resp = self.client.get(PREFIX + '/regressions?limit=500')
         data = resp.get_json()
         item = _find_in_list(data['items'], reg_uuid)
@@ -101,7 +101,7 @@ class TestRegressionList(unittest.TestCase):
         """Create a regression with 2 indicators (1 machine, 2 tests).
         Verify machine_count == 1 and test_count == 2."""
         reg_uuid, _ = _setup_regression_with_indicators(
-            self.client, self.app, 2)
+            self.client, 2)
         resp = self.client.get(PREFIX + '/regressions?limit=500')
         data = resp.get_json()
         item = _find_in_list(data['items'], reg_uuid)
@@ -110,7 +110,7 @@ class TestRegressionList(unittest.TestCase):
         self.assertEqual(item['test_count'], 2)
 
     def test_list_filter_by_state(self):
-        _setup_regression_with_indicators(self.client, self.app, 1)
+        _setup_regression_with_indicators(self.client, 1)
         resp = self.client.get(PREFIX + '/regressions?state=active')
         self.assertEqual(resp.status_code, 200)
         data = resp.get_json()
@@ -129,12 +129,12 @@ class TestRegressionList(unittest.TestCase):
         ])
 
         submit_regression(
-            self.client, self.app,
+            self.client,
             indicators=[{'machine': machine, 'test': test1,
                           'metric': 'execution_time'}],
             state='active')
         submit_regression(
-            self.client, self.app,
+            self.client,
             indicators=[{'machine': machine, 'test': test2,
                           'metric': 'execution_time'}],
             state='detected')
@@ -159,7 +159,7 @@ class TestRegressionList(unittest.TestCase):
     def test_list_pagination(self):
         # Create 3 regressions
         for _ in range(3):
-            _setup_regression_with_indicators(self.client, self.app, 1)
+            _setup_regression_with_indicators(self.client, 1)
         resp = self.client.get(PREFIX + '/regressions?limit=2')
         self.assertEqual(resp.status_code, 200)
         data = resp.get_json()
@@ -200,7 +200,7 @@ class TestRegressionListFilters(unittest.TestCase):
                    [{'name': test_name, 'execution_time': [1.0]}])
 
         reg = submit_regression(
-            self.client, self.app,
+            self.client,
             indicators=[{'machine': machine_name, 'test': test_name,
                           'metric': 'execution_time'}])
 
@@ -217,7 +217,7 @@ class TestRegressionListFilters(unittest.TestCase):
                    [{'name': test_name, 'execution_time': [1.0]}])
 
         reg = submit_regression(
-            self.client, self.app,
+            self.client,
             indicators=[{'machine': machine_name, 'test': test_name,
                           'metric': 'execution_time'}])
 
@@ -239,13 +239,13 @@ class TestRegressionListFilters(unittest.TestCase):
 
         # Create regression for compile_time
         reg_ct = submit_regression(
-            self.client, self.app,
+            self.client,
             indicators=[{'machine': machine_name, 'test': test_ct,
                           'metric': 'compile_time'}])
 
         # Create regression for execution_time
         reg_et = submit_regression(
-            self.client, self.app,
+            self.client,
             indicators=[{'machine': machine_name, 'test': test_et,
                           'metric': 'execution_time'}])
 
@@ -282,7 +282,7 @@ class TestRegressionListFilters(unittest.TestCase):
                    [{'name': test_name, 'execution_time': [1.0]}])
 
         reg = submit_regression(
-            self.client, self.app,
+            self.client,
             indicators=[{'machine': machine_name, 'test': test_name,
                           'metric': 'execution_time'}])
 
@@ -305,12 +305,12 @@ class TestRegressionListFilters(unittest.TestCase):
                    [{'name': test, 'execution_time': [2.0]}])
 
         reg1 = submit_regression(
-            self.client, self.app,
+            self.client,
             indicators=[{'machine': machine, 'test': test,
                           'metric': 'execution_time'}],
             commit=rev1)
         reg2 = submit_regression(
-            self.client, self.app,
+            self.client,
             indicators=[{'machine': machine, 'test': test,
                           'metric': 'execution_time'}],
             commit=rev2)
@@ -333,12 +333,12 @@ class TestRegressionListFilters(unittest.TestCase):
         ])
 
         reg_with = submit_regression(
-            self.client, self.app,
+            self.client,
             indicators=[{'machine': machine, 'test': test1,
                           'metric': 'execution_time'}],
             commit=rev)
         reg_without = submit_regression(
-            self.client, self.app,
+            self.client,
             indicators=[{'machine': machine, 'test': test2,
                           'metric': 'execution_time'}])
 
@@ -364,7 +364,7 @@ class TestRegressionListFilters(unittest.TestCase):
                    [{'name': test, 'execution_time': [1.0]}])
 
         reg = submit_regression(
-            self.client, self.app,
+            self.client,
             indicators=[{'machine': machine, 'test': test,
                           'metric': 'execution_time'}],
             commit=rev)
@@ -619,7 +619,7 @@ class TestRegressionDetail(unittest.TestCase):
 
     def test_get_detail(self):
         reg_uuid, _ = _setup_regression_with_indicators(
-            self.client, self.app, 1)
+            self.client, 1)
         resp = self.client.get(PREFIX + f'/regressions/{reg_uuid}')
         self.assertEqual(resp.status_code, 200)
         data = resp.get_json()
@@ -650,7 +650,7 @@ class TestRegressionDetail(unittest.TestCase):
 
     def test_detail_state_is_string(self):
         reg_uuid, _ = _setup_regression_with_indicators(
-            self.client, self.app, 1)
+            self.client, 1)
         resp = self.client.get(PREFIX + f'/regressions/{reg_uuid}')
         data = resp.get_json()
         self.assertIsInstance(data['state'], str)
@@ -668,7 +668,7 @@ class TestRegressionDetailETag(unittest.TestCase):
     def test_etag_present_on_detail(self):
         """Regression detail response should include an ETag header."""
         reg_uuid, _ = _setup_regression_with_indicators(
-            self.client, self.app, 1)
+            self.client, 1)
         resp = self.client.get(PREFIX + f'/regressions/{reg_uuid}')
         self.assertEqual(resp.status_code, 200)
         etag = resp.headers.get('ETag')
@@ -678,7 +678,7 @@ class TestRegressionDetailETag(unittest.TestCase):
     def test_etag_304_on_match(self):
         """Sending If-None-Match with the same ETag returns 304."""
         reg_uuid, _ = _setup_regression_with_indicators(
-            self.client, self.app, 1)
+            self.client, 1)
         resp = self.client.get(PREFIX + f'/regressions/{reg_uuid}')
         etag = resp.headers.get('ETag')
 
@@ -691,7 +691,7 @@ class TestRegressionDetailETag(unittest.TestCase):
     def test_etag_200_on_mismatch(self):
         """Sending If-None-Match with a different ETag returns 200."""
         reg_uuid, _ = _setup_regression_with_indicators(
-            self.client, self.app, 1)
+            self.client, 1)
         resp = self.client.get(
             PREFIX + f'/regressions/{reg_uuid}',
             headers={'If-None-Match': 'W/"stale-etag-value"'},
@@ -713,7 +713,7 @@ class TestRegressionUpdate(unittest.TestCase):
 
     def test_update_title(self):
         reg_uuid, _ = _setup_regression_with_indicators(
-            self.client, self.app, 1)
+            self.client, 1)
         headers = _triage_headers(self.app)
         resp = self.client.patch(
             PREFIX + f'/regressions/{reg_uuid}',
@@ -726,7 +726,7 @@ class TestRegressionUpdate(unittest.TestCase):
 
     def test_update_bug(self):
         reg_uuid, _ = _setup_regression_with_indicators(
-            self.client, self.app, 1)
+            self.client, 1)
         headers = _triage_headers(self.app)
         resp = self.client.patch(
             PREFIX + f'/regressions/{reg_uuid}',
@@ -739,7 +739,7 @@ class TestRegressionUpdate(unittest.TestCase):
 
     def test_update_state(self):
         reg_uuid, _ = _setup_regression_with_indicators(
-            self.client, self.app, 1)
+            self.client, 1)
         headers = _triage_headers(self.app)
         resp = self.client.patch(
             PREFIX + f'/regressions/{reg_uuid}',
@@ -752,7 +752,7 @@ class TestRegressionUpdate(unittest.TestCase):
 
     def test_update_notes(self):
         reg_uuid, _ = _setup_regression_with_indicators(
-            self.client, self.app, 1)
+            self.client, 1)
         headers = _triage_headers(self.app)
         resp = self.client.patch(
             PREFIX + f'/regressions/{reg_uuid}',
@@ -772,7 +772,7 @@ class TestRegressionUpdate(unittest.TestCase):
                    [{'name': test, 'execution_time': [1.0]}])
 
         reg_uuid, _ = _setup_regression_with_indicators(
-            self.client, self.app, 1)
+            self.client, 1)
         headers = _triage_headers(self.app)
         resp = self.client.patch(
             PREFIX + f'/regressions/{reg_uuid}',
@@ -793,7 +793,7 @@ class TestRegressionUpdate(unittest.TestCase):
                    [{'name': test, 'execution_time': [1.0]}])
 
         reg_uuid, _ = _setup_regression_with_indicators(
-            self.client, self.app, 1, commit=rev)
+            self.client, 1, commit=rev)
         headers = _triage_headers(self.app)
         resp = self.client.patch(
             PREFIX + f'/regressions/{reg_uuid}',
@@ -807,7 +807,7 @@ class TestRegressionUpdate(unittest.TestCase):
     def test_clear_notes(self):
         """PATCH notes=null clears the notes."""
         reg_uuid, _ = _setup_regression_with_indicators(
-            self.client, self.app, 1)
+            self.client, 1)
         headers = _triage_headers(self.app)
         # Set notes first
         self.client.patch(
@@ -828,7 +828,7 @@ class TestRegressionUpdate(unittest.TestCase):
     def test_update_state_any_transition(self):
         """State transitions are unconstrained -- any -> any."""
         reg_uuid, _ = _setup_regression_with_indicators(
-            self.client, self.app, 1)
+            self.client, 1)
         headers = _triage_headers(self.app)
         # active -> false_positive
         resp = self.client.patch(
@@ -849,7 +849,7 @@ class TestRegressionUpdate(unittest.TestCase):
 
     def test_update_invalid_state_422(self):
         reg_uuid, _ = _setup_regression_with_indicators(
-            self.client, self.app, 1)
+            self.client, 1)
         headers = _triage_headers(self.app)
         resp = self.client.patch(
             PREFIX + f'/regressions/{reg_uuid}',
@@ -869,7 +869,7 @@ class TestRegressionUpdate(unittest.TestCase):
 
     def test_update_no_auth_401(self):
         reg_uuid, _ = _setup_regression_with_indicators(
-            self.client, self.app, 1)
+            self.client, 1)
         resp = self.client.patch(
             PREFIX + f'/regressions/{reg_uuid}',
             json={'title': 'x'},
@@ -878,7 +878,7 @@ class TestRegressionUpdate(unittest.TestCase):
 
     def test_update_read_scope_403(self):
         reg_uuid, _ = _setup_regression_with_indicators(
-            self.client, self.app, 1)
+            self.client, 1)
         headers = make_scoped_headers(self.app, 'read')
         resp = self.client.patch(
             PREFIX + f'/regressions/{reg_uuid}',
@@ -890,7 +890,7 @@ class TestRegressionUpdate(unittest.TestCase):
     def test_update_returns_indicators(self):
         """PATCH response should include indicators."""
         reg_uuid, _ = _setup_regression_with_indicators(
-            self.client, self.app, 2)
+            self.client, 2)
         headers = _triage_headers(self.app)
         resp = self.client.patch(
             PREFIX + f'/regressions/{reg_uuid}',
@@ -916,7 +916,7 @@ class TestRegressionDelete(unittest.TestCase):
 
     def test_delete_regression(self):
         reg_uuid, _ = _setup_regression_with_indicators(
-            self.client, self.app, 1)
+            self.client, 1)
         headers = _triage_headers(self.app)
         resp = self.client.delete(
             PREFIX + f'/regressions/{reg_uuid}',
@@ -938,7 +938,7 @@ class TestRegressionDelete(unittest.TestCase):
 
     def test_delete_no_auth_401(self):
         reg_uuid, _ = _setup_regression_with_indicators(
-            self.client, self.app, 1)
+            self.client, 1)
         resp = self.client.delete(
             PREFIX + f'/regressions/{reg_uuid}',
         )
@@ -959,7 +959,7 @@ class TestRegressionIndicators(unittest.TestCase):
     def test_add_indicator(self):
         """Add an indicator to an existing regression."""
         reg_uuid, _ = _setup_regression_with_indicators(
-            self.client, self.app, 1)
+            self.client, 1)
 
         # Create a new test/machine for the new indicator
         tag = uuid.uuid4().hex[:8]
@@ -985,7 +985,7 @@ class TestRegressionIndicators(unittest.TestCase):
     def test_add_duplicate_silently_ignored(self):
         """Adding a duplicate indicator is silently ignored."""
         reg_uuid, ind_uuids = _setup_regression_with_indicators(
-            self.client, self.app, 1)
+            self.client, 1)
 
         # Get the existing indicator details
         resp = self.client.get(PREFIX + f'/regressions/{reg_uuid}')
@@ -1007,7 +1007,7 @@ class TestRegressionIndicators(unittest.TestCase):
 
     def test_add_nonexistent_machine_404(self):
         reg_uuid, _ = _setup_regression_with_indicators(
-            self.client, self.app, 1)
+            self.client, 1)
         headers = _triage_headers(self.app)
         resp = self.client.post(
             PREFIX + f'/regressions/{reg_uuid}/indicators',
@@ -1021,7 +1021,7 @@ class TestRegressionIndicators(unittest.TestCase):
 
     def test_add_nonexistent_test_404(self):
         reg_uuid, _ = _setup_regression_with_indicators(
-            self.client, self.app, 1)
+            self.client, 1)
         # Get the existing indicator machine name
         resp = self.client.get(PREFIX + f'/regressions/{reg_uuid}')
         existing_machine = resp.get_json()['indicators'][0]['machine']
@@ -1040,7 +1040,7 @@ class TestRegressionIndicators(unittest.TestCase):
 
     def test_add_unknown_metric_400(self):
         reg_uuid, _ = _setup_regression_with_indicators(
-            self.client, self.app, 1)
+            self.client, 1)
         resp = self.client.get(PREFIX + f'/regressions/{reg_uuid}')
         existing = resp.get_json()['indicators'][0]
 
@@ -1058,7 +1058,7 @@ class TestRegressionIndicators(unittest.TestCase):
 
     def test_add_indicator_no_auth_401(self):
         reg_uuid, _ = _setup_regression_with_indicators(
-            self.client, self.app, 1)
+            self.client, 1)
         resp = self.client.post(
             PREFIX + f'/regressions/{reg_uuid}/indicators',
             json={'indicators': [
@@ -1070,7 +1070,7 @@ class TestRegressionIndicators(unittest.TestCase):
     def test_add_empty_list_422(self):
         """POST with empty indicators list returns 422."""
         reg_uuid, _ = _setup_regression_with_indicators(
-            self.client, self.app, 1)
+            self.client, 1)
         headers = _triage_headers(self.app)
         resp = self.client.post(
             PREFIX + f'/regressions/{reg_uuid}/indicators',
@@ -1082,7 +1082,7 @@ class TestRegressionIndicators(unittest.TestCase):
     def test_remove_indicator(self):
         """Remove indicators via batch DELETE."""
         reg_uuid, ind_uuids = _setup_regression_with_indicators(
-            self.client, self.app, 2)
+            self.client, 2)
         headers = _triage_headers(self.app)
         resp = self.client.delete(
             PREFIX + f'/regressions/{reg_uuid}/indicators',
@@ -1096,7 +1096,7 @@ class TestRegressionIndicators(unittest.TestCase):
     def test_remove_multiple_batch(self):
         """Remove 2 of 3 indicators in one batch."""
         reg_uuid, ind_uuids = _setup_regression_with_indicators(
-            self.client, self.app, 3)
+            self.client, 3)
         headers = _triage_headers(self.app)
         resp = self.client.delete(
             PREFIX + f'/regressions/{reg_uuid}/indicators',
@@ -1110,7 +1110,7 @@ class TestRegressionIndicators(unittest.TestCase):
     def test_remove_unknown_uuid_silently_ignored(self):
         """Unknown UUIDs in batch remove are silently ignored."""
         reg_uuid, ind_uuids = _setup_regression_with_indicators(
-            self.client, self.app, 1)
+            self.client, 1)
         headers = _triage_headers(self.app)
         resp = self.client.delete(
             PREFIX + f'/regressions/{reg_uuid}/indicators',
@@ -1123,7 +1123,7 @@ class TestRegressionIndicators(unittest.TestCase):
 
     def test_remove_no_auth_401(self):
         reg_uuid, ind_uuids = _setup_regression_with_indicators(
-            self.client, self.app, 1)
+            self.client, 1)
         resp = self.client.delete(
             PREFIX + f'/regressions/{reg_uuid}/indicators',
             json={'indicator_uuids': [ind_uuids[0]]},
@@ -1133,7 +1133,7 @@ class TestRegressionIndicators(unittest.TestCase):
     def test_remove_empty_list_422(self):
         """DELETE with empty indicator_uuids list returns 422."""
         reg_uuid, _ = _setup_regression_with_indicators(
-            self.client, self.app, 1)
+            self.client, 1)
         headers = _triage_headers(self.app)
         resp = self.client.delete(
             PREFIX + f'/regressions/{reg_uuid}/indicators',
@@ -1153,7 +1153,7 @@ class TestRegressionZPagination(unittest.TestCase):
         cls._reg_uuids = []
         for _ in range(5):
             reg_uuid, _ = _setup_regression_with_indicators(
-                cls.client, cls.app, 1)
+                cls.client, 1)
             cls._reg_uuids.append(reg_uuid)
 
     def _collect_all_pages(self):
@@ -1190,7 +1190,7 @@ class TestRegressionUnknownParams(unittest.TestCase):
 
     def test_regression_detail_unknown_param_returns_400(self):
         reg_uuid, _ = _setup_regression_with_indicators(
-            self.client, self.app, 1)
+            self.client, 1)
         resp = self.client.get(
             PREFIX + f'/regressions/{reg_uuid}?bogus=1')
         self.assertEqual(resp.status_code, 400)
