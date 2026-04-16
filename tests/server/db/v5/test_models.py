@@ -757,7 +757,7 @@ class TestInitializeV5Database(unittest.TestCase):
         tables = insp.get_table_names()
         self.assertIn("v5_schema", tables)
         self.assertIn("v5_schema_version", tables)
-        self.assertIn("APIKey", tables)
+        self.assertIn("api_key", tables)
 
     def test_v5db_init_on_initialized_database(self):
         """V5DB.__init__ should succeed read-only on an initialized DB."""

@@ -86,34 +86,34 @@ def _add_uuid_to_table(engine, table_name, ts_name):
 
 
 def _create_apikey_table(engine):
-    """Create the global APIKey table for v5 API authentication."""
+    """Create the global api_key table for v5 API authentication."""
     # Detect dialect for Postgres vs SQLite differences
     dialect = engine.dialect.name
 
     if dialect == 'postgresql':
         create_sql = text("""
-            CREATE TABLE IF NOT EXISTS "APIKey" (
-                "ID" SERIAL PRIMARY KEY,
-                "Name" VARCHAR(256) NOT NULL,
-                "KeyPrefix" VARCHAR(8) NOT NULL,
-                "KeyHash" VARCHAR(64) NOT NULL,
-                "Scope" VARCHAR(32) NOT NULL,
-                "CreatedAt" TIMESTAMP NOT NULL,
-                "LastUsedAt" TIMESTAMP,
-                "IsActive" BOOLEAN NOT NULL DEFAULT TRUE
+            CREATE TABLE IF NOT EXISTS "api_key" (
+                "id" SERIAL PRIMARY KEY,
+                "name" VARCHAR(256) NOT NULL,
+                "key_prefix" VARCHAR(8) NOT NULL,
+                "key_hash" VARCHAR(64) NOT NULL,
+                "scope" VARCHAR(32) NOT NULL,
+                "created_at" TIMESTAMP NOT NULL,
+                "last_used_at" TIMESTAMP,
+                "is_active" BOOLEAN NOT NULL DEFAULT TRUE
             )
         """)
     else:
         create_sql = text("""
-            CREATE TABLE IF NOT EXISTS "APIKey" (
-                "ID" INTEGER PRIMARY KEY,
-                "Name" VARCHAR(256) NOT NULL,
-                "KeyPrefix" VARCHAR(8) NOT NULL,
-                "KeyHash" VARCHAR(64) NOT NULL,
-                "Scope" VARCHAR(32) NOT NULL,
-                "CreatedAt" TIMESTAMP NOT NULL,
-                "LastUsedAt" TIMESTAMP,
-                "IsActive" BOOLEAN NOT NULL DEFAULT 1
+            CREATE TABLE IF NOT EXISTS "api_key" (
+                "id" INTEGER PRIMARY KEY,
+                "name" VARCHAR(256) NOT NULL,
+                "key_prefix" VARCHAR(8) NOT NULL,
+                "key_hash" VARCHAR(64) NOT NULL,
+                "scope" VARCHAR(32) NOT NULL,
+                "created_at" TIMESTAMP NOT NULL,
+                "last_used_at" TIMESTAMP,
+                "is_active" BOOLEAN NOT NULL DEFAULT 1
             )
         """)
 
@@ -123,24 +123,25 @@ def _create_apikey_table(engine):
         except (sqlalchemy.exc.OperationalError,
                 sqlalchemy.exc.ProgrammingError,
                 sqlalchemy.exc.IntegrityError) as e:
-            logger.warning("Skipping APIKey table creation "
+            logger.warning("Skipping api_key table creation "
                            "(may already exist): %s", e)
             return  # Don't try to create index if table creation failed
 
-    # Create unique index on KeyHash
+    # Create unique index on key_hash
     try:
-        apikey_table = introspect_table(engine, "APIKey")
-        idx = Index("ix_apikey_keyhash", apikey_table.c.KeyHash, unique=True)
+        apikey_table = introspect_table(engine, "api_key")
+        idx = Index("ix_api_key_key_hash", apikey_table.c.key_hash,
+                    unique=True)
         idx.create(engine)
     except (sqlalchemy.exc.OperationalError,
             sqlalchemy.exc.ProgrammingError,
             sqlalchemy.exc.IntegrityError) as e:
-        logger.warning("Skipping APIKey KeyHash index "
+        logger.warning("Skipping api_key key_hash index "
                        "(may already exist): %s", e)
 
 
 def upgrade(engine):
-    """Add UUID columns to per-testsuite tables and create APIKey table."""
+    """Add UUID columns to per-testsuite tables and create api_key table."""
 
     # Discover test suites dynamically
     try:

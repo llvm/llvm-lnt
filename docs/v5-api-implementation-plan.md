@@ -95,10 +95,10 @@ This migration adds:
 - After backfill, create a unique index separately via `CREATE UNIQUE INDEX`
 - The migration discovers test suites via the `TestSuite` table (pattern from upgrade_7_to_8.py)
 
-**B) `APIKey` table** (global, not per-testsuite):
+**B) `api_key` table** (global, not per-testsuite):
 - Created via raw DDL in the migration (NOT via ORM Base.metadata.create_all)
-- Columns: ID (PK), Name (String 256), KeyPrefix (String 8), KeyHash (String 64, unique index),
-  Scope (String 32), CreatedAt (DateTime), LastUsedAt (DateTime nullable), IsActive (Boolean)
+- Columns: id (PK), name (String 256), key_prefix (String 8), key_hash (String 64, unique index),
+  scope (String 32), created_at (DateTime), last_used_at (DateTime nullable), is_active (Boolean)
 
 ### 3.2 Model changes in `testsuitedb.py`
 
@@ -125,8 +125,8 @@ Ensure UUID is generated on creation:
 ### 3.3 APIKey runtime model
 
 Define a standalone SQLAlchemy model for `APIKey` using a declarative base (consistent
-with the rest of the codebase), mapped to the table created by the migration. Use a
-separate base to avoid contaminating the testsuite metadata and the per-suite bases.
+with the rest of the codebase), mapped to the `api_key` table created by the migration.
+Use a separate base to avoid contaminating the testsuite metadata and the per-suite bases.
 The session used to query APIKey is engine-bound, not metadata-bound, so queries work
 through the same session as other models.
 
@@ -137,15 +137,15 @@ from sqlalchemy.ext.declarative import declarative_base
 APIKeyBase = declarative_base()
 
 class APIKey(APIKeyBase):
-    __tablename__ = 'APIKey'
-    id = Column("ID", Integer, primary_key=True)
-    name = Column("Name", String(256), nullable=False)
-    key_prefix = Column("KeyPrefix", String(8), nullable=False)
-    key_hash = Column("KeyHash", String(64), nullable=False, unique=True, index=True)
-    scope = Column("Scope", String(32), nullable=False)
-    created_at = Column("CreatedAt", DateTime, nullable=False)
-    last_used_at = Column("LastUsedAt", DateTime, nullable=True)
-    is_active = Column("IsActive", Boolean, nullable=False, default=True)
+    __tablename__ = 'api_key'
+    id = Column("id", Integer, primary_key=True)
+    name = Column("name", String(256), nullable=False)
+    key_prefix = Column("key_prefix", String(8), nullable=False)
+    key_hash = Column("key_hash", String(64), nullable=False, unique=True, index=True)
+    scope = Column("scope", String(32), nullable=False)
+    created_at = Column("created_at", DateTime, nullable=False)
+    last_used_at = Column("last_used_at", DateTime, nullable=True)
+    is_active = Column("is_active", Boolean, nullable=False, default=True)
 ```
 
 ---
@@ -231,7 +231,7 @@ paths, and only resolve the testsuite when the URL contains one.
 
 **Token validation flow:**
 1. Extract token from `Authorization: Bearer <token>` header
-2. Hash with SHA-256, look up in `APIKey` table
+2. Hash with SHA-256, look up in `api_key` table
 3. Verify `is_active == True`
 4. Compare granted scope level against required scope level
 5. If no token and endpoint requires only `read` scope: allow (unauthenticated reads,
@@ -701,7 +701,7 @@ Each endpoint must test:
 ### Phase 1: Foundation
 1. Add dependencies to pyproject.toml
 2. Create package structure (`lnt/server/api/v5/`)
-3. Write migration `upgrade_18_to_19.py` (UUID columns + APIKey table)
+3. Write migration `upgrade_18_to_19.py` (UUID columns + api_key table)
 4. Update model definitions in `testsuitedb.py` (UUID columns)
 5. Implement `create_v5_api()` and register in `app.py`
 6. Implement middleware (testsuite resolution, CORS, session lifecycle)

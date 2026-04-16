@@ -490,7 +490,7 @@ Left in place for now (see 2.13).
 ### 2.25 Unchanged files
 
 No changes needed:
-- `auth.py` — APIKey model is independent of v4/v5.
+- `auth.py` — APIKey model is independent of v4/v5 (maps to the `api_key` table).
 - `pagination.py` — Generic cursor pagination, works with any query.
 - `etag.py` — Generic ETag support.
 - `errors.py` — Generic error handling.
@@ -676,7 +676,7 @@ lnt admin migrate-to-v5 --input <v4-db-path> --output <v5-db-path>
    i. Copy FieldChanges (map order FKs → commit FKs, resolve field_id FK
       to field_name string via SampleField metatable)
    j. Copy Regressions + RegressionIndicators (1:1, preserve UUIDs)
-5. Copy global APIKey table
+5. Copy global `api_key` table
 
 ### 4.3 Phase 4 Tests
 

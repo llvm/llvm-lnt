@@ -57,20 +57,20 @@ class V5SchemaVersion(_global_base):                   # type: ignore[misc]
 
 class APIKey(_global_base):                             # type: ignore[misc]
     """API key for v5 REST API authentication."""
-    __tablename__ = "APIKey"
-    id = Column("ID", Integer, primary_key=True)
-    name = Column("Name", String(256), nullable=False)
-    key_prefix = Column("KeyPrefix", String(8), nullable=False)
-    key_hash = Column("KeyHash", String(64), nullable=False, unique=True,
+    __tablename__ = "api_key"
+    id = Column("id", Integer, primary_key=True)
+    name = Column("name", String(256), nullable=False)
+    key_prefix = Column("key_prefix", String(8), nullable=False)
+    key_hash = Column("key_hash", String(64), nullable=False, unique=True,
                       index=True)
-    scope = Column("Scope", String(32), nullable=False)
-    created_at = Column("CreatedAt", DateTime, nullable=False)
-    last_used_at = Column("LastUsedAt", DateTime, nullable=True)
-    is_active = Column("IsActive", Boolean, nullable=False, default=True)
+    scope = Column("scope", String(32), nullable=False)
+    created_at = Column("created_at", DateTime, nullable=False)
+    last_used_at = Column("last_used_at", DateTime, nullable=True)
+    is_active = Column("is_active", Boolean, nullable=False, default=True)
 
 
 def create_global_tables(engine) -> None:
-    """Create the global v5 tables (schema, schema_version, APIKey)."""
+    """Create the global v5 tables (schema, schema_version, api_key)."""
     _global_base.metadata.create_all(engine)
 
 
