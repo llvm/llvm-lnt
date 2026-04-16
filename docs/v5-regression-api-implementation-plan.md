@@ -238,7 +238,7 @@ passes present fields to the DB layer via `**kwargs`.
 ### 2i. Rewrite RegressionListItemSchema (lines 240-251)
 
 Old: `{uuid, title, bug, state}`. New: adds `commit`, `machine_count`,
-`test_count` per the spec (line 106 of v5-api.md).
+`test_count` per the spec in `docs/design/api/endpoints.md` (Regressions section).
 
 Replace with:
 
@@ -317,7 +317,7 @@ class RegressionIndicatorsQuerySchema(CursorPaginationQuerySchema):
 
 ### 2m. Update RegressionListQuerySchema (lines 293-312)
 
-Add `commit` and `has_commit` filter parameters per v5-api.md line 74.
+Add `commit` and `has_commit` filter parameters per `docs/design/api/endpoints.md` (Regressions section).
 
 ```python
 class RegressionListQuerySchema(CursorPaginationQuerySchema):

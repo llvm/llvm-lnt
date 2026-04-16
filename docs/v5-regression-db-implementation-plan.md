@@ -1,7 +1,7 @@
 # v5 Regression DB Layer -- Implementation Plan
 
 This plan covers the DB layer changes needed to implement the redesigned
-regression model described in `docs/design/v5-db.md` (sections D5, D8).
+regression model described in `docs/design/db/data-model.md` (D5) and `docs/design/db/operations.md` (D8).
 
 **Goal**: Drop FieldChange, rewrite Regression and RegressionIndicator models
 to match the design doc, update all CRUD methods and tests.

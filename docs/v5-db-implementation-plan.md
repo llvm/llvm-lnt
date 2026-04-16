@@ -1,7 +1,7 @@
 # LNT v5 Database Layer — Implementation Plan
 
 This document is the step-by-step guide for implementing the v5 database layer
-as specified in `docs/design/v5-db.md`. Each phase is a separate commit.
+as specified in `docs/design/db/` (`data-model.md` and `operations.md`). Each phase is a separate commit.
 
 ---
 

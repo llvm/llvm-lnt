@@ -1,11 +1,11 @@
 # v5 Regression UI — Implementation Plan
 
-This document is a step-by-step implementation plan for the Regression List page, Regression Detail page, and cross-page regression integration in the v5 Web UI. Each phase includes exact file paths, type definitions, function signatures, component structure, CSS class names, and testing strategy. The plan assumes the reader has already read `docs/design/v5-ui.md` (sections 8-9 and the cross-page integration notes) and is familiar with the existing frontend source in `lnt/server/ui/v5/frontend/src/`.
+This document is a step-by-step implementation plan for the Regression List page, Regression Detail page, and cross-page regression integration in the v5 Web UI. Each phase includes exact file paths, type definitions, function signatures, component structure, CSS class names, and testing strategy. The plan assumes the reader has already read `docs/design/ui/regressions.md` and is familiar with the existing frontend source in `lnt/server/ui/v5/frontend/src/`.
 
 ## Prerequisite Reading
 
 Before starting, read:
-- `docs/design/v5-ui.md` — sections 8 (Regression List), 9 (Regression Detail), and the Cross-Page Integration notes
+- `docs/design/ui/regressions.md` — Regression List and Regression Detail page specs
 - `lnt/server/api/v5/endpoints/regressions.py` — the full API implementation
 - `lnt/server/api/v5/schemas/regressions.py` — request/response schemas and state constants
 - All existing frontend components in `lnt/server/ui/v5/frontend/src/components/`

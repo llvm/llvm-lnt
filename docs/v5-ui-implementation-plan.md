@@ -1,11 +1,11 @@
 # v5 Web UI Redesign — Implementation Plan
 
-This document is a step-by-step implementation plan for the v5 Web UI redesign described in `docs/design/v5-ui.md`. Each phase includes the exact file changes, new modules, API function signatures, type definitions, and testing strategy needed for a developer to execute independently.
+This document is a step-by-step implementation plan for the v5 Web UI redesign described in `docs/design/ui/` (see `docs/design/README.md` for the full document map). Each phase includes the exact file changes, new modules, API function signatures, type definitions, and testing strategy needed for a developer to execute independently.
 
 ## Prerequisite Reading
 
 Before starting, read:
-- `docs/design/v5-ui.md` — the high-level design
+- `docs/design/ui/` — the high-level design (see `docs/design/README.md` for the full document map)
 - All existing frontend source in `lnt/server/ui/v5/frontend/src/`
 - The v5 API endpoints in `lnt/server/api/v5/endpoints/`
 
@@ -1942,7 +1942,7 @@ The graph page is the most data-intensive page. It uses **on-demand loading with
 
 ### 4.0 Existing Implementation (what's already built)
 
-The Compare page was the first v5 frontend page and is already functional as a standalone SPA. This section summarizes what exists before Phase 4 changes. See the Compare section of `docs/design/v5-ui.md` for the full design.
+The Compare page was the first v5 frontend page and is already functional as a standalone SPA. This section summarizes what exists before Phase 4 changes. See `docs/design/ui/compare.md` for the full design.
 
 **Modules**:
 - `comparison.ts` — Core comparison logic: aggregation (within-run, across-runs), delta/ratio/status computation, `bigger_is_better` handling, zero-baseline and null-metric edge cases
