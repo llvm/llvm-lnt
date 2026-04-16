@@ -168,6 +168,65 @@ check_endpoint "POST /api/v5/${SUITE}/runs (submit)" \
     "${BASE_URL}/api/v5/${SUITE}/runs" 201 POST "$RUN_BODY"
 
 # ---------------------------------------------------------------------------
+# Test: Concurrent submission (same machine, commit, and test names)
+# ---------------------------------------------------------------------------
+echo "--- Concurrent Submission ---"
+
+CONCURRENT=20
+tmpdir=$(mktemp -d)
+pids=()
+for i in $(seq 1 $CONCURRENT); do
+    curl -s -o /dev/null -w '%{http_code}' -X POST \
+        -H "Authorization: Bearer ${AUTH_TOKEN}" \
+        -H "Content-Type: application/json" \
+        -d "{
+            \"format_version\": \"5\",
+            \"machine\": {\"name\": \"concurrent-machine\", \"os\": \"linux\"},
+            \"commit\": \"concurrent-rev\",
+            \"commit_fields\": {\"git_sha\": \"concurrent-sha\"},
+            \"tests\": [
+                {\"name\": \"test.suite/concurrent-bench\", \"execution_time\": ${i}.0}
+            ]
+        }" \
+        "${BASE_URL}/api/v5/${SUITE}/runs" \
+        > "${tmpdir}/status-${i}" 2>/dev/null &
+    pids+=($!)
+done
+
+concurrent_failures=0
+for i in $(seq 1 $CONCURRENT); do
+    wait "${pids[$((i-1))]}" || true
+    status=$(cat "${tmpdir}/status-${i}" 2>/dev/null || echo "000")
+    if [ "$status" != "201" ]; then
+        concurrent_failures=$((concurrent_failures + 1))
+    fi
+done
+rm -rf "$tmpdir"
+
+if [ "$concurrent_failures" -eq 0 ]; then
+    pass "All $CONCURRENT concurrent submissions returned 201"
+else
+    fail "Concurrent submission" "$concurrent_failures of $CONCURRENT requests failed"
+fi
+
+# Verify exactly 1 machine, 1 commit, and N runs were created.
+check_endpoint "Exactly 1 concurrent machine" \
+    "${BASE_URL}/api/v5/${SUITE}/machines?search=concurrent-machine" 200 \
+    GET "" '.items | length | if . == 1 then "1" else null end'
+
+check_endpoint "Exactly 1 concurrent commit" \
+    "${BASE_URL}/api/v5/${SUITE}/commits?search=concurrent" 200 \
+    GET "" '.items | length | if . == 1 then "1" else null end'
+
+check_endpoint "All $CONCURRENT concurrent runs exist" \
+    "${BASE_URL}/api/v5/${SUITE}/runs?machine=concurrent-machine&limit=100" 200 \
+    GET "" ".items | length | if . == $CONCURRENT then \"$CONCURRENT\" else null end"
+
+check_endpoint "Exactly 1 concurrent test" \
+    "${BASE_URL}/api/v5/${SUITE}/tests?name_contains=concurrent-bench" 200 \
+    GET "" '.items | length | if . == 1 then "1" else null end'
+
+# ---------------------------------------------------------------------------
 # Test: Read endpoints
 # ---------------------------------------------------------------------------
 echo "--- Read Endpoints ---"

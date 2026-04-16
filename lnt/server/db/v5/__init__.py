@@ -318,11 +318,11 @@ class V5TestSuiteDB:
         for key, value in metadata.items():
             if key in self._commit_field_names:
                 setattr(obj, key, value)
-        session.add(obj)
         try:
-            session.flush()
+            with session.begin_nested():
+                session.add(obj)
+                session.flush()
         except sqlalchemy.exc.IntegrityError:
-            session.rollback()
             # Race condition: another session created it; fetch and return.
             existing = (
                 session.query(self.Commit)
@@ -459,6 +459,9 @@ class V5TestSuiteDB:
 
         With ``strategy='reject'`` (default), raises ``ValueError`` if the
         existing machine's schema-defined fields differ from *fields*.
+
+        Uses a savepoint so that a concurrent insert by another session
+        does not invalidate earlier work in the same transaction.
         """
         existing = (
             session.query(self.Machine)
@@ -466,31 +469,7 @@ class V5TestSuiteDB:
             .first()
         )
         if existing is not None:
-            if strategy == "reject":
-                for key, value in fields.items():
-                    if key not in self._machine_field_names or value is None:
-                        continue
-                    existing_value = getattr(existing, key, None)
-                    if existing_value is not None and existing_value != value:
-                        raise ValueError(
-                            f"Machine {name!r}: field {key!r} changed "
-                            f"from {existing_value!r} to {value!r}"
-                        )
-                    if existing_value is None:
-                        setattr(existing, key, value)
-                # Merge parameters
-                if parameters:
-                    merged = dict(existing.parameters or {})
-                    merged.update(parameters)
-                    existing.parameters = merged
-            elif strategy == "update":
-                for key, value in fields.items():
-                    if key in self._machine_field_names and value is not None:
-                        setattr(existing, key, value)
-                if parameters:
-                    merged = dict(existing.parameters or {})
-                    merged.update(parameters)
-                    existing.parameters = merged
+            self._apply_machine_fields(existing, strategy, parameters, fields)
             return existing
 
         machine = self.Machine()
@@ -499,9 +478,52 @@ class V5TestSuiteDB:
             if key in self._machine_field_names:
                 setattr(machine, key, value)
         machine.parameters = parameters or {}
-        session.add(machine)
-        session.flush()
+        try:
+            with session.begin_nested():
+                session.add(machine)
+                session.flush()
+        except sqlalchemy.exc.IntegrityError:
+            # Race condition: another session created it between our
+            # SELECT and INSERT.  Re-query and apply field merge logic.
+            existing = (
+                session.query(self.Machine)
+                .filter(self.Machine.name == name)
+                .first()
+            )
+            if existing is None:
+                raise  # pragma: no cover
+            self._apply_machine_fields(existing, strategy, parameters, fields)
+            return existing
         return machine
+
+    def _apply_machine_fields(
+        self,
+        machine,
+        strategy: str,
+        parameters: dict[str, Any] | None,
+        fields: dict[str, Any],
+    ):
+        """Apply field merge / parameter merge logic to an existing machine."""
+        if strategy == "reject":
+            for key, value in fields.items():
+                if key not in self._machine_field_names or value is None:
+                    continue
+                existing_value = getattr(machine, key, None)
+                if existing_value is not None and existing_value != value:
+                    raise ValueError(
+                        f"Machine {machine.name!r}: field {key!r} changed "
+                        f"from {existing_value!r} to {value!r}"
+                    )
+                if existing_value is None:
+                    setattr(machine, key, value)
+        elif strategy == "update":
+            for key, value in fields.items():
+                if key in self._machine_field_names and value is not None:
+                    setattr(machine, key, value)
+        if parameters:
+            merged = dict(machine.parameters or {})
+            merged.update(parameters)
+            machine.parameters = merged
 
     def get_machine(
         self,
@@ -662,16 +684,19 @@ class V5TestSuiteDB:
             return existing
         test = self.Test()
         test.name = name
-        session.add(test)
         try:
-            session.flush()
+            with session.begin_nested():
+                session.add(test)
+                session.flush()
         except sqlalchemy.exc.IntegrityError:
-            session.rollback()
-            return (
+            existing = (
                 session.query(self.Test)
                 .filter(self.Test.name == name)
                 .first()
             )
+            if existing is None:
+                raise  # pragma: no cover
+            return existing
         return test
 
     def get_test(

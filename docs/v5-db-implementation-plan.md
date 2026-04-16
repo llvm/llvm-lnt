@@ -95,6 +95,13 @@ regular unique constraint. Ordinals are assigned once and not reassigned.
 - regression state validation (create and update)
 - import_run with missing format_version rejected
 
+**Post-Phase 1b fix: Concurrent submission safety** (design doc D14):
+- Added savepoint-based retry (`session.begin_nested()`) to all three
+  get-or-create methods (`get_or_create_machine`, `get_or_create_commit`,
+  `get_or_create_test`) so that concurrent submissions for the same
+  machine/commit/test name don't fail with UniqueViolation.
+- Added concurrent submission smoke test to `tests/docker/smoke-test.sh`.
+
 ---
 
 ## Phase 2: v5 API — Rewrite to Use V5TestSuiteDB

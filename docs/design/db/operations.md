@@ -134,3 +134,23 @@ a v5 Postgres database:
 Profile support is not part of the initial v5 database layer. The v4 Profile
 table is dropped and no replacement is provided. Profile support will be
 designed and added in a future iteration.
+
+
+## D14: Concurrent Submission
+
+Run submission (`POST /runs`) is atomic from the API user's perspective: it
+either fully succeeds (201) or fully fails with no partial side effects.
+
+Machines, commits, and tests are created via a get-or-create pattern. When
+two concurrent sessions race to create the same entity, the loser's INSERT
+hits a unique constraint violation. All three get-or-create methods handle
+this with **savepoint-based retry**:
+
+1. The INSERT is wrapped in `session.begin_nested()` (Postgres SAVEPOINT).
+2. On `IntegrityError`, only the savepoint is rolled back -- prior work in
+   the same transaction (e.g., a machine created earlier in the same
+   `import_run` call) is preserved.
+3. The method re-queries by name and returns the row created by the winner.
+
+This makes concurrent submissions for the same machine, commit, or test
+names safe. No client-side retry is needed.
