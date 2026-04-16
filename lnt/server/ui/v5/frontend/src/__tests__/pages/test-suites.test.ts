@@ -9,6 +9,7 @@ vi.mock('../../api', async (importOriginal) => {
     getMachines: vi.fn(),
     getRunsPage: vi.fn(),
     getCommitsPage: vi.fn(),
+    getRegressions: vi.fn(),
   };
 });
 
@@ -31,11 +32,11 @@ vi.mock('../../router', async (importOriginal) => {
 // Mock lnt_url_base
 (globalThis as unknown as Record<string, unknown>).lnt_url_base = '';
 
-import { getMachines, getRunsPage, getCommitsPage } from '../../api';
+import { getMachines, getRunsPage, getCommitsPage, getRegressions } from '../../api';
 import type { CursorPageResult } from '../../api';
 import { getTestsuites } from '../../router';
 import { testSuitesPage } from '../../pages/test-suites';
-import type { RunInfo, MachineInfo, CommitSummary } from '../../types';
+import type { RunInfo, MachineInfo, CommitSummary, RegressionListItem } from '../../types';
 
 const mockMachines: MachineInfo[] = [
   { name: 'clang-x86', info: { os: 'linux' } },
@@ -52,11 +53,20 @@ const mockCommits: CommitSummary[] = [
   { commit: '101', ordinal: null, fields: {} },
 ];
 
+const mockRegressions: RegressionListItem[] = [
+  { uuid: 'reg-1111', title: 'compile_time regression', bug: null, state: 'active', commit: '100', machine_count: 2, test_count: 3 },
+  { uuid: 'reg-2222', title: 'exec_time regression', bug: null, state: 'detected', commit: null, machine_count: 1, test_count: 1 },
+];
+
 function mockRunsPage(items: RunInfo[], nextCursor: string | null = null): CursorPageResult<RunInfo> {
   return { items, nextCursor };
 }
 
 function mockCommitsPage(items: CommitSummary[], nextCursor: string | null = null): CursorPageResult<CommitSummary> {
+  return { items, nextCursor };
+}
+
+function mockRegressionsPage(items: RegressionListItem[], nextCursor: string | null = null): CursorPageResult<RegressionListItem> {
   return { items, nextCursor };
 }
 
@@ -80,6 +90,9 @@ describe('testSuitesPage', () => {
     );
     (getCommitsPage as ReturnType<typeof vi.fn>).mockResolvedValue(
       mockCommitsPage(mockCommits),
+    );
+    (getRegressions as ReturnType<typeof vi.fn>).mockResolvedValue(
+      mockRegressionsPage(mockRegressions),
     );
 
     // Clear URL query params
@@ -122,13 +135,14 @@ describe('testSuitesPage', () => {
     const tabBar = container.querySelector('.v5-tab-bar') as HTMLElement;
     expect(tabBar.style.display).not.toBe('none');
 
-    // Should have 4 tabs
+    // Should have 5 tabs
     const tabs = tabBar.querySelectorAll('.v5-tab');
-    expect(tabs).toHaveLength(4);
+    expect(tabs).toHaveLength(5);
     expect(tabs[0].textContent).toBe('Recent Activity');
     expect(tabs[1].textContent).toBe('Machines');
     expect(tabs[2].textContent).toBe('Runs');
     expect(tabs[3].textContent).toBe('Commits');
+    expect(tabs[4].textContent).toBe('Regressions');
   });
 
   it('highlights the selected suite card', () => {
@@ -404,6 +418,76 @@ describe('testSuitesPage', () => {
 
     await vi.waitFor(() => {
       expect(container.textContent).toContain('No recent activity');
+    });
+  });
+
+  describe('Regressions tab', () => {
+    it('clicking Regressions tab calls getRegressions with correct suite', async () => {
+      testSuitesPage.mount(container, { testsuite: '' });
+      (container.querySelector('.suite-card') as HTMLElement).click();
+
+      // Wait for initial tab content to load
+      await vi.waitFor(() => expect(container.querySelector('table')).toBeTruthy());
+
+      const regressionsTab = Array.from(container.querySelectorAll('.v5-tab'))
+        .find(t => t.textContent === 'Regressions') as HTMLElement;
+      regressionsTab.click();
+
+      await vi.waitFor(() => {
+        expect(getRegressions).toHaveBeenCalledWith(
+          'nts',
+          expect.objectContaining({ limit: 25 }),
+          expect.any(AbortSignal),
+        );
+      });
+    });
+
+    it('renders table rows with regression data', async () => {
+      testSuitesPage.mount(container, { testsuite: '' });
+      (container.querySelector('.suite-card') as HTMLElement).click();
+
+      await vi.waitFor(() => expect(container.querySelector('table')).toBeTruthy());
+
+      const regressionsTab = Array.from(container.querySelectorAll('.v5-tab'))
+        .find(t => t.textContent === 'Regressions') as HTMLElement;
+      regressionsTab.click();
+
+      await vi.waitFor(() => {
+        const headers = Array.from(container.querySelectorAll('th')).map(h => h.textContent);
+        expect(headers).toContain('Title');
+        expect(headers).toContain('State');
+        expect(headers).toContain('Commit');
+        expect(headers).toContain('Machines');
+        expect(headers).toContain('Tests');
+
+        // Check data is rendered
+        expect(container.textContent).toContain('compile_time regression');
+        expect(container.textContent).toContain('exec_time regression');
+
+        // Title should be a link to the regression detail page
+        const titleLink = container.querySelector('a[href*="/regressions/reg-1111"]') as HTMLAnchorElement;
+        expect(titleLink).toBeTruthy();
+        expect(titleLink.textContent).toBe('compile_time regression');
+      });
+    });
+
+    it('empty state when no regressions', async () => {
+      (getRegressions as ReturnType<typeof vi.fn>).mockResolvedValue(
+        mockRegressionsPage([]),
+      );
+
+      testSuitesPage.mount(container, { testsuite: '' });
+      (container.querySelector('.suite-card') as HTMLElement).click();
+
+      await vi.waitFor(() => expect(container.querySelector('table')).toBeTruthy());
+
+      const regressionsTab = Array.from(container.querySelectorAll('.v5-tab'))
+        .find(t => t.textContent === 'Regressions') as HTMLElement;
+      regressionsTab.click();
+
+      await vi.waitFor(() => {
+        expect(container.textContent).toContain('No regressions.');
+      });
     });
   });
 });

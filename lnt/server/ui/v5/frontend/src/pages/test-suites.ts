@@ -2,10 +2,11 @@
 // Suite-agnostic — served at /v5/test-suites.
 
 import type { PageModule, RouteParams } from '../router';
-import type { MachineInfo, RunInfo, CommitSummary } from '../types';
+import type { MachineInfo, RunInfo, CommitSummary, RegressionListItem } from '../types';
 import type { CursorPageResult } from '../api';
 import { getTestsuites } from '../router';
-import { getMachines, getRunsPage, getCommitsPage } from '../api';
+import { getMachines, getRunsPage, getCommitsPage, getRegressions } from '../api';
+import { renderStateBadge } from '../regression-utils';
 import type { Column } from '../components/data-table';
 import { el, formatTime, truncate, debounce } from '../utils';
 import { renderDataTable } from '../components/data-table';
@@ -13,7 +14,7 @@ import { renderPagination } from '../components/pagination';
 
 const PAGE_SIZE = 25;
 
-type TabId = 'recent' | 'machines' | 'runs' | 'commits';
+type TabId = 'recent' | 'machines' | 'runs' | 'commits' | 'regressions';
 
 let tabController: AbortController | null = null;
 
@@ -73,6 +74,7 @@ export const testSuitesPage: PageModule = {
       { id: 'machines', label: 'Machines' },
       { id: 'runs', label: 'Runs' },
       { id: 'commits', label: 'Commits' },
+      { id: 'regressions', label: 'Regressions' },
     ];
     const tabButtons: HTMLElement[] = [];
     for (const tab of tabDefs) {
@@ -166,6 +168,16 @@ export const testSuitesPage: PageModule = {
             }, sig),
             commitsColumns(selectedSuite),
             (search: string) => { currentSearch = search; syncUrl(); });
+          break;
+        case 'regressions':
+          renderCursorPaginatedTab(tabContent, selectedSuite, '', signal,
+            '', 'Loading regressions...', 'No regressions.',
+            'Failed to load regressions',
+            (s, opts, sig) => getRegressions(s, {
+              limit: opts.limit,
+              cursor: opts.cursor,
+            }, sig),
+            regressionsColumns(selectedSuite));
           break;
       }
     }
@@ -375,25 +387,37 @@ function renderCursorPaginatedTab<T>(
   errorPrefix: string,
   fetchPage: (suite: string, opts: CursorFetchOpts, signal: AbortSignal) => Promise<CursorPageResult<T>>,
   columns: Column<T>[],
-  onSearchChange: (search: string) => void,
+  onSearchChange?: (search: string) => void,
 ): void {
-  const searchRow = el('div', { class: 'table-controls' });
-  const searchInput = el('input', {
-    type: 'text',
-    class: 'test-filter-input',
-    placeholder,
-  }) as HTMLInputElement;
-  searchInput.value = initialSearch;
-  searchRow.append(searchInput);
-  container.append(searchRow);
+  let currentSearch = initialSearch;
+  const cursorStack: string[] = [];
+  let currentCursor: string | undefined;
+
+  if (placeholder && onSearchChange) {
+    const searchRow = el('div', { class: 'table-controls' });
+    const searchInput = el('input', {
+      type: 'text',
+      class: 'test-filter-input',
+      placeholder,
+    }) as HTMLInputElement;
+    searchInput.value = initialSearch;
+    searchRow.append(searchInput);
+    container.append(searchRow);
+
+    const onInput = debounce(() => {
+      currentSearch = searchInput.value.trim();
+      cursorStack.length = 0;
+      currentCursor = undefined;
+      onSearchChange(currentSearch);
+      loadPage();
+    }, 300);
+
+    searchInput.addEventListener('input', onInput as EventListener);
+  }
 
   const tableContainer = el('div', {});
   const paginationContainer = el('div', {});
   container.append(tableContainer, paginationContainer);
-
-  let currentSearch = initialSearch;
-  const cursorStack: string[] = [];
-  let currentCursor: string | undefined;
 
   async function loadPage(): Promise<void> {
     tableContainer.replaceChildren();
@@ -436,15 +460,6 @@ function renderCursorPaginatedTab<T>(
     }
   }
 
-  const onInput = debounce(() => {
-    currentSearch = searchInput.value.trim();
-    cursorStack.length = 0;
-    currentCursor = undefined;
-    onSearchChange(currentSearch);
-    loadPage();
-  }, 300);
-
-  searchInput.addEventListener('input', onInput as EventListener);
   loadPage();
 }
 
@@ -472,5 +487,27 @@ function commitsColumns(suite: string): Column<CommitSummary>[] {
         detailLink(o.commit, suite, `/commits/${encodeURIComponent(o.commit)}`) },
     { key: 'ordinal', label: 'Ordinal',
       render: (o: CommitSummary) => o.ordinal != null ? String(o.ordinal) : '\u2014' },
+  ];
+}
+
+// ---------------------------------------------------------------------------
+// Regressions Tab
+// ---------------------------------------------------------------------------
+
+function regressionsColumns(suite: string): Column<RegressionListItem>[] {
+  return [
+    { key: 'title', label: 'Title',
+      render: (r: RegressionListItem) =>
+        detailLink(r.title || '(untitled)', suite,
+          `/regressions/${encodeURIComponent(r.uuid)}`) },
+    { key: 'state', label: 'State',
+      render: (r: RegressionListItem) => renderStateBadge(r.state) },
+    { key: 'commit', label: 'Commit',
+      render: (r: RegressionListItem) =>
+        r.commit
+          ? detailLink(truncate(r.commit, 12), suite, `/commits/${encodeURIComponent(r.commit)}`)
+          : '\u2014' },
+    { key: 'machine_count', label: 'Machines', cellClass: 'col-num' },
+    { key: 'test_count', label: 'Tests', cellClass: 'col-num' },
   ];
 }

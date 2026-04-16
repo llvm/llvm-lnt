@@ -177,6 +177,10 @@ async function loadMachineRegressions(
       rows: regressions,
       emptyMessage: 'No active regressions.',
     });
+
+    container.append(
+      spaLink('Show all regressions', '/regressions?machine=' + encodeURIComponent(machineName)),
+    );
   } catch (e: unknown) {
     if (e instanceof DOMException && e.name === 'AbortError') return;
     container.append(el('p', { class: 'error-banner' },

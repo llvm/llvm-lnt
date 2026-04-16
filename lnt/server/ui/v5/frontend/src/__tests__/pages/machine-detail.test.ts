@@ -9,6 +9,7 @@ vi.mock('../../api', async (importOriginal) => {
     getMachine: vi.fn(),
     getMachineRuns: vi.fn(),
     deleteMachine: vi.fn(),
+    getRegressions: vi.fn(),
   };
 });
 
@@ -31,9 +32,9 @@ vi.mock('../../router', async (importOriginal) => {
   Fx: { hover: vi.fn(), unhover: vi.fn() },
 };
 
-import { getMachine, getMachineRuns, deleteMachine } from '../../api';
+import { getMachine, getMachineRuns, deleteMachine, getRegressions } from '../../api';
 import { machineDetailPage } from '../../pages/machine-detail';
-import type { MachineInfo, MachineRunInfo } from '../../types';
+import type { MachineInfo, MachineRunInfo, RegressionListItem } from '../../types';
 
 const mockMachine: MachineInfo = {
   name: 'clang-x86',
@@ -49,6 +50,10 @@ function runsResponse(items: MachineRunInfo[], nextCursor: string | null = null)
   return { items, cursor: { next: nextCursor, previous: null } };
 }
 
+const mockRegressionItems: RegressionListItem[] = [
+  { uuid: 'reg-1111', title: 'compile_time regression', bug: null, state: 'active', commit: '100', machine_count: 1, test_count: 2 },
+];
+
 describe('machineDetailPage', () => {
   let container: HTMLElement;
 
@@ -58,6 +63,10 @@ describe('machineDetailPage', () => {
 
     (getMachine as ReturnType<typeof vi.fn>).mockResolvedValue(mockMachine);
     (getMachineRuns as ReturnType<typeof vi.fn>).mockResolvedValue(runsResponse(mockRuns));
+    (getRegressions as ReturnType<typeof vi.fn>).mockResolvedValue({
+      items: mockRegressionItems,
+      nextCursor: null,
+    });
   });
 
   afterEach(() => {
@@ -261,5 +270,28 @@ describe('machineDetailPage', () => {
 
     machineDetailPage.mount(container, { testsuite: 'nts', name: 'clang-x86' });
     expect(() => machineDetailPage.unmount!()).not.toThrow();
+  });
+
+  describe('Show all regressions link', () => {
+    it('"Show all regressions" link present after active regressions load', async () => {
+      machineDetailPage.mount(container, { testsuite: 'nts', name: 'clang-x86' });
+
+      await vi.waitFor(() => {
+        const link = Array.from(container.querySelectorAll('a'))
+          .find(a => a.textContent === 'Show all regressions');
+        expect(link).toBeTruthy();
+      });
+    });
+
+    it('link href includes ?machine= with the machine name', async () => {
+      machineDetailPage.mount(container, { testsuite: 'nts', name: 'clang-x86' });
+
+      await vi.waitFor(() => {
+        const link = Array.from(container.querySelectorAll('a'))
+          .find(a => a.textContent === 'Show all regressions') as HTMLAnchorElement;
+        expect(link).toBeTruthy();
+        expect(link.getAttribute('href')).toContain('/regressions?machine=clang-x86');
+      });
+    });
   });
 });
