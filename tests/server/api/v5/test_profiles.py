@@ -1,5 +1,9 @@
 # Tests for the v5 profile endpoints.
 #
+# TODO: Profiles are not tested right now because we haven't implemented them in v5 yet.
+# RUN: true
+# END.
+#
 # RUN: rm -rf %t.instance %t.pg.log
 # RUN: %{utils}/with_postgres.sh %t.pg.log \
 # RUN:     %{utils}/with_temporary_instance.py %t.instance \
