@@ -12,7 +12,7 @@ from __future__ import annotations
 import datetime
 import json
 import uuid as uuid_module
-from typing import Any
+from typing import Any, Iterable
 
 import sqlalchemy
 import sqlalchemy.exc
@@ -287,6 +287,37 @@ class V5TestSuiteDB:
         self.RegressionIndicator = models.RegressionIndicator
 
     # ===================================================================
+    # Field / metric validation
+    # ===================================================================
+
+    def _validate_commit_fields(self, keys: Iterable[str]) -> None:
+        """Raise ValueError if *keys* contains names not in the schema."""
+        unknown = set(keys) - self._commit_field_names
+        if unknown:
+            raise ValueError(
+                f"Unknown commit field(s): {', '.join(sorted(unknown))}. "
+                f"Valid names: {', '.join(sorted(self._commit_field_names))}"
+            )
+
+    def _validate_machine_fields(self, keys: Iterable[str]) -> None:
+        """Raise ValueError if *keys* contains names not in the schema."""
+        unknown = set(keys) - self._machine_field_names
+        if unknown:
+            raise ValueError(
+                f"Unknown machine field(s): {', '.join(sorted(unknown))}. "
+                f"Valid names: {', '.join(sorted(self._machine_field_names))}"
+            )
+
+    def _validate_metric_names(self, keys: Iterable[str]) -> None:
+        """Raise ValueError if *keys* contains names not in the schema."""
+        unknown = set(keys) - self._metric_names
+        if unknown:
+            raise ValueError(
+                f"Unknown metric(s): {', '.join(sorted(unknown))}. "
+                f"Valid names: {', '.join(sorted(self._metric_names))}"
+            )
+
+    # ===================================================================
     # Commits
     # ===================================================================
 
@@ -315,9 +346,9 @@ class V5TestSuiteDB:
         obj = self.Commit()
         obj.commit = commit
         # ordinal is always NULL on creation
+        self._validate_commit_fields(metadata.keys())
         for key, value in metadata.items():
-            if key in self._commit_field_names:
-                setattr(obj, key, value)
+            setattr(obj, key, value)
         try:
             with session.begin_nested():
                 session.add(obj)
@@ -369,9 +400,9 @@ class V5TestSuiteDB:
             commit_obj.ordinal = None
         elif ordinal is not None:
             commit_obj.ordinal = ordinal
+        self._validate_commit_fields(commit_fields.keys())
         for key, value in commit_fields.items():
-            if key in self._commit_field_names:
-                setattr(commit_obj, key, value)
+            setattr(commit_obj, key, value)
         session.flush()
         return commit_obj
 
@@ -463,6 +494,7 @@ class V5TestSuiteDB:
         Uses a savepoint so that a concurrent insert by another session
         does not invalidate earlier work in the same transaction.
         """
+        self._validate_machine_fields(fields.keys())
         existing = (
             session.query(self.Machine)
             .filter(self.Machine.name == name)
@@ -475,8 +507,7 @@ class V5TestSuiteDB:
         machine = self.Machine()
         machine.name = name
         for key, value in fields.items():
-            if key in self._machine_field_names:
-                setattr(machine, key, value)
+            setattr(machine, key, value)
         machine.parameters = parameters or {}
         try:
             with session.begin_nested():
@@ -506,7 +537,7 @@ class V5TestSuiteDB:
         """Apply field merge / parameter merge logic to an existing machine."""
         if strategy == "reject":
             for key, value in fields.items():
-                if key not in self._machine_field_names or value is None:
+                if value is None:
                     continue
                 existing_value = getattr(machine, key, None)
                 if existing_value is not None and existing_value != value:
@@ -518,7 +549,7 @@ class V5TestSuiteDB:
                     setattr(machine, key, value)
         elif strategy == "update":
             for key, value in fields.items():
-                if key in self._machine_field_names and value is not None:
+                if value is not None:
                     setattr(machine, key, value)
         if parameters:
             merged = dict(machine.parameters or {})
@@ -589,9 +620,9 @@ class V5TestSuiteDB:
             machine.name = name
         if parameters is not None:
             machine.parameters = parameters
+        self._validate_machine_fields(fields.keys())
         for key, value in fields.items():
-            if key in self._machine_field_names:
-                setattr(machine, key, value)
+            setattr(machine, key, value)
         session.flush()
         return machine
 
@@ -758,17 +789,18 @@ class V5TestSuiteDB:
 
         Each dict in *samples* must have ``test_id`` plus metric fields.
         """
-        metric_names = self._metric_names
+        # Validate metric names once (all samples use the same schema keys).
+        if samples:
+            self._validate_metric_names(samples[0].keys() - {"test_id"})
         created = []
         for sample_data in samples:
             s = self.Sample()
             s.run_id = run.id
             s.test_id = sample_data["test_id"]
             for key, value in sample_data.items():
-                if key in ("test_id",):
+                if key == "test_id":
                     continue
-                if key in metric_names:
-                    setattr(s, key, value)
+                setattr(s, key, value)
             created.append(s)
         session.add_all(created)
         session.flush()
@@ -1222,7 +1254,6 @@ class V5TestSuiteDB:
         Returns the list of created Sample objects.
         """
         tests_data = data.get("tests", [])
-        metric_names = self._metric_names
         all_samples: list[dict[str, Any]] = []
 
         for test_entry in tests_data:
@@ -1232,12 +1263,12 @@ class V5TestSuiteDB:
 
             test = self.get_or_create_test(session, test_name)
 
+            self._validate_metric_names(test_entry.keys() - {"name"})
             metrics: dict[str, Any] = {}
             for key, value in test_entry.items():
                 if key == "name":
                     continue
-                if key in metric_names:
-                    metrics[key] = value
+                metrics[key] = value
 
             list_len = None
             for key, value in metrics.items():

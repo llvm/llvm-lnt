@@ -144,15 +144,6 @@ class TestUpdateCommit(unittest.TestCase):
         self.assertEqual(fetched.author, "Dave")
         session.close()
 
-    def test_unknown_metadata_ignored(self):
-        """update_commit ignores keywords that are not in commit_fields."""
-        session = self.Session()
-        c = self.tsdb.get_or_create_commit(session, "uc-ignore-1")
-        # Should not raise
-        self.tsdb.update_commit(session, c, nonexistent_field="value")
-        session.commit()
-        session.close()
-
 
 class TestRegressionCRUD(_CRUDTestBase):
 
@@ -575,16 +566,6 @@ class TestUpdateMachine(_CRUDTestBase):
         self.assertEqual(fetched.parameters, {"new": "value"})
         session.close()
 
-    def test_update_machine_ignores_unknown_fields(self):
-        session = self.Session()
-        m = self.tsdb.get_or_create_machine(session, "upd-m-4")
-        session.commit()
-
-        # Should not raise
-        self.tsdb.update_machine(session, m, nonexistent_field="value")
-        session.commit()
-        session.close()
-
 
 class TestRegressionIndicatorManagement(_CRUDTestBase):
 
@@ -785,6 +766,55 @@ class TestRegressionStateValidation(_CRUDTestBase):
                 session, f"state-{state_val}", [], state=state_val)
             self.assertEqual(reg.state, state_val)
         session.commit()
+        session.close()
+
+
+class TestUnknownFieldRejection(_CRUDTestBase):
+    """Unknown field/metric names must raise ValueError."""
+
+    def test_get_or_create_commit_unknown_field(self):
+        session = self.Session()
+        with self.assertRaises(ValueError) as cm:
+            self.tsdb.get_or_create_commit(
+                session, "bad-commit", bogus_field="x")
+        self.assertIn("bogus_field", str(cm.exception))
+        session.close()
+
+    def test_update_commit_unknown_field(self):
+        session = self.Session()
+        c = self.tsdb.get_or_create_commit(session, "uf-commit")
+        with self.assertRaises(ValueError) as cm:
+            self.tsdb.update_commit(session, c, nonexistent="x")
+        self.assertIn("nonexistent", str(cm.exception))
+        session.close()
+
+    def test_get_or_create_machine_unknown_field(self):
+        session = self.Session()
+        with self.assertRaises(ValueError) as cm:
+            self.tsdb.get_or_create_machine(
+                session, "bad-machine", bad_field="x")
+        self.assertIn("bad_field", str(cm.exception))
+        session.close()
+
+    def test_update_machine_unknown_field(self):
+        session = self.Session()
+        m = self.tsdb.get_or_create_machine(session, "uf-machine")
+        with self.assertRaises(ValueError) as cm:
+            self.tsdb.update_machine(session, m, no_such="x")
+        self.assertIn("no_such", str(cm.exception))
+        session.close()
+
+    def test_create_samples_unknown_metric(self):
+        session = self.Session()
+        m = self.tsdb.get_or_create_machine(session, "uf-sample-m")
+        c = self.tsdb.get_or_create_commit(session, "uf-sample-c")
+        run = self.tsdb.create_run(session, m, commit=c)
+        t = self.tsdb.get_or_create_test(session, "uf-test")
+        with self.assertRaises(ValueError) as cm:
+            self.tsdb.create_samples(session, run, [
+                {"test_id": t.id, "executin_time": 1.0},
+            ])
+        self.assertIn("executin_time", str(cm.exception))
         session.close()
 
 

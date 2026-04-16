@@ -369,6 +369,24 @@ class TestImportRun(_ImportTestBase):
         session.rollback()
         session.close()
 
+    def test_import_unknown_metric_rejected(self):
+        """A typo'd metric name in test data raises ValueError."""
+        session = self.Session()
+        data = {
+            "format_version": "5",
+            "machine": {"name": "unk-metric-machine"},
+            "commit": "unk-metric-commit",
+            "tests": [{
+                "name": "test/unk-metric",
+                "executin_time": 1.0,  # typo: should be execution_time
+            }],
+        }
+        with self.assertRaises(ValueError) as cm:
+            self.tsdb.import_run(session, data)
+        self.assertIn("executin_time", str(cm.exception))
+        session.rollback()
+        session.close()
+
 
 class TestGetOrCreateCommit(_ImportTestBase):
 
