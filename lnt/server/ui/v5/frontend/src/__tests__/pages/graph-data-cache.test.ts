@@ -41,11 +41,11 @@ describe('GraphDataCache', () => {
   // -------------------------------------------------------------------------
 
   describe('getScaffold', () => {
-    it('fetches and caches scaffold commits', async () => {
+    it('fetches commits sorted by ordinal and caches', async () => {
       api.fetchOneCursorPage.mockResolvedValueOnce({
         items: [
-          { uuid: 'r1', commit: '100', submitted_at: null },
-          { uuid: 'r2', commit: '101', submitted_at: null },
+          { commit: '100', ordinal: 10, fields: {} },
+          { commit: '101', ordinal: 20, fields: {} },
         ],
         nextCursor: null,
       });
@@ -53,6 +53,11 @@ describe('GraphDataCache', () => {
       const result = await cache.getScaffold('nts', 'm1');
       expect(result).toEqual(['100', '101']);
       expect(api.fetchOneCursorPage).toHaveBeenCalledTimes(1);
+
+      // Verify the endpoint and params
+      const [url, params] = api.fetchOneCursorPage.mock.calls[0];
+      expect(url).toContain('/commits');
+      expect(params).toMatchObject({ machine: 'm1', sort: 'ordinal' });
 
       // Second call returns cached (no API hit)
       const result2 = await cache.getScaffold('nts', 'm1');
@@ -63,31 +68,17 @@ describe('GraphDataCache', () => {
     it('paginates through all results', async () => {
       api.fetchOneCursorPage
         .mockResolvedValueOnce({
-          items: [{ uuid: 'r1', commit: '100', submitted_at: null }],
+          items: [{ commit: '100', ordinal: 10, fields: {} }],
           nextCursor: 'cursor1',
         })
         .mockResolvedValueOnce({
-          items: [{ uuid: 'r2', commit: '101', submitted_at: null }],
+          items: [{ commit: '101', ordinal: 20, fields: {} }],
           nextCursor: null,
         });
 
       const result = await cache.getScaffold('nts', 'm1');
       expect(result).toEqual(['100', '101']);
       expect(api.fetchOneCursorPage).toHaveBeenCalledTimes(2);
-    });
-
-    it('deduplicates commit values', async () => {
-      api.fetchOneCursorPage.mockResolvedValueOnce({
-        items: [
-          { uuid: 'r1', commit: '100', submitted_at: null },
-          { uuid: 'r2', commit: '100', submitted_at: null },
-          { uuid: 'r3', commit: '101', submitted_at: null },
-        ],
-        nextCursor: null,
-      });
-
-      const result = await cache.getScaffold('nts', 'm1');
-      expect(result).toEqual(['100', '101']);
     });
   });
 
@@ -353,19 +344,19 @@ describe('GraphDataCache', () => {
   // -------------------------------------------------------------------------
 
   describe('scaffoldUnion', () => {
-    it('computes union across machines', async () => {
+    it('computes union across machines sorted by ordinal', async () => {
       api.fetchOneCursorPage
         .mockResolvedValueOnce({
           items: [
-            { uuid: 'r1', commit: '100', submitted_at: null },
-            { uuid: 'r2', commit: '101', submitted_at: null },
+            { commit: '100', ordinal: 10, fields: {} },
+            { commit: '101', ordinal: 30, fields: {} },
           ],
           nextCursor: null,
         })
         .mockResolvedValueOnce({
           items: [
-            { uuid: 'r3', commit: '101', submitted_at: null },
-            { uuid: 'r4', commit: '102', submitted_at: null },
+            { commit: '101', ordinal: 30, fields: {} },
+            { commit: '102', ordinal: 40, fields: {} },
           ],
           nextCursor: null,
         });
@@ -375,6 +366,32 @@ describe('GraphDataCache', () => {
 
       const union = cache.scaffoldUnion('nts', ['m1', 'm2']);
       expect(union).toEqual(['100', '101', '102']);
+    });
+
+    it('merges interleaved ordinals correctly', async () => {
+      api.fetchOneCursorPage
+        .mockResolvedValueOnce({
+          items: [
+            { commit: 'a', ordinal: 1, fields: {} },
+            { commit: 'c', ordinal: 3, fields: {} },
+            { commit: 'e', ordinal: 5, fields: {} },
+          ],
+          nextCursor: null,
+        })
+        .mockResolvedValueOnce({
+          items: [
+            { commit: 'b', ordinal: 2, fields: {} },
+            { commit: 'c', ordinal: 3, fields: {} },
+            { commit: 'f', ordinal: 6, fields: {} },
+          ],
+          nextCursor: null,
+        });
+
+      await cache.getScaffold('nts', 'm1');
+      await cache.getScaffold('nts', 'm2');
+
+      const union = cache.scaffoldUnion('nts', ['m1', 'm2']);
+      expect(union).toEqual(['a', 'b', 'c', 'e', 'f']);
     });
 
     it('returns null when no scaffolds cached', () => {
@@ -391,7 +408,7 @@ describe('GraphDataCache', () => {
       // Populate each cache type
       api.fetchOneCursorPage
         .mockResolvedValueOnce({
-          items: [{ uuid: 'r1', commit: '100', submitted_at: null }],
+          items: [{ commit: '100', ordinal: 10, fields: {} }],
           nextCursor: null,
         })
         .mockResolvedValueOnce({

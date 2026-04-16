@@ -366,29 +366,30 @@ GET    /api/v5/{ts}/machines/{machine_name}/runs  — List runs (cursor-paginate
 **Filters** (on list): `name_contains=`, `name_prefix=`
 **Filters** (on runs): `after=`, `before=` (ISO datetime), `sort=-start_time`
 
-### 5.3 Orders
+### 5.3 Commits (was "Orders")
 
 **Endpoints:**
 ```
-GET    /api/v5/{ts}/orders                      — List (cursor-paginated, filterable)
-POST   /api/v5/{ts}/orders                      — Create with metadata
-GET    /api/v5/{ts}/orders/{order_value}         — Detail (includes prev/next)
-PATCH  /api/v5/{ts}/orders/{order_value}         — Update metadata
+GET    /api/v5/{ts}/commits                     — List (cursor-paginated, filterable)
+POST   /api/v5/{ts}/commits                     — Create with metadata (commit_fields)
+GET    /api/v5/{ts}/commits/{value}             — Detail (includes prev/next by ordinal)
+PATCH  /api/v5/{ts}/commits/{value}             — Update ordinal and/or commit_fields
+DELETE /api/v5/{ts}/commits/{value}             — Delete (cascade to runs/samples; 409 if referenced by regressions)
 ```
 
 **Key design decisions:**
-- `order_value` is the primary order field value (e.g., a revision number, git SHA, etc.)
-- For multi-field orders: additional query params disambiguate. 409 if ambiguous.
-- Order detail includes `previous_order` and `next_order` references (field values + links)
-- `after`/`before` filtering: use Order.id comparison in SQL (Order IDs approximate
-  insertion order, which correlates with revision order for most deployments). For
-  correctness, post-filter in Python using `convert_revision()`. Cap the query with
-  a SQL LIMIT as safety net.
-- No DELETE (return 405).
-- Order metadata storage: if the Order model lacks a `parameters_data` column, the
-  PATCH endpoint is deferred until a migration adds one. For v1, POST creates orders
-  with field values only.
-- Auth: read=GET, submit=POST, manage=PATCH.
+- `{value}` is the commit identity string (e.g., a git SHA).
+- Commit detail includes `previous_commit` and `next_commit` references (by ordinal).
+- Ordinals are always NULL on creation and assigned via PATCH.
+- Auth: read=GET, submit=POST, manage=PATCH/DELETE.
+- Filters: `search=` (prefix match on commit string and searchable commit
+  fields), `machine=` (only commits with at least one run on this machine;
+  404 if machine not found via `lookup_machine`). Uses an EXISTS subquery on
+  the Run table filtered by `commit_id` and `machine_id`.
+- Sort: `sort=ordinal` sorts by `Commit.ordinal` ascending and excludes
+  commits with NULL ordinals. Uses `Commit.ordinal` as the cursor column
+  (unique constraint guarantees correctness). Default sort is by `Commit.id`.
+  Invalid sort values return 400.
 
 ### 5.4 Runs
 

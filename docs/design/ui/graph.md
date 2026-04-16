@@ -47,14 +47,16 @@ datasets.
 
 To prevent the x-axis from resizing/shifting as lazy-loaded pages arrive, the
 graph page pre-fetches the complete list of commit values for each selected
-machine via paginated calls to the `GET machines/{name}/runs` endpoint (using
-`fetchOneCursorPage` with `sort=commit`). When multiple machines are selected,
-the scaffold is the **union** of all machines' commit values, so the x-axis
-spans the full range across all machines. Traces naturally have gaps where
-their machine has no data at a given commit. Each machine's scaffold is fetched
-and cached independently; the union is recomputed when machines are added or
-removed. If a scaffold fetch fails for one machine, that machine's commits are
-simply not included in the union -- the chart still works.
+machine via paginated calls to `GET commits?machine={name}&sort=ordinal`.
+This returns commits in ordinal order, excluding commits without ordinals
+(which have no meaningful position in a time series). When multiple machines
+are selected, the scaffold is the **union** of all machines' commit values,
+sorted by ordinal, so the x-axis spans the full range across all machines.
+Traces naturally have gaps where their machine has no data at a given commit.
+Each machine's scaffold is fetched and cached independently; the union is
+recomputed when machines are added or removed. If a scaffold fetch fails for
+one machine, that machine's commits are simply not included in the union --
+the chart still works.
 
 
 ### Incremental Chart Updates
@@ -171,7 +173,7 @@ the x-axis scaffold so the user can see the commit range.
 
 - `POST query` with JSON body `{machine, metric, test, sort, limit, cursor}` (one fetch pipeline per machine, targeted to discovered tests via multi-value `test`)
 - `GET tests?machine=...&metric=...&name_contains=...` (test name discovery)
-- `GET machines/{name}/runs?sort=commit` (x-axis scaffold, per machine)
+- `GET commits?machine={name}&sort=ordinal` (x-axis scaffold, per machine)
 - `GET commits` (tags for baseline suggestions)
 - `GET machines` (machine combobox)
 - `GET test-suites/{ts}` (fields/metrics)

@@ -1,8 +1,7 @@
 // pages/graph-data-cache.ts — Centralized data cache for the graph page.
 
-import type { QueryDataPoint } from '../types';
+import type { QueryDataPoint, CommitSummary } from '../types';
 import type { CursorPageResult } from '../api';
-import type { MachineRunInfo } from '../types';
 
 export interface GraphDataApi {
   apiUrl: (suite: string, path: string) => string;
@@ -28,11 +27,15 @@ function scaffoldKey(suite: string, machine: string): string {
   return `${suite}::${machine}`;
 }
 
+interface ScaffoldEntry { commit: string; ordinal: number; }
+
+interface ScaffoldCache { entries: ScaffoldEntry[]; commits: string[]; }
+
 export class GraphDataCache {
   private data = new Map<string, { points: QueryDataPoint[]; complete: boolean }>();
   private baselineData = new Map<string, { points: QueryDataPoint[]; fetchedTests: Set<string> }>();
   private testNames = new Map<string, string[]>();
-  private scaffolds = new Map<string, string[]>();
+  private scaffolds = new Map<string, ScaffoldCache>();
   private api: GraphDataApi;
 
   constructor(api: GraphDataApi) {
@@ -42,25 +45,26 @@ export class GraphDataCache {
   async getScaffold(suite: string, machine: string, signal?: AbortSignal): Promise<string[]> {
     const key = scaffoldKey(suite, machine);
     const cached = this.scaffolds.get(key);
-    if (cached) return cached;
+    if (cached) return cached.commits;
 
-    const seen = new Set<string>();
-    const commits: string[] = [];
+    const entries: ScaffoldEntry[] = [];
     let cursor: string | undefined;
-    const runsUrl = this.api.apiUrl(suite, `machines/${encodeURIComponent(machine)}/runs`);
+    const commitsUrl = this.api.apiUrl(suite, 'commits');
     while (true) {
       if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-      const params: Record<string, string> = { sort: 'submitted_at', limit: '10000' };
+      const params: Record<string, string> = { machine, sort: 'ordinal', limit: '10000' };
       if (cursor) params.cursor = cursor;
-      const page = await this.api.fetchOneCursorPage<MachineRunInfo>(runsUrl, params, signal);
-      for (const run of page.items) {
-        const ov = run.commit;
-        if (!seen.has(ov)) { seen.add(ov); commits.push(ov); }
+      const page = await this.api.fetchOneCursorPage<CommitSummary>(commitsUrl, params, signal);
+      for (const item of page.items) {
+        if (item.ordinal != null) {
+          entries.push({ commit: item.commit, ordinal: item.ordinal });
+        }
       }
       if (!page.nextCursor) break;
       cursor = page.nextCursor;
     }
-    this.scaffolds.set(key, commits);
+    const commits = entries.map(e => e.commit);
+    this.scaffolds.set(key, { entries, commits });
     return commits;
   }
 
@@ -224,18 +228,21 @@ export class GraphDataCache {
   }
 
   scaffoldUnion(suite: string, machineList: string[]): string[] | null {
-    const seen = new Set<string>();
-    const union: string[] = [];
+    const byCommit = new Map<string, number>();
     for (const m of machineList) {
       const key = scaffoldKey(suite, m);
-      const scaffold = this.scaffolds.get(key);
-      if (scaffold) {
-        for (const ov of scaffold) {
-          if (!seen.has(ov)) { seen.add(ov); union.push(ov); }
+      const cached = this.scaffolds.get(key);
+      if (cached) {
+        for (const entry of cached.entries) {
+          if (!byCommit.has(entry.commit)) {
+            byCommit.set(entry.commit, entry.ordinal);
+          }
         }
       }
     }
-    return union.length > 0 ? union : null;
+    if (byCommit.size === 0) return null;
+    const sorted = [...byCommit.entries()].sort((a, b) => a[1] - b[1]);
+    return sorted.map(([commit]) => commit);
   }
 
   clear(): void {

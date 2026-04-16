@@ -95,6 +95,16 @@ class CommitListQuerySchema(CursorPaginationQuerySchema):
         metadata={'description': 'Search commits by prefix across commit '
                   'string and searchable commit fields'},
     )
+    machine = ma.fields.String(
+        load_default=None,
+        metadata={'description': 'Filter to commits with runs on this machine'},
+    )
+    sort = ma.fields.String(
+        load_default=None,
+        validate=ma.validate.OneOf(['ordinal']),
+        metadata={'description': "Sort order. Use 'ordinal' to sort by ordinal "
+                  "(excludes commits without ordinals)"},
+    )
 
 
 class CommitDetailQuerySchema(BaseQuerySchema):

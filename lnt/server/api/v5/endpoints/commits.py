@@ -15,7 +15,7 @@ from sqlalchemy import or_
 from ..auth import require_scope
 from ..errors import abort_with_error, reject_unknown_params
 from ..etag import add_etag_to_response
-from ..helpers import escape_like
+from ..helpers import escape_like, lookup_machine
 from ..pagination import (
     cursor_paginate,
     make_paginated_response,
@@ -130,7 +130,7 @@ class CommitList(MethodView):
     @blp.response(200, PaginatedCommitResponseSchema)
     def get(self, query_args, testsuite):
         """List commits (cursor-paginated)."""
-        reject_unknown_params({'cursor', 'limit', 'search'})
+        reject_unknown_params({'cursor', 'limit', 'search', 'machine', 'sort'})
         ts = g.ts
         session = g.db_session
 
@@ -146,10 +146,27 @@ class CommitList(MethodView):
                     col.like(escaped + '%', escape='\\'))
             query = query.filter(or_(*conditions))
 
+        machine_name = query_args.get('machine')
+        if machine_name:
+            machine = lookup_machine(session, ts, machine_name)
+            query = query.filter(
+                session.query(ts.Run).filter(
+                    ts.Run.commit_id == ts.Commit.id,
+                    ts.Run.machine_id == machine.id,
+                ).exists()
+            )
+
+        sort_param = query_args.get('sort')
+        if sort_param == 'ordinal':
+            query = query.filter(ts.Commit.ordinal.isnot(None))
+            cursor_col = ts.Commit.ordinal
+        else:
+            cursor_col = ts.Commit.id
+
         cursor_str = query_args.get('cursor')
         limit = query_args['limit']
         items, next_cursor = cursor_paginate(
-            query, ts.Commit.id, cursor_str, limit)
+            query, cursor_col, cursor_str, limit)
 
         serialized = [_serialize_commit_summary(c, ts) for c in items]
         return jsonify(make_paginated_response(serialized, next_cursor))

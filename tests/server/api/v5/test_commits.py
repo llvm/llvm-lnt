@@ -14,7 +14,7 @@ import uuid
 sys.path.insert(0, os.path.dirname(__file__))
 from v5_test_helpers import (
     create_app, create_client, admin_headers, make_scoped_headers,
-    create_commit, collect_all_pages,
+    create_commit, create_machine, create_run, collect_all_pages,
 )
 
 
@@ -617,6 +617,179 @@ class TestCommitPagination(unittest.TestCase):
         all_items = self._collect_all_pages()
         commits = [item['commit'] for item in all_items]
         self.assertEqual(len(commits), len(set(commits)))
+
+
+class TestCommitMachineFilter(unittest.TestCase):
+    """Tests for GET /api/v5/{ts}/commits?machine={name}."""
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+
+        db = cls.app.instance.get_database("default")
+        session = db.make_session()
+        ts = db.testsuite[TS]
+
+        cls.m1_name = f'mf-m1-{uuid.uuid4().hex[:8]}'
+        cls.m2_name = f'mf-m2-{uuid.uuid4().hex[:8]}'
+        m1 = create_machine(session, ts, name=cls.m1_name)
+        m2 = create_machine(session, ts, name=cls.m2_name)
+
+        cls.c_both = f'mf-both-{uuid.uuid4().hex[:8]}'
+        cls.c_m1_only = f'mf-m1only-{uuid.uuid4().hex[:8]}'
+        cls.c_m2_only = f'mf-m2only-{uuid.uuid4().hex[:8]}'
+        cls.c_no_runs = f'mf-noruns-{uuid.uuid4().hex[:8]}'
+
+        c_both = create_commit(session, ts, commit=cls.c_both)
+        c_m1 = create_commit(session, ts, commit=cls.c_m1_only)
+        c_m2 = create_commit(session, ts, commit=cls.c_m2_only)
+        create_commit(session, ts, commit=cls.c_no_runs)
+
+        create_run(session, ts, m1, c_both)
+        create_run(session, ts, m2, c_both)
+        create_run(session, ts, m1, c_m1)
+        create_run(session, ts, m2, c_m2)
+        session.commit()
+        session.close()
+
+    def _get_commits(self, **params):
+        qs = '&'.join(f'{k}={v}' for k, v in params.items())
+        url = PREFIX + '/commits'
+        if qs:
+            url += '?' + qs
+        items = collect_all_pages(self, self.client, url)
+        return [item['commit'] for item in items]
+
+    def test_filter_by_machine(self):
+        """Only commits with runs on the specified machine are returned."""
+        commits = self._get_commits(machine=self.m1_name)
+        self.assertIn(self.c_both, commits)
+        self.assertIn(self.c_m1_only, commits)
+        self.assertNotIn(self.c_m2_only, commits)
+        self.assertNotIn(self.c_no_runs, commits)
+
+    def test_filter_by_other_machine(self):
+        """Filtering by m2 returns m2's commits."""
+        commits = self._get_commits(machine=self.m2_name)
+        self.assertIn(self.c_both, commits)
+        self.assertIn(self.c_m2_only, commits)
+        self.assertNotIn(self.c_m1_only, commits)
+
+    def test_unknown_machine_returns_404(self):
+        """Filtering by a nonexistent machine returns 404."""
+        resp = self.client.get(
+            PREFIX + '/commits?machine=nonexistent-machine-xyz')
+        self.assertEqual(resp.status_code, 404)
+
+    def test_machine_combined_with_search(self):
+        """machine= and search= filters combine (intersection)."""
+        prefix = self.c_m1_only[:10]
+        commits = self._get_commits(machine=self.m1_name, search=prefix)
+        self.assertIn(self.c_m1_only, commits)
+        self.assertNotIn(self.c_both, commits)
+
+
+class TestCommitSortOrdinal(unittest.TestCase):
+    """Tests for GET /api/v5/{ts}/commits?sort=ordinal."""
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+
+        # Create commits with specific ordinals (non-contiguous, large to avoid
+        # collisions with other test classes that also create ordinals).
+        cls.c1 = f'so-c1-{uuid.uuid4().hex[:8]}'
+        cls.c2 = f'so-c2-{uuid.uuid4().hex[:8]}'
+        cls.c3 = f'so-c3-{uuid.uuid4().hex[:8]}'
+        cls.c_no_ord = f'so-noord-{uuid.uuid4().hex[:8]}'
+
+        cls.ord1 = 500010
+        cls.ord2 = 500050
+        cls.ord3 = 500100
+
+        cls.client.post(PREFIX + '/commits',
+                        json={'commit': cls.c1, 'ordinal': cls.ord1},
+                        headers=admin_headers())
+        cls.client.post(PREFIX + '/commits',
+                        json={'commit': cls.c2, 'ordinal': cls.ord2},
+                        headers=admin_headers())
+        cls.client.post(PREFIX + '/commits',
+                        json={'commit': cls.c3, 'ordinal': cls.ord3},
+                        headers=admin_headers())
+        cls.client.post(PREFIX + '/commits',
+                        json={'commit': cls.c_no_ord},
+                        headers=admin_headers())
+
+    def test_sort_ordinal_order(self):
+        """Commits are returned in ascending ordinal order."""
+        url = PREFIX + '/commits?sort=ordinal'
+        items = collect_all_pages(self, self.client, url)
+        commits = [item['commit'] for item in items]
+        idx1 = commits.index(self.c1)
+        idx2 = commits.index(self.c2)
+        idx3 = commits.index(self.c3)
+        self.assertLess(idx1, idx2)
+        self.assertLess(idx2, idx3)
+
+    def test_sort_ordinal_excludes_null(self):
+        """Commits without ordinals are excluded."""
+        url = PREFIX + '/commits?sort=ordinal'
+        items = collect_all_pages(self, self.client, url)
+        commits = [item['commit'] for item in items]
+        self.assertNotIn(self.c_no_ord, commits)
+
+    def test_sort_ordinal_pagination(self):
+        """Cursor pagination works with ordinal as cursor column."""
+        resp = self.client.get(
+            PREFIX + '/commits?sort=ordinal&limit=1')
+        data = resp.get_json()
+        self.assertEqual(len(data['items']), 1)
+        first = data['items'][0]['ordinal']
+
+        # Follow the cursor
+        cursor = data['cursor']['next']
+        self.assertIsNotNone(cursor)
+        resp2 = self.client.get(
+            PREFIX + f'/commits?sort=ordinal&limit=1&cursor={cursor}')
+        data2 = resp2.get_json()
+        self.assertEqual(len(data2['items']), 1)
+        second = data2['items'][0]['ordinal']
+        self.assertGreater(second, first)
+
+    def test_invalid_sort_returns_422(self):
+        """Invalid sort value returns 422 (schema validation)."""
+        resp = self.client.get(PREFIX + '/commits?sort=bogus')
+        self.assertEqual(resp.status_code, 422)
+
+    def test_sort_ordinal_with_machine(self):
+        """sort=ordinal combines with machine= filter."""
+        # Create a machine with runs on c1 and c3 only
+        m_name = f'so-m-{uuid.uuid4().hex[:8]}'
+        db = self.app.instance.get_database("default")
+        session = db.make_session()
+        ts = db.testsuite[TS]
+        m = create_machine(session, ts, name=m_name)
+        # Look up commits created in setUpClass (they exist in the DB)
+        c1_obj = ts.get_commit(session, commit=self.c1)
+        c3_obj = ts.get_commit(session, commit=self.c3)
+        self.assertIsNotNone(c1_obj, "c1 should exist")
+        self.assertIsNotNone(c3_obj, "c3 should exist")
+        create_run(session, ts, m, c1_obj)
+        create_run(session, ts, m, c3_obj)
+        session.commit()
+        session.close()
+
+        url = PREFIX + f'/commits?sort=ordinal&machine={m_name}'
+        items = collect_all_pages(self, self.client, url)
+        commits = [item['commit'] for item in items]
+        self.assertIn(self.c1, commits)
+        self.assertIn(self.c3, commits)
+        self.assertNotIn(self.c2, commits)
+        self.assertNotIn(self.c_no_ord, commits)
+        # Verify order
+        self.assertLess(commits.index(self.c1), commits.index(self.c3))
 
 
 class TestCommitUnknownParams(unittest.TestCase):

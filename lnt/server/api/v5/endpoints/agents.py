@@ -65,7 +65,7 @@ by default. Write operations require tokens with appropriate scopes
 
   GET    /api/v5/{ts}/machines              List machines
   GET    /api/v5/{ts}/machines/{name}       Machine detail
-  GET    /api/v5/{ts}/commits               List commits
+  GET    /api/v5/{ts}/commits               List commits (?search=, ?machine=, ?sort=ordinal)
   GET    /api/v5/{ts}/commits/{value}       Commit detail (with prev/next)
   GET    /api/v5/{ts}/runs                  List runs
   POST   /api/v5/{ts}/runs                  Submit a run

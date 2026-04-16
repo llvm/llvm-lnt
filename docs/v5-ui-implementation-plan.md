@@ -1819,7 +1819,7 @@ export async function fetchOneCursorPage<T>(
 }
 ```
 
-This function is generic and URL-agnostic — it takes a full URL (built via `apiUrl()`) and an arbitrary params record. The graph page calls it with `apiUrl(ts, 'query')` and params like `{ machine, metric, sort: '-order', limit: '10000' }`, as well as with `apiUrl(ts, 'machines/{name}/runs')` for the scaffold fetch.
+This function is generic and URL-agnostic — it takes a full URL (built via `apiUrl()`) and an arbitrary params record. The graph page calls it with `apiUrl(ts, 'query')` and params like `{ machine, metric, sort: 'test,commit', limit: '10000' }`, as well as with `apiUrl(ts, 'commits')` and params `{ machine, sort: 'ordinal', limit: '10000' }` for the scaffold fetch.
 
 ### 3.3 Graph Page Module
 
