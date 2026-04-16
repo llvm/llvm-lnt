@@ -4,8 +4,7 @@ Page specifications for the data browsing pages: Test Suites, Machine Detail,
 Run Detail, and Commit Detail.
 
 For the SPA architecture and routing, see [`architecture.md`](architecture.md).
-Related pages: [Graph](graph.md), [Compare](compare.md),
-[Regressions](regressions.md).
+Related pages: [Graph](graph.md), [Compare](compare.md).
 
 
 ## Test Suites -- `/v5/test-suites?suite={ts}&tab=...`
@@ -30,14 +29,38 @@ URL via `replaceState`.
 | Machines | Searchable machine list with offset pagination | `GET machines?name_contains=...&limit=25&offset=...` | Name substring |
 | Runs | Run list with cursor pagination | `GET runs?machine=...&sort=-start_time&limit=25` | Machine name (exact) |
 | Commits | Commit list with cursor pagination | `GET commits?tag_prefix=...&limit=25` | Tag prefix |
-| Regressions | Active regressions in this suite | `GET regressions?state=detected&state=active&limit=25` | State filter |
+| Regressions | Full regression triage interface (see below) | `GET regressions?state=...&limit=25` | State chips, machine combobox, metric selector, has_commit checkbox, title search |
 
 **Columns per tab:**
 - **Recent Activity**: Machine, Commit (primary value), Start Time, UUID (truncated, linked)
 - **Machines**: Name (linked), Info (key-value summary)
 - **Runs**: UUID (truncated, linked), Machine, Commit (primary value), Start Time
 - **Commits**: Commit Value (primary field, linked), Tag
-- **Regressions**: Title (linked), State (badge), Commit (linked), Machine count, Test count
+- **Regressions**: Title (linked to regression detail), State (badge), Commit
+  (linked to commit detail), Machine count, Test count, Bug (external link),
+  Delete button (auth-gated)
+
+**Regressions tab details**:
+
+The Regressions tab embeds the full regression triage UI directly in the Test
+Suites page (there is no standalone Regression List page).
+
+**Filters** (control panel above table):
+- State: multi-select chips (detected, active, not_to_be_fixed, fixed,
+  false_positive) -- toggleable, all deselected by default
+- Machine: combobox with typeahead
+- Metric: dropdown
+- Has commit: checkbox (surfaces regressions with unset commit)
+- Free-text search on title (client-side, debounced)
+
+**Actions**:
+- "New Regression" button (auth-gated) -> toggles an inline create form with
+  title, bug, state, commit fields. On successful creation, navigates to the
+  new regression's detail page.
+- Row click -> navigates to regression detail page.
+- Delete: per-row button with confirmation prompt (auth-gated).
+
+**Pagination**: Cursor-based, consistent with other list tabs.
 
 **Detail navigation**: Clicking an item navigates to the full suite-scoped
 detail page (e.g., `/v5/{ts}/machines/{name}`) via full page navigation. This
@@ -128,3 +151,32 @@ The "what happened at this commit?" page. Key investigation page for developers.
 **Regressions at this commit**: Below the runs table, a section listing
 regressions where `commit` matches this commit's value. Each links to its
 regression detail page.
+
+
+## Regression Detail -- `/v5/{ts}/regressions/{uuid}`
+
+Investigation and management page for a single regression.
+
+**Header section** (editable fields):
+- Title: inline-editable text
+- State: dropdown selector (detected, active, not_to_be_fixed, fixed, false_positive)
+- Bug: URL input (opens in new tab when set)
+- Commit: combobox with typeahead (nullable -- the suspected introduction point). Linked to commit detail page when set.
+- Notes: expandable textarea for investigation findings, A/B results, root cause analysis, etc.
+
+**Indicators table**:
+- Columns: Machine, Test, Metric, remove button (x)
+- Multi-select rows for batch remove
+- "View on graph" link per indicator: opens Graph page pre-populated with the indicator's machine, test, metric, and the regression's commit as context
+
+**Add indicators panel** (below table):
+- Three multi-select comboboxes with typeahead: Metric, Machine, Test
+- Test list filtered by selected machines and metrics (only shows tests with data for the selected combination)
+- Preview: "This will add N indicators" with expandable list
+- "Add" button creates all (machine x test x metric) indicator combinations
+- Duplicates (same machine+test+metric already on this regression) are silently ignored
+
+**Actions**:
+- Delete regression button (with confirmation)
+
+Auth: requires `triage` scope for all modifications.

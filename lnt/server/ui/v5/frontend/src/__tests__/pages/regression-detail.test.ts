@@ -18,12 +18,11 @@ vi.mock('../../api', async (importOriginal) => {
   };
 });
 
-// Mock router navigate
+// Mock router (needed for transitive imports)
 vi.mock('../../router', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../router')>();
   return {
     ...actual,
-    navigate: vi.fn(),
     getBasePath: vi.fn(() => '/v5/nts'),
     getUrlBase: vi.fn(() => ''),
   };
@@ -42,7 +41,6 @@ import {
   removeRegressionIndicators,
   getFields, getTests, getToken, authErrorMessage,
 } from '../../api';
-import { navigate } from '../../router';
 import { regressionDetailPage } from '../../pages/regression-detail';
 import type { RegressionDetail, FieldInfo } from '../../types';
 
@@ -649,35 +647,51 @@ describe('regressionDetailPage', () => {
   describe('delete', () => {
     it('renders delete confirm section and navigates on success', async () => {
       (deleteRegression as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
-
-      regressionDetailPage.mount(container, { testsuite: 'nts', uuid: TEST_UUID });
-
-      await vi.waitFor(() => {
-        expect(container.querySelector('.delete-machine-section .admin-btn-danger')).toBeTruthy();
+      const originalLocation = window.location;
+      const assignMock = vi.fn();
+      Object.defineProperty(window, 'location', {
+        value: { ...window.location, assign: assignMock },
+        writable: true,
+        configurable: true,
       });
 
-      // Click the "Delete Regression" button to reveal confirmation
-      const deleteBtn = container.querySelector('.delete-machine-section .admin-btn-danger') as HTMLButtonElement;
-      deleteBtn.click();
+      try {
+        regressionDetailPage.mount(container, { testsuite: 'nts', uuid: TEST_UUID });
 
-      // Type the UUID prefix to enable confirm
-      const confirmInput = container.querySelector(
-        '.delete-machine-confirm input',
-      ) as HTMLInputElement;
-      confirmInput.value = TEST_UUID.slice(0, 8);
-      confirmInput.dispatchEvent(new Event('input'));
+        await vi.waitFor(() => {
+          expect(container.querySelector('.delete-machine-section .admin-btn-danger')).toBeTruthy();
+        });
 
-      // Click "Confirm Delete"
-      const confirmBtn = Array.from(
-        container.querySelectorAll('.delete-machine-confirm .admin-btn-danger'),
-      ).find(b => b.textContent?.includes('Confirm')) as HTMLButtonElement;
-      expect(confirmBtn.disabled).toBe(false);
-      confirmBtn.click();
+        // Click the "Delete Regression" button to reveal confirmation
+        const deleteBtn = container.querySelector('.delete-machine-section .admin-btn-danger') as HTMLButtonElement;
+        deleteBtn.click();
 
-      await vi.waitFor(() => {
-        expect(deleteRegression).toHaveBeenCalledWith('nts', TEST_UUID, expect.any(AbortSignal));
-        expect(navigate).toHaveBeenCalledWith('/regressions');
-      });
+        // Type the UUID prefix to enable confirm
+        const confirmInput = container.querySelector(
+          '.delete-machine-confirm input',
+        ) as HTMLInputElement;
+        confirmInput.value = TEST_UUID.slice(0, 8);
+        confirmInput.dispatchEvent(new Event('input'));
+
+        // Click "Confirm Delete"
+        const confirmBtn = Array.from(
+          container.querySelectorAll('.delete-machine-confirm .admin-btn-danger'),
+        ).find(b => b.textContent?.includes('Confirm')) as HTMLButtonElement;
+        expect(confirmBtn.disabled).toBe(false);
+        confirmBtn.click();
+
+        await vi.waitFor(() => {
+          expect(deleteRegression).toHaveBeenCalledWith('nts', TEST_UUID, expect.any(AbortSignal));
+          expect(assignMock).toHaveBeenCalledWith(
+            expect.stringContaining('/test-suites?suite=nts&tab=regressions'));
+        });
+      } finally {
+        Object.defineProperty(window, 'location', {
+          value: originalLocation,
+          writable: true,
+          configurable: true,
+        });
+      }
     });
   });
 

@@ -15,12 +15,11 @@ vi.mock('../../api', async (importOriginal) => {
   };
 });
 
-// Mock router navigate
+// Mock router (still needed for transitive imports)
 vi.mock('../../router', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../router')>();
   return {
     ...actual,
-    navigate: vi.fn(),
     getBasePath: vi.fn(() => '/v5/nts'),
     getUrlBase: vi.fn(() => ''),
   };
@@ -39,8 +38,7 @@ import {
   getFields, getToken, authErrorMessage,
 } from '../../api';
 import type { CursorPageResult } from '../../api';
-import { navigate } from '../../router';
-import { regressionListPage } from '../../pages/regression-list';
+import { renderRegressionTab, type RegressionTabOptions } from '../../pages/regression-list';
 import type { RegressionListItem, FieldInfo } from '../../types';
 
 const mockRegressions: RegressionListItem[] = [
@@ -76,12 +74,38 @@ function regressionsResponse(
   return { items, nextCursor };
 }
 
-describe('regressionListPage', () => {
+describe('renderRegressionTab', () => {
   let container: HTMLElement;
+  let testController: AbortController;
+  let cleanupFns: (() => void)[];
+  let detailLinkFn: ReturnType<typeof vi.fn>;
+  let navigateToDetailFn: ReturnType<typeof vi.fn>;
+
+  function makeOpts(overrides?: Partial<RegressionTabOptions>): RegressionTabOptions {
+    return {
+      container,
+      testsuite: 'nts',
+      signal: testController.signal,
+      trackCleanup: (fn) => cleanupFns.push(fn),
+      detailLink: detailLinkFn,
+      navigateToDetail: navigateToDetailFn,
+      ...overrides,
+    };
+  }
 
   beforeEach(() => {
     vi.clearAllMocks();
     container = document.createElement('div');
+    testController = new AbortController();
+    cleanupFns = [];
+
+    detailLinkFn = vi.fn((text: string, path: string) => {
+      const a = document.createElement('a');
+      a.href = path;
+      a.textContent = text;
+      return a;
+    });
+    navigateToDetailFn = vi.fn();
 
     (getToken as ReturnType<typeof vi.fn>).mockReturnValue('test-token');
     (getRegressions as ReturnType<typeof vi.fn>).mockResolvedValue(
@@ -91,29 +115,26 @@ describe('regressionListPage', () => {
   });
 
   afterEach(() => {
-    regressionListPage.unmount?.();
+    testController.abort();
+    cleanupFns.forEach(fn => fn());
+    cleanupFns = [];
   });
 
-  /** Mount the page and wait for the table to render. */
-  async function mountAndWait(): Promise<void> {
-    regressionListPage.mount(container, { testsuite: 'nts' });
+  /** Render the tab and wait for the table to appear. */
+  async function renderAndWait(overrides?: Partial<RegressionTabOptions>): Promise<void> {
+    renderRegressionTab(makeOpts(overrides));
     await vi.waitFor(() => {
       expect(container.querySelector('tbody')).toBeTruthy();
     });
   }
 
   // ---------------------------------------------------------------
-  // 1. Mount & rendering
+  // 1. Rendering
   // ---------------------------------------------------------------
 
-  describe('mount & rendering', () => {
-    it('renders page header', () => {
-      regressionListPage.mount(container, { testsuite: 'nts' });
-      expect(container.querySelector('.page-header')?.textContent).toBe('Regressions');
-    });
-
-    it('calls getRegressions on mount', () => {
-      regressionListPage.mount(container, { testsuite: 'nts' });
+  describe('rendering', () => {
+    it('calls getRegressions on render', () => {
+      renderRegressionTab(makeOpts());
       expect(getRegressions).toHaveBeenCalledWith(
         'nts',
         expect.objectContaining({ limit: 25 }),
@@ -121,8 +142,14 @@ describe('regressionListPage', () => {
       );
     });
 
+    it('renders filter panel with state chips', () => {
+      renderRegressionTab(makeOpts());
+      const chips = container.querySelectorAll('.state-chip');
+      expect(chips.length).toBe(5);
+    });
+
     it('renders table rows for each regression', async () => {
-      regressionListPage.mount(container, { testsuite: 'nts' });
+      renderRegressionTab(makeOpts());
 
       await vi.waitFor(() => {
         const rows = container.querySelectorAll('tbody tr');
@@ -137,7 +164,7 @@ describe('regressionListPage', () => {
         regressionsResponse([]),
       );
 
-      regressionListPage.mount(container, { testsuite: 'nts' });
+      renderRegressionTab(makeOpts());
 
       await vi.waitFor(() => {
         expect(container.textContent).toContain('No regressions found.');
@@ -151,14 +178,14 @@ describe('regressionListPage', () => {
 
   describe('state filter chips', () => {
     it('renders all 5 state chips', () => {
-      regressionListPage.mount(container, { testsuite: 'nts' });
+      renderRegressionTab(makeOpts());
 
       const chips = container.querySelectorAll('.state-chip');
       expect(chips.length).toBe(5);
     });
 
     it('clicking a chip toggles the active class and reloads', async () => {
-      regressionListPage.mount(container, { testsuite: 'nts' });
+      renderRegressionTab(makeOpts());
 
       // Wait for initial load
       await vi.waitFor(() => {
@@ -183,7 +210,7 @@ describe('regressionListPage', () => {
     });
 
     it('clicking an active chip deselects it', async () => {
-      await mountAndWait();
+      await renderAndWait();
 
       // Click to activate
       (container.querySelectorAll('.state-chip')[0] as HTMLElement).click();
@@ -210,7 +237,7 @@ describe('regressionListPage', () => {
     it('filters rows client-side after 300ms debounce', async () => {
       vi.useFakeTimers();
       try {
-        regressionListPage.mount(container, { testsuite: 'nts' });
+        renderRegressionTab(makeOpts());
 
         // Flush the getRegressions promise
         await vi.waitFor(() => {
@@ -248,7 +275,7 @@ describe('regressionListPage', () => {
         regressionsResponse(mockRegressions, 'cursor-page-2'),
       );
 
-      regressionListPage.mount(container, { testsuite: 'nts' });
+      renderRegressionTab(makeOpts());
 
       await vi.waitFor(() => {
         const buttons = container.querySelectorAll('.pagination-btn');
@@ -265,7 +292,7 @@ describe('regressionListPage', () => {
         regressionsResponse(mockRegressions, 'cursor-page-2'),
       );
 
-      regressionListPage.mount(container, { testsuite: 'nts' });
+      renderRegressionTab(makeOpts());
 
       await vi.waitFor(() => {
         const nextBtn = Array.from(container.querySelectorAll('.pagination-btn'))
@@ -294,7 +321,7 @@ describe('regressionListPage', () => {
         regressionsResponse(mockRegressions, 'cursor-page-2'),
       );
 
-      regressionListPage.mount(container, { testsuite: 'nts' });
+      renderRegressionTab(makeOpts());
 
       await vi.waitFor(() => {
         expect(Array.from(container.querySelectorAll('.pagination-btn'))
@@ -328,7 +355,7 @@ describe('regressionListPage', () => {
     it('hides create button and delete column when getToken returns null', async () => {
       (getToken as ReturnType<typeof vi.fn>).mockReturnValue(null);
 
-      await mountAndWait();
+      await renderAndWait();
 
       // No "New Regression" button
       const newBtn = Array.from(container.querySelectorAll('button'))
@@ -342,7 +369,7 @@ describe('regressionListPage', () => {
     it('shows create button and delete column when getToken returns string', async () => {
       (getToken as ReturnType<typeof vi.fn>).mockReturnValue('test-token');
 
-      await mountAndWait();
+      await renderAndWait();
 
       // "New Regression" button present
       const newBtn = Array.from(container.querySelectorAll('button'))
@@ -360,7 +387,7 @@ describe('regressionListPage', () => {
 
   describe('create form', () => {
     it('toggles form visibility on New Regression click', async () => {
-      await mountAndWait();
+      await renderAndWait();
 
       const formContainer = container.querySelector('.create-form-container') as HTMLElement;
       expect(formContainer.style.display).toBe('none');
@@ -377,7 +404,7 @@ describe('regressionListPage', () => {
       expect(formContainer.style.display).toBe('none');
     });
 
-    it('submit calls createRegression and navigates on success', async () => {
+    it('submit calls createRegression and navigateToDetail on success', async () => {
       const createdRegression = {
         uuid: 'cccc1111-2222-3333-4444-555555555555',
         title: 'New reg',
@@ -389,7 +416,7 @@ describe('regressionListPage', () => {
       };
       (createRegression as ReturnType<typeof vi.fn>).mockResolvedValue(createdRegression);
 
-      await mountAndWait();
+      await renderAndWait();
 
       // Open form
       const newBtn = Array.from(container.querySelectorAll('button'))
@@ -410,16 +437,14 @@ describe('regressionListPage', () => {
           expect.objectContaining({ title: 'New reg', state: 'detected' }),
           expect.any(AbortSignal),
         );
-        expect(navigate).toHaveBeenCalledWith(
-          `/regressions/${encodeURIComponent(createdRegression.uuid)}`,
-        );
+        expect(navigateToDetailFn).toHaveBeenCalledWith(createdRegression.uuid);
       });
     });
 
     it('shows error on createRegression failure', async () => {
       (createRegression as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('403'));
 
-      await mountAndWait();
+      await renderAndWait();
 
       // Open form
       const newBtn = Array.from(container.querySelectorAll('button'))
@@ -448,7 +473,7 @@ describe('regressionListPage', () => {
       (deleteRegression as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
       vi.spyOn(window, 'confirm').mockReturnValue(true);
 
-      regressionListPage.mount(container, { testsuite: 'nts' });
+      renderRegressionTab(makeOpts());
 
       await vi.waitFor(() => {
         expect(container.querySelectorAll('.row-delete-btn').length).toBe(2);
@@ -469,7 +494,7 @@ describe('regressionListPage', () => {
     it('does not call deleteRegression when window.confirm returns false', async () => {
       vi.spyOn(window, 'confirm').mockReturnValue(false);
 
-      regressionListPage.mount(container, { testsuite: 'nts' });
+      renderRegressionTab(makeOpts());
 
       await vi.waitFor(() => {
         expect(container.querySelectorAll('.row-delete-btn').length).toBe(2);
@@ -485,7 +510,7 @@ describe('regressionListPage', () => {
       (deleteRegression as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Server error'));
       vi.spyOn(window, 'confirm').mockReturnValue(true);
 
-      regressionListPage.mount(container, { testsuite: 'nts' });
+      renderRegressionTab(makeOpts());
 
       await vi.waitFor(() => {
         expect(container.querySelectorAll('.row-delete-btn').length).toBe(2);
@@ -508,7 +533,7 @@ describe('regressionListPage', () => {
     it('shows error banner when getRegressions rejects', async () => {
       (getRegressions as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Server error'));
 
-      regressionListPage.mount(container, { testsuite: 'nts' });
+      renderRegressionTab(makeOpts());
 
       await vi.waitFor(() => {
         const banner = container.querySelector('.error-banner');
@@ -520,7 +545,7 @@ describe('regressionListPage', () => {
     it('shows error when getFields rejects', async () => {
       (getFields as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Fail'));
 
-      regressionListPage.mount(container, { testsuite: 'nts' });
+      renderRegressionTab(makeOpts());
 
       await vi.waitFor(() => {
         expect(container.textContent).toContain('Failed to load metrics');
@@ -531,27 +556,13 @@ describe('regressionListPage', () => {
       const abortError = new DOMException('Aborted', 'AbortError');
       (getRegressions as ReturnType<typeof vi.fn>).mockRejectedValue(abortError);
 
-      regressionListPage.mount(container, { testsuite: 'nts' });
+      renderRegressionTab(makeOpts());
 
       // Wait for the rejected promise to settle
       await vi.waitFor(() => {
         // Verify no error banner appeared (AbortError is suppressed)
         expect(container.querySelector('.error-banner')).toBeFalsy();
       });
-    });
-  });
-
-  // ---------------------------------------------------------------
-  // 9. Unmount
-  // ---------------------------------------------------------------
-
-  describe('unmount', () => {
-    it('does not throw', () => {
-      (getRegressions as ReturnType<typeof vi.fn>).mockReturnValue(new Promise(() => {}));
-      (getFields as ReturnType<typeof vi.fn>).mockReturnValue(new Promise(() => {}));
-
-      regressionListPage.mount(container, { testsuite: 'nts' });
-      expect(() => regressionListPage.unmount!()).not.toThrow();
     });
   });
 });

@@ -179,7 +179,8 @@ async function loadMachineRegressions(
     });
 
     container.append(
-      spaLink('Show all regressions', '/regressions?machine=' + encodeURIComponent(machineName)),
+      agnosticLink('Show all regressions',
+        `/test-suites?suite=${encodeURIComponent(ts)}&tab=regressions`),
     );
   } catch (e: unknown) {
     if (e instanceof DOMException && e.name === 'AbortError') return;

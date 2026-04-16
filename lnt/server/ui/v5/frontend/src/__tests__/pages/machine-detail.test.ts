@@ -283,14 +283,14 @@ describe('machineDetailPage', () => {
       });
     });
 
-    it('link href includes ?machine= with the machine name', async () => {
+    it('link href points to test-suites regressions tab', async () => {
       machineDetailPage.mount(container, { testsuite: 'nts', name: 'clang-x86' });
 
       await vi.waitFor(() => {
         const link = Array.from(container.querySelectorAll('a'))
           .find(a => a.textContent === 'Show all regressions') as HTMLAnchorElement;
         expect(link).toBeTruthy();
-        expect(link.getAttribute('href')).toContain('/regressions?machine=clang-x86');
+        expect(link.getAttribute('href')).toContain('/test-suites?suite=nts&tab=regressions');
       });
     });
   });

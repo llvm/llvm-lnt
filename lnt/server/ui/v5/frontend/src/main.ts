@@ -14,7 +14,6 @@ import { runDetailPage } from './pages/run-detail';
 import { commitDetailPage } from './pages/commit-detail';
 import { graphPage } from './pages/graph';
 import { comparePage } from './pages/compare';
-import { regressionListPage } from './pages/regression-list';
 import { regressionDetailPage } from './pages/regression-detail';
 import { adminPage } from './pages/admin';
 import type { PageModule } from './router';
@@ -55,7 +54,6 @@ function init(): void {
     addRoute('/machines/:name', machineDetailPage);
     addRoute('/runs/:uuid', runDetailPage);
     addRoute('/commits/:value', commitDetailPage);
-    addRoute('/regressions', regressionListPage);
     addRoute('/regressions/:uuid', regressionDetailPage);
 
     const basePath = `${urlBase}/v5/${encodeURIComponent(testsuite)}`;

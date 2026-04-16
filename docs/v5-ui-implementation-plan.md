@@ -347,7 +347,6 @@ Routes are split into two contexts based on whether a test suite is set in the S
 | `/machines/:name` | `pages/machine-detail` |
 | `/runs/:uuid` | `pages/run-detail` |
 | `/orders/:value` | `pages/order-detail` |
-| `/regressions` | `pages/regression-list` |
 | `/regressions/:uuid` | `pages/regression-detail` |
 | `/field-changes` | `pages/field-change-triage` |
 
@@ -434,7 +433,6 @@ import { runDetailPage } from './pages/run-detail';
 import { orderDetailPage } from './pages/order-detail';
 import { graphPage } from './pages/graph';
 import { comparePage } from './pages/compare';
-import { regressionListPage } from './pages/regression-list';
 import { regressionDetailPage } from './pages/regression-detail';
 import { fieldChangeTriagePage } from './pages/field-change-triage';
 import { adminPage } from './pages/admin';
@@ -475,7 +473,6 @@ function init(): void {
     addRoute('/machines/:name', machineDetailPage);
     addRoute('/runs/:uuid', runDetailPage);
     addRoute('/orders/:value', orderDetailPage);
-    addRoute('/regressions', regressionListPage);
     addRoute('/regressions/:uuid', regressionDetailPage);
     addRoute('/field-changes', fieldChangeTriagePage);
 
@@ -2100,7 +2097,10 @@ Note: The old `v5_compare` route no longer exists — the suite-agnostic `v5_glo
 
 ## Phase 5: Stub Pages
 
-**Goal**: Add placeholder pages for Regression List, Regression Detail, and Field Change Triage.
+**Goal**: Add placeholder pages for Regression Detail and Field Change Triage.
+The regression list is not a standalone page -- it is rendered inline as the
+Regressions tab of the Test Suites page by `renderRegressionTab()` in
+`pages/regression-list.ts`.
 
 ### 5.1 Stub Pattern
 
@@ -2110,16 +2110,12 @@ Each stub follows the same pattern:
 import type { PageModule, RouteParams } from '../router';
 import { el } from '../utils';
 
-export const regressionListPage: PageModule = {
+export const regressionDetailPage: PageModule = {
   mount(container: HTMLElement, params: RouteParams): void {
     container.append(
       el('div', { class: 'page-placeholder' },
-        el('h2', {}, 'Regression List'),
+        el('h2', {}, 'Regression Detail'),
         el('p', {}, 'Not implemented yet.'),
-        el('p', {},
-          'This page will show detected regressions with filtering by state, ',
-          'machine, test, and metric. Design coming in a later phase.'
-        ),
       )
     );
   },
@@ -2128,7 +2124,6 @@ export const regressionListPage: PageModule = {
 
 ### 5.2 Stub Pages to Create
 
-- `pages/regression-list.ts` — "Regression List: Not implemented yet."
 - `pages/regression-detail.ts` — "Regression Detail: Not implemented yet." (reads `params.uuid` for display)
 - `pages/field-change-triage.ts` — "Field Change Triage: Not implemented yet."
 

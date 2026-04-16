@@ -8,8 +8,7 @@ import {
   addRegressionIndicators, removeRegressionIndicators,
   getFields, getTests, getToken, authErrorMessage,
 } from '../api';
-import { el, spaLink, agnosticLink, truncate } from '../utils';
-import { navigate } from '../router';
+import { el, spaLink, agnosticLink, agnosticUrl, truncate } from '../utils';
 import { renderDataTable, type Column } from '../components/data-table';
 import { renderDeleteConfirm } from '../components/delete-confirm';
 import { renderMachineCombobox } from '../components/machine-combobox';
@@ -637,7 +636,10 @@ export const regressionDetailPage: PageModule = {
         confirmValue: uuid.slice(0, 8),
         placeholder: 'Regression UUID prefix',
         onDelete: () => deleteRegression(ts, uuid, signal),
-        onSuccess: () => navigate('/regressions'),
+        onSuccess: () => {
+          window.location.assign(
+            agnosticUrl(`/test-suites?suite=${encodeURIComponent(ts)}&tab=regressions`));
+        },
       });
     }
   },

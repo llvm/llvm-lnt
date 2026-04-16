@@ -6,7 +6,7 @@ implementation phases.
 
 For individual page specifications, see the other documents in this directory:
 [Dashboard](dashboard.md), [Browsing Pages](browsing.md), [Graph](graph.md),
-[Compare](compare.md), [Regressions](regressions.md), [Admin](admin.md).
+[Compare](compare.md), [Admin](admin.md).
 
 
 ## Context
@@ -85,7 +85,6 @@ artifacts (fixed-navbar margins, sticky footer).
 /v5/{ts}/machines/{name}               Machine Detail
 /v5/{ts}/runs/{uuid}                   Run Detail
 /v5/{ts}/commits/{value}               Commit Detail
-/v5/{ts}/regressions?state=...         Regression List
 /v5/{ts}/regressions/{uuid}            Regression Detail
 /v5/graph?suite={ts}&machine=...       Graph (time series) -- suite-agnostic
 /v5/compare?suite_a={ts}&...           Compare -- suite-agnostic
@@ -136,7 +135,7 @@ lnt/server/ui/v5/frontend/src/
 |   +-- commit-detail.ts
 |   +-- graph.ts
 |   +-- compare.ts             Compare page module (auto-compare, caching, row toggling)
-|   +-- regression-list.ts
+|   +-- regression-list.ts     Regression tab renderer (called by test-suites.ts)
 |   +-- regression-detail.ts
 |   +-- admin.ts
 +-- components/
@@ -190,7 +189,7 @@ outDir: resolve(__dirname, '../static/v5'),
 | 2 | Test Suites (picker + tabs), Machine Detail, Run Detail, Commit Detail | Core browsing -- data-table component, pagination, suite picker |
 | 3 | Graph | Time-series chart component, combobox integration, aggregation controls, regression annotations |
 | 4 | Compare | Absorb existing compare page into SPA as page module, add geomean summary |
-| 5 | Regression List, Regression Detail | Full regression management pages, cross-page integration |
+| 5 | Regression Detail | Full regression management page, cross-page integration |
 | 6 | Admin, polish | API key management, error handling, loading states |
 
 

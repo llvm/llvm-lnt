@@ -2,21 +2,22 @@
 // Suite-agnostic — served at /v5/test-suites.
 
 import type { PageModule, RouteParams } from '../router';
-import type { MachineInfo, RunInfo, CommitSummary, RegressionListItem } from '../types';
+import type { MachineInfo, RunInfo, CommitSummary } from '../types';
 import type { CursorPageResult } from '../api';
 import { getTestsuites } from '../router';
-import { getMachines, getRunsPage, getCommitsPage, getRegressions } from '../api';
-import { renderStateBadge } from '../regression-utils';
+import { getMachines, getRunsPage, getCommitsPage } from '../api';
 import type { Column } from '../components/data-table';
 import { el, formatTime, truncate, debounce } from '../utils';
 import { renderDataTable } from '../components/data-table';
 import { renderPagination } from '../components/pagination';
+import { renderRegressionTab } from './regression-list';
 
 const PAGE_SIZE = 25;
 
 type TabId = 'recent' | 'machines' | 'runs' | 'commits' | 'regressions';
 
 let tabController: AbortController | null = null;
+let tabCleanupFns: (() => void)[] = [];
 
 /** Build a full href to a suite-scoped detail page (full page navigation). */
 function suiteHref(suite: string, path: string): string {
@@ -128,6 +129,9 @@ export const testSuitesPage: PageModule = {
     }
 
     function loadTabContent(): void {
+      // Clean up any resources from the previous tab
+      tabCleanupFns.forEach(fn => fn());
+      tabCleanupFns = [];
       // Abort any previous tab load to prevent race conditions
       if (tabController) tabController.abort();
       tabController = new AbortController();
@@ -170,14 +174,17 @@ export const testSuitesPage: PageModule = {
             (search: string) => { currentSearch = search; syncUrl(); });
           break;
         case 'regressions':
-          renderCursorPaginatedTab(tabContent, selectedSuite, '', signal,
-            '', 'Loading regressions...', 'No regressions.',
-            'Failed to load regressions',
-            (s, opts, sig) => getRegressions(s, {
-              limit: opts.limit,
-              cursor: opts.cursor,
-            }, sig),
-            regressionsColumns(selectedSuite));
+          renderRegressionTab({
+            container: tabContent,
+            testsuite: selectedSuite,
+            signal,
+            trackCleanup: (fn) => tabCleanupFns.push(fn),
+            detailLink: (text, path) => detailLink(text, selectedSuite, path),
+            navigateToDetail: (uuid) => {
+              window.location.href = suiteHref(selectedSuite,
+                `/regressions/${encodeURIComponent(uuid)}`);
+            },
+          });
           break;
       }
     }
@@ -189,6 +196,8 @@ export const testSuitesPage: PageModule = {
   },
 
   unmount(): void {
+    tabCleanupFns.forEach(fn => fn());
+    tabCleanupFns = [];
     if (tabController) { tabController.abort(); tabController = null; }
   },
 };
@@ -490,24 +499,3 @@ function commitsColumns(suite: string): Column<CommitSummary>[] {
   ];
 }
 
-// ---------------------------------------------------------------------------
-// Regressions Tab
-// ---------------------------------------------------------------------------
-
-function regressionsColumns(suite: string): Column<RegressionListItem>[] {
-  return [
-    { key: 'title', label: 'Title',
-      render: (r: RegressionListItem) =>
-        detailLink(r.title || '(untitled)', suite,
-          `/regressions/${encodeURIComponent(r.uuid)}`) },
-    { key: 'state', label: 'State',
-      render: (r: RegressionListItem) => renderStateBadge(r.state) },
-    { key: 'commit', label: 'Commit',
-      render: (r: RegressionListItem) =>
-        r.commit
-          ? detailLink(truncate(r.commit, 12), suite, `/commits/${encodeURIComponent(r.commit)}`)
-          : '\u2014' },
-    { key: 'machine_count', label: 'Machines', cellClass: 'col-num' },
-    { key: 'test_count', label: 'Tests', cellClass: 'col-num' },
-  ];
-}

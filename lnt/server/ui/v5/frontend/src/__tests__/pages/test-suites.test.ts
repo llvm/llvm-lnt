@@ -10,6 +10,8 @@ vi.mock('../../api', async (importOriginal) => {
     getRunsPage: vi.fn(),
     getCommitsPage: vi.fn(),
     getRegressions: vi.fn(),
+    getFields: vi.fn(),
+    getToken: vi.fn(),
   };
 });
 
@@ -32,7 +34,7 @@ vi.mock('../../router', async (importOriginal) => {
 // Mock lnt_url_base
 (globalThis as unknown as Record<string, unknown>).lnt_url_base = '';
 
-import { getMachines, getRunsPage, getCommitsPage, getRegressions } from '../../api';
+import { getMachines, getRunsPage, getCommitsPage, getRegressions, getFields, getToken } from '../../api';
 import type { CursorPageResult } from '../../api';
 import { getTestsuites } from '../../router';
 import { testSuitesPage } from '../../pages/test-suites';
@@ -94,6 +96,8 @@ describe('testSuitesPage', () => {
     (getRegressions as ReturnType<typeof vi.fn>).mockResolvedValue(
       mockRegressionsPage(mockRegressions),
     );
+    (getToken as ReturnType<typeof vi.fn>).mockReturnValue(null);
+    (getFields as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
     // Clear URL query params
     window.history.replaceState(null, '', window.location.pathname);
@@ -442,7 +446,7 @@ describe('testSuitesPage', () => {
       });
     });
 
-    it('renders table rows with regression data', async () => {
+    it('renders state filter chips and table rows', async () => {
       testSuitesPage.mount(container, { testsuite: '' });
       (container.querySelector('.suite-card') as HTMLElement).click();
 
@@ -453,6 +457,11 @@ describe('testSuitesPage', () => {
       regressionsTab.click();
 
       await vi.waitFor(() => {
+        // State chips should be present
+        const chips = container.querySelectorAll('.state-chip');
+        expect(chips.length).toBe(5);
+
+        // Table columns
         const headers = Array.from(container.querySelectorAll('th')).map(h => h.textContent);
         expect(headers).toContain('Title');
         expect(headers).toContain('State');
@@ -464,7 +473,7 @@ describe('testSuitesPage', () => {
         expect(container.textContent).toContain('compile_time regression');
         expect(container.textContent).toContain('exec_time regression');
 
-        // Title should be a link to the regression detail page
+        // Title should be a link using full suite-scoped URL
         const titleLink = container.querySelector('a[href*="/regressions/reg-1111"]') as HTMLAnchorElement;
         expect(titleLink).toBeTruthy();
         expect(titleLink.textContent).toBe('compile_time regression');
@@ -486,7 +495,7 @@ describe('testSuitesPage', () => {
       regressionsTab.click();
 
       await vi.waitFor(() => {
-        expect(container.textContent).toContain('No regressions.');
+        expect(container.textContent).toContain('No regressions found.');
       });
     });
   });

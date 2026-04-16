@@ -53,10 +53,9 @@ navbar.
 |----------|----------|
 | [Architecture](ui/architecture.md) | SPA design, client-side routing, Flask backend routes, navigation bar, v4/v5 toggle, frontend code structure, build config, implementation phases |
 | [Dashboard](ui/dashboard.md) | Landing page with sparkline trend overview across test suites |
-| [Browsing Pages](ui/browsing.md) | Test Suites page (suite picker + tabs), Machine Detail, Run Detail, Commit Detail |
+| [Browsing Pages](ui/browsing.md) | Test Suites page (suite picker + tabs), Machine Detail, Run Detail, Commit Detail, Regression Detail, and inline regression list/triage |
 | [Graph](ui/graph.md) | Time-series visualization: multi-machine, lazy loading, test selection, baselines, regression annotations |
 | [Compare](ui/compare.md) | Side-by-side comparison of two commits/runs: selection panel, ratio chart, geomean summary, bidirectional sync |
-| [Regressions](ui/regressions.md) | Regression List (triage page) and Regression Detail (investigation/management) |
 | [Admin](ui/admin.md) | API key management, test suite schema management |
 
 ### Historical Discussion
