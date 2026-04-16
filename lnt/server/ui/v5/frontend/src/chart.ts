@@ -361,8 +361,8 @@ function drawChart(filterTests: Set<string> | null): void {
       if (ya && ya['autorange'] === false && ya['range']) {
         (layout['yaxis'] as Record<string, unknown>)['range'] = ya['range'];
         (layout['yaxis'] as Record<string, unknown>)['autorange'] = false;
-        tickYMin = ya['range'][0] as number;
-        tickYMax = ya['range'][1] as number;
+        tickYMin = (ya['range'] as number[])[0];
+        tickYMax = (ya['range'] as number[])[1];
       }
     }
   }

@@ -76,8 +76,8 @@ describe('comparePage', () => {
     setupMocks();
 
     // Reset URL state — set suite_a so fetchSideData is triggered on mount
-    delete (window as Record<string, unknown>).location;
-    (window as Record<string, unknown>).location = {
+    delete (window as unknown as Record<string, unknown>).location;
+    (window as unknown as Record<string, unknown>).location = {
       ...savedLocation,
       search: '?suite_a=nts',
       pathname: '/v5/compare',
@@ -87,7 +87,7 @@ describe('comparePage', () => {
 
   afterEach(() => {
     comparePage.unmount?.();
-    (window as Record<string, unknown>).location = savedLocation;
+    (window as unknown as Record<string, unknown>).location = savedLocation;
   });
 
   it('mount loads fields and commits for side with suite in URL', async () => {

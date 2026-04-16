@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { renderMetricSelector, filterMetricFields, METRIC_TYPES } from '../components/metric-selector';
 import type { FieldInfo } from '../types';
 
-function makeField(name: string, type = METRIC_TYPES.REAL, displayName: string | null = null): FieldInfo {
+function makeField(name: string, type: string = METRIC_TYPES.REAL, displayName: string | null = null): FieldInfo {
   return { name, type, display_name: displayName, unit: null, unit_abbrev: null, bigger_is_better: null };
 }
 

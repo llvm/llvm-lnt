@@ -98,16 +98,6 @@ describe('regressionDetailPage', () => {
     });
   }
 
-  /** Find a field row by its label text. */
-  function getFieldRow(label: string): HTMLElement {
-    const rows = container.querySelectorAll('.field-row');
-    const row = Array.from(rows).find(
-      r => r.querySelector('label')?.textContent === label,
-    ) as HTMLElement | undefined;
-    if (!row) throw new Error(`No field row with label "${label}"`);
-    return row;
-  }
-
   // ---------------------------------------------------------------
   // 1. Mount & rendering
   // ---------------------------------------------------------------

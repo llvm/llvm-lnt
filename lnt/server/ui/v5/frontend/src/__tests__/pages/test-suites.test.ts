@@ -240,7 +240,7 @@ describe('testSuitesPage', () => {
       // Should call getRunsPage (once for Recent Activity, once for Runs tab)
       const calls = (getRunsPage as ReturnType<typeof vi.fn>).mock.calls;
       const runsTabCall = calls.find(
-        (c: unknown[]) => c[1]?.sort === '-submitted_at',
+        (c: unknown[]) => (c[1] as Record<string, unknown>)?.sort === '-submitted_at',
       );
       expect(runsTabCall).toBeTruthy();
     });

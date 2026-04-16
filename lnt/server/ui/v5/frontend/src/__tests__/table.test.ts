@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest';
 import { sortRows, renderTable, resetTable } from '../table';
-import type { ComparisonRow, SortCol, SortDir } from '../types';
+import type { ComparisonRow } from '../types';
 
 // Helper to create a ComparisonRow with defaults
 function makeRow(overrides: Partial<ComparisonRow> & { test: string }): ComparisonRow {
@@ -468,7 +468,7 @@ describe('row visibility toggling', () => {
 
     renderTable(container, rows, { onToggle });
 
-    const row = container.querySelector('tr[data-test="a"]')!;
+    const row = container.querySelector('tr[data-test="a"]')! as HTMLElement;
     row.click();
 
     // Not called immediately (200ms delay)
@@ -489,7 +489,7 @@ describe('row visibility toggling', () => {
 
     renderTable(container, rows, { onToggle, onIsolate });
 
-    const row = container.querySelector('tr[data-test="a"]')!;
+    const row = container.querySelector('tr[data-test="a"]')! as HTMLElement;
     row.click();
     row.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
 

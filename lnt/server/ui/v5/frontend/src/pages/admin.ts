@@ -9,16 +9,10 @@ import { el, formatTime } from '../utils';
 let controller: AbortController | null = null;
 
 export const adminPage: PageModule = {
-  mount(container: HTMLElement, params: RouteParams): void {
+  mount(container: HTMLElement, _params: RouteParams): void {
     if (controller) controller.abort();
     controller = new AbortController();
     const { signal } = controller;
-
-    // Get available test suites from the HTML data attribute
-    const root = document.getElementById('v5-app');
-    const testsuites: string[] = root
-      ? JSON.parse(root.getAttribute('data-testsuites') || '[]')
-      : [];
 
     container.append(el('h2', { class: 'page-header' }, 'Admin'));
 
@@ -46,15 +40,15 @@ export const adminPage: PageModule = {
 
     schemasTab.addEventListener('click', () => {
       activateTab(schemasTab);
-      renderSchemasTab(tabContent, testsuites, signal);
+      renderSchemasTab(tabContent, signal);
     });
 
     createSuiteTab.addEventListener('click', () => {
       activateTab(createSuiteTab);
-      renderCreateSuiteTab(tabContent, testsuites, signal, () => {
+      renderCreateSuiteTab(tabContent, signal, () => {
         // On create success: switch to Test Suites tab to see the new suite
         activateTab(schemasTab);
-        renderSchemasTab(tabContent, testsuites, signal);
+        renderSchemasTab(tabContent, signal);
       });
     });
 
@@ -79,8 +73,8 @@ function renderApiKeysTab(container: HTMLElement, signal: AbortSignal): void {
   getApiKeys(signal)
     .then(keys => {
       container.replaceChildren();
-      renderCreateForm(container);
-      renderKeysTable(container, keys);
+      renderCreateForm(container, signal);
+      renderKeysTable(container, keys, signal);
     })
     .catch(err => {
       container.replaceChildren(
@@ -89,7 +83,7 @@ function renderApiKeysTab(container: HTMLElement, signal: AbortSignal): void {
     });
 }
 
-function renderCreateForm(container: HTMLElement): void {
+function renderCreateForm(container: HTMLElement, signal: AbortSignal): void {
   const form = el('div', { class: 'admin-create-form' });
 
   const nameInput = el('input', {
@@ -145,7 +139,7 @@ function renderCreateForm(container: HTMLElement): void {
         const tableContainer = container.querySelector('.admin-keys-table-container');
         if (tableContainer) {
           getApiKeys(signal).then(keys => {
-            renderKeysTable(container, keys);
+            renderKeysTable(container, keys, signal);
           }).catch(() => { /* keep existing table */ });
         }
       })
@@ -165,7 +159,7 @@ function renderCreateForm(container: HTMLElement): void {
   container.append(form);
 }
 
-function renderKeysTable(container: HTMLElement, keys: APIKeyItem[]): void {
+function renderKeysTable(container: HTMLElement, keys: APIKeyItem[], signal: AbortSignal): void {
   // Remove existing table if present
   const existing = container.querySelector('.admin-keys-table-container');
   if (existing) existing.remove();
@@ -209,7 +203,7 @@ function renderKeysTable(container: HTMLElement, keys: APIKeyItem[]): void {
           .then(() => {
             // Refresh
             getApiKeys(signal).then(updated => {
-              renderKeysTable(container, updated);
+              renderKeysTable(container, updated, signal);
             }).catch(() => {
               revokeBtn.removeAttribute('disabled');
               revokeBtn.textContent = 'Revoke';
@@ -237,15 +231,14 @@ function renderKeysTable(container: HTMLElement, keys: APIKeyItem[]): void {
 // Schemas (Test Suites) Tab
 // ---------------------------------------------------------------------------
 
-function renderSchemasTab(container: HTMLElement, _testsuites: string[], signal: AbortSignal): void {
+function renderSchemasTab(container: HTMLElement, signal: AbortSignal): void {
   container.replaceChildren();
 
   // Always read the current suites from the DOM attribute (single source of truth).
-  // The _testsuites parameter is kept for API compatibility but not used.
   const root = document.getElementById('v5-app');
   let suites: string[] = root
     ? JSON.parse(root.getAttribute('data-testsuites') || '[]')
-    : [..._testsuites];
+    : [];
 
   // --- Suite selector + viewer ---
   const selectorRow = el('div', { class: 'admin-form-row', style: 'margin-bottom: 12px' });
@@ -307,7 +300,6 @@ function renderSchemasTab(container: HTMLElement, _testsuites: string[], signal:
 
 function renderCreateSuiteTab(
   container: HTMLElement,
-  _suites: string[],
   signal: AbortSignal,
   onCreated: () => void,
 ): void {

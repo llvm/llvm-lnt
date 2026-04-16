@@ -58,7 +58,7 @@ vi.mock('../../components/test-selection-table', () => ({
 
 import { getFields, fetchOneCursorPage, postOneCursorPage } from '../../api';
 import { getTestsuites } from '../../router';
-import { buildTraces, buildBaselinesFromData, TRACE_SEP, graphPage } from '../../pages/graph';
+import { buildTraces, buildBaselinesFromData, graphPage } from '../../pages/graph';
 import { renderMachineCombobox } from '../../components/machine-combobox';
 import type { QueryDataPoint, FieldInfo } from '../../types';
 
@@ -467,8 +467,8 @@ describe('graphPage mount', () => {
     mockCommitPickerHandle.input = document.createElement('input');
 
     // Reset URL state
-    delete (window as Record<string, unknown>).location;
-    (window as Record<string, unknown>).location = {
+    delete (window as unknown as Record<string, unknown>).location;
+    (window as unknown as Record<string, unknown>).location = {
       ...savedLocation,
       search: '?suite=nts',
       pathname: '/v5/graph',
@@ -490,7 +490,7 @@ describe('graphPage mount', () => {
 
   afterEach(() => {
     graphPage.unmount?.();
-    (window as Record<string, unknown>).location = savedLocation;
+    (window as unknown as Record<string, unknown>).location = savedLocation;
   });
 
   it('renders page header "Graph"', () => {
@@ -579,7 +579,7 @@ describe('graphPage mount', () => {
   });
 
   it('parses machine URL params on mount', () => {
-    (window.location as Record<string, unknown>).search = '?suite=nts&machine=clang-x86&machine=gcc-arm&metric=exec_time';
+    (window.location as unknown as Record<string, unknown>).search = '?suite=nts&machine=clang-x86&machine=gcc-arm&metric=exec_time';
 
     graphPage.mount(container, { testsuite: 'nts' });
 
@@ -591,7 +591,7 @@ describe('graphPage mount', () => {
   });
 
   it('parses test_filter URL param on mount', () => {
-    (window.location as Record<string, unknown>).search = '?suite=nts&test_filter=compile';
+    (window.location as unknown as Record<string, unknown>).search = '?suite=nts&test_filter=compile';
 
     graphPage.mount(container, { testsuite: 'nts' });
 
@@ -600,7 +600,7 @@ describe('graphPage mount', () => {
   });
 
   it('parses aggregation URL params on mount', () => {
-    (window.location as Record<string, unknown>).search = '?suite=nts&run_agg=mean&sample_agg=max';
+    (window.location as unknown as Record<string, unknown>).search = '?suite=nts&run_agg=mean&sample_agg=max';
 
     graphPage.mount(container, { testsuite: 'nts' });
 
@@ -610,7 +610,7 @@ describe('graphPage mount', () => {
   });
 
   it('parses baseline URL params on mount and renders chips', () => {
-    (window.location as Record<string, unknown>).search = '?suite=nts&baseline=nts::m1::100&baseline=other::m2::200';
+    (window.location as unknown as Record<string, unknown>).search = '?suite=nts&baseline=nts::m1::100&baseline=other::m2::200';
 
     graphPage.mount(container, { testsuite: 'nts' });
 

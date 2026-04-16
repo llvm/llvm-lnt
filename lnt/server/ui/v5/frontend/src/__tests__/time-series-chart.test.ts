@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { buildPlotlyData, createTimeSeriesChart } from '../components/time-series-chart';
-import type { TimeSeriesTrace, PinnedBaseline, TimeSeriesChartOptions, ChartHandle } from '../components/time-series-chart';
+import type { TimeSeriesTrace, TimeSeriesChartOptions } from '../components/time-series-chart';
 import { TRACE_SEP } from '../pages/graph';
 
 function makeTrace(name: string, points: Array<{ commit: string; value: number }>, machine = 'm1'): TimeSeriesTrace {
