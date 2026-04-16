@@ -39,6 +39,8 @@ let fetchController: AbortController | null = null;
 let sampleCache = new Map<string, SampleInfo[]>();
 /** Tests manually hidden by the user (click toggle) or by hideNoise. */
 let manuallyHidden = new Set<string>();
+/** Callback invoked after every table/chart render (used by regression panel). */
+let onAfterRender: (() => void) | null = null;
 
 export const comparePage: PageModule = {
   mount(container: HTMLElement, _params: RouteParams): void {
@@ -58,8 +60,6 @@ export const comparePage: PageModule = {
     const tableContainer = el('div', { class: 'table-container' });
 
     let lastRows: ComparisonRow[] = [];
-    /** Callback invoked after every table/chart render (used by regression panel). */
-    let onAfterRender: (() => void) | null = null;
 
     // ----- Compute effective hidden set and render -----
 

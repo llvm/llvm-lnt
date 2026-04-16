@@ -2,14 +2,23 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Mock the API module before importing compare page
-vi.mock('../../api', () => ({
-  getFields: vi.fn(),
-  getCommits: vi.fn(),
-  getSamples: vi.fn(),
-  getRuns: vi.fn(),
-  getMachines: vi.fn(),
-  getMachineRuns: vi.fn(),
-}));
+vi.mock('../../api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../api')>();
+  return {
+    ...actual,
+    getFields: vi.fn(),
+    getCommits: vi.fn(),
+    getSamples: vi.fn(),
+    getRuns: vi.fn(),
+    getMachines: vi.fn(),
+    getMachineRuns: vi.fn(),
+    getRegressions: vi.fn(),
+    createRegression: vi.fn(),
+    addRegressionIndicators: vi.fn(),
+    getToken: vi.fn(),
+    authErrorMessage: vi.fn((err: unknown) => `Auth error: ${err}`),
+  };
+});
 
 vi.mock('../../router', () => ({
   navigate: vi.fn(),
