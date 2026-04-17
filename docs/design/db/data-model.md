@@ -72,10 +72,11 @@ is cached.
 
 **Multi-process safety**: In a multi-worker deployment (e.g., gunicorn), when
 one worker creates or deletes a suite, it bumps the `v5_schema_version` counter
-in the same transaction. The v5 API middleware calls `V5DB.ensure_fresh()` at
-the start of every request, which compares the cached version against the DB
-and reloads all schemas when they differ. The check is a single-row integer
-read per request.
+in the same transaction. Every v5 request path -- API endpoints and SPA shell
+pages alike -- must compare its cached version counter against the database
+before reading the in-memory suite registry. When a mismatch is detected, all
+schemas are reloaded from the database. The check is a single-row integer read
+per request.
 
 
 ## D4: Schema Format

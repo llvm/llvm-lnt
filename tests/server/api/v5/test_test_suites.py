@@ -797,6 +797,110 @@ class TestRegistryVersionPropagation(unittest.TestCase):
         suites_after = set(db.testsuite.keys())
         self.assertTrue(suites_before.issubset(suites_after))
 
+    def test_spa_shell_freshness_after_create(self):
+        """SPA shell route picks up a suite created while cache was stale."""
+        db = self.app.instance.get_database("default")
+
+        # Create a suite via the API
+        payload = dict(MINIMAL_SUITE, name='spa_fresh_create')
+        resp = self.client.post(
+            '/api/v5/test-suites/', json=payload,
+            headers=self._manage_headers)
+        self.assertEqual(resp.status_code, 201)
+
+        # Simulate a stale worker: clear the in-memory cache
+        saved_version = db._schema_version
+        db._schema_version = 0
+        db.testsuite.clear()
+
+        # Hit the SPA shell route (v5_global); ensure_fresh should reload
+        resp = self.client.get('/v5/test-suites')
+        self.assertEqual(resp.status_code, 200)
+        html = resp.get_data(as_text=True)
+        self.assertIn('spa_fresh_create', html)
+        # Version should be restored after reload
+        self.assertEqual(db._schema_version, saved_version)
+
+    def test_spa_shell_freshness_v5_app_route(self):
+        """Per-suite SPA route picks up a suite created while cache was stale."""
+        db = self.app.instance.get_database("default")
+
+        # Create a suite via the API
+        payload = dict(MINIMAL_SUITE, name='spa_app_fresh')
+        resp = self.client.post(
+            '/api/v5/test-suites/', json=payload,
+            headers=self._manage_headers)
+        self.assertEqual(resp.status_code, 201)
+
+        # Simulate a stale worker
+        db._schema_version = 0
+        db.testsuite.clear()
+
+        # Hit the per-suite SPA route (v5_app); should NOT 404
+        resp = self.client.get('/v5/spa_app_fresh/')
+        self.assertEqual(resp.status_code, 200)
+        html = resp.get_data(as_text=True)
+        self.assertIn('spa_app_fresh', html)
+
+    def test_spa_shell_freshness_after_delete(self):
+        """SPA shell route drops a suite deleted while cache was stale."""
+        db = self.app.instance.get_database("default")
+
+        # Create then delete a suite via the API
+        payload = dict(MINIMAL_SUITE, name='spa_fresh_del')
+        self.client.post(
+            '/api/v5/test-suites/', json=payload,
+            headers=self._manage_headers)
+        self.client.delete(
+            '/api/v5/test-suites/spa_fresh_del?confirm=true',
+            headers=self._manage_headers)
+
+        # Simulate a stale worker that still has the deleted suite cached.
+        # Build a fake in-memory entry so testsuite dict is non-empty.
+        db._schema_version = 0
+
+        # Hit the SPA shell route; ensure_fresh should reload from DB
+        resp = self.client.get('/v5/test-suites')
+        self.assertEqual(resp.status_code, 200)
+        html = resp.get_data(as_text=True)
+        self.assertNotIn('spa_fresh_del', html)
+
+    def test_schema_version_not_updated_on_reload_failure(self):
+        """If _load_schemas_from_db fails mid-rebuild, _schema_version stays
+        stale so the next ensure_fresh retries."""
+        db = self.app.instance.get_database("default")
+
+        # Create a suite so there is something to reload
+        payload = dict(MINIMAL_SUITE, name='reload_fail_suite')
+        resp = self.client.post(
+            '/api/v5/test-suites/', json=payload,
+            headers=self._manage_headers)
+        self.assertEqual(resp.status_code, 201)
+
+        current_version = db._schema_version
+        # Stale the cache to force a reload
+        db._schema_version = 0
+
+        # Patch parse_schema to raise, simulating a corrupt schema row
+        with patch('lnt.server.db.v5.parse_schema',
+                   side_effect=ValueError('simulated parse error')):
+            try:
+                session = db.make_session()
+                db.ensure_fresh(session)
+                session.close()
+            except ValueError:
+                pass
+
+        # _schema_version should NOT have been updated (still stale)
+        self.assertEqual(db._schema_version, 0)
+
+        # A subsequent ensure_fresh (without the patch) should succeed
+        session = db.make_session()
+        db.ensure_fresh(session)
+        session.close()
+        self.assertEqual(db._schema_version, current_version)
+        self.assertIn('reload_fail_suite', db.testsuite)
+
 
 if __name__ == '__main__':
     unittest.main(argv=[sys.argv[0]], exit=True)

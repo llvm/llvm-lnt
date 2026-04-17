@@ -1,7 +1,6 @@
-from flask import abort, g, render_template, request
+from flask import abort, render_template, request
 
 from . import v5_frontend, _setup_testsuite
-from lnt.server.ui.decorators import _make_db_session
 
 
 def _v5_url_base():
@@ -46,8 +45,7 @@ def v5_global():
     suite selection internally via its own UI controls. The list of
     available test suites is provided via data-testsuites.
     """
-    g.testsuite_name = ''
-    _make_db_session(None)
+    _setup_testsuite('')
     try:
         db = request.get_db()
         return _v5_render(testsuites=sorted(db.testsuite.keys()))

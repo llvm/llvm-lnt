@@ -121,6 +121,10 @@ will block the delete.
 4. Adds CORS headers.
 5. Logs access in Apache combined format.
 
+Note: `ensure_fresh` is a per-request contract for **all** v5 code paths, not
+just the API. The SPA shell views also call it via `_setup_testsuite()` (see
+Frontend Patterns below).
+
 **Unknown parameter rejection.** Every endpoint calls
 `reject_unknown_params(allowed_set)` to return 400 on unrecognized query
 parameters. This catches typos and prevents silent filter failures.
@@ -134,6 +138,12 @@ are implementation patterns not covered there:
 **SPA shell.** The template `v5_app.html` is a standalone HTML page -- it
 does NOT extend the v4 `layout.html`. This avoids inheriting Bootstrap 2,
 jQuery, and v4 layout artifacts.
+
+The `_setup_testsuite()` helper in `lnt/server/ui/v5/__init__.py` is the
+shared entry point for all `/v5/` routes. It calls `_make_db_session()` and
+then `db.ensure_fresh()` (for v5 databases) so the server-side
+`data-testsuites` attribute is always current, even when another worker has
+created or deleted a suite since this worker last checked.
 
 Gotcha: `data-testsuites` uses `| tojson | forceescape` in the Jinja
 template. `forceescape` is required because Flask's `tojson` returns a

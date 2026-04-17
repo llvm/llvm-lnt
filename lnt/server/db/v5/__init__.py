@@ -149,20 +149,32 @@ class V5DB:
         }
 
     def _load_schemas_from_db(self) -> None:
-        """Read all rows from ``v5_schema``, parse each, and build models."""
+        """Read all rows from ``v5_schema``, parse each, and build models.
+
+        Read ordering matters for multi-process safety under PostgreSQL's
+        default READ COMMITTED isolation: version is read *before* schemas
+        so that a concurrent commit between the two reads leaves the cached
+        version behind (triggering a harmless reload next request) rather
+        than ahead (silently missing the new suite).  ``_schema_version``
+        is set *last* so that a failure during the rebuild leaves it stale,
+        causing the next ``ensure_fresh`` call to retry.
+        """
         session = self.sessionmaker()
         try:
-            rows = session.query(V5Schema).all()
             ver = session.query(V5SchemaVersion).get(1)
-            self._schema_version = ver.version if ver else 0
+            version = ver.version if ver else 0
+            rows = session.query(V5Schema).all()
 
-            self.testsuite.clear()
+            new_suites: dict[str, V5TestSuiteDB] = {}
             for row in rows:
                 data = json.loads(row.schema_json)
                 schema = parse_schema(data)
                 models = create_suite_models(schema)
                 tsdb = V5TestSuiteDB(self, schema, models)
-                self.testsuite[schema.name] = tsdb
+                new_suites[schema.name] = tsdb
+
+            self.testsuite = new_suites
+            self._schema_version = version
         finally:
             session.close()
 

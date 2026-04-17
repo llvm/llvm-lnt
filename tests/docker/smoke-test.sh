@@ -147,6 +147,16 @@ check_endpoint "POST /api/v5/test-suites (create)" \
 check_endpoint "GET /api/v5/test-suites/${SUITE}" \
     "${BASE_URL}/api/v5/test-suites/${SUITE}" 200 GET "" ".schema.name"
 
+# Verify the SPA shell reflects the newly created suite.  With 8 gunicorn
+# workers, the request may land on a worker that did not handle the POST;
+# ensure_fresh must propagate the new suite to that worker's cache.
+spa_html=$(curl -s -H "Authorization: Bearer ${AUTH_TOKEN}" "${BASE_URL}/v5/test-suites")
+if echo "$spa_html" | grep -q "${SUITE}"; then
+    pass "SPA shell lists new suite '${SUITE}'"
+else
+    fail "SPA shell lists new suite '${SUITE}'" "suite name not found in /v5/test-suites HTML"
+fi
+
 # ---------------------------------------------------------------------------
 # Test: Submit a run
 # ---------------------------------------------------------------------------
