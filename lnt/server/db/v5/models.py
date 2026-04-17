@@ -9,6 +9,7 @@ Postgres only.  SQLAlchemy 1.3 style (Column, relation, declarative_base).
 
 from __future__ import annotations
 
+import datetime
 import uuid as uuid_module
 from dataclasses import dataclass
 from typing import Any
@@ -34,6 +35,15 @@ from .schema import TestSuiteSchema
 
 
 # ---------------------------------------------------------------------------
+# Utilities
+# ---------------------------------------------------------------------------
+
+def utcnow():
+    """Return the current UTC time as a timezone-aware datetime."""
+    return datetime.datetime.now(datetime.timezone.utc)
+
+
+# ---------------------------------------------------------------------------
 # Global tables (shared across all suites)
 # ---------------------------------------------------------------------------
 
@@ -45,7 +55,7 @@ class V5Schema(_global_base):                          # type: ignore[misc]
     __tablename__ = "v5_schema"
     name = Column("name", String(256), primary_key=True)
     schema_json = Column("schema_json", Text, nullable=False)
-    created_at = Column("created_at", DateTime, nullable=False)
+    created_at = Column("created_at", DateTime(timezone=True), nullable=False)
 
 
 class V5SchemaVersion(_global_base):                   # type: ignore[misc]
@@ -64,8 +74,8 @@ class APIKey(_global_base):                             # type: ignore[misc]
     key_hash = Column("key_hash", String(64), nullable=False, unique=True,
                       index=True)
     scope = Column("scope", String(32), nullable=False)
-    created_at = Column("created_at", DateTime, nullable=False)
-    last_used_at = Column("last_used_at", DateTime, nullable=True)
+    created_at = Column("created_at", DateTime(timezone=True), nullable=False)
+    last_used_at = Column("last_used_at", DateTime(timezone=True), nullable=True)
     is_active = Column("is_active", Boolean, nullable=False, default=True)
 
 
@@ -82,7 +92,7 @@ _COMMIT_FIELD_TYPE_MAP: dict[str, Any] = {
     "default": lambda: String(256),
     "text": lambda: Text,
     "integer": lambda: Integer,
-    "datetime": lambda: DateTime,
+    "datetime": lambda: DateTime(timezone=True),
 }
 
 _METRIC_TYPE_MAP: dict[str, Any] = {
@@ -193,7 +203,7 @@ def create_suite_models(schema: TestSuiteSchema) -> SuiteModels:
             ForeignKey(f"{prefix}_Commit.id", ondelete="CASCADE"),
             nullable=False, index=True,
         ),
-        "submitted_at": Column("submitted_at", DateTime, nullable=False, index=True),
+        "submitted_at": Column("submitted_at", DateTime(timezone=True), nullable=False, index=True),
         "run_parameters": Column(
             "run_parameters", JSONB, nullable=False,
             server_default=sqlalchemy.text("'{}'::jsonb"),

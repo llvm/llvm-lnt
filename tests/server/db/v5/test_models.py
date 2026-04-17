@@ -12,7 +12,7 @@ import sqlalchemy
 import sqlalchemy.exc
 
 from lnt.server.db.v5.schema import parse_schema
-from lnt.server.db.v5.models import _global_base, create_suite_models
+from lnt.server.db.v5.models import _global_base, create_suite_models, utcnow
 from lnt.server.db.v5 import V5DB, initialize_v5_database
 
 
@@ -102,6 +102,11 @@ class TestModelCreation(unittest.TestCase):
             "t_RegressionIndicator",
         }
         self.assertTrue(expected.issubset(tables), f"Missing: {expected - tables}")
+
+    def test_utcnow_returns_utc_aware_datetime(self):
+        """utcnow() must return a timezone-aware UTC datetime."""
+        result = utcnow()
+        self.assertEqual(result.tzinfo, datetime.timezone.utc)
 
 
 class TestCommitCRUD(unittest.TestCase):
@@ -311,7 +316,7 @@ class TestRunCRUD(_ModelTestBase):
         run.uuid = "aaaaaaaa-1111-2222-3333-444444444444"
         run.machine_id = machine.id
         run.commit_id = commit.id
-        run.submitted_at = datetime.datetime(2024, 1, 1, 12, 0, 0)
+        run.submitted_at = datetime.datetime(2024, 1, 1, 12, 0, 0, tzinfo=datetime.timezone.utc)
         run.run_parameters = {"build": "Release"}
         session.add(run)
         session.commit()
@@ -327,7 +332,7 @@ class TestRunCRUD(_ModelTestBase):
         run.uuid = "bbbbbbbb-1111-2222-3333-444444444444"
         run.machine_id = machine.id
         run.commit_id = None
-        run.submitted_at = datetime.datetime(2024, 1, 1, 12, 0, 0)
+        run.submitted_at = datetime.datetime(2024, 1, 1, 12, 0, 0, tzinfo=datetime.timezone.utc)
         run.run_parameters = {}
         session.add(run)
         with self.assertRaises(sqlalchemy.exc.IntegrityError):
@@ -343,7 +348,7 @@ class TestRunCRUD(_ModelTestBase):
         r1.uuid = "cccccccc-1111-2222-3333-444444444444"
         r1.machine_id = machine.id
         r1.commit_id = commit.id
-        r1.submitted_at = datetime.datetime.utcnow()
+        r1.submitted_at = utcnow()
         r1.run_parameters = {}
         session.add(r1)
         session.commit()
@@ -352,7 +357,7 @@ class TestRunCRUD(_ModelTestBase):
         r2.uuid = "cccccccc-1111-2222-3333-444444444444"  # same
         r2.machine_id = machine.id
         r2.commit_id = commit.id
-        r2.submitted_at = datetime.datetime.utcnow()
+        r2.submitted_at = utcnow()
         r2.run_parameters = {}
         session.add(r2)
         with self.assertRaises(sqlalchemy.exc.IntegrityError):
@@ -368,7 +373,7 @@ class TestRunCRUD(_ModelTestBase):
         run.uuid = "dddddddd-1111-2222-3333-444444444444"
         run.machine_id = machine.id
         run.commit_id = commit.id
-        run.submitted_at = datetime.datetime.utcnow()
+        run.submitted_at = utcnow()
         run.run_parameters = {
             "nested": {"key": [1, 2, 3]},
             "null_value": None,
@@ -422,7 +427,7 @@ class TestSampleCreation(unittest.TestCase):
         r.uuid = "sample-run-uuid-00000000000000000"[:36]
         r.machine_id = m.id
         r.commit_id = c.id
-        r.submitted_at = datetime.datetime.utcnow()
+        r.submitted_at = utcnow()
         r.run_parameters = {}
         session.add(r)
         session.flush()
@@ -682,7 +687,7 @@ class TestCascadingDeletes(unittest.TestCase):
         r.uuid = "cascade-run-uuid00000000000000000"[:36]
         r.machine_id = m.id
         r.commit_id = c.id
-        r.submitted_at = datetime.datetime.utcnow()
+        r.submitted_at = utcnow()
         r.run_parameters = {}
         session.add(r)
         session.flush()
@@ -719,7 +724,7 @@ class TestCascadingDeletes(unittest.TestCase):
         r.uuid = "cascade-m-run-uuid0000000000000000"[:36]
         r.machine_id = m.id
         r.commit_id = c.id
-        r.submitted_at = datetime.datetime.utcnow()
+        r.submitted_at = utcnow()
         r.run_parameters = {}
         session.add(r)
         session.flush()

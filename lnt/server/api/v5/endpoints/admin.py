@@ -8,15 +8,16 @@ Admin endpoints live OUTSIDE the {testsuite} namespace. The middleware opens
 a DB session for auth validation but does NOT resolve a test suite.
 """
 
-import datetime
 import secrets
 
 from flask import g
 from flask.views import MethodView
 from flask_smorest import Blueprint
 
+from lnt.server.db.v5.models import utcnow
 from ..auth import APIKey, require_scope, _hash_token
 from ..errors import reject_unknown_params
+from ..helpers import format_utc
 from ..schemas.admin import (
     APIKeyCreateRequestSchema,
     APIKeyCreateResponseSchema,
@@ -53,8 +54,8 @@ class APIKeyCollection(MethodView):
                 'prefix': k.key_prefix,
                 'name': k.name,
                 'scope': k.scope,
-                'created_at': k.created_at,
-                'last_used_at': k.last_used_at,
+                'created_at': format_utc(k.created_at),
+                'last_used_at': format_utc(k.last_used_at),
                 'is_active': k.is_active,
             })
 
@@ -82,7 +83,7 @@ class APIKeyCollection(MethodView):
             key_prefix=prefix,
             key_hash=key_hash,
             scope=scope,
-            created_at=datetime.datetime.utcnow(),
+            created_at=utcnow(),
             is_active=True,
         )
 

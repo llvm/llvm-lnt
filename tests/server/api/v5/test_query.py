@@ -48,7 +48,7 @@ def _setup_query_data(client, app, machine_name, test_name, num_points=5):
     ts = db.testsuite[TS]
     for i, run_uuid in enumerate(run_uuids):
         run = ts.get_run(session, uuid=run_uuid)
-        run.submitted_at = datetime.datetime(2024, 1, 1 + i, 12, 0, 0)
+        run.submitted_at = datetime.datetime(2024, 1, 1 + i, 12, 0, 0, tzinfo=datetime.timezone.utc)
     session.commit()
     session.close()
 
@@ -321,7 +321,7 @@ class TestQueryRangeFilters(unittest.TestCase):
             c = ts.get_commit(session, commit=commit_str)
             runs = ts.list_runs(session, commit_id=c.id)
             for run in runs:
-                run.submitted_at = datetime.datetime(2024, 1, 1 + i, 12, 0, 0)
+                run.submitted_at = datetime.datetime(2024, 1, 1 + i, 12, 0, 0, tzinfo=datetime.timezone.utc)
         session.commit()
         session.close()
 
@@ -404,7 +404,7 @@ class TestQueryRangeFilters(unittest.TestCase):
         data = resp.get_json()
         self.assertGreater(len(data['items']), 0)
         for item in data['items']:
-            self.assertGreater(item['submitted_at'], '2024-01-06T00:00:00')
+            self.assertGreater(item['submitted_at'], '2024-01-06T00:00:00Z')
 
     def test_before_time_filter(self):
         """Only data points from runs before the given time should be returned."""
@@ -418,7 +418,7 @@ class TestQueryRangeFilters(unittest.TestCase):
         data = resp.get_json()
         self.assertGreater(len(data['items']), 0)
         for item in data['items']:
-            self.assertLess(item['submitted_at'], '2024-01-04T00:00:00')
+            self.assertLess(item['submitted_at'], '2024-01-04T00:00:00Z')
 
     def test_after_time_and_before_time_combined(self):
         """Combining time range filters narrows the results."""
@@ -433,8 +433,8 @@ class TestQueryRangeFilters(unittest.TestCase):
         data = resp.get_json()
         self.assertGreater(len(data['items']), 0)
         for item in data['items']:
-            self.assertGreater(item['submitted_at'], '2024-01-03T00:00:00')
-            self.assertLess(item['submitted_at'], '2024-01-07T00:00:00')
+            self.assertGreater(item['submitted_at'], '2024-01-03T00:00:00Z')
+            self.assertLess(item['submitted_at'], '2024-01-07T00:00:00Z')
 
     def test_commit_and_time_filters_compose(self):
         """Both commit and time filters can be used together."""
@@ -450,7 +450,7 @@ class TestQueryRangeFilters(unittest.TestCase):
         for item in data['items']:
             rev = int(item['commit'])
             self.assertGreater(rev, 120)
-            self.assertLess(item['submitted_at'], '2024-01-07T00:00:00')
+            self.assertLess(item['submitted_at'], '2024-01-07T00:00:00Z')
 
     def test_after_time_future_returns_empty(self):
         """Filtering with after_time far in the future returns 0 items."""
@@ -637,7 +637,7 @@ def _setup_multi_test_data(client, app, machine_name, test_names, num_orders=5):
         c = ts.get_commit(session, commit=commit_str)
         runs = ts.list_runs(session, commit_id=c.id)
         for run in runs:
-            run.submitted_at = datetime.datetime(2024, 6, 1 + i, 12, 0, 0)
+            run.submitted_at = datetime.datetime(2024, 6, 1 + i, 12, 0, 0, tzinfo=datetime.timezone.utc)
     session.commit()
     session.close()
 
@@ -1123,7 +1123,7 @@ class TestQueryOrderRangeBoundaries(unittest.TestCase):
             c = ts.get_commit(session, commit=commit_str)
             runs = ts.list_runs(session, commit_id=c.id)
             for run in runs:
-                run.submitted_at = datetime.datetime(2024, 7, 1 + i, 12, 0, 0)
+                run.submitted_at = datetime.datetime(2024, 7, 1 + i, 12, 0, 0, tzinfo=datetime.timezone.utc)
         session.commit()
         session.close()
 

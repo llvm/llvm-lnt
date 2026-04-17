@@ -6,21 +6,24 @@ from .errors import abort_with_error
 
 
 def parse_datetime(value):
-    """Parse an ISO datetime string. Returns a naive datetime or None.
+    """Parse an ISO datetime string. Returns a timezone-aware UTC datetime
+    or None.
 
     Two differences from ``datetime.fromisoformat``:
 
     1. Accepts ``Z`` as a timezone suffix (mapped to ``+00:00``).
-    2. Always returns a **naive** datetime (tzinfo stripped) because
-       the database stores naive UTC timestamps.
+    2. Always returns a **timezone-aware UTC** datetime.  Bare datetime
+       strings (no timezone suffix) are assumed to be UTC.
     """
     if not value:
         return None
     try:
         dt = datetime.datetime.fromisoformat(value.replace('Z', '+00:00'))
-        # Strip timezone info for naive comparison (DB stores naive datetimes)
         if dt.tzinfo is not None:
-            dt = dt.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+            dt = dt.astimezone(datetime.timezone.utc)
+        else:
+            # Bare datetime assumed UTC
+            dt = dt.replace(tzinfo=datetime.timezone.utc)
         return dt
     except (ValueError, TypeError):
         return None
@@ -106,6 +109,19 @@ def lookup_regression(session, ts, regression_uuid):
 # Serialization helpers
 # ---------------------------------------------------------------------------
 
+def format_utc(dt):
+    """Format a UTC datetime as an ISO 8601 string with Z suffix.
+
+    Returns None if *dt* is None.  Naive datetimes are assumed to be
+    UTC and tagged accordingly.
+    """
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=datetime.timezone.utc)
+    return dt.astimezone(datetime.timezone.utc).isoformat().replace('+00:00', 'Z')
+
+
 def serialize_run(run, ts):
     """Serialize a Run model instance for API responses.
 
@@ -114,14 +130,10 @@ def serialize_run(run, ts):
     """
     machine_name = run.machine.name if run.machine else None
 
-    submitted_at = None
-    if run.submitted_at:
-        submitted_at = run.submitted_at.isoformat()
-
     return {
         'uuid': run.uuid,
         'machine': machine_name,
         'commit': run.commit_obj.commit if run.commit_obj else None,
-        'submitted_at': submitted_at,
+        'submitted_at': format_utc(run.submitted_at),
         'run_parameters': dict(run.run_parameters) if run.run_parameters else {},
     }

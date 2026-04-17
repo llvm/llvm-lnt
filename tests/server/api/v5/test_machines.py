@@ -562,11 +562,11 @@ class TestMachineRuns(unittest.TestCase):
         c1 = create_commit(
             session, ts, commit=f'after-1-{uuid.uuid4().hex[:8]}')
         create_run(session, ts, machine, c1,
-                   submitted_at=datetime.datetime(2024, 1, 1, 12, 0, 0))
+                   submitted_at=datetime.datetime(2024, 1, 1, 12, 0, 0, tzinfo=datetime.timezone.utc))
         c2 = create_commit(
             session, ts, commit=f'after-2-{uuid.uuid4().hex[:8]}')
         create_run(session, ts, machine, c2,
-                   submitted_at=datetime.datetime(2024, 6, 1, 12, 0, 0))
+                   submitted_at=datetime.datetime(2024, 6, 1, 12, 0, 0, tzinfo=datetime.timezone.utc))
         session.commit()
         session.close()
 
@@ -626,11 +626,11 @@ class TestMachineRuns(unittest.TestCase):
         c1 = create_commit(
             session, ts, commit=f'before-1-{uuid.uuid4().hex[:8]}')
         create_run(session, ts, machine, c1,
-                   submitted_at=datetime.datetime(2024, 1, 1, 12, 0, 0))
+                   submitted_at=datetime.datetime(2024, 1, 1, 12, 0, 0, tzinfo=datetime.timezone.utc))
         c2 = create_commit(
             session, ts, commit=f'before-2-{uuid.uuid4().hex[:8]}')
         create_run(session, ts, machine, c2,
-                   submitted_at=datetime.datetime(2024, 6, 1, 12, 0, 0))
+                   submitted_at=datetime.datetime(2024, 6, 1, 12, 0, 0, tzinfo=datetime.timezone.utc))
         session.commit()
         session.close()
 
@@ -664,7 +664,7 @@ class TestMachineRuns(unittest.TestCase):
                 session, ts,
                 commit=f'pag-mr-{i}-{uuid.uuid4().hex[:8]}')
             create_run(session, ts, machine, c,
-                       submitted_at=datetime.datetime(2024, 1, 1 + i, 12, 0, 0))
+                       submitted_at=datetime.datetime(2024, 1, 1 + i, 12, 0, 0, tzinfo=datetime.timezone.utc))
         session.commit()
         session.close()
 

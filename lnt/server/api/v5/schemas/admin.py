@@ -78,13 +78,13 @@ class APIKeyItemSchema(BaseSchema):
         required=True,
         metadata={'description': 'Granted scope level'},
     )
-    created_at = ma.fields.DateTime(
+    created_at = ma.fields.String(
         required=True,
-        metadata={'description': 'When the key was created'},
+        metadata={'description': 'When the key was created (ISO 8601 UTC)'},
     )
-    last_used_at = ma.fields.DateTime(
+    last_used_at = ma.fields.String(
         allow_none=True,
-        metadata={'description': 'When the key was last used'},
+        metadata={'description': 'When the key was last used (ISO 8601 UTC)'},
     )
     is_active = ma.fields.Boolean(
         required=True,

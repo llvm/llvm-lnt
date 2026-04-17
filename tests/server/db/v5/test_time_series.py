@@ -78,7 +78,7 @@ class TestTimeSeries(unittest.TestCase):
         session.flush()
 
         # Create runs and samples
-        base_time = datetime.datetime(2024, 1, 1, 12, 0, 0)
+        base_time = datetime.datetime(2024, 1, 1, 12, 0, 0, tzinfo=datetime.timezone.utc)
         cls.runs = []
         for i, c in enumerate(cls.commits):
             run = cls.tsdb.create_run(
@@ -142,8 +142,8 @@ class TestTimeSeries(unittest.TestCase):
 
     def test_time_range(self):
         session = self.Session()
-        start = datetime.datetime(2024, 1, 1, 13, 0, 0)  # after first run
-        end = datetime.datetime(2024, 1, 1, 15, 0, 0)    # up to 3rd run
+        start = datetime.datetime(2024, 1, 1, 13, 0, 0, tzinfo=datetime.timezone.utc)  # after first run
+        end = datetime.datetime(2024, 1, 1, 15, 0, 0, tzinfo=datetime.timezone.utc)    # up to 3rd run
         results = self.tsdb.query_time_series(
             session, self.machine, self.test, "execution_time",
             time_range=(start, end))
@@ -158,7 +158,7 @@ class TestTimeSeries(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.tsdb.create_run(
                 session, self.machine, commit=None,
-                submitted_at=datetime.datetime(2024, 1, 1, 12, 0, 0))
+                submitted_at=datetime.datetime(2024, 1, 1, 12, 0, 0, tzinfo=datetime.timezone.utc))
         session.close()
 
     def test_unknown_metric_raises(self):
@@ -219,7 +219,7 @@ class TestQueryTrends(unittest.TestCase):
         cls.test2 = cls.tsdb.get_or_create_test(session, "trends/bench2")
 
         cls.commits = []
-        base_time = datetime.datetime(2024, 3, 1, 12, 0, 0)
+        base_time = datetime.datetime(2024, 3, 1, 12, 0, 0, tzinfo=datetime.timezone.utc)
         for i in range(3):
             c = cls.tsdb.get_or_create_commit(session, f"trends-commit-{i}")
             c.ordinal = (i + 1) * 10  # 10, 20, 30
@@ -301,8 +301,8 @@ class TestQueryTrends(unittest.TestCase):
         # Seed data has machine_a runs at 12:00, 13:00, 14:00.
         # With exclusive bounds, start=12:00 excludes the 12:00 run and
         # end=13:30 excludes nothing extra, leaving only the 13:00 run.
-        start = datetime.datetime(2024, 3, 1, 12, 0, 0)
-        end = datetime.datetime(2024, 3, 1, 13, 30, 0)
+        start = datetime.datetime(2024, 3, 1, 12, 0, 0, tzinfo=datetime.timezone.utc)
+        end = datetime.datetime(2024, 3, 1, 13, 30, 0, tzinfo=datetime.timezone.utc)
         results = self.tsdb.query_trends(
             session, "execution_time",
             after_time=start, before_time=end)

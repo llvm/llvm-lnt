@@ -75,3 +75,7 @@ Identified during manual testing on 2026-04-16.
 ## Regression List: Merge Into Test Suites Tab
 
 - [x] Done (commit 2a68640).
+
+## API Improvements
+
+- [x] **API timestamps lack Z suffix**: Done (timestamps now include `Z`).

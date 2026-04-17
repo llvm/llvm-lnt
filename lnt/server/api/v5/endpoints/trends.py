@@ -13,7 +13,7 @@ from flask_smorest import Blueprint
 
 from ..auth import require_scope
 from ..errors import abort_with_error
-from ..helpers import get_metric_def, lookup_machine, parse_datetime
+from ..helpers import format_utc, get_metric_def, lookup_machine, parse_datetime
 from ..schemas.trends import TrendsQuerySchema, TrendsResponseSchema
 
 blp = Blueprint(
@@ -85,8 +85,7 @@ class TrendsView(MethodView):
                 'commit': r['commit'],
                 'ordinal': r['ordinal'],
                 'value': r['value'],
-                'submitted_at': (r['submitted_at'].isoformat()
-                                 if r['submitted_at'] else None),
+                'submitted_at': format_utc(r['submitted_at']),
             })
 
         return jsonify({'metric': metric, 'items': items})

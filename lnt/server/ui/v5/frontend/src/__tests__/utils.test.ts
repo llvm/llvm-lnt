@@ -328,7 +328,7 @@ describe('formatTime', () => {
   });
 
   it('returns a locale string for a valid ISO date', () => {
-    const result = formatTime('2025-01-15T10:30:00');
+    const result = formatTime('2025-01-15T10:30:00Z');
     // Just verify it returns a non-empty string (locale formatting varies)
     expect(result.length).toBeGreaterThan(0);
     expect(result).not.toBe('\u2014');

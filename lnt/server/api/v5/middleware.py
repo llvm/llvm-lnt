@@ -1,13 +1,12 @@
 """v5 API middleware: testsuite resolution, DB session lifecycle, CORS,
 and access logging."""
 
-import datetime
 import logging
 import sys
 
 from flask import current_app, g, request
 
-from lnt.server.db.v5 import V5DB
+from lnt.server.db.v5 import V5DB, utcnow
 from lnt.server.api.v5.errors import _make_error_response
 
 access_logger = logging.getLogger('lnt.server.api.v5.access')
@@ -119,7 +118,7 @@ def register_middleware(app):
         else:
             user = '-'
 
-        now = datetime.datetime.utcnow()
+        now = utcnow()
         timestamp = now.strftime('%d/%b/%Y:%H:%M:%S +0000')
 
         content_length = response.content_length

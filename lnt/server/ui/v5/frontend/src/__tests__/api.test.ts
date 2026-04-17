@@ -456,7 +456,7 @@ describe('getRuns', () => {
       uuid: 'aaa-111',
       machine: 'machine-1',
       commit: '100',
-      submitted_at: '2025-01-01T00:00:00',
+      submitted_at: '2025-01-01T00:00:00Z',
       run_parameters: {},
     };
     const r2: RunInfo = {
@@ -735,7 +735,7 @@ describe('getRun', () => {
   it('fetches a single run by UUID', async () => {
     const run: RunDetail = {
       uuid: 'abc-123', machine: 'm1', commit: '100',
-      submitted_at: '2025-01-01T00:00:00', run_parameters: {},
+      submitted_at: '2025-01-01T00:00:00Z', run_parameters: {},
     };
     mockFetch.mockResolvedValueOnce(mockResponse(run));
 

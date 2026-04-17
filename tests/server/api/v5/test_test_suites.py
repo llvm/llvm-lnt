@@ -11,7 +11,7 @@ import os
 import unittest
 from unittest.mock import patch
 
-from lnt.server.db.v5.models import V5Schema, V5SchemaVersion
+from lnt.server.db.v5.models import V5Schema, V5SchemaVersion, utcnow
 
 sys.path.insert(0, os.path.dirname(__file__))
 from v5_test_helpers import (
@@ -639,8 +639,7 @@ class TestCreateTestSuiteErrorRecovery(unittest.TestCase):
             row = V5Schema(
                 name=schema.name,
                 schema_json=__import__('json').dumps(schema_dict),
-                created_at=__import__('datetime').datetime.now(
-                    __import__('datetime').timezone.utc),
+                created_at=utcnow(),
             )
             session.add(row)
             V5DB._bump_schema_version(session)

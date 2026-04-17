@@ -25,6 +25,7 @@ from .models import (
     V5SchemaVersion,
     create_global_tables,
     create_suite_models,
+    utcnow,
 )
 from .schema import TestSuiteSchema, parse_schema
 
@@ -207,7 +208,7 @@ class V5DB:
         row = V5Schema(
             name=schema.name,
             schema_json=json.dumps(schema_dict),
-            created_at=datetime.datetime.now(datetime.timezone.utc),
+            created_at=utcnow(),
         )
         session.add(row)
         self._bump_schema_version(session)
@@ -649,7 +650,7 @@ class V5TestSuiteDB:
         run.uuid = str(uuid_module.uuid4())
         run.machine_id = machine.id
         run.commit_id = commit.id
-        run.submitted_at = submitted_at or datetime.datetime.now(datetime.timezone.utc)
+        run.submitted_at = submitted_at or utcnow()
         run.run_parameters = run_parameters or {}
         session.add(run)
         session.flush()

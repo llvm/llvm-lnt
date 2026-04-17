@@ -133,6 +133,12 @@ Key differences from v4:
 
 Per-suite tables are dynamically named (e.g., `nts_Commit`, `nts_Run`).
 
+**Timestamp convention**: All `DateTime` columns store timezone-aware UTC
+timestamps (`TIMESTAMP WITH TIME ZONE` in PostgreSQL). Implementations
+must ensure timestamps are converted to UTC before storage. API responses
+serialize timestamps as ISO 8601 with `Z` suffix
+(e.g., `"2026-04-15T14:30:00Z"`).
+
 ### `{suite}_Commit`
 
 | Column | Type | Constraints |

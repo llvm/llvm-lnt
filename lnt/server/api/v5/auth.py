@@ -4,7 +4,6 @@ Scope hierarchy (linear, each level includes all below):
     read (0) < submit (1) < triage (2) < manage (3) < admin (4)
 """
 
-import datetime
 import hashlib
 import hmac
 import functools
@@ -12,7 +11,7 @@ import functools
 from flask import current_app, g, request
 import sqlalchemy.exc
 
-from lnt.server.db.v5.models import APIKey
+from lnt.server.db.v5.models import APIKey, utcnow
 
 
 # ---------------------------------------------------------------------------
@@ -86,7 +85,7 @@ def _resolve_bearer_token():
 
     # Update last_used_at (best effort)
     try:
-        api_key.last_used_at = datetime.datetime.utcnow()
+        api_key.last_used_at = utcnow()
     except Exception:
         pass
 

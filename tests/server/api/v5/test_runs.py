@@ -871,12 +871,12 @@ class TestRunFilterByDatetime(unittest.TestCase):
             session, ts,
             commit=f'after-rev1-{uuid.uuid4().hex[:6]}')
         create_run(session, ts, machine, c1,
-                   submitted_at=datetime.datetime(2024, 1, 1, 12, 0, 0))
+                   submitted_at=datetime.datetime(2024, 1, 1, 12, 0, 0, tzinfo=datetime.timezone.utc))
         c2 = create_commit(
             session, ts,
             commit=f'after-rev2-{uuid.uuid4().hex[:6]}')
         create_run(session, ts, machine, c2,
-                   submitted_at=datetime.datetime(2024, 6, 1, 12, 0, 0))
+                   submitted_at=datetime.datetime(2024, 6, 1, 12, 0, 0, tzinfo=datetime.timezone.utc))
         session.commit()
         session.close()
 
@@ -897,12 +897,12 @@ class TestRunFilterByDatetime(unittest.TestCase):
             session, ts,
             commit=f'before-rev1-{uuid.uuid4().hex[:6]}')
         create_run(session, ts, machine, c1,
-                   submitted_at=datetime.datetime(2024, 1, 1, 12, 0, 0))
+                   submitted_at=datetime.datetime(2024, 1, 1, 12, 0, 0, tzinfo=datetime.timezone.utc))
         c2 = create_commit(
             session, ts,
             commit=f'before-rev2-{uuid.uuid4().hex[:6]}')
         create_run(session, ts, machine, c2,
-                   submitted_at=datetime.datetime(2024, 6, 1, 12, 0, 0))
+                   submitted_at=datetime.datetime(2024, 6, 1, 12, 0, 0, tzinfo=datetime.timezone.utc))
         session.commit()
         session.close()
 
@@ -925,7 +925,8 @@ class TestRunFilterByDatetime(unittest.TestCase):
                 commit=f'range-rev-{month}-{uuid.uuid4().hex[:6]}')
             create_run(session, ts, machine, c,
                        submitted_at=datetime.datetime(
-                           2024, month, 15, 12, 0, 0))
+                           2024, month, 15, 12, 0, 0,
+                           tzinfo=datetime.timezone.utc))
         session.commit()
         session.close()
 
@@ -968,7 +969,8 @@ class TestRunSort(unittest.TestCase):
                 commit=f'sort-rev-{month}-{uuid.uuid4().hex[:6]}')
             create_run(session, ts, machine, c,
                        submitted_at=datetime.datetime(
-                           2024, month, 1, 12, 0, 0))
+                           2024, month, 1, 12, 0, 0,
+                           tzinfo=datetime.timezone.utc))
         session.commit()
         session.close()
 

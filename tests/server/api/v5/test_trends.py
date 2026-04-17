@@ -56,7 +56,7 @@ def _setup_trends_data(app, unique=None):
             session, ts, commit=f'{100 + i}-{unique}')
         run = create_run(
             session, ts, machine_a, commit,
-            submitted_at=datetime.datetime(2024, 6, 1 + i, 12, 0, 0))
+            submitted_at=datetime.datetime(2024, 6, 1 + i, 12, 0, 0, tzinfo=datetime.timezone.utc))
         create_sample(session, ts, run, test1, execution_time=v1)
         create_sample(session, ts, run, test2, execution_time=v2)
 
@@ -65,7 +65,7 @@ def _setup_trends_data(app, unique=None):
         session, ts, commit=f'200-{unique}')
     run_b = create_run(
         session, ts, machine_b, commit_b,
-        submitted_at=datetime.datetime(2024, 5, 1, 12, 0, 0))
+        submitted_at=datetime.datetime(2024, 5, 1, 12, 0, 0, tzinfo=datetime.timezone.utc))
     create_sample(session, ts, run_b, test1, execution_time=25.0)
 
     session.commit()
@@ -328,7 +328,7 @@ class TestTrendsEdgeCases(unittest.TestCase):
             cls.app,
             values={'t1': 0.0, 't2': 25.0},
             commit_prefix='edge',
-            submitted_at=datetime.datetime(2024, 7, 1, 12, 0, 0))
+            submitted_at=datetime.datetime(2024, 7, 1, 12, 0, 0, tzinfo=datetime.timezone.utc))
 
     def test_geomean_excludes_zero_values(self):
         """Zero values are excluded from the geomean computation."""
@@ -354,7 +354,7 @@ class TestTrendsAllZeroGroup(unittest.TestCase):
             cls.app,
             values={'t1': 0.0, 't2': 0.0},
             commit_prefix='allzero',
-            submitted_at=datetime.datetime(2024, 8, 1, 12, 0, 0))
+            submitted_at=datetime.datetime(2024, 8, 1, 12, 0, 0, tzinfo=datetime.timezone.utc))
 
     def test_all_zero_group_excluded(self):
         """A group where every sample is zero produces no result."""
@@ -379,7 +379,7 @@ class TestTrendsNegativeValues(unittest.TestCase):
             cls.app,
             values={'t1': -5.0, 't2': 16.0},
             commit_prefix='neg',
-            submitted_at=datetime.datetime(2024, 8, 2, 12, 0, 0))
+            submitted_at=datetime.datetime(2024, 8, 2, 12, 0, 0, tzinfo=datetime.timezone.utc))
 
     def test_negative_values_excluded(self):
         """Negative values are excluded; geomean uses only positive values."""

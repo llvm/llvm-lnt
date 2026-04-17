@@ -20,6 +20,7 @@ from sqlalchemy import and_, or_
 from ..auth import require_scope
 from ..errors import abort_with_error
 from ..helpers import (
+    format_utc,
     lookup_commit,
     lookup_machine,
     parse_datetime,
@@ -267,10 +268,6 @@ def _build_query(session, ts, metric_col, metric_name, machine, test_ids,
 
     items = []
     for row in rows:
-        submitted_at = None
-        if row.submitted_at:
-            submitted_at = row.submitted_at.isoformat()
-
         items.append({
             'test': row.test_name,
             'machine': row.machine_name,
@@ -279,7 +276,7 @@ def _build_query(session, ts, metric_col, metric_name, machine, test_ids,
             'commit': row.commit,
             'ordinal': row.ordinal,
             'run_uuid': row.uuid,
-            'submitted_at': submitted_at,
+            'submitted_at': format_utc(row.submitted_at),
         })
 
     return items, has_next

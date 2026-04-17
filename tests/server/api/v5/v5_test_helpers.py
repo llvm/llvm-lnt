@@ -13,6 +13,7 @@ import hashlib
 import uuid
 
 import lnt.server.ui.app
+from lnt.server.db.v5.models import utcnow
 
 
 # ---------------------------------------------------------------------------
@@ -44,7 +45,7 @@ def make_api_key(session, name, scope, raw_token):
         key_prefix=raw_token[:8],
         key_hash=key_hash,
         scope=scope,
-        created_at=datetime.datetime.utcnow(),
+        created_at=utcnow(),
         is_active=True,
     )
     session.add(api_key)
@@ -90,7 +91,8 @@ def create_run(session, ts, machine, commit,
                submitted_at=None):
     """Create a Run via V5TestSuiteDB and return it."""
     if submitted_at is None:
-        submitted_at = datetime.datetime(2024, 1, 1, 12, 0, 0)
+        submitted_at = datetime.datetime(2024, 1, 1, 12, 0, 0,
+                                         tzinfo=datetime.timezone.utc)
     return ts.create_run(session, machine, commit=commit,
                          submitted_at=submitted_at)
 
