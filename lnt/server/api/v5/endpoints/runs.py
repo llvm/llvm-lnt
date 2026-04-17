@@ -14,7 +14,7 @@ from sqlalchemy.orm import joinedload
 from ..auth import require_scope
 from ..errors import abort_with_error, reject_unknown_params
 from ..etag import add_etag_to_response
-from ..helpers import lookup_run_by_uuid, parse_datetime, serialize_run
+from ..helpers import dump_response, lookup_run_by_uuid, parse_datetime, serialize_run
 from ..pagination import (
     cursor_paginate,
     make_paginated_response,
@@ -27,6 +27,8 @@ from ..schemas.runs import (
     RunSubmitQuerySchema,
     RunSubmitResponseSchema,
 )
+
+_run_submit_schema = RunSubmitResponseSchema()
 
 blp = Blueprint(
     'Runs',
@@ -134,11 +136,11 @@ class RunList(MethodView):
         run_uuid = run.uuid
         result_url = '/api/v5/%s/runs/%s' % (testsuite, run_uuid)
 
-        response = jsonify({
+        response = jsonify(dump_response(_run_submit_schema, {
             'success': True,
             'run_uuid': run_uuid,
             'result_url': result_url,
-        })
+        }))
         response.status_code = 201
         response.headers['Location'] = result_url
         return response

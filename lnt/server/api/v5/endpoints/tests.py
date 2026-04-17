@@ -11,7 +11,10 @@ from flask_smorest import Blueprint
 from ..auth import require_scope
 from ..errors import reject_unknown_params
 from ..etag import add_etag_to_response
-from ..helpers import escape_like, lookup_machine, lookup_test, validate_metric_name
+from ..helpers import (
+    dump_response, escape_like, lookup_machine, lookup_test,
+    validate_metric_name,
+)
 from ..pagination import (
     cursor_paginate,
     make_paginated_response,
@@ -21,6 +24,8 @@ from ..schemas.tests import (
     TestListQuerySchema,
     TestResponseSchema,
 )
+
+_test_schema = TestResponseSchema()
 
 blp = Blueprint(
     'Tests',
@@ -32,7 +37,7 @@ blp = Blueprint(
 
 def _serialize_test(test):
     """Serialize a Test model instance for the API response."""
-    return {'name': test.name}
+    return dump_response(_test_schema, {'name': test.name})
 
 
 @blp.route('/tests')

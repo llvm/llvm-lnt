@@ -63,10 +63,12 @@ class IndicatorResponseSchema(BaseSchema):
     )
     machine = ma.fields.String(
         required=True,
+        allow_none=True,
         metadata={'description': 'Name of the machine'},
     )
     test = ma.fields.String(
         required=True,
+        allow_none=True,
         metadata={'description': 'Name of the test'},
     )
     metric = ma.fields.String(

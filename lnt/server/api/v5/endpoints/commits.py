@@ -15,7 +15,7 @@ from sqlalchemy import or_
 from ..auth import require_scope
 from ..errors import abort_with_error, reject_unknown_params
 from ..etag import add_etag_to_response
-from ..helpers import escape_like, lookup_machine
+from ..helpers import dump_response, escape_like, lookup_machine
 from ..pagination import (
     cursor_paginate,
     make_paginated_response,
@@ -25,9 +25,13 @@ from ..schemas.commits import (
     CommitDetailQuerySchema,
     CommitDetailSchema,
     CommitListQuerySchema,
+    CommitSummarySchema,
     CommitUpdateSchema,
     PaginatedCommitResponseSchema,
 )
+
+_commit_summary_schema = CommitSummarySchema()
+_commit_detail_schema = CommitDetailSchema()
 
 blp = Blueprint(
     'Commits',
@@ -64,11 +68,11 @@ def _serialize_commit_fields(commit_obj, ts):
 
 def _serialize_commit_summary(commit_obj, ts):
     """Serialize a commit for list responses."""
-    return {
+    return dump_response(_commit_summary_schema, {
         'commit': commit_obj.commit,
         'ordinal': commit_obj.ordinal,
         'fields': _serialize_commit_fields(commit_obj, ts),
-    }
+    })
 
 
 def _serialize_commit_neighbor(commit_obj, testsuite):
@@ -106,7 +110,7 @@ def _get_neighbors(session, ts, commit_obj):
 def _serialize_commit_detail(commit_obj, testsuite, ts, session):
     """Serialize a commit for detail responses, including prev/next."""
     prev_commit, next_commit = _get_neighbors(session, ts, commit_obj)
-    return {
+    return dump_response(_commit_detail_schema, {
         'commit': commit_obj.commit,
         'ordinal': commit_obj.ordinal,
         'fields': _serialize_commit_fields(commit_obj, ts),
@@ -114,7 +118,7 @@ def _serialize_commit_detail(commit_obj, testsuite, ts, session):
             prev_commit, testsuite),
         'next_commit': _serialize_commit_neighbor(
             next_commit, testsuite),
-    }
+    })
 
 
 # ---------------------------------------------------------------------------

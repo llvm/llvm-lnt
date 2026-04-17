@@ -2,7 +2,12 @@
 
 import datetime
 
+import marshmallow as ma
+
 from .errors import abort_with_error
+from .schemas.runs import RunResponseSchema
+
+_run_schema = RunResponseSchema()
 
 
 def parse_datetime(value):
@@ -106,6 +111,32 @@ def lookup_regression(session, ts, regression_uuid):
 
 
 # ---------------------------------------------------------------------------
+# Response validation
+# ---------------------------------------------------------------------------
+
+def dump_response(schema, data):
+    """Validate and serialize *data* through a marshmallow schema.
+
+    Catches serializer-schema drift at dev time:
+
+    - Extra keys in *data* not declared in the schema raise ValueError
+      (dump() would silently discard them).
+    - Missing required fields are caught by validate().
+    """
+    schema_fields = set(schema.dump_fields.keys())
+    extra = set(data.keys()) - schema_fields
+    if extra:
+        raise ValueError(
+            f"Serializer produced keys not in "
+            f"{type(schema).__name__}: {extra}")
+    result = schema.dump(data)
+    errors = schema.validate(result)
+    if errors:
+        raise ma.ValidationError(errors)
+    return result
+
+
+# ---------------------------------------------------------------------------
 # Serialization helpers
 # ---------------------------------------------------------------------------
 
@@ -125,15 +156,16 @@ def format_utc(dt):
 def serialize_run(run, ts):
     """Serialize a Run model instance for API responses.
 
-    Returns a dict with uuid, machine, commit, submitted_at,
+    Returns a validated dict with uuid, machine, commit, submitted_at,
     and run_parameters.
     """
     machine_name = run.machine.name if run.machine else None
 
-    return {
+    data = {
         'uuid': run.uuid,
         'machine': machine_name,
         'commit': run.commit_obj.commit if run.commit_obj else None,
         'submitted_at': format_utc(run.submitted_at),
         'run_parameters': dict(run.run_parameters) if run.run_parameters else {},
     }
+    return dump_response(_run_schema, data)

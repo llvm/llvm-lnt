@@ -9,7 +9,11 @@
 import datetime
 import unittest
 
-from lnt.server.api.v5.helpers import escape_like, format_utc, parse_datetime
+import marshmallow as ma
+
+from lnt.server.api.v5.helpers import (
+    dump_response, escape_like, format_utc, parse_datetime,
+)
 
 UTC = datetime.timezone.utc
 
@@ -115,6 +119,32 @@ class TestEscapeLike(unittest.TestCase):
 
     def test_empty_string(self):
         self.assertEqual(escape_like(''), '')
+
+
+class _TestSchema(ma.Schema):
+    """Minimal schema for testing dump_response()."""
+    name = ma.fields.String(required=True)
+    value = ma.fields.Integer(required=True)
+
+
+class TestDumpResponse(unittest.TestCase):
+    """Tests for dump_response()."""
+
+    def setUp(self):
+        self.schema = _TestSchema()
+
+    def test_valid_data_passes(self):
+        result = dump_response(self.schema, {'name': 'foo', 'value': 42})
+        self.assertEqual(result, {'name': 'foo', 'value': 42})
+
+    def test_extra_key_raises_value_error(self):
+        with self.assertRaises(ValueError) as ctx:
+            dump_response(self.schema, {'name': 'foo', 'value': 42, 'extra': 1})
+        self.assertIn('extra', str(ctx.exception))
+
+    def test_missing_required_field_raises_validation_error(self):
+        with self.assertRaises(ma.ValidationError):
+            dump_response(self.schema, {'name': 'foo'})
 
 
 if __name__ == '__main__':

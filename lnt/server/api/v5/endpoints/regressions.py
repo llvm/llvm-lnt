@@ -17,6 +17,7 @@ from sqlalchemy.orm import joinedload, subqueryload
 from ..auth import require_scope
 from ..errors import abort_with_error, reject_unknown_params
 from ..helpers import (
+    dump_response,
     lookup_commit,
     lookup_machine,
     lookup_regression,
@@ -31,15 +32,21 @@ from ..pagination import (
 from ..schemas.regressions import (
     IndicatorAddSchema,
     IndicatorRemoveSchema,
+    IndicatorResponseSchema,
     PaginatedRegressionListSchema,
     RegressionCreateSchema,
     RegressionDetailSchema,
+    RegressionListItemSchema,
     RegressionListQuerySchema,
     RegressionUpdateSchema,
     STATE_TO_DB,
     state_to_api,
     state_to_db,
 )
+
+_indicator_schema = IndicatorResponseSchema()
+_regression_list_schema = RegressionListItemSchema()
+_regression_detail_schema = RegressionDetailSchema()
 
 blp = Blueprint(
     'Regressions',
@@ -55,12 +62,12 @@ blp = Blueprint(
 
 def _serialize_indicator(ri):
     """Serialize a RegressionIndicator into the API response dict."""
-    return {
+    return dump_response(_indicator_schema, {
         'uuid': ri.uuid,
         'machine': ri.machine.name if ri.machine else None,
         'test': ri.test.name if ri.test else None,
         'metric': ri.metric,
-    }
+    })
 
 
 def _serialize_regression_base(regression):
@@ -90,7 +97,7 @@ def _serialize_regression_list(regression):
     result = _serialize_regression_base(regression)
     result['machine_count'] = len(machines)
     result['test_count'] = len(tests)
-    return result
+    return dump_response(_regression_list_schema, result)
 
 
 def _serialize_regression_detail(regression):
@@ -100,7 +107,7 @@ def _serialize_regression_detail(regression):
     result['indicators'] = [
         _serialize_indicator(ri) for ri in regression.indicators
     ]
-    return result
+    return dump_response(_regression_detail_schema, result)
 
 
 def _validate_state(state_str):

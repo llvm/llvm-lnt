@@ -14,12 +14,16 @@ from flask_smorest import Blueprint
 
 from ..auth import require_scope
 from ..errors import abort_with_error, reject_unknown_params
-from ..helpers import lookup_run_by_uuid, lookup_test
+from ..helpers import dump_response, lookup_run_by_uuid, lookup_test
 from ..schemas.profiles import (
     FunctionDetailSchema,
     FunctionListResponseSchema,
     ProfileMetadataSchema,
 )
+
+_profile_metadata_schema = ProfileMetadataSchema()
+_function_list_schema = FunctionListResponseSchema()
+_function_detail_schema = FunctionDetailSchema()
 
 blp = Blueprint(
     'Profiles',
@@ -89,10 +93,10 @@ class ProfileMetadata(MethodView):
         p = _load_profile(sample)
 
         counters = p.getTopLevelCounters()
-        return jsonify({
+        return jsonify(dump_response(_profile_metadata_schema, {
             'test': test.name,
             'counters': counters,
-        })
+        }))
 
 
 @blp.route(
@@ -126,7 +130,8 @@ class ProfileFunctions(MethodView):
                 'length': fn_info.get('length', 0),
             })
 
-        return jsonify({'functions': functions})
+        return jsonify(dump_response(_function_list_schema,
+                                     {'functions': functions}))
 
 
 @blp.route(
@@ -174,9 +179,9 @@ class ProfileFunctionDetail(MethodView):
                 404,
                 "Function '%s' not found in profile" % fn_name)
 
-        return jsonify({
+        return jsonify(dump_response(_function_detail_schema, {
             'name': fn_name,
             'counters': fn_info.get('counters', {}),
             'disassembly_format': disassembly_format,
             'instructions': instructions,
-        })
+        }))

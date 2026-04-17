@@ -16,7 +16,10 @@ from sqlalchemy import or_
 from ..auth import require_scope
 from ..errors import abort_with_error, reject_unknown_params
 from ..etag import add_etag_to_response
-from ..helpers import escape_like, lookup_machine, parse_datetime, serialize_run
+from ..helpers import (
+    dump_response, escape_like, format_utc, lookup_machine,
+    parse_datetime,
+)
 from ..pagination import (
     cursor_paginate,
     make_paginated_response,
@@ -25,11 +28,15 @@ from ..schemas.machines import (
     MachineCreateSchema,
     MachineListQuerySchema,
     MachineResponseSchema,
+    MachineRunResponseSchema,
     MachineRunsQuerySchema,
     MachineUpdateSchema,
     PaginatedMachineResponseSchema,
     PaginatedMachineRunResponseSchema,
 )
+
+_machine_schema = MachineResponseSchema()
+_machine_run_schema = MachineRunResponseSchema()
 
 blp = Blueprint(
     'Machines',
@@ -67,10 +74,10 @@ def _serialize_machine(machine, ts):
     if params:
         for k, v in params.items():
             info[k] = str(v)
-    return {
+    return dump_response(_machine_schema, {
         'name': machine.name,
         'info': info,
-    }
+    })
 
 
 @blp.route('/machines')
@@ -263,5 +270,9 @@ class MachineRuns(MethodView):
         items, next_cursor = cursor_paginate(
             query, ts.Run.id, cursor_str, limit, descending=descending)
 
-        serialized = [serialize_run(run, ts) for run in items]
+        serialized = [dump_response(_machine_run_schema, {
+            'uuid': run.uuid,
+            'commit': run.commit_obj.commit if run.commit_obj else None,
+            'submitted_at': format_utc(run.submitted_at),
+        }) for run in items]
         return jsonify(make_paginated_response(serialized, next_cursor))

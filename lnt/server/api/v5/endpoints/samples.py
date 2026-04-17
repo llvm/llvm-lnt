@@ -11,7 +11,7 @@ from sqlalchemy.orm import joinedload
 
 from ..auth import require_scope
 from ..errors import reject_unknown_params
-from ..helpers import lookup_run_by_uuid, lookup_test
+from ..helpers import dump_response, lookup_run_by_uuid, lookup_test
 from ..pagination import (
     cursor_paginate,
     make_paginated_response,
@@ -20,7 +20,10 @@ from ..schemas.samples import (
     PaginatedSampleResponseSchema,
     RunSamplesQuerySchema,
     SampleListResponseSchema,
+    SampleResponseSchema,
 )
+
+_sample_schema = SampleResponseSchema()
 
 blp = Blueprint(
     'Samples',
@@ -42,10 +45,10 @@ def _serialize_sample(sample, ts):
         if value is not None:
             metrics[metric.name] = value
 
-    return {
+    return dump_response(_sample_schema, {
         'test': sample.test.name,
         'metrics': metrics,
-    }
+    })
 
 
 @blp.route('/runs/<string:run_uuid>/samples')

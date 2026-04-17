@@ -15,6 +15,7 @@ from lnt.server.db.v5.schema import SchemaError, parse_schema
 
 from ..auth import require_scope
 from ..errors import abort_with_error, reject_unknown_params
+from ..helpers import dump_response
 from ..schemas.test_suites import (
     TestSuiteCreateQuerySchema,
     TestSuiteCreateRequestSchema,
@@ -24,6 +25,8 @@ from ..schemas.test_suites import (
     TestSuiteListQuerySchema,
     TestSuiteListResponseSchema,
 )
+
+_suite_detail_schema = TestSuiteDetailResponseSchema()
 
 blp = Blueprint(
     'Test Suites',
@@ -49,11 +52,11 @@ def _suite_links(name):
 def _suite_detail(db, name):
     """Build a detail dict for a suite."""
     tsdb = db.testsuite[name]
-    return {
+    return dump_response(_suite_detail_schema, {
         'name': name,
         'schema': V5DB._schema_to_dict(tsdb.schema),
         'links': _suite_links(name),
-    }
+    })
 
 
 @blp.route('/')

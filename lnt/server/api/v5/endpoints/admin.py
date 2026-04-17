@@ -17,12 +17,15 @@ from flask_smorest import Blueprint
 from lnt.server.db.v5.models import utcnow
 from ..auth import APIKey, require_scope, _hash_token
 from ..errors import reject_unknown_params
-from ..helpers import format_utc
+from ..helpers import dump_response, format_utc
 from ..schemas.admin import (
     APIKeyCreateRequestSchema,
     APIKeyCreateResponseSchema,
+    APIKeyItemSchema,
     APIKeyListResponseSchema,
 )
+
+_api_key_schema = APIKeyItemSchema()
 
 blp = Blueprint(
     'Admin',
@@ -50,14 +53,14 @@ class APIKeyCollection(MethodView):
 
         items = []
         for k in keys:
-            items.append({
+            items.append(dump_response(_api_key_schema, {
                 'prefix': k.key_prefix,
                 'name': k.name,
                 'scope': k.scope,
                 'created_at': format_utc(k.created_at),
                 'last_used_at': format_utc(k.last_used_at),
                 'is_active': k.is_active,
-            })
+            }))
 
         return {'items': items}
 

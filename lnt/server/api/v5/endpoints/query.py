@@ -20,6 +20,7 @@ from sqlalchemy import and_, or_
 from ..auth import require_scope
 from ..errors import abort_with_error
 from ..helpers import (
+    dump_response,
     format_utc,
     lookup_commit,
     lookup_machine,
@@ -27,7 +28,11 @@ from ..helpers import (
     validate_metric_name,
 )
 from ..pagination import make_paginated_response
-from ..schemas.query import QueryEndpointQuerySchema, QueryResponseSchema
+from ..schemas.query import (
+    QueryDataPointSchema, QueryEndpointQuerySchema, QueryResponseSchema,
+)
+
+_query_point_schema = QueryDataPointSchema()
 
 blp = Blueprint(
     'Query',
@@ -268,7 +273,7 @@ def _build_query(session, ts, metric_col, metric_name, machine, test_ids,
 
     items = []
     for row in rows:
-        items.append({
+        items.append(dump_response(_query_point_schema, {
             'test': row.test_name,
             'machine': row.machine_name,
             'metric': metric_name,
@@ -277,7 +282,7 @@ def _build_query(session, ts, metric_col, metric_name, machine, test_ids,
             'ordinal': row.ordinal,
             'run_uuid': row.uuid,
             'submitted_at': format_utc(row.submitted_at),
-        })
+        }))
 
     return items, has_next
 
