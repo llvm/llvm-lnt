@@ -6,14 +6,14 @@ import type { RegressionDetail as RegressionDetailType, RegressionIndicator, Reg
 import {
   getRegression, updateRegression, deleteRegression,
   addRegressionIndicators, removeRegressionIndicators,
-  getFields, getTests, getToken, authErrorMessage,
+  getFields, getMachines, getTests, getToken, authErrorMessage,
 } from '../api';
-import { el, spaLink, agnosticLink, agnosticUrl, truncate } from '../utils';
+import { el, spaLink, agnosticLink, agnosticUrl, truncate, ensureProtocol } from '../utils';
 import { renderDataTable, type Column } from '../components/data-table';
 import { renderDeleteConfirm } from '../components/delete-confirm';
-import { renderMachineCombobox } from '../components/machine-combobox';
 import { renderMetricSelector, filterMetricFields } from '../components/metric-selector';
 import { renderCommitSearch } from '../components/commit-search';
+import { setupCheckboxRange } from '../components/checkbox-range';
 import { ALL_STATES, STATE_META, renderStateBadge } from '../regression-utils';
 
 let controller: AbortController | null = null;
@@ -21,6 +21,10 @@ let controller: AbortController | null = null;
 let cleanupFns: (() => void)[] = [];
 /** Track the current commit-search cleanup handle separately. */
 let commitSearchCleanup: (() => void) | null = null;
+/** Track checkbox range selection cleanup. */
+let checkboxRangeCleanup: (() => void) | null = null;
+/** AbortController for in-flight test fetches in Add Indicators. */
+let refreshAbort: AbortController | null = null;
 
 export const regressionDetailPage: PageModule = {
   mount(container: HTMLElement, params: RouteParams): void {
@@ -55,6 +59,15 @@ export const regressionDetailPage: PageModule = {
       headerErrorDiv.replaceChildren(el('p', { class: 'error-banner' }, msg));
     }
 
+    function updatePageTitle(): void {
+      const headerEl = container.querySelector('.page-header');
+      if (headerEl) {
+        headerEl.textContent = regression.title
+          ? `Regression: ${regression.title}`
+          : `Regression: ${uuid.slice(0, 8)}\u2026`;
+      }
+    }
+
     const fetchPromises: [Promise<RegressionDetailType>, Promise<FieldInfo[] | null>] = [
       getRegression(ts, uuid, signal),
       hasToken ? getFields(ts, signal) : Promise.resolve(null),
@@ -63,6 +76,7 @@ export const regressionDetailPage: PageModule = {
       loading.remove();
       regression = reg;
       fields = f ?? [];
+      updatePageTitle();
 
       container.append(headerDiv, headerErrorDiv);
 
@@ -145,30 +159,7 @@ export const regressionDetailPage: PageModule = {
 
       const notesRow = el('div', { class: 'field-row regression-notes' });
       notesRow.append(el('label', {}, 'Notes'));
-      if (hasToken) {
-        const textarea = el('textarea', {
-          class: 'regression-notes-input',
-        }) as HTMLTextAreaElement;
-        textarea.rows = 3;
-        let savedNotes = regression.notes || '';
-        textarea.value = savedNotes;
-        textarea.addEventListener('blur', async () => {
-          const current = textarea.value;
-          if (current === savedNotes) return;
-          try {
-            const updated = await updateRegression(ts, uuid,
-              { notes: current || null }, signal);
-            regression = updated;
-            savedNotes = current;
-          } catch (err: unknown) {
-            if (err instanceof DOMException && err.name === 'AbortError') return;
-            showError(authErrorMessage(err));
-          }
-        });
-        notesRow.append(textarea);
-      } else {
-        notesRow.append(el('span', {}, regression.notes || '(none)'));
-      }
+      renderNotesDisplay(notesRow);
       headerDiv.append(notesRow);
     }
 
@@ -196,6 +187,7 @@ export const regressionDetailPage: PageModule = {
             { title: input.value.trim() }, signal);
           regression = updated;
           renderHeader();
+          updatePageTitle();
         } catch (err: unknown) {
           saveBtn.disabled = false;
           if (err instanceof DOMException && err.name === 'AbortError') return;
@@ -204,6 +196,7 @@ export const regressionDetailPage: PageModule = {
       });
 
       row.append(input, saveBtn, cancelBtn);
+      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') saveBtn.click(); });
       input.focus();
     }
 
@@ -215,8 +208,9 @@ export const regressionDetailPage: PageModule = {
       else row.append(el('label', {}, 'Bug'));
 
       if (regression.bug) {
+        const bugUrl = ensureProtocol(regression.bug);
         row.append(
-          el('a', { href: regression.bug, target: '_blank', rel: 'noopener' },
+          el('a', { href: bugUrl, target: '_blank', rel: 'noopener' },
             truncate(regression.bug, 50)),
         );
       } else {
@@ -262,7 +256,62 @@ export const regressionDetailPage: PageModule = {
       });
 
       row.append(input, saveBtn, cancelBtn);
+      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') saveBtn.click(); });
       input.focus();
+    }
+
+    function renderNotesDisplay(row: HTMLElement): void {
+      const label = row.querySelector('label');
+      row.replaceChildren();
+      if (label) row.append(label);
+      else row.append(el('label', {}, 'Notes'));
+
+      const span = el('span', { class: 'notes-display' },
+        regression.notes || '(none)');
+      row.append(span);
+
+      if (hasToken) {
+        const editBtn = el('button', { class: 'edit-btn' }, 'Edit');
+        editBtn.addEventListener('click', () => renderNotesEdit(row));
+        row.append(editBtn);
+      }
+    }
+
+    function renderNotesEdit(row: HTMLElement): void {
+      const label = row.querySelector('label')!;
+      row.replaceChildren();
+      row.append(label);
+
+      const textarea = el('textarea', {
+        class: 'regression-notes-input',
+      }) as HTMLTextAreaElement;
+      textarea.rows = 3;
+      textarea.value = regression.notes || '';
+
+      const saveBtn = el('button', { class: 'compare-btn' }, 'Save') as HTMLButtonElement;
+      const cancelBtn = el('button', { class: 'pagination-btn' }, 'Cancel');
+
+      cancelBtn.addEventListener('click', () => renderNotesDisplay(row));
+
+      saveBtn.addEventListener('click', async () => {
+        saveBtn.disabled = true;
+        try {
+          const updated = await updateRegression(ts, uuid,
+            { notes: textarea.value || null }, signal);
+          regression = updated;
+          renderNotesDisplay(row);
+        } catch (err: unknown) {
+          saveBtn.disabled = false;
+          if (err instanceof DOMException && err.name === 'AbortError') return;
+          showError(authErrorMessage(err));
+        }
+      });
+
+      row.append(textarea, saveBtn, cancelBtn);
+      textarea.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) saveBtn.click();
+      });
+      textarea.focus();
     }
 
     function renderCommitDisplay(row: HTMLElement): void {
@@ -367,11 +416,18 @@ export const regressionDetailPage: PageModule = {
 
       function updateBatchSelection(): void {
         if (!batchRemoveBtn) return;
-        const checked = indicatorTableDiv.querySelectorAll(
+        const all = indicatorTableDiv.querySelectorAll<HTMLInputElement>(
+          'input[type="checkbox"][data-uuid]');
+        const checked = indicatorTableDiv.querySelectorAll<HTMLInputElement>(
           'input[type="checkbox"][data-uuid]:checked');
         batchRemoveBtn.disabled = checked.length === 0;
+        if (selectAllCb) {
+          selectAllCb.checked = checked.length === all.length && all.length > 0;
+          selectAllCb.indeterminate = checked.length > 0 && checked.length < all.length;
+        }
       }
 
+      let selectAllCb: HTMLInputElement | null = null;
       const columns: Column<RegressionIndicator>[] = [];
 
       if (hasToken) {
@@ -379,6 +435,16 @@ export const regressionDetailPage: PageModule = {
           key: 'select',
           label: '',
           sortable: false,
+          headerRender: () => {
+            selectAllCb = el('input', { type: 'checkbox' }) as HTMLInputElement;
+            selectAllCb.addEventListener('change', () => {
+              const boxes = indicatorTableDiv.querySelectorAll<HTMLInputElement>(
+                'input[type="checkbox"][data-uuid]');
+              boxes.forEach(box => { box.checked = selectAllCb!.checked; });
+              updateBatchSelection();
+            });
+            return selectAllCb;
+          },
           render: (ind) => {
             const cb = el('input', { type: 'checkbox', 'data-uuid': ind.uuid }) as HTMLInputElement;
             cb.addEventListener('change', () => updateBatchSelection());
@@ -445,6 +511,16 @@ export const regressionDetailPage: PageModule = {
         rows: regression.indicators,
         emptyMessage: 'No indicators.',
       });
+
+      if (hasToken) {
+        if (checkboxRangeCleanup) { checkboxRangeCleanup(); checkboxRangeCleanup = null; }
+        const handle = setupCheckboxRange(
+          indicatorTableDiv,
+          'input[type="checkbox"][data-uuid]',
+          () => updateBatchSelection(),
+        );
+        checkboxRangeCleanup = handle.destroy;
+      }
     }
 
     async function doRemoveIndicators(uuids: string[]): Promise<void> {
@@ -477,27 +553,97 @@ export const regressionDetailPage: PageModule = {
       }, undefined, { placeholder: true });
       selectorsDiv.append(metricContainer);
 
-      // Machine selector
-      let selectedMachine = '';
+      // --- Shared checkbox filter list helper ---
+      function renderCheckboxFilterList(opts: {
+        container: HTMLElement;
+        filterInput: HTMLInputElement;
+        allItems: () => string[];
+        selected: Set<string>;
+        dataAttr: string;
+        emptyHint: string;
+        onChange: () => void;
+      }): { rerender: () => void; destroy: () => void } {
+        let rangeHandle: { destroy: () => void } | null = null;
+        const selector = `input[type="checkbox"][${opts.dataAttr}]`;
+
+        function render(): void {
+          if (rangeHandle) { rangeHandle.destroy(); rangeHandle = null; }
+          const filter = opts.filterInput.value.toLowerCase();
+          const items = opts.allItems();
+          const filtered = filter
+            ? items.filter(m => m.toLowerCase().includes(filter))
+            : items;
+
+          opts.container.replaceChildren();
+          if (filtered.length === 0) {
+            opts.container.append(el('span', { class: 'test-list-hint' },
+              items.length === 0 ? opts.emptyHint : 'No matches'));
+            return;
+          }
+
+          for (const name of filtered) {
+            const row = el('div', { class: 'test-list-row' });
+            const cb = el('input', { type: 'checkbox', [opts.dataAttr]: name }) as HTMLInputElement;
+            cb.checked = opts.selected.has(name);
+            cb.addEventListener('change', () => {
+              if (cb.checked) opts.selected.add(name);
+              else opts.selected.delete(name);
+              opts.onChange();
+            });
+            row.append(cb, name);
+            opts.container.append(row);
+          }
+
+          rangeHandle = setupCheckboxRange(opts.container, selector, () => {
+            opts.container.querySelectorAll<HTMLInputElement>(selector).forEach(box => {
+              const n = box.getAttribute(opts.dataAttr)!;
+              if (box.checked) opts.selected.add(n);
+              else opts.selected.delete(n);
+            });
+            opts.onChange();
+          });
+        }
+
+        opts.filterInput.addEventListener('input', () => render());
+
+        return {
+          rerender: render,
+          destroy() { if (rangeHandle) { rangeHandle.destroy(); rangeHandle = null; } },
+        };
+      }
+
+      // Machine selector (checkbox list with filter)
+      const selectedMachines = new Set<string>();
+      let allMachines: string[] = [];
       const machineGroupAdd = el('div', { class: 'control-group' });
-      machineGroupAdd.append(el('label', {}, 'Machine'));
-      const machineContainerAdd = el('div', {});
-      machineGroupAdd.append(machineContainerAdd);
-      const machineHandleAdd = renderMachineCombobox(machineContainerAdd, {
-        testsuite: ts,
-        onSelect: (name) => {
-          selectedMachine = name;
-          refreshTests();
-          updatePreview();
-        },
-        onClear: () => {
-          selectedMachine = '';
-          refreshTests();
-          updatePreview();
-        },
-      });
-      cleanupFns.push(machineHandleAdd.destroy);
+      machineGroupAdd.append(el('label', {}, 'Machines'));
+      const machineFilterInput = el('input', {
+        type: 'text',
+        class: 'combobox-input',
+        placeholder: 'Search machines...',
+      }) as HTMLInputElement;
+      const machineListDiv = el('div', { class: 'checkbox-list-container' });
+      machineGroupAdd.append(machineFilterInput, machineListDiv);
       selectorsDiv.append(machineGroupAdd);
+
+      const machineList = renderCheckboxFilterList({
+        container: machineListDiv,
+        filterInput: machineFilterInput,
+        allItems: () => allMachines,
+        selected: selectedMachines,
+        dataAttr: 'data-machine',
+        emptyHint: 'Loading machines...',
+        onChange: () => { refreshTests(); updatePreview(); },
+      });
+      cleanupFns.push(machineList.destroy);
+
+      getMachines(ts, { limit: 500 }, signal).then(result => {
+        allMachines = result.items.map(m => m.name);
+        machineList.rerender();
+      }).catch((e: unknown) => {
+        if (e instanceof DOMException && e.name === 'AbortError') return;
+        machineListDiv.replaceChildren(el('span', { class: 'error-banner' }, `Failed: ${e}`));
+      });
 
       // Test selector (checkbox list with filter)
       const selectedTests = new Set<string>();
@@ -509,64 +655,56 @@ export const regressionDetailPage: PageModule = {
         class: 'combobox-input',
         placeholder: 'Search tests...',
       }) as HTMLInputElement;
-      const testListDiv = el('div', {
-        style: 'max-height: 200px; overflow-y: auto',
-        class: 'test-list-container',
-      });
+      const testListDiv = el('div', { class: 'checkbox-list-container' });
       testGroup.append(testFilterInput, testListDiv);
       selectorsDiv.append(testGroup);
 
-      testFilterInput.addEventListener('input', () => renderTestList());
+      const testList = renderCheckboxFilterList({
+        container: testListDiv,
+        filterInput: testFilterInput,
+        allItems: () => allTests,
+        selected: selectedTests,
+        dataAttr: 'data-test',
+        emptyHint: 'No tests found',
+        onChange: () => updatePreview(),
+      });
+      cleanupFns.push(testList.destroy);
 
       async function refreshTests(): Promise<void> {
-        selectedTests.clear();
         allTests = [];
         testListDiv.replaceChildren();
-        if (!selectedMetric || !selectedMachine) {
+        if (!selectedMetric || selectedMachines.size === 0) {
+          selectedTests.clear();
           testListDiv.append(el('span', { class: 'test-list-hint' },
-            'Select metric and machine first'));
+            'Select metric and machines first'));
           updatePreview();
           return;
         }
+        if (refreshAbort) refreshAbort.abort();
+        refreshAbort = new AbortController();
+        const fetchSignal = refreshAbort.signal;
+
         testListDiv.replaceChildren(el('span', { class: 'test-list-hint' }, 'Loading tests...'));
         try {
-          const result = await getTests(ts, {
-            machine: selectedMachine,
-            metric: selectedMetric,
-            limit: 500,
-          }, signal);
-          allTests = result.items.map(t => t.name);
-          renderTestList();
+          const results = await Promise.all(
+            [...selectedMachines].map(machine =>
+              getTests(ts, { machine, metric: selectedMetric, limit: 500 }, fetchSignal)
+                .then(r => r.items.map(t => t.name))
+                .catch((e: unknown) => {
+                  if (e instanceof DOMException && e.name === 'AbortError') throw e;
+                  return [] as string[];
+                }),
+            ),
+          );
+          allTests = [...new Set(results.flat())].sort();
+          // Prune selections no longer available
+          for (const t of selectedTests) {
+            if (!allTests.includes(t)) selectedTests.delete(t);
+          }
+          testList.rerender();
         } catch (e: unknown) {
           if (e instanceof DOMException && e.name === 'AbortError') return;
           testListDiv.replaceChildren(el('span', { class: 'error-banner' }, `Failed: ${e}`));
-        }
-      }
-
-      function renderTestList(): void {
-        const filter = testFilterInput.value.toLowerCase();
-        const filtered = filter
-          ? allTests.filter(t => t.toLowerCase().includes(filter))
-          : allTests;
-
-        testListDiv.replaceChildren();
-        if (filtered.length === 0) {
-          testListDiv.append(el('span', { class: 'test-list-hint' },
-            allTests.length === 0 ? 'No tests found' : 'No matches'));
-          return;
-        }
-
-        for (const name of filtered) {
-          const row = el('div', { class: 'test-list-row' });
-          const cb = el('input', { type: 'checkbox' }) as HTMLInputElement;
-          cb.checked = selectedTests.has(name);
-          cb.addEventListener('change', () => {
-            if (cb.checked) selectedTests.add(name);
-            else selectedTests.delete(name);
-            updatePreview();
-          });
-          row.append(cb, name);
-          testListDiv.append(row);
         }
       }
 
@@ -583,9 +721,9 @@ export const regressionDetailPage: PageModule = {
       addPanelDiv.append(addActionsDiv);
 
       function updatePreview(): void {
-        const count = selectedTests.size;
-        if (!selectedMetric || !selectedMachine || count === 0) {
-          previewSpan.textContent = 'Select metric, machine, and tests to add indicators';
+        const count = selectedMachines.size * selectedTests.size;
+        if (!selectedMetric || selectedMachines.size === 0 || selectedTests.size === 0) {
+          previewSpan.textContent = 'Select metric, machines, and tests to add indicators';
           addBtn.disabled = true;
         } else {
           previewSpan.textContent = `This will add ${count} indicator${count !== 1 ? 's' : ''}`;
@@ -594,24 +732,29 @@ export const regressionDetailPage: PageModule = {
       }
 
       addBtn.addEventListener('click', async () => {
-        if (!selectedMetric || !selectedMachine || selectedTests.size === 0) return;
+        if (!selectedMetric || selectedMachines.size === 0 || selectedTests.size === 0) return;
         addBtn.disabled = true;
         addErrorDiv.replaceChildren();
 
-        const indicators = [...selectedTests].map(test => ({
-          machine: selectedMachine,
-          test,
-          metric: selectedMetric,
-        }));
+        const indicators = [...selectedMachines].flatMap(machine =>
+          [...selectedTests].map(test => ({
+            machine,
+            test,
+            metric: selectedMetric,
+          })),
+        );
 
         try {
           const updated = await addRegressionIndicators(ts, uuid, indicators, signal);
           regression = updated;
           renderIndicators();
-          // Clear selections
-          selectedTests.clear();
-          renderTestList();
-          updatePreview();
+          // Reset panel to clean state
+          selectedMachines.clear();
+          machineList.rerender();
+          selectedMetric = '';
+          const metricSelect = metricContainer.querySelector('select') as HTMLSelectElement | null;
+          if (metricSelect) metricSelect.value = '';
+          refreshTests();
         } catch (err: unknown) {
           if (err instanceof DOMException && err.name === 'AbortError') return;
           addErrorDiv.replaceChildren(
@@ -646,6 +789,8 @@ export const regressionDetailPage: PageModule = {
     controller?.abort();
     controller = null;
     if (commitSearchCleanup) { commitSearchCleanup(); commitSearchCleanup = null; }
+    if (checkboxRangeCleanup) { checkboxRangeCleanup(); checkboxRangeCleanup = null; }
+    if (refreshAbort) { refreshAbort.abort(); refreshAbort = null; }
     cleanupFns.forEach(fn => fn());
     cleanupFns = [];
   },

@@ -8,7 +8,7 @@ import {
   getToken, authErrorMessage,
 } from '../api';
 import type { CursorPageResult } from '../api';
-import { el, truncate, debounce } from '../utils';
+import { el, truncate, debounce, ensureProtocol } from '../utils';
 import { renderDataTable, type Column } from '../components/data-table';
 import { renderPagination } from '../components/pagination';
 import { renderMachineCombobox } from '../components/machine-combobox';
@@ -258,7 +258,7 @@ export function renderRegressionTab(opts: RegressionTabOptions): void {
         key: 'bug',
         label: 'Bug',
         render: (r) => r.bug
-          ? el('a', { href: r.bug, target: '_blank', rel: 'noopener' }, 'Link')
+          ? el('a', { href: ensureProtocol(r.bug), target: '_blank', rel: 'noopener' }, 'Link')
           : '\u2014',
         sortable: false,
       },
@@ -361,6 +361,7 @@ function renderCreateForm(
     titleInput.value = '';
     bugInput.value = '';
     selectedCommit = '';
+    commitHandle.clear();
     errorArea.replaceChildren();
   });
 

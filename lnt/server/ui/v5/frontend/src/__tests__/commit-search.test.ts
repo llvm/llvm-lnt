@@ -82,7 +82,7 @@ describe('renderCommitSearch', () => {
     const items = dropdown.querySelectorAll('li');
     expect(items).toHaveLength(2);
     expect(items[0].textContent).toContain('abc123');
-    expect(items[0].textContent).toContain('#1');
+    expect(items[0].textContent).not.toContain('#1');  // ordinal not shown
     expect(items[1].textContent).toContain('def456');
   });
 
@@ -127,6 +127,21 @@ describe('renderCommitSearch', () => {
 
     expect(onSelect).toHaveBeenCalledWith('abc123');
     expect(mockNavigate).not.toHaveBeenCalled();
+    // Input shows the selected value (not cleared)
+    expect(input.value).toBe('abc123');
+  });
+
+  it('clears input via clear() method', () => {
+    const onSelect = vi.fn();
+    const container = document.createElement('div');
+    document.body.append(container);
+    const handle = renderCommitSearch(container, { testsuite: 'nts', onSelect });
+
+    const input = container.querySelector('input') as HTMLInputElement;
+    input.value = 'some-commit';
+
+    handle.clear();
+    expect(input.value).toBe('');
   });
 
   it('navigates to typed value on Enter', () => {

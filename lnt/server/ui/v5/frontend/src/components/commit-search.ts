@@ -29,7 +29,7 @@ let commitSearchCounter = 0;
 export function renderCommitSearch(
   container: HTMLElement,
   options: CommitSearchOptions,
-): { destroy: () => void; setSuggestions: (s: CommitSummary[]) => void } {
+): { destroy: () => void; setSuggestions: (s: CommitSummary[]) => void; clear: () => void } {
   const dropdownId = `commit-search-list-${++commitSearchCounter}`;
   const wrapper = el('div', {
     class: 'commit-search',
@@ -59,7 +59,7 @@ export function renderCommitSearch(
   const useSuggestionsMode = options.suggestions !== undefined;
 
   function selectCommit(value: string): void {
-    input.value = '';
+    input.value = options.onSelect ? value : '';
     dropdown.classList.remove('open');
     wrapper.setAttribute('aria-expanded', 'false');
     if (options.onSelect) {
@@ -89,8 +89,6 @@ export function renderCommitSearch(
       const display = commitDisplayValue(s.commit, s.fields, options.commitFields);
       if (display !== s.commit) {
         li.append(el('span', { class: 'commit-search-field' }, ` (${display})`));
-      } else if (s.ordinal != null) {
-        li.append(el('span', { class: 'commit-search-field' }, ` #${s.ordinal}`));
       }
       li.addEventListener('click', () => selectCommit(s.commit));
       dropdown.append(li);
@@ -125,8 +123,6 @@ export function renderCommitSearch(
         const display = commitDisplayValue(item.commit, item.fields, options.commitFields);
         if (display !== item.commit) {
           li.append(el('span', { class: 'commit-search-field' }, ` (${display})`));
-        } else if (item.ordinal != null) {
-          li.append(el('span', { class: 'commit-search-field' }, ` #${item.ordinal}`));
         }
         li.addEventListener('click', () => selectCommit(item.commit));
         dropdown.append(li);
@@ -227,6 +223,11 @@ export function renderCommitSearch(
     },
     setSuggestions(s: CommitSummary[]) {
       suggestions = s;
+    },
+    clear() {
+      input.value = '';
+      dropdown.classList.remove('open');
+      wrapper.setAttribute('aria-expanded', 'false');
     },
   };
 }

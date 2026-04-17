@@ -974,7 +974,7 @@ class V5TestSuiteDB:
     def create_regression(
         self,
         session: sqlalchemy.orm.Session,
-        title: str,
+        title: str | None,
         indicators: list[dict[str, Any]],
         *,
         bug: str | None = None,

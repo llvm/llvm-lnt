@@ -4,31 +4,30 @@ Identified during manual testing on 2026-04-16.
 
 ## Regression Detail Page
 
-- [ ] **Commit combobox suggestions**: The commit input should be a combobox
-  with suggestions powered by `/commits?search=`, consistent with other pages.
-- [ ] **Hide ordinal in commit combobox**: Currently shows "commit #ordinal".
-  Ordinal should not be shown, consistent with other commit comboboxes. Remove
-  the `#ordinal` fallback from `commit-search.ts`.
-- [ ] **Title as page header**: Title should be "Regression: {title}" with an
-  edit button on the right. If no title, show UUID instead. Currently shows
-  "Regression: UUID" always.
-- [ ] **Notes edit button**: Notes section should be guarded by an edit button
-  (like title and bug) instead of always showing an editable textarea.
-- [ ] **Select-all checkbox for indicators**: Add a checkbox in the header to
-  select/deselect all indicators at once.
-- [ ] **Shift+click range selection on indicators**: Shift+clicking checkboxes
-  in the indicator list should perform range selection.
-- [ ] **Enter key saves edits**: Pressing Enter while editing title, bug, or
-  notes should save the changes (currently only mouse click on Save works).
+- [x] **Commit combobox suggestions**: Already implemented — uses
+  `renderCommitSearch` with API search mode.
+- [x] **Hide ordinal in commit combobox**: Removed `#ordinal` fallback from
+  `commit-search.ts`.
+- [x] **Title as page header**: Shows "Regression: {title}" when title is set,
+  falls back to UUID. Updates after title edit.
+- [x] **Notes edit button**: Notes section guarded by Edit button with
+  Save/Cancel. Ctrl/Cmd+Enter saves.
+- [x] **Select-all checkbox for indicators**: Header checkbox with
+  bidirectional sync and indeterminate state.
+- [x] **Shift+click range selection on indicators**: Shift+click selects range
+  in indicator checkbox list. Reusable `checkbox-range.ts` component.
+- [x] **Enter key saves edits**: Enter saves title and bug edits.
+  Ctrl/Cmd+Enter saves notes.
 - [x] **Reorder sections**: Move "Add Indicators" and "Delete Regression" above
   the indicators table (which may be very long).
 - [x] **Duplicate "Metric" label**: In "Add Indicators", "Metric" label appears
   twice stacked. Fix the duplicate.
-- [ ] **Multi-machine selection in Add Indicators**: Allow selecting multiple
-  machines at once (like tests), not just one.
-- [ ] **Shift+click range select in Add Indicators**: Both machine and test
-  multi-selection lists should support shift+click range selection.
-- [ ] When adding a regression, I search for a commit in the selection box, and then when I click it to select it, it disappears entirely in the UI. Then if I click "create" it does seem to properly create the regression, but it's weird that the commit disappears after being selected.
+- [x] **Multi-machine selection in Add Indicators**: Machine selector is now a
+  checkbox list with filter (like tests). Cross-product indicator creation.
+- [x] **Shift+click range select in Add Indicators**: Both machine and test
+  lists support shift+click range selection.
+- [x] **Commit disappears in create form**: Fixed `selectCommit()` to show
+  selected value in input. Cancel clears it.
 
 ## Run Detail Page
 

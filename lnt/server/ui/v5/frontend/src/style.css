@@ -1428,6 +1428,15 @@ dl {
   color: #333;
 }
 
+/* Notes section */
+.regression-notes {
+  align-items: flex-start;
+}
+
+.notes-display {
+  white-space: pre-wrap;
+}
+
 /* Notes textarea */
 .regression-notes-input {
   width: 100%;
@@ -1564,6 +1573,15 @@ dl {
 }
 
 .test-list-container {
+  border: 1px solid #eee;
+  border-radius: 3px;
+  padding: 4px;
+  margin-top: 4px;
+}
+
+.checkbox-list-container {
+  max-height: 200px;
+  overflow-y: auto;
   border: 1px solid #eee;
   border-radius: 3px;
   padding: 4px;

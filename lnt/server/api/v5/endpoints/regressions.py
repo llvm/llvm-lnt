@@ -277,9 +277,7 @@ class RegressionList(MethodView):
         indicator_dicts = body.get('indicators') or []
         resolved = _resolve_indicators(session, ts, indicator_dicts)
 
-        title = body.get('title') or (
-            'Regression of %d benchmarks' % len(resolved)
-            if resolved else 'New regression')
+        title = body.get('title') or None
         bug = body.get('bug')
         notes = body.get('notes')
 

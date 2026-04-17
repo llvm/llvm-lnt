@@ -156,4 +156,21 @@ describe('renderDataTable', () => {
     expect(cells[1].textContent).toBe('beta');
     expect(cells[2].textContent).toBe('gamma');
   });
+
+  it('uses headerRender for custom header content', () => {
+    const container = document.createElement('div');
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    const cols: Column<TestRow>[] = [
+      { key: 'select', label: '', sortable: false,
+        headerRender: () => checkbox },
+      { key: 'name', label: 'Name' },
+    ];
+    renderDataTable(container, { columns: cols, rows: rows.slice(0, 1) });
+
+    const th = container.querySelectorAll('th')[0];
+    expect(th.querySelector('input[type="checkbox"]')).toBe(checkbox);
+    // Second header should still use label text
+    expect(container.querySelectorAll('th')[1].textContent).toContain('Name');
+  });
 });

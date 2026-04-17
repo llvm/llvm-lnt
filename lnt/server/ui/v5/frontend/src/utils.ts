@@ -94,6 +94,11 @@ export function truncate(s: string, max: number): string {
   return s.length > max ? s.slice(0, max) + '\u2026' : s;
 }
 
+/** Ensure a URL has a protocol; prepend https:// if missing. */
+export function ensureProtocol(url: string): string {
+  return url.startsWith('http://') || url.startsWith('https://') ? url : `https://${url}`;
+}
+
 
 /**
  * Return the display value for a commit. If the schema defines a commit_field

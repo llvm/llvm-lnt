@@ -12,6 +12,7 @@ vi.mock('../../api', async (importOriginal) => {
     addRegressionIndicators: vi.fn(),
     removeRegressionIndicators: vi.fn(),
     getFields: vi.fn(),
+    getMachines: vi.fn(),
     getTests: vi.fn(),
     getToken: vi.fn(),
     authErrorMessage: vi.fn((err: unknown) => `Auth error: ${err}`),
@@ -38,8 +39,8 @@ vi.mock('../../router', async (importOriginal) => {
 
 import {
   getRegression, updateRegression, deleteRegression,
-  removeRegressionIndicators,
-  getFields, getTests, getToken, authErrorMessage,
+  removeRegressionIndicators, addRegressionIndicators,
+  getFields, getMachines, getTests, getToken, authErrorMessage,
 } from '../../api';
 import { regressionDetailPage } from '../../pages/regression-detail';
 import type { RegressionDetail, FieldInfo } from '../../types';
@@ -82,6 +83,10 @@ describe('regressionDetailPage', () => {
       items: [{ name: 'test_x' }, { name: 'test_y' }],
       nextCursor: null,
     });
+    (getMachines as ReturnType<typeof vi.fn>).mockResolvedValue({
+      items: [{ name: 'machine-a' }, { name: 'machine-b' }],
+      total: 2,
+    });
   });
 
   afterEach(() => {
@@ -103,6 +108,30 @@ describe('regressionDetailPage', () => {
   describe('mount & rendering', () => {
     it('renders page header with truncated UUID', () => {
       regressionDetailPage.mount(container, { testsuite: 'nts', uuid: TEST_UUID });
+      expect(container.querySelector('.page-header')?.textContent).toBe(
+        `Regression: ${TEST_UUID.slice(0, 8)}\u2026`,
+      );
+    });
+
+    it('updates page header to show title after data loads', async () => {
+      regressionDetailPage.mount(container, { testsuite: 'nts', uuid: TEST_UUID });
+
+      await vi.waitFor(() => {
+        expect(container.querySelector('.page-header')?.textContent).toBe(
+          'Regression: compile_time regression',
+        );
+      });
+    });
+
+    it('shows UUID in page header when title is empty', async () => {
+      (getRegression as ReturnType<typeof vi.fn>).mockResolvedValue(
+        { ...mockRegression, title: '' },
+      );
+      regressionDetailPage.mount(container, { testsuite: 'nts', uuid: TEST_UUID });
+
+      await vi.waitFor(() => {
+        expect(container.querySelector('.regression-header')).toBeTruthy();
+      });
       expect(container.querySelector('.page-header')?.textContent).toBe(
         `Regression: ${TEST_UUID.slice(0, 8)}\u2026`,
       );
@@ -268,6 +297,30 @@ describe('regressionDetailPage', () => {
         expect(container.querySelector('.error-banner')).toBeTruthy();
       });
     });
+
+    it('Enter key triggers save', async () => {
+      (updateRegression as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ...mockRegression,
+        title: 'Enter saved',
+      });
+
+      await mountAndWait();
+
+      const titleRow = container.querySelector('.field-row') as HTMLElement;
+      (titleRow.querySelector('.edit-btn') as HTMLElement).click();
+
+      const input = titleRow.querySelector('input') as HTMLInputElement;
+      input.value = 'Enter saved';
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+
+      await vi.waitFor(() => {
+        expect(updateRegression).toHaveBeenCalledWith(
+          'nts', TEST_UUID,
+          { title: 'Enter saved' },
+          expect.any(AbortSignal),
+        );
+      });
+    });
   });
 
   // ---------------------------------------------------------------
@@ -396,6 +449,29 @@ describe('regressionDetailPage', () => {
       expect(bugLink).toBeTruthy();
       expect(bugLink.getAttribute('target')).toBe('_blank');
     });
+
+    it('normalizes bug URL without protocol', async () => {
+      (getRegression as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ...mockRegression,
+        bug: 'bugs.example.com/123',
+      });
+
+      regressionDetailPage.mount(container, { testsuite: 'nts', uuid: TEST_UUID });
+
+      await vi.waitFor(() => {
+        const bugLink = container.querySelector('.regression-header a') as HTMLAnchorElement;
+        expect(bugLink).toBeTruthy();
+        expect(bugLink.getAttribute('href')).toBe('https://bugs.example.com/123');
+        expect(bugLink.textContent).toContain('bugs.example.com/123');
+      });
+    });
+
+    it('leaves https:// URLs unchanged', async () => {
+      await mountAndWait();
+
+      const bugLink = container.querySelector('.regression-header a') as HTMLAnchorElement;
+      expect(bugLink.getAttribute('href')).toBe('https://bugs.example.com/1');
+    });
   });
 
   // ---------------------------------------------------------------
@@ -454,16 +530,46 @@ describe('regressionDetailPage', () => {
   // ---------------------------------------------------------------
 
   describe('notes', () => {
-    it('blur-to-save calls updateRegression when value changed', async () => {
+    async function mountAndWaitForNotes() {
       regressionDetailPage.mount(container, { testsuite: 'nts', uuid: TEST_UUID });
-
       await vi.waitFor(() => {
-        expect(container.querySelector('.regression-notes-input')).toBeTruthy();
+        expect(container.querySelector('.regression-notes')).toBeTruthy();
       });
+    }
 
-      const textarea = container.querySelector('.regression-notes-input') as HTMLTextAreaElement;
+    it('shows notes text and Edit button in display mode', async () => {
+      await mountAndWaitForNotes();
+
+      const row = container.querySelector('.regression-notes')!;
+      expect(row.querySelector('.notes-display')?.textContent).toBe('Some notes about this regression');
+      expect(row.querySelector('.edit-btn')).toBeTruthy();
+      // No textarea visible in display mode
+      expect(row.querySelector('.regression-notes-input')).toBeNull();
+    });
+
+    it('click Edit shows textarea with current notes', async () => {
+      await mountAndWaitForNotes();
+
+      const row = container.querySelector('.regression-notes')!;
+      const editBtn = row.querySelector('.edit-btn') as HTMLButtonElement;
+      editBtn.click();
+
+      const textarea = row.querySelector('.regression-notes-input') as HTMLTextAreaElement;
+      expect(textarea).toBeTruthy();
+      expect(textarea.value).toBe('Some notes about this regression');
+    });
+
+    it('Save calls updateRegression and returns to display mode', async () => {
+      await mountAndWaitForNotes();
+
+      const row = container.querySelector('.regression-notes')!;
+      (row.querySelector('.edit-btn') as HTMLButtonElement).click();
+
+      const textarea = row.querySelector('.regression-notes-input') as HTMLTextAreaElement;
       textarea.value = 'Updated notes';
-      textarea.dispatchEvent(new Event('blur'));
+
+      const saveBtn = row.querySelector('.compare-btn') as HTMLButtonElement;
+      saveBtn.click();
 
       await vi.waitFor(() => {
         expect(updateRegression).toHaveBeenCalledWith(
@@ -471,38 +577,62 @@ describe('regressionDetailPage', () => {
           { notes: 'Updated notes' },
           expect.any(AbortSignal),
         );
+        // Back to display mode
+        expect(row.querySelector('.notes-display')).toBeTruthy();
+        expect(row.querySelector('.regression-notes-input')).toBeNull();
       });
     });
 
-    it('blur with unchanged value is a no-op', async () => {
-      regressionDetailPage.mount(container, { testsuite: 'nts', uuid: TEST_UUID });
+    it('Save with empty string sends null', async () => {
+      await mountAndWaitForNotes();
 
-      await vi.waitFor(() => {
-        expect(container.querySelector('.regression-notes-input')).toBeTruthy();
-      });
+      const row = container.querySelector('.regression-notes')!;
+      (row.querySelector('.edit-btn') as HTMLButtonElement).click();
 
-      const textarea = container.querySelector('.regression-notes-input') as HTMLTextAreaElement;
-      // Value should already be pre-filled with notes
-      textarea.dispatchEvent(new Event('blur'));
-
-      expect(updateRegression).not.toHaveBeenCalled();
-    });
-
-    it('blur with empty string sends null', async () => {
-      regressionDetailPage.mount(container, { testsuite: 'nts', uuid: TEST_UUID });
-
-      await vi.waitFor(() => {
-        expect(container.querySelector('.regression-notes-input')).toBeTruthy();
-      });
-
-      const textarea = container.querySelector('.regression-notes-input') as HTMLTextAreaElement;
+      const textarea = row.querySelector('.regression-notes-input') as HTMLTextAreaElement;
       textarea.value = '';
-      textarea.dispatchEvent(new Event('blur'));
+
+      const saveBtn = row.querySelector('.compare-btn') as HTMLButtonElement;
+      saveBtn.click();
 
       await vi.waitFor(() => {
         expect(updateRegression).toHaveBeenCalledWith(
           'nts', TEST_UUID,
           { notes: null },
+          expect.any(AbortSignal),
+        );
+      });
+    });
+
+    it('Cancel returns to display mode without API call', async () => {
+      await mountAndWaitForNotes();
+
+      const row = container.querySelector('.regression-notes')!;
+      (row.querySelector('.edit-btn') as HTMLButtonElement).click();
+
+      // Click Cancel
+      const cancelBtn = row.querySelector('.pagination-btn') as HTMLButtonElement;
+      cancelBtn.click();
+
+      expect(updateRegression).not.toHaveBeenCalled();
+      expect(row.querySelector('.notes-display')).toBeTruthy();
+      expect(row.querySelector('.regression-notes-input')).toBeNull();
+    });
+
+    it('Ctrl+Enter saves notes', async () => {
+      await mountAndWaitForNotes();
+
+      const row = container.querySelector('.regression-notes')!;
+      (row.querySelector('.edit-btn') as HTMLButtonElement).click();
+
+      const textarea = row.querySelector('.regression-notes-input') as HTMLTextAreaElement;
+      textarea.value = 'Ctrl+Enter saved';
+      textarea.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true }));
+
+      await vi.waitFor(() => {
+        expect(updateRegression).toHaveBeenCalledWith(
+          'nts', TEST_UUID,
+          { notes: 'Ctrl+Enter saved' },
           expect.any(AbortSignal),
         );
       });
@@ -577,12 +707,12 @@ describe('regressionDetailPage', () => {
       regressionDetailPage.mount(container, { testsuite: 'nts', uuid: TEST_UUID });
 
       await vi.waitFor(() => {
-        expect(container.querySelectorAll('.indicator-table-container input[type="checkbox"]').length).toBe(2);
+        expect(container.querySelectorAll('.indicator-table-container input[type="checkbox"][data-uuid]').length).toBe(2);
       });
 
       // Check both checkboxes
       const checkboxes = container.querySelectorAll<HTMLInputElement>(
-        '.indicator-table-container input[type="checkbox"]',
+        '.indicator-table-container input[type="checkbox"][data-uuid]',
       );
       checkboxes.forEach(cb => {
         cb.checked = true;
@@ -638,11 +768,127 @@ describe('regressionDetailPage', () => {
         );
       });
     });
+
+    it('select-all checkbox toggles all indicator checkboxes', async () => {
+      regressionDetailPage.mount(container, { testsuite: 'nts', uuid: TEST_UUID });
+
+      await vi.waitFor(() => {
+        expect(container.querySelectorAll('.indicator-table-container input[type="checkbox"][data-uuid]').length).toBe(2);
+      });
+
+      // Find the select-all checkbox (in thead, no data-uuid)
+      const selectAll = container.querySelector('.indicator-table-container thead input[type="checkbox"]') as HTMLInputElement;
+      expect(selectAll).toBeTruthy();
+
+      // Check select-all
+      selectAll.checked = true;
+      selectAll.dispatchEvent(new Event('change'));
+
+      const rowBoxes = container.querySelectorAll<HTMLInputElement>(
+        '.indicator-table-container input[type="checkbox"][data-uuid]');
+      rowBoxes.forEach(cb => expect(cb.checked).toBe(true));
+
+      // Uncheck select-all
+      selectAll.checked = false;
+      selectAll.dispatchEvent(new Event('change'));
+
+      rowBoxes.forEach(cb => expect(cb.checked).toBe(false));
+    });
+
+    it('select-all shows indeterminate when partially selected', async () => {
+      regressionDetailPage.mount(container, { testsuite: 'nts', uuid: TEST_UUID });
+
+      await vi.waitFor(() => {
+        expect(container.querySelectorAll('.indicator-table-container input[type="checkbox"][data-uuid]').length).toBe(2);
+      });
+
+      const selectAll = container.querySelector('.indicator-table-container thead input[type="checkbox"]') as HTMLInputElement;
+
+      // Check only the first row checkbox
+      const firstBox = container.querySelector('.indicator-table-container input[type="checkbox"][data-uuid]') as HTMLInputElement;
+      firstBox.checked = true;
+      firstBox.dispatchEvent(new Event('change'));
+
+      expect(selectAll.indeterminate).toBe(true);
+      expect(selectAll.checked).toBe(false);
+    });
   });
 
   // ---------------------------------------------------------------
-  // 9. Delete
+  // 9. Add Indicators panel
   // ---------------------------------------------------------------
+
+  describe('add indicators panel', () => {
+    it('shows machine checkbox list after machines load', async () => {
+      await mountAndWait();
+
+      await vi.waitFor(() => {
+        const machineBoxes = container.querySelectorAll('input[type="checkbox"][data-machine]');
+        expect(machineBoxes.length).toBe(2);
+      });
+    });
+
+    it('creates cross-product indicators for multiple machines and tests', async () => {
+      (addRegressionIndicators as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ...mockRegression,
+        indicators: [...mockRegression.indicators],
+      });
+
+      await mountAndWait();
+
+      // Wait for machines to load
+      await vi.waitFor(() => {
+        expect(container.querySelectorAll('input[type="checkbox"][data-machine]').length).toBe(2);
+      });
+
+      // Select a metric first (pick the first real metric)
+      const metricSelect = container.querySelector('.add-indicators-panel select') as HTMLSelectElement;
+      expect(metricSelect).toBeTruthy();
+      metricSelect.value = 'compile_time';
+      metricSelect.dispatchEvent(new Event('change'));
+
+      // Select both machines
+      const machineBoxes = container.querySelectorAll<HTMLInputElement>('input[type="checkbox"][data-machine]');
+      machineBoxes.forEach(cb => {
+        cb.checked = true;
+        cb.dispatchEvent(new Event('change'));
+      });
+
+      // Wait for tests to load
+      await vi.waitFor(() => {
+        expect(container.querySelectorAll('input[type="checkbox"][data-test]').length).toBe(2);
+      });
+
+      // Select both tests
+      const testBoxes = container.querySelectorAll<HTMLInputElement>('input[type="checkbox"][data-test]');
+      testBoxes.forEach(cb => {
+        cb.checked = true;
+        cb.dispatchEvent(new Event('change'));
+      });
+
+      // Preview should show 4 (2 machines x 2 tests)
+      const preview = container.querySelector('.add-indicator-preview');
+      expect(preview?.textContent).toContain('4 indicators');
+
+      // Click Add
+      const addBtn = container.querySelector('.add-indicator-actions .compare-btn') as HTMLButtonElement;
+      expect(addBtn.disabled).toBe(false);
+      addBtn.click();
+
+      await vi.waitFor(() => {
+        expect(addRegressionIndicators).toHaveBeenCalledWith(
+          'nts', expect.any(String),
+          expect.arrayContaining([
+            { machine: 'machine-a', test: 'test_x', metric: 'compile_time' },
+            { machine: 'machine-a', test: 'test_y', metric: 'compile_time' },
+            { machine: 'machine-b', test: 'test_x', metric: 'compile_time' },
+            { machine: 'machine-b', test: 'test_y', metric: 'compile_time' },
+          ]),
+          expect.any(AbortSignal),
+        );
+      });
+    });
+  });
 
   describe('delete', () => {
     it('renders delete confirm section and navigates on success', async () => {

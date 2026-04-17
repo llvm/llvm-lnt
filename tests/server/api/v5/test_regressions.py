@@ -467,7 +467,7 @@ class TestRegressionCreate(unittest.TestCase):
         self.assertEqual(data['state'], 'detected')
 
     def test_create_empty_body_succeeds(self):
-        """Empty body (no indicators) should succeed."""
+        """Empty body (no indicators) should succeed with NULL title."""
         headers = _triage_headers(self.app)
         resp = self.client.post(
             PREFIX + '/regressions',
@@ -477,7 +477,20 @@ class TestRegressionCreate(unittest.TestCase):
         self.assertEqual(resp.status_code, 201)
         data = resp.get_json()
         self.assertIn('uuid', data)
+        self.assertIsNone(data['title'])
         self.assertEqual(len(data['indicators']), 0)
+
+    def test_create_with_explicit_title(self):
+        """Providing a title stores it."""
+        headers = _triage_headers(self.app)
+        resp = self.client.post(
+            PREFIX + '/regressions',
+            json={'title': 'My regression'},
+            headers=headers,
+        )
+        self.assertEqual(resp.status_code, 201)
+        data = resp.get_json()
+        self.assertEqual(data['title'], 'My regression')
 
     def test_create_with_commit(self):
         """Create a regression with a commit field."""

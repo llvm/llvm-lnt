@@ -147,26 +147,33 @@ regression detail page.
 
 Investigation and management page for a single regression.
 
+**Page header**: Shows "Regression: {title}" when a title is set, or
+"Regression: {uuid_short}" as fallback. Updates dynamically when the title is
+edited.
+
 **Header section** (editable fields):
-- Title: inline-editable text
+- Title: inline-editable text. Enter key saves.
 - State: dropdown selector (detected, active, not_to_be_fixed, fixed, false_positive)
-- Bug: URL input (opens in new tab when set)
-- Commit: combobox with typeahead (nullable -- the suspected introduction point). Linked to commit detail page when set.
-- Notes: expandable textarea for investigation findings, A/B results, root cause analysis, etc.
+- Bug: URL input (opens in new tab when set). Enter key saves.
+- Commit: combobox with API search (nullable -- the suspected introduction point). Linked to commit detail page when set.
+- Notes: text display with Edit button. Edit mode shows textarea + Save/Cancel. Ctrl/Cmd+Enter saves. Display preserves line breaks (pre-wrap).
 
 **Delete regression**: Button with type-to-confirm prompt. Requires `triage`
 scope. On success, navigates to the regressions tab.
 
 **Add indicators panel**:
-- Three multi-select comboboxes with typeahead: Metric, Machine, Test
-- Test list filtered by selected machines and metrics (only shows tests with data for the selected combination)
-- Preview: "This will add N indicators" with expandable list
-- "Add" button creates all (machine x test x metric) indicator combinations
+- Metric: dropdown selector
+- Machines: checkbox list with filter input (multi-select, shift+click range)
+- Tests: checkbox list with filter input (multi-select, shift+click range), filtered by selected machines and metric
+- Preview: "This will add N indicators" (machines × tests cross-product)
+- "Add" button creates all (machine × test × metric) indicator combinations
 - Duplicates (same machine+test+metric already on this regression) are silently ignored
 
 **Indicators table**:
-- Columns: Machine, Test, Metric, remove button (x)
-- Multi-select rows for batch remove
+- Columns: select checkbox, Machine, Test, Metric, "View on graph" link, remove button (×)
+- Select-all checkbox in header (with indeterminate state for partial selection)
+- Shift+click range selection on checkboxes
+- Batch "Remove selected" button
 - "View on graph" link per indicator: opens Graph page pre-populated with the indicator's machine, test, metric, and the regression's commit as context
 
 Auth: requires `triage` scope for all modifications.

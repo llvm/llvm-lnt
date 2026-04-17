@@ -619,22 +619,22 @@ export const regressionDetailPage: PageModule = {
 **DOM layout**:
 
 ```
-<h2 class="page-header">Regression: {uuid_short}</h2>
+<h2 class="page-header">Regression: {title || uuid_short}</h2>
 <div class="regression-header">               ← Editable header fields
-  <div class="field-row">                     ← Title (inline-editable)
+  <div class="field-row">                     ← Title (inline-editable, Enter saves)
   <div class="field-row">                     ← State dropdown
-  <div class="field-row">                     ← Bug URL
-  <div class="field-row">                     ← Commit combobox
-  <div class="field-row regression-notes">    ← Notes textarea
+  <div class="field-row">                     ← Bug URL (inline-editable, Enter saves)
+  <div class="field-row">                     ← Commit combobox (API search)
+  <div class="field-row regression-notes">    ← Notes (display + Edit button; Ctrl/Cmd+Enter saves)
 </div>
 <div class="regression-header-error">         ← Error messages for header edits
 <div class="delete-section">                  ← Delete with confirmation
 <h3>Add Indicators</h3>
-<div class="add-indicators-panel">            ← Three selectors + preview + add button
+<div class="add-indicators-panel">            ← Metric dropdown + Machine/Test checkbox lists + preview + add
 <div class="add-indicators-error">            ← Error for add operation
 <h3>Indicators</h3>
 <div class="indicator-actions">               ← Batch remove button
-<div class="indicator-table-container">       ← Indicators table
+<div class="indicator-table-container">       ← Indicators table (select-all, shift+click range)
 ```
 
 ### 3.2 Data Loading

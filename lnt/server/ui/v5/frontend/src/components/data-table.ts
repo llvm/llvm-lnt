@@ -7,6 +7,8 @@ export interface Column<T> {
   label: string;
   /** Custom cell content. Return a string or DOM node. */
   render?: (row: T) => string | Node;
+  /** Custom header content. When provided, replaces the text label. */
+  headerRender?: () => HTMLElement;
   /** Extract a sortable value. Defaults to render text content. */
   sortValue?: (row: T) => string | number | null;
   /** CSS class for the cell (e.g. 'col-num'). */
@@ -52,7 +54,12 @@ export function renderDataTable<T>(
       const sortable = col.sortable !== false;
       const th = el('th', {
         class: sortable ? 'sortable' : '',
-      }, col.label);
+      });
+      if (col.headerRender) {
+        th.append(col.headerRender());
+      } else {
+        th.textContent = col.label;
+      }
       if (col.cellClass) th.classList.add(col.cellClass);
       if (sortable && col.key === currentSortKey) {
         th.append(currentSortDir === 'asc' ? ' \u25B2' : ' \u25BC');
