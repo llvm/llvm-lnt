@@ -5,7 +5,8 @@ import { formatValue, formatPercent, formatRatio, el } from './utils';
 import { computeGeomean } from './comparison';
 
 export interface TableOptions {
-  /** Test names that are hidden (grayed out in table, excluded from chart). */
+  /** Test names that are manually hidden (grayed out in table). Noise-hidden
+   *  rows are filtered upstream before reaching renderTable. */
   hiddenTests?: Set<string>;
   /** Called when a row is single-clicked (toggle visibility). */
   onToggle?: (test: string) => void;
@@ -57,11 +58,13 @@ function redraw(): void {
   const presentRows = rows.filter(r => r.sidePresent === 'both');
   const missingRows = rows.filter(r => r.sidePresent !== 'both');
 
-  // Total present tests (before text filter and zoom, but same sidePresent='both')
+  // Total present tests (before text filter and zoom, but after upstream noise
+  // filtering — noise rows are absent from allRows when hideNoise is on).
   const totalPresent = allRows.filter(r => r.sidePresent === 'both').length;
   const visibleCount = presentRows.filter(r => !hiddenTests.has(r.test)).length;
 
-  // Sort (no hideNoise filtering — hidden rows are shown grayed out)
+  // hiddenTests contains only manually-toggled rows (grayed out);
+  // noise rows are filtered upstream before reaching renderTable.
   const sorted = sortRows(presentRows, sort, sortDir);
 
   // Summary message (like Graph page's "42 of 150 traces matching")

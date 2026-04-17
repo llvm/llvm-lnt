@@ -54,12 +54,12 @@ settings re-triggers the comparison. Previous in-flight fetches are aborted.
 - **Geomean summary row**: The first row shows a geomean summary. Value A and Value B columns show the geometric mean of absolute values per side (useful for SPEC-like suites where individual values are comparable). Delta and Delta % are computed from these geomeans. The Ratio column shows the geometric mean of per-test ratios (the multiplicative average speedup), which is subtly different from geomean(B)/geomean(A) but is the standard way to report aggregate speedups.
 - Sortable by any column (click header)
 - Color-coded status: green = improved, red = regressed (direction respects the metric's `bigger_is_better` flag)
-- **Noise handling**: rows with |Delta %| below the noise threshold are visually de-emphasized (lighter text, no color). The "Hide noise" checkbox hides them entirely.
+- **Noise handling**: rows with |Delta %| below the noise threshold are visually de-emphasized (lighter text, no color). The "Hide noise" checkbox removes them from the table and chart entirely (not rendered in the DOM).
 - **Missing tests**: tests present in only one side show "\u2014" for the missing side's values. These are grayed out in a separate section at the bottom, excluded from the chart. This includes tests absent due to cross-suite comparison (different suites may have different test sets).
 - **Null metrics**: when a test has a sample but no value for the selected metric, display "N/A" in the table and exclude from the chart
 - **Zero baseline**: when Value A is 0, display "N/A" for Delta %, Ratio, and Status (raw values are still shown)
-- **Interactive rows**: Clicking a row toggles its visibility on the chart. Double-clicking a row isolates it (hides all others), like the Graph page's legend table. Hidden rows are shown grayed out (not removed). The "Hide noise" checkbox is a separate filter applied on top of manual visibility -- the two filters are independent: manual toggles persist across hideNoise changes, and changing the noise threshold correctly hides/unhides tests as their status changes.
-- **Summary message**: A message above the table rows shows a count, consistent with the Graph page's legend message: "150 tests" when all visible, "120 of 150 tests visible" when some are hidden, or "42 of 150 tests matching" when a text filter or chart zoom is active.
+- **Interactive rows**: Clicking a row toggles its visibility on the chart. Double-clicking a row isolates it (hides all others), like the Graph page's legend table. Manually-hidden rows (toggled by clicking) are shown grayed out in the table (not removed from the DOM). The "Hide noise" checkbox is a separate filter that removes noise rows from the DOM entirely. The two filters are independent: manual toggles persist across hideNoise changes, and changing the noise threshold correctly hides/unhides tests as their status changes.
+- **Summary message**: A message above the table rows shows a count, consistent with the Graph page's legend message: "150 tests" when all visible, "120 of 150 tests visible" when some are hidden, or "42 of 150 tests matching" when a text filter or chart zoom is active. Counts reflect only tests present in the table — noise-hidden tests (removed by "Hide noise") are excluded from both the numerator and denominator.
 
 
 ### Chart
@@ -132,5 +132,9 @@ A collapsible panel (button: "Add to regression" in the controls area). When
 expanded, offers:
 - "Create new regression" -- pre-fills commit, machines, tests, and metrics from the current comparison into a new regression
 - "Add to existing" -- a regression search combobox; adds the comparison's indicators to the selected regression
+
+Only tests currently visible in the comparison table are included as
+indicators (tests that are noise-hidden, manually-hidden, or excluded by the
+text filter are not included).
 
 The panel collapses back to the button when done.

@@ -425,7 +425,7 @@ describe('row visibility toggling', () => {
     };
   }
 
-  it('renders hidden rows with row-hidden class', () => {
+  it('renders manually-hidden rows with row-hidden class', () => {
     const container = document.createElement('div');
     const rows = [
       makeRow({ test: 'a', status: 'improved' }),
@@ -497,6 +497,103 @@ describe('row visibility toggling', () => {
     await new Promise(r => setTimeout(r, 250));
     expect(onIsolate).toHaveBeenCalledWith('a');
     expect(onToggle).not.toHaveBeenCalled();
+
+    resetTable();
+  });
+});
+
+describe('noise-hidden vs manually-hidden separation', () => {
+  function makeRow(overrides: Partial<ComparisonRow> & { test: string }): ComparisonRow {
+    return {
+      valueA: 100,
+      valueB: 110,
+      delta: 10,
+      deltaPct: 10,
+      ratio: 1.1,
+      status: 'improved',
+      sidePresent: 'both',
+      ...overrides,
+    };
+  }
+
+  it('noise rows excluded upstream are absent from the DOM', () => {
+    // Simulates what compare.ts does when hideNoise is on: it filters
+    // noise rows out of the array before calling renderTable.
+    const container = document.createElement('div');
+    const allRows = [
+      makeRow({ test: 'a', status: 'improved' }),
+      makeRow({ test: 'b', status: 'noise' }),
+      makeRow({ test: 'c', status: 'regressed' }),
+    ];
+    // Upstream filters out noise row 'b'
+    const tableRows = allRows.filter(r => r.status !== 'noise');
+    renderTable(container, tableRows);
+
+    expect(container.querySelector('tr[data-test="a"]')).toBeTruthy();
+    expect(container.querySelector('tr[data-test="b"]')).toBeNull();
+    expect(container.querySelector('tr[data-test="c"]')).toBeTruthy();
+
+    resetTable();
+  });
+
+  it('visible noise row gets .row-noise class (not .row-hidden)', () => {
+    // When hideNoise is off, noise rows are in the table but de-emphasized.
+    const container = document.createElement('div');
+    const rows = [
+      makeRow({ test: 'a', status: 'improved' }),
+      makeRow({ test: 'b', status: 'noise' }),
+    ];
+    renderTable(container, rows);
+
+    const rowB = container.querySelector('tr[data-test="b"]')!;
+    expect(rowB.classList.contains('row-noise')).toBe(true);
+    expect(rowB.classList.contains('row-hidden')).toBe(false);
+
+    resetTable();
+  });
+
+  it('.row-hidden and .row-noise classes are mutually exclusive', () => {
+    const container = document.createElement('div');
+    const rows = [
+      makeRow({ test: 'a', status: 'improved' }),
+      makeRow({ test: 'b', status: 'noise' }),
+      makeRow({ test: 'c', status: 'regressed' }),
+    ];
+    // 'a' is manually hidden; 'b' is noise (visible); 'c' is normal
+    renderTable(container, rows, { hiddenTests: new Set(['a']) });
+
+    const rowA = container.querySelector('tr[data-test="a"]')!;
+    const rowB = container.querySelector('tr[data-test="b"]')!;
+    const rowC = container.querySelector('tr[data-test="c"]')!;
+
+    // 'a': manually hidden → row-hidden, NOT row-noise
+    expect(rowA.classList.contains('row-hidden')).toBe(true);
+    expect(rowA.classList.contains('row-noise')).toBe(false);
+
+    // 'b': noise visible → row-noise, NOT row-hidden
+    expect(rowB.classList.contains('row-noise')).toBe(true);
+    expect(rowB.classList.contains('row-hidden')).toBe(false);
+
+    // 'c': normal → neither
+    expect(rowC.classList.contains('row-hidden')).toBe(false);
+    expect(rowC.classList.contains('row-noise')).toBe(false);
+
+    resetTable();
+  });
+
+  it('summary message reflects pre-filtered input (noise excluded upstream)', () => {
+    const container = document.createElement('div');
+    // 3 original rows, but noise row 'b' was filtered upstream
+    const tableRows = [
+      makeRow({ test: 'a', status: 'improved' }),
+      makeRow({ test: 'c', status: 'regressed' }),
+    ];
+    // 'a' is manually hidden → 1 of 2 visible
+    renderTable(container, tableRows, { hiddenTests: new Set(['a']) });
+
+    const message = container.querySelector('.table-message');
+    expect(message).toBeTruthy();
+    expect(message!.textContent).toBe('1 of 2 tests visible');
 
     resetTable();
   });

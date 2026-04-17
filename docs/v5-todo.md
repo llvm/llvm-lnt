@@ -48,21 +48,22 @@ Identified during manual testing on 2026-04-16.
 
 - [ ] **Link to created regression**: After creating a regression from Compare,
   show a clickable link to the regression detail page (not just the UUID).
-- [ ] **Only include visible tests**: When creating a regression or adding
+- [ ] **Title not cleared after creating regression**: After clicking "Create
+  Regression" in the "Add to Regression" panel, the title input is not cleared
+  on success. It should reset so the next creation starts with an empty title.
+- [x] **Only include visible tests**: When creating a regression or adding
   indicators from Compare, only include tests currently visible in the
   comparison table (not noise-hidden, not manually-hidden, not filtered out by
-  text filter). Currently uses `lastRows.filter(r => r.sidePresent === 'both')`
-  which includes everything.
+  text filter). Done: `buildIndicatorsFromComparison()` now uses
+  `computeVisibleTests()` which respects all three filters.
 - [ ] **Floating "Add to Regression" button**: Replace the current `<details>`
   panel at the bottom with a sticky floating button (bottom-right) that expands
   into a panel on click. Current placement below the full table is hard to
   discover.
-- [ ] **Noise-hidden tests not removed from table**: The design spec (line 57
-  of compare.md) says "Hide noise" should hide noise rows entirely, but the
-  implementation only grays them out. Manual click-toggle should gray out (not
-  remove). Fix: split `hiddenTests` into `removedTests` (noise-hidden, fully
-  removed from DOM) vs `hiddenTests` (click-toggled, grayed out). Geomean and
-  stats are already computed correctly (exclude both).
+- [x] **Noise-hidden tests not removed from table**: The design spec says
+  "Hide noise" should remove noise rows entirely from the table and chart.
+  Done: noise rows are now filtered upstream before reaching `renderTable()`;
+  manually-hidden rows (click toggle) remain grayed out in the DOM.
 
 ## Graph Page
 

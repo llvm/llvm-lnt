@@ -37,7 +37,7 @@ let eventCleanups: Array<() => void> = [];
 let fetchController: AbortController | null = null;
 /** Per-run sample cache: run UUID → samples. */
 let sampleCache = new Map<string, SampleInfo[]>();
-/** Tests manually hidden by the user (click toggle) or by hideNoise. */
+/** Tests manually hidden by the user (click toggle). */
 let manuallyHidden = new Set<string>();
 /** Callback invoked after every table/chart render (used by regression panel). */
 let onAfterRender: (() => void) | null = null;
@@ -61,25 +61,44 @@ export const comparePage: PageModule = {
 
     let lastRows: ComparisonRow[] = [];
 
-    // ----- Compute effective hidden set and render -----
+    // ----- Compute noise-hidden set, visible tests, and render -----
 
-    /** A test is hidden if it's manually hidden OR (noise + hideNoise checked). */
-    function computeEffectiveHidden(): Set<string> {
+    /** Tests with noise status that are hidden via the "Hide noise" checkbox. */
+    function computeNoiseHidden(): Set<string> {
       const state = getState();
-      const effective = new Set(manuallyHidden);
-      if (state.hideNoise) {
-        for (const r of lastRows) {
-          if (r.status === 'noise') effective.add(r.test);
-        }
+      if (!state.hideNoise) return new Set();
+      const noisy = new Set<string>();
+      for (const r of lastRows) {
+        if (r.status === 'noise') noisy.add(r.test);
       }
-      return effective;
+      return noisy;
+    }
+
+    /** Rows actually in the table (lastRows minus noise-hidden). */
+    let tableRows: ComparisonRow[] = [];
+
+    /**
+     * Tests visible in the comparison: present on both sides, not
+     * noise-hidden, not manually-hidden, and matching the text filter.
+     * Used by the regression panel to decide which indicators to create.
+     */
+    function computeVisibleTests(): string[] {
+      const noiseHidden = computeNoiseHidden();
+      const lf = getState().testFilter?.toLowerCase() ?? '';
+      return lastRows
+        .filter(r => r.sidePresent === 'both'
+          && !noiseHidden.has(r.test)
+          && !manuallyHidden.has(r.test)
+          && (!lf || r.test.toLowerCase().includes(lf)))
+        .map(r => r.test);
     }
 
     function renderTableAndChart(): void {
-      const effectiveHidden = computeEffectiveHidden();
-      const visibleRows = lastRows.filter(r => !effectiveHidden.has(r.test));
-      renderTable(tableContainer, lastRows, {
-        hiddenTests: effectiveHidden,
+      const noiseHidden = computeNoiseHidden();
+      tableRows = lastRows.filter(r => !noiseHidden.has(r.test));
+      const chartRows = tableRows.filter(r => !manuallyHidden.has(r.test));
+      renderTable(tableContainer, tableRows, {
+        hiddenTests: manuallyHidden,
         onToggle: (test) => {
           if (manuallyHidden.has(test)) {
             manuallyHidden.delete(test);
@@ -89,11 +108,12 @@ export const comparePage: PageModule = {
           renderTableAndChart();
         },
         onIsolate: (test) => {
-          const effectiveNow = computeEffectiveHidden();
+          // Isolate only affects manuallyHidden; the two filters (noise,
+          // manual) are independent.
           const state = getState();
           const lf = state.testFilter ? state.testFilter.toLowerCase() : '';
-          const visibleTests = lastRows
-            .filter(r => r.sidePresent === 'both' && !effectiveNow.has(r.test)
+          const visibleTests = tableRows
+            .filter(r => r.sidePresent === 'both' && !manuallyHidden.has(r.test)
               && (!lf || r.test.toLowerCase().includes(lf)))
             .map(r => r.test);
 
@@ -103,7 +123,7 @@ export const comparePage: PageModule = {
           } else {
             // Hide all visible except the target
             manuallyHidden = new Set(
-              lastRows
+              tableRows
                 .filter(r => r.sidePresent === 'both' && r.test !== test
                   && (!lf || r.test.toLowerCase().includes(lf)))
                 .map(r => r.test),
@@ -112,7 +132,7 @@ export const comparePage: PageModule = {
           renderTableAndChart();
         },
       });
-      renderChart(chartContainer, visibleRows, true);
+      renderChart(chartContainer, chartRows, true);
       if (onAfterRender) onAfterRender();
     }
 
@@ -291,9 +311,7 @@ export const comparePage: PageModule = {
         const st = getState();
         const commit = st.sideB.commit || st.sideA.commit || undefined;
         const machine = st.sideA.machine || st.sideB.machine || undefined;
-        const tests = lastRows
-          .filter(r => r.sidePresent === 'both')
-          .map(r => r.test);
+        const tests = computeVisibleTests();
         const indicators = machine && st.metric
           ? tests.map(t => ({ machine, test: t, metric: st.metric }))
           : [];
@@ -457,7 +475,7 @@ export const comparePage: PageModule = {
         // Update info text
         const machine = st.sideA.machine || st.sideB.machine || '(none)';
         const commit = st.sideB.commit || st.sideA.commit || '(none)';
-        const testCount = lastRows.filter(r => r.sidePresent === 'both').length;
+        const testCount = computeVisibleTests().length;
         createInfo.textContent = `Pre-filled: commit=${truncate(commit, 12)}, machine=${machine}, ${testCount} tests`;
       }
 
@@ -479,7 +497,7 @@ export const comparePage: PageModule = {
       onCustomEvent(SETTINGS_CHANGE, () => {
         // Noise % or hideNoise changed. Recompute from cache so status
         // classifications update with the new threshold. hideNoise is
-        // applied as a separate filter in computeEffectiveHidden().
+        // applied as a separate filter in computeNoiseHidden().
         const state = getState();
         if (state.sideA.runs.length > 0 && state.sideB.runs.length > 0 && state.metric) {
           recomputeFromCache();
