@@ -183,12 +183,18 @@ class TestListAPIKeysAuth(unittest.TestCase):
         resp = self.client.get('/api/v5/admin/api-keys')
         self.assertEqual(resp.status_code, 401)
 
-    def test_list_keys_with_read_scope(self):
-        """A read-scoped key should get 403."""
-        read_headers = make_scoped_headers(self.app, 'read')
+    def test_list_keys_with_manage_scope_403(self):
+        """A manage-scoped key (one below admin) should get 403."""
+        manage_headers = make_scoped_headers(self.app, 'manage')
         resp = self.client.get(
-            '/api/v5/admin/api-keys', headers=read_headers)
+            '/api/v5/admin/api-keys', headers=manage_headers)
         self.assertEqual(resp.status_code, 403)
+
+    def test_list_keys_with_admin_scope_200(self):
+        """An admin-scoped key (the required scope) succeeds."""
+        resp = self.client.get(
+            '/api/v5/admin/api-keys', headers=admin_headers())
+        self.assertEqual(resp.status_code, 200)
 
 
 class TestListAPIKeysAfterCreate(unittest.TestCase):
@@ -304,11 +310,29 @@ class TestDeleteAPIKeyAuth(unittest.TestCase):
         resp = self.client.delete('/api/v5/admin/api-keys/abcd1234')
         self.assertEqual(resp.status_code, 401)
 
-    def test_delete_key_with_read_scope(self):
-        read_headers = make_scoped_headers(self.app, 'read')
+    def test_delete_key_with_manage_scope_403(self):
+        """A manage-scoped key (one below admin) should get 403."""
+        manage_headers = make_scoped_headers(self.app, 'manage')
         resp = self.client.delete(
-            '/api/v5/admin/api-keys/abcd1234', headers=read_headers)
+            '/api/v5/admin/api-keys/abcd1234', headers=manage_headers)
         self.assertEqual(resp.status_code, 403)
+
+    def test_delete_key_with_admin_scope_204(self):
+        """An admin-scoped key (the required scope) succeeds."""
+        # Create a key to delete
+        create_resp = self.client.post(
+            '/api/v5/admin/api-keys',
+            json={'name': 'admin-del-test', 'scope': 'read'},
+            headers=admin_headers(),
+        )
+        self.assertEqual(create_resp.status_code, 201)
+        prefix = create_resp.get_json()['prefix']
+
+        resp = self.client.delete(
+            f'/api/v5/admin/api-keys/{prefix}',
+            headers=admin_headers(),
+        )
+        self.assertEqual(resp.status_code, 204)
 
 
 class TestCreatedKeyWorksForAuth(unittest.TestCase):

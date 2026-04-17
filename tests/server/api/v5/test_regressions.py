@@ -595,14 +595,25 @@ class TestRegressionCreate(unittest.TestCase):
         )
         self.assertEqual(resp.status_code, 401)
 
-    def test_create_read_scope_403(self):
-        headers = make_scoped_headers(self.app, 'read')
+    def test_create_submit_scope_403(self):
+        """Submit scope (one below triage) returns 403."""
+        headers = make_scoped_headers(self.app, 'submit')
         resp = self.client.post(
             PREFIX + '/regressions',
             json={},
             headers=headers,
         )
         self.assertEqual(resp.status_code, 403)
+
+    def test_create_triage_scope_201(self):
+        """Triage scope (the required scope) succeeds."""
+        headers = _triage_headers(self.app)
+        resp = self.client.post(
+            PREFIX + '/regressions',
+            json={},
+            headers=headers,
+        )
+        self.assertEqual(resp.status_code, 201)
 
 
 # ==========================================================================
@@ -875,16 +886,29 @@ class TestRegressionUpdate(unittest.TestCase):
         )
         self.assertEqual(resp.status_code, 401)
 
-    def test_update_read_scope_403(self):
+    def test_update_submit_scope_403(self):
+        """Submit scope (one below triage) returns 403."""
         reg_uuid, _ = _setup_regression_with_indicators(
             self.client, 1)
-        headers = make_scoped_headers(self.app, 'read')
+        headers = make_scoped_headers(self.app, 'submit')
         resp = self.client.patch(
             PREFIX + f'/regressions/{reg_uuid}',
             json={'title': 'x'},
             headers=headers,
         )
         self.assertEqual(resp.status_code, 403)
+
+    def test_update_triage_scope_200(self):
+        """Triage scope (the required scope) succeeds."""
+        reg_uuid, _ = _setup_regression_with_indicators(
+            self.client, 1)
+        headers = _triage_headers(self.app)
+        resp = self.client.patch(
+            PREFIX + f'/regressions/{reg_uuid}',
+            json={'title': 'Triage update'},
+            headers=headers,
+        )
+        self.assertEqual(resp.status_code, 200)
 
     def test_update_returns_indicators(self):
         """PATCH response should include indicators."""
@@ -942,6 +966,28 @@ class TestRegressionDelete(unittest.TestCase):
             PREFIX + f'/regressions/{reg_uuid}',
         )
         self.assertEqual(resp.status_code, 401)
+
+    def test_delete_submit_scope_403(self):
+        """Submit scope (one below triage) returns 403."""
+        reg_uuid, _ = _setup_regression_with_indicators(
+            self.client, 1)
+        headers = make_scoped_headers(self.app, 'submit')
+        resp = self.client.delete(
+            PREFIX + f'/regressions/{reg_uuid}',
+            headers=headers,
+        )
+        self.assertEqual(resp.status_code, 403)
+
+    def test_delete_triage_scope_204(self):
+        """Triage scope (the required scope) succeeds."""
+        reg_uuid, _ = _setup_regression_with_indicators(
+            self.client, 1)
+        headers = _triage_headers(self.app)
+        resp = self.client.delete(
+            PREFIX + f'/regressions/{reg_uuid}',
+            headers=headers,
+        )
+        self.assertEqual(resp.status_code, 204)
 
 
 # ==========================================================================
@@ -1066,6 +1112,20 @@ class TestRegressionIndicators(unittest.TestCase):
         )
         self.assertEqual(resp.status_code, 401)
 
+    def test_add_indicator_submit_scope_403(self):
+        """Submit scope (one below triage) returns 403."""
+        reg_uuid, _ = _setup_regression_with_indicators(
+            self.client, 1)
+        headers = make_scoped_headers(self.app, 'submit')
+        resp = self.client.post(
+            PREFIX + f'/regressions/{reg_uuid}/indicators',
+            json={'indicators': [
+                {'machine': 'x', 'test': 'y', 'metric': 'z'}
+            ]},
+            headers=headers,
+        )
+        self.assertEqual(resp.status_code, 403)
+
     def test_add_empty_list_422(self):
         """POST with empty indicators list returns 422."""
         reg_uuid, _ = _setup_regression_with_indicators(
@@ -1128,6 +1188,18 @@ class TestRegressionIndicators(unittest.TestCase):
             json={'indicator_uuids': [ind_uuids[0]]},
         )
         self.assertEqual(resp.status_code, 401)
+
+    def test_remove_submit_scope_403(self):
+        """Submit scope (one below triage) returns 403."""
+        reg_uuid, ind_uuids = _setup_regression_with_indicators(
+            self.client, 1)
+        headers = make_scoped_headers(self.app, 'submit')
+        resp = self.client.delete(
+            PREFIX + f'/regressions/{reg_uuid}/indicators',
+            json={'indicator_uuids': [ind_uuids[0]]},
+            headers=headers,
+        )
+        self.assertEqual(resp.status_code, 403)
 
     def test_remove_empty_list_422(self):
         """DELETE with empty indicator_uuids list returns 422."""

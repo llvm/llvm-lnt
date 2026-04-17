@@ -755,19 +755,33 @@ class TestRunDelete(unittest.TestCase):
         resp = self.client.delete(PREFIX + f'/runs/{run_uuid}')
         self.assertEqual(resp.status_code, 401)
 
-    def test_delete_without_manage_scope_403(self):
-        """Deleting with submit scope (not manage) returns 403."""
+    def test_delete_triage_scope_403(self):
+        """Deleting with triage scope (one below manage) returns 403."""
         name = f'del-scope-{uuid.uuid4().hex[:8]}'
         data = submit_run(self.client, name, f'del-scope-{uuid.uuid4().hex[:6]}',
                           [{'name': 'p/test', 'execution_time': 0.0}])
         run_uuid = data['run_uuid']
 
-        headers = make_scoped_headers(self.app, 'submit')
+        headers = make_scoped_headers(self.app, 'triage')
         resp = self.client.delete(
             PREFIX + f'/runs/{run_uuid}',
             headers=headers,
         )
         self.assertEqual(resp.status_code, 403)
+
+    def test_delete_manage_scope_204(self):
+        """Deleting with manage scope (the required scope) succeeds."""
+        name = f'del-mng-{uuid.uuid4().hex[:8]}'
+        data = submit_run(self.client, name, f'del-mng-{uuid.uuid4().hex[:6]}',
+                          [{'name': 'p/test', 'execution_time': 0.0}])
+        run_uuid = data['run_uuid']
+
+        headers = make_scoped_headers(self.app, 'manage')
+        resp = self.client.delete(
+            PREFIX + f'/runs/{run_uuid}',
+            headers=headers,
+        )
+        self.assertEqual(resp.status_code, 204)
 
 
 class TestRunFilterByMachine(unittest.TestCase):

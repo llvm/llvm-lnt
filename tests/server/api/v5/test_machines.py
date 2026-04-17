@@ -111,15 +111,26 @@ class TestMachineCreate(unittest.TestCase):
         )
         self.assertEqual(resp.status_code, 401)
 
-    def test_create_machine_read_scope_403(self):
-        """Creating with read scope should return 403."""
-        headers = make_scoped_headers(self.app, 'read')
+    def test_create_machine_triage_scope_403(self):
+        """Creating with triage scope (one below manage) returns 403."""
+        headers = make_scoped_headers(self.app, 'triage')
         resp = self.client.post(
             PREFIX + '/machines',
-            json={'name': 'read-only-test'},
+            json={'name': 'triage-only-test'},
             headers=headers,
         )
         self.assertEqual(resp.status_code, 403)
+
+    def test_create_machine_manage_scope_201(self):
+        """Creating with manage scope (the required scope) succeeds."""
+        name = f'manage-create-{uuid.uuid4().hex[:8]}'
+        headers = make_scoped_headers(self.app, 'manage')
+        resp = self.client.post(
+            PREFIX + '/machines',
+            json={'name': name},
+            headers=headers,
+        )
+        self.assertEqual(resp.status_code, 201)
 
     def test_create_machine_missing_name_422(self):
         """Creating without name should return 422 (schema validation)."""
@@ -295,6 +306,52 @@ class TestMachineUpdate(unittest.TestCase):
         )
         self.assertEqual(resp.status_code, 409)
 
+    def test_update_no_auth_401(self):
+        """PATCH without auth returns 401."""
+        name = f'upd-noauth-{uuid.uuid4().hex[:8]}'
+        self.client.post(
+            PREFIX + '/machines',
+            json={'name': name},
+            headers=admin_headers(),
+        )
+        resp = self.client.patch(
+            PREFIX + f'/machines/{name}',
+            json={'info': {'k': 'v'}},
+        )
+        self.assertEqual(resp.status_code, 401)
+
+    def test_update_triage_scope_403(self):
+        """PATCH with triage scope (one below manage) returns 403."""
+        name = f'upd-triage-{uuid.uuid4().hex[:8]}'
+        self.client.post(
+            PREFIX + '/machines',
+            json={'name': name},
+            headers=admin_headers(),
+        )
+        headers = make_scoped_headers(self.app, 'triage')
+        resp = self.client.patch(
+            PREFIX + f'/machines/{name}',
+            json={'info': {'k': 'v'}},
+            headers=headers,
+        )
+        self.assertEqual(resp.status_code, 403)
+
+    def test_update_manage_scope_200(self):
+        """PATCH with manage scope (the required scope) succeeds."""
+        name = f'upd-manage-{uuid.uuid4().hex[:8]}'
+        self.client.post(
+            PREFIX + '/machines',
+            json={'name': name},
+            headers=admin_headers(),
+        )
+        headers = make_scoped_headers(self.app, 'manage')
+        resp = self.client.patch(
+            PREFIX + f'/machines/{name}',
+            json={'info': {'k': 'v'}},
+            headers=headers,
+        )
+        self.assertEqual(resp.status_code, 200)
+
 
 class TestMachineDelete(unittest.TestCase):
     """Tests for DELETE /api/v5/{ts}/machines/{machine_name}."""
@@ -379,6 +436,47 @@ class TestMachineDelete(unittest.TestCase):
             headers=admin_headers(),
         )
         self.assertEqual(resp.status_code, 404)
+
+    def test_delete_no_auth_401(self):
+        """DELETE without auth returns 401."""
+        name = f'del-noauth-{uuid.uuid4().hex[:8]}'
+        self.client.post(
+            PREFIX + '/machines',
+            json={'name': name},
+            headers=admin_headers(),
+        )
+        resp = self.client.delete(PREFIX + f'/machines/{name}')
+        self.assertEqual(resp.status_code, 401)
+
+    def test_delete_triage_scope_403(self):
+        """DELETE with triage scope (one below manage) returns 403."""
+        name = f'del-triage-{uuid.uuid4().hex[:8]}'
+        self.client.post(
+            PREFIX + '/machines',
+            json={'name': name},
+            headers=admin_headers(),
+        )
+        headers = make_scoped_headers(self.app, 'triage')
+        resp = self.client.delete(
+            PREFIX + f'/machines/{name}',
+            headers=headers,
+        )
+        self.assertEqual(resp.status_code, 403)
+
+    def test_delete_manage_scope_204(self):
+        """DELETE with manage scope (the required scope) succeeds."""
+        name = f'del-manage-{uuid.uuid4().hex[:8]}'
+        self.client.post(
+            PREFIX + '/machines',
+            json={'name': name},
+            headers=admin_headers(),
+        )
+        headers = make_scoped_headers(self.app, 'manage')
+        resp = self.client.delete(
+            PREFIX + f'/machines/{name}',
+            headers=headers,
+        )
+        self.assertEqual(resp.status_code, 204)
 
 
 class TestMachineRuns(unittest.TestCase):

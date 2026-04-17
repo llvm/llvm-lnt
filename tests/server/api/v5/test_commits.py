@@ -476,21 +476,37 @@ class TestCommitUpdate(unittest.TestCase):
         )
         self.assertEqual(resp.status_code, 401)
 
-    def test_patch_read_scope_403(self):
-        """PATCH with read scope returns 403."""
-        rev = f'readp-{uuid.uuid4().hex[:8]}'
+    def test_patch_triage_scope_403(self):
+        """PATCH with triage scope (one below manage) returns 403."""
+        rev = f'triagep-{uuid.uuid4().hex[:8]}'
         self.client.post(
             PREFIX + '/commits',
             json={'commit': rev},
             headers=admin_headers(),
         )
-        headers = make_scoped_headers(self.app, 'read')
+        headers = make_scoped_headers(self.app, 'triage')
         resp = self.client.patch(
             PREFIX + f'/commits/{rev}',
             json={'ordinal': 1},
             headers=headers,
         )
         self.assertEqual(resp.status_code, 403)
+
+    def test_patch_manage_scope_200(self):
+        """PATCH with manage scope (the required scope) succeeds."""
+        rev = f'mngp-{uuid.uuid4().hex[:8]}'
+        self.client.post(
+            PREFIX + '/commits',
+            json={'commit': rev},
+            headers=admin_headers(),
+        )
+        headers = make_scoped_headers(self.app, 'manage')
+        resp = self.client.patch(
+            PREFIX + f'/commits/{rev}',
+            json={'ordinal': 1},
+            headers=headers,
+        )
+        self.assertEqual(resp.status_code, 200)
 
 
 class TestCommitDelete(unittest.TestCase):
@@ -581,6 +597,47 @@ class TestCommitDelete(unittest.TestCase):
         # Run should be gone too
         resp = self.client.get(PREFIX + f'/runs/{run_uuid}')
         self.assertEqual(resp.status_code, 404)
+
+    def test_delete_no_auth_401(self):
+        """DELETE without auth returns 401."""
+        rev = f'delna-{uuid.uuid4().hex[:8]}'
+        self.client.post(
+            PREFIX + '/commits',
+            json={'commit': rev},
+            headers=admin_headers(),
+        )
+        resp = self.client.delete(PREFIX + f'/commits/{rev}')
+        self.assertEqual(resp.status_code, 401)
+
+    def test_delete_triage_scope_403(self):
+        """DELETE with triage scope (one below manage) returns 403."""
+        rev = f'deltri-{uuid.uuid4().hex[:8]}'
+        self.client.post(
+            PREFIX + '/commits',
+            json={'commit': rev},
+            headers=admin_headers(),
+        )
+        headers = make_scoped_headers(self.app, 'triage')
+        resp = self.client.delete(
+            PREFIX + f'/commits/{rev}',
+            headers=headers,
+        )
+        self.assertEqual(resp.status_code, 403)
+
+    def test_delete_manage_scope_204(self):
+        """DELETE with manage scope (the required scope) succeeds."""
+        rev = f'delmng-{uuid.uuid4().hex[:8]}'
+        self.client.post(
+            PREFIX + '/commits',
+            json={'commit': rev},
+            headers=admin_headers(),
+        )
+        headers = make_scoped_headers(self.app, 'manage')
+        resp = self.client.delete(
+            PREFIX + f'/commits/{rev}',
+            headers=headers,
+        )
+        self.assertEqual(resp.status_code, 204)
 
 
 class TestCommitPagination(unittest.TestCase):
