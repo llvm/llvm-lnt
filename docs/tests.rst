@@ -57,7 +57,7 @@ documentation.
      Of course, when you're also interested in the measured compile time,
      you should also build sequentially (use ``--threads 1 --build-threads 1``).
    * When running on linux: Make ``lnt`` use ``perf`` to get more accurate
-     timing for short-running benchmarks (use ``--use-perf=1``).
+     timing for short-running benchmarks (use ``--use-perf=time``).
    * Pin the running benchmark to a specific core, so the OS doesn't move the
      benchmark process from core to core (on linux, use ``--make-param="RUNUNDER=taskset -c 1"``).
    * Only run the programs that are marked as a benchmark; some of the tests
