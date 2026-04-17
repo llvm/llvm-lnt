@@ -218,9 +218,9 @@ describe('machineDetailPage', () => {
   it('renders delete confirmation section', async () => {
     machineDetailPage.mount(container, { testsuite: 'nts', name: 'clang-x86' });
 
-    const deleteSection = container.querySelector('.delete-machine-section');
-    expect(deleteSection).toBeTruthy();
-    expect(deleteSection!.textContent).toContain('Delete Machine');
+    const deleteBtn = container.querySelector('.action-links .admin-btn-danger');
+    expect(deleteBtn).toBeTruthy();
+    expect(deleteBtn!.textContent).toContain('Delete Machine');
   });
 
   it('post-deletion redirects to suite-agnostic test-suites page', async () => {

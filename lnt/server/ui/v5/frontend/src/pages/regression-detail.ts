@@ -49,7 +49,7 @@ export const regressionDetailPage: PageModule = {
     const addHeading = el('h3', {}, 'Add Indicators');
     const addPanelDiv = el('div', { class: 'add-indicators-panel' });
     const addErrorDiv = el('div', { class: 'add-indicators-error' });
-    const deleteDiv = el('div', { class: 'delete-machine-section' });
+    const deleteDiv = el('div', { class: 'delete-section' });
 
     function showError(msg: string): void {
       headerErrorDiv.replaceChildren(el('p', { class: 'error-banner' }, msg));
@@ -64,14 +64,15 @@ export const regressionDetailPage: PageModule = {
       regression = reg;
       fields = f ?? [];
 
-      container.append(
-        headerDiv, headerErrorDiv,
-        indicatorsHeading, indicatorActionsDiv, indicatorTableDiv,
-      );
+      container.append(headerDiv, headerErrorDiv);
 
       if (hasToken) {
-        container.append(addHeading, addPanelDiv, addErrorDiv, deleteDiv);
+        container.append(deleteDiv, addHeading, addPanelDiv, addErrorDiv);
       }
+
+      container.append(
+        indicatorsHeading, indicatorActionsDiv, indicatorTableDiv,
+      );
 
       renderHeader();
       renderIndicators();
@@ -468,16 +469,13 @@ export const regressionDetailPage: PageModule = {
 
       // Metric selector
       let selectedMetric = '';
-      const metricGroupAdd = el('div', { class: 'control-group' });
-      metricGroupAdd.append(el('label', {}, 'Metric'));
       const metricContainer = el('div', {});
-      metricGroupAdd.append(metricContainer);
       renderMetricSelector(metricContainer, filterMetricFields(fields), (m) => {
         selectedMetric = m;
         refreshTests();
         updatePreview();
       }, undefined, { placeholder: true });
-      selectorsDiv.append(metricGroupAdd);
+      selectorsDiv.append(metricContainer);
 
       // Machine selector
       let selectedMachine = '';

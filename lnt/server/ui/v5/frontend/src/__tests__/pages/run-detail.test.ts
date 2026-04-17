@@ -215,10 +215,10 @@ describe('runDetailPage', () => {
     runDetailPage.mount(container, { testsuite: 'nts', uuid: TEST_UUID });
 
     await vi.waitFor(() => {
-      // The delete section should mention the 8-char prefix
-      const deleteSection = container.querySelector('.delete-machine-section');
-      expect(deleteSection).toBeTruthy();
-      expect(deleteSection!.textContent).toContain('abcdef01');
+      // The delete button should be in the action links row
+      const deleteBtn = container.querySelector('.action-links .admin-btn-danger');
+      expect(deleteBtn).toBeTruthy();
+      expect(deleteBtn!.textContent).toContain('Delete Run');
     });
   });
 

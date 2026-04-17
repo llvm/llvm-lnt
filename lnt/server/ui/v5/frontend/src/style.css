@@ -1039,11 +1039,10 @@ dl {
   background: #fff3cd !important;
 }
 
-/* Delete machine section */
-.delete-machine-section {
-  margin-top: 24px;
-  padding-top: 16px;
-  border-top: 1px solid #eee;
+/* Delete section */
+.delete-section {
+  margin-top: 16px;
+  margin-bottom: 16px;
 }
 
 .delete-machine-confirm {

@@ -2,14 +2,13 @@
 // loading, test filter, metric selector, and run deletion.
 
 import type { PageModule, RouteParams } from '../router';
-import type { SampleInfo, RegressionListItem } from '../types';
-import { getRun, getFields, deleteRun, fetchOneCursorPage, apiUrl, getRegressions } from '../api';
-import { el, spaLink, agnosticLink, formatValue, formatTime, truncate, debounce } from '../utils';
+import type { SampleInfo } from '../types';
+import { getRun, getFields, deleteRun, fetchOneCursorPage, apiUrl } from '../api';
+import { el, spaLink, agnosticLink, formatValue, formatTime, debounce } from '../utils';
 import { navigate } from '../router';
 import { renderDataTable } from '../components/data-table';
 import { renderMetricSelector, filterMetricFields } from '../components/metric-selector';
 import { renderDeleteConfirm } from '../components/delete-confirm';
-import { renderStateBadge } from '../regression-utils';
 
 /** Instance-scoped abort controller for the current mount's sample fetches. */
 let activeFetchController: AbortController | null = null;
@@ -27,16 +26,14 @@ export const runDetailPage: PageModule = {
 
     const metaContainer = el('div', {});
     const actionsContainer = el('div', { class: 'action-links' });
+    const deleteConfirmDiv = el('div', {});
     const controlsContainer = el('div', { class: 'global-controls' });
     const filterContainer = el('div', { class: 'table-controls' });
     const summaryContainer = el('div', {});
     const tableContainer = el('div', {});
-    const regressionsContainer = el('div', { class: 'run-regressions-section' });
-    const deleteContainer = el('div', { class: 'delete-machine-section' });
     container.append(
-      metaContainer, actionsContainer, controlsContainer,
-      filterContainer, summaryContainer, tableContainer,
-      regressionsContainer, deleteContainer,
+      metaContainer, actionsContainer, deleteConfirmDiv,
+      controlsContainer, filterContainer, summaryContainer, tableContainer,
     );
 
     const loading = el('p', { class: 'progress-label' }, 'Loading run data...');
@@ -81,6 +78,18 @@ export const runDetailPage: PageModule = {
       compareLink.classList.add('action-link');
       actionsContainer.append(compareLink);
 
+      // Delete (button in actions row, confirmation below)
+      const shortUuid = uuid.slice(0, 8);
+      renderDeleteConfirm(actionsContainer, {
+        label: 'Delete Run',
+        prompt: `Type "${shortUuid}" to confirm deletion. This will delete the run and all its samples.`,
+        confirmValue: shortUuid,
+        placeholder: 'Run UUID prefix',
+        onDelete: () => deleteRun(ts, uuid),
+        onSuccess: () => navigate(`/machines/${encodeURIComponent(machineName)}`),
+        confirmContainer: deleteConfirmDiv,
+      });
+
       // Metric selector
       currentMetric = renderMetricSelector(controlsContainer, filterMetricFields(fields), (metric) => {
         currentMetric = metric;
@@ -102,20 +111,6 @@ export const runDetailPage: PageModule = {
 
       // Progressive sample loading
       loadSamplesProgressively(ts, uuid);
-
-      // Load matching regressions (non-blocking)
-      loadRunRegressions(ts, run.commit, run.machine, regressionsContainer, activeFetchController!.signal);
-
-      // Delete section
-      const shortUuid = uuid.slice(0, 8);
-      renderDeleteConfirm(deleteContainer, {
-        label: 'Delete Run',
-        prompt: `Type "${shortUuid}" to confirm deletion. This will delete the run and all its samples.`,
-        confirmValue: shortUuid,
-        placeholder: 'Run UUID prefix',
-        onDelete: () => deleteRun(ts, uuid),
-        onSuccess: () => navigate(`/machines/${encodeURIComponent(machineName)}`),
-      });
     }).catch(e => {
       loading.remove();
       container.append(el('p', { class: 'error-banner' }, `Failed to load run: ${e}`));
@@ -192,51 +187,3 @@ export const runDetailPage: PageModule = {
     }
   },
 };
-
-async function loadRunRegressions(
-  ts: string,
-  commit: string,
-  machine: string,
-  container: HTMLElement,
-  signal: AbortSignal,
-): Promise<void> {
-  container.append(el('h3', {}, 'Regressions'));
-
-  try {
-    const result = await getRegressions(ts, {
-      commit,
-      machine,
-      limit: 25,
-    }, signal);
-    const regressions = result.items;
-
-    if (regressions.length === 0) {
-      container.append(el('p', { class: 'no-results' },
-        'No regressions at this commit and machine.'));
-      return;
-    }
-
-    renderDataTable(container, {
-      columns: [
-        {
-          key: 'title',
-          label: 'Regression',
-          render: (r: RegressionListItem) => spaLink(
-            truncate(r.title || '(untitled)', 50),
-            `/regressions/${encodeURIComponent(r.uuid)}`),
-        },
-        {
-          key: 'state',
-          label: 'State',
-          render: (r: RegressionListItem) => renderStateBadge(r.state),
-        },
-      ],
-      rows: regressions,
-      emptyMessage: 'No matching regressions.',
-    });
-  } catch (e: unknown) {
-    if (e instanceof DOMException && e.name === 'AbortError') return;
-    container.append(el('p', { class: 'error-banner' },
-      `Failed to load regressions: ${e}`));
-  }
-}

@@ -628,13 +628,13 @@ export const regressionDetailPage: PageModule = {
   <div class="field-row regression-notes">    ← Notes textarea
 </div>
 <div class="regression-header-error">         ← Error messages for header edits
-<h3>Indicators</h3>
-<div class="indicator-actions">               ← Batch remove button
-<div class="indicator-table-container">       ← Indicators table
+<div class="delete-section">                  ← Delete with confirmation
 <h3>Add Indicators</h3>
 <div class="add-indicators-panel">            ← Three selectors + preview + add button
 <div class="add-indicators-error">            ← Error for add operation
-<div class="delete-regression-section">       ← Delete with confirmation
+<h3>Indicators</h3>
+<div class="indicator-actions">               ← Batch remove button
+<div class="indicator-table-container">       ← Indicators table
 ```
 
 ### 3.2 Data Loading
@@ -1819,9 +1819,9 @@ cd lnt/server/ui/v5/frontend && npx vitest run --reporter=verbose regression
    - Add indicators panel: select metric, machine, then tests; preview shows count; "Add" button works
    - Delete regression navigates back to list
 
-3. **Machine Detail**: "Active Regressions" section appears below run history with linked entries
+3. **Machine Detail**: "Active Regressions" section appears below action links with linked entries. "Delete Machine" button is inline with action links.
 
-4. **Run Detail**: "Regressions" section appears matching run's commit and machine
+4. **Run Detail**: No regressions section (accessible from Machine/Commit Detail). "Delete Run" button is inline with action links.
 
 5. **Commit Detail**: "Regressions" section appears matching commit value
 

@@ -79,23 +79,21 @@ Deep dive into a single machine. Machine names are guaranteed unique.
 |---------|-------|-----------|
 | Metadata | Machine info key-value pairs | `GET machines/{name}` |
 | Run History | Paginated table of runs (newest first) | `GET machines/{name}/runs?sort=-start_time` |
-| Delete | Delete button with confirmation prompt | `DELETE machines/{name}` (requires `manage` scope) |
 
-The delete section appears at the bottom. Clicking "Delete Machine" shows a
-confirmation prompt requiring the user to type the machine name. Deletion
-requires a valid API token with `manage` scope (set via the Settings panel in
-the nav bar). On success, navigates to the machine list. On auth failure
-(401/403), shows an error message reminding the user to set an API token with
-sufficient permissions. While the delete is in progress, a message reassures
-the user that deletion may take a while for machines with many runs.
+**Action links**: "View Graph" (pre-filled machine), "Compare" (pre-selected
+machine), and "Delete Machine" button. Clicking "Delete Machine" shows a
+confirmation prompt (below the action row) requiring the user to type the machine
+name. Deletion requires a valid API token with `manage` scope. On success,
+navigates to the test suites page. While the delete is in progress, a message
+reassures the user that deletion may take a while for machines with many runs.
 
 **Links out**: Run Detail, Commit Detail, Graph (with machine pre-filled),
 Compare (with machine pre-selected), Regression Detail.
 
-**Active regressions**: Below the run history, a section showing non-resolved
+**Active regressions**: Below the action links, a section showing non-resolved
 regressions (state: detected, active) with at least one indicator on this
 machine. Each links to its regression detail page. A "Show all" link navigates
-to the Regression List pre-filtered by this machine.
+to the regressions tab pre-filtered by this machine.
 
 
 ## Run Detail -- `/v5/{ts}/runs/{uuid}`
@@ -108,7 +106,6 @@ All data from a single test execution.
 | Metric Selector | Drop-down to choose which metric to display (like Compare page) | `GET test-suites/{ts}` (fields from `schema.metrics`) |
 | Test Filter | Text input for substring matching on test names | (client-side) |
 | Samples Table | All samples + selected metric value, sorted by test name by default | `GET runs/{uuid}/samples` |
-| Delete | Delete button with confirmation prompt | `DELETE runs/{uuid}` (requires `manage` scope) |
 
 The metric selector drop-down controls which metric column is shown in the
 samples table, consistent with how the Compare page handles metric selection.
@@ -118,21 +115,14 @@ first page and grows as more pages arrive, with a progress indicator showing
 the count. Multiple samples for the same test (repetitions) appear as separate
 rows.
 
-A "Compare with..." button navigates to the Compare page with this run's
-machine and commit pre-selected on side A, leaving side B open for the user to
-fill in.
-
-The delete section appears at the bottom. Clicking "Delete Run" shows a
-confirmation prompt requiring the user to type the first 8 characters of the
-run UUID. Deletion requires a valid API token with `manage` scope. On success,
-navigates to the machine detail page.
+**Action links**: "Compare with..." (pre-selects this run's machine and commit
+on side A) and "Delete Run" button. Clicking "Delete Run" shows a confirmation
+prompt (below the action row) requiring the user to type the first 8 characters
+of the run UUID. Deletion requires a valid API token with `manage` scope. On
+success, navigates to the machine detail page.
 
 **Links out**: Machine Detail, Commit Detail, Graph (test pre-filled), Profile,
-Compare (side A pre-selected), Regression Detail.
-
-**Regressions**: Below the samples table, a section showing regressions where
-the regression's commit matches the run's commit AND at least one indicator
-matches the run's machine. Each links to its regression detail page.
+Compare (side A pre-selected).
 
 
 ## Commit Detail -- `/v5/{ts}/commits/{value}`
@@ -164,19 +154,19 @@ Investigation and management page for a single regression.
 - Commit: combobox with typeahead (nullable -- the suspected introduction point). Linked to commit detail page when set.
 - Notes: expandable textarea for investigation findings, A/B results, root cause analysis, etc.
 
-**Indicators table**:
-- Columns: Machine, Test, Metric, remove button (x)
-- Multi-select rows for batch remove
-- "View on graph" link per indicator: opens Graph page pre-populated with the indicator's machine, test, metric, and the regression's commit as context
+**Delete regression**: Button with type-to-confirm prompt. Requires `triage`
+scope. On success, navigates to the regressions tab.
 
-**Add indicators panel** (below table):
+**Add indicators panel**:
 - Three multi-select comboboxes with typeahead: Metric, Machine, Test
 - Test list filtered by selected machines and metrics (only shows tests with data for the selected combination)
 - Preview: "This will add N indicators" with expandable list
 - "Add" button creates all (machine x test x metric) indicator combinations
 - Duplicates (same machine+test+metric already on this regression) are silently ignored
 
-**Actions**:
-- Delete regression button (with confirmation)
+**Indicators table**:
+- Columns: Machine, Test, Metric, remove button (x)
+- Multi-select rows for batch remove
+- "View on graph" link per indicator: opens Graph page pre-populated with the indicator's machine, test, metric, and the regression's commit as context
 
 Auth: requires `triage` scope for all modifications.

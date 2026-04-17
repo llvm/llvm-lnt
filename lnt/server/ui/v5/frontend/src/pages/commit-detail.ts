@@ -30,8 +30,8 @@ export const commitDetailPage: PageModule = {
     const regressionsContainer = el('div', { class: 'commit-regressions-section' });
     container.append(
       fieldsContainer, ordinalContainer, navContainer,
-      summaryContainer, filterContainer, tableContainer,
       regressionsContainer,
+      summaryContainer, filterContainer, tableContainer,
     );
 
     const loading = el('p', { class: 'progress-label' }, 'Loading commit data...');

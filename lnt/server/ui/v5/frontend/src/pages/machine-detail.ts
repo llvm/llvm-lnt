@@ -28,8 +28,8 @@ export const machineDetailPage: PageModule = {
     const actionsContainer = el('div', { class: 'action-links' });
     const runsContainer = el('div', {});
     const regressionsContainer = el('div', { class: 'machine-regressions-section' });
-    const deleteContainer = el('div', { class: 'delete-machine-section' });
-    container.append(metaContainer, actionsContainer, runsContainer, regressionsContainer, deleteContainer);
+    const deleteConfirmDiv = el('div', {});
+    container.append(metaContainer, actionsContainer, deleteConfirmDiv, regressionsContainer, runsContainer);
 
     // Load metadata
     getMachine(ts, name, signal).then(machine => {
@@ -113,8 +113,8 @@ export const machineDetailPage: PageModule = {
     // Active regressions on this machine
     loadMachineRegressions(ts, name, regressionsContainer, signal);
 
-    // Delete section
-    renderDeleteConfirm(deleteContainer, {
+    // Delete section (button in actions row, confirmation below)
+    renderDeleteConfirm(actionsContainer, {
       label: 'Delete Machine',
       prompt: `Type "${name}" to confirm deletion. This will delete all runs and data for this machine.`,
       confirmValue: name,
@@ -124,6 +124,7 @@ export const machineDetailPage: PageModule = {
       onSuccess: () => {
         window.location.assign(agnosticUrl(`/test-suites?suite=${encodeURIComponent(ts)}`));
       },
+      confirmContainer: deleteConfirmDiv,
     });
   },
 

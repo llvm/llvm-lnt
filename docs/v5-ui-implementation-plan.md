@@ -1248,16 +1248,15 @@ export async function getOrdersPage(
   - Info key-value pairs as a definition list
   - Run history table with columns: UUID (link to Run Detail), Order (link to Order Detail), Start Time
   - Pagination controls for the run history table
-- Action links: "Graph for this machine" (links to `/v5/graph?suite={ts}&machine={name}`), "Compare" (links to `/v5/compare?suite_a={ts}&machine_a={name}`)
-- **Delete section** at the bottom (visually separated):
-  - "Delete Machine" button (red, danger style)
-  - Clicking shows a confirmation prompt: text input where the user must type the exact machine name, plus Confirm/Cancel buttons
+- Action links: "Graph for this machine" (links to `/v5/graph?suite={ts}&machine={name}`), "Compare" (links to `/v5/compare?suite_a={ts}&machine_a={name}`), and "Delete Machine" button (red, danger style)
+  - Clicking "Delete Machine" shows a confirmation prompt below the action links: text input where the user must type the exact machine name, plus Confirm/Cancel buttons
   - Confirm button stays disabled until the typed name matches exactly
   - On confirm, calls `deleteMachine(ts, name)` (`DELETE /api/v5/{ts}/machines/{name}`, requires `manage` scope)
   - While in-flight, shows "Deleting..." on the button and a message that deletion may take a while for machines with many runs
-  - On success (204), navigates to `/machines`
+  - On success (204), navigates to the test suites page
   - On 401/403, shows an error message: "Permission denied. Set an API token with 'manage' scope in Settings."
   - On other errors, shows the error message from the API
+- Uses `renderDeleteConfirm(actionsContainer, { ..., confirmContainer: deleteConfirmDiv })` to split the button (in the action links row) from the confirmation UI (below)
 
 ### 2.6 Run Detail Page
 
@@ -1276,13 +1275,13 @@ export async function getOrdersPage(
   - Test filter: text input (debounced 200ms) for case-insensitive substring matching on test names, with summary message showing filtered counts
   - Samples table: Test name, selected metric value — sorted by test name ascending by default (using data-table's `sortKey`/`sortDir` options)
   - The metric selector controls which metric column is shown
-- Action links: "Compare with..." button (navigates to `/v5/compare?suite_a={ts}&machine_a={machine}&order_a={orderValue}`)
-- **Delete section** at the bottom (same pattern as machine-detail.ts):
-  - "Delete Run" button (red, danger style)
-  - Confirmation: type first 8 chars of run UUID to confirm
+- Action links: "Compare with..." button (navigates to `/v5/compare?suite_a={ts}&machine_a={machine}&order_a={orderValue}`) and "Delete Run" button (red, danger style)
+  - Clicking "Delete Run" shows a confirmation prompt below the action links: type first 8 chars of run UUID to confirm
   - Calls `deleteRun(ts, uuid)` (requires `manage` scope)
   - On success, navigates to the machine detail page
   - On auth error, shows `authErrorMessage()`
+- Uses `renderDeleteConfirm(actionsContainer, { ..., confirmContainer: deleteConfirmDiv })` to split the button (in the action links row) from the confirmation UI (below)
+- No regressions section -- regressions are accessible from Machine Detail and Commit Detail
 
 ### 2.7 Order Detail Page
 

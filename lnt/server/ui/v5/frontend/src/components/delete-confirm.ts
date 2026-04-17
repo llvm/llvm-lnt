@@ -18,6 +18,8 @@ export interface DeleteConfirmOptions {
   onDelete: () => Promise<void>;
   /** Called after successful deletion (e.g. to navigate away). */
   onSuccess: () => void;
+  /** When provided, confirmation UI goes here instead of the button container. */
+  confirmContainer?: HTMLElement;
 }
 
 /**
@@ -87,5 +89,7 @@ export function renderDeleteConfirm(
 
   const btnRow = el('div', { class: 'admin-form-row' }, confirmBtn, cancelBtn);
   confirmDiv.append(prompt, confirmInput, btnRow);
-  container.append(deleteBtn, confirmDiv, errorDiv);
+  const confirmTarget = options.confirmContainer ?? container;
+  container.append(deleteBtn);
+  confirmTarget.append(confirmDiv, errorDiv);
 }

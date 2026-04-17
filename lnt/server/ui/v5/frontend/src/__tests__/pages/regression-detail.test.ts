@@ -173,7 +173,7 @@ describe('regressionDetailPage', () => {
       await mountAndWait();
 
       // delete section should not have been appended to the container
-      expect(container.querySelector('.delete-machine-section')?.children.length || 0).toBe(0);
+      expect(container.querySelector('.delete-section')?.children.length || 0).toBe(0);
     });
 
     it('shows no checkboxes in indicator table', async () => {
@@ -659,11 +659,11 @@ describe('regressionDetailPage', () => {
         regressionDetailPage.mount(container, { testsuite: 'nts', uuid: TEST_UUID });
 
         await vi.waitFor(() => {
-          expect(container.querySelector('.delete-machine-section .admin-btn-danger')).toBeTruthy();
+          expect(container.querySelector('.delete-section .admin-btn-danger')).toBeTruthy();
         });
 
         // Click the "Delete Regression" button to reveal confirmation
-        const deleteBtn = container.querySelector('.delete-machine-section .admin-btn-danger') as HTMLButtonElement;
+        const deleteBtn = container.querySelector('.delete-section .admin-btn-danger') as HTMLButtonElement;
         deleteBtn.click();
 
         // Type the UUID prefix to enable confirm
