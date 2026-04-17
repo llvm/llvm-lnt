@@ -113,11 +113,11 @@ class MachineRunsQuerySchema(CursorPaginationQuerySchema):
     """Query parameters for GET /machines/{name}/runs."""
     after = ma.fields.String(
         load_default=None,
-        metadata={'description': 'ISO datetime, only runs submitted after this time'},
+        metadata={'description': 'ISO datetime; only runs submitted after this time (exclusive)'},
     )
     before = ma.fields.String(
         load_default=None,
-        metadata={'description': 'ISO datetime, only runs submitted before this time'},
+        metadata={'description': 'ISO datetime; only runs submitted before this time (exclusive)'},
     )
     sort = ma.fields.String(
         load_default=None,

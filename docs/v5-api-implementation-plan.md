@@ -540,6 +540,8 @@ Body (JSON): {metric, machine, test, commit, after_commit, before_commit,
 - `metric` is REQUIRED (by name, not ID). All other fields are optional.
 - `test` is a list of test names for disjunction queries.
   Unknown test names are silently skipped (no 404).
+- Time and commit range filters (`after_time`, `before_time`, `after_commit`,
+  `before_commit`) use exclusive bounds (strictly after / strictly before).
 - Metric → Sample column resolution via `getattr(ts.Sample, metric_name)`
 - Core query: `SELECT metric_col, commit.*, run.uuid, run.submitted_at
   FROM Sample JOIN Run JOIN Commit WHERE machine_id=X AND test_id IN (...)

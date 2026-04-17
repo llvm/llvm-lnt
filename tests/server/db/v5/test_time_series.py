@@ -296,18 +296,21 @@ class TestQueryTrends(unittest.TestCase):
         session.close()
 
     def test_query_trends_filter_by_time_range(self):
-        """Filter by time_range restricts results."""
+        """after_time/before_time use exclusive bounds (> / <)."""
         session = self.Session()
+        # Seed data has machine_a runs at 12:00, 13:00, 14:00.
+        # With exclusive bounds, start=12:00 excludes the 12:00 run and
+        # end=13:30 excludes nothing extra, leaving only the 13:00 run.
         start = datetime.datetime(2024, 3, 1, 12, 0, 0)
         end = datetime.datetime(2024, 3, 1, 13, 30, 0)
         results = self.tsdb.query_trends(
             session, "execution_time",
             after_time=start, before_time=end)
-        # Only commits within the time range for machine_a
+        self.assertEqual(len(results), 1)
         for r in results:
             self.assertIsNotNone(r["submitted_at"])
-            self.assertLessEqual(r["submitted_at"], end)
-            self.assertGreaterEqual(r["submitted_at"], start)
+            self.assertGreater(r["submitted_at"], start)
+            self.assertLess(r["submitted_at"], end)
         session.close()
 
     def test_query_trends_unknown_metric_raises(self):

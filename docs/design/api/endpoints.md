@@ -159,7 +159,8 @@ Body (JSON): `{metric, machine, test, commit, after_commit, before_commit,
 The `metric` field is required; all other fields are optional. The `test`
 field accepts a list of names for disjunction queries. The `commit` field
 filters for an exact commit match and cannot be combined with
-`after_commit`/`before_commit`.
+`after_commit`/`before_commit`. Time and commit range filters use exclusive
+bounds (strictly after / strictly before the given value).
 
 Returns cursor-paginated time-series data for graphing. Each data point
 contains: `test`, `machine`, `metric`, `value`, `commit`, `ordinal`,
@@ -179,7 +180,8 @@ Body (JSON): `{metric, machine, after_time, before_time}`
 The `metric` field is required and must have type `real`; `status` and `hash`
 metrics are rejected with 400. All other fields are optional. Unlike the query
 endpoint's single machine string, `machine` accepts a list of names -- the
-Dashboard needs data for multiple machines in one call. Order-based filters
+Dashboard needs data for multiple machines in one call. Time range filters use
+exclusive bounds (strictly after / strictly before). Order-based filters
 are intentionally omitted; the Dashboard uses time-based filtering exclusively.
 
 Returns geomean-aggregated trend data per (machine, commit). Not paginated --

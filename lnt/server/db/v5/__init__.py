@@ -935,10 +935,10 @@ class V5TestSuiteDB:
             q = q.filter(self.Machine.id.in_(machine_ids))
 
         if after_time is not None:
-            q = q.filter(self.Run.submitted_at >= after_time)
+            q = q.filter(self.Run.submitted_at > after_time)
 
         if before_time is not None:
-            q = q.filter(self.Run.submitted_at <= before_time)
+            q = q.filter(self.Run.submitted_at < before_time)
 
         q = q.group_by(
             self.Machine.name, self.Commit.id,

@@ -23,11 +23,11 @@ class TrendsQuerySchema(BaseSchema):
     )
     after_time = ma.fields.String(
         load_default=None,
-        metadata={'description': 'ISO datetime, only data points after this time'},
+        metadata={'description': 'ISO datetime; only data points after this time (exclusive)'},
     )
     before_time = ma.fields.String(
         load_default=None,
-        metadata={'description': 'ISO datetime, only data points before this time'},
+        metadata={'description': 'ISO datetime; only data points before this time (exclusive)'},
     )
 
 
