@@ -6,18 +6,20 @@
 # RUN:         -- python %s %t.instance
 # END.
 
+import datetime
 import sys
 import os
 import unittest
 
 sys.path.insert(0, os.path.dirname(__file__))
 from v5_test_helpers import (
-    create_app, create_client, admin_headers, make_scoped_headers,
+    create_app, create_client, admin_headers, make_api_key, make_scoped_headers,
 )
 
 from lnt.server.api.v5.auth import (
     SCOPE_LEVELS, _get_scope_level, _hash_token,
 )
+from lnt.server.db.v5.models import APIKey, utcnow
 
 
 class TestScopeHierarchy(unittest.TestCase):
@@ -216,6 +218,103 @@ class TestRequireAuthForReads(unittest.TestCase):
         resp = self.client.get(
             '/api/v5/nts/machines', headers=admin_headers())
         self.assertEqual(resp.status_code, 200)
+
+
+class TestLastUsedAtThrottling(unittest.TestCase):
+    """Tests for last_used_at update throttling.
+
+    The auth system only updates last_used_at once per hour to avoid
+    dirtying the DB session (and triggering a COMMIT) on every read.
+    """
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+
+    def _get_api_key(self, token):
+        """Look up an APIKey row by raw token."""
+        from lnt.server.api.v5.auth import _hash_token
+        db = self.app.instance.get_database("default")
+        session = db.make_session()
+        key_hash = _hash_token(token)
+        api_key = session.query(APIKey).filter(
+            APIKey.key_hash == key_hash).first()
+        session.close()
+        return api_key
+
+    def _set_last_used_at(self, token, value):
+        """Set last_used_at to a specific value for an API key."""
+        from lnt.server.api.v5.auth import _hash_token
+        db = self.app.instance.get_database("default")
+        session = db.make_session()
+        key_hash = _hash_token(token)
+        api_key = session.query(APIKey).filter(
+            APIKey.key_hash == key_hash).first()
+        api_key.last_used_at = value
+        session.commit()
+        session.close()
+
+    def test_first_use_sets_last_used_at(self):
+        """When last_used_at is None, it should be set on first use."""
+        raw_token = 'throttle_first_use_token_00001'
+        db = self.app.instance.get_database("default")
+        session = db.make_session()
+        make_api_key(session, 'throttle-first', 'read', raw_token)
+
+        # Verify it starts as None
+        api_key = self._get_api_key(raw_token)
+        self.assertIsNone(api_key.last_used_at)
+
+        # Make a request
+        headers = {'Authorization': f'Bearer {raw_token}'}
+        resp = self.client.get('/api/v5/nts/machines', headers=headers)
+        self.assertEqual(resp.status_code, 200)
+
+        # Verify last_used_at is now set
+        api_key = self._get_api_key(raw_token)
+        self.assertIsNotNone(api_key.last_used_at)
+
+    def test_recent_use_does_not_update(self):
+        """When last_used_at is recent (< 1 hour), it should NOT be updated."""
+        raw_token = 'throttle_recent_use_token_0002'
+        db = self.app.instance.get_database("default")
+        session = db.make_session()
+        make_api_key(session, 'throttle-recent', 'read', raw_token)
+
+        # Set last_used_at to 30 minutes ago
+        thirty_min_ago = utcnow() - datetime.timedelta(minutes=30)
+        self._set_last_used_at(raw_token, thirty_min_ago)
+
+        # Make a request
+        headers = {'Authorization': f'Bearer {raw_token}'}
+        resp = self.client.get('/api/v5/nts/machines', headers=headers)
+        self.assertEqual(resp.status_code, 200)
+
+        # Verify last_used_at was NOT updated (still ~30 min ago)
+        api_key = self._get_api_key(raw_token)
+        self.assertEqual(api_key.last_used_at, thirty_min_ago)
+
+    def test_stale_use_does_update(self):
+        """When last_used_at is stale (> 1 hour), it should be updated."""
+        raw_token = 'throttle_stale_use_token_00003'
+        db = self.app.instance.get_database("default")
+        session = db.make_session()
+        make_api_key(session, 'throttle-stale', 'read', raw_token)
+
+        # Set last_used_at to 2 hours ago
+        two_hours_ago = utcnow() - datetime.timedelta(hours=2)
+        self._set_last_used_at(raw_token, two_hours_ago)
+
+        # Make a request
+        headers = {'Authorization': f'Bearer {raw_token}'}
+        resp = self.client.get('/api/v5/nts/machines', headers=headers)
+        self.assertEqual(resp.status_code, 200)
+
+        # Verify last_used_at was updated (no longer 2 hours ago)
+        api_key = self._get_api_key(raw_token)
+        self.assertNotEqual(api_key.last_used_at, two_hours_ago)
+        self.assertGreater(api_key.last_used_at, two_hours_ago)
 
 
 if __name__ == '__main__':

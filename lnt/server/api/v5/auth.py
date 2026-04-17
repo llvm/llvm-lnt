@@ -15,6 +15,13 @@ from lnt.server.db.v5.models import APIKey, utcnow
 
 
 # ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+_LAST_USED_UPDATE_INTERVAL = 3600  # seconds; update at most once per hour
+
+
+# ---------------------------------------------------------------------------
 # Scope hierarchy
 # ---------------------------------------------------------------------------
 
@@ -83,9 +90,12 @@ def _resolve_bearer_token():
         from flask import abort
         abort(401)
 
-    # Update last_used_at (best effort)
+    # Update last_used_at (best effort, throttled to avoid write-on-read)
+    now = utcnow()
     try:
-        api_key.last_used_at = utcnow()
+        last = api_key.last_used_at
+        if last is None or (now - last).total_seconds() >= _LAST_USED_UPDATE_INTERVAL:
+            api_key.last_used_at = now
     except Exception:
         pass
 
