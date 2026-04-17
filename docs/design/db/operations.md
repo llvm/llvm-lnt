@@ -50,6 +50,8 @@ Runs are submitted as JSON via `POST /api/v5/{suite}/runs`.
   may be scalars or arrays. An array value (e.g. `"execution_time": [0.1, 0.2]`)
   creates one Sample row per element. All arrays in a single test entry must
   have the same length; scalar values are repeated across the resulting rows.
+  Metrics with null values must be omitted from the test entry (not sent as
+  `"metric": null`); only include metrics that have actual values.
 
 
 ## D7: Commit Metadata Population

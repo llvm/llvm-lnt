@@ -52,7 +52,9 @@ DELETE /runs/{uuid}                  -- Delete run
 
 The UUID is a new field, generated server-side on submission. The submission
 endpoint requires JSON format with `format_version '5'`. Legacy formats (v0,
-v1, v2) and non-JSON payloads are rejected.
+v1, v2) and non-JSON payloads are rejected. There is no `on_existing_run`
+parameter -- v5 always creates a new run (multiple runs per machine+commit
+are allowed).
 
 
 ## Tests
@@ -66,6 +68,14 @@ Read-only. Tests are created implicitly via run submission.
 
 Filters: `name_contains=`, `name_prefix=`, `machine=` (only tests with data
 for this machine), `metric=` (only tests with non-NULL values for this metric).
+
+**URL routing caveat**: Test names may contain slashes (e.g.,
+`test.suite/sub/benchmark`). The `{test_name}` path parameter uses a
+catch-all converter. However, test names ending in `/samples` or `/profile`
+would collide with the sample and profile sub-resource routes under
+`/runs/{uuid}/tests/{test_name}/...`. In practice this hasn't been an issue
+(no known test suite uses such names), but clients should avoid creating
+tests with these suffixes.
 
 
 ## Samples
