@@ -876,5 +876,180 @@ class TestCommitUnknownParams(unittest.TestCase):
         self.assertEqual(resp.status_code, 400)
 
 
+class TestCommitResolve(unittest.TestCase):
+    """Tests for POST /api/v5/{ts}/commits/resolve."""
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+
+    def _create(self, commit, **kwargs):
+        """Create a commit via the API and return the response."""
+        body = {'commit': commit, **kwargs}
+        return self.client.post(
+            PREFIX + '/commits', json=body, headers=admin_headers())
+
+    def _resolve(self, commits, headers=None):
+        """POST to /commits/resolve and return the response."""
+        kw = {'json': {'commits': commits}}
+        if headers is not None:
+            kw['headers'] = headers
+        return self.client.post(PREFIX + '/commits/resolve', **kw)
+
+    def test_resolve_basic(self):
+        """Resolve two existing commits with correct fields and dict-keyed response."""
+        rev1 = f'res-{uuid.uuid4().hex[:8]}'
+        rev2 = f'res-{uuid.uuid4().hex[:8]}'
+        self._create(rev1, llvm_project_revision='sha-aaa')
+        self._create(rev2, llvm_project_revision='sha-bbb')
+
+        resp = self._resolve([rev1, rev2])
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertIn('results', data)
+        self.assertIn('not_found', data)
+        self.assertEqual(len(data['results']), 2)
+        self.assertEqual(len(data['not_found']), 0)
+
+        # Verify dict keys are the commit strings
+        self.assertIn(rev1, data['results'])
+        self.assertIn(rev2, data['results'])
+
+        # Verify each value has the CommitSummarySchema shape
+        item1 = data['results'][rev1]
+        self.assertEqual(item1['commit'], rev1)
+        self.assertIn('ordinal', item1)
+        self.assertIn('fields', item1)
+        self.assertEqual(item1['fields']['llvm_project_revision'], 'sha-aaa')
+
+        item2 = data['results'][rev2]
+        self.assertEqual(item2['commit'], rev2)
+        self.assertEqual(item2['fields']['llvm_project_revision'], 'sha-bbb')
+
+    def test_resolve_not_found(self):
+        """Mix of found and missing commits; missing in not_found."""
+        rev = f'res-nf-{uuid.uuid4().hex[:8]}'
+        self._create(rev)
+        missing = f'res-missing-{uuid.uuid4().hex[:8]}'
+
+        resp = self._resolve([rev, missing])
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertEqual(len(data['results']), 1)
+        self.assertIn(rev, data['results'])
+        self.assertEqual(data['not_found'], [missing])
+
+    def test_resolve_all_not_found(self):
+        """All missing -> empty results, populated not_found."""
+        m1 = f'res-allnf-{uuid.uuid4().hex[:8]}'
+        m2 = f'res-allnf-{uuid.uuid4().hex[:8]}'
+
+        resp = self._resolve([m1, m2])
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertEqual(len(data['results']), 0)
+        self.assertEqual(set(data['not_found']), {m1, m2})
+
+    def test_resolve_empty_list_422(self):
+        """Empty commits array -> 422."""
+        resp = self._resolve([])
+        self.assertEqual(resp.status_code, 422)
+
+    def test_resolve_missing_field_422(self):
+        """No commits key in body -> 422."""
+        resp = self.client.post(
+            PREFIX + '/commits/resolve',
+            json={},
+        )
+        self.assertEqual(resp.status_code, 422)
+
+    def test_resolve_unknown_field_422(self):
+        """Extra field in body -> 422 (BaseSchema raises on unknown)."""
+        resp = self.client.post(
+            PREFIX + '/commits/resolve',
+            json={'commits': ['abc'], 'extra': 'bad'},
+        )
+        self.assertEqual(resp.status_code, 422)
+
+    def test_resolve_null_in_commits_422(self):
+        """null value in commits array -> 422."""
+        resp = self.client.post(
+            PREFIX + '/commits/resolve',
+            json={'commits': ['valid', None]},
+        )
+        self.assertEqual(resp.status_code, 422)
+
+    def test_resolve_includes_ordinal(self):
+        """Ordinal value present in resolved commit."""
+        rev = f'res-ord-{uuid.uuid4().hex[:8]}'
+        self._create(rev, ordinal=12345)
+
+        resp = self._resolve([rev])
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertEqual(data['results'][rev]['ordinal'], 12345)
+
+    def test_resolve_null_ordinal(self):
+        """Commit with no ordinal returns ordinal: null."""
+        rev = f'res-nullord-{uuid.uuid4().hex[:8]}'
+        self._create(rev)
+
+        resp = self._resolve([rev])
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertIsNone(data['results'][rev]['ordinal'])
+
+    def test_resolve_deduplicates(self):
+        """Duplicate values in request -> single dict entry."""
+        rev = f'res-dup-{uuid.uuid4().hex[:8]}'
+        self._create(rev)
+
+        resp = self._resolve([rev, rev, rev])
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertEqual(len(data['results']), 1)
+        self.assertIn(rev, data['results'])
+        self.assertEqual(len(data['not_found']), 0)
+
+    def test_resolve_large_batch(self):
+        """A large batch (1000 items) succeeds."""
+        # Create 1000 commits via direct DB access for speed.
+        db = self.app.instance.get_database("default")
+        session = db.make_session()
+        ts = db.testsuite[TS]
+        revs = [f'res-lim-{uuid.uuid4().hex[:8]}-{i}' for i in range(1000)]
+        for rev in revs:
+            create_commit(session, ts, commit=rev)
+        session.commit()
+        session.close()
+
+        resp = self._resolve(revs)
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertEqual(len(data['results']), 1000)
+        self.assertEqual(len(data['not_found']), 0)
+
+    def test_resolve_all_found_empty_not_found(self):
+        """All found -> not_found is [] (not null/omitted)."""
+        rev = f'res-af-{uuid.uuid4().hex[:8]}'
+        self._create(rev)
+
+        resp = self._resolve([rev])
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertEqual(data['not_found'], [])
+        self.assertIsInstance(data['not_found'], list)
+
+    def test_resolve_unauthenticated_ok(self):
+        """No auth header -> 200 (read scope allows unauthenticated)."""
+        rev = f'res-noauth-{uuid.uuid4().hex[:8]}'
+        self._create(rev)
+
+        # No headers argument -> no Authorization header
+        resp = self._resolve([rev])
+        self.assertEqual(resp.status_code, 200)
+
+
 if __name__ == '__main__':
     unittest.main(argv=[sys.argv[0]], exit=True)

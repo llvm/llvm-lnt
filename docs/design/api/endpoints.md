@@ -28,6 +28,7 @@ POST   /commits                      -- Create with metadata (commit_fields)
 GET    /commits/{value}              -- Detail (includes previous/next commit by ordinal)
 PATCH  /commits/{value}              -- Update ordinal and/or commit_fields
 DELETE /commits/{value}              -- Delete commit (cascades to runs/samples; 409 if referenced by regressions)
+POST   /commits/resolve              -- Batch resolve commit strings to summaries
 ```
 
 The `{value}` in the path is the commit identity string. Commits are also
@@ -39,6 +40,29 @@ Filters: `search=` (prefix match on commit string and searchable commit
 fields), `machine=` (only commits with at least one run on this machine;
 404 if machine not found). Sort: `sort=ordinal` sorts by ordinal ascending
 and excludes commits with NULL ordinals; default sort is by internal ID.
+
+### Batch Resolve
+
+`POST /commits/resolve` accepts a JSON body `{"commits": ["abc", "def", ...]}`
+(at least one commit string) and returns each found commit's summary
+in a dict keyed by commit string:
+
+```json
+{
+  "results": {
+    "abc": {"commit": "abc", "ordinal": 42, "fields": {"git_sha": "..."}},
+    "def": {"commit": "def", "ordinal": null, "fields": {}}
+  },
+  "not_found": ["unknown"]
+}
+```
+
+Each value in `results` has the same shape as `CommitSummarySchema`
+(`{commit, ordinal, fields}`). Commit strings not found in the database
+are returned in a separate `not_found` list. Duplicates in the request
+are deduplicated; each commit appears at most once in the response.
+
+Auth scope: `read`. Not paginated (response is bounded by request size).
 
 
 ## Runs

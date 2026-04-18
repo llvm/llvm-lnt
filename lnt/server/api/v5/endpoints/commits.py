@@ -5,6 +5,7 @@ POST   /api/v5/{ts}/commits                  -- Create commit
 GET    /api/v5/{ts}/commits/{value}          -- Commit detail (includes prev/next)
 PATCH  /api/v5/{ts}/commits/{value}          -- Update commit (ordinal, fields)
 DELETE /api/v5/{ts}/commits/{value}          -- Delete commit (cascade)
+POST   /api/v5/{ts}/commits/resolve          -- Batch resolve commit strings to summaries
 """
 
 from flask import g, jsonify
@@ -25,6 +26,8 @@ from ..schemas.commits import (
     CommitDetailQuerySchema,
     CommitDetailSchema,
     CommitListQuerySchema,
+    CommitResolveRequestSchema,
+    CommitResolveResponseSchema,
     CommitSummarySchema,
     CommitUpdateSchema,
     PaginatedCommitResponseSchema,
@@ -286,3 +289,42 @@ class CommitDetail(MethodView):
 
         session.flush()
         return '', 204
+
+
+@blp.route('/commits/resolve')
+class CommitResolve(MethodView):
+    """Batch resolve commit strings to summaries with field values."""
+
+    @require_scope('read')
+    @blp.arguments(CommitResolveRequestSchema, location="json")
+    @blp.response(200, CommitResolveResponseSchema)
+    def post(self, body, testsuite):
+        """Resolve a list of commit strings to their summaries.
+
+        Returns each found commit's ordinal and field values in a dict
+        keyed by commit string.  Commit strings not found in the database
+        are returned in a separate ``not_found`` list.
+
+        Duplicate commit values in the request are deduplicated; each
+        appears at most once in the response.
+        """
+        ts = g.ts
+        session = g.db_session
+
+        requested = body['commits']
+        unique_values = list(dict.fromkeys(requested))
+
+        commit_objs = ts.get_commits_by_values(session, unique_values)
+        found_map = {obj.commit: obj for obj in commit_objs}
+
+        # Build response preserving request order (deduplicated).
+        results = {}
+        not_found = []
+        for val in unique_values:
+            obj = found_map.get(val)
+            if obj is not None:
+                results[val] = _serialize_commit_summary(obj, ts)
+            else:
+                not_found.append(val)
+
+        return jsonify({'results': results, 'not_found': not_found})

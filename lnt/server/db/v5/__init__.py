@@ -393,6 +393,24 @@ class V5TestSuiteDB:
             return q.filter(self.Commit.commit == commit).first()
         raise ValueError("must specify id or commit")
 
+    def get_commits_by_values(
+        self,
+        session: sqlalchemy.orm.Session,
+        commit_values: list[str],
+    ) -> list:
+        """Fetch multiple Commits by their commit strings in a single query.
+
+        Returns a list of Commit objects for values that exist.
+        Order is not guaranteed.
+        """
+        if not commit_values:
+            return []
+        return (
+            session.query(self.Commit)
+            .filter(self.Commit.commit.in_(commit_values))
+            .all()
+        )
+
     def update_commit(
         self,
         session: sqlalchemy.orm.Session,

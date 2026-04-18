@@ -87,7 +87,6 @@ DELETE /api/v5/admin/api-keys/{prefix}  -- Revoke key (admin)
 ## R9: Not in Scope (Deferred)
 
 - Webhooks / change notifications
-- Bulk/batch query endpoints
 - Multi-database support
 - Rate limiting
 - Run comparison / derived analytics endpoints

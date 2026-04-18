@@ -142,3 +142,35 @@ class CommitUpdateSchema(BaseSchema):
         allow_none=True,
         metadata={'description': 'Integer for total ordering, or null to clear'},
     )
+
+
+# ---------------------------------------------------------------------------
+# Batch resolve schemas
+# ---------------------------------------------------------------------------
+
+class CommitResolveRequestSchema(BaseSchema):
+    """Request body for POST /commits/resolve."""
+    commits = ma.fields.List(
+        ma.fields.String(),
+        required=True,
+        validate=ma.validate.Length(min=1),
+        metadata={
+            'description': 'Commit identity strings to resolve',
+            'example': ['abc123', 'def456'],
+        },
+    )
+
+
+class CommitResolveResponseSchema(BaseSchema):
+    """Response body for POST /commits/resolve."""
+    results = ma.fields.Dict(
+        keys=ma.fields.String(),
+        values=ma.fields.Nested(CommitSummarySchema),
+        required=True,
+        metadata={'description': 'Resolved commits keyed by commit string'},
+    )
+    not_found = ma.fields.List(
+        ma.fields.String(),
+        required=True,
+        metadata={'description': 'Commit strings not found in the database'},
+    )
