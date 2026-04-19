@@ -365,7 +365,7 @@ describe('GraphDataCache', () => {
       await cache.getScaffold('nts', 'm2');
 
       const union = cache.scaffoldUnion('nts', ['m1', 'm2']);
-      expect(union).toEqual(['100', '101', '102']);
+      expect(union?.commits).toEqual(['100', '101', '102']);
     });
 
     it('merges interleaved ordinals correctly', async () => {
@@ -391,11 +391,42 @@ describe('GraphDataCache', () => {
       await cache.getScaffold('nts', 'm2');
 
       const union = cache.scaffoldUnion('nts', ['m1', 'm2']);
-      expect(union).toEqual(['a', 'b', 'c', 'e', 'f']);
+      expect(union?.commits).toEqual(['a', 'b', 'c', 'e', 'f']);
     });
 
     it('returns null when no scaffolds cached', () => {
       expect(cache.scaffoldUnion('nts', ['m1'])).toBeNull();
+    });
+
+    it('populates displayMap when commitFields has a display field', async () => {
+      api.fetchOneCursorPage.mockResolvedValueOnce({
+        items: [
+          { commit: 'abc', ordinal: 1, fields: { sha: 'short-abc' } },
+          { commit: 'def', ordinal: 2, fields: { sha: 'short-def' } },
+        ],
+        nextCursor: null,
+      });
+
+      await cache.getScaffold('nts', 'm1');
+
+      const commitFields = [{ name: 'sha', display: true }];
+      const union = cache.scaffoldUnion('nts', ['m1'], commitFields);
+      expect(union?.displayMap.get('abc')).toBe('short-abc');
+      expect(union?.displayMap.get('def')).toBe('short-def');
+    });
+
+    it('returns empty displayMap when no commitFields provided', async () => {
+      api.fetchOneCursorPage.mockResolvedValueOnce({
+        items: [
+          { commit: 'abc', ordinal: 1, fields: { sha: 'short-abc' } },
+        ],
+        nextCursor: null,
+      });
+
+      await cache.getScaffold('nts', 'm1');
+
+      const union = cache.scaffoldUnion('nts', ['m1']);
+      expect(union?.displayMap.size).toBe(0);
     });
   });
 

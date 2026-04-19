@@ -24,7 +24,12 @@ page is suite-agnostic -- the suite is a query parameter, not a path segment.
 
 - **Test filter**: A text filter (like the Compare page) that controls which tests appear in the test table. The filter matches on **test name only** (not machine name) via case-insensitive substring. Changing the filter prunes selected tests that no longer match -- their traces are removed from the chart. Clearing the filter restores the full test list (previously selected tests remain selected if they match).
 
-- **X-axis is always commit** (not date -- commits are not necessarily correlated to dates)
+- **X-axis is always commit** (not date -- commits are not necessarily correlated to dates).
+  When the schema defines a commit_field with ``display: true``, the X-axis
+  labels, hover tooltips, and baseline chip labels show the display value
+  (e.g. short SHA) instead of the raw commit string.  When no display field
+  is defined or a commit's display field is not populated, the raw commit
+  string is shown.
 
 - Plotly line chart: metric value vs commit, one trace per matching test
 

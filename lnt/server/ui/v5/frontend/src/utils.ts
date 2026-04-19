@@ -1,4 +1,5 @@
 import type { AggFn } from './types';
+import { getTestSuiteInfoCached, resolveCommits } from './api';
 import { navigate, getBasePath, getUrlBase } from './router';
 
 /**
@@ -118,6 +119,41 @@ export function commitDisplayValue(
   }
   return commit;
 }
+
+
+/**
+ * Resolve display values for a batch of commits via the API.
+ *
+ * Fetches the test suite schema (cached) and calls POST /commits/resolve,
+ * then builds a Map from raw commit string to display value using
+ * ``commitDisplayValue()``.
+ *
+ * On any failure (network, missing schema, etc.) returns an empty map
+ * so callers can always fall back to raw commit strings without try/catch.
+ */
+export async function resolveDisplayMap(
+  suite: string,
+  commits: string[],
+  signal?: AbortSignal,
+): Promise<Map<string, string>> {
+  if (commits.length === 0) return new Map();
+  try {
+    const [suiteInfo, resolved] = await Promise.all([
+      getTestSuiteInfoCached(suite, signal),
+      resolveCommits(suite, commits, signal),
+    ]);
+    const commitFields = suiteInfo.schema.commit_fields;
+    const map = new Map<string, string>();
+    for (const [key, summary] of Object.entries(resolved.results)) {
+      map.set(key, commitDisplayValue(key, summary.fields, commitFields));
+    }
+    return map;
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') throw e;
+    return new Map();
+  }
+}
+
 
 // DOM helpers
 

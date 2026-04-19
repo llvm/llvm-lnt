@@ -2,6 +2,7 @@
 
 import type { QueryDataPoint, CommitSummary } from '../types';
 import type { CursorPageResult } from '../api';
+import { commitDisplayValue } from '../utils';
 
 export interface GraphDataApi {
   apiUrl: (suite: string, path: string) => string;
@@ -27,7 +28,7 @@ function scaffoldKey(suite: string, machine: string): string {
   return `${suite}::${machine}`;
 }
 
-interface ScaffoldEntry { commit: string; ordinal: number; }
+interface ScaffoldEntry { commit: string; ordinal: number; fields: Record<string, string>; }
 
 interface ScaffoldCache { entries: ScaffoldEntry[]; commits: string[]; }
 
@@ -42,7 +43,11 @@ export class GraphDataCache {
     this.api = api;
   }
 
-  async getScaffold(suite: string, machine: string, signal?: AbortSignal): Promise<string[]> {
+  async getScaffold(
+    suite: string,
+    machine: string,
+    signal?: AbortSignal,
+  ): Promise<string[]> {
     const key = scaffoldKey(suite, machine);
     const cached = this.scaffolds.get(key);
     if (cached) return cached.commits;
@@ -57,7 +62,7 @@ export class GraphDataCache {
       const page = await this.api.fetchOneCursorPage<CommitSummary>(commitsUrl, params, signal);
       for (const item of page.items) {
         if (item.ordinal != null) {
-          entries.push({ commit: item.commit, ordinal: item.ordinal });
+          entries.push({ commit: item.commit, ordinal: item.ordinal, fields: item.fields });
         }
       }
       if (!page.nextCursor) break;
@@ -227,8 +232,13 @@ export class GraphDataCache {
     return entry ? entry.points : [];
   }
 
-  scaffoldUnion(suite: string, machineList: string[]): string[] | null {
+  scaffoldUnion(
+    suite: string,
+    machineList: string[],
+    commitFields?: Array<{ name: string; display?: boolean }>,
+  ): { commits: string[]; displayMap: Map<string, string> } | null {
     const byCommit = new Map<string, number>();
+    const displayMap = new Map<string, string>();
     for (const m of machineList) {
       const key = scaffoldKey(suite, m);
       const cached = this.scaffolds.get(key);
@@ -236,13 +246,19 @@ export class GraphDataCache {
         for (const entry of cached.entries) {
           if (!byCommit.has(entry.commit)) {
             byCommit.set(entry.commit, entry.ordinal);
+            if (commitFields) {
+              const display = commitDisplayValue(entry.commit, entry.fields, commitFields);
+              if (display !== entry.commit) {
+                displayMap.set(entry.commit, display);
+              }
+            }
           }
         }
       }
     }
     if (byCommit.size === 0) return null;
     const sorted = [...byCommit.entries()].sort((a, b) => a[1] - b[1]);
-    return sorted.map(([commit]) => commit);
+    return { commits: sorted.map(([commit]) => commit), displayMap };
   }
 
   clear(): void {

@@ -1,9 +1,9 @@
 import type { AggFn, FieldInfo, CommitSummary, SideSelection } from './types';
 import { SETTINGS_CHANGE, TEST_FILTER_CHANGE } from './events';
-import { getFields, getCommits, getRuns } from './api';
+import { getFields, getCommits, getRuns, getTestSuiteInfoCached } from './api';
 import { getBasePath } from './router';
 import { getState, setSideA, setSideB, setState, swapSides } from './state';
-import { debounce, el } from './utils';
+import { debounce, el, commitDisplayValue } from './utils';
 import {
   createCommitCombobox, createMachineCombobox, resetComboboxState,
   type ComboboxContext,
@@ -17,6 +17,8 @@ let cachedFieldsA: FieldInfo[] = [];
 let cachedFieldsB: FieldInfo[] = [];
 let testsuites: string[] = [];
 let onCompare: (() => void) | null = null;
+// Schema commit_fields per suite for display resolution
+const commitFieldsCache = new Map<string, Array<{ name: string; display?: boolean }>>();
 
 // Staleness counters for createRunsPanel — prevents earlier async calls
 // from overwriting the DOM when a newer call has been issued.
@@ -72,7 +74,18 @@ function getSideState(side: 'a' | 'b') {
 function getCommitDataForSide(side: 'a' | 'b') {
   const commits = side === 'a' ? cachedCommitsA : cachedCommitsB;
   const cachedCommitValues = commits.map(c => c.commit);
-  return { cachedCommitValues };
+  const { selection } = getSideState(side);
+  const cf = selection.suite ? commitFieldsCache.get(selection.suite) : undefined;
+  let displayMap: Map<string, string> | undefined;
+  if (cf) {
+    displayMap = new Map<string, string>();
+    for (const c of commits) {
+      const display = commitDisplayValue(c.commit, c.fields, cf);
+      if (display !== c.commit) displayMap.set(c.commit, display);
+    }
+    if (displayMap.size === 0) displayMap = undefined;
+  }
+  return { cachedCommitValues, displayMap };
 }
 
 function getComboboxContext(): ComboboxContext {
@@ -225,10 +238,15 @@ export async function fetchSideData(
   const version = side === 'a' ? ++suiteLoadVersionA : ++suiteLoadVersionB;
 
   try {
-    const [fields, commits] = await Promise.all([
+    const [fields, commits, suiteInfo] = await Promise.all([
       getFields(suite),
       getCommits(suite),
+      getTestSuiteInfoCached(suite).catch(() => null),
     ]);
+
+    if (suiteInfo) {
+      commitFieldsCache.set(suite, suiteInfo.schema.commit_fields);
+    }
 
     // Check for staleness
     const currentVersion = side === 'a' ? suiteLoadVersionA : suiteLoadVersionB;

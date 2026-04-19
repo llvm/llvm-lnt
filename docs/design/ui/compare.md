@@ -19,7 +19,7 @@ independently select its suite.
 
 Each side (A and B) has independent controls:
 - **Suite**: dropdown selector populated from `data-testsuites`. Changing the suite clears the machine, commit, and runs for that side and re-populates the machine combobox from the new suite's machines endpoint. Clearing the suite also clears cached fields and commits for that side so stale metrics don't linger.
-- **Commit**: combobox (searchable dropdown) over commit values (primary commit field only; multi-field commits use only the primary field). Displays tags alongside values (e.g., "abc123 (release-18)") and filters suggestions to only show commits where the selected machine has runs. The text filter matches against both the commit value and the tag. When a machine is pre-selected from URL state, its commits are fetched on creation so the dropdown is correctly filtered from the start. **Disabled until a machine is selected** -- shows "Select a machine first" placeholder. Re-disabled if the machine is cleared. Clearing the commit also clears the runs for that side.
+- **Commit**: combobox (searchable dropdown) over commit values. When the schema defines a commit_field with ``display: true``, the dropdown items show the display value (e.g. short SHA) while the internal selection uses the raw commit string; when no display field is defined or not populated, the raw commit string is shown. The text filter matches against both the raw commit string and the display value. Filters suggestions to only show commits where the selected machine has runs. When a machine is pre-selected from URL state, its commits are fetched on creation so the dropdown is correctly filtered from the start. **Disabled until a machine is selected** -- shows "Select a machine first" placeholder. Re-disabled if the machine is cleared. Clearing the commit also clears the runs for that side.
 - **Machine**: combobox over machine names. The full machine list for the selected suite is fetched once and filtered locally by case-insensitive substring as the user types (instant, no per-keystroke API calls). **Disabled until a suite is selected** -- shows "Select a suite first" placeholder. Clearing the machine text and blurring resets downstream state (commit, runs) and disables the commit input.
 - **Runs**: checkbox list of runs for the selected commit+machine, populated by `GET /api/v5/{ts}/runs?machine=M&commit=O`. Empty list shown when no runs exist. All runs are selected by default. The only exception is URL state restoration: if the shared URL specifies a subset of runs, that selection is restored. Each run shows its timestamp and a short UUID linking to the Run Detail page. Before a commit is selected, a hint message ("Select a commit first") is shown instead.
 - **Run aggregation**: strategy for aggregating across selected runs (median/mean/min/max); grayed out when only one run selected
@@ -117,10 +117,6 @@ credentials when sharing URLs). All URL updates use `replaceState` (not
 `pushState`) so the browser Back button navigates between pages, not between
 individual setting changes.
 
-
-### Known Limitations
-
-- Only single-field commits are supported for the commit combobox. Multi-field commits use only the primary field.
 
 **Links out**: Machine Detail, Run Detail, Graph (with machine pre-filled),
 Regression Detail.

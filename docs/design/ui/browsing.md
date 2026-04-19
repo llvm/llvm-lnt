@@ -37,8 +37,15 @@ URL via `replaceState`.
 - **Runs**: UUID (truncated, linked), Machine, Commit (primary value), Start Time
 - **Commits**: Commit Value (primary field, linked), Tag
 - **Regressions**: Title (linked to regression detail), State (badge), Commit
-  (linked to commit detail), Machine count, Test count, Bug (external link),
+  (display value, linked to commit detail), Machine count, Test count, Bug (external link),
   Delete button (auth-gated)
+
+"Primary value" / "primary field" means the display-field-resolved value:
+if the schema defines a commit_field with ``display: true`` and the commit
+has a non-null value for that field, show it instead of the raw commit
+string (see D4 in db/data-model.md).  When no display field is defined,
+or the field is not populated for a given commit, fall back to the raw
+commit string.  Links always use the raw commit string in the URL.
 
 **Regressions tab details**:
 
@@ -78,7 +85,7 @@ Deep dive into a single machine. Machine names are guaranteed unique.
 | Section | Shows | API Calls |
 |---------|-------|-----------|
 | Metadata | Machine info key-value pairs | `GET machines/{name}` |
-| Run History | Paginated table of runs (newest first) | `GET machines/{name}/runs?sort=-start_time` |
+| Run History | Paginated table of runs (newest first) -- commit column shows display value (primary value) | `GET machines/{name}/runs?sort=-start_time` |
 
 **Action links**: "View Graph" (pre-filled machine), "Compare" (pre-selected
 machine), and "Delete Machine" button. Clicking "Delete Machine" shows a
@@ -102,7 +109,7 @@ All data from a single test execution.
 
 | Section | Shows | API Calls |
 |---------|-------|-----------|
-| Metadata | Machine, commit, start/end time, parameters | `GET runs/{uuid}` |
+| Metadata | Machine, commit (display value), start/end time, parameters | `GET runs/{uuid}` |
 | Metric Selector | Drop-down to choose which metric to display (like Compare page) | `GET test-suites/{ts}` (fields from `schema.metrics`) |
 | Test Filter | Text input for substring matching on test names | (client-side) |
 | Samples Table | All samples + selected metric value, sorted by test name by default | `GET runs/{uuid}/samples` |
@@ -128,6 +135,9 @@ Compare (side A pre-selected).
 ## Commit Detail -- `/v5/{ts}/commits/{value}`
 
 The "what happened at this commit?" page. Key investigation page for developers.
+
+- **Heading** shows the raw commit string (not the display value), since
+  this page identifies a specific commit by its raw identity.
 
 - Commit field values displayed prominently
 - **Tag display + editing**: Show the commit's tag (if set) prominently next to the commit field values (e.g., "Tag: release-18.1"). An inline edit button allows setting or clearing the tag. Editing requires an API token with `manage` scope (from Settings); show an auth error if the token is missing or insufficient.
@@ -155,7 +165,7 @@ edited.
 - Title: inline-editable text. Enter key saves.
 - State: dropdown selector (detected, active, not_to_be_fixed, fixed, false_positive)
 - Bug: URL input (opens in new tab when set). Enter key saves.
-- Commit: combobox with API search (nullable -- the suspected introduction point). Linked to commit detail page when set.
+- Commit: display value shown (linked to commit detail page). Combobox with API search for editing (shows display values in dropdown). Nullable.
 - Notes: text display with Edit button. Edit mode shows textarea + Save/Cancel. Ctrl/Cmd+Enter saves. Display preserves line breaks (pre-wrap).
 
 **Delete regression**: Button with type-to-confirm prompt. Requires `triage`

@@ -5,9 +5,9 @@ import type { PageModule, RouteParams } from '../router';
 import type { MachineInfo, RunInfo, CommitSummary } from '../types';
 import type { CursorPageResult } from '../api';
 import { getTestsuites } from '../router';
-import { getMachines, getRunsPage, getCommitsPage } from '../api';
+import { getMachines, getRunsPage, getCommitsPage, getTestSuiteInfoCached } from '../api';
 import type { Column } from '../components/data-table';
-import { el, formatTime, truncate, debounce } from '../utils';
+import { el, formatTime, truncate, debounce, commitDisplayValue, resolveDisplayMap } from '../utils';
 import { renderDataTable } from '../components/data-table';
 import { renderPagination } from '../components/pagination';
 import { renderRegressionTab } from './regression-list';
@@ -45,6 +45,7 @@ export const testSuitesPage: PageModule = {
     let selectedSuite = urlParams.get('suite') || '';
     let activeTab: TabId = (urlParams.get('tab') as TabId) || 'recent';
     let currentSearch = urlParams.get('search') || '';
+    let commitFields: Array<{ name: string; display?: boolean }> = [];
 
     container.append(el('h2', { class: 'page-header' }, 'Test Suites'));
 
@@ -115,6 +116,10 @@ export const testSuitesPage: PageModule = {
       activeTab = 'recent';
       activateTab('recent');
       tabBar.style.display = '';
+      // Pre-fetch schema for commit display resolution (cached after first call)
+      getTestSuiteInfoCached(name).then(info => {
+        commitFields = info.schema.commit_fields;
+      }).catch(() => { /* graceful degradation: commitFields stays [] */ });
       syncUrl();
       loadTabContent();
     }
@@ -148,7 +153,8 @@ export const testSuitesPage: PageModule = {
           renderMachinesTab(tabContent, selectedSuite, currentSearch, signal,
             (search: string) => { currentSearch = search; syncUrl(); });
           break;
-        case 'runs':
+        case 'runs': {
+          const runsDisplayMap = new Map<string, string>();
           renderCursorPaginatedTab(tabContent, selectedSuite, currentSearch, signal,
             'Filter by machine name...', 'Loading runs...', 'No runs found.',
             'Failed to load runs',
@@ -158,9 +164,15 @@ export const testSuitesPage: PageModule = {
               limit: opts.limit,
               cursor: opts.cursor,
             }, sig),
-            runsColumns(selectedSuite),
-            (search: string) => { currentSearch = search; syncUrl(); });
+            runsColumns(selectedSuite, runsDisplayMap),
+            (search: string) => { currentSearch = search; syncUrl(); },
+            async (items: RunInfo[], sig: AbortSignal) => {
+              const commits = [...new Set(items.map(r => r.commit))];
+              const resolved = await resolveDisplayMap(selectedSuite, commits, sig);
+              for (const [k, v] of resolved) runsDisplayMap.set(k, v);
+            });
           break;
+        }
         case 'commits':
           renderCursorPaginatedTab(tabContent, selectedSuite, currentSearch, signal,
             'Search commits...', 'Loading commits...', 'No commits found.',
@@ -170,7 +182,7 @@ export const testSuitesPage: PageModule = {
               limit: opts.limit,
               cursor: opts.cursor,
             }, sig),
-            commitsColumns(selectedSuite),
+            commitsColumns(selectedSuite, commitFields),
             (search: string) => { currentSearch = search; syncUrl(); });
           break;
         case 'regressions':
@@ -191,6 +203,9 @@ export const testSuitesPage: PageModule = {
 
     // Load initial content if suite was pre-selected from URL
     if (selectedSuite) {
+      getTestSuiteInfoCached(selectedSuite).then(info => {
+        commitFields = info.schema.commit_fields;
+      }).catch(() => {});
       loadTabContent();
     }
   },
@@ -216,6 +231,7 @@ function renderRecentActivityTab(
   // Accumulate all loaded runs for re-rendering via renderDataTable
   const allRuns: RunInfo[] = [];
   let nextCursor: string | null = null;
+  const displayMap = new Map<string, string>();
 
   const tableContainer = el('div', {});
   const loadMoreContainer = el('div', {});
@@ -230,6 +246,14 @@ function renderRecentActivityTab(
 
       allRuns.push(...result.items);
 
+      // Resolve display values only for NEW commits not already in the map
+      const newCommits = [...new Set(result.items.map(r => r.commit))]
+        .filter(c => !displayMap.has(c));
+      if (newCommits.length > 0) {
+        const resolved = await resolveDisplayMap(suite, newCommits, signal);
+        for (const [k, v] of resolved) displayMap.set(k, v);
+      }
+
       // First load: replace loading message with table + load-more area
       if (container.querySelector('.progress-label')) {
         container.replaceChildren(tableContainer, loadMoreContainer);
@@ -242,7 +266,7 @@ function renderRecentActivityTab(
 
       tableContainer.replaceChildren();
       renderDataTable(tableContainer, {
-        columns: recentActivityColumns(suite),
+        columns: recentActivityColumns(suite, displayMap),
         rows: allRuns,
         emptyMessage: 'No recent activity.',
       });
@@ -267,14 +291,14 @@ function renderRecentActivityTab(
   loadPage();
 }
 
-function recentActivityColumns(suite: string): Column<RunInfo>[] {
+function recentActivityColumns(suite: string, displayMap: Map<string, string>): Column<RunInfo>[] {
   return [
     { key: 'machine', label: 'Machine',
       render: (r: RunInfo) =>
         detailLink(r.machine, suite, `/machines/${encodeURIComponent(r.machine)}`) },
     { key: 'commit', label: 'Commit',
       render: (r: RunInfo) =>
-        detailLink(r.commit, suite, `/commits/${encodeURIComponent(r.commit)}`) },
+        detailLink(displayMap.get(r.commit) ?? r.commit, suite, `/commits/${encodeURIComponent(r.commit)}`) },
     { key: 'submitted_at', label: 'Submitted',
       render: (r: RunInfo) => formatTime(r.submitted_at) },
     { key: 'uuid', label: 'Run',
@@ -397,6 +421,7 @@ function renderCursorPaginatedTab<T>(
   fetchPage: (suite: string, opts: CursorFetchOpts, signal: AbortSignal) => Promise<CursorPageResult<T>>,
   columns: Column<T>[],
   onSearchChange?: (search: string) => void,
+  onPageLoaded?: (items: T[], signal: AbortSignal) => Promise<void>,
 ): void {
   let currentSearch = initialSearch;
   const cursorStack: string[] = [];
@@ -440,6 +465,8 @@ function renderCursorPaginatedTab<T>(
         cursor: currentCursor,
       }, signal);
 
+      if (onPageLoaded) await onPageLoaded(result.items, signal);
+
       tableContainer.replaceChildren();
 
       renderDataTable(tableContainer, {
@@ -472,7 +499,7 @@ function renderCursorPaginatedTab<T>(
   loadPage();
 }
 
-function runsColumns(suite: string): Column<RunInfo>[] {
+function runsColumns(suite: string, displayMap: Map<string, string>): Column<RunInfo>[] {
   return [
     { key: 'uuid', label: 'Run',
       render: (r: RunInfo) =>
@@ -482,18 +509,23 @@ function runsColumns(suite: string): Column<RunInfo>[] {
         detailLink(r.machine, suite, `/machines/${encodeURIComponent(r.machine)}`) },
     { key: 'commit', label: 'Commit',
       render: (r: RunInfo) =>
-        detailLink(truncate(r.commit, 12), suite,
+        detailLink(truncate(displayMap.get(r.commit) ?? r.commit, 12), suite,
           `/commits/${encodeURIComponent(r.commit)}`) },
     { key: 'submitted_at', label: 'Submitted',
       render: (r: RunInfo) => formatTime(r.submitted_at) },
   ];
 }
 
-function commitsColumns(suite: string): Column<CommitSummary>[] {
+function commitsColumns(
+  suite: string,
+  commitFields: Array<{ name: string; display?: boolean }>,
+): Column<CommitSummary>[] {
   return [
     { key: 'commit', label: 'Commit',
       render: (o: CommitSummary) =>
-        detailLink(o.commit, suite, `/commits/${encodeURIComponent(o.commit)}`) },
+        detailLink(
+          commitDisplayValue(o.commit, o.fields, commitFields),
+          suite, `/commits/${encodeURIComponent(o.commit)}`) },
     { key: 'ordinal', label: 'Ordinal',
       render: (o: CommitSummary) => o.ordinal != null ? String(o.ordinal) : '\u2014' },
   ];

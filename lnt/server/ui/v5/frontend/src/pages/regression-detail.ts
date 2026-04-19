@@ -7,8 +7,10 @@ import {
   getRegression, updateRegression, deleteRegression,
   addRegressionIndicators, removeRegressionIndicators,
   getFields, getMachines, getTests, getToken, authErrorMessage,
+  getTestSuiteInfoCached,
+  getCommit,
 } from '../api';
-import { el, spaLink, agnosticLink, agnosticUrl, truncate, ensureProtocol } from '../utils';
+import { el, spaLink, agnosticLink, agnosticUrl, truncate, ensureProtocol, commitDisplayValue } from '../utils';
 import { renderDataTable, type Column } from '../components/data-table';
 import { renderDeleteConfirm } from '../components/delete-confirm';
 import { renderMetricSelector, filterMetricFields } from '../components/metric-selector';
@@ -43,6 +45,8 @@ export const regressionDetailPage: PageModule = {
 
     let regression: RegressionDetailType;
     let fields: FieldInfo[] = [];
+    const commitFields: Array<{ name: string; display?: boolean }> = [];
+    const commitDisplayMap = new Map<string, string>();
 
     // --- Main layout containers (created lazily after data loads) ---
     const headerDiv = el('div', { class: 'regression-header' });
@@ -72,10 +76,24 @@ export const regressionDetailPage: PageModule = {
       getRegression(ts, uuid, signal),
       hasToken ? getFields(ts, signal) : Promise.resolve(null),
     ];
-    Promise.all(fetchPromises).then(([reg, f]) => {
+    // Fetch schema in parallel for commit display resolution
+    const schemaPromise = getTestSuiteInfoCached(ts, signal).then(info => {
+      commitFields.push(...info.schema.commit_fields);
+    }).catch(() => {});
+    Promise.all([...fetchPromises, schemaPromise]).then(async ([reg, f]) => {
       loading.remove();
       regression = reg;
       fields = f ?? [];
+
+      // Resolve commit display value if the regression has a commit
+      if (regression.commit && commitFields.length > 0) {
+        try {
+          const detail = await getCommit(ts, regression.commit, signal);
+          const display = commitDisplayValue(regression.commit, detail.fields, commitFields);
+          commitDisplayMap.set(regression.commit, display);
+        } catch { /* graceful degradation */ }
+      }
+
       updatePageTitle();
 
       container.append(headerDiv, headerErrorDiv);
@@ -321,7 +339,8 @@ export const regressionDetailPage: PageModule = {
       else row.append(el('label', {}, 'Commit'));
 
       if (regression.commit) {
-        row.append(spaLink(regression.commit, `/commits/${encodeURIComponent(regression.commit)}`));
+        const display = commitDisplayMap.get(regression.commit) ?? regression.commit;
+        row.append(spaLink(display, `/commits/${encodeURIComponent(regression.commit)}`));
         if (hasToken) {
           const changeBtn = el('button', { class: 'edit-btn' }, 'Change');
           changeBtn.addEventListener('click', () => renderCommitEdit(row));
@@ -360,6 +379,7 @@ export const regressionDetailPage: PageModule = {
       const handle = renderCommitSearch(commitDiv, {
         testsuite: ts,
         placeholder: 'Search commit...',
+        commitFields,
         onSelect: async (value) => {
           try {
             const updated = await updateRegression(ts, uuid, { commit: value }, signal);

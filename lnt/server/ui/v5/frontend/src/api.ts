@@ -1,7 +1,7 @@
 import type {
   APIKeyCreateResponse, APIKeyItem,
   CursorPaginated, FieldChangeInfo, FieldInfo, MachineInfo, MachineRunInfo,
-  OffsetPaginated, CommitDetail, CommitSummary, RunDetail,
+  OffsetPaginated, CommitDetail, CommitResolveResponse, CommitSummary, RunDetail,
   RunInfo, SampleInfo, TestSuiteInfo,
   RegressionListItem, RegressionDetail, RegressionState,
 } from './types';
@@ -600,5 +600,51 @@ export async function removeRegressionIndicators(
   return fetchJson<RegressionDetail>(
     apiUrl(ts, `regressions/${encodeURIComponent(regressionUuid)}/indicators`),
     { method: 'DELETE', body: { indicator_uuids: indicatorUuids }, signal },
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+// Cached test suite info
+// ---------------------------------------------------------------------------
+
+const suiteInfoCache = new Map<string, Promise<TestSuiteInfo>>();
+
+/**
+ * Fetch test suite info with per-suite memoization.
+ * The Promise is cached so concurrent callers coalesce on one request.
+ * Rejected promises are evicted so retries work.
+ *
+ * Note: the caller's signal is NOT forwarded to the cached request.
+ * This prevents one caller's abort from poisoning the shared Promise
+ * for other callers.
+ */
+export function getTestSuiteInfoCached(
+  ts: string,
+  _signal?: AbortSignal,
+): Promise<TestSuiteInfo> {
+  let cached = suiteInfoCache.get(ts);
+  if (!cached) {
+    cached = getTestSuiteInfo(ts);
+    suiteInfoCache.set(ts, cached);
+    cached.catch(() => suiteInfoCache.delete(ts));
+  }
+  return cached;
+}
+
+
+// ---------------------------------------------------------------------------
+// Batch commit resolve
+// ---------------------------------------------------------------------------
+
+/** Resolve a list of commit strings to their summaries via POST /commits/resolve. */
+export async function resolveCommits(
+  ts: string,
+  commits: string[],
+  signal?: AbortSignal,
+): Promise<CommitResolveResponse> {
+  return fetchJson<CommitResolveResponse>(
+    apiUrl(ts, 'commits/resolve'),
+    { method: 'POST', body: { commits }, signal },
   );
 }

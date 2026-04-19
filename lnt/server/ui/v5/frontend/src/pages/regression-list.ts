@@ -5,10 +5,10 @@
 import type { RegressionListItem, RegressionState } from '../types';
 import {
   getRegressions, createRegression, deleteRegression, getFields,
-  getToken, authErrorMessage,
+  getToken, authErrorMessage, getTestSuiteInfoCached,
 } from '../api';
 import type { CursorPageResult } from '../api';
-import { el, truncate, debounce, ensureProtocol } from '../utils';
+import { el, truncate, debounce, ensureProtocol, resolveDisplayMap } from '../utils';
 import { renderDataTable, type Column } from '../components/data-table';
 import { renderPagination } from '../components/pagination';
 import { renderMachineCombobox } from '../components/machine-combobox';
@@ -33,6 +33,12 @@ export function renderRegressionTab(opts: RegressionTabOptions): void {
   const { container, signal } = opts;
   const ts = opts.testsuite;
   const hasToken = !!getToken();
+  const commitFields: Array<{ name: string; display?: boolean }> = [];
+
+  // Pre-fetch schema for commit display resolution (non-blocking)
+  getTestSuiteInfoCached(ts, signal).then(info => {
+    commitFields.push(...info.schema.commit_fields);
+  }).catch(() => {});
 
   // --- Filter panel ---
   const filtersDiv = el('div', { class: 'regression-filters' });
@@ -143,7 +149,7 @@ export function renderRegressionTab(opts: RegressionTabOptions): void {
   }) as HTMLInputElement;
   const doTitleFilter = debounce(() => {
     titleSearch = titleInput.value.toLowerCase();
-    renderTable(lastResult);
+    renderTable(lastResult, lastDisplayMap);
   }, 300);
   titleInput.addEventListener('input', () => doTitleFilter());
   filterRow2.append(titleInput);
@@ -158,11 +164,12 @@ export function renderRegressionTab(opts: RegressionTabOptions): void {
     actionsDiv.append(newBtn);
 
     // --- Create form ---
-    renderCreateForm(createFormContainer, ts, signal, (fn) => opts.trackCleanup(fn), opts.navigateToDetail);
+    renderCreateForm(createFormContainer, ts, signal, (fn) => opts.trackCleanup(fn), opts.navigateToDetail, commitFields);
   }
 
   // --- Load page ---
   let lastResult: CursorPageResult<RegressionListItem> = { items: [], nextCursor: null };
+  let lastDisplayMap = new Map<string, string>();
 
   function resetAndLoad(): void {
     cursorStack.length = 0;
@@ -188,7 +195,14 @@ export function renderRegressionTab(opts: RegressionTabOptions): void {
       }, signal);
 
       lastResult = result;
-      renderTable(result);
+
+      // Resolve commit display values before rendering
+      const commitStrings = result.items
+        .map(r => r.commit).filter((c): c is string => c !== null);
+      const displayMap = await resolveDisplayMap(ts, commitStrings, signal);
+      lastDisplayMap = displayMap;
+
+      renderTable(result, displayMap);
 
       renderPagination(paginationDiv, {
         hasPrevious: cursorStack.length > 0,
@@ -209,7 +223,7 @@ export function renderRegressionTab(opts: RegressionTabOptions): void {
     }
   }
 
-  function renderTable(result: CursorPageResult<RegressionListItem>): void {
+  function renderTable(result: CursorPageResult<RegressionListItem>, displayMap: Map<string, string>): void {
     let rows = result.items;
     if (titleSearch) {
       rows = rows.filter(r =>
@@ -238,7 +252,7 @@ export function renderRegressionTab(opts: RegressionTabOptions): void {
         key: 'commit',
         label: 'Commit',
         render: (r) => r.commit
-          ? opts.detailLink(truncate(r.commit, 12), `/commits/${encodeURIComponent(r.commit)}`)
+          ? opts.detailLink(truncate(displayMap.get(r.commit) ?? r.commit, 12), `/commits/${encodeURIComponent(r.commit)}`)
           : '\u2014',
         sortValue: (r) => r.commit || '',
       },
@@ -320,6 +334,7 @@ function renderCreateForm(
   signal: AbortSignal,
   trackCleanup: (fn: () => void) => void,
   navigateToDetail: (uuid: string) => void,
+  commitFields: Array<{ name: string; display?: boolean }>,
 ): void {
   const titleInput = el('input', {
     type: 'text',
@@ -348,6 +363,7 @@ function renderCreateForm(
   const commitHandle = renderCommitSearch(commitContainer, {
     testsuite: ts,
     placeholder: 'Search commit...',
+    commitFields,
     onSelect: (value) => { selectedCommit = value; },
   });
   trackCleanup(commitHandle.destroy);

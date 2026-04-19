@@ -6,6 +6,7 @@ vi.mock('../api', () => ({
   getFields: vi.fn(),
   getCommits: vi.fn(),
   getRuns: vi.fn(),
+  getTestSuiteInfoCached: vi.fn().mockRejectedValue(new Error('not configured')),
 }));
 
 import { getFields, getCommits } from '../api';

@@ -3,7 +3,7 @@
 import type { PageModule, RouteParams } from '../router';
 import type { MachineRunInfo, RegressionListItem } from '../types';
 import { getMachine, getMachineRuns, deleteMachine, getRegressions } from '../api';
-import { el, spaLink, agnosticLink, agnosticUrl, formatTime, truncate } from '../utils';
+import { el, spaLink, agnosticLink, agnosticUrl, formatTime, truncate, resolveDisplayMap } from '../utils';
 import { renderDataTable } from '../components/data-table';
 import { renderPagination } from '../components/pagination';
 import { renderDeleteConfirm } from '../components/delete-confirm';
@@ -70,6 +70,10 @@ export const machineDetailPage: PageModule = {
           cursor: currentCursor,
         }, signal);
 
+        // Resolve commit display values
+        const commits = [...new Set(result.items.map(r => r.commit))];
+        const displayMap = await resolveDisplayMap(ts, commits, signal);
+
         runsContainer.replaceChildren();
         runsContainer.append(el('h3', {}, 'Run History'));
 
@@ -80,7 +84,7 @@ export const machineDetailPage: PageModule = {
               render: (r: MachineRunInfo) => spaLink(r.uuid.slice(0, 8), `/runs/${encodeURIComponent(r.uuid)}`) },
             { key: 'commit', label: 'Commit',
               render: (r: MachineRunInfo) =>
-                spaLink(truncate(r.commit, 12), `/commits/${encodeURIComponent(r.commit)}`) },
+                spaLink(truncate(displayMap.get(r.commit) ?? r.commit, 12), `/commits/${encodeURIComponent(r.commit)}`) },
             { key: 'submitted_at', label: 'Submitted',
               render: (r: MachineRunInfo) => formatTime(r.submitted_at) },
           ],

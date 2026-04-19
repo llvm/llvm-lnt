@@ -634,3 +634,66 @@ describe('createTimeSeriesChart', () => {
     expect(mockAddTraces).not.toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// displayMap option
+// ---------------------------------------------------------------------------
+
+describe('buildPlotlyData with displayMap', () => {
+  it('maps trace x values and categoryarray to display values', () => {
+    const displayMap = new Map([['100', 'v1.0'], ['101', 'v2.0']]);
+    const opts: TimeSeriesChartOptions = {
+      traces: [makeTrace('test-A', [{ commit: '100', value: 1.5 }, { commit: '101', value: 2.0 }])],
+      yAxisLabel: 'metric',
+      categoryOrder: ['100', '101'],
+      displayMap,
+    };
+
+    const { data, layout } = buildPlotlyData(opts);
+    const trace = data[0] as { x: string[] };
+    expect(trace.x).toEqual(['v1.0', 'v2.0']);
+
+    const xaxis = (layout as { xaxis: { categoryarray: string[] } }).xaxis;
+    expect(xaxis.categoryarray).toEqual(['v1.0', 'v2.0']);
+  });
+
+  it('puts display value in customdata[6] and raw commit in customdata[0]', () => {
+    const displayMap = new Map([['100', 'v1.0']]);
+    const opts: TimeSeriesChartOptions = {
+      traces: [makeTrace('test-A', [{ commit: '100', value: 1.5 }])],
+      yAxisLabel: 'metric',
+      displayMap,
+    };
+
+    const { data } = buildPlotlyData(opts);
+    const trace = data[0] as { customdata: string[][] };
+    expect(trace.customdata[0][0]).toBe('100');    // raw commit
+    expect(trace.customdata[0][6]).toBe('v1.0');   // display value
+  });
+
+  it('uses raw commit when displayMap has no entry', () => {
+    const displayMap = new Map([['100', 'v1.0']]);
+    const opts: TimeSeriesChartOptions = {
+      traces: [makeTrace('test-A', [{ commit: '100', value: 1.5 }, { commit: '999', value: 2.0 }])],
+      yAxisLabel: 'metric',
+      displayMap,
+    };
+
+    const { data } = buildPlotlyData(opts);
+    const trace = data[0] as { x: string[]; customdata: string[][] };
+    expect(trace.x[1]).toBe('999');           // unmapped commit stays raw
+    expect(trace.customdata[1][6]).toBe('999');
+  });
+
+  it('uses identity when no displayMap provided', () => {
+    const opts: TimeSeriesChartOptions = {
+      traces: [makeTrace('test-A', [{ commit: '100', value: 1.5 }])],
+      yAxisLabel: 'metric',
+    };
+
+    const { data } = buildPlotlyData(opts);
+    const trace = data[0] as { x: string[]; customdata: string[][] };
+    expect(trace.x[0]).toBe('100');
+    expect(trace.customdata[0][6]).toBe('100');
+  });
+});

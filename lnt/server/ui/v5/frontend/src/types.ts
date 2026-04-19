@@ -29,6 +29,11 @@ export interface CommitNeighbor {
   link: string;
 }
 
+export interface CommitResolveResponse {
+  results: Record<string, CommitSummary>;
+  not_found: string[];
+}
+
 export interface MachineInfo {
   name: string;
   info: Record<string, string>;

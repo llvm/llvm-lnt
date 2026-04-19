@@ -14,9 +14,10 @@ let machineCommitsControllerB: AbortController | null = null;
 
 /** Shared state that the combobox module reads but does not own. */
 export interface ComboboxContext {
-  /** Get per-side commit values. */
+  /** Get per-side commit values and display map. */
   getCommitData: (side: 'a' | 'b') => {
     cachedCommitValues: string[];
+    displayMap?: Map<string, string>;
   };
   /** Get the testsuite name for a given side. */
   getSuiteName: (side: 'a' | 'b') => string;
@@ -132,7 +133,7 @@ export interface CommitPickerOptions {
   id: string;
   /** Called on each dropdown open/filter to get the current commit data.
    *  Lazy evaluation ensures data fetched after picker creation is visible. */
-  getCommitData: () => { values: string[] };
+  getCommitData: () => { values: string[]; displayMap?: Map<string, string> };
   initialValue?: string;
   placeholder?: string;
   onSelect: (value: string) => void;
@@ -193,20 +194,25 @@ export function createCommitPicker(opts: CommitPickerOptions): CommitPickerHandl
       return;
     }
 
-    const { values } = opts.getCommitData();
+    const { values, displayMap } = opts.getCommitData();
     let source = values;
     if (machineCommits instanceof Set) {
       source = source.filter(v => machineCommits.has(v));
     }
     const lf = filter.toLowerCase();
     const matches = filter
-      ? source.filter(v => v.toLowerCase().includes(lf))
+      ? source.filter(v => {
+          if (v.toLowerCase().includes(lf)) return true;
+          const display = displayMap?.get(v);
+          return display ? display.toLowerCase().includes(lf) : false;
+        })
       : source;
     const limited = matches.slice(0, 100);
 
     dropdown.replaceChildren();
     for (const v of limited) {
-      const li = el('li', { class: 'combobox-item', role: 'option', tabindex: '-1' }, v);
+      const displayText = displayMap?.get(v) ?? v;
+      const li = el('li', { class: 'combobox-item', role: 'option', tabindex: '-1' }, displayText);
       li.addEventListener('click', () => {
         input.value = v;
         input.classList.remove('combobox-invalid');
@@ -294,8 +300,8 @@ export function createCommitCombobox(
   const picker = createCommitPicker({
     id: `commit-${side}`,
     getCommitData: () => {
-      const { cachedCommitValues } = ctx.getCommitData(side);
-      return { values: cachedCommitValues };
+      const { cachedCommitValues, displayMap } = ctx.getCommitData(side);
+      return { values: cachedCommitValues, displayMap };
     },
     initialValue: selection.commit,
     placeholder: 'Type to search commits...',

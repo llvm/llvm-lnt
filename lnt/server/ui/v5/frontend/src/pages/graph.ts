@@ -1,9 +1,9 @@
 // pages/graph.ts — Time-series graph page with explicit test selection and on-demand loading.
 
 import type { PageModule, RouteParams } from '../router';
-import type { AggFn, QueryDataPoint, RegressionListItem, RegressionState } from '../types';
-import { getFields, getCommits, fetchOneCursorPage, postOneCursorPage, apiUrl, getAllRegressions } from '../api';
-import { el, debounce, getAggFn, TRACE_SEP, machineColor } from '../utils';
+import type { AggFn, CommitSummary, QueryDataPoint, RegressionListItem, RegressionState } from '../types';
+import { getFields, getCommits, fetchOneCursorPage, postOneCursorPage, apiUrl, getAllRegressions, getTestSuiteInfoCached } from '../api';
+import { el, debounce, getAggFn, TRACE_SEP, machineColor, commitDisplayValue } from '../utils';
 import { getTestsuites } from '../router';
 import { onCustomEvent, GRAPH_TABLE_HOVER, GRAPH_CHART_HOVER } from '../events';
 import { renderMachineCombobox } from '../components/machine-combobox';
@@ -35,7 +35,7 @@ let fetchAbort: AbortController | null = null;
 let filterAbort: AbortController | null = null;
 let selectionAbort: AbortController | null = null;
 /** Per-suite commit list cache for baseline commit picker. */
-let baselineCommitCache = new Map<string, string[]>();
+let baselineCommitCache = new Map<string, CommitSummary[]>();
 /** Machine-commit filter set for the baseline commit picker (null = loading or no machine). */
 let blMachineCommits: Set<string> | null = null;
 
@@ -74,6 +74,10 @@ let cleanupTableHover: (() => void) | null = null;
 let cleanupChartHover: (() => void) | null = null;
 /** List of selected machines (preserved across unmount/remount). */
 let machines: string[] = [];
+/** Schema commit fields for display resolution (populated per suite). */
+let commitFields: Array<{ name: string; display?: boolean }> = [];
+/** Current commit display map from the latest scaffoldUnion result. */
+let currentDisplayMap = new Map<string, string>();
 
 type RegressionAnnotationMode = 'off' | 'active' | 'all';
 
@@ -334,11 +338,7 @@ export const graphPage: PageModule = {
             if (baselineCommitCache.has(suite)) return;
             try {
               const commits = await getCommits(suite, fetchAbort?.signal);
-              const values: string[] = [];
-              for (const o of commits) {
-                values.push(o.commit);
-              }
-              baselineCommitCache.set(suite, values);
+              baselineCommitCache.set(suite, commits);
             } catch (err: unknown) {
               if (err instanceof DOMException && err.name === 'AbortError') return;
               baselineCommitCache.set(suite, []);
@@ -353,8 +353,18 @@ export const graphPage: PageModule = {
           const picker = createCommitPicker({
             id: 'baseline-commit',
             getCommitData: () => {
-              const values = baselineCommitCache.get(suite);
-              return { values: values ?? [] };
+              const cached = baselineCommitCache.get(suite) ?? [];
+              const values = cached.map(c => c.commit);
+              let displayMap: Map<string, string> | undefined;
+              if (commitFields.length > 0) {
+                displayMap = new Map();
+                for (const c of cached) {
+                  const d = commitDisplayValue(c.commit, c.fields, commitFields);
+                  if (d !== c.commit) displayMap.set(c.commit, d);
+                }
+                if (displayMap.size === 0) displayMap = undefined;
+              }
+              return { values, displayMap };
             },
             placeholder: 'Type to search commits...',
             onSelect: (value) => {
@@ -398,7 +408,8 @@ export const graphPage: PageModule = {
     function renderBaselineChips(): void {
       baselineChips.replaceChildren();
       for (const bl of baselines) {
-        const label = `${bl.suite}/${bl.machine}/${bl.commit}`;
+        const commitDisplay = currentDisplayMap.get(bl.commit) ?? bl.commit;
+        const label = `${bl.suite}/${bl.machine}/${commitDisplay}`;
         const chip = el('span', { class: 'chip' }, label);
         const removeBtn = el('button', { class: 'chip-remove' }, '\u00d7');
         removeBtn.addEventListener('click', () => {
@@ -613,8 +624,10 @@ export const graphPage: PageModule = {
       }
 
       const refs = buildBaselinesFromData(baselines,
-        (s, m, o, met) => cache.readCachedBaselineData(s, m, o, met), metric, getAggFn(runAgg));
-      const scaffold = cache.scaffoldUnion(currentSuite, machines);
+        (s, m, o, met) => cache.readCachedBaselineData(s, m, o, met), metric, getAggFn(runAgg),
+        currentDisplayMap);
+      const scaffoldResult = cache.scaffoldUnion(currentSuite, machines, commitFields);
+      if (scaffoldResult) currentDisplayMap = scaffoldResult.displayMap;
 
       const rawValuesCallback = (testName: string, machineName: string, commitValue: string): number[] => {
         const values: number[] = [];
@@ -634,7 +647,8 @@ export const graphPage: PageModule = {
           traces: activeTraces,
           yAxisLabel: metric,
           baselines: refs.length > 0 ? refs : undefined,
-          categoryOrder: scaffold ?? undefined,
+          categoryOrder: scaffoldResult?.commits ?? undefined,
+          displayMap: scaffoldResult?.displayMap,
           getRawValues: rawValuesCallback,
           overlays: regressionMode !== 'off' ? regressionOverlays : undefined,
         };
@@ -688,7 +702,7 @@ export const graphPage: PageModule = {
       // Build and render chart
       if (selectedTests.size === 0 || machines.length === 0 || !metric) {
         // Empty chart with scaffold
-        const scaffold = cache.scaffoldUnion(currentSuite, machines);
+        const emptyScaffold = cache.scaffoldUnion(currentSuite, machines, commitFields);
         chartRenderGen++;
         if (pendingChartRAF !== null) {
           cancelAnimationFrame(pendingChartRAF);
@@ -697,12 +711,13 @@ export const graphPage: PageModule = {
         const chartOpts = {
           traces: [] as TimeSeriesTrace[],
           yAxisLabel: metric || '',
-          categoryOrder: scaffold ?? undefined,
+          categoryOrder: emptyScaffold?.commits ?? undefined,
+          displayMap: emptyScaffold?.displayMap,
           overlays: regressionMode !== 'off' ? regressionOverlays : undefined,
         };
         if (chartHandle) {
           chartHandle.update(chartOpts);
-        } else if (scaffold) {
+        } else if (emptyScaffold) {
           chartHandle = createTimeSeriesChart(chartContainer, chartOpts);
         }
         return;
@@ -740,13 +755,14 @@ export const graphPage: PageModule = {
           await Promise.all(plotMachines.map(m => cache.getScaffold(currentSuite, m, signal)));
 
           // Render empty chart with scaffold while discovering tests.
-          const scaffold = cache.scaffoldUnion(currentSuite, plotMachines);
-          if (plotMetric === metric && scaffold) {
+          const initScaffold = cache.scaffoldUnion(currentSuite, plotMachines, commitFields);
+          if (plotMetric === metric && initScaffold) {
             if (!chartHandle) {
               chartHandle = createTimeSeriesChart(chartContainer, {
                 traces: [] as TimeSeriesTrace[],
                 yAxisLabel: plotMetric,
-                categoryOrder: scaffold,
+                categoryOrder: initScaffold.commits,
+                displayMap: initScaffold.displayMap,
               });
             }
             progressContainer.replaceChildren(
@@ -835,14 +851,15 @@ export const graphPage: PageModule = {
       for (const r of regressions) {
         if (!r.commit) continue;
 
+        const xVal = currentDisplayMap.get(r.commit) ?? r.commit;
         const color = r.state === 'active' ? '#d62728'
                     : r.state === 'detected' ? '#ff7f0e'
                     : '#999';
 
         shapes.push({
           type: 'line',
-          x0: r.commit,
-          x1: r.commit,
+          x0: xVal,
+          x1: xVal,
           y0: 0,
           y1: 1,
           yref: 'paper',
@@ -850,7 +867,7 @@ export const graphPage: PageModule = {
         });
 
         plotlyAnnotations.push({
-          x: r.commit,
+          x: xVal,
           y: 1,
           yref: 'paper',
           text: r.title || 'Regression',
@@ -878,6 +895,8 @@ export const graphPage: PageModule = {
 
       // Clear ALL module-level state
       machines = [];
+      commitFields = [];
+      currentDisplayMap = new Map();
       cache.clear();
       allMatchingTests = [];
       selectedTests = new Set();
@@ -949,6 +968,11 @@ export const graphPage: PageModule = {
       const myGen = suiteGeneration;
       metricGroup.replaceChildren();
       renderEmptyMetricSelector(metricGroup);
+      // Fetch schema for commit display resolution (cached)
+      getTestSuiteInfoCached(suite).then(info => {
+        if (myGen !== suiteGeneration) return;
+        commitFields = info.schema.commit_fields;
+      }).catch(() => {});
       getFields(suite).then(fields => {
         if (myGen !== suiteGeneration) return;
         metricGroup.replaceChildren();
@@ -1070,6 +1094,7 @@ export function buildBaselinesFromData(
   getPoints: (suite: string, machine: string, commit: string, metric: string) => QueryDataPoint[],
   metric: string,
   aggFn: (values: number[]) => number,
+  displayMap?: Map<string, string>,
 ): PinnedBaseline[] {
   return baselines.map((bl) => {
     const points = getPoints(bl.suite, bl.machine, bl.commit, metric);
@@ -1086,7 +1111,8 @@ export function buildBaselinesFromData(
       values.set(test, aggFn(raw));
     }
 
-    const label = `${bl.suite}/${bl.machine}/${bl.commit}`;
+    const commitDisplay = displayMap?.get(bl.commit) ?? bl.commit;
+    const label = `${bl.suite}/${bl.machine}/${commitDisplay}`;
 
     return {
       label,

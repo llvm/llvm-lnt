@@ -53,6 +53,10 @@ export interface TimeSeriesChartOptions {
   /** Fixed x-axis category order. When set, the x-axis shows exactly these
    *  categories in this order and does not resize as data loads progressively. */
   categoryOrder?: string[];
+  /** Map from raw commit string to display value (e.g. short SHA).
+   *  When set, axis tick labels and hover tooltips show the display value
+   *  while internal coordinates remain raw commit strings. */
+  displayMap?: Map<string, string>;
   /** Lazy callback to get individual pre-aggregation values for a data point.
    *  Called on hover; if it returns >1 values, a scatter of the raw values
    *  is shown at the hovered x-position. */
@@ -78,20 +82,27 @@ export function buildPlotlyData(options: TimeSeriesChartOptions): {
 } {
   const data: unknown[] = [];
 
+  // When a display map is available, map raw commit strings to display
+  // values (e.g. short SHAs) for all categorical x-coordinates.  This
+  // lets Plotly's auto-tick-density work naturally on the display values.
+  const dm = options.displayMap;
+  const dx = dm && dm.size > 0 ? (c: string) => dm.get(c) ?? c : (c: string) => c;
+
   // Collect all unique commit values across all traces (for consistent x-axis)
   const allCommits: string[] = [];
   const commitSet = new Set<string>();
   for (const trace of options.traces) {
     for (const pt of trace.points) {
-      if (!commitSet.has(pt.commit)) {
-        commitSet.add(pt.commit);
-        allCommits.push(pt.commit);
+      const mapped = dx(pt.commit);
+      if (!commitSet.has(mapped)) {
+        commitSet.add(mapped);
+        allCommits.push(mapped);
       }
     }
   }
 
   for (const trace of options.traces) {
-    const x = trace.points.map(p => p.commit);
+    const x = trace.points.map(p => dx(p.commit));
     const y = trace.points.map(p => p.value);
     const traceName = `${trace.testName}${TRACE_SEP}${trace.machine}`;
     const customdata = trace.points.map(p => [
@@ -101,6 +112,7 @@ export function buildPlotlyData(options: TimeSeriesChartOptions): {
       String(p.runCount),
       trace.testName,
       trace.machine,
+      dx(p.commit),
     ]);
 
     const marker: Record<string, unknown> = { size: 4 };
@@ -119,7 +131,7 @@ export function buildPlotlyData(options: TimeSeriesChartOptions): {
       hovertemplate:
         '<b>%{customdata[4]}</b><br>' +
         'Machine: %{customdata[5]}<br>' +
-        'Commit: %{customdata[0]}<br>' +
+        'Commit: %{customdata[6]}<br>' +
         'Value: %{customdata[2]}<br>' +
         'Runs: %{customdata[3]}<extra></extra>',
     };
@@ -132,7 +144,9 @@ export function buildPlotlyData(options: TimeSeriesChartOptions): {
   // Each trace is populated with a data point at every x-category so that
   // hover detection works anywhere along the line (not just at 2 endpoints).
   if (options.baselines) {
-    const pinXValues = options.categoryOrder ?? (allCommits.length > 0 ? allCommits : null);
+    const pinXValues = options.categoryOrder
+      ? options.categoryOrder.map(dx)
+      : (allCommits.length > 0 ? allCommits : null);
 
     if (pinXValues) {
       for (const ref of options.baselines) {
@@ -165,7 +179,7 @@ export function buildPlotlyData(options: TimeSeriesChartOptions): {
   };
   if (options.categoryOrder) {
     xaxis.categoryorder = 'array';
-    xaxis.categoryarray = options.categoryOrder;
+    xaxis.categoryarray = options.categoryOrder.map(dx);
     // Lock the visible range to show all categories — autorange ignores null
     // y-values in the scaffold trace, so we must set the range explicitly.
     xaxis.autorange = false;
@@ -247,6 +261,8 @@ export function createTimeSeriesChart(
   let getRawValues: TimeSeriesChartOptions['getRawValues'];
   /** Color map from test name to trace color (updated on each doPlot). */
   let traceColorMap = new Map<string, string>();
+  /** Current display map for commit value mapping (updated on each doPlot). */
+  let currentDisplayMap: Map<string, string> | undefined;
 
   function attachHandlers(gd: PlotlyGd, opts: TimeSeriesChartOptions): void {
     if (opts.onClick) {
@@ -296,8 +312,9 @@ export function createTimeSeriesChart(
         if (rawValues.length <= 1) return;
 
         const color = traceColorMap.get(`${testName}${TRACE_SEP}${machineName}`) || '#999';
+        const displayCommit = currentDisplayMap?.get(commitValue) ?? commitValue;
         const scatter = {
-          x: rawValues.map(() => commitValue),
+          x: rawValues.map(() => displayCommit),
           y: rawValues,
           mode: 'markers',
           type: 'scatter',
@@ -372,6 +389,7 @@ export function createTimeSeriesChart(
 
     // Update callback and color map for scatter-on-hover
     getRawValues = opts.getRawValues;
+    currentDisplayMap = opts.displayMap;
     traceColorMap = new Map<string, string>();
     for (const t of opts.traces) {
       if (t.color) traceColorMap.set(`${t.testName}${TRACE_SEP}${t.machine}`, t.color);

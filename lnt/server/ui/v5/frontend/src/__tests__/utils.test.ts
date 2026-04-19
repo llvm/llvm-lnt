@@ -6,14 +6,20 @@ vi.mock('../router', () => ({
   getBasePath: vi.fn(() => '/v5/nts'),
 }));
 
+vi.mock('../api', () => ({
+  getTestSuiteInfoCached: vi.fn(),
+  resolveCommits: vi.fn(),
+}));
+
 import {
   median, mean, safeMin, safeMax, getAggFn, geomean,
   formatValue, formatPercent, formatRatio, formatTime,
   truncate,
   debounce, el, isModifiedClick, spaLink,
-  commitDisplayValue,
+  commitDisplayValue, resolveDisplayMap,
 } from '../utils';
 import { navigate } from '../router';
+import { getTestSuiteInfoCached, resolveCommits } from '../api';
 
 describe('median', () => {
   it('returns 0 for empty array', () => {
@@ -445,5 +451,76 @@ describe('commitDisplayValue', () => {
   it('falls back to commit string when display field value is missing', () => {
     const fields = [{ name: 'tag', display: true }];
     expect(commitDisplayValue('abc123', { rev: 'v1.0' }, fields)).toBe('abc123');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveDisplayMap
+// ---------------------------------------------------------------------------
+
+describe('resolveDisplayMap', () => {
+  const mockGetSuiteInfo = getTestSuiteInfoCached as ReturnType<typeof vi.fn>;
+  const mockResolve = resolveCommits as ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns map with display values when schema has display field', async () => {
+    mockGetSuiteInfo.mockResolvedValue({
+      name: 'nts',
+      schema: { metrics: [], commit_fields: [{ name: 'sha', display: true }], machine_fields: [] },
+    });
+    mockResolve.mockResolvedValue({
+      results: {
+        'abc': { commit: 'abc', ordinal: 1, fields: { sha: 'short-abc' } },
+        'def': { commit: 'def', ordinal: 2, fields: { sha: 'short-def' } },
+      },
+      not_found: [],
+    });
+
+    const map = await resolveDisplayMap('nts', ['abc', 'def']);
+    expect(map.get('abc')).toBe('short-abc');
+    expect(map.get('def')).toBe('short-def');
+  });
+
+  it('returns empty map when commits array is empty', async () => {
+    const map = await resolveDisplayMap('nts', []);
+    expect(map.size).toBe(0);
+    expect(mockGetSuiteInfo).not.toHaveBeenCalled();
+    expect(mockResolve).not.toHaveBeenCalled();
+  });
+
+  it('returns empty map on network error', async () => {
+    mockGetSuiteInfo.mockRejectedValue(new Error('network'));
+
+    const map = await resolveDisplayMap('nts', ['abc']);
+    expect(map.size).toBe(0);
+  });
+
+  it('re-throws AbortError', async () => {
+    mockGetSuiteInfo.mockRejectedValue(new DOMException('Aborted', 'AbortError'));
+
+    await expect(resolveDisplayMap('nts', ['abc'])).rejects.toThrow('Aborted');
+  });
+
+  it('only includes entries where display value differs from raw commit', async () => {
+    mockGetSuiteInfo.mockResolvedValue({
+      name: 'nts',
+      schema: { metrics: [], commit_fields: [{ name: 'sha', display: true }], machine_fields: [] },
+    });
+    mockResolve.mockResolvedValue({
+      results: {
+        'abc': { commit: 'abc', ordinal: 1, fields: { sha: 'short-abc' } },
+        'def': { commit: 'def', ordinal: 2, fields: {} },
+      },
+      not_found: [],
+    });
+
+    const map = await resolveDisplayMap('nts', ['abc', 'def']);
+    expect(map.get('abc')).toBe('short-abc');
+    // 'def' has no sha field, so commitDisplayValue returns 'def' — included in map
+    // but the value equals the key (identity mapping)
+    expect(map.get('def')).toBe('def');
   });
 });

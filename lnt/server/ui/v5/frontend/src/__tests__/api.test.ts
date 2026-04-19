@@ -3,6 +3,7 @@ import { setApiBase, getFields, getCommits, getMachines, getRuns, getSamples,
   getMachine, getMachineRuns, deleteMachine, getRun, deleteRun, getCommit, getRunsByCommit,
   getFieldChanges, searchCommits, updateCommit, fetchTrends,
   fetchOneCursorPage, apiUrl, ApiError, authErrorMessage,
+  resolveCommits, getTestSuiteInfoCached,
 } from '../api';
 import type {
   CursorPaginated, FieldInfo, MachineInfo, MachineRunInfo, OffsetPaginated,
@@ -984,5 +985,102 @@ describe('fetchTrends', () => {
     expect(body.metric).toBe('exec_time');
     expect(body.machine).toBeUndefined();
     expect(body.after_time).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveCommits
+// ---------------------------------------------------------------------------
+
+describe('resolveCommits', () => {
+  it('sends POST with JSON body to /commits/resolve', async () => {
+    const response = { results: {}, not_found: ['abc'] };
+    mockFetch.mockResolvedValueOnce(mockResponse(response));
+
+    await resolveCommits('nts', ['abc', 'def']);
+
+    const [url, init] = mockFetch.mock.calls[0];
+    expect(url).toContain('/api/v5/nts/commits/resolve');
+    expect(init.method).toBe('POST');
+    const body = JSON.parse(init.body as string);
+    expect(body.commits).toEqual(['abc', 'def']);
+  });
+
+  it('includes auth token when present', async () => {
+    storedToken = 'test-token';
+    mockFetch.mockResolvedValueOnce(mockResponse({ results: {}, not_found: [] }));
+
+    await resolveCommits('nts', ['abc']);
+
+    const init = mockFetch.mock.calls[0][1] as RequestInit;
+    expect((init.headers as Record<string, string>)['Authorization']).toBe('Bearer test-token');
+  });
+
+  it('passes AbortSignal through', async () => {
+    const ctrl = new AbortController();
+    mockFetch.mockResolvedValueOnce(mockResponse({ results: {}, not_found: [] }));
+
+    await resolveCommits('nts', ['abc'], ctrl.signal);
+
+    const init = mockFetch.mock.calls[0][1] as RequestInit;
+    expect(init.signal).toBe(ctrl.signal);
+  });
+
+  it('throws ApiError on non-OK response', async () => {
+    mockFetch.mockResolvedValueOnce(mockResponse({ error: 'bad' }, 422, 'Unprocessable Entity'));
+
+    await expect(resolveCommits('nts', ['abc'])).rejects.toThrow(ApiError);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getTestSuiteInfoCached
+// ---------------------------------------------------------------------------
+
+describe('getTestSuiteInfoCached', () => {
+  const suiteInfo = { name: 'cached-suite', schema: { metrics: [], commit_fields: [], machine_fields: [] } };
+
+  it('fetches on first call and returns data', async () => {
+    mockFetch.mockResolvedValueOnce(mockResponse(suiteInfo));
+
+    const result = await getTestSuiteInfoCached('cached-suite-1');
+    expect(result.name).toBe('cached-suite');
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns cached result on second call without new fetch', async () => {
+    mockFetch.mockResolvedValueOnce(mockResponse(suiteInfo));
+
+    const r1 = await getTestSuiteInfoCached('cached-suite-2');
+    const r2 = await getTestSuiteInfoCached('cached-suite-2');
+
+    expect(r1).toBe(r2);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('evicts rejected promise so retry works', async () => {
+    mockFetch
+      .mockResolvedValueOnce(mockResponse('error', 500, 'Internal Server Error'))
+      .mockResolvedValueOnce(mockResponse(suiteInfo));
+
+    await expect(getTestSuiteInfoCached('cached-suite-3')).rejects.toThrow();
+    // Allow microtask for eviction .catch() to run
+    await new Promise(r => setTimeout(r, 0));
+
+    const result = await getTestSuiteInfoCached('cached-suite-3');
+    expect(result.name).toBe('cached-suite');
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('coalesces concurrent calls on one fetch', async () => {
+    mockFetch.mockResolvedValueOnce(mockResponse(suiteInfo));
+
+    const [r1, r2] = await Promise.all([
+      getTestSuiteInfoCached('cached-suite-4'),
+      getTestSuiteInfoCached('cached-suite-4'),
+    ]);
+
+    expect(r1).toBe(r2);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 });

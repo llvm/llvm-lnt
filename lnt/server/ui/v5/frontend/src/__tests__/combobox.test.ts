@@ -1059,3 +1059,70 @@ describe('fetchMachineCommitSet', () => {
     expect(getMachineRuns).toHaveBeenCalledWith('nts', 'clang-x86', { limit: 500 }, ctrl.signal);
   });
 });
+
+// ---------------------------------------------------------------------------
+// createCommitPicker with displayMap
+// ---------------------------------------------------------------------------
+
+describe('createCommitPicker with displayMap', () => {
+  const DISPLAY_MAP = new Map([['abc123', 'v1.0'], ['def456', 'v2.0']]);
+  const COMMIT_VALUES_DM = ['abc123', 'def456', 'ghi789'];
+
+  it('shows display values in dropdown items', () => {
+    const picker = createCommitPicker({
+      id: 'display-test',
+      getCommitData: () => ({ values: COMMIT_VALUES_DM, displayMap: DISPLAY_MAP }),
+      onSelect: () => {},
+    });
+    document.body.append(picker.element);
+
+    const input = picker.input;
+    input.dispatchEvent(new Event('focus'));
+
+    const items = picker.element.querySelectorAll('.combobox-item');
+    expect(items[0].textContent).toBe('v1.0');
+    expect(items[1].textContent).toBe('v2.0');
+    expect(items[2].textContent).toBe('ghi789'); // no mapping, raw string
+
+    picker.element.remove();
+  });
+
+  it('filters by display value', () => {
+    const picker = createCommitPicker({
+      id: 'filter-test',
+      getCommitData: () => ({ values: COMMIT_VALUES_DM, displayMap: DISPLAY_MAP }),
+      onSelect: () => {},
+    });
+    document.body.append(picker.element);
+
+    const input = picker.input;
+    input.value = 'v1';
+    input.dispatchEvent(new Event('input'));
+
+    const items = picker.element.querySelectorAll('.combobox-item');
+    expect(items).toHaveLength(1);
+    expect(items[0].textContent).toBe('v1.0');
+
+    picker.element.remove();
+  });
+
+  it('calls onSelect with raw commit string', () => {
+    const onSelect = vi.fn();
+    const picker = createCommitPicker({
+      id: 'select-test',
+      getCommitData: () => ({ values: COMMIT_VALUES_DM, displayMap: DISPLAY_MAP }),
+      onSelect,
+    });
+    document.body.append(picker.element);
+
+    const input = picker.input;
+    input.dispatchEvent(new Event('focus'));
+
+    const items = picker.element.querySelectorAll('.combobox-item');
+    (items[0] as HTMLElement).click();
+
+    expect(onSelect).toHaveBeenCalledWith('abc123'); // raw string, not 'v1.0'
+
+    picker.element.remove();
+  });
+});
