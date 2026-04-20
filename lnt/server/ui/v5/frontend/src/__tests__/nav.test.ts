@@ -26,7 +26,6 @@ beforeEach(() => {
 describe('renderNav (suite-agnostic context)', () => {
   const config = {
     testsuite: '',
-    v4Url: '/',
     urlBase: '',
   };
 
@@ -46,11 +45,11 @@ describe('renderNav (suite-agnostic context)', () => {
     expect(apiLink.getAttribute('href')).toBe('/api/v5/openapi/swagger-ui');
   });
 
-  it('renders right-side links: v4 UI, Admin, Settings', () => {
+  it('renders right-side links: Admin, Settings', () => {
     const nav = renderNav(config);
     const rightLinks = nav.querySelectorAll('.v5-nav-right .v5-nav-link');
     const labels = Array.from(rightLinks).map(l => l.textContent);
-    expect(labels).toEqual(['v4 UI', 'Admin', 'Settings']);
+    expect(labels).toEqual(['Admin', 'Settings']);
   });
 
   it('renders the LNT brand', () => {
@@ -120,13 +119,6 @@ describe('renderNav (suite-agnostic context)', () => {
     expect(navigate).toHaveBeenCalledWith('/admin');
   });
 
-  it('v4 UI link has correct href from config', () => {
-    const nav = renderNav(config);
-    const v4Link = Array.from(nav.querySelectorAll('.v5-nav-link'))
-      .find(l => l.textContent === 'v4 UI') as HTMLAnchorElement;
-    expect(v4Link.getAttribute('href')).toBe('/');
-  });
-
   it('Settings link renders', () => {
     const nav = renderNav(config);
     const settingsLink = Array.from(nav.querySelectorAll('.v5-nav-link'))
@@ -180,7 +172,6 @@ describe('renderNav (suite-agnostic context)', () => {
 describe('renderNav (suite-scoped context)', () => {
   const config = {
     testsuite: 'nts',
-    v4Url: '/db_default/v4/nts/recent_activity',
     urlBase: '',
   };
 
@@ -192,7 +183,7 @@ describe('renderNav (suite-scoped context)', () => {
 
     const rightLinks = nav.querySelectorAll('.v5-nav-right .v5-nav-link');
     const rightLabels = Array.from(rightLinks).map(l => l.textContent);
-    expect(rightLabels).toEqual(['v4 UI', 'Admin', 'Settings']);
+    expect(rightLabels).toEqual(['Admin', 'Settings']);
   });
 
   it('brand href is /v5/ (not suite-scoped)', () => {
@@ -261,7 +252,6 @@ describe('renderNav (suite-scoped context)', () => {
 describe('updateActiveNavLink', () => {
   const config = {
     testsuite: '',
-    v4Url: '/',
     urlBase: '',
   };
 

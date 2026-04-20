@@ -4,32 +4,14 @@ from . import v5_frontend, _setup_testsuite
 
 
 def _v5_url_base():
-    """Compute the LNT URL base for the v5 SPA.
-
-    Uses the v4 blueprint's index URL when available (keeps parity with
-    v4 instances), otherwise falls back to the request's script root.
-    """
-    try:
-        from flask import url_for
-        return url_for('lnt.index', _external=False).rstrip('/')
-    except Exception:
-        return request.script_root
-
-
-def _v4_url():
-    """Return the v4 UI root URL, or empty string if v4 is not available."""
-    try:
-        from flask import url_for
-        return url_for('lnt.index')
-    except Exception:
-        return ''
+    """Compute the LNT URL base for the v5 SPA."""
+    return request.script_root
 
 
 def _v5_render(**kwargs):
     """Render the v5 SPA shell with common template variables."""
     return render_template("v5_app.html",
                            lnt_url_base=_v5_url_base(),
-                           v4_url=_v4_url(),
                            **kwargs)
 
 

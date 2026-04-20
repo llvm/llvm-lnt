@@ -28,14 +28,12 @@ function init(): void {
   const testsuites: string[] = JSON.parse(
     root.getAttribute('data-testsuites') || '[]'
   );
-  const v4Url = root.getAttribute('data-v4-url') || '#';
-
   // Set API base from global set in layout.html
   const urlBase = typeof lnt_url_base !== 'undefined' ? lnt_url_base : '';
   setApiBase(urlBase);
 
   // Render nav bar (persistent across route changes)
-  const nav = renderNav({ testsuite, v4Url, urlBase });
+  const nav = renderNav({ testsuite, urlBase });
   root.append(nav);
 
   // Page content container

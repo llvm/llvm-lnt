@@ -161,12 +161,6 @@ class TestSPAShell(unittest.TestCase):
         html = resp.get_data(as_text=True)
         self.assertIn('var lnt_url_base=', html)
 
-    def test_v4_url_is_empty(self):
-        """On a v5-only instance, the v4 link should be empty."""
-        resp = self.client.get('/v5/')
-        html = resp.get_data(as_text=True)
-        self.assertIn('data-v4-url=""', html)
-
     # --- Error cases ---
 
     def test_nonexistent_testsuite(self):

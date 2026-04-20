@@ -5,7 +5,6 @@ import { navigate } from '../router';
 
 export interface NavConfig {
   testsuite: string;
-  v4Url: string;
   urlBase: string; // lnt_url_base
 }
 
@@ -92,11 +91,8 @@ export function renderNav(config: NavConfig): HTMLElement {
 
   nav.append(linksContainer);
 
-  // Right side: v4 UI, Admin, Settings
+  // Right side: Admin, Settings
   const rightGroup = el('div', { class: 'v5-nav-right' });
-
-  const v4Link = el('a', { class: 'v5-nav-link', href: config.v4Url }, 'v4 UI');
-  rightGroup.append(v4Link);
 
   rightGroup.append(buildNavLink({ label: 'Admin', path: '/admin' }, agnosticBase, config));
 

@@ -17,9 +17,9 @@ Key changes from v4:
   routing, all data from the v5 REST API.
 
 v4 and v5 coexist in the same codebase, selected by `db_version` in `lnt.cfg`
-(`'0.4'` for v4, `'5.0'` for v5). A v5 instance serves only v5 API endpoints
-and the v5 frontend. The v4 UI is left unchanged with toggle links in each
-navbar.
+(`'0.4'` for v4, `'5.0'` for v5). They are fully disjoint: a v4 instance
+serves only v4 views, and a v5 instance serves only v5 API endpoints and the
+v5 frontend.
 
 ## Design Principles
 
@@ -51,7 +51,7 @@ navbar.
 
 | Document | Contents |
 |----------|----------|
-| [Architecture](ui/architecture.md) | SPA design, client-side routing, Flask backend routes, navigation bar, v4/v5 toggle, frontend code structure, build config, implementation phases |
+| [Architecture](ui/architecture.md) | SPA design, client-side routing, Flask backend routes, navigation bar, frontend code structure, build config, implementation phases |
 | [Dashboard](ui/dashboard.md) | Landing page with sparkline trend overview across test suites |
 | [Browsing Pages](ui/browsing.md) | Test Suites page (suite picker + tabs), Machine Detail, Run Detail, Commit Detail, Regression Detail, and inline regression list/triage |
 | [Graph](ui/graph.md) | Time-series visualization: multi-machine, lazy loading, test selection, baselines, regression annotations |

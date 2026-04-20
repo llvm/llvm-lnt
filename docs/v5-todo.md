@@ -124,7 +124,7 @@
 - [x] Remove the `# Load the v5 frontend` comment and associated stale code in
   `app.py` — a remnant from before v5 was disjoint from v4. Audit for other
   stale v4 integration points.
-- [ ] Remove the `[v4 UI]` button in the navbar — it cannot work anymore.
+- [x] Remove the `[v4 UI]` button in the navbar — it cannot work anymore.
 - [ ] Undo changes made to the v4 layer (e.g. new migrations).
 - [ ] Reorganize `combobox.ts` and `machine-combobox.ts` — remnants of the
   Compare page being standalone. Either unify into a single combobox component

@@ -16,9 +16,6 @@ jQuery 1.7 and Bootstrap 2. It works but feels dated. The v5 REST API is now
 complete and a single v5 page already exists (the Compare SPA). This plan
 designs a complete new UI built exclusively on the v5 API.
 
-The v4 UI stays around as-is. The only integration point is a toggle link in
-each UI's navbar to switch between v4 and v5.
-
 
 ## Single-Page Application
 
@@ -95,12 +92,12 @@ artifacts (fixed-navbar margins, sticky footer).
 ## Navigation Bar
 
 ```
-[LNT] [Test Suites] [Graph] [Compare] [API]  <------------>  [v4 UI] [Admin] [Settings]
+[LNT] [Test Suites] [Graph] [Compare] [API]  <------------>  [Admin] [Settings]
 ```
 
 All navbar links are suite-agnostic. The navbar behavior depends on the page context:
 
-- **Suite-agnostic context** (`/v5/...` without a suite): All navbar links use SPA navigation. API opens in a new tab. v4 UI is external.
+- **Suite-agnostic context** (`/v5/...` without a suite): All navbar links use SPA navigation. API opens in a new tab.
 - **Suite-scoped context** (`/v5/{ts}/...`): All navbar links use full-page navigation (since they target `/v5/...` which is outside the suite basePath `/v5/{ts}`).
 
 Graph and Compare links append `?suite={ts}` / `?suite_a={ts}` when navigated

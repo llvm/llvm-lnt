@@ -12,8 +12,7 @@
 <body>
 <div id="v5-app"
      data-testsuite="{{ g.testsuite_name }}"
-     data-testsuites="{{ testsuites | tojson | forceescape }}"
-     data-v4-url="{{ v4_url }}">
+     data-testsuites="{{ testsuites | tojson | forceescape }}">
 </div>
 <script src="{{ url_for('lnt_v5.static', filename='v5/v5.js') }}"></script>
 </body>
