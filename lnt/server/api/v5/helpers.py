@@ -110,6 +110,18 @@ def lookup_regression(session, ts, regression_uuid):
     return regression
 
 
+def lookup_profile(session, ts, profile_uuid, *, load_data=False):
+    """Look up a Profile by UUID. Aborts with 404 if not found.
+
+    When *load_data* is True, eagerly loads the deferred ``data`` column
+    and joins the ``test`` and ``run`` relations.
+    """
+    profile = ts.get_profile(session, uuid=profile_uuid, load_data=load_data)
+    if profile is None:
+        abort_with_error(404, "Profile '%s' not found" % profile_uuid)
+    return profile
+
+
 # ---------------------------------------------------------------------------
 # Response validation
 # ---------------------------------------------------------------------------

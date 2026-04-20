@@ -24,12 +24,13 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     String,
     Text,
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import relation
+from sqlalchemy.orm import deferred, relation
 
 from .schema import TestSuiteSchema
 
@@ -115,6 +116,7 @@ class SuiteModels:
     Run: Any = None
     Test: Any = None
     Sample: Any = None
+    Profile: Any = None
     Regression: Any = None
     RegressionIndicator: Any = None
 
@@ -274,6 +276,41 @@ def create_suite_models(schema: TestSuiteSchema) -> SuiteModels:
     )
 
     # -----------------------------------------------------------------------
+    # Profile
+    # -----------------------------------------------------------------------
+    profile_attrs: dict[str, Any] = {
+        "__tablename__": f"{prefix}_Profile",
+        "id": Column("id", Integer, primary_key=True),
+        "uuid": Column(
+            "uuid", String(36), unique=True, nullable=False, index=True,
+            default=lambda: str(uuid_module.uuid4()),
+        ),
+        "run_id": Column(
+            "run_id", Integer,
+            ForeignKey(f"{prefix}_Run.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        "test_id": Column(
+            "test_id", Integer,
+            ForeignKey(f"{prefix}_Test.id", ondelete="CASCADE"),
+            nullable=False, index=True,
+        ),
+        "created_at": Column(
+            "created_at", DateTime(timezone=True), nullable=False,
+        ),
+        "data": deferred(Column("data", LargeBinary, nullable=False)),
+        "run": relation("Run", foreign_keys=f"{prefix}_Profile.c.run_id"),
+        "test": relation("Test", foreign_keys=f"{prefix}_Profile.c.test_id"),
+        "__table_args__": (
+            UniqueConstraint(
+                "run_id", "test_id",
+                name=f"{prefix}_Profile_run_test_unique",
+            ),
+        ),
+    }
+    Profile = type("Profile", (base,), profile_attrs)
+
+    # -----------------------------------------------------------------------
     # Regression
     # -----------------------------------------------------------------------
     reg_attrs: dict[str, Any] = {
@@ -383,6 +420,20 @@ def create_suite_models(schema: TestSuiteSchema) -> SuiteModels:
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+    Run.profiles = relation(  # type: ignore[attr-defined]
+        Profile,
+        foreign_keys=[Profile.run_id],  # type: ignore[attr-defined]
+        back_populates="run",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    Test.profiles = relation(  # type: ignore[attr-defined]
+        Profile,
+        foreign_keys=[Profile.test_id],  # type: ignore[attr-defined]
+        back_populates="test",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
     return SuiteModels(
         base=base,
@@ -391,6 +442,7 @@ def create_suite_models(schema: TestSuiteSchema) -> SuiteModels:
         Run=Run,
         Test=Test,
         Sample=Sample,
+        Profile=Profile,
         Regression=Regression,
         RegressionIndicator=RegressionIndicator,
     )

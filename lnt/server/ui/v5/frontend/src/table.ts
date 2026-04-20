@@ -1,7 +1,7 @@
 import type { ComparisonRow, SortCol, SortDir } from './types';
 import { TABLE_HOVER } from './events';
 import { getState, setState } from './state';
-import { formatValue, formatPercent, formatRatio, el } from './utils';
+import { formatValue, formatPercent, formatRatio, el, spaLink } from './utils';
 import { computeGeomean } from './comparison';
 
 export interface TableOptions {
@@ -12,6 +12,8 @@ export interface TableOptions {
   onToggle?: (test: string) => void;
   /** Called when a row is double-clicked (isolate — hide all others). */
   onIsolate?: (test: string) => void;
+  /** Map from test name to profile page URL path. When set, a Profile column appears. */
+  profileLinks?: Map<string, string>;
 }
 
 let tableContainer: HTMLElement | null = null;
@@ -125,6 +127,9 @@ function buildTable(rows: ComparisonRow[], sort: SortCol, sortDir: SortDir, hidd
     });
     headerRow.append(th);
   }
+  if (currentOptions.profileLinks) {
+    headerRow.append(el('th', {}, 'Profile'));
+  }
   thead.append(headerRow);
   table.append(thead);
 
@@ -145,6 +150,9 @@ function buildTable(rows: ComparisonRow[], sort: SortCol, sortDir: SortDir, hidd
       el('td', { class: 'col-num' }, formatRatio(geomean.ratioGeomean)),
       el('td', { class: 'col-status' }, ''),
     );
+    if (currentOptions.profileLinks) {
+      summaryRow.append(el('td', { class: 'col-profile' }, ''));
+    }
     tbody.append(summaryRow);
   }
 
@@ -166,6 +174,15 @@ function buildTable(rows: ComparisonRow[], sort: SortCol, sortDir: SortDir, hidd
     tr.append(el('td', { class: 'col-num' }, formatPercent(row.deltaPct)));
     tr.append(el('td', { class: 'col-num' }, formatRatio(row.ratio)));
     tr.append(el('td', { class: `col-status status-${row.status}` }, row.status));
+
+    if (currentOptions.profileLinks) {
+      const url = currentOptions.profileLinks.get(row.test);
+      if (url) {
+        tr.append(el('td', { class: 'col-profile' }, spaLink('View', url)));
+      } else {
+        tr.append(el('td', { class: 'col-profile' }, ''));
+      }
+    }
 
     tbody.append(tr);
   }
@@ -224,6 +241,9 @@ function buildMissingTable(rows: ComparisonRow[]): HTMLTableElement {
   const thead = el('thead');
   const headerRow = el('tr');
   headerRow.append(el('th', {}, 'Test'), el('th', {}, 'Value A'), el('th', {}, 'Value B'), el('th', {}, 'Present In'));
+  if (currentOptions.profileLinks) {
+    headerRow.append(el('th', {}, 'Profile'));
+  }
   thead.append(headerRow);
   table.append(thead);
 
@@ -234,6 +254,9 @@ function buildMissingTable(rows: ComparisonRow[]): HTMLTableElement {
     tr.append(el('td', { class: 'col-num' }, formatValue(row.valueA)));
     tr.append(el('td', { class: 'col-num' }, formatValue(row.valueB)));
     tr.append(el('td', {}, row.sidePresent === 'a_only' ? 'Side A only' : 'Side B only'));
+    if (currentOptions.profileLinks) {
+      tr.append(el('td', { class: 'col-profile' }, ''));
+    }
     tbody.append(tr);
   }
   table.append(tbody);

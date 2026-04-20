@@ -8,6 +8,7 @@ vi.mock('../../api', async (importOriginal) => {
     ...actual,
     getRun: vi.fn(),
     getFields: vi.fn(),
+    getProfilesForRun: vi.fn(),
     deleteRun: vi.fn(),
     fetchOneCursorPage: vi.fn(),
     apiUrl: vi.fn(),
@@ -33,7 +34,7 @@ vi.mock('../../router', async (importOriginal) => {
   Fx: { hover: vi.fn(), unhover: vi.fn() },
 };
 
-import { getRun, getFields, fetchOneCursorPage, apiUrl } from '../../api';
+import { getRun, getFields, getProfilesForRun, fetchOneCursorPage, apiUrl } from '../../api';
 import { runDetailPage } from '../../pages/run-detail';
 import type { RunDetail, FieldInfo, SampleInfo } from '../../types';
 
@@ -54,9 +55,9 @@ const mockFields: FieldInfo[] = [
 ];
 
 const mockSamples: SampleInfo[] = [
-  { test: 'test-A', has_profile: false, metrics: { exec_time: 1.5, compile_time: 0.3 } },
-  { test: 'test-B', has_profile: false, metrics: { exec_time: 2.0, compile_time: 0.5 } },
-  { test: 'test-C', has_profile: true, metrics: { exec_time: 3.0, compile_time: 0.7 } },
+  { test: 'test-A', metrics: { exec_time: 1.5, compile_time: 0.3 } },
+  { test: 'test-B', metrics: { exec_time: 2.0, compile_time: 0.5 } },
+  { test: 'test-C', metrics: { exec_time: 3.0, compile_time: 0.7 } },
 ];
 
 describe('runDetailPage', () => {
@@ -68,6 +69,7 @@ describe('runDetailPage', () => {
 
     (getRun as ReturnType<typeof vi.fn>).mockResolvedValue(mockRun);
     (getFields as ReturnType<typeof vi.fn>).mockResolvedValue(mockFields);
+    (getProfilesForRun as ReturnType<typeof vi.fn>).mockResolvedValue([]);
     (apiUrl as ReturnType<typeof vi.fn>).mockReturnValue(`/api/v5/nts/runs/${TEST_UUID}/samples`);
     (fetchOneCursorPage as ReturnType<typeof vi.fn>).mockResolvedValue({
       items: mockSamples,
@@ -252,5 +254,94 @@ describe('runDetailPage', () => {
 
     runDetailPage.mount(container, { testsuite: 'nts', uuid: TEST_UUID });
     expect(() => runDetailPage.unmount!()).not.toThrow();
+  });
+
+  it('calls getProfilesForRun alongside getRun and getFields', async () => {
+    runDetailPage.mount(container, { testsuite: 'nts', uuid: TEST_UUID });
+
+    await vi.waitFor(() => {
+      expect(getProfilesForRun).toHaveBeenCalledWith('nts', TEST_UUID, expect.anything());
+    });
+  });
+
+  it('shows Profile column when profiles exist', async () => {
+    (getProfilesForRun as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { test: 'test-A', uuid: 'prof-1' },
+    ]);
+
+    runDetailPage.mount(container, { testsuite: 'nts', uuid: TEST_UUID });
+
+    await vi.waitFor(() => {
+      const ths = container.querySelectorAll('th');
+      const labels = Array.from(ths).map(th => th.textContent);
+      expect(labels).toContain('Profile');
+    });
+  });
+
+  it('does not show Profile column when no profiles exist', async () => {
+    (getProfilesForRun as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+
+    runDetailPage.mount(container, { testsuite: 'nts', uuid: TEST_UUID });
+
+    await vi.waitFor(() => {
+      const ths = container.querySelectorAll('th');
+      const labels = Array.from(ths).map(th => th.textContent);
+      expect(labels).not.toContain('Profile');
+    });
+  });
+
+  it('renders profile link for tests with profiles', async () => {
+    (getProfilesForRun as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { test: 'test-A', uuid: 'prof-1' },
+    ]);
+
+    runDetailPage.mount(container, { testsuite: 'nts', uuid: TEST_UUID });
+
+    await vi.waitFor(() => {
+      const links = container.querySelectorAll('.col-profile a');
+      expect(links.length).toBeGreaterThan(0);
+      const firstLink = links[0] as HTMLAnchorElement;
+      expect(firstLink.textContent).toBe('View');
+      expect(firstLink.getAttribute('href')).toContain('/profiles');
+      expect(firstLink.getAttribute('href')).toContain('run_a=' + TEST_UUID);
+      expect(firstLink.getAttribute('href')).toContain('test_a=test-A');
+      expect(firstLink.getAttribute('href')).toContain('suite_a=nts');
+    });
+  });
+
+  it('does not render profile link for tests without profiles', async () => {
+    (getProfilesForRun as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { test: 'test-A', uuid: 'prof-1' },
+    ]);
+
+    runDetailPage.mount(container, { testsuite: 'nts', uuid: TEST_UUID });
+
+    await vi.waitFor(() => {
+      // test-B and test-C should have empty profile cells
+      const rows = container.querySelectorAll('tbody tr');
+      for (const row of rows) {
+        const testCell = row.querySelector('td');
+        if (testCell && (testCell.textContent === 'test-B' || testCell.textContent === 'test-C')) {
+          const profileCell = row.querySelector('.col-profile');
+          if (profileCell) {
+            expect(profileCell.querySelector('a')).toBeNull();
+          }
+        }
+      }
+    });
+  });
+
+  it('handles profile fetch failure gracefully', async () => {
+    (getProfilesForRun as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('network error'));
+
+    runDetailPage.mount(container, { testsuite: 'nts', uuid: TEST_UUID });
+
+    await vi.waitFor(() => {
+      // Page should still render without error
+      const ths = container.querySelectorAll('th');
+      const labels = Array.from(ths).map(th => th.textContent);
+      // No Profile column since fetch failed → empty array → size 0
+      expect(labels).not.toContain('Profile');
+    });
   });
 });

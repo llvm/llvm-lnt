@@ -29,11 +29,11 @@ describe('renderNav (suite-agnostic context)', () => {
     urlBase: '',
   };
 
-  it('renders left-side nav links: Test Suites, Graph, Compare', () => {
+  it('renders left-side nav links: Test Suites, Graph, Compare, Profiles', () => {
     const nav = renderNav(config);
     const links = nav.querySelectorAll('.v5-nav-links .v5-nav-link[data-path]');
     const labels = Array.from(links).map(l => l.textContent);
-    expect(labels).toEqual(['Test Suites', 'Graph', 'Compare']);
+    expect(labels).toEqual(['Test Suites', 'Graph', 'Compare', 'Profiles']);
   });
 
   it('renders API link with target="_blank"', () => {
@@ -109,6 +109,16 @@ describe('renderNav (suite-agnostic context)', () => {
     expect(navigate).toHaveBeenCalledWith('/compare');
   });
 
+  it('clicking Profiles calls navigate("/profiles")', () => {
+    const nav = renderNav(config);
+    document.body.append(nav);
+
+    const link = Array.from(nav.querySelectorAll('.v5-nav-link[data-path]'))
+      .find(l => l.textContent === 'Profiles') as HTMLAnchorElement;
+    link.click();
+    expect(navigate).toHaveBeenCalledWith('/profiles');
+  });
+
   it('clicking Admin calls navigate("/admin")', () => {
     const nav = renderNav(config);
     document.body.append(nav);
@@ -179,7 +189,7 @@ describe('renderNav (suite-scoped context)', () => {
     const nav = renderNav(config);
     const leftLinks = nav.querySelectorAll('.v5-nav-links .v5-nav-link[data-path]');
     const leftLabels = Array.from(leftLinks).map(l => l.textContent);
-    expect(leftLabels).toEqual(['Test Suites', 'Graph', 'Compare']);
+    expect(leftLabels).toEqual(['Test Suites', 'Graph', 'Compare', 'Profiles']);
 
     const rightLinks = nav.querySelectorAll('.v5-nav-right .v5-nav-link');
     const rightLabels = Array.from(rightLinks).map(l => l.textContent);
@@ -223,6 +233,13 @@ describe('renderNav (suite-scoped context)', () => {
     const link = Array.from(nav.querySelectorAll('.v5-nav-link[data-path]'))
       .find(l => l.textContent === 'Compare') as HTMLAnchorElement;
     expect(link.getAttribute('href')).toBe('/v5/compare?suite_a=nts');
+  });
+
+  it('Profiles link href includes ?suite_a=nts', () => {
+    const nav = renderNav(config);
+    const link = Array.from(nav.querySelectorAll('.v5-nav-link[data-path]'))
+      .find(l => l.textContent === 'Profiles') as HTMLAnchorElement;
+    expect(link.getAttribute('href')).toBe('/v5/profiles?suite_a=nts');
   });
 
   it('clicking Admin does NOT call navigate() (full-page nav)', () => {
@@ -282,6 +299,16 @@ describe('updateActiveNavLink', () => {
     updateActiveNavLink('/compare');
 
     const link = document.querySelector('[data-path="/compare"]');
+    expect(link?.classList.contains('v5-nav-link-active')).toBe(true);
+  });
+
+  it('highlights Profiles for /profiles path', () => {
+    const nav = renderNav(config);
+    document.body.append(nav);
+
+    updateActiveNavLink('/profiles');
+
+    const link = document.querySelector('[data-path="/profiles"]');
     expect(link?.classList.contains('v5-nav-link-active')).toBe(true);
   });
 

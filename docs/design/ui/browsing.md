@@ -128,8 +128,13 @@ prompt (below the action row) requiring the user to type the first 8 characters
 of the run UUID. Deletion requires a valid API token with `manage` scope. On
 success, navigates to the machine detail page.
 
-**Links out**: Machine Detail, Commit Detail, Graph (test pre-filled), Profile,
-Compare (side A pre-selected).
+**Profile links**: Tests with profiles show a "Profile" link/icon in the
+samples table. Profile presence is determined by calling
+`GET /runs/{uuid}/profiles` (fetched once on page load, cached). The link
+navigates to `/v5/profiles?suite_a={ts}&run_a={uuid}&test_a={test}`.
+
+**Links out**: Machine Detail, Commit Detail, Graph (test pre-filled),
+Profiles (pre-populated with run + test), Compare (side A pre-selected).
 
 
 ## Commit Detail -- `/v5/{ts}/commits/{value}`

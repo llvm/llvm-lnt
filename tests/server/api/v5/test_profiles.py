@@ -1,392 +1,410 @@
 # Tests for the v5 profile endpoints.
 #
-# TODO: Profiles are not tested right now because we haven't implemented them in v5 yet.
-# RUN: true
-# END.
-#
 # RUN: rm -rf %t.instance %t.pg.log
 # RUN: %{utils}/with_postgres.sh %t.pg.log \
-# RUN:     %{utils}/with_temporary_instance.py %t.instance \
+# RUN:     %{utils}/with_temporary_instance.py --db-version 5.0 %t.instance \
 # RUN:         -- python %s %t.instance
 # END.
 
-import base64
 import os
-import pickle
 import sys
 import unittest
 import uuid
-import zlib
 
 sys.path.insert(0, os.path.dirname(__file__))
-from v5_test_helpers import (
-    create_app, create_client, make_scoped_headers,
-    create_machine, create_order, create_run, create_test, create_sample,
+from v5_test_helpers import (  # noqa: E402
+    create_app, create_client, admin_headers, make_scoped_headers,
+    submit_run, make_profile_base64,
 )
 
 TS = 'nts'
 PREFIX = f'/api/v5/{TS}'
 
-# Sample profile data in the ProfileV1 format
-SAMPLE_PROFILE_DATA = {
-    'counters': {'cycles': 12345.0, 'branch-misses': 200.0},
-    'disassembly-format': 'raw',
-    'functions': {
-        'main': {
-            'counters': {'cycles': 80.0, 'branch-misses': 10.0},
-            'data': [
-                [0x1000, {'cycles': 50.0}, '\tadd r0, r0, r1'],
-                [0x1004, {'cycles': 30.0}, '\tmov r2, r3'],
-            ],
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _submit_run_with_profile(client, tag=None):
+    """Submit a run with a profiled test.  Returns (run_uuid, test_name)."""
+    suffix = tag or uuid.uuid4().hex[:8]
+    machine_name = f'prof-machine-{suffix}'
+    commit = f'prof-commit-{suffix}'
+    test_name = f'test.suite/profiled-{suffix}'
+    profile_b64 = make_profile_base64()
+
+    data = submit_run(client, machine_name, commit, [
+        {
+            'name': test_name,
+            'execution_time': 1.23,
+            'profile': profile_b64,
         },
-        'helper_func': {
-            'counters': {'cycles': 20.0, 'branch-misses': 5.0},
-            'data': [
-                [0x2000, {'cycles': 20.0}, '\tret'],
-            ],
-        },
-    },
-}
+    ])
+    return data['run_uuid'], test_name
 
 
-def _make_encoded_profile(profile_data=None):
-    """Create a base64-encoded profile string suitable for the Profile
-    constructor.
+# ---------------------------------------------------------------------------
+# Profile listing
+# ---------------------------------------------------------------------------
 
-    Returns a base64-encoded string of zlib-compressed pickled profile data.
-    """
-    if profile_data is None:
-        profile_data = SAMPLE_PROFILE_DATA
-    compressed = zlib.compress(pickle.dumps(profile_data))
-    return base64.b64encode(compressed).decode('ascii')
+class TestProfileListing(unittest.TestCase):
+    """Tests for GET /api/v5/{ts}/runs/{uuid}/profiles."""
 
-
-class _MockConfig(object):
-    """Mock config object for Profile.__init__.
-
-    Profile.__init__ accesses config.config.profileDir.
-    """
-    def __init__(self, profile_dir):
-        self.config = self
-        self.profileDir = profile_dir
-
-
-def _create_sample_with_profile(session, ts, run, test, profile_dir):
-    """Create a sample with an associated profile record on disk.
-
-    Returns the created sample.
-    """
-    encoded = _make_encoded_profile()
-    config = _MockConfig(profile_dir)
-    profile_obj = ts.Profile(encoded, config, test.name)
-    session.add(profile_obj)
-    session.flush()
-
-    # Create Sample linked to this profile
-    sample = ts.Sample(run, test)
-    sample.profile_id = profile_obj.id
-    session.add(sample)
-    session.flush()
-    return sample
-
-
-def _setup_run_with_profile(app):
-    """Create a run with a profiled sample. Returns (run_uuid, test_name)."""
-    db = app.instance.get_database("default")
-    session = db.make_session()
-    ts = db.testsuite['nts']
-
-    machine = create_machine(
-        session, ts, f'profile-machine-{uuid.uuid4().hex[:8]}')
-    order = create_order(
-        session, ts, revision=f'prof-rev-{uuid.uuid4().hex[:8]}')
-    run = create_run(session, ts, machine, order)
-    test = create_test(
-        session, ts, f'test.suite/profiled-{uuid.uuid4().hex[:8]}')
-
-    profile_dir = app.old_config.profileDir
-    _create_sample_with_profile(session, ts, run, test, profile_dir)
-
-    session.commit()
-    run_uuid = run.uuid
-    test_name = test.name
-    session.close()
-    return run_uuid, test_name
-
-
-class TestProfileMetadata(unittest.TestCase):
-    """Tests for GET /api/v5/{ts}/runs/{uuid}/tests/{test_name}/profile."""
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.app = create_app(sys.argv[1])
         cls.client = create_client(cls.app)
+        cls._run_uuid, cls._test_name = _submit_run_with_profile(
+            cls.client, tag='listing')
 
-    def test_profile_metadata(self):
-        """Get profile metadata with top-level counters."""
-        run_uuid, test_name = _setup_run_with_profile(self.app)
-
+    def test_list_profiles(self):
+        """Run with profile -> listing returns [{test, uuid}]."""
         resp = self.client.get(
-            PREFIX + f'/runs/{run_uuid}/tests/{test_name}/profile')
+            PREFIX + f'/runs/{self._run_uuid}/profiles')
         self.assertEqual(resp.status_code, 200)
         data = resp.get_json()
-        self.assertEqual(data['test'], test_name)
-        self.assertIn('counters', data)
-        self.assertIn('cycles', data['counters'])
-        self.assertEqual(data['counters']['cycles'], 12345.0)
+        self.assertIsInstance(data, list)
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]['test'], self._test_name)
+        self.assertIn('uuid', data[0])
 
-    def test_profile_nonexistent_run(self):
-        """404 for a nonexistent run UUID."""
-        fake_uuid = str(uuid.uuid4())
+    def test_list_profiles_empty(self):
+        """Run with no profiles -> empty list."""
+        data = submit_run(self.client, 'no-prof-machine', 'no-prof-commit', [
+            {'name': 'test.suite/no-profile', 'execution_time': 1.0},
+        ])
         resp = self.client.get(
-            PREFIX + f'/runs/{fake_uuid}/tests/some.test/profile')
-        self.assertEqual(resp.status_code, 404)
+            PREFIX + f'/runs/{data["run_uuid"]}/profiles')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.get_json(), [])
 
-    def test_profile_nonexistent_test(self):
-        """404 for a nonexistent test name."""
-        # Create a real run
-        db = self.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite['nts']
-        machine = create_machine(
-            session, ts, f'pne-machine-{uuid.uuid4().hex[:8]}')
-        order = create_order(
-            session, ts, revision=f'pne-rev-{uuid.uuid4().hex[:8]}')
-        run = create_run(session, ts, machine, order)
-        session.commit()
-        run_uuid = run.uuid
-        session.close()
-
+    def test_list_profiles_nonexistent_run(self):
+        """Nonexistent run UUID -> 404."""
         resp = self.client.get(
-            PREFIX + f'/runs/{run_uuid}/tests/no.such.test/profile')
-        self.assertEqual(resp.status_code, 404)
-
-    def test_profile_no_profile_data(self):
-        """404 when the sample exists but has no profile."""
-        db = self.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite['nts']
-        machine = create_machine(
-            session, ts, f'noprof-machine-{uuid.uuid4().hex[:8]}')
-        order = create_order(
-            session, ts, revision=f'noprof-rev-{uuid.uuid4().hex[:8]}')
-        run = create_run(session, ts, machine, order)
-        test = create_test(
-            session, ts, f'test.suite/noprofile-{uuid.uuid4().hex[:8]}')
-        create_sample(session, ts, run, test)
-        session.commit()
-        run_uuid = run.uuid
-        test_name = test.name
-        session.close()
-
-        resp = self.client.get(
-            PREFIX + f'/runs/{run_uuid}/tests/{test_name}/profile')
+            PREFIX + f'/runs/{uuid.uuid4()}/profiles')
         self.assertEqual(resp.status_code, 404)
 
 
-class TestProfileFunctions(unittest.TestCase):
-    """Tests for GET /runs/{uuid}/tests/{test_name}/profile/functions."""
+# ---------------------------------------------------------------------------
+# Profile submission via POST /runs
+# ---------------------------------------------------------------------------
+
+class TestProfileSubmission(unittest.TestCase):
+    """Tests for profile submission as part of run submission."""
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.app = create_app(sys.argv[1])
         cls.client = create_client(cls.app)
 
-    def test_function_list(self):
-        """Get list of functions with counters."""
-        run_uuid, test_name = _setup_run_with_profile(self.app)
-
+    def test_submit_with_profile(self):
+        """Profile field in test entry creates a Profile row."""
+        run_uuid, test_name = _submit_run_with_profile(
+            self.client, tag='submit-ok')
         resp = self.client.get(
-            PREFIX + f'/runs/{run_uuid}/tests/{test_name}/profile/functions')
+            PREFIX + f'/runs/{run_uuid}/profiles')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]['test'], test_name)
+
+    def test_submit_without_profile(self):
+        """No profile field -> no profiles created."""
+        data = submit_run(self.client, 'no-prof-m2', 'no-prof-c2', [
+            {'name': 'test.suite/noprof2', 'execution_time': 2.0},
+        ])
+        resp = self.client.get(
+            PREFIX + f'/runs/{data["run_uuid"]}/profiles')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.get_json(), [])
+
+    def test_submit_invalid_base64(self):
+        """Invalid base64 in profile -> 400."""
+        resp = self.client.post(
+            f'/api/v5/{TS}/runs',
+            json={
+                'format_version': '5',
+                'machine': {'name': 'bad-b64-machine'},
+                'commit': 'bad-b64-commit',
+                'tests': [
+                    {'name': 'test.suite/bad-b64', 'profile': '!!!not-base64!!!'},
+                ],
+            },
+            headers=admin_headers(),
+        )
+        self.assertIn(resp.status_code, (400, 422))
+
+    def test_profile_not_in_sample_metrics(self):
+        """The 'profile' key should not appear as a metric in samples."""
+        run_uuid, test_name = _submit_run_with_profile(
+            self.client, tag='not-in-metric')
+        resp = self.client.get(
+            PREFIX + f'/runs/{run_uuid}/samples')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        for sample in data['items']:
+            self.assertNotIn('profile', sample.get('metrics', {}))
+
+    def test_duplicate_profile_for_same_run_test(self):
+        """Submitting a second run with the same commit+machine but a
+        different profile for the same test should create a separate profile
+        (different run).  The unique constraint is per (run_id, test_id),
+        not per (commit, test)."""
+        suffix = uuid.uuid4().hex[:8]
+        machine = f'dup-machine-{suffix}'
+        commit = f'dup-commit-{suffix}'
+        test_name = f'test.suite/dup-{suffix}'
+        profile_b64 = make_profile_base64()
+
+        # Two separate run submissions for the same machine+commit+test
+        r1 = submit_run(self.client, machine, commit, [
+            {'name': test_name, 'execution_time': 1.0, 'profile': profile_b64},
+        ])
+        r2 = submit_run(self.client, machine, commit, [
+            {'name': test_name, 'execution_time': 2.0, 'profile': profile_b64},
+        ])
+
+        # Each run should have its own profile
+        resp1 = self.client.get(PREFIX + f'/runs/{r1["run_uuid"]}/profiles')
+        resp2 = self.client.get(PREFIX + f'/runs/{r2["run_uuid"]}/profiles')
+        self.assertEqual(len(resp1.get_json()), 1)
+        self.assertEqual(len(resp2.get_json()), 1)
+        # Different profile UUIDs
+        self.assertNotEqual(
+            resp1.get_json()[0]['uuid'], resp2.get_json()[0]['uuid'])
+
+
+# ---------------------------------------------------------------------------
+# Profile metadata
+# ---------------------------------------------------------------------------
+
+class TestProfileMetadata(unittest.TestCase):
+    """Tests for GET /api/v5/{ts}/profiles/{uuid}."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+        run_uuid, cls._test_name = _submit_run_with_profile(
+            cls.client, tag='metadata')
+        # Get the profile UUID from the listing
+        resp = cls.client.get(PREFIX + f'/runs/{run_uuid}/profiles')
+        cls._profile_uuid = resp.get_json()[0]['uuid']
+        cls._run_uuid = run_uuid
+
+    def test_metadata(self):
+        """Get profile metadata with correct fields."""
+        resp = self.client.get(
+            PREFIX + f'/profiles/{self._profile_uuid}')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertEqual(data['uuid'], self._profile_uuid)
+        self.assertEqual(data['test'], self._test_name)
+        self.assertEqual(data['run_uuid'], self._run_uuid)
+        self.assertIn('counters', data)
+        self.assertEqual(data['counters']['cycles'], 1000)
+        self.assertEqual(data['counters']['branch-misses'], 50)
+        self.assertEqual(data['disassembly_format'], 'raw')
+
+    def test_metadata_nonexistent_uuid(self):
+        """Nonexistent profile UUID -> 404."""
+        resp = self.client.get(
+            PREFIX + f'/profiles/{uuid.uuid4()}')
+        self.assertEqual(resp.status_code, 404)
+
+
+# ---------------------------------------------------------------------------
+# Profile functions
+# ---------------------------------------------------------------------------
+
+class TestProfileFunctions(unittest.TestCase):
+    """Tests for GET /api/v5/{ts}/profiles/{uuid}/functions."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+        run_uuid, _ = _submit_run_with_profile(cls.client, tag='functions')
+        resp = cls.client.get(PREFIX + f'/runs/{run_uuid}/profiles')
+        cls._profile_uuid = resp.get_json()[0]['uuid']
+
+    def test_function_list(self):
+        """Functions endpoint returns sorted list."""
+        resp = self.client.get(
+            PREFIX + f'/profiles/{self._profile_uuid}/functions')
         self.assertEqual(resp.status_code, 200)
         data = resp.get_json()
         self.assertIn('functions', data)
-        self.assertIsInstance(data['functions'], list)
-        self.assertEqual(len(data['functions']), 2)
+        funcs = data['functions']
+        self.assertEqual(len(funcs), 2)
 
-        fn_names = {f['name'] for f in data['functions']}
+        fn_names = [f['name'] for f in funcs]
         self.assertIn('main', fn_names)
-        self.assertIn('helper_func', fn_names)
+        self.assertIn('helper', fn_names)
 
-        for fn in data['functions']:
+        # Sorted by total counter value descending (main > helper)
+        self.assertEqual(funcs[0]['name'], 'main')
+
+        for fn in funcs:
             self.assertIn('counters', fn)
             self.assertIn('length', fn)
             self.assertIsInstance(fn['counters'], dict)
 
-    def test_function_list_nonexistent_run(self):
-        """404 for a nonexistent run UUID."""
-        fake_uuid = str(uuid.uuid4())
-        resp = self.client.get(
-            PREFIX + f'/runs/{fake_uuid}/tests/some.test/profile/functions')
-        self.assertEqual(resp.status_code, 404)
 
-    def test_function_list_no_profile(self):
-        """404 when sample has no profile."""
-        db = self.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite['nts']
-        machine = create_machine(
-            session, ts, f'fnlist-machine-{uuid.uuid4().hex[:8]}')
-        order = create_order(
-            session, ts, revision=f'fnlist-rev-{uuid.uuid4().hex[:8]}')
-        run = create_run(session, ts, machine, order)
-        test = create_test(
-            session, ts,
-            f'test.suite/fnlist-noprof-{uuid.uuid4().hex[:8]}')
-        create_sample(session, ts, run, test)
-        session.commit()
-        run_uuid = run.uuid
-        test_name = test.name
-        session.close()
-
-        resp = self.client.get(
-            PREFIX + f'/runs/{run_uuid}/tests/{test_name}/profile/functions')
-        self.assertEqual(resp.status_code, 404)
-
+# ---------------------------------------------------------------------------
+# Profile function detail
+# ---------------------------------------------------------------------------
 
 class TestProfileFunctionDetail(unittest.TestCase):
-    """Tests for GET /.../profile/functions/{fn_name}."""
+    """Tests for GET /api/v5/{ts}/profiles/{uuid}/functions/{fn_name}."""
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.app = create_app(sys.argv[1])
         cls.client = create_client(cls.app)
+        run_uuid, _ = _submit_run_with_profile(cls.client, tag='fndetail')
+        resp = cls.client.get(PREFIX + f'/runs/{run_uuid}/profiles')
+        cls._profile_uuid = resp.get_json()[0]['uuid']
 
     def test_function_detail(self):
         """Get disassembly for a specific function."""
-        run_uuid, test_name = _setup_run_with_profile(self.app)
-
         resp = self.client.get(
-            PREFIX + f'/runs/{run_uuid}/tests/{test_name}/profile/functions/main')
+            PREFIX + f'/profiles/{self._profile_uuid}/functions/main')
         self.assertEqual(resp.status_code, 200)
         data = resp.get_json()
         self.assertEqual(data['name'], 'main')
         self.assertIn('counters', data)
-        self.assertIn('disassembly_format', data)
         self.assertEqual(data['disassembly_format'], 'raw')
         self.assertIn('instructions', data)
-        self.assertIsInstance(data['instructions'], list)
         self.assertEqual(len(data['instructions']), 2)
 
         inst = data['instructions'][0]
         self.assertIn('address', inst)
         self.assertIn('counters', inst)
         self.assertIn('text', inst)
+        self.assertEqual(inst['address'], 0x1000)
+        self.assertEqual(inst['text'], 'push rbp')
 
-    def test_function_detail_nonexistent_function(self):
-        """404 for a function name not in the profile."""
-        run_uuid, test_name = _setup_run_with_profile(self.app)
-
+    def test_function_detail_nonexistent(self):
+        """404 for a function not in the profile."""
         resp = self.client.get(
-            PREFIX + f'/runs/{run_uuid}/tests/{test_name}/profile/functions/no_such_fn')
+            PREFIX + f'/profiles/{self._profile_uuid}/functions/no_such_fn')
         self.assertEqual(resp.status_code, 404)
 
-    def test_function_detail_nonexistent_run(self):
-        """404 for a nonexistent run UUID."""
-        fake_uuid = str(uuid.uuid4())
-        resp = self.client.get(
-            PREFIX + f'/runs/{fake_uuid}/tests/some.test/profile/functions/main')
-        self.assertEqual(resp.status_code, 404)
 
-    def test_function_detail_no_profile(self):
-        """404 when sample has no profile."""
-        db = self.app.instance.get_database("default")
-        session = db.make_session()
-        ts = db.testsuite['nts']
-        machine = create_machine(
-            session, ts, f'fndet-machine-{uuid.uuid4().hex[:8]}')
-        order = create_order(
-            session, ts, revision=f'fndet-rev-{uuid.uuid4().hex[:8]}')
-        run = create_run(session, ts, machine, order)
-        test = create_test(
-            session, ts,
-            f'test.suite/fndet-noprof-{uuid.uuid4().hex[:8]}')
-        create_sample(session, ts, run, test)
-        session.commit()
-        run_uuid = run.uuid
-        test_name = test.name
-        session.close()
-
-        resp = self.client.get(
-            PREFIX + f'/runs/{run_uuid}/tests/{test_name}/profile/functions/main')
-        self.assertEqual(resp.status_code, 404)
-
+# ---------------------------------------------------------------------------
+# Auth
+# ---------------------------------------------------------------------------
 
 class TestProfileAuth(unittest.TestCase):
-    """Auth tests for profile endpoints (all use @require_scope('read'))."""
+    """Auth tests for profile endpoints (all require read scope)."""
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.app = create_app(sys.argv[1])
         cls.client = create_client(cls.app)
-        cls._run_uuid, cls._test_name = _setup_run_with_profile(cls.app)
+        run_uuid, _ = _submit_run_with_profile(cls.client, tag='auth')
+        resp = cls.client.get(PREFIX + f'/runs/{run_uuid}/profiles')
+        cls._profile_uuid = resp.get_json()[0]['uuid']
+        cls._run_uuid = run_uuid
 
-    def test_profile_metadata_no_auth_allowed(self):
-        """Unauthenticated GET for profile metadata is allowed by default."""
+    def test_listing_no_auth_allowed(self):
         resp = self.client.get(
-            PREFIX + f'/runs/{self._run_uuid}/tests/{self._test_name}/profile')
+            PREFIX + f'/runs/{self._run_uuid}/profiles')
         self.assertEqual(resp.status_code, 200)
 
-    def test_profile_metadata_read_scope_allowed(self):
-        """A valid read-scoped token works for profile metadata."""
+    def test_metadata_read_scope(self):
         headers = make_scoped_headers(self.app, 'read')
         resp = self.client.get(
-            PREFIX + f'/runs/{self._run_uuid}/tests/{self._test_name}/profile',
+            PREFIX + f'/profiles/{self._profile_uuid}',
             headers=headers)
         self.assertEqual(resp.status_code, 200)
 
-    def test_profile_functions_no_auth_allowed(self):
-        """Unauthenticated GET for profile functions is allowed by default."""
+    def test_functions_no_auth_allowed(self):
         resp = self.client.get(
-            PREFIX + f'/runs/{self._run_uuid}/tests/{self._test_name}/profile/functions')
+            PREFIX + f'/profiles/{self._profile_uuid}/functions')
         self.assertEqual(resp.status_code, 200)
 
-    def test_profile_functions_read_scope_allowed(self):
-        """A valid read-scoped token works for profile functions."""
-        headers = make_scoped_headers(self.app, 'read')
+    def test_function_detail_no_auth_allowed(self):
         resp = self.client.get(
-            PREFIX + f'/runs/{self._run_uuid}/tests/{self._test_name}/profile/functions',
-            headers=headers)
+            PREFIX + f'/profiles/{self._profile_uuid}/functions/main')
         self.assertEqual(resp.status_code, 200)
 
-    def test_profile_function_detail_no_auth_allowed(self):
-        """Unauthenticated GET for function detail is allowed by default."""
-        resp = self.client.get(
-            PREFIX + f'/runs/{self._run_uuid}/tests/{self._test_name}/profile/functions/main')
-        self.assertEqual(resp.status_code, 200)
 
-    def test_profile_function_detail_read_scope_allowed(self):
-        """A valid read-scoped token works for function detail."""
-        headers = make_scoped_headers(self.app, 'read')
-        resp = self.client.get(
-            PREFIX + f'/runs/{self._run_uuid}/tests/{self._test_name}/profile/functions/main',
-            headers=headers)
-        self.assertEqual(resp.status_code, 200)
-
+# ---------------------------------------------------------------------------
+# Unknown params
+# ---------------------------------------------------------------------------
 
 class TestProfileUnknownParams(unittest.TestCase):
-    """Test that unknown query parameters are rejected with 400."""
+    """Unknown query parameters are rejected with 400."""
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.app = create_app(sys.argv[1])
         cls.client = create_client(cls.app)
-        cls._run_uuid, cls._test_name = _setup_run_with_profile(cls.app)
+        run_uuid, _ = _submit_run_with_profile(cls.client, tag='unkparams')
+        resp = cls.client.get(PREFIX + f'/runs/{run_uuid}/profiles')
+        cls._profile_uuid = resp.get_json()[0]['uuid']
+        cls._run_uuid = run_uuid
 
-    def test_profile_metadata_unknown_param_returns_400(self):
+    def test_listing_unknown_param(self):
         resp = self.client.get(
-            PREFIX + f'/runs/{self._run_uuid}/tests/{self._test_name}/profile?bogus=1')
+            PREFIX + f'/runs/{self._run_uuid}/profiles?bogus=1')
         self.assertEqual(resp.status_code, 400)
 
-    def test_profile_functions_unknown_param_returns_400(self):
+    def test_metadata_unknown_param(self):
         resp = self.client.get(
-            PREFIX + f'/runs/{self._run_uuid}/tests/{self._test_name}/profile/functions?bogus=1')
+            PREFIX + f'/profiles/{self._profile_uuid}?bogus=1')
         self.assertEqual(resp.status_code, 400)
 
-    def test_profile_function_detail_unknown_param_returns_400(self):
+    def test_functions_unknown_param(self):
         resp = self.client.get(
-            PREFIX + f'/runs/{self._run_uuid}/tests/{self._test_name}/profile/functions/main?bogus=1')
+            PREFIX + f'/profiles/{self._profile_uuid}/functions?bogus=1')
         self.assertEqual(resp.status_code, 400)
+
+    def test_function_detail_unknown_param(self):
+        resp = self.client.get(
+            PREFIX + f'/profiles/{self._profile_uuid}/functions/main?bogus=1')
+        self.assertEqual(resp.status_code, 400)
+
+
+# ---------------------------------------------------------------------------
+# Cascade delete
+# ---------------------------------------------------------------------------
+
+class TestProfileCascadeDelete(unittest.TestCase):
+    """Deleting a run should cascade to its profiles."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+
+    def test_delete_run_cascades_to_profiles(self):
+        run_uuid, _ = _submit_run_with_profile(self.client, tag='cascade')
+
+        # Verify profile exists
+        resp = self.client.get(PREFIX + f'/runs/{run_uuid}/profiles')
+        self.assertEqual(len(resp.get_json()), 1)
+        profile_uuid = resp.get_json()[0]['uuid']
+
+        # Delete the run
+        resp = self.client.delete(
+            PREFIX + f'/runs/{run_uuid}', headers=admin_headers())
+        self.assertEqual(resp.status_code, 204)
+
+        # Profile should be gone
+        resp = self.client.get(
+            PREFIX + f'/profiles/{profile_uuid}')
+        self.assertEqual(resp.status_code, 404)
 
 
 if __name__ == '__main__':

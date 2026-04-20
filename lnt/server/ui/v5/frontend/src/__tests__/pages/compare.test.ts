@@ -46,8 +46,8 @@ const mockFields: FieldInfo[] = [
 ];
 
 const mockSamples: SampleInfo[] = [
-  { test: 'test-A', has_profile: false, metrics: { exec_time: 10.0 } },
-  { test: 'test-B', has_profile: false, metrics: { exec_time: 20.0 } },
+  { test: 'test-A', metrics: { exec_time: 10.0 } },
+  { test: 'test-B', metrics: { exec_time: 20.0 } },
 ];
 
 const savedLocation = window.location;

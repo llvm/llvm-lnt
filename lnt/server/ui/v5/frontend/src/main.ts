@@ -16,6 +16,7 @@ import { graphPage } from './pages/graph';
 import { comparePage } from './pages/compare';
 import { regressionDetailPage } from './pages/regression-detail';
 import { adminPage } from './pages/admin';
+import { profilesPage } from './pages/profiles';
 import type { PageModule } from './router';
 
 declare const lnt_url_base: string;
@@ -63,6 +64,7 @@ function init(): void {
     addRoute('/admin', adminPage);
     addRoute('/graph', graphPage);
     addRoute('/compare', comparePage);
+    addRoute('/profiles', profilesPage);
 
     const basePath = `${urlBase}/v5`;
     initRouter(pageContainer, basePath, updateActiveNavLink, { testsuite: '', testsuites, urlBase });

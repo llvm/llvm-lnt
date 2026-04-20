@@ -12,9 +12,9 @@
 // Samples are fetched from the side's suite. The comparison joins on test name.
 
 import type { PageModule, RouteParams } from '../router';
-import type { ComparisonRow, SampleInfo, RegressionListItem } from '../types';
+import type { ComparisonRow, SampleInfo, RegressionListItem, ProfileListItem } from '../types';
 import { getTestsuites } from '../router';
-import { getSamples, createRegression, addRegressionIndicators, getRegressions, getToken, authErrorMessage } from '../api';
+import { getSamples, getProfilesForRun, createRegression, addRegressionIndicators, getRegressions, getToken, authErrorMessage } from '../api';
 import {
   CHART_ZOOM, CHART_HOVER, TABLE_HOVER,
   TEST_FILTER_CHANGE, SETTINGS_CHANGE,
@@ -37,6 +37,10 @@ let eventCleanups: Array<() => void> = [];
 let fetchController: AbortController | null = null;
 /** Per-run sample cache: run UUID → samples. */
 let sampleCache = new Map<string, SampleInfo[]>();
+/** Per-run profile cache: run UUID → profile list items. */
+let profileCache = new Map<string, ProfileListItem[]>();
+/** Cached profile links (invalidated when profileCache or runs change). */
+let cachedProfileLinks: Map<string, string> | undefined = undefined;
 /** Tests manually hidden by the user (click toggle). */
 let manuallyHidden = new Set<string>();
 /** Callback invoked after every table/chart render (used by regression panel). */
@@ -93,12 +97,60 @@ export const comparePage: PageModule = {
         .map(r => r.test);
     }
 
+    function buildProfileLinks(): Map<string, string> | undefined {
+      if (cachedProfileLinks !== undefined) return cachedProfileLinks;
+
+      const state = getState();
+      const repA = state.sideA.runs[state.sideA.runs.length - 1];
+      const repB = state.sideB.runs[state.sideB.runs.length - 1];
+      const suiteA = state.sideA.suite;
+      const suiteB = state.sideB.suite;
+      const profilesA = repA ? profileCache.get(repA) ?? [] : [];
+      const profilesB = repB ? profileCache.get(repB) ?? [] : [];
+
+      if (profilesA.length === 0 && profilesB.length === 0) {
+        cachedProfileLinks = undefined;
+        return undefined;
+      }
+
+      const profileSetA = new Set(profilesA.map(p => p.test));
+      const profileSetB = new Set(profilesB.map(p => p.test));
+      const links = new Map<string, string>();
+
+      for (const test of new Set([...profileSetA, ...profileSetB])) {
+        const hasA = profileSetA.has(test) && repA;
+        const hasB = profileSetB.has(test) && repB;
+        const params = new URLSearchParams();
+
+        if (hasA && hasB && suiteA === suiteB) {
+          params.set('suite_a', suiteA);
+          params.set('run_a', repA);
+          params.set('test_a', test);
+          params.set('suite_b', suiteB);
+          params.set('run_b', repB);
+          params.set('test_b', test);
+        } else if (hasA) {
+          params.set('suite_a', suiteA);
+          params.set('run_a', repA);
+          params.set('test_a', test);
+        } else if (hasB) {
+          params.set('suite_b', suiteB);
+          params.set('run_b', repB);
+          params.set('test_b', test);
+        }
+        links.set(test, `/profiles?${params.toString()}`);
+      }
+      cachedProfileLinks = links.size > 0 ? links : undefined;
+      return cachedProfileLinks;
+    }
+
     function renderTableAndChart(): void {
       const noiseHidden = computeNoiseHidden();
       tableRows = lastRows.filter(r => !noiseHidden.has(r.test));
       const chartRows = tableRows.filter(r => !manuallyHidden.has(r.test));
       renderTable(tableContainer, tableRows, {
         hiddenTests: manuallyHidden,
+        profileLinks: buildProfileLinks(),
         onToggle: (test) => {
           if (manuallyHidden.has(test)) {
             manuallyHidden.delete(test);
@@ -191,6 +243,10 @@ export const comparePage: PageModule = {
       for (const uuid of sampleCache.keys()) {
         if (!allRunUuids.has(uuid)) sampleCache.delete(uuid);
       }
+      for (const uuid of profileCache.keys()) {
+        if (!allRunUuids.has(uuid)) profileCache.delete(uuid);
+      }
+      cachedProfileLinks = undefined;
 
       // Abort any previous fetch
       if (fetchController) fetchController.abort();
@@ -225,6 +281,24 @@ export const comparePage: PageModule = {
           }),
         ),
       ];
+
+      // Fetch profiles for the representative (latest) run on each side
+      const repA = state.sideA.runs[state.sideA.runs.length - 1];
+      const repB = state.sideB.runs[state.sideB.runs.length - 1];
+      if (repA && !profileCache.has(repA)) {
+        fetchPromises.push(
+          getProfilesForRun(state.sideA.suite, repA, signal)
+            .then(profiles => { profileCache.set(repA, profiles); cachedProfileLinks = undefined; })
+            .catch(() => {}),
+        );
+      }
+      if (repB && !profileCache.has(repB)) {
+        fetchPromises.push(
+          getProfilesForRun(state.sideB.suite, repB, signal)
+            .then(profiles => { profileCache.set(repB, profiles); cachedProfileLinks = undefined; })
+            .catch(() => {}),
+        );
+      }
 
       Promise.all(fetchPromises)
         .then(() => {
@@ -531,6 +605,8 @@ export const comparePage: PageModule = {
 
     // Clear state
     sampleCache.clear();
+    profileCache.clear();
+    cachedProfileLinks = undefined;
     manuallyHidden = new Set();
     onAfterRender = null;
 

@@ -4,6 +4,7 @@ import type {
   OffsetPaginated, CommitDetail, CommitResolveResponse, CommitSummary, RunDetail,
   RunInfo, SampleInfo, TestSuiteInfo,
   RegressionListItem, RegressionDetail, RegressionState,
+  ProfileListItem, ProfileMetadata, ProfileFunctionInfo, ProfileFunctionDetail,
 } from './types';
 
 let apiBase = '';
@@ -462,6 +463,59 @@ export async function revokeApiKey(
   return fetchVoid(
     `${apiBase}/api/v5/admin/api-keys/${encodeURIComponent(prefix)}`,
     { method: 'DELETE', signal },
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Profiles
+// ---------------------------------------------------------------------------
+
+/** List profiles for a run (non-paginated). */
+export async function getProfilesForRun(
+  ts: string,
+  runUuid: string,
+  signal?: AbortSignal,
+): Promise<ProfileListItem[]> {
+  return fetchJson<ProfileListItem[]>(
+    apiUrl(ts, `runs/${encodeURIComponent(runUuid)}/profiles`),
+    { signal },
+  );
+}
+
+/** Get profile metadata + top-level counters. */
+export async function getProfileMetadata(
+  ts: string,
+  profileUuid: string,
+  signal?: AbortSignal,
+): Promise<ProfileMetadata> {
+  return fetchJson<ProfileMetadata>(
+    apiUrl(ts, `profiles/${encodeURIComponent(profileUuid)}`),
+    { signal },
+  );
+}
+
+/** Get function list (sorted hottest-first by server). */
+export async function getProfileFunctions(
+  ts: string,
+  profileUuid: string,
+  signal?: AbortSignal,
+): Promise<{ functions: ProfileFunctionInfo[] }> {
+  return fetchJson<{ functions: ProfileFunctionInfo[] }>(
+    apiUrl(ts, `profiles/${encodeURIComponent(profileUuid)}/functions`),
+    { signal },
+  );
+}
+
+/** Get function detail with per-instruction disassembly. */
+export async function getProfileFunctionDetail(
+  ts: string,
+  profileUuid: string,
+  fnName: string,
+  signal?: AbortSignal,
+): Promise<ProfileFunctionDetail> {
+  return fetchJson<ProfileFunctionDetail>(
+    apiUrl(ts, `profiles/${encodeURIComponent(profileUuid)}/functions/${encodeURIComponent(fnName)}`),
+    { signal },
   );
 }
 

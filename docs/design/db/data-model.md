@@ -255,6 +255,32 @@ The DB layer validates state values on create and update.
 - Each indicator represents one (machine, test, metric) combination
   affected by the regression.
 
+### `{suite}_Profile`
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| id | Integer | PK |
+| uuid | String(36) | unique, not null, indexed |
+| run_id | Integer FK -> Run | not null |
+| test_id | Integer FK -> Test | not null, indexed |
+| created_at | DateTime(tz) | not null |
+| data | LargeBinary | not null, deferred |
+
+- Unique constraint on `(run_id, test_id)` -- at most one profile per
+  run+test pair.
+- `data` stores the profile binary blob (base64-decoded on submission).
+  Uses SQLAlchemy `deferred()` so normal queries do not load the blob.
+  Any query that needs the blob must use explicit `undefer(Profile.data)`.
+- `uuid` is server-generated, used by the API for profile data endpoints.
+  Consistent with how Run and Regression have UUIDs for API access.
+- No `counters` cache column -- top-level counters are extracted by
+  deserializing the blob on demand (cheap: the binary format stores
+  counters in an uncompressed section).
+- Cascade: deleting a run cascades to its profiles; deleting a test
+  cascades to its profiles.
+- Maximum accepted profile size on submission: 50 MB (decoded). Submissions
+  exceeding this are rejected with 413.
+
 ### Tables Dropped from v4
 
 - **Baseline**: v5 comparisons are stateless API operations.
@@ -262,5 +288,5 @@ The DB layer validates state values on create and update.
   via the `false_positive` state with notes.
 - **FieldChange**: Dropped. Regressions directly reference affected machines,
   tests, and metrics via RegressionIndicator.
-- **Profile**: Profiling is a separate concern.
+- **Profile**: Redesigned for v5 (see `{suite}_Profile` above).
 - **Order**: Replaced by Commit.

@@ -31,7 +31,8 @@ Runs are submitted as JSON via `POST /api/v5/{suite}/runs`.
     {
       "name": "test.suite/benchmark",
       "execution_time": 1.23,
-      "compile_time": 0.45
+      "compile_time": 0.45,
+      "profile": "<base64-encoded profile data>"
     }
   ]
 }
@@ -51,7 +52,10 @@ Runs are submitted as JSON via `POST /api/v5/{suite}/runs`.
   creates one Sample row per element. All arrays in a single test entry must
   have the same length; scalar values are repeated across the resulting rows.
   Metrics with null values must be omitted from the test entry (not sent as
-  `"metric": null`); only include metrics that have actual values.
+  `"metric": null`); only include metrics that have actual values. An optional
+  `profile` field may contain base64-encoded profile binary data; if present,
+  a Profile row is created and linked to the run+test. The `profile` key is
+  a reserved name and must not collide with metric names.
 
 
 ## D7: Commit Metadata Population
@@ -131,11 +135,28 @@ a v5 Postgres database:
 - Baseline, ChangeIgnore, Profile tables are not migrated.
 
 
-## D13: Profiles (Deferred)
+## D13: Profile Submission and Storage
 
-Profile support is not part of the initial v5 database layer. The v4 Profile
-table is dropped and no replacement is provided. Profile support will be
-designed and added in a future iteration.
+Profiles are submitted inline as part of run submission. Each test entry in
+the submission JSON may include a `"profile"` field containing base64-encoded
+profile binary data.
+
+On submission:
+1. The `profile` field is recognized as a reserved key (not a metric) and
+   excluded from metric name validation.
+2. The base64 data is decoded to raw bytes. Invalid base64 is rejected
+   with 400.
+3. The format version byte is validated (must be 2). Invalid format is
+   rejected with 422.
+4. A Profile row is created with `(run_id, test_id, created_at, data)`.
+5. The unique constraint on `(run_id, test_id)` prevents duplicate profiles.
+
+Profiles are read-only after creation -- there is no PATCH endpoint.
+Deleting a run cascades to its profiles.
+
+Profile data is stored as Postgres BYTEA via SQLAlchemy LargeBinary.
+Postgres automatically applies TOAST compression for large values. The
+`deferred()` column loading ensures the blob is not fetched by default.
 
 
 ## D14: Concurrent Submission

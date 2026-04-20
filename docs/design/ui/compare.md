@@ -60,6 +60,12 @@ settings re-triggers the comparison. Previous in-flight fetches are aborted.
 - **Zero baseline**: when Value A is 0, display "N/A" for Delta %, Ratio, and Status (raw values are still shown)
 - **Interactive rows**: Clicking a row toggles its visibility on the chart. Double-clicking a row isolates it (hides all others), like the Graph page's legend table. Manually-hidden rows (toggled by clicking) are shown grayed out in the table (not removed from the DOM). The "Hide noise" checkbox is a separate filter that removes noise rows from the DOM entirely. The two filters are independent: manual toggles persist across hideNoise changes, and changing the noise threshold correctly hides/unhides tests as their status changes.
 - **Summary message**: A message above the table rows shows a count, consistent with the Graph page's legend message: "150 tests" when all visible, "120 of 150 tests visible" when some are hidden, or "42 of 150 tests matching" when a text filter or chart zoom is active. Counts reflect only tests present in the table — noise-hidden tests (removed by "Hide noise") are excluded from both the numerator and denominator.
+- **Profile column**: When both sides have profile data for a test, a
+  "Profile" link appears. Clicking it navigates to the Profiles page
+  pre-populated with both sides' run and test:
+  `/v5/profiles?suite_a={ts_a}&run_a={uuid_a}&test_a={test}&suite_b={ts_b}&run_b={uuid_b}&test_b={test}`
+  When only one side has a profile, the link pre-populates just that side.
+  The link is omitted when neither side has a profile for that test.
 
 
 ### Chart
@@ -96,6 +102,10 @@ The chart and table always represent the same dataset:
 5. Render table and chart.
 6. Subsequent filter/sort/zoom operations are client-side (data already loaded).
 7. If the user changes selections while data is loading, abort the in-flight requests before starting new ones.
+8. For the Profile column, call `GET /runs/{uuid}/profiles` for each side's
+   runs (fired in parallel via `Promise.all`). Cache per run UUID alongside
+   the sample cache. Match profiles to test names to determine which rows
+   get a Profile link.
 
 **Per-run sample caching**: Fetched samples are cached per run UUID. Changing
 the metric, aggregation function, noise threshold, or run selection
@@ -119,7 +129,7 @@ individual setting changes.
 
 
 **Links out**: Machine Detail, Run Detail, Graph (with machine pre-filled),
-Regression Detail.
+Regression Detail, Profiles (pre-populated A/B from comparison row).
 
 
 ### Add to Regression

@@ -213,8 +213,10 @@ reverse proxy. The `lnt.dockerfile` handles DB initialization and startup.
 
 - **Migration tool** (`lnt admin migrate-to-v5`): Not started. See design
   doc D12 in `docs/design/db/operations.md` for the specification.
-- **Profiles**: The API endpoint stub exists (`endpoints/profiles.py`) but
-  the v5 Sample model has no `profile_id` column. Deferred by design (D13 in
-  `docs/design/db/operations.md`). The endpoint will need reimplementation
-  when profile support is designed for v5.
+- **Profiles**: The v5 Profile model stores profile binary data as Postgres
+  BYTEA (one profile per run+test pair). The profile binary format parser
+  lives in `lnt/server/db/v5/profile.py`. API endpoints use profile UUIDs
+  for data access. See design docs D13 in `docs/design/db/operations.md`
+  and the Profiles section in `docs/design/api/endpoints.md`.
+  UI spec: `docs/design/ui/profiles.md`.
 - **Open work items**: See `docs/v5-todo.md` for the active tracker.

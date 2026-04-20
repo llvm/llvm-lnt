@@ -1600,3 +1600,209 @@ dl {
   padding: 2px 0;
   font-size: 12px;
 }
+
+/* ============================================================
+   Profiles Page
+   ============================================================ */
+
+.profile-suite-row {
+  margin-bottom: 12px;
+}
+
+.profile-picker {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-bottom: 16px;
+}
+
+.profile-side {
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.profile-side h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: #666;
+}
+
+.profile-cascade-row {
+  margin-bottom: 8px;
+}
+
+.profile-cascade-row label {
+  display: block;
+  font-weight: 500;
+  margin-bottom: 2px;
+  font-size: 12px;
+  color: #666;
+}
+
+.profile-stats-container {
+  margin-bottom: 12px;
+}
+
+/* Stats bar table */
+.profile-stats {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 12px;
+}
+
+.profile-stats th,
+.profile-stats td {
+  padding: 4px 8px;
+  text-align: left;
+  border-bottom: 1px solid #eee;
+}
+
+.profile-stats th {
+  font-weight: 600;
+  font-size: 12px;
+  color: #666;
+  background: #f8f8f8;
+}
+
+.profile-stats-value {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.profile-stats-delta {
+  position: relative;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.profile-stats-improved {
+  color: #2e7d32;
+}
+
+.profile-stats-regressed {
+  color: #c62828;
+}
+
+.profile-stats-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  transition: width 0.2s;
+}
+
+.profile-stats-improved .profile-stats-bar {
+  background: #66bb6a;
+}
+
+.profile-stats-regressed .profile-stats-bar {
+  background: #ef5350;
+}
+
+/* Global controls (counter + display mode) */
+.profile-viewer-controls {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 12px;
+  align-items: flex-end;
+}
+
+/* Columns for A/B disassembly */
+.profile-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.profile-column {
+  min-width: 0;
+}
+
+/* Function selector */
+.profile-fn-selector {
+  margin-bottom: 8px;
+}
+
+.profile-fn-combobox {
+  position: relative;
+}
+
+.profile-fn-badge {
+  display: inline-block;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-right: 4px;
+  color: #333;
+}
+
+/* Disassembly table */
+.profile-disasm {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: "SF Mono", "Menlo", "Monaco", "Consolas", monospace;
+  font-size: 12px;
+  table-layout: fixed;
+}
+
+.profile-disasm th,
+.profile-disasm td {
+  padding: 1px 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.profile-disasm th {
+  font-weight: 600;
+  background: #f8f8f8;
+  text-align: left;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.profile-disasm-heat {
+  width: 70px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.profile-disasm-addr {
+  width: 100px;
+  color: #888;
+}
+
+.profile-disasm-text {
+  /* takes remaining space */
+}
+
+.profile-row-cap {
+  padding: 8px;
+  text-align: center;
+  color: #666;
+  font-size: 13px;
+}
+
+.profile-loading {
+  display: inline-block;
+  padding: 8px;
+  color: #666;
+  font-style: italic;
+}
+
+/* Viewer container */
+.profile-viewer-container {
+  max-height: 600px;
+  overflow-y: auto;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+}
+
+/* Profile column in comparison and samples tables */
+.col-profile {
+  text-align: center;
+  width: 60px;
+}

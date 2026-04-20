@@ -295,3 +295,25 @@
   all 5 CORS headers are set on every response (`middleware.py:91`). Only
   `Access-Control-Allow-Origin` and `Access-Control-Expose-Headers` are needed
   on non-preflight responses. Saves ~200 bytes of header per response.
+
+## Profiles
+
+- [x] **DB model and submission**: Profile table with deferred LargeBinary,
+  submission integration (base64 decode, version validation, size limit).
+- [x] **Binary format parser**: Clean read-only parser with lazy BZ2
+  decompression. Wire-compatible with v4 ProfileV2.
+- [x] **REST API endpoints**: Listing (per run), metadata, functions, function
+  detail — all UUID-based.
+- [x] **Profiles UI page**: A/B picker, stats bar, straight-line disassembly
+  view. See `docs/design/ui/profiles.md`.
+- [ ] **CFG view**: Control-flow graph renderer (D3-based, ISA-specific).
+  Deferred to a future phase.
+- [ ] **Replace N+1 profile-existence check in commit picker**: The Profiles
+  page commit dropdown calls `GET /runs/{uuid}/profiles` for every run on the
+  selected machine to filter commits without profiles. Replace with a
+  server-side mechanism (e.g. `has_profiles` flag on run list responses or a
+  filtered commits endpoint).
+- [x] **Compare page integration**: Profile link column in comparison table.
+- [x] **Run Detail integration**: Profile link/icon in samples table.
+- [x] **Remove `has_profile` from frontend**: Clean up `SampleInfo.has_profile`
+  in `types.ts` and test fixtures.

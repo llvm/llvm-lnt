@@ -74,6 +74,7 @@ export function renderNav(config: NavConfig): HTMLElement {
     { label: 'Test Suites', path: '/test-suites', suiteParam: 'suite' },
     { label: 'Graph', path: '/graph', suiteParam: 'suite' },
     { label: 'Compare', path: '/compare', suiteParam: 'suite_a' },
+    { label: 'Profiles', path: '/profiles', suiteParam: 'suite_a' },
   ];
 
   for (const link of leftLinks) {

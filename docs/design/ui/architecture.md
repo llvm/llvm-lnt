@@ -6,7 +6,7 @@ implementation phases.
 
 For individual page specifications, see the other documents in this directory:
 [Dashboard](dashboard.md), [Browsing Pages](browsing.md), [Graph](graph.md),
-[Compare](compare.md), [Admin](admin.md).
+[Compare](compare.md), [Profiles](profiles.md), [Admin](admin.md).
 
 
 ## Context
@@ -55,6 +55,7 @@ use the catch-all route which passes the test suite name as `data-testsuite`.
 @v5_frontend.route("/v5/admin", strict_slashes=False)
 @v5_frontend.route("/v5/graph", strict_slashes=False)
 @v5_frontend.route("/v5/compare", strict_slashes=False)
+@v5_frontend.route("/v5/profiles", strict_slashes=False)
 def v5_global():
     ...renders v5_app.html shell with empty testsuite...
 
@@ -85,6 +86,7 @@ artifacts (fixed-navbar margins, sticky footer).
 /v5/{ts}/regressions/{uuid}            Regression Detail
 /v5/graph?suite={ts}&machine=...       Graph (time series) -- suite-agnostic
 /v5/compare?suite_a={ts}&...           Compare -- suite-agnostic
+/v5/profiles?suite_a={ts}&...           Profiles (A/B profile viewer) -- suite-agnostic
 /v5/admin                              Admin (API keys, schemas -- not test-suite specific)
 ```
 
@@ -92,7 +94,7 @@ artifacts (fixed-navbar margins, sticky footer).
 ## Navigation Bar
 
 ```
-[LNT] [Test Suites] [Graph] [Compare] [API]  <------------>  [Admin] [Settings]
+[LNT] [Test Suites] [Graph] [Compare] [Profiles] [API]  <---->  [Admin] [Settings]
 ```
 
 All navbar links are suite-agnostic. The navbar behavior depends on the page context:
@@ -100,9 +102,9 @@ All navbar links are suite-agnostic. The navbar behavior depends on the page con
 - **Suite-agnostic context** (`/v5/...` without a suite): All navbar links use SPA navigation. API opens in a new tab.
 - **Suite-scoped context** (`/v5/{ts}/...`): All navbar links use full-page navigation (since they target `/v5/...` which is outside the suite basePath `/v5/{ts}`).
 
-Graph and Compare links append `?suite={ts}` / `?suite_a={ts}` when navigated
-from suite-scoped context, pre-filling the current suite. The Test Suites link
-appends `?suite={ts}` to preserve the suite context.
+Graph, Compare, and Profiles links append `?suite={ts}` / `?suite_a={ts}` when
+navigated from suite-scoped context, pre-filling the current suite. The Test
+Suites link appends `?suite={ts}` to preserve the suite context.
 
 
 ## v4/v5 Toggle
@@ -136,6 +138,7 @@ lnt/server/ui/v5/frontend/src/
 |   +-- regression-list.ts     Regression tab renderer (called by test-suites.ts)
 |   +-- regression-detail.ts
 |   +-- admin.ts
+|   +-- profiles.ts             Profile viewer page (A/B comparison)
 +-- components/
     +-- nav.ts                 Navigation bar
     +-- data-table.ts          Reusable sortable/filterable table
@@ -145,6 +148,9 @@ lnt/server/ui/v5/frontend/src/
     +-- metric-selector.ts     Reusable metric drop-down (supports optional placeholder)
     +-- commit-search.ts       Commit search with tag-based autocomplete
     +-- pagination.ts          Cursor/offset pagination controls
+    +-- profile-viewer.ts      Profile disassembly renderer (straight-line + CFG)
+    +-- profile-cfg.ts         Control-flow graph renderer (D3-based)
+    +-- profile-stats.ts       Top-level counter comparison bar
 ```
 
 ### Reuse from Existing Compare Page
@@ -176,7 +182,10 @@ outDir: resolve(__dirname, '../static/v5'),
 
 ## API Additions Needed
 
-**None are blocking.** All workflows can be served by the existing v5 API. The regression list endpoint returns machine/test counts directly (via indicator joins), so no additional summary endpoint is needed.
+The Profiles page (Phase 7) requires new API endpoints: profile listing per
+run, profile metadata/functions/detail by UUID. These are specified in
+[endpoints.md](../api/endpoints.md). All other workflows can be served by
+the existing v5 API.
 
 
 ## Implementation Phases
@@ -189,6 +198,7 @@ outDir: resolve(__dirname, '../static/v5'),
 | 4 | Compare | Absorb existing compare page into SPA as page module, add geomean summary |
 | 5 | Regression Detail | Full regression management page, cross-page integration |
 | 6 | Admin, polish | API key management, error handling, loading states |
+| 7 | Profiles | DB model, binary format parser, API endpoints, Profiles page (A/B picker, stats bar, straight-line + CFG view), Compare/Run Detail integration |
 
 
 ## Verification

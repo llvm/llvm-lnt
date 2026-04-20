@@ -10,10 +10,10 @@ import type { SampleInfo, ComparisonRow } from '../types';
 describe('aggregateSamplesWithinRun', () => {
   it('groups by test name and applies median', () => {
     const samples: SampleInfo[] = [
-      { test: 'foo', has_profile: false, metrics: { exec_time: 10 } },
-      { test: 'foo', has_profile: false, metrics: { exec_time: 20 } },
-      { test: 'foo', has_profile: false, metrics: { exec_time: 30 } },
-      { test: 'bar', has_profile: false, metrics: { exec_time: 5 } },
+      { test: 'foo', metrics: { exec_time: 10 } },
+      { test: 'foo', metrics: { exec_time: 20 } },
+      { test: 'foo', metrics: { exec_time: 30 } },
+      { test: 'bar', metrics: { exec_time: 5 } },
     ];
     const result = aggregateSamplesWithinRun(samples, 'exec_time', 'median');
     expect(result.get('foo')).toBe(20);
@@ -22,9 +22,9 @@ describe('aggregateSamplesWithinRun', () => {
 
   it('skips null metric values', () => {
     const samples: SampleInfo[] = [
-      { test: 'foo', has_profile: false, metrics: { exec_time: 10 } },
-      { test: 'foo', has_profile: false, metrics: { exec_time: null } },
-      { test: 'foo', has_profile: false, metrics: { exec_time: 30 } },
+      { test: 'foo', metrics: { exec_time: 10 } },
+      { test: 'foo', metrics: { exec_time: null } },
+      { test: 'foo', metrics: { exec_time: 30 } },
     ];
     const result = aggregateSamplesWithinRun(samples, 'exec_time', 'mean');
     expect(result.get('foo')).toBe(20); // mean(10, 30) = 20
@@ -32,7 +32,7 @@ describe('aggregateSamplesWithinRun', () => {
 
   it('skips samples missing the metric entirely', () => {
     const samples: SampleInfo[] = [
-      { test: 'foo', has_profile: false, metrics: { other_metric: 10 } },
+      { test: 'foo', metrics: { other_metric: 10 } },
     ];
     const result = aggregateSamplesWithinRun(samples, 'exec_time', 'median');
     expect(result.size).toBe(0);
@@ -45,9 +45,9 @@ describe('aggregateSamplesWithinRun', () => {
 
   it('uses the specified aggregation function', () => {
     const samples: SampleInfo[] = [
-      { test: 'foo', has_profile: false, metrics: { exec_time: 10 } },
-      { test: 'foo', has_profile: false, metrics: { exec_time: 20 } },
-      { test: 'foo', has_profile: false, metrics: { exec_time: 30 } },
+      { test: 'foo', metrics: { exec_time: 10 } },
+      { test: 'foo', metrics: { exec_time: 20 } },
+      { test: 'foo', metrics: { exec_time: 30 } },
     ];
     expect(aggregateSamplesWithinRun(samples, 'exec_time', 'min').get('foo')).toBe(10);
     expect(aggregateSamplesWithinRun(samples, 'exec_time', 'max').get('foo')).toBe(30);

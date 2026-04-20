@@ -238,3 +238,40 @@ def submit_indicator_remove(client, regression_uuid, indicator_uuids,
     assert resp.status_code == 200, (
         f"Indicator remove failed: {resp.get_json()}")
     return resp.get_json()
+
+
+def make_profile_base64():
+    """Create a base64-encoded profile blob for use in test submissions.
+
+    Returns a base64 string containing a valid profile with two functions
+    ('main' with 2 instructions, 'helper' with 1 instruction) and two
+    counters ('cycles', 'branch-misses').
+    """
+    import base64
+    from lnt.testing.profile.profilev1impl import ProfileV1
+    from lnt.testing.profile.profilev2impl import ProfileV2
+
+    v1_data = {
+        'disassembly-format': 'raw',
+        'counters': {'cycles': 1000, 'branch-misses': 50},
+        'functions': {
+            'main': {
+                'counters': {'cycles': 80.0, 'branch-misses': 10.0},
+                'data': [
+                    [{'cycles': 50.0, 'branch-misses': 5.0}, 0x1000,
+                     'push rbp'],
+                    [{'cycles': 30.0, 'branch-misses': 5.0}, 0x1004,
+                     'mov rsp, rbp'],
+                ],
+            },
+            'helper': {
+                'counters': {'cycles': 20.0, 'branch-misses': 3.0},
+                'data': [
+                    [{'cycles': 20.0, 'branch-misses': 3.0}, 0x2000, 'ret'],
+                ],
+            },
+        },
+    }
+    v1 = ProfileV1(v1_data)
+    v2 = ProfileV2.upgrade(v1)
+    return base64.b64encode(v2.serialize()).decode('ascii')

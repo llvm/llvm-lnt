@@ -598,3 +598,111 @@ describe('noise-hidden vs manually-hidden separation', () => {
     resetTable();
   });
 });
+
+// ===========================================================================
+// Profile column
+// ===========================================================================
+
+describe('renderTable — profile column', () => {
+  let container: HTMLElement;
+
+  function setup(): void {
+    container = document.createElement('div');
+    vi.stubGlobal('window', {
+      location: { origin: 'http://localhost:3000' },
+    });
+  }
+
+  it('renders 8th Profile column header when profileLinks is provided', () => {
+    setup();
+    const rows = [makeRow({ test: 'a', valueA: 1, valueB: 2, delta: 1, deltaPct: 100, ratio: 2, status: 'regressed' })];
+    const profileLinks = new Map([['a', '/profiles?suite=nts&run_a=r1&test_a=a']]);
+    renderTable(container, rows, { profileLinks });
+
+    const ths = container.querySelectorAll('thead th');
+    expect(ths[ths.length - 1].textContent).toBe('Profile');
+    resetTable();
+  });
+
+  it('Profile header is NOT sortable', () => {
+    setup();
+    const rows = [makeRow({ test: 'a', valueA: 1, valueB: 2, delta: 1, deltaPct: 100, ratio: 2, status: 'regressed' })];
+    renderTable(container, rows, { profileLinks: new Map() });
+
+    const ths = container.querySelectorAll('thead th');
+    const profileTh = ths[ths.length - 1];
+    expect(profileTh.classList.contains('sortable')).toBe(false);
+    expect(profileTh.getAttribute('aria-sort')).toBeNull();
+    resetTable();
+  });
+
+  it('renders only 7 columns when profileLinks is undefined', () => {
+    setup();
+    const rows = [makeRow({ test: 'a', valueA: 1, valueB: 2, delta: 1, deltaPct: 100, ratio: 2, status: 'regressed' })];
+    renderTable(container, rows);
+
+    const ths = container.querySelectorAll('thead th');
+    expect(ths).toHaveLength(7);
+    resetTable();
+  });
+
+  it('shows View link for tests in the profileLinks map', () => {
+    setup();
+    const rows = [makeRow({ test: 'a', valueA: 1, valueB: 2, delta: 1, deltaPct: 100, ratio: 2, status: 'regressed' })];
+    const profileLinks = new Map([['a', '/profiles?suite=nts&run_a=r1&test_a=a']]);
+    renderTable(container, rows, { profileLinks });
+
+    const dataRows = container.querySelectorAll('tbody tr[data-test]');
+    expect(dataRows).toHaveLength(1);
+    const profileCell = dataRows[0].querySelector('.col-profile');
+    expect(profileCell).toBeTruthy();
+    const link = profileCell!.querySelector('a');
+    expect(link).toBeTruthy();
+    expect(link!.textContent).toBe('View');
+    resetTable();
+  });
+
+  it('shows empty cell for tests not in the map', () => {
+    setup();
+    const rows = [makeRow({ test: 'b', valueA: 1, valueB: 2, delta: 1, deltaPct: 100, ratio: 2, status: 'regressed' })];
+    const profileLinks = new Map([['a', '/profiles?suite=nts']]);
+    renderTable(container, rows, { profileLinks });
+
+    // Find profile cell for the data row (not geomean row)
+    const dataRows = container.querySelectorAll('tbody tr[data-test]');
+    expect(dataRows).toHaveLength(1);
+    const profileCell = dataRows[0].querySelector('.col-profile');
+    expect(profileCell).toBeTruthy();
+    expect(profileCell!.querySelector('a')).toBeNull();
+    resetTable();
+  });
+
+  it('geomean row has empty profile cell', () => {
+    setup();
+    const rows = [
+      makeRow({ test: 'a', valueA: 100, valueB: 200, delta: 100, deltaPct: 100, ratio: 2, status: 'regressed' }),
+    ];
+    renderTable(container, rows, { profileLinks: new Map([['a', '/profiles']]) });
+
+    const geomeanRow = container.querySelector('.geomean-row');
+    if (geomeanRow) {
+      const cells = geomeanRow.querySelectorAll('td');
+      const lastCell = cells[cells.length - 1];
+      expect(lastCell.classList.contains('col-profile')).toBe(true);
+      expect(lastCell.textContent).toBe('');
+    }
+    resetTable();
+  });
+
+  it('missing-tests table has Profile column when profileLinks provided', () => {
+    setup();
+    const rows = [makeRow({ test: 'missing-a', sidePresent: 'a_only', valueA: 100, valueB: null })];
+    renderTable(container, rows, { profileLinks: new Map() });
+
+    const missingTable = container.querySelector('.missing-table');
+    expect(missingTable).toBeTruthy();
+    const ths = missingTable!.querySelectorAll('th');
+    expect(ths[ths.length - 1].textContent).toBe('Profile');
+    resetTable();
+  });
+});

@@ -64,8 +64,41 @@ export interface RunDetail {
 
 export interface SampleInfo {
   test: string;
-  has_profile: boolean;
   metrics: Record<string, number | null>;
+}
+
+// Profile types
+
+export interface ProfileListItem {
+  test: string;
+  uuid: string;
+}
+
+export interface ProfileMetadata {
+  uuid: string;
+  test: string;
+  run_uuid: string;
+  counters: Record<string, number>;
+  disassembly_format: string;
+}
+
+export interface ProfileFunctionInfo {
+  name: string;
+  counters: Record<string, number>;
+  length: number;
+}
+
+export interface ProfileInstruction {
+  address: number;
+  counters: Record<string, number>;
+  text: string;
+}
+
+export interface ProfileFunctionDetail {
+  name: string;
+  counters: Record<string, number>;
+  disassembly_format: string;
+  instructions: ProfileInstruction[];
 }
 
 export interface FieldChangeInfo {

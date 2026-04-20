@@ -72,6 +72,10 @@ by default. Write operations require tokens with appropriate scopes
   POST   /api/v5/{ts}/runs                  Submit a run
   GET    /api/v5/{ts}/runs/{uuid}           Run detail
   GET    /api/v5/{ts}/runs/{uuid}/samples   Samples for a run
+  GET    /api/v5/{ts}/runs/{uuid}/profiles  List profiles for a run
+  GET    /api/v5/{ts}/profiles/{uuid}                Profile metadata + counters
+  GET    /api/v5/{ts}/profiles/{uuid}/functions      Function list
+  GET    /api/v5/{ts}/profiles/{uuid}/functions/{fn} Function disassembly
   GET    /api/v5/{ts}/tests                 List tests
   GET    /api/v5/{ts}/tests/{name}          Test detail
   POST   /api/v5/{ts}/query                 Query time-series data

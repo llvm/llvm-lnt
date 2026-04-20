@@ -5,14 +5,37 @@ import marshmallow as ma
 from . import BaseSchema
 
 
-class ProfileMetadataSchema(BaseSchema):
-    """Schema for profile metadata + top-level counters.
+class ProfileListItemSchema(BaseSchema):
+    """Schema for a single item in the profile listing.
 
-    Returned by GET /runs/{uuid}/tests/{test_name}/profile.
+    Returned by GET /runs/{uuid}/profiles.
     """
     test = ma.fields.String(
         required=True,
-        metadata={'description': 'Name of the test'},
+        metadata={'description': 'Test name'},
+    )
+    uuid = ma.fields.String(
+        required=True,
+        metadata={'description': 'Profile UUID'},
+    )
+
+
+class ProfileMetadataSchema(BaseSchema):
+    """Schema for profile metadata + top-level counters.
+
+    Returned by GET /profiles/{uuid}.
+    """
+    uuid = ma.fields.String(
+        required=True,
+        metadata={'description': 'Profile UUID'},
+    )
+    test = ma.fields.String(
+        required=True,
+        metadata={'description': 'Test name'},
+    )
+    run_uuid = ma.fields.String(
+        required=True,
+        metadata={'description': 'Run UUID'},
     )
     counters = ma.fields.Dict(
         keys=ma.fields.String(),
@@ -21,6 +44,9 @@ class ProfileMetadataSchema(BaseSchema):
             'description': 'Top-level counters (absolute values)',
             'example': {'cycles': 1500000, 'branch-misses': 2300},
         },
+    )
+    disassembly_format = ma.fields.String(
+        metadata={'description': 'Disassembly format (e.g. llvm-objdump)'},
     )
 
 
@@ -44,10 +70,10 @@ class FunctionInfoSchema(BaseSchema):
 
 
 class FunctionListResponseSchema(BaseSchema):
-    """Schema for GET /runs/{uuid}/tests/{test_name}/profile/functions."""
+    """Schema for GET /profiles/{uuid}/functions."""
     functions = ma.fields.List(
         ma.fields.Nested(FunctionInfoSchema),
-        metadata={'description': 'List of functions with counters'},
+        metadata={'description': 'Functions sorted by hotness (descending)'},
     )
 
 
@@ -70,7 +96,7 @@ class InstructionSchema(BaseSchema):
 
 
 class FunctionDetailSchema(BaseSchema):
-    """Schema for GET /runs/{uuid}/tests/{test_name}/profile/functions/{fn_name}."""
+    """Schema for GET /profiles/{uuid}/functions/{fn_name}."""
     name = ma.fields.String(
         required=True,
         metadata={'description': 'Function name'},
@@ -79,12 +105,12 @@ class FunctionDetailSchema(BaseSchema):
         keys=ma.fields.String(),
         values=ma.fields.Raw(),
         metadata={
-            'description': 'Counter values as percentages',
+            'description': 'Function-level counter aggregates',
             'example': {'cycles': 45.2, 'branch-misses': 12.1},
         },
     )
     disassembly_format = ma.fields.String(
-        metadata={'description': 'Disassembly format (raw or marked-up-disassembly)'},
+        metadata={'description': 'Disassembly format (e.g. llvm-objdump)'},
     )
     instructions = ma.fields.List(
         ma.fields.Nested(InstructionSchema),

@@ -4,11 +4,12 @@ import { setApiBase, getFields, getCommits, getMachines, getRuns, getSamples,
   getFieldChanges, searchCommits, updateCommit, fetchTrends,
   fetchOneCursorPage, apiUrl, ApiError, authErrorMessage,
   resolveCommits, getTestSuiteInfoCached,
+  getProfilesForRun, getProfileMetadata, getProfileFunctions, getProfileFunctionDetail,
 } from '../api';
 import type {
   CursorPaginated, FieldInfo, MachineInfo, MachineRunInfo, OffsetPaginated,
   CommitSummary, CommitDetail, RunInfo, RunDetail, SampleInfo, FieldChangeInfo,
-  QueryDataPoint,
+  QueryDataPoint, ProfileListItem, ProfileMetadata, ProfileFunctionInfo, ProfileFunctionDetail,
 } from '../types';
 
 // ---------------------------------------------------------------------------
@@ -530,8 +531,8 @@ describe('getRuns', () => {
 
 describe('getSamples', () => {
   it('returns all samples across paginated responses', async () => {
-    const s1: SampleInfo = { test: 'test/a', has_profile: false, metrics: { compile_time: 1.23 } };
-    const s2: SampleInfo = { test: 'test/b', has_profile: true, metrics: { compile_time: null } };
+    const s1: SampleInfo = { test: 'test/a', metrics: { compile_time: 1.23 } };
+    const s2: SampleInfo = { test: 'test/b', metrics: { compile_time: null } };
 
     mockFetch
       .mockResolvedValueOnce(mockResponse(cursorPage([s1], 'c1')))
@@ -553,11 +554,11 @@ describe('getSamples', () => {
   it('calls onProgress with running total', async () => {
     mockFetch
       .mockResolvedValueOnce(mockResponse(cursorPage(
-        [{ test: 'a', has_profile: false, metrics: {} }, { test: 'b', has_profile: false, metrics: {} }],
+        [{ test: 'a', metrics: {} }, { test: 'b', metrics: {} }],
         'c1',
       )))
       .mockResolvedValueOnce(mockResponse(cursorPage(
-        [{ test: 'c', has_profile: false, metrics: {} }],
+        [{ test: 'c', metrics: {} }],
       )));
 
     const onProgress = vi.fn();
@@ -1100,5 +1101,148 @@ describe('getTestSuiteInfoCached', () => {
 
     expect(r1).toBe(r2);
     expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ===========================================================================
+// Profiles
+// ===========================================================================
+
+describe('getProfilesForRun', () => {
+  it('returns profile list items', async () => {
+    const items: ProfileListItem[] = [
+      { test: 'bench/foo', uuid: 'prof-uuid-1' },
+      { test: 'bench/bar', uuid: 'prof-uuid-2' },
+    ];
+    mockFetch.mockResolvedValueOnce(mockResponse(items));
+
+    const result = await getProfilesForRun('nts', 'run-uuid-123');
+
+    expect(result).toEqual(items);
+    const url = new URL(mockFetch.mock.calls[0][0]);
+    expect(url.pathname).toBe('/api/v5/nts/runs/run-uuid-123/profiles');
+  });
+
+  it('encodes run UUID in URL', async () => {
+    mockFetch.mockResolvedValueOnce(mockResponse([]));
+
+    await getProfilesForRun('nts', 'abc/special');
+
+    const url = new URL(mockFetch.mock.calls[0][0]);
+    expect(url.pathname).toBe('/api/v5/nts/runs/abc%2Fspecial/profiles');
+  });
+
+  it('passes AbortSignal', async () => {
+    const controller = new AbortController();
+    mockFetch.mockResolvedValueOnce(mockResponse([]));
+
+    await getProfilesForRun('nts', 'run-1', controller.signal);
+
+    expect(mockFetch.mock.calls[0][1].signal).toBe(controller.signal);
+  });
+});
+
+describe('getProfileMetadata', () => {
+  it('returns profile metadata', async () => {
+    const meta: ProfileMetadata = {
+      uuid: 'prof-1',
+      test: 'bench/foo',
+      run_uuid: 'run-1',
+      counters: { cycles: 5000000, 'branch-misses': 42000 },
+      disassembly_format: 'llvm-objdump',
+    };
+    mockFetch.mockResolvedValueOnce(mockResponse(meta));
+
+    const result = await getProfileMetadata('nts', 'prof-1');
+
+    expect(result).toEqual(meta);
+    const url = new URL(mockFetch.mock.calls[0][0]);
+    expect(url.pathname).toBe('/api/v5/nts/profiles/prof-1');
+  });
+
+  it('throws ApiError on 404', async () => {
+    mockFetch.mockResolvedValueOnce(mockResponse('Not found', 404, 'Not Found'));
+
+    await expect(getProfileMetadata('nts', 'nonexistent')).rejects.toThrow(ApiError);
+  });
+});
+
+describe('getProfileFunctions', () => {
+  it('returns wrapped function list', async () => {
+    const fns: ProfileFunctionInfo[] = [
+      { name: 'main', counters: { cycles: 80.0 }, length: 42 },
+      { name: 'helper', counters: { cycles: 20.0 }, length: 10 },
+    ];
+    mockFetch.mockResolvedValueOnce(mockResponse({ functions: fns }));
+
+    const result = await getProfileFunctions('nts', 'prof-1');
+
+    expect(result.functions).toEqual(fns);
+    expect(result.functions).toHaveLength(2);
+    const url = new URL(mockFetch.mock.calls[0][0]);
+    expect(url.pathname).toBe('/api/v5/nts/profiles/prof-1/functions');
+  });
+});
+
+describe('getProfileFunctionDetail', () => {
+  it('returns function detail with instructions', async () => {
+    const detail: ProfileFunctionDetail = {
+      name: 'main',
+      counters: { cycles: 80.0 },
+      disassembly_format: 'llvm-objdump',
+      instructions: [
+        { address: 0x1000, counters: { cycles: 50.0 }, text: 'push rbp' },
+        { address: 0x1004, counters: { cycles: 30.0 }, text: 'mov rsp, rbp' },
+      ],
+    };
+    mockFetch.mockResolvedValueOnce(mockResponse(detail));
+
+    const result = await getProfileFunctionDetail('nts', 'prof-1', 'main');
+
+    expect(result).toEqual(detail);
+    const url = new URL(mockFetch.mock.calls[0][0]);
+    expect(url.pathname).toBe('/api/v5/nts/profiles/prof-1/functions/main');
+  });
+
+  it('encodes C++ mangled function names in URL', async () => {
+    mockFetch.mockResolvedValueOnce(mockResponse({
+      name: '_Z3fooIiEvT_',
+      counters: {},
+      disassembly_format: 'raw',
+      instructions: [],
+    }));
+
+    await getProfileFunctionDetail('nts', 'prof-1', '_Z3fooIiEvT_');
+
+    const url = new URL(mockFetch.mock.calls[0][0]);
+    // encodeURIComponent encodes < > ( ) but not underscores
+    expect(url.pathname).toContain('_Z3fooIiEvT_');
+  });
+
+  it('encodes special characters in function names', async () => {
+    const fnName = 'std::vector<int>::push_back(int&&)';
+    mockFetch.mockResolvedValueOnce(mockResponse({
+      name: fnName,
+      counters: {},
+      disassembly_format: 'raw',
+      instructions: [],
+    }));
+
+    await getProfileFunctionDetail('nts', 'prof-1', fnName);
+
+    const url = new URL(mockFetch.mock.calls[0][0]);
+    // The URL should contain the encoded form — verify it doesn't break URL parsing
+    expect(url.pathname).toContain(encodeURIComponent(fnName));
+  });
+
+  it('passes AbortSignal', async () => {
+    const controller = new AbortController();
+    mockFetch.mockResolvedValueOnce(mockResponse({
+      name: 'fn', counters: {}, disassembly_format: 'raw', instructions: [],
+    }));
+
+    await getProfileFunctionDetail('nts', 'prof-1', 'fn', controller.signal);
+
+    expect(mockFetch.mock.calls[0][1].signal).toBe(controller.signal);
   });
 });

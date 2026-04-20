@@ -2,8 +2,8 @@
 // loading, test filter, metric selector, and run deletion.
 
 import type { PageModule, RouteParams } from '../router';
-import type { SampleInfo } from '../types';
-import { getRun, getFields, deleteRun, fetchOneCursorPage, apiUrl, getTestSuiteInfoCached, getCommit } from '../api';
+import type { SampleInfo, ProfileListItem } from '../types';
+import { getRun, getFields, getProfilesForRun, deleteRun, fetchOneCursorPage, apiUrl, getTestSuiteInfoCached, getCommit } from '../api';
 import { el, spaLink, agnosticLink, formatValue, formatTime, debounce, commitDisplayValue } from '../utils';
 import { navigate } from '../router';
 import { renderDataTable } from '../components/data-table';
@@ -43,14 +43,17 @@ export const runDetailPage: PageModule = {
     let currentMetric = '';
     let testFilter = '';
     let machineName = '';
+    let profileTestSet = new Set<string>();
 
     Promise.all([
       getRun(ts, uuid),
       getFields(ts),
       getTestSuiteInfoCached(ts).catch(() => null),
-    ]).then(async ([run, fields, suiteInfo]) => {
+      getProfilesForRun(ts, uuid, activeFetchController!.signal).catch(() => [] as ProfileListItem[]),
+    ]).then(async ([run, fields, suiteInfo, profiles]) => {
       loading.remove();
       machineName = run.machine;
+      profileTestSet = new Set(profiles.map(p => p.test));
 
       // Resolve commit display value (fetch CommitDetail for fields)
       let commitDisplay = run.commit;
@@ -127,7 +130,8 @@ export const runDetailPage: PageModule = {
     });
 
     async function loadSamplesProgressively(tsName: string, runUuid: string): Promise<void> {
-      const { signal } = activeFetchController!;
+      if (!activeFetchController) return;
+      const { signal } = activeFetchController;
       const progressEl = el('p', { class: 'progress-label' }, 'Loading samples...');
       summaryContainer.append(progressEl);
 
@@ -174,14 +178,30 @@ export const runDetailPage: PageModule = {
       }
 
       tableContainer.replaceChildren();
+      const columns = [
+        { key: 'test', label: 'Test', cellClass: 'col-test',
+          render: (s: SampleInfo) => s.test },
+        { key: 'value', label: 'Value', cellClass: 'col-num',
+          render: (s: SampleInfo) => formatValue(s.metrics[currentMetric] !== undefined ? s.metrics[currentMetric] : null),
+          sortValue: (s: SampleInfo) => s.metrics[currentMetric] ?? null },
+      ];
+      if (profileTestSet.size > 0) {
+        columns.push({
+          key: 'profile',
+          label: 'Profile',
+          cellClass: 'col-profile',
+          sortable: false,
+          render: (s: SampleInfo) => {
+            if (!profileTestSet.has(s.test)) return '';
+            const params = new URLSearchParams({
+              suite_a: ts, run_a: uuid, test_a: s.test,
+            });
+            return agnosticLink('View', `/profiles?${params.toString()}`);
+          },
+        } as typeof columns[0]);
+      }
       renderDataTable(tableContainer, {
-        columns: [
-          { key: 'test', label: 'Test', cellClass: 'col-test',
-            render: (s: SampleInfo) => s.test },
-          { key: 'value', label: 'Value', cellClass: 'col-num',
-            render: (s: SampleInfo) => formatValue(s.metrics[currentMetric] !== undefined ? s.metrics[currentMetric] : null),
-            sortValue: (s: SampleInfo) => s.metrics[currentMetric] ?? null },
-        ],
+        columns,
         rows: visible,
         sortKey: 'test',
         sortDir: 'asc',

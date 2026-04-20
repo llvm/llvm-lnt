@@ -9,6 +9,7 @@ Postgres only.  No imports from v4 DB code.
 
 from __future__ import annotations
 
+import base64
 import datetime
 import json
 import sys
@@ -312,6 +313,7 @@ class V5TestSuiteDB:
         self.Run = models.Run
         self.Test = models.Test
         self.Sample = models.Sample
+        self.Profile = models.Profile
         self.Regression = models.Regression
         self.RegressionIndicator = models.RegressionIndicator
 
@@ -895,6 +897,101 @@ class V5TestSuiteDB:
             session.execute(stmt)
 
     # ===================================================================
+    # Profile CRUD
+    # ===================================================================
+
+    _MAX_PROFILE_SIZE = 50 * 1024 * 1024  # 50 MB
+
+    def _create_profiles(
+        self,
+        session: sqlalchemy.orm.Session,
+        run,
+        profiles: list[tuple],
+    ) -> list:
+        """Create Profile rows from (test_name, test_id, base64_data) tuples.
+
+        Validates base64 encoding, size limit, and format version byte.
+        """
+        from .profile import ProfileData, ProfileParseError
+
+        created = []
+        for test_name, test_id, b64_data in profiles:
+            if not isinstance(b64_data, str) or not b64_data:
+                raise ValueError(
+                    f"profile for test '{test_name}' must be a non-empty string"
+                )
+            try:
+                raw = base64.b64decode(b64_data)
+            except Exception:
+                raise ValueError(
+                    f"invalid base64 in profile for test '{test_name}'"
+                )
+            if len(raw) > self._MAX_PROFILE_SIZE:
+                raise ValueError(
+                    f"profile for test '{test_name}' exceeds 50 MB size limit"
+                )
+            try:
+                ProfileData.validate_version(raw)
+            except ProfileParseError as e:
+                raise ValueError(
+                    f"invalid profile for test '{test_name}': {e}"
+                )
+            p = self.Profile()
+            p.run_id = run.id
+            p.test_id = test_id
+            p.created_at = utcnow()
+            p.data = raw
+            created.append(p)
+        session.add_all(created)
+        session.flush()
+        return created
+
+    def get_profile(
+        self,
+        session: sqlalchemy.orm.Session,
+        *,
+        id: int | None = None,
+        uuid: str | None = None,
+        load_data: bool = False,
+    ):
+        """Fetch a single Profile by id or uuid.
+
+        When *load_data* is True, eagerly loads the deferred ``data``
+        column and joins the ``test`` and ``run`` relations to avoid
+        lazy-load queries.
+        """
+        from sqlalchemy.orm import joinedload, undefer
+
+        q = session.query(self.Profile)
+        if load_data:
+            q = q.options(
+                undefer(self.Profile.data),
+                joinedload(self.Profile.run),
+                joinedload(self.Profile.test),
+            )
+        if id is not None:
+            return q.filter(self.Profile.id == id).first()
+        if uuid is not None:
+            return q.filter(self.Profile.uuid == uuid).first()
+        raise ValueError("must specify id or uuid")
+
+    def get_profiles_for_run(
+        self,
+        session: sqlalchemy.orm.Session,
+        run,
+    ) -> list[tuple[str, str]]:
+        """Return (uuid, test_name) pairs for all profiles in a run.
+
+        Uses column projection -- no ORM objects, no blob loading.
+        """
+        return (
+            session.query(self.Profile.uuid, self.Test.name)
+            .join(self.Test, self.Profile.test_id == self.Test.id)
+            .filter(self.Profile.run_id == run.id)
+            .all()
+        )
+
+    # ===================================================================
     # Time-series query
     # ===================================================================
 
@@ -1345,6 +1442,7 @@ class V5TestSuiteDB:
         """
         tests_data = data.get("tests", [])
         all_samples: list[dict[str, Any]] = []
+        all_profiles: list[tuple] = []  # (test, base64_data)
 
         all_test_names: list[str] = []
         for test_entry in tests_data:
@@ -1359,10 +1457,15 @@ class V5TestSuiteDB:
             test_name = test_entry["name"]
             test_id = name_to_id[test_name]
 
-            self._validate_metric_names(test_entry.keys() - {"name"})
+            # "profile" is a reserved key for profile binary data, not a metric.
+            self._validate_metric_names(test_entry.keys() - {"name", "profile"})
             metrics: dict[str, Any] = {}
+            profile_data_b64 = None
             for key, value in test_entry.items():
                 if key == "name":
+                    continue
+                if key == "profile":
+                    profile_data_b64 = value
                     continue
                 metrics[key] = value
 
@@ -1393,8 +1496,14 @@ class V5TestSuiteDB:
                         sample_dict[key] = value[i] if isinstance(value, list) else value
                     all_samples.append(sample_dict)
 
+            if profile_data_b64 is not None:
+                all_profiles.append((test_name, test_id, profile_data_b64))
+
         if all_samples:
             self.create_samples(session, run, all_samples)
+
+        if all_profiles:
+            self._create_profiles(session, run, all_profiles)
 
     # ===================================================================
     # Bulk import (run submission)

@@ -78,7 +78,7 @@ The UUID is a new field, generated server-side on submission. The submission
 endpoint requires JSON format with `format_version '5'`. Legacy formats (v0,
 v1, v2) and non-JSON payloads are rejected. There is no `on_existing_run`
 parameter -- v5 always creates a new run (multiple runs per machine+commit
-are allowed).
+are allowed). Deleting a run cascades to its samples and profiles.
 
 
 ## Tests
@@ -95,11 +95,10 @@ for this machine), `metric=` (only tests with non-NULL values for this metric).
 
 **URL routing caveat**: Test names may contain slashes (e.g.,
 `test.suite/sub/benchmark`). The `{test_name}` path parameter uses a
-catch-all converter. However, test names ending in `/samples` or `/profile`
-would collide with the sample and profile sub-resource routes under
-`/runs/{uuid}/tests/{test_name}/...`. In practice this hasn't been an issue
-(no known test suite uses such names), but clients should avoid creating
-tests with these suffixes.
+catch-all converter. However, test names ending in `/samples` would collide
+with the sample sub-resource route under `/runs/{uuid}/tests/{test_name}/...`.
+In practice this hasn't been an issue (no known test suite uses such names),
+but clients should avoid creating tests with this suffix.
 
 
 ## Samples
@@ -109,7 +108,6 @@ identifier of their own.
 
 ```
 GET    /runs/{uuid}/samples                        -- All samples for a run (cursor-paginated)
-GET    /runs/{uuid}/samples?has_profile=true        -- Filter to samples with profiles
 GET    /runs/{uuid}/tests/{test_name}/samples       -- Samples for a specific test in a run
 ```
 
@@ -118,17 +116,52 @@ Read-only. Samples are created as part of run submission.
 
 ## Profiles
 
-Profiles are accessed through run + test name. Under the hood, the API finds
-the sample for that run+test that has a profile attached.
+Profiles store hardware performance counter data at the instruction level.
+Each profile is identified by a server-generated UUID. The UUID-based approach
+enables stable bookmarkable identifiers for profile data endpoints, while the
+listing endpoint provides the bridge from human-readable run+test coordinates
+to UUIDs.
+
+### Listing (per run)
 
 ```
-GET  /runs/{uuid}/tests/{test_name}/profile                      -- Profile metadata + top-level counters
-GET  /runs/{uuid}/tests/{test_name}/profile/functions             -- List functions with counters
-GET  /runs/{uuid}/tests/{test_name}/profile/functions/{fn_name}   -- Disassembly + per-instruction counters
+GET  /runs/{uuid}/profiles              -- List profiles for a run
 ```
 
-Profiles are submitted as base64-encoded data within the run submission payload
-(existing format). No separate upload endpoint.
+Returns an array of `{test, uuid}` objects for all profiles attached to
+the given run. No pagination (bounded by tests-per-run). Auth: `read`.
+
+### Profile Data (by UUID)
+
+```
+GET  /profiles/{uuid}                       -- Metadata + top-level counters
+GET  /profiles/{uuid}/functions             -- Function list with counters
+GET  /profiles/{uuid}/functions/{fn_name}   -- Disassembly + per-instruction counters
+```
+
+All three endpoints require `read` scope.
+
+**Metadata response** (`GET /profiles/{uuid}`):
+- `uuid`, `test` (test name), `run_uuid`, `counters` (dict of counter
+  name -> integer value), `disassembly_format` (string)
+
+**Functions response** (`GET /profiles/{uuid}/functions`):
+- `functions`: array of `{name, counters, length}` where `counters` is
+  a dict of counter name -> float (percentage), `length` is instruction
+  count. Sorted by total counter value descending (hottest first).
+
+**Function detail response** (`GET /profiles/{uuid}/functions/{fn_name}`):
+- `name`, `counters` (function-level aggregates), `disassembly_format`,
+  `instructions`: array of `{address, counters, text}` per instruction.
+  Function names may contain special characters (C++ mangled names); the
+  frontend must `encodeURIComponent` the name.
+
+**Error handling**: If the stored profile blob is corrupt and cannot be
+deserialized, the profile data endpoints return 500 with a descriptive
+error message.
+
+Profiles are submitted as base64-encoded data within the run submission
+payload (see D6 in db/operations.md). No separate upload endpoint.
 
 
 ## Regressions
