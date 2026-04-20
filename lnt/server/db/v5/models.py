@@ -267,6 +267,12 @@ def create_suite_models(schema: TestSuiteSchema) -> SuiteModels:
         Sample.run_id, Sample.test_id,  # type: ignore[attr-defined]
     )
 
+    # Covers time-series queries: "all samples for a given test across runs"
+    Index(
+        f"ix_{prefix}_Sample_test_id_run_id",
+        Sample.test_id, Sample.run_id,  # type: ignore[attr-defined]
+    )
+
     # -----------------------------------------------------------------------
     # Regression
     # -----------------------------------------------------------------------

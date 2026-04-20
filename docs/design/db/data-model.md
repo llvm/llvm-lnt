@@ -211,7 +211,8 @@ serialize timestamps as ISO 8601 with `Z` suffix
 | test_id | Integer FK -> Test | not null |
 | _(dynamic)_ | per metrics | nullable |
 
-- Compound index on `(run_id, test_id)`.
+- Compound index on `(run_id, test_id)` — covers "all samples for a run".
+- Compound index on `(test_id, run_id)` — covers time-series queries.
 - Dynamic columns from schema metrics: `real` -> Float, `status` -> Integer,
   `hash` -> String(256).
 

@@ -140,7 +140,7 @@
 
 ### P0 — Critical
 
-- [ ] **Add `(test_id, run_id)` compound index on Sample table** (impact:
+- [x] **Add `(test_id, run_id)` compound index on Sample table** (impact:
   100–1000x for time-series queries). The existing `(run_id, test_id)` compound
   index has columns in the wrong order for the dominant access pattern.
   Time-series queries (`query_time_series`, `/query`, `/trends`,
