@@ -30,6 +30,10 @@ let runsPanelVersionB = 0;
 let suiteLoadVersionA = 0;
 let suiteLoadVersionB = 0;
 
+// Per-side abort controllers for machine-filtered commit fetches
+let commitFetchControllerA: AbortController | null = null;
+let commitFetchControllerB: AbortController | null = null;
+
 /** Module-level reference to the metric selector container for re-rendering. */
 let metricContainerRef: HTMLElement | null = null;
 
@@ -47,6 +51,8 @@ export function initSelection(
   cachedCommitsB = [];
   cachedFieldsA = [];
   cachedFieldsB = [];
+  if (commitFetchControllerA) { commitFetchControllerA.abort(); commitFetchControllerA = null; }
+  if (commitFetchControllerB) { commitFetchControllerB.abort(); commitFetchControllerB = null; }
 }
 
 export function getMetricFields(): FieldInfo[] {
@@ -88,6 +94,32 @@ function getCommitDataForSide(side: 'a' | 'b') {
   return { cachedCommitValues, displayMap };
 }
 
+/**
+ * Fetch commits filtered by machine for a side.
+ * Aborts any previous in-flight commit fetch for the same side.
+ */
+async function fetchCommitsForMachine(side: 'a' | 'b', machine: string): Promise<void> {
+  const prev = side === 'a' ? commitFetchControllerA : commitFetchControllerB;
+  if (prev) prev.abort();
+  const ctrl = new AbortController();
+  if (side === 'a') commitFetchControllerA = ctrl;
+  else commitFetchControllerB = ctrl;
+
+  const { selection } = getSideState(side);
+  const suite = selection.suite;
+  if (!suite) return;
+
+  try {
+    const commits = await getCommits(suite, { machine, signal: ctrl.signal });
+    if (side === 'a') cachedCommitsA = commits;
+    else cachedCommitsB = commits;
+  } catch (err: unknown) {
+    if (err instanceof DOMException && err.name === 'AbortError') return;
+    if (side === 'a') cachedCommitsA = [];
+    else cachedCommitsB = [];
+  }
+}
+
 function getComboboxContext(): ComboboxContext {
   return {
     getCommitData: getCommitDataForSide,
@@ -96,6 +128,7 @@ function getComboboxContext(): ComboboxContext {
       return selection.suite;
     },
     getSideState,
+    fetchCommitsForMachine,
   };
 }
 
@@ -228,8 +261,9 @@ function createSampleAggSelect(): HTMLSelectElement {
 }
 
 /**
- * Fetch commits and fields for a side when its suite changes.
- * Updates the per-side cache and re-renders metric selector.
+ * Fetch fields and suite info for a side when its suite changes.
+ * Commits are NOT fetched here — they are fetched per-machine when a
+ * machine is selected (via fetchCommitsForMachine).
  */
 export async function fetchSideData(
   side: 'a' | 'b',
@@ -237,10 +271,13 @@ export async function fetchSideData(
 ): Promise<void> {
   const version = side === 'a' ? ++suiteLoadVersionA : ++suiteLoadVersionB;
 
+  // Clear stale commits from a previous suite/machine selection
+  if (side === 'a') cachedCommitsA = [];
+  else cachedCommitsB = [];
+
   try {
-    const [fields, commits, suiteInfo] = await Promise.all([
+    const [fields, suiteInfo] = await Promise.all([
       getFields(suite),
-      getCommits(suite),
       getTestSuiteInfoCached(suite).catch(() => null),
     ]);
 
@@ -254,10 +291,8 @@ export async function fetchSideData(
 
     if (side === 'a') {
       cachedFieldsA = fields;
-      cachedCommitsA = commits;
     } else {
       cachedFieldsB = fields;
-      cachedCommitsB = commits;
     }
 
     // Re-render metric selector — read metricContainerRef AFTER await
@@ -369,13 +404,16 @@ export function renderSelectionPanel(root: HTMLElement): void {
   }, '\u21C4');
   swapBtn.addEventListener('click', () => {
     swapSides();
-    // Also swap per-side caches
+    // Also swap per-side caches; abort in-flight commit fetches
+    // (they would write to the wrong logical side after the swap).
     const tmpCommits = cachedCommitsA;
     cachedCommitsA = cachedCommitsB;
     cachedCommitsB = tmpCommits;
     const tmpFields = cachedFieldsA;
     cachedFieldsA = cachedFieldsB;
     cachedFieldsB = tmpFields;
+    if (commitFetchControllerA) { commitFetchControllerA.abort(); commitFetchControllerA = null; }
+    if (commitFetchControllerB) { commitFetchControllerB.abort(); commitFetchControllerB = null; }
     renderSelectionPanel(root);
     tryAutoCompare();
   });

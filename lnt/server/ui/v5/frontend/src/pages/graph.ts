@@ -8,7 +8,7 @@ import { getTestsuites } from '../router';
 import { onCustomEvent, GRAPH_TABLE_HOVER, GRAPH_CHART_HOVER } from '../events';
 import { renderMachineCombobox } from '../components/machine-combobox';
 import { renderMetricSelector, renderEmptyMetricSelector, filterMetricFields } from '../components/metric-selector';
-import { createCommitPicker, fetchMachineCommitSet } from '../combobox';
+import { createCommitPicker } from '../combobox';
 import {
   type TimeSeriesTrace, type PinnedBaseline, type ChartHandle, type ChartOverlays,
   createTimeSeriesChart,
@@ -34,10 +34,8 @@ let cache = new GraphDataCache({ apiUrl, fetchOneCursorPage, postOneCursorPage }
 let fetchAbort: AbortController | null = null;
 let filterAbort: AbortController | null = null;
 let selectionAbort: AbortController | null = null;
-/** Per-suite commit list cache for baseline commit picker. */
+/** Per-(suite, machine) commit list cache for baseline commit picker. */
 let baselineCommitCache = new Map<string, CommitSummary[]>();
-/** Machine-commit filter set for the baseline commit picker (null = loading or no machine). */
-let blMachineCommits: Set<string> | null = null;
 
 /** A cross-suite baseline reference line. */
 export interface Baseline {
@@ -329,31 +327,26 @@ export const graphPage: PageModule = {
         onSelect: async (name) => {
           blSelectedMachine = name;
           blSelectedCommit = '';
-          blMachineCommits = null;
           if (blCommitCleanup) { blCommitCleanup(); blCommitCleanup = null; }
           blCommitContainer.replaceChildren();
 
-          // Fetch commit list and machine commits in parallel
-          const commitListPromise = (async () => {
-            if (baselineCommitCache.has(suite)) return;
+          // Fetch commits filtered by machine (one request instead of two)
+          const cacheKey = `${suite}\0${name}`;
+          if (!baselineCommitCache.has(cacheKey)) {
             try {
-              const commits = await getCommits(suite, fetchAbort?.signal);
-              baselineCommitCache.set(suite, commits);
+              const commits = await getCommits(suite, { machine: name, signal: fetchAbort?.signal });
+              baselineCommitCache.set(cacheKey, commits);
             } catch (err: unknown) {
               if (err instanceof DOMException && err.name === 'AbortError') return;
-              baselineCommitCache.set(suite, []);
+              baselineCommitCache.set(cacheKey, []);
             }
-          })();
-          const machineCommitsPromise = fetchMachineCommitSet(suite, name)
-            .catch(() => null as Set<string> | null);
+          }
 
-          await commitListPromise;
-
-          // Create commit picker with machine-commit filtering
+          // Create commit picker — data is already filtered by machine
           const picker = createCommitPicker({
             id: 'baseline-commit',
             getCommitData: () => {
-              const cached = baselineCommitCache.get(suite) ?? [];
+              const cached = baselineCommitCache.get(cacheKey) ?? [];
               const values = cached.map(c => c.commit);
               let displayMap: Map<string, string> | undefined;
               if (commitFields.length > 0) {
@@ -371,19 +364,13 @@ export const graphPage: PageModule = {
               blSelectedCommit = value;
               addCurrentBaseline();
             },
-            getMachineCommits: () => blSelectedMachine ? (blMachineCommits ?? 'loading') : null,
           });
           blCommitContainer.append(picker.element);
           blCommitCleanup = picker.destroy;
-
-          // Apply machine commits once ready (may already be resolved)
-          const machineCommits = await machineCommitsPromise;
-          blMachineCommits = machineCommits;
         },
         onClear: () => {
           blSelectedMachine = '';
           blSelectedCommit = '';
-          blMachineCommits = null;
           if (blCommitCleanup) { blCommitCleanup(); blCommitCleanup = null; }
           blCommitContainer.replaceChildren();
         },
@@ -902,7 +889,6 @@ export const graphPage: PageModule = {
       selectedTests = new Set();
       loadingTests = new Set();
       baselineCommitCache.clear();
-      blMachineCommits = null;
       baselines.length = 0;
       regressionCache.clear();
       regressionOverlays = {};
@@ -1015,7 +1001,6 @@ export const graphPage: PageModule = {
     currentSuite = '';
     suiteGeneration = 0;
     baselineCommitCache.clear();
-    blMachineCommits = null;
     if (regressionFetchAbort) { regressionFetchAbort.abort(); regressionFetchAbort = null; }
     regressionCache.clear();
     regressionOverlays = {};

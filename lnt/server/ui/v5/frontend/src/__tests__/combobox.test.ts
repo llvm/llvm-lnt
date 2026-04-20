@@ -5,14 +5,13 @@ import type { SideSelection } from '../types';
 // Mock the API module
 vi.mock('../api', () => ({
   getMachines: vi.fn().mockResolvedValue({ items: [] }),
-  getMachineRuns: vi.fn().mockResolvedValue({ items: [], cursor: { next: null } }),
   getRuns: vi.fn().mockResolvedValue([]),
 }));
 
-import { getMachines, getMachineRuns } from '../api';
+import { getMachines } from '../api';
 import {
   createMachineCombobox, createCommitCombobox, createCommitPicker,
-  fetchMachineCommitSet, resetComboboxState, type ComboboxContext,
+  resetComboboxState, type ComboboxContext,
 } from '../combobox';
 
 function makeContext(overrides?: Partial<ComboboxContext>): ComboboxContext {
@@ -27,6 +26,7 @@ function makeContext(overrides?: Partial<ComboboxContext>): ComboboxContext {
       setSide: (partial: Partial<SideSelection>) => Object.assign(sideA, partial),
       label: 'Side A',
     }),
+    fetchCommitsForMachine: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }
@@ -86,8 +86,8 @@ describe('createCommitCombobox', () => {
     wrapper.remove();
   });
 
-  it('shows loading hint when machine is set but commits not loaded', () => {
-    const sideA: SideSelection = { suite: '', commit: '', machine: 'clang-x86', runs: [], runAgg: 'median' };
+  it('disables commit input with loading placeholder when machine is set (URL-restored)', () => {
+    const sideA: SideSelection = { suite: 'nts', commit: '', machine: 'clang-x86', runs: [], runAgg: 'median' };
     const ctx = makeContext({
       getSideState: () => ({
         selection: sideA,
@@ -95,16 +95,12 @@ describe('createCommitCombobox', () => {
         label: 'Side A',
       }),
     });
-    // machineCommitsA is null (not loaded) — resetComboboxState ensures this
     const wrapper = createCommitCombobox('a', () => {}, () => {}, ctx);
     document.body.append(wrapper);
 
-    const input = wrapper.querySelector('input')!;
-    input.dispatchEvent(new Event('focus'));
-
-    const items = wrapper.querySelectorAll('.combobox-item');
-    expect(items).toHaveLength(1);
-    expect(items[0].textContent).toBe('Loading commits...');
+    const input = wrapper.querySelector('input')! as HTMLInputElement;
+    expect(input.disabled).toBe(true);
+    expect(input.placeholder).toBe('Loading commits...');
 
     wrapper.remove();
   });
@@ -205,7 +201,7 @@ describe('createCommitCombobox', () => {
     wrapper.remove();
   });
 
-  it('does not disable commit input when machine is selected', () => {
+  it('disables commit input with loading placeholder when machine is pre-set', () => {
     const sideA: SideSelection = { suite: 'nts', commit: '', machine: 'clang-x86', runs: [], runAgg: 'median' };
     const ctx = makeContext({
       getSideState: () => ({
@@ -218,7 +214,9 @@ describe('createCommitCombobox', () => {
     document.body.append(wrapper);
 
     const input = wrapper.querySelector('input')! as HTMLInputElement;
-    expect(input.disabled).toBe(false);
+    // Commit input starts disabled because commits are being fetched
+    expect(input.disabled).toBe(true);
+    expect(input.placeholder).toBe('Loading commits...');
 
     wrapper.remove();
   });
@@ -440,62 +438,6 @@ describe('createCommitPicker', () => {
     expect(picker.input.value).toBe('101');
   });
 
-  it('respects getMachineCommits filter', () => {
-    const machineCommits = new Set(['100', '200']);
-    const picker = createCommitPicker({
-      id: 'test',
-      getCommitData: () => ({ values: COMMIT_VALUES }),
-      onSelect: () => {},
-      getMachineCommits: () => machineCommits,
-    });
-    document.body.append(picker.element);
-
-    picker.input.dispatchEvent(new Event('focus'));
-
-    const items = picker.element.querySelectorAll('.combobox-item');
-    expect(items).toHaveLength(2);
-    const texts = Array.from(items).map(li => li.textContent);
-    expect(texts).toContain('100');
-    expect(texts).toContain('200');
-
-    picker.element.remove();
-  });
-
-  it('shows loading hint when getMachineCommits returns loading', () => {
-    const picker = createCommitPicker({
-      id: 'test',
-      getCommitData: () => ({ values: COMMIT_VALUES }),
-      onSelect: () => {},
-      getMachineCommits: () => 'loading',
-    });
-    document.body.append(picker.element);
-
-    picker.input.dispatchEvent(new Event('focus'));
-
-    const items = picker.element.querySelectorAll('.combobox-item');
-    expect(items).toHaveLength(1);
-    expect(items[0].textContent).toBe('Loading commits...');
-
-    picker.element.remove();
-  });
-
-  it('shows all commits when getMachineCommits returns null', () => {
-    const picker = createCommitPicker({
-      id: 'test',
-      getCommitData: () => ({ values: COMMIT_VALUES }),
-      onSelect: () => {},
-      getMachineCommits: () => null,
-    });
-    document.body.append(picker.element);
-
-    picker.input.dispatchEvent(new Event('focus'));
-
-    const items = picker.element.querySelectorAll('.combobox-item');
-    expect(items).toHaveLength(4);
-
-    picker.element.remove();
-  });
-
   it('limits dropdown to 100 items', () => {
     const values = Array.from({ length: 150 }, (_, i) => String(i));
     const picker = createCommitPicker({
@@ -650,46 +592,6 @@ describe('createCommitPicker', () => {
     picker.element.remove();
   });
 
-  it('no combobox-invalid when getMachineCommits returns loading', () => {
-    const picker = createCommitPicker({
-      id: 'test',
-      getCommitData: () => ({ values: COMMIT_VALUES }),
-      onSelect: () => {},
-      getMachineCommits: () => 'loading',
-    });
-    document.body.append(picker.element);
-
-    picker.input.value = 'zzz-invalid';
-    picker.input.dispatchEvent(new Event('input'));
-
-    expect(picker.input.classList.contains('combobox-invalid')).toBe(false);
-
-    picker.element.remove();
-  });
-
-  it('validates against machine-filtered commits', () => {
-    const machineCommits = new Set(['100', '200']);
-    const picker = createCommitPicker({
-      id: 'test',
-      getCommitData: () => ({ values: COMMIT_VALUES }),
-      onSelect: () => {},
-      getMachineCommits: () => machineCommits,
-    });
-    document.body.append(picker.element);
-
-    // '101' is in COMMIT_VALUES but not in machineCommits
-    picker.input.value = '101';
-    picker.input.dispatchEvent(new Event('input'));
-    expect(picker.input.classList.contains('combobox-invalid')).toBe(true);
-
-    // '100' is in machineCommits
-    picker.input.value = '100';
-    picker.input.dispatchEvent(new Event('input'));
-    expect(picker.input.classList.contains('combobox-invalid')).toBe(false);
-
-    picker.element.remove();
-  });
-
   it('rejects partial match on Enter (exact-match required)', () => {
     const onSelect = vi.fn();
     const picker = createCommitPicker({
@@ -816,6 +718,7 @@ describe('createMachineCombobox', () => {
         setSide: (partial: Partial<SideSelection>) => Object.assign(sideA, partial),
         label: 'Side A',
       }),
+      fetchCommitsForMachine: vi.fn().mockResolvedValue(undefined),
       ...overrides,
     };
   }
@@ -952,13 +855,21 @@ describe('createMachineCombobox', () => {
         label: 'Side A',
       }),
     });
-    const wrapper = await createAndLoad(ctx, setSide, onMachineChange);
 
-    // Create commit combobox to set up commitInputA ref
+    // Create machine combobox (fires pre-fetch for URL-restored machine)
+    mockGetMachines.mockResolvedValue({ items: MACHINES, total: MACHINES.length });
+    const wrapper = createMachineCombobox('a', setSide, onMachineChange, ctx);
+    document.body.append(wrapper);
+
+    // Create commit combobox (starts disabled since commits are loading)
     const commitWrapper = createCommitCombobox('a', setSide, () => {}, ctx);
     document.body.append(commitWrapper);
     const commitInput = commitWrapper.querySelector('input')! as HTMLInputElement;
-    expect(commitInput.disabled).toBe(false); // machine is set
+    expect(commitInput.disabled).toBe(true); // loading commits
+
+    // Flush the pre-fetch promise — this enables the commit input
+    await vi.advanceTimersByTimeAsync(0);
+    expect(commitInput.disabled).toBe(false);
 
     // Clear machine text and trigger change
     const machineInput = wrapper.querySelector('input') as HTMLInputElement;
@@ -1008,55 +919,6 @@ describe('createMachineCombobox', () => {
     expect(items[0].textContent).toBe('Loading machines...');
 
     wrapper.remove();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// fetchMachineCommitSet tests
-// ---------------------------------------------------------------------------
-
-describe('fetchMachineCommitSet', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it('returns set of commit values from machine runs', async () => {
-    (getMachineRuns as ReturnType<typeof vi.fn>).mockResolvedValue({
-      items: [
-        { commit: '100', uuid: 'r1', submitted_at: null },
-        { commit: '101', uuid: 'r2', submitted_at: null },
-        { commit: '100', uuid: 'r3', submitted_at: null },
-      ],
-      cursor: { next: null },
-    });
-
-    const commits = await fetchMachineCommitSet('nts', 'clang-x86');
-
-    expect(commits).toEqual(new Set(['100', '101']));
-    expect(getMachineRuns).toHaveBeenCalledWith('nts', 'clang-x86', { limit: 500 }, undefined);
-  });
-
-  it('returns empty set when machine has no runs', async () => {
-    (getMachineRuns as ReturnType<typeof vi.fn>).mockResolvedValue({
-      items: [],
-      cursor: { next: null },
-    });
-
-    const commits = await fetchMachineCommitSet('nts', 'empty-machine');
-
-    expect(commits).toEqual(new Set());
-  });
-
-  it('passes abort signal to getMachineRuns', async () => {
-    (getMachineRuns as ReturnType<typeof vi.fn>).mockResolvedValue({
-      items: [],
-      cursor: { next: null },
-    });
-    const ctrl = new AbortController();
-
-    await fetchMachineCommitSet('nts', 'clang-x86', ctrl.signal);
-
-    expect(getMachineRuns).toHaveBeenCalledWith('nts', 'clang-x86', { limit: 500 }, ctrl.signal);
   });
 });
 

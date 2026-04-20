@@ -90,7 +90,7 @@
 
 ## UI — Graph / Compare Shared
 
-- [ ] Simplify baseline commit pickers to use `GET /commits?machine={name}`
+- [x] Simplify baseline commit pickers to use `GET /commits?machine={name}`
   instead of the current two-step fetch pattern (all commits + machine runs for
   client-side filtering).
 - [ ] Experiment with placing the search bar just above the table rows instead

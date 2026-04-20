@@ -175,10 +175,11 @@ export async function getFields(ts: string, signal?: AbortSignal): Promise<Field
 
 export async function getCommits(
   ts: string,
-  signal?: AbortSignal,
-  onProgress?: (loaded: number) => void,
+  opts?: { machine?: string; signal?: AbortSignal; onProgress?: (loaded: number) => void },
 ): Promise<CommitSummary[]> {
-  return fetchAllCursorPages<CommitSummary>(apiUrl(ts, 'commits'), undefined, signal, onProgress);
+  const params: Record<string, string> = {};
+  if (opts?.machine) params.machine = opts.machine;
+  return fetchAllCursorPages<CommitSummary>(apiUrl(ts, 'commits'), params, opts?.signal, opts?.onProgress);
 }
 
 export async function getMachines(

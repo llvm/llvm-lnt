@@ -1,16 +1,10 @@
 import type { SideSelection, MachineInfo } from './types';
-import { getMachines, getMachineRuns } from './api';
+import { getMachines } from './api';
 import { el } from './utils';
 
-// Per-side machine commit filtering
-let machineCommitsA: Set<string> | null = null;
-let machineCommitsB: Set<string> | null = null;
+// Per-side commit input references for enabling/disabling from machine combobox
 let commitInputA: HTMLInputElement | null = null;
 let commitInputB: HTMLInputElement | null = null;
-
-// Per-side AbortControllers for machine-commit fetches
-let machineCommitsControllerA: AbortController | null = null;
-let machineCommitsControllerB: AbortController | null = null;
 
 /** Shared state that the combobox module reads but does not own. */
 export interface ComboboxContext {
@@ -26,59 +20,34 @@ export interface ComboboxContext {
     setSide: (partial: Partial<SideSelection>) => void;
     label: string;
   };
+  /** Fetch commits filtered by machine for a side. */
+  fetchCommitsForMachine: (side: 'a' | 'b', machine: string) => Promise<void>;
 }
 
 /** Reset per-panel mutable state.  Call this at the start of renderSelectionPanel. */
 export function resetComboboxState(): void {
-  machineCommitsA = null;
-  machineCommitsB = null;
   commitInputA = null;
   commitInputB = null;
-  if (machineCommitsControllerA) { machineCommitsControllerA.abort(); machineCommitsControllerA = null; }
-  if (machineCommitsControllerB) { machineCommitsControllerB.abort(); machineCommitsControllerB = null; }
 }
 
-/**
- * Fetch the set of commit values for a given machine.
- * Returns a Set of commit strings extracted from the machine's runs.
- * Reusable by any consumer that needs machine-filtered commits.
- */
-export async function fetchMachineCommitSet(
-  testsuite: string,
-  machine: string,
-  signal?: AbortSignal,
-): Promise<Set<string>> {
-  const page = await getMachineRuns(testsuite, machine, { limit: 500 }, signal);
-  const commits = new Set<string>();
-  for (const run of page.items) {
-    commits.add(run.commit);
+/** Set the commit input to one of three states: no machine selected, loading commits, or ready. */
+function setCommitInputState(
+  input: HTMLInputElement | null,
+  state: 'no-machine' | 'loading' | 'ready',
+  value?: string,
+): void {
+  if (!input) return;
+  if (state === 'no-machine') {
+    input.disabled = true;
+    input.placeholder = 'Select a machine first';
+  } else if (state === 'loading') {
+    input.disabled = true;
+    input.placeholder = 'Loading commits...';
+  } else {
+    input.disabled = false;
+    input.placeholder = 'Type to search commits...';
   }
-  return commits;
-}
-
-async function fetchMachineCommits(
-  side: 'a' | 'b',
-  machine: string,
-  testsuite: string,
-): Promise<void> {
-  // Abort any in-flight request for this side only
-  const prev = side === 'a' ? machineCommitsControllerA : machineCommitsControllerB;
-  if (prev) prev.abort();
-  const ctrl = new AbortController();
-  if (side === 'a') machineCommitsControllerA = ctrl;
-  else machineCommitsControllerB = ctrl;
-
-  try {
-    const commits = await fetchMachineCommitSet(testsuite, machine, ctrl.signal);
-    if (side === 'a') machineCommitsA = commits;
-    else machineCommitsB = commits;
-  } catch (err: unknown) {
-    // Silently ignore aborted requests — a newer one superseded this
-    if (err instanceof DOMException && err.name === 'AbortError') return;
-    // On other errors, don't filter commits
-    if (side === 'a') machineCommitsA = null;
-    else machineCommitsB = null;
-  }
+  if (value !== undefined) input.value = value;
 }
 
 function setAriaExpanded(wrapper: HTMLElement, expanded: boolean): void {
@@ -137,11 +106,6 @@ export interface CommitPickerOptions {
   initialValue?: string;
   placeholder?: string;
   onSelect: (value: string) => void;
-  /** Called on each dropdown render to get the machine-commit filter state.
-   *  - Return a Set to filter commits by machine.
-   *  - Return 'loading' to show a loading hint (machine selected, commits not yet fetched).
-   *  - Return null (or omit) to disable filtering (show all commits). */
-  getMachineCommits?: () => Set<string> | 'loading' | null;
 }
 
 export interface CommitPickerHandle {
@@ -181,32 +145,15 @@ export function createCommitPicker(opts: CommitPickerOptions): CommitPickerHandl
   }
 
   function showDropdown(filter: string): void {
-    const machineCommits = opts.getMachineCommits?.() ?? null;
-
-    // Machine selected but commits not yet fetched — show loading hint.
-    if (machineCommits === 'loading') {
-      dropdown.replaceChildren(
-        el('li', { class: 'combobox-item', style: 'color: #999; pointer-events: none' }, 'Loading commits...'),
-      );
-      dropdown.classList.add('open');
-      setAriaExpanded(wrapper, true);
-      input.classList.remove('combobox-invalid');
-      return;
-    }
-
     const { values, displayMap } = opts.getCommitData();
-    let source = values;
-    if (machineCommits instanceof Set) {
-      source = source.filter(v => machineCommits.has(v));
-    }
     const lf = filter.toLowerCase();
     const matches = filter
-      ? source.filter(v => {
+      ? values.filter(v => {
           if (v.toLowerCase().includes(lf)) return true;
           const display = displayMap?.get(v);
           return display ? display.toLowerCase().includes(lf) : false;
         })
-      : source;
+      : values;
     const limited = matches.slice(0, 100);
 
     dropdown.replaceChildren();
@@ -237,11 +184,7 @@ export function createCommitPicker(opts: CommitPickerOptions): CommitPickerHandl
   /** Check if a value is an exact match against available commit values. */
   function isValidCommit(raw: string): boolean {
     const { values } = opts.getCommitData();
-    const machineCommits = opts.getMachineCommits?.() ?? null;
-    const source = machineCommits instanceof Set
-      ? values.filter(v => machineCommits.has(v))
-      : values;
-    return source.includes(raw);
+    return values.includes(raw);
   }
 
   input.addEventListener('focus', () => showDropdown(input.value));
@@ -309,23 +252,16 @@ export function createCommitCombobox(
       setSide(value ? { commit: value } : { commit: '', runs: [] });
       onCommitChange();
     },
-    getMachineCommits: () => {
-      const commits = side === 'a' ? machineCommitsA : machineCommitsB;
-      if (commits) return commits;
-      const { selection: s } = ctx.getSideState(side);
-      return s.machine ? 'loading' : null;
-    },
   });
 
   // Store refs for createMachineCombobox interaction
   if (side === 'a') commitInputA = picker.input;
   else commitInputB = picker.input;
 
-  // Disable commit input until a machine is selected
-  if (!selection.machine) {
-    picker.input.disabled = true;
-    picker.input.placeholder = 'Select a machine first';
-  }
+  // Disable commit input until a machine is selected.
+  // When machine is set (URL-restored), commits are being fetched by the
+  // machine combobox pre-fetch — keep disabled with a loading placeholder.
+  setCommitInputState(picker.input, selection.machine ? 'loading' : 'no-machine');
 
   return picker.element;
 }
@@ -365,25 +301,33 @@ export function createMachineCombobox(
     input.value = selection.machine;
     // Pre-fetch commits for URL-restored machine so the commit dropdown
     // is correctly filtered from the start (not showing all commits).
-    fetchMachineCommits(side, selection.machine, ctx.getSuiteName(side));
+    // Fire-and-forget: the commit input doesn't exist yet (created later
+    // by createCommitCombobox), so use a null-check on completion.
+    ctx.fetchCommitsForMachine(side, selection.machine)
+      .then(() => {
+        const commitInput = side === 'a' ? commitInputA : commitInputB;
+        const { selection: updated } = ctx.getSideState(side);
+        setCommitInputState(commitInput, 'ready', updated.commit || '');
+      })
+      .catch(() => {});
   }
 
   async function onMachineSelect(name: string): Promise<void> {
     setSide({ machine: name });
-    await fetchMachineCommits(side, name, ctx.getSuiteName(side));
+
+    const commitInput = side === 'a' ? commitInputA : commitInputB;
+    setCommitInputState(commitInput, 'loading');
+
+    await ctx.fetchCommitsForMachine(side, name);
+
     // Clear commit if it's no longer valid for this machine
-    const machineCommits = side === 'a' ? machineCommitsA : machineCommitsB;
+    const { cachedCommitValues } = ctx.getCommitData(side);
     const { selection: current } = ctx.getSideState(side);
-    if (machineCommits && current.commit && !machineCommits.has(current.commit)) {
+    if (current.commit && !cachedCommitValues.includes(current.commit)) {
       setSide({ commit: '' });
     }
-    const commitInput = side === 'a' ? commitInputA : commitInputB;
-    if (commitInput) {
-      commitInput.disabled = false;
-      commitInput.placeholder = 'Type to search commits...';
-      const { selection: updated } = ctx.getSideState(side);
-      commitInput.value = updated.commit || '';
-    }
+    const { selection: updated } = ctx.getSideState(side);
+    setCommitInputState(commitInput, 'ready', updated.commit || '');
     onMachineChange();
   }
 
@@ -473,12 +417,7 @@ export function createMachineCombobox(
     if (!text) {
       // Machine cleared — reset downstream state and disable commit
       setSide({ machine: '', commit: '', runs: [] });
-      const commitInput = side === 'a' ? commitInputA : commitInputB;
-      if (commitInput) {
-        commitInput.disabled = true;
-        commitInput.placeholder = 'Select a machine first';
-        commitInput.value = '';
-      }
+      setCommitInputState(side === 'a' ? commitInputA : commitInputB, 'no-machine', '');
       input.classList.remove('combobox-invalid');
       onMachineChange();
       return;

@@ -4,12 +4,10 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 // Mock the API module
 vi.mock('../api', () => ({
   getFields: vi.fn(),
-  getCommits: vi.fn(),
-  getRuns: vi.fn(),
   getTestSuiteInfoCached: vi.fn().mockRejectedValue(new Error('not configured')),
 }));
 
-import { getFields, getCommits } from '../api';
+import { getFields } from '../api';
 import { initSelection, fetchSideData, getMetricFields } from '../selection';
 import type { FieldInfo } from '../types';
 
@@ -28,9 +26,8 @@ describe('getMetricFields', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     initSelection(['test-suite']);
-    // Default: both API calls resolve with empty data
+    // Default: API calls resolve with empty data
     (getFields as ReturnType<typeof vi.fn>).mockResolvedValue([]);
-    (getCommits as ReturnType<typeof vi.fn>).mockResolvedValue([]);
   });
 
   it('returns only real-typed fields', async () => {

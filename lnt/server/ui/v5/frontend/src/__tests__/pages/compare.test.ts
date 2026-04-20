@@ -7,11 +7,9 @@ vi.mock('../../api', async (importOriginal) => {
   return {
     ...actual,
     getFields: vi.fn(),
-    getCommits: vi.fn(),
     getSamples: vi.fn(),
     getRuns: vi.fn(),
     getMachines: vi.fn(),
-    getMachineRuns: vi.fn(),
     getRegressions: vi.fn(),
     createRegression: vi.fn(),
     addRegressionIndicators: vi.fn(),
@@ -38,18 +36,13 @@ const plotlyMock = {
 };
 (globalThis as unknown as Record<string, unknown>).Plotly = plotlyMock;
 
-import { getFields, getCommits, getSamples, getMachines } from '../../api';
+import { getFields, getSamples, getMachines } from '../../api';
 import { getTestsuites } from '../../router';
 import { comparePage } from '../../pages/compare';
-import type { FieldInfo, CommitSummary, SampleInfo } from '../../types';
+import type { FieldInfo, SampleInfo } from '../../types';
 
 const mockFields: FieldInfo[] = [
   { name: 'exec_time', type: 'real', display_name: 'Execution Time', unit: 's', unit_abbrev: 's', bigger_is_better: false },
-];
-
-const mockCommits: CommitSummary[] = [
-  { commit: '100', ordinal: null, fields: {} },
-  { commit: '101', ordinal: null, fields: {} },
 ];
 
 const mockSamples: SampleInfo[] = [
@@ -62,7 +55,6 @@ const savedLocation = window.location;
 function setupMocks(): void {
   (getTestsuites as ReturnType<typeof vi.fn>).mockReturnValue(['nts']);
   (getFields as ReturnType<typeof vi.fn>).mockResolvedValue(mockFields);
-  (getCommits as ReturnType<typeof vi.fn>).mockResolvedValue(mockCommits);
   (getSamples as ReturnType<typeof vi.fn>).mockResolvedValue(mockSamples);
   (getMachines as ReturnType<typeof vi.fn>).mockResolvedValue({ items: [] });
 }
@@ -90,17 +82,16 @@ describe('comparePage', () => {
     (window as unknown as Record<string, unknown>).location = savedLocation;
   });
 
-  it('mount loads fields and commits for side with suite in URL', async () => {
+  it('mount loads fields for side with suite in URL', async () => {
     comparePage.mount(container, { testsuite: '' });
 
     // fetchSideData is called for side A because suite_a=nts is in the URL
     await vi.waitFor(() => {
       expect(getFields).toHaveBeenCalledWith('nts');
-      expect(getCommits).toHaveBeenCalledWith('nts');
     });
   });
 
-  it('shows error when fields/commits fetch fails', async () => {
+  it('shows error when fields fetch fails', async () => {
     (getFields as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Network error'));
 
     comparePage.mount(container, { testsuite: '' });

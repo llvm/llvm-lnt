@@ -35,7 +35,6 @@ vi.mock('../../combobox', async (importOriginal) => {
   return {
     ...actual,
     createCommitPicker: vi.fn(() => mockCommitPickerHandle),
-    fetchMachineCommitSet: vi.fn().mockResolvedValue(new Set<string>()),
   };
 });
 

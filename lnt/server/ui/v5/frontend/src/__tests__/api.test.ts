@@ -229,7 +229,7 @@ describe('AbortSignal support', () => {
       .mockResolvedValueOnce(mockResponse(cursorPage([{ commit: '100', ordinal: 1, fields: {} }], 'cursor1')))
       .mockResolvedValueOnce(mockResponse(cursorPage([{ commit: '200', ordinal: 2, fields: {} }])));
 
-    await getCommits('nts', controller.signal);
+    await getCommits('nts', { signal: controller.signal });
 
     expect(mockFetch.mock.calls).toHaveLength(2);
     expect(mockFetch.mock.calls[0][1].signal).toBe(controller.signal);
@@ -292,7 +292,7 @@ describe('cursor-based pagination', () => {
       .mockResolvedValueOnce(mockResponse(cursorPage([{ commit: '3', ordinal: 3, fields: {} }])));
 
     const onProgress = vi.fn();
-    await getCommits('nts', undefined, onProgress);
+    await getCommits('nts', { onProgress });
 
     expect(onProgress).toHaveBeenCalledTimes(2);
     expect(onProgress).toHaveBeenNthCalledWith(1, 2);
@@ -370,6 +370,24 @@ describe('getCommits', () => {
     const url = new URL(mockFetch.mock.calls[0][0]);
     expect(url.pathname).toBe('/api/v5/nts/commits');
     expect(url.searchParams.get('limit')).toBe('500');
+  });
+
+  it('passes machine query parameter when provided', async () => {
+    mockFetch.mockResolvedValueOnce(mockResponse(cursorPage([])));
+
+    await getCommits('nts', { machine: 'clang-x86' });
+
+    const url = new URL(mockFetch.mock.calls[0][0]);
+    expect(url.searchParams.get('machine')).toBe('clang-x86');
+  });
+
+  it('does not include machine param when not provided', async () => {
+    mockFetch.mockResolvedValueOnce(mockResponse(cursorPage([])));
+
+    await getCommits('nts');
+
+    const url = new URL(mockFetch.mock.calls[0][0]);
+    expect(url.searchParams.has('machine')).toBe(false);
   });
 });
 
