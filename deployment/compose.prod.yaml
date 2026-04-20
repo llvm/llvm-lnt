@@ -9,7 +9,7 @@
 services:
   webserver:
     build: !reset
-    image: ghcr.io/llvm/llvm-lnt:${LNT_IMAGE:-latest}
+    image: ghcr.io/ldionne/llvm-lnt:${LNT_IMAGE:-latest}
 
 volumes:
   instance:

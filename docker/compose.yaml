@@ -61,6 +61,7 @@ services:
       - "${LNT_HOST_PORT:-8000}:8000"
     networks:
       - lnt_network
+    platform: linux/amd64
 
   db:
     image: docker.io/postgres:18-alpine
