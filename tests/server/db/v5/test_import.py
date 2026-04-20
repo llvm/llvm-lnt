@@ -549,6 +549,39 @@ class TestGetOrCreateTests(_ImportTestBase):
         self.assertEqual(len(samples_b), 2)
         session.close()
 
+    def test_import_heterogeneous_metrics(self):
+        """Different tests with different metric subsets store NULLs correctly."""
+        session = self.Session()
+        data = {
+            "format_version": "5",
+            "machine": {"name": "hetero-machine"},
+            "commit": "hetero-commit",
+            "tests": [
+                {"name": "hetero/both", "compile_time": 1.0,
+                 "execution_time": 2.0},
+                {"name": "hetero/exec-only", "execution_time": 3.0},
+            ],
+        }
+        run = self.tsdb.import_run(session, data)
+        session.commit()
+
+        samples = self.tsdb.list_samples(session, run_id=run.id)
+        self.assertEqual(len(samples), 2)
+
+        by_test = {}
+        for s in samples:
+            t = self.tsdb.get_test(session, id=s.test_id)
+            by_test[t.name] = s
+
+        both = by_test["hetero/both"]
+        self.assertAlmostEqual(both.compile_time, 1.0)
+        self.assertAlmostEqual(both.execution_time, 2.0)
+
+        exec_only = by_test["hetero/exec-only"]
+        self.assertIsNone(exec_only.compile_time)
+        self.assertAlmostEqual(exec_only.execution_time, 3.0)
+        session.close()
+
 
 class TestGetOrCreateCommit(_ImportTestBase):
 

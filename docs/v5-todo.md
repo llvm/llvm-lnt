@@ -174,7 +174,7 @@
 
 ### P1 — High
 
-- [ ] **Use Core INSERT for samples instead of ORM objects** (impact: 3–10x
+- [x] **Use Core INSERT for samples instead of ORM objects** (impact: 3–10x
   speedup on sample insertion). `create_samples` (`__init__.py:813`) creates
   7,500 ORM objects via `add_all()`. SQLAlchemy 1.3 emits individual INSERT
   statements. Using `session.execute(Sample.__table__.insert(), list_of_dicts)`

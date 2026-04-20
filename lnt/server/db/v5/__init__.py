@@ -865,27 +865,34 @@ class V5TestSuiteDB:
         session: sqlalchemy.orm.Session,
         run,
         samples: list[dict[str, Any]],
-    ) -> list:
+    ) -> None:
         """Create Sample rows for *run*.
 
         Each dict in *samples* must have ``test_id`` plus metric fields.
+        Uses a Core multi-row INSERT for performance.
         """
-        # Validate metric names once (all samples use the same schema keys).
-        if samples:
-            self._validate_metric_names(samples[0].keys() - {"test_id"})
-        created = []
-        for sample_data in samples:
-            s = self.Sample()
-            s.run_id = run.id
-            s.test_id = sample_data["test_id"]
-            for key, value in sample_data.items():
-                if key == "test_id":
-                    continue
-                setattr(s, key, value)
-            created.append(s)
-        session.add_all(created)
-        session.flush()
-        return created
+        if not samples:
+            return
+
+        all_metric_keys: set[str] = set()
+        for s in samples:
+            all_metric_keys.update(s)
+        all_metric_keys.discard("test_id")
+        self._validate_metric_names(all_metric_keys)
+
+        # Multi-row VALUES requires uniform keys across all dicts.
+        all_keys = {"run_id", "test_id"} | all_metric_keys
+        template = dict.fromkeys(all_keys)
+        template["run_id"] = run.id
+        rows = [{**template, **s} for s in samples]
+
+        # Chunk to stay under psycopg2's 32,767 bind-parameter limit.
+        cols_per_row = len(all_keys)
+        chunk_size = max(1, _BATCH_CHUNK_SIZE // cols_per_row)
+
+        for chunk in batched(rows, chunk_size):
+            stmt = pg_insert(self.Sample.__table__).values(chunk)
+            session.execute(stmt)
 
     # ===================================================================
     # Time-series query
@@ -1328,15 +1335,13 @@ class V5TestSuiteDB:
         session: sqlalchemy.orm.Session,
         data: dict[str, Any],
         run,
-    ) -> list:
+    ) -> None:
         """Parse test entries and create all samples in a single batch.
 
         Metric values may be scalars or lists.  A list value (e.g.
         ``"execution_time": [0.1, 0.2]``) creates one Sample per element.
         All list values in a single test entry must have the same length;
         scalar values are repeated across the resulting Samples.
-
-        Returns the list of created Sample objects.
         """
         tests_data = data.get("tests", [])
         all_samples: list[dict[str, Any]] = []
@@ -1389,8 +1394,7 @@ class V5TestSuiteDB:
                     all_samples.append(sample_dict)
 
         if all_samples:
-            return self.create_samples(session, run, all_samples)
-        return []
+            self.create_samples(session, run, all_samples)
 
     # ===================================================================
     # Bulk import (run submission)

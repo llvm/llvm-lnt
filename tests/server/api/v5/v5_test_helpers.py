@@ -104,10 +104,14 @@ def create_test(session, ts, name='test.suite/benchmark'):
 
 
 def create_sample(session, ts, run, test, **field_values):
-    """Create a Sample via V5TestSuiteDB and return it."""
-    samples = ts.create_samples(
-        session, run, [{'test_id': test.id, **field_values}])
-    return samples[0]
+    """Create a Sample via V5TestSuiteDB and return the ORM object."""
+    ts.create_samples(session, run, [{'test_id': test.id, **field_values}])
+    return (
+        session.query(ts.Sample)
+        .filter(ts.Sample.run_id == run.id, ts.Sample.test_id == test.id)
+        .order_by(ts.Sample.id.desc())
+        .first()
+    )
 
 
 def create_regression(session, ts, title='Test Regression',
