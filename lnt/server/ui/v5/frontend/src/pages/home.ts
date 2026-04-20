@@ -15,15 +15,9 @@ import {
 
 const MAX_MACHINES = 5;
 
-type RangePreset = '30d' | '90d' | '1y';
-const RANGE_DAYS: Record<RangePreset, number> = { '30d': 30, '90d': 90, '1y': 365 };
-const RANGE_PRESETS: RangePreset[] = ['30d', '90d', '1y'];
-
-function rangeToAfterTime(range: RangePreset): string {
-  const d = new Date();
-  d.setDate(d.getDate() - RANGE_DAYS[range]);
-  return d.toISOString();
-}
+type RangePreset = '100' | '500' | '1000';
+const RANGE_COMMITS: Record<RangePreset, number> = { '100': 100, '500': 500, '1000': 1000 };
+const RANGE_PRESETS: RangePreset[] = ['100', '500', '1000'];
 
 function isValidRange(s: string): s is RangePreset {
   return RANGE_PRESETS.includes(s as RangePreset);
@@ -36,30 +30,41 @@ function isValidRange(s: string): s is RangePreset {
 /**
  * Fetch trend data for one metric across multiple machines.
  * Returns sparkline traces with server-computed geomean values per commit.
+ * Points are assigned sequential x-indices for even spacing on the chart.
  */
 async function fetchSuiteTrends(
   suite: string,
   metric: string,
   machines: string[],
-  afterTime: string,
+  lastN: number,
   signal: AbortSignal,
 ): Promise<SparklineTrace[]> {
-  const items = await fetchTrends(suite, { metric, machine: machines, afterTime }, signal);
+  const items = await fetchTrends(suite, { metric, machine: machines, lastN }, signal);
 
-  // Group API response by machine, build SparklineTrace per machine
-  const byMachine = new Map<string, Array<{ timestamp: string; value: number }>>();
+  // Group API response by machine
+  const byMachine = new Map<string, Array<{ ordinal: number; value: number; commit: string }>>();
   for (const item of items) {
-    if (!item.submitted_at) continue;
     let points = byMachine.get(item.machine);
     if (!points) { points = []; byMachine.set(item.machine, points); }
-    points.push({ timestamp: item.submitted_at, value: item.value });
+    points.push({ ordinal: item.ordinal, value: item.value, commit: item.commit });
   }
+
+  // Build a global ordinal -> sequential index mapping for even spacing.
+  // All machines share the same mapping so traces align at the same commits.
+  const allOrdinals = [...new Set(items.map(i => i.ordinal))].sort((a, b) => a - b);
+  const ordinalToX = new Map(allOrdinals.map((ord, idx) => [ord, idx]));
 
   const traces: SparklineTrace[] = [];
   for (const [machine, points] of byMachine) {
     if (points.length === 0) continue;
     const idx = machines.indexOf(machine);
-    traces.push({ machine, color: machineColor(idx >= 0 ? idx : traces.length), points });
+    traces.push({
+      machine,
+      color: machineColor(idx >= 0 ? idx : traces.length),
+      points: points
+        .sort((a, b) => a.ordinal - b.ordinal)
+        .map(p => ({ x: ordinalToX.get(p.ordinal)!, value: p.value, commit: p.commit })),
+    });
   }
   return traces;
 }
@@ -84,17 +89,17 @@ export const homePage: PageModule = {
 
     // Read range from URL
     const urlParams = new URLSearchParams(window.location.search);
-    let activeRange: RangePreset = '30d';
+    let activeRange: RangePreset = '500';
     const rangeParam = urlParams.get('range') || '';
     if (isValidRange(rangeParam)) activeRange = rangeParam;
 
-    // Header with time range buttons
+    // Header with commit range buttons
     const rangeGroup = el('div', { class: 'dashboard-range-group' });
     const rangeButtons = new Map<RangePreset, HTMLButtonElement>();
     for (const preset of RANGE_PRESETS) {
       const btn = el('button', {
         class: `dashboard-range-btn${preset === activeRange ? ' dashboard-range-btn-active' : ''}`,
-      }, preset);
+      }, `Last ${preset}`);
       btn.addEventListener('click', () => {
         if (preset === activeRange) return;
         activeRange = preset;
@@ -133,7 +138,7 @@ export const homePage: PageModule = {
 
     function syncUrl(): void {
       const params = new URLSearchParams();
-      if (activeRange !== '30d') params.set('range', activeRange);
+      if (activeRange !== '500') params.set('range', activeRange);
       const qs = params.toString();
       window.history.replaceState(null, '',
         window.location.pathname + (qs ? '?' + qs : ''));
@@ -208,9 +213,9 @@ export const homePage: PageModule = {
         }
 
         // Fetch and render each metric's sparkline
-        const afterTime = rangeToAfterTime(activeRange);
+        const lastN = RANGE_COMMITS[activeRange];
         for (const metric of metrics) {
-          loadMetricSparkline(suite, metric, topMachines, afterTime, grid, placeholders, sig);
+          loadMetricSparkline(suite, metric, topMachines, lastN, grid, placeholders, sig);
         }
       } catch (err) {
         if (sig.aborted) return;
@@ -222,7 +227,7 @@ export const homePage: PageModule = {
       suite: string,
       metric: FieldInfo,
       machines: string[],
-      afterTime: string,
+      lastN: number,
       grid: HTMLElement,
       placeholders: Map<string, HTMLElement>,
       sig: AbortSignal,
@@ -232,7 +237,7 @@ export const homePage: PageModule = {
       const unit = metric.unit_abbrev || metric.unit || undefined;
 
       try {
-        const traces = await fetchSuiteTrends(suite, metricName, machines, afterTime, sig);
+        const traces = await fetchSuiteTrends(suite, metricName, machines, lastN, sig);
         if (sig.aborted) return;
 
         const { element, destroy } = createSparklineCard({

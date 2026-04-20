@@ -924,18 +924,18 @@ class V5TestSuiteDB:
         metric: str,
         *,
         machine_ids: list[int] | None = None,
-        after_time: datetime.datetime | None = None,
-        before_time: datetime.datetime | None = None,
+        last_n: int | None = None,
         limit: int | None = None,
     ) -> list[dict[str, Any]]:
         """Query geomean-aggregated trend data grouped by (machine, commit).
 
         Computes ``exp(avg(ln(metric)))`` over all samples for each
         (machine, commit) pair.  Only positive metric values are included
-        (required for ``ln``).
+        (required for ``ln``).  Only commits with a non-null ordinal are
+        included.
 
-        *after_time* / *before_time* filter on ``Run.submitted_at``.
-        *limit* caps the number of rows returned.
+        *last_n* limits results to the most recent N commits by ordinal.
+        *limit* caps the total number of rows returned.
 
         Returns a list of dicts with keys: ``machine_name``, ``commit``,
         ``ordinal``, ``value``, ``submitted_at``.
@@ -960,29 +960,33 @@ class V5TestSuiteDB:
             .join(self.Commit, self.Run.commit_id == self.Commit.id)
             .join(self.Machine, self.Run.machine_id == self.Machine.id)
             .filter(metric_col > 0)
+            .filter(self.Commit.ordinal.isnot(None))
         )
 
         if machine_ids:
             q = q.filter(self.Machine.id.in_(machine_ids))
 
-        if after_time is not None:
-            q = q.filter(self.Run.submitted_at > after_time)
-
-        if before_time is not None:
-            q = q.filter(self.Run.submitted_at < before_time)
+        if last_n is not None:
+            # Find the ordinal cutoff: the Nth-highest ordinal.
+            # Commit.ordinal has a unique constraint -> implicit B-tree index.
+            cutoff = (
+                session.query(self.Commit.ordinal)
+                .filter(self.Commit.ordinal.isnot(None))
+                .order_by(self.Commit.ordinal.desc())
+                .offset(last_n - 1)
+                .limit(1)
+                .scalar()
+            )
+            if cutoff is not None:
+                q = q.filter(self.Commit.ordinal >= cutoff)
+            # If cutoff is None, fewer than last_n commits exist -- return all.
 
         q = q.group_by(
             self.Machine.name, self.Commit.id,
             self.Commit.commit, self.Commit.ordinal,
         )
 
-        # Order by ordinal when available, falling back to commit id.
-        # NULLs sort last so that commits without ordinals appear at the end.
-        q = q.order_by(
-            self.Machine.name,
-            self.Commit.ordinal.asc().nullslast(),
-            self.Commit.id,
-        )
+        q = q.order_by(self.Machine.name, self.Commit.ordinal.asc())
 
         if limit is not None:
             q = q.limit(limit)

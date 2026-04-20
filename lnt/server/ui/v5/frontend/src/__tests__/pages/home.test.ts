@@ -70,7 +70,7 @@ function mockRunsPage(items: RunInfo[], nextCursor: string | null = null): Curso
 }
 
 const mockTrendsData: TrendsDataPoint[] = [
-  { machine: 'machine-a', commit: '100', ordinal: null, submitted_at: '2026-01-01T10:00:00Z', value: 14.14 },
+  { machine: 'machine-a', commit: '100', ordinal: 100, submitted_at: '2026-01-01T10:00:00Z', value: 14.14 },
 ];
 
 let container: HTMLElement;
@@ -116,16 +116,16 @@ describe('Dashboard page', () => {
     expect(h3s[1].textContent).toBe('compile-suite');
   });
 
-  it('renders time range buttons with 30d active by default', () => {
+  it('renders commit range buttons with Last 500 active by default', () => {
     homePage.mount(container, { testsuite: '' });
 
     const buttons = container.querySelectorAll('.dashboard-range-btn');
     expect(buttons.length).toBe(3);
-    expect(buttons[0].textContent).toBe('30d');
-    expect(buttons[1].textContent).toBe('90d');
-    expect(buttons[2].textContent).toBe('1y');
-    expect(buttons[0].classList.contains('dashboard-range-btn-active')).toBe(true);
-    expect(buttons[1].classList.contains('dashboard-range-btn-active')).toBe(false);
+    expect(buttons[0].textContent).toBe('Last 100');
+    expect(buttons[1].textContent).toBe('Last 500');
+    expect(buttons[2].textContent).toBe('Last 1000');
+    expect(buttons[1].classList.contains('dashboard-range-btn-active')).toBe(true);
+    expect(buttons[0].classList.contains('dashboard-range-btn-active')).toBe(false);
   });
 
   it('renders sparkline cards with correct metric titles after data loads', async () => {
@@ -152,6 +152,18 @@ describe('Dashboard page', () => {
       expect(getTestSuiteInfo).toHaveBeenCalledWith('compile-suite', expect.anything());
       expect(getRunsPage).toHaveBeenCalledTimes(2);
     }, { timeout: 500 });
+  });
+
+  it('passes lastN to fetchTrends', async () => {
+    homePage.mount(container, { testsuite: '' });
+
+    await vi.waitFor(() => {
+      expect(fetchTrends).toHaveBeenCalled();
+    }, { timeout: 500 });
+
+    // Default range is 500, so lastN should be 500
+    const call = (fetchTrends as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(call[1]).toHaveProperty('lastN', 500);
   });
 
   it('passes trend data through to Plotly sparkline charts', async () => {

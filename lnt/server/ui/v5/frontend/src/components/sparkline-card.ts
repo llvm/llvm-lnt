@@ -16,7 +16,7 @@ export { machineColor } from '../utils';
 export interface SparklineTrace {
   machine: string;
   color: string;
-  points: Array<{ timestamp: string; value: number }>;
+  points: Array<{ x: number; value: number; commit: string }>;
 }
 
 export interface SparklineCardOptions {
@@ -33,7 +33,7 @@ function formatLabel(title: string, unit?: string): string {
 }
 
 /**
- * Create a sparkline card element showing a small Plotly time-series chart.
+ * Create a sparkline card element showing a small Plotly chart.
  * Returns the DOM element and a destroy() function to free Plotly resources.
  */
 export function createSparklineCard(options: SparklineCardOptions): {
@@ -60,20 +60,21 @@ export function createSparklineCard(options: SparklineCardOptions): {
   }
 
   const plotlyData = options.traces.map(trace => ({
-    x: trace.points.map(p => p.timestamp),
+    x: trace.points.map(p => p.x),
     y: trace.points.map(p => p.value),
+    text: trace.points.map(p => p.commit),
     type: 'scatter',
     mode: 'lines',
     line: { color: trace.color, width: 1.5 },
     hovertemplate:
       `<b>${trace.machine}</b><br>` +
-      'Value: %{y:.4g}<br>' +
-      '%{x}<extra></extra>',
+      'Commit: %{text}<br>' +
+      'Value: %{y:.4g}<extra></extra>',
   }));
 
   const layout = {
     margin: { t: 8, r: 8, b: 30, l: 40 },
-    xaxis: { type: 'date', showgrid: false, tickfont: { size: 10 } },
+    xaxis: { type: 'linear', showgrid: false, showticklabels: false },
     yaxis: { automargin: true, tickfont: { size: 10 } },
     showlegend: false,
     hovermode: 'closest' as const,

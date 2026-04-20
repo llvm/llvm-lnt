@@ -413,20 +413,19 @@ export async function deleteTestSuite(
 export interface TrendsDataPoint {
   machine: string;
   commit: string;
-  ordinal: number | null;
+  ordinal: number;
   submitted_at: string | null;
   value: number;
 }
 
 export async function fetchTrends(
   ts: string,
-  opts: { metric: string; machine?: string[]; afterTime?: string; beforeTime?: string },
+  opts: { metric: string; machine?: string[]; lastN?: number },
   signal?: AbortSignal,
 ): Promise<TrendsDataPoint[]> {
   const body: Record<string, unknown> = { metric: opts.metric };
   if (opts.machine?.length) body.machine = opts.machine;
-  if (opts.afterTime) body.after_time = opts.afterTime;
-  if (opts.beforeTime) body.before_time = opts.beforeTime;
+  if (opts.lastN) body.last_n = opts.lastN;
   const data = await fetchJson<{ metric: string; items: TrendsDataPoint[] }>(
     apiUrl(ts, 'trends'), { method: 'POST', body, signal });
   return data.items;

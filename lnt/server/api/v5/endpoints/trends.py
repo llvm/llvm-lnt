@@ -1,7 +1,7 @@
 """Trends endpoint for the v5 API.
 
 POST /api/v5/{ts}/trends
-  Body (JSON): {metric, machine, after_time, before_time}
+  Body (JSON): {metric, machine, last_n}
 
 Returns server-side geomean-aggregated trend data for the Dashboard.
 The metric field is required; all other fields are optional.
@@ -13,7 +13,7 @@ from flask_smorest import Blueprint
 
 from ..auth import require_scope
 from ..errors import abort_with_error
-from ..helpers import dump_response, format_utc, get_metric_def, lookup_machine, parse_datetime
+from ..helpers import dump_response, format_utc, get_metric_def, lookup_machine
 from ..schemas.trends import TrendsItemSchema, TrendsQuerySchema, TrendsResponseSchema
 
 _trends_item_schema = TrendsItemSchema()
@@ -38,7 +38,7 @@ class TrendsView(MethodView):
 
         Returns trend data points grouped by (machine, commit) with
         the geometric mean of all positive sample values within each
-        group.
+        group.  Only commits with a non-null ordinal are included.
         """
         ts = g.ts
         session = g.db_session
@@ -57,27 +57,12 @@ class TrendsView(MethodView):
             machine = lookup_machine(session, ts, name)
             machine_ids.append(machine.id)
 
-        after_time = None
-        after_time_str = query_args.get('after_time')
-        if after_time_str:
-            after_time = parse_datetime(after_time_str)
-            if after_time is None:
-                abort_with_error(
-                    400, "Invalid after_time format, expected ISO 8601")
-
-        before_time = None
-        before_time_str = query_args.get('before_time')
-        if before_time_str:
-            before_time = parse_datetime(before_time_str)
-            if before_time is None:
-                abort_with_error(
-                    400, "Invalid before_time format, expected ISO 8601")
+        last_n = query_args.get('last_n')
 
         results = ts.query_trends(
             session, metric,
             machine_ids=machine_ids or None,
-            after_time=after_time,
-            before_time=before_time,
+            last_n=last_n,
         )
 
         items = []

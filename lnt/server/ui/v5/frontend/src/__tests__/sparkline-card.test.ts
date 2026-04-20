@@ -25,8 +25,8 @@ describe('createSparklineCard', () => {
       machine: 'machine-1',
       color: '#1f77b4',
       points: [
-        { timestamp: '2025-01-01T00:00:00Z', value: 100 },
-        { timestamp: '2025-01-02T00:00:00Z', value: 105 },
+        { x: 0, value: 100, commit: 'abc123' },
+        { x: 1, value: 105, commit: 'def456' },
       ],
     },
   ];

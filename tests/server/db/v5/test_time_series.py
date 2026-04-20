@@ -295,22 +295,69 @@ class TestQueryTrends(unittest.TestCase):
         self.assertEqual(len(results), 2)
         session.close()
 
-    def test_query_trends_filter_by_time_range(self):
-        """after_time/before_time use exclusive bounds (> / <)."""
+    def test_query_trends_last_n(self):
+        """last_n limits to the most recent N commits by ordinal."""
         session = self.Session()
-        # Seed data has machine_a runs at 12:00, 13:00, 14:00.
-        # With exclusive bounds, start=12:00 excludes the 12:00 run and
-        # end=13:30 excludes nothing extra, leaving only the 13:00 run.
-        start = datetime.datetime(2024, 3, 1, 12, 0, 0, tzinfo=datetime.timezone.utc)
-        end = datetime.datetime(2024, 3, 1, 13, 30, 0, tzinfo=datetime.timezone.utc)
+        # Ordinals: 10, 20, 30.  last_n=2 -> ordinals 20 and 30.
+        # Machine A has data at 10, 20, 30 -> 2 rows returned.
+        # Machine B has data at 10, 20 -> only ordinal 20 matches -> 1 row.
         results = self.tsdb.query_trends(
-            session, "execution_time",
-            after_time=start, before_time=end)
-        self.assertEqual(len(results), 1)
+            session, "execution_time", last_n=2)
+        ordinals = {r["ordinal"] for r in results}
+        self.assertEqual(ordinals, {20, 30})
+        a_rows = [r for r in results if r["machine_name"] == "trends-machine-a"]
+        b_rows = [r for r in results if r["machine_name"] == "trends-machine-b"]
+        self.assertEqual(len(a_rows), 2)
+        self.assertEqual(len(b_rows), 1)
+        session.close()
+
+    def test_query_trends_last_n_one(self):
+        """last_n=1 returns only the single most recent commit."""
+        session = self.Session()
+        results = self.tsdb.query_trends(
+            session, "execution_time", last_n=1)
+        ordinals = {r["ordinal"] for r in results}
+        self.assertEqual(ordinals, {30})
+        session.close()
+
+    def test_query_trends_last_n_exceeds_available(self):
+        """last_n larger than available commits returns all data."""
+        session = self.Session()
+        all_results = self.tsdb.query_trends(session, "execution_time")
+        limited_results = self.tsdb.query_trends(
+            session, "execution_time", last_n=100)
+        self.assertEqual(len(limited_results), len(all_results))
+        session.close()
+
+    def test_query_trends_last_n_none_returns_all(self):
+        """Omitting last_n returns all data (no filtering by count)."""
+        session = self.Session()
+        results = self.tsdb.query_trends(session, "execution_time")
+        # 3 commits for machine_a + 2 for machine_b = 5
+        self.assertEqual(len(results), 5)
+        session.close()
+
+    def test_query_trends_excludes_unordered_commits(self):
+        """Commits without ordinals are excluded from trends results."""
+        session = self.Session()
+        # Create a commit without ordinal
+        unordered = self.tsdb.get_or_create_commit(session, "unordered-commit")
+        # ordinal remains None
+        run = self.tsdb.create_run(
+            session, self.machine_a, commit=unordered,
+            submitted_at=datetime.datetime(2024, 3, 2, 12, 0, 0,
+                                           tzinfo=datetime.timezone.utc))
+        self.tsdb.create_samples(session, run, [
+            {"test_id": self.test1.id, "execution_time": 99.0},
+        ])
+        session.flush()
+
+        results = self.tsdb.query_trends(session, "execution_time")
         for r in results:
-            self.assertIsNotNone(r["submitted_at"])
-            self.assertGreater(r["submitted_at"], start)
-            self.assertLess(r["submitted_at"], end)
+            self.assertIsNotNone(r["ordinal"])
+        # The unordered commit should not appear
+        commits = {r["commit"] for r in results}
+        self.assertNotIn("unordered-commit", commits)
         session.close()
 
     def test_query_trends_unknown_metric_raises(self):

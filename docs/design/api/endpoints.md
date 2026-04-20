@@ -209,19 +209,20 @@ Sort fields: `test`, `commit` (by ordinal), `submitted_at`. Default sort:
 POST   /trends
 ```
 
-Body (JSON): `{metric, machine, after_time, before_time}`
+Body (JSON): `{metric, machine, last_n}`
 
 The `metric` field is required and must have type `real`; `status` and `hash`
 metrics are rejected with 400. All other fields are optional. Unlike the query
 endpoint's single machine string, `machine` accepts a list of names -- the
-Dashboard needs data for multiple machines in one call. Time range filters use
-exclusive bounds (strictly after / strictly before). Order-based filters
-are intentionally omitted; the Dashboard uses time-based filtering exclusively.
+Dashboard needs data for multiple machines in one call. `last_n` (integer,
+min 1, max 10000) limits the result to the most recent N commits by ordinal.
+Only commits with a non-null ordinal are included.
 
 Returns geomean-aggregated trend data per (machine, commit). Not paginated --
-the result set is bounded by (machines x commits in range), typically < 2000
-rows. Each item contains: machine name, commit string, ordinal (nullable),
-submitted_at (latest run submission time), and geomean value.
+the result set is bounded by (machines x last_n), typically < 5000 rows. Each
+item contains: machine name, commit string, ordinal (always present, never
+null), submitted_at (latest run submission time, may be null), and geomean
+value.
 
 Geomean is computed in SQL: `exp(avg(ln(positive_values)))`, skipping
 zero/negative values.

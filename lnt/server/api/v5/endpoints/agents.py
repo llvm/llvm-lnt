@@ -129,8 +129,9 @@ Pass cursor=<next> to get the next page. Use limit= to control page size.
    ordering.
 
 6. Aggregated trends: POST /api/v5/{ts}/trends with
-   { "metric": "execution_time", "machine": ["m1", "m2"] } to get
-   geomean-aggregated performance per (machine, commit) pair.
+   { "metric": "execution_time", "machine": ["m1", "m2"], "last_n": 500 }
+   to get geomean-aggregated performance per (machine, commit) pair for the
+   most recent N commits by ordinal.
 """
 
 _ETAG = hashlib.md5(LLMS_TEXT.encode()).hexdigest()

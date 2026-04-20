@@ -956,13 +956,13 @@ describe('fetchOneCursorPage', () => {
 // ===========================================================================
 
 describe('fetchTrends', () => {
-  it('sends POST with JSON body containing metric and machine list', async () => {
+  it('sends POST with JSON body containing metric, machine list, and last_n', async () => {
     mockFetch.mockResolvedValueOnce(mockResponse({
       metric: 'exec_time',
       items: [{ machine: 'm1', commit: '100', ordinal: 1, submitted_at: '2025-01-01T00:00:00Z', value: 42.0 }],
     }));
 
-    const result = await fetchTrends('nts', { metric: 'exec_time', machine: ['m1', 'm2'], afterTime: '2025-01-01T00:00:00Z' });
+    const result = await fetchTrends('nts', { metric: 'exec_time', machine: ['m1', 'm2'], lastN: 100 });
 
     expect(result).toHaveLength(1);
     const url = new URL(mockFetch.mock.calls[0][0]);
@@ -972,10 +972,10 @@ describe('fetchTrends', () => {
     const body = JSON.parse(init.body as string);
     expect(body.metric).toBe('exec_time');
     expect(body.machine).toEqual(['m1', 'm2']);
-    expect(body.after_time).toBe('2025-01-01T00:00:00Z');
+    expect(body.last_n).toBe(100);
   });
 
-  it('omits machine and time filters when not provided', async () => {
+  it('omits machine and last_n when not provided', async () => {
     mockFetch.mockResolvedValueOnce(mockResponse({ metric: 'exec_time', items: [] }));
 
     await fetchTrends('nts', { metric: 'exec_time' });
@@ -984,7 +984,7 @@ describe('fetchTrends', () => {
     const body = JSON.parse(init.body as string);
     expect(body.metric).toBe('exec_time');
     expect(body.machine).toBeUndefined();
-    expect(body.after_time).toBeUndefined();
+    expect(body.last_n).toBeUndefined();
   });
 });
 

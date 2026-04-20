@@ -21,13 +21,10 @@ class TrendsQuerySchema(BaseSchema):
         load_default=[],
         metadata={'description': 'Filter by machine name(s)'},
     )
-    after_time = ma.fields.String(
+    last_n = ma.fields.Integer(
         load_default=None,
-        metadata={'description': 'ISO datetime; only data points after this time (exclusive)'},
-    )
-    before_time = ma.fields.String(
-        load_default=None,
-        metadata={'description': 'ISO datetime; only data points before this time (exclusive)'},
+        validate=ma.validate.Range(min=1, max=10000),
+        metadata={'description': 'Return only the last N commits by ordinal'},
     )
 
 
@@ -45,8 +42,8 @@ class TrendsItemSchema(BaseSchema):
         },
     )
     ordinal = ma.fields.Integer(
-        allow_none=True,
-        metadata={'description': 'Commit ordinal position (may be null)'},
+        required=True,
+        metadata={'description': 'Commit ordinal position'},
     )
     submitted_at = ma.fields.String(
         allow_none=True,
