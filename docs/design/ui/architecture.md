@@ -110,8 +110,9 @@ appends `?suite={ts}` to preserve the suite context.
 
 ## v4/v5 Toggle
 
-- In the v4 navbar (`layout.html`): add a "v5 UI" link in the top-right of the nav bar (next to the "System" dropdown, not inside any dropdown menu) pointing to `/v5/{ts}/`
-- In the v5 SPA navbar: a "v4 UI" link pointing to the v4 root page (`/`)
+v4 and v5 are fully disjoint: in v4 mode no v5 code is registered, and in
+v5 mode no v4 code is registered. There are no cross-links between the two
+UIs.
 
 
 ## Frontend Code Structure
@@ -200,5 +201,3 @@ After each phase, verify by:
 2. Checking that SPA routing works (browser back/forward, direct URL access)
 3. Checking that all API calls succeed (browser DevTools Network tab)
 4. Running Vitest unit tests: `cd lnt/server/ui/v5/frontend && npm test`
-5. Checking that the v4 UI is unaffected (navigate to `/v4/{ts}/recent_activity`)
-6. Checking the v4<->v5 toggle links work in both directions

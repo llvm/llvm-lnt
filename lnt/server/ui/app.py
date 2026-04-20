@@ -156,10 +156,6 @@ class App(LNTExceptionLoggerFlask):
             # v4 mode: register the legacy views and flaskRESTful API.
             app.register_blueprint(lnt.server.ui.views.frontend)
 
-            # Load the v5 frontend (comparison SPA, etc.).
-            from lnt.server.ui.v5 import v5_frontend
-            app.register_blueprint(v5_frontend)
-
             # Load the flaskRESTful API.
             app.api = Api(app)
             load_api_resources(app.api)
@@ -199,9 +195,10 @@ class App(LNTExceptionLoggerFlask):
 
         # Load the v5 REST API (flask-smorest) AFTER the app-level error
         # handlers above so that v5's per-status-code handlers can save
-        # them as fallbacks for non-v5 routes (see errors.py).
-        from lnt.server.api.v5 import create_v5_api
-        app.v5_api = create_v5_api(app)
+        # them as fallbacks (see errors.py).
+        if _db_version == '5.0':
+            from lnt.server.api.v5 import create_v5_api
+            app.v5_api = create_v5_api(app)
 
         # Store the db_version on the app for use by request handlers.
         app.db_version = _db_version

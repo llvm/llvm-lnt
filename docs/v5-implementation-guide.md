@@ -38,23 +38,18 @@ codebase that isn't obvious from the design docs or the code itself.
 v4 and v5 coexist in the same codebase, controlled by `db_version` in
 `lnt.cfg`:
 
-- **`'0.4'`** (default): v4 Flask/Jinja2 views + Flask-RESTful API. The v5
-  SPA shell is also registered (for the Compare page and other v5 frontend
-  routes), but v5 API endpoints are served alongside v4.
+- **`'0.4'`** (default): v4 Flask/Jinja2 views + Flask-RESTful API only.
+  No v5 code is registered.
 - **`'5.0'`**: v5-only mode. All v4 views are skipped. Only the v5 frontend
   blueprint and v5 API (flask-smorest) are registered.
 
 Key coexistence rules:
 
-- Flask-smorest (v5) and Flask-RESTful (v4) both register on the same Flask
-  app without conflicts. Verified working.
-- v5 error handlers are registered AFTER app-level handlers. They must
-  delegate to the previous handler for non-v5 routes so the v4 error format
-  is preserved.
 - v4 and v5 DB layers are fully independent -- `lnt/server/db/v5/` has zero
   imports from v4 DB code.
-- The v4 navbar includes a "v5 UI" link; the v5 navbar includes a "v4 UI"
-  link. These are simple anchor tags (no shared state).
+- v5 error handlers are registered AFTER app-level handlers. They delegate
+  to the previous handler for non-v5 routes (though in practice non-v5 routes
+  don't exist in v5-only mode).
 
 
 ## 3. Database Layer Patterns

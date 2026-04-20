@@ -109,20 +109,19 @@
   on tags). Consider infinite scrolling with filters applying to all results,
   not just the current page. NOTE: This becomes trivial once we have the new
   `?search` endpoints.
-
 - [ ] Fix: the "Copy" button for the API key token does not actually copy to
   the clipboard.
 
 ## Schema
 
-- [ ] Understand what happens if a commit field in the schema is named
+- [x] Understand what happens if a commit field in the schema is named
   `ordinal`. Validate and reject if necessary.
-- [ ] Handle bigger-is-better semantics in the schema. Also consider adding
+- [x] Handle bigger-is-better semantics in the schema. Also consider adding
   display name, units, and other field metadata.
 
 ## Cleanup & Tech Debt
 
-- [ ] Remove the `# Load the v5 frontend` comment and associated stale code in
+- [x] Remove the `# Load the v5 frontend` comment and associated stale code in
   `app.py` — a remnant from before v5 was disjoint from v4. Audit for other
   stale v4 integration points.
 - [ ] Remove the `[v4 UI]` button in the navbar — it cannot work anymore.
