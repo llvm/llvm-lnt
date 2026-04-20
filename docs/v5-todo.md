@@ -167,7 +167,7 @@
   at limit=10,000, this adds ~1–2 seconds of pure Python overhead. The validate
   step should be skipped in production.
 
-- [ ] **Add response compression** (impact: 80–90% bandwidth reduction).
+- [x] **Add response compression** (impact: 80–90% bandwidth reduction).
   No gzip/brotli middleware is configured. All JSON responses are sent
   uncompressed. A 3 MB query response could be ~450 KB with gzip. Add
   `flask-compress` or document that a reverse proxy must handle compression.

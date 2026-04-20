@@ -179,5 +179,31 @@ class TestAccessLogContentLength(_AccessLogTestCase):
         self.assertGreater(int(size), 0)
 
 
+class TestResponseCompression(unittest.TestCase):
+    """Verify gzip compression is active when the client requests it."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        # flask-compress only compresses responses above COMPRESS_MIN_SIZE
+        # (default 500 bytes). Lower it so we can test with small responses.
+        cls.app.config['COMPRESS_MIN_SIZE'] = 0
+        cls.client = create_client(cls.app)
+
+    def test_gzip_when_accept_encoding_set(self):
+        resp = self.client.get(
+            PREFIX + '/commits',
+            headers={'Accept-Encoding': 'gzip'},
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.headers.get('Content-Encoding'), 'gzip')
+
+    def test_no_encoding_when_not_requested(self):
+        resp = self.client.get(PREFIX + '/commits')
+        self.assertEqual(resp.status_code, 200)
+        self.assertIsNone(resp.headers.get('Content-Encoding'))
+
+
 if __name__ == '__main__':
     unittest.main(argv=[sys.argv[0]])

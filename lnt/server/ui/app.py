@@ -200,6 +200,9 @@ class App(LNTExceptionLoggerFlask):
             from lnt.server.api.v5 import create_v5_api
             app.v5_api = create_v5_api(app)
 
+            from flask_compress import Compress
+            Compress(app)
+
         # Store the db_version on the app for use by request handlers.
         app.db_version = _db_version
 

@@ -253,6 +253,30 @@ check_endpoint "GET /api/v5/${SUITE}/tests" \
     "${BASE_URL}/api/v5/${SUITE}/tests" 200 GET "" ".items | length"
 
 # ---------------------------------------------------------------------------
+# Test: Response compression
+# ---------------------------------------------------------------------------
+echo "--- Response Compression ---"
+resp_headers=$(mktemp)
+resp_body=$(curl -s --compressed \
+    -H "Authorization: Bearer ${AUTH_TOKEN}" \
+    -D "$resp_headers" \
+    "${BASE_URL}/api/v5/${SUITE}/runs")
+
+if grep -qi 'content-encoding:.*gzip' "$resp_headers"; then
+    pass "Response has Content-Encoding: gzip"
+else
+    fail "Response compression" "missing Content-Encoding: gzip header"
+fi
+
+items=$(echo "$resp_body" | jq -r '.items | length')
+if [ -n "$items" ] && [ "$items" -gt 0 ]; then
+    pass "Compressed response is valid JSON ($items items)"
+else
+    fail "Compressed response" "invalid JSON or no items"
+fi
+rm -f "$resp_headers"
+
+# ---------------------------------------------------------------------------
 # Test: Time-series query
 # ---------------------------------------------------------------------------
 echo "--- Time-Series Query ---"
