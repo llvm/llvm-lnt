@@ -98,8 +98,9 @@ def create_run(session, ts, machine, commit,
 
 
 def create_test(session, ts, name='test.suite/benchmark'):
-    """Create a Test via V5TestSuiteDB and return it."""
-    return ts.get_or_create_test(session, name)
+    """Create a Test via V5TestSuiteDB and return the ORM object."""
+    ts.get_or_create_tests(session, [name])
+    return session.query(ts.Test).filter(ts.Test.name == name).one()
 
 
 def create_sample(session, ts, run, test, **field_values):

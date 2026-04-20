@@ -388,6 +388,168 @@ class TestImportRun(_ImportTestBase):
         session.close()
 
 
+class TestGetOrCreateTests(_ImportTestBase):
+
+    def test_batch_creates_new_tests(self):
+        """All names are new — batch creates them all."""
+        session = self.Session()
+        names = ["batch/new-a", "batch/new-b", "batch/new-c"]
+        result = self.tsdb.get_or_create_tests(session, names)
+        session.commit()
+
+        self.assertEqual(set(result.keys()), set(names))
+        for name in names:
+            self.assertIsInstance(result[name], int)
+        # Verify they're in the DB.
+        for name in names:
+            t = self.tsdb.get_test(session, name=name)
+            self.assertIsNotNone(t)
+            self.assertEqual(t.id, result[name])
+        session.close()
+
+    def test_batch_finds_existing_tests(self):
+        """All names already exist — batch finds them without inserting."""
+        session = self.Session()
+        pre = self.tsdb.get_or_create_tests(
+            session, ["batch/existing-1", "batch/existing-2"])
+        session.commit()
+
+        result = self.tsdb.get_or_create_tests(
+            session, ["batch/existing-1", "batch/existing-2"])
+        self.assertEqual(result["batch/existing-1"], pre["batch/existing-1"])
+        self.assertEqual(result["batch/existing-2"], pre["batch/existing-2"])
+        session.close()
+
+    def test_batch_mixed_existing_and_new(self):
+        """Mix of existing and new names."""
+        session = self.Session()
+        pre = self.tsdb.get_or_create_tests(session, ["batch/mix-exist"])
+        session.commit()
+
+        result = self.tsdb.get_or_create_tests(
+            session, ["batch/mix-exist", "batch/mix-new-1", "batch/mix-new-2"])
+        session.commit()
+
+        self.assertEqual(result["batch/mix-exist"], pre["batch/mix-exist"])
+        self.assertIn("batch/mix-new-1", result)
+        self.assertIn("batch/mix-new-2", result)
+        # Verify new ones are in DB.
+        self.assertIsNotNone(self.tsdb.get_test(session, name="batch/mix-new-1"))
+        session.close()
+
+    def test_batch_deduplicates_input(self):
+        """Duplicate names in input are handled."""
+        session = self.Session()
+        result = self.tsdb.get_or_create_tests(
+            session, ["batch/dup-a", "batch/dup-b", "batch/dup-a", "batch/dup-b", "batch/dup-a"])
+        session.commit()
+
+        self.assertEqual(len(result), 2)
+        self.assertIn("batch/dup-a", result)
+        self.assertIn("batch/dup-b", result)
+        session.close()
+
+    def test_batch_empty_input(self):
+        """Empty input returns empty dict."""
+        session = self.Session()
+        result = self.tsdb.get_or_create_tests(session, [])
+        self.assertEqual(result, {})
+        session.close()
+
+    def test_batch_single_name(self):
+        """Single-name input works."""
+        session = self.Session()
+        result = self.tsdb.get_or_create_tests(session, ["batch/single"])
+        session.commit()
+
+        self.assertEqual(len(result), 1)
+        self.assertIn("batch/single", result)
+        session.close()
+
+    def test_batch_special_characters(self):
+        """Names with special characters are handled correctly."""
+        session = self.Session()
+        names = [
+            "batch/with/slashes/deep",
+            "batch/unicode-\u00e9\u00e8\u00fc",
+            "batch/percent%underscore_",
+            "batch/with spaces and (parens)",
+        ]
+        result = self.tsdb.get_or_create_tests(session, names)
+        session.commit()
+
+        self.assertEqual(set(result.keys()), set(names))
+        for name in names:
+            t = self.tsdb.get_test(session, name=name)
+            self.assertIsNotNone(t)
+            self.assertEqual(t.name, name)
+        session.close()
+
+    def test_batch_max_length_name(self):
+        """Name at the 256-char String column boundary."""
+        session = self.Session()
+        name_256 = "x" * 256
+        result = self.tsdb.get_or_create_tests(session, [name_256])
+        session.commit()
+
+        self.assertIn(name_256, result)
+        t = self.tsdb.get_test(session, name=name_256)
+        self.assertIsNotNone(t)
+        self.assertEqual(t.id, result[name_256])
+        session.close()
+
+    def test_import_run_with_many_tests(self):
+        """Submit a run with 100 tests — exercises modified _parse_tests_data."""
+        session = self.Session()
+        tests = [{"name": f"batch/many-{i}", "execution_time": float(i)}
+                 for i in range(100)]
+        data = {
+            "format_version": "5",
+            "machine": {"name": "batch-many-machine"},
+            "commit": "batch-many-commit",
+            "tests": tests,
+        }
+        run = self.tsdb.import_run(session, data)
+        session.commit()
+
+        # Verify all samples were created.
+        samples = self.tsdb.list_samples(session, run_id=run.id, limit=200)
+        self.assertEqual(len(samples), 100)
+        session.close()
+
+    def test_import_run_reuses_existing_tests(self):
+        """Two runs with overlapping tests use the same test IDs."""
+        session = self.Session()
+        tests_1 = [{"name": "batch/reuse-a", "execution_time": 1.0},
+                   {"name": "batch/reuse-b", "execution_time": 2.0}]
+        tests_2 = [{"name": "batch/reuse-b", "execution_time": 3.0},
+                   {"name": "batch/reuse-c", "execution_time": 4.0}]
+        data_1 = {
+            "format_version": "5",
+            "machine": {"name": "batch-reuse-machine"},
+            "commit": "batch-reuse-commit-1",
+            "tests": tests_1,
+        }
+        data_2 = {
+            "format_version": "5",
+            "machine": {"name": "batch-reuse-machine"},
+            "commit": "batch-reuse-commit-2",
+            "tests": tests_2,
+        }
+        self.tsdb.import_run(session, data_1)
+        session.commit()
+        self.tsdb.import_run(session, data_2)
+        session.commit()
+
+        # "batch/reuse-b" should have the same test ID in both runs.
+        t_b = self.tsdb.get_test(session, name="batch/reuse-b")
+        self.assertIsNotNone(t_b)
+        # Verify via samples that both runs reference this test.
+        samples_b = self.tsdb.list_samples(session, test_id=t_b.id)
+        self.assertEqual(len(samples_b), 2)
+        session.close()
+
+
 class TestGetOrCreateCommit(_ImportTestBase):
 
     def test_empty_commit_string_rejected(self):

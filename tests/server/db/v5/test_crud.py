@@ -151,12 +151,12 @@ class TestRegressionCRUD(_CRUDTestBase):
         """Create a regression with machine/test/metric indicators."""
         session = self.Session()
         machine = self.tsdb.get_or_create_machine(session, "reg-m")
-        test = self.tsdb.get_or_create_test(session, "reg-test")
+        test_id = self.tsdb.get_or_create_tests(session, ["reg-test"])["reg-test"]
         session.flush()
 
         reg = self.tsdb.create_regression(
             session, "Perf regression",
-            [{"machine_id": machine.id, "test_id": test.id,
+            [{"machine_id": machine.id, "test_id": test_id,
               "metric": "execution_time"}],
             bug="BUG-123", state=0)
         session.commit()
@@ -175,7 +175,7 @@ class TestRegressionCRUD(_CRUDTestBase):
         )
         self.assertEqual(len(indicators), 1)
         self.assertEqual(indicators[0].machine_id, machine.id)
-        self.assertEqual(indicators[0].test_id, test.id)
+        self.assertEqual(indicators[0].test_id, test_id)
         self.assertEqual(indicators[0].metric, "execution_time")
         self.assertIsNotNone(indicators[0].uuid)
         session.close()
@@ -260,12 +260,12 @@ class TestRegressionCRUD(_CRUDTestBase):
     def test_delete_regression_cascades_to_indicators(self):
         session = self.Session()
         machine = self.tsdb.get_or_create_machine(session, "del-reg-m")
-        test = self.tsdb.get_or_create_test(session, "del-reg-test")
+        test_id = self.tsdb.get_or_create_tests(session, ["del-reg-test"])["del-reg-test"]
         session.flush()
 
         reg = self.tsdb.create_regression(
             session, "to delete",
-            [{"machine_id": machine.id, "test_id": test.id,
+            [{"machine_id": machine.id, "test_id": test_id,
               "metric": "execution_time"}],
             state=0)
         session.commit()
@@ -365,11 +365,11 @@ class TestDeleteCommit(unittest.TestCase):
         session = self.Session()
         machine = self.tsdb.get_or_create_machine(session, "del-commit-m")
         commit = self.tsdb.get_or_create_commit(session, "del-commit-c1")
-        test = self.tsdb.get_or_create_test(session, "del-commit-test")
+        test_id = self.tsdb.get_or_create_tests(session, ["del-commit-test"])["del-commit-test"]
         run = self.tsdb.create_run(
             session, machine, commit=commit)
         self.tsdb.create_samples(session, run, [{
-            "test_id": test.id,
+            "test_id": test_id,
             "execution_time": 1.0,
         }])
         session.flush()
@@ -419,7 +419,7 @@ class TestGetAndListTests(_CRUDTestBase):
 
     def test_get_test_by_name(self):
         session = self.Session()
-        self.tsdb.get_or_create_test(session, "get-test-1")
+        self.tsdb.get_or_create_tests(session, ["get-test-1"])
         session.commit()
 
         fetched = self.tsdb.get_test(session, name="get-test-1")
@@ -429,10 +429,10 @@ class TestGetAndListTests(_CRUDTestBase):
 
     def test_get_test_by_id(self):
         session = self.Session()
-        t = self.tsdb.get_or_create_test(session, "get-test-2")
+        t_id = self.tsdb.get_or_create_tests(session, ["get-test-2"])["get-test-2"]
         session.commit()
 
-        fetched = self.tsdb.get_test(session, id=t.id)
+        fetched = self.tsdb.get_test(session, id=t_id)
         self.assertIsNotNone(fetched)
         self.assertEqual(fetched.name, "get-test-2")
         session.close()
@@ -450,8 +450,7 @@ class TestGetAndListTests(_CRUDTestBase):
 
     def test_list_tests(self):
         session = self.Session()
-        self.tsdb.get_or_create_test(session, "list-test-a")
-        self.tsdb.get_or_create_test(session, "list-test-b")
+        self.tsdb.get_or_create_tests(session, ["list-test-a", "list-test-b"])
         session.commit()
 
         results = self.tsdb.list_tests(session)
@@ -462,9 +461,7 @@ class TestGetAndListTests(_CRUDTestBase):
 
     def test_list_tests_with_search(self):
         session = self.Session()
-        self.tsdb.get_or_create_test(session, "search-test-alpha")
-        self.tsdb.get_or_create_test(session, "search-test-beta")
-        self.tsdb.get_or_create_test(session, "other-test")
+        self.tsdb.get_or_create_tests(session, ["search-test-alpha", "search-test-beta", "other-test"])
         session.commit()
 
         results = self.tsdb.list_tests(session, search="search-test")
@@ -487,10 +484,10 @@ class TestListSamples(_CRUDTestBase):
         session = self.Session()
         machine = self.tsdb.get_or_create_machine(session, "ls-m")
         commit = self.tsdb.get_or_create_commit(session, "ls-c")
-        test = self.tsdb.get_or_create_test(session, "ls-test")
+        test_id = self.tsdb.get_or_create_tests(session, ["ls-test"])["ls-test"]
         run = self.tsdb.create_run(session, machine, commit=commit)
         self.tsdb.create_samples(session, run, [
-            {"test_id": test.id, "execution_time": 1.0},
+            {"test_id": test_id, "execution_time": 1.0},
         ])
         session.commit()
 
@@ -503,18 +500,19 @@ class TestListSamples(_CRUDTestBase):
         session = self.Session()
         machine = self.tsdb.get_or_create_machine(session, "ls-m2")
         commit = self.tsdb.get_or_create_commit(session, "ls-c2")
-        test_a = self.tsdb.get_or_create_test(session, "ls-test-a")
-        test_b = self.tsdb.get_or_create_test(session, "ls-test-b")
+        _ids = self.tsdb.get_or_create_tests(session, ["ls-test-a", "ls-test-b"])
+        test_a_id = _ids["ls-test-a"]
+        test_b_id = _ids["ls-test-b"]
         run = self.tsdb.create_run(session, machine, commit=commit)
         self.tsdb.create_samples(session, run, [
-            {"test_id": test_a.id, "execution_time": 1.0},
-            {"test_id": test_b.id, "execution_time": 2.0},
+            {"test_id": test_a_id, "execution_time": 1.0},
+            {"test_id": test_b_id, "execution_time": 2.0},
         ])
         session.commit()
 
-        results = self.tsdb.list_samples(session, test_id=test_a.id)
+        results = self.tsdb.list_samples(session, test_id=test_a_id)
         test_ids = [s.test_id for s in results]
-        self.assertTrue(all(tid == test_a.id for tid in test_ids))
+        self.assertTrue(all(tid == test_a_id for tid in test_ids))
         session.close()
 
     def test_list_samples_empty(self):
@@ -572,43 +570,43 @@ class TestRegressionIndicatorManagement(_CRUDTestBase):
     def test_add_regression_indicator(self):
         session = self.Session()
         machine = self.tsdb.get_or_create_machine(session, "ri-add-m")
-        test = self.tsdb.get_or_create_test(session, "ri-add-test")
+        test_id = self.tsdb.get_or_create_tests(session, ["ri-add-test"])["ri-add-test"]
         reg = self.tsdb.create_regression(
             session, "add-ind", [], state=0)
         session.flush()
 
         ri = self.tsdb.add_regression_indicator(
-            session, reg, machine.id, test.id, "execution_time")
+            session, reg, machine.id, test_id, "execution_time")
         session.commit()
 
         self.assertIsNotNone(ri.id)
         self.assertIsNotNone(ri.uuid)
         self.assertEqual(ri.machine_id, machine.id)
-        self.assertEqual(ri.test_id, test.id)
+        self.assertEqual(ri.test_id, test_id)
         self.assertEqual(ri.metric, "execution_time")
         session.close()
 
     def test_add_duplicate_indicator_rejected(self):
         session = self.Session()
         machine = self.tsdb.get_or_create_machine(session, "ri-dup-m")
-        test = self.tsdb.get_or_create_test(session, "ri-dup-test")
+        test_id = self.tsdb.get_or_create_tests(session, ["ri-dup-test"])["ri-dup-test"]
         reg = self.tsdb.create_regression(
             session, "dup-ind",
-            [{"machine_id": machine.id, "test_id": test.id,
+            [{"machine_id": machine.id, "test_id": test_id,
               "metric": "execution_time"}],
             state=0)
         session.commit()
 
         with self.assertRaises(sqlalchemy.exc.IntegrityError):
             self.tsdb.add_regression_indicator(
-                session, reg, machine.id, test.id, "execution_time")
+                session, reg, machine.id, test_id, "execution_time")
         session.rollback()
         session.close()
 
     def test_same_triple_on_different_regressions_ok(self):
         session = self.Session()
         machine = self.tsdb.get_or_create_machine(session, "ri-multi-m")
-        test = self.tsdb.get_or_create_test(session, "ri-multi-test")
+        test_id = self.tsdb.get_or_create_tests(session, ["ri-multi-test"])["ri-multi-test"]
         reg1 = self.tsdb.create_regression(
             session, "reg1", [], state=0)
         reg2 = self.tsdb.create_regression(
@@ -616,9 +614,9 @@ class TestRegressionIndicatorManagement(_CRUDTestBase):
         session.flush()
 
         ri1 = self.tsdb.add_regression_indicator(
-            session, reg1, machine.id, test.id, "execution_time")
+            session, reg1, machine.id, test_id, "execution_time")
         ri2 = self.tsdb.add_regression_indicator(
-            session, reg2, machine.id, test.id, "execution_time")
+            session, reg2, machine.id, test_id, "execution_time")
         session.commit()
 
         self.assertIsNotNone(ri1.id)
@@ -628,10 +626,10 @@ class TestRegressionIndicatorManagement(_CRUDTestBase):
     def test_remove_regression_indicator_by_uuid(self):
         session = self.Session()
         machine = self.tsdb.get_or_create_machine(session, "ri-rem-m")
-        test = self.tsdb.get_or_create_test(session, "ri-rem-test")
+        test_id = self.tsdb.get_or_create_tests(session, ["ri-rem-test"])["ri-rem-test"]
         reg = self.tsdb.create_regression(
             session, "rem-ind",
-            [{"machine_id": machine.id, "test_id": test.id,
+            [{"machine_id": machine.id, "test_id": test_id,
               "metric": "execution_time"}],
             state=0)
         session.commit()
@@ -665,10 +663,10 @@ class TestRegressionIndicatorManagement(_CRUDTestBase):
         """Indicator exists but belongs to a different regression."""
         session = self.Session()
         machine = self.tsdb.get_or_create_machine(session, "ri-wrong-m")
-        test = self.tsdb.get_or_create_test(session, "ri-wrong-test")
+        test_id = self.tsdb.get_or_create_tests(session, ["ri-wrong-test"])["ri-wrong-test"]
         reg1 = self.tsdb.create_regression(
             session, "reg1",
-            [{"machine_id": machine.id, "test_id": test.id,
+            [{"machine_id": machine.id, "test_id": test_id,
               "metric": "execution_time"}],
             state=0)
         reg2 = self.tsdb.create_regression(
@@ -689,10 +687,10 @@ class TestRegressionIndicatorManagement(_CRUDTestBase):
     def test_get_regression_indicator_by_uuid(self):
         session = self.Session()
         machine = self.tsdb.get_or_create_machine(session, "ri-get-m")
-        test = self.tsdb.get_or_create_test(session, "ri-get-test")
+        test_id = self.tsdb.get_or_create_tests(session, ["ri-get-test"])["ri-get-test"]
         reg = self.tsdb.create_regression(
             session, "get-ind",
-            [{"machine_id": machine.id, "test_id": test.id,
+            [{"machine_id": machine.id, "test_id": test_id,
               "metric": "execution_time"}],
             state=0)
         session.commit()
@@ -716,28 +714,28 @@ class TestRegressionIndicatorManagement(_CRUDTestBase):
     def test_batch_add_indicators_silently_ignores_duplicates(self):
         session = self.Session()
         machine = self.tsdb.get_or_create_machine(session, "ri-batch-m")
-        test = self.tsdb.get_or_create_test(session, "ri-batch-test")
+        test_id = self.tsdb.get_or_create_tests(session, ["ri-batch-test"])["ri-batch-test"]
         reg = self.tsdb.create_regression(
             session, "batch",
-            [{"machine_id": machine.id, "test_id": test.id,
+            [{"machine_id": machine.id, "test_id": test_id,
               "metric": "execution_time"}],
             state=0)
         session.commit()
 
-        test2 = self.tsdb.get_or_create_test(session, "ri-batch-test2")
+        test2_id = self.tsdb.get_or_create_tests(session, ["ri-batch-test2"])["ri-batch-test2"]
         session.flush()
         created = self.tsdb.add_regression_indicators_batch(
             session, reg,
             [
-                {"machine_id": machine.id, "test_id": test.id,
+                {"machine_id": machine.id, "test_id": test_id,
                  "metric": "execution_time"},  # duplicate
-                {"machine_id": machine.id, "test_id": test2.id,
+                {"machine_id": machine.id, "test_id": test2_id,
                  "metric": "execution_time"},  # new
             ])
         session.commit()
 
         self.assertEqual(len(created), 1)
-        self.assertEqual(created[0].test_id, test2.id)
+        self.assertEqual(created[0].test_id, test2_id)
         session.close()
 
 
@@ -809,10 +807,10 @@ class TestUnknownFieldRejection(_CRUDTestBase):
         m = self.tsdb.get_or_create_machine(session, "uf-sample-m")
         c = self.tsdb.get_or_create_commit(session, "uf-sample-c")
         run = self.tsdb.create_run(session, m, commit=c)
-        t = self.tsdb.get_or_create_test(session, "uf-test")
+        t_id = self.tsdb.get_or_create_tests(session, ["uf-test"])["uf-test"]
         with self.assertRaises(ValueError) as cm:
             self.tsdb.create_samples(session, run, [
-                {"test_id": t.id, "executin_time": 1.0},
+                {"test_id": t_id, "executin_time": 1.0},
             ])
         self.assertIn("executin_time", str(cm.exception))
         session.close()

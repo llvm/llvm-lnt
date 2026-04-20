@@ -147,7 +147,7 @@
   `GET /tests?machine=`) filter by `test_id` first, but the index leads with
   `run_id`. At 100M+ rows, these queries fall back to sequential scans.
 
-- [ ] **Batch test get-or-create in run submission** (impact: ~1000x fewer DB
+- [x] **Batch test get-or-create in run submission** (impact: ~1000x fewer DB
   round-trips per submission). `get_or_create_test` is called per-test in a loop
   (`__init__.py:1295`), issuing one SELECT + optional SAVEPOINT/INSERT/FLUSH per
   test. For a 7,500-test submission, this is 7,500–30,000 round-trips. Replace

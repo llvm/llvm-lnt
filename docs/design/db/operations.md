@@ -156,3 +156,8 @@ this with **savepoint-based retry**:
 
 This makes concurrent submissions for the same machine, commit, or test
 names safe. No client-side retry is needed.
+
+For tests specifically, a batch resolution path exists that resolves all test
+names in O(1) DB round-trips regardless of test count. It provides the same
+concurrency safety guarantee as the single-test path: concurrent submissions
+with overlapping test sets never produce errors or partial results.

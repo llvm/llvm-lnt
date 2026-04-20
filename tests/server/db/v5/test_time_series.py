@@ -61,7 +61,9 @@ class TestTimeSeries(unittest.TestCase):
         cls.machine = cls.tsdb.get_or_create_machine(
             session, "ts-machine", hardware="x86_64")
 
-        cls.test = cls.tsdb.get_or_create_test(session, "ts-test/bench")
+        cls.test = cls.tsdb.get_or_create_tests(session, ["ts-test/bench"])
+        cls.test = session.query(cls.tsdb.Test).filter_by(
+            name="ts-test/bench").one()
 
         # Create 5 commits with ordinals
         cls.commits = []
@@ -215,8 +217,12 @@ class TestQueryTrends(unittest.TestCase):
         cls.machine_b = cls.tsdb.get_or_create_machine(
             session, "trends-machine-b", hardware="arm64")
 
-        cls.test1 = cls.tsdb.get_or_create_test(session, "trends/bench1")
-        cls.test2 = cls.tsdb.get_or_create_test(session, "trends/bench2")
+        cls.tsdb.get_or_create_tests(
+            session, ["trends/bench1", "trends/bench2"])
+        cls.test1 = session.query(cls.tsdb.Test).filter_by(
+            name="trends/bench1").one()
+        cls.test2 = session.query(cls.tsdb.Test).filter_by(
+            name="trends/bench2").one()
 
         cls.commits = []
         base_time = datetime.datetime(2024, 3, 1, 12, 0, 0, tzinfo=datetime.timezone.utc)

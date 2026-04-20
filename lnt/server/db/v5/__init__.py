@@ -11,13 +11,25 @@ from __future__ import annotations
 
 import datetime
 import json
+import sys
 import uuid as uuid_module
 from typing import Any, Iterable
+
+if sys.version_info >= (3, 12):
+    from itertools import batched
+else:
+    from itertools import islice
+
+    def batched(iterable, n):  # type: ignore[no-redef]
+        it = iter(iterable)
+        while batch := tuple(islice(it, n)):
+            yield batch
 
 import sqlalchemy
 import sqlalchemy.exc
 import sqlalchemy.orm
 from sqlalchemy import or_
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from .models import (
     SuiteModels,
@@ -30,6 +42,10 @@ from .models import (
 from .schema import TestSuiteSchema, parse_schema
 
 DEFAULT_LIMIT = 1000
+
+# Maximum number of names per IN-clause chunk for batch operations.
+# Stays under psycopg2's 32,767 bind-parameter limit.
+_BATCH_CHUNK_SIZE = 32_000
 
 # Regression state values (see design D5).
 REGRESSION_STATES = {
@@ -730,36 +746,70 @@ class V5TestSuiteDB:
     # Tests & Samples
     # ===================================================================
 
-    def get_or_create_test(self, session: sqlalchemy.orm.Session, name: str):
-        """Get or create a Test by name.
+    def get_or_create_tests(
+        self,
+        session: sqlalchemy.orm.Session,
+        names: Iterable[str],
+    ) -> dict[str, int]:
+        """Resolve test names to IDs, creating missing tests in bulk.
 
-        TODO: This is called per test entry in _parse_tests_data(), causing
-        one SELECT per test name (N+1). For large submissions (~3000 tests),
-        batch with a single SELECT ... WHERE name IN (...) + bulk INSERT.
+        Returns a ``{name: id}`` mapping for every name in *names*.
+        Duplicate names in *names* are handled (deduplicated internally).
+
+        Uses INSERT ... ON CONFLICT DO NOTHING for safe concurrent creation.
+
+        Note: this uses a Core INSERT, bypassing the ORM identity map.
+        Only integer IDs are returned, not ORM objects.
+
+        Raises ``RuntimeError`` if a name cannot be resolved after insert
+        (indicates a concurrent DELETE, which should not happen in normal
+        operation).
         """
-        existing = (
-            session.query(self.Test)
-            .filter(self.Test.name == name)
-            .first()
-        )
-        if existing is not None:
-            return existing
-        test = self.Test()
-        test.name = name
-        try:
-            with session.begin_nested():
-                session.add(test)
-                session.flush()
-        except sqlalchemy.exc.IntegrityError:
+        unique_names = list(set(names))
+        if not unique_names:
+            return {}
+
+        name_to_id: dict[str, int] = {}
+
+        for chunk in batched(unique_names, _BATCH_CHUNK_SIZE):
             existing = (
-                session.query(self.Test)
-                .filter(self.Test.name == name)
-                .first()
+                session.query(self.Test.id, self.Test.name)
+                .filter(self.Test.name.in_(chunk))
+                .all()
             )
-            if existing is None:
-                raise  # pragma: no cover
-            return existing
-        return test
+            for test_id, test_name in existing:
+                name_to_id[test_name] = test_id
+
+            missing = [n for n in chunk if n not in name_to_id]
+            if not missing:
+                continue
+
+            # ON CONFLICT DO NOTHING handles races with concurrent inserts.
+            stmt = (
+                pg_insert(self.Test.__table__)
+                .values([{"name": n} for n in missing])
+                .on_conflict_do_nothing(index_elements=["name"])
+            )
+            session.execute(stmt)
+
+            # Re-SELECT to pick up rows from concurrent inserts we lost
+            # the race to (RETURNING only covers actually-inserted rows).
+            new_rows = (
+                session.query(self.Test.id, self.Test.name)
+                .filter(self.Test.name.in_(missing))
+                .all()
+            )
+            for test_id, test_name in new_rows:
+                name_to_id[test_name] = test_id
+
+            still_missing = [n for n in missing if n not in name_to_id]
+            if still_missing:
+                raise RuntimeError(
+                    f"Failed to resolve test names after insert "
+                    f"(concurrent DELETE?): {still_missing[:5]}"
+                )
+
+        return name_to_id
 
     def get_test(
         self,
@@ -1291,12 +1341,18 @@ class V5TestSuiteDB:
         tests_data = data.get("tests", [])
         all_samples: list[dict[str, Any]] = []
 
+        all_test_names: list[str] = []
         for test_entry in tests_data:
             test_name = test_entry.get("name")
             if not test_name:
                 raise ValueError("each test entry must have a 'name'")
+            all_test_names.append(test_name)
 
-            test = self.get_or_create_test(session, test_name)
+        name_to_id = self.get_or_create_tests(session, all_test_names)
+
+        for test_entry in tests_data:
+            test_name = test_entry["name"]
+            test_id = name_to_id[test_name]
 
             self._validate_metric_names(test_entry.keys() - {"name"})
             metrics: dict[str, Any] = {}
@@ -1322,12 +1378,12 @@ class V5TestSuiteDB:
                 )
 
             if list_len is None:
-                sample_dict: dict[str, Any] = {"test_id": test.id}
+                sample_dict: dict[str, Any] = {"test_id": test_id}
                 sample_dict.update(metrics)
                 all_samples.append(sample_dict)
             else:
                 for i in range(list_len):
-                    sample_dict = {"test_id": test.id}
+                    sample_dict = {"test_id": test_id}
                     for key, value in metrics.items():
                         sample_dict[key] = value[i] if isinstance(value, list) else value
                     all_samples.append(sample_dict)
