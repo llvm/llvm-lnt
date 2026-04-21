@@ -2117,6 +2117,7 @@ def v4_abtest(id):
                 continue
             comparisons.append({
                 'test_name': test_name,
+                'test_id': test_id,
                 'field': field,
                 'cr': cr,
             })
@@ -2145,6 +2146,61 @@ def v4_abtest_pin(id):
     exp.pinned = not exp.pinned
     session.commit()
     return v4_redirect(v4_url_for('.v4_abtest', id=id))
+
+
+@v4_route("/abtest/<int:id>/scurve")
+def v4_abtest_scurve(id):
+    """S-curve graph for selected benchmarks in an A/B experiment."""
+    session = request.session
+    ts = request.get_testsuite()
+    exp = session.query(ts.ABExperiment).filter_by(id=id).first()
+    if exp is None:
+        abort(404, "No A/B experiment with id %d." % id)
+
+    control_run = session.query(ts.ABRun).filter_by(
+        id=exp.control_run_id).first()
+    variant_run = session.query(ts.ABRun).filter_by(
+        id=exp.variant_run_id).first()
+    if control_run is None or variant_run is None:
+        abort(404, "Experiment references a missing ABRun.")
+
+    sri = lnt.server.reporting.analysis.ABRunInfo(
+        session, ts, [exp.control_run_id, exp.variant_run_id])
+    test_name_map = dict(
+        session.query(ts.Test.id, ts.Test.name).filter(
+            ts.Test.id.in_(sri.test_ids)))
+    field_map = {f.name: f for f in ts.sample_fields
+                 if f.type.name in ('Real', 'Integer')}
+
+    points = []
+    for param in request.args.getlist('plot'):
+        try:
+            test_id_str, field_name = param.rsplit('.', 1)
+            test_id = int(test_id_str)
+        except (ValueError, AttributeError):
+            continue
+        field = field_map.get(field_name)
+        if field is None:
+            continue
+        cr = sri.get_run_comparison_result(
+            variant_run, control_run, test_id, field, None)
+        if cr.pct_delta is None:
+            continue
+        points.append({
+            'name': '%s (%s)' % (test_name_map.get(test_id, str(test_id)),
+                                 field_name),
+            'pct_delta': cr.pct_delta,
+            'bigger_is_better': cr.bigger_is_better,
+        })
+
+    points.sort(key=lambda p: p['pct_delta'])
+
+    data = ts_data(ts)
+    data.update({
+        'exp': exp,
+        'points': points,
+    })
+    return render_template("v4_abtest_scurve.html", **data)
 
 
 @frontend.route("/explode")

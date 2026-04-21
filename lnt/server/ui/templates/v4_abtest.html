@@ -20,6 +20,11 @@
     .pin-switch input:checked + .pin-slider { background-color:#337ab7; }
     .pin-switch input:checked + .pin-slider:before { transform:translateX(18px); }
   </style>
+  <script>
+  function selectAll(source) {
+    $(source).closest("table").find("input:checkbox").prop("checked", source.checked);
+  }
+  </script>
 {% endblock %}
 
 {% block sidebar %}
@@ -166,6 +171,9 @@
                           placeholder="Benchmark name regex...",
                           selector_part_to_search=".benchmark-name") }}
 
+<form id="ab_scurve_form" method="GET"
+      action="{{ v4_url_for('.v4_abtest_scurve', id=exp.id) }}">
+
 {% for field in metric_fields %}
   {% set field_rows = [] %}
   {% for row in comparisons %}
@@ -186,11 +194,15 @@
   <table class="table table-striped table-hover table-condensed sortable searchable">
     <thead>
       <tr>
+        <th class="sorttable_nosort">
+          <input type="checkbox" id="select-all-{{ field.name }}"
+                 onClick="selectAll(this)"/>
+        </th>
         <th>Benchmark</th>
         <th>Control</th>
         <th>Variant</th>
         <th>&#916;</th>
-        {% if options.show_delta %}<th>&#916;</th>{% endif %}
+        {% if options.show_delta %}<th>&#916; abs</th>{% endif %}
         <th>&#963;</th>
         <th>N</th>
       </tr>
@@ -198,8 +210,9 @@
     <tbody>
     {% for row in field_rows %}
       {% set cr = row.cr %}
-      {% set value_status = cr.get_value_status(ignore_small=not options.show_small_diff) %}
       <tr>
+        <td><input type="checkbox" name="plot"
+                   value="{{ row.test_id }}.{{ row.field.name }}"/></td>
         <td class="benchmark-name">{{ row.test_name }}</td>
         <td class="right">{{ '%.4f' % cr.previous if cr.previous is not none else '-' }}</td>
         <td class="right">{{ '%.4f' % cr.current if cr.current is not none else '-' }}</td>
@@ -221,5 +234,8 @@
 {% if not comparisons %}
 <p>No comparison data available.</p>
 {% endif %}
+
+<p><input type="submit" value="S-Curve"/></p>
+</form>
 
 {% endblock %}
