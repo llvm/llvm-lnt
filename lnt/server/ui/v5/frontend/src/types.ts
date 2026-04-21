@@ -158,12 +158,28 @@ export interface SideSelection {
   runAgg: AggFn;
 }
 
+export interface NoiseKnob {
+  enabled: boolean;
+  value: number;
+}
+
+export interface NoiseConfig {
+  pct: NoiseKnob;    // Delta % below threshold
+  pval: NoiseKnob;   // P-value above threshold
+  floor: NoiseKnob;  // Absolute value below floor
+}
+
+export interface NoiseReason {
+  knob: 'pct' | 'pval' | 'floor';
+  message: string;
+}
+
 export interface AppState {
   sideA: SideSelection;
   sideB: SideSelection;
   metric: string;
   sampleAgg: AggFn;
-  noise: number;       // percentage (e.g. 1 = 1%)
+  noiseConfig: NoiseConfig;
   sort: SortCol;
   sortDir: SortDir;
   testFilter: string;
@@ -183,6 +199,7 @@ export interface ComparisonRow {
   ratio: number | null;
   status: RowStatus;
   sidePresent: 'both' | 'a_only' | 'b_only';
+  noiseReasons: NoiseReason[];
 }
 
 // Admin types

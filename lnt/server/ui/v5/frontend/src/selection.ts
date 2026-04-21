@@ -2,7 +2,7 @@ import type { AggFn, FieldInfo, CommitSummary, SideSelection } from './types';
 import { SETTINGS_CHANGE, TEST_FILTER_CHANGE } from './events';
 import { getFields, getCommits, getRuns, getTestSuiteInfoCached } from './api';
 import { getBasePath } from './router';
-import { getState, setSideA, setSideB, setState, swapSides } from './state';
+import { getState, setSideA, setSideB, setState, setNoiseConfig, swapSides } from './state';
 import { debounce, el, commitDisplayValue } from './utils';
 import {
   createCommitCombobox, createMachineCombobox, resetComboboxState,
@@ -427,22 +427,7 @@ export function renderSelectionPanel(root: HTMLElement): void {
   sampleAggGroup.append(createSampleAggSelect());
   globalRow.append(sampleAggGroup);
 
-  const noiseGroup = el('div', { class: 'control-group' });
-  noiseGroup.append(el('label', {}, 'Noise %'));
-  const noiseInput = el('input', {
-    type: 'number',
-    class: 'noise-input',
-    value: String(getState().noise),
-    min: '0',
-    step: '0.1',
-  });
-  noiseInput.addEventListener('change', () => {
-    setState({ noise: parseFloat(noiseInput.value) || 0 });
-    document.dispatchEvent(new CustomEvent(SETTINGS_CHANGE));
-  });
-  noiseGroup.append(noiseInput);
-  globalRow.append(noiseGroup);
-
+  // Hide noise checkbox (outside collapsible, always visible)
   const hideNoiseGroup = el('div', { class: 'control-group control-group-checkbox' });
   const hideNoiseCb = el('input', { type: 'checkbox', id: 'hide-noise' }) as HTMLInputElement;
   hideNoiseCb.checked = getState().hideNoise;
@@ -453,6 +438,61 @@ export function renderSelectionPanel(root: HTMLElement): void {
   hideNoiseGroup.append(hideNoiseCb);
   hideNoiseGroup.append(el('label', { for: 'hide-noise' }, 'Hide noise'));
   globalRow.append(hideNoiseGroup);
+
+  // Collapsible noise filtering section
+  const noisePanel = el('details', { class: 'noise-filtering-panel' });
+  noisePanel.append(el('summary', {}, 'Noise filtering'));
+  const noiseBody = el('div', { class: 'noise-filtering-body' });
+
+  const nc = getState().noiseConfig;
+
+  // Helper to build a knob row
+  function buildKnobRow(
+    knobKey: 'pct' | 'pval' | 'floor',
+    label: string,
+    tooltip: string,
+    inputAttrs: Record<string, string>,
+    validate: (v: number) => boolean,
+  ): HTMLElement {
+    const knob = nc[knobKey];
+    const row = el('div', { class: 'noise-knob-row' });
+
+    const cb = el('input', { type: 'checkbox' }) as HTMLInputElement;
+    cb.checked = knob.enabled;
+
+    const valInput = el('input', {
+      type: 'number',
+      value: String(knob.value),
+      ...inputAttrs,
+    }) as HTMLInputElement;
+    valInput.disabled = !knob.enabled;
+
+    cb.addEventListener('change', () => {
+      setNoiseConfig(knobKey, { enabled: cb.checked });
+      valInput.disabled = !cb.checked;
+      document.dispatchEvent(new CustomEvent(SETTINGS_CHANGE));
+    });
+
+    valInput.addEventListener('change', () => {
+      const v = parseFloat(valInput.value);
+      if (Number.isFinite(v) && validate(v)) {
+        setNoiseConfig(knobKey, { value: v });
+        document.dispatchEvent(new CustomEvent(SETTINGS_CHANGE));
+      }
+    });
+
+    row.append(cb);
+    row.append(el('label', { title: tooltip }, label));
+    row.append(valInput);
+    return row;
+  }
+
+  noiseBody.append(buildKnobRow('pct', 'Delta % below', 'Tests where the absolute percentage change is within this threshold are considered noise.', { min: '0', step: '0.1' }, v => v >= 0));
+  noiseBody.append(buildKnobRow('pval', 'P-value above', 'Welch\u2019s t-test on raw samples from both sides. Tests with p-value above the threshold are considered noise (the difference is not statistically significant). Requires at least 2 samples per side.', { min: '0', max: '1', step: '0.01' }, v => v >= 0 && v <= 1));
+  noiseBody.append(buildKnobRow('floor', 'Absolute below', 'Tests where both sides\u2019 aggregated values are below this floor are considered noise. Useful for filtering out measurements too small to be meaningful.', { min: '0', step: 'any' }, v => v >= 0));
+
+  noisePanel.append(noiseBody);
+  globalRow.append(noisePanel);
 
   // Test filter
   const filterGroup = el('div', { class: 'control-group' });

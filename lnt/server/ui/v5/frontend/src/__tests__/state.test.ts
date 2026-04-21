@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { encodeToUrl, decodeFromUrl, applyUrlState, getState, setState, setSideA, setSideB, swapSides, replaceUrl } from '../state';
-import type { AppState } from '../types';
+import { encodeToUrl, decodeFromUrl, applyUrlState, getState, setState, setNoiseConfig, setSideA, setSideB, swapSides, replaceUrl } from '../state';
+import type { AppState, NoiseConfig } from '../types';
+
+const NOISE_DEFAULTS: NoiseConfig = {
+  pct:   { enabled: false, value: 1 },
+  pval:  { enabled: false, value: 0.05 },
+  floor: { enabled: false, value: 0 },
+};
 
 function makeDefaults(): AppState {
   return {
@@ -9,7 +15,7 @@ function makeDefaults(): AppState {
     sideB: { suite: '', commit: '', machine: '', runs: [], runAgg: 'median' },
     metric: '',
     sampleAgg: 'median',
-    noise: 1,
+    noiseConfig: structuredClone(NOISE_DEFAULTS),
     sort: 'delta_pct',
     sortDir: 'desc',
     testFilter: '',
@@ -33,7 +39,11 @@ describe('encodeToUrl', () => {
     state.sideB.runAgg = 'mean';
     state.metric = 'exec_time';
     state.sampleAgg = 'min';
-    state.noise = 2.5;
+    state.noiseConfig = {
+      pct: { enabled: true, value: 2.5 },
+      pval: { enabled: true, value: 0.01 },
+      floor: { enabled: true, value: 5 },
+    };
     state.sort = 'ratio';
     state.sortDir = 'asc';
     state.testFilter = 'bench';
@@ -51,7 +61,12 @@ describe('encodeToUrl', () => {
     expect(params.get('run_agg_b')).toBe('mean');
     expect(params.get('metric')).toBe('exec_time');
     expect(params.get('sample_agg')).toBe('min');
-    expect(params.get('noise')).toBe('2.5');
+    expect(params.get('noise_pct')).toBe('2.5');
+    expect(params.get('noise_pct_on')).toBe('1');
+    expect(params.get('noise_pval')).toBe('0.01');
+    expect(params.get('noise_pval_on')).toBe('1');
+    expect(params.get('noise_floor')).toBe('5');
+    expect(params.get('noise_floor_on')).toBe('1');
     expect(params.get('sort')).toBe('ratio');
     expect(params.get('sort_dir')).toBe('asc');
     expect(params.get('test_filter')).toBe('bench');
@@ -66,19 +81,37 @@ describe('encodeToUrl', () => {
     expect(params.has('run_agg_a')).toBe(false);
   });
 
-  it('omits noise when it equals default (1)', () => {
+  it('omits noise params when at defaults', () => {
     const state = makeDefaults();
-    state.noise = 1;
-    state.metric = 'x'; // need something non-default to generate output
+    state.metric = 'x';
     const params = new URLSearchParams(encodeToUrl(state));
-    expect(params.has('noise')).toBe(false);
+    expect(params.has('noise_pct')).toBe(false);
+    expect(params.has('noise_pct_on')).toBe(false);
+    expect(params.has('noise_pval')).toBe(false);
+    expect(params.has('noise_pval_on')).toBe(false);
+    expect(params.has('noise_floor')).toBe(false);
+    expect(params.has('noise_floor_on')).toBe(false);
   });
 
-  it('includes noise when non-default', () => {
+  it('encodes noise_pct when non-default', () => {
     const state = makeDefaults();
-    state.noise = 2.5;
+    state.noiseConfig.pct.value = 2.5;
     const params = new URLSearchParams(encodeToUrl(state));
-    expect(params.get('noise')).toBe('2.5');
+    expect(params.get('noise_pct')).toBe('2.5');
+  });
+
+  it('does not encode noise_pct_on when pct is at default (disabled)', () => {
+    const state = makeDefaults();
+    // pct.enabled is already false (default) — should not appear in URL
+    const params = new URLSearchParams(encodeToUrl(state));
+    expect(params.has('noise_pct_on')).toBe(false);
+  });
+
+  it('encodes noise_pct_on=1 when pct enabled', () => {
+    const state = makeDefaults();
+    state.noiseConfig.pct.enabled = true;
+    const params = new URLSearchParams(encodeToUrl(state));
+    expect(params.get('noise_pct_on')).toBe('1');
   });
 });
 
@@ -103,9 +136,6 @@ describe('decodeFromUrl', () => {
   it('ignores invalid agg values', () => {
     const result = decodeFromUrl('?sample_agg=bogus&run_agg_a=invalid');
     expect(result.sampleAgg).toBeUndefined();
-    // sideA should not be set since only run_agg_a was provided with invalid value
-    // But commit_a/machine_a/runs_a are all absent, so runAggA is undefined,
-    // and nothing triggers sideA creation
     expect(result.sideA).toBeUndefined();
   });
 
@@ -146,6 +176,78 @@ describe('decodeFromUrl', () => {
   });
 });
 
+describe('decodeFromUrl — noise config', () => {
+  it('decodes noise_pct', () => {
+    const result = decodeFromUrl('?noise_pct=2.5');
+    expect(result.noiseConfig?.pct.value).toBe(2.5);
+    expect(result.noiseConfig?.pct.enabled).toBe(false); // default
+  });
+
+  it('decodes noise_pct_on=0', () => {
+    const result = decodeFromUrl('?noise_pct_on=0');
+    expect(result.noiseConfig?.pct.enabled).toBe(false);
+  });
+
+  it('decodes noise_pval', () => {
+    const result = decodeFromUrl('?noise_pval=0.01&noise_pval_on=1');
+    expect(result.noiseConfig?.pval.value).toBe(0.01);
+    expect(result.noiseConfig?.pval.enabled).toBe(true);
+  });
+
+  it('decodes noise_floor', () => {
+    const result = decodeFromUrl('?noise_floor=5&noise_floor_on=1');
+    expect(result.noiseConfig?.floor.value).toBe(5);
+    expect(result.noiseConfig?.floor.enabled).toBe(true);
+  });
+
+  it('rejects noise_pval < 0', () => {
+    const result = decodeFromUrl('?noise_pval=-0.1&noise_pval_on=1');
+    expect(result.noiseConfig?.pval.value).toBe(0.05); // default preserved
+  });
+
+  it('rejects noise_pval > 1', () => {
+    const result = decodeFromUrl('?noise_pval=1.5&noise_pval_on=1');
+    expect(result.noiseConfig?.pval.value).toBe(0.05); // default preserved
+  });
+
+  it('accepts noise_pval=0', () => {
+    const result = decodeFromUrl('?noise_pval=0&noise_pval_on=1');
+    expect(result.noiseConfig?.pval.value).toBe(0);
+  });
+
+  it('accepts noise_pval=1', () => {
+    const result = decodeFromUrl('?noise_pval=1&noise_pval_on=1');
+    expect(result.noiseConfig?.pval.value).toBe(1);
+  });
+
+  it('rejects noise_floor < 0', () => {
+    const result = decodeFromUrl('?noise_floor=-1&noise_floor_on=1');
+    expect(result.noiseConfig?.floor.value).toBe(0); // default preserved
+  });
+
+  it('ignores invalid *_on values', () => {
+    const result = decodeFromUrl('?noise_pval_on=yes');
+    // 'yes' is not '0' or '1', so enabled stays at default (false)
+    expect(result.noiseConfig?.pval.enabled).toBe(false);
+  });
+
+  it('legacy ?noise=5 maps to pct.value', () => {
+    const result = decodeFromUrl('?noise=5');
+    expect(result.noiseConfig?.pct.value).toBe(5);
+    expect(result.noiseConfig?.pct.enabled).toBe(true);
+  });
+
+  it('legacy ?noise is ignored when noise_pct is present', () => {
+    const result = decodeFromUrl('?noise=5&noise_pct=2');
+    expect(result.noiseConfig?.pct.value).toBe(2);
+  });
+
+  it('leaves noiseConfig unset when no noise params present', () => {
+    const result = decodeFromUrl('?metric=exec_time');
+    expect(result.noiseConfig).toBeUndefined();
+  });
+});
+
 describe('round-trip', () => {
   it('encode then decode preserves full non-default state', () => {
     const state = makeDefaults();
@@ -153,7 +255,11 @@ describe('round-trip', () => {
     state.sideB = { suite: 'compile', commit: 'rev2', machine: 'mach-b', runs: ['u3'], runAgg: 'max' };
     state.metric = 'exec_time';
     state.sampleAgg = 'min';
-    state.noise = 3;
+    state.noiseConfig = {
+      pct: { enabled: false, value: 3 },
+      pval: { enabled: true, value: 0.01 },
+      floor: { enabled: true, value: 10 },
+    };
     state.sort = 'test';
     state.sortDir = 'asc';
     state.testFilter = 'bench';
@@ -166,7 +272,7 @@ describe('round-trip', () => {
     expect(decoded.sideB).toEqual(state.sideB);
     expect(decoded.metric).toBe(state.metric);
     expect(decoded.sampleAgg).toBe(state.sampleAgg);
-    expect(decoded.noise).toBe(state.noise);
+    expect(decoded.noiseConfig).toEqual(state.noiseConfig);
     expect(decoded.sort).toBe(state.sort);
     expect(decoded.sortDir).toBe(state.sortDir);
     expect(decoded.testFilter).toBe(state.testFilter);
@@ -183,47 +289,56 @@ describe('round-trip', () => {
 
     expect(decoded.sideA?.runs).toEqual(['aaa-111', 'bbb-222', 'ccc-333']);
   });
+
+  it('round-trips noiseConfig with all non-default values', () => {
+    const state = makeDefaults();
+    state.noiseConfig = {
+      pct: { enabled: false, value: 5 },
+      pval: { enabled: true, value: 0.1 },
+      floor: { enabled: true, value: 100 },
+    };
+    const qs = encodeToUrl(state);
+    const decoded = decodeFromUrl(qs);
+    expect(decoded.noiseConfig).toEqual(state.noiseConfig);
+  });
 });
 
 describe('applyUrlState', () => {
   beforeEach(() => {
-    // Reset global state to defaults before each test
     applyUrlState('');
   });
 
   it('restores state from URL on page load', () => {
-    applyUrlState('?commit_a=rev1&machine_a=mach-a&metric=exec_time&noise=3&sort=ratio&sort_dir=asc');
+    applyUrlState('?commit_a=rev1&machine_a=mach-a&metric=exec_time&noise_pct=3&sort=ratio&sort_dir=asc');
     const s = getState();
     expect(s.sideA.commit).toBe('rev1');
     expect(s.sideA.machine).toBe('mach-a');
     expect(s.metric).toBe('exec_time');
-    expect(s.noise).toBe(3);
+    expect(s.noiseConfig.pct.value).toBe(3);
     expect(s.sort).toBe('ratio');
     expect(s.sortDir).toBe('asc');
   });
 
   it('resets absent fields to defaults', () => {
-    // First set some non-default state
-    setState({ metric: 'exec_time', noise: 5, sort: 'ratio', testFilter: 'bench' });
+    setState({ metric: 'exec_time', noiseConfig: { pct: { enabled: true, value: 5 }, pval: { enabled: false, value: 0.05 }, floor: { enabled: false, value: 0 } } });
     expect(getState().metric).toBe('exec_time');
-    expect(getState().noise).toBe(5);
+    expect(getState().noiseConfig.pct.value).toBe(5);
 
-    // Now apply a URL that only sets metric — everything else should reset to defaults
     applyUrlState('?metric=compile_time');
     const s = getState();
     expect(s.metric).toBe('compile_time');
-    expect(s.noise).toBe(1); // default
-    expect(s.sort).toBe('delta_pct'); // default
-    expect(s.sortDir).toBe('desc'); // default
-    expect(s.testFilter).toBe(''); // default
-    expect(s.hideNoise).toBe(false); // default
+    expect(s.noiseConfig).toEqual(NOISE_DEFAULTS);
+    expect(s.sort).toBe('delta_pct');
+    expect(s.sortDir).toBe('desc');
+    expect(s.testFilter).toBe('');
+    expect(s.hideNoise).toBe(false);
     expect(s.sideA).toEqual({ suite: '', commit: '', machine: '', runs: [], runAgg: 'median' });
     expect(s.sideB).toEqual({ suite: '', commit: '', machine: '', runs: [], runAgg: 'median' });
   });
 
   it('with empty search string sets state to all defaults', () => {
-    // Set non-default state first
-    setState({ metric: 'exec_time', noise: 5 });
+    setState({ metric: 'exec_time' });
+    setNoiseConfig('pct', { value: 5 });
     setSideA({ commit: 'rev1', machine: 'mach-a' });
 
     applyUrlState('');
@@ -235,25 +350,32 @@ describe('applyUrlState', () => {
     applyUrlState('?commit_b=rev2&sample_agg=min&hide_noise=1');
     const s = getState();
 
-    // Specified fields
     expect(s.sideB.commit).toBe('rev2');
     expect(s.sampleAgg).toBe('min');
     expect(s.hideNoise).toBe(true);
 
-    // Unset fields should be defaults
     expect(s.sideA).toEqual({ suite: '', commit: '', machine: '', runs: [], runAgg: 'median' });
     expect(s.sideB.machine).toBe('');
     expect(s.sideB.runs).toEqual([]);
     expect(s.sideB.runAgg).toBe('median');
     expect(s.metric).toBe('');
-    expect(s.noise).toBe(1);
+    expect(s.noiseConfig).toEqual(NOISE_DEFAULTS);
     expect(s.sort).toBe('delta_pct');
     expect(s.sortDir).toBe('desc');
     expect(s.testFilter).toBe('');
   });
+
+  it('with partial noise params, unset knobs keep defaults', () => {
+    applyUrlState('?noise_pval_on=1');
+    const s = getState();
+    expect(s.noiseConfig.pval.enabled).toBe(true);
+    expect(s.noiseConfig.pval.value).toBe(0.05); // default value
+    expect(s.noiseConfig.pct).toEqual(NOISE_DEFAULTS.pct);
+    expect(s.noiseConfig.floor).toEqual(NOISE_DEFAULTS.floor);
+  });
 });
 
-describe('getState / setState / setSideA / setSideB', () => {
+describe('getState / setState / setNoiseConfig / setSideA / setSideB', () => {
   beforeEach(() => {
     applyUrlState('');
   });
@@ -264,14 +386,27 @@ describe('getState / setState / setSideA / setSideB', () => {
   });
 
   it('setState merges partial state', () => {
-    setState({ metric: 'exec_time', noise: 2.5 });
+    setState({ metric: 'exec_time' });
     const s = getState();
     expect(s.metric).toBe('exec_time');
-    expect(s.noise).toBe(2.5);
-    // Other fields unchanged from defaults
     expect(s.sort).toBe('delta_pct');
     expect(s.sortDir).toBe('desc');
     expect(s.sampleAgg).toBe('median');
+  });
+
+  it('setNoiseConfig updates a single knob', () => {
+    setNoiseConfig('pct', { value: 5 });
+    const s = getState();
+    expect(s.noiseConfig.pct.value).toBe(5);
+    expect(s.noiseConfig.pct.enabled).toBe(false); // unchanged from default
+    expect(s.noiseConfig.pval).toEqual(NOISE_DEFAULTS.pval); // other knobs unchanged
+    expect(s.noiseConfig.floor).toEqual(NOISE_DEFAULTS.floor);
+  });
+
+  it('setNoiseConfig updates enabled state', () => {
+    setNoiseConfig('pval', { enabled: true });
+    expect(getState().noiseConfig.pval.enabled).toBe(true);
+    expect(getState().noiseConfig.pval.value).toBe(0.05); // value unchanged
   });
 
   it('setSideA merges partial side A selection', () => {
@@ -279,7 +414,6 @@ describe('getState / setState / setSideA / setSideB', () => {
     const s = getState();
     expect(s.sideA.commit).toBe('rev123');
     expect(s.sideA.machine).toBe('mach-a');
-    // Unset fields keep their defaults
     expect(s.sideA.runs).toEqual([]);
     expect(s.sideA.runAgg).toBe('median');
   });
@@ -289,22 +423,20 @@ describe('getState / setState / setSideA / setSideB', () => {
     const s = getState();
     expect(s.sideB.runs).toEqual(['uuid-1', 'uuid-2']);
     expect(s.sideB.runAgg).toBe('mean');
-    // Unset fields keep their defaults
     expect(s.sideB.commit).toBe('');
     expect(s.sideB.machine).toBe('');
   });
 
   it('state is preserved across calls (not reset)', () => {
     setState({ metric: 'exec_time' });
-    setState({ noise: 3 });
+    setNoiseConfig('pct', { value: 3 });
     setSideA({ commit: 'rev1' });
     setSideA({ machine: 'mach-a' });
     setSideB({ commit: 'rev2' });
 
     const s = getState();
-    // All previous calls should have been preserved
     expect(s.metric).toBe('exec_time');
-    expect(s.noise).toBe(3);
+    expect(s.noiseConfig.pct.value).toBe(3);
     expect(s.sideA.commit).toBe('rev1');
     expect(s.sideA.machine).toBe('mach-a');
     expect(s.sideB.commit).toBe('rev2');
@@ -391,7 +523,11 @@ describe('URL special characters round-trip', () => {
     state.sideB = { suite: '', commit: 'a&b=c+d e', machine: 'machine two', runs: ['uuid-2', 'uuid-3'], runAgg: 'max' };
     state.metric = 'exec_time';
     state.testFilter = 'bench+suite & more';
-    state.noise = 2;
+    state.noiseConfig = {
+      pct: { enabled: true, value: 2 },
+      pval: { enabled: true, value: 0.01 },
+      floor: { enabled: false, value: 0 },
+    };
     state.sort = 'ratio';
     state.sortDir = 'asc';
     state.hideNoise = true;
@@ -403,7 +539,7 @@ describe('URL special characters round-trip', () => {
     expect(decoded.sideB).toEqual(state.sideB);
     expect(decoded.metric).toBe(state.metric);
     expect(decoded.testFilter).toBe(state.testFilter);
-    expect(decoded.noise).toBe(state.noise);
+    expect(decoded.noiseConfig).toEqual(state.noiseConfig);
     expect(decoded.sort).toBe(state.sort);
     expect(decoded.sortDir).toBe(state.sortDir);
     expect(decoded.hideNoise).toBe(state.hideNoise);
@@ -411,24 +547,25 @@ describe('URL special characters round-trip', () => {
 });
 
 describe('decodeFromUrl noise edge cases', () => {
-  it('noise=0 produces { noise: 0 }', () => {
-    const result = decodeFromUrl('?noise=0');
-    expect(result.noise).toBe(0);
+  it('noise_pct=0 produces value: 0', () => {
+    const result = decodeFromUrl('?noise_pct=0');
+    expect(result.noiseConfig?.pct.value).toBe(0);
   });
 
-  it('noise=abc does NOT produce a noise field (NaN rejected)', () => {
-    const result = decodeFromUrl('?noise=abc');
-    expect(result.noise).toBeUndefined();
+  it('noise_pct=abc does NOT produce a noiseConfig field (NaN rejected)', () => {
+    const result = decodeFromUrl('?noise_pct=abc');
+    // The param is present but invalid, so it falls back to default
+    expect(result.noiseConfig?.pct.value).toBe(1); // default
   });
 
-  it('noise=-1 does NOT produce a noise field (negative rejected)', () => {
-    const result = decodeFromUrl('?noise=-1');
-    expect(result.noise).toBeUndefined();
+  it('noise_pct=-1 does NOT change the value (negative rejected)', () => {
+    const result = decodeFromUrl('?noise_pct=-1');
+    expect(result.noiseConfig?.pct.value).toBe(1); // default
   });
 
-  it('noise=5 produces { noise: 5 }', () => {
-    const result = decodeFromUrl('?noise=5');
-    expect(result.noise).toBe(5);
+  it('noise_pct=5 produces value: 5', () => {
+    const result = decodeFromUrl('?noise_pct=5');
+    expect(result.noiseConfig?.pct.value).toBe(5);
   });
 });
 
@@ -440,7 +577,6 @@ describe('replaceUrl', () => {
   it('calls window.history.replaceState with the encoded URL', () => {
     const spy = vi.spyOn(window.history, 'replaceState').mockImplementation(() => {});
 
-    // setState auto-calls replaceUrl
     setState({ metric: 'compile_time', sort: 'ratio', sortDir: 'asc' });
 
     expect(spy).toHaveBeenCalledOnce();
@@ -448,7 +584,6 @@ describe('replaceUrl', () => {
     expect(url).toContain('metric=compile_time');
     expect(url).toContain('sort=ratio');
     expect(url).toContain('sort_dir=asc');
-    // First two arguments should be null and ''
     expect(spy.mock.calls[0][0]).toBeNull();
     expect(spy.mock.calls[0][1]).toBe('');
 
@@ -482,7 +617,6 @@ describe('replaceUrl', () => {
       configurable: true,
     });
 
-    // State is already defaults from beforeEach
     replaceUrl();
 
     const url = spy.mock.calls[0][2] as string;

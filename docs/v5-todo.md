@@ -58,7 +58,8 @@
 - [ ] Clear the title input after successfully creating a regression.
 - [ ] Replace the `<details>` "Add to Regression" panel with a sticky floating
   button (bottom-right) that expands into a panel on click.
-- [ ] Allow using p-value for noise determination.
+- [x] Implement multi-knob noise filtering (Delta %, p-value, absolute floor)
+  per the updated `docs/design/ui/compare.md` spec.
 - [ ] Understand whether the Compare page should allow inputting an arbitrary
   local run.
 - [ ] Fix: sample aggregation changes are not being plotted on the graph (same

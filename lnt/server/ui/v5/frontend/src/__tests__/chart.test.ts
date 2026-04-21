@@ -12,6 +12,7 @@ function makeRow(overrides: Partial<ComparisonRow> & { test: string }): Comparis
     ratio: 1.1,
     status: 'improved',
     sidePresent: 'both',
+    noiseReasons: [],
     ...overrides,
   };
 }

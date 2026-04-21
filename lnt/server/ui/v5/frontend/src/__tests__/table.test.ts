@@ -13,6 +13,7 @@ function makeRow(overrides: Partial<ComparisonRow> & { test: string }): Comparis
     ratio: null,
     status: 'unchanged',
     sidePresent: 'both',
+    noiseReasons: [],
     ...overrides,
   };
 }
@@ -300,6 +301,7 @@ describe('geomean row', () => {
       ratio: null,
       status: 'unchanged',
       sidePresent: 'both',
+      noiseReasons: [],
       ...overrides,
     };
   }
@@ -421,6 +423,7 @@ describe('row visibility toggling', () => {
       ratio: 1.1,
       status: 'improved',
       sidePresent: 'both',
+      noiseReasons: [],
       ...overrides,
     };
   }
@@ -512,6 +515,7 @@ describe('noise-hidden vs manually-hidden separation', () => {
       ratio: 1.1,
       status: 'improved',
       sidePresent: 'both',
+      noiseReasons: [],
       ...overrides,
     };
   }
@@ -536,8 +540,9 @@ describe('noise-hidden vs manually-hidden separation', () => {
     resetTable();
   });
 
-  it('visible noise row gets .row-noise class (not .row-hidden)', () => {
-    // When hideNoise is off, noise rows are in the table but de-emphasized.
+  it('visible noise row does not get row-level styling class', () => {
+    // Noise rows are distinguished only by the grey Status cell text,
+    // not by row-level opacity.
     const container = document.createElement('div');
     const rows = [
       makeRow({ test: 'a', status: 'improved' }),
@@ -546,13 +551,12 @@ describe('noise-hidden vs manually-hidden separation', () => {
     renderTable(container, rows);
 
     const rowB = container.querySelector('tr[data-test="b"]')!;
-    expect(rowB.classList.contains('row-noise')).toBe(true);
     expect(rowB.classList.contains('row-hidden')).toBe(false);
 
     resetTable();
   });
 
-  it('.row-hidden and .row-noise classes are mutually exclusive', () => {
+  it('row-hidden class only applies to manually-hidden rows, not noise rows', () => {
     const container = document.createElement('div');
     const rows = [
       makeRow({ test: 'a', status: 'improved' }),
@@ -566,17 +570,14 @@ describe('noise-hidden vs manually-hidden separation', () => {
     const rowB = container.querySelector('tr[data-test="b"]')!;
     const rowC = container.querySelector('tr[data-test="c"]')!;
 
-    // 'a': manually hidden → row-hidden, NOT row-noise
+    // 'a': manually hidden → row-hidden
     expect(rowA.classList.contains('row-hidden')).toBe(true);
-    expect(rowA.classList.contains('row-noise')).toBe(false);
 
-    // 'b': noise visible → row-noise, NOT row-hidden
-    expect(rowB.classList.contains('row-noise')).toBe(true);
+    // 'b': noise visible → no row-level class
     expect(rowB.classList.contains('row-hidden')).toBe(false);
 
-    // 'c': normal → neither
+    // 'c': normal → no row-level class
     expect(rowC.classList.contains('row-hidden')).toBe(false);
-    expect(rowC.classList.contains('row-noise')).toBe(false);
 
     resetTable();
   });

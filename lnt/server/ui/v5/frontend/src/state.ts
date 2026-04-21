@@ -1,11 +1,17 @@
-import type { AggFn, AppState, SideSelection, SortCol, SortDir } from './types';
+import type { AggFn, AppState, NoiseConfig, NoiseKnob, SideSelection, SortCol, SortDir } from './types';
+
+const NOISE_DEFAULTS: NoiseConfig = {
+  pct:   { enabled: false, value: 1 },
+  pval:  { enabled: false, value: 0.05 },
+  floor: { enabled: false, value: 0 },
+};
 
 const DEFAULTS: AppState = {
   sideA: { suite: '', commit: '', machine: '', runs: [], runAgg: 'median' },
   sideB: { suite: '', commit: '', machine: '', runs: [], runAgg: 'median' },
   metric: '',
   sampleAgg: 'median',
-  noise: 1,
+  noiseConfig: structuredClone(NOISE_DEFAULTS),
   sort: 'delta_pct',
   sortDir: 'desc',
   testFilter: '',
@@ -20,6 +26,14 @@ export function getState(): AppState {
 
 export function setState(partial: Partial<AppState>): void {
   Object.assign(state, partial);
+  replaceUrl();
+}
+
+export function setNoiseConfig(knob: keyof NoiseConfig, partial: Partial<NoiseKnob>): void {
+  state.noiseConfig = {
+    ...state.noiseConfig,
+    [knob]: { ...state.noiseConfig[knob], ...partial },
+  };
   replaceUrl();
 }
 
@@ -74,6 +88,83 @@ function encodeSide(p: URLSearchParams, side: SideSelection, suffix: string): vo
   if (side.runAgg !== 'median') p.set(`run_agg_${suffix}`, side.runAgg);
 }
 
+function decodeNoiseConfig(p: URLSearchParams): Partial<NoiseConfig> | undefined {
+  const result: Partial<NoiseConfig> = {};
+  let hasAny = false;
+
+  // Delta % knob
+  const pctVal = p.get('noise_pct');
+  const pctOn = p.get('noise_pct_on');
+  if (pctVal !== null || pctOn !== null) {
+    hasAny = true;
+    const knob: NoiseKnob = { ...NOISE_DEFAULTS.pct };
+    if (pctVal !== null) {
+      const n = parseFloat(pctVal);
+      if (Number.isFinite(n) && n >= 0) knob.value = n;
+    }
+    if (pctOn === '0') knob.enabled = false;
+    else if (pctOn === '1') knob.enabled = true;
+    result.pct = knob;
+  }
+
+  // P-value knob
+  const pvalVal = p.get('noise_pval');
+  const pvalOn = p.get('noise_pval_on');
+  if (pvalVal !== null || pvalOn !== null) {
+    hasAny = true;
+    const knob: NoiseKnob = { ...NOISE_DEFAULTS.pval };
+    if (pvalVal !== null) {
+      const n = parseFloat(pvalVal);
+      if (Number.isFinite(n) && n >= 0 && n <= 1) knob.value = n;
+    }
+    if (pvalOn === '0') knob.enabled = false;
+    else if (pvalOn === '1') knob.enabled = true;
+    result.pval = knob;
+  }
+
+  // Floor knob
+  const floorVal = p.get('noise_floor');
+  const floorOn = p.get('noise_floor_on');
+  if (floorVal !== null || floorOn !== null) {
+    hasAny = true;
+    const knob: NoiseKnob = { ...NOISE_DEFAULTS.floor };
+    if (floorVal !== null) {
+      const n = parseFloat(floorVal);
+      if (Number.isFinite(n) && n >= 0) knob.value = n;
+    }
+    if (floorOn === '0') knob.enabled = false;
+    else if (floorOn === '1') knob.enabled = true;
+    result.floor = knob;
+  }
+
+  // Legacy migration: ?noise=X → pct.value
+  if (!hasAny) {
+    const legacyNoise = p.get('noise');
+    if (legacyNoise !== null) {
+      const n = parseFloat(legacyNoise);
+      if (Number.isFinite(n) && n >= 0) {
+        return { pct: { enabled: true, value: n } };
+      }
+    }
+  }
+
+  return hasAny ? result : undefined;
+}
+
+function encodeNoiseConfig(p: URLSearchParams, nc: NoiseConfig): void {
+  // pct: defaults are enabled=true, value=1
+  if (nc.pct.value !== NOISE_DEFAULTS.pct.value) p.set('noise_pct', String(nc.pct.value));
+  if (nc.pct.enabled !== NOISE_DEFAULTS.pct.enabled) p.set('noise_pct_on', nc.pct.enabled ? '1' : '0');
+
+  // pval: defaults are enabled=false, value=0.05
+  if (nc.pval.value !== NOISE_DEFAULTS.pval.value) p.set('noise_pval', String(nc.pval.value));
+  if (nc.pval.enabled !== NOISE_DEFAULTS.pval.enabled) p.set('noise_pval_on', nc.pval.enabled ? '1' : '0');
+
+  // floor: defaults are enabled=false, value=0
+  if (nc.floor.value !== NOISE_DEFAULTS.floor.value) p.set('noise_floor', String(nc.floor.value));
+  if (nc.floor.enabled !== NOISE_DEFAULTS.floor.enabled) p.set('noise_floor_on', nc.floor.enabled ? '1' : '0');
+}
+
 export function decodeFromUrl(search: string): Partial<AppState> {
   const p = new URLSearchParams(search);
   const result: Partial<AppState> = {};
@@ -90,11 +181,8 @@ export function decodeFromUrl(search: string): Partial<AppState> {
   const sampleAgg = parseAgg(p.get('sample_agg'));
   if (sampleAgg) result.sampleAgg = sampleAgg;
 
-  const noise = p.get('noise');
-  if (noise !== null) {
-    const n = parseFloat(noise);
-    if (Number.isFinite(n) && n >= 0) result.noise = n;
-  }
+  const noiseConfig = decodeNoiseConfig(p);
+  if (noiseConfig) result.noiseConfig = { ...structuredClone(NOISE_DEFAULTS), ...noiseConfig };
 
   const sort = p.get('sort');
   if (sort && VALID_SORT.includes(sort as SortCol)) result.sort = sort as SortCol;
@@ -120,7 +208,7 @@ export function encodeToUrl(s: AppState): string {
 
   if (s.metric) p.set('metric', s.metric);
   if (s.sampleAgg !== 'median') p.set('sample_agg', s.sampleAgg);
-  if (s.noise !== 1) p.set('noise', String(s.noise));
+  encodeNoiseConfig(p, s.noiseConfig);
   if (s.sort !== 'delta_pct') p.set('sort', s.sort);
   if (s.sortDir !== 'desc') p.set('sort_dir', s.sortDir);
   if (s.testFilter) p.set('test_filter', s.testFilter);
@@ -139,7 +227,7 @@ export function applyUrlState(search: string): void {
   if (decoded.sideB) state.sideB = { ...state.sideB, ...decoded.sideB };
   if (decoded.metric !== undefined) state.metric = decoded.metric;
   if (decoded.sampleAgg !== undefined) state.sampleAgg = decoded.sampleAgg;
-  if (decoded.noise !== undefined) state.noise = decoded.noise;
+  if (decoded.noiseConfig !== undefined) state.noiseConfig = decoded.noiseConfig;
   if (decoded.sort !== undefined) state.sort = decoded.sort;
   if (decoded.sortDir !== undefined) state.sortDir = decoded.sortDir;
   if (decoded.testFilter !== undefined) state.testFilter = decoded.testFilter;

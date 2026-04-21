@@ -161,8 +161,6 @@ function buildTable(rows: ComparisonRow[], sort: SortCol, sortDir: SortDir, hidd
 
     if (hiddenTests.has(row.test)) {
       tr.classList.add('row-hidden');
-    } else if (row.status === 'noise') {
-      tr.classList.add('row-noise');
     } else if (row.status === 'na') {
       tr.classList.add('row-na');
     }
@@ -173,7 +171,13 @@ function buildTable(rows: ComparisonRow[], sort: SortCol, sortDir: SortDir, hidd
     tr.append(el('td', { class: 'col-num' }, formatValue(row.delta)));
     tr.append(el('td', { class: 'col-num' }, formatPercent(row.deltaPct)));
     tr.append(el('td', { class: 'col-num' }, formatRatio(row.ratio)));
-    tr.append(el('td', { class: `col-status status-${row.status}` }, row.status));
+    const statusAttrs: Record<string, string> = {
+      class: `col-status status-${row.status}`,
+    };
+    if (row.status === 'noise' && row.noiseReasons.length > 0) {
+      statusAttrs.title = row.noiseReasons.map(r => r.message).join('\n');
+    }
+    tr.append(el('td', statusAttrs, row.status));
 
     if (currentOptions.profileLinks) {
       const url = currentOptions.profileLinks.get(row.test);

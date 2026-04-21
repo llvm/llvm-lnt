@@ -301,12 +301,47 @@ dl {
   min-width: 200px;
 }
 
-.noise-input {
-  width: 60px;
-  padding: 4px 6px;
+/* Noise filtering panel */
+.noise-filtering-panel {
+  margin: 0;
+  position: relative;
+}
+.noise-filtering-panel summary {
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 13px;
+}
+.noise-filtering-body {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 10;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.5rem;
+}
+.noise-knob-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 13px;
+}
+.noise-knob-row input[type="number"] {
+  width: 5rem;
+  padding: 2px 4px;
   border: 1px solid #ccc;
   border-radius: 3px;
   font-size: 13px;
+}
+.noise-knob-row input[type="number"]:disabled {
+  opacity: 0.5;
+}
+.noise-knob-row label {
+  cursor: help;
 }
 
 /* Action Row */
@@ -538,10 +573,6 @@ dl {
 }
 
 /* Row states */
-.row-noise {
-  opacity: 0.5;
-}
-
 .row-hidden {
   opacity: 0.3;
 }

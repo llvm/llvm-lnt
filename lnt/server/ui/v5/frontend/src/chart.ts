@@ -243,7 +243,6 @@ function drawChart(filterTests: Set<string> | null): void {
   lastFilterTests = filterTests;
 
   const state = getState();
-  const noiseThreshold = state.noise;
 
   // Apply text filter from state on top of chart zoom filter
   let effectiveFilter = filterTests;
@@ -290,27 +289,29 @@ function drawChart(filterTests: Set<string> | null): void {
       '<extra></extra>',
   };
 
-  // Noise band shapes in log₂ space.
-  // Noise threshold N% means ratios in [1-N/100, 1+N/100] are noise.
-  const noiseFrac = noiseThreshold / 100;
-  const noiseUpper = Math.log2(1 + noiseFrac);
-  const noiseLower = noiseFrac < 1 ? Math.log2(1 - noiseFrac) : -noiseUpper;
-  const shapes = [
-    {
-      type: 'line' as const,
-      x0: -0.5, x1: sortedTests.length - 0.5,
-      y0: noiseLower, y1: noiseLower,
-      xref: 'x' as const, yref: 'y' as const,
-      line: { color: '#aaa', width: 1, dash: 'dash' as const },
-    },
-    {
-      type: 'line' as const,
-      x0: -0.5, x1: sortedTests.length - 0.5,
-      y0: noiseUpper, y1: noiseUpper,
-      xref: 'x' as const, yref: 'y' as const,
-      line: { color: '#aaa', width: 1, dash: 'dash' as const },
-    },
-  ];
+  // Noise band shapes in log₂ space (only when Delta % knob is enabled).
+  const shapes: Array<Record<string, unknown>> = [];
+  if (state.noiseConfig.pct.enabled && state.noiseConfig.pct.value > 0) {
+    const noiseFrac = state.noiseConfig.pct.value / 100;
+    const noiseUpper = Math.log2(1 + noiseFrac);
+    const noiseLower = noiseFrac < 1 ? Math.log2(1 - noiseFrac) : -noiseUpper;
+    shapes.push(
+      {
+        type: 'line' as const,
+        x0: -0.5, x1: sortedTests.length - 0.5,
+        y0: noiseLower, y1: noiseLower,
+        xref: 'x' as const, yref: 'y' as const,
+        line: { color: '#aaa', width: 1, dash: 'dash' as const },
+      },
+      {
+        type: 'line' as const,
+        x0: -0.5, x1: sortedTests.length - 0.5,
+        y0: noiseUpper, y1: noiseUpper,
+        xref: 'x' as const, yref: 'y' as const,
+        line: { color: '#aaa', width: 1, dash: 'dash' as const },
+      },
+    );
+  }
 
   // Compute data y-range for tick generation and autorange restore.
   let yMin = 0, yMax = 0;

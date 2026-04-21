@@ -26,6 +26,7 @@ import {
 } from '../selection';
 import {
   aggregateSamplesWithinRun, aggregateAcrossRuns, computeComparison,
+  groupSamplesByTest,
 } from '../comparison';
 import { renderTable, filterToTests, highlightRow, resetTable } from '../table';
 import { renderChart, highlightPoint, destroyChart } from '../chart';
@@ -41,6 +42,11 @@ let sampleCache = new Map<string, SampleInfo[]>();
 let profileCache = new Map<string, ProfileListItem[]>();
 /** Cached profile links (invalidated when profileCache or runs change). */
 let cachedProfileLinks: Map<string, string> | undefined = undefined;
+/** Cached intermediate aggregation state — preserved when only noise settings change. */
+let cachedRawA: Map<string, number[]> | null = null;
+let cachedRawB: Map<string, number[]> | null = null;
+let cachedMapA: Map<string, number> | null = null;
+let cachedMapB: Map<string, number> | null = null;
 /** Tests manually hidden by the user (click toggle). */
 let manuallyHidden = new Set<string>();
 /** Callback invoked after every table/chart render (used by regression panel). */
@@ -198,23 +204,39 @@ export const comparePage: PageModule = {
       const metricField = metricFields.find(f => f.name === state.metric);
       const biggerIsBetter = metricField?.bigger_is_better ?? false;
 
-      // Aggregate from cached samples
-      const perRunA = state.sideA.runs
+      // Build raw sample pools per side (single pass)
+      const samplesA = state.sideA.runs
         .map(uuid => sampleCache.get(uuid))
-        .filter((s): s is SampleInfo[] => s !== undefined)
-        .map(s => aggregateSamplesWithinRun(s, state.metric, state.sampleAgg));
-
-      const perRunB = state.sideB.runs
+        .filter((s): s is SampleInfo[] => s !== undefined);
+      const samplesB = state.sideB.runs
         .map(uuid => sampleCache.get(uuid))
-        .filter((s): s is SampleInfo[] => s !== undefined)
-        .map(s => aggregateSamplesWithinRun(s, state.metric, state.sampleAgg));
+        .filter((s): s is SampleInfo[] => s !== undefined);
 
-      const mapA = aggregateAcrossRuns(perRunA, state.sideA.runAgg);
-      const mapB = aggregateAcrossRuns(perRunB, state.sideB.runAgg);
+      cachedRawA = groupSamplesByTest(samplesA, state.metric);
+      cachedRawB = groupSamplesByTest(samplesB, state.metric);
 
-      const rows = computeComparison(mapA, mapB, biggerIsBetter, state.noise);
+      // Aggregate within-run then across-runs
+      const perRunA = samplesA.map(s => aggregateSamplesWithinRun(s, state.metric, state.sampleAgg));
+      const perRunB = samplesB.map(s => aggregateSamplesWithinRun(s, state.metric, state.sampleAgg));
+      cachedMapA = aggregateAcrossRuns(perRunA, state.sideA.runAgg);
+      cachedMapB = aggregateAcrossRuns(perRunB, state.sideB.runAgg);
+
+      const rows = computeComparison(cachedMapA, cachedMapB, biggerIsBetter, state.noiseConfig, cachedRawA, cachedRawB);
       lastRows = rows;
 
+      renderTableAndChart();
+    }
+
+    /** Re-classify from cached aggregated maps (no re-aggregation). */
+    function reclassifyFromCache(): void {
+      const state = getState();
+      if (!state.metric || !cachedMapA || !cachedMapB) return;
+
+      const metricFields = getMetricFields();
+      const metricField = metricFields.find(f => f.name === state.metric);
+      const biggerIsBetter = metricField?.bigger_is_better ?? false;
+
+      lastRows = computeComparison(cachedMapA, cachedMapB, biggerIsBetter, state.noiseConfig, cachedRawA ?? undefined, cachedRawB ?? undefined);
       renderTableAndChart();
     }
 
@@ -247,6 +269,11 @@ export const comparePage: PageModule = {
         if (!allRunUuids.has(uuid)) profileCache.delete(uuid);
       }
       cachedProfileLinks = undefined;
+      // Invalidate aggregation caches — data is changing
+      cachedRawA = null;
+      cachedRawB = null;
+      cachedMapA = null;
+      cachedMapB = null;
 
       // Abort any previous fetch
       if (fetchController) fetchController.abort();
@@ -569,12 +596,16 @@ export const comparePage: PageModule = {
         highlightPoint(testName);
       }),
       onCustomEvent(SETTINGS_CHANGE, () => {
-        // Noise % or hideNoise changed. Recompute from cache so status
-        // classifications update with the new threshold. hideNoise is
-        // applied as a separate filter in computeNoiseHidden().
+        // Noise or aggregation settings changed. If only noise/hideNoise changed,
+        // re-classify from cached maps (no re-aggregation). If aggregation
+        // changed, full recompute is needed (cachedMapA will be invalidated).
         const state = getState();
         if (state.sideA.runs.length > 0 && state.sideB.runs.length > 0 && state.metric) {
-          recomputeFromCache();
+          if (cachedMapA && cachedMapB) {
+            reclassifyFromCache();
+          } else {
+            recomputeFromCache();
+          }
         } else if (lastRows.length > 0) {
           renderTableAndChart();
         }
@@ -607,6 +638,10 @@ export const comparePage: PageModule = {
     sampleCache.clear();
     profileCache.clear();
     cachedProfileLinks = undefined;
+    cachedRawA = null;
+    cachedRawB = null;
+    cachedMapA = null;
+    cachedMapB = null;
     manuallyHidden = new Set();
     onAfterRender = null;
 
