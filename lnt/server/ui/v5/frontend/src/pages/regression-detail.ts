@@ -89,7 +89,7 @@ export const regressionDetailPage: PageModule = {
       if (regression.commit && commitFields.length > 0) {
         try {
           const detail = await getCommit(ts, regression.commit, signal);
-          const display = commitDisplayValue(regression.commit, detail.fields, commitFields);
+          const display = commitDisplayValue(detail, commitFields);
           commitDisplayMap.set(regression.commit, display);
         } catch { /* graceful degradation */ }
       }

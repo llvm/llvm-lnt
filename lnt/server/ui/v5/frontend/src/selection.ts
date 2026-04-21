@@ -86,7 +86,7 @@ function getCommitDataForSide(side: 'a' | 'b') {
   if (cf) {
     displayMap = new Map<string, string>();
     for (const c of commits) {
-      const display = commitDisplayValue(c.commit, c.fields, cf);
+      const display = commitDisplayValue(c, cf);
       if (display !== c.commit) displayMap.set(c.commit, display);
     }
     if (displayMap.size === 0) displayMap = undefined;

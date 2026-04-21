@@ -35,6 +35,10 @@ class QueryDataPointSchema(BaseSchema):
         allow_none=True,
         metadata={'description': 'Commit ordinal position (may be null)'},
     )
+    tag = ma.fields.String(
+        allow_none=True,
+        metadata={'description': 'Commit tag (may be null)'},
+    )
     run_uuid = ma.fields.String(
         required=True,
         metadata={'description': 'UUID of the run this data point belongs to'},

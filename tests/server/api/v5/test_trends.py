@@ -235,6 +235,7 @@ class TestTrendsValidQuery(unittest.TestCase):
         self.assertIn('ordinal', item)
         self.assertIn('submitted_at', item)
         self.assertIn('value', item)
+        self.assertIn('tag', item)
         self.assertIsInstance(item['commit'], str)
         # ordinal is always present (never null) for trends
         self.assertIsNotNone(item['ordinal'])

@@ -227,8 +227,8 @@ describe('AbortSignal support', () => {
   it('passes signal to every fetch call in paginated requests', async () => {
     const controller = new AbortController();
     mockFetch
-      .mockResolvedValueOnce(mockResponse(cursorPage([{ commit: '100', ordinal: 1, fields: {} }], 'cursor1')))
-      .mockResolvedValueOnce(mockResponse(cursorPage([{ commit: '200', ordinal: 2, fields: {} }])));
+      .mockResolvedValueOnce(mockResponse(cursorPage([{ commit: '100', ordinal: 1, tag: null, fields: {} }], 'cursor1')))
+      .mockResolvedValueOnce(mockResponse(cursorPage([{ commit: '200', ordinal: 2, tag: null, fields: {} }])));
 
     await getCommits('nts', { signal: controller.signal });
 
@@ -244,7 +244,7 @@ describe('AbortSignal support', () => {
 
 describe('cursor-based pagination', () => {
   it('fetches a single page when cursor.next is null', async () => {
-    const commit: CommitSummary = { commit: '100', ordinal: 1, fields: {} };
+    const commit: CommitSummary = { commit: '100', ordinal: 1, tag: null, fields: {} };
     mockFetch.mockResolvedValueOnce(mockResponse(cursorPage([commit])));
 
     const result = await getCommits('nts');
@@ -254,9 +254,9 @@ describe('cursor-based pagination', () => {
   });
 
   it('fetches multiple pages and concatenates results', async () => {
-    const c1: CommitSummary = { commit: '100', ordinal: 1, fields: {} };
-    const c2: CommitSummary = { commit: '200', ordinal: 2, fields: {} };
-    const c3: CommitSummary = { commit: '300', ordinal: 3, fields: {} };
+    const c1: CommitSummary = { commit: '100', ordinal: 1, tag: null, fields: {} };
+    const c2: CommitSummary = { commit: '200', ordinal: 2, tag: null, fields: {} };
+    const c3: CommitSummary = { commit: '300', ordinal: 3, tag: null, fields: {} };
 
     mockFetch
       .mockResolvedValueOnce(mockResponse(cursorPage([c1], 'cursor-abc')))
@@ -271,8 +271,8 @@ describe('cursor-based pagination', () => {
 
   it('passes cursor parameter on subsequent pages', async () => {
     mockFetch
-      .mockResolvedValueOnce(mockResponse(cursorPage([{ commit: '1', ordinal: 1, fields: {} }], 'next-page-cursor')))
-      .mockResolvedValueOnce(mockResponse(cursorPage([{ commit: '2', ordinal: 2, fields: {} }])));
+      .mockResolvedValueOnce(mockResponse(cursorPage([{ commit: '1', ordinal: 1, tag: null, fields: {} }], 'next-page-cursor')))
+      .mockResolvedValueOnce(mockResponse(cursorPage([{ commit: '2', ordinal: 2, tag: null, fields: {} }])));
 
     await getCommits('nts');
 
@@ -289,8 +289,8 @@ describe('cursor-based pagination', () => {
 
   it('calls onProgress callback with running total after each page', async () => {
     mockFetch
-      .mockResolvedValueOnce(mockResponse(cursorPage([{ commit: '1', ordinal: 1, fields: {} }, { commit: '2', ordinal: 2, fields: {} }], 'c1')))
-      .mockResolvedValueOnce(mockResponse(cursorPage([{ commit: '3', ordinal: 3, fields: {} }])));
+      .mockResolvedValueOnce(mockResponse(cursorPage([{ commit: '1', ordinal: 1, tag: null, fields: {} }, { commit: '2', ordinal: 2, tag: null, fields: {} }], 'c1')))
+      .mockResolvedValueOnce(mockResponse(cursorPage([{ commit: '3', ordinal: 3, tag: null, fields: {} }])));
 
     const onProgress = vi.fn();
     await getCommits('nts', { onProgress });
@@ -302,7 +302,7 @@ describe('cursor-based pagination', () => {
 
   it('stops paginating when error occurs mid-pagination', async () => {
     mockFetch
-      .mockResolvedValueOnce(mockResponse(cursorPage([{ commit: '1', ordinal: 1, fields: {} }], 'c1')))
+      .mockResolvedValueOnce(mockResponse(cursorPage([{ commit: '1', ordinal: 1, tag: null, fields: {} }], 'c1')))
       .mockResolvedValueOnce(mockResponse('server error', 500, 'Internal Server Error'));
 
     await expect(getCommits('nts')).rejects.toThrow('API 500');
@@ -352,8 +352,8 @@ describe('getFields', () => {
 
 describe('getCommits', () => {
   it('returns all commits across multiple pages', async () => {
-    const c1: CommitSummary = { commit: '100', ordinal: 1, fields: {} };
-    const c2: CommitSummary = { commit: '200', ordinal: 2, fields: {} };
+    const c1: CommitSummary = { commit: '100', ordinal: 1, tag: null, fields: {} };
+    const c2: CommitSummary = { commit: '200', ordinal: 2, tag: null, fields: {} };
 
     mockFetch
       .mockResolvedValueOnce(mockResponse(cursorPage([c1], 'c1')))
@@ -795,8 +795,8 @@ describe('deleteRun', () => {
 describe('getCommit', () => {
   it('fetches commit detail with prev/next', async () => {
     const commit: CommitDetail = {
-      commit: '100', ordinal: 1, fields: {},
-      previous_commit: { commit: '99', ordinal: 0, link: '/api/v5/nts/commits/99' },
+      commit: '100', ordinal: 1, tag: null, fields: {},
+      previous_commit: { commit: '99', ordinal: 0, tag: null, link: '/api/v5/nts/commits/99' },
       next_commit: null,
     };
     mockFetch.mockResolvedValueOnce(mockResponse(commit));
@@ -845,7 +845,7 @@ describe('getFieldChanges', () => {
 
 describe('searchCommits', () => {
   it('passes search and limit params', async () => {
-    const commit: CommitSummary = { commit: '100', ordinal: 1, fields: {} };
+    const commit: CommitSummary = { commit: '100', ordinal: 1, tag: null, fields: {} };
     mockFetch.mockResolvedValueOnce(mockResponse(cursorPage([commit])));
 
     const result = await searchCommits('nts', 'release', { limit: 10 });
@@ -861,7 +861,7 @@ describe('searchCommits', () => {
 describe('updateCommit', () => {
   it('sends PATCH with updates in JSON body', async () => {
     const commit: CommitDetail = {
-      commit: '100', ordinal: 1, fields: {},
+      commit: '100', ordinal: 1, tag: null, fields: {},
       previous_commit: null, next_commit: null,
     };
     mockFetch.mockResolvedValueOnce(mockResponse(commit));
@@ -879,7 +879,7 @@ describe('updateCommit', () => {
   it('includes auth token when set', async () => {
     storedToken = 'my-admin-token';
     mockFetch.mockResolvedValueOnce(mockResponse({
-      commit: '100', ordinal: 1, fields: {}, previous_commit: null, next_commit: null,
+      commit: '100', ordinal: 1, tag: null, fields: {}, previous_commit: null, next_commit: null,
     }));
 
     await updateCommit('nts', '100', { tag: null });
@@ -925,7 +925,7 @@ describe('fetchOneCursorPage', () => {
   it('returns items and nextCursor from a single page', async () => {
     const pt: QueryDataPoint = {
       test: 't1', machine: 'm1', metric: 'exec_time', value: 1.0,
-      commit: '100', ordinal: 1, run_uuid: 'r1', submitted_at: null,
+      commit: '100', ordinal: 1, tag: null, run_uuid: 'r1', submitted_at: null,
     };
     mockFetch.mockResolvedValueOnce(mockResponse(cursorPage([pt], 'next-abc')));
 

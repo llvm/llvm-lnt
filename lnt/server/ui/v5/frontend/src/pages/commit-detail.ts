@@ -22,14 +22,15 @@ export const commitDetailPage: PageModule = {
     container.append(el('h2', { class: 'page-header' }, `Commit: ${commitValue}`));
 
     const fieldsContainer = el('div', { class: 'commit-fields' });
-    const ordinalContainer = el('div', { class: 'ordinal-display' });
+    const ordinalContainer = el('div', { class: 'editable-field', 'data-field': 'ordinal' });
+    const tagContainer = el('div', { class: 'editable-field', 'data-field': 'tag' });
     const navContainer = el('div', { class: 'commit-nav' });
     const summaryContainer = el('div', {});
     const filterContainer = el('div', { class: 'table-controls' });
     const tableContainer = el('div', {});
     const regressionsContainer = el('div', { class: 'commit-regressions-section' });
     container.append(
-      fieldsContainer, ordinalContainer, navContainer,
+      fieldsContainer, ordinalContainer, tagContainer, navContainer,
       regressionsContainer,
       summaryContainer, filterContainer, tableContainer,
     );
@@ -56,6 +57,7 @@ export const commitDetailPage: PageModule = {
 
       // Tag display + edit
       renderOrdinal(ordinalContainer, ts, commitValue, commit);
+      renderTag(tagContainer, ts, commitValue, commit);
 
       // Prev/Next navigation
       if (commit.previous_commit) {
@@ -160,7 +162,7 @@ function renderOrdinal(
 
     const saveBtn = el('button', { class: 'compare-btn' }, 'Save') as HTMLButtonElement;
     const cancelBtn = el('button', { class: 'pagination-btn' }, 'Cancel');
-    const errorEl = el('span', { class: 'error-banner', style: 'display:inline;margin-left:8px;padding:4px 8px' });
+    const errorEl = el('span', { class: 'error-banner', style: 'display:none;margin-left:8px;padding:4px 8px' });
 
     container.append(input, saveBtn, cancelBtn, errorEl);
     input.focus();
@@ -174,6 +176,7 @@ function renderOrdinal(
       const newOrdinal = raw === '' ? null : parseInt(raw, 10);
       if (raw !== '' && (isNaN(newOrdinal!) || !Number.isInteger(newOrdinal))) {
         errorEl.textContent = 'Ordinal must be an integer';
+        errorEl.style.display = 'inline';
         saveBtn.disabled = false;
         return;
       }
@@ -183,6 +186,60 @@ function renderOrdinal(
         renderOrdinal(container, ts, commitValue, commit);
       } catch (e: unknown) {
         errorEl.textContent = authErrorMessage(e);
+        errorEl.style.display = 'inline';
+        saveBtn.disabled = false;
+      }
+    });
+  });
+}
+
+function renderTag(
+  container: HTMLElement,
+  ts: string,
+  commitValue: string,
+  commit: CommitDetail,
+): void {
+  container.replaceChildren();
+
+  const label = el('strong', {}, 'Tag: ');
+  const value = el('span', {}, commit.tag ?? '(none)');
+  const editBtn = el('button', { class: 'pagination-btn' }, 'Edit');
+  container.append(label, value, editBtn);
+
+  editBtn.addEventListener('click', () => {
+    container.replaceChildren();
+    container.append(el('strong', {}, 'Tag: '));
+
+    const input = el('input', {
+      type: 'text',
+      class: 'ordinal-edit-input combobox-input',
+      placeholder: 'Enter tag...',
+      maxlength: '256',
+    }) as HTMLInputElement;
+    input.value = commit.tag ?? '';
+    input.style.width = '200px';
+
+    const saveBtn = el('button', { class: 'compare-btn' }, 'Save') as HTMLButtonElement;
+    const cancelBtn = el('button', { class: 'pagination-btn' }, 'Cancel');
+    const errorEl = el('span', { class: 'error-banner', style: 'display:none;margin-left:8px;padding:4px 8px' });
+
+    container.append(input, saveBtn, cancelBtn, errorEl);
+    input.focus();
+
+    cancelBtn.addEventListener('click', () => renderTag(container, ts, commitValue, commit));
+
+    saveBtn.addEventListener('click', async () => {
+      saveBtn.disabled = true;
+      errorEl.textContent = '';
+      const trimmed = input.value.trim();
+      const newTag = trimmed || null;
+      try {
+        const updated = await updateCommit(ts, commitValue, { tag: newTag });
+        commit.tag = updated.tag;
+        renderTag(container, ts, commitValue, commit);
+      } catch (e: unknown) {
+        errorEl.textContent = authErrorMessage(e);
+        errorEl.style.display = 'inline';
         saveBtn.disabled = false;
       }
     });

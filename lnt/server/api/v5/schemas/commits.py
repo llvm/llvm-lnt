@@ -25,6 +25,10 @@ class CommitSummarySchema(BaseSchema):
         allow_none=True,
         metadata={'description': 'Optional integer for total ordering'},
     )
+    tag = ma.fields.String(
+        allow_none=True,
+        metadata={'description': 'Optional human-readable tag (e.g. release-18)'},
+    )
     fields = ma.fields.Dict(
         keys=ma.fields.String(),
         values=ma.fields.Raw(allow_none=True),
@@ -44,6 +48,10 @@ class CommitNeighborSchema(BaseSchema):
         allow_none=True,
         metadata={'description': 'Ordinal value'},
     )
+    tag = ma.fields.String(
+        allow_none=True,
+        metadata={'description': 'Tag value'},
+    )
     link = ma.fields.String(
         allow_none=True,
         metadata={'description': 'URL to fetch the referenced commit'},
@@ -59,6 +67,10 @@ class CommitDetailSchema(BaseSchema):
     ordinal = ma.fields.Integer(
         allow_none=True,
         metadata={'description': 'Optional integer for total ordering'},
+    )
+    tag = ma.fields.String(
+        allow_none=True,
+        metadata={'description': 'Optional human-readable tag (e.g. release-18)'},
     )
     fields = ma.fields.Dict(
         keys=ma.fields.String(),
@@ -141,6 +153,11 @@ class CommitUpdateSchema(BaseSchema):
         load_default=None,
         allow_none=True,
         metadata={'description': 'Integer for total ordering, or null to clear'},
+    )
+    tag = ma.fields.String(
+        allow_none=True,
+        validate=ma.validate.Length(max=256),
+        metadata={'description': 'Human-readable tag, or null to clear'},
     )
 
 

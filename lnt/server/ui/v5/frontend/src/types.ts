@@ -12,12 +12,14 @@ export interface FieldInfo {
 export interface CommitSummary {
   commit: string;
   ordinal: number | null;
+  tag: string | null;
   fields: Record<string, string>;
 }
 
 export interface CommitDetail {
   commit: string;
   ordinal: number | null;
+  tag: string | null;
   fields: Record<string, string>;
   previous_commit: CommitNeighbor | null;
   next_commit: CommitNeighbor | null;
@@ -26,6 +28,7 @@ export interface CommitDetail {
 export interface CommitNeighbor {
   commit: string;
   ordinal: number | null;
+  tag: string | null;
   link: string;
 }
 
@@ -119,6 +122,7 @@ export interface QueryDataPoint {
   value: number;
   commit: string;
   ordinal: number | null;
+  tag: string | null;
   run_uuid: string;
   submitted_at: string | null;
 }

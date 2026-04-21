@@ -51,8 +51,8 @@ const mockRuns: RunInfo[] = [
 ];
 
 const mockCommits: CommitSummary[] = [
-  { commit: '100', ordinal: 1, fields: {} },
-  { commit: '101', ordinal: null, fields: {} },
+  { commit: '100', ordinal: 1, tag: null, fields: {} },
+  { commit: '101', ordinal: null, tag: null, fields: {} },
 ];
 
 const mockRegressions: RegressionListItem[] = [

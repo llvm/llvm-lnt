@@ -17,7 +17,7 @@ import yaml
 
 # Column names that are always present on the Commit table and therefore
 # cannot be used as user-defined commit_field names.
-_RESERVED_COMMIT_NAMES = frozenset({"id", "commit", "ordinal"})
+_RESERVED_COMMIT_NAMES = frozenset({"id", "commit", "ordinal", "tag"})
 
 # Column names that are always present on the Machine table.
 _RESERVED_MACHINE_NAMES = frozenset({"id", "name", "parameters"})

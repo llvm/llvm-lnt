@@ -45,6 +45,10 @@ class TrendsItemSchema(BaseSchema):
         required=True,
         metadata={'description': 'Commit ordinal position'},
     )
+    tag = ma.fields.String(
+        allow_none=True,
+        metadata={'description': 'Commit tag (may be null)'},
+    )
     submitted_at = ma.fields.String(
         allow_none=True,
         metadata={'description': 'Latest run submission time (ISO 8601)'},

@@ -28,7 +28,7 @@ URL via `replaceState`.
 | Recent Activity | Last 25 runs sorted by time; "Load more" for next page | `GET runs?sort=-start_time&limit=25` | None |
 | Machines | Searchable machine list with offset pagination | `GET machines?name_contains=...&limit=25&offset=...` | Name substring |
 | Runs | Run list with cursor pagination | `GET runs?machine=...&sort=-start_time&limit=25` | Machine name (exact) |
-| Commits | Commit list with cursor pagination | `GET commits?tag_prefix=...&limit=25` | Tag prefix |
+| Commits | Commit list with cursor pagination | `GET commits?search=...&limit=25` | Search (prefix match on commit, tag, searchable fields) |
 | Regressions | Full regression triage interface (see below) | `GET regressions?state=...&limit=25` | State chips, machine combobox, metric selector, has_commit checkbox, title search |
 
 **Columns per tab:**
@@ -145,7 +145,7 @@ The "what happened at this commit?" page. Key investigation page for developers.
   this page identifies a specific commit by its raw identity.
 
 - Commit field values displayed prominently
-- **Tag display + editing**: Show the commit's tag (if set) prominently next to the commit field values (e.g., "Tag: release-18.1"). An inline edit button allows setting or clearing the tag. Editing requires an API token with `manage` scope (from Settings); show an auth error if the token is missing or insufficient.
+- **Tag display + editing**: Show the commit's tag (if set) prominently (e.g., "Tag: release-18.1"). An inline edit button allows setting or clearing the tag via ``PATCH /commits/{value}``. Editing requires an API token with `manage` scope (from Settings); show an auth error if the token is missing or insufficient. The tag also appears in the display value throughout the UI as ``<display_value> (tag)``.
 - **Navigation**: Prev/Next buttons (using the API's `previous_commit`/`next_commit` from the commit detail response)
 - **Summary**: N runs across M machines
 - **Machine filter**: Text input for substring matching on machine names, filters the runs table. The summary updates to reflect filtered counts (e.g., "5 of 12 runs across 2 of 8 machines").

@@ -70,7 +70,7 @@ function mockRunsPage(items: RunInfo[], nextCursor: string | null = null): Curso
 }
 
 const mockTrendsData: TrendsDataPoint[] = [
-  { machine: 'machine-a', commit: '100', ordinal: 100, submitted_at: '2026-01-01T10:00:00Z', value: 14.14 },
+  { machine: 'machine-a', commit: '100', ordinal: 100, tag: null, submitted_at: '2026-01-01T10:00:00Z', value: 14.14 },
 ];
 
 let container: HTMLElement;

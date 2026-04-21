@@ -105,10 +105,10 @@
   commit.
 - [ ] Improve test suites sub-tab filters: first survey which filters exist
   today and what they filter on. Then move to fuzzy matching instead of prefix
-  match, match across related entities (e.g. when filtering orders, also match
-  on tags). Consider infinite scrolling with filters applying to all results,
-  not just the current page. NOTE: This becomes trivial once we have the new
-  `?search` endpoints.
+  match. Consider infinite scrolling with filters applying to all results,
+  not just the current page. NOTE: The `?search=` parameter already searches
+  across commit, tag, and searchable commit_fields.
+
 - [ ] Fix: the "Copy" button for the API key token does not actually copy to
   the clipboard.
 

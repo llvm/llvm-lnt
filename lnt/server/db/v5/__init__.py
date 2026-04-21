@@ -436,12 +436,16 @@ class V5TestSuiteDB:
         *,
         ordinal: int | None = None,
         clear_ordinal: bool = False,
+        tag: str | None = None,
+        clear_tag: bool = False,
         **commit_fields: Any,
     ):
         """Update mutable fields on a Commit.
 
         *ordinal* sets the ordering position.  Pass ``clear_ordinal=True``
         to explicitly set ordinal to ``None``.
+        *tag* sets the human-readable label.  Pass ``clear_tag=True``
+        to explicitly set tag to ``None``.
         Additional keyword arguments correspond to ``commit_fields`` defined
         in the schema and update the matching columns.
         """
@@ -449,6 +453,10 @@ class V5TestSuiteDB:
             commit_obj.ordinal = None
         elif ordinal is not None:
             commit_obj.ordinal = ordinal
+        if clear_tag:
+            commit_obj.tag = None
+        elif tag is not None:
+            commit_obj.tag = tag
         self._validate_commit_fields(commit_fields.keys())
         for key, value in commit_fields.items():
             setattr(commit_obj, key, value)
@@ -465,8 +473,8 @@ class V5TestSuiteDB:
     ) -> list:
         """List commits with optional search / ordinal-range filtering.
 
-        *search* performs OR prefix-matching across the ``commit`` column and
-        all ``searchable`` commit_fields.
+        *search* performs OR prefix-matching across the ``commit`` column,
+        the built-in ``tag`` column, and all ``searchable`` commit_fields.
         """
         q = session.query(self.Commit)
 
@@ -474,6 +482,7 @@ class V5TestSuiteDB:
             escaped = _escape_like(search)
             prefix = f"{escaped}%"
             clauses = [self.Commit.commit.ilike(prefix, escape="\\")]
+            clauses.append(self.Commit.tag.ilike(prefix, escape="\\"))
             for cf in self.schema.searchable_commit_fields:
                 col = getattr(self.Commit, cf.name)
                 clauses.append(col.ilike(prefix, escape="\\"))
@@ -1009,7 +1018,7 @@ class V5TestSuiteDB:
     ) -> list[dict[str, Any]]:
         """Query time-series data for a (machine, test, metric) triple.
 
-        Returns a list of dicts with keys: ``commit``, ``ordinal``,
+        Returns a list of dicts with keys: ``commit``, ``ordinal``, ``tag``,
         ``value``, ``run_id``, ``submitted_at``.
 
         *commit_range* filters by ordinal [lo, hi].  When sorting by ordinal,
@@ -1023,6 +1032,7 @@ class V5TestSuiteDB:
             session.query(
                 self.Commit.commit,
                 self.Commit.ordinal,
+                self.Commit.tag,
                 metric_col.label("value"),
                 self.Run.id.label("run_id"),
                 self.Run.submitted_at,
@@ -1066,6 +1076,7 @@ class V5TestSuiteDB:
             results.append({
                 "commit": row.commit,
                 "ordinal": row.ordinal,
+                "tag": row.tag,
                 "value": row.value,
                 "run_id": row.run_id,
                 "submitted_at": row.submitted_at,
@@ -1092,7 +1103,7 @@ class V5TestSuiteDB:
         *limit* caps the total number of rows returned.
 
         Returns a list of dicts with keys: ``machine_name``, ``commit``,
-        ``ordinal``, ``value``, ``submitted_at``.
+        ``ordinal``, ``tag``, ``value``, ``submitted_at``.
         """
         from sqlalchemy import func
 
@@ -1106,6 +1117,7 @@ class V5TestSuiteDB:
                 self.Commit.id.label("commit_id"),
                 self.Commit.commit,
                 self.Commit.ordinal,
+                self.Commit.tag,
                 func.exp(func.avg(func.ln(metric_col))).label("value"),
                 func.max(self.Run.submitted_at).label("submitted_at"),
             )
@@ -1138,6 +1150,7 @@ class V5TestSuiteDB:
         q = q.group_by(
             self.Machine.name, self.Commit.id,
             self.Commit.commit, self.Commit.ordinal,
+            self.Commit.tag,
         )
 
         q = q.order_by(self.Machine.name, self.Commit.ordinal.asc())
@@ -1151,6 +1164,7 @@ class V5TestSuiteDB:
                 "machine_name": row.machine_name,
                 "commit": row.commit,
                 "ordinal": row.ordinal,
+                "tag": row.tag,
                 "value": row.value,
                 "submitted_at": row.submitted_at,
             })

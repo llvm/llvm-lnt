@@ -1051,5 +1051,163 @@ class TestCommitResolve(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
 
 
+class TestCommitTag(unittest.TestCase):
+    """Tests for the built-in 'tag' column on Commit."""
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+
+    def _create(self, commit, **kwargs):
+        """Create a commit via POST and return the response."""
+        body = {'commit': commit, **kwargs}
+        return self.client.post(
+            PREFIX + '/commits', json=body, headers=admin_headers())
+
+    def _patch(self, commit, **kwargs):
+        """PATCH a commit and return the response."""
+        return self.client.patch(
+            PREFIX + f'/commits/{commit}',
+            json=kwargs, headers=admin_headers())
+
+    def test_tag_null_on_creation(self):
+        """POST /commits creates a commit with tag=null."""
+        rev = f'tag-null-{uuid.uuid4().hex[:8]}'
+        resp = self._create(rev)
+        self.assertEqual(resp.status_code, 201)
+        data = resp.get_json()
+        self.assertIn('tag', data)
+        self.assertIsNone(data['tag'])
+
+    def test_set_tag_via_patch(self):
+        """PATCH sets the tag value."""
+        rev = f'tag-set-{uuid.uuid4().hex[:8]}'
+        self._create(rev)
+        resp = self._patch(rev, tag='release-18')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.get_json()['tag'], 'release-18')
+
+    def test_clear_tag_via_patch(self):
+        """PATCH with tag=null clears the tag."""
+        rev = f'tag-clr-{uuid.uuid4().hex[:8]}'
+        self._create(rev)
+        self._patch(rev, tag='release-18')
+        resp = self._patch(rev, tag=None)
+        self.assertEqual(resp.status_code, 200)
+        self.assertIsNone(resp.get_json()['tag'])
+
+    def test_tag_in_detail_response(self):
+        """GET /commits/{value} includes the tag."""
+        rev = f'tag-det-{uuid.uuid4().hex[:8]}'
+        self._create(rev)
+        self._patch(rev, tag='v1.0')
+        resp = self.client.get(PREFIX + f'/commits/{rev}')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.get_json()['tag'], 'v1.0')
+
+    def test_tag_in_list_response(self):
+        """GET /commits items include the tag key."""
+        rev = f'tag-lst-{uuid.uuid4().hex[:8]}'
+        self._create(rev)
+        self._patch(rev, tag='list-tag')
+        # Use search to find our specific commit in the paginated list.
+        resp = self.client.get(PREFIX + f'/commits?search={rev}')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        matching = [i for i in data['items'] if i['commit'] == rev]
+        self.assertEqual(len(matching), 1)
+        self.assertIn('tag', matching[0])
+        self.assertEqual(matching[0]['tag'], 'list-tag')
+
+    def test_tag_in_resolve_response(self):
+        """POST /commits/resolve includes the tag."""
+        rev = f'tag-res-{uuid.uuid4().hex[:8]}'
+        self._create(rev)
+        self._patch(rev, tag='resolved-tag')
+        resp = self.client.post(
+            PREFIX + '/commits/resolve',
+            json={'commits': [rev]})
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertIn(rev, data['results'])
+        self.assertEqual(data['results'][rev]['tag'], 'resolved-tag')
+
+    def test_tag_in_neighbor_response(self):
+        """Neighbor commits in detail include tag."""
+        unique = uuid.uuid4().hex[:6]
+        rev1 = f'tag-nb1-{unique}'
+        rev2 = f'tag-nb2-{unique}'
+        # Create commits first, then assign unique ordinals via PATCH.
+        self._create(rev1)
+        self._create(rev2)
+        self._patch(rev1, ordinal=7770001, tag='nb-tag-1')
+        self._patch(rev2, ordinal=7770002, tag='nb-tag-2')
+        resp = self.client.get(PREFIX + f'/commits/{rev2}')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertIsNotNone(data['previous_commit'],
+                             'expected previous_commit to be set')
+        self.assertIn('tag', data['previous_commit'])
+        self.assertEqual(data['previous_commit']['tag'], 'nb-tag-1')
+
+    def test_search_matches_tag(self):
+        """GET /commits?search= matches the tag value."""
+        unique = uuid.uuid4().hex[:8]
+        rev = f'tag-srch-{unique}'
+        tag_value = f'release-{unique}'
+        self._create(rev)
+        self._patch(rev, tag=tag_value)
+        resp = self.client.get(PREFIX + f'/commits?search=release-{unique}')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        commits = [i['commit'] for i in data['items']]
+        self.assertIn(rev, commits)
+
+    def test_search_does_not_match_null_tag(self):
+        """Search only matches commits with a matching tag, not null tags."""
+        unique = uuid.uuid4().hex[:8]
+        rev_no_tag = f'tag-notag-{unique}'
+        rev_with_tag = f'tag-witht-{unique}'
+        tag_value = f'release-{unique}'
+        self._create(rev_no_tag)
+        self._create(rev_with_tag)
+        self._patch(rev_with_tag, tag=tag_value)
+        resp = self.client.get(PREFIX + f'/commits?search=release-{unique}')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        commits = [i['commit'] for i in data['items']]
+        self.assertIn(rev_with_tag, commits)
+        self.assertNotIn(rev_no_tag, commits)
+
+    def test_post_ignores_tag(self):
+        """POST /commits ignores a tag value (tag is PATCH-only)."""
+        rev = f'tag-ign-{uuid.uuid4().hex[:8]}'
+        resp = self._create(rev, tag='foo')
+        self.assertEqual(resp.status_code, 201)
+        self.assertIsNone(resp.get_json()['tag'])
+
+    def test_tag_not_unique(self):
+        """Two commits can have the same tag value."""
+        tag_value = f'shared-tag-{uuid.uuid4().hex[:8]}'
+        rev1 = f'tag-nu1-{uuid.uuid4().hex[:8]}'
+        rev2 = f'tag-nu2-{uuid.uuid4().hex[:8]}'
+        self._create(rev1)
+        self._create(rev2)
+        resp1 = self._patch(rev1, tag=tag_value)
+        resp2 = self._patch(rev2, tag=tag_value)
+        self.assertEqual(resp1.status_code, 200)
+        self.assertEqual(resp2.status_code, 200)
+        self.assertEqual(resp1.get_json()['tag'], tag_value)
+        self.assertEqual(resp2.get_json()['tag'], tag_value)
+
+    def test_tag_length_over_256_rejected(self):
+        """PATCH with a tag longer than 256 chars returns 422."""
+        rev = f'tag-long-{uuid.uuid4().hex[:8]}'
+        self._create(rev)
+        resp = self._patch(rev, tag='x' * 257)
+        self.assertEqual(resp.status_code, 422)
+
+
 if __name__ == '__main__':
     unittest.main(argv=[sys.argv[0]], exit=True)

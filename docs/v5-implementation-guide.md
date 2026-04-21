@@ -60,7 +60,9 @@ there:
 
 **Dynamic model factory.** The model factory in `models.py` generates
 SQLAlchemy classes dynamically using `type()`. This is how per-suite tables
-with schema-defined columns are created at runtime.
+with schema-defined columns are created at runtime. Built-in columns on
+the Commit table (`id`, `commit`, `ordinal`, `tag`) are defined statically;
+dynamic `commit_fields` columns are added from the schema.
 
 **`_UNSET` sentinel.** Update methods (e.g., `update_regression()`) need to
 distinguish "caller didn't pass this argument" from "caller explicitly passed
@@ -93,7 +95,8 @@ the envelope shape is forward-compatible with adding backward pagination
 later.
 
 **Nullable PATCH fields.** For PATCH endpoints where a field can be cleared
-to `null` (e.g., `bug`, `notes`, `commit` on regressions), three layers must
+to `null` (e.g., `bug`, `notes`, `commit` on regressions; `ordinal` and
+`tag` on commits), three layers must
 agree: (1) the marshmallow schema field needs `allow_none=True` so
 marshmallow doesn't strip `null` values before the endpoint sees them,
 (2) the endpoint uses `'key' in body` (not `body.get('key')`) to distinguish

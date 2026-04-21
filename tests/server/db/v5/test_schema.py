@@ -124,6 +124,14 @@ class TestSchemaValidation(unittest.TestCase):
         with self.assertRaises(SchemaError):
             parse_schema(data)
 
+    def test_reserved_commit_field_tag(self):
+        """'tag' is reserved and cannot be used as a commit_field name."""
+        with self.assertRaises(SchemaError):
+            parse_schema({
+                "name": "test",
+                "commit_fields": [{"name": "tag"}],
+            })
+
     def test_reserved_machine_field_id(self):
         data = {
             "name": "test",

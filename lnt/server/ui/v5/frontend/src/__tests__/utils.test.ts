@@ -430,27 +430,44 @@ describe('spaLink', () => {
 
 describe('commitDisplayValue', () => {
   it('returns commit string when no commitFields provided', () => {
-    expect(commitDisplayValue('abc123', { rev: 'v1.0' })).toBe('abc123');
+    expect(commitDisplayValue({ commit: 'abc123', fields: { rev: 'v1.0' } })).toBe('abc123');
   });
 
   it('returns commit string when no display field in schema', () => {
     const fields = [{ name: 'rev' }];
-    expect(commitDisplayValue('abc123', { rev: 'v1.0' }, fields)).toBe('abc123');
+    expect(commitDisplayValue({ commit: 'abc123', fields: { rev: 'v1.0' } }, fields)).toBe('abc123');
   });
 
   it('returns display field value when display=true and value exists', () => {
     const fields = [{ name: 'rev', display: true }];
-    expect(commitDisplayValue('abc123', { rev: 'v1.0' }, fields)).toBe('v1.0');
+    expect(commitDisplayValue({ commit: 'abc123', fields: { rev: 'v1.0' } }, fields)).toBe('v1.0');
   });
 
   it('falls back to commit string when display field value is empty', () => {
     const fields = [{ name: 'rev', display: true }];
-    expect(commitDisplayValue('abc123', {}, fields)).toBe('abc123');
+    expect(commitDisplayValue({ commit: 'abc123', fields: {} }, fields)).toBe('abc123');
   });
 
   it('falls back to commit string when display field value is missing', () => {
     const fields = [{ name: 'tag', display: true }];
-    expect(commitDisplayValue('abc123', { rev: 'v1.0' }, fields)).toBe('abc123');
+    expect(commitDisplayValue({ commit: 'abc123', fields: { rev: 'v1.0' } }, fields)).toBe('abc123');
+  });
+
+  it('appends tag when tag is truthy', () => {
+    expect(commitDisplayValue({ commit: 'abc', fields: {}, tag: 'v1.0' })).toBe('abc (v1.0)');
+  });
+
+  it('appends tag after display field value', () => {
+    const fields = [{ name: 'sha', display: true }];
+    expect(commitDisplayValue({ commit: 'abc', fields: { sha: 'short' }, tag: 'v1.0' }, fields)).toBe('short (v1.0)');
+  });
+
+  it('does not append tag when tag is null', () => {
+    expect(commitDisplayValue({ commit: 'abc', fields: {}, tag: null })).toBe('abc');
+  });
+
+  it('does not append tag when tag is undefined', () => {
+    expect(commitDisplayValue({ commit: 'abc', fields: {} })).toBe('abc');
   });
 });
 
@@ -473,8 +490,8 @@ describe('resolveDisplayMap', () => {
     });
     mockResolve.mockResolvedValue({
       results: {
-        'abc': { commit: 'abc', ordinal: 1, fields: { sha: 'short-abc' } },
-        'def': { commit: 'def', ordinal: 2, fields: { sha: 'short-def' } },
+        'abc': { commit: 'abc', ordinal: 1, tag: null, fields: { sha: 'short-abc' } },
+        'def': { commit: 'def', ordinal: 2, tag: null, fields: { sha: 'short-def' } },
       },
       not_found: [],
     });
@@ -511,8 +528,8 @@ describe('resolveDisplayMap', () => {
     });
     mockResolve.mockResolvedValue({
       results: {
-        'abc': { commit: 'abc', ordinal: 1, fields: { sha: 'short-abc' } },
-        'def': { commit: 'def', ordinal: 2, fields: {} },
+        'abc': { commit: 'abc', ordinal: 1, tag: null, fields: { sha: 'short-abc' } },
+        'def': { commit: 'def', ordinal: 2, tag: null, fields: {} },
       },
       not_found: [],
     });

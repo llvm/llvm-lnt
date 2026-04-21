@@ -416,6 +416,7 @@ export interface TrendsDataPoint {
   machine: string;
   commit: string;
   ordinal: number;
+  tag: string | null;
   submitted_at: string | null;
   value: number;
 }

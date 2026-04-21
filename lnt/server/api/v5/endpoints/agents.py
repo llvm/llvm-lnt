@@ -33,7 +33,8 @@ for the LLVM compiler project, it can be used for any software project.
 
 - **Commit**: A named point that groups runs (e.g., a Git SHA, version number,
   or ad-hoc label). Each commit has an optional integer ordinal that places it
-  in a total order for time-series analysis. Commits may have metadata fields
+  in a total order for time-series analysis, and an optional human-readable tag
+  (e.g., "release-18.1") for labeling. Commits may have metadata fields
   (e.g., author, commit_message) defined by the test suite schema.
 
 - **Run**: A single test execution on a machine at a specific commit. Contains

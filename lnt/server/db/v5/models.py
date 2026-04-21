@@ -142,10 +142,16 @@ def create_suite_models(schema: TestSuiteSchema) -> SuiteModels:
         "id": Column("id", Integer, primary_key=True),
         "commit": Column("commit", String(256), unique=True, nullable=False),
         "ordinal": Column("ordinal", Integer, nullable=True),
+        "tag": Column("tag", String(256), nullable=True),
         "__table_args__": (
             UniqueConstraint(
                 "ordinal",
                 name=f"{prefix}_Commit_ordinal_unique",
+            ),
+            Index(
+                f"{prefix}_Commit_tag_idx",
+                "tag",
+                postgresql_where=sqlalchemy.text("tag IS NOT NULL"),
             ),
         ),
     }

@@ -60,7 +60,7 @@ export const runDetailPage: PageModule = {
       if (suiteInfo) {
         try {
           const commitDetail = await getCommit(ts, run.commit);
-          commitDisplay = commitDisplayValue(run.commit, commitDetail.fields, suiteInfo.schema.commit_fields);
+          commitDisplay = commitDisplayValue(commitDetail, suiteInfo.schema.commit_fields);
         } catch { /* graceful degradation */ }
       }
 

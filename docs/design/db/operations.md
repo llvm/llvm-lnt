@@ -128,7 +128,7 @@ a v5 Postgres database:
 
 - Orders -> Commits: primary order field value becomes the commit string,
   linked-list position becomes the ordinal.
-- v4 `tag` column on Order -> a `label` commit_field (if defined in the schema).
+- v4 `tag` column on Order -> v5 `Commit.tag` directly.
 - Run.order_id -> Run.commit_id; Run.start_time -> Run.submitted_at.
 - v4 FieldChange + RegressionIndicator -> v5 RegressionIndicator (machine_id,
   test_id, metric resolved from FieldChange; field_change_id FK removed).

@@ -71,6 +71,7 @@ class TrendsView(MethodView):
                 'machine': r['machine_name'],
                 'commit': r['commit'],
                 'ordinal': r['ordinal'],
+                'tag': r['tag'],
                 'value': r['value'],
                 'submitted_at': format_utc(r['submitted_at']),
             }))

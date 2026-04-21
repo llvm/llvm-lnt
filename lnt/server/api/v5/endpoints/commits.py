@@ -74,6 +74,7 @@ def _serialize_commit_summary(commit_obj, ts):
     return dump_response(_commit_summary_schema, {
         'commit': commit_obj.commit,
         'ordinal': commit_obj.ordinal,
+        'tag': commit_obj.tag,
         'fields': _serialize_commit_fields(commit_obj, ts),
     })
 
@@ -85,6 +86,7 @@ def _serialize_commit_neighbor(commit_obj, testsuite):
     return {
         'commit': commit_obj.commit,
         'ordinal': commit_obj.ordinal,
+        'tag': commit_obj.tag,
         'link': '/api/v5/%s/commits/%s' % (testsuite, commit_obj.commit),
     }
 
@@ -116,6 +118,7 @@ def _serialize_commit_detail(commit_obj, testsuite, ts, session):
     return dump_response(_commit_detail_schema, {
         'commit': commit_obj.commit,
         'ordinal': commit_obj.ordinal,
+        'tag': commit_obj.tag,
         'fields': _serialize_commit_fields(commit_obj, ts),
         'previous_commit': _serialize_commit_neighbor(
             prev_commit, testsuite),
@@ -147,6 +150,8 @@ class CommitList(MethodView):
         if search:
             escaped = escape_like(search)
             conditions = [ts.Commit.commit.like(escaped + '%', escape='\\')]
+            conditions.append(
+                ts.Commit.tag.like(escaped + '%', escape='\\'))
             for cf in ts.schema.searchable_commit_fields:
                 col = getattr(ts.Commit, cf.name)
                 conditions.append(
@@ -237,7 +242,7 @@ class CommitDetail(MethodView):
     @blp.arguments(CommitUpdateSchema)
     @blp.response(200, CommitDetailSchema)
     def patch(self, body, testsuite, commit_value):
-        """Update commit ordinal and/or commit_fields."""
+        """Update commit ordinal, tag, and/or commit_fields."""
         ts = g.ts
         session = g.db_session
 
@@ -253,8 +258,16 @@ class CommitDetail(MethodView):
             else:
                 ts.update_commit(session, commit_obj, ordinal=ordinal_val)
 
+        # Update tag if provided.
+        if 'tag' in body:
+            tag_val = body['tag']
+            if tag_val is None:
+                ts.update_commit(session, commit_obj, clear_tag=True)
+            else:
+                ts.update_commit(session, commit_obj, tag=tag_val)
+
         # Update commit_fields.
-        field_updates = _extract_commit_fields(body, ts, skip=('ordinal',))
+        field_updates = _extract_commit_fields(body, ts, skip=('ordinal', 'tag'))
         if field_updates:
             ts.update_commit(session, commit_obj, **field_updates)
 

@@ -147,6 +147,7 @@ serialize timestamps as ISO 8601 with `Z` suffix
 | id | Integer | PK |
 | commit | String(256) | unique, not null |
 | ordinal | Integer | nullable, unique |
+| tag | String(256) | nullable, indexed (partial: WHERE tag IS NOT NULL) |
 | _(dynamic)_ | per commit_fields | nullable |
 
 - `commit` is the identity string provided by submitters. Used as the default
@@ -154,15 +155,18 @@ serialize timestamps as ISO 8601 with `Z` suffix
   defined and populated.
 - `ordinal` has a regular unique constraint. Ordinals are assigned once by an
   external process and are not expected to be reassigned.
+- `tag` is an optional human-readable label (e.g., "release-18.1"). Set
+  exclusively via ``PATCH /commits/{value}`` (never during submission).
+  Multiple commits may share the same tag. The tag is always included in
+  ``?search=`` prefix matching. When set, the UI appends it to the display
+  value as ``<display_value> (tag)``.
 - Dynamic columns are created from `commit_fields` in the schema.
 - No linked list (NextOrder/PreviousOrder from v4 are gone).
-- No `label` built-in column. If labeling is needed, define a `label` field
-  in `commit_fields`.
 - Commits are deletable. Deleting a commit cascades to its runs (and their
   samples). Commits referenced by a Regression's commit_id cannot be deleted
   (the API returns 409).
 - Schema-defined `commit_fields` names must not collide with built-in column
-  names (`id`, `commit`, `ordinal`). The schema parser rejects these.
+  names (`id`, `commit`, `ordinal`, `tag`). The schema parser rejects these.
 
 ### `{suite}_Machine`
 

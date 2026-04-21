@@ -524,10 +524,12 @@ function commitsColumns(
     { key: 'commit', label: 'Commit',
       render: (o: CommitSummary) =>
         detailLink(
-          commitDisplayValue(o.commit, o.fields, commitFields),
+          commitDisplayValue(o, commitFields),
           suite, `/commits/${encodeURIComponent(o.commit)}`) },
     { key: 'ordinal', label: 'Ordinal',
       render: (o: CommitSummary) => o.ordinal != null ? String(o.ordinal) : '\u2014' },
+    { key: 'tag', label: 'Tag',
+      render: (o: CommitSummary) => o.tag ?? '\u2014' },
   ];
 }
 

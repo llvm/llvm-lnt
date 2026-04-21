@@ -105,19 +105,24 @@ export function ensureProtocol(url: string): string {
  * Return the display value for a commit. If the schema defines a commit_field
  * with display=true and the commit's fields dict has a non-null value for it,
  * return that value. Otherwise, return the raw commit string.
+ *
+ * If the commit has a tag, it is appended in parentheses.
  */
 export function commitDisplayValue(
-  commit: string,
-  fields: Record<string, string>,
+  entry: { commit: string; fields: Record<string, string>; tag?: string | null },
   commitFields?: Array<{ name: string; display?: boolean }>,
 ): string {
+  let base = entry.commit;
   if (commitFields) {
     const displayField = commitFields.find(f => f.display);
-    if (displayField && fields[displayField.name]) {
-      return fields[displayField.name];
+    if (displayField && entry.fields[displayField.name]) {
+      base = entry.fields[displayField.name];
     }
   }
-  return commit;
+  if (entry.tag) {
+    return `${base} (${entry.tag})`;
+  }
+  return base;
 }
 
 
@@ -145,7 +150,7 @@ export async function resolveDisplayMap(
     const commitFields = suiteInfo.schema.commit_fields;
     const map = new Map<string, string>();
     for (const [key, summary] of Object.entries(resolved.results)) {
-      map.set(key, commitDisplayValue(key, summary.fields, commitFields));
+      map.set(key, commitDisplayValue(summary, commitFields));
     }
     return map;
   } catch (e) {

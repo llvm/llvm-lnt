@@ -28,7 +28,7 @@ function scaffoldKey(suite: string, machine: string): string {
   return `${suite}::${machine}`;
 }
 
-interface ScaffoldEntry { commit: string; ordinal: number; fields: Record<string, string>; }
+interface ScaffoldEntry { commit: string; ordinal: number; tag: string | null; fields: Record<string, string>; }
 
 interface ScaffoldCache { entries: ScaffoldEntry[]; commits: string[]; }
 
@@ -62,7 +62,7 @@ export class GraphDataCache {
       const page = await this.api.fetchOneCursorPage<CommitSummary>(commitsUrl, params, signal);
       for (const item of page.items) {
         if (item.ordinal != null) {
-          entries.push({ commit: item.commit, ordinal: item.ordinal, fields: item.fields });
+          entries.push({ commit: item.commit, ordinal: item.ordinal, tag: item.tag, fields: item.fields });
         }
       }
       if (!page.nextCursor) break;
@@ -247,7 +247,7 @@ export class GraphDataCache {
           if (!byCommit.has(entry.commit)) {
             byCommit.set(entry.commit, entry.ordinal);
             if (commitFields) {
-              const display = commitDisplayValue(entry.commit, entry.fields, commitFields);
+              const display = commitDisplayValue(entry, commitFields);
               if (display !== entry.commit) {
                 displayMap.set(entry.commit, display);
               }

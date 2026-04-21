@@ -40,9 +40,10 @@ import type { CommitDetail, RunInfo } from '../../types';
 const mockCommit: CommitDetail = {
   commit: '100',
   ordinal: 42,
+  tag: 'release-18',
   fields: { rev: '100' },
-  previous_commit: { commit: '99', ordinal: 41, link: '/commits/99' },
-  next_commit: { commit: '101', ordinal: 43, link: '/commits/101' },
+  previous_commit: { commit: '99', ordinal: 41, tag: null, link: '/commits/99' },
+  next_commit: { commit: '101', ordinal: 43, tag: null, link: '/commits/101' },
 };
 
 const mockRuns: RunInfo[] = [
@@ -97,7 +98,7 @@ describe('commitDetailPage', () => {
     commitDetailPage.mount(container, { testsuite: 'nts', value: '100' });
 
     await vi.waitFor(() => {
-      const ordinalDisplay = container.querySelector('.ordinal-display');
+      const ordinalDisplay = container.querySelector('[data-field="ordinal"]');
       expect(ordinalDisplay).toBeTruthy();
       expect(ordinalDisplay!.textContent).toContain('42');
       expect(ordinalDisplay!.querySelector('button')?.textContent).toBe('Edit');
@@ -110,7 +111,7 @@ describe('commitDetailPage', () => {
     commitDetailPage.mount(container, { testsuite: 'nts', value: '100' });
 
     await vi.waitFor(() => {
-      const ordinalDisplay = container.querySelector('.ordinal-display');
+      const ordinalDisplay = container.querySelector('[data-field="ordinal"]');
       expect(ordinalDisplay!.textContent).toContain('(none)');
     });
   });
@@ -119,15 +120,15 @@ describe('commitDetailPage', () => {
     commitDetailPage.mount(container, { testsuite: 'nts', value: '100' });
 
     await vi.waitFor(() => {
-      expect(container.querySelector('.ordinal-display button')).toBeTruthy();
+      expect(container.querySelector('[data-field="ordinal"] button')).toBeTruthy();
     });
 
     // Click Edit
-    const editBtn = container.querySelector('.ordinal-display button') as HTMLElement;
+    const editBtn = container.querySelector('[data-field="ordinal"] button') as HTMLElement;
     editBtn.click();
 
     // Should now show input, Save, Cancel
-    const ordinalContainer = container.querySelector('.ordinal-display')!;
+    const ordinalContainer = container.querySelector('[data-field="ordinal"]')!;
     const input = ordinalContainer.querySelector('input') as HTMLInputElement;
     expect(input).toBeTruthy();
     expect(input.value).toBe('42'); // pre-filled
@@ -142,20 +143,20 @@ describe('commitDetailPage', () => {
     commitDetailPage.mount(container, { testsuite: 'nts', value: '100' });
 
     await vi.waitFor(() => {
-      expect(container.querySelector('.ordinal-display button')).toBeTruthy();
+      expect(container.querySelector('[data-field="ordinal"] button')).toBeTruthy();
     });
 
     // Click Edit
-    (container.querySelector('.ordinal-display button') as HTMLElement).click();
+    (container.querySelector('[data-field="ordinal"] button') as HTMLElement).click();
 
     // Click Cancel
-    const cancelBtn = Array.from(container.querySelectorAll('.ordinal-display button'))
+    const cancelBtn = Array.from(container.querySelectorAll('[data-field="ordinal"] button'))
       .find(b => b.textContent === 'Cancel') as HTMLElement;
     cancelBtn.click();
 
     // Should be back to display mode
-    expect(container.querySelector('.ordinal-display')!.textContent).toContain('42');
-    expect(container.querySelector('.ordinal-display')!.textContent).toContain('Edit');
+    expect(container.querySelector('[data-field="ordinal"]')!.textContent).toContain('42');
+    expect(container.querySelector('[data-field="ordinal"]')!.textContent).toContain('Edit');
     expect(updateCommit).not.toHaveBeenCalled();
   });
 
@@ -163,24 +164,24 @@ describe('commitDetailPage', () => {
     commitDetailPage.mount(container, { testsuite: 'nts', value: '100' });
 
     await vi.waitFor(() => {
-      expect(container.querySelector('.ordinal-display button')).toBeTruthy();
+      expect(container.querySelector('[data-field="ordinal"] button')).toBeTruthy();
     });
 
     // Click Edit
-    (container.querySelector('.ordinal-display button') as HTMLElement).click();
+    (container.querySelector('[data-field="ordinal"] button') as HTMLElement).click();
 
     // Change value and click Save
-    const input = container.querySelector('.ordinal-display input') as HTMLInputElement;
+    const input = container.querySelector('[data-field="ordinal"] input') as HTMLInputElement;
     input.value = '99';
 
-    const saveBtn = Array.from(container.querySelectorAll('.ordinal-display button'))
+    const saveBtn = Array.from(container.querySelectorAll('[data-field="ordinal"] button'))
       .find(b => b.textContent === 'Save') as HTMLElement;
     saveBtn.click();
 
     await vi.waitFor(() => {
       expect(updateCommit).toHaveBeenCalledWith('nts', '100', { ordinal: 99 });
       // Should be back in display mode with new ordinal
-      expect(container.querySelector('.ordinal-display')!.textContent).toContain('99');
+      expect(container.querySelector('[data-field="ordinal"]')!.textContent).toContain('99');
     });
   });
 
@@ -190,23 +191,77 @@ describe('commitDetailPage', () => {
     commitDetailPage.mount(container, { testsuite: 'nts', value: '100' });
 
     await vi.waitFor(() => {
-      expect(container.querySelector('.ordinal-display button')).toBeTruthy();
+      expect(container.querySelector('[data-field="ordinal"] button')).toBeTruthy();
     });
 
-    (container.querySelector('.ordinal-display button') as HTMLElement).click();
+    (container.querySelector('[data-field="ordinal"] button') as HTMLElement).click();
 
-    const saveBtn = Array.from(container.querySelectorAll('.ordinal-display button'))
+    const saveBtn = Array.from(container.querySelectorAll('[data-field="ordinal"] button'))
       .find(b => b.textContent === 'Save') as HTMLButtonElement;
     saveBtn.click();
 
     await vi.waitFor(() => {
       expect(authErrorMessage).toHaveBeenCalled();
-      const errorEl = container.querySelector('.ordinal-display .error-banner');
+      const errorEl = container.querySelector('[data-field="ordinal"] .error-banner');
       expect(errorEl).toBeTruthy();
       // Save button should be re-enabled
-      const currentSaveBtn = Array.from(container.querySelectorAll('.ordinal-display button'))
+      const currentSaveBtn = Array.from(container.querySelectorAll('[data-field="ordinal"] button'))
         .find(b => b.textContent === 'Save') as HTMLButtonElement;
       expect(currentSaveBtn.disabled).toBe(false);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Tag display + edit
+  // ---------------------------------------------------------------------------
+
+  it('shows tag value and Edit button', async () => {
+    commitDetailPage.mount(container, { testsuite: 'nts', value: '100' });
+
+    await vi.waitFor(() => {
+      const tagDisplay = container.querySelector('[data-field="tag"]');
+      expect(tagDisplay).toBeTruthy();
+      expect(tagDisplay!.textContent).toContain('Tag:');
+      expect(tagDisplay!.textContent).toContain('release-18');
+      expect(tagDisplay!.querySelector('button')?.textContent).toBe('Edit');
+    });
+  });
+
+  it('shows "(none)" when tag is null', async () => {
+    (getCommit as ReturnType<typeof vi.fn>).mockResolvedValue({ ...mockCommit, tag: null });
+
+    commitDetailPage.mount(container, { testsuite: 'nts', value: '100' });
+
+    await vi.waitFor(() => {
+      const tagDisplay = container.querySelector('[data-field="tag"]');
+      expect(tagDisplay!.textContent).toContain('(none)');
+    });
+  });
+
+  it('Save tag calls updateCommit', async () => {
+    (updateCommit as ReturnType<typeof vi.fn>).mockResolvedValue({ ...mockCommit, tag: 'new-tag' });
+
+    commitDetailPage.mount(container, { testsuite: 'nts', value: '100' });
+
+    await vi.waitFor(() => {
+      const tagDisplay = container.querySelector('[data-field="tag"]');
+      expect(tagDisplay!.querySelector('button')).toBeTruthy();
+    });
+
+    // Click Edit on the tag container
+    const tagContainer = container.querySelector('[data-field="tag"]')!;
+    (tagContainer.querySelector('button') as HTMLElement).click();
+
+    // Type new tag value and click Save
+    const input = tagContainer.querySelector('input') as HTMLInputElement;
+    input.value = 'new-tag';
+
+    const saveBtn = Array.from(tagContainer.querySelectorAll('button'))
+      .find(b => b.textContent === 'Save') as HTMLElement;
+    saveBtn.click();
+
+    await vi.waitFor(() => {
+      expect(updateCommit).toHaveBeenCalledWith('nts', '100', { tag: 'new-tag' });
     });
   });
 

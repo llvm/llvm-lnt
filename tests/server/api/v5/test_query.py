@@ -741,7 +741,7 @@ class TestQueryResponseShape(unittest.TestCase):
     def _assert_item_shape(self, item):
         """Assert a single item has all required fields."""
         for key in ('test', 'machine', 'metric',
-                    'value', 'commit', 'run_uuid', 'submitted_at'):
+                    'value', 'commit', 'run_uuid', 'submitted_at', 'tag'):
             self.assertIn(key, item, f"Missing key: {key}")
 
     def test_items_with_all_filters(self):

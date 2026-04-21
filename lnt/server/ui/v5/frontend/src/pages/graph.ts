@@ -352,7 +352,7 @@ export const graphPage: PageModule = {
               if (commitFields.length > 0) {
                 displayMap = new Map();
                 for (const c of cached) {
-                  const d = commitDisplayValue(c.commit, c.fields, commitFields);
+                  const d = commitDisplayValue(c, commitFields);
                   if (d !== c.commit) displayMap.set(c.commit, d);
                 }
                 if (displayMap.size === 0) displayMap = undefined;

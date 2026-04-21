@@ -874,7 +874,7 @@ dl {
   margin: 10px 0;
 }
 
-.ordinal-display {
+.editable-field {
   display: flex;
   align-items: center;
   gap: 8px;

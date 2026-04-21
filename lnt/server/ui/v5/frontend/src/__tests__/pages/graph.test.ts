@@ -73,6 +73,7 @@ function makePoint(test: string, commitValue: string, value: number, runUuid = '
     value,
     commit: commitValue,
     ordinal: null,
+    tag: null,
     run_uuid: runUuid,
     submitted_at: null,
   };
@@ -269,6 +270,7 @@ describe('buildBaselinesFromData', () => {
       value,
       commit: commitValue,
       ordinal: null,
+      tag: null,
       run_uuid: 'r1',
       submitted_at: null,
     };

@@ -86,9 +86,9 @@ export function renderCommitSearch(
     for (const s of filtered) {
       const li = el('li', { class: 'combobox-item', tabindex: '-1' });
       li.append(el('span', {}, s.commit));
-      const display = commitDisplayValue(s.commit, s.fields, options.commitFields);
+      const display = commitDisplayValue(s, options.commitFields);
       if (display !== s.commit) {
-        li.append(el('span', { class: 'commit-search-field' }, ` (${display})`));
+        li.append(el('span', { class: 'commit-search-field' }, ` \u2014 ${display}`));
       }
       li.addEventListener('click', () => selectCommit(s.commit));
       dropdown.append(li);
@@ -120,9 +120,9 @@ export function renderCommitSearch(
       for (const item of result.items) {
         const li = el('li', { class: 'combobox-item', tabindex: '-1' });
         li.append(el('span', {}, item.commit));
-        const display = commitDisplayValue(item.commit, item.fields, options.commitFields);
+        const display = commitDisplayValue(item, options.commitFields);
         if (display !== item.commit) {
-          li.append(el('span', { class: 'commit-search-field' }, ` (${display})`));
+          li.append(el('span', { class: 'commit-search-field' }, ` \u2014 ${display}`));
         }
         li.addEventListener('click', () => selectCommit(item.commit));
         dropdown.append(li);

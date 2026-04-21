@@ -11,6 +11,7 @@ function makePoint(test: string, commitValue: string, value: number, machine = '
     value,
     commit: commitValue,
     ordinal: null,
+    tag: null,
     run_uuid: 'r1',
     submitted_at: null,
   };
@@ -44,8 +45,8 @@ describe('GraphDataCache', () => {
     it('fetches commits sorted by ordinal and caches', async () => {
       api.fetchOneCursorPage.mockResolvedValueOnce({
         items: [
-          { commit: '100', ordinal: 10, fields: {} },
-          { commit: '101', ordinal: 20, fields: {} },
+          { commit: '100', ordinal: 10, tag: null, fields: {} },
+          { commit: '101', ordinal: 20, tag: null, fields: {} },
         ],
         nextCursor: null,
       });
@@ -68,11 +69,11 @@ describe('GraphDataCache', () => {
     it('paginates through all results', async () => {
       api.fetchOneCursorPage
         .mockResolvedValueOnce({
-          items: [{ commit: '100', ordinal: 10, fields: {} }],
+          items: [{ commit: '100', ordinal: 10, tag: null, fields: {} }],
           nextCursor: 'cursor1',
         })
         .mockResolvedValueOnce({
-          items: [{ commit: '101', ordinal: 20, fields: {} }],
+          items: [{ commit: '101', ordinal: 20, tag: null, fields: {} }],
           nextCursor: null,
         });
 
@@ -348,15 +349,15 @@ describe('GraphDataCache', () => {
       api.fetchOneCursorPage
         .mockResolvedValueOnce({
           items: [
-            { commit: '100', ordinal: 10, fields: {} },
-            { commit: '101', ordinal: 30, fields: {} },
+            { commit: '100', ordinal: 10, tag: null, fields: {} },
+            { commit: '101', ordinal: 30, tag: null, fields: {} },
           ],
           nextCursor: null,
         })
         .mockResolvedValueOnce({
           items: [
-            { commit: '101', ordinal: 30, fields: {} },
-            { commit: '102', ordinal: 40, fields: {} },
+            { commit: '101', ordinal: 30, tag: null, fields: {} },
+            { commit: '102', ordinal: 40, tag: null, fields: {} },
           ],
           nextCursor: null,
         });
@@ -372,17 +373,17 @@ describe('GraphDataCache', () => {
       api.fetchOneCursorPage
         .mockResolvedValueOnce({
           items: [
-            { commit: 'a', ordinal: 1, fields: {} },
-            { commit: 'c', ordinal: 3, fields: {} },
-            { commit: 'e', ordinal: 5, fields: {} },
+            { commit: 'a', ordinal: 1, tag: null, fields: {} },
+            { commit: 'c', ordinal: 3, tag: null, fields: {} },
+            { commit: 'e', ordinal: 5, tag: null, fields: {} },
           ],
           nextCursor: null,
         })
         .mockResolvedValueOnce({
           items: [
-            { commit: 'b', ordinal: 2, fields: {} },
-            { commit: 'c', ordinal: 3, fields: {} },
-            { commit: 'f', ordinal: 6, fields: {} },
+            { commit: 'b', ordinal: 2, tag: null, fields: {} },
+            { commit: 'c', ordinal: 3, tag: null, fields: {} },
+            { commit: 'f', ordinal: 6, tag: null, fields: {} },
           ],
           nextCursor: null,
         });
@@ -401,8 +402,8 @@ describe('GraphDataCache', () => {
     it('populates displayMap when commitFields has a display field', async () => {
       api.fetchOneCursorPage.mockResolvedValueOnce({
         items: [
-          { commit: 'abc', ordinal: 1, fields: { sha: 'short-abc' } },
-          { commit: 'def', ordinal: 2, fields: { sha: 'short-def' } },
+          { commit: 'abc', ordinal: 1, tag: null, fields: { sha: 'short-abc' } },
+          { commit: 'def', ordinal: 2, tag: null, fields: { sha: 'short-def' } },
         ],
         nextCursor: null,
       });
@@ -418,7 +419,7 @@ describe('GraphDataCache', () => {
     it('returns empty displayMap when no commitFields provided', async () => {
       api.fetchOneCursorPage.mockResolvedValueOnce({
         items: [
-          { commit: 'abc', ordinal: 1, fields: { sha: 'short-abc' } },
+          { commit: 'abc', ordinal: 1, tag: null, fields: { sha: 'short-abc' } },
         ],
         nextCursor: null,
       });
@@ -439,7 +440,7 @@ describe('GraphDataCache', () => {
       // Populate each cache type
       api.fetchOneCursorPage
         .mockResolvedValueOnce({
-          items: [{ commit: '100', ordinal: 10, fields: {} }],
+          items: [{ commit: '100', ordinal: 10, tag: null, fields: {} }],
           nextCursor: null,
         })
         .mockResolvedValueOnce({
