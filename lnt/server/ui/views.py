@@ -37,7 +37,7 @@ import lnt.util.ImportData
 import lnt.util.stats
 from lnt.external.stats import stats as ext_stats
 from lnt.server.db import testsuitedb  # noqa: F401
-from lnt.server.reporting.analysis import ComparisonResult, calc_geomean
+from lnt.server.reporting.analysis import ABRunInfo, ComparisonResult, calc_geomean
 from lnt.server.ui import util
 from lnt.server.ui.decorators import frontend, db_route, v4_route
 from lnt.server.ui.globals import db_url_for, v4_url_for, v4_redirect
@@ -261,10 +261,20 @@ def v4_recent_activity():
     active_submissions = [(r, r.order.llvm_project_revision)
                           for r in recent_runs[:N]]
 
+    recent_ab_exps = []
+    if hasattr(ts, 'ABExperiment'):
+        recent_ab_exps = (
+            session.query(ts.ABExperiment)
+            .order_by(ts.ABExperiment.pinned.desc(),
+                      ts.ABExperiment.created_time.desc())
+            .limit(20)
+            .all())
+
     return render_template("v4_recent_activity.html",
                            testsuite_name=g.testsuite_name,
                            active_machines=active_machines,
                            active_submissions=active_submissions,
+                           recent_ab_exps=recent_ab_exps,
                            **ts_data(ts))
 
 
@@ -2049,6 +2059,92 @@ def v4_matrix():
                            machine_id_common=machine_id_common,
                            order_to_date=order_to_date,
                            **ts_data(ts))
+
+
+@v4_route("/abtests")
+def v4_abtests():
+    """List A/B experiments for this test suite."""
+    session = request.session
+    ts = request.get_testsuite()
+    exps = session.query(ts.ABExperiment) \
+        .order_by(ts.ABExperiment.created_time.desc()) \
+        .limit(100).all()
+    data = ts_data(ts)
+    data['experiments'] = exps
+    return render_template("v4_abtests.html", **data)
+
+
+@v4_route("/abtest/<int:id>")
+def v4_abtest(id):
+    """Show detail and comparison results for an A/B experiment."""
+    session = request.session
+    ts = request.get_testsuite()
+
+    exp = session.query(ts.ABExperiment).filter_by(id=id).first()
+    if exp is None:
+        abort(404, "No A/B experiment with id %d." % id)
+
+    control_run = session.query(ts.ABRun).filter_by(
+        id=exp.control_run_id).first()
+    variant_run = session.query(ts.ABRun).filter_by(
+        id=exp.variant_run_id).first()
+    if control_run is None or variant_run is None:
+        abort(404, "Experiment references a missing ABRun.")
+
+    sri = lnt.server.reporting.analysis.ABRunInfo(
+        session, ts, [exp.control_run_id, exp.variant_run_id])
+    test_ids = sri.test_ids
+    test_name_map = dict(
+        session.query(ts.Test.id, ts.Test.name).filter(
+            ts.Test.id.in_(test_ids)))
+
+    metric_fields = [f for f in ts.sample_fields
+                     if f.type.name in ('Real', 'Integer')]
+
+    options = {}
+    options['show_all'] = bool(request.args.get('show_all'))
+    options['show_delta'] = bool(request.args.get('show_delta'))
+    options['show_small_diff'] = bool(request.args.get('show_small_diff'))
+    options['test_filter'] = request.args.get('test_filter', '')
+
+    comparisons = []
+    for test_id in sorted(test_ids, key=lambda tid: test_name_map.get(tid, '')):
+        test_name = test_name_map.get(test_id, str(test_id))
+        for field in metric_fields:
+            cr = sri.get_run_comparison_result(
+                variant_run, control_run, test_id, field, None)
+            if cr.current is None and cr.previous is None:
+                continue
+            comparisons.append({
+                'test_name': test_name,
+                'field': field,
+                'cr': cr,
+            })
+
+    data = ts_data(ts)
+    data.update({
+        'analysis': lnt.server.reporting.analysis,
+        'exp': exp,
+        'control_run': control_run,
+        'variant_run': variant_run,
+        'comparisons': comparisons,
+        'metric_fields': metric_fields,
+        'options': options,
+    })
+    return render_template("v4_abtest.html", **data)
+
+
+@v4_route("/abtest/<int:id>/pin", methods=['POST'])
+def v4_abtest_pin(id):
+    """Toggle the pinned flag on an A/B experiment."""
+    session = request.session
+    ts = request.get_testsuite()
+    exp = session.query(ts.ABExperiment).filter_by(id=id).first()
+    if exp is None:
+        abort(404, "No A/B experiment with id %d." % id)
+    exp.pinned = not exp.pinned
+    session.commit()
+    return v4_redirect(v4_url_for('.v4_abtest', id=id))
 
 
 @frontend.route("/explode")

@@ -20,29 +20,29 @@ AUTH_TOKEN = 'test_token'
 BASE_URL = 'api/db_default/v4/nts/'
 
 CONTROL_DATA = {
-    'machine': {'name': 'ab-test-machine', 'hardware': 'x86_64', 'os': 'linux'},
+    'machine': {'name': 'apple-m2-macmini', 'hardware': 'arm64', 'os': 'macosx14.0'},
     'run': {
         'start_time': '2024-01-01T00:00:00',
         'end_time': '2024-01-01T00:05:00',
     },
     'tests': [
-        {'name': 'SingleSource/Benchmarks/Misc/mandelbrot',
+        {'name': 'CTMark/sqlite3/sqlite3.compile',
          'compile_time': 1.0, 'execution_time': 2.0},
-        {'name': 'SingleSource/Benchmarks/Misc/lowercase',
+        {'name': 'CTMark/consumer-typeset/consumer-typeset.compile',
          'compile_time': 0.5},
     ],
 }
 
 VARIANT_DATA = {
-    'machine': {'name': 'ab-test-machine', 'hardware': 'x86_64', 'os': 'linux'},
+    'machine': {'name': 'apple-m2-macmini', 'hardware': 'arm64', 'os': 'macosx14.0'},
     'run': {
         'start_time': '2024-01-01T00:10:00',
         'end_time': '2024-01-01T00:15:00',
     },
     'tests': [
-        {'name': 'SingleSource/Benchmarks/Misc/mandelbrot',
+        {'name': 'CTMark/sqlite3/sqlite3.compile',
          'compile_time': 1.05, 'execution_time': 1.95},
-        {'name': 'SingleSource/Benchmarks/Misc/lowercase',
+        {'name': 'CTMark/consumer-typeset/consumer-typeset.compile',
          'compile_time': 0.48},
     ],
 }
@@ -105,9 +105,9 @@ class ABTestAPITest(unittest.TestCase):
         # Both tests reported compile_time; expect two compile_time comparisons.
         cmp_by_field = {(c['test_name'], c['field']): c
                         for c in result['comparisons']}
-        key = ('SingleSource/Benchmarks/Misc/mandelbrot', 'compile_time')
+        key = ('CTMark/sqlite3/sqlite3.compile', 'compile_time')
         self.assertIn(key, cmp_by_field,
-                      "Expected mandelbrot/compile_time in comparisons")
+                      "Expected sqlite3/compile_time in comparisons")
         entry = cmp_by_field[key]
         self.assertAlmostEqual(entry['control'], 1.0)
         self.assertAlmostEqual(entry['variant'], 1.05)
