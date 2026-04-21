@@ -609,24 +609,39 @@ class ABTests(Resource):
     @staticmethod
     @requires_auth_token
     def post():
-        """Submit control and variant reports and create an ABExperiment."""
+        """Create an ABExperiment, optionally with both runs at once.
+
+        Atomic mode: provide both 'control' and 'variant' keys in the body.
+        Two-phase mode: omit both; submit runs later via
+          POST /abtest/<id>/control and POST /abtest/<id>/variant.
+        """
         session = request.session
         ts = request.get_testsuite()
         body = request.get_json(force=True)
         if body is None:
             abort(400, msg="Request body must be JSON.")
-        for key in ('control', 'variant'):
-            if key not in body:
-                abort(400, msg="Missing required field: %r" % key)
-        control_run = ts.importABDataFromDict(session, body['control'])
-        session.flush()
-        variant_run = ts.importABDataFromDict(session, body['variant'])
-        session.flush()
+
+        has_control = 'control' in body
+        has_variant = 'variant' in body
+        if has_control != has_variant:
+            abort(400, msg="Provide both 'control' and 'variant' for atomic "
+                           "creation, or neither to create a pending experiment.")
+
+        control_run_id = None
+        variant_run_id = None
+        if has_control:
+            control_run = ts.importABDataFromDict(session, body['control'])
+            session.flush()
+            variant_run = ts.importABDataFromDict(session, body['variant'])
+            session.flush()
+            control_run_id = control_run.id
+            variant_run_id = variant_run.id
+
         exp = ts.ABExperiment()
         exp.name = body.get('name', '')
         exp.created_time = datetime.datetime.utcnow()
-        exp.control_run_id = control_run.id
-        exp.variant_run_id = variant_run.id
+        exp.control_run_id = control_run_id
+        exp.variant_run_id = variant_run_id
         exp.pinned = bool(body.get('pinned', False))
         session.add(exp)
         session.commit()
@@ -655,18 +670,58 @@ class ABTests(Resource):
         return {'experiments': [_ab_exp_to_dict(e) for e in exps]}
 
 
+class ABTestRun(Resource):
+    """Submit a single run (control or variant) to an existing experiment."""
+    method_decorators = [in_db]
+
+    @staticmethod
+    @requires_auth_token
+    def post(abtest_id, role):
+        """Import a run and attach it to an existing experiment as
+        'control' or 'variant'.  The request body is a standard LNT report
+        JSON object (same format accepted by POST /runs)."""
+        if role not in ('control', 'variant'):
+            abort(400, msg="role must be 'control' or 'variant'")
+        session = request.session
+        ts = request.get_testsuite()
+        exp = session.query(ts.ABExperiment).filter_by(id=abtest_id).first()
+        if exp is None:
+            abort(404, msg="No such A/B experiment.")
+        body = request.get_json(force=True)
+        if body is None:
+            abort(400, msg="Request body must be JSON.")
+        ab_run = ts.importABDataFromDict(session, body)
+        session.flush()
+        if role == 'control':
+            exp.control_run_id = ab_run.id
+        else:
+            exp.variant_run_id = ab_run.id
+        session.commit()
+        return _ab_exp_to_dict(exp)
+
+
 class ABTestDetail(Resource):
     """Retrieve or update a single A/B experiment."""
     method_decorators = [in_db]
 
     @staticmethod
     def get(abtest_id):
-        """Return the experiment metadata and per-test comparison results."""
+        """Return the experiment metadata and per-test comparison results.
+
+        If either run has not been submitted yet the response includes
+        ``"pending": true`` and an empty ``comparisons`` list."""
         session = request.session
         ts = request.get_testsuite()
         exp = session.query(ts.ABExperiment).filter_by(id=abtest_id).first()
         if exp is None:
             abort(404, msg="No such A/B experiment.")
+
+        # Pending state: one or both runs not yet submitted.
+        if exp.control_run_id is None or exp.variant_run_id is None:
+            result = _ab_exp_to_dict(exp)
+            result['pending'] = True
+            result['comparisons'] = []
+            return result
 
         control_run = session.query(ts.ABRun).filter_by(
             id=exp.control_run_id).first()
@@ -760,3 +815,5 @@ def load_api_resources(api):
     api.add_resource(Regression, ts_path(regression_url))
     api.add_resource(ABTests, ts_path("abtest"), ts_path("abtest/"))
     api.add_resource(ABTestDetail, ts_path("abtest/<int:abtest_id>"))
+    api.add_resource(ABTestRun,
+                     ts_path("abtest/<int:abtest_id>/<string:role>"))
