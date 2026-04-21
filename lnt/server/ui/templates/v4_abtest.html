@@ -57,9 +57,25 @@
 <small class="text-muted" style="margin-left:8px">Keep Forever &mdash; created {{ exp.created_time }}</small>
 
 <div style="margin-top:1em"></div>
+
+{% if pending %}
+<div class="alert alert-info" style="margin-bottom:0.5em">
+  <b>Pending:</b>
+  {% if not exp.control_run_id and not exp.variant_run_id %}
+    Neither control nor variant run has been submitted yet.
+  {% elif not exp.control_run_id %}
+    Control run has not been submitted yet.
+  {% else %}
+    Variant run has not been submitted yet.
+  {% endif %}
+</div>
+{% endif %}
+
 {# ------------------------------------------------------------------ #}
 {# Run info: single table, control and variant side by side           #}
 {# ------------------------------------------------------------------ #}
+{% set ref_run = control_run or variant_run %}
+{% if ref_run %}
 <section id="run_info">
 {{ utils.render_popup_begin('run_info', 'Run Info', true) }}
 
@@ -74,52 +90,43 @@
   <tbody>
     <tr>
       <td><b>run</b></td>
-      <td>{{ control_run.id }}</td>
-      <td>{{ variant_run.id }}</td>
+      <td>{{ control_run.id if control_run else '(pending)' }}</td>
+      <td>{{ variant_run.id if variant_run else '(pending)' }}</td>
     </tr>
     <tr>
       <td><b>Machine</b></td>
-      <td>{{ control_run.machine.name }}</td>
-      <td>{{ variant_run.machine.name }}</td>
+      <td>{{ control_run.machine.name if control_run else '' }}</td>
+      <td>{{ variant_run.machine.name if variant_run else '' }}</td>
     </tr>
-    {% for item in control_run.machine.fields %}
+    {% for item in ref_run.machine.fields %}
       <tr>
         <td><b>{{ item.name }}</b></td>
-        <td>{{ utils.newline_to_br(control_run.machine.get_field(item)) }}</td>
-        <td>{{ utils.newline_to_br(variant_run.machine.get_field(item)) }}</td>
+        <td>{{ utils.newline_to_br(control_run.machine.get_field(item)) if control_run else '' }}</td>
+        <td>{{ utils.newline_to_br(variant_run.machine.get_field(item)) if variant_run else '' }}</td>
       </tr>
     {% endfor %}
-    {% for key, value in control_run.machine.parameters|dictsort %}
+    {% for key, value in ref_run.machine.parameters|dictsort %}
       <tr>
         <td><b>{{ key }}</b></td>
-        <td>{{ utils.newline_to_br(value) }}</td>
-        <td>{{ utils.newline_to_br(variant_run.machine.parameters.get(key, '')) }}</td>
+        <td>{{ utils.newline_to_br(control_run.machine.parameters.get(key, '')) if control_run else '' }}</td>
+        <td>{{ utils.newline_to_br(variant_run.machine.parameters.get(key, '')) if variant_run else '' }}</td>
       </tr>
-    {% endfor %}
-    {% for key, value in variant_run.machine.parameters|dictsort %}
-      {% if key not in control_run.machine.parameters %}
-        <tr>
-          <td><b>{{ key }}</b></td>
-          <td></td>
-          <td>{{ utils.newline_to_br(value) }}</td>
-        </tr>
-      {% endif %}
     {% endfor %}
     <tr>
       <td><b>start</b></td>
-      <td>{{ control_run.start_time }}</td>
-      <td>{{ variant_run.start_time }}</td>
+      <td>{{ control_run.start_time if control_run else '' }}</td>
+      <td>{{ variant_run.start_time if variant_run else '' }}</td>
     </tr>
     <tr>
       <td><b>end</b></td>
-      <td>{{ control_run.end_time }}</td>
-      <td>{{ variant_run.end_time }}</td>
+      <td>{{ control_run.end_time if control_run else '' }}</td>
+      <td>{{ variant_run.end_time if variant_run else '' }}</td>
     </tr>
-    {% for item in control_run.fields %}
+    {% for item in ref_run.fields %}
       <tr>
         <td><b>{{ item.name }}</b></td>
-        <td>{{ utils.newline_to_br(control_run.get_field(item)) }}</td>
-        <td>{{ utils.newline_to_br(variant_run.get_field(item)) }}</td>
+        <td>{{ utils.newline_to_br(control_run.get_field(item)) if control_run else '' }}</td>
+        <td>{{ utils.newline_to_br(variant_run.get_field(item)) if variant_run else '' }}</td>
       </tr>
     {% endfor %}
   </tbody>
@@ -127,6 +134,7 @@
 
 {{ utils.render_popup_end() }}
 </section>
+{% endif %}
 
 {# ------------------------------------------------------------------ #}
 {# View options                                                       #}
@@ -180,7 +188,9 @@
     {% if row.field.name == field.name %}
       {% set cr = row.cr %}
       {% set value_status = cr.get_value_status(ignore_small=not options.show_small_diff) %}
-      {% if options.show_all or value_status in (analysis.REGRESSED, analysis.IMPROVED) %}
+      {% if options.show_all
+           or value_status in (analysis.REGRESSED, analysis.IMPROVED)
+           or (cr.current is none) != (cr.previous is none) %}
         {% if field_rows.append(row) %}{% endif %}
       {% endif %}
     {% endif %}
@@ -214,11 +224,30 @@
         <td><input type="checkbox" name="plot"
                    value="{{ row.test_id }}.{{ row.field.name }}"/></td>
         <td class="benchmark-name">{{ row.test_name }}</td>
-        <td class="right">{{ '%.4f' % cr.previous if cr.previous is not none else '-' }}</td>
-        <td class="right">{{ '%.4f' % cr.current if cr.current is not none else '-' }}</td>
-        {{ cr.pct_delta|aspctcell(reverse=cr.bigger_is_better)|safe }}
+        {# When variant is missing, cr.current holds the control value. #}
+        <td class="right">
+          {%- if variant_run is none -%}
+            {{ '%.4f' % cr.current if cr.current is not none else '-' }}
+          {%- else -%}
+            {{ '%.4f' % cr.previous if cr.previous is not none else '-' }}
+          {%- endif -%}
+        </td>
+        {# When control is missing, cr.current holds the variant value. #}
+        <td class="right">
+          {%- if variant_run is none -%}
+            -
+          {%- else -%}
+            {{ '%.4f' % cr.current if cr.current is not none else '-' }}
+          {%- endif -%}
+        </td>
+        {# Delta only meaningful when both runs are present. #}
+        {%- if pending -%}
+          <td>-</td>
+        {%- else -%}
+          {{ cr.pct_delta|aspctcell(reverse=cr.bigger_is_better)|safe }}
+        {%- endif -%}
         {% if options.show_delta %}
-          <td class="right">{{ '%.4f' % cr.delta if cr.delta else '-' }}</td>
+          <td class="right">{{ '%.4f' % cr.delta if cr.delta and not pending else '-' }}</td>
         {% endif %}
         <td class="right">{{ '%.4f' % cr.stddev if cr.stddev is not none else '-' }}</td>
         <td class="right">{{ cr.samples|length }}</td>
@@ -232,7 +261,7 @@
 {% endfor %}
 
 {% if not comparisons %}
-<p>No comparison data available.</p>
+<div class="alert alert-info">No comparison data available.</div>
 {% endif %}
 
 <p><input type="submit" value="S-Curve"/></p>

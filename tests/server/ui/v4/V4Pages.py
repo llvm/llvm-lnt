@@ -822,6 +822,48 @@ def main():
     check_code(client, '/db_default/v4/nts/abtest/99999',
                expected_code=HTTP_NOT_FOUND)
 
+    # Pending experiments: neither, only-control, only-variant.
+    # All three detail pages must render without error (200, not 404/500).
+    def _post_abtest(body):
+        r = client.post('api/db_default/v4/nts/abtest',
+                        data=json.dumps(body),
+                        content_type='application/json',
+                        headers={'AuthToken': 'test_token'})
+        assert r.status_code == 201, \
+            "AB experiment POST returned %d" % r.status_code
+        return json.loads(r.data)['id']
+
+    def _post_run(exp_id, role, run_data):
+        r = client.post('api/db_default/v4/nts/abtest/%d/%s' % (exp_id, role),
+                        data=json.dumps(run_data),
+                        content_type='application/json',
+                        headers={'AuthToken': 'test_token'})
+        assert r.status_code == 200, \
+            "AB run POST (%s) returned %d" % (role, r.status_code)
+
+    _sample_run = {
+        'machine': {'name': 'apple-m2-macmini', 'hardware': 'arm64',
+                    'os': 'macosx14.0'},
+        'run': {'start_time': '2024-01-02T00:00:00',
+                'end_time': '2024-01-02T00:05:00'},
+        'tests': [{'name': 'CTMark/sqlite3/sqlite3.compile',
+                   'compile_time': 1.0}],
+    }
+
+    # Both runs missing.
+    pending_both = _post_abtest({'name': 'pending-both'})
+    check_html(client, '/db_default/v4/nts/abtest/%d' % pending_both)
+
+    # Only control submitted.
+    pending_variant = _post_abtest({'name': 'pending-variant'})
+    _post_run(pending_variant, 'control', _sample_run)
+    check_html(client, '/db_default/v4/nts/abtest/%d' % pending_variant)
+
+    # Only variant submitted.
+    pending_control = _post_abtest({'name': 'pending-control'})
+    _post_run(pending_control, 'variant', _sample_run)
+    check_html(client, '/db_default/v4/nts/abtest/%d' % pending_control)
+
 
 if __name__ == '__main__':
     main()

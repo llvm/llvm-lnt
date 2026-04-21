@@ -2084,43 +2084,55 @@ def v4_abtest(id):
     if exp is None:
         abort(404, "No A/B experiment with id %d." % id)
 
-    control_run = session.query(ts.ABRun).filter_by(
-        id=exp.control_run_id).first()
-    variant_run = session.query(ts.ABRun).filter_by(
-        id=exp.variant_run_id).first()
-    if control_run is None or variant_run is None:
-        abort(404, "Experiment references a missing ABRun.")
-
-    sri = lnt.server.reporting.analysis.ABRunInfo(
-        session, ts, [exp.control_run_id, exp.variant_run_id])
-    test_ids = sri.test_ids
-    test_name_map = dict(
-        session.query(ts.Test.id, ts.Test.name).filter(
-            ts.Test.id.in_(test_ids)))
+    control_run = (session.query(ts.ABRun).filter_by(id=exp.control_run_id).first()
+                   if exp.control_run_id is not None else None)
+    variant_run = (session.query(ts.ABRun).filter_by(id=exp.variant_run_id).first()
+                   if exp.variant_run_id is not None else None)
 
     metric_fields = [f for f in ts.sample_fields
                      if f.type.name in ('Real', 'Integer')]
-
-    options = {}
-    options['show_all'] = bool(request.args.get('show_all'))
-    options['show_delta'] = bool(request.args.get('show_delta'))
-    options['show_small_diff'] = bool(request.args.get('show_small_diff'))
-    options['test_filter'] = request.args.get('test_filter', '')
+    options = {
+        'show_all': bool(request.args.get('show_all')),
+        'show_delta': bool(request.args.get('show_delta')),
+        'show_small_diff': bool(request.args.get('show_small_diff')),
+        'test_filter': request.args.get('test_filter', ''),
+    }
 
     comparisons = []
-    for test_id in sorted(test_ids, key=lambda tid: test_name_map.get(tid, '')):
-        test_name = test_name_map.get(test_id, str(test_id))
-        for field in metric_fields:
-            cr = sri.get_run_comparison_result(
-                variant_run, control_run, test_id, field, None)
-            if cr.current is None and cr.previous is None:
-                continue
-            comparisons.append({
-                'test_name': test_name,
-                'test_id': test_id,
-                'field': field,
-                'cr': cr,
-            })
+    available_run_ids = [rid for rid in [exp.control_run_id, exp.variant_run_id]
+                         if rid is not None]
+    if available_run_ids:
+        sri = lnt.server.reporting.analysis.ABRunInfo(
+            session, ts, available_run_ids)
+        test_ids = sri.test_ids
+        test_name_map = dict(
+            session.query(ts.Test.id, ts.Test.name).filter(
+                ts.Test.id.in_(test_ids)))
+
+        for test_id in sorted(test_ids,
+                              key=lambda tid: test_name_map.get(tid, '')):
+            test_name = test_name_map.get(test_id, str(test_id))
+            for field in metric_fields:
+                if variant_run is not None:
+                    # Normal case or control-missing: get_run_comparison_result
+                    # handles None compare_to gracefully.
+                    cr = sri.get_run_comparison_result(
+                        variant_run, control_run, test_id, field, None)
+                else:
+                    # Variant missing: pass control as the "current" run so
+                    # cr.current is populated.  The template detects
+                    # variant_run is None and shows cr.current in the Control
+                    # column instead of the Variant column.
+                    cr = sri.get_run_comparison_result(
+                        control_run, None, test_id, field, None)
+                if cr.current is None and cr.previous is None:
+                    continue
+                comparisons.append({
+                    'test_name': test_name,
+                    'test_id': test_id,
+                    'field': field,
+                    'cr': cr,
+                })
 
     data = ts_data(ts)
     data.update({
@@ -2128,6 +2140,7 @@ def v4_abtest(id):
         'exp': exp,
         'control_run': control_run,
         'variant_run': variant_run,
+        'pending': control_run is None or variant_run is None,
         'comparisons': comparisons,
         'metric_fields': metric_fields,
         'options': options,
@@ -2156,6 +2169,10 @@ def v4_abtest_scurve(id):
     exp = session.query(ts.ABExperiment).filter_by(id=id).first()
     if exp is None:
         abort(404, "No A/B experiment with id %d." % id)
+
+    # Redirect to detail page when either run is not yet submitted.
+    if exp.control_run_id is None or exp.variant_run_id is None:
+        return v4_redirect(v4_url_for('.v4_abtest', id=id))
 
     control_run = session.query(ts.ABRun).filter_by(
         id=exp.control_run_id).first()
