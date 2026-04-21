@@ -58,15 +58,8 @@
 - [ ] Clear the title input after successfully creating a regression.
 - [ ] Replace the `<details>` "Add to Regression" panel with a sticky floating
   button (bottom-right) that expands into a panel on click.
-- [x] Implement multi-knob noise filtering (Delta %, p-value, absolute floor)
-  per the updated `docs/design/ui/compare.md` spec.
 - [ ] Understand whether the Compare page should allow inputting an arbitrary
   local run.
-- [ ] Fix: sample aggregation changes are not being plotted on the graph (same
-  data appears to be used regardless of aggregation).
-- [ ] On the S curve, experiment with graying out tests that have a high
-  p-value.
-- [x] Display the percentage of tests that are faster/slower/noise on the graph.
 - [ ] Understand how to surface tests with high vs. low confidence when multiple
   samples are present.
 
@@ -91,9 +84,6 @@
 
 ## UI — Graph / Compare Shared
 
-- [x] Simplify baseline commit pickers to use `GET /commits?machine={name}`
-  instead of the current two-step fetch pattern (all commits + machine runs for
-  client-side filtering).
 - [ ] Experiment with placing the search bar just above the table rows instead
   of its current position.
 
@@ -110,22 +100,8 @@
   not just the current page. NOTE: The `?search=` parameter already searches
   across commit, tag, and searchable commit_fields.
 
-- [ ] Fix: the "Copy" button for the API key token does not actually copy to
-  the clipboard.
-
-## Schema
-
-- [x] Understand what happens if a commit field in the schema is named
-  `ordinal`. Validate and reject if necessary.
-- [x] Handle bigger-is-better semantics in the schema. Also consider adding
-  display name, units, and other field metadata.
-
 ## Cleanup & Tech Debt
 
-- [x] Remove the `# Load the v5 frontend` comment and associated stale code in
-  `app.py` — a remnant from before v5 was disjoint from v4. Audit for other
-  stale v4 integration points.
-- [x] Remove the `[v4 UI]` button in the navbar — it cannot work anymore.
 - [ ] Undo changes made to the v4 layer (e.g. new migrations).
 - [ ] Reorganize `combobox.ts` and `machine-combobox.ts` — remnants of the
   Compare page being standalone. Either unify into a single combobox component
@@ -141,20 +117,6 @@
 
 ### P0 — Critical
 
-- [x] **Add `(test_id, run_id)` compound index on Sample table** (impact:
-  100–1000x for time-series queries). The existing `(run_id, test_id)` compound
-  index has columns in the wrong order for the dominant access pattern.
-  Time-series queries (`query_time_series`, `/query`, `/trends`,
-  `GET /tests?machine=`) filter by `test_id` first, but the index leads with
-  `run_id`. At 100M+ rows, these queries fall back to sequential scans.
-
-- [x] **Batch test get-or-create in run submission** (impact: ~1000x fewer DB
-  round-trips per submission). `get_or_create_test` is called per-test in a loop
-  (`__init__.py:1295`), issuing one SELECT + optional SAVEPOINT/INSERT/FLUSH per
-  test. For a 7,500-test submission, this is 7,500–30,000 round-trips. Replace
-  with `SELECT ... WHERE name IN (...)` + `INSERT ... ON CONFLICT DO NOTHING` to
-  reduce to ~3 round-trips.
-
 - [ ] **Add pagination/limit to `POST /trends`** (impact: prevents unbounded
   queries). The trends endpoint returns ALL matching data points with no limit.
   The `EXP(AVG(LN(metric)))` geomean scans the entire Sample table — O(N) on
@@ -168,19 +130,7 @@
   at limit=10,000, this adds ~1–2 seconds of pure Python overhead. The validate
   step should be skipped in production.
 
-- [x] **Add response compression** (impact: 80–90% bandwidth reduction).
-  No gzip/brotli middleware is configured. All JSON responses are sent
-  uncompressed. A 3 MB query response could be ~450 KB with gzip. Add
-  `flask-compress` or document that a reverse proxy must handle compression.
-
 ### P1 — High
-
-- [x] **Use Core INSERT for samples instead of ORM objects** (impact: 3–10x
-  speedup on sample insertion). `create_samples` (`__init__.py:813`) creates
-  7,500 ORM objects via `add_all()`. SQLAlchemy 1.3 emits individual INSERT
-  statements. Using `session.execute(Sample.__table__.insert(), list_of_dicts)`
-  with psycopg2's `executemany` batches thousands of rows into a handful of
-  round-trips.
 
 - [ ] **Remove `ordered = True` from BaseSchema.Meta** (impact: eliminates
   `OrderedDict` overhead across all schemas). All schemas inherit
@@ -299,14 +249,6 @@
 
 ## Profiles
 
-- [x] **DB model and submission**: Profile table with deferred LargeBinary,
-  submission integration (base64 decode, version validation, size limit).
-- [x] **Binary format parser**: Clean read-only parser with lazy BZ2
-  decompression. Wire-compatible with v4 ProfileV2.
-- [x] **REST API endpoints**: Listing (per run), metadata, functions, function
-  detail — all UUID-based.
-- [x] **Profiles UI page**: A/B picker, stats bar, straight-line disassembly
-  view. See `docs/design/ui/profiles.md`.
 - [ ] **CFG view**: Control-flow graph renderer (D3-based, ISA-specific).
   Deferred to a future phase.
 - [ ] **Replace N+1 profile-existence check in commit picker**: The Profiles
@@ -314,7 +256,3 @@
   selected machine to filter commits without profiles. Replace with a
   server-side mechanism (e.g. `has_profiles` flag on run list responses or a
   filtered commits endpoint).
-- [x] **Compare page integration**: Profile link column in comparison table.
-- [x] **Run Detail integration**: Profile link/icon in samples table.
-- [x] **Remove `has_profile` from frontend**: Clean up `SampleInfo.has_profile`
-  in `types.ts` and test fixtures.
