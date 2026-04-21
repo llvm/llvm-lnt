@@ -1205,6 +1205,99 @@ class TestSuiteDB(object):
         self._importSampleValues(session, data['tests'], run, config)
         return run
 
+    def _importABRun(self, session, run_data, machine):
+        """Create and insert an ABRun for the given machine.
+
+        No order tracking is performed; A/B runs are isolated from trend
+        analysis and regression detection.
+        """
+        run_parameters = run_data.copy()
+        run_parameters.pop('id', None)
+        run_parameters.pop('order_by', None)
+        run_parameters.pop('order_id', None)
+        run_parameters.pop('machine_id', None)
+
+        start_time_str = run_parameters.pop('start_time', None)
+        if start_time_str:
+            try:
+                start_time = aniso8601.parse_datetime(start_time_str)
+            except ValueError:
+                start_time = datetime.datetime.strptime(start_time_str,
+                                                        "%Y-%m-%d %H:%M:%S")
+        else:
+            start_time = None
+
+        end_time_str = run_parameters.pop('end_time', None)
+        if end_time_str:
+            try:
+                end_time = aniso8601.parse_datetime(end_time_str)
+            except ValueError:
+                end_time = datetime.datetime.strptime(end_time_str,
+                                                      "%Y-%m-%d %H:%M:%S")
+        else:
+            end_time = None
+
+        run = self.ABRun()
+        run.machine = machine
+        run.start_time = start_time
+        run.end_time = end_time
+        for item in self.run_fields:
+            value = run_parameters.pop(item.name, None)
+            run.set_field(item, value)
+        run.parameters = run_parameters
+        session.add(run)
+        return run
+
+    def _importABSampleValues(self, session, tests_data, run):
+        """Create ABSample rows for the given tests data and ABRun.
+
+        Mirrors _importSampleValues but creates ABSample objects and skips
+        profile handling.
+        """
+        test_cache = dict((test.name, test)
+                          for test in session.query(self.Test))
+        field_dict = dict([(f.name, f) for f in self.sample_fields])
+        all_samples = []
+
+        for test_data in tests_data:
+            name = test_data['name']
+            test = test_cache.get(name)
+            if test is None:
+                test = self.Test(test_data['name'])
+                test_cache[name] = test
+                session.add(test)
+
+            samples = []
+            for key, values in test_data.items():
+                if key == 'name' or key == 'id' or key.endswith('_id'):
+                    continue
+                field = field_dict.get(key)
+                if field is None:
+                    raise ValueError("test %s: Metric %r unknown in suite" %
+                                     (name, key))
+                if not isinstance(values, list):
+                    values = [values]
+                while len(samples) < len(values):
+                    sample = self.ABSample()
+                    sample.run = run
+                    sample.test = test
+                    samples.append(sample)
+                    all_samples.append(sample)
+                for sample, value in zip(samples, values):
+                    sample.set_field(field, value)
+
+        session.add_all(all_samples)
+
+    def importABDataFromDict(self, session, data):
+        """Import a report into ABRun/ABSample tables.
+
+        No order or regression tracking is performed.
+        """
+        machine = self._getOrCreateMachine(session, data['machine'], 'match')
+        run = self._importABRun(session, data['run'], machine)
+        self._importABSampleValues(session, data['tests'], run)
+        return run
+
     # Simple query support (mostly used by templates)
 
     def machines(self, session, name=None):
