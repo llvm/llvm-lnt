@@ -24,6 +24,14 @@ export function machineColor(index: number): string {
   return PLOTLY_COLORS[index % PLOTLY_COLORS.length];
 }
 
+/** Colors for comparison row statuses, shared across chart and summary bar. */
+export const STATUS_COLORS: Record<string, string> = {
+  improved: '#2ca02c',
+  regressed: '#d62728',
+  noise: '#999999',
+  unchanged: '#999999',
+};
+
 export function median(values: number[]): number {
   if (values.length === 0) return 0;
   const sorted = [...values].sort((a, b) => a - b);

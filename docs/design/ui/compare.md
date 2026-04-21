@@ -61,8 +61,10 @@ Global controls (shared across both sides):
     filtering out measurements too small to be meaningful."
 
   Edge-case behavior for noise classification:
-  - **Identical values**: when delta is exactly zero, the test is always
-    classified as noise regardless of which knobs are enabled or disabled.
+  - **Identical values**: when delta is exactly zero and a noise knob catches
+    it (e.g., the Delta % knob with any threshold >= 0%), the test is classified
+    as noise with a noise reason. When no noise knob fires (all knobs disabled),
+    the test is classified as `unchanged`.
   - **Zero variance (p-value knob)**: when both sides have zero variance and
     equal means, the p-value cannot be computed and the knob is skipped. When
     both sides have zero variance but different means, the change is
@@ -125,6 +127,40 @@ Interactivity:
 - **Zoom preservation**: changing noise filtering knobs, aggregation functions, text filter, or toggling row visibility preserves the current chart zoom. The user can double-click the chart to reset zoom.
 - **Adaptive tick labels on zoom**: tick labels recompute dynamically when the user zooms -- zooming into a narrow range shows fine-grained percentage ticks (+/-1%, +/-2%), while the full view shows coarser ticks (+/-50%, +/-100%). Double-click reset restores ticks for the full data range.
 - **Empty state**: when there is no data to chart (no comparison triggered yet, or no tests match), the chart area displays "No data to chart." -- consistent with the Graph page's empty-state pattern.
+
+
+### Comparison Summary Bar
+
+A horizontal summary bar between the chart and the comparison table shows the
+count and percentage of tests in each status category:
+
+| Category   | Counts rows where                          | Dot color |
+|------------|--------------------------------------------|-----------|
+| Improved   | `status === 'improved'`                    | `#2ca02c` |
+| Regressed  | `status === 'regressed'`                   | `#d62728` |
+| Noise      | `status === 'noise'`                       | `#999999` |
+| Unchanged  | `status === 'unchanged'`                   | `#999999` |
+| Only in A  | `sidePresent === 'a_only'`                 | `#888888` |
+| Only in B  | `sidePresent === 'b_only'`                 | `#888888` |
+| N/A        | `status === 'na'`                          | `#888888` |
+
+Each category shows a colored dot, label, and "count (pct%)" where percentage
+is `Math.round(count / total * 100)` displayed as an integer. The denominator
+is the sum of all categories in the filtered set, so percentages always sum
+to ~100% (integer rounding may cause minor drift).
+
+**Filtering behavior**: the summary bar respects the text filter and chart zoom
+(counts reflect only tests visible in those filters). It does NOT respect the
+"Hide noise" toggle -- noise and unchanged tests are always counted. This
+ensures the user can see the full status breakdown even when noise rows are
+hidden from the table and chart. The source of truth is the full comparison
+result (`lastRows`), filtered by text filter and chart zoom.
+
+**Zero-count categories**: shown with reduced opacity (0.5) for visual muting
+rather than hidden, providing layout stability.
+
+**Empty state**: when no comparison data exists (total = 0), the summary bar
+renders nothing (empty container).
 
 
 ### Bidirectional Chart-Table Sync

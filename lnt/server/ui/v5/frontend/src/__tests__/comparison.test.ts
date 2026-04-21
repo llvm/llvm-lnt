@@ -432,7 +432,7 @@ describe('computeComparison — noise boundary edge cases', () => {
     expect(rows[0].status).toBe('noise');
   });
 
-  it('delta=0 is noise regardless of noise threshold', () => {
+  it('delta=0 is noise when pct knob is enabled', () => {
     const mapA = new Map([['foo', 50]]);
     const mapB = new Map([['foo', 50]]);
 
@@ -626,13 +626,12 @@ describe('computeComparison — multi-knob noise', () => {
     expect(rows[0].noiseReasons).toEqual([]);
   });
 
-  it('all knobs disabled: delta=0 is still noise (explicit guard)', () => {
+  it('all knobs disabled: delta=0 is unchanged', () => {
     const mapA = new Map([['foo', 42]]);
     const mapB = new Map([['foo', 42]]);
     const rows = computeComparison(mapA, mapB, true, allDisabled());
-    expect(rows[0].status).toBe('noise');
+    expect(rows[0].status).toBe('unchanged');
     expect(rows[0].delta).toBe(0);
-    // noiseReasons is empty because no knob fired — the delta=0 guard catches it
     expect(rows[0].noiseReasons).toEqual([]);
   });
 

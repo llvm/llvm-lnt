@@ -329,7 +329,7 @@ export function computeComparison(
     if (noiseReasons.length > 0) {
       status = 'noise';
     } else if (delta === 0) {
-      status = 'noise';
+      status = 'unchanged';
     } else if (biggerIsBetter) {
       status = delta > 0 ? 'improved' : 'regressed';
     } else {

@@ -1,7 +1,7 @@
 import type { ComparisonRow } from './types';
 import { CHART_ZOOM, CHART_HOVER } from './events';
 import { getState } from './state';
-import { el } from './utils';
+import { el, STATUS_COLORS } from './utils';
 
 /** Candidate "nice" percentage values for the positive side (B > A). */
 const NICE_PCTS_POS = [
@@ -138,14 +138,9 @@ export function prepareChartData(
   const y = plottable.map(r => Math.log2(r.ratio!));  // log₂ scale: symmetric for equal multiplicative changes
 
   // Colors by status
-  const colors = plottable.map(r => {
-    switch (r.status) {
-      case 'improved': return '#2ca02c';
-      case 'regressed': return '#d62728';
-      case 'noise': return '#999999';
-      default: return '#1f77b4';
-    }
-  });
+  const colors = plottable.map(r =>
+    STATUS_COLORS[r.status] ?? '#1f77b4',
+  );
 
   const customdata = plottable.map(r => [
     r.test,

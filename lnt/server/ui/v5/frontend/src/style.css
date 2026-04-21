@@ -447,6 +447,51 @@ dl {
   text-align: center;
 }
 
+/* Comparison Summary Bar */
+.comparison-summary-container {
+  margin: 8px 0 12px;
+}
+
+.comparison-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 8px 12px;
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.summary-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.summary-item-zero {
+  opacity: 0.5;
+}
+
+.summary-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.summary-label {
+  font-weight: 600;
+  color: #495057;
+}
+
+.summary-count {
+  color: #666;
+  font-variant-numeric: tabular-nums;
+}
+
 /* Table Controls */
 .table-controls {
   display: flex;

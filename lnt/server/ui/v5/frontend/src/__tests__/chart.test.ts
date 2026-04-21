@@ -118,7 +118,7 @@ describe('prepareChartData', () => {
     expect(colorByTest.get('imp')).toBe('#2ca02c');      // improved = green
     expect(colorByTest.get('reg')).toBe('#d62728');       // regressed = red
     expect(colorByTest.get('noi')).toBe('#999999');       // noise = grey
-    expect(colorByTest.get('unc')).toBe('#1f77b4');       // unchanged/other = blue
+    expect(colorByTest.get('unc')).toBe('#999999');       // unchanged = grey
   });
 
   it('computes y values as log2(ratio)', () => {

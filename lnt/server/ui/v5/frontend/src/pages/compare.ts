@@ -30,6 +30,7 @@ import {
 } from '../comparison';
 import { renderTable, filterToTests, highlightRow, resetTable } from '../table';
 import { renderChart, highlightPoint, destroyChart } from '../chart';
+import { computeSummaryCounts, renderSummaryBar } from '../components/comparison-summary';
 import { el, truncate, debounce } from '../utils';
 
 /** Cleanup functions for document-level event listeners. */
@@ -67,9 +68,11 @@ export const comparePage: PageModule = {
     const chartContainer = el('div', { class: 'chart-container' },
       el('p', { class: 'no-chart-data' }, 'No data to chart.'),
     );
+    const summaryContainer = el('div', { class: 'comparison-summary-container' });
     const tableContainer = el('div', { class: 'table-container' });
 
     let lastRows: ComparisonRow[] = [];
+    let chartZoomFilter: Set<string> | null = null;
 
     // ----- Compute noise-hidden set, visible tests, and render -----
 
@@ -150,6 +153,12 @@ export const comparePage: PageModule = {
       return cachedProfileLinks;
     }
 
+    function updateSummaryBar(): void {
+      const state = getState();
+      const counts = computeSummaryCounts(lastRows, state.testFilter, chartZoomFilter);
+      renderSummaryBar(summaryContainer, counts);
+    }
+
     function renderTableAndChart(): void {
       const noiseHidden = computeNoiseHidden();
       tableRows = lastRows.filter(r => !noiseHidden.has(r.test));
@@ -191,6 +200,7 @@ export const comparePage: PageModule = {
         },
       });
       renderChart(chartContainer, chartRows, true);
+      updateSummaryBar();
       if (onAfterRender) onAfterRender();
     }
 
@@ -348,7 +358,7 @@ export const comparePage: PageModule = {
     container.append(selectionContainer);
     renderSelectionPanel(selectionContainer);
 
-    container.append(progressContainer, errorContainer, chartContainer, tableContainer);
+    container.append(progressContainer, errorContainer, chartContainer, summaryContainer, tableContainer);
 
     // ----- "Add to Regression" panel -----
     const hasToken = !!getToken();
@@ -587,7 +597,9 @@ export const comparePage: PageModule = {
     // Wire event listeners (all return cleanup functions)
     eventCleanups.push(
       onCustomEvent<Set<string> | null>(CHART_ZOOM, (tests) => {
+        chartZoomFilter = tests;
         filterToTests(tests);
+        updateSummaryBar();
       }),
       onCustomEvent<string | null>(CHART_HOVER, (testName) => {
         highlightRow(testName);

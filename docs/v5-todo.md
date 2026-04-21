@@ -66,7 +66,7 @@
   data appears to be used regardless of aggregation).
 - [ ] On the S curve, experiment with graying out tests that have a high
   p-value.
-- [ ] Display the percentage of tests that are faster/slower/noise on the graph.
+- [x] Display the percentage of tests that are faster/slower/noise on the graph.
 - [ ] Understand how to surface tests with high vs. low confidence when multiple
   samples are present.
 
