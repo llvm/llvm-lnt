@@ -29,39 +29,20 @@
 (function() {
   var points = {{ points | tojson }};
 
-  var x = points.map(function(p, i) { return i + 1; });
-  var y = points.map(function(p) { return p.pct_delta * 100; });
+  var y     = points.map(function(p) { return p.pct_delta * 100; });
   var names = points.map(function(p) { return p.name; });
 
   var trace = {
-    x: x,
+    x: names,
     y: y,
-    text: names,
-    mode: 'markers+lines',
-    type: 'scatter',
-    marker: {
-      size: 8,
-      color: y,
-      colorscale: [
-        [0.0, 'rgb(233,128,128)'],
-        [0.5, 'rgb(255,255,255)'],
-        [1.0, 'rgb(143,223,95)']
-      ],
-      reversescale: true,
-      cmin: -Math.max(Math.abs(Math.min.apply(null, y)),
-                      Math.abs(Math.max.apply(null, y))),
-      cmax:  Math.max(Math.abs(Math.min.apply(null, y)),
-                      Math.abs(Math.max.apply(null, y))),
-      showscale: true,
-      colorbar: { title: '% change', ticksuffix: '%' }
-    },
-    line: { color: '#aaa', width: 1 },
-    hovertemplate: '<b>%{text}</b><br>rank %{x}<br>%{y:.2f}%<extra></extra>'
+    type: 'bar',
+    marker: { color: '#337ab7' },
+    hovertemplate: '<b>%{x}</b><br>%{y:.2f}%<extra></extra>'
   };
 
   var zero_line = {
-    x: [1, points.length],
-    y: [0, 0],
+    x: names,
+    y: new Array(points.length).fill(0),
     mode: 'lines',
     type: 'scatter',
     line: { color: '#333', width: 1, dash: 'dot' },
@@ -71,9 +52,7 @@
 
   var layout = {
     xaxis: {
-      title: 'Benchmark rank (sorted by % change)',
-      tickmode: 'linear',
-      dtick: Math.max(1, Math.floor(points.length / 20))
+      tickangle: -90
     },
     yaxis: {
       title: '% change (variant vs. control)',
@@ -81,7 +60,8 @@
       zeroline: false
     },
     hovermode: 'closest',
-    margin: { t: 20, r: 20 }
+    showlegend: false,
+    margin: { t: 20, r: 20, b: 400 }
   };
 
   Plotly.newPlot('scurve-plot', [zero_line, trace], layout,
