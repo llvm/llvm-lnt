@@ -419,3 +419,29 @@ class RunInfo(object):
                 self.profile_map[(run_id, test_id)] = profile_id
 
         self.loaded_run_ids |= to_load
+
+
+class ABRunInfo(RunInfo):
+    """Like RunInfo but queries ABSample instead of Sample.
+
+    Uses getattr(ts.ABSample, f.name) to reference columns rather than
+    f.column, which points to the Sample table.
+    """
+
+    def _load_samples_for_runs(self, session, run_ids, only_tests):
+        to_load = set(run_ids) - self.loaded_run_ids
+        if not to_load:
+            return
+
+        ABSample = self.testsuite.ABSample
+        columns = [ABSample.run_id, ABSample.test_id]
+        columns.extend(
+            getattr(ABSample, f.name) for f in self.testsuite.sample_fields)
+        q = session.query(*columns)
+        if only_tests:
+            q = q.filter(ABSample.test_id.in_(only_tests))
+        q = q.filter(ABSample.run_id.in_(to_load))
+        for (run_id, test_id, *sample_values) in q:
+            self.sample_map[(run_id, test_id)] = sample_values
+
+        self.loaded_run_ids |= to_load

@@ -2,6 +2,7 @@ from . import upgrade_0_to_1
 from . import upgrade_2_to_3
 from . import upgrade_7_to_8
 from . import upgrade_8_to_9
+from . import upgrade_18_to_19
 
 
 def init_new_testsuite(engine, session, name):
@@ -16,4 +17,7 @@ def init_new_testsuite(engine, session, name):
     upgrade_7_to_8.upgrade_testsuite(engine, session, name)
     session.commit()
     upgrade_8_to_9.upgrade_testsuite(engine, session, name)
+    session.commit()
+    ts_defn = session.query(upgrade_0_to_1.TestSuite).filter_by(name=name).first()
+    upgrade_18_to_19.upgrade_testsuite(engine, ts_defn.db_key_name)
     session.commit()
