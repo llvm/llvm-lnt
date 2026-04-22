@@ -62,6 +62,20 @@
   local run.
 - [ ] Understand how to surface tests with high vs. low confidence when multiple
   samples are present.
+- [ ] Fix: chart zoom filter leaks — tests outside the visible x-axis range
+  after zooming still appear in the comparison table.
+- [ ] Add a "View on Graph" link per test row that navigates to the Graph page
+  pre-populated with the test, machines from both sides, and the current metric.
+- [ ] Fix: "Add to Existing Regression" search is not a proper dropdown —
+  selecting a regression from the candidate list does not collapse the list.
+
+## UI — Regression Detail Page
+
+- [ ] Add a search/filter for indicators (e.g. by test name) to check whether
+  a specific test is involved in a regression.
+- [ ] Show an indicator summary count
+  (e.g. "X tests across Y machines across Z metrics").
+- [ ] Fix: the test suite schema appears to be fetched twice.
 
 ## UI — Graph Page
 
