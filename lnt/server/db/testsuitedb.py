@@ -13,7 +13,7 @@ import itertools
 import aniso8601
 import sqlalchemy
 import flask
-from sqlalchemy import Float, String, Integer, Column, ForeignKey, Binary, DateTime
+from sqlalchemy import Float, String, Integer, Column, ForeignKey, Binary, Boolean, DateTime
 from sqlalchemy.orm import relation
 from sqlalchemy.orm.exc import ObjectDeletedError
 from lnt.util import logger
@@ -756,6 +756,81 @@ class TestSuiteDB(object):
             def __str__(self):
                 return "Baseline({})".format(self.name)
 
+        # A/B testing tables.  ABRun intentionally omits order_id so that A/B
+        # runs never participate in trend analysis or FieldChange/Regression
+        # detection.
+
+        class ABRun(self.base, ParameterizedMixin):
+            __tablename__ = db_key_name + '_ABRun'
+
+            fields = self.run_fields
+            id = Column("ID", Integer, primary_key=True)
+            machine_id = Column("MachineID", Integer, ForeignKey(Machine.id),
+                                index=True)
+            start_time = Column("StartTime", DateTime)
+            end_time = Column("EndTime", DateTime)
+            parameters_data = Column("Parameters", Binary, index=False,
+                                     unique=False)
+
+            machine = relation(Machine)
+
+            # Dynamic run-field columns.  Create fresh Column objects rather
+            # than reusing item.column, which points to the Run table.
+            class_dict = locals()
+            for item in fields:
+                class_dict[item.name] = testsuite.make_run_column(item.name)
+
+            @property
+            def parameters(self):
+                return dict(json.loads(self.parameters_data))
+
+            @parameters.setter
+            def parameters(self, data):
+                self.parameters_data = json.dumps(
+                    sorted(data.items())).encode("utf-8")
+
+        class ABSample(self.base, ParameterizedMixin):
+            __tablename__ = db_key_name + '_ABSample'
+
+            fields = self.sample_fields
+            id = Column("ID", Integer, primary_key=True)
+            run_id = Column("RunID", Integer, ForeignKey(ABRun.id), index=True)
+            test_id = Column("TestID", Integer, ForeignKey(Test.id),
+                             index=True)
+
+            run = relation(ABRun)
+            test = relation(Test)
+
+            # Dynamic sample-field columns.  Create fresh Column objects rather
+            # than reusing item.column, which points to the Sample table.
+            class_dict = locals()
+            for item in fields:
+                class_dict[item.name] = testsuite.make_sample_column(
+                    item.name, item.type.name)
+
+        ABRun.ab_samples = relation(ABSample, back_populates='run',
+                                    cascade="all, delete-orphan")
+
+        class ABExperiment(self.base, ParameterizedMixin):
+            __tablename__ = db_key_name + '_ABExperiment'
+
+            fields = []
+            id = Column("ID", Integer, primary_key=True)
+            name = Column("Name", String(256))
+            created_time = Column("CreatedTime", DateTime)
+            extra = Column("Extra", String)
+            pinned = Column("Pinned", Boolean, default=False)
+
+            # Two FK references to ABRun; foreign_keys disambiguates them.
+            control_run_id = Column("ControlRunID", Integer,
+                                    ForeignKey(ABRun.id))
+            variant_run_id = Column("VariantRunID", Integer,
+                                    ForeignKey(ABRun.id))
+            control_run = relation(ABRun,
+                                   foreign_keys=[control_run_id])
+            variant_run = relation(ABRun,
+                                   foreign_keys=[variant_run_id])
+
         self.Machine = Machine
         self.Run = Run
         self.Test = Test
@@ -767,10 +842,15 @@ class TestSuiteDB(object):
         self.RegressionIndicator = RegressionIndicator
         self.ChangeIgnore = ChangeIgnore
         self.Baseline = Baseline
+        self.ABRun = ABRun
+        self.ABSample = ABSample
+        self.ABExperiment = ABExperiment
 
         # Create the compound index we cannot declare inline.
         sqlalchemy.schema.Index("ix_%s_Sample_RunID_TestID" % db_key_name,
                                 Sample.run_id, Sample.test_id)
+        sqlalchemy.schema.Index("ix_%s_ABSample_RunID_TestID" % db_key_name,
+                                ABSample.run_id, ABSample.test_id)
 
     def create_tables(self, engine):
         self.base.metadata.create_all(engine)
@@ -1123,6 +1203,99 @@ class TestSuiteDB(object):
                                            select_machine)
         run = self._getOrCreateRun(session, data['run'], machine, merge_run)
         self._importSampleValues(session, data['tests'], run, config)
+        return run
+
+    def _importABRun(self, session, run_data, machine):
+        """Create and insert an ABRun for the given machine.
+
+        No order tracking is performed; A/B runs are isolated from trend
+        analysis and regression detection.
+        """
+        run_parameters = run_data.copy()
+        run_parameters.pop('id', None)
+        run_parameters.pop('order_by', None)
+        run_parameters.pop('order_id', None)
+        run_parameters.pop('machine_id', None)
+
+        start_time_str = run_parameters.pop('start_time', None)
+        if start_time_str:
+            try:
+                start_time = aniso8601.parse_datetime(start_time_str)
+            except ValueError:
+                start_time = datetime.datetime.strptime(start_time_str,
+                                                        "%Y-%m-%d %H:%M:%S")
+        else:
+            start_time = None
+
+        end_time_str = run_parameters.pop('end_time', None)
+        if end_time_str:
+            try:
+                end_time = aniso8601.parse_datetime(end_time_str)
+            except ValueError:
+                end_time = datetime.datetime.strptime(end_time_str,
+                                                      "%Y-%m-%d %H:%M:%S")
+        else:
+            end_time = None
+
+        run = self.ABRun()
+        run.machine = machine
+        run.start_time = start_time
+        run.end_time = end_time
+        for item in self.run_fields:
+            value = run_parameters.pop(item.name, None)
+            run.set_field(item, value)
+        run.parameters = run_parameters
+        session.add(run)
+        return run
+
+    def _importABSampleValues(self, session, tests_data, run):
+        """Create ABSample rows for the given tests data and ABRun.
+
+        Mirrors _importSampleValues but creates ABSample objects and skips
+        profile handling.
+        """
+        test_cache = dict((test.name, test)
+                          for test in session.query(self.Test))
+        field_dict = dict([(f.name, f) for f in self.sample_fields])
+        all_samples = []
+
+        for test_data in tests_data:
+            name = test_data['name']
+            test = test_cache.get(name)
+            if test is None:
+                test = self.Test(test_data['name'])
+                test_cache[name] = test
+                session.add(test)
+
+            samples = []
+            for key, values in test_data.items():
+                if key == 'name' or key == 'id' or key.endswith('_id'):
+                    continue
+                field = field_dict.get(key)
+                if field is None:
+                    raise ValueError("test %s: Metric %r unknown in suite" %
+                                     (name, key))
+                if not isinstance(values, list):
+                    values = [values]
+                while len(samples) < len(values):
+                    sample = self.ABSample()
+                    sample.run = run
+                    sample.test = test
+                    samples.append(sample)
+                    all_samples.append(sample)
+                for sample, value in zip(samples, values):
+                    sample.set_field(field, value)
+
+        session.add_all(all_samples)
+
+    def importABDataFromDict(self, session, data):
+        """Import a report into ABRun/ABSample tables.
+
+        No order or regression tracking is performed.
+        """
+        machine = self._getOrCreateMachine(session, data['machine'], 'match')
+        run = self._importABRun(session, data['run'], machine)
+        self._importABSampleValues(session, data['tests'], run)
         return run
 
     # Simple query support (mostly used by templates)
