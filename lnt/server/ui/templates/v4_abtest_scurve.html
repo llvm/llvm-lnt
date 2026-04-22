@@ -1,0 +1,113 @@
+{% import "utils.html" as utils %}
+
+{% extends "layout.html" %}
+{% set components = [(ts.name, v4_url_for(".v4_recent_activity")),
+                     ("A/B Experiments", v4_url_for(".v4_abtests")),
+                     (exp.name or ('Experiment #' ~ exp.id),
+                      v4_url_for(".v4_abtest", id=exp.id)),
+                     ("S-Curve", v4_url_for(".v4_abtest_scurve", id=exp.id))] %}
+{% block title %}S-Curve: {{ exp.name or exp.id }}{% endblock %}
+
+{% block head %}
+  <script src="{{ url_for('.static', filename='plotly/plotly-2.6.3.min.js') }}"></script>
+{% endblock %}
+
+{% block body %}
+
+<h3>
+  S-Curve &mdash; {{ exp.name or '(unnamed experiment)' }}
+  <small>#{{ exp.id }}</small>
+</h3>
+<p>
+  <a href="{{ v4_url_for('.v4_abtest', id=exp.id) }}">&larr; Back to experiment</a>
+</p>
+
+{% if points %}
+<div id="scurve-plot" style="width:100%; height:500px;"></div>
+
+<script>
+(function() {
+  var points = {{ points | tojson }};
+
+  var x = points.map(function(p, i) { return i + 1; });
+  var y = points.map(function(p) { return p.pct_delta * 100; });
+  var names = points.map(function(p) { return p.name; });
+
+  var trace = {
+    x: x,
+    y: y,
+    text: names,
+    mode: 'markers+lines',
+    type: 'scatter',
+    marker: {
+      size: 8,
+      color: y,
+      colorscale: [
+        [0.0, 'rgb(233,128,128)'],
+        [0.5, 'rgb(255,255,255)'],
+        [1.0, 'rgb(143,223,95)']
+      ],
+      reversescale: true,
+      cmin: -Math.max(Math.abs(Math.min.apply(null, y)),
+                      Math.abs(Math.max.apply(null, y))),
+      cmax:  Math.max(Math.abs(Math.min.apply(null, y)),
+                      Math.abs(Math.max.apply(null, y))),
+      showscale: true,
+      colorbar: { title: '% change', ticksuffix: '%' }
+    },
+    line: { color: '#aaa', width: 1 },
+    hovertemplate: '<b>%{text}</b><br>rank %{x}<br>%{y:.2f}%<extra></extra>'
+  };
+
+  var zero_line = {
+    x: [1, points.length],
+    y: [0, 0],
+    mode: 'lines',
+    type: 'scatter',
+    line: { color: '#333', width: 1, dash: 'dot' },
+    showlegend: false,
+    hoverinfo: 'skip'
+  };
+
+  var layout = {
+    xaxis: {
+      title: 'Benchmark rank (sorted by % change)',
+      tickmode: 'linear',
+      dtick: Math.max(1, Math.floor(points.length / 20))
+    },
+    yaxis: {
+      title: '% change (variant vs. control)',
+      ticksuffix: '%',
+      zeroline: false
+    },
+    hovermode: 'closest',
+    margin: { t: 20, r: 20 }
+  };
+
+  Plotly.newPlot('scurve-plot', [zero_line, trace], layout,
+                 {responsive: true, displayModeBar: true});
+})();
+</script>
+
+<h4>Selected benchmarks ({{ points | length }})</h4>
+<table class="table table-striped table-condensed table-hover">
+  <thead>
+    <tr><th>Rank</th><th>Benchmark</th><th>&#916;</th></tr>
+  </thead>
+  <tbody>
+  {% for p in points %}
+    <tr>
+      <td class="right">{{ loop.index }}</td>
+      <td>{{ p.name }}</td>
+      {{ p.pct_delta|aspctcell(reverse=p.bigger_is_better)|safe }}
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+{% else %}
+<p>No benchmarks selected. <a href="{{ v4_url_for('.v4_abtest', id=exp.id) }}">Go back</a>
+   and check the boxes next to the benchmarks you want to plot.</p>
+{% endif %}
+
+{% endblock %}
