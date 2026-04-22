@@ -987,4 +987,40 @@ describe('createCommitPicker with displayMap', () => {
 
     picker.element.remove();
   });
+
+  it('sets display value in input after click selection', () => {
+    const picker = createCommitPicker({
+      id: 'click-display-test',
+      getCommitData: () => ({ values: COMMIT_VALUES_DM, displayMap: DISPLAY_MAP }),
+      onSelect: () => {},
+    });
+    document.body.append(picker.element);
+
+    picker.input.dispatchEvent(new Event('focus'));
+    const items = picker.element.querySelectorAll('.combobox-item');
+    (items[0] as HTMLElement).click();
+
+    expect(picker.input.value).toBe('v1.0');
+
+    picker.element.remove();
+  });
+
+  it('setValue resolves display value from current displayMap', () => {
+    let displayMap: Map<string, string> | undefined;
+    const picker = createCommitPicker({
+      id: 'setvalue-test',
+      getCommitData: () => ({ values: ['abc123'], displayMap }),
+      onSelect: () => {},
+    });
+    document.body.append(picker.element);
+
+    picker.setValue('abc123');
+    expect(picker.input.value).toBe('abc123');
+
+    displayMap = new Map([['abc123', 'v1.0 (tag)']]);
+    picker.setValue('abc123');
+    expect(picker.input.value).toBe('v1.0 (tag)');
+
+    picker.element.remove();
+  });
 });

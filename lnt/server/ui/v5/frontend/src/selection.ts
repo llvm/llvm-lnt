@@ -6,6 +6,7 @@ import { getState, setSideA, setSideB, setState, setNoiseConfig, swapSides } fro
 import { debounce, el, commitDisplayValue } from './utils';
 import {
   createCommitCombobox, createMachineCombobox, resetComboboxState,
+  refreshCommitDisplay,
   type ComboboxContext,
 } from './combobox';
 import { renderMetricSelector, renderEmptyMetricSelector, filterMetricFields } from './components/metric-selector';
@@ -288,6 +289,8 @@ export async function fetchSideData(
     // Check for staleness
     const currentVersion = side === 'a' ? suiteLoadVersionA : suiteLoadVersionB;
     if (version !== currentVersion) return;
+
+    refreshCommitDisplay(side, getSideState(side).selection.commit);
 
     if (side === 'a') {
       cachedFieldsA = fields;

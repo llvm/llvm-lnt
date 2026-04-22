@@ -2,9 +2,9 @@ import type { SideSelection, MachineInfo } from './types';
 import { getMachines } from './api';
 import { el } from './utils';
 
-// Per-side commit input references for enabling/disabling from machine combobox
-let commitInputA: HTMLInputElement | null = null;
-let commitInputB: HTMLInputElement | null = null;
+// Per-side commit picker references for enabling/disabling from machine combobox
+let commitPickerA: CommitPickerHandle | null = null;
+let commitPickerB: CommitPickerHandle | null = null;
 
 /** Shared state that the combobox module reads but does not own. */
 export interface ComboboxContext {
@@ -26,8 +26,15 @@ export interface ComboboxContext {
 
 /** Reset per-panel mutable state.  Call this at the start of renderSelectionPanel. */
 export function resetComboboxState(): void {
-  commitInputA = null;
-  commitInputB = null;
+  commitPickerA = null;
+  commitPickerB = null;
+}
+
+/** Re-resolve the commit picker's display value (e.g. after commitFieldsCache is populated). */
+export function refreshCommitDisplay(side: 'a' | 'b', rawCommit: string): void {
+  const picker = side === 'a' ? commitPickerA : commitPickerB;
+  if (!picker || !rawCommit) return;
+  picker.setValue(rawCommit);
 }
 
 /** Set the commit input to one of three states: no machine selected, loading commits, or ready. */
@@ -111,6 +118,7 @@ export interface CommitPickerOptions {
 export interface CommitPickerHandle {
   element: HTMLElement;
   input: HTMLInputElement;
+  setValue: (raw: string) => void;
   destroy: () => void;
 }
 
@@ -139,9 +147,14 @@ export function createCommitPicker(opts: CommitPickerOptions): CommitPickerHandl
   // Keyboard navigation
   setupComboboxKeyboard(input, dropdown, wrapper);
 
-  // Set initial value
+  function resolveDisplay(raw: string): string {
+    const { displayMap } = opts.getCommitData();
+    return displayMap?.get(raw) ?? raw;
+  }
+
+  // Set initial value (display map may not be loaded yet — falls back to raw)
   if (opts.initialValue) {
-    input.value = opts.initialValue;
+    input.value = resolveDisplay(opts.initialValue);
   }
 
   function showDropdown(filter: string): void {
@@ -161,7 +174,7 @@ export function createCommitPicker(opts: CommitPickerOptions): CommitPickerHandl
       const displayText = displayMap?.get(v) ?? v;
       const li = el('li', { class: 'combobox-item', role: 'option', tabindex: '-1' }, displayText);
       li.addEventListener('click', () => {
-        input.value = v;
+        input.value = displayText;
         input.classList.remove('combobox-invalid');
         dropdown.classList.remove('open');
         setAriaExpanded(wrapper, false);
@@ -224,6 +237,7 @@ export function createCommitPicker(opts: CommitPickerOptions): CommitPickerHandl
   return {
     element: wrapper,
     input,
+    setValue: (raw: string) => { input.value = resolveDisplay(raw); },
     destroy: () => { /* no internal fetches to abort */ },
   };
 }
@@ -255,8 +269,8 @@ export function createCommitCombobox(
   });
 
   // Store refs for createMachineCombobox interaction
-  if (side === 'a') commitInputA = picker.input;
-  else commitInputB = picker.input;
+  if (side === 'a') commitPickerA = picker;
+  else commitPickerB = picker;
 
   // Disable commit input until a machine is selected.
   // When machine is set (URL-restored), commits are being fetched by the
@@ -305,9 +319,10 @@ export function createMachineCombobox(
     // by createCommitCombobox), so use a null-check on completion.
     ctx.fetchCommitsForMachine(side, selection.machine)
       .then(() => {
-        const commitInput = side === 'a' ? commitInputA : commitInputB;
+        const picker = side === 'a' ? commitPickerA : commitPickerB;
         const { selection: updated } = ctx.getSideState(side);
-        setCommitInputState(commitInput, 'ready', updated.commit || '');
+        setCommitInputState(picker?.input ?? null, 'ready');
+        if (updated.commit) picker?.setValue(updated.commit);
       })
       .catch(() => {});
   }
@@ -315,8 +330,8 @@ export function createMachineCombobox(
   async function onMachineSelect(name: string): Promise<void> {
     setSide({ machine: name });
 
-    const commitInput = side === 'a' ? commitInputA : commitInputB;
-    setCommitInputState(commitInput, 'loading');
+    const picker = side === 'a' ? commitPickerA : commitPickerB;
+    setCommitInputState(picker?.input ?? null, 'loading');
 
     await ctx.fetchCommitsForMachine(side, name);
 
@@ -327,7 +342,9 @@ export function createMachineCombobox(
       setSide({ commit: '' });
     }
     const { selection: updated } = ctx.getSideState(side);
-    setCommitInputState(commitInput, 'ready', updated.commit || '');
+    setCommitInputState(picker?.input ?? null, 'ready');
+    if (updated.commit) picker?.setValue(updated.commit);
+    else if (picker) picker.input.value = '';
     onMachineChange();
   }
 
@@ -417,7 +434,8 @@ export function createMachineCombobox(
     if (!text) {
       // Machine cleared — reset downstream state and disable commit
       setSide({ machine: '', commit: '', runs: [] });
-      setCommitInputState(side === 'a' ? commitInputA : commitInputB, 'no-machine', '');
+      const picker = side === 'a' ? commitPickerA : commitPickerB;
+      setCommitInputState(picker?.input ?? null, 'no-machine', '');
       input.classList.remove('combobox-invalid');
       onMachineChange();
       return;
