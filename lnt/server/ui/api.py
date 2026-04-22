@@ -1,3 +1,4 @@
+import datetime
 import lnt.util.ImportData
 import re
 import yaml
@@ -9,6 +10,7 @@ from flask_restful import Resource, abort
 from sqlalchemy.orm import joinedload
 from sqlalchemy.orm.exc import NoResultFound
 
+from lnt.server.reporting.analysis import ABRunInfo
 from lnt.server.ui.util import convert_revision
 from lnt.server.ui.decorators import in_db
 from lnt.testing import PASS
@@ -589,6 +591,143 @@ class Regression(Resource):
         return results
 
 
+def _ab_exp_to_dict(exp):
+    return {
+        'id': exp.id,
+        'name': exp.name,
+        'created_time': str(exp.created_time),
+        'pinned': exp.pinned,
+        'control_run_id': exp.control_run_id,
+        'variant_run_id': exp.variant_run_id,
+    }
+
+
+class ABTests(Resource):
+    """List or create A/B experiments for a test suite."""
+    method_decorators = [in_db]
+
+    @staticmethod
+    @requires_auth_token
+    def post():
+        """Submit control and variant reports and create an ABExperiment."""
+        session = request.session
+        ts = request.get_testsuite()
+        body = request.get_json(force=True)
+        if body is None:
+            abort(400, msg="Request body must be JSON.")
+        for key in ('control', 'variant'):
+            if key not in body:
+                abort(400, msg="Missing required field: %r" % key)
+        control_run = ts.importABDataFromDict(session, body['control'])
+        session.flush()
+        variant_run = ts.importABDataFromDict(session, body['variant'])
+        session.flush()
+        exp = ts.ABExperiment()
+        exp.name = body.get('name', '')
+        exp.created_time = datetime.datetime.utcnow()
+        exp.control_run_id = control_run.id
+        exp.variant_run_id = variant_run.id
+        exp.pinned = bool(body.get('pinned', False))
+        session.add(exp)
+        session.commit()
+        new_url = ('%sapi/db_%s/v4/%s/abtest/%s' %
+                   (request.url_root, g.db_name, g.testsuite_name, exp.id))
+        result = _ab_exp_to_dict(exp)
+        result['url'] = new_url
+        response = jsonify(result)
+        response.status = '201'
+        response.headers.add('Location', new_url)
+        return response
+
+    @staticmethod
+    def get():
+        """List A/B experiments, optionally filtered by pinned status."""
+        session = request.session
+        ts = request.get_testsuite()
+        q = session.query(ts.ABExperiment).order_by(
+            ts.ABExperiment.created_time.desc())
+        pinned = request.args.get('pinned')
+        if pinned is not None:
+            q = q.filter(ts.ABExperiment.pinned == (pinned == 'true'))
+        limit = int(request.args.get('limit', 50))
+        offset = int(request.args.get('offset', 0))
+        exps = q.limit(limit).offset(offset).all()
+        return {'experiments': [_ab_exp_to_dict(e) for e in exps]}
+
+
+class ABTestDetail(Resource):
+    """Retrieve or update a single A/B experiment."""
+    method_decorators = [in_db]
+
+    @staticmethod
+    def get(abtest_id):
+        """Return the experiment metadata and per-test comparison results."""
+        session = request.session
+        ts = request.get_testsuite()
+        exp = session.query(ts.ABExperiment).filter_by(id=abtest_id).first()
+        if exp is None:
+            abort(404, msg="No such A/B experiment.")
+
+        control_run = session.query(ts.ABRun).filter_by(
+            id=exp.control_run_id).first()
+        variant_run = session.query(ts.ABRun).filter_by(
+            id=exp.variant_run_id).first()
+        if control_run is None or variant_run is None:
+            abort(404, msg="Experiment references a missing ABRun.")
+
+        sri = ABRunInfo(session, ts,
+                        [exp.control_run_id, exp.variant_run_id])
+        test_ids = sri.test_ids
+        test_rows = session.query(ts.Test.id, ts.Test.name).filter(
+            ts.Test.id.in_(test_ids)).all()
+        test_name_map = {tid: name for tid, name in test_rows}
+
+        metric_fields = [f for f in ts.sample_fields
+                         if f.type.name in ('Real', 'Integer')]
+
+        comparisons = []
+        for test_id in sorted(test_ids):
+            test_name = test_name_map.get(test_id, str(test_id))
+            for field in metric_fields:
+                cr = sri.get_run_comparison_result(
+                    variant_run, control_run, test_id, field, None)
+                if cr.current is None and cr.previous is None:
+                    continue
+                comparisons.append({
+                    'test_name': test_name,
+                    'field': field.name,
+                    'control': cr.previous,
+                    'variant': cr.current,
+                    'pct_delta': round(cr.pct_delta * 100, 4)
+                    if cr.pct_delta is not None else None,
+                    'status': cr.get_value_status(),
+                })
+
+        return {
+            'experiment': _ab_exp_to_dict(exp),
+            'comparisons': comparisons,
+        }
+
+    @staticmethod
+    @requires_auth_token
+    def patch(abtest_id):
+        """Update mutable fields (currently: pinned) of an ABExperiment."""
+        session = request.session
+        ts = request.get_testsuite()
+        exp = session.query(ts.ABExperiment).filter_by(id=abtest_id).first()
+        if exp is None:
+            abort(404, msg="No such A/B experiment.")
+        body = request.get_json(force=True)
+        if body is None:
+            abort(400, msg="Request body must be JSON.")
+        if 'pinned' in body:
+            exp.pinned = bool(body['pinned'])
+        if 'name' in body:
+            exp.name = body['name']
+        session.commit()
+        return _ab_exp_to_dict(exp)
+
+
 def ts_path(path):
     """Make a URL path with a database and test suite embedded in them."""
     return "/api/db_<string:db>/v4/<string:ts>/" + path
@@ -619,3 +758,5 @@ def load_api_resources(api):
     regression_url = \
         "regression/<int:machine_id>/<int:test_id>/<int:field_index>"
     api.add_resource(Regression, ts_path(regression_url))
+    api.add_resource(ABTests, ts_path("abtest"), ts_path("abtest/"))
+    api.add_resource(ABTestDetail, ts_path("abtest/<int:abtest_id>"))
