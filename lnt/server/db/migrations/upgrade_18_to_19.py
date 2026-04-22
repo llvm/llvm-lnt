@@ -7,7 +7,6 @@ This migration creates the AB tables with their dynamic run/sample field
 columns following the same column-type rules as upgrade_0_to_1.
 """
 
-import sqlalchemy
 from sqlalchemy import (Boolean, Column, DateTime, Float, ForeignKey, Integer,
                         LargeBinary, String, select)
 from sqlalchemy.orm import sessionmaker
