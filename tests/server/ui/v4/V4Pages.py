@@ -788,6 +788,93 @@ def main():
     check_html(client, f'/v4/nts/{profile_last_run["id"]}')
     check_html(client, f'/v4/nts/{failed_run["id"]}')
 
+    # A/B experiment list page (empty is fine).
+    check_html(client, '/db_default/v4/nts/abtests')
+
+    # Create an A/B experiment via the API and then check both web pages.
+    ab_body = json.dumps({
+        'name': 'v4pages-smoke',
+        'control': {
+            'machine': {'name': 'apple-m2-macmini', 'hardware': 'arm64',
+                        'os': 'macosx14.0'},
+            'run': {'start_time': '2024-01-01T00:00:00',
+                    'end_time': '2024-01-01T00:05:00'},
+            'tests': [{'name': 'CTMark/sqlite3/sqlite3.compile',
+                       'compile_time': 1.0}],
+        },
+        'variant': {
+            'machine': {'name': 'apple-m2-macmini', 'hardware': 'arm64',
+                        'os': 'macosx14.0'},
+            'run': {'start_time': '2024-01-01T00:10:00',
+                    'end_time': '2024-01-01T00:15:00'},
+            'tests': [{'name': 'CTMark/sqlite3/sqlite3.compile',
+                       'compile_time': 1.05}],
+        },
+    })
+    ab_resp = client.post('api/db_default/v4/nts/abtest',
+                          data=ab_body, content_type='application/json',
+                          headers={'AuthToken': 'test_token'})
+    assert ab_resp.status_code == 201, \
+        "AB experiment POST returned %d" % ab_resp.status_code
+    ab_id = json.loads(ab_resp.data)['id']
+    check_html(client, '/db_default/v4/nts/abtests')
+    check_html(client, '/db_default/v4/nts/abtest/%d' % ab_id)
+    check_code(client, '/db_default/v4/nts/abtest/99999',
+               expected_code=HTTP_NOT_FOUND)
+
+    # Pending experiments: neither, only-control, only-variant.
+    # All three detail pages must render without error (200, not 404/500).
+    def _post_abtest(body):
+        r = client.post('api/db_default/v4/nts/abtest',
+                        data=json.dumps(body),
+                        content_type='application/json',
+                        headers={'AuthToken': 'test_token'})
+        assert r.status_code == 201, \
+            "AB experiment POST returned %d" % r.status_code
+        return json.loads(r.data)['id']
+
+    def _post_run(exp_id, role, run_data):
+        r = client.post('api/db_default/v4/nts/abtest/%d/%s' % (exp_id, role),
+                        data=json.dumps(run_data),
+                        content_type='application/json',
+                        headers={'AuthToken': 'test_token'})
+        assert r.status_code == 200, \
+            "AB run POST (%s) returned %d" % (role, r.status_code)
+
+    _sample_run = {
+        'machine': {'name': 'apple-m2-macmini', 'hardware': 'arm64',
+                    'os': 'macosx14.0'},
+        'run': {'start_time': '2024-01-02T00:00:00',
+                'end_time': '2024-01-02T00:05:00'},
+        'tests': [{'name': 'CTMark/sqlite3/sqlite3.compile',
+                   'compile_time': 1.0}],
+    }
+
+    # Both runs missing.
+    pending_both = _post_abtest({'name': 'pending-both'})
+    check_html(client, '/db_default/v4/nts/abtest/%d' % pending_both)
+
+    # Only control submitted.
+    pending_variant = _post_abtest({'name': 'pending-variant'})
+    _post_run(pending_variant, 'control', _sample_run)
+    check_html(client, '/db_default/v4/nts/abtest/%d' % pending_variant)
+
+    # Only variant submitted.
+    pending_control = _post_abtest({'name': 'pending-control'})
+    _post_run(pending_control, 'variant', _sample_run)
+    check_html(client, '/db_default/v4/nts/abtest/%d' % pending_control)
+
+    # Delete: POST to delete route redirects to the list page.
+    delete_id = _post_abtest({'name': 'to-be-deleted'})
+    _post_run(delete_id, 'control', _sample_run)
+    check_html(client, '/db_default/v4/nts/abtest/%d' % delete_id)
+    r = client.post('/db_default/v4/nts/abtest/%d/delete' % delete_id)
+    assert r.status_code in (301, 302), \
+        "Delete returned %d, expected redirect" % r.status_code
+    # Confirm the experiment is gone.
+    check_code(client, '/db_default/v4/nts/abtest/%d' % delete_id,
+               expected_code=HTTP_NOT_FOUND)
+
 
 if __name__ == '__main__':
     main()

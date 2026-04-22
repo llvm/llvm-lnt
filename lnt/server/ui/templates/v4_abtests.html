@@ -1,0 +1,35 @@
+{% import "utils.html" as utils %}
+
+{% extends "layout.html" %}
+{% set components = [(ts.name, v4_url_for(".v4_recent_activity")),
+                     ("A/B Experiments", v4_url_for(".v4_abtests"))] %}
+{% block title %}A/B Experiments{% endblock %}
+
+{% block body %}
+<h3>A/B Experiments</h3>
+
+{% if experiments %}
+<table class="table table-striped table-hover table-condensed">
+  <thead>
+  <tr>
+    <th>ID</th>
+    <th>Name</th>
+    <th>Created</th>
+    <th>Keep Forever</th>
+  </tr>
+  </thead>
+  <tbody>
+  {% for exp in experiments %}
+  <tr>
+    <td><a href="{{ v4_url_for('.v4_abtest', id=exp.id) }}">{{ exp.id }}</a></td>
+    <td><a href="{{ v4_url_for('.v4_abtest', id=exp.id) }}">{{ exp.name or '(unnamed)' }}</a></td>
+    <td>{{ exp.created_time }}</td>
+    <td>{{ 'yes' if exp.pinned else 'no' }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No A/B experiments yet.</p>
+{% endif %}
+{% endblock %}
