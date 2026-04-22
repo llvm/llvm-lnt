@@ -38,7 +38,10 @@
 
 - [ ] Understand commit deletion behavior: does it cascade to regressions?
   Revisit whether commits should be deletable now that they can be ordinal-free.
-- [ ] Allow including an ordinal when making a data submission.
+- [ ] Allow including the ordinal (and commit_fields) in run submissions, and
+  make it a hard error if any submitted commit_field (or ordinal) clashes with
+  existing values on the commit. Currently commit_fields use first-write-wins
+  silently, and ordinals can only be set via PATCH.
 - [ ] Understand whether filtering `/commits` by machine and other properties
   would simplify baseline selection and other queries. Audit calls to `/tests`,
   `/machines`, and `/runs` for similar simplification opportunities.
@@ -46,6 +49,11 @@
 ### General
 
 - [ ] Add count endpoints (or a count mode) for commits, runs, machines, etc.
+- [ ] Enforce that all schema-defined fields (metrics, commit_fields, and
+  machine_fields) have an explicit type. Machine fields currently have no `type`
+  attribute and are always `String(256)`. Once typed, validate submitted values
+  against declared types at all CRUD endpoints (run submission, PATCH commit,
+  PATCH machine, etc.) — e.g. reject a string for an `integer` commit_field.
 - [ ] Audit sort orders across all API endpoints for consistency. For example,
   should `/machines/{name}/runs` allow sorting on commit order?
 - [ ] Understand whether the regression detection tool would benefit from a
