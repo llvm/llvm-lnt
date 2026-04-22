@@ -13,6 +13,8 @@ from .runserver import action_runserver
 from .runtest import group_runtest
 from .send_daily_report import action_send_daily_report
 from .send_run_comparison import action_send_run_comparison
+from .abtest import group_abtest
+from .expire_abtests import action_expire_abtests
 from .showtests import action_showtests
 from .submit import action_submit
 from .updatedb import action_updatedb
@@ -45,6 +47,8 @@ main.add_command(action_check_no_errors)
 main.add_command(action_checkformat)
 main.add_command(action_convert)
 main.add_command(action_create)
+main.add_command(group_abtest)
+main.add_command(action_expire_abtests)
 main.add_command(action_import)
 main.add_command(action_importreport)
 main.add_command(action_profile)
