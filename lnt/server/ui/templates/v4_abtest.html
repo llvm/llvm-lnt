@@ -1,0 +1,270 @@
+{% import "utils.html" as utils %}
+
+{% extends "layout.html" %}
+{% set components = [(ts.name, v4_url_for(".v4_recent_activity")),
+                     ("A/B Experiments", v4_url_for(".v4_abtests")),
+                     (exp.name or ('Experiment #' ~ exp.id),
+                      v4_url_for(".v4_abtest", id=exp.id))] %}
+{% block title %}A/B: {{ exp.name or exp.id }}{% endblock %}
+
+{% block head %}
+  <script src="{{ url_for('.static', filename='sorttable.js') }}"></script>
+  <style>
+    /* Toggle switch for pin/unpin */
+    .pin-switch { position:relative; display:inline-block; width:38px; height:20px; vertical-align:middle; }
+    .pin-switch input { opacity:0; width:0; height:0; }
+    .pin-slider { position:absolute; cursor:pointer; top:0; left:0; right:0; bottom:0;
+                  background-color:#ccc; border-radius:20px; transition:.25s; }
+    .pin-slider:before { position:absolute; content:""; height:14px; width:14px;
+                         left:3px; bottom:3px; background-color:white; border-radius:50%; transition:.25s; }
+    .pin-switch input:checked + .pin-slider { background-color:#337ab7; }
+    .pin-switch input:checked + .pin-slider:before { transform:translateX(18px); }
+  </style>
+  <script>
+  function selectAll(source) {
+    $(source).closest("table").find("input:checkbox").prop("checked", source.checked);
+  }
+  </script>
+{% endblock %}
+
+{% block sidebar %}
+  <ul class="nav nav-list bs-docs-sidenav">
+    <li><a href="#run_info"><i class="icon-chevron-right"></i>Run Info</a></li>
+    <li><a href="#view_options"><i class="icon-chevron-right"></i>View Options</a></li>
+    {% for field in metric_fields %}
+      <li><a href="#{{ field.name }}"><i class="icon-chevron-right"></i>{{ field.display_name }}</a></li>
+    {% endfor %}
+  </ul>
+{% endblock %}
+
+{% block body %}
+
+{# ------------------------------------------------------------------ #}
+{# Experiment header                                                  #}
+{# ------------------------------------------------------------------ #}
+<h3>
+  {{ exp.name or '(unnamed experiment)' }}
+  <small>#{{ exp.id }}</small>
+</h3>
+
+<form method="POST" action="{{ v4_url_for('.v4_abtest_pin', id=exp.id) }}" style="display:inline" id="pin-form">
+  <label class="pin-switch" title="Keep Forever">
+    <input type="checkbox" onchange="document.getElementById('pin-form').submit()"
+           {{ 'checked' if exp.pinned else '' }}>
+    <span class="pin-slider"></span>
+  </label>
+</form>
+<small class="text-muted" style="margin-left:8px">Keep Forever &mdash; created {{ exp.created_time }}</small>
+
+<div style="margin-top:1em"></div>
+
+{% if pending %}
+<div class="alert alert-info" style="margin-bottom:0.5em">
+  <b>Pending:</b>
+  {% if not exp.control_run_id and not exp.variant_run_id %}
+    Neither control nor variant run has been submitted yet.
+  {% elif not exp.control_run_id %}
+    Control run has not been submitted yet.
+  {% else %}
+    Variant run has not been submitted yet.
+  {% endif %}
+</div>
+{% endif %}
+
+{# ------------------------------------------------------------------ #}
+{# Run info: single table, control and variant side by side           #}
+{# ------------------------------------------------------------------ #}
+{% set ref_run = control_run or variant_run %}
+{% if ref_run %}
+<section id="run_info">
+{{ utils.render_popup_begin('run_info', 'Run Info', true) }}
+
+<table class="table table-striped table-condensed table-hover">
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Control</th>
+      <th>Variant</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><b>run</b></td>
+      <td>{{ control_run.id if control_run else '(pending)' }}</td>
+      <td>{{ variant_run.id if variant_run else '(pending)' }}</td>
+    </tr>
+    <tr>
+      <td><b>Machine</b></td>
+      <td>{{ control_run.machine.name if control_run else '' }}</td>
+      <td>{{ variant_run.machine.name if variant_run else '' }}</td>
+    </tr>
+    {% for item in ref_run.machine.fields %}
+      <tr>
+        <td><b>{{ item.name }}</b></td>
+        <td>{{ utils.newline_to_br(control_run.machine.get_field(item)) if control_run else '' }}</td>
+        <td>{{ utils.newline_to_br(variant_run.machine.get_field(item)) if variant_run else '' }}</td>
+      </tr>
+    {% endfor %}
+    {% for key, value in ref_run.machine.parameters|dictsort %}
+      <tr>
+        <td><b>{{ key }}</b></td>
+        <td>{{ utils.newline_to_br(control_run.machine.parameters.get(key, '')) if control_run else '' }}</td>
+        <td>{{ utils.newline_to_br(variant_run.machine.parameters.get(key, '')) if variant_run else '' }}</td>
+      </tr>
+    {% endfor %}
+    <tr>
+      <td><b>start</b></td>
+      <td>{{ control_run.start_time if control_run else '' }}</td>
+      <td>{{ variant_run.start_time if variant_run else '' }}</td>
+    </tr>
+    <tr>
+      <td><b>end</b></td>
+      <td>{{ control_run.end_time if control_run else '' }}</td>
+      <td>{{ variant_run.end_time if variant_run else '' }}</td>
+    </tr>
+    {% for item in ref_run.fields %}
+      <tr>
+        <td><b>{{ item.name }}</b></td>
+        <td>{{ utils.newline_to_br(control_run.get_field(item)) if control_run else '' }}</td>
+        <td>{{ utils.newline_to_br(variant_run.get_field(item)) if variant_run else '' }}</td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{{ utils.render_popup_end() }}
+</section>
+{% endif %}
+
+{# ------------------------------------------------------------------ #}
+{# View options                                                       #}
+{# ------------------------------------------------------------------ #}
+<section id="view_options">
+{{ utils.render_popup_begin('view_options', 'View Options', true) }}
+<form method="GET">
+  <table class="table table-striped table-condensed table-hover">
+    <tr>
+      <td><label for="show_all">Show All Tests</label></td>
+      <td><input id="show_all" type="checkbox" name="show_all" value="yes"
+                 {{ "checked" if options.show_all else "" }}/></td>
+    </tr>
+    <tr>
+      <td><label for="show_delta">Show Delta</label></td>
+      <td><input id="show_delta" type="checkbox" name="show_delta" value="yes"
+                 {{ "checked" if options.show_delta else "" }}/></td>
+    </tr>
+    <tr>
+      <td><label for="show_small_diff">Show Small Differences</label></td>
+      <td><input id="show_small_diff" type="checkbox" name="show_small_diff" value="yes"
+                 {{ "checked" if options.show_small_diff else "" }}/></td>
+    </tr>
+    <tr>
+      <td><label for="test_filter">Test Filter (regexp)</label></td>
+      <td><input id="test_filter" type="text" name="test_filter"
+                 value="{{ options.test_filter }}"/></td>
+    </tr>
+    <tr>
+      <td colspan="2"><input type="submit" name="submit" value="Update"/></td>
+    </tr>
+  </table>
+</form>
+{{ utils.render_popup_end() }}
+</section>
+
+{# ------------------------------------------------------------------ #}
+{# Per-metric result tables                                           #}
+{# ------------------------------------------------------------------ #}
+{{ utils.regex_filter_box(input_id='filter',
+                          selector='.searchable tr',
+                          placeholder="Benchmark name regex...",
+                          selector_part_to_search=".benchmark-name") }}
+
+<form id="ab_scurve_form" method="GET"
+      action="{{ v4_url_for('.v4_abtest_scurve', id=exp.id) }}">
+
+{% for field in metric_fields %}
+  {% set field_rows = [] %}
+  {% for row in comparisons %}
+    {% if row.field.name == field.name %}
+      {% set cr = row.cr %}
+      {% set value_status = cr.get_value_status(ignore_small=not options.show_small_diff) %}
+      {% if options.show_all
+           or value_status in (analysis.REGRESSED, analysis.IMPROVED)
+           or (cr.current is none) != (cr.previous is none) %}
+        {% if field_rows.append(row) %}{% endif %}
+      {% endif %}
+    {% endif %}
+  {% endfor %}
+
+  {% if field_rows %}
+  {% set unit_suffix = ' (%s)' % field.unit if field.unit else '' %}
+  <section id="{{ field.name }}">
+  {{ utils.render_popup_begin('ab_data-' ~ field.name,
+                              field.display_name ~ unit_suffix, false) }}
+  <table class="table table-striped table-hover table-condensed sortable searchable">
+    <thead>
+      <tr>
+        <th class="sorttable_nosort">
+          <input type="checkbox" id="select-all-{{ field.name }}"
+                 onClick="selectAll(this)"/>
+        </th>
+        <th>Benchmark</th>
+        <th>Control</th>
+        <th>Variant</th>
+        <th>&#916;</th>
+        {% if options.show_delta %}<th>&#916; abs</th>{% endif %}
+        <th>&#963;</th>
+        <th>N</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for row in field_rows %}
+      {% set cr = row.cr %}
+      <tr>
+        <td><input type="checkbox" name="plot"
+                   value="{{ row.test_id }}.{{ row.field.name }}"/></td>
+        <td class="benchmark-name">{{ row.test_name }}</td>
+        {# When variant is missing, cr.current holds the control value. #}
+        <td class="right">
+          {%- if variant_run is none -%}
+            {{ '%.4f' % cr.current if cr.current is not none else '-' }}
+          {%- else -%}
+            {{ '%.4f' % cr.previous if cr.previous is not none else '-' }}
+          {%- endif -%}
+        </td>
+        {# When control is missing, cr.current holds the variant value. #}
+        <td class="right">
+          {%- if variant_run is none -%}
+            -
+          {%- else -%}
+            {{ '%.4f' % cr.current if cr.current is not none else '-' }}
+          {%- endif -%}
+        </td>
+        {# Delta only meaningful when both runs are present. #}
+        {%- if pending -%}
+          <td>-</td>
+        {%- else -%}
+          {{ cr.pct_delta|aspctcell(reverse=cr.bigger_is_better)|safe }}
+        {%- endif -%}
+        {% if options.show_delta %}
+          <td class="right">{{ '%.4f' % cr.delta if cr.delta and not pending else '-' }}</td>
+        {% endif %}
+        <td class="right">{{ '%.4f' % cr.stddev if cr.stddev is not none else '-' }}</td>
+        <td class="right">{{ cr.samples|length }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {{ utils.render_popup_end() }}
+  </section>
+  {% endif %}
+{% endfor %}
+
+{% if not comparisons %}
+<div class="alert alert-info">No comparison data available.</div>
+{% endif %}
+
+<p><input type="submit" value="S-Curve"/></p>
+</form>
+
+{% endblock %}
