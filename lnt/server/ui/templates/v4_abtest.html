@@ -24,6 +24,11 @@
   function selectAll(source) {
     $(source).closest("table").find("input:checkbox").prop("checked", source.checked);
   }
+  function checkDeleteConfirm() {
+    var val = document.getElementById('delete-confirm-input').value;
+    var btn = document.getElementById('delete-confirm-btn');
+    btn.disabled = (val !== 'delete');
+  }
   </script>
 {% endblock %}
 
@@ -55,6 +60,37 @@
   </label>
 </form>
 <small class="text-muted" style="margin-left:8px">Keep Forever &mdash; created {{ exp.created_time }}</small>
+
+<a href="#deleteModal" role="button" class="btn btn-danger btn-small"
+   style="margin-left:1em" data-toggle="modal">Delete</a>
+
+{# ------------------------------------------------------------------ #}
+{# Delete confirmation modal                                          #}
+{# ------------------------------------------------------------------ #}
+<div id="deleteModal" class="modal hide fade" tabindex="-1" role="dialog"
+     aria-labelledby="deleteModalLabel" aria-hidden="true">
+  <div class="modal-header">
+    <button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button>
+    <h3 id="deleteModalLabel">Delete experiment?</h3>
+  </div>
+  <div class="modal-body">
+    <p>This will permanently delete experiment
+      <strong>{{ exp.name or ('Experiment #' ~ exp.id) }}</strong>
+      and all of its run data. This cannot be undone.</p>
+    <p>Type <code>delete</code> to confirm:</p>
+    <input id="delete-confirm-input" type="text" oninput="checkDeleteConfirm()"
+           placeholder="delete" autocomplete="off" style="width:100%"/>
+  </div>
+  <div class="modal-footer">
+    <button class="btn" data-dismiss="modal">Cancel</button>
+    <form method="POST"
+          action="{{ v4_url_for('.v4_abtest_delete', id=exp.id) }}"
+          style="display:inline">
+      <button id="delete-confirm-btn" type="submit"
+              class="btn btn-danger" disabled>Permanently delete</button>
+    </form>
+  </div>
+</div>
 
 <div style="margin-top:1em"></div>
 

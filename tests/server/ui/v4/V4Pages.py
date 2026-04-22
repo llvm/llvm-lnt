@@ -864,6 +864,17 @@ def main():
     _post_run(pending_control, 'variant', _sample_run)
     check_html(client, '/db_default/v4/nts/abtest/%d' % pending_control)
 
+    # Delete: POST to delete route redirects to the list page.
+    delete_id = _post_abtest({'name': 'to-be-deleted'})
+    _post_run(delete_id, 'control', _sample_run)
+    check_html(client, '/db_default/v4/nts/abtest/%d' % delete_id)
+    r = client.post('/db_default/v4/nts/abtest/%d/delete' % delete_id)
+    assert r.status_code in (301, 302), \
+        "Delete returned %d, expected redirect" % r.status_code
+    # Confirm the experiment is gone.
+    check_code(client, '/db_default/v4/nts/abtest/%d' % delete_id,
+               expected_code=HTTP_NOT_FOUND)
+
 
 if __name__ == '__main__':
     main()

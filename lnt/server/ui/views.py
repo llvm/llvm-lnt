@@ -2161,6 +2161,31 @@ def v4_abtest_pin(id):
     return v4_redirect(v4_url_for('.v4_abtest', id=id))
 
 
+@v4_route("/abtest/<int:id>/delete", methods=['POST'])
+def v4_abtest_delete(id):
+    """Permanently delete an A/B experiment and its associated runs/samples."""
+    session = request.session
+    ts = request.get_testsuite()
+    exp = session.query(ts.ABExperiment).filter_by(id=id).first()
+    if exp is None:
+        abort(404, "No A/B experiment with id %d." % id)
+    run_ids = [rid for rid in [exp.control_run_id, exp.variant_run_id]
+               if rid is not None]
+    # Clear the FKs first so the run rows can be deleted without a
+    # FK constraint violation, then delete the experiment itself.
+    exp.control_run_id = None
+    exp.variant_run_id = None
+    session.flush()
+    session.delete(exp)
+    session.flush()
+    for rid in run_ids:
+        run = session.query(ts.ABRun).filter_by(id=rid).first()
+        if run is not None:
+            session.delete(run)   # cascades to ABSample via ab_samples
+    session.commit()
+    return v4_redirect(v4_url_for('.v4_abtests'))
+
+
 @v4_route("/abtest/<int:id>/scurve")
 def v4_abtest_scurve(id):
     """S-curve graph for selected benchmarks in an A/B experiment."""
