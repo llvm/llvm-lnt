@@ -1,8 +1,9 @@
-// pages/graph-data-cache.ts — Centralized data cache for the graph page.
+// pages/graph/data-cache.ts — Centralized data cache for the graph page.
+// Module-level instance survives mount/unmount for instant back-nav.
 
-import type { QueryDataPoint, CommitSummary } from '../types';
-import type { CursorPageResult } from '../api';
-import { commitDisplayValue } from '../utils';
+import type { QueryDataPoint, CommitSummary, RegressionListItem } from '../../types';
+import type { CursorPageResult } from '../../api';
+import { commitDisplayValue } from '../../utils';
 
 export interface GraphDataApi {
   apiUrl: (suite: string, path: string) => string;
@@ -13,19 +14,23 @@ export interface GraphDataApi {
 const PAGE_LIMIT = 10000;
 
 function dataKey(suite: string, machine: string, metric: string, test: string): string {
-  return `${suite}::${machine}::${metric}::${test}`;
+  return `${suite}\0${machine}\0${metric}\0${test}`;
 }
 
 function baselineKey(suite: string, machine: string, commit: string, metric: string): string {
-  return `${suite}::${machine}::${commit}::${metric}`;
+  return `${suite}\0${machine}\0${commit}\0${metric}`;
 }
 
 function testNamesKey(suite: string, machine: string, metric: string): string {
-  return `${suite}::${machine}::${metric}`;
+  return `${suite}\0${machine}\0${metric}`;
 }
 
 function scaffoldKey(suite: string, machine: string): string {
-  return `${suite}::${machine}`;
+  return `${suite}\0${machine}`;
+}
+
+function regressionKey(suite: string, mode: string): string {
+  return `${suite}\0${mode}`;
 }
 
 interface ScaffoldEntry { commit: string; ordinal: number; tag: string | null; fields: Record<string, string>; }
@@ -35,13 +40,17 @@ interface ScaffoldCache { entries: ScaffoldEntry[]; commits: string[]; }
 export class GraphDataCache {
   private data = new Map<string, { points: QueryDataPoint[]; complete: boolean }>();
   private baselineData = new Map<string, { points: QueryDataPoint[]; fetchedTests: Set<string> }>();
+  private baselineCommits = new Map<string, CommitSummary[]>();
   private testNames = new Map<string, string[]>();
   private scaffolds = new Map<string, ScaffoldCache>();
+  private regressions = new Map<string, RegressionListItem[]>();
   private api: GraphDataApi;
 
   constructor(api: GraphDataApi) {
     this.api = api;
   }
+
+  // ---- Scaffold ----
 
   async getScaffold(
     suite: string,
@@ -73,7 +82,9 @@ export class GraphDataCache {
     return commits;
   }
 
-  async getTestNames(suite: string, machine: string, metric: string, signal?: AbortSignal): Promise<string[]> {
+  // ---- Test Discovery ----
+
+  async discoverTests(suite: string, machine: string, metric: string, signal?: AbortSignal): Promise<string[]> {
     const key = testNamesKey(suite, machine, metric);
     const cached = this.testNames.get(key);
     if (cached) return cached;
@@ -99,34 +110,11 @@ export class GraphDataCache {
     return allNames;
   }
 
-  async getTestData(suite: string, machine: string, metric: string, test: string, signal?: AbortSignal): Promise<QueryDataPoint[]> {
-    const key = dataKey(suite, machine, metric, test);
-    const entry = this.data.get(key);
-    if (entry?.complete) {
-      return entry.points;
-    }
-
-    const queryUrl = this.api.apiUrl(suite, 'query');
-    const allPoints: QueryDataPoint[] = [];
-    let cursor: string | undefined;
-    while (true) {
-      if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-      const body: Record<string, unknown> = {
-        machine,
-        metric,
-        test: [test],
-        sort: 'test,commit',
-        limit: PAGE_LIMIT,
-      };
-      if (cursor) body.cursor = cursor;
-      const page = await this.api.postOneCursorPage<QueryDataPoint>(queryUrl, body, signal);
-      for (const pt of page.items) allPoints.push(pt);
-      if (!page.nextCursor) break;
-      cursor = page.nextCursor;
-    }
-    this.data.set(key, { points: allPoints, complete: true });
-    return allPoints;
+  readCachedTests(suite: string, machine: string, metric: string): string[] | null {
+    return this.testNames.get(testNamesKey(suite, machine, metric)) ?? null;
   }
+
+  // ---- Query Data ----
 
   async ensureTestData(
     suite: string, machine: string, metric: string, tests: string[],
@@ -147,7 +135,7 @@ export class GraphDataCache {
     const queryUrl = this.api.apiUrl(suite, 'query');
     let cursor: string | undefined;
     while (true) {
-      if (opts?.signal?.aborted) return;
+      if (opts?.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
       const body: Record<string, unknown> = {
         machine,
         metric,
@@ -180,40 +168,6 @@ export class GraphDataCache {
     if (opts?.onProgress) opts.onProgress();
   }
 
-  async getBaselineData(
-    suite: string, machine: string, commit: string, metric: string,
-    tests: string[], signal?: AbortSignal,
-  ): Promise<QueryDataPoint[]> {
-    const key = baselineKey(suite, machine, commit, metric);
-    const cached = this.baselineData.get(key);
-
-    if (cached) {
-      const allCovered = tests.every(t => cached.fetchedTests.has(t));
-      if (allCovered) return cached.points;
-    }
-
-    const queryUrl = this.api.apiUrl(suite, 'query');
-    const allPoints: QueryDataPoint[] = [];
-    let cursor: string | undefined;
-    while (true) {
-      if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-      const body: Record<string, unknown> = {
-        machine,
-        metric,
-        commit,
-        test: tests,
-        limit: PAGE_LIMIT,
-      };
-      if (cursor) body.cursor = cursor;
-      const page = await this.api.postOneCursorPage<QueryDataPoint>(queryUrl, body, signal);
-      for (const pt of page.items) allPoints.push(pt);
-      if (!page.nextCursor) break;
-      cursor = page.nextCursor;
-    }
-    this.baselineData.set(key, { points: allPoints, fetchedTests: new Set(tests) });
-    return allPoints;
-  }
-
   readCachedTestData(suite: string, machine: string, metric: string, test: string): QueryDataPoint[] {
     const key = dataKey(suite, machine, metric, test);
     const entry = this.data.get(key);
@@ -224,6 +178,53 @@ export class GraphDataCache {
     const key = dataKey(suite, machine, metric, test);
     const entry = this.data.get(key);
     return entry?.complete ?? false;
+  }
+
+  // ---- Baseline Data (cross-suite, delta-fetch) ----
+
+  async getBaselineData(
+    suite: string, machine: string, commit: string, metric: string,
+    tests: string[], signal?: AbortSignal,
+  ): Promise<QueryDataPoint[]> {
+    const key = baselineKey(suite, machine, commit, metric);
+    const cached = this.baselineData.get(key);
+
+    // Delta-fetch: only request tests not already cached
+    const newTests = cached
+      ? tests.filter(t => !cached.fetchedTests.has(t))
+      : tests;
+
+    if (newTests.length === 0 && cached) return cached.points;
+
+    const queryUrl = this.api.apiUrl(suite, 'query');
+    const fetched: QueryDataPoint[] = [];
+    let cursor: string | undefined;
+    while (true) {
+      if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+      const body: Record<string, unknown> = {
+        machine,
+        metric,
+        commit,
+        test: newTests,
+        limit: PAGE_LIMIT,
+      };
+      if (cursor) body.cursor = cursor;
+      const page = await this.api.postOneCursorPage<QueryDataPoint>(queryUrl, body, signal);
+      for (const pt of page.items) fetched.push(pt);
+      if (!page.nextCursor) break;
+      cursor = page.nextCursor;
+    }
+
+    // Merge into existing cache
+    if (cached) {
+      for (const pt of fetched) cached.points.push(pt);
+      for (const t of newTests) cached.fetchedTests.add(t);
+      return cached.points;
+    } else {
+      const entry = { points: fetched, fetchedTests: new Set(tests) };
+      this.baselineData.set(key, entry);
+      return fetched;
+    }
   }
 
   readCachedBaselineData(suite: string, machine: string, commit: string, metric: string): QueryDataPoint[] {
@@ -261,10 +262,77 @@ export class GraphDataCache {
     return { commits: sorted.map(([commit]) => commit), displayMap };
   }
 
-  clear(): void {
+  // ---- Baseline Commits (cross-suite, not cleared on suite change) ----
+
+  async getBaselineCommits(
+    suite: string, machine: string, signal?: AbortSignal,
+  ): Promise<CommitSummary[]> {
+    const key = scaffoldKey(suite, machine);
+    const cached = this.baselineCommits.get(key);
+    if (cached) return cached;
+
+    const allCommits: CommitSummary[] = [];
+    let cursor: string | undefined;
+    const url = this.api.apiUrl(suite, 'commits');
+    while (true) {
+      if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+      const params: Record<string, string> = { machine, sort: 'ordinal', limit: '10000' };
+      if (cursor) params.cursor = cursor;
+      const page = await this.api.fetchOneCursorPage<CommitSummary>(url, params, signal);
+      for (const item of page.items) allCommits.push(item);
+      if (!page.nextCursor) break;
+      cursor = page.nextCursor;
+    }
+    this.baselineCommits.set(key, allCommits);
+    return allCommits;
+  }
+
+  // ---- Regressions ----
+
+  async getRegressions(
+    suite: string, mode: 'active' | 'all', signal?: AbortSignal,
+  ): Promise<RegressionListItem[]> {
+    const key = regressionKey(suite, mode);
+    const cached = this.regressions.get(key);
+    if (cached) return cached;
+
+    const all: RegressionListItem[] = [];
+    let cursor: string | undefined;
+    const url = this.api.apiUrl(suite, 'regressions');
+    const stateFilter = mode === 'active' ? 'detected,active' : '';
+    while (true) {
+      if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+      const params: Record<string, string> = { limit: '500' };
+      if (stateFilter) params.state = stateFilter;
+      if (cursor) params.cursor = cursor;
+      const page = await this.api.fetchOneCursorPage<RegressionListItem>(url, params, signal);
+      for (const item of page.items) all.push(item);
+      if (!page.nextCursor) break;
+      cursor = page.nextCursor;
+    }
+    this.regressions.set(key, all);
+    return all;
+  }
+
+  readCachedRegressions(suite: string, mode: 'active' | 'all'): RegressionListItem[] | null {
+    return this.regressions.get(regressionKey(suite, mode)) ?? null;
+  }
+
+  // ---- Cache Management ----
+
+  /** Clear suite-specific caches (scaffolds, tests, query data, regressions).
+   *  Preserves cross-suite baseline data and baseline commit caches. */
+  clearSuite(): void {
     this.data.clear();
-    this.baselineData.clear();
     this.testNames.clear();
     this.scaffolds.clear();
+    this.regressions.clear();
+  }
+
+  /** Clear all caches including cross-suite baselines. */
+  clear(): void {
+    this.clearSuite();
+    this.baselineData.clear();
+    this.baselineCommits.clear();
   }
 }

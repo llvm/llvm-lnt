@@ -133,7 +133,12 @@ comparisons. The selector is an expandable panel with cascading dropdowns:
 Suite (populated from `data-testsuites`) -> Machine (populated from the
 selected suite's machines endpoint) -> Commit (populated from the selected
 machine's commits). Added baselines appear as removable chips labeled
-`{suite}/{machine}/{commit} ({tag})`. Baseline data is fetched from the
+`{suite}/{machine}/{display_value}`, where `display_value` is the commit's
+display value (e.g. short SHA with tag) when a `commit_field` with
+`display: true` is defined, otherwise the raw commit string. Display values
+for baseline commits are resolved via `POST /commits/resolve` so they display
+correctly when baselines are loaded from the URL. The "+" button uses `align-self: flex-start` so it does
+not stretch to the width of the chips. Baseline data is fetched from the
 baseline's suite via `POST /api/v5/{suite}/query` with `{machine, metric,
 commit, test}` in the JSON body. Each baseline renders as a horizontal dashed
 line per test trace, spanning the full chart width, colored to match the

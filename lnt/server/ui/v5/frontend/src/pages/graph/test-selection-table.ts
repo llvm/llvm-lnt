@@ -1,8 +1,8 @@
-// components/test-selection-table.ts — Test selection table for the graph page.
+// pages/graph/test-selection-table.ts — Test selection table for the graph page.
 // Shows all matching tests with checkboxes for explicit plot selection.
 
-import { el, DOUBLE_CLICK_DELAY_MS } from '../utils';
-import { GRAPH_TABLE_HOVER } from '../events';
+import { el, DOUBLE_CLICK_DELAY_MS } from '../../utils';
+import { GRAPH_TABLE_HOVER } from '../../events';
 
 export interface TestSelectionEntry {
   testName: string;

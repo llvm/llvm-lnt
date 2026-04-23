@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { buildPlotlyData, createTimeSeriesChart } from '../components/time-series-chart';
-import type { TimeSeriesTrace, TimeSeriesChartOptions } from '../components/time-series-chart';
-import { TRACE_SEP } from '../pages/graph';
+import { buildPlotlyData, createTimeSeriesChart } from '../../../pages/graph/time-series-chart';
+import type { TimeSeriesTrace, TimeSeriesChartOptions } from '../../../pages/graph/time-series-chart';
+import { TRACE_SEP } from '../../../utils';
 
 function makeTrace(name: string, points: Array<{ commit: string; value: number }>, machine = 'm1'): TimeSeriesTrace {
   return {
@@ -487,6 +487,52 @@ describe('createTimeSeriesChart', () => {
     expect(mockRestyle.mock.calls[0][2]).toEqual([0, 1]);
   });
 
+  it('hoverTrace() with array emphasizes multiple traces', async () => {
+    const container = document.createElement('div');
+    const handle = createTimeSeriesChart(container, {
+      traces: [
+        makeTrace('test-A', [{ commit: '100', value: 1.0 }], 'm1'),
+        makeTrace('test-A', [{ commit: '100', value: 1.1 }], 'm2'),
+        makeTrace('test-B', [{ commit: '100', value: 2.0 }], 'm1'),
+      ],
+      yAxisLabel: 'metric',
+    });
+
+    await new Promise(r => setTimeout(r, 0));
+
+    // Highlight both traces for test-A across two machines
+    handle.hoverTrace([`test-A${TRACE_SEP}m1`, `test-A${TRACE_SEP}m2`]);
+    await new Promise(r => setTimeout(r, 0));
+
+    expect(mockRestyle).toHaveBeenCalledTimes(2);
+    // First call: dim all 3 traces
+    expect(mockRestyle.mock.calls[0][1]).toEqual({ opacity: 0.2, 'line.width': 1.5 });
+    expect(mockRestyle.mock.calls[0][2]).toEqual([0, 1, 2]);
+    // Second call: emphasize traces 0 and 1 (test-A on m1 and m2)
+    expect(mockRestyle.mock.calls[1][1]).toEqual({ opacity: 1.0, 'line.width': 3 });
+    expect(mockRestyle.mock.calls[1][2]).toEqual([0, 1]);
+  });
+
+  it('hoverTrace([]) restores all traces (same as null)', async () => {
+    const container = document.createElement('div');
+    const handle = createTimeSeriesChart(container, {
+      traces: [
+        makeTrace('test-A', [{ commit: '100', value: 1.0 }]),
+        makeTrace('test-B', [{ commit: '100', value: 2.0 }]),
+      ],
+      yAxisLabel: 'metric',
+    });
+
+    await new Promise(r => setTimeout(r, 0));
+
+    handle.hoverTrace([]);
+    await new Promise(r => setTimeout(r, 0));
+
+    expect(mockRestyle).toHaveBeenCalledTimes(1);
+    expect(mockRestyle.mock.calls[0][1]).toEqual({ opacity: 1.0, 'line.width': 1.5 });
+    expect(mockRestyle.mock.calls[0][2]).toEqual([0, 1]);
+  });
+
   it('hoverTrace() dims reference-commit traces along with non-hovered main traces', async () => {
     const container = document.createElement('div');
     const refValues = new Map<string, number>();
@@ -695,5 +741,93 @@ describe('buildPlotlyData with displayMap', () => {
     const trace = data[0] as { x: string[]; customdata: string[][] };
     expect(trace.x[0]).toBe('100');
     expect(trace.customdata[0][6]).toBe('100');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Double-click detection
+// ---------------------------------------------------------------------------
+
+describe('chart double-click detection', () => {
+  let mockNewPlot: ReturnType<typeof vi.fn>;
+
+  function makeClickEvent(testName: string, commit = '100') {
+    return {
+      points: [{
+        customdata: [commit, `${testName}${TRACE_SEP}m1`, '1.000', '1', testName, 'm1', commit],
+        curveNumber: 0,
+        pointNumber: 0,
+      }],
+    };
+  }
+
+  beforeEach(() => {
+    const mockGd = document.createElement('div');
+    (mockGd as unknown as { on: ReturnType<typeof vi.fn> }).on = vi.fn(
+      (evt: string, cb: Function) => { handlers.set(evt, cb); },
+    );
+    mockNewPlot = vi.fn().mockResolvedValue(mockGd);
+    vi.stubGlobal('Plotly', {
+      newPlot: mockNewPlot,
+      react: vi.fn(),
+      purge: vi.fn(),
+      restyle: vi.fn(),
+      addTraces: vi.fn(),
+      deleteTraces: vi.fn(),
+      relayout: vi.fn(),
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    handlers.clear();
+    dblClickEvents.length = 0;
+  });
+
+  const handlers = new Map<string, Function>();
+  const dblClickEvents: string[] = [];
+  const dblClickListener = ((e: CustomEvent) => {
+    dblClickEvents.push(e.detail);
+  }) as EventListener;
+
+  beforeEach(() => {
+    document.addEventListener('graph-chart-dblclick', dblClickListener);
+  });
+
+  afterEach(() => {
+    document.removeEventListener('graph-chart-dblclick', dblClickListener);
+  });
+
+  it('dispatches GRAPH_CHART_DBLCLICK on rapid double-click of same test', async () => {
+    const container = document.createElement('div');
+    createTimeSeriesChart(container, {
+      traces: [makeTrace('test-A', [{ commit: '100', value: 1.0 }])],
+      yAxisLabel: 'metric',
+    });
+    await new Promise(r => setTimeout(r, 0));
+
+    const clickHandler = handlers.get('plotly_click')!;
+    clickHandler(makeClickEvent('test-A'));
+    clickHandler(makeClickEvent('test-A'));
+
+    expect(dblClickEvents).toEqual(['test-A']);
+  });
+
+  it('does not fire dblclick when clicking different tests', async () => {
+    const container = document.createElement('div');
+    createTimeSeriesChart(container, {
+      traces: [
+        makeTrace('test-A', [{ commit: '100', value: 1.0 }]),
+        makeTrace('test-B', [{ commit: '100', value: 2.0 }]),
+      ],
+      yAxisLabel: 'metric',
+    });
+    await new Promise(r => setTimeout(r, 0));
+
+    const clickHandler = handlers.get('plotly_click')!;
+    clickHandler(makeClickEvent('test-A'));
+    clickHandler(makeClickEvent('test-B'));
+
+    expect(dblClickEvents).toEqual([]);
   });
 });

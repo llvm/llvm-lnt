@@ -974,7 +974,7 @@ dl {
    Phase 3: Graph Page
    ============================================================ */
 
-.graph-controls {
+.controls-row {
   display: flex;
   gap: 15px;
   align-items: flex-end;
@@ -982,8 +982,12 @@ dl {
   margin-bottom: 12px;
 }
 
-.graph-controls-top {
+.controls-row-top {
   align-items: flex-start;
+  background: #fff;
+  padding: 12px;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
 }
 
 .graph-chart {
@@ -991,21 +995,8 @@ dl {
   margin: 10px 0;
 }
 
-/* Baseline selector form */
-.baseline-form-row {
-  display: flex;
-  gap: 8px;
-  align-items: flex-end;
-}
-
-.add-baseline-btn {
-  padding: 4px 10px;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-/* Chip lists (machines, baselines) */
-.chip-list {
+/* Machine chip input and chips */
+.machine-chips {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -1013,7 +1004,15 @@ dl {
   align-items: flex-start;
 }
 
-.chip {
+.baseline-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+  align-items: flex-start;
+}
+
+.machine-chip, .baseline-chip {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -1023,6 +1022,11 @@ dl {
   border-radius: 12px;
   font-size: 12px;
   color: #333;
+}
+
+.chip-symbol {
+  font-size: 14px;
+  line-height: 1;
 }
 
 .chip-remove {
@@ -1039,11 +1043,32 @@ dl {
   color: #d62728;
 }
 
-/* Test selection table (Graph Page) */
-.test-selection-container {
+/* Baseline panel */
+.baseline-add-btn {
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+.baseline-form {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+/* Test selection table container */
+.test-table-container {
   margin-top: 10px;
   border: 1px solid #dee2e6;
   border-radius: 4px;
+}
+
+.error-text {
+  color: #d62728;
+  font-size: 12px;
 }
 
 .test-selection-table {

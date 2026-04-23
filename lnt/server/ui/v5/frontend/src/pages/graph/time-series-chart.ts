@@ -1,7 +1,7 @@
-// components/time-series-chart.ts — Plotly time-series line chart.
+// pages/graph/time-series-chart.ts — Plotly time-series line chart.
 
-import { el, TRACE_SEP } from '../utils';
-import { GRAPH_CHART_HOVER } from '../events';
+import { el, TRACE_SEP, DOUBLE_CLICK_DELAY_MS } from '../../utils';
+import { GRAPH_CHART_HOVER, GRAPH_CHART_DBLCLICK } from '../../events';
 
 /** Escape HTML special characters to prevent XSS in Plotly hover templates. */
 function escapeHtml(s: string): string {
@@ -227,8 +227,10 @@ export function buildPlotlyData(options: TimeSeriesChartOptions): {
 export interface ChartHandle {
   /** Update the chart with new options using Plotly.react() (preserves zoom/pan). */
   update(options: TimeSeriesChartOptions): void;
-  /** Programmatically highlight a trace by trace name '{test} · {machine}' (or clear highlight). */
-  hoverTrace(traceName: string | null): void;
+  /** Programmatically highlight traces by name '{test} · {machine}' (or clear).
+   *  Accepts a single name, an array (to highlight multiple machines for one test),
+   *  or null to clear highlighting. */
+  hoverTrace(traceName: string | string[] | null): void;
   /** Destroy the chart and free resources. */
   destroy(): void;
 }
@@ -264,16 +266,31 @@ export function createTimeSeriesChart(
   /** Current display map for commit value mapping (updated on each doPlot). */
   let currentDisplayMap: Map<string, string> | undefined;
 
+  let lastClickTest: string | null = null;
+  let lastClickTime = 0;
+
   function attachHandlers(gd: PlotlyGd, opts: TimeSeriesChartOptions): void {
-    if (opts.onClick) {
-      const handler = opts.onClick;
-      gd.on('plotly_click', (eventData) => {
-        const pt = eventData.points[0];
-        if (pt?.customdata?.[0]) {
-          handler(pt.customdata[0]);
-        }
-      });
-    }
+    gd.on('plotly_click', (eventData) => {
+      const pt = eventData.points[0];
+      if (!pt?.customdata) return;
+
+      const testName = pt.customdata[4] as string | undefined;
+      const now = Date.now();
+
+      if (testName && lastClickTest === testName && now - lastClickTime < DOUBLE_CLICK_DELAY_MS) {
+        lastClickTest = null;
+        lastClickTime = 0;
+        document.dispatchEvent(new CustomEvent(GRAPH_CHART_DBLCLICK, { detail: testName }));
+        return;
+      }
+
+      lastClickTest = testName ?? null;
+      lastClickTime = now;
+
+      if (opts.onClick && pt.customdata[0]) {
+        opts.onClick(pt.customdata[0] as string);
+      }
+    });
 
     // Dispatch hover events for bidirectional sync with test-selection table
     // and show raw value scatter for aggregated points
@@ -449,11 +466,11 @@ export function createTimeSeriesChart(
     update(opts: TimeSeriesChartOptions): void {
       doPlot(opts);
     },
-    hoverTrace(traceName: string | null): void {
+    hoverTrace(traceName: string | string[] | null): void {
       if (!chartDiv || !initialized) return;
       plotReady.then(() => {
         if (!chartDiv) return;
-        if (!traceName) {
+        if (!traceName || (Array.isArray(traceName) && traceName.length === 0)) {
           // Restore all traces to normal appearance
           const allIndices = Array.from({ length: totalTraceCount }, (_, i) => i);
           if (allIndices.length > 0) {
@@ -463,16 +480,19 @@ export function createTimeSeriesChart(
           }
           return;
         }
-        const curveNumber = traceNames.indexOf(traceName);
-        if (curveNumber < 0) return;
+        const names = Array.isArray(traceName) ? traceName : [traceName];
+        const curveNumbers = names
+          .map(n => traceNames.indexOf(n))
+          .filter(i => i >= 0);
+        if (curveNumbers.length === 0) return;
         try {
           // Dim all traces
           const allIndices = Array.from({ length: totalTraceCount }, (_, i) => i);
           if (allIndices.length > 0) {
             Plotly.restyle(chartDiv, { opacity: 0.2, 'line.width': 1.5 }, allIndices);
           }
-          // Emphasize the hovered trace
-          Plotly.restyle(chartDiv, { opacity: 1.0, 'line.width': 3 }, [curveNumber]);
+          // Emphasize the hovered trace(s)
+          Plotly.restyle(chartDiv, { opacity: 1.0, 'line.width': 3 }, curveNumbers);
         } catch { /* ok */ }
       }).catch(err => {
         console.warn('Chart operation failed:', err);
@@ -490,6 +510,8 @@ export function createTimeSeriesChart(
       savedYAxis = null;
       getRawValues = undefined;
       traceColorMap = new Map();
+      lastClickTest = null;
+      lastClickTime = 0;
     },
   };
 }

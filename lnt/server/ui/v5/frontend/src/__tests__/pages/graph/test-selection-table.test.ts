@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
-import { createTestSelectionTable, type TestSelectionEntry } from '../components/test-selection-table';
-import { GRAPH_TABLE_HOVER } from '../events';
+import { createTestSelectionTable, type TestSelectionEntry } from '../../../pages/graph/test-selection-table';
+import { GRAPH_TABLE_HOVER } from '../../../events';
 
 // jsdom doesn't provide CSS.escape — polyfill for tests
 if (typeof CSS === 'undefined' || !CSS.escape) {
