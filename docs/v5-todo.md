@@ -95,9 +95,9 @@
 
 ## UI — General
 
-- [ ] Fix: Machines list page search is broken
-  (`Unknown query parameter(s): name_contains`). Audit other pages for similar
-  issues (Runs detail also broken, returns empty results).
+- [ ] Fix: Runs tab search on Test Suites page uses exact machine name match
+  (`?machine=`), so partial input returns empty results. Consider adding
+  prefix/fuzzy matching or switching to a machine combobox.
 - [ ] Machine detail page: allow searching the run history by run UUID or by
   commit.
 - [ ] Improve test suites sub-tab filters: first survey which filters exist

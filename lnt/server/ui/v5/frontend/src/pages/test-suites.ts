@@ -342,7 +342,7 @@ function renderMachinesTab(
 
     try {
       const result = await getMachines(suite, {
-        nameContains: currentSearch || undefined,
+        search: currentSearch || undefined,
         limit: PAGE_SIZE,
         offset: currentOffset,
       }, signal);

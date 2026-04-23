@@ -26,7 +26,7 @@ URL via `replaceState`.
 | Tab | Content | API | Search/Filter |
 |-----|---------|-----|---------------|
 | Recent Activity | Last 25 runs sorted by time; "Load more" for next page | `GET runs?sort=-start_time&limit=25` | None |
-| Machines | Searchable machine list with offset pagination | `GET machines?name_contains=...&limit=25&offset=...` | Name substring |
+| Machines | Searchable machine list with offset pagination | `GET machines?search=...&limit=25&offset=...` | Prefix match |
 | Runs | Run list with cursor pagination | `GET runs?machine=...&sort=-start_time&limit=25` | Machine name (exact) |
 | Commits | Commit list with cursor pagination | `GET commits?search=...&limit=25` | Search (prefix match on commit, tag, searchable fields) |
 | Regressions | Full regression triage interface (see below) | `GET regressions?state=...&limit=25` | State chips, machine combobox, metric selector, has_commit checkbox, title search |

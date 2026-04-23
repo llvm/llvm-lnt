@@ -182,12 +182,11 @@ export async function getCommits(
 
 export async function getMachines(
   ts: string,
-  opts: { namePrefix?: string; nameContains?: string; limit?: number; offset?: number },
+  opts: { search?: string; limit?: number; offset?: number },
   signal?: AbortSignal,
 ): Promise<{ items: MachineInfo[]; total: number }> {
   const params: Record<string, string> = {};
-  if (opts.namePrefix) params.name_prefix = opts.namePrefix;
-  if (opts.nameContains) params.name_contains = opts.nameContains;
+  if (opts.search) params.search = opts.search;
   if (opts.limit !== undefined) params.limit = String(opts.limit);
   if (opts.offset !== undefined) params.offset = String(opts.offset);
   const data = await fetchJson<OffsetPaginated<MachineInfo>>(apiUrl(ts, 'machines'), { params, signal });

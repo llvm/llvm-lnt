@@ -417,13 +417,13 @@ describe('getMachines', () => {
     expect(result.total).toBe(42);
   });
 
-  it('passes namePrefix as name_prefix query param', async () => {
+  it('passes search as search query param', async () => {
     mockFetch.mockResolvedValueOnce(mockResponse(offsetPage([], 0)));
 
-    await getMachines('nts', { namePrefix: 'clang-' });
+    await getMachines('nts', { search: 'clang-' });
 
     const url = new URL(mockFetch.mock.calls[0][0]);
-    expect(url.searchParams.get('name_prefix')).toBe('clang-');
+    expect(url.searchParams.get('search')).toBe('clang-');
   });
 
   it('passes limit query param', async () => {
@@ -435,13 +435,13 @@ describe('getMachines', () => {
     expect(url.searchParams.get('limit')).toBe('10');
   });
 
-  it('omits namePrefix and limit when not provided', async () => {
+  it('omits search and limit when not provided', async () => {
     mockFetch.mockResolvedValueOnce(mockResponse(offsetPage([], 0)));
 
     await getMachines('nts', {});
 
     const url = new URL(mockFetch.mock.calls[0][0]);
-    expect(url.searchParams.has('name_prefix')).toBe(false);
+    expect(url.searchParams.has('search')).toBe(false);
     expect(url.searchParams.has('limit')).toBe(false);
   });
 
@@ -452,15 +452,6 @@ describe('getMachines', () => {
 
     const url = new URL(mockFetch.mock.calls[0][0]);
     expect(url.pathname).toBe('/api/v5/nts/machines');
-  });
-
-  it('passes nameContains as name_contains query param', async () => {
-    mockFetch.mockResolvedValueOnce(mockResponse(offsetPage([], 0)));
-
-    await getMachines('nts', { nameContains: 'clang' });
-
-    const url = new URL(mockFetch.mock.calls[0][0]);
-    expect(url.searchParams.get('name_contains')).toBe('clang');
   });
 
   it('passes offset query param', async () => {
