@@ -89,7 +89,7 @@ GET    /tests                        -- List (cursor-paginated, filterable)
 
 Read-only. Tests are created implicitly via run submission.
 
-Filters: `name_contains=`, `name_prefix=`, `machine=` (only tests with data
+Filters: `search=` (prefix match on test name), `machine=` (only tests with data
 for this machine), `metric=` (only tests with non-NULL values for this metric).
 
 

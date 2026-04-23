@@ -142,7 +142,7 @@ class TestRunSubmissionWorkflow(unittest.TestCase):
     def test_06_tests_created_implicitly(self):
         """The test entities are implicitly created by the run submission."""
         resp = self.client.get(
-            PREFIX + '/tests?name_contains=benchmark1')
+            PREFIX + '/tests?search=test.suite/benchmark1')
         self.assertEqual(resp.status_code, 200)
         data = resp.get_json()
         names = [t['name'] for t in data['items']]

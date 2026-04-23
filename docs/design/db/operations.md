@@ -83,12 +83,14 @@ the API when it detects significant changes.
 
 ## D9: Search
 
-List endpoints for commits and machines support a unified `?search=` parameter.
+List endpoints for commits, machines, and tests support a unified `?search=`
+parameter.
 
 - `GET /commits?search=abc` matches `commit` column OR any `searchable`
   commit_field via case-insensitive prefix matching (OR semantics).
 - `GET /machines?search=x86` matches `name` column OR any `searchable`
   machine_field.
+- `GET /tests?search=bench` matches the `name` column via prefix matching.
 - This replaces v4's ad-hoc `tag_prefix`, `name_prefix`, `name_contains`
   parameters with a consistent pattern.
 

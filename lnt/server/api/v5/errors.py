@@ -203,7 +203,7 @@ def reject_unknown_params(valid_params):
     """Reject any query parameters not in *valid_params*.
 
     Call at the top of every GET/POST handler that reads ``request.args``
-    so that typos like ``name_contain=foo`` instead of ``name_contains=foo``
+    so that typos like ``serch=foo`` instead of ``search=foo``
     are caught early (400) rather than silently returning unfiltered data.
     """
     unknown = set(request.args.keys()) - valid_params

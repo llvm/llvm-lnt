@@ -360,13 +360,13 @@ export async function updateCommit(
 
 export async function getTests(
   ts: string,
-  opts?: { machine?: string; metric?: string; nameContains?: string; limit?: number },
+  opts?: { machine?: string; metric?: string; search?: string; limit?: number },
   signal?: AbortSignal,
 ): Promise<CursorPageResult<{ name: string }>> {
   const params: Record<string, string> = {};
   if (opts?.machine) params.machine = opts.machine;
   if (opts?.metric) params.metric = opts.metric;
-  if (opts?.nameContains) params.name_contains = opts.nameContains;
+  if (opts?.search) params.search = opts.search;
   if (opts?.limit !== undefined) params.limit = String(opts.limit);
   return fetchOneCursorPage<{ name: string }>(apiUrl(ts, 'tests'), params, signal);
 }

@@ -28,14 +28,6 @@
   currently passes an invalid sort parameter that is silently ignored; it should
   error instead.
 
-### Tests
-
-- [ ] Switch `GET /tests` from `?name_contains`/`?name_prefix` to a unified
-  `?search=` parameter for consistency with `/machines` and `/commits`. Use
-  prefix matching semantics (we may switch all endpoints to substring matching
-  in the future). Refactor the endpoint to use the DB layer's `list_tests()`
-  instead of building queries inline. Update Swagger UI accordingly.
-
 ### Commits & Orders
 
 - [ ] Allow including the ordinal (and commit_fields) in run submissions, and
@@ -154,7 +146,7 @@
 
 - [ ] **Add Cache-Control headers to immutable endpoints** (impact: eliminates
   repeat fetches entirely). No v5 API endpoint (except `/llms.txt`) sets
-  Cache-Control headers. Immutable resources — run detail, test detail, test
+  Cache-Control headers. Immutable resources — run detail, test
   suite schemas — should have `Cache-Control: public, max-age=86400, immutable`.
   Slowly-changing resources (machines, commits) should have short-lived caching
   (60–300s).

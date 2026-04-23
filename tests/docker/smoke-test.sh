@@ -233,7 +233,7 @@ check_endpoint "All $CONCURRENT concurrent runs exist" \
     GET "" ".items | length | if . == $CONCURRENT then \"$CONCURRENT\" else null end"
 
 check_endpoint "Exactly 1 concurrent test" \
-    "${BASE_URL}/api/v5/${SUITE}/tests?name_contains=concurrent-bench" 200 \
+    "${BASE_URL}/api/v5/${SUITE}/tests?search=test.suite/concurrent-bench" 200 \
     GET "" '.items | length | if . == 1 then "1" else null end'
 
 # ---------------------------------------------------------------------------

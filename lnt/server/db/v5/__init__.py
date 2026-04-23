@@ -837,22 +837,6 @@ class V5TestSuiteDB:
             return q.filter(self.Test.name == name).first()
         raise ValueError("must specify id or name")
 
-    def list_tests(
-        self,
-        session: sqlalchemy.orm.Session,
-        *,
-        search: str | None = None,
-        limit: int | None = None,
-    ) -> list:
-        """List tests with optional name prefix search."""
-        q = session.query(self.Test)
-        if search:
-            escaped = _escape_like(search)
-            q = q.filter(self.Test.name.ilike(f"{escaped}%", escape="\\"))
-        q = q.order_by(self.Test.id)
-        q = q.limit(limit if limit is not None else DEFAULT_LIMIT)
-        return q.all()
-
     def list_samples(
         self,
         session: sqlalchemy.orm.Session,

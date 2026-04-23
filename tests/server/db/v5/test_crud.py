@@ -415,7 +415,7 @@ class TestDeleteCommit(unittest.TestCase):
         session.close()
 
 
-class TestGetAndListTests(_CRUDTestBase):
+class TestGetTest(_CRUDTestBase):
 
     def test_get_test_by_name(self):
         session = self.Session()
@@ -446,35 +446,6 @@ class TestGetAndListTests(_CRUDTestBase):
         session = self.Session()
         with self.assertRaises(ValueError):
             self.tsdb.get_test(session)
-        session.close()
-
-    def test_list_tests(self):
-        session = self.Session()
-        self.tsdb.get_or_create_tests(session, ["list-test-a", "list-test-b"])
-        session.commit()
-
-        results = self.tsdb.list_tests(session)
-        names = [t.name for t in results]
-        self.assertIn("list-test-a", names)
-        self.assertIn("list-test-b", names)
-        session.close()
-
-    def test_list_tests_with_search(self):
-        session = self.Session()
-        self.tsdb.get_or_create_tests(session, ["search-test-alpha", "search-test-beta", "other-test"])
-        session.commit()
-
-        results = self.tsdb.list_tests(session, search="search-test")
-        names = [t.name for t in results]
-        self.assertIn("search-test-alpha", names)
-        self.assertIn("search-test-beta", names)
-        self.assertNotIn("other-test", names)
-        session.close()
-
-    def test_list_tests_with_limit(self):
-        session = self.Session()
-        results = self.tsdb.list_tests(session, limit=1)
-        self.assertLessEqual(len(results), 1)
         session.close()
 
 

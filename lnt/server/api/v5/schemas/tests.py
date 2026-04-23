@@ -33,11 +33,7 @@ class PaginatedTestResponseSchema(PaginatedResponseSchema):
 
 class TestListQuerySchema(CursorPaginationQuerySchema):
     """Query parameters for GET /tests."""
-    name_contains = ma.fields.String(
-        load_default=None,
-        metadata={'description': 'Filter by substring in test name'},
-    )
-    name_prefix = ma.fields.String(
+    search = ma.fields.String(
         load_default=None,
         metadata={'description': 'Filter by test name prefix'},
     )

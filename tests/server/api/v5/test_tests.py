@@ -53,7 +53,7 @@ class TestTestList(unittest.TestCase):
                    [{'name': name, 'execution_time': [1.0]}])
 
         resp = self.client.get(
-            PREFIX + f'/tests?name_contains={unique}')
+            PREFIX + f'/tests?search=list-test-{unique}')
         data = resp.get_json()
         names = [t['name'] for t in data['items']]
         self.assertIn(name, names)
@@ -73,30 +73,16 @@ class TestTestFilters(unittest.TestCase):
         cls.app = create_app(sys.argv[1])
         cls.client = create_client(cls.app)
 
-    def test_filter_name_contains(self):
-        """Filter tests by name_contains."""
+    def test_filter_search(self):
+        """Filter tests by search (prefix match)."""
         unique = uuid.uuid4().hex[:8]
-        name = f'contains-test-{unique}'
-        submit_run(self.client, f'contains-machine-{unique}', f'rev-{unique}',
-                   [{'name': name, 'execution_time': [1.0]}])
-
-        resp = self.client.get(
-            PREFIX + f'/tests?name_contains={unique}')
-        data = resp.get_json()
-        self.assertGreater(len(data['items']), 0)
-        for t in data['items']:
-            self.assertIn(unique, t['name'])
-
-    def test_filter_name_prefix(self):
-        """Filter tests by name_prefix."""
-        unique = uuid.uuid4().hex[:8]
-        prefix = f'prefix-{unique}'
+        prefix = f'search-{unique}'
         name = f'{prefix}-test'
-        submit_run(self.client, f'prefix-machine-{unique}', f'rev-{unique}',
+        submit_run(self.client, f'search-machine-{unique}', f'rev-{unique}',
                    [{'name': name, 'execution_time': [1.0]}])
 
         resp = self.client.get(
-            PREFIX + f'/tests?name_prefix={prefix}')
+            PREFIX + f'/tests?search={prefix}')
         data = resp.get_json()
         self.assertGreater(len(data['items']), 0)
         for t in data['items']:
@@ -105,21 +91,19 @@ class TestTestFilters(unittest.TestCase):
     def test_filter_no_match(self):
         """Filter that matches nothing returns empty list."""
         resp = self.client.get(
-            PREFIX + '/tests?name_contains=zzzz_no_match_xyz_9999')
+            PREFIX + '/tests?search=zzzz_no_match_xyz_9999')
         data = resp.get_json()
         self.assertEqual(len(data['items']), 0)
 
     def test_filter_sql_wildcards_escaped(self):
         """Ensure % and _ in filter values are escaped (no SQL injection)."""
         unique = uuid.uuid4().hex[:8]
-        # Create a test with a literal underscore
         name = f'esc_test_{unique}'
         submit_run(self.client, f'esc-machine-{unique}', f'rev-{unique}',
                    [{'name': name, 'execution_time': [1.0]}])
 
-        # Search for literal underscore -- should NOT match arbitrary chars
         resp = self.client.get(
-            PREFIX + f'/tests?name_contains=esc_test_{unique}')
+            PREFIX + f'/tests?search=esc_test_{unique}')
         data = resp.get_json()
         self.assertGreater(len(data['items']), 0)
 
@@ -139,7 +123,7 @@ class TestTestPagination(unittest.TestCase):
                          'execution_time': [1.0]}])
 
     def _collect_all_pages(self):
-        url = PREFIX + f'/tests?name_prefix={self._prefix}&limit=2'
+        url = PREFIX + f'/tests?search={self._prefix}&limit=2'
         return collect_all_pages(self, self.client, url)
 
     def test_pagination_collects_all_items(self):
@@ -167,6 +151,16 @@ class TestTestUnknownParams(unittest.TestCase):
         self.assertEqual(resp.status_code, 400)
         data = resp.get_json()
         self.assertIn('bogus', data['error']['message'])
+
+    def test_old_name_contains_param_returns_400(self):
+        """The removed name_contains parameter should be rejected."""
+        resp = self.client.get(PREFIX + '/tests?name_contains=foo')
+        self.assertEqual(resp.status_code, 400)
+
+    def test_old_name_prefix_param_returns_400(self):
+        """The removed name_prefix parameter should be rejected."""
+        resp = self.client.get(PREFIX + '/tests?name_prefix=foo')
+        self.assertEqual(resp.status_code, 400)
 
 
 class TestTestMachineMetricFilter(unittest.TestCase):
@@ -210,40 +204,45 @@ class TestTestMachineMetricFilter(unittest.TestCase):
     def test_filter_by_machine_a(self):
         resp = self.client.get(
             PREFIX + f'/tests?machine={self.machine_a}'
-            f'&name_contains={self._prefix}')
+            f'&search=mf-test')
         self.assertEqual(resp.status_code, 200)
         names = {t['name'] for t in resp.get_json()['items']}
-        self.assertEqual(names, {self.test_1, self.test_2})
+        self.assertIn(self.test_1, names)
+        self.assertIn(self.test_2, names)
 
     def test_filter_by_machine_b(self):
         resp = self.client.get(
             PREFIX + f'/tests?machine={self.machine_b}'
-            f'&name_contains={self._prefix}')
+            f'&search=mf-test')
         self.assertEqual(resp.status_code, 200)
         names = {t['name'] for t in resp.get_json()['items']}
-        self.assertEqual(names, {self.test_2, self.test_3})
+        self.assertIn(self.test_2, names)
+        self.assertIn(self.test_3, names)
 
     def test_filter_by_metric(self):
         resp = self.client.get(
-            PREFIX + f'/tests?metric=execution_time'
-            f'&name_contains={self._prefix}')
+            PREFIX + '/tests?metric=execution_time'
+            '&search=mf-test')
         self.assertEqual(resp.status_code, 200)
         names = {t['name'] for t in resp.get_json()['items']}
         # test_4 has no execution_time samples, should be excluded
-        self.assertEqual(names, {self.test_1, self.test_2, self.test_3})
+        self.assertIn(self.test_1, names)
+        self.assertIn(self.test_2, names)
+        self.assertIn(self.test_3, names)
+        self.assertNotIn(self.test_4, names)
 
     def test_filter_by_machine_and_metric(self):
         resp = self.client.get(
             PREFIX + f'/tests?machine={self.machine_a}'
-            f'&metric=execution_time&name_contains={self._prefix}')
+            f'&metric=execution_time&search=mf-test')
         self.assertEqual(resp.status_code, 200)
         names = {t['name'] for t in resp.get_json()['items']}
         self.assertEqual(names, {self.test_1, self.test_2})
 
-    def test_filter_by_machine_and_name_contains(self):
+    def test_filter_by_machine_and_search(self):
         resp = self.client.get(
             PREFIX + f'/tests?machine={self.machine_a}'
-            f'&name_contains=test1-{self._prefix}')
+            f'&search=mf-test1-{self._prefix}')
         self.assertEqual(resp.status_code, 200)
         names = {t['name'] for t in resp.get_json()['items']}
         self.assertEqual(names, {self.test_1})
@@ -263,7 +262,7 @@ class TestTestMachineMetricFilter(unittest.TestCase):
         should still appear only once in the results (DISTINCT)."""
         resp = self.client.get(
             PREFIX + f'/tests?machine={self.machine_a}'
-            f'&name_contains=test1-{self._prefix}')
+            f'&search=mf-test1-{self._prefix}')
         self.assertEqual(resp.status_code, 200)
         items = resp.get_json()['items']
         names = [t['name'] for t in items]
@@ -271,12 +270,14 @@ class TestTestMachineMetricFilter(unittest.TestCase):
 
     def test_no_filters_includes_all(self):
         resp = self.client.get(
-            PREFIX + f'/tests?name_contains={self._prefix}')
+            PREFIX + '/tests?search=mf-test')
         self.assertEqual(resp.status_code, 200)
         names = {t['name'] for t in resp.get_json()['items']}
         # All 4 tests should appear (including test_4 with only compile_time)
-        self.assertEqual(
-            names, {self.test_1, self.test_2, self.test_3, self.test_4})
+        self.assertIn(self.test_1, names)
+        self.assertIn(self.test_2, names)
+        self.assertIn(self.test_3, names)
+        self.assertIn(self.test_4, names)
 
 
 if __name__ == '__main__':

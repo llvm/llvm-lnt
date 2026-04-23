@@ -48,7 +48,7 @@ class TestList(MethodView):
     def get(self, query_args, testsuite):
         """List tests (cursor-paginated, filterable)."""
         reject_unknown_params({
-            'name_contains', 'name_prefix', 'machine', 'metric',
+            'search', 'machine', 'metric',
             'cursor', 'limit',
         })
         ts = g.ts
@@ -73,16 +73,9 @@ class TestList(MethodView):
         if machine_name or metric_name:
             query = query.distinct()
 
-        # Apply filters
-        name_contains = query_args.get('name_contains')
-        if name_contains:
-            escaped = escape_like(name_contains)
-            query = query.filter(
-                ts.Test.name.like('%' + escaped + '%', escape='\\'))
-
-        name_prefix = query_args.get('name_prefix')
-        if name_prefix:
-            escaped = escape_like(name_prefix)
+        search = query_args.get('search')
+        if search:
+            escaped = escape_like(search)
             query = query.filter(
                 ts.Test.name.like(escaped + '%', escape='\\'))
 
