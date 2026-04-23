@@ -64,7 +64,7 @@ For endpoint specifications, see [`endpoints.md`](endpoints.md).
   - **read** -- all GET endpoints
   - **submit** -- submit runs (`POST /runs`), create commits (`POST /commits`)
   - **triage** -- create/update/delete regressions, manage regression indicators
-  - **manage** -- create/update/delete machines; update commits; delete runs
+  - **manage** -- create/update/delete machines; update/delete commits; delete runs
   - **admin** -- create/revoke API keys
 - Keys stored hashed in the database
 - Admin endpoints (outside any test suite):

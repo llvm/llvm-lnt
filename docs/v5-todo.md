@@ -30,14 +30,17 @@
 
 ### Tests
 
-- [ ] Understand whether `GET /tests` should use `?search` instead of
-  `?name_contains` and `?name_prefix`. Update Swagger UI accordingly.
-- [ ] Understand whether `GET /tests/{name}` is useful or should be removed.
+- [ ] Switch `GET /tests` from `?name_contains`/`?name_prefix` to a unified
+  `?search=` parameter for consistency with `/machines` and `/commits`. Use
+  prefix matching semantics (we may switch all endpoints to substring matching
+  in the future). Refactor the endpoint to use the DB layer's `list_tests()`
+  instead of building queries inline. Update Swagger UI accordingly.
+- [ ] Remove `GET /tests/{name}`. The endpoint is unused by the frontend and
+  the response contains only the test name, which the caller already knows.
+  Remove the endpoint, its tests, and its schema.
 
 ### Commits & Orders
 
-- [ ] Understand commit deletion behavior: does it cascade to regressions?
-  Revisit whether commits should be deletable now that they can be ordinal-free.
 - [ ] Allow including the ordinal (and commit_fields) in run submissions, and
   make it a hard error if any submitted commit_field (or ordinal) clashes with
   existing values on the commit. Currently commit_fields use first-write-wins
