@@ -107,8 +107,12 @@ When sorting by ordinal, commits without ordinals are excluded (they have no
 meaningful position). When not sorting by ordinal, all runs are included
 regardless of their commit's ordinal.
 
-Cursor-based pagination (encoding, decoding, tiebreakers) is an API-layer
-concern. The DB layer provides filtering, sorting, and limit parameters only.
+Cursor-based pagination requires a deterministic, non-repeating row ordering.
+The server appends an internal unique tiebreaker to the caller's sort
+specification to guarantee this. The tiebreaker is opaque to clients; cursors
+are treated as opaque tokens. When no sort parameter is provided, results are
+returned in an arbitrary but deterministic order suitable for pagination, and
+no data is excluded.
 
 
 ## D11: Ordinal Management

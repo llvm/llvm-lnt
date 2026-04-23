@@ -225,8 +225,11 @@ Returns cursor-paginated time-series data for graphing. Each data point
 contains: `test`, `machine`, `metric`, `value`, `commit`, `ordinal`,
 `run_uuid`, `submitted_at`.
 
-Sort fields: `test`, `commit` (by ordinal), `submitted_at`. Default sort:
-`commit,test`.
+Sort fields: `test`, `commit` (by ordinal), `submitted_at`. When `sort` is
+omitted, results are returned in an arbitrary but stable order suitable for
+cursor pagination; no data is excluded. When `commit` is included in the sort,
+samples for commits without ordinals are excluded (they have no meaningful
+position in ordinal order).
 
 ### Trends (Aggregated)
 

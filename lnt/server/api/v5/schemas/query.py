@@ -108,7 +108,8 @@ class QueryEndpointQuerySchema(BaseSchema):
     sort = ma.fields.String(
         load_default=None,
         metadata={'description': 'Comma-separated sort fields: test, commit, '
-                  'submitted_at (prefix with - for descending)'},
+                  'submitted_at (prefix with - for descending). '
+                  'When omitted, results are in an arbitrary but stable order.'},
     )
     limit = ma.fields.Integer(
         load_default=100,

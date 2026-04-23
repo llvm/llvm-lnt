@@ -51,13 +51,17 @@ def _parse_sort(sort_str):
     """Parse a comma-separated sort string into (field_name, ascending) pairs.
 
     Examples:
-        "test,commit"         -> [("test", True), ("commit", True)]
-        "-submitted_at,test"  -> [("submitted_at", False), ("test", True)]
+        "test,commit"         -> [("test", True), ("commit", True), ("id", True)]
+        "-submitted_at,test"  -> [("submitted_at", False), ("test", True), ("id", True)]
+
+    An internal ``id`` tiebreaker is always appended to guarantee deterministic
+    cursor pagination.  When *sort_str* is empty the result is ``[("id", True)]``
+    -- an arbitrary but stable ordering that excludes no data.
 
     Returns a list of (field_name, ascending) tuples, or None on error.
     """
     if not sort_str:
-        return [('commit', True), ('test', True)]
+        return [('id', True)]
 
     result = []
     seen = set()
@@ -81,11 +85,8 @@ def _parse_sort(sort_str):
     if not result:
         return None
 
-    # Append tiebreakers for deterministic ordering.
-    for tiebreaker in ('commit', 'test'):
-        if tiebreaker not in seen:
-            result.append((tiebreaker, True))
-            seen.add(tiebreaker)
+    if 'id' not in seen:
+        result.append(('id', True))
 
     return result
 
@@ -98,6 +99,8 @@ def _resolve_sort_column(ts, field_name):
         return ts.Commit.ordinal
     elif field_name == 'submitted_at':
         return ts.Run.submitted_at
+    elif field_name == 'id':
+        return ts.Sample.id
     raise ValueError("Unknown sort field: %s" % field_name)
 
 
@@ -179,13 +182,15 @@ def _coerce_cursor_value(field_name, value):
         return str(value) if value is not None else ''
     elif field_name == 'submitted_at':
         return value  # None or string, both valid
+    elif field_name == 'id':
+        return int(value)
     return value
 
 
 def _extract_cursor_values(sort_spec, row_data):
     """Extract cursor values from a result row for encoding.
 
-    row_data is a dict with keys: test_name, ordinal, submitted_at.
+    row_data is a dict with keys: test_name, ordinal, submitted_at, sample_id.
     """
     values = []
     for field_name, _ in sort_spec:
@@ -195,6 +200,8 @@ def _extract_cursor_values(sort_spec, row_data):
             values.append(row_data['ordinal'])
         elif field_name == 'submitted_at':
             values.append(row_data['submitted_at'])
+        elif field_name == 'id':
+            values.append(row_data['sample_id'])
     return values
 
 
@@ -203,8 +210,9 @@ def _build_query(session, ts, metric_col, metric_name, machine, test_ids,
                  before_commit, after_time, before_time, limit):
     """Build and execute the time-series query.
 
-    Returns a list of dicts ready for serialization, plus a boolean
-    indicating whether there are more results.
+    Returns (items, has_next, last_row_data) where items is a list of
+    serialized dicts, has_next indicates more results, and last_row_data
+    is a dict of raw values from the last row (for cursor construction).
     """
     q = (
         session.query(
@@ -216,6 +224,7 @@ def _build_query(session, ts, metric_col, metric_name, machine, test_ids,
             ts.Run.submitted_at,
             ts.Test.name.label('test_name'),
             ts.Machine.name.label('machine_name'),
+            ts.Sample.id.label('sample_id'),
         )
         .select_from(ts.Sample)
         .join(ts.Run, ts.Sample.run_id == ts.Run.id)
@@ -286,7 +295,17 @@ def _build_query(session, ts, metric_col, metric_name, machine, test_ids,
             'submitted_at': format_utc(row.submitted_at),
         }))
 
-    return items, has_next
+    last_row_data = None
+    if rows:
+        r = rows[-1]
+        last_row_data = {
+            'test_name': r.test_name,
+            'ordinal': r.ordinal,
+            'submitted_at': r.submitted_at,
+            'sample_id': r.sample_id,
+        }
+
+    return items, has_next, last_row_data
 
 
 @blp.route('/query')
@@ -408,7 +427,7 @@ class QueryView(MethodView):
         # ------------------------------------------------------------------
         # Execute query
         # ------------------------------------------------------------------
-        items, has_next = _build_query(
+        items, has_next, last_row_data = _build_query(
             session, ts, metric_col, field_name, machine, test_ids,
             sort_spec, cursor_values, commit, after_commit, before_commit,
             after_time, before_time, limit)
@@ -417,13 +436,8 @@ class QueryView(MethodView):
         # Build cursor and response
         # ------------------------------------------------------------------
         next_cursor = None
-        if has_next and items:
-            last = items[-1]
-            cursor_vals = _extract_cursor_values(sort_spec, {
-                'test_name': last['test'],
-                'ordinal': last['ordinal'],
-                'submitted_at': last['submitted_at'],
-            })
+        if has_next and last_row_data:
+            cursor_vals = _extract_cursor_values(sort_spec, last_row_data)
             next_cursor = _encode_cursor(cursor_vals)
 
         return jsonify(make_paginated_response(items, next_cursor))
