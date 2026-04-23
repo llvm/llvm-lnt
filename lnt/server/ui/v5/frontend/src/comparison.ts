@@ -290,7 +290,7 @@ export function computeComparison(
 
     // Delta % knob
     if (noiseConfig.pct.enabled) {
-      if (Math.abs(deltaPct) <= noiseConfig.pct.value) {
+      if (Math.abs(deltaPct) < noiseConfig.pct.value) {
         noiseReasons.push({
           knob: 'pct',
           message: `Delta ${Math.abs(deltaPct).toFixed(1)}% below ${noiseConfig.pct.value}% threshold`,

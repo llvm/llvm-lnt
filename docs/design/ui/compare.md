@@ -39,10 +39,10 @@ Global controls (shared across both sides):
   knobs). When all knobs are disabled, no test is classified as noise. Each knob
   has an enable checkbox and a value input:
   - **Delta % below** (disabled by default, value: 1%): tests where
-    |Delta %| <= threshold are noise. Skipped when Delta % is unavailable (see
+    |Delta %| < threshold are noise. Skipped when Delta % is unavailable (see
     "Zero baseline" bullet in the table section). Input must be >= 0. Hovering
     on the label shows a help tooltip: "Tests where the absolute percentage
-    change is within this threshold are considered noise."
+    change is below this threshold are considered noise."
   - **P-value above** (disabled by default, value: 0.05): tests where the
     Welch's t-test p-value exceeds alpha are noise (the difference is not
     statistically significant). Uses all raw per-sample values from each side,
@@ -62,9 +62,9 @@ Global controls (shared across both sides):
 
   Edge-case behavior for noise classification:
   - **Identical values**: when delta is exactly zero and a noise knob catches
-    it (e.g., the Delta % knob with any threshold >= 0%), the test is classified
-    as noise with a noise reason. When no noise knob fires (all knobs disabled),
-    the test is classified as `unchanged`.
+    it (e.g., the Delta % knob with any threshold > 0%), the test is classified
+    as noise with a noise reason. When no noise knob fires (all knobs disabled,
+    or all thresholds are 0), the test is classified as `unchanged`.
   - **Zero variance (p-value knob)**: when both sides have zero variance and
     equal means, the p-value cannot be computed and the knob is skipped. When
     both sides have zero variance but different means, the change is
@@ -89,12 +89,98 @@ settings re-triggers the comparison. Previous in-flight fetches are aborted.
 | Test     | Test name                                                |
 | Value A  | Aggregated metric value from side A                      |
 | Value B  | Aggregated metric value from side B                      |
-| Delta    | B - A (absolute difference)                              |
-| Delta %  | (B - A) / |A| * 100 (abs ensures sign matches direction of change) |
-| Ratio    | B / A (same value plotted on the chart)                  |
-| Status   | Improved / Regressed / Unchanged (respects bigger_is_better) |
+| Delta    | `vB - vA`                                                |
+| Delta %  | `(vB - vA) / |vA| * 100`; see Computation Reference for sign convention and edge cases |
+| Ratio    | `vB / vA`; same quantity plotted on the chart as `log2(Ratio)` |
+| Status   | Improved / Regressed / Unchanged / Noise / N/A; see Computation Reference for classification rules |
 
-- **Geomean summary row**: The first row shows a geomean summary. Value A and Value B columns show the geometric mean of absolute values per side (useful for SPEC-like suites where individual values are comparable). Delta and Delta % are computed from these geomeans. The Ratio column shows the geometric mean of per-test ratios (the multiplicative average speedup), which is subtly different from geomean(B)/geomean(A) but is the standard way to report aggregate speedups. The geomean summary row is never classified as noise.
+- **Geomean summary row**: see Computation Reference for precise formulas. The geomean summary row is never classified as noise.
+
+
+#### Computation Reference
+
+**Aggregation pipeline.** The values `vA` and `vB` shown in the table are
+produced by a two-stage aggregation pipeline:
+1. **Sample aggregation** (within each run): when a test appears multiple
+   times in a run's samples, the sample aggregation function
+   (median/mean/min/max) reduces them to one value per test per run.
+2. **Run aggregation** (across selected runs): per-run values are reduced
+   by the run aggregation function (median/mean/min/max, independently
+   selectable per side) to produce the final `vA` and `vB`.
+
+**Per-test derived columns** (given `vA`, `vB` as defined above):
+
+| Quantity   | Formula                  | Domain                           |
+|------------|--------------------------|----------------------------------|
+| Delta      | `vB - vA`                | always defined                   |
+| Delta %    | `(vB - vA) / |vA| * 100` | undefined (N/A) when `vA = 0`    |
+| Ratio      | `vB / vA`                | undefined (N/A) when `vA = 0`    |
+
+Notes:
+- Delta % uses `|vA|` (not `vA`) in the denominator so its sign always
+  matches the sign of Delta, even when the baseline is negative. Without
+  the absolute value, a negative baseline would flip the percentage sign.
+- For positive baselines, `Delta % = (Ratio - 1) * 100`, so Delta % and
+  Ratio carry the same information in different forms.
+
+**Zero baseline.** When `vA = 0`, Delta is still computed, but Delta %,
+Ratio, and Status are all `N/A`. This classification happens before noise
+classification -- noise knobs are never evaluated for zero-baseline tests.
+
+**Status classification** (checked in this order, after zero-baseline
+tests have already been classified as `N/A`):
+1. If any enabled noise knob triggers -> `noise`
+2. If `Delta = 0` -> `unchanged`
+3. If `bigger_is_better` and `Delta > 0` -> `improved`
+4. If `bigger_is_better` and `Delta < 0` -> `regressed`
+5. If not `bigger_is_better` and `Delta < 0` -> `improved`
+6. If not `bigger_is_better` and `Delta > 0` -> `regressed`
+
+Status uses the sign of Delta (not Ratio) combined with `bigger_is_better`.
+
+**Geomean summary row.** Computed over N valid tests where both sides are
+present, both values are non-zero, and ratio is defined:
+
+| Quantity        | Formula                                     |
+|-----------------|---------------------------------------------|
+| Geomean A       | `exp(mean(ln(\|vA_i\|)))` for i = 1..N      |
+| Geomean B       | `exp(mean(ln(\|vB_i\|)))` for i = 1..N      |
+| Ratio (geomean) | `exp(mean(ln(\|ratio_i\|)))` for i = 1..N   |
+| Delta           | `Geomean B - Geomean A`                     |
+| Delta %         | `(Delta / \|Geomean A\|) * 100`             |
+
+Absolute values are taken before computing the geometric mean so that
+negative metric values do not produce undefined logarithms. The Ratio
+column shows the geometric mean of per-test ratios (the multiplicative
+average), which differs from `Geomean B / Geomean A`. The former weights
+all tests equally regardless of absolute magnitude; the latter is
+dominated by tests with large absolute values. For example, given two
+tests with ratios 2.0 and 0.5, the geomean of ratios is
+`sqrt(2.0 * 0.5) = 1.0` (no net change), while the ratio of geomeans
+depends on the magnitude of the values.
+
+**Chart Y-axis.** The chart plots `log2(Ratio)` = `log2(vB / vA)`. The
+log2 scale makes equal multiplicative changes symmetric: a 2x speedup
+(ratio = 0.5) and a 2x slowdown (ratio = 2.0) appear at -1 and +1
+respectively, equidistant from zero. Tick labels show the equivalent
+percentage change at "nice" values (+/-1%, +/-5%, +/-10%, etc.).
+
+A test is excluded from the chart when any of these conditions hold:
+- Only one side has the test (not present on both sides)
+- `vA = 0` (ratio undefined)
+- Ratio <= 0 (log2 undefined -- occurs when `vA` and `vB` have opposite
+  signs, or when `vB = 0`)
+
+**Noise band on chart.** When the Delta % knob is enabled, horizontal
+dashed lines are drawn at the log2-space equivalents of the threshold:
+- Upper line: `log2(1 + threshold/100)`
+- Lower line: `log2(1 - threshold/100)` when threshold < 100%;
+  otherwise `-log2(1 + threshold/100)` (forced symmetric, because
+  `log2(1 - t/100)` is undefined when `t >= 100%`)
+
+For small thresholds these lines are approximately symmetric (e.g. 5%
+maps to +0.070 / -0.074). The asymmetry grows with larger thresholds.
+A test whose bar falls inside the band has `|Delta %| < threshold`.
 - Sortable by any column (click header)
 - Color-coded status: green = improved, red = regressed (direction respects the metric's `bigger_is_better` flag)
 - **Noise handling**: rows classified as noise by any enabled noise filtering knob are visually distinguished by the grey "noise" label in the Status column. The "Hide noise" checkbox removes them from the table and chart entirely (not rendered in the DOM).
@@ -116,13 +202,13 @@ settings re-triggers the comparison. Previous in-flight fetches are aborted.
 
 Sorted ratio chart (relative performance chart):
 - **X-axis**: tests, sorted by B/A ratio
-- **Y-axis**: log2(ratio) scale -- equal multiplicative changes (e.g. 2x faster vs 2x slower) produce symmetric bars. Tick labels show percentage change at "nice" values (+/-1%, +/-5%, +/-10%, +/-50%, +/-100%, etc.), auto-adapting to the data range
+- **Y-axis**: `log2(Ratio)` -- see Computation Reference for definition, symmetry rationale, and chart exclusion criteria. Tick labels show percentage change at "nice" values (+/-1%, +/-5%, +/-10%, +/-50%, +/-100%, etc.), auto-adapting to the data range
 - Rendered as a connected line (not discrete bars) for readability at scale
 
 Interactivity:
 - **Hover**: tooltip showing test name, exact ratio, and absolute values for both sides
 - **Zoom / drag-select**: filters the comparison table to show only the tests in the visible range
-- **Noise band**: horizontal dashed reference lines at +/- the Delta % threshold (when that knob is enabled) to visually separate signal from noise. The p-value and absolute floor knobs do not have chart-level visualization.
+- **Noise band**: see Computation Reference for how the Delta % threshold is converted to log2 space. The p-value and absolute floor knobs do not have chart-level visualization.
 - **Text filter**: the chart applies the text filter from the selection panel; the text filter stacks with the chart zoom filter (intersection)
 - **Zoom preservation**: changing noise filtering knobs, aggregation functions, text filter, or toggling row visibility preserves the current chart zoom. The user can double-click the chart to reset zoom.
 - **Adaptive tick labels on zoom**: tick labels recompute dynamically when the user zooms -- zooming into a narrow range shows fine-grained percentage ticks (+/-1%, +/-2%), while the full view shows coarser ticks (+/-50%, +/-100%). Double-click reset restores ticks for the full data range.

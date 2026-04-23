@@ -367,20 +367,20 @@ describe('computeComparison', () => {
 // ---------------------------------------------------------------------------
 
 describe('computeComparison — noise boundary edge cases', () => {
-  it('classifies exactly-at-threshold change as noise (<=)', () => {
+  it('classifies exactly-at-threshold change as signal (strict <)', () => {
     const mapA = new Map([['foo', 100]]);
     const mapB = new Map([['foo', 105]]);
     const rows = computeComparison(mapA, mapB, true, pctOnly(5));
     expect(rows[0].deltaPct).toBeCloseTo(5);
-    expect(rows[0].status).toBe('noise');
+    expect(rows[0].status).toBe('improved');
   });
 
-  it('classifies exactly-at-threshold negative change as noise', () => {
+  it('classifies exactly-at-threshold negative change as signal', () => {
     const mapA = new Map([['foo', 100]]);
     const mapB = new Map([['foo', 95]]);
     const rows = computeComparison(mapA, mapB, true, pctOnly(5));
     expect(rows[0].deltaPct).toBeCloseTo(-5);
-    expect(rows[0].status).toBe('noise');
+    expect(rows[0].status).toBe('regressed');
   });
 
   it('classifies just-above-threshold change as improved (bigger_is_better=true)', () => {
@@ -423,16 +423,16 @@ describe('computeComparison — noise boundary edge cases', () => {
     expect(rows[0].status).toBe('regressed');
   });
 
-  it('with noiseThreshold=0, delta=0 is still noise', () => {
+  it('with noiseThreshold=0, delta=0 is unchanged (strict <)', () => {
     const mapA = new Map([['foo', 42]]);
     const mapB = new Map([['foo', 42]]);
     const rows = computeComparison(mapA, mapB, true, pctOnly(0));
     expect(rows[0].delta).toBe(0);
     expect(rows[0].deltaPct).toBe(0);
-    expect(rows[0].status).toBe('noise');
+    expect(rows[0].status).toBe('unchanged');
   });
 
-  it('delta=0 is noise when pct knob is enabled', () => {
+  it('delta=0 is noise when pct knob is enabled with threshold > 0', () => {
     const mapA = new Map([['foo', 50]]);
     const mapB = new Map([['foo', 50]]);
 
@@ -440,7 +440,7 @@ describe('computeComparison — noise boundary edge cases', () => {
     expect(rowsLarge[0].status).toBe('noise');
 
     const rowsZero = computeComparison(mapA, mapB, false, pctOnly(0));
-    expect(rowsZero[0].status).toBe('noise');
+    expect(rowsZero[0].status).toBe('unchanged');
 
     const rowsTiny = computeComparison(mapA, mapB, true, pctOnly(0.001));
     expect(rowsTiny[0].status).toBe('noise');
