@@ -99,7 +99,7 @@ Full endpoint list including all PATCH/DELETE operations:
 
 List endpoints return cursor-paginated responses:
   { "items": [...], "cursor": { "next": "...", "previous": null } }
-Pass cursor=<next> to get the next page. Use limit= to control page size.
+Pass cursor=<next> to get the next page. Use limit= to control page size (max 10000, default 25).
 
 ### Common Workflows
 

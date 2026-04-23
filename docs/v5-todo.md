@@ -180,14 +180,6 @@
   `INSERT ... ON CONFLICT (regression_id, machine_id, test_id, metric) DO NOTHING`
   eliminates this entirely.
 
-- [ ] **Raise max page size for bulk consumers** (impact: fewer requests for
-  full enumeration). The server hard cap is 500 items per page
-  (`pagination.py:60`). All `fetchAllCursorPages` callers (samples, commits,
-  runs, regressions) are affected: e.g. a run with 7,500 samples requires 15
-  round-trips at limit=500 vs. 1 at limit=10,000. Raise the server max to
-  5,000–10,000 and update the frontend `fetchAllCursorPages` page size
-  accordingly.
-
 ### P2 — Medium
 
 - [ ] **Cache API key lookups in-process with short TTL** (impact: eliminates

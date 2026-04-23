@@ -55,10 +55,7 @@ def cursor_paginate(query, id_column, cursor_str=None, limit=25,
         The page of results and the cursor for the next page (or None if
         there are no more results).
     """
-    if limit < 1:
-        limit = 1
-    if limit > 500:
-        limit = 500
+    limit = min(max(limit, 1), 10000)
 
     if cursor_str:
         last_id = decode_cursor(cursor_str)

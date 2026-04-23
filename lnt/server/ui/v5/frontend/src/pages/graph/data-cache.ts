@@ -298,7 +298,7 @@ export class GraphDataCache {
     const stateFilter = mode === 'active' ? 'detected,active' : '';
     while (true) {
       if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-      const params: Record<string, string> = { limit: '500' };
+      const params: Record<string, string> = { limit: String(PAGE_LIMIT) };
       if (stateFilter) params.state = stateFilter;
       if (cursor) params.cursor = cursor;
       const page = await this.api.fetchOneCursorPage<RegressionListItem>(url, params, signal);

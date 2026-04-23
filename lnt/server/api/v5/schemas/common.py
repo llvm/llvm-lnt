@@ -101,7 +101,7 @@ class CursorPaginationQuerySchema(BaseQuerySchema):
     )
     limit = ma.fields.Integer(
         load_default=25,
-        metadata={'description': 'Maximum number of results per page (default 25, max 500)'},
+        metadata={'description': 'Maximum number of results per page (default 25, max 10000)'},
     )
 
 
@@ -109,7 +109,7 @@ class OffsetPaginationQuerySchema(BaseQuerySchema):
     """Query parameters for offset-paginated endpoints."""
     limit = ma.fields.Integer(
         load_default=25,
-        metadata={'description': 'Maximum number of results per page (default 25, max 500)'},
+        metadata={'description': 'Maximum number of results per page (default 25, max 10000)'},
     )
     offset = ma.fields.Integer(
         load_default=0,

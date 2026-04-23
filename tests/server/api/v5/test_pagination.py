@@ -195,11 +195,21 @@ class TestCursorPaginate(unittest.TestCase):
         self.assertEqual(len(items), 1)
 
     def test_limit_clamped_high(self):
-        """Limit > 500 should be clamped to 500."""
+        """Limit > 10000 should be clamped to 10000."""
         query = self.session.query(self.Item)
-        items, _ = cursor_paginate(query, self.Item.id, limit=9999)
+        items, _ = cursor_paginate(query, self.Item.id, limit=99999)
         # Only 10 items in the table
         self.assertEqual(len(items), 10)
+
+    def test_limit_above_old_cap_now_allowed(self):
+        """Limits above the old 500 cap should now work (up to 10000)."""
+        for i in range(11, 612):
+            self.session.add(self.Item(id=i))
+        self.session.commit()
+
+        query = self.session.query(self.Item)
+        items, _ = cursor_paginate(query, self.Item.id, limit=611)
+        self.assertEqual(len(items), 611)
 
 
 class TestPaginatedResponse(unittest.TestCase):

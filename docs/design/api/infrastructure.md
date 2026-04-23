@@ -31,7 +31,7 @@ For endpoint specifications, see [`endpoints.md`](endpoints.md).
 - Cursor-based pagination for unbounded lists: runs, tests, commits, samples, regressions, regression indicators, time series
 - Simple offset-based or unpaginated for bounded/small lists: machines, API keys
 - Cursor-paginated response envelope: `{"items": [...], "cursor": {"next": "...", "previous": "..."}}`
-- Default page size with configurable `limit` parameter
+- Default page size 25 with configurable `limit` parameter (max 10,000)
 - Cursors are opaque strings (clients must not parse them)
 
 

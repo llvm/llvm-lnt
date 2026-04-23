@@ -175,7 +175,7 @@ The chart and table always represent the same dataset:
 
 1. Page loads: fetch metric metadata via `GET test-suites/{ts}` (fields from `schema.metrics`). Commits are fetched per-machine via `GET commits?machine={name}` (cursor-paginated) when a machine is selected, to populate the commit combobox with only the commits relevant to that machine.
 2. User selects commit and machine on each side. On each change, fetch `GET runs?machine=M&commit=O` to populate the runs checkbox list. If no runs exist, show an empty list.
-3. Once both sides have runs and a metric is selected, comparison triggers automatically. Fetch sample data for each selected run via `GET runs/{uuid}/samples` (cursor-paginated with `limit=500`). Show a progress indicator during fetch.
+3. Once both sides have runs and a metric is selected, comparison triggers automatically. Fetch sample data for each selected run via `GET runs/{uuid}/samples` (cursor-paginated with `limit=10000`). Show a progress indicator during fetch.
 4. Client-side: aggregate samples (within-run via sample aggregation), aggregate across runs (via run aggregation), join on test name, compute derived columns (delta, ratio, status, p-value when the knob is enabled).
 5. Render table and chart.
 6. Subsequent filter/sort/zoom operations are client-side (data already loaded).

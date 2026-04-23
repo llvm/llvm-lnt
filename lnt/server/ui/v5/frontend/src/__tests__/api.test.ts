@@ -286,12 +286,12 @@ describe('cursor-based pagination', () => {
     // First call should have no cursor
     const firstUrl = new URL(mockFetch.mock.calls[0][0]);
     expect(firstUrl.searchParams.has('cursor')).toBe(false);
-    expect(firstUrl.searchParams.get('limit')).toBe('500');
+    expect(firstUrl.searchParams.get('limit')).toBe('10000');
 
     // Second call should include the cursor
     const secondUrl = new URL(mockFetch.mock.calls[1][0]);
     expect(secondUrl.searchParams.get('cursor')).toBe('next-page-cursor');
-    expect(secondUrl.searchParams.get('limit')).toBe('500');
+    expect(secondUrl.searchParams.get('limit')).toBe('10000');
   });
 
   it('calls onProgress callback with running total after each page', async () => {
@@ -370,14 +370,14 @@ describe('getCommits', () => {
     expect(result).toEqual([c1, c2]);
   });
 
-  it('constructs the correct URL with limit=500', async () => {
+  it('constructs the correct URL with limit=10000', async () => {
     mockFetch.mockResolvedValueOnce(mockResponse(cursorPage([])));
 
     await getCommits('nts');
 
     const url = new URL(mockFetch.mock.calls[0][0]);
     expect(url.pathname).toBe('/api/v5/nts/commits');
-    expect(url.searchParams.get('limit')).toBe('500');
+    expect(url.searchParams.get('limit')).toBe('10000');
   });
 
   it('passes machine query parameter when provided', async () => {
@@ -501,7 +501,7 @@ describe('getRuns', () => {
     const url = new URL(mockFetch.mock.calls[0][0]);
     expect(url.searchParams.get('machine')).toBe('machine-1');
     expect(url.searchParams.get('commit')).toBe('rev100');
-    expect(url.searchParams.get('limit')).toBe('500');
+    expect(url.searchParams.get('limit')).toBe('10000');
   });
 
   it('omits commit when not provided', async () => {

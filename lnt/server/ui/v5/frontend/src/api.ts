@@ -115,11 +115,11 @@ async function fetchAllCursorPages<T>(
     let page: CursorPaginated<T>;
     if (postBody !== undefined) {
       // POST mode: parameters go in JSON body, cursor merged in.
-      const body = { ...postBody, limit: 500, ...(cursor ? { cursor } : {}) };
+      const body = { ...postBody, limit: 10000, ...(cursor ? { cursor } : {}) };
       page = await fetchJson<CursorPaginated<T>>(url, { method: 'POST', body, signal });
     } else {
       // GET mode: parameters go in URL query string.
-      const p: Record<string, string | string[]> = { ...params, limit: '500' };
+      const p: Record<string, string | string[]> = { ...params, limit: '10000' };
       if (cursor) p.cursor = cursor;
       page = await fetchJson<CursorPaginated<T>>(url, { params: p, signal });
     }

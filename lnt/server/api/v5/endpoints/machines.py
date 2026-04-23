@@ -111,7 +111,7 @@ class MachineList(MethodView):
         total = query.count()
 
         limit = query_args['limit']
-        limit = max(1, min(limit, 500))
+        limit = max(1, min(limit, 10000))
 
         offset = query_args['offset']
         offset = max(0, offset)
