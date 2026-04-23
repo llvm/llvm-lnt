@@ -110,10 +110,6 @@ export class GraphDataCache {
     return allNames;
   }
 
-  readCachedTests(suite: string, machine: string, metric: string): string[] | null {
-    return this.testNames.get(testNamesKey(suite, machine, metric)) ?? null;
-  }
-
   // ---- Query Data ----
 
   async ensureTestData(

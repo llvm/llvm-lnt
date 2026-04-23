@@ -20,11 +20,6 @@ export const ALL_STATES: RegressionState[] = [
   'detected', 'active', 'not_to_be_fixed', 'fixed', 'false_positive',
 ];
 
-/** Resolved states (these are considered "closed"). */
-export const RESOLVED_STATES: RegressionState[] = [
-  'not_to_be_fixed', 'fixed', 'false_positive',
-];
-
 /** Non-resolved states (these are "open" / active). */
 export const UNRESOLVED_STATES: RegressionState[] = [
   'detected', 'active',

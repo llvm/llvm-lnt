@@ -109,20 +109,6 @@ describe('GraphDataCache', () => {
     });
   });
 
-  describe('readCachedTests', () => {
-    it('returns null for uncached', () => {
-      expect(cache.readCachedTests('nts', 'm1', 'exec_time')).toBeNull();
-    });
-
-    it('returns cached tests', async () => {
-      api.fetchOneCursorPage.mockResolvedValueOnce({
-        items: [{ name: 'test-A' }], nextCursor: null,
-      });
-      await cache.discoverTests('nts', 'm1', 'exec_time');
-      expect(cache.readCachedTests('nts', 'm1', 'exec_time')).toEqual(['test-A']);
-    });
-  });
-
   // ---- Query Data ----
 
   describe('ensureTestData', () => {
@@ -506,7 +492,6 @@ describe('GraphDataCache', () => {
       cache.clearSuite();
 
       expect(cache.scaffoldUnion('nts', ['m1'])).toBeNull();
-      expect(cache.readCachedTests('nts', 'm1', 'exec_time')).toBeNull();
       expect(cache.readCachedTestData('nts', 'm1', 'exec_time', 'test-A')).toEqual([]);
     });
 

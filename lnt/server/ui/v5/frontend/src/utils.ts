@@ -14,7 +14,7 @@ export const DOUBLE_CLICK_DELAY_MS = 200;
 // Aggregation functions
 
 /** Default Plotly color palette, shared across Graph and Dashboard sparklines. */
-export const PLOTLY_COLORS = [
+const PLOTLY_COLORS = [
   '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
   '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf',
 ];
