@@ -1,7 +1,6 @@
 """Test entity endpoints for the v5 API.
 
 GET /api/v5/{ts}/tests              -- List tests (cursor-paginated, filterable)
-GET /api/v5/{ts}/tests/{test_name}  -- Test detail
 """
 
 from flask import g, jsonify
@@ -10,9 +9,8 @@ from flask_smorest import Blueprint
 
 from ..auth import require_scope
 from ..errors import reject_unknown_params
-from ..etag import add_etag_to_response
 from ..helpers import (
-    dump_response, escape_like, lookup_machine, lookup_test,
+    dump_response, escape_like, lookup_machine,
     validate_metric_name,
 )
 from ..pagination import (
@@ -95,21 +93,3 @@ class TestList(MethodView):
 
         serialized = [_serialize_test(t) for t in items]
         return jsonify(make_paginated_response(serialized, next_cursor))
-
-
-@blp.route('/tests/<path:test_name>')
-class TestDetail(MethodView):
-    """Test detail."""
-
-    @require_scope('read')
-    @blp.response(200, TestResponseSchema)
-    def get(self, testsuite, test_name):
-        """Get test detail by name. Test names may contain slashes."""
-        reject_unknown_params(set())
-        ts = g.ts
-        session = g.db_session
-
-        test = lookup_test(session, ts, test_name)
-
-        data = _serialize_test(test)
-        return add_etag_to_response(jsonify(data), data)

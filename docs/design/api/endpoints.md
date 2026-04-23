@@ -85,20 +85,12 @@ are allowed). Deleting a run cascades to its samples and profiles.
 
 ```
 GET    /tests                        -- List (cursor-paginated, filterable)
-GET    /tests/{test_name}            -- Detail
 ```
 
 Read-only. Tests are created implicitly via run submission.
 
 Filters: `name_contains=`, `name_prefix=`, `machine=` (only tests with data
 for this machine), `metric=` (only tests with non-NULL values for this metric).
-
-**URL routing caveat**: Test names may contain slashes (e.g.,
-`test.suite/sub/benchmark`). The `{test_name}` path parameter uses a
-catch-all converter. However, test names ending in `/samples` would collide
-with the sample sub-resource route under `/runs/{uuid}/tests/{test_name}/...`.
-In practice this hasn't been an issue (no known test suite uses such names),
-but clients should avoid creating tests with this suffix.
 
 
 ## Samples

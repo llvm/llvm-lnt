@@ -35,9 +35,6 @@
   prefix matching semantics (we may switch all endpoints to substring matching
   in the future). Refactor the endpoint to use the DB layer's `list_tests()`
   instead of building queries inline. Update Swagger UI accordingly.
-- [ ] Remove `GET /tests/{name}`. The endpoint is unused by the frontend and
-  the response contains only the test name, which the caller already knows.
-  Remove the endpoint, its tests, and its schema.
 
 ### Commits & Orders
 

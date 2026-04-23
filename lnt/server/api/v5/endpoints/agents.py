@@ -78,7 +78,6 @@ by default. Write operations require tokens with appropriate scopes
   GET    /api/v5/{ts}/profiles/{uuid}/functions      Function list
   GET    /api/v5/{ts}/profiles/{uuid}/functions/{fn} Function disassembly
   GET    /api/v5/{ts}/tests                 List tests
-  GET    /api/v5/{ts}/tests/{name}          Test detail
   POST   /api/v5/{ts}/query                 Query time-series data
   POST   /api/v5/{ts}/trends                Aggregated trend data (geomean)
   GET    /api/v5/{ts}/regressions           List regressions

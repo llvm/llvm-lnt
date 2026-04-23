@@ -65,97 +65,6 @@ class TestTestList(unittest.TestCase):
         self.assertEqual(resp.status_code, 400)
 
 
-class TestTestDetail(unittest.TestCase):
-    """Tests for GET /api/v5/{ts}/tests/{test_name}."""
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.app = create_app(sys.argv[1])
-        cls.client = create_client(cls.app)
-
-    def test_get_test_detail(self):
-        """Get test detail by name."""
-        unique = uuid.uuid4().hex[:8]
-        name = f'detail-test-{unique}'
-        submit_run(self.client, f'detail-machine-{unique}', f'rev-{unique}',
-                   [{'name': name, 'execution_time': [1.0]}])
-
-        resp = self.client.get(PREFIX + f'/tests/{name}')
-        self.assertEqual(resp.status_code, 200)
-        data = resp.get_json()
-        self.assertEqual(data['name'], name)
-
-    def test_get_test_with_slashes(self):
-        """Test names with slashes should work via path converter."""
-        unique = uuid.uuid4().hex[:8]
-        name = f'suite/sub/{unique}/benchmark'
-        submit_run(self.client, f'slash-machine-{unique}', f'rev-{unique}',
-                   [{'name': name, 'execution_time': [1.0]}])
-
-        resp = self.client.get(PREFIX + f'/tests/{name}')
-        self.assertEqual(resp.status_code, 200)
-        data = resp.get_json()
-        self.assertEqual(data['name'], name)
-
-    def test_get_nonexistent_404(self):
-        """Getting a nonexistent test should return 404."""
-        resp = self.client.get(
-            PREFIX + '/tests/nonexistent-test-xyz-12345')
-        self.assertEqual(resp.status_code, 404)
-
-
-class TestTestDetailETag(unittest.TestCase):
-    """ETag tests for GET /api/v5/{ts}/tests/{test_name}."""
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.app = create_app(sys.argv[1])
-        cls.client = create_client(cls.app)
-
-    def test_etag_present_on_detail(self):
-        """Test detail response should include an ETag header."""
-        unique = uuid.uuid4().hex[:8]
-        name = f'etag-present-{unique}'
-        submit_run(self.client, f'etag-machine-{unique}', f'rev-{unique}',
-                   [{'name': name, 'execution_time': [1.0]}])
-
-        resp = self.client.get(PREFIX + f'/tests/{name}')
-        self.assertEqual(resp.status_code, 200)
-        etag = resp.headers.get('ETag')
-        self.assertIsNotNone(etag)
-        self.assertTrue(etag.startswith('W/"'))
-
-    def test_etag_304_on_match(self):
-        """Sending If-None-Match with the same ETag returns 304."""
-        unique = uuid.uuid4().hex[:8]
-        name = f'etag-304-{unique}'
-        submit_run(self.client, f'etag304-machine-{unique}', f'rev-{unique}',
-                   [{'name': name, 'execution_time': [1.0]}])
-
-        resp = self.client.get(PREFIX + f'/tests/{name}')
-        etag = resp.headers.get('ETag')
-
-        resp2 = self.client.get(
-            PREFIX + f'/tests/{name}',
-            headers={'If-None-Match': etag},
-        )
-        self.assertEqual(resp2.status_code, 304)
-
-    def test_etag_200_on_mismatch(self):
-        """Sending If-None-Match with a different ETag returns 200."""
-        unique = uuid.uuid4().hex[:8]
-        name = f'etag-200-{unique}'
-        submit_run(self.client, f'etag200-machine-{unique}', f'rev-{unique}',
-                   [{'name': name, 'execution_time': [1.0]}])
-
-        resp = self.client.get(
-            PREFIX + f'/tests/{name}',
-            headers={'If-None-Match': 'W/"stale-etag-value"'},
-        )
-        self.assertEqual(resp.status_code, 200)
-        self.assertIsNotNone(resp.get_json())
-
-
 class TestTestFilters(unittest.TestCase):
     """Test filtering for GET /api/v5/{ts}/tests."""
     @classmethod
@@ -258,14 +167,6 @@ class TestTestUnknownParams(unittest.TestCase):
         self.assertEqual(resp.status_code, 400)
         data = resp.get_json()
         self.assertIn('bogus', data['error']['message'])
-
-    def test_test_detail_unknown_param_returns_400(self):
-        unique = uuid.uuid4().hex[:8]
-        name = f'unk-det-{unique}'
-        submit_run(self.client, f'unk-machine-{unique}', f'rev-{unique}',
-                   [{'name': name, 'execution_time': [1.0]}])
-        resp = self.client.get(PREFIX + f'/tests/{name}?bogus=1')
-        self.assertEqual(resp.status_code, 400)
 
 
 class TestTestMachineMetricFilter(unittest.TestCase):
