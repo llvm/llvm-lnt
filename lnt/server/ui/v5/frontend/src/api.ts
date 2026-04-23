@@ -166,12 +166,9 @@ export async function postOneCursorPage<T>(
   return { items: page.items, nextCursor: page.cursor.next };
 }
 
-export async function getFields(ts: string, signal?: AbortSignal): Promise<FieldInfo[]> {
-  const data = await fetchJson<{ schema: { metrics: FieldInfo[] } }>(
-    `${apiBase}/api/v5/test-suites/${encodeURIComponent(ts)}`,
-    { signal },
-  );
-  return data.schema.metrics;
+export async function getFields(ts: string, _signal?: AbortSignal): Promise<FieldInfo[]> {
+  const info = await getTestSuiteInfoCached(ts);
+  return info.schema.metrics;
 }
 
 export async function getCommits(
@@ -664,6 +661,11 @@ export async function removeRegressionIndicators(
 // ---------------------------------------------------------------------------
 
 const suiteInfoCache = new Map<string, Promise<TestSuiteInfo>>();
+
+/** Clear the suite-info cache. Exported for test use only. */
+export function _clearSuiteInfoCache(): void {
+  suiteInfoCache.clear();
+}
 
 /**
  * Fetch test suite info with per-suite memoization.

@@ -3,7 +3,7 @@ import { setApiBase, getFields, getCommits, getMachines, getRuns, getSamples,
   getMachine, getMachineRuns, deleteMachine, getRun, deleteRun, getCommit, getRunsByCommit,
   getFieldChanges, searchCommits, updateCommit, fetchTrends,
   fetchOneCursorPage, apiUrl, ApiError, authErrorMessage,
-  resolveCommits, getTestSuiteInfoCached,
+  resolveCommits, getTestSuiteInfoCached, _clearSuiteInfoCache,
   getProfilesForRun, getProfileMetadata, getProfileFunctions, getProfileFunctionDetail,
 } from '../api';
 import type {
@@ -22,6 +22,11 @@ function cursorPage<T>(items: T[], next: string | null = null): CursorPaginated<
 
 function offsetPage<T>(items: T[], total: number): OffsetPaginated<T> {
   return { items, total, cursor: { next: null, previous: null } };
+}
+
+/** Build a minimal TestSuiteInfo mock response for getFields tests. */
+function suiteInfoResponse(metrics: FieldInfo[] = []) {
+  return { name: 'nts', schema: { metrics, commit_fields: [], machine_fields: [] } };
 }
 
 // ---------------------------------------------------------------------------
@@ -80,6 +85,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  _clearSuiteInfoCache();
 });
 
 // ===========================================================================
@@ -89,7 +95,7 @@ afterEach(() => {
 describe('setApiBase', () => {
   it('sets base URL used in subsequent requests', async () => {
     setApiBase('/lnt');
-    mockFetch.mockResolvedValueOnce(mockResponse({ schema: { metrics: [] } }));
+    mockFetch.mockResolvedValueOnce(mockResponse(suiteInfoResponse()));
 
     await getFields('nts');
 
@@ -99,7 +105,7 @@ describe('setApiBase', () => {
 
   it('strips trailing slash from base', async () => {
     setApiBase('/lnt/');
-    mockFetch.mockResolvedValueOnce(mockResponse({ schema: { metrics: [] } }));
+    mockFetch.mockResolvedValueOnce(mockResponse(suiteInfoResponse()));
 
     await getFields('nts');
 
@@ -109,7 +115,7 @@ describe('setApiBase', () => {
 
   it('handles empty string base', async () => {
     setApiBase('');
-    mockFetch.mockResolvedValueOnce(mockResponse({ schema: { metrics: [] } }));
+    mockFetch.mockResolvedValueOnce(mockResponse(suiteInfoResponse()));
 
     await getFields('nts');
 
@@ -125,7 +131,7 @@ describe('setApiBase', () => {
 describe('auth header injection', () => {
   it('includes Bearer token when localStorage has a token', async () => {
     storedToken = 'my-secret-token';
-    mockFetch.mockResolvedValueOnce(mockResponse({ schema: { metrics: [] } }));
+    mockFetch.mockResolvedValueOnce(mockResponse(suiteInfoResponse()));
 
     await getFields('nts');
 
@@ -136,7 +142,7 @@ describe('auth header injection', () => {
 
   it('omits Authorization header when no token is stored', async () => {
     storedToken = null;
-    mockFetch.mockResolvedValueOnce(mockResponse({ schema: { metrics: [] } }));
+    mockFetch.mockResolvedValueOnce(mockResponse(suiteInfoResponse()));
 
     await getFields('nts');
 
@@ -217,9 +223,10 @@ describe('error formatting', () => {
 describe('AbortSignal support', () => {
   it('passes signal to fetch for non-paginated requests', async () => {
     const controller = new AbortController();
-    mockFetch.mockResolvedValueOnce(mockResponse({ schema: { metrics: [] } }));
+    const machine: MachineInfo = { name: 'clang-x86', info: {} };
+    mockFetch.mockResolvedValueOnce(mockResponse(machine));
 
-    await getFields('nts', controller.signal);
+    await getMachine('nts', 'clang-x86', controller.signal);
 
     expect(mockFetch.mock.calls[0][1].signal).toBe(controller.signal);
   });
@@ -320,7 +327,7 @@ describe('getFields', () => {
       { name: 'compile_time', type: 'real', display_name: 'Compile Time', unit: 'seconds', unit_abbrev: 's', bigger_is_better: false },
       { name: 'exec_time', type: 'real', display_name: 'Execution Time', unit: 'seconds', unit_abbrev: 's', bigger_is_better: false },
     ];
-    mockFetch.mockResolvedValueOnce(mockResponse({ schema: { metrics: fields } }));
+    mockFetch.mockResolvedValueOnce(mockResponse(suiteInfoResponse(fields)));
 
     const result = await getFields('nts');
 
@@ -328,7 +335,7 @@ describe('getFields', () => {
   });
 
   it('constructs the correct URL', async () => {
-    mockFetch.mockResolvedValueOnce(mockResponse({ schema: { metrics: [] } }));
+    mockFetch.mockResolvedValueOnce(mockResponse(suiteInfoResponse()));
 
     await getFields('nts');
 
@@ -337,7 +344,7 @@ describe('getFields', () => {
   });
 
   it('encodes test suite name in URL', async () => {
-    mockFetch.mockResolvedValueOnce(mockResponse({ schema: { metrics: [] } }));
+    mockFetch.mockResolvedValueOnce(mockResponse(suiteInfoResponse()));
 
     await getFields('my test suite');
 
@@ -585,7 +592,7 @@ describe('getSamples', () => {
 
 describe('URL construction', () => {
   it('encodes special characters in test suite name', async () => {
-    mockFetch.mockResolvedValueOnce(mockResponse({ schema: { metrics: [] } }));
+    mockFetch.mockResolvedValueOnce(mockResponse(suiteInfoResponse()));
 
     await getFields('nts/special chars');
 
@@ -597,7 +604,7 @@ describe('URL construction', () => {
     setApiBase('/myapp');
 
     // Test each function constructs URLs with the base
-    mockFetch.mockResolvedValueOnce(mockResponse({ schema: { metrics: [] } }));
+    mockFetch.mockResolvedValueOnce(mockResponse(suiteInfoResponse()));
     await getFields('nts');
     expect(new URL(mockFetch.mock.calls[0][0]).pathname).toBe('/myapp/api/v5/test-suites/nts');
 

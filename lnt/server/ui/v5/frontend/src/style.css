@@ -1530,6 +1530,10 @@ dl {
   margin-bottom: 8px;
 }
 
+.indicator-filter {
+  margin-bottom: 8px;
+}
+
 /* Add indicators panel */
 .add-indicators-panel {
   margin-top: 15px;

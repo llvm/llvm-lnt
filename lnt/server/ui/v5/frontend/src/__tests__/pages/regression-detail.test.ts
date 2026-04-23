@@ -812,6 +812,280 @@ describe('regressionDetailPage', () => {
       expect(selectAll.indeterminate).toBe(true);
       expect(selectAll.checked).toBe(false);
     });
+
+    it('shows indicator summary count in heading', async () => {
+      regressionDetailPage.mount(container, { testsuite: 'nts', uuid: TEST_UUID });
+
+      await vi.waitFor(() => {
+        const heading = Array.from(container.querySelectorAll('h3'))
+          .find(h => h.textContent?.startsWith('Indicators'));
+        expect(heading).toBeTruthy();
+        expect(heading!.textContent).toBe(
+          'Indicators (2 tests across 2 machines across 2 metrics)',
+        );
+      });
+    });
+
+    it('shows plain heading when no indicators', async () => {
+      (getRegression as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ...mockRegression,
+        indicators: [],
+      });
+
+      regressionDetailPage.mount(container, { testsuite: 'nts', uuid: TEST_UUID });
+
+      await vi.waitFor(() => {
+        const heading = Array.from(container.querySelectorAll('h3'))
+          .find(h => h.textContent?.startsWith('Indicators'));
+        expect(heading).toBeTruthy();
+        expect(heading!.textContent).toBe('Indicators');
+      });
+    });
+
+    it('excludes null machines/tests from summary count', async () => {
+      (getRegression as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ...mockRegression,
+        indicators: [
+          { uuid: 'ind-1', machine: 'clang-x86', test: 'test_a', metric: 'compile_time' },
+          { uuid: 'ind-2', machine: null, test: null, metric: 'execution_time' },
+        ],
+      });
+
+      regressionDetailPage.mount(container, { testsuite: 'nts', uuid: TEST_UUID });
+
+      await vi.waitFor(() => {
+        const heading = Array.from(container.querySelectorAll('h3'))
+          .find(h => h.textContent?.startsWith('Indicators'));
+        expect(heading).toBeTruthy();
+        expect(heading!.textContent).toBe(
+          'Indicators (1 test across 1 machine across 2 metrics)',
+        );
+      });
+    });
+
+    it('updates summary count after removing indicators', async () => {
+      (removeRegressionIndicators as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ...mockRegression,
+        indicators: [mockRegression.indicators[1]],
+      });
+
+      regressionDetailPage.mount(container, { testsuite: 'nts', uuid: TEST_UUID });
+
+      await vi.waitFor(() => {
+        expect(container.querySelectorAll('.indicator-table-container .row-delete-btn').length).toBe(2);
+      });
+
+      (container.querySelector('.indicator-table-container .row-delete-btn') as HTMLElement).click();
+
+      await vi.waitFor(() => {
+        const heading = Array.from(container.querySelectorAll('h3'))
+          .find(h => h.textContent?.startsWith('Indicators'));
+        expect(heading!.textContent).toBe(
+          'Indicators (1 test across 1 machine across 1 metric)',
+        );
+      });
+    });
+  });
+
+  // ---------------------------------------------------------------
+  // 8b. Indicator filter
+  // ---------------------------------------------------------------
+
+  describe('indicator filter', () => {
+    it('renders filter input', async () => {
+      regressionDetailPage.mount(container, { testsuite: 'nts', uuid: TEST_UUID });
+
+      await vi.waitFor(() => {
+        const filterInput = container.querySelector('.indicator-filter input');
+        expect(filterInput).toBeTruthy();
+        expect((filterInput as HTMLInputElement).placeholder).toBe('Filter indicators...');
+      });
+    });
+
+    it('filters indicators by machine name', async () => {
+      regressionDetailPage.mount(container, { testsuite: 'nts', uuid: TEST_UUID });
+
+      await vi.waitFor(() => {
+        expect(container.querySelector('.indicator-table-container table')).toBeTruthy();
+      });
+
+      const filterInput = container.querySelector('.indicator-filter input') as HTMLInputElement;
+      filterInput.value = 'clang';
+      filterInput.dispatchEvent(new Event('input'));
+
+      await vi.waitFor(() => {
+        const rows = container.querySelectorAll('.indicator-table-container tbody tr');
+        expect(rows.length).toBe(1);
+        expect(rows[0].textContent).toContain('clang-x86');
+      });
+    });
+
+    it('filters indicators by test name', async () => {
+      regressionDetailPage.mount(container, { testsuite: 'nts', uuid: TEST_UUID });
+
+      await vi.waitFor(() => {
+        expect(container.querySelector('.indicator-table-container table')).toBeTruthy();
+      });
+
+      const filterInput = container.querySelector('.indicator-filter input') as HTMLInputElement;
+      filterInput.value = 'test_b';
+      filterInput.dispatchEvent(new Event('input'));
+
+      await vi.waitFor(() => {
+        const rows = container.querySelectorAll('.indicator-table-container tbody tr');
+        expect(rows.length).toBe(1);
+        expect(rows[0].textContent).toContain('test_b');
+      });
+    });
+
+    it('filters indicators by metric', async () => {
+      regressionDetailPage.mount(container, { testsuite: 'nts', uuid: TEST_UUID });
+
+      await vi.waitFor(() => {
+        expect(container.querySelector('.indicator-table-container table')).toBeTruthy();
+      });
+
+      const filterInput = container.querySelector('.indicator-filter input') as HTMLInputElement;
+      filterInput.value = 'execution';
+      filterInput.dispatchEvent(new Event('input'));
+
+      await vi.waitFor(() => {
+        const rows = container.querySelectorAll('.indicator-table-container tbody tr');
+        expect(rows.length).toBe(1);
+        expect(rows[0].textContent).toContain('execution_time');
+      });
+    });
+
+    it('is case insensitive', async () => {
+      regressionDetailPage.mount(container, { testsuite: 'nts', uuid: TEST_UUID });
+
+      await vi.waitFor(() => {
+        expect(container.querySelector('.indicator-table-container table')).toBeTruthy();
+      });
+
+      const filterInput = container.querySelector('.indicator-filter input') as HTMLInputElement;
+      filterInput.value = 'CLANG';
+      filterInput.dispatchEvent(new Event('input'));
+
+      await vi.waitFor(() => {
+        const rows = container.querySelectorAll('.indicator-table-container tbody tr');
+        expect(rows.length).toBe(1);
+        expect(rows[0].textContent).toContain('clang-x86');
+      });
+    });
+
+    it('shows all indicators when filter is cleared', async () => {
+      regressionDetailPage.mount(container, { testsuite: 'nts', uuid: TEST_UUID });
+
+      await vi.waitFor(() => {
+        expect(container.querySelector('.indicator-table-container table')).toBeTruthy();
+      });
+
+      const filterInput = container.querySelector('.indicator-filter input') as HTMLInputElement;
+      filterInput.value = 'clang';
+      filterInput.dispatchEvent(new Event('input'));
+
+      await vi.waitFor(() => {
+        expect(container.querySelectorAll('.indicator-table-container tbody tr').length).toBe(1);
+      });
+
+      filterInput.value = '';
+      filterInput.dispatchEvent(new Event('input'));
+
+      await vi.waitFor(() => {
+        expect(container.querySelectorAll('.indicator-table-container tbody tr').length).toBe(2);
+      });
+    });
+
+    it('shows "No matching indicators." when filter has no results', async () => {
+      regressionDetailPage.mount(container, { testsuite: 'nts', uuid: TEST_UUID });
+
+      await vi.waitFor(() => {
+        expect(container.querySelector('.indicator-table-container table')).toBeTruthy();
+      });
+
+      const filterInput = container.querySelector('.indicator-filter input') as HTMLInputElement;
+      filterInput.value = 'nonexistent';
+      filterInput.dispatchEvent(new Event('input'));
+
+      await vi.waitFor(() => {
+        expect(container.querySelector('.indicator-table-container .no-results')?.textContent).toBe(
+          'No matching indicators.',
+        );
+      });
+    });
+
+    it('updates heading with filtered-vs-total counts', async () => {
+      regressionDetailPage.mount(container, { testsuite: 'nts', uuid: TEST_UUID });
+
+      await vi.waitFor(() => {
+        expect(container.querySelector('.indicator-table-container table')).toBeTruthy();
+      });
+
+      const filterInput = container.querySelector('.indicator-filter input') as HTMLInputElement;
+      filterInput.value = 'clang';
+      filterInput.dispatchEvent(new Event('input'));
+
+      await vi.waitFor(() => {
+        const heading = Array.from(container.querySelectorAll('h3'))
+          .find(h => h.textContent?.startsWith('Indicators'));
+        expect(heading!.textContent).toContain('showing 1 of 2 tests');
+        expect(heading!.textContent).toContain('1 of 2 machines');
+        expect(heading!.textContent).toContain('1 of 2 metrics');
+      });
+    });
+
+    it('batch remove only sends visible indicator UUIDs', async () => {
+      (removeRegressionIndicators as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ...mockRegression,
+        indicators: [mockRegression.indicators[1]],
+      });
+
+      regressionDetailPage.mount(container, { testsuite: 'nts', uuid: TEST_UUID });
+
+      await vi.waitFor(() => {
+        expect(container.querySelector('.indicator-table-container table')).toBeTruthy();
+      });
+
+      const filterInput = container.querySelector('.indicator-filter input') as HTMLInputElement;
+      filterInput.value = 'clang';
+      filterInput.dispatchEvent(new Event('input'));
+
+      await vi.waitFor(() => {
+        expect(container.querySelectorAll('.indicator-table-container tbody tr').length).toBe(1);
+      });
+
+      const selectAll = container.querySelector('.indicator-table-container thead input[type="checkbox"]') as HTMLInputElement;
+      selectAll.checked = true;
+      selectAll.dispatchEvent(new Event('change'));
+
+      const removeBtn = Array.from(container.querySelectorAll('.indicator-actions button'))
+        .find(b => b.textContent?.includes('Remove selected')) as HTMLButtonElement;
+      removeBtn.click();
+
+      await vi.waitFor(() => {
+        expect(removeRegressionIndicators).toHaveBeenCalledWith(
+          'nts', TEST_UUID,
+          ['ind-1111'],
+          expect.any(AbortSignal),
+        );
+      });
+    });
+
+    it('does not show filter input when no indicators', async () => {
+      (getRegression as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ...mockRegression,
+        indicators: [],
+      });
+
+      regressionDetailPage.mount(container, { testsuite: 'nts', uuid: TEST_UUID });
+
+      await vi.waitFor(() => {
+        expect(container.querySelector('.indicator-table-container .no-results')).toBeTruthy();
+      });
+
+      expect(container.querySelector('.indicator-filter input')).toBeFalsy();
+    });
   });
 
   // ---------------------------------------------------------------

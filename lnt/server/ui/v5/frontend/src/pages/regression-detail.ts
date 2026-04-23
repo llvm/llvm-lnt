@@ -27,6 +27,8 @@ let commitSearchCleanup: (() => void) | null = null;
 let checkboxRangeCleanup: (() => void) | null = null;
 /** AbortController for in-flight test fetches in Add Indicators. */
 let refreshAbort: AbortController | null = null;
+/** Pending debounce timer for indicator filter. */
+let filterDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 export const regressionDetailPage: PageModule = {
   mount(container: HTMLElement, params: RouteParams): void {
@@ -52,6 +54,7 @@ export const regressionDetailPage: PageModule = {
     const headerDiv = el('div', { class: 'regression-header' });
     const headerErrorDiv = el('div', { class: 'regression-header-error' });
     const indicatorsHeading = el('h3', {}, 'Indicators');
+    const indicatorFilterDiv = el('div', { class: 'indicator-filter' });
     const indicatorActionsDiv = el('div', { class: 'indicator-actions' });
     const indicatorTableDiv = el('div', { class: 'indicator-table-container' });
     const addHeading = el('h3', {}, 'Add Indicators');
@@ -103,7 +106,7 @@ export const regressionDetailPage: PageModule = {
       }
 
       container.append(
-        indicatorsHeading, indicatorActionsDiv, indicatorTableDiv,
+        indicatorsHeading, indicatorFilterDiv, indicatorActionsDiv, indicatorTableDiv,
       );
 
       renderHeader();
@@ -407,12 +410,55 @@ export const regressionDetailPage: PageModule = {
     // ---------------------------------------------------------------
 
     function renderIndicators(): void {
+      if (filterDebounceTimer) { clearTimeout(filterDebounceTimer); filterDebounceTimer = null; }
       indicatorActionsDiv.replaceChildren();
       indicatorTableDiv.replaceChildren();
+      indicatorFilterDiv.replaceChildren();
 
       if (regression.indicators.length === 0) {
+        indicatorsHeading.textContent = 'Indicators';
         indicatorTableDiv.append(el('p', { class: 'no-results' }, 'No indicators.'));
         return;
+      }
+
+      const filterInput = el('input', {
+        type: 'text',
+        class: 'test-filter-input',
+        placeholder: 'Filter indicators...',
+      }) as HTMLInputElement;
+      indicatorFilterDiv.append(filterInput);
+
+      const allMachines = new Set(regression.indicators.map(i => i.machine).filter(Boolean));
+      const allTests = new Set(regression.indicators.map(i => i.test).filter(Boolean));
+      const allMetrics = new Set(regression.indicators.map(i => i.metric));
+
+      function getFilteredIndicators(): RegressionIndicator[] {
+        const q = filterInput.value.toLowerCase().trim();
+        if (!q) return regression.indicators;
+        return regression.indicators.filter(ind =>
+          (ind.machine ?? '').toLowerCase().includes(q) ||
+          (ind.test ?? '').toLowerCase().includes(q) ||
+          ind.metric.toLowerCase().includes(q),
+        );
+      }
+
+      function plural(n: number, word: string): string {
+        return `${n} ${word}${n === 1 ? '' : 's'}`;
+      }
+
+      function updateHeading(filtered: RegressionIndicator[]): void {
+        if (filterInput.value.trim() && filtered.length < regression.indicators.length) {
+          const filtMachines = new Set(filtered.map(i => i.machine).filter(Boolean));
+          const filtTests = new Set(filtered.map(i => i.test).filter(Boolean));
+          const filtMetrics = new Set(filtered.map(i => i.metric));
+          indicatorsHeading.textContent =
+            `Indicators (showing ${filtTests.size} of ${plural(allTests.size, 'test')}` +
+            ` across ${filtMachines.size} of ${plural(allMachines.size, 'machine')}` +
+            ` across ${filtMetrics.size} of ${plural(allMetrics.size, 'metric')})`;
+        } else {
+          indicatorsHeading.textContent =
+            `Indicators (${plural(allTests.size, 'test')} across ${plural(allMachines.size, 'machine')} across ${plural(allMetrics.size, 'metric')})`;
+        }
       }
 
       // Batch remove button
@@ -526,21 +572,36 @@ export const regressionDetailPage: PageModule = {
         });
       }
 
-      renderDataTable(indicatorTableDiv, {
-        columns,
-        rows: regression.indicators,
-        emptyMessage: 'No indicators.',
-      });
-
-      if (hasToken) {
+      function rebuildTable(): void {
+        indicatorTableDiv.replaceChildren();
         if (checkboxRangeCleanup) { checkboxRangeCleanup(); checkboxRangeCleanup = null; }
-        const handle = setupCheckboxRange(
-          indicatorTableDiv,
-          'input[type="checkbox"][data-uuid]',
-          () => updateBatchSelection(),
-        );
-        checkboxRangeCleanup = handle.destroy;
+
+        const filtered = getFilteredIndicators();
+        updateHeading(filtered);
+
+        const isFiltered = filterInput.value.trim().length > 0;
+        renderDataTable(indicatorTableDiv, {
+          columns,
+          rows: filtered,
+          emptyMessage: isFiltered ? 'No matching indicators.' : 'No indicators.',
+        });
+
+        if (hasToken) {
+          const handle = setupCheckboxRange(
+            indicatorTableDiv,
+            'input[type="checkbox"][data-uuid]',
+            () => updateBatchSelection(),
+          );
+          checkboxRangeCleanup = handle.destroy;
+          updateBatchSelection();
+        }
       }
+
+      filterInput.addEventListener('input', () => {
+        if (filterDebounceTimer) clearTimeout(filterDebounceTimer);
+        filterDebounceTimer = setTimeout(() => { filterDebounceTimer = null; rebuildTable(); }, 200);
+      });
+      rebuildTable();
     }
 
     async function doRemoveIndicators(uuids: string[]): Promise<void> {
@@ -810,6 +871,7 @@ export const regressionDetailPage: PageModule = {
     controller = null;
     if (commitSearchCleanup) { commitSearchCleanup(); commitSearchCleanup = null; }
     if (checkboxRangeCleanup) { checkboxRangeCleanup(); checkboxRangeCleanup = null; }
+    if (filterDebounceTimer) { clearTimeout(filterDebounceTimer); filterDebounceTimer = null; }
     if (refreshAbort) { refreshAbort.abort(); refreshAbort = null; }
     cleanupFns.forEach(fn => fn());
     cleanupFns = [];
