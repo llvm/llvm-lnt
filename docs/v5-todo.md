@@ -18,7 +18,6 @@
 
 ### Machines
 
-- [ ] Allow searching machines by machine fields, not just name.
 - [ ] Document supported sort orders on `/machines/{name}/runs`.
 - [ ] Understand whether the machines list endpoint should use cursor pagination
   instead of offset pagination.
@@ -34,9 +33,13 @@
   make it a hard error if any submitted commit_field (or ordinal) clashes with
   existing values on the commit. Currently commit_fields use first-write-wins
   silently, and ordinals can only be set via PATCH.
-- [ ] Understand whether filtering `/commits` by machine and other properties
-  would simplify baseline selection and other queries. Audit calls to `/tests`,
-  `/machines`, and `/runs` for similar simplification opportunities.
+
+### Tests
+
+- [ ] Accept multiple `machine=` values on `GET /tests` (OR semantics). The
+  Regression Detail "Add Indicators" panel calls `getTests()` once per selected
+  machine then unions results client-side (`regression-detail.ts:754`).
+  Multi-value machine support would collapse these into a single request.
 
 ### General
 
@@ -177,11 +180,13 @@
   `INSERT ... ON CONFLICT (regression_id, machine_id, test_id, metric) DO NOTHING`
   eliminates this entirely.
 
-- [ ] **Raise max commit page size and audit client-side limits** (impact: fewer
-  requests for full enumeration). The server hard cap is 500 items per page
-  (`pagination.py:60`); iterating 21K commits requires 44+ requests. The Graph
-  and Compare page commit pickers also request only 500. Raise the server max to
-  5,000–10,000 for bulk consumers and audit client-side page size choices.
+- [ ] **Raise max page size for bulk consumers** (impact: fewer requests for
+  full enumeration). The server hard cap is 500 items per page
+  (`pagination.py:60`). All `fetchAllCursorPages` callers (samples, commits,
+  runs, regressions) are affected: e.g. a run with 7,500 samples requires 15
+  round-trips at limit=500 vs. 1 at limit=10,000. Raise the server max to
+  5,000–10,000 and update the frontend `fetchAllCursorPages` page size
+  accordingly.
 
 ### P2 — Medium
 
@@ -243,15 +248,27 @@
   (`api.ts:295`) is exported but never imported or called anywhere in the
   frontend source. Dead code.
 
-- [ ] **Add `title_contains` filter to regressions endpoint**: The Compare page
-  "Add to Existing Regression" search fetches only 50 regressions and filters
-  client-side. With 50+ regressions, results are incomplete. A server-side
-  title filter would fix this.
+- [ ] **Add `?search=` filter to regressions endpoint**: Both the regression
+  list page and the Compare page "Add to Existing Regression" panel do
+  client-side title search limited to the first page of results (25 or 50
+  items). Regressions beyond that page are invisible to the search. A
+  server-side `?search=` parameter (prefix match on title, consistent with
+  machines/commits/tests) would fix this data completeness bug.
 
 - [ ] **Only set full CORS headers on OPTIONS preflight responses**: Currently
   all 5 CORS headers are set on every response (`middleware.py:91`). Only
   `Access-Control-Allow-Origin` and `Access-Control-Expose-Headers` are needed
   on non-preflight responses. Saves ~200 bytes of header per response.
+
+- [ ] **Accept multiple `machine=` values on `GET /commits`**: The Graph page
+  fetches commit scaffolds per-machine in parallel then unions client-side
+  (`graph-data-cache.ts:55`). Multi-value machine support would collapse N
+  paginated fetches into one.
+
+- [ ] **Use EXISTS instead of JOIN+DISTINCT for machine/metric filters on
+  `GET /tests`**: The tests endpoint (`tests.py:63`) joins Test→Sample→Run
+  and applies DISTINCT. An EXISTS subquery (matching the pattern in
+  `commits.py:163`) would avoid the large intermediate result set.
 
 ## Profiles
 
@@ -261,4 +278,6 @@
   page commit dropdown calls `GET /runs/{uuid}/profiles` for every run on the
   selected machine to filter commits without profiles. Replace with a
   server-side mechanism (e.g. `has_profiles` flag on run list responses or a
-  filtered commits endpoint).
+  filtered commits endpoint). The Profiles page also fetches all commits then
+  filters client-side by machine — it should use the existing `?machine=`
+  filter on `GET /commits` instead.
