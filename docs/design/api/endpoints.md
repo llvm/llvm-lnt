@@ -36,8 +36,9 @@ created implicitly during run submission. Ordinals and tags are always NULL
 on creation and assigned exclusively via PATCH (see
 [D11 in db/operations.md](../db/operations.md#d11-ordinal-management)).
 
-Filters: `search=` (prefix match on commit string, tag, and searchable commit
-fields), `machine=` (only commits with at least one run on this machine;
+Filters: `search=` (case-insensitive substring match on commit string, tag, and
+searchable commit fields; see D9), `machine=` (only commits with at least one
+run on this machine;
 404 if machine not found). Sort: `sort=ordinal` sorts by ordinal ascending
 and excludes commits with NULL ordinals; default sort is by internal ID.
 
@@ -89,7 +90,7 @@ GET    /tests                        -- List (cursor-paginated, filterable)
 
 Read-only. Tests are created implicitly via run submission.
 
-Filters: `search=` (prefix match on test name), `machine=` (only tests with data
+Filters: `search=` (case-insensitive substring match on test name; see D9), `machine=` (only tests with data
 for this machine), `metric=` (only tests with non-NULL values for this metric).
 
 

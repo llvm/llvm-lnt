@@ -77,7 +77,7 @@ class TestList(MethodView):
         if search:
             escaped = escape_like(search)
             query = query.filter(
-                ts.Test.name.like(escaped + '%', escape='\\'))
+                ts.Test.name.ilike('%' + escaped + '%', escape='\\'))
 
         cursor_str = query_args.get('cursor')
         limit = query_args['limit']

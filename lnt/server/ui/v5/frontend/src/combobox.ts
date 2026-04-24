@@ -1,6 +1,6 @@
 import type { SideSelection, MachineInfo } from './types';
 import { getMachines } from './api';
-import { el } from './utils';
+import { el, matchesFilter, updateFilterValidation } from './utils';
 
 // Per-side commit picker references for enabling/disabling from machine combobox
 let commitPickerA: CommitPickerHandle | null = null;
@@ -159,12 +159,11 @@ export function createCommitPicker(opts: CommitPickerOptions): CommitPickerHandl
 
   function showDropdown(filter: string): void {
     const { values, displayMap } = opts.getCommitData();
-    const lf = filter.toLowerCase();
     const matches = filter
       ? values.filter(v => {
-          if (v.toLowerCase().includes(lf)) return true;
+          if (matchesFilter(v, filter)) return true;
           const display = displayMap?.get(v);
-          return display ? display.toLowerCase().includes(lf) : false;
+          return display ? matchesFilter(display, filter) : false;
         })
       : values;
     const limited = matches.slice(0, 100);
@@ -201,7 +200,10 @@ export function createCommitPicker(opts: CommitPickerOptions): CommitPickerHandl
   }
 
   input.addEventListener('focus', () => showDropdown(input.value));
-  input.addEventListener('input', () => showDropdown(input.value));
+  input.addEventListener('input', () => {
+    updateFilterValidation(input);
+    showDropdown(input.value);
+  });
   input.addEventListener('keydown', (e: KeyboardEvent) => {
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -377,9 +379,8 @@ export function createMachineCombobox(
       return;
     }
 
-    const lf = filter.toLowerCase();
     const matches = filter.trim()
-      ? machines.filter(m => m.name.toLowerCase().includes(lf))
+      ? machines.filter(m => matchesFilter(m.name, filter))
       : machines;
 
     for (const m of matches) {
@@ -407,7 +408,10 @@ export function createMachineCombobox(
   }
 
   input.addEventListener('focus', () => showDropdown(input.value));
-  input.addEventListener('input', () => showDropdown(input.value));
+  input.addEventListener('input', () => {
+    updateFilterValidation(input);
+    showDropdown(input.value);
+  });
   input.addEventListener('keydown', (e: KeyboardEvent) => {
     if (e.key === 'Enter') {
       e.preventDefault();

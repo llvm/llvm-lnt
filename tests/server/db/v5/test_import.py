@@ -632,6 +632,31 @@ class TestSearchMethods(_ImportTestBase):
         self.assertNotIn("xyz-100", names)
         session.close()
 
+    def test_search_commits_by_substring(self):
+        """Search matches a substring in the middle of a commit string."""
+        session = self.Session()
+        # "c-10" appears in the middle of "abc-100"
+        results = self.tsdb.list_commits(session, search="c-10")
+        names = [c.commit for c in results]
+        self.assertIn("abc-100", names)
+        session.close()
+
+    def test_search_commits_case_insensitive(self):
+        """Search is case-insensitive for commit strings and fields."""
+        session = self.Session()
+        self.tsdb.get_or_create_commit(
+            session, "MiXeD-CaSe-Commit", author="TestAuthor")
+        session.commit()
+
+        results = self.tsdb.list_commits(session, search="mixed-case-commit")
+        names = [c.commit for c in results]
+        self.assertIn("MiXeD-CaSe-Commit", names)
+
+        results = self.tsdb.list_commits(session, search="MIXED-CASE-COMMIT")
+        names = [c.commit for c in results]
+        self.assertIn("MiXeD-CaSe-Commit", names)
+        session.close()
+
     def test_search_commits_by_searchable_field(self):
         """Search should match across searchable commit_fields (author)."""
         session = self.Session()
@@ -642,12 +667,48 @@ class TestSearchMethods(_ImportTestBase):
         self.assertIn("xyz-100", names)
         session.close()
 
+    def test_search_commits_by_searchable_field_substring(self):
+        """Search matches a substring within searchable commit fields."""
+        session = self.Session()
+        # "lice" is a substring of "Alice" and "Alice Smith"
+        results = self.tsdb.list_commits(session, search="lice")
+        names = [c.commit for c in results]
+        self.assertIn("abc-100", names)
+        self.assertIn("xyz-100", names)
+        session.close()
+
     def test_search_machines_by_name(self):
         session = self.Session()
         results = self.tsdb.list_machines(session, search="x86")
         names = [m.name for m in results]
         self.assertIn("x86-machine-1", names)
         self.assertNotIn("arm-machine-1", names)
+        session.close()
+
+    def test_search_machines_by_name_substring(self):
+        """Search matches a substring in the middle of a machine name."""
+        session = self.Session()
+        # "machine-1" is a substring shared by both machines
+        results = self.tsdb.list_machines(session, search="machine-1")
+        names = [m.name for m in results]
+        self.assertIn("x86-machine-1", names)
+        self.assertIn("arm-machine-1", names)
+        session.close()
+
+    def test_search_machines_case_insensitive(self):
+        """Search is case-insensitive for machine names and fields."""
+        session = self.Session()
+        self.tsdb.get_or_create_machine(
+            session, "CaSe-Machine-1", hardware="TestHW", os="TestOS")
+        session.commit()
+
+        results = self.tsdb.list_machines(session, search="case-machine")
+        names = [m.name for m in results]
+        self.assertIn("CaSe-Machine-1", names)
+
+        results = self.tsdb.list_machines(session, search="CASE-MACHINE")
+        names = [m.name for m in results]
+        self.assertIn("CaSe-Machine-1", names)
         session.close()
 
     def test_search_machines_by_searchable_field(self):

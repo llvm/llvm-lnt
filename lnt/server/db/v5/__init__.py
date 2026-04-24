@@ -473,19 +473,20 @@ class V5TestSuiteDB:
     ) -> list:
         """List commits with optional search / ordinal-range filtering.
 
-        *search* performs OR prefix-matching across the ``commit`` column,
-        the built-in ``tag`` column, and all ``searchable`` commit_fields.
+        *search* performs case-insensitive OR substring matching across the
+        ``commit`` column, the built-in ``tag`` column, and all ``searchable``
+        commit_fields.
         """
         q = session.query(self.Commit)
 
         if search:
             escaped = _escape_like(search)
-            prefix = f"{escaped}%"
-            clauses = [self.Commit.commit.ilike(prefix, escape="\\")]
-            clauses.append(self.Commit.tag.ilike(prefix, escape="\\"))
+            pattern = f"%{escaped}%"
+            clauses = [self.Commit.commit.ilike(pattern, escape="\\")]
+            clauses.append(self.Commit.tag.ilike(pattern, escape="\\"))
             for cf in self.schema.searchable_commit_fields:
                 col = getattr(self.Commit, cf.name)
-                clauses.append(col.ilike(prefix, escape="\\"))
+                clauses.append(col.ilike(pattern, escape="\\"))
             q = q.filter(or_(*clauses))
 
         if ordinal_range is not None:
@@ -638,17 +639,17 @@ class V5TestSuiteDB:
     ) -> list:
         """List machines with optional search.
 
-        *search* performs OR prefix-matching across ``name`` and all
-        ``searchable`` machine_fields.
+        *search* performs case-insensitive OR substring matching across
+        ``name`` and all ``searchable`` machine_fields.
         """
         q = session.query(self.Machine)
         if search:
             escaped = _escape_like(search)
-            prefix = f"{escaped}%"
-            clauses = [self.Machine.name.ilike(prefix, escape="\\")]
+            pattern = f"%{escaped}%"
+            clauses = [self.Machine.name.ilike(pattern, escape="\\")]
             for mf in self.schema.searchable_machine_fields:
                 col = getattr(self.Machine, mf.name)
-                clauses.append(col.ilike(prefix, escape="\\"))
+                clauses.append(col.ilike(pattern, escape="\\"))
             q = q.filter(or_(*clauses))
         return q.order_by(self.Machine.id).limit(limit if limit is not None else DEFAULT_LIMIT).all()
 

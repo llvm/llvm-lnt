@@ -409,6 +409,79 @@ describe('commitDetailPage', () => {
     });
   });
 
+  it('regex filter via re: prefix filters machines', async () => {
+    commitDetailPage.mount(container, { testsuite: 'nts', value: '100' });
+
+    await vi.waitFor(() => {
+      expect(container.querySelector('table')).toBeTruthy();
+    });
+
+    const filterInput = container.querySelector('.test-filter-input') as HTMLInputElement;
+    filterInput.value = 're:clang.*x86';
+    filterInput.dispatchEvent(new Event('input'));
+    vi.advanceTimersByTime(200);
+
+    await vi.waitFor(() => {
+      const rows = container.querySelectorAll('tbody tr');
+      expect(rows.length).toBeGreaterThan(0);
+      for (const row of rows) {
+        expect(row.textContent).toMatch(/clang.*x86/i);
+      }
+    });
+  });
+
+  it('invalid regex shows filter-invalid class on input', async () => {
+    commitDetailPage.mount(container, { testsuite: 'nts', value: '100' });
+
+    await vi.waitFor(() => {
+      expect(container.querySelector('table')).toBeTruthy();
+    });
+
+    const filterInput = container.querySelector('.test-filter-input') as HTMLInputElement;
+    filterInput.value = 're:invalid[';
+    filterInput.dispatchEvent(new Event('input'));
+
+    expect(filterInput.classList.contains('filter-invalid')).toBe(true);
+
+    filterInput.value = 're:valid.*';
+    filterInput.dispatchEvent(new Event('input'));
+
+    expect(filterInput.classList.contains('filter-invalid')).toBe(false);
+  });
+
+  it('shows regex badge when typing re: prefix', async () => {
+    commitDetailPage.mount(container, { testsuite: 'nts', value: '100' });
+
+    await vi.waitFor(() => {
+      expect(container.querySelector('table')).toBeTruthy();
+    });
+
+    const filterInput = container.querySelector('.test-filter-input') as HTMLInputElement;
+    filterInput.value = 're:clang';
+    filterInput.dispatchEvent(new Event('input'));
+
+    const badge = container.querySelector('.filter-regex-badge');
+    expect(badge).toBeTruthy();
+    expect(badge!.textContent).toBe('regex');
+    expect(badge!.classList.contains('filter-regex-badge-invalid')).toBe(false);
+  });
+
+  it('regex badge shows invalid state on bad regex', async () => {
+    commitDetailPage.mount(container, { testsuite: 'nts', value: '100' });
+
+    await vi.waitFor(() => {
+      expect(container.querySelector('table')).toBeTruthy();
+    });
+
+    const filterInput = container.querySelector('.test-filter-input') as HTMLInputElement;
+    filterInput.value = 're:invalid[';
+    filterInput.dispatchEvent(new Event('input'));
+
+    const badge = container.querySelector('.filter-regex-badge');
+    expect(badge).toBeTruthy();
+    expect(badge!.classList.contains('filter-regex-badge-invalid')).toBe(true);
+  });
+
   it('shows error banner on initial load failure', async () => {
     (getCommit as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Not found'));
 

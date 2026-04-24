@@ -1,6 +1,6 @@
-// components/commit-search.ts — Commit search with prefix autocomplete.
+// components/commit-search.ts — Commit search with autocomplete.
 
-import { el, debounce, commitDisplayValue } from '../utils';
+import { el, debounce, commitDisplayValue, matchesFilter, updateFilterValidation } from '../utils';
 import { searchCommits } from '../api';
 import type { CommitSummary } from '../types';
 import { navigate } from '../router';
@@ -70,11 +70,11 @@ export function renderCommitSearch(
   }
 
   function showSuggestions(): void {
-    const text = input.value.trim().toLowerCase();
+    const text = input.value.trim();
     const filtered = text
       ? suggestions.filter(s =>
-          s.commit.toLowerCase().startsWith(text) ||
-          Object.values(s.fields).some(v => v.toLowerCase().startsWith(text)))
+          matchesFilter(s.commit, text) ||
+          Object.values(s.fields).some(v => matchesFilter(v, text)))
       : suggestions;
 
     dropdown.replaceChildren();
@@ -146,8 +146,8 @@ export function renderCommitSearch(
     } else {
       // Only show invalid when there are no partial matches (dropdown is empty)
       const hasMatches = suggestions.some(s =>
-        s.commit.toLowerCase().startsWith(text.toLowerCase()) ||
-        Object.values(s.fields).some(v => v.toLowerCase().startsWith(text.toLowerCase())));
+        matchesFilter(s.commit, text) ||
+        Object.values(s.fields).some(v => matchesFilter(v, text)));
       if (hasMatches) {
         input.classList.remove('commit-search-invalid');
       } else {
@@ -157,6 +157,7 @@ export function renderCommitSearch(
   }
 
   input.addEventListener('input', () => {
+    updateFilterValidation(input);
     if (useSuggestionsMode) {
       showSuggestions();
       updateValidationState();

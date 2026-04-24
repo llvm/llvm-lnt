@@ -74,7 +74,7 @@ class TestTestFilters(unittest.TestCase):
         cls.client = create_client(cls.app)
 
     def test_filter_search(self):
-        """Filter tests by search (prefix match)."""
+        """Filter tests by search (substring match)."""
         unique = uuid.uuid4().hex[:8]
         prefix = f'search-{unique}'
         name = f'{prefix}-test'
@@ -86,7 +86,42 @@ class TestTestFilters(unittest.TestCase):
         data = resp.get_json()
         self.assertGreater(len(data['items']), 0)
         for t in data['items']:
-            self.assertTrue(t['name'].startswith(prefix))
+            self.assertIn(prefix, t['name'])
+
+    def test_filter_search_substring(self):
+        """Search matches a substring in the middle of a test name."""
+        unique = uuid.uuid4().hex[:8]
+        middle = f'mid{unique}'
+        name = f'prefix-{middle}-suffix'
+        submit_run(self.client, f'sub-machine-{unique}', f'rev-{unique}',
+                   [{'name': name, 'execution_time': [1.0]}])
+
+        resp = self.client.get(
+            PREFIX + f'/tests?search={middle}')
+        data = resp.get_json()
+        names = [t['name'] for t in data['items']]
+        self.assertIn(name, names)
+
+    def test_filter_search_case_insensitive(self):
+        """Search is case-insensitive."""
+        unique = uuid.uuid4().hex[:8]
+        name = f'CaSe-TeSt-{unique}'
+        submit_run(self.client, f'case-machine-{unique}', f'rev-{unique}',
+                   [{'name': name, 'execution_time': [1.0]}])
+
+        # Search with all-lowercase version of the unique part
+        resp = self.client.get(
+            PREFIX + f'/tests?search=case-test-{unique}')
+        data = resp.get_json()
+        names = [t['name'] for t in data['items']]
+        self.assertIn(name, names)
+
+        # Search with all-uppercase
+        resp = self.client.get(
+            PREFIX + f'/tests?search=CASE-TEST-{unique.upper()}')
+        data = resp.get_json()
+        names = [t['name'] for t in data['items']]
+        self.assertIn(name, names)
 
     def test_filter_no_match(self):
         """Filter that matches nothing returns empty list."""

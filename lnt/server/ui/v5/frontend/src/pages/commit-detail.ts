@@ -3,7 +3,7 @@
 import type { PageModule, RouteParams } from '../router';
 import type { RunInfo, CommitDetail, RegressionListItem } from '../types';
 import { getCommit, getRunsByCommit, updateCommit, authErrorMessage, getRegressions } from '../api';
-import { el, spaLink, formatTime, truncate, debounce } from '../utils';
+import { el, spaLink, formatTime, truncate, debounce, matchesFilter, updateFilterValidation } from '../utils';
 import { navigate } from '../router';
 import { renderDataTable } from '../components/data-table';
 import { renderStateBadge } from '../regression-utils';
@@ -78,10 +78,13 @@ export const commitDetailPage: PageModule = {
         placeholder: 'Filter machines...',
       }) as HTMLInputElement;
       const doFilter = debounce(() => {
-        machineFilter = filterInput.value.toLowerCase();
+        machineFilter = filterInput.value;
         renderSummaryAndTable();
       }, 200);
-      filterInput.addEventListener('input', () => doFilter());
+      filterInput.addEventListener('input', () => {
+        updateFilterValidation(filterInput);
+        doFilter();
+      });
       filterContainer.append(filterInput);
 
       renderSummaryAndTable();
@@ -95,7 +98,7 @@ export const commitDetailPage: PageModule = {
 
     function filteredRuns(): RunInfo[] {
       if (!machineFilter) return runs;
-      return runs.filter(r => r.machine.toLowerCase().includes(machineFilter));
+      return runs.filter(r => matchesFilter(r.machine, machineFilter));
     }
 
     function renderSummaryAndTable(): void {

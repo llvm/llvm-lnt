@@ -10,7 +10,7 @@ import {
   getTestSuiteInfoCached,
   getCommit,
 } from '../api';
-import { el, spaLink, agnosticLink, agnosticUrl, truncate, ensureProtocol, commitDisplayValue } from '../utils';
+import { el, spaLink, agnosticLink, agnosticUrl, truncate, ensureProtocol, commitDisplayValue, matchesFilter, updateFilterValidation } from '../utils';
 import { renderDataTable, type Column } from '../components/data-table';
 import { renderDeleteConfirm } from '../components/delete-confirm';
 import { renderMetricSelector, filterMetricFields } from '../components/metric-selector';
@@ -433,12 +433,12 @@ export const regressionDetailPage: PageModule = {
       const allMetrics = new Set(regression.indicators.map(i => i.metric));
 
       function getFilteredIndicators(): RegressionIndicator[] {
-        const q = filterInput.value.toLowerCase().trim();
+        const q = filterInput.value.trim();
         if (!q) return regression.indicators;
         return regression.indicators.filter(ind =>
-          (ind.machine ?? '').toLowerCase().includes(q) ||
-          (ind.test ?? '').toLowerCase().includes(q) ||
-          ind.metric.toLowerCase().includes(q),
+          matchesFilter(ind.machine ?? '', q) ||
+          matchesFilter(ind.test ?? '', q) ||
+          matchesFilter(ind.metric, q),
         );
       }
 
@@ -598,6 +598,7 @@ export const regressionDetailPage: PageModule = {
       }
 
       filterInput.addEventListener('input', () => {
+        updateFilterValidation(filterInput);
         if (filterDebounceTimer) clearTimeout(filterDebounceTimer);
         filterDebounceTimer = setTimeout(() => { filterDebounceTimer = null; rebuildTable(); }, 200);
       });
@@ -649,10 +650,10 @@ export const regressionDetailPage: PageModule = {
 
         function render(): void {
           if (rangeHandle) { rangeHandle.destroy(); rangeHandle = null; }
-          const filter = opts.filterInput.value.toLowerCase();
+          const filter = opts.filterInput.value;
           const items = opts.allItems();
           const filtered = filter
-            ? items.filter(m => m.toLowerCase().includes(filter))
+            ? items.filter(m => matchesFilter(m, filter))
             : items;
 
           opts.container.replaceChildren();
@@ -685,7 +686,10 @@ export const regressionDetailPage: PageModule = {
           });
         }
 
-        opts.filterInput.addEventListener('input', () => render());
+        opts.filterInput.addEventListener('input', () => {
+          updateFilterValidation(opts.filterInput);
+          render();
+        });
 
         return {
           rerender: render,

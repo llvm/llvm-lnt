@@ -30,6 +30,19 @@ existing Compare page.
 
 **Design consistency**: All pages should share a consistent look and feel, using the v5 Compare page as the reference for UI patterns -- comboboxes, metric selectors, table styling, progress/error feedback, color scheme, and layout spacing. Reuse the same components across pages rather than reinventing per-page. Pages with selection controls (dropdowns, filters, aggregation settings) wrap them in a shared controls panel -- a lightly shaded box with a border -- so the settings area is visually distinct from the page content.
 
+**Text filtering**: All client-side text filter and search inputs share a
+unified filtering behavior. Plain text performs case-insensitive substring
+matching. Prefixing the input with `re:` (case-sensitive literal prefix)
+switches to case-insensitive regex matching. When regex mode is active (the
+input starts with `re:`), a small inline "regex" badge appears at the right
+edge of the input. The badge is blue for valid regex and red for invalid regex
+syntax. Invalid regex patterns also show a red halo on the input border. This
+convention applies uniformly to all text filter inputs across the UI: test name
+filters, machine name filters, regression title searches, indicator filters,
+combobox suggestion filters, and function name filters. The `re:` prefix is not
+consumed or hidden -- the user sees it in the input and it is included in URL
+state.
+
 **Authentication**: The v5 API allows unauthenticated reads by default (configurable via `require_auth_for_reads` in `lnt.cfg`). All pages in the current scope are read-only, so no authentication is needed. The SPA navigation bar includes a Settings panel with a Bearer token input (stored in localStorage) for the Admin page and future write-capable pages (regression triage, etc.).
 
 **Why SPA over server-rendered pages:**

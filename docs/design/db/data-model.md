@@ -122,7 +122,7 @@ Key differences from v4:
   `run_parameters` (JSONB).
 - `commit_fields` defines optional typed metadata columns on the Commit table.
 - `searchable: true` on commit_fields or machine_fields enables `?search=`
-  prefix matching on the corresponding list API endpoint.
+  substring matching on the corresponding list API endpoint (see D9).
 - `display: true` on at most one commit_field is a hint for the UI: when set
   and the field has a non-null value, the UI shows that value instead of the
   raw commit string (e.g., a shortened SHA, a version tag). This is purely a
@@ -158,7 +158,7 @@ serialize timestamps as ISO 8601 with `Z` suffix
 - `tag` is an optional human-readable label (e.g., "release-18.1"). Set
   exclusively via ``PATCH /commits/{value}`` (never during submission).
   Multiple commits may share the same tag. The tag is always included in
-  ``?search=`` prefix matching. When set, the UI appends it to the display
+  ``?search=`` substring matching (see D9). When set, the UI appends it to the display
   value as ``<display_value> (tag)``.
 - Dynamic columns are created from `commit_fields` in the schema.
 - No linked list (NextOrder/PreviousOrder from v4 are gone).

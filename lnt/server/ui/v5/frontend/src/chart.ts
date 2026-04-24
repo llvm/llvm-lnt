@@ -1,7 +1,7 @@
 import type { ComparisonRow } from './types';
 import { CHART_ZOOM, CHART_HOVER } from './events';
 import { getState } from './state';
-import { el, STATUS_COLORS } from './utils';
+import { el, STATUS_COLORS, matchesFilter } from './utils';
 
 /** Candidate "nice" percentage values for the positive side (B > A). */
 const NICE_PCTS_POS = [
@@ -242,10 +242,9 @@ function drawChart(filterTests: Set<string> | null): void {
   // Apply text filter from state on top of chart zoom filter
   let effectiveFilter = filterTests;
   if (state.testFilter) {
-    const lf = state.testFilter.toLowerCase();
     const textMatches = new Set<string>();
     for (const r of chartData) {
-      if (r.test.toLowerCase().includes(lf)) textMatches.add(r.test);
+      if (matchesFilter(r.test, state.testFilter)) textMatches.add(r.test);
     }
     if (effectiveFilter) {
       effectiveFilter = new Set([...effectiveFilter].filter(t => textMatches.has(t)));

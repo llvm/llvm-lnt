@@ -31,7 +31,7 @@ import {
 import { renderTable, filterToTests, highlightRow, resetTable } from '../table';
 import { renderChart, highlightPoint, destroyChart } from '../chart';
 import { computeSummaryCounts, renderSummaryBar } from '../components/comparison-summary';
-import { el, truncate, debounce } from '../utils';
+import { el, truncate, debounce, matchesFilter, updateFilterValidation } from '../utils';
 
 /** Cleanup functions for document-level event listeners. */
 let eventCleanups: Array<() => void> = [];
@@ -97,12 +97,12 @@ export const comparePage: PageModule = {
      */
     function computeVisibleTests(): string[] {
       const noiseHidden = computeNoiseHidden();
-      const lf = getState().testFilter?.toLowerCase() ?? '';
+      const filter = getState().testFilter ?? '';
       return lastRows
         .filter(r => r.sidePresent === 'both'
           && !noiseHidden.has(r.test)
           && !manuallyHidden.has(r.test)
-          && (!lf || r.test.toLowerCase().includes(lf)))
+          && (!filter || matchesFilter(r.test, filter)))
         .map(r => r.test);
     }
 
@@ -178,10 +178,10 @@ export const comparePage: PageModule = {
           // Isolate only affects manuallyHidden; the two filters (noise,
           // manual) are independent.
           const state = getState();
-          const lf = state.testFilter ? state.testFilter.toLowerCase() : '';
+          const filter = state.testFilter || '';
           const visibleTests = tableRows
             .filter(r => r.sidePresent === 'both' && !manuallyHidden.has(r.test)
-              && (!lf || r.test.toLowerCase().includes(lf)))
+              && (!filter || matchesFilter(r.test, filter)))
             .map(r => r.test);
 
           if (visibleTests.length === 1 && visibleTests[0] === test) {
@@ -192,7 +192,7 @@ export const comparePage: PageModule = {
             manuallyHidden = new Set(
               tableRows
                 .filter(r => r.sidePresent === 'both' && r.test !== test
-                  && (!lf || r.test.toLowerCase().includes(lf)))
+                  && (!filter || matchesFilter(r.test, filter)))
                 .map(r => r.test),
             );
           }
@@ -480,7 +480,7 @@ export const comparePage: PageModule = {
         const suite = st.sideA.suite || st.sideB.suite;
         if (!suite) return;
 
-        const filter = searchInput.value.toLowerCase();
+        const filter = searchInput.value;
 
         // Fetch once per suite, then filter client-side
         if (!regressionsPageCache || regressionCacheSuite !== suite) {
@@ -495,7 +495,7 @@ export const comparePage: PageModule = {
         }
 
         const matches = filter
-          ? regressionsPageCache.filter(r => (r.title || '').toLowerCase().includes(filter))
+          ? regressionsPageCache.filter(r => matchesFilter(r.title || '', filter))
           : regressionsPageCache;
 
         searchResults.replaceChildren();
@@ -514,7 +514,10 @@ export const comparePage: PageModule = {
         }
       }, 300);
 
-      searchInput.addEventListener('input', () => doSearch());
+      searchInput.addEventListener('input', () => {
+        updateFilterValidation(searchInput);
+        doSearch();
+      });
       searchInput.addEventListener('focus', () => doSearch());
 
       addExistingBtn.addEventListener('click', async () => {

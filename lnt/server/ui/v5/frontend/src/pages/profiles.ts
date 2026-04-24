@@ -10,7 +10,7 @@ import {
   getProfileMetadata, getProfileFunctions, getProfileFunctionDetail,
 } from '../api';
 import { getTestsuites } from '../router';
-import { el } from '../utils';
+import { el, matchesFilter, updateFilterValidation } from '../utils';
 import { renderMachineCombobox } from '../components/machine-combobox';
 import { createCommitPicker } from '../combobox';
 import { renderProfileStats } from '../components/profile-stats';
@@ -744,9 +744,8 @@ function renderFunctionSelector(side: 'a' | 'b'): void {
 
   function showDropdown(filter: string): void {
     dropdown.replaceChildren();
-    const lf = filter.toLowerCase();
     const matches = filter.trim()
-      ? sorted.filter(fn => fn.name.toLowerCase().includes(lf))
+      ? sorted.filter(fn => matchesFilter(fn.name, filter))
       : sorted;
 
     for (const fn of matches.slice(0, 100)) {
@@ -766,7 +765,10 @@ function renderFunctionSelector(side: 'a' | 'b'): void {
     dropdown.classList.toggle('open', matches.length > 0);
   }
 
-  input.addEventListener('input', () => showDropdown(input.value));
+  input.addEventListener('input', () => {
+    updateFilterValidation(input);
+    showDropdown(input.value);
+  });
   input.addEventListener('focus', () => showDropdown(input.value));
   input.addEventListener('blur', (e: FocusEvent) => {
     if (wrapper.contains(e.relatedTarget as Node)) return;

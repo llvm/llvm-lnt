@@ -160,6 +160,20 @@ between pages, not between individual setting changes within a page.
 `data-table`, `pagination`, `machine-combobox`, `metric-selector`,
 `commit-search`, `sparkline-card`, `time-series-chart`, `delete-confirm`.
 
+**Text filter utility.** All client-side text filters use the shared
+`matchesFilter(text, filter)` function from `utils.ts` for matching, and
+`updateFilterValidation(input)` for visual feedback. These implement the `re:`
+regex convention described in the
+architecture design doc. The regex is compiled once and cached per filter
+string to avoid per-item recompilation on large lists. The
+`updateFilterValidation(input)` helper manages all visual feedback on
+filter inputs: the `.filter-invalid` red halo for invalid regex, and an
+inline "regex" badge (`<span class="filter-regex-badge">`) that appears when
+the input starts with `re:`. For plain filter inputs (not inside a combobox
+wrapper), `updateFilterValidation` lazily wraps the input in a
+`<div class="filter-input-wrapper">` to provide the `position: relative`
+context needed for badge positioning.
+
 
 ## 6. Testing
 

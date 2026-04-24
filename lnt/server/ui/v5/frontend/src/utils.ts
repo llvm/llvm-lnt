@@ -168,6 +168,88 @@ export async function resolveDisplayMap(
 }
 
 
+// Text filtering
+
+let _cachedFilterKey = '';
+let _cachedRegex: RegExp | null = null;
+let _cachedRegexValid = true;
+let _cachedPlainFilter = '';
+let _cachedPlainLower = '';
+
+function _getRegex(pattern: string): RegExp | null {
+  const key = 're:' + pattern;
+  if (_cachedFilterKey !== key) {
+    _cachedFilterKey = key;
+    try {
+      _cachedRegex = new RegExp(pattern, 'i');
+      _cachedRegexValid = true;
+    } catch {
+      _cachedRegex = null;
+      _cachedRegexValid = false;
+    }
+  }
+  return _cachedRegex;
+}
+
+export function matchesFilter(text: string, filter: string): boolean {
+  if (!filter) return true;
+  if (filter.startsWith('re:')) {
+    const regex = _getRegex(filter.slice(3));
+    return regex ? regex.test(text) : false;
+  }
+  if (_cachedPlainFilter !== filter) {
+    _cachedPlainFilter = filter;
+    _cachedPlainLower = filter.toLowerCase();
+  }
+  return text.toLowerCase().includes(_cachedPlainLower);
+}
+
+export function isFilterValid(filter: string): boolean {
+  if (!filter || !filter.startsWith('re:')) return true;
+  _getRegex(filter.slice(3));
+  return _cachedRegexValid;
+}
+
+export function updateFilterValidation(input: HTMLInputElement): void {
+  const isRegex = input.value.startsWith('re:');
+  const valid = isFilterValid(input.value);
+
+  input.classList.toggle('filter-invalid', !valid);
+
+  let container = input.parentElement;
+  const needsWrap = container
+    && !container.classList.contains('combobox')
+    && !container.classList.contains('commit-search')
+    && !container.classList.contains('filter-input-wrapper');
+
+  if (isRegex && needsWrap) {
+    const wrapper = el('div', { class: 'filter-input-wrapper' });
+    container!.insertBefore(wrapper, input);
+    wrapper.appendChild(input);
+    container = wrapper;
+  } else if (needsWrap) {
+    // Input has never entered regex mode, so no wrapper or chip exists yet.
+    return;
+  } else {
+    container = input.parentElement;
+  }
+
+  let badge = container?.querySelector('.filter-regex-badge') as HTMLElement | null;
+
+  if (isRegex) {
+    if (!badge) {
+      badge = el('span', { class: 'filter-regex-badge', 'aria-hidden': 'true' }, 'regex');
+      input.after(badge);
+    }
+    badge.classList.toggle('filter-regex-badge-invalid', !valid);
+    input.classList.add('filter-has-badge');
+  } else if (badge) {
+    badge.remove();
+    input.classList.remove('filter-has-badge');
+  }
+}
+
+
 // DOM helpers
 
 export function debounce<T extends (...args: unknown[]) => void>(fn: T, ms: number): T {

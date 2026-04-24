@@ -4,7 +4,7 @@
 import type { PageModule, RouteParams } from '../router';
 import type { SampleInfo, ProfileListItem } from '../types';
 import { getRun, getFields, getProfilesForRun, deleteRun, fetchOneCursorPage, apiUrl, getTestSuiteInfoCached, getCommit } from '../api';
-import { el, spaLink, agnosticLink, formatValue, formatTime, debounce, commitDisplayValue } from '../utils';
+import { el, spaLink, agnosticLink, formatValue, formatTime, debounce, commitDisplayValue, matchesFilter, updateFilterValidation } from '../utils';
 import { navigate } from '../router';
 import { renderDataTable } from '../components/data-table';
 import { renderMetricSelector, filterMetricFields } from '../components/metric-selector';
@@ -116,10 +116,13 @@ export const runDetailPage: PageModule = {
         placeholder: 'Filter tests...',
       }) as HTMLInputElement;
       const doFilter = debounce(() => {
-        testFilter = filterInput.value.toLowerCase();
+        testFilter = filterInput.value;
         renderSamplesTable();
       }, 200);
-      filterInput.addEventListener('input', () => doFilter());
+      filterInput.addEventListener('input', () => {
+        updateFilterValidation(filterInput);
+        doFilter();
+      });
       filterContainer.append(filterInput);
 
       // Progressive sample loading
@@ -164,7 +167,7 @@ export const runDetailPage: PageModule = {
 
     function filteredSamples(): SampleInfo[] {
       if (!testFilter) return allSamples;
-      return allSamples.filter(s => s.test.toLowerCase().includes(testFilter));
+      return allSamples.filter(s => matchesFilter(s.test, testFilter));
     }
 
     function renderSamplesTable(): void {

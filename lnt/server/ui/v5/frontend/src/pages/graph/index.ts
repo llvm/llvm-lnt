@@ -4,7 +4,7 @@
 import type { PageModule, RouteParams } from '../../router';
 import type { AggFn } from '../../types';
 import { fetchOneCursorPage, postOneCursorPage, apiUrl, getTestSuiteInfoCached } from '../../api';
-import { el, getAggFn, TRACE_SEP, resolveDisplayMap } from '../../utils';
+import { el, getAggFn, TRACE_SEP, resolveDisplayMap, matchesFilter } from '../../utils';
 import { getTestsuites } from '../../router';
 import { onCustomEvent, GRAPH_TABLE_HOVER, GRAPH_CHART_HOVER, GRAPH_CHART_DBLCLICK } from '../../events';
 
@@ -326,8 +326,7 @@ export const graphPage: PageModule = {
 
     function applyFilter(): void {
       if (testFilter) {
-        const lf = testFilter.toLowerCase();
-        allMatchingTests = allDiscoveredTests.filter(t => t.toLowerCase().includes(lf));
+        allMatchingTests = allDiscoveredTests.filter(t => matchesFilter(t, testFilter));
       } else {
         allMatchingTests = [...allDiscoveredTests];
       }

@@ -102,25 +102,52 @@ class TestCommitSearch(unittest.TestCase):
         cls.app = create_app(sys.argv[1])
         cls.client = create_client(cls.app)
 
-    def test_search_by_commit_prefix(self):
-        """Search by commit string prefix."""
+    def test_search_by_commit_substring(self):
+        """Search by commit string substring."""
         unique = uuid.uuid4().hex[:8]
-        prefix = f'srch-{unique}'
+        middle = f'srch{unique}'
         db = self.app.instance.get_database("default")
         session = db.make_session()
         ts = db.testsuite[TS]
-        create_commit(session, ts, commit=f'{prefix}-aaa')
-        create_commit(session, ts, commit=f'{prefix}-bbb')
+        create_commit(session, ts, commit=f'aaa-{middle}-xxx')
+        create_commit(session, ts, commit=f'bbb-{middle}-yyy')
         create_commit(session, ts, commit=f'other-{uuid.uuid4().hex[:8]}')
         session.commit()
         session.close()
 
-        resp = self.client.get(PREFIX + f'/commits?search={prefix}')
+        resp = self.client.get(PREFIX + f'/commits?search={middle}')
         self.assertEqual(resp.status_code, 200)
         data = resp.get_json()
         self.assertEqual(len(data['items']), 2)
         for item in data['items']:
-            self.assertTrue(item['commit'].startswith(prefix))
+            self.assertIn(middle, item['commit'])
+
+    def test_search_case_insensitive(self):
+        """Search is case-insensitive."""
+        unique = uuid.uuid4().hex[:8]
+        commit_val = f'CaSeCmT-{unique}'
+        db = self.app.instance.get_database("default")
+        session = db.make_session()
+        ts = db.testsuite[TS]
+        create_commit(session, ts, commit=commit_val)
+        session.commit()
+        session.close()
+
+        # Search with all-lowercase
+        resp = self.client.get(
+            PREFIX + f'/commits?search=casecmt-{unique}')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        commits = [i['commit'] for i in data['items']]
+        self.assertIn(commit_val, commits)
+
+        # Search with all-uppercase
+        resp = self.client.get(
+            PREFIX + f'/commits?search=CASECMT-{unique.upper()}')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        commits = [i['commit'] for i in data['items']]
+        self.assertIn(commit_val, commits)
 
     def test_search_no_match(self):
         """Search with no matches returns empty list."""

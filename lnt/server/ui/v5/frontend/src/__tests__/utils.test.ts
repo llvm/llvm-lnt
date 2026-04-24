@@ -17,6 +17,7 @@ import {
   truncate,
   debounce, el, isModifiedClick, spaLink,
   commitDisplayValue, resolveDisplayMap,
+  matchesFilter, isFilterValid, updateFilterValidation,
 } from '../utils';
 import { navigate } from '../router';
 import { getTestSuiteInfoCached, resolveCommits } from '../api';
@@ -539,5 +540,257 @@ describe('resolveDisplayMap', () => {
     // 'def' has no sha field, so commitDisplayValue returns 'def' — included in map
     // but the value equals the key (identity mapping)
     expect(map.get('def')).toBe('def');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// matchesFilter / isFilterValid
+// ---------------------------------------------------------------------------
+
+describe('matchesFilter', () => {
+  it('returns true for empty filter', () => {
+    expect(matchesFilter('anything', '')).toBe(true);
+  });
+
+  it('returns true when text contains the filter (case-insensitive substring)', () => {
+    expect(matchesFilter('SingleSource/UnitTests/benchmark', 'unittest')).toBe(true);
+    expect(matchesFilter('clang-x86_64', 'X86')).toBe(true);
+  });
+
+  it('returns false when text does not contain the filter', () => {
+    expect(matchesFilter('clang-x86_64', 'arm')).toBe(false);
+  });
+
+  it('handles regex-special characters literally in plain mode', () => {
+    expect(matchesFilter('test.suite', 'test.suite')).toBe(true);
+    expect(matchesFilter('test_suite', 'test.suite')).toBe(false);
+    expect(matchesFilter('foo[0]', '[0]')).toBe(true);
+    expect(matchesFilter('foo(bar)', '(bar)')).toBe(true);
+  });
+
+  it('test names containing / work as plain substring', () => {
+    expect(matchesFilter('SingleSource/UnitTests/benchmark', '/UnitTests/')).toBe(true);
+    expect(matchesFilter('SingleSource/UnitTests/benchmark', '/Other/')).toBe(false);
+  });
+
+  it('handles re: prefix for regex mode', () => {
+    expect(matchesFilter('clang-x86_64', 're:clang.*x86')).toBe(true);
+    expect(matchesFilter('clang-arm', 're:clang.*x86')).toBe(false);
+  });
+
+  it('regex is case-insensitive', () => {
+    expect(matchesFilter('CLANG-x86', 're:clang')).toBe(true);
+    expect(matchesFilter('clang-x86', 're:CLANG')).toBe(true);
+  });
+
+  it('re: alone matches everything', () => {
+    expect(matchesFilter('anything', 're:')).toBe(true);
+    expect(matchesFilter('', 're:')).toBe(true);
+  });
+
+  it('returns false for invalid regex', () => {
+    expect(matchesFilter('test', 're:invalid[')).toBe(false);
+    expect(matchesFilter('test', 're:(?P<bad)')).toBe(false);
+  });
+
+  it('re: prefix is case-sensitive (RE: is plain substring)', () => {
+    expect(matchesFilter('RE:foo', 'RE:foo')).toBe(true);
+    expect(matchesFilter('re:foo', 'RE:foo')).toBe(true); // case-insensitive substring match
+    expect(matchesFilter('bar', 'RE:bar')).toBe(false); // plain substring "RE:bar" not in "bar"
+  });
+
+  it('// is treated as plain substring, not regex', () => {
+    expect(matchesFilter('a//b', '//')).toBe(true);
+    expect(matchesFilter('ab', '//')).toBe(false);
+  });
+
+  it('matches empty text with empty filter', () => {
+    expect(matchesFilter('', '')).toBe(true);
+  });
+
+  it('plain filter with empty text', () => {
+    expect(matchesFilter('', 'something')).toBe(false);
+  });
+});
+
+describe('isFilterValid', () => {
+  it('returns true for empty filter', () => {
+    expect(isFilterValid('')).toBe(true);
+  });
+
+  it('returns true for plain substring filter', () => {
+    expect(isFilterValid('hello')).toBe(true);
+    expect(isFilterValid('/path/to/test/')).toBe(true);
+  });
+
+  it('returns true for valid regex', () => {
+    expect(isFilterValid('re:clang.*x86')).toBe(true);
+    expect(isFilterValid('re:')).toBe(true);
+    expect(isFilterValid('re:^test$')).toBe(true);
+  });
+
+  it('returns false for invalid regex', () => {
+    expect(isFilterValid('re:invalid[')).toBe(false);
+    expect(isFilterValid('re:(?P<bad)')).toBe(false);
+    expect(isFilterValid('re:*')).toBe(false);
+  });
+
+  it('RE: (uppercase) is plain substring, always valid', () => {
+    expect(isFilterValid('RE:invalid[')).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// updateFilterValidation
+// ---------------------------------------------------------------------------
+
+describe('updateFilterValidation', () => {
+  let container: HTMLElement;
+  let input: HTMLInputElement;
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.append(container);
+    input = document.createElement('input');
+    input.type = 'text';
+    container.append(input);
+  });
+
+  afterEach(() => {
+    container.remove();
+  });
+
+  it('creates a badge when input starts with re:', () => {
+    input.value = 're:test';
+    updateFilterValidation(input);
+    const badge = input.parentElement!.querySelector('.filter-regex-badge');
+    expect(badge).toBeTruthy();
+    expect(badge!.textContent).toBe('regex');
+  });
+
+  it('badge has aria-hidden="true"', () => {
+    input.value = 're:test';
+    updateFilterValidation(input);
+    const badge = input.parentElement!.querySelector('.filter-regex-badge');
+    expect(badge!.getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it('removes badge when re: prefix is cleared', () => {
+    input.value = 're:test';
+    updateFilterValidation(input);
+    expect(input.parentElement!.querySelector('.filter-regex-badge')).toBeTruthy();
+
+    input.value = 'test';
+    updateFilterValidation(input);
+    expect(input.parentElement!.querySelector('.filter-regex-badge')).toBeNull();
+  });
+
+  it('toggles filter-regex-badge-invalid on invalid regex', () => {
+    input.value = 're:invalid[';
+    updateFilterValidation(input);
+    const badge = input.parentElement!.querySelector('.filter-regex-badge');
+    expect(badge!.classList.contains('filter-regex-badge-invalid')).toBe(true);
+  });
+
+  it('badge has no invalid class on valid regex', () => {
+    input.value = 're:valid.*';
+    updateFilterValidation(input);
+    const badge = input.parentElement!.querySelector('.filter-regex-badge');
+    expect(badge!.classList.contains('filter-regex-badge-invalid')).toBe(false);
+  });
+
+  it('wraps input in filter-input-wrapper when parent is not positioned', () => {
+    input.value = 're:test';
+    updateFilterValidation(input);
+    expect(input.parentElement!.classList.contains('filter-input-wrapper')).toBe(true);
+    expect(input.parentElement!.parentElement).toBe(container);
+  });
+
+  it('does NOT double-wrap on second call', () => {
+    input.value = 're:test';
+    updateFilterValidation(input);
+    updateFilterValidation(input);
+    const wrappers = container.querySelectorAll('.filter-input-wrapper');
+    expect(wrappers).toHaveLength(1);
+  });
+
+  it('does NOT wrap when parent is .combobox', () => {
+    container.classList.add('combobox');
+    input.value = 're:test';
+    updateFilterValidation(input);
+    expect(input.parentElement).toBe(container);
+    expect(container.querySelector('.filter-regex-badge')).toBeTruthy();
+  });
+
+  it('does NOT wrap when parent is .commit-search', () => {
+    container.classList.add('commit-search');
+    input.value = 're:test';
+    updateFilterValidation(input);
+    expect(input.parentElement).toBe(container);
+    expect(container.querySelector('.filter-regex-badge')).toBeTruthy();
+  });
+
+  it('bare re: (empty pattern) shows valid badge', () => {
+    input.value = 're:';
+    updateFilterValidation(input);
+    const badge = input.parentElement!.querySelector('.filter-regex-badge');
+    expect(badge).toBeTruthy();
+    expect(badge!.classList.contains('filter-regex-badge-invalid')).toBe(false);
+  });
+
+  it('RE: (uppercase) does NOT trigger badge', () => {
+    input.value = 'RE:test';
+    updateFilterValidation(input);
+    expect(container.querySelector('.filter-regex-badge')).toBeNull();
+  });
+
+  it('toggles filter-invalid on invalid regex', () => {
+    input.value = 're:invalid[';
+    updateFilterValidation(input);
+    expect(input.classList.contains('filter-invalid')).toBe(true);
+
+    input.value = 're:valid';
+    updateFilterValidation(input);
+    expect(input.classList.contains('filter-invalid')).toBe(false);
+  });
+
+  it('no filter-invalid on plain text', () => {
+    input.value = 'plain text';
+    updateFilterValidation(input);
+    expect(input.classList.contains('filter-invalid')).toBe(false);
+  });
+
+  it('invalid-to-valid transition removes filter-regex-badge-invalid', () => {
+    input.value = 're:invalid[';
+    updateFilterValidation(input);
+    const badge = input.parentElement!.querySelector('.filter-regex-badge')!;
+    expect(badge.classList.contains('filter-regex-badge-invalid')).toBe(true);
+
+    input.value = 're:valid.*';
+    updateFilterValidation(input);
+    expect(badge.classList.contains('filter-regex-badge-invalid')).toBe(false);
+  });
+
+  it('does NOT create duplicate badges on repeated calls', () => {
+    input.value = 're:test';
+    updateFilterValidation(input);
+    updateFilterValidation(input);
+    updateFilterValidation(input);
+    const badges = input.parentElement!.querySelectorAll('.filter-regex-badge');
+    expect(badges).toHaveLength(1);
+  });
+
+  it('adds filter-has-badge class when badge is shown', () => {
+    input.value = 're:test';
+    updateFilterValidation(input);
+    expect(input.classList.contains('filter-has-badge')).toBe(true);
+  });
+
+  it('removes filter-has-badge when badge is removed', () => {
+    input.value = 're:test';
+    updateFilterValidation(input);
+    input.value = 'plain';
+    updateFilterValidation(input);
+    expect(input.classList.contains('filter-has-badge')).toBe(false);
   });
 });

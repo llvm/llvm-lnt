@@ -1,5 +1,5 @@
 import type { ComparisonRow } from '../types';
-import { el, STATUS_COLORS } from '../utils';
+import { el, STATUS_COLORS, matchesFilter } from '../utils';
 
 export interface SummaryCounts {
   improved: number;
@@ -24,10 +24,8 @@ export function computeSummaryCounts(
     onlyInA: 0, onlyInB: 0, na: 0, total: 0,
   };
 
-  const lf = textFilter ? textFilter.toLowerCase() : '';
-
   for (const r of rows) {
-    if (lf && !r.test.toLowerCase().includes(lf)) continue;
+    if (textFilter && !matchesFilter(r.test, textFilter)) continue;
     if (zoomFilter && !zoomFilter.has(r.test)) continue;
 
     switch (r.status) {

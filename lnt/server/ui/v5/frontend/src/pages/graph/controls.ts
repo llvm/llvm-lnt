@@ -2,7 +2,7 @@
 // Suite dropdown, machine chip input, metric selector, test filter,
 // aggregation dropdowns, regression toggle.
 
-import { el, debounce } from '../../utils';
+import { el, debounce, updateFilterValidation } from '../../utils';
 import type { FieldInfo, AggFn } from '../../types';
 import { renderMachineCombobox } from '../../components/machine-combobox';
 import { filterMetricFields, renderMetricSelector, renderEmptyMetricSelector } from '../../components/metric-selector';
@@ -129,7 +129,10 @@ export function createControls(
     value: state.testFilter,
   }) as HTMLInputElement;
   const debouncedFilter = debounce(() => callbacks.onFilterChange(filterInput.value), 200);
-  filterInput.addEventListener('input', debouncedFilter);
+  filterInput.addEventListener('input', () => {
+    updateFilterValidation(filterInput);
+    debouncedFilter();
+  });
   filterGroup.append(filterInput);
   row2.append(filterGroup);
 

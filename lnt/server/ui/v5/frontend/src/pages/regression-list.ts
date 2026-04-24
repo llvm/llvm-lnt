@@ -8,7 +8,7 @@ import {
   getToken, authErrorMessage, getTestSuiteInfoCached,
 } from '../api';
 import type { CursorPageResult } from '../api';
-import { el, truncate, debounce, ensureProtocol, resolveDisplayMap } from '../utils';
+import { el, truncate, debounce, ensureProtocol, resolveDisplayMap, matchesFilter, updateFilterValidation } from '../utils';
 import { renderDataTable, type Column } from '../components/data-table';
 import { renderPagination } from '../components/pagination';
 import { renderMachineCombobox } from '../components/machine-combobox';
@@ -148,10 +148,13 @@ export function renderRegressionTab(opts: RegressionTabOptions): void {
     placeholder: 'Search title...',
   }) as HTMLInputElement;
   const doTitleFilter = debounce(() => {
-    titleSearch = titleInput.value.toLowerCase();
+    titleSearch = titleInput.value;
     renderTable(lastResult, lastDisplayMap);
   }, 300);
-  titleInput.addEventListener('input', () => doTitleFilter());
+  titleInput.addEventListener('input', () => {
+    updateFilterValidation(titleInput);
+    doTitleFilter();
+  });
   filterRow2.append(titleInput);
 
   // --- "New Regression" button (auth-gated) ---
@@ -227,7 +230,7 @@ export function renderRegressionTab(opts: RegressionTabOptions): void {
     let rows = result.items;
     if (titleSearch) {
       rows = rows.filter(r =>
-        (r.title || '').toLowerCase().includes(titleSearch));
+        matchesFilter(r.title || '', titleSearch));
     }
 
     tableContainer.replaceChildren();

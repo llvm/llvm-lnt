@@ -1,6 +1,6 @@
 // components/machine-combobox.ts — Standalone machine typeahead selector.
 
-import { el } from '../utils';
+import { el, matchesFilter, updateFilterValidation } from '../utils';
 import { getMachines } from '../api';
 import type { MachineInfo } from '../types';
 
@@ -88,9 +88,8 @@ export function renderMachineCombobox(
       return;
     }
 
-    const lf = filter.toLowerCase();
     const matches = filter.trim()
-      ? machines.filter(m => m.name.toLowerCase().includes(lf))
+      ? machines.filter(m => matchesFilter(m.name, filter))
       : machines;
 
     for (const machine of matches) {
@@ -118,7 +117,10 @@ export function renderMachineCombobox(
     }
   }
 
-  input.addEventListener('input', () => showDropdown(input.value));
+  input.addEventListener('input', () => {
+    updateFilterValidation(input);
+    showDropdown(input.value);
+  });
   input.addEventListener('focus', () => {
     if (!dropdown.classList.contains('open')) {
       showDropdown(input.value);

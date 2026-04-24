@@ -98,12 +98,13 @@ class MachineList(MethodView):
         search = query_args.get('search')
         if search:
             escaped = escape_like(search)
+            pattern = '%' + escaped + '%'
             conditions = [
-                ts.Machine.name.like(escaped + '%', escape='\\')]
+                ts.Machine.name.ilike(pattern, escape='\\')]
             for mf in ts.schema.searchable_machine_fields:
                 col = getattr(ts.Machine, mf.name)
                 conditions.append(
-                    col.like(escaped + '%', escape='\\'))
+                    col.ilike(pattern, escape='\\'))
             query = query.filter(or_(*conditions))
 
         query = query.order_by(ts.Machine.name.asc())

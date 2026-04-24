@@ -35,7 +35,7 @@ class TestListQuerySchema(CursorPaginationQuerySchema):
     """Query parameters for GET /tests."""
     search = ma.fields.String(
         load_default=None,
-        metadata={'description': 'Filter by test name prefix'},
+        metadata={'description': 'Filter test names (case-insensitive substring match)'},
     )
     machine = ma.fields.String(
         load_default=None,

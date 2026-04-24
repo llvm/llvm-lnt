@@ -99,15 +99,12 @@
 ## UI — General
 
 - [ ] Fix: Runs tab search on Test Suites page uses exact machine name match
-  (`?machine=`), so partial input returns empty results. Consider adding
-  prefix/fuzzy matching or switching to a machine combobox.
+  (`?machine=`), so partial input returns empty results. Consider switching to
+  a machine combobox.
 - [ ] Machine detail page: allow searching the run history by run UUID or by
   commit.
-- [ ] Improve test suites sub-tab filters: first survey which filters exist
-  today and what they filter on. Then move to fuzzy matching instead of prefix
-  match. Consider infinite scrolling with filters applying to all results,
-  not just the current page. NOTE: The `?search=` parameter already searches
-  across commit, tag, and searchable commit_fields.
+- [ ] Consider infinite scrolling for test suites sub-tab lists with filters
+  applying to all results, not just the current page.
 
 ## Cleanup & Tech Debt
 
@@ -244,7 +241,7 @@
   list page and the Compare page "Add to Existing Regression" panel do
   client-side title search limited to the first page of results (25 or 50
   items). Regressions beyond that page are invisible to the search. A
-  server-side `?search=` parameter (prefix match on title, consistent with
+  server-side `?search=` parameter (substring match on title, consistent with
   machines/commits/tests) would fix this data completeness bug.
 
 - [ ] **Only set full CORS headers on OPTIONS preflight responses**: Currently

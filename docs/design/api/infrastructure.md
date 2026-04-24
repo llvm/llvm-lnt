@@ -39,7 +39,7 @@ For endpoint specifications, see [`endpoints.md`](endpoints.md).
 
 - Named query parameters per endpoint, documented in OpenAPI spec
 - Supported filter types per endpoint (examples):
-  - `machine=`, `test=`, `metric=`, `search=`
+  - `machine=`, `test=`, `metric=`, `search=` (case-insensitive substring; see D9)
   - `after=`, `before=` (for timestamps and order values; exclusive)
   - `state=` (for regressions, supports multiple values: `?state=active&state=detected`)
   - `commit=`, `has_commit=` (for regressions)

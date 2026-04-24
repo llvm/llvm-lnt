@@ -149,13 +149,14 @@ class CommitList(MethodView):
         search = query_args.get('search')
         if search:
             escaped = escape_like(search)
-            conditions = [ts.Commit.commit.like(escaped + '%', escape='\\')]
+            pattern = '%' + escaped + '%'
+            conditions = [ts.Commit.commit.ilike(pattern, escape='\\')]
             conditions.append(
-                ts.Commit.tag.like(escaped + '%', escape='\\'))
+                ts.Commit.tag.ilike(pattern, escape='\\'))
             for cf in ts.schema.searchable_commit_fields:
                 col = getattr(ts.Commit, cf.name)
                 conditions.append(
-                    col.like(escaped + '%', escape='\\'))
+                    col.ilike(pattern, escape='\\'))
             query = query.filter(or_(*conditions))
 
         machine_name = query_args.get('machine')

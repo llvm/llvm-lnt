@@ -1,7 +1,7 @@
 import type { ComparisonRow, SortCol, SortDir } from './types';
 import { TABLE_HOVER } from './events';
 import { getState, setState } from './state';
-import { formatValue, formatPercent, formatRatio, el, spaLink } from './utils';
+import { formatValue, formatPercent, formatRatio, el, spaLink, matchesFilter } from './utils';
 import { computeGeomean } from './comparison';
 
 export interface TableOptions {
@@ -47,8 +47,7 @@ function redraw(): void {
 
   // Text filter
   if (testFilter) {
-    const lf = testFilter.toLowerCase();
-    rows = rows.filter(r => r.test.toLowerCase().includes(lf));
+    rows = rows.filter(r => matchesFilter(r.test, testFilter));
   }
 
   // Chart zoom filter

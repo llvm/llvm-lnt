@@ -3,7 +3,7 @@ import { SETTINGS_CHANGE, TEST_FILTER_CHANGE } from './events';
 import { getFields, getCommits, getRuns, getTestSuiteInfoCached } from './api';
 import { getBasePath } from './router';
 import { getState, setSideA, setSideB, setState, setNoiseConfig, swapSides } from './state';
-import { debounce, el, commitDisplayValue } from './utils';
+import { debounce, el, commitDisplayValue, updateFilterValidation } from './utils';
 import {
   createCommitCombobox, createMachineCombobox, resetComboboxState,
   refreshCommitDisplay,
@@ -510,7 +510,10 @@ export function renderSelectionPanel(root: HTMLElement): void {
     setState({ testFilter: filterInput.value });
     document.dispatchEvent(new CustomEvent(TEST_FILTER_CHANGE));
   }, 200);
-  filterInput.addEventListener('input', () => doFilter());
+  filterInput.addEventListener('input', () => {
+    updateFilterValidation(filterInput);
+    doFilter();
+  });
   filterGroup.append(filterInput);
   globalRow.append(filterGroup);
 

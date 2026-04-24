@@ -167,6 +167,44 @@ dl {
   box-shadow: 0 0 0 2px rgba(214, 39, 40, 0.15) !important;
 }
 
+.filter-invalid {
+  border-color: #d62728 !important;
+  box-shadow: 0 0 0 2px rgba(214, 39, 40, 0.15) !important;
+}
+
+.filter-input-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.filter-row > .filter-input-wrapper {
+  flex: 1;
+  min-width: 200px;
+}
+
+.filter-regex-badge {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: #e8f0fe;
+  color: #1a73e8;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.filter-regex-badge-invalid {
+  background: #fce8e8;
+  color: #d62728;
+}
+
+input.filter-has-badge {
+  padding-right: 50px;
+}
+
 .combobox-dropdown {
   position: absolute;
   z-index: 1000;

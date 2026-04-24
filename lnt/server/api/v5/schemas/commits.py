@@ -104,8 +104,9 @@ class CommitListQuerySchema(CursorPaginationQuerySchema):
     """Query parameters for GET /commits."""
     search = ma.fields.String(
         load_default=None,
-        metadata={'description': 'Search commits by prefix across commit '
-                  'string and searchable commit fields'},
+        metadata={'description': 'Search commits by substring across commit '
+                  'string, tag, and searchable commit fields '
+                  '(case-insensitive)'},
     )
     machine = ma.fields.String(
         load_default=None,

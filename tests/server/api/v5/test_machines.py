@@ -683,23 +683,48 @@ class TestMachineSearch(unittest.TestCase):
         cls.app = create_app(sys.argv[1])
         cls.client = create_client(cls.app)
 
-    def test_search_by_name_prefix(self):
-        """Search machines by name prefix."""
+    def test_search_by_name_substring(self):
+        """Search machines by name substring."""
         unique = uuid.uuid4().hex[:8]
-        prefix = f'search-{unique}'
-        name = f'{prefix}-machine'
+        middle = f'srch{unique}'
+        name = f'prefix-{middle}-suffix'
         self.client.post(
             PREFIX + '/machines',
             json={'name': name},
             headers=admin_headers(),
         )
+        # Substring in the middle should match
         resp = self.client.get(
-            PREFIX + f'/machines?search={prefix}')
+            PREFIX + f'/machines?search={middle}')
         self.assertEqual(resp.status_code, 200)
         data = resp.get_json()
-        self.assertGreater(len(data['items']), 0)
-        for m in data['items']:
-            self.assertTrue(m['name'].startswith(prefix))
+        names = [m['name'] for m in data['items']]
+        self.assertIn(name, names)
+
+    def test_search_case_insensitive(self):
+        """Search is case-insensitive."""
+        unique = uuid.uuid4().hex[:8]
+        name = f'CaSeMaCh-{unique}'
+        self.client.post(
+            PREFIX + '/machines',
+            json={'name': name},
+            headers=admin_headers(),
+        )
+        # Search with all-lowercase
+        resp = self.client.get(
+            PREFIX + f'/machines?search=casemach-{unique}')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        names = [m['name'] for m in data['items']]
+        self.assertIn(name, names)
+
+        # Search with all-uppercase
+        resp = self.client.get(
+            PREFIX + f'/machines?search=CASEMACH-{unique.upper()}')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        names = [m['name'] for m in data['items']]
+        self.assertIn(name, names)
 
     def test_search_by_machine_field(self):
         """Search matches against searchable machine fields, not just name."""
@@ -711,8 +736,8 @@ class TestMachineSearch(unittest.TestCase):
             json={'name': name, 'info': {'os': os_value}},
             headers=admin_headers(),
         )
-        # Search by the os field value prefix — should find the machine
-        # even though the name doesn't match the search term.
+        # Search by a substring of the os field value — should find the
+        # machine even though the name doesn't match the search term.
         resp = self.client.get(
             PREFIX + f'/machines?search=SpecialOS-{unique}')
         self.assertEqual(resp.status_code, 200)

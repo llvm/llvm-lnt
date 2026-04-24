@@ -104,8 +104,8 @@ class MachineListQuerySchema(OffsetPaginationQuerySchema):
     """Query parameters for GET /machines."""
     search = ma.fields.String(
         load_default=None,
-        metadata={'description': 'Search machines by prefix across name '
-                  'and searchable machine fields'},
+        metadata={'description': 'Search machines by substring across name '
+                  'and searchable machine fields (case-insensitive)'},
     )
 
 
