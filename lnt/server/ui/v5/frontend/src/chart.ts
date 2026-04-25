@@ -176,14 +176,14 @@ let updatingTicks = false;
 let dataYMin = 0;
 let dataYMax = 0;
 
-export function renderChart(container: HTMLElement, rows: ComparisonRow[], preserveZoom = false): void {
+export function renderChart(container: HTMLElement, rows: ComparisonRow[], preserveZoom = false, preFilteredTests?: Set<string> | null): void {
   // If switching to a different container, reset event wiring
   if (chartContainer !== container) {
     wiredContainer = null;
   }
   chartContainer = container;
   chartData = rows;
-  drawChart(preserveZoom ? lastFilterTests : null);
+  drawChart(preserveZoom ? lastFilterTests : null, preFilteredTests);
 }
 
 // Plotly event handlers — receive data directly via gd.on() API
@@ -233,7 +233,7 @@ function onPlotlyUnhover(): void {
   document.dispatchEvent(new CustomEvent(CHART_HOVER, { detail: null }));
 }
 
-function drawChart(filterTests: Set<string> | null): void {
+function drawChart(filterTests: Set<string> | null, preFilteredTests?: Set<string> | null): void {
   if (!chartContainer) return;
   lastFilterTests = filterTests;
 
@@ -241,7 +241,13 @@ function drawChart(filterTests: Set<string> | null): void {
 
   // Apply text filter from state on top of chart zoom filter
   let effectiveFilter = filterTests;
-  if (state.testFilter) {
+  if (preFilteredTests) {
+    if (effectiveFilter) {
+      effectiveFilter = new Set([...effectiveFilter].filter(t => preFilteredTests.has(t)));
+    } else {
+      effectiveFilter = preFilteredTests;
+    }
+  } else if (state.testFilter) {
     const textMatches = new Set<string>();
     for (const r of chartData) {
       if (matchesFilter(r.test, state.testFilter)) textMatches.add(r.test);

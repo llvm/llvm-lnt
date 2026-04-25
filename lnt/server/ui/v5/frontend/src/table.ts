@@ -20,6 +20,11 @@ let tableContainer: HTMLElement | null = null;
 let allRows: ComparisonRow[] = [];
 let filteredTests: Set<string> | null = null;  // null = show all
 let currentOptions: TableOptions = {};
+let renderedRows: Map<string, HTMLTableRowElement> = new Map();
+let renderedMissingRows: Map<string, HTMLTableRowElement> = new Map();
+let rowIndex: Map<string, ComparisonRow> = new Map();
+let geomeanTr: HTMLTableRowElement | null = null;
+let summaryMessageEl: HTMLElement | null = null;
 
 export function renderTable(container: HTMLElement, rows: ComparisonRow[], options?: TableOptions): void {
   tableContainer = container;
@@ -31,54 +36,40 @@ export function renderTable(container: HTMLElement, rows: ComparisonRow[], optio
 
 export function filterToTests(tests: Set<string> | null): void {
   filteredTests = tests;
-  redraw();
+  if (renderedRows.size > 0) {
+    applyTableFilters();
+  } else {
+    redraw();
+  }
 }
 
 function redraw(): void {
   if (!tableContainer) return;
   tableContainer.replaceChildren();
 
+  // Rebuild lookup index
+  renderedRows.clear();
+  renderedMissingRows.clear();
+  rowIndex.clear();
+  geomeanTr = null;
+  summaryMessageEl = null;
+  for (const r of allRows) rowIndex.set(r.test, r);
+
   const state = getState();
-  const { sort, sortDir, testFilter } = state;
+  const { sort, sortDir } = state;
   const hiddenTests = currentOptions.hiddenTests ?? new Set<string>();
 
-  // Filter + sort
-  let rows = [...allRows];
+  // All rows are built regardless of the active filter so the display:none
+  // fast path can widen results without a full rebuild.
+  const presentRows = allRows.filter(r => r.sidePresent === 'both');
+  const missingRows = allRows.filter(r => r.sidePresent !== 'both');
 
-  // Text filter
-  if (testFilter) {
-    rows = rows.filter(r => matchesFilter(r.test, testFilter));
-  }
-
-  // Chart zoom filter
-  if (filteredTests) {
-    rows = rows.filter(r => filteredTests!.has(r.test));
-  }
-
-  // Separate missing tests
-  const presentRows = rows.filter(r => r.sidePresent === 'both');
-  const missingRows = rows.filter(r => r.sidePresent !== 'both');
-
-  // Total present tests (before text filter and zoom, but after upstream noise
-  // filtering — noise rows are absent from allRows when hideNoise is on).
-  const totalPresent = allRows.filter(r => r.sidePresent === 'both').length;
-  const visibleCount = presentRows.filter(r => !hiddenTests.has(r.test)).length;
-
-  // hiddenTests contains only manually-toggled rows (grayed out);
-  // noise rows are filtered upstream before reaching renderTable.
   const sorted = sortRows(presentRows, sort, sortDir);
 
-  // Summary message (like Graph page's "42 of 150 traces matching")
+  const totalPresent = presentRows.length;
   if (totalPresent > 0) {
-    let message: string;
-    if (testFilter || filteredTests) {
-      message = `${visibleCount} of ${totalPresent} tests matching`;
-    } else if (visibleCount < totalPresent) {
-      message = `${visibleCount} of ${totalPresent} tests visible`;
-    } else {
-      message = `${totalPresent} tests`;
-    }
-    tableContainer.append(el('div', { class: 'table-message' }, message));
+    summaryMessageEl = el('div', { class: 'table-message' }, `${totalPresent} tests`);
+    tableContainer.append(summaryMessageEl);
   }
 
   // Main table
@@ -92,6 +83,8 @@ function redraw(): void {
     tableContainer.append(missingHeader);
     tableContainer.append(buildMissingTable(missingRows));
   }
+
+  applyTableFilters();
 }
 
 function buildTable(rows: ComparisonRow[], sort: SortCol, sortDir: SortDir, hiddenTests: Set<string>): HTMLTableElement {
@@ -153,6 +146,7 @@ function buildTable(rows: ComparisonRow[], sort: SortCol, sortDir: SortDir, hidd
       summaryRow.append(el('td', { class: 'col-profile' }, ''));
     }
     tbody.append(summaryRow);
+    geomeanTr = summaryRow;
   }
 
   for (const row of rows) {
@@ -187,6 +181,7 @@ function buildTable(rows: ComparisonRow[], sort: SortCol, sortDir: SortDir, hidd
       }
     }
 
+    renderedRows.set(row.test, tr);
     tbody.append(tr);
   }
 
@@ -260,10 +255,76 @@ function buildMissingTable(rows: ComparisonRow[]): HTMLTableElement {
     if (currentOptions.profileLinks) {
       tr.append(el('td', { class: 'col-profile' }, ''));
     }
+    renderedMissingRows.set(row.test, tr);
     tbody.append(tr);
   }
   table.append(tbody);
   return table;
+}
+
+function updateGeomeanCells(tr: HTMLTableRowElement, geomean: ReturnType<typeof computeGeomean>): void {
+  if (!geomean) {
+    tr.style.display = 'none';
+    return;
+  }
+  tr.style.display = '';
+  const cells = tr.querySelectorAll('td');
+  if (cells[1]) cells[1].textContent = formatValue(geomean.geomeanA);
+  if (cells[2]) cells[2].textContent = formatValue(geomean.geomeanB);
+  if (cells[3]) cells[3].textContent = formatValue(geomean.delta);
+  if (cells[4]) cells[4].textContent = formatPercent(geomean.deltaPct);
+  if (cells[5]) cells[5].textContent = formatRatio(geomean.ratioGeomean);
+}
+
+/** Fast path: toggle display:none on existing rows. Returns the set of matching test names. */
+export function applyTableFilters(): Set<string> | null {
+  if (!tableContainer || renderedRows.size === 0) return null;
+
+  const state = getState();
+  const { testFilter } = state;
+  const hiddenTests = currentOptions.hiddenTests ?? new Set<string>();
+
+  const visibleRows: ComparisonRow[] = [];
+  const matchingTests = new Set<string>();
+  let totalPresent = 0;
+
+  for (const [test, tr] of renderedRows) {
+    totalPresent++;
+
+    const matchesText = !testFilter || matchesFilter(test, testFilter);
+    const matchesZoom = !filteredTests || filteredTests.has(test);
+    const visible = matchesText && matchesZoom;
+
+    tr.style.display = visible ? '' : 'none';
+    if (matchesText) matchingTests.add(test);
+    if (visible && !hiddenTests.has(test)) {
+      const row = rowIndex.get(test);
+      if (row) visibleRows.push(row);
+    }
+  }
+
+  for (const [test, tr] of renderedMissingRows) {
+    const matchesText = !testFilter || matchesFilter(test, testFilter);
+    tr.style.display = matchesText ? '' : 'none';
+  }
+
+  if (geomeanTr) {
+    const geomean = computeGeomean(visibleRows);
+    updateGeomeanCells(geomeanTr, geomean);
+  }
+
+  if (summaryMessageEl) {
+    const visibleCount = visibleRows.length;
+    if (testFilter || filteredTests) {
+      summaryMessageEl.textContent = `${visibleCount} of ${totalPresent} tests matching`;
+    } else if (visibleCount < totalPresent) {
+      summaryMessageEl.textContent = `${visibleCount} of ${totalPresent} tests visible`;
+    } else {
+      summaryMessageEl.textContent = `${totalPresent} tests`;
+    }
+  }
+
+  return testFilter ? matchingTests : null;
 }
 
 export function sortRows(rows: ComparisonRow[], col: SortCol, dir: SortDir): ComparisonRow[] {
@@ -290,17 +351,6 @@ export function sortRows(rows: ComparisonRow[], col: SortCol, dir: SortDir): Com
   });
 }
 
-export function getVisibleTestNames(): Set<string> | null {
-  if (!tableContainer) return null;
-  const trs = tableContainer.querySelectorAll<HTMLTableRowElement>('tbody tr[data-test]');
-  const names = new Set<string>();
-  for (const tr of trs) {
-    const name = tr.getAttribute('data-test');
-    if (name) names.add(name);
-  }
-  return names.size > 0 ? names : null;
-}
-
 // External: highlight a row by test name
 export function highlightRow(testName: string | null): void {
   if (!tableContainer) return;
@@ -321,4 +371,9 @@ export function resetTable(): void {
   allRows = [];
   filteredTests = null;
   currentOptions = {};
+  renderedRows.clear();
+  renderedMissingRows.clear();
+  rowIndex.clear();
+  geomeanTr = null;
+  summaryMessageEl = null;
 }

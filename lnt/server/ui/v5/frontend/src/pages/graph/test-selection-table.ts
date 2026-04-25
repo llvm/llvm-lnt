@@ -1,7 +1,7 @@
 // pages/graph/test-selection-table.ts — Test selection table for the graph page.
 // Shows all matching tests with checkboxes for explicit plot selection.
 
-import { el, DOUBLE_CLICK_DELAY_MS } from '../../utils';
+import { el, DOUBLE_CLICK_DELAY_MS, matchesFilter } from '../../utils';
 import { GRAPH_TABLE_HOVER } from '../../events';
 
 export interface TestSelectionEntry {
@@ -26,6 +26,8 @@ export interface TestSelectionTableOptions {
 export interface TestSelectionTableHandle {
   /** Re-render the table with new entries and optional message. */
   update(entries: TestSelectionEntry[], message?: string): void;
+  /** Apply a text filter, toggling display:none on rows. Fast path — no DOM rebuild. */
+  setFilter(filter: string): void;
   /** Highlight (or un-highlight) a row by test name. */
   highlightRow(testName: string | null): void;
   /** Remove the table and clean up listeners. */
@@ -65,6 +67,10 @@ export function createTestSelectionTable(
   let currentOnSelectionChange = options.onSelectionChange;
   /** Last-clicked test name (not index) — survives update() rebuilds. */
   let lastClickedTest: string | null = null;
+  /** Map of rendered rows for display:none fast path. */
+  let renderedRowMap: Map<string, HTMLTableRowElement> = new Map();
+  /** Current filter string for display:none toggling. */
+  let currentFilter = '';
 
   function currentSelection(): Set<string> {
     const sel = new Set<string>();
@@ -72,6 +78,16 @@ export function createTestSelectionTable(
       if (e.selected) sel.add(e.testName);
     }
     return sel;
+  }
+
+  function visibleEntryNames(): Set<string> {
+    const names = new Set<string>();
+    for (const e of currentEntries) {
+      if (!currentFilter || matchesFilter(e.testName, currentFilter)) {
+        names.add(e.testName);
+      }
+    }
+    return names;
   }
 
   function setMessage(msg?: string): void {
@@ -84,15 +100,9 @@ export function createTestSelectionTable(
     }
   }
 
-  function updateHeaderCheckbox(): void {
-    const total = currentEntries.length;
-    const selectedCount = currentEntries.filter(e => e.selected).length;
-    headerCb.checked = total > 0 && selectedCount === total;
-    headerCb.indeterminate = selectedCount > 0 && selectedCount < total;
-  }
-
   function buildRows(entries: TestSelectionEntry[]): void {
     tbody.replaceChildren();
+    renderedRowMap.clear();
     for (const entry of entries) {
       const tr = el('tr', { 'data-test': entry.testName });
       if (entry.selected) tr.classList.add('row-selected');
@@ -117,9 +127,33 @@ export function createTestSelectionTable(
       const nameCell = el('td', { class: 'sel-test-name' }, entry.testName);
 
       tr.append(cbCell, symbolCell, nameCell);
+      renderedRowMap.set(entry.testName, tr);
       tbody.append(tr);
     }
-    updateHeaderCheckbox();
+    applyCurrentFilter();
+  }
+
+  function applyCurrentFilter(): void {
+    let visibleTotal = 0;
+    let visibleSelected = 0;
+
+    for (const entry of currentEntries) {
+      const tr = renderedRowMap.get(entry.testName);
+      if (!tr) continue;
+
+      const visible = !currentFilter || matchesFilter(entry.testName, currentFilter);
+      tr.style.display = visible ? '' : 'none';
+
+      if (visible) {
+        visibleTotal++;
+        const cb = tr.querySelector('input[type="checkbox"]') as HTMLInputElement | null;
+        if (cb) cb.checked = entry.selected;
+        if (entry.selected) visibleSelected++;
+      }
+    }
+
+    headerCb.checked = visibleTotal > 0 && visibleSelected === visibleTotal;
+    headerCb.indeterminate = visibleSelected > 0 && visibleSelected < visibleTotal;
   }
 
   buildRows(currentEntries);
@@ -127,16 +161,15 @@ export function createTestSelectionTable(
 
   // --- Header "check all" checkbox ---
   headerCb.addEventListener('click', () => {
-    const allSelected = currentEntries.length > 0 &&
-      currentEntries.every(e => e.selected);
-    if (allSelected) {
-      // Deselect all
+    const visible = visibleEntryNames();
+    const allVisibleSelected = visible.size > 0 &&
+      [...visible].every(name => currentEntries.find(e => e.testName === name)?.selected);
+    if (allVisibleSelected) {
       currentOnSelectionChange(new Set());
     } else {
-      // Select all
-      const allSel = new Set<string>();
-      for (const e of currentEntries) allSel.add(e.testName);
-      currentOnSelectionChange(allSel);
+      const sel = currentSelection();
+      for (const name of visible) sel.add(name);
+      currentOnSelectionChange(sel);
     }
   });
 
@@ -207,9 +240,8 @@ export function createTestSelectionTable(
 
     const sel = currentSelection();
     if (sel.size === 1 && sel.has(testName)) {
-      // Already isolated — restore all (select every visible test)
-      const allSel = new Set<string>();
-      for (const entry of currentEntries) allSel.add(entry.testName);
+      // Already isolated — restore all visible tests
+      const allSel = visibleEntryNames();
       currentOnSelectionChange(allSel);
     } else {
       // Isolate: select only this test
@@ -239,12 +271,16 @@ export function createTestSelectionTable(
   return {
     update(entries: TestSelectionEntry[], message?: string): void {
       currentEntries = entries;
-      // Reset lastClickedTest if it's no longer in the entries
       if (lastClickedTest !== null && !entries.some(e => e.testName === lastClickedTest)) {
         lastClickedTest = null;
       }
       buildRows(entries);
       setMessage(message);
+    },
+
+    setFilter(filter: string): void {
+      currentFilter = filter;
+      applyCurrentFilter();
     },
 
     highlightRow(testName: string | null): void {
@@ -259,6 +295,8 @@ export function createTestSelectionTable(
 
     destroy(): void {
       if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
+      renderedRowMap.clear();
+      currentFilter = '';
       wrapper.remove();
     },
   };

@@ -174,6 +174,18 @@ wrapper), `updateFilterValidation` lazily wraps the input in a
 `<div class="filter-input-wrapper">` to provide the `position: relative`
 context needed for badge positioning.
 
+**Display:none fast path.** Pages with large tables (Compare, Graph) separate
+row creation from filter application. On data load or sort change, a full
+rebuild creates all rows. On filter-only changes, a lightweight function
+iterates stored row references and toggles visibility via `display:none` — no
+DOM creation or destruction.
+
+**RAF-batch expensive renders.** When a user action updates both a table and
+a chart, the table updates synchronously (display:none toggles are fast) and
+the chart render is deferred to `requestAnimationFrame`. A generation counter
+ensures stale callbacks are discarded. Cancel the pending RAF in the page's
+`unmount()` to avoid stale renders.
+
 
 ## 6. Testing
 

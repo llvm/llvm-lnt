@@ -650,9 +650,10 @@ describe('graphPage', () => {
         await vi.advanceTimersByTimeAsync(200);
 
         await vi.waitFor(() => {
-          const rows = container.querySelectorAll('[data-test]');
-          expect(rows.length).toBe(2);
-          const names = [...rows].map(r => r.getAttribute('data-test'));
+          const rows = container.querySelectorAll<HTMLElement>('[data-test]');
+          const visible = [...rows].filter(r => r.style.display !== 'none');
+          expect(visible.length).toBe(2);
+          const names = visible.map(r => r.getAttribute('data-test'));
           expect(names).toContain('Alpha-test');
           expect(names).toContain('ALPHA-other');
         });
@@ -988,7 +989,9 @@ describe('graphPage', () => {
         await vi.advanceTimersByTimeAsync(200);
 
         await vi.waitFor(() => {
-          expect(container.querySelectorAll('[data-test]').length).toBe(1);
+          const rows = container.querySelectorAll<HTMLElement>('[data-test]');
+          const visible = [...rows].filter(r => r.style.display !== 'none');
+          expect(visible.length).toBe(1);
         });
 
         // Clear filter
@@ -997,7 +1000,9 @@ describe('graphPage', () => {
         await vi.advanceTimersByTimeAsync(200);
 
         await vi.waitFor(() => {
-          expect(container.querySelectorAll('[data-test]').length).toBe(3);
+          const rows = container.querySelectorAll<HTMLElement>('[data-test]');
+          const visible = [...rows].filter(r => r.style.display !== 'none');
+          expect(visible.length).toBe(3);
         });
       } finally {
         vi.useRealTimers();

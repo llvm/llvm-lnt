@@ -196,6 +196,9 @@ A test whose bar falls inside the band has `|Delta %| < threshold`.
   `/v5/profiles?suite_a={ts_a}&run_a={uuid_a}&test_a={test}&suite_b={ts_b}&run_b={uuid_b}&test_b={test}`
   When only one side has a profile, the link pre-populates just that side.
   The link is omitted when neither side has a profile for that test.
+- **Filter performance**: Typing in the test filter must feel instant even with
+  thousands of tests. The table updates immediately on each keystroke; the chart
+  may update asynchronously (within one animation frame) to avoid blocking input.
 
 
 ### Chart

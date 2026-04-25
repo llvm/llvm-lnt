@@ -43,6 +43,11 @@ combobox suggestion filters, and function name filters. The `re:` prefix is not
 consumed or hidden -- the user sees it in the input and it is included in URL
 state.
 
+**Text filtering performance**: All pages with large tables (Compare, Graph)
+must keep filter typing responsive even with thousands of rows. Typing in a
+filter input must produce a visible table update within a single animation
+frame. Chart updates may be deferred to avoid blocking the input.
+
 **Authentication**: The v5 API allows unauthenticated reads by default (configurable via `require_auth_for_reads` in `lnt.cfg`). All pages in the current scope are read-only, so no authentication is needed. The SPA navigation bar includes a Settings panel with a Bearer token input (stored in localStorage) for the Admin page and future write-capable pages (regression triage, etc.).
 
 **Why SPA over server-rendered pages:**

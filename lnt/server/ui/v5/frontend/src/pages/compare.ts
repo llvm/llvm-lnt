@@ -28,7 +28,7 @@ import {
   aggregateSamplesWithinRun, aggregateAcrossRuns, computeComparison,
   groupSamplesByTest,
 } from '../comparison';
-import { renderTable, filterToTests, highlightRow, resetTable } from '../table';
+import { renderTable, filterToTests, highlightRow, resetTable, applyTableFilters } from '../table';
 import { renderChart, highlightPoint, destroyChart } from '../chart';
 import { computeSummaryCounts, renderSummaryBar } from '../components/comparison-summary';
 import { el, truncate, debounce, matchesFilter, updateFilterValidation } from '../utils';
@@ -52,6 +52,10 @@ let cachedMapB: Map<string, number> | null = null;
 let manuallyHidden = new Set<string>();
 /** Callback invoked after every table/chart render (used by regression panel). */
 let onAfterRender: (() => void) | null = null;
+/** Pending requestAnimationFrame ID for chart rendering. */
+let pendingChartRAF: number | null = null;
+/** Generation counter for RAF-batched chart renders. */
+let chartRenderGen = 0;
 
 export const comparePage: PageModule = {
   mount(container: HTMLElement, _params: RouteParams): void {
@@ -73,6 +77,20 @@ export const comparePage: PageModule = {
 
     let lastRows: ComparisonRow[] = [];
     let chartZoomFilter: Set<string> | null = null;
+
+    function scheduleChartRender(
+      chartRows: ComparisonRow[],
+      preFilteredTests?: Set<string> | null,
+    ): void {
+      chartRenderGen++;
+      const gen = chartRenderGen;
+      if (pendingChartRAF !== null) cancelAnimationFrame(pendingChartRAF);
+      pendingChartRAF = requestAnimationFrame(() => {
+        pendingChartRAF = null;
+        if (gen !== chartRenderGen) return;
+        renderChart(chartContainer, chartRows, true, preFilteredTests);
+      });
+    }
 
     // ----- Compute noise-hidden set, visible tests, and render -----
 
@@ -153,16 +171,30 @@ export const comparePage: PageModule = {
       return cachedProfileLinks;
     }
 
-    function updateSummaryBar(): void {
-      const state = getState();
-      const counts = computeSummaryCounts(lastRows, state.testFilter, chartZoomFilter);
+    function syncChartAndSummary(matchingTests: Set<string> | null): void {
+      const noiseHidden = computeNoiseHidden();
+      const chartRows = lastRows
+        .filter(r => !noiseHidden.has(r.test) && !manuallyHidden.has(r.test));
+      scheduleChartRender(chartRows, matchingTests);
+
+      const testFilter = getState().testFilter ?? '';
+      const counts = computeSummaryCounts(lastRows, testFilter, chartZoomFilter, matchingTests);
       renderSummaryBar(summaryContainer, counts);
+
+      if (onAfterRender) onAfterRender();
     }
 
     function renderTableAndChart(): void {
       const noiseHidden = computeNoiseHidden();
       tableRows = lastRows.filter(r => !noiseHidden.has(r.test));
-      const chartRows = tableRows.filter(r => !manuallyHidden.has(r.test));
+
+      // Pre-compute filtered test set once
+      const state = getState();
+      const testFilter = state.testFilter ?? '';
+      const matchingTests: Set<string> | null = testFilter
+        ? new Set(lastRows.filter(r => matchesFilter(r.test, testFilter)).map(r => r.test))
+        : null;
+
       renderTable(tableContainer, tableRows, {
         hiddenTests: manuallyHidden,
         profileLinks: buildProfileLinks(),
@@ -177,11 +209,9 @@ export const comparePage: PageModule = {
         onIsolate: (test) => {
           // Isolate only affects manuallyHidden; the two filters (noise,
           // manual) are independent.
-          const state = getState();
-          const filter = state.testFilter || '';
           const visibleTests = tableRows
             .filter(r => r.sidePresent === 'both' && !manuallyHidden.has(r.test)
-              && (!filter || matchesFilter(r.test, filter)))
+              && (matchingTests ? matchingTests.has(r.test) : true))
             .map(r => r.test);
 
           if (visibleTests.length === 1 && visibleTests[0] === test) {
@@ -192,16 +222,14 @@ export const comparePage: PageModule = {
             manuallyHidden = new Set(
               tableRows
                 .filter(r => r.sidePresent === 'both' && r.test !== test
-                  && (!filter || matchesFilter(r.test, filter)))
+                  && (matchingTests ? matchingTests.has(r.test) : true))
                 .map(r => r.test),
             );
           }
           renderTableAndChart();
         },
       });
-      renderChart(chartContainer, chartRows, true);
-      updateSummaryBar();
-      if (onAfterRender) onAfterRender();
+      syncChartAndSummary(matchingTests);
     }
 
     // ----- Recompute from cache (no API calls) -----
@@ -602,7 +630,9 @@ export const comparePage: PageModule = {
       onCustomEvent<Set<string> | null>(CHART_ZOOM, (tests) => {
         chartZoomFilter = tests;
         filterToTests(tests);
-        updateSummaryBar();
+        const testFilter = getState().testFilter ?? '';
+        const counts = computeSummaryCounts(lastRows, testFilter, chartZoomFilter);
+        renderSummaryBar(summaryContainer, counts);
       }),
       onCustomEvent<string | null>(CHART_HOVER, (testName) => {
         highlightRow(testName);
@@ -626,9 +656,9 @@ export const comparePage: PageModule = {
         }
       }),
       onCustomEvent(TEST_FILTER_CHANGE, () => {
-        if (lastRows.length > 0) {
-          renderTableAndChart();
-        }
+        if (lastRows.length === 0) return;
+        const matchingTests = applyTableFilters();
+        syncChartAndSummary(matchingTests);
       }),
     );
 
@@ -659,6 +689,13 @@ export const comparePage: PageModule = {
     cachedMapB = null;
     manuallyHidden = new Set();
     onAfterRender = null;
+
+    // Cancel pending chart RAF
+    if (pendingChartRAF !== null) {
+      cancelAnimationFrame(pendingChartRAF);
+      pendingChartRAF = null;
+    }
+    chartRenderGen = 0;
 
     // Clean up modules with mutable state
     destroyChart();

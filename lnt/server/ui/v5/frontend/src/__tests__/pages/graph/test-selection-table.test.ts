@@ -400,3 +400,115 @@ describe('createTestSelectionTable', () => {
     expect(headerCb.indeterminate).toBe(true);
   });
 });
+
+describe('setFilter (display:none fast path)', () => {
+  let container: HTMLElement;
+
+  beforeEach(() => { container = document.createElement('div'); });
+
+  it('hides non-matching rows via display:none', () => {
+    const entries = makeEntries(['test-A'], ['test-B', 'other-C']);
+    const handle = createTestSelectionTable(container, {
+      entries, onSelectionChange: vi.fn(),
+    });
+
+    handle.setFilter('test');
+
+    const rowA = container.querySelector<HTMLElement>('tr[data-test="test-A"]');
+    const rowB = container.querySelector<HTMLElement>('tr[data-test="test-B"]');
+    const rowC = container.querySelector<HTMLElement>('tr[data-test="other-C"]');
+    expect(rowA!.style.display).toBe('');
+    expect(rowB!.style.display).toBe('');
+    expect(rowC!.style.display).toBe('none');
+
+    handle.destroy();
+  });
+
+  it('shows all rows when filter is cleared', () => {
+    const entries = makeEntries(['test-A'], ['test-B', 'other-C']);
+    const handle = createTestSelectionTable(container, {
+      entries, onSelectionChange: vi.fn(),
+    });
+
+    handle.setFilter('test');
+    handle.setFilter('');
+
+    const rows = container.querySelectorAll<HTMLElement>('tr[data-test]');
+    for (const tr of rows) {
+      expect(tr.style.display).toBe('');
+    }
+
+    handle.destroy();
+  });
+
+  it('hides all rows on invalid regex', () => {
+    const entries = makeEntries(['test-A'], ['test-B']);
+    const handle = createTestSelectionTable(container, {
+      entries, onSelectionChange: vi.fn(),
+    });
+
+    handle.setFilter('re:invalid[');
+
+    const rows = container.querySelectorAll<HTMLElement>('tr[data-test]');
+    for (const tr of rows) {
+      expect(tr.style.display).toBe('none');
+    }
+
+    handle.destroy();
+  });
+
+  it('header checkbox reflects only visible entries', () => {
+    const entries = makeEntries(['test-A', 'test-B'], ['other-C']);
+    const handle = createTestSelectionTable(container, {
+      entries, onSelectionChange: vi.fn(),
+    });
+
+    // All 3 entries, 2 selected → indeterminate
+    const headerCb = container.querySelector('thead input[type="checkbox"]') as HTMLInputElement;
+    expect(headerCb.indeterminate).toBe(true);
+
+    // Filter to only "test-" rows → 2 visible, both selected → checked
+    handle.setFilter('test');
+    expect(headerCb.checked).toBe(true);
+    expect(headerCb.indeterminate).toBe(false);
+
+    handle.destroy();
+  });
+
+  it('filter persists across update() calls', () => {
+    const entries = makeEntries(['test-A'], ['other-B']);
+    const handle = createTestSelectionTable(container, {
+      entries, onSelectionChange: vi.fn(),
+    });
+
+    handle.setFilter('test');
+
+    // Update with new entries — filter should still be applied
+    handle.update(makeEntries(['test-X', 'test-Y'], ['other-Z']));
+
+    const rowX = container.querySelector<HTMLElement>('tr[data-test="test-X"]');
+    const rowZ = container.querySelector<HTMLElement>('tr[data-test="other-Z"]');
+    expect(rowX!.style.display).toBe('');
+    expect(rowZ!.style.display).toBe('none');
+
+    handle.destroy();
+  });
+
+  it('updates checkbox state from entry data (prevents stale checkboxes)', () => {
+    const entries = makeEntries(['test-A', 'test-B'], ['other-C']);
+    const handle = createTestSelectionTable(container, {
+      entries, onSelectionChange: vi.fn(),
+    });
+
+    // Update entries: deselect test-B
+    handle.update(makeEntries(['test-A'], ['test-B', 'other-C']));
+
+    // Apply filter to show only test- rows
+    handle.setFilter('test');
+
+    const cbB = container.querySelector<HTMLElement>('tr[data-test="test-B"] input[type="checkbox"]') as HTMLInputElement;
+    expect(cbB.checked).toBe(false);
+
+    handle.destroy();
+  });
+});

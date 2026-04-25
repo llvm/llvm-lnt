@@ -1,7 +1,15 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from 'vitest';
-import { sortRows, renderTable, resetTable } from '../table';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { sortRows, renderTable, resetTable, applyTableFilters, filterToTests } from '../table';
 import type { ComparisonRow } from '../types';
+
+// Mock setState to avoid window.history.replaceState issues in jsdom.
+// Table tests only need getState() to return the testFilter value.
+const mockState: { testFilter: string; sort: string; sortDir: string } = { testFilter: '', sort: 'delta_pct', sortDir: 'desc' };
+vi.mock('../state', () => ({
+  getState: () => mockState,
+  setState: (partial: Record<string, unknown>) => Object.assign(mockState, partial),
+}));
 
 // Helper to create a ComparisonRow with defaults
 function makeRow(overrides: Partial<ComparisonRow> & { test: string }): ComparisonRow {
@@ -705,5 +713,211 @@ describe('renderTable — profile column', () => {
     const ths = missingTable!.querySelectorAll('th');
     expect(ths[ths.length - 1].textContent).toBe('Profile');
     resetTable();
+  });
+});
+
+describe('applyTableFilters (display:none fast path)', () => {
+  function makeRow(overrides: Partial<ComparisonRow> & { test: string }): ComparisonRow {
+    return {
+      valueA: null, valueB: null, delta: null, deltaPct: null,
+      ratio: null, status: 'unchanged', sidePresent: 'both', noiseReasons: [],
+      ...overrides,
+    };
+  }
+
+  const rows = [
+    makeRow({ test: 'bench/compile', valueA: 100, valueB: 110, delta: 10, deltaPct: 10, ratio: 1.1, status: 'regressed' }),
+    makeRow({ test: 'bench/link', valueA: 50, valueB: 45, delta: -5, deltaPct: -10, ratio: 0.9, status: 'improved' }),
+    makeRow({ test: 'bench/run', valueA: 200, valueB: 200, delta: 0, deltaPct: 0, ratio: 1.0, status: 'unchanged' }),
+    makeRow({ test: 'only-a', sidePresent: 'a_only', valueA: 10, valueB: null }),
+  ];
+
+  let container: HTMLElement;
+
+  function setup(): void {
+    mockState.testFilter = '';
+    mockState.sort = 'delta_pct' as const;
+    mockState.sortDir = 'desc' as const;
+    container = document.createElement('div');
+    renderTable(container, rows);
+  }
+
+  afterEach(() => {
+    mockState.testFilter = '';
+    mockState.sort = 'delta_pct' as const;
+    mockState.sortDir = 'desc' as const;
+    resetTable();
+  });
+
+  it('preserves the tbody element (no DOM rebuild)', () => {
+    setup();
+    const tbody = container.querySelector('tbody');
+    expect(tbody).toBeTruthy();
+
+    mockState.testFilter = 'compile';
+    applyTableFilters();
+
+    const tbodyAfter = container.querySelector('tbody');
+    expect(tbodyAfter).toBe(tbody);
+  });
+
+  it('hides non-matching rows via display:none', () => {
+    setup();
+    mockState.testFilter = 'compile';
+    applyTableFilters();
+
+    const compileRow = container.querySelector('tr[data-test="bench/compile"]') as HTMLElement;
+    const linkRow = container.querySelector('tr[data-test="bench/link"]') as HTMLElement;
+    expect(compileRow.style.display).toBe('');
+    expect(linkRow.style.display).toBe('none');
+  });
+
+  it('restores all rows when filter is cleared', () => {
+    setup();
+    mockState.testFilter = 'compile';
+    applyTableFilters();
+
+    mockState.testFilter = '';
+    applyTableFilters();
+
+    const mainTable = container.querySelector('.comparison-table:not(.missing-table)');
+    const dataRows = mainTable!.querySelectorAll<HTMLElement>('tr[data-test]');
+    for (const tr of dataRows) {
+      expect(tr.style.display).toBe('');
+    }
+  });
+
+  it('supports re: regex filter', () => {
+    setup();
+    mockState.testFilter = 're:bench/(compile|link)';
+    applyTableFilters();
+
+    const compileRow = container.querySelector('tr[data-test="bench/compile"]') as HTMLElement;
+    const linkRow = container.querySelector('tr[data-test="bench/link"]') as HTMLElement;
+    const runRow = container.querySelector('tr[data-test="bench/run"]') as HTMLElement;
+    expect(compileRow.style.display).toBe('');
+    expect(linkRow.style.display).toBe('');
+    expect(runRow.style.display).toBe('none');
+  });
+
+  it('hides all present rows on invalid regex', () => {
+    setup();
+    mockState.testFilter = 're:invalid[';
+    applyTableFilters();
+
+    const mainTable = container.querySelector('.comparison-table:not(.missing-table)');
+    const dataRows = mainTable!.querySelectorAll<HTMLElement>('tr[data-test]');
+    for (const tr of dataRows) {
+      expect(tr.style.display).toBe('none');
+    }
+  });
+
+  it('toggles missing-test rows too', () => {
+    setup();
+    mockState.testFilter = 'only-a';
+    applyTableFilters();
+
+    const missingRow = container.querySelector('.missing-table tr[data-test="only-a"]') as HTMLElement;
+    expect(missingRow).toBeTruthy();
+    expect(missingRow.style.display).toBe('');
+
+    const compileRow = container.querySelector('tr[data-test="bench/compile"]') as HTMLElement;
+    expect(compileRow.style.display).toBe('none');
+  });
+
+  it('updates geomean values in-place', () => {
+    const rowsWithGeomean = [
+      makeRow({ test: 'a', valueA: 100, valueB: 200, ratio: 2.0, status: 'improved' }),
+      makeRow({ test: 'b', valueA: 400, valueB: 3200, ratio: 8.0, status: 'regressed' }),
+    ];
+    container = document.createElement('div');
+    renderTable(container, rowsWithGeomean);
+
+    const geomeanRow = container.querySelector('.geomean-row');
+    expect(geomeanRow).toBeTruthy();
+    let cells = geomeanRow!.querySelectorAll('td');
+    expect(cells[5].textContent).toBe('4.0000');
+
+    mockState.testFilter = 're:^a';
+    applyTableFilters();
+
+    cells = geomeanRow!.querySelectorAll('td');
+    expect(cells[5].textContent).toBe('2.0000');
+
+    resetTable();
+  });
+
+  it('hides geomean row when filter matches zero tests', () => {
+    const rowsWithGeomean = [
+      makeRow({ test: 'a', valueA: 100, valueB: 200, ratio: 2.0, status: 'improved' }),
+    ];
+    container = document.createElement('div');
+    renderTable(container, rowsWithGeomean);
+
+    mockState.testFilter = 'nonexistent';
+    applyTableFilters();
+
+    const geomeanRow = container.querySelector('.geomean-row') as HTMLElement;
+    expect(geomeanRow.style.display).toBe('none');
+
+    resetTable();
+  });
+
+  it('updates summary message on filter', () => {
+    setup();
+    mockState.testFilter = 'compile';
+    applyTableFilters();
+
+    const msg = container.querySelector('.table-message');
+    expect(msg).toBeTruthy();
+    expect(msg!.textContent).toContain('1 of 3 tests matching');
+  });
+
+  it('filterToTests uses fast path', () => {
+    setup();
+    const tbody = container.querySelector('tbody');
+
+    filterToTests(new Set(['bench/compile', 'bench/link']));
+
+    const tbodyAfter = container.querySelector('tbody');
+    expect(tbodyAfter).toBe(tbody);
+
+    const runRow = container.querySelector('tr[data-test="bench/run"]') as HTMLElement;
+    expect(runRow.style.display).toBe('none');
+  });
+
+  it('resetTable clears state so next renderTable works', () => {
+    setup();
+    mockState.testFilter = 'compile';
+    applyTableFilters();
+    resetTable();
+
+    const container2 = document.createElement('div');
+    renderTable(container2, rows);
+    const dataRows = container2.querySelectorAll<HTMLElement>('tr[data-test]');
+    expect(dataRows.length).toBeGreaterThan(0);
+    resetTable();
+  });
+
+  it('round-trip: fullRebuild -> applyFilters -> sort -> data correct', () => {
+    setup();
+
+    mockState.testFilter = 'bench';
+    applyTableFilters();
+    const missingRow = container.querySelector('.missing-table tr[data-test="only-a"]') as HTMLElement;
+    expect(missingRow.style.display).toBe('none');
+
+    // Sort change triggers full rebuild via renderTable
+    mockState.sort = 'test';
+    mockState.sortDir = 'asc';
+    mockState.testFilter = '';
+    renderTable(container, rows);
+
+    // All present rows should be visible
+    const mainTable = container.querySelector('.comparison-table:not(.missing-table)');
+    const dataRows = mainTable!.querySelectorAll<HTMLElement>('tr[data-test]');
+    for (const tr of dataRows) {
+      expect(tr.style.display).not.toBe('none');
+    }
   });
 });

@@ -18,6 +18,7 @@ export function computeSummaryCounts(
   rows: ComparisonRow[],
   textFilter: string,
   zoomFilter: Set<string> | null,
+  preFilteredTests?: Set<string> | null,
 ): SummaryCounts {
   const counts: SummaryCounts = {
     improved: 0, regressed: 0, noise: 0, unchanged: 0,
@@ -25,7 +26,11 @@ export function computeSummaryCounts(
   };
 
   for (const r of rows) {
-    if (textFilter && !matchesFilter(r.test, textFilter)) continue;
+    if (preFilteredTests) {
+      if (!preFilteredTests.has(r.test)) continue;
+    } else if (textFilter && !matchesFilter(r.test, textFilter)) {
+      continue;
+    }
     if (zoomFilter && !zoomFilter.has(r.test)) continue;
 
     switch (r.status) {

@@ -347,7 +347,12 @@ export const graphPage: PageModule = {
       }
       selectedTests = newSelected;
 
-      renderFromSelection();
+      // Fast path: toggle display:none on existing rows, don't rebuild DOM
+      if (tableHandle) {
+        tableHandle.setFilter(testFilter);
+      }
+
+      scheduleChartUpdate();
     }
 
     async function handleSelectionChange(newSelected: Set<string>): Promise<void> {
@@ -464,7 +469,7 @@ export const graphPage: PageModule = {
 
     /** Rebuild table + schedule chart update. */
     function renderFromSelection(): void {
-      const entries: TestSelectionEntry[] = allMatchingTests.map(testName => ({
+      const entries: TestSelectionEntry[] = allDiscoveredTests.map(testName => ({
         testName,
         selected: selectedTests.has(testName),
         color: cachedColorMap.get(testName),
@@ -472,10 +477,10 @@ export const graphPage: PageModule = {
         loading: loadingTests.has(testName),
       }));
 
+      const matchingCount = allMatchingTests.length;
       const selCount = selectedTests.size;
-      const totalCount = allMatchingTests.length;
       const loadingCount = loadingTests.size;
-      let message = `${selCount} of ${totalCount} tests selected`;
+      let message = `${selCount} of ${matchingCount} tests selected`;
       if (loadingCount > 0) message += ', loading...';
 
       if (tableHandle) {

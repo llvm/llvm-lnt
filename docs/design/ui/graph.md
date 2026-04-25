@@ -94,6 +94,10 @@ selected/plotted), a symbol cell (colored marker character (circle/triangle/squa
 selected, empty otherwise), and the test name. The test filter narrows the
 table; tests that no longer match are pruned from the selection.
 
+**Filter performance**: Typing in the test filter must feel instant even with
+thousands of tests. Non-matching rows are hidden immediately; the chart updates
+asynchronously.
+
 
 ### Selection Interactions
 
