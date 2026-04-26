@@ -45,15 +45,22 @@ export function computeSummaryCounts(
   return counts;
 }
 
-const CATEGORIES: Array<{ key: SummaryCategory; label: string; color: string }> = [
-  { key: 'improved', label: 'Improved', color: STATUS_COLORS.improved },
-  { key: 'regressed', label: 'Regressed', color: STATUS_COLORS.regressed },
-  { key: 'noise', label: 'Noise', color: STATUS_COLORS.noise },
-  { key: 'unchanged', label: 'Unchanged', color: STATUS_COLORS.unchanged },
-  { key: 'onlyInA', label: 'Only in A', color: '#888888' },
-  { key: 'onlyInB', label: 'Only in B', color: '#888888' },
-  { key: 'na', label: 'N/A', color: '#888888' },
+const CATEGORIES: Array<{ key: SummaryCategory; label: string; color: string; comparable: boolean }> = [
+  { key: 'improved', label: 'Improved', color: STATUS_COLORS.improved, comparable: true },
+  { key: 'regressed', label: 'Regressed', color: STATUS_COLORS.regressed, comparable: true },
+  { key: 'noise', label: 'Noise', color: STATUS_COLORS.noise, comparable: true },
+  { key: 'unchanged', label: 'Unchanged', color: STATUS_COLORS.unchanged, comparable: true },
+  { key: 'onlyInA', label: 'Only in A', color: '#888888', comparable: false },
+  { key: 'onlyInB', label: 'Only in B', color: '#888888', comparable: false },
+  { key: 'na', label: 'N/A', color: '#888888', comparable: false },
 ];
+
+function formatPct(n: number): string {
+  const s = n.toFixed(1);
+  return s.endsWith('.0') ? s.slice(0, -2) : s;
+}
+
+const PCT_TOOLTIP = 'Percentage of comparable tests (excludes Only in A, Only in B, N/A)';
 
 export function renderSummaryBar(container: HTMLElement, counts: SummaryCounts): void {
   container.replaceChildren();
@@ -61,19 +68,26 @@ export function renderSummaryBar(container: HTMLElement, counts: SummaryCounts):
   if (counts.total === 0) return;
 
   const bar = el('div', { class: 'comparison-summary' });
+  const comparable = counts.improved + counts.regressed + counts.noise + counts.unchanged;
 
   for (const cat of CATEGORIES) {
     const count = counts[cat.key];
-    const pct = Math.round((count / counts.total) * 100);
+    const showPct = cat.comparable && comparable > 0;
+    const countText = showPct
+      ? `${count} (${formatPct((count / comparable) * 100)}%)`
+      : `${count}`;
 
     const dot = el('span', { class: 'summary-dot' });
     dot.style.backgroundColor = cat.color;
+
+    const countAttrs: Record<string, string | boolean> = { class: 'summary-count' };
+    if (showPct) countAttrs.title = PCT_TOOLTIP;
 
     const item = el('span',
       { class: count === 0 ? 'summary-item summary-item-zero' : 'summary-item' },
       dot,
       el('span', { class: 'summary-label' }, cat.label),
-      el('span', { class: 'summary-count' }, `${count} (${pct}%)`),
+      el('span', countAttrs, countText),
     );
 
     bar.append(item);

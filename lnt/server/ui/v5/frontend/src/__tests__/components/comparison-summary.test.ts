@@ -205,23 +205,28 @@ describe('renderSummaryBar', () => {
     const countTexts = Array.from(container.querySelectorAll('.summary-count')).map(
       el => el.textContent,
     );
-    expect(countTexts[0]).toBe('10 (29%)');  // improved
-    expect(countTexts[1]).toBe('5 (14%)');   // regressed
-    expect(countTexts[2]).toBe('20 (57%)');  // noise
-    expect(countTexts[3]).toBe('0 (0%)');    // unchanged
+    // comparableTotal = 35
+    expect(countTexts[0]).toBe('10 (28.6%)');  // improved
+    expect(countTexts[1]).toBe('5 (14.3%)');   // regressed
+    expect(countTexts[2]).toBe('20 (57.1%)');  // noise
+    expect(countTexts[3]).toBe('0 (0%)');      // unchanged
+    expect(countTexts[4]).toBe('0');           // onlyInA
+    expect(countTexts[5]).toBe('0');           // onlyInB
+    expect(countTexts[6]).toBe('0');           // na
   });
 
-  it('rounds percentages as integers', () => {
+  it('formats percentages with one decimal place', () => {
     const counts = {
-      improved: 1, regressed: 0, noise: 0, unchanged: 0,
-      onlyInA: 0, onlyInB: 0, na: 2, total: 3,
+      improved: 2, regressed: 1, noise: 0, unchanged: 0,
+      onlyInA: 0, onlyInB: 0, na: 0, total: 3,
     };
     renderSummaryBar(container, counts);
     const countTexts = Array.from(container.querySelectorAll('.summary-count')).map(
       el => el.textContent,
     );
-    expect(countTexts[0]).toBe('1 (33%)');   // 1/3 = 33.3... → 33%
-    expect(countTexts[6]).toBe('2 (67%)');   // 2/3 = 66.6... → 67%
+    // comparableTotal = 3
+    expect(countTexts[0]).toBe('2 (66.7%)');
+    expect(countTexts[1]).toBe('1 (33.3%)');
   });
 
   it('applies summary-item-zero class to zero-count categories', () => {
@@ -266,5 +271,119 @@ describe('renderSummaryBar', () => {
     );
     expect(countTexts[0]).toBe('0 (0%)');    // improved now 0
     expect(countTexts[1]).toBe('3 (100%)');  // regressed now 3
+    expect(countTexts[4]).toBe('0');         // onlyInA
+    expect(countTexts[5]).toBe('0');         // onlyInB
+    expect(countTexts[6]).toBe('0');         // na
+  });
+
+  it('uses comparable denominator, not total', () => {
+    const counts = {
+      improved: 3, regressed: 1, noise: 2, unchanged: 4,
+      onlyInA: 5, onlyInB: 5, na: 10, total: 30,
+    };
+    renderSummaryBar(container, counts);
+    const countTexts = Array.from(container.querySelectorAll('.summary-count')).map(
+      el => el.textContent,
+    );
+    // comparableTotal = 10, not 30
+    expect(countTexts[0]).toBe('3 (30%)');    // improved
+    expect(countTexts[1]).toBe('1 (10%)');    // regressed
+    expect(countTexts[2]).toBe('2 (20%)');    // noise
+    expect(countTexts[3]).toBe('4 (40%)');    // unchanged
+    expect(countTexts[4]).toBe('5');          // onlyInA
+    expect(countTexts[5]).toBe('5');          // onlyInB
+    expect(countTexts[6]).toBe('10');         // na
+  });
+
+  it('shows no percentage when comparableTotal is 0', () => {
+    const counts = {
+      improved: 0, regressed: 0, noise: 0, unchanged: 0,
+      onlyInA: 3, onlyInB: 2, na: 5, total: 10,
+    };
+    renderSummaryBar(container, counts);
+    const countTexts = Array.from(container.querySelectorAll('.summary-count')).map(
+      el => el.textContent,
+    );
+    // comparableTotal = 0 — no division by zero
+    expect(countTexts[0]).toBe('0');  // improved
+    expect(countTexts[1]).toBe('0');  // regressed
+    expect(countTexts[2]).toBe('0');  // noise
+    expect(countTexts[3]).toBe('0');  // unchanged
+    expect(countTexts[4]).toBe('3');  // onlyInA
+    expect(countTexts[5]).toBe('2');  // onlyInB
+    expect(countTexts[6]).toBe('5');  // na
+  });
+
+  it('drops .0 for whole-number percentages', () => {
+    const counts = {
+      improved: 1, regressed: 1, noise: 1, unchanged: 1,
+      onlyInA: 0, onlyInB: 0, na: 0, total: 4,
+    };
+    renderSummaryBar(container, counts);
+    const countTexts = Array.from(container.querySelectorAll('.summary-count')).map(
+      el => el.textContent,
+    );
+    // comparableTotal = 4; 25.0% → displayed as "25%"
+    expect(countTexts[0]).toBe('1 (25%)');
+    expect(countTexts[1]).toBe('1 (25%)');
+    expect(countTexts[2]).toBe('1 (25%)');
+    expect(countTexts[3]).toBe('1 (25%)');
+  });
+
+  it('shows 1 decimal place for non-whole percentages', () => {
+    const counts = {
+      improved: 1, regressed: 1, noise: 1, unchanged: 0,
+      onlyInA: 0, onlyInB: 0, na: 0, total: 3,
+    };
+    renderSummaryBar(container, counts);
+    const countTexts = Array.from(container.querySelectorAll('.summary-count')).map(
+      el => el.textContent,
+    );
+    // comparableTotal = 3
+    expect(countTexts[0]).toBe('1 (33.3%)');
+    expect(countTexts[1]).toBe('1 (33.3%)');
+    expect(countTexts[2]).toBe('1 (33.3%)');
+    expect(countTexts[3]).toBe('0 (0%)');
+  });
+
+  it('shows tooltip on comparable percentage spans', () => {
+    const counts = {
+      improved: 3, regressed: 1, noise: 0, unchanged: 0,
+      onlyInA: 2, onlyInB: 0, na: 1, total: 7,
+    };
+    renderSummaryBar(container, counts);
+    const spans = Array.from(container.querySelectorAll('.summary-count')) as HTMLElement[];
+    const expectedTooltip = 'Percentage of comparable tests (excludes Only in A, Only in B, N/A)';
+    // comparable categories get tooltip (even zero-count ones when comparable > 0)
+    expect(spans[0].getAttribute('title')).toBe(expectedTooltip); // improved
+    expect(spans[1].getAttribute('title')).toBe(expectedTooltip); // regressed
+    expect(spans[2].getAttribute('title')).toBe(expectedTooltip); // noise (count=0)
+    expect(spans[3].getAttribute('title')).toBe(expectedTooltip); // unchanged (count=0)
+    // non-comparable categories have no tooltip
+    expect(spans[4].getAttribute('title')).toBeNull(); // onlyInA
+    expect(spans[5].getAttribute('title')).toBeNull(); // onlyInB
+    expect(spans[6].getAttribute('title')).toBeNull(); // na
+  });
+
+  it('zero-count comparable category still shows percentage and tooltip', () => {
+    const counts = {
+      improved: 0, regressed: 0, noise: 7, unchanged: 0,
+      onlyInA: 3, onlyInB: 0, na: 0, total: 10,
+    };
+    renderSummaryBar(container, counts);
+    const countTexts = Array.from(container.querySelectorAll('.summary-count')).map(
+      el => el.textContent,
+    );
+    const spans = Array.from(container.querySelectorAll('.summary-count')) as HTMLElement[];
+    // comparable > 0 but specific category has count=0 — still shows percentage and tooltip
+    expect(countTexts[0]).toBe('0 (0%)');     // improved
+    expect(countTexts[1]).toBe('0 (0%)');     // regressed
+    expect(countTexts[2]).toBe('7 (100%)');   // noise
+    expect(countTexts[3]).toBe('0 (0%)');     // unchanged
+    expect(countTexts[4]).toBe('3');          // onlyInA
+    // tooltip present on all comparable categories, including zero-count
+    expect(spans[0].getAttribute('title')).toBeTruthy();
+    expect(spans[3].getAttribute('title')).toBeTruthy();
+    expect(spans[4].getAttribute('title')).toBeNull();
   });
 });

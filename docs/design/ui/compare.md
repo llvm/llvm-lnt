@@ -218,7 +218,8 @@ Interactivity:
 ### Comparison Summary Bar
 
 A horizontal summary bar between the chart and the comparison table shows the
-count and percentage of tests in each status category:
+count of tests in each status category, with percentages for comparable
+categories:
 
 | Category   | Counts rows where                          | Dot color |
 |------------|--------------------------------------------|-----------|
@@ -230,23 +231,33 @@ count and percentage of tests in each status category:
 | Only in B  | `sidePresent === 'b_only'`                 | `#888888` |
 | N/A        | `status === 'na'`                          | `#888888` |
 
-Each category shows a colored dot, label, and "count (pct%)" where percentage
-is `Math.round(count / total * 100)` displayed as an integer. The denominator
-is the sum of all categories in the filtered set, so percentages always sum
-to ~100% (integer rounding may cause minor drift).
+**Comparable categories** (Improved, Regressed, Noise, Unchanged) show a
+colored dot, label, and "count (pct%)" where the denominator is the sum of
+comparable categories only (within the filtered set). Percentages use one
+decimal place, except whole numbers drop the trailing `.0` (e.g. `25%` not
+`25.0%`). Percentages among comparable categories sum to ~100% (one-decimal
+rounding may cause minor drift). When there are no comparable tests
+(`comparableTotal = 0`), comparable categories show just the count with no
+percentage. A tooltip on the `.summary-count` span explains the denominator.
+
+**Non-comparable categories** (Only in A, Only in B, N/A) show a colored
+dot, label, and count only — no percentage.
 
 **Filtering behavior**: the summary bar respects the text filter and chart zoom
-(counts reflect only tests visible in those filters). It does NOT respect the
-"Hide noise" toggle -- noise and unchanged tests are always counted. This
-ensures the user can see the full status breakdown even when noise rows are
-hidden from the table and chart. The source of truth is the full comparison
-result (`lastRows`), filtered by text filter and chart zoom.
+(counts reflect only tests visible in those filters). The comparable-category
+denominator is the comparable count within the filtered set. The bar does NOT
+respect the "Hide noise" toggle -- noise and unchanged tests are always
+counted. This ensures the user can see the full status breakdown even when
+noise rows are hidden from the table and chart. The source of truth is the
+full comparison result (`lastRows`), filtered by text filter and chart zoom.
 
 **Zero-count categories**: shown with reduced opacity (0.5) for visual muting
 rather than hidden, providing layout stability.
 
 **Empty state**: when no comparison data exists (total = 0), the summary bar
-renders nothing (empty container).
+renders nothing (empty container). When `total > 0` but all tests are
+non-comparable (`comparableTotal = 0`), all categories render with bare
+counts and no percentages.
 
 
 ### Bidirectional Chart-Table Sync
