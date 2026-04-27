@@ -20,7 +20,7 @@ import {
   TEST_FILTER_CHANGE, SETTINGS_CHANGE,
   onCustomEvent,
 } from '../events';
-import { getState, applyUrlState } from '../state';
+import { getState, applyUrlState, setShadow, clearShadow } from '../state';
 import {
   initSelection, fetchSideData, getMetricFields, renderSelectionPanel,
 } from '../selection';
@@ -56,6 +56,11 @@ let onAfterRender: (() => void) | null = null;
 let pendingChartRAF: number | null = null;
 /** Generation counter for RAF-batched chart renders. */
 let chartRenderGen = 0;
+/** Cached shadow comparison rows. */
+let shadowRows: ComparisonRow[] = [];
+/** Cached shadow side B intermediate aggregation state. */
+let cachedShadowRawB: Map<string, number[]> | null = null;
+let cachedShadowMapB: Map<string, number> | null = null;
 
 export const comparePage: PageModule = {
   mount(container: HTMLElement, _params: RouteParams): void {
@@ -88,7 +93,19 @@ export const comparePage: PageModule = {
       pendingChartRAF = requestAnimationFrame(() => {
         pendingChartRAF = null;
         if (gen !== chartRenderGen) return;
-        renderChart(chartContainer, chartRows, true, preFilteredTests);
+        const state = getState();
+        const noiseHidden = computeNoiseHidden();
+        const filteredShadow = state.shadow
+          ? shadowRows.filter(r => !noiseHidden.has(r.test) && !manuallyHidden.has(r.test))
+          : undefined;
+        renderChart(chartContainer, chartRows, {
+          preserveZoom: true,
+          preFilteredTests,
+          shadowRows: filteredShadow,
+          shadowLabel: state.shadow
+            ? `${truncate(state.shadow.sideB.commit, 12)} on ${state.shadow.sideB.machine}`
+            : undefined,
+        });
       });
     }
 
@@ -234,13 +251,16 @@ export const comparePage: PageModule = {
 
     // ----- Recompute from cache (no API calls) -----
 
+    function currentBiggerIsBetter(): boolean {
+      const field = getMetricFields().find(f => f.name === getState().metric);
+      return field?.bigger_is_better ?? false;
+    }
+
     function recomputeFromCache(): void {
       const state = getState();
       if (!state.metric) return;
 
-      const metricFields = getMetricFields();
-      const metricField = metricFields.find(f => f.name === state.metric);
-      const biggerIsBetter = metricField?.bigger_is_better ?? false;
+      const biggerIsBetter = currentBiggerIsBetter();
 
       // Build raw sample pools per side (single pass)
       const samplesA = state.sideA.runs
@@ -262,6 +282,7 @@ export const comparePage: PageModule = {
       const rows = computeComparison(cachedMapA, cachedMapB, biggerIsBetter, state.noiseConfig, cachedRawA, cachedRawB);
       lastRows = rows;
 
+      recomputeShadow(biggerIsBetter);
       renderTableAndChart();
     }
 
@@ -270,12 +291,46 @@ export const comparePage: PageModule = {
       const state = getState();
       if (!state.metric || !cachedMapA || !cachedMapB) return;
 
-      const metricFields = getMetricFields();
-      const metricField = metricFields.find(f => f.name === state.metric);
-      const biggerIsBetter = metricField?.bigger_is_better ?? false;
+      const biggerIsBetter = currentBiggerIsBetter();
 
       lastRows = computeComparison(cachedMapA, cachedMapB, biggerIsBetter, state.noiseConfig, cachedRawA ?? undefined, cachedRawB ?? undefined);
+      recomputeShadow(biggerIsBetter);
       renderTableAndChart();
+    }
+
+    function clearShadowCaches(): void {
+      shadowRows = [];
+      cachedShadowRawB = null;
+      cachedShadowMapB = null;
+    }
+
+    function recomputeShadow(biggerIsBetter?: boolean): void {
+      const state = getState();
+      if (!state.shadow || !state.metric || !cachedMapA || !cachedRawA) {
+        shadowRows = [];
+        return;
+      }
+
+      const bib = biggerIsBetter ?? currentBiggerIsBetter();
+
+      const shadowSamplesB = state.shadow.sideB.runs
+        .map(uuid => sampleCache.get(uuid))
+        .filter((s): s is SampleInfo[] => s !== undefined);
+
+      if (shadowSamplesB.length === 0) {
+        shadowRows = [];
+        return;
+      }
+
+      cachedShadowRawB = groupSamplesByTest(shadowSamplesB, state.metric);
+      const perRunShadowB = shadowSamplesB.map(s =>
+        aggregateSamplesWithinRun(s, state.metric, state.sampleAgg));
+      cachedShadowMapB = aggregateAcrossRuns(perRunShadowB, state.shadow.sideB.runAgg);
+
+      shadowRows = computeComparison(
+        cachedMapA, cachedShadowMapB, bib,
+        state.noiseConfig, cachedRawA, cachedShadowRawB,
+      );
     }
 
     // ----- Compare callback -----
@@ -291,15 +346,19 @@ export const comparePage: PageModule = {
       // Check which runs need fetching — separate by side for per-suite API calls
       const uncachedA = state.sideA.runs.filter(uuid => !sampleCache.has(uuid));
       const uncachedB = state.sideB.runs.filter(uuid => !sampleCache.has(uuid));
+      const uncachedShadow = state.shadow
+        ? state.shadow.sideB.runs.filter(uuid => !sampleCache.has(uuid))
+        : [];
 
-      if (uncachedA.length === 0 && uncachedB.length === 0) {
+      if (uncachedA.length === 0 && uncachedB.length === 0 && uncachedShadow.length === 0) {
         // All data cached — recompute immediately without any API calls
         recomputeFromCache();
         return;
       }
 
-      // Evict stale cache entries (old run UUIDs no longer selected)
-      const allRunUuids = new Set([...state.sideA.runs, ...state.sideB.runs]);
+      // Evict stale cache entries (old run UUIDs no longer selected or shadow-referenced)
+      const shadowRuns = state.shadow ? state.shadow.sideB.runs : [];
+      const allRunUuids = new Set([...state.sideA.runs, ...state.sideB.runs, ...shadowRuns]);
       for (const uuid of sampleCache.keys()) {
         if (!allRunUuids.has(uuid)) sampleCache.delete(uuid);
       }
@@ -312,6 +371,7 @@ export const comparePage: PageModule = {
       cachedRawB = null;
       cachedMapA = null;
       cachedMapB = null;
+      clearShadowCaches();
 
       // Abort any previous fetch
       if (fetchController) fetchController.abort();
@@ -347,6 +407,13 @@ export const comparePage: PageModule = {
         ),
       ];
 
+      // Shadow fetches use shadow's own suite and are isolated so failures don't kill main
+      const shadowFetchPromises = uncachedShadow.map(uuid =>
+        getSamples(state.shadow!.sideB.suite, uuid, signal, (loaded) => updateSampleProgress(uuid, loaded)).then(samples => {
+          sampleCache.set(uuid, samples);
+        }),
+      );
+
       // Fetch profiles for the representative (latest) run on each side
       const repA = state.sideA.runs[state.sideA.runs.length - 1];
       const repB = state.sideB.runs[state.sideB.runs.length - 1];
@@ -365,7 +432,11 @@ export const comparePage: PageModule = {
         );
       }
 
-      Promise.all(fetchPromises)
+      // Main fetches fail hard, shadow fetches fail soft
+      Promise.all([
+        Promise.all(fetchPromises),
+        Promise.allSettled(shadowFetchPromises),
+      ])
         .then(() => {
           progressContainer.replaceChildren();
           recomputeFromCache();
@@ -386,7 +457,59 @@ export const comparePage: PageModule = {
     container.append(selectionContainer);
     renderSelectionPanel(selectionContainer);
 
-    container.append(progressContainer, errorContainer, chartContainer, summaryContainer, tableContainer);
+    // Shadow pin button — injected into Side B panel header
+    const pinBtn = el('button', {
+      class: 'compare-btn shadow-pin-btn', disabled: true,
+    }, 'Pin as Shadow') as HTMLButtonElement;
+    pinBtn.style.display = 'none';
+    const sideBHeader = selectionContainer.querySelector('.side-b h3');
+    if (sideBHeader) {
+      const headerRow = el('div', { class: 'side-header-row' });
+      sideBHeader.replaceWith(headerRow);
+      headerRow.append(sideBHeader, pinBtn);
+    }
+
+    // Shadow chip — toolbar row above chart (outside settings)
+    const shadowToolbar = el('div', { class: 'action-row shadow-toolbar' });
+    shadowToolbar.style.display = 'none';
+    const shadowBadge = el('span', { class: 'machine-chip' });
+    const dismissBtn = el('button', { class: 'chip-remove', title: 'Remove shadow' }, '\u00d7');
+    shadowToolbar.append(shadowBadge);
+
+    function updateShadowToolbar(): void {
+      const st = getState();
+      const hasComparison = st.sideA.runs.length > 0 &&
+        st.sideB.runs.length > 0 && !!st.metric;
+
+      // Pin button in Side B panel
+      pinBtn.style.display = (hasComparison && !st.shadow) ? '' : 'none';
+      pinBtn.disabled = !hasComparison;
+
+      // Shadow chip above chart
+      if (st.shadow) {
+        shadowToolbar.style.display = '';
+        const label = `Shadow: ${truncate(st.shadow.sideB.commit, 12)} on ${st.shadow.sideB.machine}`;
+        shadowBadge.replaceChildren(label + ' ', dismissBtn);
+      } else {
+        shadowToolbar.style.display = 'none';
+      }
+    }
+
+    pinBtn.addEventListener('click', () => {
+      clearShadowCaches();
+      const snapshot = structuredClone(getState().sideB);
+      setShadow({ sideB: snapshot });
+      recomputeShadow();
+      renderTableAndChart();
+    });
+
+    dismissBtn.addEventListener('click', () => {
+      clearShadow();
+      clearShadowCaches();
+      renderTableAndChart();
+    });
+
+    container.append(progressContainer, errorContainer, shadowToolbar, chartContainer, summaryContainer, tableContainer);
 
     // ----- "Add to Regression" panel -----
     const hasToken = !!getToken();
@@ -622,7 +745,10 @@ export const comparePage: PageModule = {
       }
 
       // Hook into recompute cycle
-      onAfterRender = updateRegressionPanel;
+      onAfterRender = () => {
+        updateRegressionPanel();
+        updateShadowToolbar();
+      };
     }
 
     // Wire event listeners (all return cleanup functions)
@@ -687,6 +813,9 @@ export const comparePage: PageModule = {
     cachedRawB = null;
     cachedMapA = null;
     cachedMapB = null;
+    shadowRows = [];
+    cachedShadowRawB = null;
+    cachedShadowMapB = null;
     manuallyHidden = new Set();
     onAfterRender = null;
 

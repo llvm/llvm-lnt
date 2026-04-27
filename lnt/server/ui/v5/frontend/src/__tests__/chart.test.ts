@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { prepareChartData, generateChartTicks } from '../chart';
+import { prepareChartData, prepareShadowChartData, generateChartTicks } from '../chart';
 import type { ComparisonRow } from '../types';
 
 /** Helper to build a ComparisonRow with sensible defaults. */
@@ -286,5 +286,90 @@ describe('generateChartTicks', () => {
       else if (tickvals[i] < 0) expect(ticktext[i]).toMatch(/^\u2212/);
       else expect(ticktext[i]).toBe('0%');
     }
+  });
+});
+
+describe('prepareShadowChartData', () => {
+  it('sorts shadow rows independently by ratio ascending', () => {
+    const shadowRows = [
+      makeRow({ test: 'gamma', ratio: 1.5 }),
+      makeRow({ test: 'alpha', ratio: 0.8 }),
+      makeRow({ test: 'beta', ratio: 1.1 }),
+    ];
+    const result = prepareShadowChartData(shadowRows, null);
+    expect(result).not.toBeNull();
+    expect(result!.x).toEqual([0, 1, 2]);
+    expect(result!.y[0]).toBeCloseTo(Math.log2(0.8));
+    expect(result!.y[1]).toBeCloseTo(Math.log2(1.1));
+    expect(result!.y[2]).toBeCloseTo(Math.log2(1.5));
+    expect(result!.customdata[0][0]).toBe('alpha');
+    expect(result!.customdata[2][0]).toBe('gamma');
+  });
+
+  it('applies filterTests', () => {
+    const shadowRows = [
+      makeRow({ test: 'alpha', ratio: 0.8 }),
+      makeRow({ test: 'beta', ratio: 1.1 }),
+      makeRow({ test: 'gamma', ratio: 1.5 }),
+    ];
+    const result = prepareShadowChartData(shadowRows, new Set(['alpha', 'gamma']));
+    expect(result).not.toBeNull();
+    expect(result!.x).toEqual([0, 1]);
+    expect(result!.customdata[0][0]).toBe('alpha');
+    expect(result!.customdata[1][0]).toBe('gamma');
+  });
+
+  it('returns null for empty input', () => {
+    expect(prepareShadowChartData([], null)).toBeNull();
+  });
+
+  it('skips shadow row with ratio null', () => {
+    const shadowRows = [
+      makeRow({ test: 'alpha', ratio: null }),
+    ];
+    expect(prepareShadowChartData(shadowRows, null)).toBeNull();
+  });
+
+  it('skips shadow row with ratio <= 0', () => {
+    const shadowRows = [
+      makeRow({ test: 'alpha', ratio: 0 }),
+      makeRow({ test: 'beta', ratio: -1 }),
+    ];
+    expect(prepareShadowChartData(shadowRows, null)).toBeNull();
+  });
+
+  it('skips shadow row with sidePresent !== both', () => {
+    const shadowRows = [
+      makeRow({ test: 'alpha', ratio: 0.8, sidePresent: 'a_only' }),
+    ];
+    expect(prepareShadowChartData(shadowRows, null)).toBeNull();
+  });
+
+  it('skips shadow row with status na', () => {
+    const shadowRows = [
+      makeRow({ test: 'alpha', ratio: 0.8, status: 'na' }),
+    ];
+    expect(prepareShadowChartData(shadowRows, null)).toBeNull();
+  });
+
+  it('includes shadow rows with status noise', () => {
+    const shadowRows = [
+      makeRow({ test: 'alpha', ratio: 0.8, status: 'noise' }),
+    ];
+    const result = prepareShadowChartData(shadowRows, null);
+    expect(result).not.toBeNull();
+    expect(result!.x).toEqual([0]);
+  });
+
+  it('customdata has 5 elements (standard format)', () => {
+    const shadowRows = [
+      makeRow({ test: 'alpha', ratio: 0.85, valueA: 100, valueB: 85, deltaPct: -15 }),
+    ];
+    const result = prepareShadowChartData(shadowRows, null);
+    expect(result).not.toBeNull();
+    const cd = result!.customdata[0];
+    expect(cd.length).toBe(5);
+    expect(cd[0]).toBe('alpha');
+    expect(cd[4]).toBe('0.8500');
   });
 });

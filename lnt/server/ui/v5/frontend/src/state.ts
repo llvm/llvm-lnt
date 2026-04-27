@@ -1,4 +1,4 @@
-import type { AggFn, AppState, NoiseConfig, NoiseKnob, SideSelection, SortCol, SortDir } from './types';
+import type { AggFn, AppState, NoiseConfig, NoiseKnob, ShadowConfig, SideSelection, SortCol, SortDir } from './types';
 
 const NOISE_DEFAULTS: NoiseConfig = {
   pct:   { enabled: false, value: 1 },
@@ -16,6 +16,7 @@ const DEFAULTS: AppState = {
   sortDir: 'desc',
   testFilter: '',
   hideNoise: false,
+  shadow: null,
 };
 
 let state: AppState = structuredClone(DEFAULTS);
@@ -25,6 +26,7 @@ export function getState(): AppState {
 }
 
 export function setState(partial: Partial<AppState>): void {
+  if (partial.sideA) state.shadow = null;
   Object.assign(state, partial);
   replaceUrl();
 }
@@ -38,6 +40,7 @@ export function setNoiseConfig(knob: keyof NoiseConfig, partial: Partial<NoiseKn
 }
 
 export function setSideA(partial: Partial<AppState['sideA']>): void {
+  state.shadow = null;
   Object.assign(state.sideA, partial);
   replaceUrl();
 }
@@ -51,6 +54,17 @@ export function swapSides(): void {
   const tmp = state.sideA;
   state.sideA = state.sideB;
   state.sideB = tmp;
+  state.shadow = null;
+  replaceUrl();
+}
+
+export function setShadow(config: ShadowConfig): void {
+  state.shadow = config;
+  replaceUrl();
+}
+
+export function clearShadow(): void {
+  state.shadow = null;
   replaceUrl();
 }
 
@@ -175,6 +189,9 @@ export function decodeFromUrl(search: string): Partial<AppState> {
   const sideB = decodeSide(p, 'b');
   if (sideB) result.sideB = sideB;
 
+  const shadowB = decodeSide(p, 'shadow_b');
+  if (shadowB) result.shadow = { sideB: shadowB };
+
   const metric = p.get('metric');
   if (metric) result.metric = metric;
 
@@ -205,6 +222,7 @@ export function encodeToUrl(s: AppState): string {
 
   encodeSide(p, s.sideA, 'a');
   encodeSide(p, s.sideB, 'b');
+  if (s.shadow) encodeSide(p, s.shadow.sideB, 'shadow_b');
 
   if (s.metric) p.set('metric', s.metric);
   if (s.sampleAgg !== 'median') p.set('sample_agg', s.sampleAgg);
@@ -232,6 +250,7 @@ export function applyUrlState(search: string): void {
   if (decoded.sortDir !== undefined) state.sortDir = decoded.sortDir;
   if (decoded.testFilter !== undefined) state.testFilter = decoded.testFilter;
   if (decoded.hideNoise !== undefined) state.hideNoise = decoded.hideNoise;
+  if (decoded.shadow !== undefined) state.shadow = decoded.shadow;
 }
 
 export function replaceUrl(): void {

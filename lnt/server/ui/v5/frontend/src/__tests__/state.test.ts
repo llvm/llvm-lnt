@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { encodeToUrl, decodeFromUrl, applyUrlState, getState, setState, setNoiseConfig, setSideA, setSideB, swapSides, replaceUrl } from '../state';
-import type { AppState, NoiseConfig } from '../types';
+import { encodeToUrl, decodeFromUrl, applyUrlState, getState, setState, setNoiseConfig, setSideA, setSideB, swapSides, setShadow, clearShadow, replaceUrl } from '../state';
+import type { AppState, NoiseConfig, ShadowConfig } from '../types';
 
 const NOISE_DEFAULTS: NoiseConfig = {
   pct:   { enabled: false, value: 1 },
@@ -20,6 +20,7 @@ function makeDefaults(): AppState {
     sortDir: 'desc',
     testFilter: '',
     hideNoise: false,
+    shadow: null,
   };
 }
 
@@ -623,5 +624,135 @@ describe('replaceUrl', () => {
     expect(url).toBe('/compare');
 
     spy.mockRestore();
+  });
+});
+
+describe('shadow trace state', () => {
+  const makeShadow = (): ShadowConfig => ({
+    sideB: { suite: 'nts', commit: 'llvm20', machine: 'mach-x', runs: ['u1', 'u2'], runAgg: 'mean' },
+  });
+
+  beforeEach(() => {
+    applyUrlState('');
+  });
+
+  describe('URL encode/decode', () => {
+    it('round-trips shadow present', () => {
+      const state = makeDefaults();
+      state.shadow = makeShadow();
+      const qs = encodeToUrl(state);
+      expect(qs).toContain('suite_shadow_b=nts');
+      expect(qs).toContain('commit_shadow_b=llvm20');
+      expect(qs).toContain('machine_shadow_b=mach-x');
+      expect(qs).toContain('runs_shadow_b=u1%2Cu2');
+      expect(qs).toContain('run_agg_shadow_b=mean');
+
+      const decoded = decodeFromUrl(qs);
+      expect(decoded.shadow).toBeDefined();
+      expect(decoded.shadow!.sideB.suite).toBe('nts');
+      expect(decoded.shadow!.sideB.commit).toBe('llvm20');
+      expect(decoded.shadow!.sideB.machine).toBe('mach-x');
+      expect(decoded.shadow!.sideB.runs).toEqual(['u1', 'u2']);
+      expect(decoded.shadow!.sideB.runAgg).toBe('mean');
+    });
+
+    it('round-trips shadow absent (no shadow_* params)', () => {
+      const state = makeDefaults();
+      const qs = encodeToUrl(state);
+      expect(qs).not.toContain('shadow_b');
+      const decoded = decodeFromUrl(qs);
+      expect(decoded.shadow).toBeUndefined();
+    });
+
+    it('decodes partial shadow params gracefully', () => {
+      const decoded = decodeFromUrl('?suite_shadow_b=nts');
+      expect(decoded.shadow).toBeDefined();
+      expect(decoded.shadow!.sideB.suite).toBe('nts');
+      expect(decoded.shadow!.sideB.runs).toEqual([]);
+      expect(decoded.shadow!.sideB.runAgg).toBe('median');
+    });
+
+    it('decodes invalid run_agg_shadow_b as median', () => {
+      const decoded = decodeFromUrl('?suite_shadow_b=nts&run_agg_shadow_b=bogus');
+      expect(decoded.shadow!.sideB.runAgg).toBe('median');
+    });
+
+    it('handles empty/commas-only runs_shadow_b', () => {
+      expect(decodeFromUrl('?suite_shadow_b=nts&runs_shadow_b=').shadow!.sideB.runs).toEqual([]);
+      expect(decodeFromUrl('?suite_shadow_b=nts&runs_shadow_b=,,').shadow!.sideB.runs).toEqual([]);
+    });
+
+    it('cross-suite: shadow suite differs from main side B suite', () => {
+      const state = makeDefaults();
+      state.sideB.suite = 'compile';
+      state.shadow = makeShadow(); // suite = 'nts'
+      const qs = encodeToUrl(state);
+      expect(qs).toContain('suite_b=compile');
+      expect(qs).toContain('suite_shadow_b=nts');
+
+      const decoded = decodeFromUrl(qs);
+      expect(decoded.sideB!.suite).toBe('compile');
+      expect(decoded.shadow!.sideB.suite).toBe('nts');
+    });
+  });
+
+  describe('mutations', () => {
+    it('setShadow sets the shadow config', () => {
+      const shadow = makeShadow();
+      setShadow(shadow);
+      expect(getState().shadow).toEqual(shadow);
+    });
+
+    it('clearShadow clears the shadow', () => {
+      setShadow(makeShadow());
+      clearShadow();
+      expect(getState().shadow).toBeNull();
+    });
+
+    it('setSideA auto-clears shadow', () => {
+      setShadow(makeShadow());
+      setSideA({ commit: 'new-commit' });
+      expect(getState().shadow).toBeNull();
+    });
+
+    it('swapSides auto-clears shadow', () => {
+      setShadow(makeShadow());
+      swapSides();
+      expect(getState().shadow).toBeNull();
+    });
+
+    it('setState({ sideA }) auto-clears shadow', () => {
+      setShadow(makeShadow());
+      setState({ sideA: { suite: 'x', commit: 'y', machine: 'z', runs: [], runAgg: 'median' } });
+      expect(getState().shadow).toBeNull();
+    });
+
+    it('setSideB does NOT clear shadow', () => {
+      setShadow(makeShadow());
+      setSideB({ commit: 'new-commit' });
+      expect(getState().shadow).not.toBeNull();
+    });
+
+    it('setState({ metric }) does NOT clear shadow', () => {
+      setShadow(makeShadow());
+      setState({ metric: 'wall_time' });
+      expect(getState().shadow).not.toBeNull();
+    });
+  });
+
+  describe('applyUrlState', () => {
+    it('restores shadow from URL params', () => {
+      applyUrlState('?suite_shadow_b=nts&commit_shadow_b=llvm20&machine_shadow_b=mach-x&runs_shadow_b=u1');
+      const s = getState();
+      expect(s.shadow).not.toBeNull();
+      expect(s.shadow!.sideB.suite).toBe('nts');
+      expect(s.shadow!.sideB.commit).toBe('llvm20');
+    });
+
+    it('resets shadow to null when URL has no shadow params', () => {
+      setShadow(makeShadow());
+      applyUrlState('?metric=exec_time');
+      expect(getState().shadow).toBeNull();
+    });
   });
 });

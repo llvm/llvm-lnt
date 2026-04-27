@@ -174,6 +174,10 @@ export interface NoiseReason {
   message: string;
 }
 
+export interface ShadowConfig {
+  sideB: SideSelection;
+}
+
 export interface AppState {
   sideA: SideSelection;
   sideB: SideSelection;
@@ -184,6 +188,7 @@ export interface AppState {
   sortDir: SortDir;
   testFilter: string;
   hideNoise: boolean;
+  shadow: ShadowConfig | null;
 }
 
 // Comparison results

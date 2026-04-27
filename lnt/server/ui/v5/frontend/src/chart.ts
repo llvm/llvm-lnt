@@ -108,6 +108,20 @@ export interface ChartData {
   customdata: string[][];
 }
 
+function isPlottable(r: ComparisonRow): boolean {
+  return r.sidePresent === 'both' && r.ratio !== null && r.ratio > 0 && r.status !== 'na';
+}
+
+function rowCustomdata(r: ComparisonRow): string[] {
+  return [
+    r.test,
+    r.valueA !== null ? r.valueA.toPrecision(4) : 'N/A',
+    r.valueB !== null ? r.valueB.toPrecision(4) : 'N/A',
+    r.deltaPct !== null ? `${r.deltaPct > 0 ? '+' : ''}${r.deltaPct.toFixed(2)}%` : 'N/A',
+    r.ratio !== null ? r.ratio.toFixed(4) : 'N/A',
+  ];
+}
+
 /**
  * Prepare chart data from comparison rows.
  * Filters, sorts, and maps rows into Plotly-ready arrays.
@@ -117,10 +131,7 @@ export function prepareChartData(
   rows: ComparisonRow[],
   filterTests: Set<string> | null,
 ): ChartData | null {
-  // Filter to plottable rows (ratio must be positive for log₂)
-  let plottable = rows.filter(r =>
-    r.sidePresent === 'both' && r.ratio !== null && r.ratio > 0 && r.status !== 'na'
-  );
+  let plottable = rows.filter(isPlottable);
 
   if (filterTests) {
     plottable = plottable.filter(r => filterTests.has(r.test));
@@ -137,20 +148,46 @@ export function prepareChartData(
   const x = plottable.map((_, i) => i);
   const y = plottable.map(r => Math.log2(r.ratio!));  // log₂ scale: symmetric for equal multiplicative changes
 
-  // Colors by status
   const colors = plottable.map(r =>
     STATUS_COLORS[r.status] ?? '#1f77b4',
   );
 
-  const customdata = plottable.map(r => [
-    r.test,
-    r.valueA !== null ? r.valueA.toPrecision(4) : 'N/A',
-    r.valueB !== null ? r.valueB.toPrecision(4) : 'N/A',
-    r.deltaPct !== null ? `${r.deltaPct > 0 ? '+' : ''}${r.deltaPct.toFixed(2)}%` : 'N/A',
-    r.ratio !== null ? r.ratio.toFixed(4) : 'N/A',
-  ]);
+  const customdata = plottable.map(rowCustomdata);
 
   return { sortedTests, x, y, colors, customdata };
+}
+
+export interface ShadowChartData {
+  x: number[];
+  y: number[];
+  customdata: string[][];
+}
+
+/**
+ * Prepare shadow trace data as an independently-sorted curve.
+ * The shadow is sorted by its own ratio (not aligned to main chart X positions).
+ */
+export function prepareShadowChartData(
+  shadowRows: ComparisonRow[],
+  filterTests: Set<string> | null,
+): ShadowChartData | null {
+  let plottable = shadowRows.filter(isPlottable);
+
+  if (filterTests) {
+    plottable = plottable.filter(r => filterTests.has(r.test));
+  }
+
+  if (plottable.length === 0) {
+    return null;
+  }
+
+  plottable.sort((a, b) => (a.ratio ?? 0) - (b.ratio ?? 0));
+
+  const x = plottable.map((_, i) => i);
+  const y = plottable.map(r => Math.log2(r.ratio!));
+  const customdata = plottable.map(rowCustomdata);
+
+  return { x, y, customdata };
 }
 
 declare const Plotly: {
@@ -164,26 +201,43 @@ declare const Plotly: {
   };
 };
 
+export interface RenderChartOptions {
+  preserveZoom?: boolean;
+  preFilteredTests?: Set<string> | null;
+  shadowRows?: ComparisonRow[];
+  shadowLabel?: string;
+}
+
 let chartContainer: HTMLElement | null = null;
 let chartData: ComparisonRow[] = [];
 let sortedTests: string[] = [];  // test names in chart order
 let wiredContainer: HTMLElement | null = null;  // track which container has listeners
 /** Last zoom filter passed to drawChart, preserved for refreshChart(). */
 let lastFilterTests: Set<string> | null = null;
+/** Last shadow options, preserved for refreshChart(). */
+let lastShadowRows: ComparisonRow[] | undefined;
+let lastShadowLabel: string | undefined;
 /** Guard flag to prevent infinite loop when we call Plotly.relayout() to update ticks. */
 let updatingTicks = false;
 /** Full data y-range, used to restore ticks on double-click autorange reset. */
 let dataYMin = 0;
 let dataYMax = 0;
 
-export function renderChart(container: HTMLElement, rows: ComparisonRow[], preserveZoom = false, preFilteredTests?: Set<string> | null): void {
+export function renderChart(
+  container: HTMLElement,
+  rows: ComparisonRow[],
+  options?: RenderChartOptions,
+): void {
   // If switching to a different container, reset event wiring
   if (chartContainer !== container) {
     wiredContainer = null;
   }
   chartContainer = container;
   chartData = rows;
-  drawChart(preserveZoom ? lastFilterTests : null, preFilteredTests);
+  lastShadowRows = options?.shadowRows;
+  lastShadowLabel = options?.shadowLabel;
+  const preserveZoom = options?.preserveZoom ?? false;
+  drawChart(preserveZoom ? lastFilterTests : null, options?.preFilteredTests);
 }
 
 // Plotly event handlers — receive data directly via gd.on() API
@@ -221,11 +275,15 @@ function onPlotlyRelayout(data: Record<string, unknown>): void {
   }
 }
 
-function onPlotlyHover(data: { points?: Array<{ pointIndex: number }> }): void {
+function onPlotlyHover(data: { points?: Array<{ pointIndex: number; curveNumber: number; customdata?: string[] }> }): void {
   const points = data?.points;
   if (points && points.length > 0) {
-    const testName = sortedTests[points[0].pointIndex];
-    document.dispatchEvent(new CustomEvent(CHART_HOVER, { detail: testName }));
+    const p = points[0];
+    const testName = p.customdata?.[0]
+      ?? (p.curveNumber === 0 ? sortedTests[p.pointIndex] : null);
+    if (testName) {
+      document.dispatchEvent(new CustomEvent(CHART_HOVER, { detail: testName }));
+    }
   }
 }
 
@@ -289,6 +347,41 @@ function drawChart(filterTests: Set<string> | null, preFilteredTests?: Set<strin
       '<extra></extra>',
   };
 
+  const traces: unknown[] = [trace];
+
+  // Shadow trace
+  let shadowYMin = 0;
+  let shadowYMax = 0;
+  if (lastShadowRows && lastShadowRows.length > 0) {
+    const shadowData = prepareShadowChartData(lastShadowRows, effectiveFilter);
+    if (shadowData) {
+      for (const val of shadowData.y) {
+        if (val < shadowYMin) shadowYMin = val;
+        if (val > shadowYMax) shadowYMax = val;
+      }
+      traces.push({
+        x: shadowData.x,
+        y: shadowData.y,
+        customdata: shadowData.customdata,
+        type: 'scatter',
+        mode: 'lines',
+        name: `Shadow: ${lastShadowLabel ?? ''}`,
+        showlegend: false,
+        line: {
+          color: 'rgba(74, 144, 217, 0.6)',
+          width: 1.5,
+        },
+        hovertemplate:
+          '<b>%{customdata[0]}</b> (shadow)<br>' +
+          'Ratio: %{customdata[4]}<br>' +
+          'Value A: %{customdata[1]}<br>' +
+          'Value B: %{customdata[2]}<br>' +
+          'Delta: %{customdata[3]}' +
+          '<extra></extra>',
+      });
+    }
+  }
+
   // Noise band shapes in log₂ space (only when Delta % knob is enabled).
   const shapes: Array<Record<string, unknown>> = [];
   if (state.noiseConfig.pct.enabled && state.noiseConfig.pct.value > 0) {
@@ -319,13 +412,13 @@ function drawChart(filterTests: Set<string> | null, preFilteredTests?: Set<strin
     if (val < yMin) yMin = val;
     if (val > yMax) yMax = val;
   }
-  dataYMin = yMin;
-  dataYMax = yMax;
+  dataYMin = Math.min(yMin, shadowYMin);
+  dataYMax = Math.max(yMax, shadowYMax);
 
   // Determine effective y-range for tick generation: use preserved zoom if active,
   // otherwise use full data range. Ticks are computed once for whichever range applies.
-  let tickYMin = yMin;
-  let tickYMax = yMax;
+  let tickYMin = dataYMin;
+  let tickYMax = dataYMax;
 
   const layout: Record<string, unknown> = {
     xaxis: {
@@ -344,6 +437,8 @@ function drawChart(filterTests: Set<string> | null, preFilteredTests?: Set<strin
     height: 400,
     hovermode: 'closest',
     dragmode: 'zoom',
+    legend: { itemclick: false, itemdoubleclick: false },
+    showlegend: false,
   };
 
   // Preserve user zoom: read current axis ranges from the chart div
@@ -384,7 +479,7 @@ function drawChart(filterTests: Set<string> | null, preFilteredTests?: Set<strin
     chartContainer.replaceChildren();
   }
 
-  Plotly.react(chartContainer, [trace], layout, config);
+  Plotly.react(chartContainer, traces, layout, config);
 
   // Wire events via Plotly's .on() API (added to the div by Plotly.react).
   // Purge removes .on() handlers, so re-register whenever wiredContainer is stale.
@@ -422,6 +517,8 @@ export function destroyChart(): void {
   sortedTests = [];
   wiredContainer = null;
   lastFilterTests = null;
+  lastShadowRows = undefined;
+  lastShadowLabel = undefined;
   updatingTicks = false;
   dataYMin = 0;
   dataYMax = 0;

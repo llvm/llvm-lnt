@@ -311,6 +311,95 @@ individual setting changes.
 Regression Detail, Profiles (pre-populated A/B from comparison row).
 
 
+### Shadow Trace (Comparison Overlay)
+
+A shadow trace overlays a pinned comparison on the chart, allowing the user to
+visually compare how a ratio profile changed between two versions of side B
+against a shared baseline (side A). For example: pin GCC vs LLVM20, then change
+side B to LLVM21 to see both comparisons overlaid.
+
+**Workflow:**
+1. User sets up a comparison and sees the chart.
+2. Clicks "Pin as Shadow" (small button in the top-right of the Side B panel
+   header). Current side B selection is captured as the shadow.
+3. The pin button hides. A chip badge appears above the chart (outside the
+   settings area): "Shadow: {commit} on {machine}" with a dismiss (×) button.
+4. User changes side B. The chart now shows main comparison as bars and the
+   shadow comparison as a thin line trace.
+5. To remove the shadow, click × on the chip. To change it, dismiss then re-pin.
+
+**Pin button placement:**
+- Inside the Side B selection panel, top-right of the "Side B (New)" heading.
+- Small button, visible only when a comparison is active and no shadow is
+  currently pinned.
+
+**Shadow chip placement:**
+- In a toolbar row between the progress/error area and the chart, outside any
+  settings panel. Chip with a dismiss (×) button.
+
+**Shadow trace rendering:**
+- Thin line trace, independently sorted by its own ratio ascending, producing
+  a smooth curve. It does NOT share X positions with the main bars — each
+  trace uses its own sequential X positions (0..N). The X-axis range
+  accommodates whichever trace has more points.
+- Muted blue color, distinct from the green/red/grey status-coded bars.
+- No legend displayed. The shadow chip above the chart identifies the trace.
+- Shadow Y values are included in the Y-axis range calculation for tick
+  generation.
+- Text filter, hide-noise, and manual row toggles apply to the shadow trace
+  the same as the main.
+
+**Hover:**
+- Hovering a shadow point shows the same info as the main bars: test name,
+  ratio, value A, value B, delta %, with a "(shadow)" label to distinguish.
+- Table-to-chart hover sync targets the main trace only.
+
+**Scope:**
+- Chart-only: no table columns, no summary bar changes.
+- "Add to Regression" panel operates on the main comparison only.
+
+**Same side A enforced:**
+- Any change to side A (including swapping sides) auto-unpins the shadow.
+
+**Settings interactions:**
+
+| Setting changed       | Shadow behavior                                  |
+|-----------------------|--------------------------------------------------|
+| Metric                | Full recompute (both main and shadow)            |
+| Sample aggregation    | Full recompute (both main and shadow)            |
+| Run aggregation (A)   | Full recompute (both main and shadow)            |
+| Run aggregation (B)   | Recompute main only; shadow uses its pinned value|
+| Noise config          | Reclassify both main and shadow                  |
+| Hide noise            | Shadow visibility follows main (chart filter)    |
+| Test filter           | Shadow visibility follows main (chart filter)    |
+| Sort                  | No effect (chart always sorts by ratio)          |
+| Side A change         | Auto-unpin shadow                                |
+| Side B change         | Recompute main; shadow unchanged                 |
+| Swap sides            | Auto-unpin shadow                                |
+
+`sampleAgg` is a global visualization preference — both main and shadow respond
+to it equally. `runAgg` is per-side: the shadow's `runAgg` is frozen at pin
+time.
+
+**Data flow:**
+- On pin: a deep copy of the current side B selection is stored as the shadow.
+  The shadow's side B samples are already in the sample cache.
+- On recompute: the shadow reuses the main comparison's cached side A
+  aggregation, then aggregates only the shadow's side B samples independently.
+- Cache eviction preserves shadow-referenced run UUIDs alongside the main
+  selection's UUIDs.
+- On page load from a URL with shadow parameters, shadow samples are fetched
+  in parallel with the main samples. Shadow fetch failures are tolerated —
+  the main comparison still renders.
+
+**URL encoding:**
+- Shadow side B is encoded with the same scheme as side A and side B, using
+  the suffix `shadow_b` (e.g., `suite_shadow_b`, `commit_shadow_b`,
+  `runs_shadow_b`, `run_agg_shadow_b`).
+- The shadow display label is not stored in the URL — it is derived from the
+  shadow's commit and machine at render time.
+
+
 ### Add to Regression
 
 A collapsible panel (button: "Add to regression" in the controls area). When
