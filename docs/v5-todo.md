@@ -41,6 +41,13 @@
   machine then unions results client-side (`regression-detail.ts:754`).
   Multi-value machine support would collapse these into a single request.
 
+### Test Suites
+
+- [ ] Allow modifying test suite schemas after creation. Add a PATCH endpoint
+  for test suite schemas that supports adding, removing, and renaming metrics,
+  commit_fields, and machine_fields. Build a UI page to surface this
+  functionality so users can manage test suites without writing any code.
+
 ### General
 
 - [ ] Add count endpoints (or a count mode) for commits, runs, machines, etc.
@@ -63,14 +70,26 @@
   button (bottom-right) that expands into a panel on click.
 - [ ] Understand whether the Compare page should allow inputting an arbitrary
   local run.
-- [ ] Understand how to surface tests with high vs. low confidence when multiple
-  samples are present.
 - [ ] Fix: chart zoom filter leaks — tests outside the visible x-axis range
   after zooming still appear in the comparison table.
 - [ ] Add a "View on Graph" link per test row that navigates to the Graph page
   pre-populated with the test, machines from both sides, and the current metric.
 - [ ] Fix: "Add to Existing Regression" search is not a proper dropdown —
   selecting a regression from the candidate list does not collapse the list.
+- [ ] Add noise filtering based on Mann-Whitney U-test as an alternative to the
+  existing Welch's t-test filter. Users should be able to toggle between the two
+  methods.
+- [ ] Allow plotting error bars on the log2 ratio chart. Investigate what kind
+  of error bars are most appropriate (standard deviation, confidence intervals,
+  min/max range, etc.) and how to surface confidence levels for tests with
+  multiple samples.
+- [ ] Reclassify the "Delta % below" noise knob as an "Unchanged threshold".
+  Tests with `|delta %| < threshold` should get status `unchanged` (too small to
+  care about) rather than `noise` (not statistically real). This separates
+  relevance filtering (unchanged threshold) from confidence filtering (p-value,
+  absolute floor). Update the design doc, the noise classification logic in
+  `comparison.ts`, the summary bar counts, the chart noise band, and URL state
+  parameter names accordingly.
 
 ## UI — Graph Page
 
@@ -79,6 +98,9 @@
   something prevents them from appearing.
 - [ ] Fix: when adding new traces after selecting a baseline, the baselines for
   the newly-added traces are not added to the graph.
+- [ ] Fix: baselines cannot display commits that lack an ordinal. Since ordinals
+  are optional in the v5 data model, baselines must handle commits identified
+  only by their commit string.
 - [ ] Reconsider select-all checkbox behavior: when some tests are selected,
   clicking the top checkbox currently selects everything. Consider toggling to
   "unselect all" first, then "select all" on a second click.
@@ -98,6 +120,11 @@
 
 ## UI — General
 
+- [ ] Fix: typing `re:` in any text input with regex support causes the input to
+  lose focus. The bug affects all pages that use the `re:` regex toggle
+  (Compare, Graph, Test Suites).
+- [ ] Fix: copy-to-clipboard does not work on the Admin page when creating a new
+  API key.
 - [ ] Fix: Runs tab search on Test Suites page uses exact machine name match
   (`?machine=`), so partial input returns empty results. Consider switching to
   a machine combobox.
@@ -108,6 +135,13 @@
 
 ## Cleanup & Tech Debt
 
+- [ ] Remove the `/v5` prefix from all URL paths. UI pages should be served at
+  `/{testsuite}/...` (not `/v5/{testsuite}/...`), suite-agnostic pages at `/`
+  (not `/v5/`), and the API at `/api/{testsuite}/...` (not
+  `/api/v5/{testsuite}/...`). Add a `/api/version` endpoint to query the API
+  version. This affects Flask routes, the API blueprint prefix, the SPA router,
+  the nav component, static asset paths, and all tests that reference `/v5/`
+  paths. The `urlBase` reverse-proxy prefix support should be preserved.
 - [ ] Undo changes made to the v4 layer (e.g. new migrations).
 - [ ] Reorganize `combobox.ts` and `machine-combobox.ts` — remnants of the
   Compare page being standalone. Either unify into a single combobox component
