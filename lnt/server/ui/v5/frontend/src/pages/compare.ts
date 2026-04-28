@@ -12,9 +12,10 @@
 // Samples are fetched from the side's suite. The comparison joins on test name.
 
 import type { PageModule, RouteParams } from '../router';
-import type { ComparisonRow, SampleInfo, RegressionListItem, ProfileListItem } from '../types';
+import type { ComparisonRow, SampleInfo, ProfileListItem } from '../types';
 import { getTestsuites } from '../router';
-import { getSamples, getProfilesForRun, createRegression, addRegressionIndicators, getRegressions, getToken, authErrorMessage } from '../api';
+import { getSamples, getProfilesForRun, createRegression, addRegressionIndicators, getToken, authErrorMessage } from '../api';
+import { renderRegressionCombobox } from '../components/regression-combobox';
 import {
   CHART_ZOOM, CHART_HOVER, TABLE_HOVER,
   TEST_FILTER_CHANGE, SETTINGS_CHANGE,
@@ -31,7 +32,7 @@ import {
 import { renderTable, filterToTests, highlightRow, resetTable, applyTableFilters } from '../table';
 import { renderChart, highlightPoint, destroyChart } from '../chart';
 import { computeSummaryCounts, renderSummaryBar } from '../components/comparison-summary';
-import { el, truncate, debounce, matchesFilter, updateFilterValidation, agnosticLink } from '../utils';
+import { el, truncate, matchesFilter, agnosticLink } from '../utils';
 
 /** Cleanup functions for document-level event listeners. */
 let eventCleanups: Array<() => void> = [];
@@ -52,6 +53,8 @@ let cachedMapB: Map<string, number> | null = null;
 let manuallyHidden = new Set<string>();
 /** Callback invoked after every table/chart render (used by regression panel). */
 let onAfterRender: (() => void) | null = null;
+/** Regression combobox handle for lifecycle cleanup. */
+let regComboCleanup: { destroy: () => void } | null = null;
 /** Pending requestAnimationFrame ID for chart rendering. */
 let pendingChartRAF: number | null = null;
 /** Generation counter for RAF-batched chart renders. */
@@ -553,6 +556,11 @@ export const comparePage: PageModule = {
         createTab.classList.remove('tab-btn-active');
         existingContent.style.display = '';
         createContent.style.display = 'none';
+        const st = getState();
+        const suite = st.sideA.suite || st.sideB.suite;
+        if (suite && !regComboHandle) {
+          createRegCombo(suite);
+        }
       });
 
       // --- Create New tab ---
@@ -613,65 +621,34 @@ export const comparePage: PageModule = {
       });
 
       // --- Add to Existing tab ---
-      const searchInput = el('input', {
-        type: 'text',
-        class: 'admin-input',
-        placeholder: 'Search regressions by title...',
-      }) as HTMLInputElement;
-      const searchResults = el('div', { class: 'regression-search-results' });
       let selectedRegUuid = '';
-      const selectedLabel = el('p', { class: 'regression-label-muted' }, 'No regression selected');
       const addExistingBtn = el('button', { class: 'compare-btn', disabled: '' }, 'Add Indicators') as HTMLButtonElement;
       const addExistingFeedback = el('div', {});
-      existingContent.append(searchInput, searchResults, selectedLabel, addExistingBtn, addExistingFeedback);
 
-      let regressionsPageCache: RegressionListItem[] | null = null;
-      let regressionCacheSuite = '';
+      // Regression combobox — fetches data on creation, filters locally
+      let regComboHandle: ReturnType<typeof renderRegressionCombobox> | null = null;
+      const regComboContainer = el('div', {});
 
-      const doSearch = debounce(async () => {
-        const st = getState();
-        const suite = st.sideA.suite || st.sideB.suite;
-        if (!suite) return;
-
-        const filter = searchInput.value;
-
-        // Fetch once per suite, then filter client-side
-        if (!regressionsPageCache || regressionCacheSuite !== suite) {
-          try {
-            const result = await getRegressions(suite, { limit: 50 }, fetchController?.signal);
-            regressionsPageCache = result.items;
-            regressionCacheSuite = suite;
-          } catch {
-            searchResults.replaceChildren(el('p', { class: 'error-banner' }, 'Failed to load'));
-            return;
-          }
-        }
-
-        const matches = filter
-          ? regressionsPageCache.filter(r => matchesFilter(r.title || '', filter))
-          : regressionsPageCache;
-
-        searchResults.replaceChildren();
-        for (const r of matches) {
-          const row = el('div', { class: 'regression-search-row' });
-          row.textContent = truncate(r.title || `(untitled) ${r.uuid.slice(0, 8)}`, 60);
-          row.addEventListener('click', () => {
-            selectedRegUuid = r.uuid;
-            selectedLabel.textContent = `Selected: ${truncate(r.title || r.uuid.slice(0, 8), 40)}`;
+      function createRegCombo(suite: string): void {
+        if (regComboHandle) regComboHandle.destroy();
+        regComboContainer.replaceChildren();
+        selectedRegUuid = '';
+        addExistingBtn.disabled = true;
+        regComboHandle = renderRegressionCombobox(regComboContainer, {
+          testsuite: suite,
+          onSelect: (uuid, _title) => {
+            selectedRegUuid = uuid;
             addExistingBtn.disabled = false;
-          });
-          searchResults.append(row);
-        }
-        if (matches.length === 0) {
-          searchResults.replaceChildren(el('p', { class: 'regression-label-muted' }, 'No matches'));
-        }
-      }, 300);
+          },
+          onClear: () => {
+            selectedRegUuid = '';
+            addExistingBtn.disabled = true;
+          },
+        });
+        regComboCleanup = regComboHandle;
+      }
 
-      searchInput.addEventListener('input', () => {
-        updateFilterValidation(searchInput);
-        doSearch();
-      });
-      searchInput.addEventListener('focus', () => doSearch());
+      existingContent.append(regComboContainer, addExistingBtn, addExistingFeedback);
 
       addExistingBtn.addEventListener('click', async () => {
         if (!selectedRegUuid) return;
@@ -710,6 +687,7 @@ export const comparePage: PageModule = {
       });
 
       // Update panel visibility and info when comparison changes
+      let comboboxSuite = '';
       function updateRegressionPanel(): void {
         const st = getState();
         const suite = st.sideA.suite || st.sideB.suite;
@@ -741,6 +719,21 @@ export const comparePage: PageModule = {
           existingContent.style.display = '';
         }
 
+        // Invalidate combobox when suite changes
+        if (suite !== comboboxSuite) {
+          if (regComboHandle) regComboHandle.destroy();
+          regComboContainer.replaceChildren();
+          regComboHandle = null;
+          regComboCleanup = null;
+          selectedRegUuid = '';
+          addExistingBtn.disabled = true;
+          comboboxSuite = suite;
+
+          if (existingTab.classList.contains('tab-btn-active')) {
+            createRegCombo(suite);
+          }
+        }
+
         // Update info text
         const machine = st.sideA.machine || st.sideB.machine || '(none)';
         const commit = st.sideB.commit || st.sideA.commit || '(none)';
@@ -753,6 +746,9 @@ export const comparePage: PageModule = {
         updateRegressionPanel();
         updateShadowToolbar();
       };
+
+      // Initial panel setup (creates combobox if suite is available from URL)
+      updateRegressionPanel();
     }
 
     // Wire event listeners (all return cleanup functions)
@@ -822,6 +818,12 @@ export const comparePage: PageModule = {
     cachedShadowMapB = null;
     manuallyHidden = new Set();
     onAfterRender = null;
+
+    // Destroy regression combobox
+    if (regComboCleanup) {
+      regComboCleanup.destroy();
+      regComboCleanup = null;
+    }
 
     // Cancel pending chart RAF
     if (pendingChartRAF !== null) {

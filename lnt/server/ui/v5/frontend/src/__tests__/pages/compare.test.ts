@@ -274,27 +274,31 @@ describe('comparePage', () => {
 
       comparePage.mount(container, { testsuite: '' });
 
-      // Wait for the comparison to complete (table renders with test rows)
+      // Wait for the comparison to complete (table rows appear)
       await vi.waitFor(() => {
-        expect(container.querySelector('.add-to-regression-panel')).toBeTruthy();
+        expect(container.querySelector('.comparison-table .col-test')).toBeTruthy();
       });
 
       // Switch to "Add to Existing" tab
       const tabs = container.querySelectorAll('.tab-btn');
       (tabs[1] as HTMLButtonElement).click();
 
-      // Trigger search to load regression results
-      const searchInput = container.querySelector('.add-existing-tab input') as HTMLInputElement;
-      searchInput.dispatchEvent(new Event('focus'));
-
-      // Wait for search results to appear
+      // Wait for combobox to be lazily created after tab click
       await vi.waitFor(() => {
-        const rows = container.querySelectorAll('.regression-search-row');
+        expect(container.querySelector('.add-existing-tab .combobox-input')).toBeTruthy();
+      });
+
+      // Focus combobox input and wait for selectable items (role=option)
+      const comboInput = container.querySelector('.add-existing-tab .combobox-input') as HTMLInputElement;
+      comboInput.dispatchEvent(new Event('focus'));
+
+      await vi.waitFor(() => {
+        const rows = container.querySelectorAll('.add-existing-tab .combobox-item[role="option"]');
         expect(rows.length).toBeGreaterThan(0);
       });
 
-      // Click the first search result to select it
-      const resultRow = container.querySelector('.regression-search-row') as HTMLElement;
+      // Click the first combobox item to select it
+      const resultRow = container.querySelector('.add-existing-tab .combobox-item[role="option"]') as HTMLElement;
       resultRow.click();
 
       // Click "Add Indicators"
@@ -363,24 +367,28 @@ describe('comparePage', () => {
 
       comparePage.mount(container, { testsuite: '' });
 
-      await vi.waitFor(() => {
-        expect(container.querySelector('.add-to-regression-panel')).toBeTruthy();
-      });
-
       // Switch to "Add to Existing" tab
+      await vi.waitFor(() => {
+        const tabs = container.querySelectorAll('.tab-btn');
+        expect(tabs.length).toBeGreaterThan(1);
+      });
       const tabs = container.querySelectorAll('.tab-btn');
       (tabs[1] as HTMLButtonElement).click();
 
-      // Trigger search
-      const searchInput = container.querySelector('.add-existing-tab input') as HTMLInputElement;
-      searchInput.dispatchEvent(new Event('focus'));
-
+      // Wait for combobox to be created
       await vi.waitFor(() => {
-        expect(container.querySelectorAll('.regression-search-row').length).toBeGreaterThan(0);
+        expect(container.querySelector('.add-existing-tab .combobox-input')).toBeTruthy();
       });
 
-      // Select a regression
-      (container.querySelector('.regression-search-row') as HTMLElement).click();
+      const comboInput = container.querySelector('.add-existing-tab .combobox-input') as HTMLInputElement;
+      comboInput.dispatchEvent(new Event('focus'));
+
+      await vi.waitFor(() => {
+        expect(container.querySelectorAll('.add-existing-tab .combobox-item[role="option"]').length).toBeGreaterThan(0);
+      });
+
+      // Select a regression via combobox
+      (container.querySelector('.add-existing-tab .combobox-item[role="option"]') as HTMLElement).click();
 
       // Click "Add Indicators"
       const addBtn = container.querySelector('.add-existing-tab .compare-btn') as HTMLButtonElement;
@@ -394,33 +402,37 @@ describe('comparePage', () => {
     });
 
     it('"Add to Existing" with zero indicators shows error without calling API', async () => {
-      // Mount with suite but NO machine/runs so indicators will be empty
-      comparePage.mount(container, { testsuite: '' });
-
-      await vi.waitFor(() => {
-        expect(container.querySelector('.add-to-regression-panel')).toBeTruthy();
-      });
-
-      // Switch to "Add to Existing" tab
-      const tabs = container.querySelectorAll('.tab-btn');
-      (tabs[1] as HTMLButtonElement).click();
-
-      // We need a selectedRegUuid for the button to proceed past the guard.
-      // Simulate selecting a regression: trigger search, pick a result.
+      // Mock regressions so the combobox has items to select
       (getRegressions as ReturnType<typeof vi.fn>).mockResolvedValue({
         items: [{ uuid: 'xxxx-yyyy-zzzz-wwww', title: 'Some Reg', state: 'detected', machine_count: 1, test_count: 1 }],
         next: null,
         previous: null,
       });
 
-      const searchInput = container.querySelector('.add-existing-tab input') as HTMLInputElement;
-      searchInput.dispatchEvent(new Event('focus'));
+      // Mount with suite but NO machine/runs so indicators will be empty
+      comparePage.mount(container, { testsuite: '' });
 
+      // Switch to "Add to Existing" tab
       await vi.waitFor(() => {
-        expect(container.querySelectorAll('.regression-search-row').length).toBeGreaterThan(0);
+        const tabs = container.querySelectorAll('.tab-btn');
+        expect(tabs.length).toBeGreaterThan(1);
+      });
+      const tabs = container.querySelectorAll('.tab-btn');
+      (tabs[1] as HTMLButtonElement).click();
+
+      // Wait for combobox to be created
+      await vi.waitFor(() => {
+        expect(container.querySelector('.add-existing-tab .combobox-input')).toBeTruthy();
       });
 
-      (container.querySelector('.regression-search-row') as HTMLElement).click();
+      const comboInput = container.querySelector('.add-existing-tab .combobox-input') as HTMLInputElement;
+      comboInput.dispatchEvent(new Event('focus'));
+
+      await vi.waitFor(() => {
+        expect(container.querySelectorAll('.add-existing-tab .combobox-item[role="option"]').length).toBeGreaterThan(0);
+      });
+
+      (container.querySelector('.add-existing-tab .combobox-item[role="option"]') as HTMLElement).click();
 
       // Click "Add Indicators" — no comparison data, so indicators.length === 0
       const addBtn = container.querySelector('.add-existing-tab .compare-btn') as HTMLButtonElement;
@@ -473,24 +485,30 @@ describe('comparePage', () => {
 
       comparePage.mount(container, { testsuite: '' });
 
+      // Wait for the comparison to complete (table rows appear)
       await vi.waitFor(() => {
-        expect(container.querySelector('.add-to-regression-panel')).toBeTruthy();
+        expect(container.querySelector('.comparison-table .col-test')).toBeTruthy();
       });
 
       // Switch to "Add to Existing" tab
       const tabs = container.querySelectorAll('.tab-btn');
       (tabs[1] as HTMLButtonElement).click();
 
-      // Trigger search
-      const searchInput = container.querySelector('.add-existing-tab input') as HTMLInputElement;
-      searchInput.dispatchEvent(new Event('focus'));
+      // Wait for combobox to be lazily created after tab click
+      await vi.waitFor(() => {
+        expect(container.querySelector('.add-existing-tab .combobox-input')).toBeTruthy();
+      });
+
+      // Focus combobox input and wait for selectable items
+      const comboInput = container.querySelector('.add-existing-tab .combobox-input') as HTMLInputElement;
+      comboInput.dispatchEvent(new Event('focus'));
 
       await vi.waitFor(() => {
-        expect(container.querySelectorAll('.regression-search-row').length).toBeGreaterThan(0);
+        expect(container.querySelectorAll('.add-existing-tab .combobox-item[role="option"]').length).toBeGreaterThan(0);
       });
 
       // Select the regression
-      (container.querySelector('.regression-search-row') as HTMLElement).click();
+      (container.querySelector('.add-existing-tab .combobox-item[role="option"]') as HTMLElement).click();
 
       // Click "Add Indicators"
       const addBtn = container.querySelector('.add-existing-tab .compare-btn') as HTMLButtonElement;

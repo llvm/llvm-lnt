@@ -74,7 +74,7 @@
   after zooming still appear in the comparison table.
 - [ ] Add a "View on Graph" link per test row that navigates to the Graph page
   pre-populated with the test, machines from both sides, and the current metric.
-- [ ] Fix: "Add to Existing Regression" search is not a proper dropdown —
+- [x] Fix: "Add to Existing Regression" search is not a proper dropdown —
   selecting a regression from the candidate list does not collapse the list.
 - [ ] Add noise filtering based on Mann-Whitney U-test as an alternative to the
   existing Welch's t-test filter. Users should be able to toggle between the two
@@ -120,6 +120,12 @@
 
 ## UI — General
 
+- [ ] Fix: `updateShadowToolbar()` in Compare page is only called from within
+  the `if (hasToken)` block, so users without an auth token get a broken
+  shadow toolbar that never updates after renders.
+- [ ] Fix: `machine-combobox.ts` silently swallows fetch errors — the dropdown
+  stays stuck on "Loading machines..." forever if the API call fails. Adopt
+  the `fetchError` pattern from `regression-combobox.ts`.
 - [ ] Fix: typing `re:` in any text input with regex support causes the input to
   lose focus. The bug affects all pages that use the `re:` regex toggle
   (Compare, Graph, Test Suites).
@@ -143,9 +149,14 @@
   the nav component, static asset paths, and all tests that reference `/v5/`
   paths. The `urlBase` reverse-proxy prefix support should be preserved.
 - [ ] Undo changes made to the v4 layer (e.g. new migrations).
-- [ ] Reorganize `combobox.ts` and `machine-combobox.ts` — remnants of the
-  Compare page being standalone. Either unify into a single combobox component
-  or rename for clarity.
+- [ ] Reorganize `combobox.ts`, `machine-combobox.ts`, and
+  `regression-combobox.ts` — remnants of the Compare page being standalone.
+  All three combobox components (machine-combobox, commit-search,
+  regression-combobox) share ~50-60 lines of identical boilerplate (ARIA,
+  keyboard nav, blur/outside-click handling) and are candidates for
+  unification into a single generic combobox base. `combobox.ts` already has
+  a factored-out `setupComboboxKeyboard` helper that is not reused by the
+  standalone combobox components — it should be exported and shared.
 
 ## Use Cases
 

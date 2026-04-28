@@ -163,6 +163,7 @@ lnt/server/ui/v5/frontend/src/
     +-- sparkline-card.ts      Lightweight Plotly sparkline for Dashboard
     +-- time-series-chart.ts   Plotly time-series chart component
     +-- machine-combobox.ts    Standalone machine typeahead selector
+    +-- regression-combobox.ts Standalone regression typeahead selector
     +-- metric-selector.ts     Reusable metric drop-down (supports optional placeholder)
     +-- commit-search.ts       Commit search with tag-based autocomplete
     +-- pagination.ts          Cursor/offset pagination controls

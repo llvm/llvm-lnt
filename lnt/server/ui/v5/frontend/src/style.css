@@ -178,6 +178,20 @@ dl {
   box-shadow: 0 0 0 2px rgba(214, 39, 40, 0.15) !important;
 }
 
+.combobox-status {
+  color: #999;
+  pointer-events: none;
+}
+
+.combobox-status-error {
+  color: #c00;
+  pointer-events: none;
+}
+
+.add-existing-tab .combobox {
+  margin-bottom: 8px;
+}
+
 .filter-invalid {
   border-color: #d62728 !important;
   box-shadow: 0 0 0 2px rgba(214, 39, 40, 0.15) !important;
@@ -1710,25 +1724,6 @@ input.filter-has-badge {
 .regression-feedback-ok {
   color: #155724;
   font-size: 13px;
-}
-
-.regression-search-results {
-  max-height: 150px;
-  overflow-y: auto;
-  border: 1px solid #eee;
-  border-radius: 3px;
-  margin: 8px 0;
-}
-
-.regression-search-row {
-  padding: 4px 8px;
-  cursor: pointer;
-  font-size: 12px;
-  border-bottom: 1px solid #eee;
-}
-
-.regression-search-row:hover {
-  background: #f0f0f0;
 }
 
 .test-list-container {
