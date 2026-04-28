@@ -411,4 +411,15 @@ Only tests currently visible in the comparison table are included as
 indicators (tests that are noise-hidden, manually-hidden, or excluded by the
 text filter are not included).
 
+On successful creation, the feedback shows "Regression created: " followed by a
+clickable link to the new regression's detail page. The link text is the
+regression title if one was provided, otherwise the first 8 characters of the
+UUID. Clicking the link performs a full page load (crossing from suite-agnostic
+to suite-scoped context). The title input is cleared after successful creation.
+
+On successful addition of indicators to an existing regression, the feedback
+shows "Added N indicator(s) to " followed by a clickable link to the
+regression detail page. The link text is the regression title if available,
+otherwise the first 8 characters of the UUID.
+
 The panel collapses back to the button when done.

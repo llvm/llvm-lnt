@@ -63,9 +63,9 @@
 
 ## UI — Compare Page
 
-- [ ] Show a clickable link to the regression detail page after creating a
+- [x] Show a clickable link to the regression detail page after creating a
   regression (not just the UUID).
-- [ ] Clear the title input after successfully creating a regression.
+- [x] Clear the title input after successfully creating a regression.
 - [ ] Replace the `<details>` "Add to Regression" panel with a sticky floating
   button (bottom-right) that expands into a panel on click.
 - [ ] Understand whether the Compare page should allow inputting an arbitrary

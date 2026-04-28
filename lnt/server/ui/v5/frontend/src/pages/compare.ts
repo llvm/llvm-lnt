@@ -31,7 +31,7 @@ import {
 import { renderTable, filterToTests, highlightRow, resetTable, applyTableFilters } from '../table';
 import { renderChart, highlightPoint, destroyChart } from '../chart';
 import { computeSummaryCounts, renderSummaryBar } from '../components/comparison-summary';
-import { el, truncate, debounce, matchesFilter, updateFilterValidation } from '../utils';
+import { el, truncate, debounce, matchesFilter, updateFilterValidation, agnosticLink } from '../utils';
 
 /** Cleanup functions for document-level event listeners. */
 let eventCleanups: Array<() => void> = [];
@@ -597,10 +597,12 @@ export const comparePage: PageModule = {
             commit,
             indicators: indicators.length > 0 ? indicators : undefined,
           }, fetchController?.signal);
-          createFeedback.replaceChildren(
-            el('p', { class: 'regression-feedback-ok' },
-              `Regression created: ${created.uuid.slice(0, 8)}`),
-          );
+          const linkText = created.title || created.uuid.slice(0, 8);
+          const linkPath = `/${encodeURIComponent(suite)}/regressions/${encodeURIComponent(created.uuid)}`;
+          const msg = el('p', { class: 'regression-feedback-ok' }, 'Regression created: ');
+          msg.append(agnosticLink(linkText, linkPath));
+          createFeedback.replaceChildren(msg);
+          titleInput.value = '';
         } catch (err: unknown) {
           createFeedback.replaceChildren(
             el('p', { class: 'error-banner' }, authErrorMessage(err)),
@@ -691,11 +693,13 @@ export const comparePage: PageModule = {
         }
 
         try {
-          await addRegressionIndicators(suite, selectedRegUuid, indicators, fetchController?.signal);
-          addExistingFeedback.replaceChildren(
-            el('p', { class: 'regression-feedback-ok' },
-              `Added ${indicators.length} indicator(s)`),
-          );
+          const updated = await addRegressionIndicators(suite, selectedRegUuid, indicators, fetchController?.signal);
+          const linkText = updated.title || selectedRegUuid.slice(0, 8);
+          const linkPath = `/${encodeURIComponent(suite)}/regressions/${encodeURIComponent(selectedRegUuid)}`;
+          const msg = el('p', { class: 'regression-feedback-ok' },
+            `Added ${indicators.length} indicator(s) to `);
+          msg.append(agnosticLink(linkText, linkPath));
+          addExistingFeedback.replaceChildren(msg);
         } catch (err: unknown) {
           addExistingFeedback.replaceChildren(
             el('p', { class: 'error-banner' }, authErrorMessage(err)),
