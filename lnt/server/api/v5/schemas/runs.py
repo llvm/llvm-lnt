@@ -169,6 +169,11 @@ class RunListQuerySchema(CursorPaginationQuerySchema):
         load_default=None,
         metadata={'description': 'Sort order. Use -submitted_at for newest first'},
     )
+    has_profiles = ma.fields.Boolean(
+        load_default=None,
+        metadata={'description': 'Filter: true = only runs with profiles, '
+                  'false = only runs without profiles.'},
+    )
 
 
 class RunSubmitQuerySchema(BaseQuerySchema):

@@ -15,6 +15,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 from v5_test_helpers import (
     create_app, create_client, admin_headers, make_scoped_headers,
     create_commit, create_machine, create_run, collect_all_pages,
+    submit_run, make_profile_base64, set_ordinal,
 )
 
 
@@ -1234,6 +1235,133 @@ class TestCommitTag(unittest.TestCase):
         self._create(rev)
         resp = self._patch(rev, tag='x' * 257)
         self.assertEqual(resp.status_code, 422)
+
+
+class TestCommitHasProfilesFilter(unittest.TestCase):
+    """Tests for GET /api/v5/{ts}/commits?has_profiles=..."""
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+        cls.tag = uuid.uuid4().hex[:8]
+
+        profile_b64 = make_profile_base64()
+
+        # Machine M1: commit C1 has a profiled run, C2 has a non-profiled run
+        cls.m1_name = f'hp-m1-{cls.tag}'
+        cls.c1 = f'hp-c1-{cls.tag}'
+        cls.c2 = f'hp-c2-{cls.tag}'
+        cls.c3 = f'hp-c3-{cls.tag}'
+
+        # C1: profiled run on M1
+        submit_run(cls.client, cls.m1_name, cls.c1, [
+            {'name': 'test/profiled', 'execution_time': 1.0,
+             'profile': profile_b64},
+        ])
+
+        # C2: non-profiled run on M1
+        submit_run(cls.client, cls.m1_name, cls.c2, [
+            {'name': 'test/noprof', 'execution_time': 2.0},
+        ])
+
+        # C3: no runs at all (created explicitly)
+        db = cls.app.instance.get_database("default")
+        session = db.make_session()
+        ts_ = db.testsuite[TS]
+        create_commit(session, ts_, commit=cls.c3)
+        session.commit()
+        session.close()
+
+        # Machine M2: profiled run on C2
+        cls.m2_name = f'hp-m2-{cls.tag}'
+        submit_run(cls.client, cls.m2_name, cls.c2, [
+            {'name': 'test/profiled2', 'execution_time': 3.0,
+             'profile': profile_b64},
+        ])
+
+    def _get_commits(self, **params):
+        qs = '&'.join(f'{k}={v}' for k, v in params.items())
+        url = PREFIX + '/commits'
+        if qs:
+            url += '?' + qs
+        items = collect_all_pages(self, self.client, url)
+        return [item['commit'] for item in items]
+
+    def test_has_profiles_true(self):
+        """Only commits with profiled runs are returned."""
+        commits = self._get_commits(has_profiles='true')
+        self.assertIn(self.c1, commits)
+        self.assertIn(self.c2, commits)  # has profile on M2
+        self.assertNotIn(self.c3, commits)
+
+    def test_has_profiles_false(self):
+        """Commits without profiled runs are returned (including commits
+        with no runs at all)."""
+        commits = self._get_commits(has_profiles='false')
+        self.assertNotIn(self.c1, commits)
+        self.assertNotIn(self.c2, commits)
+        self.assertIn(self.c3, commits)
+
+    def test_has_profiles_with_machine(self):
+        """has_profiles=true scoped to a specific machine."""
+        commits = self._get_commits(
+            machine=self.m1_name, has_profiles='true')
+        self.assertIn(self.c1, commits)
+        self.assertNotIn(self.c2, commits)
+        self.assertNotIn(self.c3, commits)
+
+    def test_has_profiles_cross_machine(self):
+        """Each machine sees only its own profiled commits."""
+        m1_commits = self._get_commits(
+            machine=self.m1_name, has_profiles='true')
+        m2_commits = self._get_commits(
+            machine=self.m2_name, has_profiles='true')
+        self.assertIn(self.c1, m1_commits)
+        self.assertNotIn(self.c2, m1_commits)
+        self.assertIn(self.c2, m2_commits)
+        self.assertNotIn(self.c1, m2_commits)
+
+    def test_has_profiles_false_with_machine(self):
+        """has_profiles=false+machine returns commits with runs on that machine
+        but no profiled runs on it."""
+        commits = self._get_commits(
+            machine=self.m1_name, has_profiles='false')
+        self.assertNotIn(self.c1, commits)
+        self.assertIn(self.c2, commits)  # has a run on M1, but no profile
+        self.assertNotIn(self.c3, commits)  # no run on M1 at all
+
+    def test_has_profiles_empty_suite(self):
+        """has_profiles=true returns empty list when no profiles exist."""
+        # Use a search term that matches nothing to isolate from other data
+        commits = self._get_commits(
+            has_profiles='true', search='nonexistent-test-data-xyz')
+        self.assertEqual(commits, [])
+
+    def test_has_profiles_with_search(self):
+        """has_profiles=true combined with search narrows results."""
+        commits = self._get_commits(
+            has_profiles='true', search=self.tag)
+        self.assertIn(self.c1, commits)
+        self.assertIn(self.c2, commits)
+        self.assertNotIn(self.c3, commits)
+
+    def test_has_profiles_with_sort_ordinal(self):
+        """has_profiles=true combined with sort=ordinal works."""
+        # Assign ordinals to c1 and c2 so sort=ordinal includes them
+        # Use unique ordinals unlikely to collide
+        o1 = abs(hash(self.c1)) % 900000 + 100000
+        o2 = abs(hash(self.c2)) % 900000 + 100000
+        if o1 == o2:
+            o2 += 1
+        set_ordinal(self.client, self.c1, o1)
+        set_ordinal(self.client, self.c2, o2)
+
+        commits = self._get_commits(
+            has_profiles='true', sort='ordinal')
+        self.assertIn(self.c1, commits)
+        self.assertIn(self.c2, commits)
+        self.assertNotIn(self.c3, commits)
 
 
 if __name__ == '__main__':

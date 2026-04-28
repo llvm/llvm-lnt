@@ -118,6 +118,12 @@ class CommitListQuerySchema(CursorPaginationQuerySchema):
         metadata={'description': "Sort order. Use 'ordinal' to sort by ordinal "
                   "(excludes commits without ordinals)"},
     )
+    has_profiles = ma.fields.Boolean(
+        load_default=None,
+        metadata={'description': 'Filter: true = only commits with profile '
+                  'data, false = only commits without. Combinable with '
+                  'machine= to scope to a specific machine.'},
+    )
 
 
 class CommitDetailQuerySchema(BaseQuerySchema):

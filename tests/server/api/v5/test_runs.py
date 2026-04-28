@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 from v5_test_helpers import (
     create_app, create_client, admin_headers, make_scoped_headers,
     create_machine, create_commit, create_run,
-    collect_all_pages, submit_run,
+    collect_all_pages, submit_run, make_profile_base64,
 )
 
 
@@ -1076,6 +1076,69 @@ class TestRunUnknownParams(unittest.TestCase):
             headers=headers,
         )
         self.assertIn(resp.status_code, [400, 422])
+
+
+class TestRunHasProfilesFilter(unittest.TestCase):
+    """Tests for GET /api/v5/{ts}/runs?has_profiles=..."""
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+        cls.tag = uuid.uuid4().hex[:8]
+
+        profile_b64 = make_profile_base64()
+
+        cls.machine = f'hp-run-m-{cls.tag}'
+        cls.commit = f'hp-run-c-{cls.tag}'
+
+        # R1: profiled run
+        data1 = submit_run(cls.client, cls.machine, cls.commit, [
+            {'name': 'test/profiled', 'execution_time': 1.0,
+             'profile': profile_b64},
+        ])
+        cls.r1_uuid = data1['run_uuid']
+
+        # R2: non-profiled run
+        data2 = submit_run(cls.client, cls.machine, cls.commit, [
+            {'name': 'test/noprof', 'execution_time': 2.0},
+        ])
+        cls.r2_uuid = data2['run_uuid']
+
+    def _get_run_uuids(self, **params):
+        qs = '&'.join(f'{k}={v}' for k, v in params.items())
+        url = PREFIX + '/runs'
+        if qs:
+            url += '?' + qs
+        items = collect_all_pages(self, self.client, url)
+        return [item['uuid'] for item in items]
+
+    def test_has_profiles_true(self):
+        """Only runs with profiles are returned."""
+        uuids = self._get_run_uuids(has_profiles='true')
+        self.assertIn(self.r1_uuid, uuids)
+        self.assertNotIn(self.r2_uuid, uuids)
+
+    def test_has_profiles_false(self):
+        """Only runs without profiles are returned."""
+        uuids = self._get_run_uuids(has_profiles='false')
+        self.assertNotIn(self.r1_uuid, uuids)
+        self.assertIn(self.r2_uuid, uuids)
+
+    def test_has_profiles_with_machine_commit(self):
+        """has_profiles=true combined with machine and commit filters."""
+        uuids = self._get_run_uuids(
+            machine=self.machine, commit=self.commit,
+            has_profiles='true')
+        self.assertIn(self.r1_uuid, uuids)
+        self.assertNotIn(self.r2_uuid, uuids)
+
+    def test_has_profiles_empty(self):
+        """has_profiles=true returns empty when no matching profiled runs."""
+        # Use a machine name that doesn't exist — returns empty (not 404)
+        uuids = self._get_run_uuids(
+            machine='nonexistent-machine-xyz', has_profiles='true')
+        self.assertEqual(uuids, [])
 
 
 if __name__ == '__main__':

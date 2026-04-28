@@ -49,7 +49,7 @@ class RunList(MethodView):
         """List runs (cursor-paginated, filterable)."""
         reject_unknown_params(
             {'machine', 'commit', 'after', 'before', 'sort',
-             'cursor', 'limit'})
+             'cursor', 'limit', 'has_profiles'})
         ts = g.ts
         session = g.db_session
 
@@ -88,6 +88,21 @@ class RunList(MethodView):
             if before_dt is None:
                 abort_with_error(400, "Invalid 'before' datetime format")
             query = query.filter(ts.Run.submitted_at < before_dt)
+
+        # Filter by profile existence.
+        has_profiles = query_args.get('has_profiles')
+        if has_profiles is True:
+            query = query.filter(
+                session.query(ts.Profile.id)
+                .filter(ts.Profile.run_id == ts.Run.id)
+                .exists()
+            )
+        elif has_profiles is False:
+            query = query.filter(
+                ~session.query(ts.Profile.id)
+                .filter(ts.Profile.run_id == ts.Run.id)
+                .exists()
+            )
 
         # Sort: default is ascending by ID (insertion order).
         sort = query_args.get('sort')

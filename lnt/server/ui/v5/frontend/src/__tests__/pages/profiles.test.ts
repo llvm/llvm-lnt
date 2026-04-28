@@ -44,7 +44,6 @@ vi.mock('../../combobox', () => ({
       destroy: vi.fn(),
     };
   }),
-  fetchMachineCommitSet: vi.fn(async () => new Set<string>()),
 }));
 
 import { profilesPage } from '../../pages/profiles';
@@ -172,6 +171,17 @@ describe('profilesPage — URL params', () => {
       expect(getProfilesForRun).toHaveBeenCalledWith('nts', 'run-uuid-1', expect.anything());
       expect(getProfileMetadata).toHaveBeenCalledWith('nts', 'prof-uuid-1', expect.anything());
     });
+
+    // Verify has_profiles=true is used for commit and run loading
+    expect(getCommits).toHaveBeenCalledWith('nts', expect.objectContaining({
+      machine: 'machine-1',
+      has_profiles: true,
+    }));
+    expect(getRuns).toHaveBeenCalledWith('nts', expect.objectContaining({
+      machine: 'machine-1',
+      commit: 'abc123',
+      has_profiles: true,
+    }), expect.anything());
   });
 });
 
@@ -236,5 +246,46 @@ describe('profilesPage — unmount', () => {
   it('unmount cleans up without errors', () => {
     profilesPage.mount(container, { testsuite: '' });
     expect(() => profilesPage.unmount?.()).not.toThrow();
+  });
+});
+
+describe('profilesPage — no N+1 profile checks', () => {
+  it('does not call getProfilesForRun during mount without URL params', () => {
+    profilesPage.mount(container, { testsuite: '' });
+    expect(getProfilesForRun).not.toHaveBeenCalled();
+  });
+
+  it('getProfilesForRun is called only once during URL restoration (for test list)', async () => {
+    setUrl('?suite_a=nts&run_a=run-uuid-1&test_a=bench/foo');
+
+    (getRun as ReturnType<typeof vi.fn>).mockResolvedValue({
+      uuid: 'run-uuid-1', machine: 'machine-1', commit: 'abc123',
+      submitted_at: '2025-01-01T00:00:00Z', run_parameters: {},
+    });
+    (getRuns as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { uuid: 'run-uuid-1', machine: 'machine-1', commit: 'abc123', submitted_at: '2025-01-01T00:00:00Z' },
+    ]);
+    (getProfilesForRun as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { test: 'bench/foo', uuid: 'prof-uuid-1' },
+    ]);
+    (getProfileMetadata as ReturnType<typeof vi.fn>).mockResolvedValue({
+      uuid: 'prof-uuid-1', test: 'bench/foo', run_uuid: 'run-uuid-1',
+      counters: { cycles: 1000 }, disassembly_format: 'raw',
+    });
+    (getProfileFunctions as ReturnType<typeof vi.fn>).mockResolvedValue({ functions: [] });
+    (getCommits as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { commit: 'abc123', ordinal: null, fields: {} },
+    ]);
+
+    profilesPage.mount(container, { testsuite: '' });
+
+    await vi.waitFor(() => {
+      expect(getProfileMetadata).toHaveBeenCalled();
+    });
+
+    // getProfilesForRun should be called exactly once — for the specific
+    // run's test list, not for each run during cascade (N+1 eliminated).
+    expect(getProfilesForRun).toHaveBeenCalledTimes(1);
+    expect(getProfilesForRun).toHaveBeenCalledWith('nts', 'run-uuid-1', expect.anything());
   });
 });

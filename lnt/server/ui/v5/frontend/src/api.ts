@@ -173,10 +173,11 @@ export async function getFields(ts: string, _signal?: AbortSignal): Promise<Fiel
 
 export async function getCommits(
   ts: string,
-  opts?: { machine?: string; signal?: AbortSignal; onProgress?: (loaded: number) => void },
+  opts?: { machine?: string; has_profiles?: boolean; signal?: AbortSignal; onProgress?: (loaded: number) => void },
 ): Promise<CommitSummary[]> {
   const params: Record<string, string> = {};
   if (opts?.machine) params.machine = opts.machine;
+  if (opts?.has_profiles !== undefined) params.has_profiles = String(opts.has_profiles);
   return fetchAllCursorPages<CommitSummary>(apiUrl(ts, 'commits'), params, opts?.signal, opts?.onProgress);
 }
 
@@ -195,11 +196,12 @@ export async function getMachines(
 
 export async function getRuns(
   ts: string,
-  opts: { machine: string; commit?: string },
+  opts: { machine: string; commit?: string; has_profiles?: boolean },
   signal?: AbortSignal,
 ): Promise<RunInfo[]> {
   const params: Record<string, string> = { machine: opts.machine };
   if (opts.commit) params.commit = opts.commit;
+  if (opts.has_profiles !== undefined) params.has_profiles = String(opts.has_profiles);
   return fetchAllCursorPages<RunInfo>(
     apiUrl(ts, 'runs'),
     params,

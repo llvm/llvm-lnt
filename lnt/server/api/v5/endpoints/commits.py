@@ -140,7 +140,8 @@ class CommitList(MethodView):
     @blp.response(200, PaginatedCommitResponseSchema)
     def get(self, query_args, testsuite):
         """List commits (cursor-paginated)."""
-        reject_unknown_params({'cursor', 'limit', 'search', 'machine', 'sort'})
+        reject_unknown_params(
+            {'cursor', 'limit', 'search', 'machine', 'sort', 'has_profiles'})
         ts = g.ts
         session = g.db_session
 
@@ -159,15 +160,43 @@ class CommitList(MethodView):
                     col.ilike(pattern, escape='\\'))
             query = query.filter(or_(*conditions))
 
+        # -- Machine and has_profiles filters --
         machine_name = query_args.get('machine')
+        has_profiles = query_args.get('has_profiles')
+
         if machine_name:
             machine = lookup_machine(session, ts, machine_name)
-            query = query.filter(
-                session.query(ts.Run).filter(
-                    ts.Run.commit_id == ts.Commit.id,
-                    ts.Run.machine_id == machine.id,
-                ).exists()
+
+        # Build the run-existence subquery, optionally scoped to a machine.
+        run_sq = session.query(ts.Run).filter(
+            ts.Run.commit_id == ts.Commit.id)
+        if machine_name:
+            run_sq = run_sq.filter(ts.Run.machine_id == machine.id)
+
+        if has_profiles is not None:
+            # Profile-existence subquery: runs that have profile data.
+            profile_sq = (
+                session.query(ts.Run.id)
+                .join(ts.Profile, ts.Profile.run_id == ts.Run.id)
+                .filter(ts.Run.commit_id == ts.Commit.id)
             )
+            if machine_name:
+                profile_sq = profile_sq.filter(
+                    ts.Run.machine_id == machine.id)
+
+            if has_profiles is True:
+                query = query.filter(profile_sq.exists())
+            else:
+                # has_profiles=false: no profiled run on this commit.
+                # When machine= is also present, additionally require
+                # that the commit has at least one run on that machine
+                # (so the filter means "has runs on machine X but none
+                # of them have profiles").
+                if machine_name:
+                    query = query.filter(run_sq.exists())
+                query = query.filter(~profile_sq.exists())
+        elif machine_name:
+            query = query.filter(run_sq.exists())
 
         sort_param = query_args.get('sort')
         if sort_param == 'ordinal':

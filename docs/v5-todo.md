@@ -311,7 +311,7 @@
 
 - [ ] **CFG view**: Control-flow graph renderer (D3-based, ISA-specific).
   Deferred to a future phase.
-- [ ] **Replace N+1 profile-existence check in commit picker**: The Profiles
+- [x] **Replace N+1 profile-existence check in commit picker**: The Profiles
   page commit dropdown calls `GET /runs/{uuid}/profiles` for every run on the
   selected machine to filter commits without profiles. Replace with a
   server-side mechanism (e.g. `has_profiles` flag on run list responses or a

@@ -42,7 +42,7 @@ For endpoint specifications, see [`endpoints.md`](endpoints.md).
   - `machine=`, `test=`, `metric=`, `search=` (case-insensitive substring; see D9)
   - `after=`, `before=` (for timestamps and order values; exclusive)
   - `state=` (for regressions, supports multiple values: `?state=active&state=detected`)
-  - `commit=`, `has_commit=` (for regressions)
+  - `commit=`, `has_commit=` (for regressions), `has_profiles=` (for commits and runs)
   - `sort=<field>` (prefix with `-` for descending: `sort=-start_time`)
 - Exact filters and available sort fields defined per endpoint in the OpenAPI spec
 - Filtering by a nonexistent entity name (`machine=`, `test=`) returns 404. Filtering by an unknown metric returns 400.

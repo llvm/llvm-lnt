@@ -6,7 +6,7 @@ import type {
   ProfileFunctionDetail, RunInfo,
 } from '../types';
 import {
-  getRun, getRuns, getCommits, getMachineRuns, getProfilesForRun,
+  getRun, getRuns, getCommits, getProfilesForRun,
   getProfileMetadata, getProfileFunctions, getProfileFunctionDetail,
 } from '../api';
 import { getTestsuites } from '../router';
@@ -28,7 +28,6 @@ interface CascadeRefs { runContainer: HTMLElement; testContainer: HTMLElement }
 const cascadeRefs = new Map<'a' | 'b', CascadeRefs>();
 
 // Shared state
-let commitCache = new Map<string, string[]>();  // suite → commit values
 let selectedCounter = '';
 let displayMode: DisplayMode = 'relative';
 
@@ -140,21 +139,11 @@ export const profilesPage: PageModule = {
     sideA.suite = urlSuiteA;
     sideB.suite = urlSuiteB;
 
-    // Load commits for URL-provided suites, then render and restore
-    const commitLoads: Promise<void>[] = [];
-    if (urlSuiteA) commitLoads.push(loadCommitsForSuite(urlSuiteA));
-    if (urlSuiteB && urlSuiteB !== urlSuiteA) commitLoads.push(loadCommitsForSuite(urlSuiteB));
-
-    if (commitLoads.length > 0) {
-      Promise.all(commitLoads).then(() => {
-        renderSidePickers();
-        if (urlRunA || urlRunB) {
-          restoreFromUrl(urlRunA, urlTestA, urlRunB, urlTestB);
-        }
-      });
-    } else {
-      // No suites to load — render immediately (synchronous)
-      renderSidePickers();
+    // Render immediately; commits are loaded on-demand when a machine is
+    // selected (via loadMachineCommits).
+    renderSidePickers();
+    if (urlRunA || urlRunB) {
+      restoreFromUrl(urlRunA, urlTestA, urlRunB, urlTestB);
     }
   },
 
@@ -166,17 +155,6 @@ export const profilesPage: PageModule = {
 // ---------------------------------------------------------------------------
 // Data loading
 // ---------------------------------------------------------------------------
-
-async function loadCommitsForSuite(suite: string): Promise<void> {
-  if (commitCache.has(suite)) return;
-  try {
-    const commits = await getCommits(suite, { signal: controller?.signal });
-    commitCache.set(suite, commits.map(c => c.commit));
-  } catch (e: unknown) {
-    if (isAbort(e)) return;
-    commitCache.set(suite, []);
-  }
-}
 
 async function loadMachineCommits(side: 'a' | 'b', suite: string, machine: string): Promise<void> {
   const state = side === 'a' ? sideA : sideB;
@@ -190,20 +168,12 @@ async function loadMachineCommits(side: 'a' | 'b', suite: string, machine: strin
   else machineCommitsAbortB = ctrl;
 
   try {
-    // Fetch runs for this machine, then check each for profiles.
-    // TODO(profiles): This is N+1 requests. Replace with a server-side filter
-    // once the API supports it (e.g. has_profiles flag on runs).
-    const page = await getMachineRuns(suite, machine, { limit: 500 }, ctrl.signal);
-    const profileChecks = page.items.map(async (run) => {
-      const profiles = await getProfilesForRun(suite, run.uuid, ctrl.signal);
-      return { commit: run.commit, hasProfiles: profiles.length > 0 };
+    const commits = await getCommits(suite, {
+      machine,
+      has_profiles: true,
+      signal: ctrl.signal,
     });
-    const results = await Promise.all(profileChecks);
-    const commits = new Set<string>();
-    for (const r of results) {
-      if (r.hasProfiles) commits.add(r.commit);
-    }
-    state.machineCommits = commits;
+    state.machineCommits = new Set(commits.map(c => c.commit));
     state.machineCommitsLoading = false;
   } catch (e: unknown) {
     if (isAbort(e)) return;
@@ -217,14 +187,11 @@ async function loadRuns(side: 'a' | 'b'): Promise<void> {
   if (!state.suite || !state.machine || !state.commit) return;
 
   try {
-    const runs = await getRuns(state.suite, { machine: state.machine, commit: state.commit }, controller?.signal);
-    // Filter to runs that have profiles (N+1, see TODO in v5-todo.md).
-    const checks = runs.map(async (run) => {
-      const profiles = await getProfilesForRun(state.suite, run.uuid, controller?.signal);
-      return { run, hasProfiles: profiles.length > 0 };
-    });
-    const results = await Promise.all(checks);
-    state.runs = results.filter(r => r.hasProfiles).map(r => r.run);
+    state.runs = await getRuns(
+      state.suite,
+      { machine: state.machine, commit: state.commit, has_profiles: true },
+      controller?.signal,
+    );
     renderRunSelect(side);
   } catch (e: unknown) {
     if (isAbort(e)) return;
@@ -325,8 +292,12 @@ async function restoreSide(side: 'a' | 'b', runUuid: string, testName: string): 
     // 2. Load machine-commit set
     await loadMachineCommits(side, state.suite, state.machine);
 
-    // 3. Fetch runs for machine+commit
-    const runs = await getRuns(state.suite, { machine: state.machine, commit: state.commit }, controller?.signal);
+    // 3. Fetch runs for machine+commit (only profile-bearing runs)
+    const runs = await getRuns(
+      state.suite,
+      { machine: state.machine, commit: state.commit, has_profiles: true },
+      controller?.signal,
+    );
     state.runs = runs;
 
     // 4. Set run
@@ -397,11 +368,7 @@ function renderSidePicker(side: 'a' | 'b'): void {
     clearDownstream(side, 'machine');
     clearProfileDisplay(side);
     syncUrl();
-    if (newSuite) {
-      loadCommitsForSuite(newSuite).then(() => renderSidePicker(side));
-    } else {
-      renderSidePicker(side);
-    }
+    renderSidePicker(side);
   });
   suiteRow.append(suiteSelect);
   container.append(suiteRow);
@@ -458,10 +425,9 @@ function renderSidePicker(side: 'a' | 'b'): void {
   const picker = createCommitPicker({
     id: cpId,
     getCommitData: () => {
-      let values = commitCache.get(state.suite) ?? [];
-      if (state.machineCommits instanceof Set) {
-        values = values.filter(v => state.machineCommits!.has(v));
-      }
+      const values = state.machineCommits instanceof Set
+        ? [...state.machineCommits]
+        : [];
       return { values };
     },
     initialValue: state.commit,
@@ -923,7 +889,6 @@ function cleanup(): void {
   sideA = initialSideState();
   sideB = initialSideState();
   cascadeRefs.clear();
-  commitCache.clear();
   selectedCounter = '';
   displayMode = 'relative';
   sideAContainer = null;

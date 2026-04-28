@@ -397,6 +397,33 @@ describe('getCommits', () => {
     const url = new URL(mockFetch.mock.calls[0][0]);
     expect(url.searchParams.has('machine')).toBe(false);
   });
+
+  it('passes has_profiles=true query parameter when provided', async () => {
+    mockFetch.mockResolvedValueOnce(mockResponse(cursorPage([])));
+
+    await getCommits('nts', { has_profiles: true });
+
+    const url = new URL(mockFetch.mock.calls[0][0]);
+    expect(url.searchParams.get('has_profiles')).toBe('true');
+  });
+
+  it('passes has_profiles=false query parameter when provided', async () => {
+    mockFetch.mockResolvedValueOnce(mockResponse(cursorPage([])));
+
+    await getCommits('nts', { has_profiles: false });
+
+    const url = new URL(mockFetch.mock.calls[0][0]);
+    expect(url.searchParams.get('has_profiles')).toBe('false');
+  });
+
+  it('does not include has_profiles param when not provided', async () => {
+    mockFetch.mockResolvedValueOnce(mockResponse(cursorPage([])));
+
+    await getCommits('nts', { machine: 'x' });
+
+    const url = new URL(mockFetch.mock.calls[0][0]);
+    expect(url.searchParams.has('has_profiles')).toBe(false);
+  });
 });
 
 // ===========================================================================
@@ -520,6 +547,33 @@ describe('getRuns', () => {
 
     const url = new URL(mockFetch.mock.calls[0][0]);
     expect(url.pathname).toBe('/api/v5/nts/runs');
+  });
+
+  it('passes has_profiles=true query parameter when provided', async () => {
+    mockFetch.mockResolvedValueOnce(mockResponse(cursorPage([])));
+
+    await getRuns('nts', { machine: 'machine-1', has_profiles: true });
+
+    const url = new URL(mockFetch.mock.calls[0][0]);
+    expect(url.searchParams.get('has_profiles')).toBe('true');
+  });
+
+  it('passes has_profiles=false query parameter when provided', async () => {
+    mockFetch.mockResolvedValueOnce(mockResponse(cursorPage([])));
+
+    await getRuns('nts', { machine: 'machine-1', has_profiles: false });
+
+    const url = new URL(mockFetch.mock.calls[0][0]);
+    expect(url.searchParams.get('has_profiles')).toBe('false');
+  });
+
+  it('does not include has_profiles param when not provided', async () => {
+    mockFetch.mockResolvedValueOnce(mockResponse(cursorPage([])));
+
+    await getRuns('nts', { machine: 'machine-1' });
+
+    const url = new URL(mockFetch.mock.calls[0][0]);
+    expect(url.searchParams.has('has_profiles')).toBe(false);
   });
 });
 

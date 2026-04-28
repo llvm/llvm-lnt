@@ -38,9 +38,12 @@ on creation and assigned exclusively via PATCH (see
 
 Filters: `search=` (case-insensitive substring match on commit string, tag, and
 searchable commit fields; see D9), `machine=` (only commits with at least one
-run on this machine;
-404 if machine not found). Sort: `sort=ordinal` sorts by ordinal ascending
-and excludes commits with NULL ordinals; default sort is by internal ID.
+run on this machine; 404 if machine not found), `has_profiles=` (boolean;
+`true` returns only commits where at least one run has profile data, `false`
+returns only commits where no run has profile data; when combined with
+`machine=`, only considers runs on that machine). Sort: `sort=ordinal` sorts
+by ordinal ascending and excludes commits with NULL ordinals; default sort is
+by internal ID.
 
 ### Batch Resolve
 
@@ -69,7 +72,7 @@ Auth scope: `read`. Not paginated (response is bounded by request size).
 ## Runs
 
 ```
-GET    /runs                         -- List (cursor-paginated, filterable by machine=, after=, before=)
+GET    /runs                         -- List (cursor-paginated, filterable by machine=, commit=, after=, before=, has_profiles=)
 POST   /runs                         -- Submit run (server generates UUID, returns it)
 GET    /runs/{uuid}                  -- Detail
 DELETE /runs/{uuid}                  -- Delete run
@@ -80,6 +83,9 @@ endpoint requires JSON format with `format_version '5'`. Legacy formats (v0,
 v1, v2) and non-JSON payloads are rejected. There is no `on_existing_run`
 parameter -- v5 always creates a new run (multiple runs per machine+commit
 are allowed). Deleting a run cascades to its samples and profiles.
+
+`has_profiles=` (boolean): `true` returns only runs that have at least one
+profile attached; `false` returns only runs without profiles.
 
 
 ## Tests

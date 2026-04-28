@@ -39,10 +39,13 @@ downstream selections:
 2. **Machine**: combobox over machine names for the selected suite. Disabled
    until suite is selected.
 3. **Commit**: combobox over commits filtered to those with profile-bearing
-   runs on the selected machine. Disabled until machine is selected.
+   runs on the selected machine. Populated by
+   `GET /commits?machine={name}&has_profiles=true` when a machine is
+   selected. Disabled until machine is selected.
 4. **Run**: dropdown of runs for the selected machine+commit that contain
-   profile data (shows timestamp + short UUID). Disabled until commit is
-   selected.
+   profile data (populated by
+   `GET /runs?machine=M&commit=C&has_profiles=true`; shows timestamp +
+   short UUID). Disabled until commit is selected.
 5. **Test**: dropdown over tests that have profiles for the selected run
    (populated from `GET /runs/{uuid}/profiles`). Disabled until run is
    selected.
@@ -122,14 +125,30 @@ When only one side:
 
 ### Data Flow
 
+**Normal cascade (user interaction):**
 1. On page load, read URL params.
-2. For each side with a run+test, call `GET /runs/{uuid}/profiles` to find
-   the profile UUID for the test.
-3. Call `GET /profiles/{uuid}` for metadata + counters (stats bar).
-4. When user selects a function, call `GET /profiles/{uuid}/functions/{fn}`
+2. When user selects a machine, call
+   `GET /commits?machine={name}&has_profiles=true` to populate the commit
+   picker with only commits that have profiles on that machine.
+3. When user selects a commit, call
+   `GET /runs?machine={name}&commit={value}&has_profiles=true` to populate
+   the run dropdown with only profile-bearing runs.
+4. When user selects a run, call `GET /runs/{uuid}/profiles` to get the
+   test list.
+5. When user selects a test, resolve the profile UUID from the list and
+   call `GET /profiles/{uuid}` for metadata + counters, and
+   `GET /profiles/{uuid}/functions` for the function list.
+6. When user selects a function, call `GET /profiles/{uuid}/functions/{fn}`
    for disassembly data.
-5. Function list is fetched once via `GET /profiles/{uuid}/functions` when
-   the profile is loaded.
+
+**URL restoration** (page load with `run_a`/`test_a` params):
+1. Call `GET /runs/{uuid}` to recover machine + commit.
+2. Call `GET /commits?machine={name}&has_profiles=true` to populate
+   the commit picker.
+3. Call `GET /runs?machine={name}&commit={value}&has_profiles=true` to
+   populate the run dropdown.
+4. Call `GET /runs/{uuid}/profiles` to get the test list for the known
+   run, match the test name, and load the profile.
 
 
 ### URL State
