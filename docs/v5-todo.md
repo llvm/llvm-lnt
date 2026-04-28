@@ -72,6 +72,9 @@
   local run.
 - [ ] Fix: chart zoom filter leaks — tests outside the visible x-axis range
   after zooming still appear in the comparison table.
+- [ ] Fix: the "Add to Regression" panel does not take chart zoom into account
+  — indicators are built from all visible table rows regardless of the zoom
+  range, so zooming in on a subset of tests still adds all of them.
 - [ ] Add a "View on Graph" link per test row that navigates to the Graph page
   pre-populated with the test, machines from both sides, and the current metric.
 - [x] Fix: "Add to Existing Regression" search is not a proper dropdown —
