@@ -4,7 +4,7 @@
 import { el } from '../../utils';
 import type { CommitSummary } from '../../types';
 import { renderMachineCombobox } from '../../components/machine-combobox';
-import { createCommitPicker, type CommitPickerHandle } from '../../combobox';
+import { createCommitPicker, type CommitPickerHandle } from '../../components/commit-combobox';
 import { commitDisplayValue } from '../../utils';
 import type { BaselineRef } from './state';
 

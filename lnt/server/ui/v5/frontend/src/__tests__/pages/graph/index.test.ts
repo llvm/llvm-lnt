@@ -42,8 +42,8 @@ const mockCommitPickerHandle = {
   input: document.createElement('input'),
   destroy: vi.fn(),
 };
-vi.mock('../../../combobox', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../../combobox')>();
+vi.mock('../../../components/commit-combobox', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../components/commit-combobox')>();
   return {
     ...actual,
     createCommitPicker: vi.fn(() => mockCommitPickerHandle),

@@ -35,7 +35,7 @@ vi.mock('../../components/machine-combobox', () => ({
 }));
 
 // Mock combobox (commit picker)
-vi.mock('../../combobox', () => ({
+vi.mock('../../components/commit-combobox', () => ({
   createCommitPicker: vi.fn((_opts: unknown) => {
     const input = document.createElement('input');
     return {

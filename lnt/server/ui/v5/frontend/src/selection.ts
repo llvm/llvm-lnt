@@ -4,11 +4,8 @@ import { getFields, getCommits, getRuns, getTestSuiteInfoCached } from './api';
 import { getBasePath } from './router';
 import { getState, setSideA, setSideB, setState, setNoiseConfig, swapSides } from './state';
 import { debounce, el, commitDisplayValue, updateFilterValidation } from './utils';
-import {
-  createCommitCombobox, createMachineCombobox, resetComboboxState,
-  refreshCommitDisplay,
-  type ComboboxContext,
-} from './combobox';
+import { createCommitPicker, type CommitPickerHandle } from './components/commit-combobox';
+import { renderMachineCombobox } from './components/machine-combobox';
 import { renderMetricSelector, renderEmptyMetricSelector, filterMetricFields } from './components/metric-selector';
 
 // Per-side cached data
@@ -37,6 +34,34 @@ let commitFetchControllerB: AbortController | null = null;
 
 /** Module-level reference to the metric selector container for re-rendering. */
 let metricContainerRef: HTMLElement | null = null;
+
+// Per-side commit picker references for enabling/disabling from machine combobox
+let commitPickerA: CommitPickerHandle | null = null;
+let commitPickerB: CommitPickerHandle | null = null;
+
+// Per-side machine combobox handles for cleanup on re-render
+let machineComboA: { destroy: () => void } | null = null;
+let machineComboB: { destroy: () => void } | null = null;
+
+/** Set the commit input to one of three states. */
+function setCommitInputState(
+  input: HTMLInputElement | null,
+  state: 'no-machine' | 'loading' | 'ready',
+  value?: string,
+): void {
+  if (!input) return;
+  if (state === 'no-machine') {
+    input.disabled = true;
+    input.placeholder = 'Select a machine first';
+  } else if (state === 'loading') {
+    input.disabled = true;
+    input.placeholder = 'Loading commits...';
+  } else {
+    input.disabled = false;
+    input.placeholder = 'Type to search commits...';
+  }
+  if (value !== undefined) input.value = value;
+}
 
 /**
  * Initialize the selection module.
@@ -119,18 +144,6 @@ async function fetchCommitsForMachine(side: 'a' | 'b', machine: string): Promise
     if (side === 'a') cachedCommitsA = [];
     else cachedCommitsB = [];
   }
-}
-
-function getComboboxContext(): ComboboxContext {
-  return {
-    getCommitData: getCommitDataForSide,
-    getSuiteName: (side: 'a' | 'b') => {
-      const { selection } = getSideState(side);
-      return selection.suite;
-    },
-    getSideState,
-    fetchCommitsForMachine,
-  };
 }
 
 /** Auto-trigger comparison when state is valid (both sides have runs + metric). */
@@ -290,7 +303,9 @@ export async function fetchSideData(
     const currentVersion = side === 'a' ? suiteLoadVersionA : suiteLoadVersionB;
     if (version !== currentVersion) return;
 
-    refreshCommitDisplay(side, getSideState(side).selection.commit);
+    const picker = side === 'a' ? commitPickerA : commitPickerB;
+    const { selection } = getSideState(side);
+    if (picker && selection.commit) picker.setValue(selection.commit);
 
     if (side === 'a') {
       cachedFieldsA = fields;
@@ -316,7 +331,10 @@ export async function fetchSideData(
 // Main render
 export function renderSelectionPanel(root: HTMLElement): void {
   root.replaceChildren();
-  resetComboboxState();
+  if (machineComboA) { machineComboA.destroy(); machineComboA = null; }
+  if (machineComboB) { machineComboB.destroy(); machineComboB = null; }
+  if (commitPickerA) { commitPickerA.destroy(); commitPickerA = null; }
+  if (commitPickerB) { commitPickerB.destroy(); commitPickerB = null; }
 
   const panel = el('div', { class: 'controls-panel' });
 
@@ -375,16 +393,82 @@ export function renderSelectionPanel(root: HTMLElement): void {
     const runsContainer = el('div', { class: 'runs-container' });
     runsContainers[side] = runsContainer;
 
-    const ctx = getComboboxContext();
     const refreshRuns = () => createRunsPanel(side, runsContainer, setSide);
 
-    // Machine
+    // Machine combobox
     sideDiv.append(el('label', {}, 'Machine'));
-    sideDiv.append(createMachineCombobox(side, setSide, refreshRuns, ctx));
+    const machineContainer = el('div', {});
+    const suiteName = sideState.suite;
 
-    // Order
+    async function onMachineSelect(name: string): Promise<void> {
+      setSide({ machine: name });
+
+      const picker = side === 'a' ? commitPickerA : commitPickerB;
+      setCommitInputState(picker?.input ?? null, 'loading');
+
+      await fetchCommitsForMachine(side, name);
+
+      // Clear commit if it's no longer valid for this machine
+      const { cachedCommitValues } = getCommitDataForSide(side);
+      const { selection: current } = getSideState(side);
+      if (current.commit && !cachedCommitValues.includes(current.commit)) {
+        setSide({ commit: '' });
+      }
+      const { selection: updated } = getSideState(side);
+      setCommitInputState(picker?.input ?? null, 'ready');
+      if (updated.commit) picker?.setValue(updated.commit);
+      else if (picker) picker.input.value = '';
+      refreshRuns();
+    }
+
+    const machineHandle = renderMachineCombobox(machineContainer, {
+      testsuite: suiteName,
+      initialValue: sideState.machine,
+      onSelect(name: string) {
+        onMachineSelect(name);
+      },
+      onClear() {
+        setSide({ machine: '', commit: '', runs: [] });
+        const picker = side === 'a' ? commitPickerA : commitPickerB;
+        setCommitInputState(picker?.input ?? null, 'no-machine', '');
+        refreshRuns();
+      },
+    });
+    if (side === 'a') machineComboA = machineHandle;
+    else machineComboB = machineHandle;
+    sideDiv.append(machineContainer);
+
+    // Pre-fetch commits for URL-restored machine
+    if (sideState.machine && suiteName) {
+      fetchCommitsForMachine(side, sideState.machine)
+        .then(() => {
+          const picker = side === 'a' ? commitPickerA : commitPickerB;
+          const { selection: updated } = getSideState(side);
+          setCommitInputState(picker?.input ?? null, 'ready');
+          if (updated.commit) picker?.setValue(updated.commit);
+        })
+        .catch(() => {});
+    }
+
+    // Commit combobox
     sideDiv.append(el('label', {}, 'Commit'));
-    sideDiv.append(createCommitCombobox(side, setSide, refreshRuns, ctx));
+    const picker = createCommitPicker({
+      id: `commit-${side}`,
+      getCommitData: () => {
+        const { cachedCommitValues, displayMap } = getCommitDataForSide(side);
+        return { values: cachedCommitValues, displayMap };
+      },
+      initialValue: sideState.commit,
+      placeholder: 'Type to search commits...',
+      onSelect: (value) => {
+        setSide(value ? { commit: value } : { commit: '', runs: [] });
+        refreshRuns();
+      },
+    });
+    if (side === 'a') commitPickerA = picker;
+    else commitPickerB = picker;
+    setCommitInputState(picker.input, sideState.machine ? 'loading' : 'no-machine');
+    sideDiv.append(picker.element);
 
     // Runs
     sideDiv.append(el('label', {}, 'Runs'));
@@ -404,7 +488,7 @@ export function renderSelectionPanel(root: HTMLElement): void {
     class: 'swap-sides-btn',
     title: 'Swap A and B sides',
     'aria-label': 'Swap A and B sides',
-  }, '\u21C4');
+  }, '⇄');
   swapBtn.addEventListener('click', () => {
     swapSides();
     // Also swap per-side caches; abort in-flight commit fetches
@@ -491,8 +575,8 @@ export function renderSelectionPanel(root: HTMLElement): void {
   }
 
   noiseBody.append(buildKnobRow('pct', 'Delta % below', 'Tests where the absolute percentage change is within this threshold are considered noise.', { min: '0', step: '0.1' }, v => v >= 0));
-  noiseBody.append(buildKnobRow('pval', 'P-value above', 'Welch\u2019s t-test on raw samples from both sides. Tests with p-value above the threshold are considered noise (the difference is not statistically significant). Requires at least 2 samples per side.', { min: '0', max: '1', step: '0.01' }, v => v >= 0 && v <= 1));
-  noiseBody.append(buildKnobRow('floor', 'Absolute below', 'Tests where both sides\u2019 aggregated values are below this floor are considered noise. Useful for filtering out measurements too small to be meaningful.', { min: '0', step: 'any' }, v => v >= 0));
+  noiseBody.append(buildKnobRow('pval', 'P-value above', 'Welch’s t-test on raw samples from both sides. Tests with p-value above the threshold are considered noise (the difference is not statistically significant). Requires at least 2 samples per side.', { min: '0', max: '1', step: '0.01' }, v => v >= 0 && v <= 1));
+  noiseBody.append(buildKnobRow('floor', 'Absolute below', 'Tests where both sides’ aggregated values are below this floor are considered noise. Useful for filtering out measurements too small to be meaningful.', { min: '0', step: 'any' }, v => v >= 0));
 
   noisePanel.append(noiseBody);
   globalRow.append(noisePanel);

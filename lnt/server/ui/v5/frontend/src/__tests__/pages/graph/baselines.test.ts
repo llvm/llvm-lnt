@@ -11,8 +11,8 @@ const mockCommitPickerHandle = {
   input: document.createElement('input'),
   destroy: vi.fn(),
 };
-vi.mock('../../../combobox', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../../combobox')>();
+vi.mock('../../../components/commit-combobox', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../components/commit-combobox')>();
   return {
     ...actual,
     createCommitPicker: vi.fn(() => mockCommitPickerHandle),
@@ -21,7 +21,7 @@ vi.mock('../../../combobox', async (importOriginal) => {
 
 import { createBaselinePanel, type BaselinePanelCallbacks } from '../../../pages/graph/baselines';
 import { renderMachineCombobox } from '../../../components/machine-combobox';
-import { createCommitPicker } from '../../../combobox';
+import { createCommitPicker } from '../../../components/commit-combobox';
 import type { BaselineRef } from '../../../pages/graph/state';
 
 function makeBaseline(suite = 'nts', machine = 'm1', commit = 'abc'): BaselineRef {

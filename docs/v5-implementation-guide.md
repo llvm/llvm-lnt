@@ -157,7 +157,8 @@ plain clicks for SPA navigation (no full page reload).
 between pages, not between individual setting changes within a page.
 
 **Component catalog.** Reusable components shared across pages:
-`data-table`, `pagination`, `machine-combobox`, `metric-selector`,
+`data-table`, `pagination`, `combobox` (generic base), `commit-combobox`,
+`machine-combobox`, `regression-combobox`, `metric-selector`,
 `commit-search`, `sparkline-card`, `time-series-chart`, `delete-confirm`.
 
 **Text filter utility.** All client-side text filters use the shared

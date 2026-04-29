@@ -158,7 +158,7 @@
   the nav component, static asset paths, and all tests that reference `/v5/`
   paths. The `urlBase` reverse-proxy prefix support should be preserved.
 - [ ] Undo changes made to the v4 layer (e.g. new migrations).
-- [ ] Reorganize `combobox.ts`, `machine-combobox.ts`, and
+- [x] Reorganize `combobox.ts`, `machine-combobox.ts`, and
   `regression-combobox.ts` — remnants of the Compare page being standalone.
   All three combobox components (machine-combobox, commit-search,
   regression-combobox) share ~50-60 lines of identical boilerplate (ARIA,

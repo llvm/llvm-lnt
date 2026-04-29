@@ -12,7 +12,7 @@ import {
 import { getTestsuites } from '../router';
 import { el, matchesFilter, updateFilterValidation } from '../utils';
 import { renderMachineCombobox } from '../components/machine-combobox';
-import { createCommitPicker } from '../combobox';
+import { createCommitPicker } from '../components/commit-combobox';
 import { renderProfileStats } from '../components/profile-stats';
 import { renderProfileViewer, type DisplayMode } from '../components/profile-viewer';
 import { heatGradient } from '../components/profile-colors';

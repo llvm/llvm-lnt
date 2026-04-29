@@ -143,7 +143,6 @@ lnt/server/ui/v5/frontend/src/
 +-- state.ts                   Extend existing URL state management
 +-- events.ts                  Extend existing custom events
 +-- utils.ts                   Extend existing utilities (el(), formatValue(), etc.)
-+-- combobox.ts                Reuse existing combobox widget
 +-- style.css                  Extend existing styles
 +-- pages/
 |   +-- home.ts                Suite-agnostic dashboard (sparkline trend overview)
@@ -158,12 +157,14 @@ lnt/server/ui/v5/frontend/src/
 |   +-- admin.ts
 |   +-- profiles.ts             Profile viewer page (A/B comparison)
 +-- components/
+    +-- combobox.ts            Generic combobox base (ARIA, keyboard, dismiss, halo)
+    +-- commit-combobox.ts     Commit typeahead (exact-match validation, display map)
+    +-- machine-combobox.ts    Machine typeahead (fetch-once, filter-locally)
+    +-- regression-combobox.ts Regression typeahead (fetch-once, UUID selection)
     +-- nav.ts                 Navigation bar
     +-- data-table.ts          Reusable sortable/filterable table
     +-- sparkline-card.ts      Lightweight Plotly sparkline for Dashboard
     +-- time-series-chart.ts   Plotly time-series chart component
-    +-- machine-combobox.ts    Standalone machine typeahead selector
-    +-- regression-combobox.ts Standalone regression typeahead selector
     +-- metric-selector.ts     Reusable metric drop-down (supports optional placeholder)
     +-- commit-search.ts       Commit search with tag-based autocomplete
     +-- pagination.ts          Cursor/offset pagination controls
@@ -178,7 +179,7 @@ lnt/server/ui/v5/frontend/src/
 |----------------|----------------|
 | `api.ts` | Extend with new endpoint functions |
 | `types.ts` | Extend with new interfaces |
-| `combobox.ts` | Reuse for Compare page commit/machine selectors (extended with tag display, machine filtering, input validation) |
+| `components/combobox.ts` | Generic combobox base shared by all typeahead selectors (ARIA, keyboard nav, blur/outside-click dismiss, validation halo) |
 | `utils.ts` | Reuse `el()`, `formatValue()`, aggregation functions |
 | `chart.ts` | Compare page bar chart (extended with text filter, zoom preservation) |
 | `table.ts` | Compare page table (extended with row toggling, geomean, summary message) |
