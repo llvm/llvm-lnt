@@ -276,7 +276,8 @@ The DB layer validates state values on create and update.
   Uses SQLAlchemy `deferred()` so normal queries do not load the blob.
   Any query that needs the blob must use explicit `undefer(Profile.data)`.
 - `uuid` is server-generated, used by the API for profile data endpoints.
-  Consistent with how Run and Regression have UUIDs for API access.
+  (Unlike Run UUIDs, which may be client-provided, Profile and Regression
+  UUIDs are always server-generated.)
 - No `counters` cache column -- top-level counters are extracted by
   deserializing the blob on demand (cheap: the binary format stores
   counters in an uncompressed section).

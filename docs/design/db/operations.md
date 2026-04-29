@@ -13,6 +13,7 @@ Runs are submitted as JSON via `POST /api/v5/{suite}/runs`.
 ```json
 {
   "format_version": "5",
+  "uuid": "550e8400-e29b-41d4-a716-446655440000",
   "machine": {
     "name": "my-machine",
     "hardware": "x86_64",
@@ -39,6 +40,12 @@ Runs are submitted as JSON via `POST /api/v5/{suite}/runs`.
 ```
 
 - `format_version`: Required, must be `"5"`.
+- `uuid`: Optional. Client-provided UUID for the run, in standard `8-4-4-4-12`
+  hyphenated hex format (e.g., output of `uuidgen`). Case-insensitive on input;
+  normalized to lowercase for storage. Any UUID version is accepted (v4, v5,
+  v7, etc.) -- only the format is validated. If a run with the same UUID
+  already exists in the test suite, the server returns 409 Conflict. If omitted,
+  the server generates a random UUID v4.
 - `machine`: Required. `name` is required; other keys match `machine_fields`
   from the schema and are stored in the corresponding columns. Keys that do not
   match any `machine_fields` entry go into the `parameters` JSONB blob.

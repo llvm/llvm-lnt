@@ -70,7 +70,7 @@ class MachineRunResponseSchema(BaseSchema):
     """Schema for a run in the machine runs sub-resource."""
     uuid = ma.fields.String(
         required=True,
-        metadata={'description': 'Server-generated UUID for the run'},
+        metadata={'description': 'UUID for the run (server-generated or client-provided)'},
     )
     commit = ma.fields.String(
         allow_none=True,

@@ -22,7 +22,7 @@ For endpoint specifications, see [`endpoints.md`](endpoints.md).
 
 - Base path: `/api/v5/{testsuite}/`
 - Always uses the default database (no `db_<database>` prefix)
-- Entities addressed by natural keys (machine name, test name) or server-generated UUIDs (runs, regressions) -- never by internal auto-increment database IDs
+- Entities addressed by natural keys (machine name, test name) or UUIDs (runs, regressions) -- never by internal auto-increment database IDs. Run UUIDs may be client-provided or server-generated; all other UUIDs are server-generated.
 - A discovery endpoint at `GET /api/v5/` lists available test suites with links to their resources
 
 

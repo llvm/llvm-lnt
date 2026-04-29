@@ -34,6 +34,12 @@
   existing values on the commit. Currently commit_fields use first-write-wins
   silently, and ordinals can only be set via PATCH.
 
+### Regressions
+
+- [ ] Accept an optional client-provided UUID on `POST /regressions`, matching
+  the pattern already implemented for runs. Useful for stable UUIDs across
+  mirroring and re-submissions.
+
 ### Tests
 
 - [ ] Accept multiple `machine=` values on `GET /tests` (OR semantics). The

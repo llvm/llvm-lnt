@@ -173,7 +173,7 @@ def set_ordinal(client, commit, ordinal, testsuite='nts'):
 
 
 def submit_run(client, machine_name, commit, tests,
-               machine_info=None, testsuite='nts'):
+               machine_info=None, testsuite='nts', run_uuid=None):
     """Submit a run via POST and return response JSON (includes run_uuid)."""
     machine = {'name': machine_name}
     if machine_info:
@@ -184,6 +184,8 @@ def submit_run(client, machine_name, commit, tests,
         'commit': commit,
         'tests': tests,
     }
+    if run_uuid is not None:
+        payload['uuid'] = run_uuid
     resp = client.post(f'/api/v5/{testsuite}/runs', json=payload,
                        headers=admin_headers())
     assert resp.status_code == 201, (

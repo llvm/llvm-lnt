@@ -9,6 +9,7 @@ DELETE /api/v5/{ts}/runs/{uuid}         -- Delete run
 from flask import g, jsonify, make_response
 from flask.views import MethodView
 from flask_smorest import Blueprint
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
 
 from ..auth import require_scope
@@ -139,12 +140,35 @@ class RunList(MethodView):
             abort_with_error(400, "v5 API requires format_version '5', "
                              "got %r" % (version,))
 
-        try:
-            run = ts.import_run(
-                session, body,
-                machine_strategy=query_args['on_machine_conflict'])
-        except ValueError as exc:
-            abort_with_error(400, str(exc))
+        # Normalize client-provided UUID to lowercase (UUIDs are
+        # case-insensitive per RFC 9562; we store canonical lowercase).
+        client_uuid = body.get('uuid')
+        if client_uuid is not None:
+            body['uuid'] = client_uuid.lower()
+
+        # When a client UUID is provided, wrap import_run in a savepoint
+        # so that an IntegrityError from the UUID unique constraint does
+        # not invalidate prior work in the transaction.  When no client
+        # UUID is present, skip the savepoint to avoid the overhead.
+        if client_uuid is not None:
+            try:
+                with session.begin_nested():
+                    run = ts.import_run(
+                        session, body,
+                        machine_strategy=query_args['on_machine_conflict'])
+            except IntegrityError:
+                abort_with_error(
+                    409,
+                    "A run with UUID '%s' already exists" % body['uuid'])
+            except ValueError as exc:
+                abort_with_error(400, str(exc))
+        else:
+            try:
+                run = ts.import_run(
+                    session, body,
+                    machine_strategy=query_args['on_machine_conflict'])
+            except ValueError as exc:
+                abort_with_error(400, str(exc))
 
         session.flush()
 
@@ -173,10 +197,13 @@ class RunDetail(MethodView):
         ts = g.ts
         session = g.db_session
 
+        # Normalize UUID to lowercase (centralized in get_run() for
+        # standard lookups; this inline query needs explicit normalization
+        # because it bypasses get_run() for joinedload support).
         run = session.query(ts.Run).options(
             joinedload(ts.Run.machine),
             joinedload(ts.Run.commit_obj),
-        ).filter(ts.Run.uuid == run_uuid).first()
+        ).filter(ts.Run.uuid == run_uuid.lower()).first()
 
         if run is None:
             abort_with_error(404, "Run '%s' not found" % run_uuid)

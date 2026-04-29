@@ -387,6 +387,38 @@ class TestImportRun(_ImportTestBase):
         session.rollback()
         session.close()
 
+    def test_import_with_client_uuid(self):
+        """A client-provided UUID is used as the run's UUID."""
+        import uuid as uuid_module
+        session = self.Session()
+        client_uuid = str(uuid_module.uuid4())
+        data = {
+            "format_version": "5",
+            "uuid": client_uuid,
+            "machine": {"name": "uuid-machine"},
+            "commit": "uuid-commit-1",
+            "tests": [{"name": "test/uuid", "execution_time": 1.0}],
+        }
+        run = self.tsdb.import_run(session, data)
+        session.commit()
+        self.assertEqual(run.uuid, client_uuid)
+        session.close()
+
+    def test_import_without_uuid_generates_one(self):
+        """Omitting uuid from the data dict generates a server-side UUID."""
+        session = self.Session()
+        data = {
+            "format_version": "5",
+            "machine": {"name": "uuid-machine"},
+            "commit": "uuid-commit-2",
+            "tests": [{"name": "test/uuid-gen", "execution_time": 1.0}],
+        }
+        run = self.tsdb.import_run(session, data)
+        session.commit()
+        self.assertIsNotNone(run.uuid)
+        self.assertEqual(len(run.uuid), 36)
+        session.close()
+
 
 class TestGetOrCreateTests(_ImportTestBase):
 

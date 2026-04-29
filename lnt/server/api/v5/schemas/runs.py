@@ -5,6 +5,9 @@ import marshmallow as ma
 from . import BaseSchema
 from .common import BaseQuerySchema, CursorPaginationQuerySchema, PaginatedResponseSchema
 
+# Regex for standard 8-4-4-4-12 hyphenated UUID format (any version).
+_UUID_RE = r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+
 
 # ---------------------------------------------------------------------------
 # Request body schemas
@@ -46,6 +49,19 @@ class RunSubmitBodySchema(BaseSchema):
     format_version = ma.fields.Raw(
         required=True,
         metadata={'description': "Must be the string '5'", 'example': '5'},
+    )
+    uuid = ma.fields.String(
+        load_default=None,
+        validate=ma.validate.Regexp(_UUID_RE),
+        metadata={
+            'description': 'Optional client-provided UUID for the run. '
+                           'Must be in 8-4-4-4-12 hyphenated hex format '
+                           '(any UUID version accepted). Normalized to '
+                           'lowercase. If omitted, the server generates a '
+                           'UUID v4. If a run with this UUID already exists, '
+                           'the server returns 409.',
+            'example': '550e8400-e29b-41d4-a716-446655440000',
+        },
     )
     machine = ma.fields.Nested(
         RunSubmitMachineSchema,
@@ -94,7 +110,7 @@ class RunResponseSchema(BaseSchema):
     """Schema for a single run in responses."""
     uuid = ma.fields.String(
         required=True,
-        metadata={'description': 'Server-generated UUID for the run'},
+        metadata={'description': 'UUID for the run (server-generated or client-provided)'},
     )
     machine = ma.fields.String(
         required=True,

@@ -121,6 +121,9 @@ Pass cursor=<next> to get the next page. Use limit= to control page size (max 10
        { "name": "test/name", "execution_time": [1.0, 2.0] }
      ] }
    Metric values can be scalars or arrays (arrays create multiple samples).
+   An optional "uuid" field provides a client-chosen UUID for the run
+   (8-4-4-4-12 hex format, normalized to lowercase; 409 if already exists).
+   If omitted, the server generates a UUID v4.
    Requires a token with "submit" scope.
 
 4. Check for regressions: GET /api/v5/{ts}/regressions?state=detected

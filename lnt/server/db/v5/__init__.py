@@ -695,17 +695,21 @@ class V5TestSuiteDB:
         machine,
         *,
         commit,
+        uuid: str | None = None,
         submitted_at: datetime.datetime | None = None,
         run_parameters: dict[str, Any] | None = None,
     ):
         """Create a new Run attached to *machine* and *commit*.
 
         *commit* is required -- every run must have a commit (design D2).
+        *uuid* is optional -- if provided, the run uses this UUID
+        (must already be validated and normalized to lowercase by the
+        caller); if ``None``, a random UUID v4 is generated.
         """
         if commit is None:
             raise ValueError("commit is required (every run must have a commit)")
         run = self.Run()
-        run.uuid = str(uuid_module.uuid4())
+        run.uuid = uuid if uuid is not None else str(uuid_module.uuid4())
         run.machine_id = machine.id
         run.commit_id = commit.id
         run.submitted_at = submitted_at or utcnow()
@@ -721,12 +725,16 @@ class V5TestSuiteDB:
         id: int | None = None,
         uuid: str | None = None,
     ):
-        """Fetch a single Run by id or uuid."""
+        """Fetch a single Run by id or uuid.
+
+        UUID lookup is case-insensitive (normalized to lowercase) per
+        RFC 9562.
+        """
         q = session.query(self.Run)
         if id is not None:
             return q.filter(self.Run.id == id).first()
         if uuid is not None:
-            return q.filter(self.Run.uuid == uuid).first()
+            return q.filter(self.Run.uuid == uuid.lower()).first()
         raise ValueError("must specify id or uuid")
 
     def list_runs(
@@ -1542,10 +1550,12 @@ class V5TestSuiteDB:
 
         # -- Run ------------------------------------------------------------
         run_parameters = data.get("run_parameters", {})
+        client_uuid = data.get("uuid")
         run = self.create_run(
             session,
             machine,
             commit=commit_obj,
+            uuid=client_uuid,
             run_parameters=run_parameters,
         )
 

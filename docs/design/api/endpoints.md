@@ -73,16 +73,20 @@ Auth scope: `read`. Not paginated (response is bounded by request size).
 
 ```
 GET    /runs                         -- List (cursor-paginated, filterable by machine=, commit=, after=, before=, has_profiles=)
-POST   /runs                         -- Submit run (server generates UUID, returns it)
+POST   /runs                         -- Submit run (accepts optional client UUID or generates one, returns it)
 GET    /runs/{uuid}                  -- Detail
 DELETE /runs/{uuid}                  -- Delete run
 ```
 
-The UUID is a new field, generated server-side on submission. The submission
-endpoint requires JSON format with `format_version '5'`. Legacy formats (v0,
-v1, v2) and non-JSON payloads are rejected. There is no `on_existing_run`
-parameter -- v5 always creates a new run (multiple runs per machine+commit
-are allowed). Deleting a run cascades to its samples and profiles.
+The UUID is either provided by the client in the submission body or generated
+server-side (UUID v4) when omitted. Client-provided UUIDs must be in standard
+`8-4-4-4-12` hyphenated hex format and are normalized to lowercase. If a run
+with the same UUID already exists, the server returns 409 Conflict. The
+submission endpoint requires JSON format with `format_version '5'`. Legacy
+formats (v0, v1, v2) and non-JSON payloads are rejected. There is no
+`on_existing_run` parameter -- v5 always creates a new run (multiple runs per
+machine+commit are allowed). Deleting a run cascades to its samples and
+profiles.
 
 `has_profiles=` (boolean): `true` returns only runs that have at least one
 profile attached; `false` returns only runs without profiles.

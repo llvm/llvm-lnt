@@ -1141,5 +1141,157 @@ class TestRunHasProfilesFilter(unittest.TestCase):
         self.assertEqual(uuids, [])
 
 
+class TestRunSubmitClientUUID(unittest.TestCase):
+    """Tests for client-provided UUIDs on POST /api/v5/{ts}/runs."""
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.app = create_app(sys.argv[1])
+        cls.client = create_client(cls.app)
+
+    def _submit_with_uuid(self, client_uuid, machine_name=None,
+                          commit_str=None):
+        """Submit a run with a client-provided UUID, return the response."""
+        if machine_name is None:
+            machine_name = f'uuid-m-{uuid.uuid4().hex[:8]}'
+        if commit_str is None:
+            commit_str = f'uuid-c-{uuid.uuid4().hex[:8]}'
+        payload = {
+            'format_version': '5',
+            'uuid': client_uuid,
+            'machine': {'name': machine_name},
+            'commit': commit_str,
+            'tests': [
+                {'name': 'test.suite/bench', 'execution_time': 1.0},
+            ],
+        }
+        resp = self.client.post(
+            PREFIX + '/runs',
+            json=payload,
+            headers=admin_headers(),
+        )
+        return resp
+
+    def test_submit_with_client_uuid(self):
+        """Client-provided UUID is accepted and returned in the response."""
+        client_uuid = str(uuid.uuid4())
+        resp = self._submit_with_uuid(client_uuid)
+        self.assertEqual(resp.status_code, 201)
+        data = resp.get_json()
+        self.assertEqual(data['run_uuid'], client_uuid)
+        # Location header should contain the client UUID.
+        self.assertIn(client_uuid, resp.headers.get('Location', ''))
+
+    def test_submit_with_client_uuid_uppercase(self):
+        """Uppercase UUID is normalized to lowercase."""
+        raw = str(uuid.uuid4())
+        upper_uuid = raw.upper()
+        resp = self._submit_with_uuid(upper_uuid)
+        self.assertEqual(resp.status_code, 201)
+        data = resp.get_json()
+        self.assertEqual(data['run_uuid'], raw.lower())
+
+    def test_submit_with_client_uuid_in_detail(self):
+        """Client-provided UUID is retrievable via GET /runs/{uuid}."""
+        client_uuid = str(uuid.uuid4())
+        resp = self._submit_with_uuid(client_uuid)
+        self.assertEqual(resp.status_code, 201)
+
+        detail = self.client.get(PREFIX + f'/runs/{client_uuid}')
+        self.assertEqual(detail.status_code, 200)
+        self.assertEqual(detail.get_json()['uuid'], client_uuid)
+
+    def test_submit_with_client_uuid_in_list(self):
+        """Client-provided UUID appears in the run list endpoint."""
+        machine = f'uuid-list-{uuid.uuid4().hex[:8]}'
+        client_uuid = str(uuid.uuid4())
+        self._submit_with_uuid(client_uuid, machine_name=machine)
+
+        resp = self.client.get(PREFIX + f'/runs?machine={machine}')
+        self.assertEqual(resp.status_code, 200)
+        uuids = [item['uuid'] for item in resp.get_json()['items']]
+        self.assertIn(client_uuid, uuids)
+
+    def test_submit_duplicate_uuid_409(self):
+        """Submitting with a UUID that already exists returns 409."""
+        client_uuid = str(uuid.uuid4())
+        resp1 = self._submit_with_uuid(client_uuid)
+        self.assertEqual(resp1.status_code, 201)
+
+        # Second submission with the same UUID should fail.
+        resp2 = self._submit_with_uuid(client_uuid)
+        self.assertEqual(resp2.status_code, 409)
+        msg = resp2.get_json()['error']['message']
+        self.assertIn(client_uuid, msg)
+
+    def test_submit_invalid_uuid_format_422(self):
+        """Invalid UUID format is rejected by schema validation."""
+        resp = self._submit_with_uuid('not-a-uuid')
+        self.assertEqual(resp.status_code, 422)
+
+    def test_submit_empty_uuid_422(self):
+        """Empty string UUID is rejected by schema validation."""
+        resp = self._submit_with_uuid('')
+        self.assertEqual(resp.status_code, 422)
+
+    def test_submit_null_uuid_generates_one(self):
+        """Explicit null UUID behaves like omitting it (server generates)."""
+        machine = f'uuid-null-{uuid.uuid4().hex[:8]}'
+        payload = {
+            'format_version': '5',
+            'uuid': None,
+            'machine': {'name': machine},
+            'commit': f'uuid-null-c-{uuid.uuid4().hex[:8]}',
+            'tests': [
+                {'name': 'test.suite/bench', 'execution_time': 1.0},
+            ],
+        }
+        resp = self.client.post(
+            PREFIX + '/runs',
+            json=payload,
+            headers=admin_headers(),
+        )
+        self.assertEqual(resp.status_code, 201)
+        data = resp.get_json()
+        self.assertIsNotNone(data['run_uuid'])
+        # Verify it's a valid UUID.
+        uuid.UUID(data['run_uuid'])
+
+    def test_submit_without_uuid_still_works(self):
+        """Omitting UUID entirely still works (backward compatibility)."""
+        payload = _make_submission_payload()
+        resp = self.client.post(
+            PREFIX + '/runs',
+            data=payload,
+            content_type='application/json',
+            headers=admin_headers(),
+        )
+        self.assertEqual(resp.status_code, 201)
+        data = resp.get_json()
+        self.assertIsNotNone(data['run_uuid'])
+        # Verify it's a valid UUID.
+        uuid.UUID(data['run_uuid'])
+
+    def test_lookup_by_uppercase_uuid(self):
+        """GET /runs/{UUID} with uppercase still finds the run."""
+        client_uuid = str(uuid.uuid4())
+        self._submit_with_uuid(client_uuid)
+
+        upper = client_uuid.upper()
+        detail = self.client.get(PREFIX + f'/runs/{upper}')
+        self.assertEqual(detail.status_code, 200)
+        self.assertEqual(detail.get_json()['uuid'], client_uuid)
+
+    def test_duplicate_uuid_different_case_409(self):
+        """Submitting the same UUID in different case returns 409."""
+        client_uuid = str(uuid.uuid4())
+        resp1 = self._submit_with_uuid(client_uuid)
+        self.assertEqual(resp1.status_code, 201)
+
+        # Submit with uppercase variant — same UUID per RFC 9562.
+        resp2 = self._submit_with_uuid(client_uuid.upper())
+        self.assertEqual(resp2.status_code, 409)
+
+
 if __name__ == '__main__':
     unittest.main(argv=[sys.argv[0]], exit=True)
