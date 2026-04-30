@@ -825,6 +825,130 @@ describe('applyTableFilters (display:none fast path)', () => {
     expect(compileRow.style.display).toBe('none');
   });
 
+  it('missing header shows total count when no filter is active', () => {
+    setup();
+    const header = container.querySelector('.missing-header');
+    expect(header).toBeTruthy();
+    expect(header!.textContent).toBe('Missing tests (1)');
+  });
+
+  it('missing header shows "0 of N matching" when text filter hides all missing rows', () => {
+    setup();
+    mockState.testFilter = 'bench';
+    applyTableFilters();
+
+    const header = container.querySelector('.missing-header');
+    expect(header!.textContent).toBe('Missing tests (0 of 1 matching)');
+  });
+
+  it('missing header shows "M of N matching" when text filter matches missing rows', () => {
+    setup();
+    mockState.testFilter = 'only';
+    applyTableFilters();
+
+    const header = container.querySelector('.missing-header');
+    expect(header!.textContent).toBe('Missing tests (1 of 1 matching)');
+  });
+
+  it('missing header resets to total count when filter is cleared', () => {
+    setup();
+    mockState.testFilter = 'bench';
+    applyTableFilters();
+    expect(container.querySelector('.missing-header')!.textContent).toBe('Missing tests (0 of 1 matching)');
+
+    mockState.testFilter = '';
+    applyTableFilters();
+    expect(container.querySelector('.missing-header')!.textContent).toBe('Missing tests (1)');
+  });
+
+  it('missing header remains visible even when all missing rows are filtered out', () => {
+    setup();
+    mockState.testFilter = 'nonexistent';
+    applyTableFilters();
+
+    const header = container.querySelector('.missing-header') as HTMLElement;
+    expect(header).toBeTruthy();
+    expect(header.style.display).not.toBe('none');
+  });
+
+  it('missing header counts multiple missing rows correctly under text filter', () => {
+    const multiMissingRows = [
+      makeRow({ test: 'bench/compile', valueA: 100, valueB: 110, delta: 10, deltaPct: 10, ratio: 1.1, status: 'regressed' }),
+      makeRow({ test: 'only-a', sidePresent: 'a_only', valueA: 10, valueB: null }),
+      makeRow({ test: 'only-b', sidePresent: 'b_only', valueA: null, valueB: 20 }),
+      makeRow({ test: 'only-alpha', sidePresent: 'a_only', valueA: 30, valueB: null }),
+    ];
+    container = document.createElement('div');
+    renderTable(container, multiMissingRows);
+
+    mockState.testFilter = 'only-a';
+    applyTableFilters();
+
+    const header = container.querySelector('.missing-header');
+    // "only-a" and "only-alpha" match, "only-b" does not => 2 of 3
+    expect(header!.textContent).toBe('Missing tests (2 of 3 matching)');
+    resetTable();
+  });
+
+  it('filterToTests (chart zoom) hides all missing rows since they have no chart presence', () => {
+    setup();
+    filterToTests(new Set(['bench/compile']));
+
+    const header = container.querySelector('.missing-header');
+    expect(header!.textContent).toBe('Missing tests (0 of 1 matching)');
+
+    const missingRow = container.querySelector('.missing-table tr[data-test="only-a"]') as HTMLElement;
+    expect(missingRow.style.display).toBe('none');
+  });
+
+  it('filterToTests + testFilter combined: header reflects both filters', () => {
+    setup();
+    mockState.testFilter = 'only';
+    filterToTests(new Set(['bench/compile']));
+
+    const header = container.querySelector('.missing-header');
+    // text filter matches 'only-a', but zoom filter excludes it => 0 visible
+    expect(header!.textContent).toBe('Missing tests (0 of 1 matching)');
+  });
+
+  it('missing header is absent when there are no missing rows', () => {
+    const presentOnly = [
+      makeRow({ test: 'bench/compile', valueA: 100, valueB: 110, delta: 10, deltaPct: 10, ratio: 1.1, status: 'regressed' }),
+    ];
+    container = document.createElement('div');
+    renderTable(container, presentOnly);
+
+    expect(container.querySelector('.missing-header')).toBeNull();
+
+    mockState.testFilter = 'compile';
+    applyTableFilters();
+    expect(container.querySelector('.missing-header')).toBeNull();
+    resetTable();
+  });
+
+  it('resetTable clears missing header state for subsequent renders', () => {
+    setup();
+    mockState.testFilter = 'bench';
+    applyTableFilters();
+    expect(container.querySelector('.missing-header')!.textContent).toBe('Missing tests (0 of 1 matching)');
+
+    resetTable();
+
+    // Re-render with different missing rows
+    const newRows = [
+      makeRow({ test: 'x', valueA: 1, valueB: 2, delta: 1, deltaPct: 100, ratio: 2, status: 'regressed' }),
+      makeRow({ test: 'miss-1', sidePresent: 'a_only', valueA: 5, valueB: null }),
+      makeRow({ test: 'miss-2', sidePresent: 'b_only', valueA: null, valueB: 10 }),
+    ];
+    mockState.testFilter = '';
+    container = document.createElement('div');
+    renderTable(container, newRows);
+
+    const header = container.querySelector('.missing-header');
+    expect(header!.textContent).toBe('Missing tests (2)');
+    resetTable();
+  });
+
   it('updates geomean values in-place', () => {
     const rowsWithGeomean = [
       makeRow({ test: 'a', valueA: 100, valueB: 200, ratio: 2.0, status: 'improved' }),

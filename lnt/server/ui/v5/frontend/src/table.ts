@@ -25,6 +25,7 @@ let renderedMissingRows: Map<string, HTMLTableRowElement> = new Map();
 let rowIndex: Map<string, ComparisonRow> = new Map();
 let geomeanTr: HTMLTableRowElement | null = null;
 let summaryMessageEl: HTMLElement | null = null;
+let missingHeaderEl: HTMLElement | null = null;
 
 export function renderTable(container: HTMLElement, rows: ComparisonRow[], options?: TableOptions): void {
   tableContainer = container;
@@ -53,6 +54,7 @@ function redraw(): void {
   rowIndex.clear();
   geomeanTr = null;
   summaryMessageEl = null;
+  missingHeaderEl = null;
   for (const r of allRows) rowIndex.set(r.test, r);
 
   const state = getState();
@@ -79,8 +81,8 @@ function redraw(): void {
 
   // Missing tests section
   if (missingRows.length > 0) {
-    const missingHeader = el('h4', { class: 'missing-header' }, `Missing tests (${missingRows.length})`);
-    tableContainer.append(missingHeader);
+    missingHeaderEl = el('h4', { class: 'missing-header' }, `Missing tests (${missingRows.length})`) as HTMLElement;
+    tableContainer.append(missingHeaderEl);
     tableContainer.append(buildMissingTable(missingRows));
   }
 
@@ -303,9 +305,22 @@ export function applyTableFilters(): Set<string> | null {
     }
   }
 
+  let visibleMissing = 0;
   for (const [test, tr] of renderedMissingRows) {
     const matchesText = !testFilter || matchesFilter(test, testFilter);
-    tr.style.display = matchesText ? '' : 'none';
+    const matchesZoom = !filteredTests || filteredTests.has(test);
+    const visible = matchesText && matchesZoom;
+    tr.style.display = visible ? '' : 'none';
+    if (visible) visibleMissing++;
+  }
+
+  if (missingHeaderEl) {
+    const totalMissing = renderedMissingRows.size;
+    if (testFilter || filteredTests) {
+      missingHeaderEl.textContent = `Missing tests (${visibleMissing} of ${totalMissing} matching)`;
+    } else {
+      missingHeaderEl.textContent = `Missing tests (${totalMissing})`;
+    }
   }
 
   if (geomeanTr) {
@@ -376,4 +391,5 @@ export function resetTable(): void {
   rowIndex.clear();
   geomeanTr = null;
   summaryMessageEl = null;
+  missingHeaderEl = null;
 }

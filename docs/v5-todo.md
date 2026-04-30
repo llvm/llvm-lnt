@@ -54,6 +54,13 @@
   commit_fields, and machine_fields. Build a UI page to surface this
   functionality so users can manage test suites without writing any code.
 
+### Runs
+
+- [ ] Add a `?samples=true` option to `GET /runs/{uuid}` that includes all
+  samples in the response, producing a v5-submittable JSON payload. This
+  enables round-tripping: `GET /runs/{uuid}?samples=true` returns data that
+  can be re-submitted via `POST /runs`.
+
 ### General
 
 - [ ] Add count endpoints (or a count mode) for commits, runs, machines, etc.
