@@ -9,6 +9,7 @@ import datetime
 import json
 import os
 import itertools
+import uuid as uuid_module
 
 import aniso8601
 import sqlalchemy
@@ -226,6 +227,10 @@ class TestSuiteDB(object):
                                   uselist=False)
             order_name_cache = {}
 
+            # Optional user-assigned tag for labeling specific orders
+            # (e.g. "release-18.1").
+            tag = Column("Tag", String(64), nullable=True, index=True)
+
             # Dynamically create fields for all of the test suite defined order
             # fields.
             class_dict = locals()
@@ -353,6 +358,10 @@ class TestSuiteDB(object):
             start_time = Column("StartTime", DateTime)
             end_time = Column("EndTime", DateTime)
             simple_run_id = Column("SimpleRunID", Integer)
+
+            # UUID for v5 API - public stable identifier
+            uuid = Column("UUID", String(36), unique=True, index=True,
+                          default=lambda: str(uuid_module.uuid4()))
 
             # The parameters blob is used to store any additional information
             # reported by the run but not promoted into the machine record.
@@ -603,6 +612,9 @@ class TestSuiteDB(object):
 
             __tablename__ = db_key_name + '_FieldChangeV2'
             id = Column("ID", Integer, primary_key=True)
+            # UUID for v5 API - public stable identifier
+            uuid = Column("UUID", String(36), unique=True, index=True,
+                          default=lambda: str(uuid_module.uuid4()))
             old_value = Column("OldValue", Float)
             new_value = Column("NewValue", Float)
             start_order_id = Column("StartOrderID", Integer,
@@ -660,6 +672,9 @@ class TestSuiteDB(object):
 
             __tablename__ = db_key_name + '_Regression'
             id = Column("ID", Integer, primary_key=True)
+            # UUID for v5 API - public stable identifier
+            uuid = Column("UUID", String(36), unique=True, index=True,
+                          default=lambda: str(uuid_module.uuid4()))
             title = Column("Title", String(256), unique=False, index=False)
             bug = Column("BugLink", String(256), unique=False, index=False)
             state = Column("State", Integer)
@@ -772,8 +787,14 @@ class TestSuiteDB(object):
         sqlalchemy.schema.Index("ix_%s_Sample_RunID_TestID" % db_key_name,
                                 Sample.run_id, Sample.test_id)
 
-    def create_tables(self, engine):
-        self.base.metadata.create_all(engine)
+    def create_tables(self, bind):
+        """Create per-suite tables.
+
+        *bind* is any SQLAlchemy ``Connectable`` -- typically an ``Engine``
+        for standalone use, or a ``Connection`` when the DDL must share a
+        transaction with pending DML (e.g. flushed metadata inserts).
+        """
+        self.base.metadata.create_all(bind)
 
     def get_baselines(self, session):
         return session.query(self.Baseline).all()
@@ -1015,6 +1036,7 @@ class TestSuiteDB(object):
         run_parameters.pop('end_time')
 
         run = self.Run(new_id, machine, order, start_time, end_time)
+        run.uuid = str(uuid_module.uuid4())
 
         # First, extract all of the specified run fields.
         for item in self.run_fields:

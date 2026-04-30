@@ -44,8 +44,8 @@ The Docker Compose service itself should now be running, and it can be inspected
 
 ```bash
 docker ps
-docker logs webserver
-docker logs dbserver # usually less interesting
+docker compose -f docker/compose.yaml logs webserver
+docker compose -f docker/compose.yaml logs db  # usually less interesting
 ```
 
 The database is stored in an independent EBS storage that gets attached and detached

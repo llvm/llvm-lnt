@@ -78,6 +78,50 @@ class V4DB(object):
         self.testsuite = dict()
         self._load_schemas()
 
+        # Cache the registry version so we can detect out-of-band changes
+        # made by other workers (see check_registry_version).
+        self._registry_version = self._read_registry_version()
+
+    def _read_registry_version(self, session=None):
+        """Read the current registry version from the DB.
+
+        Returns 0 if the table does not exist yet (pre-migration DB).
+        """
+        close_after = session is None
+        if close_after:
+            session = self.make_session()
+        try:
+            row = session.query(testsuite.TestSuiteRegistryVersion).first()
+            return row.version if row is not None else 0
+        except (sqlalchemy.exc.OperationalError,
+                sqlalchemy.exc.ProgrammingError):
+            return 0
+        finally:
+            if close_after:
+                session.close()
+
+    def check_registry_version(self, session=None):
+        """Compare cached version with the DB; reload suites if stale."""
+        current = self._read_registry_version(session)
+        if current != self._registry_version:
+            self.reload_suites()
+            self._registry_version = current
+
+    def reload_suites(self):
+        """Rebuild ``self.testsuite`` from both YAML files and the DB."""
+        self.testsuite = dict()
+        self._load_schemas()
+
+    def increment_registry_version(self, session):
+        """Bump the registry version so other workers detect the change."""
+        try:
+            row = session.query(testsuite.TestSuiteRegistryVersion).first()
+            if row is not None:
+                row.version = row.version + 1
+        except (sqlalchemy.exc.OperationalError,
+                sqlalchemy.exc.ProgrammingError):
+            pass
+
     def close(self):
         self.engine.dispose()
 

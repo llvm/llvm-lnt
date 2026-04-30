@@ -1,0 +1,202 @@
+"""Marshmallow schemas for run request/response in the v5 API."""
+
+import marshmallow as ma
+
+from . import BaseSchema
+from .common import BaseQuerySchema, CursorPaginationQuerySchema, PaginatedResponseSchema
+
+# Regex for standard 8-4-4-4-12 hyphenated UUID format (any version).
+_UUID_RE = r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+
+
+# ---------------------------------------------------------------------------
+# Request body schemas
+# ---------------------------------------------------------------------------
+
+class RunSubmitMachineSchema(BaseSchema):
+    """Machine section of a run submission."""
+    class Meta:
+        unknown = ma.INCLUDE
+
+    name = ma.fields.String(
+        required=True,
+        metadata={'description': 'Machine name'},
+    )
+
+
+class RunSubmitTestEntrySchema(BaseSchema):
+    """A single test entry in a run submission."""
+    class Meta:
+        unknown = ma.INCLUDE
+
+    name = ma.fields.String(
+        required=True,
+        metadata={'description': 'Test name'},
+    )
+
+
+class RunSubmitBodySchema(BaseSchema):
+    """Request body for POST /runs (v5 report format).
+
+    The ``tests`` entries may contain additional metric fields (e.g.
+    ``execution_time``, ``compile_time``) whose names are defined by
+    the test suite schema.  Metric values can be scalars or arrays;
+    arrays create one sample per element.
+    """
+    class Meta:
+        unknown = ma.INCLUDE
+
+    format_version = ma.fields.Raw(
+        required=True,
+        metadata={'description': "Must be the string '5'", 'example': '5'},
+    )
+    uuid = ma.fields.String(
+        load_default=None,
+        validate=ma.validate.Regexp(_UUID_RE),
+        metadata={
+            'description': 'Optional client-provided UUID for the run. '
+                           'Must be in 8-4-4-4-12 hyphenated hex format '
+                           '(any UUID version accepted). Normalized to '
+                           'lowercase. If omitted, the server generates a '
+                           'UUID v4. If a run with this UUID already exists, '
+                           'the server returns 409.',
+            'example': '550e8400-e29b-41d4-a716-446655440000',
+        },
+    )
+    machine = ma.fields.Nested(
+        RunSubmitMachineSchema,
+        required=True,
+        metadata={'description': 'Machine definition (name + optional info fields)'},
+    )
+    commit = ma.fields.String(
+        required=True,
+        metadata={
+            'description': 'Commit identifier for this run',
+            'example': 'abc123def456',
+        },
+    )
+    commit_fields = ma.fields.Dict(
+        keys=ma.fields.String(),
+        values=ma.fields.Raw(),
+        load_default={},
+        metadata={
+            'description': 'Optional commit metadata (first-write-wins)',
+            'example': {'llvm_project_revision': 'abc123'},
+        },
+    )
+    run_parameters = ma.fields.Dict(
+        keys=ma.fields.String(),
+        values=ma.fields.Raw(),
+        load_default={},
+        metadata={
+            'description': 'Optional run parameters stored as JSONB',
+            'example': {'build_config': 'Release'},
+        },
+    )
+    tests = ma.fields.List(
+        ma.fields.Nested(RunSubmitTestEntrySchema),
+        required=True,
+        metadata={
+            'description': 'Test results with metric values',
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
+# Response schemas
+# ---------------------------------------------------------------------------
+
+class RunResponseSchema(BaseSchema):
+    """Schema for a single run in responses."""
+    uuid = ma.fields.String(
+        required=True,
+        metadata={'description': 'UUID for the run (server-generated or client-provided)'},
+    )
+    machine = ma.fields.String(
+        required=True,
+        metadata={'description': 'Name of the machine this run was on'},
+    )
+    commit = ma.fields.String(
+        allow_none=True,
+        metadata={
+            'description': 'Commit string for this run',
+            'example': 'abc123def456',
+        },
+    )
+    submitted_at = ma.fields.String(
+        allow_none=True,
+        metadata={'description': 'Run submission time (ISO 8601)'},
+    )
+    run_parameters = ma.fields.Dict(
+        keys=ma.fields.String(),
+        values=ma.fields.Raw(),
+        load_default=None,
+        metadata={
+            'description': 'Additional run parameters',
+            'example': {'run_order': '1', 'optimization_level': '-O2'},
+        },
+    )
+
+
+class RunSubmitResponseSchema(BaseSchema):
+    """Schema for the POST /runs submission response."""
+    success = ma.fields.Boolean(required=True)
+    run_uuid = ma.fields.String(
+        required=True,
+        metadata={'description': 'UUID of the newly created run'},
+    )
+    result_url = ma.fields.String(
+        metadata={'description': 'URL to fetch the submitted run'},
+    )
+
+
+# ---------------------------------------------------------------------------
+# Paginated response schemas
+# ---------------------------------------------------------------------------
+
+class PaginatedRunResponseSchema(PaginatedResponseSchema):
+    """Paginated list of runs."""
+    items = ma.fields.List(ma.fields.Nested(RunResponseSchema))
+
+
+# ---------------------------------------------------------------------------
+# Query parameter schemas
+# ---------------------------------------------------------------------------
+
+class RunListQuerySchema(CursorPaginationQuerySchema):
+    """Query parameters for GET /runs."""
+    machine = ma.fields.String(
+        load_default=None,
+        metadata={'description': 'Filter by machine name'},
+    )
+    commit = ma.fields.String(
+        load_default=None,
+        metadata={'description': 'Filter by commit string'},
+    )
+    after = ma.fields.String(
+        load_default=None,
+        metadata={'description': 'ISO datetime; only runs submitted after this time (exclusive)'},
+    )
+    before = ma.fields.String(
+        load_default=None,
+        metadata={'description': 'ISO datetime; only runs submitted before this time (exclusive)'},
+    )
+    sort = ma.fields.String(
+        load_default=None,
+        metadata={'description': 'Sort order. Use -submitted_at for newest first'},
+    )
+    has_profiles = ma.fields.Boolean(
+        load_default=None,
+        metadata={'description': 'Filter: true = only runs with profiles, '
+                  'false = only runs without profiles.'},
+    )
+
+
+class RunSubmitQuerySchema(BaseQuerySchema):
+    """Query parameters for POST /runs."""
+    on_machine_conflict = ma.fields.String(
+        load_default='reject',
+        validate=ma.validate.OneOf(['reject', 'update']),
+        metadata={'description': "What to do when machine metadata differs: "
+                  "'reject' aborts, 'update' updates the existing machine"},
+    )

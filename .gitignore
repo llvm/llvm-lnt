@@ -10,3 +10,8 @@ lnt/server/ui/static/docs
 test_run_tmp
 tests/**/Output
 venv
+lnt/server/ui/v5/frontend/node_modules/
+lnt/server/ui/v5/static/v5/v5.js
+lnt/server/ui/v5/static/v5/v5.js.map
+lnt/server/ui/v5/static/v5/v5.css
+lnt/server/ui/v5/static/v5/favicon.ico

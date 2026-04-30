@@ -1,4 +1,5 @@
 import difflib
+import uuid as uuid_module
 
 from sqlalchemy.orm import joinedload
 from sqlalchemy.orm.session import Session
@@ -170,6 +171,7 @@ def regenerate_fieldchanges_for_run(session: Session, ts: TestSuiteDB, run_id: i
                                    machine=run.machine,
                                    test=test,
                                    field_id=field.id)
+                f.uuid = str(uuid_module.uuid4())
                 session.add(f)
                 session.flush()
                 try:

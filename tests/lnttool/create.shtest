@@ -85,3 +85,21 @@ lnt import "${TMPBASE}/instance" "${SHARED_INPUTS}/sample-a-small.plist" \
     | filecheck --check-prefix CHECK-IMPORT "${THIS_FILE}"
 
 # CHECK-IMPORT: Import succeeded.
+
+###############################################################################
+# v5 creation: --db-version 5.0 writes db_version into the config and
+# initializes the v5 global tables.
+###############################################################################
+
+# Create the database first (Postgres requires it to exist).
+psql "${LNT_TEST_DB_URI}/postgres" -c "CREATE DATABASE lnt_test_v5" 2>/dev/null || true
+
+lnt create "${TMPBASE}/v5inst" \
+    --db-dir "${LNT_TEST_DB_URI}" \
+    --default-db "lnt_test_v5" \
+    --db-version 5.0 \
+    --api-auth-token test_token
+
+filecheck --check-prefix CHECK-V5 "${THIS_FILE}" < "${TMPBASE}/v5inst/lnt.cfg"
+
+# CHECK-V5: 'default' : { 'db_version': '5.0', 'path' : '{{.*}}lnt_test_v5' },

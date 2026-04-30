@@ -1,5 +1,6 @@
 import sqlalchemy
 import json
+import uuid
 import flask
 from flask import g
 from flask import abort
@@ -456,6 +457,7 @@ def v4_make_regression(machine_id, test_id, field_index, run_id):
                            machine=run.machine,
                            test=test,
                            field_id=field.id)
+        f.uuid = str(uuid.uuid4())
         session.add(f)
 
     # Always update FCs with new values.

@@ -38,19 +38,8 @@ jobs:
         # Use the current directory as context, as checked out by actions/checkout -- needed for setuptools_scm
         context: .
 
-    - name: Smoke test - start server and ping it
-      run: |
-        docker compose -f docker/compose.yaml up --build --detach
-        timeout 120 bash -c 'until curl -sf http://localhost:8000; do sleep 2; done'
-        curl -f http://localhost:8000
-      env:
-        LNT_DB_PASSWORD: smoke-test-password
-        LNT_AUTH_TOKEN: smoke-test-token
+    - name: Install tox
+      run: pip install tox
 
-    - name: Dump logs on failure
-      if: failure()
-      run: docker compose -f docker/compose.yaml logs
-
-    - name: Teardown
-      if: always()
-      run: docker compose -f docker/compose.yaml down
+    - name: Smoke test - v5 Docker deployment
+      run: tox -e docker
