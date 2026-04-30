@@ -27,9 +27,10 @@ import {
 } from '../selection';
 import {
   aggregateSamplesWithinRun, aggregateAcrossRuns, computeComparison,
-  groupSamplesByTest,
+  computeGeomean, groupSamplesByTest,
 } from '../comparison';
-import { renderTable, filterToTests, highlightRow, resetTable, applyTableFilters } from '../table';
+import { renderTable, filterToTests, highlightRow, resetTable, sortRows, applyTableFilters } from '../table';
+import { buildCsv } from '../csvExport';
 import { renderChart, highlightPoint, destroyChart } from '../chart';
 import { computeSummaryCounts, renderSummaryBar } from '../components/comparison-summary';
 import { el, truncate, matchesFilter, agnosticLink } from '../utils';
@@ -81,6 +82,8 @@ export const comparePage: PageModule = {
       el('p', { class: 'no-chart-data' }, 'No data to chart.'),
     );
     const summaryContainer = el('div', { class: 'comparison-summary-container' });
+    const copyBtn = el('button', { class: 'admin-copy-btn', title: 'Copy table as CSV' }, '\u{1F4CB}') as HTMLButtonElement;
+    copyBtn.style.display = 'none';
     const tableContainer = el('div', { class: 'table-container' });
 
     let lastRows: ComparisonRow[] = [];
@@ -128,11 +131,25 @@ export const comparePage: PageModule = {
     /** Rows actually in the table (lastRows minus noise-hidden). */
     let tableRows: ComparisonRow[] = [];
 
-    /**
-     * Tests visible in the comparison: present on both sides, not
-     * noise-hidden, not manually-hidden, and matching the text filter.
-     * Used by the regression panel to decide which indicators to create.
-     */
+    /** Rows visible in the table: both sides present, not click-hidden, matching text filter and chart zoom. Operates on tableRows (noise already removed). */
+    function isVisibleBoth(r: ComparisonRow, filter: string): boolean {
+      return r.sidePresent === 'both'
+        && !manuallyHidden.has(r.test)
+        && (!filter || matchesFilter(r.test, filter))
+        && (!chartZoomFilter || chartZoomFilter.has(r.test));
+    }
+
+    function getVisibleBothRows(): ComparisonRow[] {
+      const filter = getState().testFilter ?? '';
+      return tableRows.filter(r => isVisibleBoth(r, filter));
+    }
+
+    function hasVisibleBothRows(): boolean {
+      const filter = getState().testFilter ?? '';
+      return tableRows.some(r => isVisibleBoth(r, filter));
+    }
+
+    /** Tests visible for the regression panel: both sides, not noise/click-hidden, matching text filter. Unlike getVisibleBothRows, operates on lastRows and ignores chart zoom. */
     function computeVisibleTests(): string[] {
       const noiseHidden = computeNoiseHidden();
       const filter = getState().testFilter ?? '';
@@ -200,6 +217,10 @@ export const comparePage: PageModule = {
       const testFilter = getState().testFilter ?? '';
       const counts = computeSummaryCounts(lastRows, testFilter, chartZoomFilter, matchingTests);
       renderSummaryBar(summaryContainer, counts);
+
+      copyBtn.style.display = hasVisibleBothRows() ? '' : 'none';
+      const tableMsg = tableContainer.querySelector('.table-message');
+      if (tableMsg && !tableMsg.contains(copyBtn)) tableMsg.append(copyBtn);
 
       if (onAfterRender) onAfterRender();
     }
@@ -513,6 +534,20 @@ export const comparePage: PageModule = {
     });
 
     container.append(progressContainer, errorContainer, shadowToolbar, chartContainer, summaryContainer, tableContainer);
+
+    // ----- Copy as CSV -----
+    copyBtn.addEventListener('click', () => {
+      const state = getState();
+      const rows = sortRows(getVisibleBothRows(), state.sort, state.sortDir);
+      const geomean = computeGeomean(rows);
+      navigator.clipboard.writeText(buildCsv(rows, geomean)).then(() => {
+        copyBtn.textContent = '✓';
+        setTimeout(() => { copyBtn.textContent = '\u{1F4CB}'; }, 1500);
+      }).catch(() => {
+        copyBtn.textContent = '✗';
+        setTimeout(() => { copyBtn.textContent = '\u{1F4CB}'; }, 1500);
+      });
+    });
 
     // ----- "Add to Regression" panel -----
     const hasToken = !!getToken();
