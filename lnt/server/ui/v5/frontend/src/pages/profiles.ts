@@ -3,14 +3,15 @@
 import type { PageModule, RouteParams } from '../router';
 import type {
   ProfileListItem, ProfileMetadata, ProfileFunctionInfo,
-  ProfileFunctionDetail, RunInfo,
+  ProfileFunctionDetail, RunInfo, CommitSummary,
 } from '../types';
 import {
   getRun, getRuns, getCommits, getProfilesForRun,
   getProfileMetadata, getProfileFunctions, getProfileFunctionDetail,
+  getTestSuiteInfoCached,
 } from '../api';
 import { getTestsuites } from '../router';
-import { el, matchesFilter, updateFilterValidation } from '../utils';
+import { el, matchesFilter, updateFilterValidation, commitDisplayValue } from '../utils';
 import { renderMachineCombobox } from '../components/machine-combobox';
 import { createCommitPicker } from '../components/commit-combobox';
 import { renderProfileStats } from '../components/profile-stats';
@@ -22,6 +23,8 @@ import { heatGradient } from '../components/profile-colors';
 // ---------------------------------------------------------------------------
 
 let controller: AbortController | null = null;
+
+const commitFieldsCache = new Map<string, Array<{ name: string; display?: boolean }>>();
 
 // Per-side cascading selector containers (avoids hacky DOM property injection)
 interface CascadeRefs { runContainer: HTMLElement; testContainer: HTMLElement }
@@ -53,7 +56,7 @@ interface SideState {
   functions: ProfileFunctionInfo[];
   selectedFunction: string;
   functionDetail: ProfileFunctionDetail | null;
-  machineCommits: Set<string> | null;  // null = not loaded yet
+  machineCommits: CommitSummary[] | null;
   machineCommitsLoading: boolean;
   profiles: ProfileListItem[];  // cached profiles for the selected run
   runs: RunInfo[];  // cached runs for machine+commit
@@ -139,6 +142,15 @@ export const profilesPage: PageModule = {
     sideA.suite = urlSuiteA;
     sideB.suite = urlSuiteB;
 
+    // Pre-fetch commit_fields for URL-restored suites
+    for (const suite of [urlSuiteA, urlSuiteB]) {
+      if (suite && !commitFieldsCache.has(suite)) {
+        getTestSuiteInfoCached(suite)
+          .then(info => { commitFieldsCache.set(suite, info.schema.commit_fields); })
+          .catch(() => {});
+      }
+    }
+
     // Render immediately; commits are loaded on-demand when a machine is
     // selected (via loadMachineCommits).
     renderSidePickers();
@@ -173,7 +185,7 @@ async function loadMachineCommits(side: 'a' | 'b', suite: string, machine: strin
       has_profiles: true,
       signal: ctrl.signal,
     });
-    state.machineCommits = new Set(commits.map(c => c.commit));
+    state.machineCommits = commits;
     state.machineCommitsLoading = false;
   } catch (e: unknown) {
     if (isAbort(e)) return;
@@ -367,6 +379,11 @@ function renderSidePicker(side: 'a' | 'b'): void {
     resetStateFrom(state, 'machine');
     clearDownstream(side, 'machine');
     clearProfileDisplay(side);
+    if (newSuite && !commitFieldsCache.has(newSuite)) {
+      getTestSuiteInfoCached(newSuite)
+        .then(info => { commitFieldsCache.set(newSuite, info.schema.commit_fields); })
+        .catch(() => {});
+    }
     syncUrl();
     renderSidePicker(side);
   });
@@ -425,10 +442,19 @@ function renderSidePicker(side: 'a' | 'b'): void {
   const picker = createCommitPicker({
     id: cpId,
     getCommitData: () => {
-      const values = state.machineCommits instanceof Set
-        ? [...state.machineCommits]
-        : [];
-      return { values };
+      const commits = state.machineCommits ?? [];
+      const values = commits.map(c => c.commit);
+      const cf = state.suite ? commitFieldsCache.get(state.suite) : undefined;
+      let displayMap: Map<string, string> | undefined;
+      if (cf) {
+        displayMap = new Map<string, string>();
+        for (const c of commits) {
+          const display = commitDisplayValue(c, cf);
+          if (display !== c.commit) displayMap.set(c.commit, display);
+        }
+        if (displayMap.size === 0) displayMap = undefined;
+      }
+      return { values, displayMap };
     },
     initialValue: state.commit,
     placeholder: state.machine
