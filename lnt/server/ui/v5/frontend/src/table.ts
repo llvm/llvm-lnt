@@ -24,7 +24,7 @@ let renderedRows: Map<string, HTMLTableRowElement> = new Map();
 let renderedMissingRows: Map<string, HTMLTableRowElement> = new Map();
 let rowIndex: Map<string, ComparisonRow> = new Map();
 let geomeanTr: HTMLTableRowElement | null = null;
-let summaryMessageEl: HTMLElement | null = null;
+let summaryTextSpan: HTMLElement | null = null;
 let missingHeaderEl: HTMLElement | null = null;
 
 export function renderTable(container: HTMLElement, rows: ComparisonRow[], options?: TableOptions): void {
@@ -53,7 +53,7 @@ function redraw(): void {
   renderedMissingRows.clear();
   rowIndex.clear();
   geomeanTr = null;
-  summaryMessageEl = null;
+  summaryTextSpan = null;
   missingHeaderEl = null;
   for (const r of allRows) rowIndex.set(r.test, r);
 
@@ -70,8 +70,9 @@ function redraw(): void {
 
   const totalPresent = presentRows.length;
   if (totalPresent > 0) {
-    summaryMessageEl = el('div', { class: 'table-message' }, `${totalPresent} tests`);
-    tableContainer.append(summaryMessageEl);
+    summaryTextSpan = el('span', {}, `${totalPresent} tests`);
+    const summaryMessage = el('div', { class: 'table-message' }, summaryTextSpan);
+    tableContainer.append(summaryMessage);
   }
 
   // Main table
@@ -328,14 +329,14 @@ export function applyTableFilters(): Set<string> | null {
     updateGeomeanCells(geomeanTr, geomean);
   }
 
-  if (summaryMessageEl) {
+  if (summaryTextSpan) {
     const visibleCount = visibleRows.length;
     if (testFilter || filteredTests) {
-      summaryMessageEl.textContent = `${visibleCount} of ${totalPresent} tests matching`;
+      summaryTextSpan.textContent = `${visibleCount} of ${totalPresent} tests matching`;
     } else if (visibleCount < totalPresent) {
-      summaryMessageEl.textContent = `${visibleCount} of ${totalPresent} tests visible`;
+      summaryTextSpan.textContent = `${visibleCount} of ${totalPresent} tests visible`;
     } else {
-      summaryMessageEl.textContent = `${totalPresent} tests`;
+      summaryTextSpan.textContent = `${totalPresent} tests`;
     }
   }
 
@@ -390,6 +391,6 @@ export function resetTable(): void {
   renderedMissingRows.clear();
   rowIndex.clear();
   geomeanTr = null;
-  summaryMessageEl = null;
+  summaryTextSpan = null;
   missingHeaderEl = null;
 }

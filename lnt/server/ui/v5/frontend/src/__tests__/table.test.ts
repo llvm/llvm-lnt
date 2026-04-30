@@ -1044,4 +1044,33 @@ describe('applyTableFilters (display:none fast path)', () => {
       expect(tr.style.display).not.toBe('none');
     }
   });
+
+  it('applyTableFilters preserves child elements appended to .table-message', () => {
+    setup();
+    const msg = container.querySelector('.table-message')!;
+    const child = document.createElement('button');
+    child.textContent = 'Copy';
+    msg.append(child);
+
+    mockState.testFilter = 'compile';
+    applyTableFilters();
+
+    expect(msg.contains(child)).toBe(true);
+    expect(msg.querySelector('button')).toBe(child);
+    // Summary text is still correct
+    expect(msg.textContent).toContain('1 of 3 tests matching');
+  });
+
+  it('filterToTests preserves child elements appended to .table-message', () => {
+    setup();
+    const msg = container.querySelector('.table-message')!;
+    const child = document.createElement('button');
+    child.textContent = 'Copy';
+    msg.append(child);
+
+    filterToTests(new Set(['bench/compile', 'bench/link']));
+
+    expect(msg.contains(child)).toBe(true);
+    expect(msg.querySelector('button')).toBe(child);
+  });
 });

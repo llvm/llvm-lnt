@@ -794,6 +794,7 @@ export const comparePage: PageModule = {
         const testFilter = getState().testFilter ?? '';
         const counts = computeSummaryCounts(lastRows, testFilter, chartZoomFilter);
         renderSummaryBar(summaryContainer, counts);
+        copyBtn.style.display = hasVisibleBothRows() ? '' : 'none';
       }),
       onCustomEvent<string | null>(CHART_HOVER, (testName) => {
         highlightRow(testName);
