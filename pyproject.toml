@@ -42,6 +42,8 @@ dependencies = [
     "PyYAML>=6.0.0",
     "requests",
     "SQLAlchemy==1.3.24",
+    "flask-smorest>=0.44.0",
+    "flask-compress>=1.13",
     "typing",
     "Werkzeug>=3.1.5",
     "WTForms>=3.2.0",
@@ -98,6 +100,13 @@ find = {namespaces = false}
     "templates/reporting/*.html",
     "templates/reporting/*.txt",
 ]
+"lnt.server.ui.v5" = [
+    "templates/*.html",
+    "static/v5/*.js",
+    "static/v5/*.css",
+    "static/v5/*.map",
+    "static/v5/*.ico",
+]
 "lnt.server.db" = [
     "migrations/*.py"
 ]
@@ -114,7 +123,7 @@ count = true
 plugins = ["sqlmypy"]
 
 [tool.tox]
-env_list = ["py3", "mypy", "flake8", "docs"]
+env_list = ["py3", "mypy", "flake8", "js", "docker", "docs"]
 
 [tool.tox.env.py3]
 description = "Run the unit tests"
@@ -131,6 +140,17 @@ deps = [".[dev]"]
 commands = [["flake8", "--statistics", "--exclude=./lnt/external/", "./lnt/", "./tests/"]]
 skip_install = true
 
+[tool.tox.env.js]
+description = "Typecheck, test, and build the v5 TypeScript frontend"
+allowlist_externals = ["npm"]
+commands = [
+    ["npm", "--prefix", "lnt/server/ui/v5/frontend", "install"],
+    ["npm", "--prefix", "lnt/server/ui/v5/frontend", "run", "typecheck"],
+    ["npm", "--prefix", "lnt/server/ui/v5/frontend", "test"],
+    ["npm", "--prefix", "lnt/server/ui/v5/frontend", "run", "build"],
+]
+skip_install = true
+
 [tool.tox.env.mypy]
 description = "Typecheck the codebase"
 # TODO: Make it possible to install [.dev] dependencies instead
@@ -141,6 +161,12 @@ deps = [
     "types-PyYAML",
 ]
 commands = [["mypy", "--ignore-missing-imports", "lnt"]]
+skip_install = true
+
+[tool.tox.env.docker]
+description = "Run Docker integration tests (requires Docker)"
+allowlist_externals = ["tests/docker/smoke-test.sh"]
+commands = [["tests/docker/smoke-test.sh"]]
 skip_install = true
 
 [tool.tox.env.docs]

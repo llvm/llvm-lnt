@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>{{ old_config.name }}{% if g.testsuite_name %} : {{ g.testsuite_name }}{% endif %} - v5 UI</title>
+  <link rel="icon" type="image/x-icon" href="{{ url_for('lnt_v5.static', filename='v5/favicon.ico') }}"/>
+  <script>var lnt_url_base="{{ lnt_url_base }}";</script>
+  <link rel="stylesheet" href="{{ url_for('lnt_v5.static', filename='v5/v5.css') }}"/>
+  <script src="https://cdn.plot.ly/plotly-3.4.0.min.js" integrity="sha384-pFOQ7loGBChmUyS4Tszy+he8OWeYkwTFjc2xii4aJUWWiGwf2u2OEc04T5iDRpMp" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="v5-app"
+     data-testsuite="{{ g.testsuite_name }}"
+     data-testsuites="{{ testsuites | tojson | forceescape }}">
+</div>
+<script src="{{ url_for('lnt_v5.static', filename='v5/v5.js') }}"></script>
+</body>
+</html>

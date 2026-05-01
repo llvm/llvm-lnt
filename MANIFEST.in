@@ -4,6 +4,7 @@ recursive-include docs *
 recursive-include tests *
 recursive-include examples *
 recursive-include lnt/server/ui/static *.css *.js *.html *.ico *.txt
+recursive-include lnt/server/ui/v5/static *.css *.js *.map
 recursive-include lnt/server/ui/templates *.html
 recursive-include lnt/server/db/migrations *
 include lnt/server/ui/static/flot/Makefile

@@ -5,6 +5,27 @@ Accessing Data outside of LNT: REST API
 
 LNT provides comprehensive REST APIs to access and manage data stored in the LNT database.
 
+v5 API (Recommended)
+--------------------
+
+The v5 API is the latest REST API for LNT. It provides interactive documentation via
+Swagger UI, available at::
+
+    http://<server>/api/v5/openapi/swagger-ui
+
+The OpenAPI 3.0 specification is also available in JSON format at::
+
+    http://<server>/api/v5/openapi/openapi.json
+
+The v5 API uses Bearer token authentication, natural keys (machine names, test names)
+instead of internal IDs, cursor-based pagination, and a standardized error format.
+Refer to the Swagger UI for the complete list of endpoints and their parameters.
+
+v4 API (Legacy)
+---------------
+
+The v4 API is documented below for reference. New integrations should use the v5 API.
+
 Quick Reference
 ---------------
 

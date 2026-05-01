@@ -1,6 +1,7 @@
 from sqlalchemy import desc, asc
 
 import re
+import uuid as uuid_module
 from collections import namedtuple
 from lnt.server.reporting.analysis import RunInfo
 from lnt.server.ui.util import guess_test_short_name as shortname
@@ -45,6 +46,7 @@ def new_regression(session, ts, field_changes):
     MSG = "Regression of 0 benchmarks"
     title = MSG
     regression = ts.Regression(title, "", RegressionState.DETECTED)
+    regression.uuid = str(uuid_module.uuid4())
     session.add(regression)
     new_ris = []
     for fc_id in field_changes:
