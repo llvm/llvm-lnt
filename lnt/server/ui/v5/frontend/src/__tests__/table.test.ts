@@ -1074,3 +1074,120 @@ describe('applyTableFilters (display:none fast path)', () => {
     expect(msg.querySelector('button')).toBe(child);
   });
 });
+
+// ===========================================================================
+// Sample count tooltips
+// ===========================================================================
+
+describe('renderTable — sample count tooltips', () => {
+  function makeRow(overrides: Partial<ComparisonRow> & { test: string }): ComparisonRow {
+    return {
+      valueA: null, valueB: null, delta: null, deltaPct: null,
+      ratio: null, status: 'unchanged', sidePresent: 'both', noiseReasons: [],
+      ...overrides,
+    };
+  }
+
+  let container: HTMLElement;
+
+  afterEach(() => {
+    resetTable();
+  });
+
+  it('sets title on Value A cell with exact format', () => {
+    container = document.createElement('div');
+    const rows = [makeRow({ test: 'a', valueA: 10, valueB: 12, delta: 2, deltaPct: 20, ratio: 1.2, status: 'regressed', samplesA: 6, runsA: 2, samplesB: 4, runsB: 1 })];
+    renderTable(container, rows);
+
+    const dataRow = container.querySelector('tr[data-test="a"]')!;
+    const cells = dataRow.querySelectorAll('td');
+    expect(cells[1].getAttribute('title')).toBe('6 samples across 2 runs');
+  });
+
+  it('sets title on Value B cell with exact format', () => {
+    container = document.createElement('div');
+    const rows = [makeRow({ test: 'a', valueA: 10, valueB: 12, delta: 2, deltaPct: 20, ratio: 1.2, status: 'regressed', samplesA: 6, runsA: 2, samplesB: 4, runsB: 1 })];
+    renderTable(container, rows);
+
+    const dataRow = container.querySelector('tr[data-test="a"]')!;
+    const cells = dataRow.querySelectorAll('td');
+    expect(cells[2].getAttribute('title')).toBe('4 samples across 1 run');
+  });
+
+  it('sets combined title on Delta/Delta%/Ratio cells', () => {
+    container = document.createElement('div');
+    const rows = [makeRow({ test: 'a', valueA: 10, valueB: 12, delta: 2, deltaPct: 20, ratio: 1.2, status: 'regressed', samplesA: 6, runsA: 2, samplesB: 4, runsB: 1 })];
+    renderTable(container, rows);
+
+    const dataRow = container.querySelector('tr[data-test="a"]')!;
+    const cells = dataRow.querySelectorAll('td');
+    const expected = 'A: 6 samples across 2 runs, B: 4 samples across 1 run';
+    expect(cells[3].getAttribute('title')).toBe(expected);
+    expect(cells[4].getAttribute('title')).toBe(expected);
+    expect(cells[5].getAttribute('title')).toBe(expected);
+  });
+
+  it('does not set title when counts are undefined', () => {
+    container = document.createElement('div');
+    const rows = [makeRow({ test: 'a', valueA: 10, valueB: 12, delta: 2, deltaPct: 20, ratio: 1.2, status: 'regressed' })];
+    renderTable(container, rows);
+
+    const dataRow = container.querySelector('tr[data-test="a"]')!;
+    const cells = dataRow.querySelectorAll('td');
+    for (let i = 1; i <= 5; i++) {
+      expect(cells[i].getAttribute('title')).toBeNull();
+    }
+  });
+
+  it('geomean row has no title attributes on value cells', () => {
+    container = document.createElement('div');
+    const rows = [makeRow({ test: 'a', valueA: 100, valueB: 200, delta: 100, deltaPct: 100, ratio: 2, status: 'regressed', samplesA: 3, runsA: 1, samplesB: 3, runsB: 1 })];
+    renderTable(container, rows);
+
+    const geomeanRow = container.querySelector('.geomean-row');
+    expect(geomeanRow).toBeTruthy();
+    const cells = geomeanRow!.querySelectorAll('td');
+    for (let i = 1; i <= 5; i++) {
+      expect(cells[i].getAttribute('title')).toBeNull();
+    }
+  });
+
+  it('applies singular form for 1 sample across 1 run', () => {
+    container = document.createElement('div');
+    const rows = [makeRow({ test: 'a', valueA: 10, valueB: 12, delta: 2, deltaPct: 20, ratio: 1.2, status: 'regressed', samplesA: 1, runsA: 1, samplesB: 1, runsB: 1 })];
+    renderTable(container, rows);
+
+    const dataRow = container.querySelector('tr[data-test="a"]')!;
+    const cells = dataRow.querySelectorAll('td');
+    expect(cells[1].getAttribute('title')).toBe('1 sample across 1 run');
+    expect(cells[2].getAttribute('title')).toBe('1 sample across 1 run');
+  });
+
+  it('missing-test rows have no title attributes', () => {
+    container = document.createElement('div');
+    const rows = [makeRow({ test: 'missing-a', sidePresent: 'a_only', valueA: 100, valueB: null, samplesA: 3, runsA: 1 })];
+    renderTable(container, rows);
+
+    const missingTable = container.querySelector('.missing-table');
+    expect(missingTable).toBeTruthy();
+    const cells = missingTable!.querySelectorAll('td');
+    for (const cell of cells) {
+      expect(cell.getAttribute('title')).toBeNull();
+    }
+  });
+
+  it('noise tooltip on Status cell coexists with sample tooltip on value cells', () => {
+    container = document.createElement('div');
+    const rows = [makeRow({
+      test: 'a', valueA: 10, valueB: 10.01, delta: 0.01, deltaPct: 0.1, ratio: 1.001,
+      status: 'noise', samplesA: 5, runsA: 2, samplesB: 3, runsB: 1,
+      noiseReasons: [{ knob: 'pct', message: 'Delta 0.1% below 1% threshold' }],
+    })];
+    renderTable(container, rows);
+
+    const dataRow = container.querySelector('tr[data-test="a"]')!;
+    const cells = dataRow.querySelectorAll('td');
+    expect(cells[1].getAttribute('title')).toBe('5 samples across 2 runs');
+    expect(cells[6].getAttribute('title')).toBe('Delta 0.1% below 1% threshold');
+  });
+});

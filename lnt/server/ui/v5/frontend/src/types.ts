@@ -205,6 +205,10 @@ export interface ComparisonRow {
   status: RowStatus;
   sidePresent: 'both' | 'a_only' | 'b_only';
   noiseReasons: NoiseReason[];
+  samplesA?: number;
+  samplesB?: number;
+  runsA?: number;
+  runsB?: number;
 }
 
 // Admin types

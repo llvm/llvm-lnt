@@ -4,6 +4,13 @@ import { getState, setState } from './state';
 import { formatValue, formatPercent, formatRatio, el, spaLink, matchesFilter } from './utils';
 import { computeGeomean } from './comparison';
 
+function sampleTooltip(samples: number | undefined, runs: number | undefined): string | undefined {
+  if (samples === undefined || runs === undefined) return undefined;
+  const s = samples === 1 ? 'sample' : 'samples';
+  const r = runs === 1 ? 'run' : 'runs';
+  return `${samples} ${s} across ${runs} ${r}`;
+}
+
 export interface TableOptions {
   /** Test names that are manually hidden (grayed out in table). Noise-hidden
    *  rows are filtered upstream before reaching renderTable. */
@@ -161,12 +168,16 @@ function buildTable(rows: ComparisonRow[], sort: SortCol, sortDir: SortDir, hidd
       tr.classList.add('row-na');
     }
 
+    const tipA = sampleTooltip(row.samplesA, row.runsA);
+    const tipB = sampleTooltip(row.samplesB, row.runsB);
+    const combinedTip = (tipA && tipB) ? `A: ${tipA}, B: ${tipB}` : undefined;
+
     tr.append(el('td', { class: 'col-test' }, row.test));
-    tr.append(el('td', { class: 'col-num' }, formatValue(row.valueA)));
-    tr.append(el('td', { class: 'col-num' }, formatValue(row.valueB)));
-    tr.append(el('td', { class: 'col-num' }, formatValue(row.delta)));
-    tr.append(el('td', { class: 'col-num' }, formatPercent(row.deltaPct)));
-    tr.append(el('td', { class: 'col-num' }, formatRatio(row.ratio)));
+    tr.append(el('td', { class: 'col-num', ...(tipA ? { title: tipA } : {}) }, formatValue(row.valueA)));
+    tr.append(el('td', { class: 'col-num', ...(tipB ? { title: tipB } : {}) }, formatValue(row.valueB)));
+    tr.append(el('td', { class: 'col-num', ...(combinedTip ? { title: combinedTip } : {}) }, formatValue(row.delta)));
+    tr.append(el('td', { class: 'col-num', ...(combinedTip ? { title: combinedTip } : {}) }, formatPercent(row.deltaPct)));
+    tr.append(el('td', { class: 'col-num', ...(combinedTip ? { title: combinedTip } : {}) }, formatRatio(row.ratio)));
     const statusAttrs: Record<string, string> = {
       class: `col-status status-${row.status}`,
     };

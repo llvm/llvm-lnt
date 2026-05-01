@@ -89,6 +89,22 @@ export function aggregateAcrossRuns(
   return result;
 }
 
+/**
+ * Count how many per-run maps contain each test. Used to determine
+ * how many runs contributed data for a given test.
+ */
+export function countRunsPerTest(
+  perRunMaps: Map<string, number>[],
+): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const m of perRunMaps) {
+    for (const test of m.keys()) {
+      counts.set(test, (counts.get(test) ?? 0) + 1);
+    }
+  }
+  return counts;
+}
+
 // ---------------------------------------------------------------------------
 // Welch's t-test
 // ---------------------------------------------------------------------------
@@ -239,6 +255,8 @@ export function computeComparison(
   noiseConfig: NoiseConfig,
   rawA?: Map<string, number[]>,
   rawB?: Map<string, number[]>,
+  runCountA?: Map<string, number>,
+  runCountB?: Map<string, number>,
 ): ComparisonRow[] {
   const allTests = new Set<string>();
   for (const t of mapA.keys()) allTests.add(t);
@@ -249,6 +267,13 @@ export function computeComparison(
   for (const test of allTests) {
     const vA = mapA.get(test) ?? null;
     const vB = mapB.get(test) ?? null;
+
+    const counts = {
+      samplesA: rawA?.get(test)?.length,
+      samplesB: rawB?.get(test)?.length,
+      runsA: runCountA?.get(test),
+      runsB: runCountB?.get(test),
+    };
 
     let sidePresent: 'both' | 'a_only' | 'b_only';
     if (vA !== null && vB !== null) sidePresent = 'both';
@@ -261,6 +286,7 @@ export function computeComparison(
         test, valueA: vA, valueB: vB,
         delta: null, deltaPct: null, ratio: null,
         status: 'missing', sidePresent, noiseReasons: [],
+        ...counts,
       });
       continue;
     }
@@ -274,6 +300,7 @@ export function computeComparison(
         test, valueA: vA, valueB: vB,
         delta, deltaPct: null, ratio: null,
         status: 'na', sidePresent, noiseReasons: [],
+        ...counts,
       });
       continue;
     }
@@ -340,6 +367,7 @@ export function computeComparison(
       test, valueA: vA, valueB: vB,
       delta, deltaPct, ratio,
       status, sidePresent, noiseReasons,
+      ...counts,
     });
   }
 

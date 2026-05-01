@@ -27,7 +27,7 @@ import {
 } from '../selection';
 import {
   aggregateSamplesWithinRun, aggregateAcrossRuns, computeComparison,
-  computeGeomean, groupSamplesByTest,
+  computeGeomean, groupSamplesByTest, countRunsPerTest,
 } from '../comparison';
 import { renderTable, filterToTests, highlightRow, resetTable, sortRows, applyTableFilters } from '../table';
 import { buildCsv } from '../csvExport';
@@ -50,6 +50,8 @@ let cachedRawA: Map<string, number[]> | null = null;
 let cachedRawB: Map<string, number[]> | null = null;
 let cachedMapA: Map<string, number> | null = null;
 let cachedMapB: Map<string, number> | null = null;
+let cachedRunCountA: Map<string, number> | null = null;
+let cachedRunCountB: Map<string, number> | null = null;
 /** Tests manually hidden by the user (click toggle). */
 let manuallyHidden = new Set<string>();
 /** Callback invoked after every table/chart render (used by regression panel). */
@@ -302,8 +304,10 @@ export const comparePage: PageModule = {
       const perRunB = samplesB.map(s => aggregateSamplesWithinRun(s, state.metric, state.sampleAgg));
       cachedMapA = aggregateAcrossRuns(perRunA, state.sideA.runAgg);
       cachedMapB = aggregateAcrossRuns(perRunB, state.sideB.runAgg);
+      cachedRunCountA = countRunsPerTest(perRunA);
+      cachedRunCountB = countRunsPerTest(perRunB);
 
-      const rows = computeComparison(cachedMapA, cachedMapB, biggerIsBetter, state.noiseConfig, cachedRawA, cachedRawB);
+      const rows = computeComparison(cachedMapA, cachedMapB, biggerIsBetter, state.noiseConfig, cachedRawA, cachedRawB, cachedRunCountA, cachedRunCountB);
       lastRows = rows;
 
       recomputeShadow(biggerIsBetter);
@@ -317,7 +321,7 @@ export const comparePage: PageModule = {
 
       const biggerIsBetter = currentBiggerIsBetter();
 
-      lastRows = computeComparison(cachedMapA, cachedMapB, biggerIsBetter, state.noiseConfig, cachedRawA ?? undefined, cachedRawB ?? undefined);
+      lastRows = computeComparison(cachedMapA, cachedMapB, biggerIsBetter, state.noiseConfig, cachedRawA ?? undefined, cachedRawB ?? undefined, cachedRunCountA ?? undefined, cachedRunCountB ?? undefined);
       recomputeShadow(biggerIsBetter);
       renderTableAndChart();
     }
@@ -395,6 +399,8 @@ export const comparePage: PageModule = {
       cachedRawB = null;
       cachedMapA = null;
       cachedMapB = null;
+      cachedRunCountA = null;
+      cachedRunCountB = null;
       clearShadowCaches();
 
       // Abort any previous fetch
@@ -849,6 +855,8 @@ export const comparePage: PageModule = {
     cachedRawB = null;
     cachedMapA = null;
     cachedMapB = null;
+    cachedRunCountA = null;
+    cachedRunCountB = null;
     shadowRows = [];
     cachedShadowRawB = null;
     cachedShadowMapB = null;

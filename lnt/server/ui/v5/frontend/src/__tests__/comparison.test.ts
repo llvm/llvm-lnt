@@ -7,6 +7,7 @@ import {
   welchTTest,
   computeComparison,
   computeGeomean,
+  countRunsPerTest,
 } from '../comparison';
 import type { SampleInfo, ComparisonRow, NoiseConfig } from '../types';
 
@@ -867,5 +868,117 @@ describe('computeGeomean', () => {
     expect(result.geomeanA).toBeCloseTo(Math.sqrt(100 * 50));
     expect(result.geomeanB).toBeCloseTo(Math.sqrt(200 * 25));
     expect(result.ratioGeomean).toBeCloseTo(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// countRunsPerTest
+// ---------------------------------------------------------------------------
+
+describe('countRunsPerTest', () => {
+  it('counts runs per test across multiple maps', () => {
+    const run1 = new Map([['foo', 1.0], ['bar', 2.0]]);
+    const run2 = new Map([['foo', 1.5], ['baz', 3.0]]);
+    const run3 = new Map([['foo', 1.2], ['bar', 2.1], ['baz', 3.1]]);
+
+    const counts = countRunsPerTest([run1, run2, run3]);
+    expect(counts.get('foo')).toBe(3);
+    expect(counts.get('bar')).toBe(2);
+    expect(counts.get('baz')).toBe(2);
+  });
+
+  it('returns empty map for empty input', () => {
+    expect(countRunsPerTest([]).size).toBe(0);
+  });
+
+  it('handles single run', () => {
+    const run1 = new Map([['foo', 1.0], ['bar', 2.0]]);
+    const counts = countRunsPerTest([run1]);
+    expect(counts.get('foo')).toBe(1);
+    expect(counts.get('bar')).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// computeComparison — sample/run counts
+// ---------------------------------------------------------------------------
+
+describe('computeComparison — sample and run counts', () => {
+  const noNoise: NoiseConfig = {
+    pct: { enabled: false, value: 1 },
+    pval: { enabled: false, value: 0.05 },
+    floor: { enabled: false, value: 0 },
+  };
+
+  it('populates samplesA/samplesB from rawA/rawB lengths', () => {
+    const mapA = new Map([['foo', 10]]);
+    const mapB = new Map([['foo', 12]]);
+    const rawA = new Map([['foo', [10, 10, 10]]]);
+    const rawB = new Map([['foo', [12, 12]]]);
+    const rcA = new Map([['foo', 2]]);
+    const rcB = new Map([['foo', 1]]);
+
+    const rows = computeComparison(mapA, mapB, false, noNoise, rawA, rawB, rcA, rcB);
+    expect(rows[0].samplesA).toBe(3);
+    expect(rows[0].samplesB).toBe(2);
+    expect(rows[0].runsA).toBe(2);
+    expect(rows[0].runsB).toBe(1);
+  });
+
+  it('returns undefined counts when optional params omitted', () => {
+    const mapA = new Map([['foo', 10]]);
+    const mapB = new Map([['foo', 12]]);
+
+    const rows = computeComparison(mapA, mapB, false, noNoise);
+    expect(rows[0].samplesA).toBeUndefined();
+    expect(rows[0].samplesB).toBeUndefined();
+    expect(rows[0].runsA).toBeUndefined();
+    expect(rows[0].runsB).toBeUndefined();
+  });
+
+  it('a_only row has side A counts, side B undefined', () => {
+    const mapA = new Map([['foo', 10]]);
+    const mapB = new Map<string, number>();
+    const rawA = new Map([['foo', [10, 10]]]);
+    const rawB = new Map<string, number[]>();
+    const rcA = new Map([['foo', 1]]);
+    const rcB = new Map<string, number>();
+
+    const rows = computeComparison(mapA, mapB, false, noNoise, rawA, rawB, rcA, rcB);
+    expect(rows[0].samplesA).toBe(2);
+    expect(rows[0].runsA).toBe(1);
+    expect(rows[0].samplesB).toBeUndefined();
+    expect(rows[0].runsB).toBeUndefined();
+  });
+
+  it('asymmetric run counts between sides', () => {
+    const mapA = new Map([['foo', 10]]);
+    const mapB = new Map([['foo', 12]]);
+    const rawA = new Map([['foo', [10, 10, 10, 10, 10, 10]]]);
+    const rawB = new Map([['foo', [12, 12]]]);
+    const rcA = new Map([['foo', 3]]);
+    const rcB = new Map([['foo', 1]]);
+
+    const rows = computeComparison(mapA, mapB, false, noNoise, rawA, rawB, rcA, rcB);
+    expect(rows[0].samplesA).toBe(6);
+    expect(rows[0].runsA).toBe(3);
+    expect(rows[0].samplesB).toBe(2);
+    expect(rows[0].runsB).toBe(1);
+  });
+
+  it('populates counts on zero-baseline (na) rows', () => {
+    const mapA = new Map([['foo', 0]]);
+    const mapB = new Map([['foo', 5]]);
+    const rawA = new Map([['foo', [0, 0]]]);
+    const rawB = new Map([['foo', [5]]]);
+    const rcA = new Map([['foo', 2]]);
+    const rcB = new Map([['foo', 1]]);
+
+    const rows = computeComparison(mapA, mapB, false, noNoise, rawA, rawB, rcA, rcB);
+    expect(rows[0].status).toBe('na');
+    expect(rows[0].samplesA).toBe(2);
+    expect(rows[0].runsA).toBe(2);
+    expect(rows[0].samplesB).toBe(1);
+    expect(rows[0].runsB).toBe(1);
   });
 });
