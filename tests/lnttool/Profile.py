@@ -13,4 +13,5 @@
 # RUN: mkdir -p %t
 # RUN: rm -rf %t/non_existing_output.lnt
 # RUN: lnt profile upgrade %S/Inputs/test.lntprof %t/non_existing_output.lnt
-# RUN: cat %t/non_existing_output.lnt
+# RUN: lnt profile getVersion %t/non_existing_output.lnt | filecheck --check-prefix=CHECK-UPGRADE %s
+# CHECK-UPGRADE: 2
