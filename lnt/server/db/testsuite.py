@@ -16,6 +16,16 @@ from lnt.util import logger
 Base = sqlalchemy.ext.declarative.declarative_base()  # type: sqlalchemy.ext.declarative.api.DeclarativeMeta
 
 
+class TestSuiteRegistryVersion(Base):
+    """Single-row table tracking how many times suites have been created or
+    deleted.  Workers compare their cached version against this to know when
+    to reload the in-memory testsuite dict."""
+    __tablename__ = 'TestSuiteRegistryVersion'
+
+    id = Column("ID", Integer, primary_key=True)
+    version = Column("Version", Integer, nullable=False, default=0)
+
+
 class SampleType(Base):
     """
     The SampleType table describes an enumeration for the possible types

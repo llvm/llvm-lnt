@@ -4,3 +4,4 @@
 -r requirements.client.txt
 gunicorn==23.0.0
 psycopg2==2.9.10
+flask-compress==1.17

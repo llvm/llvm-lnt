@@ -6,7 +6,7 @@ import os
 import re
 import tempfile
 
-import lnt.server.db.v4db
+import lnt.server.db.v4db  # noqa: F401 -- used via dotted access in get_database()
 
 
 class EmailConfig:
@@ -63,26 +63,29 @@ class DBInfo:
         baseline_revision = config_data.get('baseline_revision',
                                             default_baseline_revision)
         db_version = config_data.get('db_version', '0.4')
-        if db_version != '0.4':
+        if db_version not in ('0.4', '5.0'):
             raise NotImplementedError("unable to load version %r database" % (
                                       db_version))
 
         return DBInfo(dbPath,
                       config_data.get('shadow_import', None),
                       email_config,
-                      baseline_revision)
+                      baseline_revision,
+                      db_version=db_version)
 
     @staticmethod
     def dummy_instance():
         return DBInfo("sqlite:///:memory:", None,
                       EmailConfig(False, '', '', []), 0)
 
-    def __init__(self, path, shadow_import, email_config, baseline_revision):
+    def __init__(self, path, shadow_import, email_config, baseline_revision,
+                 db_version='0.4'):
         self.config = None
         self.path = path
         self.shadow_import = shadow_import
         self.email_config = email_config
         self.baseline_revision = baseline_revision
+        self.db_version = db_version
 
     def __str__(self):
         return "DBInfo(" + self.path + ")"
@@ -190,6 +193,10 @@ class Config:
         db_entry = self.databases.get(name)
         if db_entry is None:
             return None
+
+        if db_entry.db_version == '5.0':
+            from lnt.server.db.v5 import V5DB
+            return V5DB(db_entry.path, self)
 
         return lnt.server.db.v4db.V4DB(db_entry.path, self,
                                        db_entry.baseline_revision)

@@ -4,7 +4,7 @@
 
 terraform {
   backend "s3" {
-    bucket  = "lnt.llvm.org-terraform-state-prod"
+    bucket  = "lnt.llvm.org-terraform-state-ldionne"
     key     = "terraform.tfstate"
     region  = "us-west-2"
     encrypt = true
@@ -37,7 +37,7 @@ data "aws_secretsmanager_secret_version" "lnt_secrets_latest" {
 
 locals {
   # The Docker image to use for the webserver part of the LNT service
-  lnt_image     = "56a3c8974301d2c70cc14676bf29974bb623ca6c"
+  lnt_image     = "v5"
 
   # The port on the EC2 instance used by the Docker webserver for communication
   lnt_external_port = "80"

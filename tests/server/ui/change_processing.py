@@ -97,6 +97,7 @@ class ChangeProcessingTests(unittest.TestCase):
                                                              machine,
                                                              test,
                                                              a_field.id)
+        field_change.uuid = str(uuid.uuid4())
         field_change.run = run
         session.add(field_change)
 
@@ -105,19 +106,21 @@ class ChangeProcessingTests(unittest.TestCase):
                                      machine2,
                                      test,
                                      a_field.id)
+        fc_mach2.uuid = str(uuid.uuid4())
         fc_mach2.run = run2
         session.add(fc_mach2)
 
         field_change2 = self.field_change2 = ts_db.FieldChange(order1235, order1236, machine,
                                                                test,
                                                                a_field.id)
-
+        field_change2.uuid = str(uuid.uuid4())
         field_change2.run = run
         session.add(field_change2)
 
         field_change3 = self.field_change3 = ts_db.FieldChange(order1237, order1238, machine,
                                                                test,
                                                                a_field.id)
+        field_change3.uuid = str(uuid.uuid4())
         session.add(field_change3)
 
         regression = self.regression = ts_db.Regression("Regression of 1 benchmarks:", "PR1234",
@@ -179,6 +182,7 @@ class ChangeProcessingTests(unittest.TestCase):
                                           self.machine2,
                                           self.test2,
                                           self.a_field.id)
+        field_change7.uuid = str(uuid.uuid4())
         session.add(field_change7)
 
         active_indicators = session.query(ts_db.FieldChange) \
@@ -201,6 +205,7 @@ class ChangeProcessingTests(unittest.TestCase):
                                           self.machine2,
                                           self.test,
                                           self.a_field.id)
+        field_change4.uuid = str(uuid.uuid4())
 
         # Check a regression matches if all fields match.
         ret, _ = identify_related_changes(session, ts_db, field_change4, active_indicators)
@@ -211,6 +216,7 @@ class ChangeProcessingTests(unittest.TestCase):
                                           self.machine,
                                           self.test2,
                                           self.a_field.id)
+        field_change5.uuid = str(uuid.uuid4())
 
         # Check a regression matches if all fields match.
         ret, _ = identify_related_changes(session, ts_db, field_change5, active_indicators)
@@ -220,6 +226,7 @@ class ChangeProcessingTests(unittest.TestCase):
                                           self.machine,
                                           self.test,
                                           self.a_field2.id)
+        field_change6.uuid = str(uuid.uuid4())
 
         # Check a regression matches if all fields match.
         ret, _ = identify_related_changes(session, ts_db, field_change6, active_indicators)
@@ -273,6 +280,59 @@ class ChangeProcessingTests(unittest.TestCase):
         self.assertEqual(len(fc_ids_new), 1)
 
         self.assertEqual(len(ri_ids_new), 0)
+
+    def test_fieldchanges_have_uuids(self):
+        """Verify that all FieldChanges created in setUp have UUIDs set.
+
+        This is a regression test for a bug where FieldChanges created through
+        the v4 UI path (manual regression creation) did not get UUIDs assigned,
+        making them invisible to the v5 API.
+        """
+        session = self.session
+        ts_db = self.ts_db
+
+        # All FieldChanges in the database should have a UUID.
+        all_fcs = session.query(ts_db.FieldChange).all()
+        self.assertGreater(len(all_fcs), 0,
+                           "Expected at least one FieldChange in the DB")
+        for fc in all_fcs:
+            self.assertIsNotNone(fc.uuid,
+                                 "FieldChange id=%s is missing a UUID" % fc.id)
+            self.assertNotEqual(fc.uuid, '',
+                                "FieldChange id=%s has an empty UUID" % fc.id)
+
+    def test_manual_fieldchange_creation_gets_uuid(self):
+        """Simulate the v4 manual regression creation path and verify UUIDs.
+
+        This mirrors what regression_views.v4_make_regression does when
+        creating a FieldChange that doesn't already exist.
+        """
+        session = self.session
+        ts_db = self.ts_db
+
+        # Create a new FieldChange the same way regression_views.py does.
+        new_fc = ts_db.FieldChange(
+            start_order=self.order1234,
+            end_order=self.order1238,
+            machine=self.machine,
+            test=self.test2,
+            field_id=self.a_field.id)
+        new_fc.uuid = str(uuid.uuid4())
+        session.add(new_fc)
+        session.flush()
+
+        # Verify the UUID is set and valid.
+        self.assertIsNotNone(new_fc.uuid)
+        self.assertNotEqual(new_fc.uuid, '')
+
+        # Verify it's a valid UUID string.
+        parsed = uuid.UUID(new_fc.uuid)
+        self.assertEqual(str(parsed), new_fc.uuid)
+
+        # Verify it persists after commit.
+        session.commit()
+        reloaded = session.query(ts_db.FieldChange).get(new_fc.id)
+        self.assertEqual(reloaded.uuid, new_fc.uuid)
 
 
 if __name__ == '__main__':

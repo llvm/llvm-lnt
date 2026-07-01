@@ -3,23 +3,23 @@
 <head>
     <meta charset="UTF-8"/>
 
-    <script>var lnt_url_base="{{ url_for('.index', _external=False) }}".replace(/\/$/, "");</script>
-    <link href="{{ url_for('.static', filename='bootstrap/css/bootstrap.min.css')
+    <script>var lnt_url_base="{{ url_for('lnt.index', _external=False) }}".replace(/\/$/, "");</script>
+    <link href="{{ url_for('lnt.static', filename='bootstrap/css/bootstrap.min.css')
                 }}" rel="stylesheet" media="screen"/>
-    <link href="{{ url_for('.static', filename='bootstrap/css/bootstrap-responsive.min.css')
+    <link href="{{ url_for('lnt.static', filename='bootstrap/css/bootstrap-responsive.min.css')
                 }}" rel="stylesheet"/>
-    <link href="{{ url_for('.static', filename='narrow.css')
+    <link href="{{ url_for('lnt.static', filename='narrow.css')
                 }}" rel="stylesheet" media='screen and (max-width: 750px)'/>
-    <link href="{{ url_for('.static', filename='wide.css')
+    <link href="{{ url_for('lnt.static', filename='wide.css')
                 }}" rel="stylesheet" media='screen and (min-width: 750px)'/>
-    <script src="{{ url_for('.static', filename='jquery/1.7.2/jquery-1.7.2.min.js')
+    <script src="{{ url_for('lnt.static', filename='jquery/1.7.2/jquery-1.7.2.min.js')
                  }}"> </script>
-    <script src="{{ url_for('.static', filename='jquery/jquery.dateFormat/jquery-dateFormat.min.js')
+    <script src="{{ url_for('lnt.static', filename='jquery/jquery.dateFormat/jquery-dateFormat.min.js')
                  }}"> </script>
 
-    <script src="{{ url_for('.static', filename='bootstrap/js/bootstrap.min.js')
+    <script src="{{ url_for('lnt.static', filename='bootstrap/js/bootstrap.min.js')
                  }}"></script>
-    <script src="{{ url_for('.static', filename='timedate.js')
+    <script src="{{ url_for('lnt.static', filename='timedate.js')
                  }}"></script>
 
     <!-- DataTables CSS -->
@@ -31,7 +31,7 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/floatthead/1.4.2/jquery.floatThead.min.js"></script>
 
-    <script src="{{ url_for('.static', filename='lnt.js') }}"></script>
+    <script src="{{ url_for('lnt.static', filename='lnt.js') }}"></script>
 
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -71,6 +71,9 @@
     {% if nosidebar is defined %}
         #page-content { margin-left:20px; width:100%}
     {% endif %}
+    {% if nonav is defined %}
+        #push, #header { height: 0px; }
+    {% endif %}
     /* Lastly, apply responsive CSS fixes as necessary */
     @media (max-width: 767px) {
       #footer {
@@ -88,7 +91,7 @@
     
   </style>
 
-  <link rel="icon" type="image/png" href="{{ url_for('.static', filename='favicon.ico') }}"/>
+  <link rel="icon" type="image/png" href="{{ url_for('lnt.static', filename='favicon.ico') }}"/>
 
   <title>
     {{old_config.name}}{% for short_name,_ in components %} : {{short_name}}{% endfor %} - {{ self.title() }}
@@ -115,11 +118,12 @@
     {# Top-Level Content (non-footer) #}
     <div id="wrap">
         {# Page Header #}
+        {% if nonav is not defined %}
         <div id="header" class="navbar navbar-fixed-top">
             <div class="navbar-inner">
             {# LNT Instance Title #}
                 <div id="lnt-instance">
-                    <a class="brand" href="{{url_for('.index')}}">{{old_config.name}}</a>
+                    <a class="brand" href="{{url_for('lnt.index')}}">{{old_config.name}}</a>
                 </div>
                 {# Database Selector #}
                 <ul class="nav">
@@ -128,7 +132,7 @@
                         <a href="#" class="dropdown-toggle" data-toggle="dropdown" id="dbselect" >Database <b class="caret"></b></a>
                         <ul class="dropdown-menu">
                             {% for name in old_config.databases.keys()|sort %}
-                                <li><a href="{{ url_for('.select_db', db=name, path=request.path) }}">
+                                <li><a href="{{ url_for('lnt.select_db', db=name, path=request.path) }}">
                                 {% if name == g.db_name %}
                                     <b>{{ name }}</b>
                                 {% else %}
@@ -146,7 +150,7 @@
                         <a href="#" class="dropdown-toggle" data-toggle="dropdown">Suite<b class="caret"></b></a>
                         <ul class="dropdown-menu">
                             {% for name in request.get_db().testsuite %}
-                                <li><a href="{{db_url_for('.v4_recent_activity', testsuite_name=name)}}">{{name}}</a></li>
+                                <li><a href="{{db_url_for('lnt.v4_recent_activity', testsuite_name=name)}}">{{name}}</a></li>
                             {% endfor %}
                         </ul>
                     </li>
@@ -158,24 +162,24 @@
                         <li class="dropdown">
                             <a href="#" class="dropdown-toggle" data-toggle="dropdown">{{g.testsuite_name}}<b class="caret"></b></a>
                             <ul class="dropdown-menu">
-                              <li><a href="{{ v4_url_for('.v4_recent_activity') }}">Recent Activity</a></li>
-                              <li><a href="{{ v4_url_for('.v4_global_status') }}">Global Status</a></li>
-                              <li><a href="{{ v4_url_for('.v4_daily_report_overview') }}">Daily Report</a></li>
-                              <li><a href="{{ v4_url_for('.v4_latest_runs_report') }}">Latest Runs Report</a></li>
-                              <li><a href="{{ v4_url_for('.v4_machines') }}">All Machines</a></li>
+                              <li><a href="{{ v4_url_for('lnt.v4_recent_activity') }}">Recent Activity</a></li>
+                              <li><a href="{{ v4_url_for('lnt.v4_global_status') }}">Global Status</a></li>
+                              <li><a href="{{ v4_url_for('lnt.v4_daily_report_overview') }}">Daily Report</a></li>
+                              <li><a href="{{ v4_url_for('lnt.v4_latest_runs_report') }}">Latest Runs Report</a></li>
+                              <li><a href="{{ v4_url_for('lnt.v4_machines') }}">All Machines</a></li>
                                <li class="divider"></li>
                               <li class="disabled"><a href="#">Changes</a></li>
-                              <li><a href="{{ v4_url_for('.v4_regression_list', state=0) }}">Detected</a></li>
-                              <li><a href="{{ v4_url_for('.v4_regression_list', state=1) }}">Staged</a></li>
-                              <li><a href="{{ v4_url_for('.v4_regression_list', state=10) }}">Active</a></li>
-                              <li><a href="{{ v4_url_for('.v4_regression_list', state=20) }}">NTBF</a></li>
-                              <li><a href="{{ v4_url_for('.v4_regression_list', state=21) }}">Ignored</a></li>
-                              <li><a href="{{ v4_url_for('.v4_regression_list', state=23) }}">Verify</a></li>
-                              <li><a href="{{ v4_url_for('.v4_regression_list', state=22) }}">Fixed</a></li>
-                              <li><a href="{{ v4_url_for('.v4_regression_list', state=-1) }}">All</a></li>
+                              <li><a href="{{ v4_url_for('lnt.v4_regression_list', state=0) }}">Detected</a></li>
+                              <li><a href="{{ v4_url_for('lnt.v4_regression_list', state=1) }}">Staged</a></li>
+                              <li><a href="{{ v4_url_for('lnt.v4_regression_list', state=10) }}">Active</a></li>
+                              <li><a href="{{ v4_url_for('lnt.v4_regression_list', state=20) }}">NTBF</a></li>
+                              <li><a href="{{ v4_url_for('lnt.v4_regression_list', state=21) }}">Ignored</a></li>
+                              <li><a href="{{ v4_url_for('lnt.v4_regression_list', state=23) }}">Verify</a></li>
+                              <li><a href="{{ v4_url_for('lnt.v4_regression_list', state=22) }}">Fixed</a></li>
+                              <li><a href="{{ v4_url_for('lnt.v4_regression_list', state=-1) }}">All</a></li>
                               <li class="divider"></li>
                               <li class="disabled"><a href="#">Summary Report</a></li>
-                              {#"{{ v4_url_for('.v4_summary_report') }}"#}
+                              {#"{{ v4_url_for('lnt.v4_summary_report') }}"#}
                             </ul>
                         </li>
                     </ul>
@@ -188,7 +192,7 @@
                                 <li class="nav-header">Select baseline:</li>
                                 {% for b in baselines %}
                                 {% set is_bold = b.id == baseline_id %}
-                              <li><a href="{{ v4_url_for('.v4_set_baseline', id=b.id) }}">
+                              <li><a href="{{ v4_url_for('lnt.v4_set_baseline', id=b.id) }}">
                                   {% if is_bold %}
                                       <b>{{ b.name }}</b>
                                   {% else %}
@@ -205,9 +209,9 @@
                     <li class="dropdown">
                         <a href="#" class="dropdown-toggle" data-toggle="dropdown">System<b class="caret"></b></a>
                         <ul class="dropdown-menu">
-                          <li><a href="{{ url_for('.rules') }}">Rules</a></li>
-                          <li><a href="{{ url_for('.profile_admin') }}">Profiles</a></li>
-                          <li><a href="{{ url_for('.static', filename='docs/index.html') }}">Documentation</a></li>
+                          <li><a href="{{ url_for('lnt.rules') }}">Rules</a></li>
+                          <li><a href="{{ url_for('lnt.profile_admin') }}">Profiles</a></li>
+                          <li><a href="{{ url_for('lnt.static', filename='docs/index.html') }}">Documentation</a></li>
                         </ul>
                     </li>
                 </ul>
@@ -223,6 +227,7 @@
 
             </div>
         </div>
+        {% endif %}{# nonav #}
 
         {# Include any database log, if present. #}
         {% if g.db_log is defined %}
