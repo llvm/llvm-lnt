@@ -37,7 +37,7 @@ data "aws_secretsmanager_secret_version" "lnt_secrets_latest" {
 
 locals {
   # The Docker image to use for the webserver part of the LNT service
-  lnt_image     = "56a3c8974301d2c70cc14676bf29974bb623ca6c"
+  lnt_image     = "2f675f2eba110318f7628da3e0b9fdf416780814"
 
   # The port on the EC2 instance used by the Docker webserver for communication
   lnt_external_port = "80"
