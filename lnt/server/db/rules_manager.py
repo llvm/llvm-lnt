@@ -56,7 +56,7 @@ HOOKS: Dict['str', List[Callable]] = {
     'is_useful_change': [],
 }
 
-DESCRIPTIONS = {}
+DESCRIPTIONS: Dict[str, str] = {}
 HOOKS_LOADED = False
 
 
