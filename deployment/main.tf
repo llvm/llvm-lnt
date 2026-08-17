@@ -27,6 +27,9 @@ provider "aws" {
 # with the `lnt-db-password` and `lnt-auth-token` keys respectively. This secrets must exist
 # in whatever AWS account is currently authenticated when running Terraform.
 #
+# The same secret must also hold the TLS certificate and private key served by Nginx, under
+# the `lnt-origin-cert` and `lnt-origin-key` keys. See the README for how to obtain them.
+#
 data "aws_secretsmanager_secret" "lnt_secrets" {
   name = "lnt.llvm.org-secrets"
 }
@@ -37,16 +40,25 @@ data "aws_secretsmanager_secret_version" "lnt_secrets_latest" {
 
 locals {
   # The Docker image to use for the webserver part of the LNT service
-  lnt_image     = "v5"
+  lnt_image = "v5"
 
   # The port on the EC2 instance used by the Docker webserver for communication
   lnt_external_port = "80"
+
+  # The port on the EC2 instance used to serve HTTPS.
+  lnt_external_tls_port = "443"
 
   # The database password for the lnt.llvm.org database.
   lnt_db_password = jsondecode(data.aws_secretsmanager_secret_version.lnt_secrets_latest.secret_string)["lnt-db-password"]
 
   # The authentication token to perform destructive operations on lnt.llvm.org.
   lnt_auth_token = jsondecode(data.aws_secretsmanager_secret_version.lnt_secrets_latest.secret_string)["lnt-auth-token"]
+
+  # The Cloudflare Origin CA certificate and private key served by Nginx. These are only
+  # trusted by Cloudflare, which proxies all browser traffic and terminates the
+  # publicly-trusted TLS connection. See deployment/nginx.tls.conf for the full picture.
+  lnt_origin_cert = jsondecode(data.aws_secretsmanager_secret_version.lnt_secrets_latest.secret_string)["lnt-origin-cert"]
+  lnt_origin_key  = jsondecode(data.aws_secretsmanager_secret_version.lnt_secrets_latest.secret_string)["lnt-origin-key"]
 }
 
 #
@@ -88,18 +100,34 @@ data "cloudinit_config" "startup_scripts" {
         {
           path        = "/etc/lnt/compose.env"
           permissions = "0400" # read-only for owner
-          content     = templatefile("${path.module}/compose.env.tpl", {
-            __db_password__       = local.lnt_db_password,
-            __auth_token__        = local.lnt_auth_token,
-            __lnt_image__         = local.lnt_image,
-            __lnt_nginx_config__  = "/etc/lnt/nginx.conf",
-            __lnt_nginx_external_port__ = local.lnt_external_port,
+          content = templatefile("${path.module}/compose.env.tpl", {
+            __db_password__                 = local.lnt_db_password,
+            __auth_token__                  = local.lnt_auth_token,
+            __lnt_image__                   = local.lnt_image,
+            __lnt_nginx_config__            = "/etc/lnt/nginx.conf",
+            __lnt_nginx_external_port__     = local.lnt_external_port,
+            __lnt_nginx_external_tls_port__ = local.lnt_external_tls_port,
+            __lnt_tls_cert__                = "/etc/lnt/origin.pem",
+            __lnt_tls_key__                 = "/etc/lnt/origin.key",
           })
         },
         {
+          # Note that this is deployment/nginx.tls.conf rather than docker/nginx.conf:
+          # production terminates TLS, whereas the config under docker/ stays HTTP-only
+          # for local development.
           path        = "/etc/lnt/nginx.conf"
           permissions = "0400" # read-only for owner
-          content     = file("${path.module}/../docker/nginx.conf")
+          content     = file("${path.module}/nginx.tls.conf")
+        },
+        {
+          path        = "/etc/lnt/origin.pem"
+          permissions = "0400" # read-only for owner
+          content     = local.lnt_origin_cert
+        },
+        {
+          path        = "/etc/lnt/origin.key"
+          permissions = "0400" # read-only for owner
+          content     = local.lnt_origin_key
         },
         {
           path        = "/etc/lnt/on-ec2-boot.sh"
@@ -131,6 +159,14 @@ resource "aws_security_group" "server" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  ingress {
+    description = "Allow incoming HTTPS traffic from anywhere"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
   egress {
     description = "Allow outgoing traffic to anywhere"
     from_port   = 0
@@ -141,10 +177,10 @@ resource "aws_security_group" "server" {
 }
 
 resource "aws_instance" "server" {
-  ami                         = data.aws_ami.amazon_linux_2023.id
-  availability_zone           = local.availability_zone
-  instance_type               = "t2.small"
-  security_groups             = [aws_security_group.server.name]
+  ami               = data.aws_ami.amazon_linux_2023.id
+  availability_zone = local.availability_zone
+  instance_type     = "t2.small"
+  security_groups   = [aws_security_group.server.name]
   tags = {
     Name = "lnt.llvm.org/server"
   }

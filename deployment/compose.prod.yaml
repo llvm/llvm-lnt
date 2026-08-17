@@ -4,12 +4,23 @@
 #   (e.g. /var/lib/lnt -> /var/lib/lnt) for ease of access.
 # - Pull a pre-built image of the LNT webserver instead of building from source.
 #   This allows controling the version of LNT used from Terraform.
+# - Serve HTTPS from Nginx, using a certificate put in place by cloud-init.
 #
 
 services:
   webserver:
     build: !reset
     image: ghcr.io/ldionne/llvm-lnt:${LNT_IMAGE:-latest}
+
+  nginx:
+    # Publish HTTPS in addition to the HTTP port published by the base compose
+    # file, and make the TLS certificate available inside the container at the
+    # paths that deployment/nginx.tls.conf expects.
+    ports:
+      - "${LNT_NGINX_EXTERNAL_TLS_PORT:-443}:443"
+    volumes:
+      - ${LNT_TLS_CERT}:/etc/nginx/tls/origin.pem:ro
+      - ${LNT_TLS_KEY}:/etc/nginx/tls/origin.key:ro
 
 volumes:
   instance:
