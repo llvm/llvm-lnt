@@ -909,6 +909,7 @@ class TestSuiteTest(BuiltinTest):
             self._check_call([lit_cmd,
                               '-v',
                               '-j', str(nr_threads),
+                              '--order=lexical',
                               subdir,
                               '-o', output_json_path.name] + extra_args)
         except subprocess.CalledProcessError:
