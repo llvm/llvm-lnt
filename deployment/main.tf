@@ -20,6 +20,25 @@ provider "aws" {
 }
 
 #
+# lnt.llvm.org is behind the Fastly CDN. This fetches the list of public IP ranges used by the
+# Fastly CDN so we can only allow connections coming from Fastly.
+#
+data "http" "fastly_public_ips" {
+  url = "https://api.fastly.com/public-ip-list"
+
+  request_headers = {
+    Accept = "application/json"
+  }
+
+  lifecycle {
+    postcondition {
+      condition     = self.status_code == 200
+      error_message = "Failed to fetch Fastly's public IP list: got HTTP ${self.status_code}."
+    }
+  }
+}
+
+#
 # Setup secrets and other variables
 #
 # Note that the LNT database password and the LNT authentication token for destructive actions
@@ -47,6 +66,10 @@ locals {
 
   # The authentication token to perform destructive operations on lnt.llvm.org.
   lnt_auth_token = jsondecode(data.aws_secretsmanager_secret_version.lnt_secrets_latest.secret_string)["lnt-auth-token"]
+
+  # Fastly's public IP ranges
+  fastly_ipv4_ranges = jsondecode(data.http.fastly_public_ips.response_body)["addresses"]
+  fastly_ipv6_ranges = jsondecode(data.http.fastly_public_ips.response_body)["ipv6_addresses"]
 }
 
 #
@@ -123,12 +146,14 @@ resource "aws_security_group" "server" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  # Only enable the Fastly CDN public IP ranges to connect.
   ingress {
-    description = "Allow incoming HTTP traffic from anywhere"
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    description      = "Allow incoming HTTP traffic from the Fastly CDN"
+    from_port        = 80
+    to_port          = 80
+    protocol         = "tcp"
+    cidr_blocks      = local.fastly_ipv4_ranges
+    ipv6_cidr_blocks = local.fastly_ipv6_ranges
   }
 
   egress {
