@@ -420,7 +420,22 @@ def main():
     check_code(client, '/v4/nts/set_baseline/1', expected_code=HTTP_REDIRECT)
     with app.test_client() as c:
         c.get('/v4/nts/set_baseline/1')
-        session.get('baseline-default-nts') == 1
+        assert session.get('baseline-nts-default') == 1
+
+    # We only hand out a session cookie to users who select a baseline: simply
+    # browsing the site must not set one.
+    with app.test_client() as c:
+        resp = check_html(c, '/v4/nts/')
+        assert not resp.headers.getlist('Set-Cookie'), \
+            "Browsing set a cookie: %s" % resp.headers.getlist('Set-Cookie')
+
+        # Selecting a baseline does set a cookie, and it outlives the browser
+        # session (i.e. it carries an expiration date).
+        resp = check_code(c, '/v4/nts/set_baseline/1',
+                          expected_code=HTTP_REDIRECT)
+        cookies = resp.headers.getlist('Set-Cookie')
+        assert len(cookies) == 1 and 'Expires=' in cookies[0], \
+            "Expected a single lasting cookie, got: %s" % cookies
 
     # Now demote it.
     data2 = dict(name="foo_baseline",

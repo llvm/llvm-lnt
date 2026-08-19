@@ -10,7 +10,6 @@ import flask
 import jinja2
 from flask import current_app
 from flask import g
-from flask import session
 from flask import request
 from flask import jsonify
 from flask import render_template
@@ -151,11 +150,6 @@ class App(LNTExceptionLoggerFlask):
         # Load the flaskRESTful API.
         app.api = Api(app)
         load_api_resources(app.api)
-
-        @app.before_request
-        def set_session():
-            """Make our session cookies last."""
-            session.permanent = True
 
         @app.errorhandler(404)
         def page_not_found(e):

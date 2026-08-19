@@ -667,6 +667,10 @@ def v4_set_baseline(id):
     if not base:
         return abort(404, "Invalid baseline id {}".format(id))
     flash("Baseline set to " + base.name, FLASH_SUCCESS)
+    # Make the cookie holding the baseline last, so the selection survives
+    # across browser sessions. We only do this here so that users who never
+    # select a baseline are not handed a cookie at all.
+    flask.session.permanent = True
     flask.session[baseline_key(ts.name)] = id
 
     return v4_redirect(get_redirect_target())
