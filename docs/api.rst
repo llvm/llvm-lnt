@@ -70,7 +70,7 @@ All API endpoints follow the pattern::
 
 For example::
 
-    http://lnt.llvm.org/api/db_default/v4/nts/machines/1330
+    https://lnt.llvm.org/api/db_default/v4/nts/machines/1330
 
 Response Format
 ---------------
