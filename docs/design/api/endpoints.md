@@ -42,8 +42,10 @@ run on this machine; 404 if machine not found), `has_profiles=` (boolean;
 `true` returns only commits where at least one run has profile data, `false`
 returns only commits where no run has profile data; when combined with
 `machine=`, only considers runs on that machine). Sort: `sort=ordinal` sorts
-by ordinal ascending and excludes commits with NULL ordinals; default sort is
-by internal ID.
+by ordinal ascending (oldest first) and `sort=-ordinal` sorts by ordinal
+descending (newest first); both exclude commits with NULL ordinals. Default
+sort is by internal ID ascending, which reflects the order in which commits
+were first seen by the server, not their ordinal order.
 
 ### Batch Resolve
 

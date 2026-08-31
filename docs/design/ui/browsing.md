@@ -35,7 +35,7 @@ URL via `replaceState`.
 - **Recent Activity**: Machine, Commit (primary value), Start Time, UUID (truncated, linked)
 - **Machines**: Name (linked), Info (key-value summary)
 - **Runs**: UUID (truncated, linked), Machine, Commit (primary value), Start Time
-- **Commits**: Commit Value (primary field, linked), Tag
+- **Commits**: Commit Value (primary field, linked), Ordinal, Tag
 - **Regressions**: Title (linked to regression detail), State (badge), Commit
   (display value, linked to commit detail), Machine count, Test count, Bug (external link),
   Delete button (auth-gated)

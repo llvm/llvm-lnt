@@ -199,16 +199,18 @@ class CommitList(MethodView):
             query = query.filter(run_sq.exists())
 
         sort_param = query_args.get('sort')
-        if sort_param == 'ordinal':
+        if sort_param in ('ordinal', '-ordinal'):
             query = query.filter(ts.Commit.ordinal.isnot(None))
             cursor_col = ts.Commit.ordinal
+            descending = (sort_param == '-ordinal')
         else:
             cursor_col = ts.Commit.id
+            descending = False
 
         cursor_str = query_args.get('cursor')
         limit = query_args['limit']
         items, next_cursor = cursor_paginate(
-            query, cursor_col, cursor_str, limit)
+            query, cursor_col, cursor_str, limit, descending=descending)
 
         serialized = [_serialize_commit_summary(c, ts) for c in items]
         return jsonify(make_paginated_response(serialized, next_cursor))

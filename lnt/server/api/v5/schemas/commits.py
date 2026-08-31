@@ -114,9 +114,10 @@ class CommitListQuerySchema(CursorPaginationQuerySchema):
     )
     sort = ma.fields.String(
         load_default=None,
-        validate=ma.validate.OneOf(['ordinal']),
-        metadata={'description': "Sort order. Use 'ordinal' to sort by ordinal "
-                  "(excludes commits without ordinals)"},
+        validate=ma.validate.OneOf(['ordinal', '-ordinal']),
+        metadata={'description': "Sort order. Use 'ordinal' for oldest first "
+                  "or '-ordinal' for newest first (both exclude commits "
+                  "without ordinals)"},
     )
     has_profiles = ma.fields.Boolean(
         load_default=None,

@@ -825,6 +825,51 @@ class TestCommitSortOrdinal(unittest.TestCase):
         commits = [item['commit'] for item in items]
         self.assertNotIn(self.c_no_ord, commits)
 
+    def test_sort_ordinal_descending_order(self):
+        """sort=-ordinal returns commits in descending ordinal order."""
+        url = PREFIX + '/commits?sort=-ordinal'
+        items = collect_all_pages(self, self.client, url)
+        commits = [item['commit'] for item in items]
+        idx1 = commits.index(self.c1)
+        idx2 = commits.index(self.c2)
+        idx3 = commits.index(self.c3)
+        self.assertLess(idx3, idx2)
+        self.assertLess(idx2, idx1)
+
+    def test_sort_ordinal_descending_excludes_null(self):
+        """sort=-ordinal also excludes commits without ordinals."""
+        url = PREFIX + '/commits?sort=-ordinal'
+        items = collect_all_pages(self, self.client, url)
+        commits = [item['commit'] for item in items]
+        self.assertNotIn(self.c_no_ord, commits)
+
+    def test_sort_ordinal_descending_pagination(self):
+        """Cursor pagination pages backwards through ordinals."""
+        resp = self.client.get(
+            PREFIX + '/commits?sort=-ordinal&limit=1')
+        data = resp.get_json()
+        self.assertEqual(len(data['items']), 1)
+        first = data['items'][0]['ordinal']
+
+        # Follow the cursor
+        cursor = data['cursor']['next']
+        self.assertIsNotNone(cursor)
+        resp2 = self.client.get(
+            PREFIX + f'/commits?sort=-ordinal&limit=1&cursor={cursor}')
+        data2 = resp2.get_json()
+        self.assertEqual(len(data2['items']), 1)
+        second = data2['items'][0]['ordinal']
+        self.assertLess(second, first)
+
+    def test_sort_ordinal_descending_is_reverse_of_ascending(self):
+        """sort=-ordinal yields exactly the reverse of sort=ordinal."""
+        asc = collect_all_pages(
+            self, self.client, PREFIX + '/commits?sort=ordinal')
+        desc = collect_all_pages(
+            self, self.client, PREFIX + '/commits?sort=-ordinal')
+        self.assertEqual([c['commit'] for c in asc],
+                         list(reversed([c['commit'] for c in desc])))
+
     def test_sort_ordinal_pagination(self):
         """Cursor pagination works with ordinal as cursor column."""
         resp = self.client.get(
