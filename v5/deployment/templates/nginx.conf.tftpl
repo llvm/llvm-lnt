@@ -11,9 +11,8 @@ server {
     ssl_certificate     /etc/nginx/certs/origin.pem;
     ssl_certificate_key /etc/nginx/certs/origin.key;
 
-    # A run submission carries its profiles inline as base64 (D6) and a single profile may be 50 MB
-    # decoded (D5), so nginx's 1 MB default would 413 every profile-bearing submission. Keep this in
-    # step with the Fastify `bodyLimit` in ../../server/src/index.ts.
+    # Run submissions can be large: bump the default limit. Keep this in sync with the
+    # Fastify `bodyLimit` in index.ts.
     client_max_body_size 128m;
 
     location / {
