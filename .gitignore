@@ -10,3 +10,11 @@ lnt/server/ui/static/docs
 test_run_tmp
 tests/**/Output
 venv
+
+# v5
+node_modules/
+.env
+v5/deployment/**/.terraform/
+v5/deployment/**/terraform.tfstate
+v5/deployment/**/terraform.tfstate.*
+*.tfvars
