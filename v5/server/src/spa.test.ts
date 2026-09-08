@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { beforeAll, describe, expect, it } from 'vitest'
 import Fastify from 'fastify'
-import { isApiPath, registerSpa } from './spa.js'
+import { isApiPath, isStaticAssetPath, registerSpa } from './spa.js'
 
 describe('isApiPath', () => {
   it.each(['/api', '/api/', '/api/suites/nts/runs', '/api/suites?limit=25'])(
@@ -19,6 +19,33 @@ describe('isApiPath', () => {
       expect(isApiPath(url)).toBe(false)
     },
   )
+})
+
+describe('isStaticAssetPath', () => {
+  it.each([
+    '/favicon.ico',
+    '/assets/index-DcWSbQGc.js',
+    '/assets/index-BfuC4xkh.css',
+    '/assets/index-DcWSbQGc.js.map',
+    '/fonts/inter.woff2',
+    '/llms.txt',
+    '/site.webmanifest',
+  ])('treats %s as a static asset request', (url) => {
+    expect(isStaticAssetPath(url)).toBe(true)
+  })
+
+  // Plenty of real routes end in something dot-like, so a bare "contains a dot" check would break
+  // them. Machine names in particular routinely carry version numbers.
+  it.each([
+    '/',
+    '/suites/nts',
+    '/suites/nts/machines/macos-26.5-arm64',
+    '/suites/nts/machines/linux-x86_64',
+    '/suites/nts/commits/014621ede7c1',
+    '/graph?suite=nts',
+  ])('treats %s as a client route', (url) => {
+    expect(isStaticAssetPath(url)).toBe(false)
+  })
 })
 
 describe('registerSpa with a built client', () => {
@@ -60,6 +87,46 @@ describe('registerSpa with a built client', () => {
 
     expect(response.statusCode).toBe(404)
     expect(response.json().error.code).toBe('not_found')
+  })
+
+  it('404s a missing asset instead of serving the SPA', async () => {
+    const app = await build()
+
+    // The shape a client ends up requesting when it is holding a hashed URL from a previous deploy.
+    const response = await app.inject({ method: 'GET', url: '/assets/index-STALEHASH.js' })
+
+    expect(response.statusCode).toBe(404)
+    expect(response.json().error.code).toBe('not_found')
+  })
+
+  it('404s a missing favicon instead of serving the SPA', async () => {
+    const app = await build()
+
+    const response = await app.inject({ method: 'GET', url: '/favicon.ico' })
+
+    expect(response.statusCode).toBe(404)
+  })
+
+  it('still serves the SPA for a route whose last segment contains dots', async () => {
+    const app = await build()
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/suites/nts/machines/macos-26.5-arm64',
+    })
+
+    expect(response.statusCode).toBe(200)
+    expect(response.body).toContain('<title>LNT</title>')
+  })
+
+  it('serves an asset that does exist', async () => {
+    writeFileSync(path.join(clientDist, 'real.css'), 'body{}')
+    const app = await build()
+
+    const response = await app.inject({ method: 'GET', url: '/real.css' })
+
+    expect(response.statusCode).toBe(200)
+    expect(response.body).toBe('body{}')
   })
 })
 
