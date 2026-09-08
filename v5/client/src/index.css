@@ -1,0 +1,25 @@
+:root {
+  --lnt-bg: #ffffff;
+  --lnt-fg: #1c1e21;
+  --lnt-muted: #6b7280;
+  --lnt-border: #e2e5e9;
+  --lnt-accent: #2563eb;
+  --lnt-panel: #f7f8fa;
+
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  line-height: 1.5;
+  color: var(--lnt-fg);
+  background-color: var(--lnt-bg);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+a {
+  color: var(--lnt-accent);
+}

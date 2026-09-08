@@ -1,0 +1,55 @@
+.layout {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.navbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0.75rem 1.5rem;
+  border-bottom: 1px solid var(--lnt-border);
+  background: var(--lnt-panel);
+}
+
+.navbar-group {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.navbar a {
+  color: var(--lnt-fg);
+  text-decoration: none;
+  font-size: 0.95rem;
+}
+
+.navbar a:hover {
+  color: var(--lnt-accent);
+}
+
+.navbar a.active {
+  color: var(--lnt-accent);
+  font-weight: 600;
+}
+
+.navbar-brand {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.navbar-disabled {
+  color: var(--lnt-muted);
+  font-size: 0.95rem;
+  cursor: not-allowed;
+}
+
+.page {
+  flex: 1;
+  padding: 2rem 1.5rem;
+  max-width: 72rem;
+  width: 100%;
+  margin: 0 auto;
+}

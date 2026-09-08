@@ -104,3 +104,16 @@ raw token; the raw token is shown only once and cannot be retrieved again.
   and links to an interactive API documentation viewer / OpenAPI spec
 - Static content, no authentication required
 - Served as `text/plain` with UTF-8 charset
+
+
+## R7: Health Check
+
+- `GET /healthz` reports whether the server is able to serve traffic. It
+  verifies database connectivity by issuing a trivial query, so a 200 means the
+  process is up *and* can reach Postgres.
+- Returns `200 {"ok": true}` on success, `500 {"ok": false}` if the database
+  cannot be reached.
+- No authentication, always public, regardless of server configuration.
+- Deliberately outside `/api/`, and deliberately not using the R4 error
+  envelope: this is an infrastructure probe rather than part of the REST API
+  surface.
