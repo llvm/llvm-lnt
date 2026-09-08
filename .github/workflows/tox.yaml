@@ -4,8 +4,14 @@ permissions:
   contents: read
 
 on:
-  - push
-  - pull_request
+  push:
+    paths-ignore:
+      - 'v5/**'
+      - '.github/workflows/v5-test.yml'
+  pull_request:
+    paths-ignore:
+      - 'v5/**'
+      - '.github/workflows/v5-test.yml'
 
 jobs:
   build:
