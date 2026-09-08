@@ -1,0 +1,23 @@
+services:
+  app:
+    image: ${image}
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./certs/rds-global-bundle.pem:/app/certs/rds-global-bundle.pem:ro
+    expose:
+      - "3000"
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./certs/origin.pem:/etc/nginx/certs/origin.pem:ro
+      - ./certs/origin.key:/etc/nginx/certs/origin.key:ro
+    depends_on:
+      - app

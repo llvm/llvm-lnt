@@ -1,0 +1,26 @@
+server {
+    listen 80;
+    server_name ${domain};
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name ${domain};
+
+    ssl_certificate     /etc/nginx/certs/origin.pem;
+    ssl_certificate_key /etc/nginx/certs/origin.key;
+
+    # A run submission carries its profiles inline as base64 (D6) and a single profile may be 50 MB
+    # decoded (D5), so nginx's 1 MB default would 413 every profile-bearing submission. Keep this in
+    # step with the Fastify `bodyLimit` in ../../server/src/index.ts.
+    client_max_body_size 128m;
+
+    location / {
+        proxy_pass http://app:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}

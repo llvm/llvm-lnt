@@ -1,0 +1,37 @@
+#
+# Check that the v5 Terraform modules are formatted and valid.
+#
+
+name: v5 Validate Terraform
+
+on:
+  pull_request:
+    paths:
+      - 'v5/deployment/**'
+      - '.github/workflows/v5-validate-terraform.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'v5/deployment/**'
+      - '.github/workflows/v5-validate-terraform.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  terraform:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        module: [bootstrap, main]
+    defaults:
+      run:
+        working-directory: v5/deployment/${{ matrix.module }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+
+      - run: terraform fmt -check -recursive
+      - run: terraform init -backend=false
+      - run: terraform validate
