@@ -43,17 +43,19 @@ jobs:
         run: terraform init
 
       - name: Terraform apply
-        run: |
-          terraform apply -auto-approve                                        \
-            -var="cloudflare_api_token=${{ secrets.V5_CLOUDFLARE_API_TOKEN }}" \
-            -var="cloudflare_zone_id=${{ vars.V5_CLOUDFLARE_ZONE_ID }}"        \
-            -var="domain=${{ vars.V5_DOMAIN }}"                                \
-            -var="app_image_tag=${{ inputs.app_image_tag }}"
+        env:
+          TF_VAR_cloudflare_api_token: ${{ secrets.V5_CLOUDFLARE_API_TOKEN }}
+          TF_VAR_cloudflare_zone_id: ${{ vars.V5_CLOUDFLARE_ZONE_ID }}
+          TF_VAR_domain: ${{ vars.V5_DOMAIN }}
+          TF_VAR_app_image_tag: ${{ inputs.app_image_tag }}
+        run: terraform apply -auto-approve
 
       - name: Wait for /healthz
+        env:
+          DOMAIN: ${{ vars.V5_DOMAIN }}
         run: |
           for _ in $(seq 1 60); do
-            if curl --silent --fail --max-time 10 "https://${{ vars.V5_DOMAIN }}/healthz" | grep -q '"ok":true'; then
+            if curl --silent --fail --max-time 10 "https://${DOMAIN}/healthz" | grep -q '"ok":true'; then
               echo "Server is healthy"
               exit 0
             fi

@@ -35,4 +35,11 @@ variable "ghcr_image" {
 variable "app_image_tag" {
   description = "Tag of the app image (in the ghcr_image repository) to deploy."
   type        = string
+
+  # Constrain it to what a Docker tag is actually allowed to contain, to prevent
+  # mistakes and injection.
+  validation {
+    condition     = can(regex("^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$", var.app_image_tag))
+    error_message = "app_image_tag must be a valid Docker tag."
+  }
 }
