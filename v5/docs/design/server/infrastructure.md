@@ -76,7 +76,8 @@ API documentation is generated using the OpenAPI 3.x format.
   - **read** -- all GET endpoints
   - **submit** -- submit runs (`POST /api/suites/{testsuite}/runs`), create commits (`POST /api/suites/{testsuite}/commits`)
   - **triage** -- create/update/delete regressions, manage regression indicators
-  - **manage** -- create/update/delete machines; update/delete commits; delete runs
+  - **manage** -- create/update/delete machines; update/delete commits; delete
+    runs; create/delete test suites and change their schemas
   - **admin** -- create/revoke API keys
 - Keys stored hashed in the database
 - Admin endpoints (outside any test suite):

@@ -147,7 +147,7 @@ Layout:
 | Commit            014621ede7c175aece29796adcaf5000f891cf0c  |
 | Ordinal           593922    [Edit]                          |
 | Tag               (none)    [Edit]                          |
-| <commit-parameters>                                         |
+| <commit-fields>                                             |
 +-------------------------------------------------------------+
 
 [<- Previous commit] [Next commit ->]

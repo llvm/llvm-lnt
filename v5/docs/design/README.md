@@ -54,7 +54,7 @@ v5/
 | Document | Contents |
 |----------|----------|
 | [Data Model](server/data-model.md) | Architecture, Commit concept, schema storage and format, all table definitions |
-| [Operations](server/operations.md) | Run submission, commit metadata, search, time-series queries, ordinal management |
+| [Operations](server/operations.md) | Run submission, machine and commit metadata, search, time-series queries, ordinal management |
 | [Infrastructure](server/infrastructure.md) | URL structure, pagination, filtering, response format, authentication, AI orientation, health check |
 | [Endpoints](server/endpoints.md) | All entity endpoint specifications: discovery, machines, commits, runs, tests, samples, profiles, regressions, time series, test suites, admin |
 

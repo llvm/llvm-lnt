@@ -8,20 +8,32 @@ management, search, time-series queries, and ordinal management.
 
 Runs are submitted as JSON via `POST /api/suites/{testsuite}/runs`.
 
+Machine and Commit are each submitted as an entity object of the same shape:
+the identity attribute, any built-in attributes, and a `fields` dict holding
+the schema-declared metadata. Keeping declared metadata in its own namespace
+means a field can never collide with an identity or built-in key, and makes the
+object identical to the one the entity's own creation endpoint accepts (see D7).
+
 ```json
 {
   "format_version": "5",
   "uuid": "550e8400-e29b-41d4-a716-446655440000",
   "machine": {
     "name": "my-machine",
-    "hardware": "x86_64",
-    "os": "linux"
+    "tracked": true,
+    "fields": {
+      "hardware": "x86_64",
+      "os": "linux"
+    }
   },
-  "commit": "abc123def456",
-  "commit_fields": {
-    "git_sha": "abc123def456789...",
-    "author": "Jane Doe",
-    "commit_message": "Fix vectorizer regression"
+  "commit": {
+    "value": "abc123def456",
+    "ordinal": 593922,
+    "fields": {
+      "git_sha": "abc123def456789...",
+      "author": "Jane Doe",
+      "commit_message": "Fix vectorizer regression"
+    }
   },
   "run_parameters": {
     "build_config": "Release"
@@ -44,21 +56,33 @@ Runs are submitted as JSON via `POST /api/suites/{testsuite}/runs`.
   v7, etc.) -- only the format is validated. If a run with the same UUID
   already exists in the test suite, the server returns 409 Conflict. If omitted,
   the server generates a random UUID v4.
-- `machine`: Required. `name` is required; other keys match `machine_fields`
-  from the schema and are stored in the corresponding columns. Keys that do not
-  match any `machine_fields` entry go into the `parameters` JSONB blob.
-  The reserved key `tracked` (boolean) may be supplied to control whether the
-  machine participates in automatic machine selection; it is not a
-  `machine_field` and never lands in `parameters`. It applies only when the
-  machine is created (first-write-wins) and defaults to `true` when omitted;
-  submitting `tracked` for a machine that already exists is ignored, and is
-  *not* treated as a metadata mismatch. Use
-  `PATCH /api/suites/{testsuite}/machines/{name}` to change it afterwards.
-- `commit`: Required string. Identifies which commit this run belongs to.
-- `commit_fields`: Optional. Keys match `commit_fields` from the schema.
-  First-write-wins: if the commit already exists, metadata is not overwritten.
-  Use PATCH on the commit to update metadata after creation.
-- `run_parameters`: Optional. Stored as JSONB on the Run.
+- `machine`: Required object identifying the machine this run was measured on.
+  - `name`: Required string. The machine's identity.
+  - `fields`: Optional. Every key must be declared in the schema's
+    `machine_fields`. See D7 for undeclared keys and for how metadata is
+    reconciled when the machine already exists.
+  - `tracked`: Optional boolean, a built-in attribute rather than a
+    `machine_field`. Controls whether the machine participates in automatic
+    machine selection. It applies only when the machine is created
+    (first-write-wins) and defaults to `true` when omitted; submitting it for a
+    machine that already exists is ignored. Use
+    `PATCH /api/suites/{testsuite}/machines/{name}` to change it afterwards.
+- `commit`: Required object identifying the commit this run belongs to.
+  - `value`: Required string. The commit's identity.
+  - `fields`: Optional. Every key must be declared in the schema's
+    `commit_fields`. See D7 for undeclared keys and for how metadata is
+    reconciled when the commit already exists.
+  - `ordinal`: Optional integer, a built-in attribute rather than a
+    `commit_field`. Places the commit in the suite's total order. It is set
+    when the commit has no ordinal yet; when the commit already has a
+    different one, the submission is rejected with 409. Use
+    `PATCH /api/suites/{testsuite}/commits/{value}` to change an ordinal once
+    set. Ordinals are unique within a suite, so a value already held by a
+    different commit is also rejected with 409 (see D11).
+  - A run submission never sets `tag`: it is an editorial label applied after
+    the fact, not something a submitter knows in advance (see D5).
+- `run_parameters`: Optional. Stored as JSONB on the Run. Run has no declared
+  field list, so this is a free-form blob rather than a `fields` dict.
 - `tests`: Required. Each entry has `name` plus metric values. Metric values
   may be scalars or arrays. An array value (e.g. `"execution_time": [0.1, 0.2]`)
   creates one Sample row per element. All arrays in a single test entry must
@@ -70,24 +94,60 @@ Runs are submitted as JSON via `POST /api/suites/{testsuite}/runs`.
   a reserved name and must not collide with metric names.
 
 
-## D7: Commit Metadata Population
+## D7: Machine and Commit Metadata Population
 
-Commit metadata (`commit_fields`) can be set via three paths:
+Machine and Commit are the two entities that carry schema-declared metadata
+(`machine_fields` and `commit_fields`, see D4) and that a run submission may
+create implicitly. Both are represented by an entity object of the same shape
+-- identity attribute, built-in attributes, and a `fields` dict of declared
+metadata -- and that same object is what every write path accepts:
 
-1. **Inline during run submission**: The `commit_fields` dict in the submission
-   JSON populates metadata on the Commit record when it is first created.
-   If the commit already exists, metadata is NOT overwritten, and the metadata
-   must match (otherwise it is an error).
-2. **Explicit creation**: `POST /api/suites/{testsuite}/commits` creates a commit directly (without a
-   run), optionally supplying `commit_fields` and/or an `ordinal` at creation
-   time.
-3. **Via PATCH**: `PATCH /api/suites/{testsuite}/commits/{value}` can set or update
-   metadata fields at any time, overwriting existing values.
+1. **Inline during run submission**: the payload's `machine` and `commit`
+   objects populate the record when it is first created. If the record already
+   exists, its metadata is NOT overwritten, and the submitted values must match
+   the stored ones (otherwise the submission is rejected).
+2. **Explicit creation**: `POST /api/suites/{testsuite}/machines` and
+   `POST /api/suites/{testsuite}/commits` take the same entity object, creating
+   the record directly without a run.
+3. **Via PATCH**: `PATCH /api/suites/{testsuite}/machines/{name}` and
+   `PATCH /api/suites/{testsuite}/commits/{value}` set or update metadata at any
+   time, overwriting existing values.
 
-Ordinals are `NULL` when a commit is created implicitly via run submission
-(the run-submission body has no `ordinal` field). They can be set explicitly
-at creation via `POST /api/suites/{testsuite}/commits`, or assigned/updated at any time via PATCH
-(see D11).
+**Declared keys only**: on every path, each metadata key must be declared in
+the suite's schema; an undeclared key is rejected with 400. Neither entity has
+a catch-all blob, so the schema states exactly what may be stored on it.
+Declaring a new field is a schema change (`PATCH /api/suites/{name}/schema`,
+see D2), not something a submission can do implicitly.
+
+**Matching on re-submission**: the match in path 1 considers only the keys
+present in the submission. A key the submission omits is not compared, so its
+stored value is left alone and can never cause a rejection. Submitters that
+send different subsets of a record's metadata therefore coexist, and a field
+introduced by a schema change does not break producers that do not send it yet.
+
+Per-entity specifics:
+
+| | Machine | Commit |
+|---|---|---|
+| Identity attribute | `name` | `value` |
+| Declared metadata | `fields`, per `machine_fields` | `fields`, per `commit_fields` |
+| Built-in mutable attributes | `tracked` | `ordinal`, `tag` |
+| Settable during run submission | `tracked` (first-write-wins) | `ordinal` (must match if already set) |
+| Settable at explicit creation | `tracked` | `ordinal` |
+| Settable only via PATCH | -- | `tag` |
+| Renameable via PATCH | yes | no |
+
+Built-in mutable attributes sit beside the identity attribute rather than
+inside `fields`. `tracked` is excluded from the match above: it is a
+non-nullable policy flag that operators are expected to change, so
+re-submitting it for an existing machine is never a mismatch. `ordinal` is
+nullable and factual, so it matches like `fields` do -- set when unset,
+rejected when it contradicts. `tag` is an editorial label applied after the
+fact, which is why it is PATCH-only. See D5 for their columns and D11 for
+ordinal assignment.
+
+Run metadata is deliberately not covered here: `run_parameters` is written once
+at submission and never updated, so there is no reconciliation to specify.
 
 
 ## D8: No Regression Auto-Detection
@@ -148,14 +208,20 @@ no data is excluded.
 
 ## D11: Ordinal Management
 
-- Ordinals are `NULL` when a commit is created implicitly via run submission.
-- Ordinals can be set explicitly at creation via `POST /api/suites/{testsuite}/commits`, or
+- Ordinals can be set on three paths: inline as `commit.ordinal` during run
+  submission, at creation via `POST /api/suites/{testsuite}/commits`, or
   assigned/updated at any time via `PATCH /api/suites/{testsuite}/commits/{value}`.
+- Inline submission sets the ordinal when the commit has none, and is rejected
+  with 409 when the commit already has a different one. `PATCH` is the only way
+  to change an ordinal once set.
+- A commit whose ordinal is never set on any of those paths stays `NULL`, which
+  means unordered.
 - Even numeric commit strings (e.g., `"311066"`) do not auto-assign ordinals
-  -- an ordinal must be explicitly provided via one of the two paths above.
+  -- an ordinal must be explicitly provided via one of the three paths above.
 - The unique constraint on ordinal is a regular (non-deferred) constraint.
-  Ordinals are assigned once by an external process and are not expected to
-  be reassigned.
+  Ordinals are assigned once and are not expected to be commonly reassigned. A
+  write that would give two different commits the same ordinal is rejected with
+  409, including when it arrives inline with a run submission.
 - `previous` and `next` navigation on a commit is computed by querying for
   the nearest lower/higher ordinal (not a linked list).
 

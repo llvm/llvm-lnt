@@ -15,8 +15,8 @@ The v5 "Commit" concept separates these.
   the UI also uses it for display, but a `commit_field` marked `display: true`
   overrides what is shown (see D4). Every run must have a commit.
 - **Ordinal**: An optional integer that places the commit in a total order.
-  Can be set at creation (`POST /api/suites/{testsuite}/commits`) or at any later
-  time via PATCH;
+  Can be set inline in a run submission, at creation via
+  `POST /api/suites/{testsuite}/commits`, or at any later time via PATCH;
   never inferred from the commit string (even if the string is numeric).
   `NULL` means unordered.
 
@@ -36,8 +36,8 @@ deleted too.
 
 ## D2: Schema Storage and Lifecycle
 
-Test suite schemas are created via the API (`POST /api/suites`) and
-persisted in the database.
+Test suite schemas are created via the API (`POST /api/suites`), evolved via
+`PATCH /api/suites/{name}/schema`, and persisted in the database.
 
 **Global tables** (not per-suite, shared across all suites):
 
@@ -49,12 +49,34 @@ persisted in the database.
 On startup, all rows from `schema` are read and in-memory models for the schemas are
 built. The `schema_version` counter is cached.
 
-**Multi-process safety**: In a multi-worker deployment, when one worker creates or
-deletes a suite, it bumps the `schema_version` counter in the same transaction.
-Every request path must compare its cached version counter against the database
-before reading the in-memory suite registry. When a mismatch is detected, all
+**Multi-process safety**: In a multi-worker deployment, when one worker creates,
+modifies, or deletes a suite, it bumps the `schema_version` counter in the same
+transaction. Every request path must compare its cached version counter against the
+database before reading the in-memory suite registry. When a mismatch is detected, all
 schemas are reloaded from the database. The check is a single-row integer read
 per request.
+
+**Schema evolution**: A suite's `metrics`, `commit_fields`, and `machine_fields`
+lists can be changed after creation via `PATCH /api/suites/{name}/schema`, which
+adds, updates, and/or removes entries in any of the three. This is the only way a
+suite comes to accept metadata it did not declare at creation: undeclared keys are
+rejected on submission for both machines and commits (see D6).
+
+- **Adding** an entry leaves existing rows with no value for it.
+- **Updating** an entry changes presentation metadata only (`display_name`,
+  `unit`, `unit_abbrev`, `bigger_is_better`, `searchable`, `display`). A `type`
+  cannot be changed in place, because the conversion is not always defined
+  (`text` to `integer` can fail per row, `real` to `integer` truncates).
+- **Removing** an entry permanently destroys every value stored for it. Because
+  those values are destroyed, an implementation may reuse whatever storage the
+  removed entry occupied.
+
+Notes:
+- Renaming is not supported; it is semantically a remove plus an add.
+- A schema change is atomic -- it applies entirely or not at all.
+- The same field cannot be the target of more than one add/update/remove operation in a given query.
+- The resulting schema is validated in full, exactly as if it had been supplied to `POST /api/suites`,
+  rather than only the entries the request touched.
 
 
 ## D3: Attribute Types
@@ -168,11 +190,10 @@ serialize timestamps as ISO 8601 with `Z` suffix (e.g., `"2026-04-15T14:30:00Z"`
 | tag | VARCHAR(256) | nullable, indexed (partial: WHERE tag IS NOT NULL) |
 | _(dynamic)_ | per commit_fields | nullable |
 
-- `commit` is the identity string provided by submitters. Used as the default
-  display value in the UI unless a `commit_field` with `display: true` is
-  defined and populated.
-- `ordinal` has a regular unique constraint. Ordinals are assigned once by an
-  external process and are not expected to be reassigned.
+- `commit` is the identity string, submitted as `commit.value` (see D6). Used
+  as the default display value in the UI unless a `commit_field` with
+  `display: true` is defined and populated.
+- `ordinal` has a regular unique constraint.
 - `tag` is an optional human-readable label (e.g., `release-18.1`). Set
   exclusively via `PATCH /api/suites/{testsuite}/commits/{value}` (never during submission).
   Multiple commits may share the same tag. The tag is always included in
@@ -194,7 +215,6 @@ serialize timestamps as ISO 8601 with `Z` suffix (e.g., `"2026-04-15T14:30:00Z"`
 | id | INTEGER | PK |
 | name | VARCHAR(256) | unique, not null |
 | tracked | BOOLEAN | not null, default `true` |
-| parameters | JSONB | not null, default `{}` |
 | _(dynamic)_ | per machine_fields | nullable |
 
 - `name` uniqueness is enforced
@@ -206,11 +226,11 @@ serialize timestamps as ISO 8601 with `Z` suffix (e.g., `"2026-04-15T14:30:00Z"`
   untracked machines are permanent and are not cleaned up. Typical uses are
   one-off comparison configurations (e.g. the same hardware built at `-O2`
   and `-O3`) and retired hardware whose history is worth keeping.
-- `parameters` stores extra key-value data as Postgres JSONB.
 - Dynamic columns are created from `machine_fields` in the schema (see D3 for
-  the type-to-column mapping).
+  the type-to-column mapping). Keys submitted for a machine that are not declared
+  as `machine_fields` are rejected (see D6).
 - Schema-defined `machine_fields` names must not collide with built-in column
-  names (`id`, `name`, `tracked`, `parameters`). The schema parser rejects these.
+  names (`id`, `name`, `tracked`). The schema parser rejects these.
 - Cascade: deleting a machine cascades to its runs.
 
 ### `{suite}_Run`

@@ -23,12 +23,19 @@ Auth: none. Always public, regardless of server configuration.
 GET    /api/suites/{testsuite}/machines                     -- List (searchable, simple pagination)
 POST   /api/suites/{testsuite}/machines                     -- Create machine independently
 GET    /api/suites/{testsuite}/machines/{machine_name}      -- Detail
-PATCH  /api/suites/{testsuite}/machines/{machine_name}      -- Update metadata/parameters/tracked (including rename)
+PATCH  /api/suites/{testsuite}/machines/{machine_name}      -- Update fields/tracked (including rename)
 DELETE /api/suites/{testsuite}/machines/{machine_name}      -- Delete machine and its runs
 GET    /api/suites/{testsuite}/machines/{machine_name}/runs -- List runs for this machine (cursor-paginated)
 ```
 
-Machines are also created implicitly if a run is submitted for a nonexistent machine.
+Machines are also created implicitly if a run is submitted for a nonexistent machine
+(see D7).
+
+**Machine object**: `POST` and `PATCH` take the same entity object that a run
+submission nests under `machine` (see D6): `name` (identity), `tracked`
+(built-in attribute), and `fields` (declared `machine_fields`). Responses use
+the same shape. On `PATCH`, supplying `name` renames the machine, and omitting
+any key leaves it unchanged.
 
 Auth scopes: `read` for GET, `manage` for POST/PATCH/DELETE.
 
@@ -53,20 +60,28 @@ R2).
 
 ```
 GET    /api/suites/{testsuite}/commits                      -- List (cursor-paginated, searchable)
-POST   /api/suites/{testsuite}/commits                      -- Create with metadata (commit_fields) and, optionally, an ordinal
+POST   /api/suites/{testsuite}/commits                      -- Create with metadata (fields) and, optionally, an ordinal
 GET    /api/suites/{testsuite}/commits/{value}              -- Detail (includes previous/next commit by ordinal)
-PATCH  /api/suites/{testsuite}/commits/{value}              -- Update ordinal, tag, and/or commit_fields
+PATCH  /api/suites/{testsuite}/commits/{value}              -- Update ordinal, tag, and/or fields
 DELETE /api/suites/{testsuite}/commits/{value}              -- Delete commit (cascades to runs/samples; 409 if referenced by regressions)
 POST   /api/suites/{testsuite}/commits/resolve              -- Batch resolve commit strings to summaries
 ```
 
 The `{value}` in the path is the commit identity string. Commits are also
-created implicitly during run submission, which never sets an ordinal.
-`ordinal` may be set explicitly at creation via `POST /api/suites/{testsuite}/commits`,
+created implicitly during run submission, which may set an `ordinal` inline
+(see D6). `ordinal` may also be set at creation via
+`POST /api/suites/{testsuite}/commits`,
 or at any time via `PATCH /api/suites/{testsuite}/commits/{value}` (see D11). `tag`
 is set exclusively via `PATCH /api/suites/{testsuite}/commits/{value}`, never at
 creation. On `PATCH`, sending `ordinal: null` or `tag: null` explicitly clears
 a previously-set value; omitting the field instead leaves it unchanged.
+
+**Commit object**: `POST` and `PATCH` take the same entity object that a run
+submission nests under `commit` (see D6): `value` (identity), `ordinal` and
+`tag` (built-in attributes), and `fields` (declared `commit_fields`). Responses
+use the same shape. `value` is immutable -- commits cannot be renamed. Keys in
+`fields` must be declared in the suite's schema; an undeclared key is rejected
+with 400 (see D7).
 
 Auth scopes: `read` for GET (including `/commits/resolve`), `submit` for
 `POST /commits`, `manage` for PATCH/DELETE.
@@ -91,15 +106,15 @@ each found commit's summary in a dict keyed by commit string:
 ```json
 {
   "results": {
-    "abc": {"commit": "abc", "ordinal": 42, "fields": {"git_sha": "..."}},
-    "def": {"commit": "def", "ordinal": null, "fields": {}}
+    "abc": {"value": "abc", "ordinal": 42, "tag": null, "fields": {"git_sha": "..."}},
+    "def": {"value": "def", "ordinal": null, "tag": null, "fields": {}}
   },
   "not_found": ["unknown"]
 }
 ```
 
 Each value in `results` has the same shape as `CommitSummarySchema`
-(`{commit, ordinal, tag, fields}`). Commit strings not found in the database
+(`{value, ordinal, tag, fields}`). Commit strings not found in the database
 are returned in a separate `not_found` list. Duplicates in the request
 are deduplicated; each commit appears at most once in the response.
 
@@ -135,8 +150,15 @@ or any searchable machine_field; see D9) -- the same predicate as
 `sort=-submitted_at` returns newest-first; omitting `sort` returns results in
 an arbitrary but deterministic order suitable for pagination (see R2).
 
-If the submitted run's machine name already exists with metadata that differs
-from what's submitted, the submission is rejected.
+If the submitted run's machine already exists with `machine.fields` values that
+differ from what's submitted, the submission is rejected. Only keys present in
+the submission are compared, and the built-in `tracked` attribute is excluded
+from the comparison (see D7). Keys in `machine.fields` that are not declared as
+`machine_fields` are rejected with 400 rather than stored.
+
+If the submission supplies `commit.ordinal`, it is rejected with 409 when the
+commit already has a different ordinal, or when that ordinal is already held by
+a different commit (see D11).
 
 Auth scopes: `read` for GET, `submit` for POST, `manage` for DELETE.
 
@@ -348,10 +370,11 @@ Auth scope: `read`.
 GET    /api/suites               -- List test suites defined on this instance
 POST   /api/suites               -- Create a test suite from a schema definition
 GET    /api/suites/{name}        -- Detail (includes schema)
+PATCH  /api/suites/{name}/schema -- Add, update, or remove metrics and fields
 DELETE /api/suites/{name}        -- Delete a test suite and all its data
 ```
 
-Auth scopes: `read` for GET, `manage` for POST/DELETE.
+Auth scopes: `read` for GET, `manage` for POST/PATCH/DELETE.
 
 **Create** (`POST /api/suites`): the request body is the schema definition
 itself -- `name`, `metrics`, `commit_fields`, `machine_fields` (see D4 in
@@ -361,6 +384,39 @@ created suite's detail body and a `Location` header pointing at
 exists, 400 if the schema definition fails validation (e.g. more than one
 `commit_field` marked `display: true`; see D4), or 409 if suite creation
 otherwise fails after passing schema validation.
+
+**Evolve** (`PATCH /api/suites/{name}/schema`): changes the suite's `metrics`,
+`commit_fields`, and/or `machine_fields` after creation. See D2 for the semantics;
+what follows is the wire format.
+
+The body supplies, for any of the three lists, any of `add`, `update`, and
+`remove`:
+
+```json
+{
+  "machine_fields": {
+    "add":    [{"name": "kernel", "type": "text", "searchable": true}],
+    "update": [{"name": "hardware", "display_name": "Hardware"}],
+    "remove": ["hardwrae"]
+  }
+}
+```
+
+`add` entries take the schema format defined in D4. `update` entries carry a
+`name` plus only the presentation keys being changed. `remove` is a list of
+names.
+
+Because `remove` destroys data, a request containing a non-empty `remove` list
+requires a `?confirm=true` query parameter; omitting it returns 400. This
+mirrors `DELETE /api/suites/{name}`.
+
+On success, returns 200 with the suite's detail body. Returns 404 if the suite
+does not exist, or if `update` or `remove` names an entry that is not in that
+list. Returns 409 if `add` names an entry that already exists in that list.
+Returns 400 if `update` attempts to change a `type`, if `confirm=true` is
+required but missing, or if the resulting schema fails validation (see D3, D4,
+and D5) -- validation runs against the whole resulting schema, not just the
+entries the request touched.
 
 **Delete** (`DELETE /api/suites/{name}`): permanently deletes the suite and
 all of its data (machines, runs, commits, samples, regressions). Requires a
