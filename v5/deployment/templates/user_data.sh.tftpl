@@ -34,7 +34,6 @@ cat > /opt/app/.env <<EOF
 DATABASE_URL=postgres://${db_username}:$DB_PASSWORD_URLENC@${db_endpoint}/${db_name}
 DATABASE_SSL_CA=/app/certs/rds-global-bundle.pem
 PORT=3000
-AWS_REGION=${aws_region}
 EOF
 chmod 600 /opt/app/.env
 
