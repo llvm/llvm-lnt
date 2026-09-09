@@ -6,9 +6,10 @@ Cloudflare Origin CA certificate so traffic between Cloudflare and the origin is
 
 Everything is provisioned with Terraform, split into two modules under `v5/deployment/`:
 
-- `bootstrap`: creates the S3 bucket that `main` uses as its remote state backend, and the OIDC
-  provider + IAM role the `v5 Deploy` GitHub Actions workflow uses to authenticate to AWS. This is
-  used once on a new AWS deployment. Its own state is local and not committed.
+- `bootstrap`: creates the S3 bucket that `main` uses as its remote state backend, the OIDC provider
+  and IAM role the `v5 Deploy` GitHub Actions workflow uses to authenticate to AWS, and the instance
+  role the app server runs under. This is used once on a new AWS deployment. Its own state is local
+  and not committed.
 - `main`: the actual stack configuring networking, RDS, the EC2 instance, and the Cloudflare DNS
   record + Origin CA certificate.
 
@@ -25,9 +26,14 @@ the deployment pipeline. One thing is worth knowing before the first apply: S3 b
 globally unique. If `lnt-v5-terraform-state` is taken, set `-var="state_bucket_name=..."` and put the
 same value in `v5/deployment/main/backend.tf` (which cannot read variables).
 
-The module also creates the GitHub Actions OIDC provider. By default the role is assumable only from
-the `v5-production` environment of `llvm/llvm-lnt`. The `github_repo` and `github_environment` variables
-can be overridden if needed (e.g. iterating from a fork).
+The module also creates the app server's instance role since that makes it easier to harden against
+priviledge escalation than letting the deployment pipeline edit its own IAM settings.
+
+Finally, the module creates the GitHub Actions OIDC provider. An AWS account can hold only one OIDC
+provider per URL, so if the account already trusts GitHub Actions for another project, apply with
+`-var="manage_github_oidc_provider=false"` to reuse the existing one. By default the OIDC role is
+assumable only from the `v5-production` environment of `llvm/llvm-lnt`. The `github_repo` and
+`github_environment` variables can be overridden if needed (e.g. iterating from a fork).
 
 After applying, configure the following once in the GitHub repository, under a `v5-production`
 environment:
