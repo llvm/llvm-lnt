@@ -1,5 +1,5 @@
-# One-time trust setup for the automated deployment pipeline. This creates an IAM policy with just
-# enough permissions to perform what the CI needs to do. Run it once manually.
+# One-time trust setup for the automated deployment pipeline. This creates an IAM policy with
+# just enough permissions to perform what the CI needs to do. Run it once manually.
 
 data "aws_caller_identity" "current" {}
 
@@ -38,7 +38,7 @@ resource "aws_iam_role" "github_actions_deploy" {
   })
 }
 
-# IAM Policy allowing the use of roughly the parts of AWS we need.
+# IAM Policy allowing the use of the parts of AWS we need.
 resource "aws_iam_role_policy" "deploy_scoped" {
   name = "scoped-resources"
   role = aws_iam_role.github_actions_deploy.id
@@ -65,12 +65,27 @@ resource "aws_iam_role_policy" "deploy_scoped" {
         ]
       },
       {
-        Sid    = "IamResources"
+        Sid      = "IamPassAppRole"
+        Effect   = "Allow"
+        Action   = "iam:PassRole"
+        Resource = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.resource_prefix}-app"
+        Condition = {
+          StringEquals = {
+            "iam:PassedToService" = "ec2.amazonaws.com"
+          }
+        }
+      },
+      # Read-only, so that Terraform can resolve the instance profile it attaches to the instance.
+      {
+        Sid    = "IamReadAppRole"
         Effect = "Allow"
-        Action = "iam:*"
+        Action = [
+          "iam:GetRole",
+          "iam:GetInstanceProfile",
+        ]
         Resource = [
-          "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.resource_prefix}-*",
-          "arn:aws:iam::${data.aws_caller_identity.current.account_id}:instance-profile/${var.resource_prefix}-*",
+          "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.resource_prefix}-app",
+          "arn:aws:iam::${data.aws_caller_identity.current.account_id}:instance-profile/${var.resource_prefix}-app",
         ]
       },
       {
