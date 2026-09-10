@@ -66,10 +66,12 @@ descending, and commits without one (ad-hoc A/B experiment commits; see D1)
 above those. The sort is applied client-side, not via `sort=-ordinal`, which
 would drop the unordered commits -- pickers must keep them selectable.
 
-**Authentication**: The v5 API allows unauthenticated reads by default. The SPA
-navigation bar includes a Settings panel with a Bearer token input (stored in
-local storage) for the Admin page and other write-capable pages (regression
-triage, etc.).
+**Authentication**: The v5 API allows unauthenticated reads, except for
+the API key endpoints, which require `admin` scope even to read (see R5). No
+configuration can gate reads, so the SPA never needs a token merely to browse.
+The SPA navigation bar includes a Settings panel with a Bearer token input
+(stored in local storage) for the Admin page and other write-capable pages
+(regression triage, etc.).
 
 
 ## Page Hierarchy

@@ -14,7 +14,7 @@ Response is a `links` object with `suites` (path to the test suite list),
 interactive API documentation viewer). The index does not enumerate suites
 itself -- `GET /api/suites` is the canonical suite list.
 
-Auth: none. Always public, regardless of server configuration.
+Auth scope: `read`.
 
 
 ## Machines
@@ -428,3 +428,62 @@ suite detail response (`GET /api/suites/{name}`) rather than as
 standalone endpoints. The response includes a `"schema"` object containing
 `machine_fields`, `commit_fields`, and `metrics` (with `name`, `type`,
 `display_name`, `unit`, `unit_abbrev`, `bigger_is_better` for each).
+
+
+## Admin
+
+Instance-level API key management, outside any test suite.
+
+```
+GET    /api/admin/api-keys           -- List keys
+POST   /api/admin/api-keys           -- Create key, returns the raw token once
+DELETE /api/admin/api-keys/{prefix}  -- Revoke key
+```
+
+Auth scope: `admin` for all three, including the GET -- the only GET endpoints
+in the API requiring more than `read`, and so the only ones unauthenticated
+access never reaches (see R5).
+
+**Key fields**: `prefix`, `name`, `scope`, `created_at`, `last_used_at`,
+`is_active`. `last_used_at` is null until the key is first used and approximate
+thereafter (see D5). Neither the raw token nor its hash ever appears, except
+for the raw token in the create response below.
+
+**List** (`GET /api/admin/api-keys`): returns a JSON array of key objects
+ordered by `created_at` descending -- newest first -- with `prefix` as a
+tiebreaker. `created_at` is immutable, so this order is stable across requests.
+Ordering by `last_used_at` is deliberately avoided: that column is mutable,
+nullable, and only approximate (see D5), so using it would let the list
+reshuffle itself between requests and would sort a freshly created key last.
+Not paginated; supplying `limit` or `offset` returns 400. Revoked keys are
+included, with `is_active: false`; there is no mechanism for pruning them.
+
+**Create** (`POST /api/admin/api-keys`): body is `name` (string, required) and
+`scope` (string, required -- one of `read`, `submit`, `triage`, `manage`,
+`admin`). Returns 201 with the key's fields plus a `token` field carrying the
+raw token, which is shown only this once and cannot be retrieved afterwards
+(see R5). No `Location` header is set: there is deliberately no per-key detail
+route, so the list is the only way to read a key back.
+
+Returns 400 if `name` is missing, empty, or longer than 256 characters (see D5),
+or if `scope` is missing or is not one of the five values. `name` is a
+label rather than an identifier, so two keys may share one.
+
+**Revoke** (`DELETE /api/admin/api-keys/{prefix}`): sets `is_active` to false
+rather than deleting the row, so that the revocation stays visible and the
+prefix is never reused by a later key. Returns 204 on success, 204 again if the
+key was already revoked (revocation is idempotent), and 404 if no key has that
+prefix -- including when a caller passes a whole token instead of its prefix.
+Revocation takes effect immediately (see R5) and cannot be undone; restoring
+access means creating a new key. No `?confirm=true` is required, unlike the
+destructive suite operations above: revoking a key destroys no data.
+
+A key is otherwise immutable: there is no PATCH route, and changing a key's
+scope means creating a replacement and revoking the original. Keys do not
+expire.
+
+Any `admin` key may revoke any key, including the one authenticating the
+request and the last remaining active `admin` key. There is deliberately no
+special case for either, because an operator's ability to revoke a leaked key
+must not depend on which key leaked. Recovering from revoking the last `admin`
+key requires creating one out of band; that mechanism is not specified yet.

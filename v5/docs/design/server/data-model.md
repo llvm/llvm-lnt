@@ -39,12 +39,8 @@ deleted too.
 Test suite schemas are created via the API (`POST /api/suites`), evolved via
 `PATCH /api/suites/{name}/schema`, and persisted in the database.
 
-**Global tables** (not per-suite, shared across all suites):
-
-| Table | Columns |
-|---|---|
-| `schema` | `name` (VARCHAR PK), `schema_json` (TEXT), `created_at` (TIMESTAMP WITH TIME ZONE) |
-| `schema_version` | `id` (INTEGER PK), `version` (INTEGER) |
+Two global tables hold this state: `schema`, with one row per suite, and
+`schema_version`, a single-row counter. See D5 for their columns.
 
 On startup, all rows from `schema` are read and in-memory models for the schemas are
 built. The `schema_version` counter is cached.
@@ -173,14 +169,103 @@ Notes:
 
 ## D5: Data Model
 
-Per-suite tables are dynamically named (e.g., `nts_Commit`, `nts_Run`).
+The v5 tables fall into two groups: **global tables**, which exist once per
+instance, and **per-suite tables**, which are created for each test suite.
 
 **Timestamp convention**: All timestamp columns are `TIMESTAMP WITH TIME ZONE`,
 storing timezone-aware UTC values. Implementations
 must ensure timestamps are converted to UTC before storage. API responses
 serialize timestamps as ISO 8601 with `Z` suffix (e.g., `"2026-04-15T14:30:00Z"`).
 
-### `{suite}_Commit`
+**Index convention**: A `unique` constraint or primary key implies an index, and
+compound indexes are listed in each table's notes. `indexed` therefore marks
+only those columns that need a single-column index of their own and are not
+already unique.
+
+### Global Tables
+
+These exist once per instance, independent of any test suite. Their names are
+fixed rather than derived from a suite name. Because every per-suite table is
+named `{suite}_<Entity>` for one of the entity suffixes below, no suite name can
+collide with a global table name, so no suite names need to be reserved (R1
+states the analogous property for URLs).
+
+#### `schema`
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| name | VARCHAR | PK |
+| schema_json | TEXT | not null |
+| created_at | TIMESTAMP WITH TIME ZONE | not null |
+
+- One row per test suite, holding the suite's schema (see D4).
+- `schema_json` holds the *normalized* schema -- the same content
+  `GET /api/suites/{name}` returns, with omitted optional keys filled in --
+  rather than the request body as submitted. It is stored as text rather than
+  JSONB because the server never queries into it: it is read whole, parsed
+  into the in-memory model, and written whole.
+- No width is given for `name` because the effective limit is lower than any
+  round number would suggest: a suite's name is used to derive its per-suite
+  table names, so it is bounded by the database's identifier length limit.
+
+#### `schema_version`
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| id | INTEGER | PK, always `1` |
+| version | INTEGER | not null |
+
+- Exactly one row, created with `version = 0` when the database is initialized
+  and never deleted. Readers may rely on its presence; `id` is fixed at `1` so
+  that the row is addressable without a search.
+- Bumped whenever a suite is created, modified, or deleted, so that other
+  workers can detect that their cached schemas are stale (see D2).
+
+#### `api_key`
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| id | INTEGER | PK |
+| prefix | VARCHAR(8) | unique, not null |
+| key_hash | VARCHAR(64) | unique, not null |
+| name | VARCHAR(256) | not null |
+| scope | VARCHAR(32) | not null |
+| created_at | TIMESTAMP WITH TIME ZONE | not null |
+| last_used_at | TIMESTAMP WITH TIME ZONE | nullable |
+| is_active | BOOLEAN | not null, default `true` |
+
+- `prefix` is the leading 8 characters of the token (see R5). Because the token
+  itself is unrecoverable once hashed, the prefix is the only stable handle to
+  a key, and it is what the API uses to address one. It is unique, so a prefix
+  is never reused. Since it is derived from the token rather than chosen
+  independently, a freshly generated token whose prefix collides with an
+  existing key's is discarded and a new token generated, rather than the
+  request failing.
+- `key_hash` is the token's hash (see R5). No part of the token beyond
+  `prefix` is stored in recoverable form.
+- `name` is a human-readable label and is deliberately not unique: two keys may
+  share a name.
+- `scope` is one of `read`, `submit`, `triage`, `manage`, `admin` (see R5). The
+  DB layer validates it on create. It is stored as text rather than as an
+  integer code (unlike `{suite}_Regression.state`, below) because it is read
+  once per authenticated request and never filtered or sorted on, so
+  legibility in the database is worth more than compactness.
+- `last_used_at` is null until the key is first used. It is recorded on
+  successful authentication on a best-effort basis: an implementation may
+  coalesce or drop these writes, so the value may lag actual use. It is not an
+  audit log, and clients must not rely on its precision. Writing it must not
+  participate in the request's transaction and no request's outcome may depend
+  on it -- a single key may be shared by many submitting bots, so an in-transaction
+  update would serialize every request using that key behind a single row lock held
+  for the length of each request.
+- `is_active` is false once the key has been revoked. Revocation does not
+  delete the row (see the Admin section of the endpoints spec).
+
+### Per-Suite Tables
+
+Per-suite tables are dynamically named (e.g., `nts_Commit`, `nts_Run`).
+
+#### `{suite}_Commit`
 
 | Column | Type | Constraints |
 |--------|------|-------------|
@@ -208,7 +293,7 @@ serialize timestamps as ISO 8601 with `Z` suffix (e.g., `"2026-04-15T14:30:00Z"`
 - Schema-defined `commit_fields` names must not collide with built-in column
   names (`id`, `commit`, `ordinal`, `tag`). The schema parser rejects these.
 
-### `{suite}_Machine`
+#### `{suite}_Machine`
 
 | Column | Type | Constraints |
 |--------|------|-------------|
@@ -233,12 +318,12 @@ serialize timestamps as ISO 8601 with `Z` suffix (e.g., `"2026-04-15T14:30:00Z"`
   names (`id`, `name`, `tracked`). The schema parser rejects these.
 - Cascade: deleting a machine cascades to its runs.
 
-### `{suite}_Run`
+#### `{suite}_Run`
 
 | Column | Type | Constraints |
 |--------|------|-------------|
 | id | INTEGER | PK |
-| uuid | VARCHAR(36) | unique, not null, indexed |
+| uuid | VARCHAR(36) | unique, not null |
 | machine_id | INTEGER FK -> Machine | not null, indexed |
 | commit_id | INTEGER FK -> Commit | not null, indexed |
 | submitted_at | TIMESTAMP WITH TIME ZONE | not null |
@@ -248,14 +333,14 @@ serialize timestamps as ISO 8601 with `Z` suffix (e.g., `"2026-04-15T14:30:00Z"`
 - `submitted_at` replaces v4's `start_time`/`end_time`.
 - Cascade: deleting a run cascades to its samples and profiles.
 
-### `{suite}_Test`
+#### `{suite}_Test`
 
 | Column | Type | Constraints |
 |--------|------|-------------|
 | id | INTEGER | PK |
 | name | VARCHAR(256) | unique, not null |
 
-### `{suite}_Sample`
+#### `{suite}_Sample`
 
 | Column | Type | Constraints |
 |--------|------|-------------|
@@ -264,16 +349,16 @@ serialize timestamps as ISO 8601 with `Z` suffix (e.g., `"2026-04-15T14:30:00Z"`
 | test_id | INTEGER FK -> Test | not null |
 | _(dynamic)_ | per metrics | nullable |
 
-- Compound index on `(run_id, test_id)` — covers "all samples for a run".
-- Compound index on `(test_id, run_id)` — covers time-series queries.
+- Compound index on `(run_id, test_id)` -- covers "all samples for a run".
+- Compound index on `(test_id, run_id)` -- covers time-series queries.
 - Dynamic columns from schema metrics (see D3 for the type-to-column mapping).
 
-### `{suite}_Regression`
+#### `{suite}_Regression`
 
 | Column | Type | Constraints |
 |--------|------|-------------|
 | id | INTEGER | PK |
-| uuid | VARCHAR(36) | unique, not null, indexed |
+| uuid | VARCHAR(36) | unique, not null |
 | title | VARCHAR(256) | nullable |
 | bug | VARCHAR(256) | nullable |
 | notes | TEXT | nullable |
@@ -292,27 +377,28 @@ Regression state values:
 
 The DB layer validates state values on create and update.
 
-### `{suite}_RegressionIndicator`
+#### `{suite}_RegressionIndicator`
 
 | Column | Type | Constraints |
 |--------|------|-------------|
 | id | INTEGER | PK |
-| uuid | VARCHAR(36) | unique, not null, indexed |
-| regression_id | INTEGER FK -> Regression | not null, indexed |
+| uuid | VARCHAR(36) | unique, not null |
+| regression_id | INTEGER FK -> Regression | not null |
 | machine_id | INTEGER FK -> Machine | not null |
 | test_id | INTEGER FK -> Test | not null |
 | metric | VARCHAR(256) | not null |
 
-- Unique constraint on `(regression_id, machine_id, test_id, metric)`.
+- Unique constraint on `(regression_id, machine_id, test_id, metric)`. Its
+  leading column also serves lookups of all indicators for a regression.
 - Each indicator represents one (machine, test, metric) combination
   affected by the regression.
 
-### `{suite}_Profile`
+#### `{suite}_Profile`
 
 | Column | Type | Constraints |
 |--------|------|-------------|
 | id | INTEGER | PK |
-| uuid | VARCHAR(36) | unique, not null, indexed |
+| uuid | VARCHAR(36) | unique, not null |
 | run_id | INTEGER FK -> Run | not null |
 | test_id | INTEGER FK -> Test | not null, indexed |
 | created_at | TIMESTAMP WITH TIME ZONE | not null |
