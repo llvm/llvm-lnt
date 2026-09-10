@@ -19,10 +19,14 @@ performance trends across all test suites.
 
 - Each card shows a small time-series chart (~300x160px) with the metric name
   and unit (if any) as the card title.
-- Up to 5 traces per chart, one per most-recently-active machine (determined
-  by looking at recently submitted runs). Only machines with `tracked: true`
+- Up to 5 traces per chart, one per most-recently-active machine. The set is
+  chosen once per suite rather than per metric, via
+  `GET /api/suites/{ts}/machines?tracked=true&sort=-last_run_at&limit=5`, and
+  the same machines are then requested for every card in that suite's section
+  through `POST /api/suites/{ts}/trends`. Only machines with `tracked: true`
   are eligible -- untracked machines are ad-hoc or retired configurations not
-  tracked in the overview. Each trace is a colored line.
+  tracked in the overview. A machine with no data for a given metric simply has
+  no trace on that card. Each trace is a colored line.
 - X-axis: sequential position (evenly spaced, no axis labels).
 - Y-axis: geometric mean of all test values at each commit for that machine+metric
   combination. See below for calculation.

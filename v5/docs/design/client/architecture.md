@@ -101,8 +101,8 @@ All navbar links use SPA navigation. There is no full page reload anywhere in
 the app: every route in the page hierarchy above belongs to the same
 application, so navigating between a suite-scoped page and a suite-agnostic
 one is an ordinary client-side transition. The single exception is [API],
-which opens the interactive API documentation viewer in a new tab -- that is a
-separate document, not an SPA route.
+which opens the interactive API documentation viewer at `/api/docs` (see R8) in
+a new tab -- that is a separate document, not an SPA route.
 
 Graph, Compare, and Profiles links append `?suite={ts}` / `?suite_a={ts}` when
 navigated from a suite-scoped page, pre-filling the current suite. The Test

@@ -7,14 +7,17 @@ This document specifies all entity endpoints in the v5 REST API.
 
 ```
 GET    /api/                      -- API index: links to the suite list and API documentation
+GET    /api/openapi.json          -- OpenAPI 3.x specification for this instance
+GET    /api/docs                  -- Interactive API documentation viewer
 ```
 
 Response is a `links` object with `suites` (path to the test suite list),
-`openapi` (path to the OpenAPI JSON spec) and `swagger_ui` (path to the
-interactive API documentation viewer). The index does not enumerate suites
-itself -- `GET /api/suites` is the canonical suite list.
+`openapi` (path to the OpenAPI JSON spec) and `docs` (path to the interactive
+API documentation viewer). The index does not enumerate suites itself --
+`GET /api/suites` is the canonical suite list.
 
-Auth scope: `read`.
+Auth scope: `read` for the index. The two documentation routes sit outside the
+scope system entirely and never authenticate (see R5 and R8).
 
 
 ## Machines
@@ -24,7 +27,7 @@ GET    /api/suites/{testsuite}/machines                     -- List (searchable,
 POST   /api/suites/{testsuite}/machines                     -- Create machine independently
 GET    /api/suites/{testsuite}/machines/{machine_name}      -- Detail
 PATCH  /api/suites/{testsuite}/machines/{machine_name}      -- Update fields/tracked (including rename)
-DELETE /api/suites/{testsuite}/machines/{machine_name}      -- Delete machine and its runs
+DELETE /api/suites/{testsuite}/machines/{machine_name}      -- Delete machine, its runs, and its regression indicators
 GET    /api/suites/{testsuite}/machines/{machine_name}/runs -- List runs for this machine (cursor-paginated)
 ```
 
@@ -34,14 +37,25 @@ Machines are also created implicitly if a run is submitted for a nonexistent mac
 **Machine object**: `POST` and `PATCH` take the same entity object that a run
 submission nests under `machine` (see D6): `name` (identity), `tracked`
 (built-in attribute), and `fields` (declared `machine_fields`). Responses use
-the same shape. On `PATCH`, supplying `name` renames the machine, and omitting
-any key leaves it unchanged.
+the same shape, plus a read-only `last_run_at` (see Sort below). On `PATCH`,
+supplying `name` renames the machine, and omitting any key leaves it unchanged.
+
+`DELETE` removes the machine, its runs (and their samples and profiles), and
+every regression indicator naming it (see D5). Regressions left with no
+indicators are kept.
 
 Auth scopes: `read` for GET, `manage` for POST/PATCH/DELETE.
 
 Filters: `search=` (case-insensitive substring match on `name` or any
 searchable machine_field; see D9), `tracked=` (boolean; omitting it returns
 both tracked and untracked machines).
+
+Sort: `sort=name` (the default, ascending), `-name`, `last_run_at`, and
+`-last_run_at`. `last_run_at` is the `submitted_at` of the machine's most recent
+run, or null for a machine with no runs; it is derived rather than stored (see
+D5). Machines with no runs sort after every machine that has one, in both
+directions. This sort is used by the Dashboard for picking which trendlines
+to query.
 
 **`tracked`** (boolean, see D5) appears in machine list and detail responses.
 `POST` accepts it at creation and `PATCH` can flip it at any time; it defaults
@@ -284,6 +298,16 @@ state via PATCH.
   all resolved by name; 404 if any referenced machine or test does not
   exist, 400 if `metric` is not a valid metric name for the suite)
 
+**Update request body** (`PATCH /api/suites/{testsuite}/regressions/{uuid}`):
+accepts `title`, `bug`, `notes`, `state`, and `commit`. Sending `title: null`,
+`bug: null`, `notes: null`, or `commit: null` explicitly clears a previously-set
+value; omitting a field instead leaves it unchanged -- the same convention as
+`PATCH /api/suites/{testsuite}/commits/{value}`. `state` is not nullable, so
+`state: null` is rejected with 400; omitting it leaves the current state.
+`commit` is resolved by value, with 404 if no commit with that value exists.
+`PATCH` does not touch indicators, which are managed through the indicator
+endpoints below.
+
 **Detail response** (`GET /api/suites/{testsuite}/regressions/{uuid}`):
 - `uuid`, `title`, `bug`, `notes`, `state`
 - `commit` (commit identity string, or null)
@@ -381,9 +405,8 @@ itself -- `name`, `metrics`, `commit_fields`, `machine_fields` (see D4 in
 data-model.md for the schema format). On success, returns 201 with the
 created suite's detail body and a `Location` header pointing at
 `GET /api/suites/{name}`. Returns 409 if a suite with that name already
-exists, 400 if the schema definition fails validation (e.g. more than one
-`commit_field` marked `display: true`; see D4), or 409 if suite creation
-otherwise fails after passing schema validation.
+exists, 400 if the schema definition fails validation (see D4), or 409 if
+suite creation otherwise fails after passing schema validation.
 
 **Evolve** (`PATCH /api/suites/{name}/schema`): changes the suite's `metrics`,
 `commit_fields`, and/or `machine_fields` after creation. See D2 for the semantics;

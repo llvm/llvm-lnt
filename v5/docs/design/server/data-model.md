@@ -109,45 +109,40 @@ aggregation. Picking a sensible metric is the schema author's responsibility.
 
 ## D4: Schema Format
 
-Each test suite is defined by a YAML schema file. The v5 format is a clean
-break from v4, but still shares similarities.
+A test suite's schema is a JSON document: it is the body of `POST /api/suites`,
+the `"schema"` object in the `GET /api/suites/{name}` response, and what the
+`schema` table stores (see D2 and D5). This is a clean break from v4, where
+suites were defined by YAML files shipped alongside the server -- in v5 a schema
+only ever exists as JSON travelling over the API. The two formats still share
+much of their vocabulary.
 
-```yaml
-name: nts
-
-metrics:
-- name: compile_time
-  type: real
-  display_name: Compile Time
-  unit: seconds
-  unit_abbrev: s
-  bigger_is_better: false
-- name: execution_time
-  type: real
-- name: compile_status
-  type: integer
-
-machine_fields:
-- name: hardware
-  type: text
-  searchable: true
-- name: os
-  type: text
-  searchable: true
-- name: core_count
-  type: integer
-
-commit_fields:
-- name: git_sha
-  type: text
-  searchable: true
-- name: author
-  type: text
-  searchable: true
-- name: commit_message
-  type: text
-- name: commit_timestamp
-  type: datetime
+```json
+{
+  "name": "nts",
+  "metrics": [
+    {
+      "name": "compile_time",
+      "type": "real",
+      "display_name": "Compile Time",
+      "unit": "seconds",
+      "unit_abbrev": "s",
+      "bigger_is_better": false
+    },
+    {"name": "execution_time", "type": "real"},
+    {"name": "compile_status", "type": "integer"}
+  ],
+  "machine_fields": [
+    {"name": "hardware", "type": "text", "searchable": true},
+    {"name": "os", "type": "text", "searchable": true},
+    {"name": "core_count", "type": "integer"}
+  ],
+  "commit_fields": [
+    {"name": "git_sha", "type": "text", "searchable": true},
+    {"name": "author", "type": "text", "searchable": true},
+    {"name": "commit_message", "type": "text"},
+    {"name": "commit_timestamp", "type": "datetime"}
+  ]
+}
 ```
 
 Notes:
@@ -164,7 +159,12 @@ Notes:
   UI concern -- the DB layer does not treat display fields specially. A schema
   with more than one `commit_field` marked `display: true` is rejected at
   schema-creation time (400).
-- There is no `format_version` in the schema file (only one format exists for v5).
+- There is no `format_version` in the schema (only one format exists for v5).
+
+**Suite name**: `name` must match `^[a-z][a-z0-9_]*$` and be at most 40
+characters; anything else is rejected with 400. The name is interpolated
+into the suite's table identifiers (see D5), which is what motivates each
+part of the rule.
 
 
 ## D5: Data Model
@@ -204,9 +204,7 @@ states the analogous property for URLs).
   rather than the request body as submitted. It is stored as text rather than
   JSONB because the server never queries into it: it is read whole, parsed
   into the in-memory model, and written whole.
-- No width is given for `name` because the effective limit is lower than any
-  round number would suggest: a suite's name is used to derive its per-suite
-  table names, so it is bounded by the database's identifier length limit.
+- See D4 for limits on the schema name.
 
 #### `schema_version`
 
@@ -263,7 +261,10 @@ states the analogous property for URLs).
 
 ### Per-Suite Tables
 
-Per-suite tables are dynamically named (e.g., `nts_Commit`, `nts_Run`).
+Per-suite tables are dynamically named `{suite}_<Entity>` (e.g., `nts_Commit`,
+`nts_Run`). The entity suffix is mixed-case while a suite name is always
+lowercase (see D4), so these identifiers must be quoted wherever they appear in
+SQL.
 
 #### `{suite}_Commit`
 
@@ -316,7 +317,18 @@ Per-suite tables are dynamically named (e.g., `nts_Commit`, `nts_Run`).
   as `machine_fields` are rejected (see D6).
 - Schema-defined `machine_fields` names must not collide with built-in column
   names (`id`, `name`, `tracked`). The schema parser rejects these.
-- Cascade: deleting a machine cascades to its runs.
+- `last_run_at` is not a column. It is the `submitted_at` of the machine's most
+  recent run, or null when the machine has no runs, derived on read; the machine
+  endpoints expose it and can sort on it. It is deliberately not stored: a stored
+  copy would have to be recomputed whenever a run is deleted and would entail
+  additional synchronization on submission. Deriving it is cheap because a suite
+  has few machines and the compound index on `{suite}_Run(machine_id, submitted_at)`
+  reduces it to one index probe each; an implementation must not compute it by
+  aggregating over the whole run table.
+- Cascade: deleting a machine cascades to its runs (and transitively to their
+  samples and profiles), and to every RegressionIndicator naming it. A
+  regression left with no indicators is not itself deleted: it keeps its title,
+  bug, notes, and commit, and an empty indicator set is a legal state.
 
 #### `{suite}_Run`
 
@@ -324,13 +336,19 @@ Per-suite tables are dynamically named (e.g., `nts_Commit`, `nts_Run`).
 |--------|------|-------------|
 | id | INTEGER | PK |
 | uuid | VARCHAR(36) | unique, not null |
-| machine_id | INTEGER FK -> Machine | not null, indexed |
+| machine_id | INTEGER FK -> Machine | not null |
 | commit_id | INTEGER FK -> Commit | not null, indexed |
 | submitted_at | TIMESTAMP WITH TIME ZONE | not null |
 | run_parameters | JSONB | not null, default `{}` |
 
 - Every run must have a commit (`commit_id` is not null).
-- `submitted_at` replaces v4's `start_time`/`end_time`.
+- `submitted_at` is recorded by the server when the run is accepted; a
+  submission cannot supply it (see D6).
+- Compound index on `(machine_id, submitted_at)`. Its leading column serves
+  lookups of all runs for a machine, and the pair keeps both
+  `GET /api/suites/{testsuite}/machines/{name}/runs?sort=-submitted_at` and the
+  `last_run_at` aggregate described under `{suite}_Machine` to a bounded index
+  scan rather than a scan of this table.
 - Cascade: deleting a run cascades to its samples and profiles.
 
 #### `{suite}_Test`

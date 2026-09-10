@@ -3,7 +3,8 @@
 This document covers the framework, URL structure, pagination, filtering,
 response format, and authentication for the v5 REST API.
 
-API documentation is generated using the OpenAPI 3.x format.
+API documentation is generated using the OpenAPI 3.x format, and served
+alongside an interactive viewer (see R8).
 
 
 ## R1: URL Structure and Identifiers
@@ -92,14 +93,22 @@ scope means.
 **Unauthenticated access**. `read`-scoped endpoints allow unauthenticated
 access. Endpoints requiring any higher scope require a valid Bearer token.
 
-Two routes fall outside this section altogether, because they are not part of
-the REST API surface: `GET /llms.txt` (R6) and `GET /healthz` (R7). Both live
-outside `/api/`, neither returns JSON in the R4 envelope, and neither
-participates in the scope system, so no authentication happens on their path and
-an `Authorization` header has no effect on them. For `/healthz` that is
-deliberate beyond mere tidiness: its contract is 200 for healthy and 500 for
-"cannot reach the database", so letting a stale token turn it into a 401 would
-report a working server as unhealthy.
+Four routes fall outside this section altogether, because they are documentation
+and infrastructure probes rather than part of the REST API surface: `GET
+/llms.txt` (R6), `GET /healthz` (R7), `GET /api/openapi.json` (R8), and the
+documentation viewer at `GET /api/docs` together with the assets it serves
+beneath that prefix (R8). None of them participates in the scope system and none
+returns the R4 error envelope, so no authentication happens on their path and an
+`Authorization` header has no effect on them -- not even a malformed or revoked
+one, which anywhere else under `/api/` would be a 400 or a 401.
+
+The exemption is an explicit list rather than a consequence of living outside
+`/api/`, since two of the four live under it. For `/healthz` it is deliberate
+beyond mere tidiness: its contract is 200 for healthy and 500 for "cannot reach
+the database", so letting a stale token turn it into a 401 would report a working
+server as unhealthy. For the two documentation routes it keeps a caller holding a
+bad token from being locked out of the very document that explains how to
+authenticate.
 
 **Presenting a token**. Credentials are sent as `Authorization: Bearer <token>`;
 the scheme name is matched case-insensitively, per RFC 9110.
@@ -163,7 +172,7 @@ spec.
 - Serve a plain-text orientation document at `GET /llms.txt` (following the
   llms.txt convention, analogous to robots.txt)
 - Content: what LNT is, key domain concepts, API structure, common workflows,
-  and links to an interactive API documentation viewer / OpenAPI spec
+  and links to `/api/docs` and `/api/openapi.json` (see R8)
 - Static content, outside the REST API surface: always public, and an
   `Authorization` header has no effect on it (see R5)
 - Served as `text/plain` with UTF-8 charset
@@ -181,3 +190,19 @@ spec.
 - Deliberately outside `/api/`, and deliberately not using the R4 error
   envelope: this is an infrastructure probe rather than part of the REST API
   surface.
+
+
+## R8: API Documentation
+
+- `GET /api/openapi.json` serves the OpenAPI 3.x specification describing this
+  instance's API, as `application/json`.
+- `GET /api/docs` serves an interactive documentation viewer rendering that
+  specification, as `text/html`, along with the static assets it needs beneath
+  the same prefix. `GET /api/docs` redirects to `GET /api/docs/`.
+- Both are linked from the API index (`GET /api/`) under the `openapi` and
+  `docs` keys, and from `/llms.txt` (R6).
+- Neither requires authentication, and an `Authorization` header has no effect
+  on either, even though both live under `/api/` (see R5).
+- The viewer is named for what it is rather than for what renders it. Swapping
+  the viewer implementation must not change the URL, so the path deliberately
+  does not name a particular tool.
