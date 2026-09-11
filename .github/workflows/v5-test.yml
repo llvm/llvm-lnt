@@ -24,7 +24,7 @@ env:
   IMAGE: ghcr.io/llvm/llvm-lnt-v5
 
 jobs:
-  test-npm:
+  test-client:
     runs-on: ubuntu-24.04
     defaults:
       run:
@@ -40,11 +40,33 @@ jobs:
 
       - run: npm ci
       - run: npm run build
-      - run: npm run lint
-      - run: npm test
+      - run: npm run typecheck:client
+      - run: npm run lint:client
+      - run: npm run test:client
+
+  test-server:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: v5/server
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.0.1
+        with:
+          enable-cache: true
+          cache-dependency-glob: v5/server/uv.lock
+
+      # --frozen so a lockfile that has drifted from pyproject.toml fails here rather than
+      # silently resolving something no one has tested.
+      - run: uv sync --frozen
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy .
+      - run: uv run pytest
 
   build-docker:
-    needs: [test-npm]
+    needs: [test-client, test-server]
     # The app runs on arm64 in EC2, so we use native arm64 GitHub runners since that simplifies
     # building and testing the Docker image.
     runs-on: ubuntu-24.04-arm

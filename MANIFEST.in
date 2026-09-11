@@ -11,3 +11,6 @@ include lnt/external/stats/README.txt
 prune docs/_build
 prune tests/*/Output
 prune tests/*/*/Output
+# v5 is a separate application that is not part of the v4 Python distribution. Without this,
+# setuptools-scm's git file-finder sweeps the whole v5 tree into the sdist.
+prune v5

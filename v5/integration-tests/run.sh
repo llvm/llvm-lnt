@@ -74,7 +74,6 @@ echo "Starting ${IMAGE}..."
 # having to send huge payloads.
 docker run --detach --init --name "$APP" --network "$NETWORK" --publish "${PORT}:3000" \
     --env DATABASE_URL="postgres://lnt:lnt@${PG}:5432/lnt" \
-    --env PORT=3000 \
     --env BODY_LIMIT=1048576 \
     "$IMAGE" >/dev/null
 
