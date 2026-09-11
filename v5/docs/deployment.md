@@ -74,10 +74,27 @@ terraform -chdir=v5/deployment/main apply -var="app_image_tag=..."         \
                                           -var="domain=lnt.example.com"
 ```
 
+## Creating the first API key
+
+Write endpoints need a bearer token, and the key-management endpoints themselves require `admin` scope.
+A freshly deployed instance has no keys at all, so the first one has to be created from the host. This
+is also how to recover from revoking the last `admin` key.
+
+```sh
+aws ssm start-session --target <instance-id> --region <region>
+cd /opt/app
+sudo docker compose exec app lnt-v5 server create-key --name bootstrap --scope admin
+```
+
+The command has to run inside the `app` container, which is where `DATABASE_URL` is set. It prints
+the raw token on stdout. That token is shown once and is not stored anywhere in recoverable form.
+Save it before closing the session; if you lose it, create another key and revoke the old one. From
+then on, keys are managed over the API or from the Admin page in the web UI.
+
 ## Sizing
 
-When deploying a server, you should set `WEB_CONCURRENCY` to let uvunicorn use more than the
-single worker it uses by default. However, be aware that each worker holds its own database
+When deploying a server, you should set `WEB_CONCURRENCY` to run more than the single worker
+the server uses by default. However, be aware that each worker holds its own database
 connection pool, so the instance's ceiling against RDS is `WEB_CONCURRENCY x (POOL_SIZE + MAX_OVERFLOW)`,
 which has to stay well inside the `max_connections` of the database instance. Moving to a larger
 instance means revisiting both numbers together.

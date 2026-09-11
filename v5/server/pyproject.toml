@@ -15,6 +15,11 @@ dependencies = [
     "uvicorn[standard]>=0.52",
 ]
 
+# The single entry point for everything: serving the app (what the Dockerfile runs) and
+# administering an instance from its host. See src/lnt_v5/cli.py for how it is grouped.
+[project.scripts]
+lnt-v5 = "lnt_v5.cli:main"
+
 [dependency-groups]
 dev = [
     "httpx2>=2.12",

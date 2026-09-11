@@ -574,4 +574,5 @@ Any `admin` key may revoke any key, including the one authenticating the
 request and the last remaining active `admin` key. There is deliberately no
 special case for either, because an operator's ability to revoke a leaked key
 must not depend on which key leaked. Recovering from revoking the last `admin`
-key requires creating one out of band; that mechanism is not specified yet.
+key means creating one through the out-of-band interface described in R5, which
+is also how an instance gets its first key.

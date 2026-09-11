@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Bump the default value to handle potentially large profile payloads. The reverse proxy in
@@ -24,6 +24,12 @@ class Settings(BaseSettings):
     database_url: str = ""
     database_ssl_ca: str | None = None
     body_limit: int = DEFAULT_BODY_LIMIT
+
+    # uvicorn reads WEB_CONCURRENCY natively too, but `lnt-v5 server run` passes the value
+    # explicitly, so it is declared here instead: validated, documented alongside the rest of the
+    # configuration, and scrubbed by the test suite like every other setting. Each worker holds
+    # its own connection pool, so this multiplies the server's connection count (see db.py).
+    web_concurrency: int = Field(default=1, ge=1)
 
     # Absolute path to the built client.
     client_dist: str | None = None

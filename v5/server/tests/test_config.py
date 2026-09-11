@@ -60,3 +60,20 @@ class TestBodyLimit:
         monkeypatch.setenv("DATABASE_URL", "postgres://x/y")
         monkeypatch.setenv("BODY_LIMIT", "1048576")
         assert get_settings().body_limit == 1048576
+
+
+class TestWebConcurrency:
+    def test_defaults_to_a_single_worker(self) -> None:
+        assert Settings(database_url="postgres://x/y").web_concurrency == 1
+
+    def test_reads_the_environment_variable(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("DATABASE_URL", "postgres://x/y")
+        monkeypatch.setenv("WEB_CONCURRENCY", "4")
+        assert get_settings().web_concurrency == 4
+
+    @pytest.mark.parametrize("workers", [0, -1])
+    def test_rejects_a_non_positive_count(self, workers: int) -> None:
+        # uvicorn would otherwise come up serving nothing, which reads as a hung deploy rather
+        # than as the configuration error it is.
+        with pytest.raises(ValidationError):
+            Settings(database_url="postgres://x/y", web_concurrency=workers)
