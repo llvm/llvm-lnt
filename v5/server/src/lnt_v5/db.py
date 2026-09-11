@@ -24,7 +24,8 @@ MAX_OVERFLOW = 5
 def _connect_args(settings: Settings) -> dict[str, Any]:
     args: dict[str, Any] = {
         "connect_timeout": 5,
-        # libpq already enables keepalives, but only probes after the OS idle timeout, which can be too long.
+        # libpq already enables keepalives, but only probes after the OS idle timeout, which can
+        # be too long.
         "keepalives_idle": 30,
     }
     if settings.database_ssl_ca:
