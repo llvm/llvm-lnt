@@ -29,11 +29,12 @@ same value in `v5/deployment/main/backend.tf` (which cannot read variables).
 The module also creates the app server's instance role since that makes it easier to harden against
 priviledge escalation than letting the deployment pipeline edit its own IAM settings.
 
-Finally, the module creates the GitHub Actions OIDC provider. An AWS account can hold only one OIDC
-provider per URL, so if the account already trusts GitHub Actions for another project, apply with
-`-var="manage_github_oidc_provider=false"` to reuse the existing one. By default the OIDC role is
-assumable only from the `v5-production` environment of `llvm/llvm-lnt`. The `github_repo` and
-`github_environment` variables can be overridden if needed (e.g. iterating from a fork).
+Finally, the module creates the GitHub Actions OIDC provider if requested. Since an AWS account can
+hold only one OIDC provider per URL, this defaults to reusing an existing provider. If the account
+does not already trust GitHub Actions, apply with `-var="manage_github_oidc_provider=true"` to create
+the provider. By default the OIDC role is assumable only from the `v5-production` environment of
+`llvm/llvm-lnt`. The `github_repo` and `github_environment` variables can be overridden if needed
+(e.g. iterating from a fork).
 
 After applying, configure the following once in the GitHub repository, under a `v5-production`
 environment:

@@ -34,10 +34,11 @@ variable "github_environment" {
 
 variable "manage_github_oidc_provider" {
   description = <<-EOT
-    Whether to create the GitHub Actions OIDC provider (which allows Github Actions to perform deployments).
-    An AWS account can hold only one OIDC provider per URL, so set this to false if the account already trusts
-    GitHub Actions for another project, in which case the existing provider is reused as-is.
+    Whether to create the GitHub Actions OIDC provider (which allows Github Actions to perform
+    deployments), rather than reusing one the account already has. An AWS account can hold only one
+    OIDC provider per URL, so this defaults to reusing. Set it to true when bootstrapping an account
+    that does not have one yet.
   EOT
   type        = bool
-  default     = true
+  default     = false
 }
