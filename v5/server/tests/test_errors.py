@@ -133,11 +133,11 @@ class TestApplicationWiring:
         assert response.text == "Content Too Large"
 
     @pytest.mark.parametrize("path", ["/docs", "/redoc", "/openapi.json"])
-    def test_fastapis_default_documentation_routes_are_disabled(
+    def test_fastapis_default_documentation_paths_are_not_used(
         self, client: TestClient, path: str
     ) -> None:
-        # R8 puts these at /api/docs and /api/openapi.json. Left enabled they would be both the
-        # wrong URLs and routes shadowing client paths.
+        # R8 moves these under /api. Left at the defaults they would sit in the SPA's namespace:
+        # the two HTML ones fall through to the client, and .json reads as a missing asset.
         response = client.get(path)
 
         if path.endswith(".json"):

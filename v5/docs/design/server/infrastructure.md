@@ -169,11 +169,11 @@ access. Endpoints requiring any higher scope require a valid Bearer token.
 Four routes fall outside this section altogether, because they are documentation
 and infrastructure probes rather than part of the REST API surface: `GET
 /llms.txt` (R6), `GET /healthz` (R7), `GET /api/openapi.json` (R8), and the
-documentation viewer at `GET /api/docs` together with the assets it serves
-beneath that prefix (R8). None of them participates in the scope system and none
-returns the R4 error envelope, so no authentication happens on their path and an
-`Authorization` header has no effect on them -- not even a malformed or revoked
-one, which anywhere else under `/api/` would be a 400 or a 401.
+documentation viewer at `GET /api/docs` (R8). None of them participates in the
+scope system and none returns the R4 error envelope, so no authentication
+happens on their path and an `Authorization` header has no effect on them -- not
+even a malformed or revoked one, which anywhere else under `/api/` would be a
+400 or a 401.
 
 The exemption is an explicit list rather than a consequence of living outside
 `/api/`, since two of the four live under it. For `/healthz` it is deliberate
@@ -268,10 +268,20 @@ spec.
 ## R8: API Documentation
 
 - `GET /api/openapi.json` serves the OpenAPI 3.x specification describing this
-  instance's API, as `application/json`.
+  instance's API, as `application/json`. Its `info.title` is `LNT v5` and its
+  `info.version` is `5` -- the version of the API, which is fixed for the
+  lifetime of v5, and not of the server build serving it.
+- The specification describes only responses the API can actually produce. In
+  particular it must not advertise a status outside the set R4 permits: a
+  generator that documents its framework's native validation failure (commonly
+  422) has to be corrected to the 400 the error envelope specifies.
 - `GET /api/docs` serves an interactive documentation viewer rendering that
-  specification, as `text/html`, along with the static assets it needs beneath
-  the same prefix. `GET /api/docs` redirects to `GET /api/docs/`.
+  specification, as `text/html`.
+- How the viewer obtains its own scripts and stylesheets is left to the
+  implementation, which may load them from a third-party CDN rather than
+  serving them from this instance. An instance without egress to that origin
+  therefore renders an empty viewer; `GET /api/openapi.json` stays complete and
+  self-contained regardless, and is the authoritative artifact.
 - Both are linked from the API index (`GET /api/`) under the `openapi` and
   `docs` keys, and from `/llms.txt` (R6).
 - Neither requires authentication, and an `Authorization` header has no effect
