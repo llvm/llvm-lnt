@@ -41,10 +41,14 @@ http://localhost:3000. Vite proxies `/api`, `/healthz`, and `/llms.txt` through 
 ### Testing and building
 
 ```sh
-npm test    # runs both workspaces' test suites
+npm run test              # runs both workspaces' test suites
 npm run lint
 npm run build
+npm run test:integration  # builds the Docker image and exercises it end to end
 ```
+
+The integration tests are what CI runs against the image; they need Docker, but create and remove
+their own database.
 
 Stop the local database with `npm run db:down` when you're done.
 

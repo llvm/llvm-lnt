@@ -9,6 +9,7 @@
     "dev": "concurrently -n client,server -c blue,green \"npm run dev -w client\" \"npm run dev -w server\"",
     "build": "npm run build -w client && npm run build -w server",
     "test": "npm run test --workspaces --if-present",
+    "test:integration": "integration-tests/run.sh",
     "lint": "npm run lint --workspaces --if-present",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down"

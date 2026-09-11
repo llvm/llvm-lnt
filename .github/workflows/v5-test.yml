@@ -51,20 +51,6 @@ jobs:
     permissions:
       contents: read
       packages: write
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: lnt
-          POSTGRES_PASSWORD: lnt
-          POSTGRES_DB: lnt
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd="pg_isready -U lnt"
-          --health-interval=5s
-          --health-timeout=5s
-          --health-retries=5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -76,39 +62,8 @@ jobs:
           docker build --tag "$IMAGE:${{ steps.tag.outputs.tag }}" \
                        --tag "$IMAGE:latest" v5
 
-      - name: Run container
-        run: |
-          docker run --detach --init --name lnt-v5 --network host \
-                     --env DATABASE_URL=postgres://lnt:lnt@localhost:5432/lnt \
-                     --env PORT=3000 \
-                     "$IMAGE:${{ steps.tag.outputs.tag }}"
-
-      - name: Wait for /healthz
-        run: |
-          for _ in $(seq 1 30); do
-            if curl --silent --fail http://localhost:3000/healthz | grep -q '"ok":true'; then
-              echo "Server is healthy"
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "Server never became healthy"
-          exit 1
-
-      - name: Check the client shell is served
-        run: curl --silent --fail http://localhost:3000/ | grep -q '<title>LNT</title>'
-
-      - name: Check deep links resolve to the client
-        run: curl --silent --fail http://localhost:3000/suites/nts | grep -q '<title>LNT</title>'
-
-      - name: Check unmatched API routes 404 as JSON rather than the client
-        run: |
-          body=$(curl --silent http://localhost:3000/api/does-not-exist)
-          echo "$body" | grep -q '"code":"not_found"'
-
-      - name: Container logs
-        if: always()
-        run: docker logs lnt-v5
+      - name: Integration tests
+        run: v5/integration-tests/run.sh "$IMAGE:${{ steps.tag.outputs.tag }}"
 
       # Only done when pushing to main
       - name: Login to GHCR
