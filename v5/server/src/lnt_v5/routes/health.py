@@ -10,7 +10,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-@router.get("/healthz")
+# include_in_schema=False: R5 places /healthz outside the REST API surface, and R8's document
+# describes that surface. It is specified in the design docs, not in the OpenAPI spec.
+@router.get("/healthz", include_in_schema=False)
 def healthz(request: Request) -> JSONResponse:
     """Report whether the server can serve traffic (R7).
 

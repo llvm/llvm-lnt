@@ -58,13 +58,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(
         title="LNT v5",
+        # The API's version, not the server build's. Fixed by R8.
+        version="5",
         lifespan=lifespan,
-        # R8 puts the OpenAPI document at /api/openapi.json and the viewer at /api/docs. FastAPI
-        # would otherwise register them at /docs, /redoc and /openapi.json -- both the wrong URLs
-        # and, since neither exists yet, routes that would shadow client paths.
-        docs_url=None,
+        # R8. FastAPI's defaults would put these at /docs, /redoc and /openapi.json, inside the
+        # SPA's namespace, where the catch-all serves index.html and `.json` already reads as a
+        # static asset. ReDoc is off because R8 specifies one viewer.
+        docs_url="/api/docs",
+        openapi_url="/api/openapi.json",
         redoc_url=None,
-        openapi_url=None,
     )
 
     register_error_handlers(app)
