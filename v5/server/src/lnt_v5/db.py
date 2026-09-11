@@ -1,4 +1,4 @@
-"""Database engine construction.
+"""Database access: the engine, how an endpoint reaches it, and reading Postgres' errors.
 
 The engine is built by an explicit factory call rather than at import, so that importing the
 application does not require a reachable database (or even a populated environment), and so that
@@ -8,9 +8,12 @@ this module fresh and no connection is ever inherited across a process boundary.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Annotated, Any
 
+from fastapi import Depends, Request
+from psycopg.errors import UndefinedTable, UniqueViolation
 from sqlalchemy import Engine, create_engine
+from sqlalchemy.exc import DBAPIError
 
 from .config import Settings
 
@@ -47,3 +50,48 @@ def make_engine(settings: Settings) -> Engine:
         pool_pre_ping=True,
         connect_args=_connect_args(settings),
     )
+
+
+def get_engine(request: Request) -> Engine:
+    """The engine for this instance.
+
+    Deliberately an ordinary function rather than a generator: a generator dependency is torn down
+    through FastAPI's exit stack, which it closes only *after* the response has been sent. Anything
+    that needs to influence the status -- a COMMIT above all -- therefore cannot live there. Handing
+    over the engine instead keeps the unit of work inside the endpoint, where an exception is still
+    an ordinary 500.
+    """
+    engine: Engine = request.app.state.engine
+    return engine
+
+
+# What an endpoint writes to reach the database:
+#
+#     def endpoint(db: EngineDep) -> Thing:
+#         with db.begin() as connection:
+#             ...
+#         return thing
+#
+# The block is the unit of work: it commits on the way out, rolls back if the body raises, and
+# returns the connection to the pool before the response is built -- so a failing COMMIT becomes a
+# 500 rather than a success the caller would believe, and no connection is held across
+# serialization.
+EngineDep = Annotated[Engine, Depends(get_engine)]
+
+
+def unique_violation_constraint(error: DBAPIError) -> str | None:
+    """The name of the unique constraint an error tripped, or None if that is not what it was.
+
+    Attributing a violation is how a caller decides what to do about it: D13's get-or-create
+    retries, while a run submission has to answer `duplicate` for a repeated UUID but
+    `ordinal_conflict` for a taken ordinal (R4). The name is only dependable because every
+    constraint has one we chose; see NAMING_CONVENTION in tables.py.
+    """
+    if not isinstance(error.orig, UniqueViolation):
+        return None
+    return error.orig.diag.constraint_name
+
+
+def is_undefined_table(error: DBAPIError) -> bool:
+    """Whether an error means the table is not there, i.e. the database was never migrated."""
+    return isinstance(error.orig, UndefinedTable)

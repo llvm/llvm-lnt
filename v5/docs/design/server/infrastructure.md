@@ -21,8 +21,10 @@ alongside an interactive viewer (see R8).
 - An index endpoint at `GET /api/` links to the test suite list and the API documentation
 - Suite-scoped resources live one level below the suite collection, under
   `/api/suites/{testsuite}/`. This keeps them disjoint from instance-level
-  routes (`/api/suites`, `/api/admin/...`), so no suite names need to be
-  reserved -- a suite may legally be named `admin` or even `suites`.
+  routes (`/api/suites`, `/api/admin/...`), so routing reserves no suite names
+  at all -- a suite may legally be named `admin` or even `suites`. A few names
+  are nevertheless rejected at creation, for a reason that has nothing to do
+  with routing; see D4.
 
 
 ## R2: Pagination

@@ -8,6 +8,7 @@ description = "LNT v5 server: REST API and SPA host"
 # below and the base image in ../Dockerfile.
 requires-python = ">=3.14"
 dependencies = [
+    "alembic>=1.20.0",
     "fastapi>=0.141",
     "psycopg[binary]>=3.3",
     "pydantic-settings>=2.15",

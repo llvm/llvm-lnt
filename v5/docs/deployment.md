@@ -74,6 +74,20 @@ terraform -chdir=v5/deployment/main apply -var="app_image_tag=..."         \
                                           -var="domain=lnt.example.com"
 ```
 
+## Database schema
+
+The app applies any outstanding schema changes to its database when it starts, before it begins
+serving. This only covers the instance-wide tables. Per-suite tables are created and altered through
+the test-suite API as suites are defined, not by a migration.
+
+To inspect or apply the schema by hand, run the same command the server runs at startup:
+
+```sh
+sudo docker compose exec app lnt-v5 server migrate
+```
+
+It reports whether it applied anything, and is safe to run repeatedly.
+
 ## Creating the first API key
 
 Write endpoints need a bearer token, and the key-management endpoints themselves require `admin` scope.
