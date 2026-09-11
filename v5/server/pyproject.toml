@@ -1,0 +1,67 @@
+[project]
+name = "lnt-v5-server"
+version = "0.0.0"
+description = "LNT v5 server: REST API and SPA host"
+# Pinned rather than a floor: this is a deployed application with one runtime, not a library
+# others install, so dev, CI and the image all run the same interpreter. uv installs it from
+# `.python-version`, which must be kept in step with this, as must `[tool.mypy] python_version`
+# below and the base image in ../Dockerfile.
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi>=0.120",
+    "psycopg[binary]>=3.2",
+    "pydantic-settings>=2.7",
+    "sqlalchemy>=2.0.36",
+    "uvicorn[standard]>=0.34",
+]
+
+[dependency-groups]
+dev = [
+    "httpx2>=0.29",
+    "mypy>=1.14",
+    "pytest>=8.3",
+    "ruff>=0.9",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# Pin the package index explicitly, mirroring what ../.npmrc does for npm. Without this, a
+# machine-wide pip or uv configuration adding a private mirror leaks into uv.lock, which then
+# records URLs no one outside that network can resolve.
+[[tool.uv.index]]
+name = "pypi"
+url = "https://pypi.org/simple"
+default = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/lnt_v5"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "SIM", "TID", "RUF"]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+# v4 and v5 are fully disjoint (see docs/design/README.md). While v5 was TypeScript this was
+# enforced by the language barrier; now that both are Python it has to be enforced deliberately.
+"lnt".msg = "v5 must not import from the v4 'lnt' package; the two are fully disjoint."
+
+[tool.mypy]
+# Does not follow `.python-version`; bump both together (see requires-python above).
+python_version = "3.14"
+strict = true
+files = ["src", "tests"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-markers"
+filterwarnings = [
+    "error",
+    # starlette's TestClient touches a deprecated anyio alias at import; not ours to fix, and it
+    # would otherwise break collection rather than surface anything about our code.
+    "ignore:The anyio.abc.BlockingPortal alias is deprecated:DeprecationWarning",
+]

@@ -89,7 +89,9 @@ R2; every other endpoint returns the entity object itself, except where its own
 spec gives a different body. Status codes are drawn from 200, 201, 204, 400,
 401, 403, 404, 409, 500. The four routes exempt from the scope system (see R5)
 are not part of this surface and follow their own sections: they serve plain
-text or HTML as well as JSON.
+text or HTML as well as JSON. An oversized request body is refused before it
+reaches an endpoint at all, and is likewise outside this surface (see Errors,
+below).
 
 **Object conventions.** These hold for every response body, so each endpoint's
 spec need only name its keys.
@@ -133,6 +135,10 @@ time, so clients must branch on `code` alone and never parse `message`.
 409 carries more than one code because its cases call for different client behaviour: a
 submitting bot retries a `duplicate` run UUID with a fresh one, whereas an `ordinal_conflict`
 means its view of the commit order is wrong and retrying cannot help.
+
+**Oversized request bodies** are rejected but do not have to use the envelope: they can be rejected
+at the transport layer instead. However, they must be rejected with `413`. This is a property of the
+deployment rather than of any endpoint, so no endpoint documents it.
 
 
 ## R5: Authentication and Authorization
