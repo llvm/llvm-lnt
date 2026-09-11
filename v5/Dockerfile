@@ -7,8 +7,8 @@ RUN npm ci
 COPY client client
 RUN npm run build -w client
 
-FROM python:3.14-slim-bookworm AS server-deps
-COPY --from=ghcr.io/astral-sh/uv:0.11 /uv /usr/local/bin/uv
+FROM python:3.14-slim-trixie AS server-deps
+COPY --from=ghcr.io/astral-sh/uv:0.12 /uv /usr/local/bin/uv
 WORKDIR /app/server
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
 # Same discipline on this side: lock and manifest before sources. --frozen fails the build if
@@ -18,7 +18,7 @@ RUN uv sync --frozen --no-install-project --no-dev
 COPY server/src src
 RUN uv sync --frozen --no-dev --no-editable
 
-FROM python:3.14-slim-bookworm AS runtime
+FROM python:3.14-slim-trixie AS runtime
 WORKDIR /app/server
 ENV PATH="/app/server/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \

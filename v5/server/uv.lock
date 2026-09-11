@@ -353,19 +353,19 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "fastapi", specifier = ">=0.120" },
-    { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
-    { name = "pydantic-settings", specifier = ">=2.7" },
-    { name = "sqlalchemy", specifier = ">=2.0.36" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.34" },
+    { name = "fastapi", specifier = ">=0.141" },
+    { name = "psycopg", extras = ["binary"], specifier = ">=3.3" },
+    { name = "pydantic-settings", specifier = ">=2.15" },
+    { name = "sqlalchemy", specifier = ">=2.0.52" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.52" },
 ]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "httpx2", specifier = ">=0.29" },
-    { name = "mypy", specifier = ">=1.14" },
-    { name = "pytest", specifier = ">=8.3" },
-    { name = "ruff", specifier = ">=0.9" },
+    { name = "httpx2", specifier = ">=2.12" },
+    { name = "mypy", specifier = ">=2.3" },
+    { name = "pytest", specifier = ">=9.1" },
+    { name = "ruff", specifier = ">=0.16" },
 ]
 
 [[package]]

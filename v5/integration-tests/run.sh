@@ -57,7 +57,7 @@ docker run --detach --name "$PG" --network "$NETWORK" \
     --env POSTGRES_USER=lnt --env POSTGRES_PASSWORD=lnt --env POSTGRES_DB=lnt \
     --health-cmd='pg_isready -U lnt' --health-interval=2s \
     --health-timeout=3s --health-retries=15 \
-    postgres:16 >/dev/null
+    postgres:18-alpine >/dev/null
 
 for _ in $(seq 1 60); do
     [ "$(docker inspect -f '{{.State.Health.Status}}' "$PG")" = healthy ] && break

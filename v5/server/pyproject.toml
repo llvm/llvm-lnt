@@ -8,19 +8,19 @@ description = "LNT v5 server: REST API and SPA host"
 # below and the base image in ../Dockerfile.
 requires-python = ">=3.14"
 dependencies = [
-    "fastapi>=0.120",
-    "psycopg[binary]>=3.2",
-    "pydantic-settings>=2.7",
-    "sqlalchemy>=2.0.36",
-    "uvicorn[standard]>=0.34",
+    "fastapi>=0.141",
+    "psycopg[binary]>=3.3",
+    "pydantic-settings>=2.15",
+    "sqlalchemy>=2.0.52",
+    "uvicorn[standard]>=0.52",
 ]
 
 [dependency-groups]
 dev = [
-    "httpx2>=0.29",
-    "mypy>=1.14",
-    "pytest>=8.3",
-    "ruff>=0.9",
+    "httpx2>=2.12",
+    "mypy>=2.3",
+    "pytest>=9.1",
+    "ruff>=0.16",
 ]
 
 [build-system]
