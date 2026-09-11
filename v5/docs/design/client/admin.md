@@ -15,9 +15,11 @@ This page provides various tabs with different tools.
 
 ### API Keys tab detail
 
-This tab requires an API key with `admin` scope set in the navigation bar. Otherwise, a
-red banner saying `Permission denied. Set an API token with the required scope in Settings.`
-is shown.
+This tab requires an API key with `admin` scope set in the navigation bar -- listing
+keys needs `admin` just as creating and revoking them do. Otherwise, a red banner saying
+`Permission denied. Set an API token with the required scope in Settings.` is shown. The
+same banner covers both failures the API distinguishes: a missing or invalid token (401)
+and a valid token whose scope is too low (403).
 
 Provides a text input titled "Create API Key" with a text input for the key name,
 a dropdown to select the scope of the key, and a "Create key" button to create the
@@ -35,9 +37,28 @@ Below the creation widget, a table like this shows the existing API keys:
 ```
 Prefix      Name          Scope       Created                     Last Used                   Active
 -------------------------------------------------------------------------------------------------------------------------------
+229d78c5    test-key2     read        2026-08-13, 3:01:04 AM      Never                       Yes           [red Revoke button]
 135f502b    test-key      manage      2026-08-11, 1:04:23 PM      2026-08-18, 3:49:26 AM      Yes           [red Revoke button]
-229d78c5    test-key2     read        2026-08-13, 3:01:04 AM      2026-08-19, 8:25:35 AM      Yes           [red Revoke button]
+3f0ac112    old-bot       submit      2026-07-02, 9:12:44 AM      2026-08-01, 6:20:11 PM      No
 ```
+
+Keys are listed newest first, so a newly created key appears at the top of the table
+without a reload. Revoked keys remain in the list with `Active` showing
+`No`, since revoking does not delete them, and they carry no Revoke button. `Last Used`
+shows `Never` for a key that has not yet authenticated a request, and is otherwise a
+best-effort value that may lag actual use (see D5).
+
+Column headers are click-to-sort, applied client-side over the already-loaded list --
+it is unpaginated, so sorting issues no request. Sorting by `Last Used` is how to
+surface the most- and least-recently-active keys; keys that have never been used sort
+after every key carrying a timestamp, in both directions. The default order is
+`Created` descending, which is also the order the API returns.
+
+Clicking Revoke shows a confirmation prompt before the request is sent, because
+revocation is irreversible. Unlike the type-to-confirm prompts used elsewhere in this
+UI for actions that destroy data, a plain confirmation suffices here: revoking a key
+withdraws access but destroys nothing. On success the row's `Active` flips to `No` in
+place and its Revoke button disappears -- the row is not removed.
 
 ### Test Suites tab detail
 

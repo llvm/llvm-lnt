@@ -147,7 +147,7 @@ Layout:
 | Commit            014621ede7c175aece29796adcaf5000f891cf0c  |
 | Ordinal           593922    [Edit]                          |
 | Tag               (none)    [Edit]                          |
-| <commit-parameters>                                         |
+| <commit-fields>                                             |
 +-------------------------------------------------------------+
 
 [<- Previous commit] [Next commit ->]
@@ -228,9 +228,8 @@ scope. On success, navigates to the regressions tab.
 
 **Indicators table**:
 - Heading: "Indicators (X tests across Y machines across Z metrics)" — unique
-  counts computed from the indicators, excluding null machine/test values (from
-  deleted entities). Shows plain "Indicators" when empty. When a filter is
-  active: "Indicators (showing N of X tests across ...)".
+  counts computed from the indicators. Shows plain "Indicators" when empty. When
+  a filter is active: "Indicators (showing N of X tests across ...)".
 - Filter: text input above the table for substring matching on machine name,
   test name, or metric (OR logic, case-insensitive). Filters the table rows
   client-side. Not shown when there are no indicators.

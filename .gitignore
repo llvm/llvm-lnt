@@ -18,3 +18,8 @@ v5/deployment/**/.terraform/
 v5/deployment/**/terraform.tfstate
 v5/deployment/**/terraform.tfstate.*
 *.tfvars
+.venv/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/

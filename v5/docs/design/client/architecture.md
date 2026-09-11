@@ -66,10 +66,12 @@ descending, and commits without one (ad-hoc A/B experiment commits; see D1)
 above those. The sort is applied client-side, not via `sort=-ordinal`, which
 would drop the unordered commits -- pickers must keep them selectable.
 
-**Authentication**: The v5 API allows unauthenticated reads by default. The SPA
-navigation bar includes a Settings panel with a Bearer token input (stored in
-local storage) for the Admin page and other write-capable pages (regression
-triage, etc.).
+**Authentication**: The v5 API allows unauthenticated reads, except for
+the API key endpoints, which require `admin` scope even to read (see R5). No
+configuration can gate reads, so the SPA never needs a token merely to browse.
+The SPA navigation bar includes a Settings panel with a Bearer token input
+(stored in local storage) for the Admin page and other write-capable pages
+(regression triage, etc.).
 
 
 ## Page Hierarchy
@@ -99,8 +101,8 @@ All navbar links use SPA navigation. There is no full page reload anywhere in
 the app: every route in the page hierarchy above belongs to the same
 application, so navigating between a suite-scoped page and a suite-agnostic
 one is an ordinary client-side transition. The single exception is [API],
-which opens the interactive API documentation viewer in a new tab -- that is a
-separate document, not an SPA route.
+which opens the interactive API documentation viewer at `/api/docs` (see R8) in
+a new tab -- that is a separate document, not an SPA route.
 
 Graph, Compare, and Profiles links append `?suite={ts}` / `?suite_a={ts}` when
 navigated from a suite-scoped page, pre-filling the current suite. The Test

@@ -1,8 +1,14 @@
 name: Build LNT Docker image
 
 on:
-  - push
-  - pull_request
+  push:
+    paths-ignore:
+      - 'v5/**'
+      - '.github/workflows/v5-test.yml'
+  pull_request:
+    paths-ignore:
+      - 'v5/**'
+      - '.github/workflows/v5-test.yml'
 
 permissions:
   contents: read

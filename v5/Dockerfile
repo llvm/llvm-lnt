@@ -1,27 +1,35 @@
-FROM node:24-alpine AS deps
+FROM node:24-alpine AS client-build
 WORKDIR /app
+# Manifests first, so the dependency layer is reused when only sources change.
 COPY package.json package-lock.json ./
 COPY client/package.json client/package.json
-COPY server/package.json server/package.json
 RUN npm ci
-
-FROM deps AS client-build
 COPY client client
 RUN npm run build -w client
 
-FROM deps AS server-build
-COPY server server
-RUN npm run build -w server
+FROM python:3.14-slim-bookworm AS server-deps
+COPY --from=ghcr.io/astral-sh/uv:0.11 /uv /usr/local/bin/uv
+WORKDIR /app/server
+ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
+# Same discipline on this side: lock and manifest before sources. --frozen fails the build if
+# uv.lock is stale rather than silently resolving something the tests never saw.
+COPY server/pyproject.toml server/uv.lock server/.python-version ./
+RUN uv sync --frozen --no-install-project --no-dev
+COPY server/src src
+RUN uv sync --frozen --no-dev --no-editable
 
-FROM node:24-alpine AS runtime
-WORKDIR /app
-ENV NODE_ENV=production
-COPY package.json package-lock.json ./
-COPY server/package.json server/package.json
-RUN npm ci --omit=dev -w server
-COPY --from=server-build /app/server/dist server/dist
-COPY --from=client-build /app/client/dist client/dist
+FROM python:3.14-slim-bookworm AS runtime
+WORKDIR /app/server
+ENV PATH="/app/server/.venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    # TODO: Set WEB_CONCURRENCY based on the actual core count of the instance we're running on
+    WEB_CONCURRENCY=4 \
+    CLIENT_DIST=/app/client/dist
+COPY --from=server-deps /app/server /app/server
+COPY --from=client-build /app/client/dist /app/client/dist
 EXPOSE 3000
-HEALTHCHECK --interval=10s --timeout=3s --retries=3 --start-period=5s \
-  CMD wget --quiet -O - http://127.0.0.1:3000/healthz || exit 1
-CMD ["node", "server/dist/index.js"]
+HEALTHCHECK --interval=30s --timeout=3s --retries=3 --start-period=5s \
+  CMD python -c "import sys,urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:3000/healthz', timeout=2).status == 200 else 1)"
+
+CMD ["uvicorn", "lnt_v5.app:create_app", "--factory", "--host", "0.0.0.0", "--port", "3000", \
+                                                      "--timeout-graceful-shutdown", "120"]
