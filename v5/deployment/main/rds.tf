@@ -8,8 +8,8 @@ resource "aws_db_subnet_group" "main" {
 }
 
 resource "aws_db_instance" "main" {
-  identifier = var.resource_prefix
-  engine     = "postgres"
+  identifier     = var.resource_prefix
+  engine         = "postgres"
   engine_version = "18" # keep in sync with the version pinned for development
   instance_class = "db.t4g.micro"
 
