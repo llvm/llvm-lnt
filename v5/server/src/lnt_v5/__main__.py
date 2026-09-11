@@ -13,15 +13,13 @@ from __future__ import annotations
 
 import uvicorn
 
-PORT = 3000
-
 
 def main() -> None:
     uvicorn.run(
         "lnt_v5.app:create_app",
         factory=True,
         host="0.0.0.0",
-        port=PORT,
+        port=3000,
         reload=True,
     )
 
