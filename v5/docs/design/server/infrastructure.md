@@ -279,9 +279,8 @@ spec.
   specification, as `text/html`.
 - How the viewer obtains its own scripts and stylesheets is left to the
   implementation, which may load them from a third-party CDN rather than
-  serving them from this instance. An instance without egress to that origin
-  therefore renders an empty viewer; `GET /api/openapi.json` stays complete and
-  self-contained regardless, and is the authoritative artifact.
+  serving them from this instance (in which case the API viewer may only be
+  available when the instance is online).
 - Both are linked from the API index (`GET /api/`) under the `openapi` and
   `docs` keys, and from `/llms.txt` (R6).
 - Neither requires authentication, and an `Authorization` header has no effect

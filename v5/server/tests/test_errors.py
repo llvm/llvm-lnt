@@ -136,7 +136,7 @@ class TestApplicationWiring:
     def test_fastapis_default_documentation_paths_are_not_used(
         self, client: TestClient, path: str
     ) -> None:
-        # R8 moves these under /api. Left at the defaults they would sit in the SPA's namespace:
+        # R8 puts these under /api. Left at the defaults they would sit in the SPA's namespace:
         # the two HTML ones fall through to the client, and .json reads as a missing asset.
         response = client.get(path)
 

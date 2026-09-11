@@ -14,8 +14,7 @@ class TestOpenApiDocument:
         assert response.json()["openapi"].startswith("3.")
 
     def test_identifies_the_api_rather_than_the_build(self, client: TestClient) -> None:
-        # R8 fixes info.version at the API's major version. FastAPI's placeholder is "0.1.0",
-        # which would read as an unreleased server rather than as the v5 API.
+        # R8 fixes info.version at the API's major version.
         info = client.get("/api/openapi.json").json()["info"]
 
         assert info == {"title": "LNT v5", "version": "5"}
@@ -23,8 +22,7 @@ class TestOpenApiDocument:
     def test_describes_only_statuses_r4_permits(self, client: TestClient) -> None:
         # R8: the document must not advertise a response the API cannot produce. FastAPI adds a
         # 422 to every operation taking a body or parameters, which R4 does not permit and which
-        # the error handlers turn into a 400. Nothing takes a body yet, so this holds trivially --
-        # it is here to fail the moment the first such endpoint lands without the correction.
+        # the error handlers turn into a 400.
         r4_statuses = {"200", "201", "204", "400", "401", "403", "404", "409", "500"}
 
         for path, operations in client.get("/api/openapi.json").json()["paths"].items():

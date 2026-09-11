@@ -58,8 +58,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(
         title="LNT v5",
-        # The API's version, not the server build's: R8 fixes it at the major version. FastAPI
-        # would otherwise publish its "0.1.0" placeholder.
+        # The API's version, not the server build's. Fixed by R8.
         version="5",
         lifespan=lifespan,
         # R8. FastAPI's defaults would put these at /docs, /redoc and /openapi.json, inside the
