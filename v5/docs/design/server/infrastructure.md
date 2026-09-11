@@ -226,7 +226,7 @@ trading for delayed revocation.
 random source and is exactly 64 lowercase hexadecimal characters (256 bits).
 The stored `key_hash` is the lowercase hex SHA-256 of the token's ASCII bytes,
 and `prefix` is the token's first 8 characters (see D5). A token is returned
-exactly once, by the request that creates it, and cannot be recovered
+exactly once, by the operation that creates it, and cannot be recovered
 afterwards: neither the raw token nor `key_hash` appears in any other response.
 
 A single SHA-256 is used deliberately, rather than a password-style KDF
@@ -236,8 +236,14 @@ expensive, whereas these tokens are server-generated with 256 bits of entropy
 putting them far out of guessing range. Deliberately slow hashing would instead
 let any unauthenticated caller burn server CPU by presenting a garbage token.
 
-For the API key endpoints themselves, see the Admin section of the endpoints
-spec.
+**Bootstrap and out-of-band key creation**. Every key-management endpoint
+requires `admin` scope, so the API alone cannot produce an instance's first
+key: a newly initialized database holds no keys at all, and an operator who
+revokes the last active `admin` key has no way to create a replacement.
+
+An instance therefore provides an out-of-band administrative interface for
+creating keys, for example a command-line tool that can be used from the
+instance. The exact mechanism is implementation-specific.
 
 
 ## R6: AI Agent Orientation

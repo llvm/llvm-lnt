@@ -29,5 +29,4 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s --retries=3 --start-period=5s \
   CMD python -c "import sys,urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:3000/healthz', timeout=2).status == 200 else 1)"
 
-CMD ["uvicorn", "lnt_v5.app:create_app", "--factory", "--host", "0.0.0.0", "--port", "3000", \
-                                                      "--timeout-graceful-shutdown", "120"]
+CMD ["lnt-v5", "server", "run"]

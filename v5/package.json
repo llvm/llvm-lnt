@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "concurrently -n client,server -c blue,green \"npm run dev:client\" \"npm run dev:server\"",
     "dev:client": "npm run dev -w client",
-    "dev:server": "cd server && uv run --env-file ../.env python -m lnt_v5",
+    "dev:server": "uv run --project server --env-file .env lnt-v5 server dev",
     "build": "npm run build -w client",
     "test": "npm run test:client && npm run test:server",
     "test:client": "npm run test -w client",
@@ -23,7 +23,8 @@
     "check": "npm run lint && npm run typecheck && npm test",
     "install:server": "cd server && uv sync",
     "db:up": "docker compose up -d",
-    "db:down": "docker compose down"
+    "db:down": "docker compose down",
+    "create-key": "uv run --project server --env-file .env lnt-v5 server create-key --name dev --scope admin"
   },
   "devDependencies": {
     "concurrently": "^10.0.5"

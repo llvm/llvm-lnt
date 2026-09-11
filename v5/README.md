@@ -47,7 +47,15 @@ http://localhost:3000. Vite proxies `/api`, `/healthz`, and `/llms.txt` through 
 
 The server reads its configuration from the environment; `npm run dev:server` passes `.env` to it
 via `uv run --env-file`. Nothing loads `.env` implicitly, so the test suite is unaffected by
-whatever you have in it.
+whatever you have in it. To create a token against your local database:
+
+```sh
+npm run create-key                                # a token named "dev", with admin scope
+npm run create-key -- --name bot --scope submit   # anything else
+```
+
+The token is printed on stdout and is not recoverable afterwards -- create another if you lose it.
+Paste the token into the web UI's Settings panel to use it from the browser.
 
 ### Testing and building
 
@@ -98,3 +106,4 @@ serve the client shell.
 | `DATABASE_SSL_CA` | unset | Path to a CA bundle. When set, connections use `sslmode=verify-full`. |
 | `BODY_LIMIT` | `134217728` | Maximum request body, in bytes. A reverse proxy in front of the server needs a matching limit; raise both together. |
 | `CLIENT_DIST` | derived | Path to the built client. Set explicitly in the Docker image. |
+| `WEB_CONCURRENCY` | `1` | Number of worker processes. Each holds its own database connection pool, so this multiplies how many connections the server can open; see the sizing notes in [docs/deployment.md](docs/deployment.md). |
