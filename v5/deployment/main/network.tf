@@ -19,7 +19,7 @@ resource "aws_security_group" "ec2" {
   vpc_id      = data.aws_vpc.default.id
 
   dynamic "ingress" {
-    for_each = data.cloudflare_ip_ranges.cloudflare.ipv4_cidr_blocks
+    for_each = data.cloudflare_ip_ranges.cloudflare.ipv4_cidrs
     content {
       description = "HTTPS from Cloudflare"
       from_port   = 443
@@ -30,7 +30,7 @@ resource "aws_security_group" "ec2" {
   }
 
   dynamic "ingress" {
-    for_each = data.cloudflare_ip_ranges.cloudflare.ipv4_cidr_blocks
+    for_each = data.cloudflare_ip_ranges.cloudflare.ipv4_cidrs
     content {
       description = "HTTP from Cloudflare (redirected to HTTPS)"
       from_port   = 80
