@@ -98,4 +98,3 @@ serve the client shell.
 | `DATABASE_SSL_CA` | unset | Path to a CA bundle. When set, connections use `sslmode=verify-full`. |
 | `BODY_LIMIT` | `134217728` | Maximum request body, in bytes. A reverse proxy in front of the server needs a matching limit; raise both together. |
 | `CLIENT_DIST` | derived | Path to the built client. Set explicitly in the Docker image. |
-| `WEB_CONCURRENCY` | `4` in the image, `1` otherwise | uvicorn worker count. Each worker holds its own connection pool, so this multiplies the database connection budget. Set it to match the container's CPU allocation. |

@@ -73,6 +73,14 @@ terraform -chdir=v5/deployment/main apply -var="app_image_tag=..."         \
                                           -var="domain=lnt.example.com"
 ```
 
+## Sizing
+
+When deploying a server, you should set `WEB_CONCURRENCY` to let uvunicorn use more than the
+single worker it uses by default. However, be aware that each worker holds its own database
+connection pool, so the instance's ceiling against RDS is `WEB_CONCURRENCY x (POOL_SIZE + MAX_OVERFLOW)`,
+which has to stay well inside the `max_connections` of the database instance. Moving to a larger
+instance means revisiting both numbers together.
+
 ## Operating the instance
 
 There is no inbound SSH. The instance's IAM role carries `AmazonSSMManagedInstanceCore`, so shell

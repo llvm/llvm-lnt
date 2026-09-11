@@ -11,8 +11,8 @@ server {
     ssl_certificate     /etc/nginx/certs/origin.pem;
     ssl_certificate_key /etc/nginx/certs/origin.key;
 
-    # Run submissions can be large: bump the default limit. Keep this in sync with the
-    # Fastify `bodyLimit` in index.ts.
+    # Run submissions can be large: bump the default limit. Keep this in sync with the app's
+    # BODY_LIMIT in config.py.
     client_max_body_size 128m;
 
     location / {

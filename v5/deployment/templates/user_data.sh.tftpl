@@ -33,7 +33,7 @@ SECRET_JSON=$(aws secretsmanager get-secret-value --secret-id "${secret_arn}" --
 cat > /opt/app/.env <<EOF
 DATABASE_URL=postgres://${db_username}:$DB_PASSWORD_URLENC@${db_endpoint}/${db_name}
 DATABASE_SSL_CA=/app/certs/rds-global-bundle.pem
-PORT=3000
+WEB_CONCURRENCY=${web_concurrency}
 EOF
 chmod 600 /opt/app/.env
 

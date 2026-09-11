@@ -44,6 +44,12 @@ resource "aws_instance" "app" {
     db_endpoint   = aws_db_instance.main.endpoint
     db_name       = aws_db_instance.main.db_name
     secret_arn    = aws_secretsmanager_secret.app.arn
+
+    # One uvicorn worker per vCPU of the instance_type above; keep the two in step. Each worker
+    # holds its own database connection pool, so this also multiplies how many connections the
+    # instance can hold open against RDS.
+    web_concurrency = 2
+
     compose_file = templatefile("${path.module}/../templates/docker-compose.prod.yml.tftpl", {
       image = "${var.ghcr_image}:${var.app_image_tag}"
     })
