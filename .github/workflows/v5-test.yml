@@ -48,9 +48,13 @@ jobs:
     runs-on: ubuntu-24.04
     defaults:
       run:
-        working-directory: v5/server
+        working-directory: v5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: v5/.nvmrc
 
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.0.1
         with:
@@ -60,10 +64,10 @@ jobs:
       # --frozen so a lockfile that has drifted from pyproject.toml fails here rather than
       # silently resolving something no one has tested.
       - run: uv sync --frozen
-      - run: uv run ruff check .
-      - run: uv run ruff format --check .
-      - run: uv run mypy .
-      - run: uv run pytest
+        working-directory: v5/server
+      - run: npm run lint:server
+      - run: npm run typecheck:server
+      - run: npm run test:server
 
   build-docker:
     needs: [test-client, test-server]
