@@ -1,0 +1,46 @@
+#!/bin/bash
+set -euo pipefail
+
+dnf install -y docker jq
+systemctl enable --now docker
+
+mkdir -p /usr/libexec/docker/cli-plugins
+curl -SL "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-$(uname -m)" \
+  -o /usr/libexec/docker/cli-plugins/docker-compose
+chmod +x /usr/libexec/docker/cli-plugins/docker-compose
+
+mkdir -p /opt/app/certs
+
+# Fetch the RDS Postgres certificate so we can talk to the DB using TLS.
+curl -sSL -o /opt/app/certs/rds-global-bundle.pem https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem
+
+cat > /opt/app/docker-compose.yml <<'COMPOSE_EOF'
+${compose_file}
+COMPOSE_EOF
+
+cat > /opt/app/nginx.conf <<'NGINX_EOF'
+${nginx_conf}
+NGINX_EOF
+
+DB_PASSWORD=$(aws secretsmanager get-secret-value --secret-id "${db_secret_arn}" --region ${aws_region} \
+  --query SecretString --output text | jq -r '.password')
+# URL-encode the password since generated passwords may contain special characters.
+DB_PASSWORD_URLENC=$(printf '%s' "$DB_PASSWORD" | jq -sRr @uri)
+
+SECRET_JSON=$(aws secretsmanager get-secret-value --secret-id "${secret_arn}" --region ${aws_region} \
+  --query SecretString --output text)
+
+cat > /opt/app/.env <<EOF
+DATABASE_URL=postgres://${db_username}:$DB_PASSWORD_URLENC@${db_endpoint}/${db_name}
+DATABASE_SSL_CA=/app/certs/rds-global-bundle.pem
+WEB_CONCURRENCY=${web_concurrency}
+EOF
+chmod 600 /opt/app/.env
+
+echo "$SECRET_JSON" | jq -r '.certificate' > /opt/app/certs/origin.pem
+echo "$SECRET_JSON" | jq -r '.private_key' > /opt/app/certs/origin.key
+chmod 600 /opt/app/certs/origin.key
+
+cd /opt/app
+docker compose pull
+docker compose up -d

@@ -1,0 +1,65 @@
+#
+# Deploy the v5 stack. Manual only: pick the image tag produced by the v5 Test workflow and apply.
+#
+
+name: v5 Deploy
+run-name: "v5 Deploy ${{ inputs.app_image_tag }} by @${{ github.actor }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_image_tag:
+        description: "Tag of the ghcr.io/llvm/llvm-lnt-v5 image to deploy"
+        required: true
+        type: string
+
+concurrency:
+  group: v5-deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    environment:
+      name: v5-production
+      url: https://${{ vars.V5_DOMAIN }}
+    permissions:
+      id-token: write
+      contents: read
+    defaults:
+      run:
+        working-directory: v5/deployment/main
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6.2.4
+        with:
+          role-to-assume: ${{ vars.V5_AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-west-2
+
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+
+      - name: Terraform init
+        run: terraform init
+
+      - name: Terraform apply
+        env:
+          TF_VAR_cloudflare_api_token: ${{ secrets.V5_CLOUDFLARE_API_TOKEN }}
+          TF_VAR_cloudflare_zone_id: ${{ vars.V5_CLOUDFLARE_ZONE_ID }}
+          TF_VAR_domain: ${{ vars.V5_DOMAIN }}
+          TF_VAR_app_image_tag: ${{ inputs.app_image_tag }}
+        run: terraform apply -auto-approve
+
+      - name: Wait for /healthz
+        env:
+          DOMAIN: ${{ vars.V5_DOMAIN }}
+        run: |
+          for _ in $(seq 1 60); do
+            if curl --silent --fail --max-time 10 "https://${DOMAIN}/healthz" | grep -q '"ok":true'; then
+              echo "Server is healthy"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Server never became healthy"
+          exit 1

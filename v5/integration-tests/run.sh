@@ -72,9 +72,12 @@ fi
 echo "Starting ${IMAGE}..."
 # BODY_LIMIT is lowered from its 128 MiB default so that body-size checks can be done without
 # having to send huge payloads.
+#
+# WEB_CONCURRENCY is set to exercise multiple concurrent workers in the integration tests.
 docker run --detach --init --name "$APP" --network "$NETWORK" --publish "${PORT}:3000" \
     --env DATABASE_URL="postgres://lnt:lnt@${PG}:5432/lnt" \
     --env BODY_LIMIT=1048576 \
+    --env WEB_CONCURRENCY=4 \
     "$IMAGE" >/dev/null
 
 for _ in $(seq 1 60); do

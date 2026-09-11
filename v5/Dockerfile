@@ -22,8 +22,6 @@ FROM python:3.14-slim-bookworm AS runtime
 WORKDIR /app/server
 ENV PATH="/app/server/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
-    # TODO: Set WEB_CONCURRENCY based on the actual core count of the instance we're running on
-    WEB_CONCURRENCY=4 \
     CLIENT_DIST=/app/client/dist
 COPY --from=server-deps /app/server /app/server
 COPY --from=client-build /app/client/dist /app/client/dist
