@@ -30,6 +30,13 @@ def _connect_args(settings: Settings) -> dict[str, Any]:
         # libpq already enables keepalives, but only probes after the OS idle timeout, which can
         # be too long.
         "keepalives_idle": 30,
+        # psycopg returns `timestamptz` values in the session's timezone, so this is what decides
+        # the tzinfo every timestamp reaches the application with. D5 requires responses to
+        # serialize timestamps with a `Z` suffix, and pydantic writes `Z` only for a datetime that
+        # is actually UTC -- anything else gets a numeric offset. Postgres containers and RDS both
+        # happen to default to UTC, but that is their configuration rather than ours, so pin it
+        # here and make it a property of the connection.
+        "options": "-c timezone=UTC",
     }
     if settings.database_ssl_ca:
         # `sslrootcert` alone is not enough: libpq defaults to sslmode=prefer, which will happily

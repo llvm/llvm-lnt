@@ -5,15 +5,18 @@ from __future__ import annotations
 from enum import StrEnum
 
 
+# In its own module because both the database layer, which constrains the stored value, and the
+# authentication layer, which compares a key's scope against an endpoint's requirement, need it,
+# and neither should have to import the other.
+#
+# The class docstring is published: it is this enum's description in the OpenAPI document.
 class Scope(StrEnum):
-    """What an API key is allowed to do; see R5 for what each one covers.
+    """What an API key is allowed to do.
 
-    Declared lowest privilege first, because the declaration order *is* R5's hierarchy and
-    :meth:`grants` reads it. This lives in its own module because both the database layer, which
-    constrains the stored value, and the authentication layer, which compares a key's scope
-    against an endpoint's requirement, need it, and neither should have to import the other.
+    A key grants its own scope and every lower one: read < submit < triage < manage < admin.
     """
 
+    # Lowest privilege first: the declaration order *is* the hierarchy, and `grants` reads it.
     READ = "read"
     SUBMIT = "submit"
     TRIAGE = "triage"

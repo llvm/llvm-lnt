@@ -34,6 +34,61 @@ class TestOpenApiDocument:
         # R5 places /healthz outside the REST API surface, so it is not part of what R8 describes.
         assert "/healthz" not in client.get("/api/openapi.json").json()["paths"]
 
+    def test_documents_no_validation_failure_the_api_cannot_produce(
+        self, client: TestClient
+    ) -> None:
+        """FastAPI's native 422 is corrected to the 400 the error handlers actually answer.
+
+        Stated separately from the status-set check above because this is the specific regression:
+        a 422 reappears by default on every new operation that takes a body or a parameter, and
+        the schemas behind it linger in `components` describing a body nothing returns.
+        """
+        document = client.get("/api/openapi.json").json()
+
+        assert "HTTPValidationError" not in document["components"]["schemas"]
+        assert "ValidationError" not in document["components"]["schemas"]
+
+    def test_describes_the_error_envelope(self, client: TestClient) -> None:
+        document = client.get("/api/openapi.json").json()
+
+        envelope = document["components"]["schemas"]["ErrorEnvelope"]
+        assert set(document["components"]["schemas"]["ErrorBody"]["properties"]) == {
+            "code",
+            "message",
+        }
+        assert "error" in envelope["properties"]
+
+
+class TestDocumentedAuthentication:
+    """R5's failures, as R8's document reports them.
+
+    They are derived from each route's declared scope rather than restated per endpoint, so what
+    matters is that the derivation lands on the right operations.
+    """
+
+    def test_declares_the_bearer_scheme(self, client: TestClient) -> None:
+        schemes = client.get("/api/openapi.json").json()["components"]["securitySchemes"]
+
+        assert schemes["ApiKey"]["type"] == "http"
+        assert schemes["ApiKey"]["scheme"] == "bearer"
+
+    def test_every_operation_requires_that_scheme(self, client: TestClient) -> None:
+        for path, operations in client.get("/api/openapi.json").json()["paths"].items():
+            for method, operation in operations.items():
+                assert operation.get("security") == [{"ApiKey": []}], f"{method.upper()} {path}"
+
+    def test_a_read_operation_can_be_refused_but_never_forbidden(self, client: TestClient) -> None:
+        # Every valid key grants `read`, so a read-scoped operation has no way to answer 403.
+        index = client.get("/api/openapi.json").json()["paths"]["/api"]["get"]
+
+        assert {"400", "401"} <= set(index["responses"])
+        assert "403" not in index["responses"]
+
+    def test_an_operation_above_read_can_be_forbidden(self, client: TestClient) -> None:
+        keys = client.get("/api/openapi.json").json()["paths"]["/api/admin/api-keys"]["get"]
+
+        assert {"400", "401", "403"} <= set(keys["responses"])
+
 
 class TestDocumentationViewer:
     def test_is_served_under_api(self, client: TestClient) -> None:
