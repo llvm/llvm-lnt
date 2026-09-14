@@ -6,7 +6,7 @@ This document specifies all entity endpoints in the v5 REST API.
 ## Discovery
 
 ```
-GET    /api/                      -- API index: links to the suite list and API documentation
+GET    /api                       -- API index: links to the suite list and API documentation
 GET    /api/openapi.json          -- OpenAPI 3.x specification for this instance
 GET    /api/docs                  -- Interactive API documentation viewer
 ```

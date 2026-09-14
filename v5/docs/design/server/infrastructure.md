@@ -10,6 +10,11 @@ alongside an interactive viewer (see R8).
 ## R1: URL Structure and Identifiers
 
 - Base path: `/api/suites/{testsuite}/`
+- No path carries a trailing slash. A request that adds one is answered with a
+  307 redirect to the canonical form; 307 rather than 301 or 308 so that the
+  method and body survive and a misspelled write is not downgraded to a GET.
+  This covers `/healthz` as well. Client routes are unaffected -- the web UI
+  answers both spellings itself, and redirecting between them would be noise.
 - Entities addressed by natural keys (suite name, machine name, test name, commit value) or
   UUIDs (runs, regressions, regression indicators, profiles) -- never by internal
   auto-increment database IDs. API keys are the one exception to both: they are addressed by
@@ -18,7 +23,7 @@ alongside an interactive viewer (see R8).
 - An entity carries its own identifier in responses under the key it is addressed by: `name`
   (suite, machine, test), `value` (commit), `uuid`, `prefix`. R4 covers how one entity refers
   to another.
-- An index endpoint at `GET /api/` links to the test suite list and the API documentation
+- An index endpoint at `GET /api` links to the test suite list and the API documentation
 - Suite-scoped resources live one level below the suite collection, under
   `/api/suites/{testsuite}/`. This keeps them disjoint from instance-level
   routes (`/api/suites`, `/api/admin/...`), so routing reserves no suite names
@@ -91,9 +96,10 @@ R2; every other endpoint returns the entity object itself, except where its own
 spec gives a different body. Status codes are drawn from 200, 201, 204, 400,
 401, 403, 404, 409, 500. The four routes exempt from the scope system (see R5)
 are not part of this surface and follow their own sections: they serve plain
-text or HTML as well as JSON. An oversized request body is refused before it
-reaches an endpoint at all, and is likewise outside this surface (see Errors,
-below).
+text or HTML as well as JSON. Two things are settled before a request reaches an
+endpoint at all, and are likewise outside this surface: an oversized request
+body, which is refused (see Errors, below), and a trailing slash, which is
+redirected (see R1).
 
 **Object conventions.** These hold for every response body, so each endpoint's
 spec need only name its keys.
@@ -289,7 +295,7 @@ instance. The exact mechanism is implementation-specific.
   implementation, which may load them from a third-party CDN rather than
   serving them from this instance (in which case the API viewer may only be
   available when the instance is online).
-- Both are linked from the API index (`GET /api/`) under the `openapi` and
+- Both are linked from the API index (`GET /api`) under the `openapi` and
   `docs` keys, and from `/llms.txt` (R6).
 - Neither requires authentication, and an `Authorization` header has no effect
   on either, even though both live under `/api/` (see R5).

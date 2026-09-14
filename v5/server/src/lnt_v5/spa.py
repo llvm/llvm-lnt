@@ -9,10 +9,11 @@ from __future__ import annotations
 
 from pathlib import PurePosixPath
 
+from starlette.datastructures import URL
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from starlette.responses import Response
+from starlette.responses import RedirectResponse, Response
 from starlette.staticfiles import StaticFiles
-from starlette.types import Scope
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from .errors import no_route
 
@@ -26,6 +27,10 @@ STATIC_ASSET_EXTENSIONS = frozenset(
     }
 )  # fmt: skip
 
+# Paths the server answers itself that are not under /api/. They share the API's slash handling:
+# a probe is as easy to misconfigure with a trailing slash as an endpoint is.
+INFRASTRUCTURE_PATHS = frozenset({"/healthz"})
+
 
 def is_api_path(path: str) -> bool:
     """True for paths owned by the REST API.
@@ -34,6 +39,51 @@ def is_api_path(path: str) -> bool:
     and has to answer with the JSON error envelope rather than a page of HTML.
     """
     return path == "/api" or path.startswith("/api/")
+
+
+def is_server_path(path: str) -> bool:
+    """True for paths the server answers itself, as opposed to client routes."""
+    return is_api_path(path) or path in INFRASTRUCTURE_PATHS
+
+
+def canonical_server_path(path: str) -> str | None:
+    """The slash-less form of a server path given with a trailing slash, or None if it is fine.
+
+    Server paths are canonically slash-less -- every path in the endpoints spec is written that
+    way -- so `/api/suites/` names the same endpoint as `/api/suites`.
+    """
+    if path == "/" or not path.endswith("/"):
+        return None
+    stripped = path.rstrip("/")
+    return stripped if stripped and is_server_path(stripped) else None
+
+
+class RedirectTrailingSlash:
+    """Send a server path carrying a trailing slash to its canonical form.
+
+    Starlette does this out of the box, but only once nothing has matched -- and the SPA mount at
+    "/" matches every path, so its redirect is unreachable here. This restores the framework's
+    behaviour for the paths the server owns, and leaves client routes alone: the SPA answers
+    `/suites/nts` and `/suites/nts/` alike, and bouncing the browser between them would be noise.
+
+    Purely syntactic, with no consultation of the route table: a trailing slash on a path that
+    exists under neither spelling simply costs one extra round trip before its 404.
+
+    307 rather than 301 or 308: it preserves the method and body, so a misspelled POST arrives
+    intact, and it does not license a cache to remember the mapping.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] == "http":
+            target = canonical_server_path(scope["path"])
+            if target is not None:
+                url = URL(scope=scope).replace(path=target)
+                await RedirectResponse(url, status_code=307)(scope, receive, send)
+                return
+        await self.app(scope, receive, send)
 
 
 def is_static_asset_path(path: str) -> bool:

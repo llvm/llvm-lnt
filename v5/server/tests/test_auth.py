@@ -21,7 +21,7 @@ from lnt_v5.auth import iter_routes, required_scope
 from lnt_v5.scopes import Scope
 
 # A read-scoped endpoint and an admin-scoped one.
-READABLE = "/api/"
+READABLE = "/api"
 ADMIN_ONLY = "/api/admin/api-keys"
 
 # R5 exempts four routes from the scope system. Two exist today; `/healthz` lives outside `/api/`

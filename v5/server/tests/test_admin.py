@@ -123,7 +123,7 @@ class TestCreate:
             "token"
         ]
 
-        assert api_client.get("/api/", headers=bearer(token)).status_code == 200
+        assert api_client.get("/api", headers=bearer(token)).status_code == 200
 
     def test_sets_no_location_header(self, api_client: TestClient, admin: dict[str, str]) -> None:
         # Deliberate: there is no per-key detail route, so the list is the only way to read a key

@@ -79,7 +79,7 @@ class TestDocumentedAuthentication:
 
     def test_a_read_operation_can_be_refused_but_never_forbidden(self, client: TestClient) -> None:
         # Every valid key grants `read`, so a read-scoped operation has no way to answer 403.
-        index = client.get("/api/openapi.json").json()["paths"]["/api/"]["get"]
+        index = client.get("/api/openapi.json").json()["paths"]["/api"]["get"]
 
         assert {"400", "401"} <= set(index["responses"])
         assert "403" not in index["responses"]

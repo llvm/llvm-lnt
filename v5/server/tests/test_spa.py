@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 from lnt_v5.app import create_app
 from lnt_v5.config import Settings
-from lnt_v5.spa import is_api_path, is_static_asset_path
+from lnt_v5.spa import canonical_server_path, is_api_path, is_static_asset_path
 
 # Both predicates read a request path, never a URL: what reaches them is `scope["path"]`, which
 # carries no query string. Cases below are written in that shape.
@@ -140,6 +140,81 @@ class TestSpaServing:
 
         assert response.status_code == 404
         assert "SENTINEL" not in response.text
+
+
+class TestCanonicalServerPath:
+    @pytest.mark.parametrize(
+        ("path", "canonical"),
+        [
+            ("/api/", "/api"),
+            ("/api//", "/api"),
+            ("/api/suites/", "/api/suites"),
+            ("/api/admin/api-keys/", "/api/admin/api-keys"),
+            ("/api/openapi.json/", "/api/openapi.json"),
+            ("/healthz/", "/healthz"),
+        ],
+    )
+    def test_strips_a_trailing_slash_from_a_server_path(self, path: str, canonical: str) -> None:
+        assert canonical_server_path(path) == canonical
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "/api",  # already canonical
+            "/healthz",
+            "/",  # the client's own root, not a stray slash
+            "//",
+            "/suites/nts/",  # a client route: the SPA answers both forms itself
+            "/graph/",
+            "/apiary/",  # not the API despite the prefix
+        ],
+    )
+    def test_leaves_everything_else_alone(self, path: str) -> None:
+        assert canonical_server_path(path) is None
+
+
+class TestRedirectTrailingSlash:
+    @pytest.mark.parametrize(
+        "path", ["/api/", "/api/admin/api-keys/", "/api/docs/", "/api/openapi.json/"]
+    )
+    def test_sends_a_server_path_to_its_canonical_form(self, client: TestClient, path: str) -> None:
+        response = client.get(path, follow_redirects=False)
+
+        assert response.status_code == 307
+        assert response.headers["location"].endswith(path.rstrip("/"))
+
+    def test_redirects_a_path_that_exists_under_neither_spelling(self, client: TestClient) -> None:
+        # Purely syntactic, so a miss costs one extra round trip before its 404 rather than
+        # requiring the middleware to consult the route table.
+        assert client.get("/api/nope/", follow_redirects=False).status_code == 307
+        assert client.get("/api/nope/").status_code == 404
+
+    def test_keeps_the_query_string(self, client: TestClient) -> None:
+        response = client.get("/api/?limit=25", follow_redirects=False)
+
+        assert response.headers["location"].endswith("/api?limit=25")
+
+    def test_preserves_the_method_and_body(self, client: TestClient) -> None:
+        # 307 rather than 301 or 308, so a misspelled write arrives intact rather than as a GET.
+        response = client.post("/api/admin/api-keys/", json={"name": "x"}, follow_redirects=False)
+
+        assert response.status_code == 307
+
+    def test_does_not_let_the_health_probe_be_answered_by_the_spa(self, client: TestClient) -> None:
+        # Without this, `/healthz/` falls through to the catch-all and answers 200 with the client
+        # shell -- reporting a healthy server whether or not the database is reachable.
+        response = client.get("/healthz/", follow_redirects=False)
+
+        assert response.status_code == 307
+        assert response.headers["location"].endswith("/healthz")
+
+    @pytest.mark.parametrize("path", ["/", "/suites/nts/", "/graph/"])
+    def test_leaves_client_routes_alone(self, client: TestClient, path: str) -> None:
+        # The SPA answers both spellings, so bouncing the browser between them would be noise.
+        response = client.get(path, follow_redirects=False)
+
+        assert response.status_code == 200
+        assert "<title>LNT</title>" in response.text
 
 
 class TestSpaWithoutABuiltClient:

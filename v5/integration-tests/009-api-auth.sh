@@ -4,7 +4,7 @@
 
 source "$(dirname "$0")/lib.sh"
 
-readonly INDEX="${BASE_URL}/api/"
+readonly INDEX="${BASE_URL}/api"
 readonly KEYS="${BASE_URL}/api/admin/api-keys"
 
 # Pull the token out of a create response. Narrow on purpose: it matches the 64 hex characters R5
