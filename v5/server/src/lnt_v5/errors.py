@@ -13,11 +13,13 @@ transport layer and outside the envelope; see `_http_exception_handler`.
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from enum import StrEnum
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, PlainTextResponse, Response
+from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 logger = logging.getLogger(__name__)
@@ -55,15 +57,60 @@ _STATUS: dict[ErrorCode, int] = {
 }
 
 
-def error_response(code: ErrorCode, message: str) -> JSONResponse:
+def error_response(
+    code: ErrorCode, message: str, headers: Mapping[str, str] | None = None
+) -> JSONResponse:
     return JSONResponse(
-        status_code=_STATUS[code], content={"error": {"code": code.value, "message": message}}
+        status_code=_STATUS[code],
+        content={"error": {"code": code.value, "message": message}},
+        headers=dict(headers) if headers else None,
     )
+
+
+class ErrorBody(BaseModel):
+    """The contents of R4's `error` key."""
+
+    # Deliberately a plain string rather than ErrorCode: this one schema describes every error
+    # response, and enumerating all nine codes on it would claim a 401 might carry `duplicate`.
+    code: str
+    message: str
+
+
+class ErrorEnvelope(BaseModel):
+    """R4's error envelope, as R8's document describes it."""
+
+    error: ErrorBody
+
+
+class ApiError(Exception):
+    """An error an endpoint reports by naming its R4 code.
+
+    The code is what a client branches on, and it does not follow from the status: R4 serves four
+    distinct codes as 409. So a caller names the code and the status follows, which is why this
+    exists rather than endpoints raising HTTPException with a status the handler would have to
+    guess a code from.
+
+    `headers` carries anything the response must include beside the envelope -- today only R5's
+    `WWW-Authenticate: Bearer` on a 401.
+    """
+
+    def __init__(
+        self, code: ErrorCode, message: str, headers: Mapping[str, str] | None = None
+    ) -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
+        self.headers = dict(headers) if headers else None
 
 
 def no_route(method: str | None, path: str) -> str:
     """The message for a request that matched nothing. Shared so the wording has one source."""
     return f"No route for {method} {path}"
+
+
+async def _api_error_handler(request: Request, exc: Exception) -> Response:
+    assert isinstance(exc, ApiError)
+    return error_response(exc.code, exc.message, headers=exc.headers)
 
 
 async def _http_exception_handler(request: Request, exc: Exception) -> Response:
@@ -114,6 +161,7 @@ async def _unhandled_exception_handler(request: Request, exc: Exception) -> JSON
 
 
 def register_error_handlers(app: FastAPI) -> None:
+    app.add_exception_handler(ApiError, _api_error_handler)
     app.add_exception_handler(StarletteHTTPException, _http_exception_handler)
     app.add_exception_handler(RequestValidationError, _validation_exception_handler)
     app.add_exception_handler(Exception, _unhandled_exception_handler)

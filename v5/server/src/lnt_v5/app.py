@@ -13,7 +13,11 @@ from starlette.middleware.body_limit import RequestBodyLimitMiddleware
 from .config import Settings, get_settings
 from .db import make_engine
 from .errors import register_error_handlers
+from .openapi import use_r4_error_responses
+from .routes.admin import router as admin_router
 from .routes.health import router as health_router
+from .routes.index import DOCS_PATH, OPENAPI_PATH
+from .routes.index import router as index_router
 from .spa import SpaStaticFiles
 
 logger = logging.getLogger(__name__)
@@ -63,18 +67,26 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lifespan=lifespan,
         # R8. FastAPI's defaults would put these at /docs, /redoc and /openapi.json, inside the
         # SPA's namespace, where the catch-all serves index.html and `.json` already reads as a
-        # static asset. ReDoc is off because R8 specifies one viewer.
-        docs_url="/api/docs",
-        openapi_url="/api/openapi.json",
+        # static asset. ReDoc is off because R8 specifies one viewer. The paths come from the
+        # index route, which publishes them (R1).
+        docs_url=DOCS_PATH,
+        openapi_url=OPENAPI_PATH,
         redoc_url=None,
+        # The viewer's OAuth2 redirect helper, which FastAPI otherwise registers at
+        # /docs/oauth2-redirect -- a path inside the SPA's namespace, for a flow this API does not
+        # have: R5 authenticates with a bearer token and nothing else.
+        swagger_ui_oauth2_redirect_url=None,
     )
 
     register_error_handlers(app)
+    use_r4_error_responses(app)
     app.add_middleware(RequestBodyLimitMiddleware, max_body_size=settings.body_limit)
 
     # Routes before the SPA mount: a mount at "/" matches everything, so anything registered
     # after it is unreachable.
     app.include_router(health_router)
+    app.include_router(index_router)
+    app.include_router(admin_router)
 
     client_dist = Path(settings.client_dist) if settings.client_dist else _default_client_dist()
     if client_dist.is_dir():

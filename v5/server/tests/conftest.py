@@ -15,13 +15,15 @@ from typing import Any
 from uuid import uuid4
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from sqlalchemy import Connection, Engine, create_engine, insert, make_url, text
+from sqlalchemy import Connection, Engine, create_engine, insert, make_url, select, text
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.pool import NullPool
 
 from lnt_v5.app import create_app
 from lnt_v5.config import Settings, get_settings
+from lnt_v5.keys import create_key
 from lnt_v5.migrate import upgrade_to_head
 from lnt_v5.scopes import Scope
 from lnt_v5.tables import SCHEMA_VERSION_ID, api_key, metadata, schema_version
@@ -178,24 +180,102 @@ def db(db_engine: Engine) -> Iterator[Connection]:
         yield connection
 
 
+def _key_values(**overrides: Any) -> dict[str, Any]:
+    """The columns of a stand-in `api_key` row, with whichever ones a test cares about replaced.
+
+    One definition so that the tests which insert a row to collide with, and those which insert
+    one to read back, agree on what "the same key" is.
+    """
+    values: dict[str, Any] = {
+        "prefix": "0123abcd",
+        "key_hash": "a" * 64,
+        "name": "a key",
+        "scope": Scope.READ.value,
+    }
+    return values | overrides
+
+
 @pytest.fixture
 def insert_key(db: Connection) -> Callable[..., None]:
-    """Insert an `api_key` row, overriding whichever columns the test cares about.
+    """Insert an `api_key` row into the test's own transaction."""
 
-    Shared because the constraint tests and the error-reading tests both need a row to collide
-    with, and a collision only means anything if they agree on what "the same key" is.
+    def add(**overrides: Any) -> None:
+        db.execute(insert(api_key).values(**_key_values(**overrides)))
+
+    return add
+
+
+@pytest.fixture
+def store_key(db_engine: Engine) -> Callable[..., None]:
+    """Insert an `api_key` row and commit it.
+
+    Distinct from `insert_key` because a row written into the test's own open transaction is
+    invisible to the server, which reaches the database on a connection of its own.
     """
 
     def add(**overrides: Any) -> None:
-        values: dict[str, Any] = {
-            "prefix": "0123abcd",
-            "key_hash": "a" * 64,
-            "name": "a key",
-            "scope": Scope.READ.value,
-        }
-        db.execute(insert(api_key).values(**(values | overrides)))
+        with db_engine.begin() as connection:
+            connection.execute(insert(api_key).values(**_key_values(**overrides)))
 
     return add
+
+
+# --------------------------------------------------------------------------------------------
+# The API
+#
+# These drive the real application over a real database, which is what the authentication path
+# needs: it resolves every token against the `api_key` table rather than against a stand-in.
+# --------------------------------------------------------------------------------------------
+
+
+@pytest.fixture
+def api_settings(db_engine: Engine, client_dist: Path) -> Settings:
+    return Settings(
+        database_url=db_engine.url.render_as_string(hide_password=False),
+        client_dist=str(client_dist),
+    )
+
+
+@pytest.fixture
+def api_app(api_settings: Settings) -> FastAPI:
+    return create_app(api_settings)
+
+
+@pytest.fixture
+def api_client(api_app: FastAPI) -> Iterator[TestClient]:
+    """A client over the application, with its lifespan entered so it has an engine."""
+    with TestClient(api_app) as client:
+        yield client
+
+
+@pytest.fixture
+def make_key(db_engine: Engine) -> Callable[..., str]:
+    """Mint a real key and return its token, committed so the server can resolve it."""
+
+    def make(scope: Scope = Scope.ADMIN, name: str = "test key") -> str:
+        with db_engine.begin() as connection:
+            return create_key(connection, name, scope).token
+
+    return make
+
+
+@pytest.fixture
+def read_key(db_engine: Engine) -> Callable[[str], Any]:
+    """The stored row for a key prefix, read on a connection of its own."""
+
+    def read(prefix: str) -> Any:
+        with db_engine.connect() as connection:
+            return connection.execute(select(api_key).where(api_key.c.prefix == prefix)).one()
+
+    return read
+
+
+@pytest.fixture
+def bearer() -> Callable[[str], dict[str, str]]:
+    def header(token: str) -> dict[str, str]:
+        return {"Authorization": f"Bearer {token}"}
+
+    return header
 
 
 @pytest.fixture
