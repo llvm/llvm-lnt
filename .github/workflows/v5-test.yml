@@ -49,6 +49,22 @@ jobs:
     defaults:
       run:
         working-directory: v5
+    # The server tests run against a real PostgreSQL, creating a throwaway database of their own
+    # per run.
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: lnt
+          POSTGRES_PASSWORD: lnt
+          POSTGRES_DB: lnt
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U lnt"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 

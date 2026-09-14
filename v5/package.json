@@ -24,6 +24,7 @@
     "install:server": "cd server && uv sync",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
+    "db:migrate": "uv run --project server --env-file .env lnt-v5 server migrate",
     "create-key": "uv run --project server --env-file .env lnt-v5 server create-key --name dev --scope admin"
   },
   "devDependencies": {

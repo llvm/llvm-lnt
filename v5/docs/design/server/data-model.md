@@ -161,10 +161,13 @@ Notes:
   schema-creation time (400).
 - There is no `format_version` in the schema (only one format exists for v5).
 
-**Suite name**: `name` must match `^[a-z][a-z0-9_]*$` and be at most 40
-characters; anything else is rejected with 400. The name is interpolated
-into the suite's table identifiers (see D5), which is what motivates each
-part of the rule.
+**Suite name**: `name` must match `^[a-z][a-z0-9_]*$` and be at most 63
+characters; anything else is rejected with 400. The name is also the name of
+the namespace holding the suite's tables (see D5), so some names that satisfy
+the pattern are rejected with 400 anyway, because a namespace cannot be created
+under them: `public` and `information_schema` already exist in every database,
+and PostgreSQL reserves the `pg_` prefix for its own use -- so every name
+beginning with `pg_` is rejected.
 
 
 ## D5: Data Model
@@ -184,11 +187,9 @@ already unique.
 
 ### Global Tables
 
-These exist once per instance, independent of any test suite. Their names are
-fixed rather than derived from a suite name. Because every per-suite table is
-named `{suite}_<Entity>` for one of the entity suffixes below, no suite name can
-collide with a global table name, so no suite names need to be reserved (R1
-states the analogous property for URLs).
+These exist once per instance, independent of any test suite. They live in the
+database's default namespace, whereas every per-suite table lives in a namespace
+of its own named after its suite (see below).
 
 #### `schema`
 
@@ -214,8 +215,8 @@ states the analogous property for URLs).
 | version | INTEGER | not null |
 
 - Exactly one row, created with `version = 0` when the database is initialized
-  and never deleted. Readers may rely on its presence; `id` is fixed at `1` so
-  that the row is addressable without a search.
+  (see D14) and never deleted. Readers may rely on its presence; `id` is fixed
+  at `1` so that the row is addressable without a search.
 - Bumped whenever a suite is created, modified, or deleted, so that other
   workers can detect that their cached schemas are stale (see D2).
 
@@ -245,7 +246,7 @@ states the analogous property for URLs).
   share a name.
 - `scope` is one of `read`, `submit`, `triage`, `manage`, `admin` (see R5). The
   DB layer validates it on create. It is stored as text rather than as an
-  integer code (unlike `{suite}_Regression.state`, below) because it is read
+  integer code (unlike `{suite}.regression.state`, below) because it is read
   once per authenticated request and never filtered or sorted on, so
   legibility in the database is worth more than compactness.
 - `last_used_at` is null until the key is first used. It is recorded on
@@ -261,12 +262,13 @@ states the analogous property for URLs).
 
 ### Per-Suite Tables
 
-Per-suite tables are dynamically named `{suite}_<Entity>` (e.g., `nts_Commit`,
-`nts_Run`). The entity suffix is mixed-case while a suite name is always
-lowercase (see D4), so these identifiers must be quoted wherever they appear in
-SQL.
+Each suite's tables live in a namespace of their own, named after the suite: a
+PostgreSQL schema called `{suite}`, holding `commit`, `machine`, `run`, `test`,
+`sample`, `regression`, `regression_indicator` and `profile`. A table is
+therefore addressed as `{suite}.commit`, and the entity names below are given in
+that form.
 
-#### `{suite}_Commit`
+#### `{suite}.commit`
 
 | Column | Type | Constraints |
 |--------|------|-------------|
@@ -294,7 +296,7 @@ SQL.
 - Schema-defined `commit_fields` names must not collide with built-in column
   names (`id`, `commit`, `ordinal`, `tag`). The schema parser rejects these.
 
-#### `{suite}_Machine`
+#### `{suite}.machine`
 
 | Column | Type | Constraints |
 |--------|------|-------------|
@@ -322,7 +324,7 @@ SQL.
   endpoints expose it and can sort on it. It is deliberately not stored: a stored
   copy would have to be recomputed whenever a run is deleted and would entail
   additional synchronization on submission. Deriving it is cheap because a suite
-  has few machines and the compound index on `{suite}_Run(machine_id, submitted_at)`
+  has few machines and the compound index on `{suite}.run(machine_id, submitted_at)`
   reduces it to one index probe each; an implementation must not compute it by
   aggregating over the whole run table.
 - Cascade: deleting a machine cascades to its runs (and transitively to their
@@ -330,7 +332,7 @@ SQL.
   regression left with no indicators is not itself deleted: it keeps its title,
   bug, notes, and commit, and an empty indicator set is a legal state.
 
-#### `{suite}_Run`
+#### `{suite}.run`
 
 | Column | Type | Constraints |
 |--------|------|-------------|
@@ -347,18 +349,18 @@ SQL.
 - Compound index on `(machine_id, submitted_at)`. Its leading column serves
   lookups of all runs for a machine, and the pair keeps both
   `GET /api/suites/{testsuite}/machines/{name}/runs?sort=-submitted_at` and the
-  `last_run_at` aggregate described under `{suite}_Machine` to a bounded index
+  `last_run_at` aggregate described under `{suite}.machine` to a bounded index
   scan rather than a scan of this table.
 - Cascade: deleting a run cascades to its samples and profiles.
 
-#### `{suite}_Test`
+#### `{suite}.test`
 
 | Column | Type | Constraints |
 |--------|------|-------------|
 | id | INTEGER | PK |
 | name | VARCHAR(256) | unique, not null |
 
-#### `{suite}_Sample`
+#### `{suite}.sample`
 
 | Column | Type | Constraints |
 |--------|------|-------------|
@@ -371,7 +373,7 @@ SQL.
 - Compound index on `(test_id, run_id)` -- covers time-series queries.
 - Dynamic columns from schema metrics (see D3 for the type-to-column mapping).
 
-#### `{suite}_Regression`
+#### `{suite}.regression`
 
 | Column | Type | Constraints |
 |--------|------|-------------|
@@ -395,7 +397,7 @@ Regression state values:
 
 The DB layer validates state values on create and update.
 
-#### `{suite}_RegressionIndicator`
+#### `{suite}.regression_indicator`
 
 | Column | Type | Constraints |
 |--------|------|-------------|
@@ -411,7 +413,7 @@ The DB layer validates state values on create and update.
 - Each indicator represents one (machine, test, metric) combination
   affected by the regression.
 
-#### `{suite}_Profile`
+#### `{suite}.profile`
 
 | Column | Type | Constraints |
 |--------|------|-------------|
@@ -441,5 +443,52 @@ The DB layer validates state values on create and update.
   via the `false_positive` state with notes.
 - **FieldChange**: Dropped. Regressions directly reference affected machines,
   tests, and metrics via RegressionIndicator.
-- **Profile**: Redesigned for v5 (see `{suite}_Profile` above).
+- **Profile**: Redesigned for v5 (see `{suite}.profile` above).
 - **Order**: Replaced by Commit.
+
+
+## D14: Database Initialization and Evolution
+
+The two groups of tables in D5 come into being by two different mechanisms,
+because they are defined by different things.
+
+**Per-suite tables are defined by data.** A suite's schema decides which tables
+exist and which columns they carry, so no description written in advance could
+cover them. They are created by `POST /api/suites`, altered by
+`PATCH /api/suites/{name}/schema`, and dropped by `DELETE /api/suites/{name}`
+(see D2). This is ordinary request handling, not initialization.
+
+**Global tables are defined by code.** `schema`, `schema_version`, and
+`api_key` are fixed by the server build rather than by anything a user submits.
+A database must therefore be brought to the structure the running build expects
+before that build serves traffic, and must be brought forward again whenever a
+later build changes it. This is what "when the database is initialized" in D5
+refers to.
+
+Requirements on that mechanism:
+
+- **Ordered and recorded.** Changes to the global tables form a sequence, and
+  the database records how far along it is, so that a build can tell what
+  remains to be applied. Creating the tables in an empty database is the first
+  step of that sequence, not a separate path.
+- **Idempotent.** Applying it against an already-current database does nothing
+  and succeeds. The server applies it on every start, so doing nothing is the
+  common case.
+- **All-or-nothing per step.** A step that fails leaves the database as it was.
+- **Safe under concurrency.** At most one process may apply changes at a time,
+  and the others wait rather than failing. Two servers starting against one
+  database is normal: a deployment that replaces the instance overlaps the
+  outgoing and incoming ones.
+- **Confined to the default namespace.** The mechanism must not create, alter, or
+  drop anything in a suite's namespace, and must not treat its contents as
+  something to reconcile. A tool that compares the database against the global
+  definitions would otherwise see every per-suite table as unaccounted for, and
+  propose dropping all of them.
+- **Seeds `schema_version`.** The single row D5 requires (`id = 1`,
+  `version = 0`) exists from the moment the global tables do, so that every
+  reader can address it without coping with its absence.
+
+The server applies it at startup, before it begins serving, and refuses to
+serve if it fails -- a server whose tables are not those its code expects would
+fail every request. It is also available as a standalone administrative
+operation, so an operator can apply or inspect it without starting a server.
