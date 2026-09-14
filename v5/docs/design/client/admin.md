@@ -77,22 +77,26 @@ etc...
 
 Commit Fields (subtitle font)
 
-Name              Type
-----------------------
-short_sha         text
-commit_info       text
+Name              Type        Display Name              Searchable    Display
+------------------------------------------------------------------------------
+short_sha         text        Short SHA                 Yes           Yes
+commit_info       text        --                        No            No
 etc...
 
 
 Machine Fields (subtitle font)
 
-Name              Type
-----------------------
-hardware         text
-os               text
-compiler         text
+Name              Type        Display Name              Searchable
+------------------------------------------------------------------
+hardware          text        Hardware                  Yes
+os                text        --                        Yes
+compiler          text        --                        No
 etc...
 ```
+
+Each table shows exactly the presentation keys its list accepts (see D4), so the three
+tables deliberately differ in their columns. A `display_name` that was not set shows `--`
+rather than repeating the name, matching what the API returns.
 
 This is followed by a red "Delete This Suite" button. Clicking it shows an inline
 confirmation panel explaining that deleting a suite permanently destroys all machines,

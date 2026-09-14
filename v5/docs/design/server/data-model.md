@@ -59,8 +59,9 @@ suite comes to accept metadata it did not declare at creation: undeclared keys a
 rejected on submission for both machines and commits (see D6).
 
 - **Adding** an entry leaves existing rows with no value for it.
-- **Updating** an entry changes presentation metadata only (`display_name`,
-  `unit`, `unit_abbrev`, `bigger_is_better`, `searchable`, `display`). A `type`
+- **Updating** an entry changes presentation metadata only -- whichever of
+  `display_name`, `unit`, `unit_abbrev`, `bigger_is_better`, `searchable`, and
+  `display` its list accepts (see D4). A `type`
   cannot be changed in place, because the conversion is not always defined
   (`text` to `integer` can fail per row, `real` to `integer` truncates).
 - **Removing** an entry permanently destroys every value stored for it. Because
@@ -161,6 +162,40 @@ Notes:
   schema-creation time (400).
 - There is no `format_version` in the schema (only one format exists for v5).
 
+**Presentation keys**: beyond `name` and `type`, each list accepts only the
+optional keys that mean something for it. A key outside its list's set is
+rejected with 400 rather than stored and ignored, so that a schema author who
+writes one learns it had no effect.
+
+| List | Accepts, in addition to `name` and `type` |
+|------|-------------------------------------------|
+| `metrics` | `display_name`, `unit`, `unit_abbrev`, `bigger_is_better` |
+| `commit_fields` | `display_name`, `searchable`, `display` |
+| `machine_fields` | `display_name`, `searchable` |
+
+Only a metric has a direction, so `bigger_is_better` is a metric's alone. Only
+a commit or machine field is searchable (D9), and only a commit field can be
+the UI's display value, so neither key is accepted on a metric.
+
+**Normalization**: the stored and returned form of a schema carries every
+optional key explicitly, filled in with the default below when the submitted
+document omitted it. This is what makes a suite fetched from one instance
+postable verbatim to another, so these defaults are part of the wire contract
+rather than an implementation detail.
+
+| Key | Default |
+|-----|---------|
+| `display_name` | `null` |
+| `unit`, `unit_abbrev` | `null` |
+| `bigger_is_better` | `false` |
+| `searchable` | `false` |
+| `display` | `false` |
+
+An omitted `display_name` normalizes to `null` rather than to a copy of
+`name`: the UI falls back to `name` when rendering, and copying it here would
+make the returned document differ from the one submitted. A schema that omits
+one of the three lists entirely gets it back as an empty list.
+
 **Suite name**: `name` must match `^[a-z][a-z0-9_]*$` and be at most 63
 characters; anything else is rejected with 400. The name is also the name of
 the namespace holding the suite's tables (see D5), so some names that satisfy
@@ -168,6 +203,19 @@ the pattern are rejected with 400 anyway, because a namespace cannot be created
 under them: `public` and `information_schema` already exist in every database,
 and PostgreSQL reserves the `pg_` prefix for its own use -- so every name
 beginning with `pg_` is rejected.
+
+**Entry names**: every `name` in `metrics`, `commit_fields`, and
+`machine_fields` follows the same rule as the suite name -- it must match
+`^[a-z][a-z0-9_]*$` and be at most 63 characters -- for the same reason: an
+entry becomes a column, so it is an identifier too. The rule deliberately does
+not exclude the SQL reserved words it admits (`order`, `user`, `table` are all
+legal entry names); an implementation quotes identifiers rather than
+restricting what a schema may call a metric.
+
+A name must be unique within its list, but the three lists are independent: a
+metric and a machine field may share a name, because they are columns on
+different tables. A name that collides with a built-in column on the table the
+entry extends is rejected (see D5 for each table's built-ins).
 
 
 ## D5: Data Model
@@ -360,6 +408,12 @@ that form.
 | id | INTEGER | PK |
 | name | VARCHAR(256) | unique, not null |
 
+- Nothing deletes a test: the Tests endpoint is read-only and tests are created
+  implicitly by run submission. The references to this table from `sample`,
+  `profile`, and `regression_indicator` therefore cascade nowhere, and a
+  deletion attempted anyway is refused rather than silently taking every sample
+  that mentions the test.
+
 #### `{suite}.sample`
 
 | Column | Type | Constraints |
@@ -372,6 +426,10 @@ that form.
 - Compound index on `(run_id, test_id)` -- covers "all samples for a run".
 - Compound index on `(test_id, run_id)` -- covers time-series queries.
 - Dynamic columns from schema metrics (see D3 for the type-to-column mapping).
+- Metric names must not collide with built-in column names (`id`, `run_id`,
+  `test_id`), nor with the two keys the submission format reserves inside a
+  test entry, `name` and `profile` (see D6) -- a metric called either could
+  never be given a value. The schema parser rejects all five.
 
 #### `{suite}.regression`
 

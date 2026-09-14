@@ -90,8 +90,10 @@ object identical to the one the entity's own creation endpoint accepts (see D7).
   Metrics with null values must be omitted from the test entry (not sent as
   `"metric": null`); only include metrics that have actual values. An optional
   `profile` field may contain base64-encoded profile binary data; if present,
-  a Profile row is created and linked to the run+test. The `profile` key is
-  a reserved name and must not collide with metric names.
+  a Profile row is created and linked to the run+test. `name` and `profile` are
+  reserved keys within a test entry, so neither may be a metric name -- this is
+  enforced when the schema is created rather than at submission (see D5), so a
+  suite can never hold a metric that no submission could populate.
 
 
 ## D7: Machine and Commit Metadata Population
