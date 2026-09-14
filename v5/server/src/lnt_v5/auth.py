@@ -52,7 +52,7 @@ class BearerToken(SecurityBase):
 
     def __init__(self) -> None:
         self.model = HTTPBearerModel(
-            description="An LNT API key: 64 lowercase hexadecimal characters (see R5)."
+            description="An LNT API key: 64 lowercase hexadecimal characters."
         )
         self.scheme_name = "ApiKey"
 

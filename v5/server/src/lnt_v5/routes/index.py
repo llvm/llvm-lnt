@@ -25,7 +25,7 @@ class ApiLinks(BaseModel):
 
 
 class ApiIndex(BaseModel):
-    """What `GET /api/` answers. The suite list is canonical; the index does not enumerate it."""
+    """Links to the test suite list and to the API documentation."""
 
     links: ApiLinks
 

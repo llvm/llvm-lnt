@@ -19,8 +19,6 @@ from lnt_v5.responses import Items
 from lnt_v5.scopes import Scope
 from lnt_v5.tables import KEY_NAME_MAX_LENGTH
 
-# Declared on the router rather than on each route: endpoints.md requires `admin` for all three,
-# including the GET, and one declaration cannot drift between them.
 router = APIRouter(
     prefix="/api/admin",
     tags=["Admin"],
@@ -29,7 +27,7 @@ router = APIRouter(
 
 
 class ApiKey(BaseModel):
-    """A key as D5 exposes it. Neither the raw token nor its hash ever appears."""
+    """An API key. The token itself is never included."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -38,7 +36,7 @@ class ApiKey(BaseModel):
     scope: Scope
     created_at: datetime
     last_used_at: datetime | None = Field(
-        description="Null until the key is first used, and approximate thereafter (see D5)."
+        description="Null until the key is first used. Approximate: it may lag actual use."
     )
     is_active: bool
 
@@ -53,7 +51,7 @@ class ApiKeyCreate(BaseModel):
     name: str = Field(
         min_length=1,
         max_length=KEY_NAME_MAX_LENGTH,
-        description="A human-readable label. Deliberately not unique: two keys may share one.",
+        description="A human-readable label. Not unique.",
     )
     scope: Scope
 
@@ -70,7 +68,7 @@ def list_api_keys(engine: EngineDep) -> Items[ApiKey]:
 # to read a key back.
 @router.post("/api-keys", status_code=201, summary="Create an API key")
 def create_api_key(body: ApiKeyCreate, engine: EngineDep) -> ApiKeyCreated:
-    """Mint a key, returning its raw token this once (R5)."""
+    """Create a key. The token is returned only here and cannot be retrieved afterwards."""
     with engine.begin() as connection:
         created = keys.create_key(connection, body.name, body.scope)
     return ApiKeyCreated.model_validate(created)

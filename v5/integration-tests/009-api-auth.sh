@@ -1,12 +1,6 @@
 #!/usr/bin/env bash
 #
 # Check authentication end to end against the running image (R5).
-#
-# What only this can show, and the unit tests cannot: a key minted out of band by the CLI, in a
-# different process, authenticates over HTTP -- the bootstrap path R5 requires and deployment.md
-# documents. The server runs with WEB_CONCURRENCY=4 here, so each request may land on a different
-# worker, which is also what makes this a real check that authorization is resolved per request
-# rather than cached in whichever worker first saw the key.
 
 source "$(dirname "$0")/lib.sh"
 

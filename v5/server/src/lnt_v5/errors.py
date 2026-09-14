@@ -68,7 +68,7 @@ def error_response(
 
 
 class ErrorBody(BaseModel):
-    """The contents of R4's `error` key."""
+    """An error's machine-readable code and human-readable message."""
 
     # Deliberately a plain string rather than ErrorCode: this one schema describes every error
     # response, and enumerating all nine codes on it would claim a 401 might carry `duplicate`.
@@ -77,7 +77,10 @@ class ErrorBody(BaseModel):
 
 
 class ErrorEnvelope(BaseModel):
-    """R4's error envelope, as R8's document describes it."""
+    """The body of every error response.
+
+    Branch on `code`, which is stable. `message` is for humans and may be reworded at any time.
+    """
 
     error: ErrorBody
 
