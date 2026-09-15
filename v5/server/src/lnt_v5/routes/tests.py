@@ -12,6 +12,7 @@ carries it in a query parameter. `test_id` below is what resolves it, here rathe
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Query
@@ -26,7 +27,7 @@ from lnt_v5.responses import CursorPage
 from lnt_v5.routes.machines import NO_MACHINE_FILTERED, machine_id
 from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.scopes import Scope
-from lnt_v5.suites.entities import declared_entry, identifier
+from lnt_v5.suites.entities import declared_entry, identifier, identifiers
 from lnt_v5.suites.registry import RegistryDep, Suite
 from lnt_v5.suites.schema import Metric
 from lnt_v5.suites.scope import suite_responses, suite_scope
@@ -97,6 +98,11 @@ class Tests:
         return Test(name=row._mapping[self.table.c.name])
 
 
+def _missing(testsuite: str, name: str) -> ApiError:
+    """The 404 for a test no suite holds, shared by every request that names one."""
+    return ApiError(ErrorCode.NOT_FOUND, f"No test named '{name}' in test suite '{testsuite}'")
+
+
 def test_id(connection: Connection, suite: Suite, name: str) -> int:
     """The id of the test a `test=` filter names, or R3's 404 for one that is not there.
 
@@ -106,12 +112,19 @@ def test_id(connection: Connection, suite: Suite, name: str) -> int:
     """
     test = suite.tables.test
     return identifier(
-        connection,
-        test.c.name,
-        name,
-        lambda: ApiError(
-            ErrorCode.NOT_FOUND, f"No test named '{name}' in test suite '{suite.schema.name}'"
-        ),
+        connection, test.c.name, name, lambda missed: _missing(suite.schema.name, missed)
+    )
+
+
+def test_ids(connection: Connection, suite: Suite, names: Sequence[str]) -> dict[str, int]:
+    """The ids of many tests at once, keyed by name, or the 404 for the first one absent.
+
+    `machines.machine_ids`' counterpart, and there for the same caller: a regression's indicators
+    each name a test, and resolving them one at a time would be a statement per indicator.
+    """
+    test = suite.tables.test
+    return identifiers(
+        connection, test.c.name, names, lambda missed: _missing(suite.schema.name, missed)
     )
 
 

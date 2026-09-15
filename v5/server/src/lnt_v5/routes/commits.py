@@ -58,6 +58,7 @@ from lnt_v5.suites.entities import (
     Ordinal,
     Storable,
     create_or_reconcile,
+    identifier,
     location_of,
     rendered_fields,
     validate_fields,
@@ -284,9 +285,7 @@ class Commits:
 
     def missing(self, value: str) -> ApiError:
         """The 404 for a commit that is not there, worded in one place for all its callers."""
-        return ApiError(
-            ErrorCode.NOT_FOUND, f"No commit '{value}' in test suite '{self.schema.name}'"
-        )
+        return _missing(self.schema.name, value)
 
     def taken(self, value: str) -> str:
         return f"A commit '{value}' already exists in test suite '{self.schema.name}'"
@@ -369,6 +368,26 @@ class Commits:
             )
 
         return error
+
+
+def _missing(testsuite: str, value: str) -> ApiError:
+    """The 404 for a commit no suite holds, shared by the commit routes and by every body that
+    names one."""
+    return ApiError(ErrorCode.NOT_FOUND, f"No commit '{value}' in test suite '{testsuite}'")
+
+
+def commit_id(connection: Connection, suite: Suite, value: str) -> int:
+    """The id of the commit a request body names, or the 404 for a value no commit has.
+
+    `machines.machine_id`'s counterpart, and here for the same reason: the lookup and the wording
+    of its 404 belong with the entity. Deliberately unlike the `commit=` *filter*, which R3 answers
+    with an empty page -- this one resolves a value the request asked to store, and storing a
+    reference to a commit that is not there is not something the caller meant.
+    """
+    commit = suite.tables.commit
+    return identifier(
+        connection, commit.c.commit, value, lambda missed: _missing(suite.schema.name, missed)
+    )
 
 
 @router.get(

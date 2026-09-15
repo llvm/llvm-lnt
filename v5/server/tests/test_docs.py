@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from lnt_v5.querying import DEFAULT_LIMIT, MAX_LIMIT
 from lnt_v5.routes.commits import COMMITS_PATH
 from lnt_v5.routes.machines import MACHINES_PATH
+from lnt_v5.routes.regressions import INDICATORS_PATH, REGRESSIONS_PATH
 from lnt_v5.routes.runs import MACHINE_RUNS_PATH, RUNS_PATH
 from lnt_v5.routes.samples import SAMPLES_PATH
 from lnt_v5.routes.tests import TESTS_PATH
@@ -613,6 +614,177 @@ class TestReadOperations:
 
         assert set(sample["required"]) == set(sample["properties"]) == {"test", "metrics"}
         assert {"type": "null"} not in values["anyOf"]
+
+
+REGRESSIONS = REGRESSIONS_PATH
+REGRESSION = f"{REGRESSIONS_PATH}/{{uuid}}"
+INDICATORS = INDICATORS_PATH
+
+
+class TestRegressionOperations:
+    """R8: the document describes what the API can actually do, including these seven."""
+
+    @pytest.mark.parametrize(
+        ("path", "method"),
+        [
+            (REGRESSIONS, "get"),
+            (REGRESSIONS, "post"),
+            (REGRESSION, "get"),
+            (REGRESSION, "patch"),
+            (REGRESSION, "delete"),
+            (INDICATORS, "post"),
+            (INDICATORS, "delete"),
+        ],
+    )
+    def test_is_documented(self, client: TestClient, path: str, method: str) -> None:
+        paths = client.get("/api/openapi.json").json()["paths"]
+
+        assert method in paths[path], f"{method.upper()} {path} is not in the document"
+
+    @pytest.mark.parametrize(
+        ("path", "method"),
+        [
+            # An unknown suite on every one of them (R1); on the list, an unknown `machine=` or
+            # `test=`; on the writes, an unknown regression, commit, machine or test named by the
+            # path or the body. D2's stale reader accounts for the 409 everywhere.
+            (REGRESSIONS, "get"),
+            (REGRESSIONS, "post"),
+            (REGRESSION, "get"),
+            (REGRESSION, "patch"),
+            (REGRESSION, "delete"),
+            (INDICATORS, "post"),
+            (INDICATORS, "delete"),
+        ],
+    )
+    @pytest.mark.parametrize("status", ["404", "409"])
+    def test_documents_the_failures_endpoints_md_specifies(
+        self, client: TestClient, path: str, method: str, status: str
+    ) -> None:
+        operation = client.get("/api/openapi.json").json()["paths"][path][method]
+
+        assert status in operation["responses"]
+
+    def test_the_list_documents_exactly_the_filters_endpoints_md_gives_it(
+        self, client: TestClient
+    ) -> None:
+        # Exactly, not merely at least: R3 gives this list no time range and no `sort`, and a
+        # subset assertion would let one appear unnoticed.
+        operation = client.get("/api/openapi.json").json()["paths"][REGRESSIONS]["get"]
+        names = {parameter["name"] for parameter in operation["parameters"]}
+
+        assert names == {
+            "testsuite",
+            "search",
+            "state",
+            "machine",
+            "test",
+            "metric",
+            "commit",
+            "has_commit",
+            "limit",
+            "cursor",
+        }
+
+    def test_the_list_pages_with_a_cursor_rather_than_an_offset(self, client: TestClient) -> None:
+        document = client.get("/api/openapi.json").json()
+        body = document["paths"][REGRESSIONS]["get"]["responses"]["200"]["content"][
+            "application/json"
+        ]["schema"]
+        envelope = document["components"]["schemas"][body["$ref"].rsplit("/", 1)[-1]]
+
+        assert set(envelope["properties"]) == {"items", "cursor"}
+
+    def test_the_two_bodies_carry_exactly_what_endpoints_md_gives_each(
+        self, client: TestClient
+    ) -> None:
+        """The list item and the detail are not one plus a key, unlike a run's two bodies.
+
+        The list has the counts and no `notes`; the detail has `notes` and the indicators and no
+        counts. Asserted exactly, because a `notes` leaking into a page of twenty-five is the
+        specific thing the split exists to prevent.
+        """
+        schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
+
+        assert set(schemas["Regression"]["properties"]) == {
+            "uuid",
+            "title",
+            "bug",
+            "state",
+            "commit",
+            "machine_count",
+            "test_count",
+        }
+        assert set(schemas["RegressionDetail"]["properties"]) == {
+            "uuid",
+            "title",
+            "bug",
+            "notes",
+            "state",
+            "commit",
+            "indicators",
+        }
+
+    @pytest.mark.parametrize("model", ["Regression", "RegressionDetail", "Indicator"])
+    def test_the_response_promises_every_key_it_documents(
+        self, client: TestClient, model: str
+    ) -> None:
+        # R4: a key an endpoint documents is always present, and null when it has no value.
+        schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
+
+        assert set(schemas[model]["required"]) == set(schemas[model]["properties"])
+
+    def test_a_state_is_one_named_enum_of_five_strings(self, client: TestClient) -> None:
+        # D5 stores an integer; endpoints.md makes the API surface the five strings. One component
+        # rather than an inline enum per body, so a generated client has one type for all of them.
+        schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
+
+        assert set(schemas["RegressionStateName"]["enum"]) == {
+            "detected",
+            "active",
+            "not_to_be_fixed",
+            "fixed",
+            "false_positive",
+        }
+        for model in ("Regression", "RegressionDetail", "RegressionCreate", "RegressionUpdate"):
+            state = schemas[model]["properties"]["state"]
+            assert state.get("$ref", "").endswith("/RegressionStateName"), model
+
+    def test_no_update_body_accepts_indicators(self, client: TestClient) -> None:
+        # endpoints.md: `PATCH` does not touch them, so the document must not advertise a key the
+        # endpoint refuses every time.
+        schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
+
+        assert "indicators" in schemas["RegressionCreate"]["properties"]
+        assert "indicators" not in schemas["RegressionUpdate"]["properties"]
+
+    def test_an_indicator_names_the_entities_it_references_rather_than_nesting_them(
+        self, client: TestClient
+    ) -> None:
+        # R4: a reference carries the other entity's identifier under a key named after it.
+        indicator = client.get("/api/openapi.json").json()["components"]["schemas"]["Indicator"]
+
+        for key in ("machine", "test", "metric"):
+            assert indicator["properties"][key]["type"] == "string"
+
+    @pytest.mark.parametrize(
+        ("method", "model", "count"),
+        [("post", "IndicatorsAdded", "added"), ("delete", "IndicatorsRemoved", "removed")],
+    )
+    def test_the_indicator_routes_answer_200_with_a_count_and_the_whole_list(
+        self, client: TestClient, method: str, model: str, count: str
+    ) -> None:
+        # Neither is 201 or 204: a batch that changes nothing is a success, and the answer is the
+        # regression's whole indicator list rather than the part this request touched.
+        document = client.get("/api/openapi.json").json()
+        responses = document["paths"][INDICATORS][method]["responses"]
+        body = responses["200"]["content"]["application/json"]["schema"]
+
+        assert "201" not in responses and "204" not in responses
+        assert body["$ref"].endswith(f"/{model}")
+        assert set(document["components"]["schemas"][model]["properties"]) == {
+            count,
+            "indicators",
+        }
 
 
 class TestDocumentationViewer:

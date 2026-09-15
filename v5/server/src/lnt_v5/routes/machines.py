@@ -52,6 +52,7 @@ from lnt_v5.suites.entities import (
     Tracked,
     create_or_reconcile,
     identifier,
+    identifiers,
     location_of,
     rendered_fields,
     validate_fields,
@@ -255,7 +256,22 @@ def machine_id(connection: Connection, suite: Suite, name: str) -> int:
     the 404 the machine routes themselves raise rather than being written out per endpoint.
     """
     machine = suite.tables.machine
-    return identifier(connection, machine.c.name, name, lambda: _missing(suite.schema.name, name))
+    return identifier(
+        connection, machine.c.name, name, lambda missed: _missing(suite.schema.name, missed)
+    )
+
+
+def machine_ids(connection: Connection, suite: Suite, names: Sequence[str]) -> dict[str, int]:
+    """The ids of many machines at once, keyed by name, or the 404 for the first one absent.
+
+    What a regression's indicators resolve through: each names a machine, and a batch of them would
+    otherwise be one statement per indicator. The same lookup and the same wording as `machine_id`
+    above, which is why it lives here too.
+    """
+    machine = suite.tables.machine
+    return identifiers(
+        connection, machine.c.name, names, lambda missed: _missing(suite.schema.name, missed)
+    )
 
 
 @router.get(

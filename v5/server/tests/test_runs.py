@@ -23,7 +23,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, select, text, update
 
-from conftest import code_of, encoded_profile, run_payload, walk_pages
+from conftest import code_of, encoded_profile, run_payload, uuids_in, walk_pages
 from introspection import counted, counting_statements
 from lnt_v5.app import create_app
 from lnt_v5.config import Settings
@@ -974,10 +974,6 @@ def run_at(
         return str(body["uuid"])
 
     return make
-
-
-def uuids_in(response: Any) -> list[str]:
-    return [item["uuid"] for item in response.json()["items"]]
 
 
 def listed(api_client: TestClient, query: str = "", path: str = RUNS) -> Any:

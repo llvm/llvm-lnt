@@ -435,9 +435,32 @@ DELETE /api/suites/{testsuite}/regressions/{uuid}/indicators            -- Remov
 
 Auth scopes: `read` for GET, `triage` for POST/PATCH/DELETE and indicator management.
 
-Regressions are identified by server-generated UUID.
+Regressions are identified by server-generated UUID, and so are their indicators.
+The `{uuid}` in a path is matched against the stored, lowercased form, so it is
+accepted in either case, the same convention as
+`GET /api/suites/{testsuite}/runs/{uuid}`. Every route in this section returns 404
+if the suite does not exist, and every route that addresses a regression returns
+404 if no regression in the suite has that UUID -- including when the path segment
+is not a well-formed UUID at all, which names no regression rather than being a
+malformed request. Unlike the destructive suite operations, `DELETE` requires no
+`?confirm=true`.
 
-`search=` (case-insensitive substring match on `title`; see D9).
+Filters: `search=` (case-insensitive substring match on `title`; see D9),
+`state=` (a comma-separated list of state names, such as `?state=active,detected`;
+a name that is not one of the five is rejected with 400), `machine=`, `test=`,
+`metric=` (keep only regressions with an indicator naming it), `commit=` and
+`has_commit=`. R3's three answers to a filter naming something absent all apply:
+an unknown `machine=` or `test=` is 404, an unknown `metric=` is 400, and a
+`commit=` value no commit has is an empty page. `machine=`, `test=` and `metric=`
+given together describe *one* indicator rather than three independent ones --
+`?machine=m&metric=execution_time` returns the regressions with an indicator
+naming `execution_time` on that machine -- the same reading
+`GET /api/suites/{testsuite}/tests` gives the same pair. Where a request gets
+both an unknown `metric=` and an unknown `machine=`/`test=`, the 400 wins: a
+metric the schema does not declare is a request that could never be answered,
+whereas an absent machine is a fact about the suite. The same precedence applies
+to a request body naming both. This list takes no `sort` and returns results in
+an arbitrary but deterministic order suitable for pagination (R2, D10).
 
 **Regression states** (string enum):
 `detected`, `active`, `not_to_be_fixed`, `fixed`, `false_positive`
@@ -446,7 +469,11 @@ State transitions are unconstrained -- any state can be set to any other
 state via PATCH.
 
 **Create request body:**
-- `title` (string, optional -- auto-generated if omitted)
+- `title` (string, optional -- null when omitted. The server never invents one:
+  D8 leaves it nothing to generate a title *from*, and `PATCH title: null` puts a
+  titled regression back into that state anyway, so an untitled regression is an
+  ordinary state and a client renders a placeholder for it -- see
+  `client/details.md`)
 - `bug` (string, optional -- URL to external bug tracker)
 - `notes` (string, optional -- investigation findings, A/B results, etc.)
 - `state` (string, optional -- default: `detected`)
@@ -454,7 +481,9 @@ state via PATCH.
   value; 404 if no commit with that value exists)
 - `indicators` (array, optional -- list of `{machine, test, metric}` objects,
   all resolved by name; 404 if any referenced machine or test does not
-  exist, 400 if `metric` is not a valid metric name for the suite)
+  exist, 400 if `metric` is not a valid metric name for the suite). Duplicates
+  within the list are stored once, and the list is bounded, both as on the add
+  route below.
 
 **Update request body** (`PATCH /api/suites/{testsuite}/regressions/{uuid}`):
 accepts `title`, `bug`, `notes`, `state`, and `commit`. Sending `title: null`,
@@ -469,7 +498,12 @@ endpoints below.
 **Detail response** (`GET /api/suites/{testsuite}/regressions/{uuid}`):
 - `uuid`, `title`, `bug`, `notes`, `state`
 - `commit` (commit identity string, or null)
-- `indicators`: list of `{uuid, machine, test, metric}`
+- `indicators`: list of `{uuid, machine, test, metric}`, oldest first, so that a
+  client rendering the table sees the same order twice running
+
+An empty `indicators` list is a legal state and never means the regression is
+gone: deleting a machine takes the indicators naming it and leaves the regression
+(see D5).
 
 **List response items** carry exactly: `uuid`, `title`, `bug`, `state`,
 `commit`, `machine_count`, `test_count`. The `notes` field is included in detail
@@ -483,20 +517,27 @@ header pointing at its detail route; `PATCH` returns 200 with the same body;
 `DELETE` returns 204.
 
 **Indicator add request** (`POST /api/suites/{testsuite}/regressions/{uuid}/indicators`):
-- Body: `{"indicators": [{machine, test, metric}, ...]}`. Each object is one
+- Body: `{"indicators": [{machine, test, metric}, ...]}` -- at least one, and no
+  more than R2's maximum page size, for the same reason `POST /commits/resolve`
+  is bounded. Each object is one
   indicator, resolved the same way as `indicators` on create (404 if the
   machine or test does not exist, 400 for an invalid metric name).
-  Duplicates (same regression+machine+test+metric) are silently ignored.
+  Duplicates (same regression+machine+test+metric) are silently ignored,
+  whether the indicator is already stored or merely repeated within the list.
 - Returns 200 with `{"added": N, "indicators": [...]}`, where `indicators` is
   the regression's full indicator list afterwards and `added` counts only those
   this request actually created. It is 200 rather than 201 because a request
   whose indicators all already exist creates nothing.
 
 **Indicator remove request** (`DELETE /api/suites/{testsuite}/regressions/{uuid}/indicators`):
-- Body: `{"indicator_uuids": ["...", "..."]}`
+- Body: `{"indicator_uuids": ["...", "..."]}`, bounded like the add request
+  above. Each UUID is matched case-insensitively, as one in a path segment is --
+  a body and a path must agree about which indicator a UUID names
 - Returns 200 with `{"removed": N, "indicators": [...]}`, mirroring the add
   response. A UUID naming no indicator on this regression is ignored rather than
-  404, so a retried removal is not an error.
+  404, so a retried removal is not an error -- and so is one naming an indicator
+  of a *different* regression, which is never removed by a request addressed to
+  this one.
 
 
 ## Time Series
