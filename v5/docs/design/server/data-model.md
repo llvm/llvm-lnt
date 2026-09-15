@@ -164,8 +164,7 @@ Notes:
 
 **Presentation keys**: beyond `name` and `type`, each list accepts only the
 optional keys that mean something for it. A key outside its list's set is
-rejected with 400 rather than stored and ignored, so that a schema author who
-writes one learns it had no effect.
+rejected with 400.
 
 | List | Accepts, in addition to `name` and `type` |
 |------|-------------------------------------------|
@@ -173,15 +172,13 @@ writes one learns it had no effect.
 | `commit_fields` | `display_name`, `searchable`, `display` |
 | `machine_fields` | `display_name`, `searchable` |
 
-Only a metric has a direction, so `bigger_is_better` is a metric's alone. Only
-a commit or machine field is searchable (D9), and only a commit field can be
-the UI's display value, so neither key is accepted on a metric.
+Only metrics allow `bigger_is_better`. Only commit or machine fields may be searchable,
+and only a commit field can be the UI's display value.
 
 **Normalization**: the stored and returned form of a schema carries every
 optional key explicitly, filled in with the default below when the submitted
-document omitted it. This is what makes a suite fetched from one instance
-postable verbatim to another, so these defaults are part of the wire contract
-rather than an implementation detail.
+document omitted it. This makes a suite fetched from one instance postable
+verbatim to another, so these defaults are part of the wire contract.
 
 | Key | Default |
 |-----|---------|
@@ -191,10 +188,8 @@ rather than an implementation detail.
 | `searchable` | `false` |
 | `display` | `false` |
 
-An omitted `display_name` normalizes to `null` rather than to a copy of
-`name`: the UI falls back to `name` when rendering, and copying it here would
-make the returned document differ from the one submitted. A schema that omits
-one of the three lists entirely gets it back as an empty list.
+An omitted `display_name` normalizes to `null`. A schema that omits one of the three
+lists entirely gets it back as an empty list.
 
 **Suite name**: `name` must match `^[a-z][a-z0-9_]*$` and be at most 63
 characters; anything else is rejected with 400. The name is also the name of
@@ -411,8 +406,7 @@ that form.
 - Nothing deletes a test: the Tests endpoint is read-only and tests are created
   implicitly by run submission. The references to this table from `sample`,
   `profile`, and `regression_indicator` therefore cascade nowhere, and a
-  deletion attempted anyway is refused rather than silently taking every sample
-  that mentions the test.
+  deletion attempted anyway is refused.
 
 #### `{suite}.sample`
 
@@ -427,9 +421,8 @@ that form.
 - Compound index on `(test_id, run_id)` -- covers time-series queries.
 - Dynamic columns from schema metrics (see D3 for the type-to-column mapping).
 - Metric names must not collide with built-in column names (`id`, `run_id`,
-  `test_id`), nor with the two keys the submission format reserves inside a
-  test entry, `name` and `profile` (see D6) -- a metric called either could
-  never be given a value. The schema parser rejects all five.
+  `test_id`), nor with the keys the submission format reserves inside a test
+  entry (see D6).
 
 #### `{suite}.regression`
 
