@@ -25,7 +25,7 @@ from introspection import (
 from lnt_v5.suites import tables as suite_tables
 from lnt_v5.suites.schema import CommitField, Entry, MachineField, Metric, SuiteSchema
 from lnt_v5.suites.states import RegressionState
-from lnt_v5.suites.tables import SuiteTables
+from lnt_v5.suites.tables import MACHINE_NAME_CONSTRAINT, SuiteTables
 from lnt_v5.tables import IDENTIFIER_MAX_LENGTH
 from lnt_v5.tables import metadata as global_metadata
 
@@ -418,6 +418,16 @@ class TestNamingConvention:
         inspector = inspect(db_engine)
 
         assert stored_names(inspector, schema="nts") == stored_names(inspector, schema="compile")
+
+    def test_the_written_out_machine_name_constraint_is_the_one_postgres_holds(
+        self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
+    ) -> None:
+        # `tables.MACHINE_NAME_CONSTRAINT` is written out so that the machine endpoints can tell a
+        # repeated name (409 `duplicate`) from any other integrity failure. A convention change
+        # must fail here rather than silently turn that 409 into a 500.
+        make_suite("nts")
+
+        assert MACHINE_NAME_CONSTRAINT in stored_names(inspect(db_engine), schema="nts")["machine"]
 
 
 class TestReservedColumns:
