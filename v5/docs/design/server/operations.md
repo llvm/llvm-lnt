@@ -359,6 +359,126 @@ Profile data is stored as Postgres BYTEA. Postgres automatically applies
 TOAST compression for large values. The blob is excluded from default query
 results and is only loaded when a request explicitly needs it.
 
+### The version 2 binary format
+
+A profile is produced elsewhere and stored verbatim, so the format is not this
+system's to choose; it is stated here because it is the one thing in v5 that
+cannot be re-implemented from the rest of these documents.
+
+A blob is built from exactly two primitives. An **integer** is ULEB128-encoded:
+groups of seven bits, least significant group first, the high bit of every byte
+but the last one set. A **string** is UTF-8 bytes terminated by a newline
+(`0x0A`), which a string therefore cannot contain. Everything below is one or the
+other -- including a **float**, which is stored as the integer whose value is the
+number's IEEE-754 single-precision bit pattern read as an unsigned 32-bit
+quantity.
+
+A blob begins with the format version, as an integer. It is 2, which encodes as
+the single byte `0x02` -- which is what step 4 above reads without parsing any
+further.
+
+Next comes the section table: eight headers in a fixed order, one per section,
+each an offset and a size in bytes, both integers. **Offsets are relative to the
+end of the table**, so the whole table has to be read before any of them can be
+resolved, and once it has been, every section can be located without reading any
+other. The TextPool header carries one field the others do not, after its size: a
+string naming an external file that the pool lives in instead of this blob. The
+mechanism was scaffolded and never implemented, so that name is empty in every
+profile that exists, and a blob that names one holds text that is not in it and
+cannot be read.
+
+The eight sections are, in the order their headers appear (a reader must locate
+each through the table rather than assume the bodies are laid out in that order
+too, even though in practice they are):
+
+1. **Header** -- one string: the disassembly format, for example `llvm-objdump`.
+2. **CounterNamePool** -- a count, then that many strings. Every other section
+   names a counter by its index into this list.
+3. **TopLevelCounters** -- a count, then that many pairs of a counter index and
+   an integer value. These are the profile's aggregate counters, and the only
+   integer-valued counters it has.
+4. **LineCounters** -- per-instruction counter values (see below).
+5. **LineAddresses** -- per-instruction addresses (see below).
+6. **LineText** -- per-instruction offsets into TextPool (see below).
+7. **TextPool** -- a string pool: strings one after another, each addressed by
+   its byte offset within the section. The first begins at offset zero, so zero
+   is an ordinary offset like any other. (The reference implementation's comment
+   claims a sentinel makes zero invalid; its own code overwrites the sentinel, and
+   what it writes is what is described here.)
+8. **Functions** -- a count, then that many entries. Each is the function's name,
+   its instruction count, its starting offset within LineCounters, within
+   LineAddresses and within LineText in that order, and then a count of the
+   function's own counters followed by that many pairs of a counter index and a
+   float value.
+
+Sections 4 to 7 -- LineCounters, LineAddresses, LineText and TextPool -- are each
+an independent bz2 stream; the other four are stored as written. That split is the
+point of the whole layout: sections 1, 2, 3 and 8 are the index, so the
+disassembly format, the top-level counters, and every function's name, aggregate
+counters and instruction count are all readable **without decompressing
+anything**. The read endpoints depend on it (see the endpoints spec): listing a
+profile's functions costs no decompression, and only a request for one function's
+disassembly pays for it.
+
+The three per-instruction sections carry no counts or delimiters of their own.
+Each is read from the function's own offset into it, for exactly as many
+instructions as the function's index entry declares. **Those offsets, and
+TextPool's, address the section's decompressed bytes**, not the compressed bytes
+the section table locates -- the table says where a section's bz2 stream lives in
+the blob, and every offset after that is an index into what the stream expands to:
+
+- **LineCounters** holds one float per counter *of that function*, per
+  instruction, in ascending order of counter name -- by Unicode code point, not by
+  any locale's collation. A function measured with fewer counters than the pool
+  holds therefore spends less per instruction than one measured with all of them,
+  and nothing in the section says which counters those are: the order comes from
+  the function's own counter list in the index. (The reference implementation's
+  module docstring says there is one value per counter in the *pool*; its code
+  writes one per counter of the function, and that is what is described here.)
+- **LineAddresses** holds one integer per instruction, each the delta from the
+  previous address. A function's addresses start from zero, so its first entry is
+  the first address itself. Deltas are what makes the section compress: on a RISC
+  target every one of them is the same number.
+- **LineText** holds one integer per instruction: the byte offset within TextPool
+  of that instruction's disassembly text. A zero follows each function's
+  offsets, left over from a terminator the writer emits; a reader never sees it,
+  since the index says how many instructions to read, but it is why a function's
+  offset into this section is not simply the sum of the lengths before it.
+
+### Reading a profile
+
+An implementation must bound the memory that reading one profile can cost, along
+two dimensions: the total expansion of the blob's compressed sections, and the
+number of instructions a single function may claim.
+
+Neither follows from D5's 50 MB cap on the stored blob. bz2 reaches ratios beyond
+200,000:1 on data as repetitive as these sections hold, so a blob comfortably
+inside the cap can still expand without limit, and one byte of address delta
+expands into an instruction object hundreds of times its size. Nor can either be
+caught earlier: step 4 above deliberately does not parse the body, so a blob that
+cannot be read within these bounds is accepted, stored, and discovered only when
+something reads it.
+
+Exceeding either bound is reported exactly as corruption is, with `internal_error`
+(500, see R4). From the read path a blob that expands without limit is not
+distinguishable from one that is malformed, and neither is anything the caller did.
+
+The bounds are stated as floors, so that an implementation may be more generous
+than another without either being wrong: at least 320 MB of total expansion for
+one profile, and at least 1,000,000 instructions in one function, must be
+readable.
+
+The expansion floor is set to dominate D5's store cap at the ratios these sections
+reach on real data -- measured between roughly 3:1 and 6:1, since the counters are
+floats and only the addresses are highly repetitive -- so that a well-formed
+profile the server accepted is one it can still read. It cannot guarantee that,
+and this is the one place where the two caps are genuinely independent: bz2's
+ratio has no upper bound, so a sufficiently compressible blob will always be
+acceptable at 50 MB stored and unreadable once expanded. Raising the floor further
+only moves that line; it does not remove it. The consequence is worth stating
+plainly, since a client cannot tell it from corruption: such a profile is accepted,
+stored, and then permanently answered with `internal_error`.
+
 
 ## D13: Concurrent Submission
 

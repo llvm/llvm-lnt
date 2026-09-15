@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from lnt_v5.querying import DEFAULT_LIMIT, MAX_LIMIT
 from lnt_v5.routes.commits import COMMITS_PATH
 from lnt_v5.routes.machines import MACHINES_PATH
+from lnt_v5.routes.profiles import PROFILES_PATH, RUN_PROFILES_PATH
 from lnt_v5.routes.regressions import INDICATORS_PATH, REGRESSIONS_PATH
 from lnt_v5.routes.runs import MACHINE_RUNS_PATH, RUNS_PATH
 from lnt_v5.routes.samples import SAMPLES_PATH
@@ -615,6 +616,123 @@ class TestReadOperations:
 
         assert set(sample["required"]) == set(sample["properties"]) == {"test", "metrics"}
         assert {"type": "null"} not in values["anyOf"]
+
+
+RUN_PROFILES = RUN_PROFILES_PATH
+PROFILE = f"{PROFILES_PATH}/{{uuid}}"
+FUNCTIONS = f"{PROFILE}/functions"
+FUNCTION = f"{FUNCTIONS}/{{fn_name}}"
+
+# The three that serve what is inside a blob, as opposed to the listing, which never opens one.
+PROFILE_DATA = [PROFILE, FUNCTIONS, FUNCTION]
+
+
+class TestProfileOperations:
+    """R8: the four reads endpoints.md specifies under Profiles."""
+
+    @pytest.mark.parametrize("path", [RUN_PROFILES, *PROFILE_DATA])
+    def test_is_documented(self, client: TestClient, path: str) -> None:
+        paths = client.get("/api/openapi.json").json()["paths"]
+
+        assert "get" in paths[path], f"GET {path} is not in the document"
+
+    @pytest.mark.parametrize("path", [RUN_PROFILES, *PROFILE_DATA])
+    @pytest.mark.parametrize("status", ["404", "409"])
+    def test_documents_the_failures_endpoints_md_specifies(
+        self, client: TestClient, path: str, status: str
+    ) -> None:
+        # An unknown suite on every one of them (R1), plus the run, the profile or the function the
+        # path names. D2's stale reader accounts for the 409.
+        operation = client.get("/api/openapi.json").json()["paths"][path]["get"]
+
+        assert status in operation["responses"]
+
+    @pytest.mark.parametrize("path", PROFILE_DATA)
+    def test_the_data_endpoints_document_the_corrupt_blob_500(
+        self, client: TestClient, path: str
+    ) -> None:
+        # endpoints.md specifies it and R4 gives it a code, so unlike the generic handler's 500
+        # this one is part of the contract and has to be in the document.
+        operation = client.get("/api/openapi.json").json()["paths"][path]["get"]
+
+        assert "500" in operation["responses"]
+
+    def test_the_listing_documents_no_500(self, client: TestClient) -> None:
+        # It never opens a blob, so it has no way to discover that one is corrupt.
+        operation = client.get("/api/openapi.json").json()["paths"][RUN_PROFILES]["get"]
+
+        assert "500" not in operation["responses"]
+
+    @pytest.mark.parametrize("path", [RUN_PROFILES, FUNCTIONS])
+    def test_the_lists_are_unpaginated(self, client: TestClient, path: str) -> None:
+        # R2: both are bounded -- by the tests of one run, and by the functions of one binary -- so
+        # they carry `items` alone, with neither a cursor nor a total to page by.
+        document = client.get("/api/openapi.json").json()
+        operation = document["paths"][path]["get"]
+        body = operation["responses"]["200"]["content"]["application/json"]["schema"]
+        envelope = document["components"]["schemas"][body["$ref"].rsplit("/", 1)[-1]]
+        names = {parameter["name"] for parameter in operation["parameters"]}
+
+        assert set(envelope["properties"]) == {"items"}
+        assert not names & {"limit", "offset", "cursor"}
+
+    @pytest.mark.parametrize(
+        ("schema", "keys"),
+        [
+            ("RunProfile", {"test", "uuid"}),
+            ("ProfileMetadata", {"uuid", "test", "run_uuid", "counters", "disassembly_format"}),
+            ("ProfileFunction", {"name", "counters", "length"}),
+            ("Instruction", {"address", "counters", "text"}),
+            (
+                "FunctionDisassembly",
+                {"name", "counters", "disassembly_format", "instructions"},
+            ),
+        ],
+    )
+    def test_a_response_carries_exactly_the_keys_endpoints_md_gives_it(
+        self, client: TestClient, schema: str, keys: set[str]
+    ) -> None:
+        # R4: a documented key is always present, so `properties` and `required` agree.
+        described = client.get("/api/openapi.json").json()["components"]["schemas"][schema]
+
+        assert set(described["properties"]) == keys
+        assert set(described["required"]) == keys
+
+    def test_a_top_level_counter_is_an_integer_and_every_other_counter_a_number(
+        self, client: TestClient
+    ) -> None:
+        # endpoints.md draws that line: the top-level counters are integers, and the function and
+        # instruction counters are floats. Both are raw values rather than percentages.
+        schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
+
+        assert schemas["ProfileMetadata"]["properties"]["counters"]["additionalProperties"] == {
+            "type": "integer"
+        }
+        for schema in ("ProfileFunction", "Instruction", "FunctionDisassembly"):
+            counters = schemas[schema]["properties"]["counters"]
+            assert counters["additionalProperties"] == {"type": "number"}, schema
+
+    def test_the_function_name_is_one_path_parameter(self, client: TestClient) -> None:
+        """R1: the segment spans the rest of the path, and the document still shows one segment.
+
+        `{fn_name:path}` is how a name containing `/` stays addressable -- a demangled
+        `std::operator/(...)` -- and the point of checking it here is that the wire contract a
+        generated client sees is unchanged by it.
+        """
+        operation = client.get("/api/openapi.json").json()["paths"][FUNCTION]["get"]
+
+        assert {parameter["name"] for parameter in operation["parameters"]} == {
+            "testsuite",
+            "uuid",
+            "fn_name",
+        }
+
+    @pytest.mark.parametrize("path", [RUN_PROFILES, *PROFILE_DATA])
+    def test_can_be_refused_but_never_forbidden(self, client: TestClient, path: str) -> None:
+        # R5: all four are `read`-scoped, and every valid key grants `read`.
+        operation = client.get("/api/openapi.json").json()["paths"][path]["get"]
+
+        assert "403" not in operation["responses"]
 
 
 REGRESSIONS = REGRESSIONS_PATH

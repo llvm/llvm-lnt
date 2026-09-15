@@ -379,7 +379,16 @@ GET  /api/suites/{testsuite}/runs/{uuid}/profiles              -- List profiles 
 ```
 
 Returns `{test, uuid}` objects for all profiles attached to the given run, in
-R2's unpaginated envelope. Bounded by tests-per-run.
+R2's unpaginated envelope. Bounded by tests-per-run, and in practice far below it:
+a profile is orders of magnitude more expensive to produce than a sample, so a run
+that measures tens of thousands of tests profiles a handful of them.
+
+Ordered by test name, ascending. This list is small and the client renders it
+straight into a dropdown (see the Profiles page in the client docs), so it can
+afford an order a reader recognizes. That is the opposite call from
+`GET /api/suites/{testsuite}/runs/{uuid}/samples`, which is deliberately *not*
+ordered by test name: it pages over the tens of thousands of samples a run holds,
+where the same sort would cost a scan of the whole run on every page.
 
 Auth scope: `read`.
 
@@ -400,18 +409,34 @@ Auth scope: `read` for all three endpoints.
 **Functions response** (`GET /api/suites/{testsuite}/profiles/{uuid}/functions`):
 - R2's unpaginated envelope over `{name, counters, length}` objects, where
   `counters` is a dict of counter name -> float (the raw aggregated counter value
-  for the function), `length` is instruction count. Sorted by total counter value
-  descending (hottest first).
+  for the function), `length` is instruction count. Sorted by the sum of the
+  function's counter values, descending (hottest first), with ties broken by name
+  ascending so that the order is total and the same on every request. The sum
+  across heterogeneous counters is a default ordering rather than a meaningful
+  physical quantity -- adding cycles to branch misses means nothing -- and the
+  client re-sorts by whichever single counter the user picked (see the Function
+  Selector in the client docs).
+  Unpaginated for the same reason the whole response is served at once: it is
+  read out of the profile's index, which has to be parsed in full to answer at
+  all, so a page would cost what the whole list costs. The producer bounds the
+  list -- v4's importer keeps only symbols accounting for more than 0.5% of some
+  counter, which admits at most a few hundred.
 
 **Function detail response** (`GET /api/suites/{testsuite}/profiles/{uuid}/functions/{fn_name}`):
 - `name`, `counters` (function-level aggregate, same raw float convention as
   the functions response above), `disassembly_format`,
   `instructions`: array of `{address, counters, text}` per instruction, where
-  `counters` is again a dict of counter name -> raw float value (same
-  convention, not a percentage).
-  Function names may contain special characters (e.g. C++ mangled names) and
-  must be percent-encoded when used as a path segment, per standard URL
-  encoding rules.
+  `address` is an integer and `counters` is again a dict of counter name -> raw
+  float value (same convention, not a percentage).
+- A function name the profile does not hold is 404. The blob is readable and
+  simply has no such function, which is the caller naming something that does not
+  exist rather than anything wrong with the stored profile.
+- `{fn_name}` spans the remainder of the path: it is matched to the end of the
+  URL rather than stopping at the next `/`. Within it, `/` and its
+  percent-encoded form `%2F` are interchangeable; every other character a path
+  segment would mangle is handled by ordinary percent-encoding. R1 explains why
+  the segment has to be read this way, why the same treatment is not available to
+  a test name, and which two residual names no URL reaches.
 
 **Error handling**: If the stored profile blob is corrupt and cannot be
 deserialized, the profile data endpoints return 500 with a descriptive

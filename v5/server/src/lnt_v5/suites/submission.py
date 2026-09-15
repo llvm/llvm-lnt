@@ -17,7 +17,10 @@ what they mean. Everything else here is declared, and `extra="forbid"` makes a m
 rather than a value silently dropped.
 
 The profile blob is decoded and its format version checked, and deliberately nothing more: D12's
-binary format has a reader of its own, and a submission must not depend on it.
+binary format has a reader of its own, and accepting a run must not depend on parsing one. The
+version number itself comes from that reader (`profile_format.PROFILE_FORMAT_VERSION`), since the
+point of checking it here is to refuse at the door a blob nothing downstream could read -- which it
+only does if both agree on which version that is.
 """
 
 from __future__ import annotations
@@ -32,6 +35,7 @@ from uuid import uuid4
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StringConstraints
 
 from lnt_v5.errors import ApiError, ErrorCode
+from lnt_v5.profile_format import PROFILE_FORMAT_VERSION
 from lnt_v5.suites.entities import (
     NUL,
     CommitObject,
@@ -55,9 +59,6 @@ from lnt_v5.suites.tables import NAME_LENGTH, UUID_LENGTH
 # it is not redundant: `$` matches before a trailing newline in some regex engines, and pinning the
 # length to D5's column width closes that whichever engine pydantic is built on.
 UUID_PATTERN = r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
-
-# D12: the first byte of a decoded profile is the format version, and v5 accepts only version 2.
-PROFILE_FORMAT_VERSION = 2
 
 # D5's cap on one decoded profile. This is a limit on a profile, not on the request carrying it: an
 # oversized request *body* is refused at the transport layer with R4's 413 (see `config.BODY_LIMIT`,
@@ -407,8 +408,9 @@ def decode_profile(encoded: str) -> bytes:
     """The bytes a base64-encoded profile stands for, or a 400 (D12).
 
     Only the first byte of the result is looked at, and only to check the format version D12 fixes
-    at 2. The body is deliberately not parsed: a submission must not depend on the profile reader,
-    and a blob that turns out to be unreadable later is D12's problem rather than this one's.
+    at 2. The body is deliberately not parsed: accepting a run must not depend on the profile
+    reader, and a blob that turns out to be unreadable later is D12's problem rather than this
+    one's.
 
     D12 makes whitespace insignificant, and everything else outside the alphabet an error, so ASCII
     whitespace is removed and what is left is decoded strictly. Both halves matter. Stripping first

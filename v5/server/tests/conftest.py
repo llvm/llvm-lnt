@@ -26,10 +26,10 @@ from lnt_v5.app import create_app
 from lnt_v5.config import Settings, get_settings
 from lnt_v5.keys import create_key
 from lnt_v5.migrate import upgrade_to_head
+from lnt_v5.profile_format import PROFILE_FORMAT_VERSION
 from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.scopes import Scope
 from lnt_v5.suites.schema import SuiteSchema
-from lnt_v5.suites.submission import PROFILE_FORMAT_VERSION
 from lnt_v5.suites.tables import SuiteTables, build
 from lnt_v5.tables import SCHEMA_VERSION_ID, api_key, metadata, schema_version
 
