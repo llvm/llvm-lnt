@@ -148,6 +148,14 @@ rejected when it contradicts. `tag` is an editorial label applied after the
 fact, which is why it is PATCH-only. See D5 for their columns and D11 for
 ordinal assignment.
 
+D3's typing rule covers these built-in attributes as well as the declared
+metadata inside `fields`, on every write path: the JSON representation is the
+only one accepted, so `"5"` and `true` are not an `ordinal` and `"true"` is not
+a `tracked`, while a number with no fractional part is read as the integer it
+is. An `ordinal` outside the range of its column (D5 makes it an `INTEGER`) is
+likewise rejected with 400 rather than left to fail in the database, which would
+be a 500 for a value the caller supplied.
+
 Run metadata is deliberately not covered here: `run_parameters` is written once
 at submission and never updated, so there is no reconciliation to specify.
 
@@ -206,6 +214,24 @@ specification to guarantee this. The tiebreaker is opaque to clients; cursors
 are treated as opaque tokens. When no sort parameter is provided, results are
 returned in an arbitrary but deterministic order suitable for pagination, and
 no data is excluded.
+
+A cursor names a *position* in that ordering -- the sort key values of the last
+row served -- rather than the row it was produced from. A resumption therefore
+stays correct when that row is deleted before the next request arrives, which an
+implementation storing the row's identity and re-reading its sort values could
+not manage. Pagination is forward-only (R2), so a row inserted before the
+position a cursor names is not served and one inserted after it is; no row whose
+sort values stay put for the length of the traversal is ever skipped or served
+twice. A row whose sort values *change* mid-traversal can be, and no cursor
+scheme prevents it: reassigning an ordinal (D11) while a client is paging by
+ordinal can move a commit from behind the cursor to ahead of it, and the client
+sees it twice.
+
+A sort key must be a value no matching row can be missing, either because it is
+never null or because the endpoint excludes the rows where it is -- as sorting
+by ordinal does. A null compares as unknown against a cursor's value, so a row
+carrying one would fall on neither side of the position and vanish from every
+page.
 
 
 ## D11: Ordinal Management

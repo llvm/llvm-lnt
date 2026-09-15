@@ -53,12 +53,18 @@ from lnt_v5.tables import NAMING_CONVENTION
 NAME_LENGTH = 256
 UUID_LENGTH = 36
 
-# What NAMING_CONVENTION names the unique constraint on `{suite}.machine.name`, and so the one a
-# repeated machine name trips. Written out because it is fixed -- the convention composes it from a
-# table and a column, neither of which mentions the suite -- and checked against what PostgreSQL
-# reports by `test_suite_tables.py`, so a convention change fails a test rather than silently
-# turning a 409 into a 500. The same arrangement as `store.SCHEMA_NAME_CONSTRAINT`.
+# What NAMING_CONVENTION names the constraints the endpoints have to attribute a violation to, and
+# so answer the specific 409 R4 gives each one rather than a 500. Written out because they are fixed
+# -- the convention composes a name from a table and its columns, neither of which mentions the
+# suite -- and checked against what PostgreSQL reports by `test_suite_tables.py`, so a convention
+# change fails a test rather than silently turning a 409 into a 500. The same arrangement as
+# `store.SCHEMA_NAME_CONSTRAINT`.
 MACHINE_NAME_CONSTRAINT = "uq_machine_name"
+COMMIT_VALUE_CONSTRAINT = "uq_commit_commit"
+COMMIT_ORDINAL_CONSTRAINT = "uq_commit_ordinal"
+# Not a unique constraint but a foreign key: D5 makes a commit a regression references undeletable,
+# and this is the constraint whose violation says so (R4's `in_use`).
+REGRESSION_COMMIT_CONSTRAINT = "fk_regression_commit_id_commit"
 
 
 # D3's mapping from a declared type to the column that stores it. `Double` rather than `Float`
@@ -81,6 +87,12 @@ _COLUMN_TYPES: dict[AttributeType, TypeEngine[Any]] = {
 # mapping above because it follows from it: a change to the column type must change these too.
 INTEGER_MIN = -(2**63)
 INTEGER_MAX = 2**63 - 1
+
+# The range PostgreSQL's INTEGER holds -- the type of `{suite}.commit.ordinal`, which D5 makes an
+# INTEGER rather than following D3's `integer`: it is a built-in column, not a declared one, so the
+# BIGINT above does not apply to it.
+INT32_MIN = -(2**31)
+INT32_MAX = 2**31 - 1
 
 
 def _dynamic(entries: Sequence[Entry]) -> list[Column[Any]]:

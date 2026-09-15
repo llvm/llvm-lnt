@@ -13,6 +13,9 @@ from contextlib import contextmanager
 from typing import Annotated, Any
 
 from fastapi import Depends, Request
+
+# `IntegrityError` is aliased because SQLAlchemy wraps psycopg's in an exception of the same name,
+# and the two are compared against each other below.
 from psycopg.errors import (
     DeadlockDetected,
     DuplicateSchema,
@@ -20,6 +23,9 @@ from psycopg.errors import (
     UndefinedColumn,
     UndefinedTable,
     UniqueViolation,
+)
+from psycopg.errors import (
+    IntegrityError as IntegrityViolation,
 )
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.exc import DBAPIError, IntegrityError
@@ -103,22 +109,35 @@ def get_engine(request: Request) -> Engine:
 EngineDep = Annotated[Engine, Depends(get_engine)]
 
 
-def unique_violation_constraint(error: DBAPIError) -> str | None:
-    """The name of the unique constraint an error tripped, or None if that is not what it was.
+def violated_constraint(error: DBAPIError) -> str | None:
+    """The name of the constraint an integrity error tripped, or None if that is not what it was.
 
-    Attributing a violation is how a caller decides what to do about it: D13's get-or-create
-    retries, while a run submission has to answer `duplicate` for a repeated UUID but
-    `ordinal_conflict` for a taken ordinal (R4). The name is only dependable because every
-    constraint has one we chose; see NAMING_CONVENTION in tables.py.
+    Attributing a violation is how a caller decides what to do about it, and R4 gives different
+    answers to different constraints: a repeated machine name is `duplicate`, a taken ordinal is
+    `ordinal_conflict`, and a commit a regression still references is `in_use` -- that last one a
+    foreign key rather than a unique constraint, which is why this is not limited to unique
+    violations. The name is only dependable because every constraint has one we chose; see
+    NAMING_CONVENTION in tables.py.
     """
-    if not isinstance(error.orig, UniqueViolation):
+    if not isinstance(error.orig, IntegrityViolation):
         return None
     return error.orig.diag.constraint_name
 
 
+def unique_violation_constraint(error: DBAPIError) -> str | None:
+    """The name of the *unique* constraint an error tripped, or None if that is not what it was.
+
+    Narrower than `violated_constraint` on purpose, for the callers that recover from a lost race
+    to insert a row (D13) and must not mistake some other integrity failure for one.
+    """
+    if not isinstance(error.orig, UniqueViolation):
+        return None
+    return violated_constraint(error)
+
+
 @contextmanager
 def reporting_violation(constraint: str, code: ErrorCode, message: str) -> Iterator[None]:
-    """Report one named unique constraint's violation as an R4 error, re-raising anything else.
+    """Report one named constraint's violation as an R4 error, re-raising anything else.
 
     The `!=` guard is the load-bearing half, and the half a hand-written copy leaves out: without
     it, an unrelated integrity failure inside the same statement would be reported as this
@@ -130,7 +149,7 @@ def reporting_violation(constraint: str, code: ErrorCode, message: str) -> Itera
     try:
         yield
     except IntegrityError as error:
-        if unique_violation_constraint(error) != constraint:
+        if violated_constraint(error) != constraint:
             raise
         raise ApiError(code, message) from error
 

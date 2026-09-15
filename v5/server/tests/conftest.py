@@ -25,7 +25,10 @@ from lnt_v5.app import create_app
 from lnt_v5.config import Settings, get_settings
 from lnt_v5.keys import create_key
 from lnt_v5.migrate import upgrade_to_head
+from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.scopes import Scope
+from lnt_v5.suites.schema import SuiteSchema
+from lnt_v5.suites.tables import SuiteTables, build
 from lnt_v5.tables import SCHEMA_VERSION_ID, api_key, metadata, schema_version
 
 # Derived rather than hardcoded: a setting added to Settings but forgotten here would silently
@@ -292,6 +295,25 @@ def bearer() -> Callable[[str], dict[str, str]]:
 def manage(make_key: Callable[..., str], bearer: Callable[[str], dict[str, str]]) -> dict[str, str]:
     """The header for a `manage` key -- what every write outside `/api/admin` needs (R5)."""
     return bearer(make_key(Scope.MANAGE))
+
+
+@pytest.fixture
+def make_api_suite(
+    api_client: TestClient, manage: dict[str, str]
+) -> Callable[[dict[str, Any]], SuiteTables]:
+    """Create a test suite through the API, and hand back its tables.
+
+    The tables are built from what the API stored rather than from the submitted document, so a
+    test reading the database back is reading the same columns the server writes. Every endpoint
+    family needs this, which is why it is here rather than copied into each module.
+    """
+
+    def make(schema: dict[str, Any]) -> SuiteTables:
+        response = api_client.post(SUITES_PATH, json=schema, headers=manage)
+        assert response.status_code == 201, response.text
+        return build(SuiteSchema.model_validate(response.json()))
+
+    return make
 
 
 def code_of(response: Any) -> str:
