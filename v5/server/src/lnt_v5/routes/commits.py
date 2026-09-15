@@ -55,6 +55,7 @@ from lnt_v5.suites.entities import (
     Contradiction,
     EntityObject,
     FieldValue,
+    Named,
     Ordinal,
     Storable,
     create_or_reconcile,
@@ -154,7 +155,7 @@ class ResolveRequest(BaseModel):
     # endpoint's contract is to report that under `not_found` rather than fail the whole lookup.
     # The count is capped at R2's page ceiling, so that one request cannot expand into a statement
     # with more bind parameters than the protocol carries.
-    commits: list[str] = Field(
+    commits: list[Named] = Field(
         min_length=1,
         max_length=MAX_LIMIT,
         description=(

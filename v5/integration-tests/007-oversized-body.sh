@@ -13,5 +13,5 @@ big="$(mktemp)"
 trap 'rm -f "$big"' EXIT
 head -c 2000000 /dev/zero | tr '\0' 'x' > "$big"
 
-request --header 'Content-Type: application/json' --data-binary "@${big}" "${BASE_URL}/api/anything"
+request -H "$JSON" --data-binary "@${big}" "${BASE_URL}/api/anything"
 expect_status 413

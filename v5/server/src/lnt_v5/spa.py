@@ -1,8 +1,12 @@
-"""Serving the built client, and routing unknown paths to it.
+"""Serving the built client, and what is decided about a request path before anything routes it.
 
 Deep links and hard refreshes must resolve to a client route rather than 404, so anything that is
 not the API, not an infrastructure route, and not a request for a file falls through to
 index.html. See docs/design/client/architecture.md.
+
+Two things are settled before the route table is consulted at all, and both live here because both
+are statements about the raw path rather than about any endpoint: a URL carrying a NUL is refused
+(R4, D3), and a server path carrying a trailing slash is redirected (R1).
 """
 
 from __future__ import annotations
@@ -15,7 +19,9 @@ from starlette.responses import RedirectResponse, Response
 from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from .errors import no_route
+from .errors import ErrorCode, error_response, no_route
+from .routes.health import HEALTHZ_PATH
+from .routes.llms import LLMS_PATH
 
 # Extensions that mark a request as asking for a file rather than for a page. Accepted
 # limitation: a client route whose last segment ends in one of these (a machine named `node.js`,
@@ -28,8 +34,9 @@ STATIC_ASSET_EXTENSIONS = frozenset(
 )  # fmt: skip
 
 # Paths the server answers itself that are not under /api/. They share the API's slash handling:
-# a probe is as easy to misconfigure with a trailing slash as an endpoint is.
-INFRASTRUCTURE_PATHS = frozenset({"/healthz"})
+# a probe is as easy to misconfigure with a trailing slash as an endpoint is. Each is named by the
+# route module that owns it, so there is one place that decides where it lives.
+INFRASTRUCTURE_PATHS = frozenset({HEALTHZ_PATH, LLMS_PATH})
 
 
 def is_api_path(path: str) -> bool:
@@ -56,6 +63,56 @@ def canonical_server_path(path: str) -> str | None:
         return None
     stripped = path.rstrip("/")
     return stripped if stripped and is_server_path(stripped) else None
+
+
+class RejectNulInUrl:
+    """Refuse a request whose URL carries a NUL character (D3).
+
+    A NUL reaches the server only percent-encoded, and it is never a value this API can act on:
+    PostgreSQL stores it in neither a `text` column nor a `jsonb` value, and refuses it even as a
+    query parameter. D3 requires such a value to be the caller's 400 rather than the 500 an
+    unattributable `DataError` would produce, and requires the check to live where values are
+    typed rather than on each endpoint that reads one.
+
+    For a request *body* the types are that place, and `entities.Storable` is the check: a body is
+    a document the endpoint declares whole, so one annotation covers every value in it. A URL is
+    not -- each path segment and each filter is declared separately, and a check on each is
+    per-endpoint by construction, so the rule would hold only for as long as everyone adding a
+    filter remembered it. Refusing the URL whole is the same rule applied where the URL is still
+    one thing.
+
+    Before authentication, unlike everything in R5's order of checks, and R4 says so: this belongs
+    with the oversized body and the trailing-slash redirect, which are likewise settled before a
+    request reaches an endpoint. It reveals nothing -- the answer is a fact about the bytes sent,
+    not about what this instance holds. A reverse proxy commonly refuses such a URL before the
+    server ever sees it; this is what makes the server's own answer the same one.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] == "http" and _has_nul(scope):
+            response = error_response(
+                ErrorCode.INVALID_REQUEST,
+                "The request URL may not contain a NUL character (U+0000).",
+            )
+            await response(scope, receive, send)
+            return
+        await self.app(scope, receive, send)
+
+
+def _has_nul(scope: Scope) -> bool:
+    """Whether a request's path or query string carries a NUL, in either spelling.
+
+    The path arrives percent-decoded, so it holds the character itself. The query string does not,
+    and is matched against its encoded form rather than unquoted here -- decoding it would mean
+    choosing a character encoding for bytes that have not been through the framework's own parser
+    yet, and `%00` is the only spelling it can arrive in.
+    """
+    path: str = scope["path"]
+    query: bytes = scope.get("query_string", b"")
+    return "\x00" in path or b"\x00" in query or b"%00" in query
 
 
 class RedirectTrailingSlash:

@@ -13,8 +13,9 @@ alongside an interactive viewer (see R8).
 - No path carries a trailing slash. A request that adds one is answered with a
   307 redirect to the canonical form; 307 rather than 301 or 308 so that the
   method and body survive and a misspelled write is not downgraded to a GET.
-  This covers `/healthz` as well. Client routes are unaffected -- the web UI
-  answers both spellings itself, and redirecting between them would be noise.
+  This covers `/healthz` and `/llms.txt` as well. Client routes are unaffected
+  -- the web UI answers both spellings itself, and redirecting between them
+  would be noise.
 - Entities addressed by natural keys (suite name, machine name, test name, commit value) or
   UUIDs (runs, regressions, regression indicators, profiles) -- never by internal
   auto-increment database IDs. API keys are the one exception to both: they are addressed by
@@ -142,10 +143,18 @@ R2; every other endpoint returns the entity object itself, except where its own
 spec gives a different body. Status codes are drawn from 200, 201, 204, 400,
 401, 403, 404, 409, 500. The four routes exempt from the scope system (see R5)
 are not part of this surface and follow their own sections: they serve plain
-text or HTML as well as JSON. Two things are settled before a request reaches an
-endpoint at all, and are likewise outside this surface: an oversized request
-body, which is refused (see Errors, below), and a trailing slash, which is
-redirected (see R1).
+text or HTML as well as JSON. Three things are settled before a request reaches
+an endpoint at all, and are likewise outside this surface: an oversized request
+body, which is refused (see Errors, below); a trailing slash, which is
+redirected (see R1); and a URL carrying a NUL character, which is refused with
+400 `invalid_request` because no value the API can act on contains one (see D3).
+Being settled first, all three are answered whatever credential accompanied
+them; none of the three names a resource, so R5's reason for authorizing before
+resolving does not reach them. The NUL rule is about the URL rather than about
+any route, so it holds for every path the server is asked for -- client routes,
+and the four routes R5 exempts, included. Answering one of those with the error
+envelope is not an exception to R5: such a URL is not that route, and is not any
+route.
 
 **Object conventions.** These hold for every response body, so each endpoint's
 spec need only name its keys.
@@ -172,6 +181,12 @@ spec need only name its keys.
   the same convention (see D5).
 - Unless specified otherwise, a key an endpoint documents is always present, and
   `null` when it has no value.
+- A request body carries only the keys its endpoint documents. A key outside
+  that set is rejected with 400 rather than dropped, so that a caller who
+  misspells one, or sends one this API does not have, learns it had no effect.
+  Individual endpoints note the cases where this is most surprising -- `value`
+  sent to `PATCH .../commits/{value}`, `tag` sent to `POST .../commits` -- but
+  the rule is general and applies to every body.
 
 **Errors** all use one envelope:
 
@@ -186,7 +201,7 @@ time, so clients must branch on `code` alone and never parse `message`.
 | `unauthorized` | 401 | A credential was required and none was usable (see R5) |
 | `forbidden` | 403 | Valid token, insufficient scope (see R5) |
 | `not_found` | 404 | An entity named by the path, by a `machine=`/`test=` filter, or by the request body does not exist. A *commit filter* naming an unknown commit is not an error, whether it is spelled as a query parameter or as a key of a request body (see R3); a commit named as an ordinal range bound is, because it names a position rather than a set of rows |
-| `duplicate` | 409 | The entity already exists: a run UUID, a suite name, a schema entry added twice |
+| `duplicate` | 409 | The entity already exists: a run UUID, a suite name, a machine name, a commit value, a schema entry added twice |
 | `ordinal_conflict` | 409 | The ordinal is already held by another commit, or contradicts the one this commit has (see D11) |
 | `in_use` | 409 | Another entity references this one and must be removed first: a commit referenced by a regression |
 | `conflict` | 409 | The request contradicts existing state in a way the more specific 409 codes do not describe, or could not complete because the suite's schema changed underneath it (see D2) |
@@ -276,6 +291,17 @@ This matters for the API keys, the only resources whose existence is not
 already public; the rule is stated uniformly rather than per endpoint so that
 there is one order to implement and to reason about.
 
+One step may come before all three: *decoding* a body sent as JSON. A payload
+declared `application/json` that does not parse is 400 `invalid_request` even
+from a caller presenting no credential, because there is nothing to
+authenticate a decision about yet. This is narrow and a caller must not read
+anything into it -- the same unparseable bytes sent under any other content
+type are 401, as is a body that parses but does not match what the endpoint
+declares, because both of those are decided after the order above. It is
+recorded because it is observable, not because it is a guarantee; where it does
+apply it is safe for the reason R4 gives the three checks that likewise precede
+the endpoint, namely that it names no resource.
+
 **Authorization is not cached**. Every authenticated request resolves its token
 against the database, so revoking a key takes effect immediately rather than
 after some window. The lookup is a single indexed match on a table holding one
@@ -313,15 +339,23 @@ instance. The exact mechanism is implementation-specific.
 - Content: what LNT is, key domain concepts, API structure, common workflows,
   and links to `/api/docs` and `/api/openapi.json` (see R8)
 - Static content, outside the REST API surface: always public, and an
-  `Authorization` header has no effect on it (see R5)
+  `Authorization` header has no effect on it (see R5). It is not described by
+  R8's document either, for the same reason `/healthz` is not: that document
+  describes the REST API, and this is not part of it.
 - Served as `text/plain` with UTF-8 charset
+- The document is written for a reader that cannot check what it says, so
+  everything in it has to be true of the instance serving it: it describes the
+  API as built rather than as planned, and every path it names is one this
+  server answers.
 
 
 ## R7: Health Check
 
 - `GET /healthz` reports whether the server is able to serve traffic. It
-  verifies database connectivity by issuing a trivial query, so a 200 means the
-  process is up *and* can reach Postgres.
+  verifies database connectivity by obtaining a usable connection to Postgres
+  -- one that has been established or, if it comes from a pool, revalidated --
+  so a 200 means the process is up *and* can reach the database. A connection
+  the server is merely holding is not evidence of either.
 - Returns `200 {"ok": true}` on success, `500 {"ok": false}` if the database
   cannot be reached.
 - No authentication, always public; an `Authorization` header has no effect

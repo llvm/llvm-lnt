@@ -23,9 +23,11 @@ from lnt_v5.scopes import Scope
 # A read-scoped endpoint and an admin-scoped one.
 READABLE = "/api"
 ADMIN_ONLY = "/api/admin/api-keys"
+# A `manage`-scoped endpoint taking a body, for the one check that needs a request to validate.
+SUITES = "/api/suites"
 
-# R5 exempts four routes from the scope system. Two exist today; `/healthz` lives outside `/api/`
-# and is covered below, and `/llms.txt` (R6) is not implemented yet.
+# R5 exempts four routes from the scope system. Two of them live under `/api/`; the other two,
+# `/healthz` and `/llms.txt`, do not and are covered by `TestExemptRoutes` below.
 EXEMPT_API_PATHS = {"/api/openapi.json", "/api/docs"}
 
 # Well-formed as a Bearer credential, but not a token this server ever issued.
@@ -148,6 +150,36 @@ class TestScopeEnforcement:
 
         assert response.status_code == 403
 
+    def test_a_missing_credential_is_answered_before_the_request_is_validated(
+        self, api_client: TestClient
+    ) -> None:
+        # R5's order of checks starts at authentication, so a caller with no key hears 401 rather
+        # than being told what is wrong with a request it was never going to be allowed to make.
+        # Pinned because it is the framework's ordering rather than this code's, and an upgrade
+        # that reversed it would turn every one of these into a 400.
+        response = api_client.post(SUITES, json={"nope": 1})
+
+        assert response.status_code == 401
+        assert response.json()["error"]["code"] == "unauthorized"
+
+    def test_but_unparseable_json_is_answered_first(self, api_client: TestClient) -> None:
+        # The narrow exception R5 records: a body declared as JSON is decoded before anything can
+        # decide about it, so one that does not parse is 400 with no credential at all.
+        response = api_client.post(
+            SUITES, headers={"Content-Type": "application/json"}, content=b"{oops"
+        )
+
+        assert response.status_code == 400
+        assert response.json()["error"]["code"] == "invalid_request"
+
+    def test_and_only_when_the_body_says_it_is_json(self, api_client: TestClient) -> None:
+        # The same bytes under another content type are never decoded, so the order above stands.
+        # Pinned because R5 warns a caller not to read anything into the exception, and a document
+        # that says so while the implementation generalized it would be the worse of the two.
+        response = api_client.post(SUITES, headers={"Content-Type": "text/plain"}, content=b"{oops")
+
+        assert response.status_code == 401
+
 
 class TestRevocation:
     def test_a_revoked_key_is_refused(
@@ -178,7 +210,7 @@ class TestRevocation:
 
 
 class TestExemptRoutes:
-    @pytest.mark.parametrize("path", ["/api/openapi.json", "/api/docs", "/healthz"])
+    @pytest.mark.parametrize("path", ["/api/openapi.json", "/api/docs", "/healthz", "/llms.txt"])
     def test_an_authorization_header_has_no_effect(self, api_client: TestClient, path: str) -> None:
         # R5: no authentication happens on their path at all -- not even for a header that would
         # be a 400 or a 401 anywhere else under /api/.

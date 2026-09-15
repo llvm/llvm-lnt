@@ -988,6 +988,19 @@ class TestRemoveIndicators:
 
         assert set(body) == {"removed", "indicators"}
 
+    def test_rejects_a_uuid_carrying_a_nul(
+        self, create: Callable[..., Any], remove: Callable[..., Any], data: None
+    ) -> None:
+        # D3, in the one place a UUID arrives in a body rather than a path: a NUL is no UUID, but
+        # it is also a value PostgreSQL refuses as a parameter, so without a check here the
+        # comparison against the stored column would be a 500 rather than this 400.
+        created = create(indicators=[LINUX_ONE])
+
+        response = remove(created["uuid"], ["a\x00b"])
+
+        assert response.status_code == 400
+        assert response.json()["error"]["code"] == "invalid_request"
+
     def test_a_uuid_naming_no_indicator_is_ignored(
         self, create: Callable[..., Any], remove: Callable[..., Any], data: None
     ) -> None:

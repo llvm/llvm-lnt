@@ -113,6 +113,31 @@ connection pool, so the instance's ceiling against RDS is `WEB_CONCURRENCY x (PO
 which has to stay well inside the `max_connections` of the database instance. Moving to a larger
 instance means revisiting both numbers together.
 
+### Memory, and profile reads
+
+Most of what this server does costs a page of rows. Reading a profile does not, and it is the one
+thing worth sizing memory against.
+
+A profile is stored compressed, capped at 50 MB decoded (D5). `GET .../profiles/{uuid}/functions/{name}`
+has to expand the profile's per-instruction sections to answer, and the reader bounds that expansion
+at 320 MB, a ceiling the design sets deliberately so that a profile the server accepted is still one
+it can read (D12). On top of the expanded bytes the request materializes the function's instructions
+and serializes them, so the true peak for one such request is a multiple of the expansion, not equal
+to it.
+
+Nothing bounds how many of those run at once except the thread pool requests are served from --
+40 threads per worker by default -- so the worst case is `WEB_CONCURRENCY x 40` profile reads
+expanding simultaneously. The profile endpoints need no API key either, since reads are public
+(R5). There is deliberately no tighter limit: refusing or shedding a read needs a status code the
+API does not have (R4 permits no 429 or 503), and the pool is what a deployment has to size
+against.
+
+In practice the profiles LNT actually holds are a few megabytes at most and never come close. The
+number that matters is the tail: **one** request against a profile near the 50 MB cap can need more
+memory than the whole `t4g.micro` this stack defaults to has. An instance that expects large
+profiles should be sized for a handful of concurrent worst-case reads rather than for the average
+one, and `WEB_CONCURRENCY` multiplies whatever that figure comes to.
+
 ## Operating the instance
 
 There is no inbound SSH. The instance's IAM role carries `AmazonSSMManagedInstanceCore`, so shell

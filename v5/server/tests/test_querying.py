@@ -11,6 +11,7 @@ It also has a nullable one, for the rows D10 excludes from an order they have no
 from __future__ import annotations
 
 import base64
+import json
 from collections.abc import Callable, Iterator
 from datetime import UTC, datetime
 from typing import Any
@@ -108,6 +109,10 @@ def by_time(*, descending: bool = False) -> Keyset:
 
 def by_rank() -> Keyset:
     return Keyset(SortKey(events.c.rank), tiebreaker=events.c.id)
+
+
+def by_label() -> Keyset:
+    return Keyset(SortKey(events.c.label), tiebreaker=events.c.id)
 
 
 def _row(row: Row[Any]) -> Row[Any]:
@@ -323,3 +328,27 @@ class TestCursorOpacity:
 
         with pytest.raises(ApiError):
             one_page(db_engine, Keyset(tiebreaker=events.c.id), 3, cursor)
+
+    def test_refuses_a_text_sort_value_carrying_a_nul(self, db_engine: Engine) -> None:
+        """D3 reaches what comes out of a cursor, because a cursor need not be unforgeable (R2).
+
+        The values in one are read straight back into the next query's bind parameters, so a
+        hand-made cursor is a way to hand the database a string no column can hold -- a 500 for
+        something the caller supplied, which D3 makes a 400 wherever a value is read.
+        """
+        forged = _forged(by_label(), ["a\x00b", 1])
+
+        with pytest.raises(ApiError) as failure:
+            one_page(db_engine, by_label(), 3, forged)
+
+        assert failure.value.code.value == "invalid_request"
+
+
+def _forged(keyset: Keyset, values: list[Any]) -> str:
+    """A cursor carrying values of the caller's choosing, in `keyset`'s ordering.
+
+    Reaches for the ordering fingerprint rather than reimplementing it: the point of the test
+    above is the values, and a cursor with the wrong fingerprint would be refused before them.
+    """
+    payload = json.dumps([keyset._ordering, values]).encode()
+    return base64.urlsafe_b64encode(payload).decode().rstrip("=")
