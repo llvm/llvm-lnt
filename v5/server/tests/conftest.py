@@ -313,25 +313,38 @@ def triage(make_key: Callable[..., str], bearer: Callable[[str], dict[str, str]]
     return bearer(make_key(Scope.TRIAGE))
 
 
-def walk_pages(client: TestClient, path: str, query: str = "") -> list[Any]:
+def walk_cursor(fetch: Callable[[str | None], Any]) -> list[Any]:
     """Every item a cursor-paginated list serves, following `cursor.next` to the end (R2).
 
-    Shared because five lists page this way and the contract they page by is one contract: pass the
+    Shared because six lists page this way and the contract they page by is one contract: pass the
     previous page's `cursor.next` back unchanged, stop when it is null. A copy per endpoint module
-    would be five places to update when that contract changes, and five chances for one of them to
+    would be six places to update when that contract changes, and six chances for one of them to
     loop forever. The guard is what turns a cursor that fails to advance into a failed test rather
     than a hung suite.
+
+    Takes a callable rather than a path, because R2 gives the token two carriers: five of these
+    lists are GETs that take it as `cursor=`, and `POST /query` takes it as a key of its body. The
+    loop is the contract and does not differ between them; only the request does.
     """
     items: list[Any] = []
     cursor: str | None = None
     for _ in range(100):
-        response = client.get(f"{path}?{query if cursor is None else f'{query}&cursor={cursor}'}")
+        response = fetch(cursor)
         assert response.status_code == 200, response.text
         items.extend(response.json()["items"])
         cursor = response.json()["cursor"]["next"]
         if cursor is None:
             return items
     raise AssertionError("pagination did not terminate")
+
+
+def walk_pages(client: TestClient, path: str, query: str = "") -> list[Any]:
+    """`walk_cursor` over a GET list, which carries the cursor as a query parameter."""
+    return walk_cursor(
+        lambda cursor: client.get(
+            f"{path}?{query if cursor is None else f'{query}&cursor={cursor}'}"
+        )
+    )
 
 
 @pytest.fixture

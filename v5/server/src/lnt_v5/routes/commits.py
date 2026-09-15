@@ -390,6 +390,34 @@ def commit_id(connection: Connection, suite: Suite, value: str) -> int:
     )
 
 
+def commit_ordinal(connection: Connection, suite: Suite, value: str) -> int:
+    """The ordinal of a commit a request body names as a range boundary (D11).
+
+    `POST /query`'s `after_commit`/`before_commit` name a commit and mean its *position*, so both
+    ways of failing to have one are the caller's mistake and neither is an empty page. A value no
+    commit has is the 404 R4 gives an entity named by a request body -- deliberately unlike the
+    `commit=` filter beside it, which R3 answers with an empty result, because that one asks which
+    rows belong to a commit whereas this one asks where a commit sits. And a commit that exists but
+    has no ordinal sits nowhere (D1), so there is no comparison to make: that is a 400, since no
+    data would answer it either.
+
+    A SELECT of its own rather than `entities.identifier` or `Commits.one`: the first projects the
+    row's `id`, which is not what a bound needs, and the second reads every declared commit field
+    to build a response body that is thrown away.
+    """
+    commit = suite.tables.commit
+    row = connection.execute(select(commit.c.ordinal).where(commit.c.commit == value)).one_or_none()
+    if row is None:
+        raise _missing(suite.schema.name, value)
+    if row.ordinal is None:
+        raise ApiError(
+            ErrorCode.INVALID_REQUEST,
+            f"Commit '{value}' in test suite '{suite.schema.name}' has no ordinal, so it has no "
+            f"position in the commit order and cannot bound a range. Give it one with PATCH.",
+        )
+    return int(row.ordinal)
+
+
 @router.get(
     "",
     dependencies=[require_scope(Scope.READ)],

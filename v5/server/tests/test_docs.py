@@ -12,6 +12,7 @@ from lnt_v5.routes.regressions import INDICATORS_PATH, REGRESSIONS_PATH
 from lnt_v5.routes.runs import MACHINE_RUNS_PATH, RUNS_PATH
 from lnt_v5.routes.samples import SAMPLES_PATH
 from lnt_v5.routes.tests import TESTS_PATH
+from lnt_v5.routes.timeseries import DEFAULT_LAST_N, QUERY_PATH, TRENDS_PATH
 
 
 class TestOpenApiDocument:
@@ -785,6 +786,168 @@ class TestRegressionOperations:
             count,
             "indicators",
         }
+
+
+class TestTimeSeriesOperations:
+    """R8: the two read-only POSTs endpoints.md specifies under Time Series."""
+
+    @pytest.mark.parametrize("path", [QUERY_PATH, TRENDS_PATH])
+    def test_is_documented(self, client: TestClient, path: str) -> None:
+        paths = client.get("/api/openapi.json").json()["paths"]
+
+        assert "post" in paths[path], f"POST {path} is not in the document"
+
+    @pytest.mark.parametrize("path", [QUERY_PATH, TRENDS_PATH])
+    @pytest.mark.parametrize("status", ["404", "409"])
+    def test_documents_the_failures_endpoints_md_specifies(
+        self, client: TestClient, path: str, status: str
+    ) -> None:
+        # An unknown suite on both (R1), plus an unknown machine, test or bounding commit the body
+        # names; D2's stale reader accounts for the 409.
+        operation = client.get("/api/openapi.json").json()["paths"][path]["post"]
+
+        assert status in operation["responses"]
+
+    @pytest.mark.parametrize("path", [QUERY_PATH, TRENDS_PATH])
+    def test_takes_its_filters_in_the_body_rather_than_the_query_string(
+        self, client: TestClient, path: str
+    ) -> None:
+        # The whole reason these are POSTs: a list of test names and six bounds do not fit a query
+        # string. The suite is the only thing left in the path.
+        operation = client.get("/api/openapi.json").json()["paths"][path]["post"]
+
+        assert "requestBody" in operation
+        assert {p["name"] for p in operation.get("parameters", [])} == {"testsuite"}
+
+    def test_the_query_body_carries_exactly_the_keys_endpoints_md_gives_it(
+        self, client: TestClient
+    ) -> None:
+        # Exactly, not merely at least: R2's `limit` and `cursor` are keys here rather than query
+        # parameters, and a filter the spec does not give this endpoint is as wrong as a missing
+        # one.
+        schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
+
+        assert set(schemas["QueryRequest"]["properties"]) == {
+            "metric",
+            "machine",
+            "test",
+            "commit",
+            "after_commit",
+            "before_commit",
+            "after_time",
+            "before_time",
+            "sort",
+            "limit",
+            "cursor",
+        }
+        assert schemas["QueryRequest"]["required"] == ["metric"]
+
+    def test_the_query_body_documents_r2s_page_size(self, client: TestClient) -> None:
+        limit = client.get("/api/openapi.json").json()["components"]["schemas"]["QueryRequest"][
+            "properties"
+        ]["limit"]
+
+        assert limit["default"] == DEFAULT_LIMIT == 25
+        assert limit["maximum"] == MAX_LIMIT == 10000
+
+    def test_the_query_enumerates_its_sort_fields_rather_than_taking_any_string(
+        self, client: TestClient
+    ) -> None:
+        # endpoints.md names three fields, and R3's `-` prefix spells each of them backwards; a
+        # generated client should not be able to ask for a fourth.
+        sort = client.get("/api/openapi.json").json()["components"]["schemas"]["QueryRequest"][
+            "properties"
+        ]["sort"]
+        allowed = [option for option in sort["anyOf"] if "enum" in option]
+
+        assert [set(option["enum"]) for option in allowed] == [
+            {"test", "-test", "commit", "-commit", "submitted_at", "-submitted_at"}
+        ]
+
+    def test_the_trends_body_carries_exactly_the_three_keys_endpoints_md_gives_it(
+        self, client: TestClient
+    ) -> None:
+        schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
+
+        assert set(schemas["TrendsRequest"]["properties"]) == {"metric", "machine", "last_n"}
+        assert schemas["TrendsRequest"]["required"] == ["metric"]
+
+    def test_the_trends_window_defaults_to_a_bounded_one(self, client: TestClient) -> None:
+        # endpoints.md: this response is unpaginated and `read`-scoped, so an omitted `last_n` must
+        # not mean "aggregate the whole suite". The default is part of the wire contract.
+        last_n = client.get("/api/openapi.json").json()["components"]["schemas"]["TrendsRequest"][
+            "properties"
+        ]["last_n"]
+
+        assert last_n["default"] == DEFAULT_LAST_N == 500
+        assert (last_n["minimum"], last_n["maximum"]) == (1, MAX_LIMIT)
+
+    def test_the_trends_machine_is_a_list_where_the_querys_is_one_name(
+        self, client: TestClient
+    ) -> None:
+        # endpoints.md draws the difference deliberately: the Dashboard needs several machines in
+        # one call, and the Graph page plots one at a time.
+        schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
+        query = schemas["QueryRequest"]["properties"]["machine"]["anyOf"]
+        trends = schemas["TrendsRequest"]["properties"]["machine"]["anyOf"]
+
+        assert {"type": "string"} in query
+        assert [option["type"] for option in trends if "type" in option] == ["array", "null"]
+
+    def test_the_query_pages_with_a_cursor_and_trends_does_not_page_at_all(
+        self, client: TestClient
+    ) -> None:
+        # R2: one is unbounded and carries a cursor, the other is bounded by (machines x last_n)
+        # and carries `items` alone.
+        document = client.get("/api/openapi.json").json()
+        envelopes = {
+            path: document["components"]["schemas"][
+                document["paths"][path]["post"]["responses"]["200"]["content"]["application/json"][
+                    "schema"
+                ]["$ref"].rsplit("/", 1)[-1]
+            ]
+            for path in (QUERY_PATH, TRENDS_PATH)
+        }
+
+        assert set(envelopes[QUERY_PATH]["properties"]) == {"items", "cursor"}
+        assert set(envelopes[TRENDS_PATH]["properties"]) == {"items"}
+
+    def test_a_data_point_carries_exactly_what_endpoints_md_gives_it(
+        self, client: TestClient
+    ) -> None:
+        # R4: a documented key is always present, and null when it has no value.
+        point = client.get("/api/openapi.json").json()["components"]["schemas"]["DataPoint"]
+
+        assert set(point["properties"]) == {
+            "test",
+            "machine",
+            "metric",
+            "value",
+            "commit",
+            "ordinal",
+            "run_uuid",
+            "submitted_at",
+            "tag",
+        }
+        assert set(point["required"]) == set(point["properties"])
+
+    def test_a_trend_item_carries_exactly_what_endpoints_md_gives_it(
+        self, client: TestClient
+    ) -> None:
+        # No `metric`, unlike a data point: endpoints.md states that difference explicitly.
+        item = client.get("/api/openapi.json").json()["components"]["schemas"]["TrendPoint"]
+
+        assert set(item["properties"]) == {
+            "machine",
+            "commit",
+            "ordinal",
+            "submitted_at",
+            "tag",
+            "value",
+        }
+        assert set(item["required"]) == set(item["properties"])
+        assert item["properties"]["ordinal"]["type"] == "integer"
+        assert item["properties"]["value"]["type"] == "number"
 
 
 class TestDocumentationViewer:

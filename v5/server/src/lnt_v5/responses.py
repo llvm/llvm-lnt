@@ -44,7 +44,9 @@ class PageCursor(BaseModel):
     next: str | None = Field(
         description=(
             "An opaque token for the page after this one, or null when this is the last page. "
-            "Pass it back as `cursor=`; do not parse it."
+            "Pass it back the way this list takes it -- as the `cursor=` query parameter, or as "
+            "the `cursor` key of the request body where the list is asked for with one. Do not "
+            "parse it."
         )
     )
     previous: None = Field(

@@ -70,17 +70,23 @@ function's `instructions` -- as does a body that is not a list at all, such as
 Cursor pagination is forward-only: `previous` is always `null` (reserved for
 future backward pagination) and clients must not rely on it. Cursors are opaque
 strings that clients must not parse. A client asks for the page after the one it
-holds by passing `cursor.next` back as a `cursor=` parameter, alongside the same
-filters and `sort` that produced it; a cursor that is malformed, or that was
-issued for a different *ordering* -- another list's rows, or the same list's in
-the other direction -- is rejected with 400 rather than quietly answered with a
-page of the wrong rows. Resending the filters is the client's part of the
-bargain and is deliberately not checked: a cursor names a position in an order,
-and two requests differing only by a filter share that order, so a cursor handed
-to the wrong one of them still names a real position rather than a wrong page.
-Opacity is a contract on the client rather than a cryptographic guarantee: a
-cursor need not be unforgeable, because it can only name a position in a query
-its holder could have asked for anyway.
+holds by passing `cursor.next` back under the name `cursor`, alongside the same
+filters and `sort` that produced it. A list asked for with a query string takes
+it as the `cursor=` query parameter; a list asked for with a request body takes
+it as that body's `cursor` key, and `limit` travels the same way. The endpoints
+spec says which list is which, and the choice is about where a list's filters
+fit rather than about its paging: the token is the same opaque string under the
+same rules, and every sentence here applies to both carriers unchanged. A cursor
+that
+is malformed, or that was issued for a different *ordering* -- another list's
+rows, or the same list's in the other direction -- is rejected with 400 rather
+than quietly answered with a page of the wrong rows. Resending the filters is the
+client's part of the bargain and is deliberately not checked: a cursor names a
+position in an order, and two requests differing only by a filter share that
+order, so a cursor handed to the wrong one of them still names a real position
+rather than a wrong page. Opacity is a contract on the client rather than a
+cryptographic guarantee: a cursor need not be unforgeable, because it can only
+name a position in a query its holder could have asked for anyway.
 
 Offset pagination takes `offset` (default `0`) alongside `limit`. `total` is the
 number of items matching the request's filters, ignoring `limit` and `offset`,
@@ -168,7 +174,7 @@ time, so clients must branch on `code` alone and never parse `message`.
 | `invalid_request` | 400 | Malformed or invalid request: bad syntax, an unreadable `Authorization` header (see R5), a failed validation, an undeclared `fields` key, an unknown metric name, a missing `?confirm=true` |
 | `unauthorized` | 401 | A credential was required and none was usable (see R5) |
 | `forbidden` | 403 | Valid token, insufficient scope (see R5) |
-| `not_found` | 404 | An entity named by the path, by a `machine=`/`test=` filter, or by the request body does not exist. A `commit=` filter naming an unknown commit is not an error (see R3) |
+| `not_found` | 404 | An entity named by the path, by a `machine=`/`test=` filter, or by the request body does not exist. A *commit filter* naming an unknown commit is not an error, whether it is spelled as a query parameter or as a key of a request body (see R3); a commit named as an ordinal range bound is, because it names a position rather than a set of rows |
 | `duplicate` | 409 | The entity already exists: a run UUID, a suite name, a schema entry added twice |
 | `ordinal_conflict` | 409 | The ordinal is already held by another commit, or contradicts the one this commit has (see D11) |
 | `in_use` | 409 | Another entity references this one and must be removed first: a commit referenced by a regression |
