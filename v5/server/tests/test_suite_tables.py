@@ -30,6 +30,7 @@ from lnt_v5.suites.tables import (
     COMMIT_VALUE_CONSTRAINT,
     MACHINE_NAME_CONSTRAINT,
     REGRESSION_COMMIT_CONSTRAINT,
+    RUN_UUID_CONSTRAINT,
     SuiteTables,
 )
 from lnt_v5.tables import IDENTIFIER_MAX_LENGTH
@@ -442,10 +443,11 @@ class TestNamingConvention:
             # answer the specific 409 R4 gives it: `duplicate`, `ordinal_conflict`, `in_use`.
             ("commit", COMMIT_VALUE_CONSTRAINT),
             ("commit", COMMIT_ORDINAL_CONSTRAINT),
+            ("run", RUN_UUID_CONSTRAINT),
             ("regression", REGRESSION_COMMIT_CONSTRAINT),
         ],
     )
-    def test_the_written_out_commit_constraints_are_the_ones_postgres_holds(
+    def test_the_other_written_out_constraints_are_the_ones_postgres_holds(
         self,
         db_engine: Engine,
         make_suite: Callable[..., SuiteTables],

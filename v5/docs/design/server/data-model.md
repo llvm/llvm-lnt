@@ -137,10 +137,36 @@ in *both* directions wherever nothing is lost: an `integer` is accepted where a
 an `integer` is. A number with a fractional part where an `integer` is declared is
 rejected rather than rounded.
 
-A value must also be one its column can store, and is otherwise rejected with 400: an
-`integer` must lie within the range of the column type above, a `real` must be finite
-(`NaN` and the infinities are not JSON, but some producers emit them anyway), and a
-`text` value must not contain the NUL character (see D5).
+**A value the stored representation cannot hold is rejected with 400 rather than
+left to fail in the database.** Two reasons make such a value the caller's
+mistake rather than a server fault. It does not survive the round trip, so
+accepting it would mean answering later reads with something other than what was
+submitted -- and a value that cannot be returned is not one that may be accepted.
+And the failure it causes further down is not one an implementation can
+attribute: it is neither an integrity violation nor a missing relation, so
+nothing connects it back to the value that caused it and the caller reads a 500
+for something it supplied (see R4).
+
+The rule has three instances:
+
+- An integer outside the range of the column that stores it: the column type
+  above for a declared `integer`, and the column D5 gives a built-in attribute
+  such as a commit's `ordinal`.
+- `NaN`, `Infinity` and `-Infinity`. JSON has no literal for any of the three,
+  yet parsers commonly accept all three, so they reach an implementation that
+  did not ask for them. JSON serialization has nothing to render them as either,
+  so a stored one would come back as `null` and be indistinguishable from a value
+  the entity does not have.
+- The NUL character, `U+0000`, which JSON can carry but PostgreSQL cannot store
+  (see D5).
+
+The last two apply wherever a value is read -- in `fields`, in a metric, in a
+built-in attribute, in an identity attribute, and at any depth inside a run's
+`run_parameters` blob, in an object key as much as in a value (see D6).
+
+An implementation enforces this where values are typed, not per endpoint: every
+one of those places is reachable from more than one write path, and a check
+attached to a path is one new path away from being forgotten.
 
 A `datetime` is an ISO 8601 string in both directions, and nothing else is accepted
 for one. On the way in, a string carrying an offset is converted to UTC and one
@@ -276,13 +302,12 @@ storing timezone-aware UTC values. Implementations
 must ensure timestamps are converted to UTC before storage. API responses
 serialize timestamps as ISO 8601 with `Z` suffix (e.g., `"2026-04-15T14:30:00Z"`).
 
-**String convention**: PostgreSQL cannot store the NUL character (U+0000) in a
-string column, although JSON can carry one. A submitted string containing it -- a
-declared `text` value or a built-in such as a machine name -- is rejected with 400
-rather than accepted and then failing to store, and so is one a body only looks
-something up by. A URL carrying one -- in a path segment or a filter such as
-`search=` -- is refused whole with 400 before routing (see R4), which covers
-every segment and every filter, including ones added later.
+**String convention**: PostgreSQL stores the NUL character (U+0000) in neither a
+string column nor a `jsonb` value, although JSON can carry one and most languages'
+strings hold it happily. See D3 for how a submission containing one is answered.
+A URL carrying one -- in a path segment or a filter such as `search=` -- is
+refused whole with 400 before routing (see R4), which covers every segment and
+every filter, including ones added later.
 
 **Index convention**: A `unique` constraint or primary key implies an index, and
 compound indexes are listed in each table's notes. `indexed` therefore marks
@@ -443,12 +468,13 @@ that form.
 | uuid | VARCHAR(36) | unique, not null |
 | machine_id | INTEGER FK -> Machine | not null |
 | commit_id | INTEGER FK -> Commit | not null, indexed |
-| submitted_at | TIMESTAMP WITH TIME ZONE | not null |
+| submitted_at | TIMESTAMP WITH TIME ZONE | not null, default `now()` |
 | run_parameters | JSONB | not null, default `{}` |
 
 - Every run must have a commit (`commit_id` is not null).
 - `submitted_at` is recorded by the server when the run is accepted; a
-  submission cannot supply it (see D6).
+  submission cannot supply it (see D6). The column default is what supplies it,
+  so the value is the database's clock rather than any one worker's.
 - Compound index on `(machine_id, submitted_at)`. Its leading column serves
   lookups of all runs for a machine, and the pair keeps both
   `GET /api/suites/{testsuite}/machines/{name}/runs?sort=-submitted_at` and the
@@ -544,8 +570,9 @@ The DB layer validates state values on create and update.
   (Unlike Run UUIDs, which may be client-provided, Profile and Regression
   UUIDs are always server-generated.)
 - Cascade: deleting a run cascades to its profiles.
-- Maximum accepted profile size on submission: 50 MB (decoded). Submissions
-  exceeding this are rejected.
+- Maximum accepted profile size on submission: 50 MB decoded, meaning exactly
+  52,428,800 bytes (50 x 1024 x 1024) and not 50,000,000. Submissions exceeding
+  this are rejected.
 
 ### Tables Dropped from v4
 

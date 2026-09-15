@@ -1,4 +1,4 @@
-"""Reading back what PostgreSQL actually stored.
+"""Reading back what PostgreSQL actually stored, and what was sent to make it store it.
 
 Shared by the global tables' tests and the per-suite ones, which owe the same check: that every name
 the naming convention composes survives PostgreSQL's 63-byte identifier limit (D14). Plain helpers
@@ -7,11 +7,25 @@ rather than fixtures, so they live here instead of in `conftest.py`.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import Any
 
-from sqlalchemy import Engine, Inspector, MetaData, Select, Table, inspect, select, text
+from sqlalchemy import (
+    Engine,
+    Inspector,
+    MetaData,
+    Select,
+    Table,
+    event,
+    func,
+    inspect,
+    select,
+    text,
+)
 from sqlalchemy.engine.interfaces import ReflectedColumn, ReflectedIndex
 
+from lnt_v5.suites.tables import SuiteTables
 from lnt_v5.tables import SCHEMA_VERSION_ID, schema_version
 
 
@@ -124,3 +138,50 @@ def row_count(engine: Engine, statement: Select[Any]) -> int:
     """
     with engine.connect() as connection:
         return len(connection.execute(statement).all())
+
+
+def counted(engine: Engine, tables: SuiteTables, name: str) -> int:
+    """Every row in one of a suite's tables, named the way `SuiteTables` names it.
+
+    The common case of `row_count` above, and by far the most asked for: a test that submitted a
+    run and wants to know how many machines, tests or samples it produced. Named by attribute
+    rather than by column so the caller writes what it means, and shared for the same reason
+    `row_count` is.
+    """
+    table: Table = getattr(tables, name)
+    with engine.connect() as connection:
+        return int(connection.execute(select(func.count()).select_from(table)).scalar_one())
+
+
+@contextmanager
+def counting_statements(mentioning: str) -> Iterator[list[str]]:
+    """Every statement naming `mentioning` that was sent to PostgreSQL while the block ran.
+
+    What pins D13's cost guarantees, which no assertion about the rows that ended up stored can
+    see: resolving test names one at a time, or a sample insert issued per row, produces exactly
+    the same database contents as the statements the design requires and would pass every other
+    test. Counting is the only way to tell them apart, so the requirement is asserted by counting.
+
+    Listens on the `Engine` *class* rather than on an engine, because the interesting caller is the
+    application, whose engine a test driving it over HTTP never holds. `mentioning` is what keeps
+    that from being noisy: it selects the statements the test is about, so pool bookkeeping and
+    whatever the fixtures happen to do cannot change the count.
+    """
+    seen: list[str] = []
+
+    def record(
+        connection: Any,
+        cursor: Any,
+        statement: str,
+        parameters: Any,
+        context: Any,
+        executemany: bool,
+    ) -> None:
+        if mentioning in statement:
+            seen.append(statement)
+
+    event.listen(Engine, "before_cursor_execute", record)
+    try:
+        yield seen
+    finally:
+        event.remove(Engine, "before_cursor_execute", record)
