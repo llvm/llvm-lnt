@@ -12,13 +12,16 @@ from collections.abc import Callable, Iterator
 from typing import Any
 
 import pytest
-from sqlalchemy import Connection, Engine, Inspector, Table, insert, inspect, select, text
-from sqlalchemy.engine.interfaces import ReflectedColumn
+from sqlalchemy import Connection, Engine, Inspector, Table, func, insert, inspect, select, text
+from sqlalchemy.engine.interfaces import ReflectedColumn, ReflectedIndex
 from sqlalchemy.exc import IntegrityError, ProgrammingError
 
+from introspection import assert_names_survived, sql_type_of, stored_names
 from lnt_v5.suites import tables as suite_tables
-from lnt_v5.suites.schema import SuiteSchema
-from lnt_v5.suites.tables import RegressionState, SuiteTables
+from lnt_v5.suites.schema import CommitField, Entry, MachineField, Metric, SuiteSchema
+from lnt_v5.suites.states import RegressionState
+from lnt_v5.suites.tables import SuiteTables
+from lnt_v5.tables import IDENTIFIER_MAX_LENGTH
 from lnt_v5.tables import metadata as global_metadata
 
 # The eight tables D5 gives every suite.
@@ -82,38 +85,16 @@ def columns_of(inspector: Inspector, suite: str, table: str) -> dict[str, Reflec
     return {column["name"]: column for column in inspector.get_columns(table, schema=suite)}
 
 
-def sql_type_of(engine: Engine, suite: str, table: str, column: str) -> str:
-    """The column type PostgreSQL reports, spelled the way D3's table spells it.
-
-    Read from `information_schema` rather than from SQLAlchemy's reflection, which renders a
-    `timestamptz` as `TIMESTAMP` with a separate `timezone` flag and so cannot be compared against
-    D3 directly.
-    """
-    with engine.connect() as connection:
-        return str(
-            connection.execute(
-                text(
-                    "SELECT data_type FROM information_schema.columns "
-                    "WHERE table_schema = :suite AND table_name = :table AND column_name = :column"
-                ),
-                {"suite": suite, "table": table, "column": column},
-            ).scalar_one()
-        ).upper()
-
-
-def names_in(inspector: Inspector, suite: str, table: str) -> set[str]:
-    """Every constraint and index name PostgreSQL stored for a table."""
-    found = {index["name"] for index in inspector.get_indexes(table, schema=suite)}
-    found |= {u["name"] for u in inspector.get_unique_constraints(table, schema=suite)}
-    found |= {f["name"] for f in inspector.get_foreign_keys(table, schema=suite)}
-    found |= {c["name"] for c in inspector.get_check_constraints(table, schema=suite)}
-    primary_key = inspector.get_pk_constraint(table, schema=suite)
-    found.add(primary_key.get("name"))
-    return {str(name) for name in found if name is not None}
+def indexes_of(inspector: Inspector, suite: str, table: str) -> dict[str, ReflectedIndex]:
+    return {str(index["name"]): index for index in inspector.get_indexes(table, schema=suite)}
 
 
 def seed(connection: Connection, tables: SuiteTables) -> dict[str, int]:
-    """One row in each table, wired together, for the cascade and constraint tests."""
+    """One row in each table, wired together, for the cascade and constraint tests.
+
+    Returns only the ids a test can address something by. The profile and indicator rows exist for
+    the cascade counts, which never need to name them.
+    """
     machine = connection.execute(
         insert(tables.machine).values(name="linux-x86_64").returning(tables.machine.c.id)
     ).scalar_one()
@@ -131,16 +112,6 @@ def seed(connection: Connection, tables: SuiteTables) -> dict[str, int]:
     sample = connection.execute(
         insert(tables.sample).values(run_id=run, test_id=test).returning(tables.sample.c.id)
     ).scalar_one()
-    profile = connection.execute(
-        insert(tables.profile)
-        .values(
-            uuid="22222222-2222-4222-8222-222222222222",
-            run_id=run,
-            test_id=test,
-            data=b"\x02profile",
-        )
-        .returning(tables.profile.c.id)
-    ).scalar_one()
     regression = connection.execute(
         insert(tables.regression)
         .values(
@@ -150,31 +121,35 @@ def seed(connection: Connection, tables: SuiteTables) -> dict[str, int]:
         )
         .returning(tables.regression.c.id)
     ).scalar_one()
-    indicator = connection.execute(
-        insert(tables.regression_indicator)
-        .values(
+    connection.execute(
+        insert(tables.profile).values(
+            uuid="22222222-2222-4222-8222-222222222222",
+            run_id=run,
+            test_id=test,
+            data=b"\x02profile",
+        )
+    )
+    connection.execute(
+        insert(tables.regression_indicator).values(
             uuid="44444444-4444-4444-8444-444444444444",
             regression_id=regression,
             machine_id=machine,
             test_id=test,
             metric="execution_time",
         )
-        .returning(tables.regression_indicator.c.id)
-    ).scalar_one()
+    )
     return {
         "machine": machine,
         "commit": commit,
         "test": test,
         "run": run,
         "sample": sample,
-        "profile": profile,
         "regression": regression,
-        "indicator": indicator,
     }
 
 
 def count(connection: Connection, table: Table) -> int:
-    return len(connection.execute(select(table.c.id)).all())
+    return connection.execute(select(func.count()).select_from(table)).scalar_one()
 
 
 class TestCreate:
@@ -234,48 +209,76 @@ class TestDrop:
 
 
 class TestBuiltInColumns:
-    def test_commit_carries_what_d5_specifies(
-        self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
+    @pytest.mark.parametrize(
+        ("table", "expected"),
+        [
+            # D5's column list for each of the eight tables, in order, with FULL's dynamic columns
+            # appended where the table takes them -- so this also pins that a schema's entries come
+            # after the built-ins rather than interleaved with them.
+            ("commit", ["id", "commit", "ordinal", "tag", "git_sha", "commit_timestamp"]),
+            ("machine", ["id", "name", "tracked", "hardware", "core_count"]),
+            ("run", ["id", "uuid", "machine_id", "commit_id", "submitted_at", "run_parameters"]),
+            ("test", ["id", "name"]),
+            (
+                "sample",
+                [
+                    "id",
+                    "run_id",
+                    "test_id",
+                    "execution_time",
+                    "compile_status",
+                    "build_id",
+                    "measured_at",
+                ],
+            ),
+            ("regression", ["id", "uuid", "title", "bug", "notes", "state", "commit_id"]),
+            (
+                "regression_indicator",
+                ["id", "uuid", "regression_id", "machine_id", "test_id", "metric"],
+            ),
+            ("profile", ["id", "uuid", "run_id", "test_id", "created_at", "data"]),
+        ],
+    )
+    def test_each_table_carries_what_d5_specifies(
+        self,
+        db_engine: Engine,
+        make_suite: Callable[..., SuiteTables],
+        table: str,
+        expected: list[str],
     ) -> None:
         make_suite("nts", **FULL)
 
-        columns = columns_of(inspect(db_engine), "nts", "commit")
+        assert list(columns_of(inspect(db_engine), "nts", table)) == expected
 
-        assert list(columns) == ["id", "commit", "ordinal", "tag", "git_sha", "commit_timestamp"]
-        assert columns["commit"]["nullable"] is False
-        # D1: an ordinal is optional, and NULL means unordered.
-        assert columns["ordinal"]["nullable"] is True
-        assert columns["tag"]["nullable"] is True
-
-    def test_machine_carries_what_d5_specifies(
-        self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
+    @pytest.mark.parametrize(
+        ("table", "column", "nullable"),
+        [
+            ("commit", "commit", False),
+            # D1: an ordinal is optional, and NULL means unordered.
+            ("commit", "ordinal", True),
+            ("commit", "tag", True),
+            ("machine", "name", False),
+            ("machine", "tracked", False),
+            # D6: every run has a commit, and the submission cannot supply the timestamp.
+            ("run", "commit_id", False),
+            ("run", "submitted_at", False),
+            # D5: a regression need not name a commit, but must have a state.
+            ("regression", "commit_id", True),
+            ("regression", "state", False),
+            ("profile", "data", False),
+        ],
+    )
+    def test_each_built_in_column_is_nullable_where_d5_says(
+        self,
+        db_engine: Engine,
+        make_suite: Callable[..., SuiteTables],
+        table: str,
+        column: str,
+        nullable: bool,
     ) -> None:
         make_suite("nts", **FULL)
 
-        columns = columns_of(inspect(db_engine), "nts", "machine")
-
-        assert list(columns) == ["id", "name", "tracked", "hardware", "core_count"]
-        assert columns["name"]["nullable"] is False
-        assert columns["tracked"]["nullable"] is False
-
-    def test_run_carries_what_d5_specifies(
-        self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
-    ) -> None:
-        make_suite("nts", **FULL)
-
-        columns = columns_of(inspect(db_engine), "nts", "run")
-
-        assert list(columns) == [
-            "id",
-            "uuid",
-            "machine_id",
-            "commit_id",
-            "submitted_at",
-            "run_parameters",
-        ]
-        # D6: every run has a commit, and the submission cannot supply the timestamp.
-        assert columns["commit_id"]["nullable"] is False
-        assert columns["submitted_at"]["nullable"] is False
+        assert columns_of(inspect(db_engine), "nts", table)[column]["nullable"] is nullable
 
     def test_a_machine_is_tracked_unless_told_otherwise(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
@@ -391,28 +394,20 @@ class TestNamingConvention:
         """
         tables = make_suite("nts", **FULL)
 
-        inspector = inspect(db_engine)
-        for table in tables.metadata.sorted_tables:
-            composed = {
-                str(constraint.name)
-                for constraint in table.constraints
-                if constraint.name is not None
-            } | {str(index.name) for index in table.indexes if index.name is not None}
-            stored = names_in(inspector, "nts", table.name)
-            assert composed <= stored, f"{table.name}: {sorted(composed - stored)} did not survive"
+        assert_names_survived(inspect(db_engine), tables.metadata, schema="nts")
 
     def test_the_longest_name_is_exactly_at_the_limit(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
     ) -> None:
-        # D5's unique constraint on regression_indicator composes to exactly 63 bytes. Spelled out
+        # D5's unique constraint on regression_indicator composes to exactly the limit. Spelled out
         # so that a change to the convention or to a column name fails here rather than silently
         # producing a truncated name.
         longest = "uq_regression_indicator_regression_id_machine_id_test_id_metric"
-        assert len(longest) == 63
+        assert len(longest) == IDENTIFIER_MAX_LENGTH
 
         make_suite("nts")
 
-        assert longest in names_in(inspect(db_engine), "nts", "regression_indicator")
+        assert longest in stored_names(inspect(db_engine), schema="nts")["regression_indicator"]
 
     def test_two_suites_carry_identical_names(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
@@ -424,8 +419,30 @@ class TestNamingConvention:
         make_suite("compile", **FULL)
 
         inspector = inspect(db_engine)
-        for table in sorted(SUITE_TABLES):
-            assert names_in(inspector, "nts", table) == names_in(inspector, "compile", table)
+
+        assert stored_names(inspector, schema="nts") == stored_names(inspector, schema="compile")
+
+
+class TestReservedColumns:
+    @pytest.mark.parametrize("entry", [Metric, CommitField, MachineField])
+    def test_each_entry_class_reserves_exactly_its_table_s_built_ins(
+        self, entry: type[Entry]
+    ) -> None:
+        """The two statements of "these are the built-in columns" must agree.
+
+        `schema.py` names them as a literal per entry class, and `build()` creates them. It cannot
+        derive one from the other -- `tables.py` imports `schema.py`, not the reverse -- so nothing
+        but this catches a built-in column added to `build()` without being reserved. The failure it
+        prevents is quiet: `Table()` would let a schema's dynamic, nullable column replace the
+        built-in one outright.
+
+        A suite with no entries, so every column present is a built-in.
+        """
+        bare = suite_tables.build(SuiteSchema.model_validate({"name": "nts"}))
+
+        table = getattr(bare, entry.TABLE)
+
+        assert set(table.c.keys()) == entry.RESERVED_COLUMNS
 
 
 class TestIndexes:
@@ -436,8 +453,7 @@ class TestIndexes:
         # index over the nulls would be most of the table for no lookups.
         make_suite("nts")
 
-        definition = inspect(db_engine).get_indexes("commit", schema="nts")
-        tag = next(index for index in definition if index["name"] == "ix_commit_tag")
+        tag = indexes_of(inspect(db_engine), "nts", "commit")["ix_commit_tag"]
 
         assert tag["column_names"] == ["tag"]
         assert tag.get("dialect_options", {}).get("postgresql_where") is not None
@@ -449,13 +465,10 @@ class TestIndexes:
         # (test_id, run_id) covers the time-series query (D10).
         make_suite("nts")
 
-        indexes = {
-            index["name"]: index["column_names"]
-            for index in inspect(db_engine).get_indexes("sample", schema="nts")
-        }
+        indexes = indexes_of(inspect(db_engine), "nts", "sample")
 
-        assert indexes["ix_sample_run_id_test_id"] == ["run_id", "test_id"]
-        assert indexes["ix_sample_test_id_run_id"] == ["test_id", "run_id"]
+        assert indexes["ix_sample_run_id_test_id"]["column_names"] == ["run_id", "test_id"]
+        assert indexes["ix_sample_test_id_run_id"]["column_names"] == ["test_id", "run_id"]
 
     def test_run_is_indexed_by_machine_and_submission_time(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
@@ -464,12 +477,12 @@ class TestIndexes:
         # scan rather than a scan of the run table.
         make_suite("nts")
 
-        indexes = {
-            index["name"]: index["column_names"]
-            for index in inspect(db_engine).get_indexes("run", schema="nts")
-        }
+        indexes = indexes_of(inspect(db_engine), "nts", "run")
 
-        assert indexes["ix_run_machine_id_submitted_at"] == ["machine_id", "submitted_at"]
+        assert indexes["ix_run_machine_id_submitted_at"]["column_names"] == [
+            "machine_id",
+            "submitted_at",
+        ]
 
 
 class TestUniqueness:
@@ -751,17 +764,17 @@ class TestEvolution:
     def test_a_column_can_be_added_for_every_type(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
     ) -> None:
+        # That `add_column` reaches every declared type. Which SQL type each becomes is
+        # `test_each_declared_type_becomes_the_column_d3_names`' job.
         make_suite("nts")
-        grown = suite_tables.build(
-            SuiteSchema.model_validate({"name": "nts", **FULL}),
-        )
+        added = ("execution_time", "compile_status", "build_id", "measured_at")
+        grown = suite_tables.build(SuiteSchema.model_validate({"name": "nts", **FULL}))
 
         with db_engine.begin() as connection:
-            for name in ("execution_time", "compile_status", "build_id", "measured_at"):
+            for name in added:
                 suite_tables.add_column(connection, grown.sample.c[name])
 
-        assert sql_type_of(db_engine, "nts", "sample", "execution_time") == "DOUBLE PRECISION"
-        assert sql_type_of(db_engine, "nts", "sample", "measured_at") == "TIMESTAMP WITH TIME ZONE"
+        assert set(added) <= set(columns_of(inspect(db_engine), "nts", "sample"))
 
     def test_a_column_can_be_removed(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]

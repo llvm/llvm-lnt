@@ -7,11 +7,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from lnt_v5.suites.schema import (
-    NUMERIC_TYPES,
-    AttributeType,
-    SuiteSchema,
-)
+from lnt_v5.suites.schema import AttributeType, SuiteSchema
 
 # The schema from D4, which exercises every list and most of the optional keys.
 EXAMPLE: dict[str, Any] = {
@@ -119,25 +115,26 @@ class TestEntryNames:
 
     @pytest.mark.parametrize("name", ["id", "commit", "ordinal", "tag"])
     def test_a_commit_field_cannot_shadow_a_commit_column(self, name: str) -> None:
-        with pytest.raises(ValidationError, match="built-in column"):
+        with pytest.raises(ValidationError, match="built-in column on 'commit'"):
             SuiteSchema.model_validate(schema(commit_fields=[{"name": name, "type": "text"}]))
 
     @pytest.mark.parametrize("name", ["id", "name", "tracked"])
     def test_a_machine_field_cannot_shadow_a_machine_column(self, name: str) -> None:
-        with pytest.raises(ValidationError, match="built-in column"):
+        with pytest.raises(ValidationError, match="built-in column on 'machine'"):
             SuiteSchema.model_validate(schema(machine_fields=[{"name": name, "type": "text"}]))
 
     @pytest.mark.parametrize("name", ["id", "run_id", "test_id"])
     def test_a_metric_cannot_shadow_a_sample_column(self, name: str) -> None:
-        with pytest.raises(ValidationError, match="built-in column"):
+        with pytest.raises(ValidationError, match="built-in column on 'sample'"):
             SuiteSchema.model_validate(schema(metrics=[{"name": name, "type": "real"}]))
 
     @pytest.mark.parametrize("name", ["name", "profile"])
-    def test_a_metric_cannot_shadow_a_reserved_submission_key(self, name: str) -> None:
+    def test_a_metric_cannot_take_a_reserved_submission_key(self, name: str) -> None:
         # D6: a test entry is `name` plus metric values, with `profile` carrying base64 profile
         # data. A metric called either could never be given a value, so the suite is refused
-        # rather than created in a state where one of its metrics is unreachable.
-        with pytest.raises(ValidationError, match="built-in column"):
+        # rather than created in a state where one of its metrics is unreachable. This is not a
+        # column collision -- `profile` is a table of its own -- so the message must not say it is.
+        with pytest.raises(ValidationError, match="reserved key inside a submission"):
             SuiteSchema.model_validate(schema(metrics=[{"name": name, "type": "real"}]))
 
 
@@ -163,11 +160,6 @@ class TestTypes:
         # `status`, `hash` and `default` are v4 spellings, and v5 keeps no compatibility with them.
         with pytest.raises(ValidationError):
             SuiteSchema.model_validate(schema(metrics=[{"name": "m", "type": attribute}]))
-
-    def test_the_numeric_types_are_the_ones_arithmetic_is_defined_over(self) -> None:
-        # D3: what `POST /trends` requires of a metric, and what the Dashboard and Compare pages
-        # filter their metric pickers by.
-        assert {AttributeType.REAL, AttributeType.INTEGER} == NUMERIC_TYPES
 
 
 class TestPresentationKeys:

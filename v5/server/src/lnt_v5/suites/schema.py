@@ -14,12 +14,13 @@ What a schema *does* is create columns; see `tables.py` for the tables these ent
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from enum import StrEnum
 from typing import Annotated, ClassVar, Self
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
-from lnt_v5.tables import SUITE_NAME_MAX_LENGTH
+from lnt_v5.tables import IDENTIFIER_MAX_LENGTH
 
 # D4: a suite name is also the name of the namespace holding its tables, and an entry name is also
 # the name of a column. Both are therefore identifiers, and both follow one rule -- lowercase,
@@ -35,17 +36,19 @@ from lnt_v5.tables import SUITE_NAME_MAX_LENGTH
 # pattern would accept anything merely containing a legal name.
 NAME_PATTERN = r"^[a-z][a-z0-9_]*$"
 
-# The same bound for both, since both are identifiers; `tables.py` happens to introduce it under
-# the suite's name, where D4 states it.
-NAME_MAX_LENGTH = SUITE_NAME_MAX_LENGTH
-
 # D4: names that satisfy the pattern but still cannot be a suite, because a namespace cannot be
 # created under them. The first two already exist in every database; the prefix is reserved by
 # PostgreSQL for its own use.
 RESERVED_SUITE_NAMES = frozenset({"public", "information_schema"})
 RESERVED_SUITE_PREFIX = "pg_"
 
-Name = Annotated[str, StringConstraints(pattern=NAME_PATTERN, max_length=NAME_MAX_LENGTH)]
+# D6: a test entry in a submission is `name` plus metric values, with `profile` carrying
+# base64-encoded profile data. A metric called either could never be given a value, so a schema
+# declaring one is rejected rather than accepted into a state where one of its metrics is
+# unreachable. This is a property of the submission format, not of any table's columns.
+RESERVED_TEST_ENTRY_KEYS = frozenset({"name", "profile"})
+
+Name = Annotated[str, StringConstraints(pattern=NAME_PATTERN, max_length=IDENTIFIER_MAX_LENGTH)]
 
 
 class AttributeType(StrEnum):
@@ -67,7 +70,7 @@ class AttributeType(StrEnum):
 NUMERIC_TYPES = frozenset({AttributeType.REAL, AttributeType.INTEGER})
 
 
-class _Entry(BaseModel):
+class Entry(BaseModel):
     """What every entry carries, whichever of the three lists it belongs to.
 
     `extra="forbid"` is doing real work here, not just tidiness: it is what makes the presentation
@@ -77,25 +80,28 @@ class _Entry(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    # Names that are already columns on the table this entry extends, and so cannot be declared
-    # (D5). Each subclass names its own; the validator below is shared.
-    RESERVED: ClassVar[frozenset[str]] = frozenset()
+    # The per-suite table this entry adds a column to, and the columns that table already has (D5).
+    # A declared name may not collide with one of those. Each subclass names its own; the validator
+    # below is shared, and `test_suite_tables.py` checks each set against the columns the table
+    # builder actually creates, since the two are stated separately and could otherwise drift.
+    TABLE: ClassVar[str] = ""
+    RESERVED_COLUMNS: ClassVar[frozenset[str]] = frozenset()
 
     name: Name
     type: AttributeType
     display_name: str | None = None
 
     @model_validator(mode="after")
-    def _reject_reserved_name(self) -> Self:
-        if self.name in self.RESERVED:
+    def _reject_reserved_column(self) -> Self:
+        if self.name in self.RESERVED_COLUMNS:
             raise ValueError(
-                f"'{self.name}' is a built-in column name and cannot be declared; "
-                f"reserved here: {', '.join(sorted(self.RESERVED))}"
+                f"'{self.name}' is already a built-in column on '{self.TABLE}' and cannot be "
+                f"declared; built-in there: {', '.join(sorted(self.RESERVED_COLUMNS))}"
             )
         return self
 
 
-class _SearchableEntry(_Entry):
+class _SearchableEntry(Entry):
     """An entry on an entity that `?search=` covers (D9).
 
     Substring matching only makes sense over text, so the flag is confined to `text` entries
@@ -113,25 +119,34 @@ class _SearchableEntry(_Entry):
         return self
 
 
-class Metric(_Entry):
+class Metric(Entry):
     """A measured value, stored as a column on `{suite}.sample` (D5)."""
 
-    # `id`, `run_id` and `test_id` are the sample's own columns. `name` and `profile` are reserved
-    # by the submission format instead (D6): a test entry is `name` plus metric values, with
-    # `profile` carrying base64 profile data, so a metric called either would be unsubmittable.
-    # Rejecting them here rather than at submission is what keeps a suite from being created in a
-    # state where some of its metrics can never receive a value.
-    RESERVED: ClassVar[frozenset[str]] = frozenset({"id", "run_id", "test_id", "name", "profile"})
+    TABLE: ClassVar[str] = "sample"
+    RESERVED_COLUMNS: ClassVar[frozenset[str]] = frozenset({"id", "run_id", "test_id"})
 
     unit: str | None = None
     unit_abbrev: str | None = None
     bigger_is_better: bool = False
 
+    @model_validator(mode="after")
+    def _reject_reserved_submission_key(self) -> Self:
+        # A second, unrelated rule: these names are unusable not because the sample table has them,
+        # but because the submission format spells them (see RESERVED_TEST_ENTRY_KEYS).
+        if self.name in RESERVED_TEST_ENTRY_KEYS:
+            raise ValueError(
+                f"'{self.name}' is a reserved key inside a submission's test entries, so no "
+                f"metric may be named it; reserved: "
+                f"{', '.join(sorted(RESERVED_TEST_ENTRY_KEYS))}"
+            )
+        return self
+
 
 class CommitField(_SearchableEntry):
     """Optional metadata on `{suite}.commit` (D5)."""
 
-    RESERVED: ClassVar[frozenset[str]] = frozenset({"id", "commit", "ordinal", "tag"})
+    TABLE: ClassVar[str] = "commit"
+    RESERVED_COLUMNS: ClassVar[frozenset[str]] = frozenset({"id", "commit", "ordinal", "tag"})
 
     display: bool = Field(
         default=False,
@@ -145,10 +160,11 @@ class CommitField(_SearchableEntry):
 class MachineField(_SearchableEntry):
     """Optional metadata on `{suite}.machine` (D5)."""
 
-    RESERVED: ClassVar[frozenset[str]] = frozenset({"id", "name", "tracked"})
+    TABLE: ClassVar[str] = "machine"
+    RESERVED_COLUMNS: ClassVar[frozenset[str]] = frozenset({"id", "name", "tracked"})
 
 
-def _reject_duplicates(entries: list[Metric] | list[CommitField] | list[MachineField]) -> None:
+def _reject_duplicates(entries: Sequence[Entry]) -> None:
     """Each entry becomes a column, so one name may appear at most once within a list.
 
     Across lists is fine and expected: a metric `os` and a machine field `os` are columns on

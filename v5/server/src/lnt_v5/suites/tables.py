@@ -15,7 +15,6 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from enum import IntEnum
 from typing import Any
 
 from sqlalchemy import (
@@ -43,32 +42,25 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.schema import CreateColumn
 from sqlalchemy.types import TypeEngine
 
-from lnt_v5.suites.schema import AttributeType, CommitField, MachineField, Metric, SuiteSchema
+from lnt_v5.suites.schema import AttributeType, Entry, SuiteSchema
+from lnt_v5.suites.states import RegressionState
 from lnt_v5.tables import NAMING_CONVENTION
 
 # D5's widths for the built-in string columns. A UUID is the 36-character hyphenated form (R1).
+# Deliberately not shared with `api_key.name`'s identical width in tables.py: D5 states these per
+# column, and the two would then have to change together for no reason.
 NAME_LENGTH = 256
 UUID_LENGTH = 36
-
-
-class RegressionState(IntEnum):
-    """The states D5 stores in `{suite}.regression.state`, by their stored value.
-
-    Stored as an integer and exposed as a string (endpoints.md, Regressions); the member names are
-    the strings. Unlike an API key's scope, which D5 keeps as text because it is read once per
-    request and never filtered on, this column is indexed and filtered on by `?state=`.
-    """
-
-    DETECTED = 0
-    ACTIVE = 1
-    NOT_TO_BE_FIXED = 2
-    FIXED = 3
-    FALSE_POSITIVE = 4
 
 
 # D3's mapping from a declared type to the column that stores it. `Double` rather than `Float`
 # because D3 names DOUBLE PRECISION specifically, and SQLAlchemy's `Float` is REAL on PostgreSQL --
 # single precision, which would quietly round every sample.
+#
+# The instances are shared across every column and every suite. That is safe because none of these
+# four is a `SchemaType`: nothing binds them to a parent column, so no column can mutate them. It
+# does not extend to `Identity()`, `ForeignKey(...)` or the constraints below, which do bind to
+# their parent and must be constructed per call.
 _COLUMN_TYPES: dict[AttributeType, TypeEngine[Any]] = {
     AttributeType.REAL: Double(),
     AttributeType.INTEGER: Integer(),
@@ -77,18 +69,13 @@ _COLUMN_TYPES: dict[AttributeType, TypeEngine[Any]] = {
 }
 
 
-def column_type(attribute: AttributeType) -> TypeEngine[Any]:
-    """The column that stores a value of this declared type (D3)."""
-    return _COLUMN_TYPES[attribute]
-
-
-def _dynamic(entries: Sequence[Metric | CommitField | MachineField]) -> list[Column[Any]]:
+def _dynamic(entries: Sequence[Entry]) -> list[Column[Any]]:
     """The columns a schema's `metrics`, `commit_fields` or `machine_fields` become.
 
     All nullable: a schema change may add an entry at any time, which leaves every existing row
     with no value for it (D2), and a submission need not carry every declared field (D7).
     """
-    return [Column(entry.name, column_type(entry.type), nullable=True) for entry in entries]
+    return [Column(entry.name, _COLUMN_TYPES[entry.type], nullable=True) for entry in entries]
 
 
 @dataclass(frozen=True)
@@ -99,7 +86,6 @@ class SuiteTables:
     `tables.sample.c.run_id`, and so that a typo is a type error.
     """
 
-    name: str
     metadata: MetaData
     commit: Table
     machine: Table
@@ -109,6 +95,15 @@ class SuiteTables:
     regression: Table
     regression_indicator: Table
     profile: Table
+
+    @property
+    def name(self) -> str:
+        """The suite, which is also the namespace its tables live in.
+
+        Derived rather than stored: `MetaData(schema=...)` is what actually places the tables, so a
+        separate copy could only ever disagree with it.
+        """
+        return str(self.metadata.schema)
 
 
 def build(schema: SuiteSchema) -> SuiteTables:
@@ -251,7 +246,6 @@ def build(schema: SuiteSchema) -> SuiteTables:
     )
 
     return SuiteTables(
-        name=schema.name,
         metadata=metadata,
         commit=commit,
         machine=machine,
