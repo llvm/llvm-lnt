@@ -307,6 +307,12 @@ def submitter(
     return bearer(make_key(Scope.SUBMIT))
 
 
+@pytest.fixture
+def triage(make_key: Callable[..., str], bearer: Callable[[str], dict[str, str]]) -> dict[str, str]:
+    """The header for a `triage` key -- what endpoints.md gives the regression writes (R5)."""
+    return bearer(make_key(Scope.TRIAGE))
+
+
 def walk_pages(client: TestClient, path: str, query: str = "") -> list[Any]:
     """Every item a cursor-paginated list serves, following `cursor.next` to the end (R2).
 
@@ -345,6 +351,11 @@ def make_api_suite(
         return build(SuiteSchema.model_validate(response.json()))
 
     return make
+
+
+def uuids_in(response: Any) -> list[str]:
+    """The UUID of every item a list response carries, in the order it served them."""
+    return [item["uuid"] for item in response.json()["items"]]
 
 
 def code_of(response: Any) -> str:
