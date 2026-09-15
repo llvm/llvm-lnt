@@ -7,23 +7,19 @@ deployment -- which is the only way to reach the protocol these tests exist for.
 from __future__ import annotations
 
 import threading
-from collections.abc import Callable, Iterator
+from collections.abc import Callable
 
 import pytest
-from sqlalchemy import Connection, Engine, event, insert, inspect, select, text, update
+from sqlalchemy import Engine, event, insert, inspect, select, update
 from sqlalchemy.exc import ProgrammingError
 
-from introspection import stored_names
+from introspection import schema_version_of, stored_names
 from lnt_v5.errors import ApiError, ErrorCode
 from lnt_v5.suites import tables as suite_tables
-from lnt_v5.suites.registry import (
-    SCHEMA_NAME_CONSTRAINT,
-    SuiteRegistry,
-    bump,
-    locked_suite,
-)
+from lnt_v5.suites.registry import SuiteRegistry
 from lnt_v5.suites.schema import SuiteSchema
-from lnt_v5.tables import SCHEMA_VERSION_ID, schema, schema_version
+from lnt_v5.suites.store import SCHEMA_NAME_CONSTRAINT, bump, locked_suite, normalized_json
+from lnt_v5.tables import schema, schema_version
 
 MINIMAL = {"name": "nts", "metrics": [{"name": "execution_time", "type": "real"}]}
 
@@ -40,22 +36,13 @@ def store(db_engine: Engine) -> Callable[..., SuiteSchema]:
         parsed = schema_for(name, **overrides)
         with db_engine.begin() as connection:
             connection.execute(
-                insert(schema).values(name=name, schema_json=parsed.model_dump_json())
+                insert(schema).values(name=name, schema_json=normalized_json(parsed))
             )
             suite_tables.create(connection, suite_tables.build(parsed))
             bump(connection)
         return parsed
 
     return write
-
-
-def version_of(engine: Engine) -> int:
-    with engine.connect() as connection:
-        return int(
-            connection.execute(
-                select(schema_version.c.version).where(schema_version.c.id == SCHEMA_VERSION_ID)
-            ).scalar_one()
-        )
 
 
 def fresh(registry: SuiteRegistry, engine: Engine) -> dict[str, object]:
@@ -137,7 +124,7 @@ class TestFreshness:
             connection.execute(
                 update(schema)
                 .where(schema.c.name == "nts")
-                .values(schema_json=evolved.model_dump_json())
+                .values(schema_json=normalized_json(evolved))
             )
             bump(connection)
 
@@ -255,21 +242,21 @@ class TestBump:
     def test_is_undone_with_the_transaction_that_made_it(self, db_engine: Engine) -> None:
         # D2 puts the bump in the same transaction as the write, so a write that rolls back must
         # not leave every other worker reloading for a change that never happened.
-        before = version_of(db_engine)
+        before = schema_version_of(db_engine)
 
         with pytest.raises(RuntimeError), db_engine.begin() as connection:
             bump(connection)
             raise RuntimeError("rolled back")
 
-        assert version_of(db_engine) == before
+        assert schema_version_of(db_engine) == before
 
     def test_moves_the_counter_when_it_commits(self, db_engine: Engine) -> None:
-        before = version_of(db_engine)
+        before = schema_version_of(db_engine)
 
         with db_engine.begin() as connection:
             bump(connection)
 
-        assert version_of(db_engine) == before + 1
+        assert schema_version_of(db_engine) == before + 1
 
     def test_leaves_exactly_one_row(self, db_engine: Engine) -> None:
         # It addresses the row by the fixed id `tables.py` gives it rather than updating whatever
@@ -309,7 +296,7 @@ class TestLockedSuite:
             connection.execute(
                 update(schema)
                 .where(schema.c.name == "nts")
-                .values(schema_json=evolved.model_dump_json())
+                .values(schema_json=normalized_json(evolved))
             )
             # Deliberately no bump, so any cache would still be showing the old schema.
 
@@ -327,7 +314,6 @@ class TestLockedSuite:
         """
         store("nts")
         reached = threading.Event()
-        released = threading.Event()
 
         def second() -> None:
             with db_engine.begin() as connection:
@@ -340,7 +326,6 @@ class TestLockedSuite:
             waiter.start()
             # Long enough to be sure it is blocked rather than merely slow.
             assert not reached.wait(timeout=1.0), "the second caller was not blocked"
-            released.set()
 
         assert reached.wait(timeout=10.0), "the second caller never got the row"
         waiter.join(timeout=10.0)
@@ -355,18 +340,10 @@ class TestConstraintNames:
 
 
 class TestUnmigratedDatabase:
-    @pytest.fixture
-    def unmigrated(self, empty_database_url: str) -> Iterator[Engine]:
-        from sqlalchemy import create_engine
-
-        engine = create_engine(empty_database_url)
-        yield engine
-        engine.dispose()
-
-    def test_fails_rather_than_reporting_no_suites(self, unmigrated: Engine) -> None:
+    def test_fails_rather_than_reporting_no_suites(self, empty_engine: Engine) -> None:
         # Answering "no suites" would be a lie a caller could not tell from the truth. The server
         # migrates before it serves (D14), so this is only reachable out of band.
-        with unmigrated.connect() as connection, pytest.raises(ProgrammingError):
+        with empty_engine.connect() as connection, pytest.raises(ProgrammingError):
             SuiteRegistry().fresh(connection)
 
 
@@ -389,7 +366,7 @@ class TestSuiteTablesAreNotMutated:
             connection.execute(
                 update(schema)
                 .where(schema.c.name == "nts")
-                .values(schema_json=evolved.model_dump_json())
+                .values(schema_json=normalized_json(evolved))
             )
             bump(connection)
         after = fresh(registry, db_engine)
@@ -398,23 +375,3 @@ class TestSuiteTablesAreNotMutated:
         # The snapshot the caller already had still describes what it described.
         assert "execution_time" in held_suite.tables.sample.c  # type: ignore[attr-defined]
         assert "compile_time" not in held_suite.tables.sample.c  # type: ignore[attr-defined]
-
-
-def commit_suite_directly(connection: Connection, name: str) -> None:
-    """Used by the write-path concurrency tests in `test_suites.py`."""
-    parsed = schema_for(name)
-    connection.execute(insert(schema).values(name=name, schema_json=parsed.model_dump_json()))
-    suite_tables.create(connection, suite_tables.build(parsed))
-    bump(connection)
-
-
-def namespaces(engine: Engine) -> set[str]:
-    with engine.connect() as connection:
-        return set(
-            connection.execute(
-                text(
-                    "SELECT nspname FROM pg_namespace WHERE nspname NOT LIKE 'pg\\_%' "
-                    "AND nspname NOT IN ('public', 'information_schema')"
-                )
-            ).scalars()
-        )

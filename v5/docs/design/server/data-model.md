@@ -61,6 +61,11 @@ snapshot. Read separately they can straddle another worker's commit, and in one 
 two orders the reader ends up caching a counter *newer* than the schemas beside it, so it
 stops reloading and serves stale schemas until the next unrelated change.
 
+A reader's version check must be able to observe writes that committed after the
+request began. A database that gave each request a snapshot fixed at its start would
+never see another worker's bump within that request, and the reader would serve stale
+schemas indefinitely with nothing reporting it.
+
 **Writes do not read the registry**: a write that changes a suite derives the schema it
 is changing from the stored row, taken under a lock that serializes writes to that suite,
 never from the cached copy. The cache is permitted to lag by a commit, so two concurrent
@@ -69,6 +74,14 @@ their own column changes, leaving the tables and the stored schema permanently
 disagreeing. For the same reason every write takes that lock *before* it alters any
 table, so that a change and a deletion of one suite cannot each hold what the other
 needs.
+
+A write waits only a bounded time for what it needs, and reports a retryable conflict
+(409) rather than waiting indefinitely. Altering a suite's tables excludes every reader
+of them, and a request already waiting for that exclusion queues ahead of readers that
+arrive later -- so an unbounded wait behind one long-running query stalls every
+subsequent request for that suite, on every worker, each holding a database connection
+until it gives up. That exhausts the connection pool and takes the health check down
+with it.
 
 **A stale reader is answered, not silently wrong**: between a reader's version check and
 its next query, another worker can remove a field, so a request can reach a column that

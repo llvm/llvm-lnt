@@ -478,8 +478,8 @@ parts of the client need every suite's metric list up front. Suites are ordered 
 itself -- `name`, `metrics`, `commit_fields`, `machine_fields` (see D4 in
 data-model.md for the schema format). On success, returns 201 with the
 created suite's detail body and a `Location` header pointing at
-`GET /api/suites/{name}`. Returns 409 if a suite with that name already
-exists, 400 if the schema definition fails validation (see D4), or 409 if
+`GET /api/suites/{name}`. Returns 409 `duplicate` if a suite with that name already
+exists, 400 if the schema definition fails validation (see D4), or 409 `conflict` if
 suite creation otherwise fails after passing schema validation.
 
 **Evolve** (`PATCH /api/suites/{name}/schema`): changes the suite's `metrics`,
@@ -521,7 +521,8 @@ entries the request touched.
 **Delete** (`DELETE /api/suites/{name}`): permanently deletes the suite and
 all of its data (machines, runs, commits, samples, regressions). Requires a
 `?confirm=true` query parameter; omitting it -- or sending it as false -- returns 400.
-Returns 404 if the suite does not exist, 204 on success.
+Returns 404 if the suite does not exist, 409 `conflict` if the deletion could not take
+the locks it needs and should be retried, and 204 on success.
 
 Both this and `PATCH .../schema` resolve the suite before checking `confirm`, so an
 unknown name is 404 whether or not `confirm=true` was supplied. A suite's existence is

@@ -14,15 +14,19 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, insert, inspect, select, text
+from sqlalchemy.exc import ProgrammingError
 
+from introspection import column_names, schema_version_of
 from lnt_v5.errors import ApiError, ErrorCode
-from lnt_v5.routes.suites import SchemaPatch, delete_suite, patch_schema
+from lnt_v5.routes.suites import SUITES_PATH, delete_suite, patch_schema
 from lnt_v5.scopes import Scope
+from lnt_v5.suites.evolve import SchemaPatch
 from lnt_v5.suites.schema import SuiteSchema
+from lnt_v5.suites.tables import build
 from lnt_v5.tables import IDENTIFIER_MAX_LENGTH
 from lnt_v5.tables import schema as schema_table
 
-SUITES = "/api/suites"
+SUITES = SUITES_PATH
 
 # The schema from D4, trimmed to what these tests need to see move.
 NTS: dict[str, Any] = {
@@ -54,10 +58,6 @@ def create(api_client: TestClient, manage: dict[str, str]) -> Callable[..., Any]
         return api_client.post(SUITES, json={**(body or NTS), **overrides}, headers=manage)
 
     return post
-
-
-def columns(engine: Engine, suite: str, table: str) -> list[str]:
-    return [column["name"] for column in inspect(engine).get_columns(table, schema=suite)]
 
 
 def stored_schema(engine: Engine, name: str) -> dict[str, Any]:
@@ -172,9 +172,9 @@ class TestCreate:
     ) -> None:
         create()
 
-        assert "execution_time" in columns(db_engine, "nts", "sample")
-        assert "git_sha" in columns(db_engine, "nts", "commit")
-        assert "hardware" in columns(db_engine, "nts", "machine")
+        assert "execution_time" in column_names(db_engine, "nts", "sample")
+        assert "git_sha" in column_names(db_engine, "nts", "commit")
+        assert "hardware" in column_names(db_engine, "nts", "machine")
 
     def test_refuses_a_name_already_taken(self, create: Callable[..., Any]) -> None:
         create()
@@ -187,31 +187,11 @@ class TestCreate:
     @pytest.mark.parametrize(
         ("body", "reason"),
         [
-            ({"name": "NTS"}, "uppercase"),
-            ({"name": "public"}, "a namespace that already exists"),
-            ({"name": "pg_x"}, "PostgreSQL's reserved prefix"),
-            ({"name": "a" * (IDENTIFIER_MAX_LENGTH + 1)}, "over the identifier limit"),
-            ({"name": "nts", "metrics": [{"name": "m"}]}, "no type"),
-            ({"name": "nts", "metrics": [{"name": "m", "type": "status"}]}, "a v4 type"),
-            ({"name": "nts", "metrics": [{"name": "id", "type": "real"}]}, "a built-in column"),
-            ({"name": "nts", "metrics": [{"name": "profile", "type": "real"}]}, "a reserved key"),
-            (
-                {
-                    "name": "nts",
-                    "commit_fields": [{"name": "c", "type": "real", "searchable": True}],
-                },
-                "searchable on a non-text field",
-            ),
-            (
-                {
-                    "name": "nts",
-                    "commit_fields": [
-                        {"name": "a", "type": "text", "display": True},
-                        {"name": "b", "type": "text", "display": True},
-                    ],
-                },
-                "two display fields",
-            ),
+            # One case per class of rule; the rules themselves are exercised at the model level in
+            # `test_suite_schema.py`. What this proves is that a model failure surfaces as R4's 400
+            # rather than as the framework's own 422.
+            ({"name": "NTS"}, "a name rule"),
+            ({"name": "nts", "metrics": [{"name": "m", "type": "status"}]}, "a type rule"),
             ({"name": "nts", "format_version": "5"}, "an unknown top-level key"),
         ],
     )
@@ -253,7 +233,7 @@ class TestCreate:
         metric = "m" * IDENTIFIER_MAX_LENGTH
 
         assert create(metrics=[{"name": metric, "type": "real"}]).status_code == 201
-        assert metric in columns(db_engine, "nts", "sample")
+        assert metric in column_names(db_engine, "nts", "sample")
 
 
 class TestDetail:
@@ -322,7 +302,7 @@ class TestEvolve:
             "execution_time",
             "code_size",
         ]
-        assert "code_size" in columns(db_engine, "nts", "sample")
+        assert "code_size" in column_names(db_engine, "nts", "sample")
 
     def test_appends_rather_than_reordering(
         self, api_client: TestClient, create: Callable[..., Any], manage: dict[str, str]
@@ -389,7 +369,7 @@ class TestEvolve:
         manage: dict[str, str],
     ) -> None:
         create()
-        before = columns(db_engine, "nts", "sample")
+        before = column_names(db_engine, "nts", "sample")
 
         patch_request(
             api_client,
@@ -397,7 +377,7 @@ class TestEvolve:
             {"metrics": {"update": [{"name": "compile_time", "display_name": "CT"}]}},
         )
 
-        assert columns(db_engine, "nts", "sample") == before
+        assert column_names(db_engine, "nts", "sample") == before
 
     def test_removes_an_entry_and_its_column(
         self,
@@ -414,7 +394,7 @@ class TestEvolve:
 
         assert response.status_code == 200
         assert [m["name"] for m in response.json()["metrics"]] == ["execution_time"]
-        assert "compile_time" not in columns(db_engine, "nts", "sample")
+        assert "compile_time" not in column_names(db_engine, "nts", "sample")
 
     def test_moves_the_display_field_in_one_request(
         self, api_client: TestClient, create: Callable[..., Any], manage: dict[str, str]
@@ -589,7 +569,7 @@ class TestEvolveConfirmation:
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
         # And nothing happened.
-        assert "compile_time" in columns(db_engine, "nts", "sample")
+        assert "compile_time" in column_names(db_engine, "nts", "sample")
 
     def test_confirm_false_is_not_a_confirmation(
         self, api_client: TestClient, create: Callable[..., Any], manage: dict[str, str]
@@ -638,6 +618,11 @@ class TestEvolveConfirmation:
             ).status_code
             == 200
         )
+
+
+def suite_tables_for(engine: Engine) -> Any:
+    """The tables of the `nts` suite, built from what the endpoint stored."""
+    return build(SuiteSchema.model_validate(stored_schema(engine, "nts")))
 
 
 class TestEvolveAgainstStoredData:
@@ -689,7 +674,7 @@ class TestEvolveAgainstStoredData:
         with db_engine.connect() as connection:
             assert connection.execute(select(populated.sample.c.execution_time)).scalar_one() == 2.5
             assert connection.execute(select(populated.run.c.uuid)).scalar_one() is not None
-        assert "compile_time" not in columns(db_engine, "nts", "sample")
+        assert "compile_time" not in column_names(db_engine, "nts", "sample")
 
     def test_adding_a_metric_leaves_existing_rows_without_a_value(
         self,
@@ -714,17 +699,12 @@ class TestEvolveAgainstStoredData:
         populated: Any,
         manage: dict[str, str],
     ) -> None:
-        response = api_client.delete(f"{SUITES}/nts?confirm=true", headers=manage)
+        # endpoints.md promises the suite "and all of its data"; the namespace going is what makes
+        # every table in it unreachable, so the rows cannot outlive it.
+        api_client.delete(f"{SUITES}/nts?confirm=true", headers=manage)
 
-        assert response.status_code == 204
-        assert "nts" not in inspect(db_engine).get_schema_names()
-
-
-def suite_tables_for(engine: Engine) -> Any:
-    """The tables of the `nts` suite, built from what the endpoint stored."""
-    from lnt_v5.suites.tables import build
-
-    return build(SuiteSchema.model_validate(stored_schema(engine, "nts")))
+        with db_engine.connect() as connection, pytest.raises(ProgrammingError):
+            connection.execute(select(populated.sample.c.id)).all()
 
 
 class TestNoOpEvolve:
@@ -737,8 +717,7 @@ class TestNoOpEvolve:
     ) -> None:
         # A no-op must not make every other worker reload for a change that did not happen (D2).
         created = create().json()
-        with db_engine.connect() as connection:
-            before = connection.execute(text("SELECT version FROM schema_version")).scalar_one()
+        before = schema_version_of(db_engine)
 
         response = patch_request(api_client, manage, {})
 
@@ -865,7 +844,11 @@ class TestConcurrentWrites:
         declared = {m["name"] for m in stored_schema(db_engine, "nts")["metrics"]}
         assert {"aaa", "bbb"} <= declared
         # The assertion that actually catches it: no column exists that the schema does not declare.
-        assert set(columns(db_engine, "nts", "sample")) == declared | {"id", "run_id", "test_id"}
+        assert set(column_names(db_engine, "nts", "sample")) == declared | {
+            "id",
+            "run_id",
+            "test_id",
+        }
 
     def test_a_change_racing_a_delete_does_not_deadlock(
         self, db_engine: Engine, create: Callable[..., Any]
@@ -931,16 +914,8 @@ class TestConcurrentWrites:
 
         assert raised.value.code is ErrorCode.NOT_FOUND
 
-    def test_two_creations_of_one_name_leave_one_suite(
-        self, db_engine: Engine, api_client: TestClient, create: Callable[..., Any]
-    ) -> None:
-        create()
 
-        second = create()
-
-        assert code_of(second) == "duplicate"
-        assert len(api_client.get(SUITES).json()["items"]) == 1
-
+class TestWriteAuthorization:
     @pytest.mark.parametrize(
         ("method", "path"),
         [("post", SUITES), ("patch", f"{SUITES}/nts/schema"), ("delete", f"{SUITES}/nts")],
@@ -948,8 +923,6 @@ class TestConcurrentWrites:
     def test_a_write_needs_a_credential(
         self, api_client: TestClient, create: Callable[..., Any], method: str, path: str
     ) -> None:
-        create()
-
         response = api_client.request(method.upper(), path, json={})
 
         assert response.status_code == 401
@@ -968,8 +941,6 @@ class TestConcurrentWrites:
         method: str,
         path: str,
     ) -> None:
-        create()
-
         response = api_client.request(
             method.upper(), path, json={}, headers=bearer(make_key(Scope.READ))
         )

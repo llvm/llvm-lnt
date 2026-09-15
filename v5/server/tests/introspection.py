@@ -7,7 +7,10 @@ rather than fixtures, so they live here instead of in `conftest.py`.
 
 from __future__ import annotations
 
-from sqlalchemy import Engine, Inspector, MetaData, Table, text
+from sqlalchemy import Engine, Inspector, MetaData, Table, inspect, select, text
+from sqlalchemy.engine.interfaces import ReflectedColumn, ReflectedIndex
+
+from lnt_v5.tables import SCHEMA_VERSION_ID, schema_version
 
 
 def composed_names(table: Table) -> set[str]:
@@ -84,3 +87,27 @@ def sql_type_of(engine: Engine, schema: str, table: str, column: str) -> str:
                 {"schema": schema, "table": table, "column": column},
             ).scalar_one()
         ).upper()
+
+
+def columns_of(inspector: Inspector, suite: str, table: str) -> dict[str, ReflectedColumn]:
+    """Every column PostgreSQL holds for a table, by name."""
+    return {column["name"]: column for column in inspector.get_columns(table, schema=suite)}
+
+
+def column_names(engine: Engine, suite: str, table: str) -> list[str]:
+    """The names alone, in the order PostgreSQL reports them -- the order they were added."""
+    return list(columns_of(inspect(engine), suite, table))
+
+
+def indexes_of(inspector: Inspector, suite: str, table: str) -> dict[str, ReflectedIndex]:
+    return {str(index["name"]): index for index in inspector.get_indexes(table, schema=suite)}
+
+
+def schema_version_of(engine: Engine) -> int:
+    """D2's counter, read at the fixed id `tables.py` gives it, not from whatever row is there."""
+    with engine.connect() as connection:
+        return int(
+            connection.execute(
+                select(schema_version.c.version).where(schema_version.c.id == SCHEMA_VERSION_ID)
+            ).scalar_one()
+        )

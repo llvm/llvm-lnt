@@ -19,7 +19,7 @@ from enum import StrEnum
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, PlainTextResponse, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 logger = logging.getLogger(__name__)
@@ -111,6 +111,24 @@ def no_route(method: str | None, path: str) -> str:
     return f"No route for {method} {path}"
 
 
+def validation_problems(error: ValidationError | RequestValidationError) -> str:
+    """Where validation failed and why, as one line.
+
+    Location and reason only. Pydantic's raw `errors()` carries an `input` key holding the entire
+    rejected value, so echoing it would turn one malformed run submission -- which legitimately
+    carries tens of megabytes of base64 profile -- into an equally large error response.
+
+    Shared by the handler below, which catches what the framework validates, and by code that
+    validates something itself and has to translate the failure where it raises it. Two spellings
+    would drift, and only one of them would carry the reason `input` is left out. The two exception
+    types are unrelated by inheritance but agree on `errors()`, which is all this reads.
+    """
+    return "; ".join(
+        f"{'.'.join(str(part) for part in problem['loc'])}: {problem['msg']}"
+        for problem in error.errors()
+    )
+
+
 async def _api_error_handler(request: Request, exc: Exception) -> Response:
     assert isinstance(exc, ApiError)
     return error_response(exc.code, exc.message, headers=exc.headers)
@@ -147,13 +165,9 @@ async def _http_exception_handler(request: Request, exc: Exception) -> Response:
 
 async def _validation_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, RequestValidationError)
-    # Location and reason only. Pydantic's raw errors() carries an `input` key holding the entire
-    # rejected value, so echoing it would turn one malformed run submission -- which legitimately
-    # carries tens of megabytes of base64 profile -- into an equally large error response.
-    problems = "; ".join(
-        f"{'.'.join(str(part) for part in error['loc'])}: {error['msg']}" for error in exc.errors()
+    return error_response(
+        ErrorCode.INVALID_REQUEST, f"Request validation failed: {validation_problems(exc)}"
     )
-    return error_response(ErrorCode.INVALID_REQUEST, f"Request validation failed: {problems}")
 
 
 async def _unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
