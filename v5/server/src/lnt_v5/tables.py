@@ -57,11 +57,12 @@ NAMING_CONVENTION = {
 
 metadata = MetaData(naming_convention=NAMING_CONVENTION)
 
-# D4 caps a suite name at 63 characters, which is Postgres' identifier limit rather than a policy
-# number: the name is the suite's schema name, and a longer one would be truncated into a collision
-# with any other suite sharing its first 63 characters. Characters and bytes are interchangeable
-# here because D4 also restricts the name to ASCII.
-SUITE_NAME_MAX_LENGTH = 63
+# PostgreSQL's identifier limit, and so the bound on every name a schema supplies (D4): a suite
+# name, because it is the name of the namespace holding the suite's tables, and each metric and
+# field name, because it is the name of a column. A longer suite name would be truncated into a
+# collision with any other suite sharing its first 63 characters. Characters and bytes are
+# interchangeable here because D4 also restricts these names to ASCII.
+IDENTIFIER_MAX_LENGTH = 63
 
 # R5: a token is 64 lowercase hex characters, of which the first 8 are the published prefix, and
 # the stored hash is a hex SHA-256. These widths are the authority; keys.py reads them from here.
@@ -80,7 +81,7 @@ SCHEMA_VERSION_ID = 1
 schema = Table(
     "schema",
     metadata,
-    Column("name", String(SUITE_NAME_MAX_LENGTH), primary_key=True),
+    Column("name", String(IDENTIFIER_MAX_LENGTH), primary_key=True),
     Column("schema_json", Text, nullable=False),
     Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
 )
