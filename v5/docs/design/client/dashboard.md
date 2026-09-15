@@ -31,6 +31,12 @@ performance trends across all test suites.
 - Y-axis: geometric mean of all test values at each commit for that machine+metric
   combination. See below for calculation.
 - Hover tooltip shows the machine name, commit (or `display` field), and value.
+  A trend item carries the raw commit string and its tag but not the commit's
+  `display` field -- the server spec confines that denormalization to `ordinal`
+  and `tag` (see R4) -- so a section that renders display values resolves the
+  commits of its window once through `POST /api/suites/{ts}/commits/resolve`, the
+  same call the Graph page's baseline chips make, and falls back to the raw
+  string for any commit it did not resolve.
 - Clicking a sparkline navigates to the Graph page pre-populated with that
   suite, metric, and the displayed machines. Clicking directly on a specific
   trace navigates with just that machine.

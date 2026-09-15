@@ -70,6 +70,7 @@ from lnt_v5.routes.tests import test_id, test_ids
 from lnt_v5.scopes import Scope
 from lnt_v5.strings import Storable
 from lnt_v5.suites.entities import (
+    Named,
     UuidKey,
     declared_by_name,
     declared_entry,
@@ -142,12 +143,6 @@ Notes = Annotated[
         )
     ),
 ]
-
-# The identity of an entity the request names but does not create. Deliberately unconstrained in
-# length and shape: a value no machine, test or commit could possibly have still names none, which
-# endpoints.md answers with a 404 rather than a 400. `Storable` is the one exception, because a NUL
-# cannot even be compared against a stored value -- PostgreSQL refuses it as a parameter (D3).
-Named = Annotated[str, Storable]
 
 
 class Indicator(BaseModel):

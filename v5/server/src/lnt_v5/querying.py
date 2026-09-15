@@ -21,6 +21,7 @@ from datetime import datetime
 from typing import Annotated, Any
 
 from fastapi import Depends, Query, Request
+from pydantic import Field
 from sqlalchemy import (
     Column,
     ColumnElement,
@@ -46,10 +47,19 @@ from lnt_v5.suites.tables import INT32_MAX, INT32_MIN
 DEFAULT_LIMIT = 25
 MAX_LIMIT = 10_000
 
-Limit = Annotated[
-    int,
-    Query(ge=1, le=MAX_LIMIT, description="How many items to return, at most."),
-]
+# The wording of R2's two paging parameters, stated once because they travel by two carriers: as
+# query parameters on the GET lists, and as keys of the request body on `POST /query`, which is
+# asked for with a body because its filters do not fit a query string. R2 is explicit that nothing
+# else about the contract differs between the two.
+_LIMIT = "How many items to return, at most."
+_CURSOR = (
+    "Continue the list where a previous page ended: pass back the `cursor.next` that page "
+    "returned, with the same filters and sort. Cursors are opaque -- they must not be parsed, "
+    "constructed or stored, and one issued for a different list, different filters or a different "
+    "sort order is rejected. `limit` may change between pages."
+)
+
+Limit = Annotated[int, Query(ge=1, le=MAX_LIMIT, description=_LIMIT)]
 
 Offset = Annotated[int, Query(ge=0, description="How many matching items to skip.")]
 
@@ -80,15 +90,7 @@ def _request_cursor(
     request: Request,
     cursor: Annotated[
         str | None,
-        Query(
-            description=(
-                "Continue the list where a previous page ended: pass back the `cursor.next` that "
-                "page returned, with the same filters and sort. Cursors are opaque -- they must "
-                "not be parsed, constructed or stored, and one issued for a different list, "
-                "different filters or a different sort order is rejected. `limit` may change "
-                "between pages."
-            )
-        ),
+        Query(description=_CURSOR),
     ] = None,
 ) -> RequestCursor:
     parameters = sorted(
@@ -101,6 +103,11 @@ def _request_cursor(
 
 Cursor = Annotated[RequestCursor, Depends(_request_cursor)]
 
+# The same two, as fields of a request body rather than as query parameters.
+BodyLimit = Annotated[int, Field(ge=1, le=MAX_LIMIT, description=_LIMIT)]
+
+BodyCursor = Annotated[str | None, Field(description=_CURSOR)]
+
 # R3 spells a descending sort by prefixing the field name.
 DESCENDING = "-"
 
@@ -108,6 +115,24 @@ DESCENDING = "-"
 def sort_order(sort: str) -> tuple[str, bool]:
     """R3's `sort=<field>`, split into the field and whether it is descending."""
     return (sort.removeprefix(DESCENDING), True) if sort.startswith(DESCENDING) else (sort, False)
+
+
+def exclusive_range(
+    column: ColumnElement[Any], after: Any, before: Any
+) -> list[ColumnElement[bool]]:
+    """A range over one ordered column, strictly after and strictly before, either bound optional.
+
+    R3 makes every range filter in the API exclusive at both ends, whichever column it bounds: the
+    run lists' `after=`/`before=` over `submitted_at`, and `POST /query`'s two pairs over the commit
+    ordinal and the submission time. One spelling, so that a bound cannot become inclusive in one
+    place and stay exclusive in another.
+    """
+    conditions: list[ColumnElement[bool]] = []
+    if after is not None:
+        conditions.append(column > after)
+    if before is not None:
+        conditions.append(column < before)
+    return conditions
 
 
 def search_condition(
