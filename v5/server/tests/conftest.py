@@ -8,6 +8,7 @@ Tests that touch the database run against a real PostgreSQL server -- see `datab
 
 from __future__ import annotations
 
+import base64
 import re
 from collections.abc import Callable, Iterator
 from pathlib import Path
@@ -28,6 +29,7 @@ from lnt_v5.migrate import upgrade_to_head
 from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.scopes import Scope
 from lnt_v5.suites.schema import SuiteSchema
+from lnt_v5.suites.submission import PROFILE_FORMAT_VERSION
 from lnt_v5.suites.tables import SuiteTables, build
 from lnt_v5.tables import SCHEMA_VERSION_ID, api_key, metadata, schema_version
 
@@ -326,6 +328,30 @@ def code_of(response: Any) -> str:
     body = response.json()
     assert list(body) == ["error"], body
     return str(body["error"]["code"])
+
+
+def run_payload(**overrides: Any) -> dict[str, Any]:
+    """The smallest run submission D6 accepts, with whichever keys a test cares about replaced.
+
+    Here rather than in one of the test modules because both the endpoint tests and the pure
+    validation tests build on it, and D6's shape should not have to be edited in two places. The
+    default `tests` is empty: a test that cares about what an entry expands into says so.
+    """
+    return {
+        "format_version": "5",
+        "machine": {"name": "linux"},
+        "commit": {"value": "abc123"},
+        "tests": [],
+    } | overrides
+
+
+def encoded_profile(*data: int) -> str:
+    """A profile blob, base64-encoded the way a submission carries it (D12).
+
+    The version byte comes from the constant rather than being written out, so that a test asserting
+    a *wrong* version is the only place a literal appears.
+    """
+    return base64.b64encode(bytes([PROFILE_FORMAT_VERSION, *data])).decode()
 
 
 @pytest.fixture

@@ -2,12 +2,12 @@
 
 A machine is one of the two entities carrying schema-declared metadata (D7), so the object these
 endpoints accept and return is the same one a run submission nests under `machine`: the identity
-attribute `name`, the built-in `tracked`, and a `fields` dict of declared `machine_fields`. The
-shape and the validation of `fields` live in `suites/entities.py`, shared with everything else that
-writes one.
+attribute `name`, the built-in `tracked`, and a `fields` dict of declared `machine_fields`. That
+object, and the validation of `fields`, live in `suites/entities.py`, shared with everything else
+that writes one; only the response models are here.
 
 `last_run_at` is the one key here that is not stored. D5 derives it on read, and is explicit about
-how: one index probe per machine, not an aggregate over the suite's whole run table. `_Machines`
+how: one index probe per machine, not an aggregate over the suite's whole run table. `Machines`
 below is what holds the query that does it, so that the list and the detail cannot drift apart on
 either the columns they select or the way they read a row back.
 """
@@ -19,7 +19,7 @@ from datetime import datetime
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Query, Response
-from pydantic import Field, StringConstraints
+from pydantic import Field
 from sqlalchemy import (
     ColumnElement,
     Connection,
@@ -44,10 +44,13 @@ from lnt_v5.responses import OffsetPage
 from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.scopes import Scope
 from lnt_v5.suites.entities import (
-    Addressable,
-    BooleanValue,
+    Contradiction,
     EntityObject,
     FieldValue,
+    MachineName,
+    MachineObject,
+    Tracked,
+    create_or_reconcile,
     location_of,
     rendered_fields,
     validate_fields,
@@ -55,33 +58,12 @@ from lnt_v5.suites.entities import (
 from lnt_v5.suites.registry import RegistryDep, Suite
 from lnt_v5.suites.schema import MachineField
 from lnt_v5.suites.scope import SUITE_NOT_FOUND, SUITE_SCHEMA_CHANGED, suite_responses, suite_scope
-from lnt_v5.suites.tables import MACHINE_NAME_CONSTRAINT, NAME_LENGTH
+from lnt_v5.suites.submission import SubmittedMachine
+from lnt_v5.suites.tables import MACHINE_NAME_CONSTRAINT
 
 MACHINES_PATH = f"{SUITES_PATH}/{{testsuite}}/machines"
 
 router = APIRouter(prefix=MACHINES_PATH, tags=["Machines"])
-
-MachineName = Annotated[
-    str,
-    StringConstraints(min_length=1, max_length=NAME_LENGTH),
-    Addressable,
-    Field(
-        description=(
-            "Identifies the machine within its test suite. It appears in the URL that addresses "
-            "the machine, so it may not contain '/' and may not be '.' or '..' (R1)."
-        )
-    ),
-]
-
-Tracked = Annotated[
-    BooleanValue,
-    Field(
-        description=(
-            "Whether the machine takes part in automatic machine selection. An untracked machine "
-            "stays fully addressable everywhere a machine is chosen deliberately."
-        )
-    ),
-]
 
 # endpoints.md names these four and no others. A literal rather than a free string, so R8's document
 # enumerates them and an unknown one is a 400 before the endpoint runs.
@@ -102,13 +84,6 @@ def _hide_default(schema: dict[str, Any]) -> None:
     document would then be describing wrongly.
     """
     schema.pop("default", None)
-
-
-class MachineObject(EntityObject):
-    """D7's entity object for a machine, as every write path accepts it."""
-
-    name: MachineName
-    tracked: Tracked = True
 
 
 class Machine(MachineObject):
@@ -140,8 +115,12 @@ class MachineUpdate(EntityObject):
     tracked: Tracked = True
 
 
-class _Machines:
+class Machines:
     """The query every machine response is built from, and how to read one of its rows back.
+
+    Public because a run submission creates machines too (D7), and the table, the 409 wording and
+    the constraint name it needs are all already here; `routes/runs.py` reaches `get_or_create`
+    below rather than restating any of them.
 
     `last_run_at` is derived on read and never stored (D5): a stored copy would have to be
     recomputed whenever a run was deleted, and synchronized on submission. The LATERAL probe below
@@ -207,6 +186,47 @@ class _Machines:
     def taken(self, name: str) -> str:
         return f"A machine named '{name}' already exists in test suite '{self.schema.name}'"
 
+    def get_or_create(self, connection: Connection, submitted: SubmittedMachine) -> int:
+        """The id of the machine a run submission names, creating it if it is not there (D7, D13).
+
+        Not an endpoint of its own: `POST /machines` creates a machine and answers 409 for one that
+        already exists, whereas a submission is expected to name the same machine on every run. The
+        two share this reader for the table and the wording, and nothing else.
+
+        `tracked` is written at creation and never compared afterwards -- D6 and D7 make it
+        first-write-wins, so re-submitting it for an existing machine is ignored rather than being a
+        mismatch. The declared fields are reconciled instead: a stored NULL is filled in, a stored
+        value that agrees is left alone, and one that disagrees is refused.
+        """
+        return create_or_reconcile(
+            connection,
+            self.table.c.name,
+            submitted.name,
+            constraint=MACHINE_NAME_CONSTRAINT,
+            values={"tracked": submitted.tracked, **submitted.fields},
+            matched=submitted.fields,
+            contradiction=self._contradicted(submitted.name),
+        )
+
+    def _contradicted(self, name: str) -> Contradiction:
+        """R4's `conflict` for a submitted field that disagrees with the stored one (D7).
+
+        `conflict` rather than any of the other 409s: R4 gives it to a request that contradicts
+        existing state in a way the more specific codes do not describe, and none of them describes
+        machine metadata. The stored and submitted values are both in the message so that a
+        submitter can fix its configuration without reading the database.
+        """
+
+        def error(key: str, stored: Any, submitted: Any) -> ApiError:
+            return ApiError(
+                ErrorCode.CONFLICT,
+                f"Machine '{name}' in test suite '{self.schema.name}' already has "
+                f"{key}={stored!r}, but this submission says {submitted!r}. A submission never "
+                f"overwrites stored metadata; use PATCH to change it.",
+            )
+
+        return error
+
 
 def _missing(testsuite: str, name: str) -> ApiError:
     """The 404 for a machine no suite holds, shared by the routes and by the `machine=` filter."""
@@ -219,7 +239,7 @@ def machine_id(connection: Connection, suite: Suite, name: str) -> int:
     R3 makes an unknown `machine=` an error, unlike an unknown `commit=`, so every endpoint that
     offers the filter owes the same lookup and the same wording -- which is why this lives beside
     the 404 the machine routes themselves raise rather than being written out per endpoint. It
-    reads the table directly: `_Machines` carries the `last_run_at` probe, which a filter that
+    reads the table directly: `Machines` carries the `last_run_at` probe, which a filter that
     wants an id alone would build and discard.
     """
     machine = suite.tables.machine
@@ -260,7 +280,7 @@ def list_machines(
 ) -> OffsetPage[Machine]:
     """Every machine in the suite, filtered, ordered and offset-paginated (R2, R3, D9)."""
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
-        machines = _Machines(suite)
+        machines = Machines(suite)
         conditions: list[ColumnElement[bool]] = []
         if search is not None:
             conditions.append(machines.search(search))
@@ -302,7 +322,7 @@ def create_machine(
     ahead of any data, or for one that will never carry any.
     """
     with engine.begin() as connection, suite_scope(registry, connection, testsuite) as suite:
-        machines = _Machines(suite)
+        machines = Machines(suite)
         values = validate_fields(suite.schema, MachineField, body.fields)
         with reporting_violation(
             MACHINE_NAME_CONSTRAINT, ErrorCode.DUPLICATE, machines.taken(body.name)
@@ -327,7 +347,7 @@ def get_machine(
 ) -> Machine:
     """One machine, in the same shape the list returns."""
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
-        return _Machines(suite).one(connection, machine_name)
+        return Machines(suite).one(connection, machine_name)
 
 
 @router.patch(
@@ -349,7 +369,7 @@ def update_machine(
     that knows one field can send that field alone.
     """
     with engine.begin() as connection, suite_scope(registry, connection, testsuite) as suite:
-        machines = _Machines(suite)
+        machines = Machines(suite)
         changes = body.model_dump(exclude_unset=True)
         values: dict[str, Any] = {
             key: changes[key] for key in ("name", "tracked") if key in changes
@@ -393,7 +413,7 @@ def delete_machine(
     commit, and an empty indicator set is a legal state.
     """
     with engine.begin() as connection, suite_scope(registry, connection, testsuite) as suite:
-        machines = _Machines(suite)
+        machines = Machines(suite)
         removed = connection.execute(
             delete(machines.table).where(machines.table.c.name == machine_name)
         )

@@ -18,7 +18,7 @@ from sqlalchemy import Engine, insert, select, text
 
 from conftest import code_of
 from introspection import row_count, sql_type_of
-from lnt_v5.routes.machines import _Machines
+from lnt_v5.routes.machines import Machines
 from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.scopes import Scope
 from lnt_v5.suites.entities import _ADAPTERS
@@ -303,7 +303,7 @@ class TestLastRunAt:
         schema = SuiteSchema.model_validate(NTS)
         suite = Suite(schema=schema, tables=build(schema), schema_json="")
 
-        statement = _Machines(suite).select()
+        statement = Machines(suite).select()
         sql = str(statement.compile(compile_kwargs={"literal_binds": True})).upper()
         assert "LATERAL" in sql and "LIMIT 1" in sql
         assert "GROUP BY" not in sql and "MAX(" not in sql

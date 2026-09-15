@@ -3,8 +3,8 @@
 A commit is one of the two entities carrying schema-declared metadata (D7), so the object these
 endpoints accept and return is the same one a run submission nests under `commit`: the identity
 attribute `value`, the built-in `ordinal` and `tag`, and a `fields` dict of declared
-`commit_fields`. The shape and the validation of `fields` live in `suites/entities.py`, shared with
-everything else that writes one.
+`commit_fields`. That object, and the validation of `fields`, live in `suites/entities.py`, shared
+with everything else that writes one; only the response models are here.
 
 Three things here are specific to commits. `ordinal` is unique within the suite (D11), so a write
 that would give two commits the same one answers R4's `ordinal_conflict` rather than the generic
@@ -51,10 +51,13 @@ from lnt_v5.routes.machines import machine_id
 from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.scopes import Scope
 from lnt_v5.suites.entities import (
-    Addressable,
+    CommitObject,
+    Contradiction,
     EntityObject,
     FieldValue,
-    IntegerValue,
+    Ordinal,
+    Storable,
+    create_or_reconcile,
     location_of,
     rendered_fields,
     validate_fields,
@@ -62,6 +65,7 @@ from lnt_v5.suites.entities import (
 from lnt_v5.suites.registry import RegistryDep, Suite
 from lnt_v5.suites.schema import CommitField
 from lnt_v5.suites.scope import SUITE_NOT_FOUND, SUITE_SCHEMA_CHANGED, suite_responses, suite_scope
+from lnt_v5.suites.submission import SubmittedCommit
 from lnt_v5.suites.tables import (
     COMMIT_ORDINAL_CONSTRAINT,
     COMMIT_VALUE_CONSTRAINT,
@@ -73,33 +77,10 @@ COMMITS_PATH = f"{SUITES_PATH}/{{testsuite}}/commits"
 
 router = APIRouter(prefix=COMMITS_PATH, tags=["Commits"])
 
-CommitValue = Annotated[
-    str,
-    StringConstraints(min_length=1, max_length=NAME_LENGTH),
-    Addressable,
-    Field(
-        description=(
-            "Identifies the commit within its test suite -- a Git SHA, a version number, or an "
-            "ad-hoc label. It appears in the URL that addresses the commit, so it may not contain "
-            "'/' and may not be '.' or '..' (R1). It is immutable: commits cannot be renamed."
-        )
-    ),
-]
-
-Ordinal = Annotated[
-    IntegerValue,
-    Field(
-        description=(
-            "Places the commit in the suite's total order, and so in every time series. Unique "
-            "within the suite, and never inferred from the commit value even when that value is "
-            "numeric. Null means unordered."
-        )
-    ),
-]
-
 Tag = Annotated[
     str,
     StringConstraints(min_length=1, max_length=NAME_LENGTH),
+    Storable,
     Field(
         description=(
             "An editorial label, such as a release name. Several commits may share one. Set only "
@@ -116,18 +97,6 @@ CommitSort = Literal["ordinal", "-ordinal"]
 # `suite_scope` produces; each widens the wording with the cases it adds of its own.
 _NO_COMMIT = f"{SUITE_NOT_FOUND} Or no commit in it has that value."
 _ORDINAL_TAKEN = f"The ordinal is already held by another commit. {SUITE_SCHEMA_CHANGED}"
-
-
-class CommitObject(EntityObject):
-    """D7's entity object for a commit, as every write path that creates one accepts it.
-
-    `tag` is deliberately absent: it is an editorial label applied after the fact, which D7 makes
-    settable only through PATCH. `extra="forbid"` is what turns sending one here into a 400 rather
-    than into a value silently dropped.
-    """
-
-    value: CommitValue
-    ordinal: Ordinal | None = None
 
 
 class Commit(CommitObject):
@@ -211,8 +180,12 @@ class ResolvedCommits(BaseModel):
     )
 
 
-class _Commits:
+class Commits:
     """The query every commit response is built from, and how to read one of its rows back.
+
+    Public because a run submission creates commits too (D7), and the table, the two 409 wordings
+    and the constraint names it needs are all already here; `routes/runs.py` reaches
+    `get_or_create` below rather than restating any of them.
 
     Holds the internal `id` alongside the commit's own columns: it is never rendered -- R1 keeps
     auto-increment ids out of the API entirely -- but it is the unique tiebreaker D10 requires under
@@ -330,6 +303,73 @@ class _Commits:
             f"'{self.schema.name}' and cannot be deleted until that reference is removed"
         )
 
+    def get_or_create(self, connection: Connection, submitted: SubmittedCommit) -> int:
+        """The id of the commit a run submission names, creating it if it is not there (D7, D13).
+
+        `ordinal` is reconciled exactly as a declared field is -- D7 says so, because it is nullable
+        and factual rather than a policy flag: it is set when the commit has none, left alone when
+        it already equals the submitted one, and refused when it differs. What it does not share is
+        the code: R4 answers a contradicted ordinal with `ordinal_conflict`, which it splits out
+        because a client cannot recover from it by retrying.
+
+        `uq_commit_ordinal` is attributed around the whole body rather than around either statement,
+        and that placement is load-bearing. The INSERT can trip it -- another commit already holds
+        the ordinal -- in which case the get-or-create re-raises rather than treating it as a lost
+        race, and this is what turns the re-raise into R4's 409 instead of a 500. The UPDATE that
+        fills in a NULL ordinal can equally lose that race to a commit created since.
+        """
+        # D7: only what the submission sends is matched, so the ordinal joins the fields exactly
+        # when one was sent. An omitted ordinal is neither compared nor written, and can never be
+        # the reason a submission is refused.
+        matched: dict[str, Any] = dict(submitted.fields)
+        if submitted.ordinal is not None:
+            matched["ordinal"] = submitted.ordinal
+
+        with reporting_violation(
+            COMMIT_ORDINAL_CONSTRAINT,
+            ErrorCode.ORDINAL_CONFLICT,
+            self.ordinal_taken(submitted.ordinal),
+        ):
+            return create_or_reconcile(
+                connection,
+                self.table.c.commit,
+                submitted.value,
+                constraint=COMMIT_VALUE_CONSTRAINT,
+                values={"ordinal": submitted.ordinal, **submitted.fields},
+                matched=matched,
+                contradiction=self._contradicted(submitted.value),
+            )
+
+    def _contradicted(self, value: str) -> Contradiction:
+        """The 409 for a submitted value that disagrees with the stored one (D7, D11).
+
+        Two codes from one rule, which is why this branches on the key rather than being two
+        functions: R4 gives a contradicted field the generic `conflict`, and a contradicted ordinal
+        `ordinal_conflict`, because the second tells the client its view of the commit order is
+        wrong and that retrying cannot help. Both name the stored value and the submitted one, so
+        that a submitter can fix its configuration without reading the database.
+
+        The branch is unambiguous because D5 forbids a `commit_field` from taking a built-in
+        column's name, so `ordinal` here is always the built-in attribute and never a declared one.
+        """
+
+        def error(key: str, stored: Any, submitted: Any) -> ApiError:
+            if key == "ordinal":
+                return ApiError(
+                    ErrorCode.ORDINAL_CONFLICT,
+                    f"Commit '{value}' in test suite '{self.schema.name}' is already at ordinal "
+                    f"{stored}, but this submission places it at {submitted}. Use PATCH to move a "
+                    f"commit once its ordinal is set.",
+                )
+            return ApiError(
+                ErrorCode.CONFLICT,
+                f"Commit '{value}' in test suite '{self.schema.name}' already has "
+                f"{key}={stored!r}, but this submission says {submitted!r}. A submission never "
+                f"overwrites stored metadata; use PATCH to change it.",
+            )
+
+        return error
+
 
 @router.get(
     "",
@@ -386,7 +426,7 @@ def list_commits(
     (D10, `querying.Keyset.defined`).
     """
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
-        commits = _Commits(suite)
+        commits = Commits(suite)
         conditions: list[ColumnElement[bool]] = []
         if search is not None:
             conditions.append(commits.search(search))
@@ -429,7 +469,7 @@ def create_commit(
     of any data, or for giving an ordinal to a commit that will never carry any.
     """
     with engine.begin() as connection, suite_scope(registry, connection, testsuite) as suite:
-        commits = _Commits(suite)
+        commits = Commits(suite)
         values = validate_fields(suite.schema, CommitField, body.fields)
         with (
             reporting_violation(
@@ -466,7 +506,7 @@ def resolve_commits(
     change (R5). Unpaginated, because the response is bounded by the request.
     """
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
-        commits = _Commits(suite)
+        commits = Commits(suite)
         # Deduplicated, keeping the order the request gave, so that a client can read the response
         # back in the order it asked -- `dict` preserves insertion order, and JSON objects render
         # in it.
@@ -492,7 +532,7 @@ def get_commit(
 ) -> CommitDetail:
     """One commit, plus the commits either side of it in ordinal order (D11)."""
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
-        return _Commits(suite).detail(connection, value)
+        return Commits(suite).detail(connection, value)
 
 
 @router.patch(
@@ -510,7 +550,7 @@ def update_commit(
     the request omits is left unchanged, inside `fields` as well as beside it.
     """
     with engine.begin() as connection, suite_scope(registry, connection, testsuite) as suite:
-        commits = _Commits(suite)
+        commits = Commits(suite)
         changes = body.model_dump(exclude_unset=True)
         values: dict[str, Any] = {key: changes[key] for key in ("ordinal", "tag") if key in changes}
         if "fields" in changes:
@@ -551,7 +591,7 @@ def delete_commit(testsuite: str, value: str, engine: EngineDep, registry: Regis
     tells the caller to detach the regression rather than to retry.
     """
     with engine.begin() as connection, suite_scope(registry, connection, testsuite) as suite:
-        commits = _Commits(suite)
+        commits = Commits(suite)
         with reporting_violation(
             REGRESSION_COMMIT_CONSTRAINT, ErrorCode.IN_USE, commits.in_use(value)
         ):
