@@ -135,7 +135,11 @@ When only one side:
    `GET /profiles/{uuid}` for metadata + counters, and
    `GET /profiles/{uuid}/functions` for the function list.
 6. When user selects a function, call `GET /profiles/{uuid}/functions/{fn}` for
-   disassembly data.
+   disassembly data. The function name is percent-encoded into the path: the
+   names are symbols, and most C++ ones contain spaces, `<`, `>`, `&` and `,`.
+   A `/` in a name needs no encoding and may be left as-is -- the server reads
+   that segment to the end of the URL (see R1) -- but encoding it is equally
+   fine.
 
 **URL restoration** (page load with `run_a`/`test_a` params):
 1. Call `GET /runs/{uuid}` to recover machine + commit.

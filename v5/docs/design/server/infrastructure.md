@@ -33,6 +33,18 @@ alongside an interactive viewer (see R8).
 - Test names are exempt: they legitimately contain `/` and are created implicitly by run
   submission, so no path carries one. A request names a test in a `test=` query parameter or in a
   request body. Percent-encoding does not help, since `%2F` is decoded before routing.
+- A profile's function name can contain `/` too -- the name is whatever the profile's producer
+  recorded, and a producer that demangles records an `operator/` overload with one in it -- and is
+  nevertheless a path segment. What makes that work, and what was not available to a test name, is
+  position: the function name is the *last* segment of its path, so it is specified as spanning the
+  remainder of the URL and nothing follows it for a `/` to collide with. A test name would have had
+  to sit mid-path (`/tests/{name}/samples`), where no such reading exists. Within such a segment `/`
+  and `%2F` are interchangeable, since the server decodes before routing and the segment captures
+  the result either way. Two residual names are unreachable regardless: one ending in `/`, which
+  trailing-slash normalization strips, and one containing a `.` or `..` segment, which is reachable
+  only percent-encoded and only from a client that does not normalize. Unlike a machine name, a
+  function name cannot be refused at creation -- it arrives inside a blob the server stores
+  verbatim -- so this is accepted rather than validated away. No symbol a compiler emits hits it.
 - An index endpoint at `GET /api` links to the test suite list and the API documentation
 - Suite-scoped resources live one level below the suite collection, under
   `/api/suites/{testsuite}/`. This keeps them disjoint from instance-level
