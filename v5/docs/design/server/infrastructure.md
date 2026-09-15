@@ -62,7 +62,14 @@ function's `instructions` -- as does a body that is not a list at all, such as
 
 Cursor pagination is forward-only: `previous` is always `null` (reserved for
 future backward pagination) and clients must not rely on it. Cursors are opaque
-strings that clients must not parse.
+strings that clients must not parse. A client asks for the page after the one it
+holds by passing `cursor.next` back as a `cursor=` parameter, alongside the same
+filters and `sort` that produced it; a cursor that is malformed, or that was
+issued for a different list or a different ordering, is rejected with 400 rather
+than quietly answered with a page of the wrong rows. Opacity is a contract on the
+client rather than a cryptographic guarantee: a cursor need not be unforgeable,
+because it can only name a position in a query its holder could have asked for
+anyway.
 
 Offset pagination takes `offset` (default `0`) alongside `limit`. `total` is the
 number of items matching the request's filters, ignoring `limit` and `offset`,

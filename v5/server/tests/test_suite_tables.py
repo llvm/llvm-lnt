@@ -25,7 +25,13 @@ from introspection import (
 from lnt_v5.suites import tables as suite_tables
 from lnt_v5.suites.schema import CommitField, Entry, MachineField, Metric, SuiteSchema
 from lnt_v5.suites.states import RegressionState
-from lnt_v5.suites.tables import MACHINE_NAME_CONSTRAINT, SuiteTables
+from lnt_v5.suites.tables import (
+    COMMIT_ORDINAL_CONSTRAINT,
+    COMMIT_VALUE_CONSTRAINT,
+    MACHINE_NAME_CONSTRAINT,
+    REGRESSION_COMMIT_CONSTRAINT,
+    SuiteTables,
+)
 from lnt_v5.tables import IDENTIFIER_MAX_LENGTH
 from lnt_v5.tables import metadata as global_metadata
 
@@ -428,6 +434,27 @@ class TestNamingConvention:
         make_suite("nts")
 
         assert MACHINE_NAME_CONSTRAINT in stored_names(inspect(db_engine), schema="nts")["machine"]
+
+    @pytest.mark.parametrize(
+        ("table", "constraint"),
+        [
+            # Each of these is written out so that an endpoint can attribute a violation to it and
+            # answer the specific 409 R4 gives it: `duplicate`, `ordinal_conflict`, `in_use`.
+            ("commit", COMMIT_VALUE_CONSTRAINT),
+            ("commit", COMMIT_ORDINAL_CONSTRAINT),
+            ("regression", REGRESSION_COMMIT_CONSTRAINT),
+        ],
+    )
+    def test_the_written_out_commit_constraints_are_the_ones_postgres_holds(
+        self,
+        db_engine: Engine,
+        make_suite: Callable[..., SuiteTables],
+        table: str,
+        constraint: str,
+    ) -> None:
+        make_suite("nts")
+
+        assert constraint in stored_names(inspect(db_engine), schema="nts")[table]
 
 
 class TestReservedColumns:

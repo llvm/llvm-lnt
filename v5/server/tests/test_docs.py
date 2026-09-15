@@ -6,6 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from lnt_v5.querying import DEFAULT_LIMIT, MAX_LIMIT
+from lnt_v5.routes.commits import COMMITS_PATH
 from lnt_v5.routes.machines import MACHINES_PATH
 
 
@@ -287,6 +288,141 @@ class TestMachineOperations:
                 assert not (isinstance(default, str) and minimum and len(default) < minimum), (
                     f"{name}.{key} defaults to a value its own schema rejects"
                 )
+
+
+COMMITS = COMMITS_PATH
+COMMIT = f"{COMMITS_PATH}/{{value}}"
+RESOLVE = f"{COMMITS_PATH}/resolve"
+
+
+class TestCommitOperations:
+    """R8: the document describes what the API can actually do, including these six."""
+
+    @pytest.mark.parametrize(
+        ("path", "method"),
+        [
+            (COMMITS, "get"),
+            (COMMITS, "post"),
+            (COMMIT, "get"),
+            (COMMIT, "patch"),
+            (COMMIT, "delete"),
+            (RESOLVE, "post"),
+        ],
+    )
+    def test_is_documented(self, client: TestClient, path: str, method: str) -> None:
+        paths = client.get("/api/openapi.json").json()["paths"]
+
+        assert method in paths[path], f"{method.upper()} {path} is not in the document"
+
+    @pytest.mark.parametrize(
+        ("path", "method", "status"),
+        [
+            # An unknown suite on every one of them (R1), an unknown commit on the three that
+            # address one, and D2's stale reader everywhere the suite's own columns are queried.
+            # The list's 404 covers an unknown `machine=` too (R3), and the writes' 409 covers a
+            # duplicate value, a taken ordinal and a commit a regression still references.
+            (COMMITS, "get", "404"),
+            (COMMITS, "get", "409"),
+            (COMMITS, "post", "404"),
+            (COMMITS, "post", "409"),
+            (COMMIT, "get", "404"),
+            (COMMIT, "get", "409"),
+            (COMMIT, "patch", "404"),
+            (COMMIT, "patch", "409"),
+            (COMMIT, "delete", "404"),
+            (COMMIT, "delete", "409"),
+            (RESOLVE, "post", "404"),
+            (RESOLVE, "post", "409"),
+        ],
+    )
+    def test_documents_the_failures_endpoints_md_specifies(
+        self, client: TestClient, path: str, method: str, status: str
+    ) -> None:
+        operation = client.get("/api/openapi.json").json()["paths"][path][method]
+
+        assert status in operation["responses"]
+
+    @pytest.mark.parametrize(
+        "name", ["search", "machine", "has_profiles", "sort", "limit", "cursor"]
+    )
+    def test_the_list_documents_every_parameter_endpoints_md_gives_it(
+        self, client: TestClient, name: str
+    ) -> None:
+        operation = client.get("/api/openapi.json").json()["paths"][COMMITS]["get"]
+
+        assert name in {parameter["name"] for parameter in operation["parameters"]}
+
+    def test_the_list_takes_no_offset(self, client: TestClient) -> None:
+        # R2 pairs `offset` with `total`, and a cursor-paginated list has neither.
+        operation = client.get("/api/openapi.json").json()["paths"][COMMITS]["get"]
+
+        assert "offset" not in {parameter["name"] for parameter in operation["parameters"]}
+
+    def test_the_list_enumerates_the_sort_fields_rather_than_taking_any_string(
+        self, client: TestClient
+    ) -> None:
+        # endpoints.md names two and no others, and omitting it is the third, distinct, option.
+        operation = client.get("/api/openapi.json").json()["paths"][COMMITS]["get"]
+        sort = next(p for p in operation["parameters"] if p["name"] == "sort")
+        allowed = [option for option in sort["schema"]["anyOf"] if "enum" in option]
+
+        assert [set(option["enum"]) for option in allowed] == [{"ordinal", "-ordinal"}]
+
+    def test_the_list_returns_r2s_cursor_envelope(self, client: TestClient) -> None:
+        document = client.get("/api/openapi.json").json()
+        body = document["paths"][COMMITS]["get"]["responses"]["200"]["content"]["application/json"][
+            "schema"
+        ]
+        envelope = document["components"]["schemas"][body["$ref"].rsplit("/", 1)[-1]]
+
+        assert set(envelope["properties"]) == {"items", "cursor"}
+
+    def test_the_cursor_promises_a_null_previous(self, client: TestClient) -> None:
+        # R2: pagination is forward-only, so the document must not advertise a backward cursor the
+        # API can never produce (R8).
+        cursor = client.get("/api/openapi.json").json()["components"]["schemas"]["PageCursor"]
+
+        assert cursor["properties"]["previous"]["type"] == "null"
+        assert set(cursor["required"]) == {"next", "previous"}
+
+    def test_creating_and_reading_a_commit_share_the_entity_object(
+        self, client: TestClient
+    ) -> None:
+        # D7: `POST` takes the same object a run submission nests, and the response is that object
+        # plus what only a stored commit has.
+        schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
+
+        assert set(schemas["Commit"]["properties"]) == {
+            *schemas["CommitObject"]["properties"],
+            "tag",
+        }
+        assert set(schemas["CommitDetail"]["properties"]) == {
+            *schemas["Commit"]["properties"],
+            "previous",
+            "next",
+        }
+
+    def test_no_request_body_accepts_a_tag_at_creation(self, client: TestClient) -> None:
+        # D7 makes `tag` PATCH-only, so the document must not advertise it where it is refused.
+        schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
+
+        assert "tag" not in schemas["CommitObject"]["properties"]
+        assert "tag" in schemas["CommitUpdate"]["properties"]
+
+    def test_no_request_body_accepts_a_rename(self, client: TestClient) -> None:
+        # endpoints.md: `value` is immutable.
+        schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
+
+        assert "value" not in schemas["CommitUpdate"]["properties"]
+
+    @pytest.mark.parametrize("model", ["Commit", "CommitDetail"])
+    def test_the_response_promises_every_key_it_documents(
+        self, client: TestClient, model: str
+    ) -> None:
+        # R4: a key an endpoint documents is always present, and null when it has no value.
+        schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
+
+        assert set(schemas[model]["required"]) == set(schemas[model]["properties"])
 
 
 class TestDocumentationViewer:

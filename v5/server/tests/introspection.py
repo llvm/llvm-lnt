@@ -7,7 +7,9 @@ rather than fixtures, so they live here instead of in `conftest.py`.
 
 from __future__ import annotations
 
-from sqlalchemy import Engine, Inspector, MetaData, Table, inspect, select, text
+from typing import Any
+
+from sqlalchemy import Engine, Inspector, MetaData, Select, Table, inspect, select, text
 from sqlalchemy.engine.interfaces import ReflectedColumn, ReflectedIndex
 
 from lnt_v5.tables import SCHEMA_VERSION_ID, schema_version
@@ -111,3 +113,14 @@ def schema_version_of(engine: Engine) -> int:
                 select(schema_version.c.version).where(schema_version.c.id == SCHEMA_VERSION_ID)
             ).scalar_one()
         )
+
+
+def row_count(engine: Engine, statement: Select[Any]) -> int:
+    """How many rows a statement matches, on a connection of its own.
+
+    What the cascade tests assert on: each deletes through the API, then counts what survived in
+    a table the API does not expose. Shared so that "count on a fresh connection" is not spelled
+    three different ways.
+    """
+    with engine.connect() as connection:
+        return len(connection.execute(statement).all())
