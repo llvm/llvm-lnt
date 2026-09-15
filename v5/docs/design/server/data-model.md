@@ -479,6 +479,19 @@ that form.
   `GET /api/suites/{testsuite}/machines/{name}/runs?sort=-submitted_at` and the
   `last_run_at` aggregate described under `{suite}.machine` to a bounded index
   scan rather than a scan of this table.
+- Compound index on `(submitted_at, id)`. The index above cannot serve
+  `GET /api/suites/{testsuite}/runs?sort=-submitted_at`, which names no machine
+  and so leaves that index's leading column unconstrained; without this one, the
+  suite's landing page reads and sorts every run in the suite to render its
+  twenty-five most recent. `id` joins it because the cursor's ordering is
+  `(submitted_at, id)` -- `submitted_at` is not unique, so D10's tiebreaker
+  follows it -- and an index over both terms makes the cursor's row comparison an
+  exact index condition. It costs four bytes an entry and is not what the other
+  keyset indexes here do: `(machine_id, submitted_at)` stops short of the
+  tiebreaker and is still bounded, because PostgreSQL narrows a row comparison to
+  the columns the index does have and rechecks the rest. The refinement is worth
+  taking on the one index added for a keyset and not worth widening the others
+  for.
 - Cascade: deleting a run cascades to its samples and profiles.
 
 #### `{suite}.test`
@@ -594,6 +607,18 @@ exist and which columns they carry, so no description written in advance could
 cover them. They are created by `POST /api/suites`, altered by
 `PATCH /api/suites/{name}/schema`, and dropped by `DELETE /api/suites/{name}`
 (see D2). This is ordinary request handling, not initialization.
+
+Only half of a suite's tables is data, though: the dynamic columns are, and the
+built-in columns, indexes, constraints and cascades D5 specifies are code, fixed
+by the server build exactly as the global tables are. They are materialized once,
+when the suite is created, and nothing brings an existing suite forward when a
+later build changes them -- `PATCH /api/suites/{name}/schema` reaches the dynamic
+columns and nothing else. v5 accepts that: it has no deployed instances to carry
+forward, and a reconciler for per-suite structure is a mechanism with no user
+yet. What it costs is that a change to the code-defined half applies to suites
+created after it and not to those created before, so such a change has to be
+worth making on that basis -- and a release that makes one owes operators a note
+saying which suites it reaches.
 
 **Global tables are defined by code.** `schema`, `schema_version`, and
 `api_key` are fixed by the server build rather than by anything a user submits.

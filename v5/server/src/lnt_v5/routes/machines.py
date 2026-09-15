@@ -51,6 +51,7 @@ from lnt_v5.suites.entities import (
     MachineObject,
     Tracked,
     create_or_reconcile,
+    identifier,
     location_of,
     rendered_fields,
     validate_fields,
@@ -71,7 +72,8 @@ MachineSort = Literal["name", "-name", "last_run_at", "-last_run_at"]
 
 # Every operation here reaches the suite's own tables, so every one can answer both of the failures
 # `suite_scope` produces; each widens the wording with the cases it adds of its own.
-_NO_MACHINE = f"{SUITE_NOT_FOUND} Or no machine in it has that name."
+NO_MACHINE = f"{SUITE_NOT_FOUND} Or no machine in it has that name."
+NO_MACHINE_FILTERED = f"{SUITE_NOT_FOUND} Or the machine the `machine=` filter names is not in it."
 _NAME_TAKEN = f"A machine of that name already exists. {SUITE_SCHEMA_CHANGED}"
 
 
@@ -130,6 +132,7 @@ class Machines:
     """
 
     def __init__(self, suite: Suite) -> None:
+        self.suite = suite
         self.schema = suite.schema
         self.table: Table = suite.tables.machine
         run = suite.tables.run
@@ -163,7 +166,7 @@ class Machines:
         return [nulls_last(ordered), self.table.c.name.asc()]
 
     def search(self, term: str) -> ColumnElement[bool]:
-        return search_condition(term, self.table, ["name"], self.schema.machine_fields)
+        return machine_search(self.suite, term)
 
     def read(self, row: Row[Any]) -> Machine:
         return Machine(
@@ -233,22 +236,26 @@ def _missing(testsuite: str, name: str) -> ApiError:
     return ApiError(ErrorCode.NOT_FOUND, f"No machine named '{name}' in test suite '{testsuite}'")
 
 
+def machine_search(suite: Suite, term: str) -> ColumnElement[bool]:
+    """D9's machine predicate: the machine's name, or any searchable machine field.
+
+    Here rather than inlined in `Machines.search` because D9 requires `GET /runs?search=` to be
+    *the same* predicate, applied through the run's machine. Takes the suite rather than the table
+    and the field list, so that the two callers cannot pass a matching pair of the wrong ones --
+    sharing `search_condition` alone would still leave each list naming the columns it covers.
+    """
+    return search_condition(term, suite.tables.machine, ["name"], suite.schema.machine_fields)
+
+
 def machine_id(connection: Connection, suite: Suite, name: str) -> int:
     """The id of the machine a `machine=` filter names, or R3's 404 for one that is not there.
 
     R3 makes an unknown `machine=` an error, unlike an unknown `commit=`, so every endpoint that
     offers the filter owes the same lookup and the same wording -- which is why this lives beside
-    the 404 the machine routes themselves raise rather than being written out per endpoint. It
-    reads the table directly: `Machines` carries the `last_run_at` probe, which a filter that
-    wants an id alone would build and discard.
+    the 404 the machine routes themselves raise rather than being written out per endpoint.
     """
     machine = suite.tables.machine
-    found = connection.execute(
-        select(machine.c.id).where(machine.c.name == name)
-    ).scalar_one_or_none()
-    if found is None:
-        raise _missing(suite.schema.name, name)
-    return int(found)
+    return identifier(connection, machine.c.name, name, lambda: _missing(suite.schema.name, name))
 
 
 @router.get(
@@ -340,7 +347,7 @@ def create_machine(
     "/{machine_name}",
     dependencies=[require_scope(Scope.READ)],
     summary="Get a machine",
-    responses=suite_responses(not_found=_NO_MACHINE),
+    responses=suite_responses(not_found=NO_MACHINE),
 )
 def get_machine(
     testsuite: str, machine_name: str, engine: EngineDep, registry: RegistryDep
@@ -354,7 +361,7 @@ def get_machine(
     "/{machine_name}",
     dependencies=[require_scope(Scope.MANAGE)],
     summary="Update a machine",
-    responses=suite_responses(not_found=_NO_MACHINE, conflict=_NAME_TAKEN),
+    responses=suite_responses(not_found=NO_MACHINE, conflict=_NAME_TAKEN),
 )
 def update_machine(
     testsuite: str,
@@ -400,7 +407,7 @@ def update_machine(
     status_code=204,
     dependencies=[require_scope(Scope.MANAGE)],
     summary="Delete a machine",
-    responses=suite_responses(not_found=_NO_MACHINE),
+    responses=suite_responses(not_found=NO_MACHINE),
 )
 def delete_machine(
     testsuite: str, machine_name: str, engine: EngineDep, registry: RegistryDep

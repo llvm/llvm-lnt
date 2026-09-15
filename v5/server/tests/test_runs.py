@@ -21,9 +21,9 @@ from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import Engine, select, text
+from sqlalchemy import Engine, select, text, update
 
-from conftest import code_of, encoded_profile, run_payload
+from conftest import code_of, encoded_profile, run_payload, walk_pages
 from introspection import counted, counting_statements
 from lnt_v5.app import create_app
 from lnt_v5.config import Settings
@@ -49,7 +49,9 @@ NTS: dict[str, Any] = {
         {"name": "compile_status", "type": "integer"},
     ],
     "machine_fields": [
-        {"name": "hardware", "type": "text"},
+        # `hardware` is searchable so that the run list's `?search=`, which D9 makes the machine
+        # list's predicate applied through the run's machine, has a field to reach.
+        {"name": "hardware", "type": "text", "searchable": True},
         {"name": "core_count", "type": "integer"},
     ],
     "commit_fields": [
@@ -97,14 +99,6 @@ def recent(moment: datetime) -> bool:
 def suite(make_api_suite: Callable[[dict[str, Any]], SuiteTables]) -> SuiteTables:
     """The `nts` suite, created through the API, with its tables for reading the database back."""
     return make_api_suite(NTS)
-
-
-@pytest.fixture
-def submitter(
-    make_key: Callable[..., str], bearer: Callable[[str], dict[str, str]]
-) -> dict[str, str]:
-    """The header for a `submit` key -- exactly what endpoints.md gives `POST /runs` (R5)."""
-    return bearer(make_key(Scope.SUBMIT))
 
 
 @pytest.fixture
@@ -950,6 +944,361 @@ class TestConcurrentSubmission:
     def test_every_run_kept_its_samples(self, db_engine: Engine, suite: SuiteTables) -> None:
         assert counted(db_engine, suite, "run") == 4
         assert counted(db_engine, suite, "sample") == 32
+
+
+@pytest.fixture
+def run_at(
+    db_engine: Engine, suite: SuiteTables, submitted: Callable[..., Any]
+) -> Callable[..., str]:
+    """Submit a run and move its `submitted_at` where the test needs it.
+
+    Submitted through the API rather than inserted, so the machine and the commit are created the
+    way D7 creates them; only the clock is forced, because a submission cannot supply it (D6) and
+    the `after=`/`before=` filters have nothing to bite on otherwise.
+    """
+
+    def make(
+        moment: datetime | None = None,
+        machine: str = "linux",
+        commit: str = "abc123",
+        **overrides: Any,
+    ) -> str:
+        body = submitted(machine={"name": machine}, commit={"value": commit}, **overrides)
+        if moment is not None:
+            with db_engine.begin() as connection:
+                connection.execute(
+                    update(suite.run)
+                    .where(suite.run.c.uuid == body["uuid"])
+                    .values(submitted_at=moment)
+                )
+        return str(body["uuid"])
+
+    return make
+
+
+def uuids_in(response: Any) -> list[str]:
+    return [item["uuid"] for item in response.json()["items"]]
+
+
+def listed(api_client: TestClient, query: str = "", path: str = RUNS) -> Any:
+    return api_client.get(f"{path}?{query}")
+
+
+def walk(api_client: TestClient, query: str = "", path: str = RUNS) -> list[str]:
+    """Every run the list serves, following cursors to the end."""
+    return [item["uuid"] for item in walk_pages(api_client, path, query)]
+
+
+class TestList:
+    def test_is_a_cursor_envelope_even_when_nothing_matches(
+        self, api_client: TestClient, suite: SuiteTables
+    ) -> None:
+        response = listed(api_client)
+
+        assert response.status_code == 200
+        assert response.json() == {"items": [], "cursor": {"next": None, "previous": None}}
+
+    def test_carries_the_run_object_without_the_unbounded_blob(
+        self, api_client: TestClient, submitted: Callable[..., Any]
+    ) -> None:
+        # endpoints.md: `run_parameters` is detail-only, because no list view renders it.
+        body = submitted(run_parameters={"build_config": "Release"})
+
+        item = listed(api_client).json()["items"][0]
+
+        assert item == {key: body[key] for key in ("uuid", "machine", "commit", "submitted_at")}
+
+    def test_is_ordered_deterministically_by_default(
+        self, api_client: TestClient, run_at: Callable[..., str]
+    ) -> None:
+        # R2: no `sort` is an arbitrary but deterministic order, and here it is the order the
+        # server first saw each run in, which has nothing to do with `submitted_at`.
+        third = run_at(datetime(2020, 1, 1, tzinfo=UTC))
+        first = run_at(datetime(2026, 1, 1, tzinfo=UTC))
+        second = run_at(datetime(2023, 1, 1, tzinfo=UTC))
+
+        assert uuids_in(listed(api_client)) == [third, first, second]
+
+    def test_sorts_newest_first(self, api_client: TestClient, run_at: Callable[..., str]) -> None:
+        old = run_at(datetime(2020, 1, 1, tzinfo=UTC))
+        new = run_at(datetime(2026, 1, 1, tzinfo=UTC))
+
+        assert uuids_in(listed(api_client, "sort=-submitted_at")) == [new, old]
+
+    def test_sorts_oldest_first(self, api_client: TestClient, run_at: Callable[..., str]) -> None:
+        old = run_at(datetime(2020, 1, 1, tzinfo=UTC))
+        new = run_at(datetime(2026, 1, 1, tzinfo=UTC))
+
+        assert uuids_in(listed(api_client, "sort=submitted_at")) == [old, new]
+
+    def test_serves_runs_sharing_an_instant_exactly_once(
+        self, api_client: TestClient, run_at: Callable[..., str]
+    ) -> None:
+        # D10: `submitted_at` is not unique, so the keyset needs its internal tiebreaker. Without
+        # one, a page boundary falling between two runs of the same instant drops one and repeats
+        # the other.
+        moment = datetime(2026, 3, 4, 5, 6, tzinfo=UTC)
+        created = {run_at(moment) for _ in range(5)}
+
+        assert set(walk(api_client, "sort=-submitted_at&limit=2")) == created
+
+    def test_refuses_a_sort_field_it_does_not_offer(
+        self, api_client: TestClient, suite: SuiteTables
+    ) -> None:
+        response = listed(api_client, "sort=uuid")
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
+    def test_needs_no_credential(
+        self, api_client: TestClient, submitted: Callable[..., Any]
+    ) -> None:
+        submitted()
+
+        assert listed(api_client).status_code == 200
+
+    def test_is_404_for_a_suite_that_is_not_there(self, api_client: TestClient) -> None:
+        assert api_client.get(f"{SUITES_PATH}/nope/runs").status_code == 404
+
+
+class TestListFilters:
+    def test_keeps_only_runs_on_the_machine(
+        self, api_client: TestClient, run_at: Callable[..., str]
+    ) -> None:
+        wanted = run_at(machine="linux")
+        run_at(machine="darwin")
+
+        assert uuids_in(listed(api_client, "machine=linux")) == [wanted]
+
+    def test_is_404_for_a_machine_that_is_not_there(
+        self, api_client: TestClient, suite: SuiteTables
+    ) -> None:
+        # R3: an unknown `machine=` is an error, unlike an unknown `commit=`.
+        response = listed(api_client, "machine=nope")
+
+        assert response.status_code == 404
+        assert code_of(response) == "not_found"
+
+    def test_keeps_only_runs_at_the_commit(
+        self, api_client: TestClient, run_at: Callable[..., str]
+    ) -> None:
+        wanted = run_at(commit="abc123")
+        run_at(commit="def456")
+
+        assert uuids_in(listed(api_client, "commit=abc123")) == [wanted]
+
+    def test_an_unknown_commit_is_an_empty_page_rather_than_an_error(
+        self, api_client: TestClient, run_at: Callable[..., str]
+    ) -> None:
+        # R3 draws this asymmetry with `machine=` deliberately.
+        run_at()
+
+        response = listed(api_client, "commit=never-seen")
+
+        assert response.status_code == 200
+        assert response.json()["items"] == []
+
+    def test_after_and_before_are_exclusive(
+        self, api_client: TestClient, run_at: Callable[..., str]
+    ) -> None:
+        run_at(datetime(2026, 5, 1, tzinfo=UTC))
+
+        assert uuids_in(listed(api_client, "after=2026-05-01T00:00:00Z")) == []
+        assert uuids_in(listed(api_client, "before=2026-05-01T00:00:00Z")) == []
+
+    def test_after_and_before_bound_a_range(
+        self, api_client: TestClient, run_at: Callable[..., str]
+    ) -> None:
+        run_at(datetime(2026, 1, 1, tzinfo=UTC))
+        wanted = run_at(datetime(2026, 6, 1, tzinfo=UTC))
+        run_at(datetime(2026, 12, 1, tzinfo=UTC))
+
+        assert uuids_in(
+            listed(api_client, "after=2026-03-01T00:00:00Z&before=2026-09-01T00:00:00Z")
+        ) == [wanted]
+
+    def test_a_timestamp_with_no_offset_is_read_as_utc(
+        self, api_client: TestClient, run_at: Callable[..., str]
+    ) -> None:
+        # D5 stores UTC; a bound sent without one must not be read in whatever zone the database
+        # session happens to carry.
+        wanted = run_at(datetime(2026, 6, 1, 12, 0, tzinfo=UTC))
+
+        assert uuids_in(listed(api_client, "after=2026-06-01T11:59:59")) == [wanted]
+        assert uuids_in(listed(api_client, "after=2026-06-01T12:00:01")) == []
+
+    @pytest.mark.parametrize("bound", ["yesterday", "1700000000", "0"])
+    def test_refuses_a_bound_that_is_not_an_iso_8601_timestamp(
+        self, api_client: TestClient, suite: SuiteTables, bound: str
+    ) -> None:
+        # D3 gives a timestamp one wire form and is explicit that a string holding a number is not
+        # it: read as a Unix epoch, `after=0` would silently mean 1970 rather than being refused.
+        response = listed(api_client, f"after={bound}")
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
+    def test_keeps_only_runs_carrying_profiles(
+        self, api_client: TestClient, run_at: Callable[..., str]
+    ) -> None:
+        profiled = run_at(tests=[{"name": "suite/one", "profile": encoded_profile(1)}])
+        bare = run_at()
+
+        assert uuids_in(listed(api_client, "has_profiles=true")) == [profiled]
+        assert uuids_in(listed(api_client, "has_profiles=false")) == [bare]
+
+    def test_omitting_has_profiles_returns_both(
+        self, api_client: TestClient, run_at: Callable[..., str]
+    ) -> None:
+        profiled = run_at(tests=[{"name": "suite/one", "profile": encoded_profile(1)}])
+        bare = run_at()
+
+        assert set(uuids_in(listed(api_client))) == {profiled, bare}
+
+    def test_filters_combine(self, api_client: TestClient, run_at: Callable[..., str]) -> None:
+        wanted = run_at(datetime(2026, 6, 1, tzinfo=UTC), machine="linux", commit="abc123")
+        run_at(datetime(2026, 6, 1, tzinfo=UTC), machine="darwin", commit="abc123")
+        run_at(datetime(2020, 6, 1, tzinfo=UTC), machine="linux", commit="abc123")
+        run_at(datetime(2026, 6, 1, tzinfo=UTC), machine="linux", commit="def456")
+
+        query = "machine=linux&commit=abc123&after=2026-01-01T00:00:00Z"
+        assert uuids_in(listed(api_client, query)) == [wanted]
+
+
+class TestListSearch:
+    """D9: the same predicate as `GET /machines?search=`, applied through the run's machine."""
+
+    @pytest.fixture(autouse=True)
+    def runs(self, submitted: Callable[..., Any]) -> None:
+        submitted(machine={"name": "linux-x86_64", "fields": {"hardware": "Skylake"}})
+        submitted(machine={"name": "darwin-arm64", "fields": {"hardware": "M2 Max"}})
+
+    def test_matches_the_machine_name(self, api_client: TestClient) -> None:
+        assert len(uuids_in(listed(api_client, "search=x86"))) == 1
+
+    def test_matches_a_searchable_machine_field(self, api_client: TestClient) -> None:
+        assert len(uuids_in(listed(api_client, "search=skylake"))) == 1
+
+    def test_is_the_machine_lists_predicate(self, api_client: TestClient) -> None:
+        # D9 requires the two to agree, so the machines the run list matches must be exactly the
+        # machines the machine list matches for the same term.
+        machines = api_client.get(f"{MACHINES}?search=ar").json()["items"]
+        runs = listed(api_client, "search=ar").json()["items"]
+
+        assert {machine["name"] for machine in machines} == {run["machine"] for run in runs}
+
+    def test_treats_a_wildcard_in_the_term_literally(self, api_client: TestClient) -> None:
+        assert uuids_in(listed(api_client, "search=%")) == []
+
+
+class TestListPagination:
+    @pytest.fixture(autouse=True)
+    def runs(self, run_at: Callable[..., str]) -> list[str]:
+        return [run_at(datetime(2026, 1, day, tzinfo=UTC)) for day in range(1, 8)]
+
+    def test_serves_one_page_at_a_time(self, api_client: TestClient) -> None:
+        response = listed(api_client, "limit=3")
+
+        assert len(response.json()["items"]) == 3
+        assert response.json()["cursor"]["next"] is not None
+
+    def test_pages_cover_every_run_exactly_once(
+        self, api_client: TestClient, runs: list[str]
+    ) -> None:
+        assert sorted(walk(api_client, "limit=2")) == sorted(runs)
+
+    def test_pages_the_sorted_order_too(self, api_client: TestClient, runs: list[str]) -> None:
+        assert walk(api_client, "sort=-submitted_at&limit=2") == list(reversed(runs))
+
+    def test_the_filters_survive_a_page_boundary(
+        self, api_client: TestClient, run_at: Callable[..., str], runs: list[str]
+    ) -> None:
+        other = [run_at(machine="darwin") for _ in range(4)]
+
+        assert sorted(walk(api_client, "machine=linux&limit=2")) == sorted(runs)
+        assert sorted(walk(api_client, "machine=darwin&limit=2")) == sorted(other)
+
+    def test_refuses_a_cursor_issued_for_another_ordering(self, api_client: TestClient) -> None:
+        cursor = listed(api_client, "limit=2").json()["cursor"]["next"]
+
+        response = listed(api_client, f"sort=-submitted_at&limit=2&cursor={cursor}")
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
+    def test_refuses_a_cursor_issued_for_another_entitys_list(
+        self, api_client: TestClient, run_at: Callable[..., str]
+    ) -> None:
+        cursor = listed(api_client, "limit=2").json()["cursor"]["next"]
+
+        response = api_client.get(f"{COMMITS}?limit=2&cursor={cursor}")
+
+        assert response.status_code == 400
+
+
+class TestMachineRuns:
+    """`GET /machines/{name}/runs` (endpoints.md, Machines)."""
+
+    def path(self, machine: str = "linux") -> str:
+        return f"{MACHINES}/{machine}/runs"
+
+    def test_serves_only_that_machines_runs(
+        self, api_client: TestClient, run_at: Callable[..., str]
+    ) -> None:
+        wanted = run_at(machine="linux")
+        run_at(machine="darwin")
+
+        assert uuids_in(listed(api_client, path=self.path())) == [wanted]
+
+    def test_carries_the_same_run_object_the_suite_wide_list_does(
+        self, api_client: TestClient, run_at: Callable[..., str]
+    ) -> None:
+        run_at()
+
+        assert (
+            listed(api_client, path=self.path()).json()["items"]
+            == listed(api_client).json()["items"]
+        )
+
+    def test_sorts_and_bounds_by_submission_time(
+        self, api_client: TestClient, run_at: Callable[..., str]
+    ) -> None:
+        old = run_at(datetime(2020, 1, 1, tzinfo=UTC))
+        new = run_at(datetime(2026, 1, 1, tzinfo=UTC))
+
+        assert uuids_in(listed(api_client, "sort=-submitted_at", self.path())) == [new, old]
+        assert uuids_in(listed(api_client, "sort=submitted_at", self.path())) == [old, new]
+        assert uuids_in(listed(api_client, "after=2023-01-01T00:00:00Z", self.path())) == [new]
+        assert uuids_in(listed(api_client, "before=2023-01-01T00:00:00Z", self.path())) == [old]
+
+    def test_pages_with_a_cursor(self, api_client: TestClient, run_at: Callable[..., str]) -> None:
+        created = [run_at(datetime(2026, 1, day, tzinfo=UTC)) for day in range(1, 6)]
+
+        assert walk(api_client, "sort=submitted_at&limit=2", self.path()) == created
+
+    def test_is_404_for_a_machine_that_is_not_there(
+        self, api_client: TestClient, suite: SuiteTables
+    ) -> None:
+        response = listed(api_client, path=self.path("nope"))
+
+        assert response.status_code == 404
+        assert code_of(response) == "not_found"
+
+    def test_is_404_for_a_suite_that_is_not_there(self, api_client: TestClient) -> None:
+        assert api_client.get(f"{SUITES_PATH}/nope/machines/linux/runs").status_code == 404
+
+    def test_needs_no_credential(self, api_client: TestClient, run_at: Callable[..., str]) -> None:
+        run_at()
+
+        assert listed(api_client, path=self.path()).status_code == 200
+
+    def test_is_not_shadowed_by_the_machine_detail_route(
+        self, api_client: TestClient, run_at: Callable[..., str]
+    ) -> None:
+        # `/machines/{machine_name}` is registered first and must not swallow the sub-resource.
+        run_at()
+
+        assert "items" in listed(api_client, path=self.path()).json()
 
 
 class TestDetail:

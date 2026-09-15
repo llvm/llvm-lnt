@@ -520,6 +520,17 @@ class TestIndexes:
             "submitted_at",
         ]
 
+    def test_run_is_indexed_by_submission_time_alone_as_well(
+        self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
+    ) -> None:
+        # D5: the suite-wide `GET /runs?sort=-submitted_at` names no machine, so the index above
+        # cannot serve it. `id` is in this one because the cursor orders by `(submitted_at, id)`.
+        make_suite("nts")
+
+        indexes = indexes_of(inspect(db_engine), "nts", "run")
+
+        assert indexes["ix_run_submitted_at_id"]["column_names"] == ["submitted_at", "id"]
+
 
 class TestUniqueness:
     def test_a_commit_string_names_one_commit(

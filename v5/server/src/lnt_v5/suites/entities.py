@@ -50,20 +50,21 @@ from lnt_v5.suites import concurrency
 from lnt_v5.suites.schema import AttributeType, Entry, SuiteSchema
 from lnt_v5.suites.tables import NAME_LENGTH
 
-# D3's JSON representation of each declared type, as the one type a `fields` value may have. Strict
+# D3's JSON representation of each declared type, as the one type a declared value may have. Strict
 # on each member, so that the union cannot quietly reshape a value on its way in: `true` is not an
 # integer, and `"5"` is not one either. R4 is explicit that these are never stringified, and
 # accepting a stringified number here would be the first step towards storing one.
 #
 # `datetime` is in the union for the way out rather than the way in -- a timestamp arrives as a
 # string (D3) and is parsed below, but comes back from the database as a datetime.
-FieldValue = (
-    Annotated[int, Strict()]
-    | Annotated[float, Strict()]
-    | Annotated[str, Strict()]
-    | datetime
-    | None
+DeclaredValue = (
+    Annotated[int, Strict()] | Annotated[float, Strict()] | Annotated[str, Strict()] | datetime
 )
+
+# The same, for a `fields` dict, where R4 requires a `null` for every declared field the entity has
+# no value for. A sample's `metrics` is the stated exception -- it carries only the metrics that
+# have a value -- so it uses `DeclaredValue` above and can never render a null.
+FieldValue = DeclaredValue | None
 
 
 def _iso_8601(value: Any) -> Any:
@@ -93,8 +94,12 @@ def _whole_number(value: Any) -> Any:
     return int(value) if isinstance(value, float) and value.is_integer() else value
 
 
-def _utc(value: datetime) -> datetime:
-    """D5 stores UTC. A timestamp sent without an offset is read as UTC rather than rejected."""
+def utc(value: datetime) -> datetime:
+    """D5 stores UTC. A timestamp sent without an offset is read as UTC rather than rejected.
+
+    Shared with the `after=`/`before=` filters (R3), which compare against a `timestamptz` column
+    and so must not hand PostgreSQL a naive value for the session's time zone to interpret.
+    """
     return value.astimezone(UTC) if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
@@ -153,13 +158,17 @@ def storable(value: str) -> str:
 # What every caller-supplied string is, beyond whatever length and shape its own use allows.
 Storable = AfterValidator(storable)
 
+# D3's `datetime`, as a reusable annotation: an ISO 8601 string and nothing else, normalized to
+# UTC. Exported because a timestamp on the wire is one thing wherever it appears -- a declared
+# field value, and R3's `after=`/`before=` bounds, which would otherwise read `?after=1700000000`
+# as a Unix epoch exactly as D3 forbids.
+DatetimeValue = Annotated[datetime, BeforeValidator(_iso_8601), AfterValidator(utc)]
+
 _ADAPTERS: dict[AttributeType, TypeAdapter[Any]] = {
     AttributeType.REAL: TypeAdapter(RealValue),
     AttributeType.INTEGER: TypeAdapter(IntegerValue),
     AttributeType.TEXT: TypeAdapter(Annotated[str, Strict(), Storable]),
-    AttributeType.DATETIME: TypeAdapter(
-        Annotated[datetime, BeforeValidator(_iso_8601), AfterValidator(_utc)]
-    ),
+    AttributeType.DATETIME: TypeAdapter(DatetimeValue),
 }
 
 
@@ -392,6 +401,24 @@ def declared_by_name[EntryT: Entry](schema: SuiteSchema, entry: type[EntryT]) ->
     return {item.name: item for item in declared_entries(schema, entry)}
 
 
+def declared_entry[EntryT: Entry](schema: SuiteSchema, entry: type[EntryT], name: str) -> EntryT:
+    """The declared entry of this name, or the 400 for one the schema does not declare.
+
+    What a request naming an entry resolves through -- `GET /tests?metric=`, and the time-series
+    endpoints that take a metric as their subject. R3 makes an unknown metric a 400 rather than the
+    404 an unknown machine or test gets, and the distinction is not arbitrary: an entry is a column
+    the schema declares rather than a row the suite holds, so naming one that is not there is a
+    request that could never be answered. Returns the entry rather than the name, because a caller
+    that needs more than membership -- a metric's declared type, say -- would otherwise look it up
+    again.
+    """
+    declared = declared_by_name(schema, entry)
+    found = declared.get(name)
+    if found is None:
+        raise undeclared(name, entry, declared)
+    return found
+
+
 def undeclared(key: str, entry: type[Entry], declared: Collection[str]) -> ApiError:
     """R4's 400 for a key the suite's schema does not declare (D6, D7).
 
@@ -496,6 +523,23 @@ def create_or_reconcile(
             update(key.table).where(key.table.c.id == resolved.identifier).values(**fill)
         )
     return resolved.identifier
+
+
+def identifier(
+    connection: Connection, key: Column[Any], value: Any, missing: Callable[[], ApiError]
+) -> int:
+    """The internal id of the entity a natural key names, or the caller's 404 for one not there.
+
+    R1 keeps auto-increment ids out of the API, so every request names an entity by its key and
+    every query filters on the id behind it. Three paths resolve one that way -- a `machine=` or
+    `test=` filter, and the run a sub-resource hangs off -- and each owes the same lookup; what
+    differs is only the wording of the 404, which each entity keeps. Taken as a callback rather
+    than a string so that the message is not built on the path where it is not used.
+    """
+    found = connection.execute(select(key.table.c.id).where(key == value)).scalar_one_or_none()
+    if found is None:
+        raise missing()
+    return int(found)
 
 
 def rendered_fields(entries: Sequence[Entry], table: Table, row: Row[Any]) -> dict[str, FieldValue]:

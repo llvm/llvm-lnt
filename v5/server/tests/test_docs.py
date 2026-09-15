@@ -8,7 +8,9 @@ from fastapi.testclient import TestClient
 from lnt_v5.querying import DEFAULT_LIMIT, MAX_LIMIT
 from lnt_v5.routes.commits import COMMITS_PATH
 from lnt_v5.routes.machines import MACHINES_PATH
-from lnt_v5.routes.runs import RUNS_PATH
+from lnt_v5.routes.runs import MACHINE_RUNS_PATH, RUNS_PATH
+from lnt_v5.routes.samples import SAMPLES_PATH
+from lnt_v5.routes.tests import TESTS_PATH
 
 
 class TestOpenApiDocument:
@@ -462,16 +464,20 @@ class TestRunOperations:
 
     def test_the_response_promises_every_key_it_documents(self, client: TestClient) -> None:
         # R4: a key an endpoint documents is always present, and null when it has no value.
-        run = client.get("/api/openapi.json").json()["components"]["schemas"]["Run"]
+        schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
+        run = schemas["Run"]
 
         assert set(run["required"]) == set(run["properties"])
-        assert set(run["properties"]) == {
-            "uuid",
-            "machine",
-            "commit",
-            "submitted_at",
-            "run_parameters",
-        }
+        assert set(run["properties"]) == {"uuid", "machine", "commit", "submitted_at"}
+
+    def test_only_the_detail_carries_the_unbounded_blob(self, client: TestClient) -> None:
+        # endpoints.md: `run_parameters` appears in the detail response only, because no list view
+        # renders it. The detail is otherwise the list's object exactly.
+        schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
+        detail = schemas["RunDetail"]
+
+        assert set(detail["required"]) == set(detail["properties"])
+        assert set(detail["properties"]) == {*schemas["Run"]["properties"], "run_parameters"}
 
     def test_a_run_names_the_entities_it_references_rather_than_nesting_them(
         self, client: TestClient
@@ -505,6 +511,108 @@ class TestRunOperations:
 
         assert submission["machine"]["$ref"].endswith("/MachineObject")
         assert submission["commit"]["$ref"].endswith("/CommitObject")
+
+
+class TestReadOperations:
+    """R8: the lists that read runs, tests and samples back."""
+
+    @pytest.mark.parametrize("path", [RUNS, MACHINE_RUNS_PATH, TESTS_PATH, SAMPLES_PATH])
+    def test_is_documented(self, client: TestClient, path: str) -> None:
+        paths = client.get("/api/openapi.json").json()["paths"]
+
+        assert "get" in paths[path], f"GET {path} is not in the document"
+
+    @pytest.mark.parametrize("path", [RUNS, MACHINE_RUNS_PATH, TESTS_PATH, SAMPLES_PATH])
+    @pytest.mark.parametrize("status", ["404", "409"])
+    def test_documents_the_failures_endpoints_md_specifies(
+        self, client: TestClient, path: str, status: str
+    ) -> None:
+        # An unknown suite on every one of them (R1) -- and on three of the four, an unknown entity
+        # named by the path or by a filter as well. D2's stale reader accounts for the 409.
+        operation = client.get("/api/openapi.json").json()["paths"][path]["get"]
+
+        assert status in operation["responses"]
+
+    @pytest.mark.parametrize(
+        ("path", "expected"),
+        [
+            (RUNS, {"search", "machine", "commit", "after", "before", "has_profiles", "sort"}),
+            (MACHINE_RUNS_PATH, {"after", "before", "sort"}),
+            (TESTS_PATH, {"search", "machine", "metric"}),
+            (SAMPLES_PATH, {"test"}),
+        ],
+    )
+    def test_documents_exactly_the_filters_endpoints_md_gives_it(
+        self, client: TestClient, path: str, expected: set[str]
+    ) -> None:
+        """Exactly, not merely at least: a filter the spec does not give a list is as wrong as a
+        missing one.
+
+        R3 is explicit that `GET /tests` supports no time range, for instance, and a subset
+        assertion would let one appear unnoticed. The path's own templated segments and R2's two
+        paging parameters are the rest of what every one of these declares.
+        """
+        templated = {segment[1:-1] for segment in path.split("/") if segment.startswith("{")}
+        operation = client.get("/api/openapi.json").json()["paths"][path]["get"]
+        names = {parameter["name"] for parameter in operation["parameters"]}
+
+        assert names == expected | templated | {"limit", "cursor"}
+
+    @pytest.mark.parametrize("path", [RUNS, MACHINE_RUNS_PATH, TESTS_PATH, SAMPLES_PATH])
+    def test_pages_with_a_cursor_rather_than_an_offset(self, client: TestClient, path: str) -> None:
+        # R2: an unbounded list is cursor-paginated and carries no `total`, which is what a client
+        # generated from this document has to be told.
+        document = client.get("/api/openapi.json").json()
+        operation = document["paths"][path]["get"]
+        body = operation["responses"]["200"]["content"]["application/json"]["schema"]
+        envelope = document["components"]["schemas"][body["$ref"].rsplit("/", 1)[-1]]
+        names = {parameter["name"] for parameter in operation["parameters"]}
+
+        assert {"limit", "cursor"} <= names
+        assert "offset" not in names
+        assert set(envelope["properties"]) == {"items", "cursor"}
+
+    @pytest.mark.parametrize("path", [RUNS, MACHINE_RUNS_PATH])
+    def test_the_run_lists_enumerate_their_sort_fields(self, client: TestClient, path: str) -> None:
+        # endpoints.md names one field and both directions, so a generated client should not be
+        # able to ask for a third spelling.
+        operation = client.get("/api/openapi.json").json()["paths"][path]["get"]
+        sort = next(p for p in operation["parameters"] if p["name"] == "sort")
+
+        assert set(sort["schema"]["anyOf"][0]["enum"]) == {"submitted_at", "-submitted_at"}
+
+    @pytest.mark.parametrize("path", [TESTS_PATH, SAMPLES_PATH])
+    def test_the_lists_with_no_order_of_their_own_offer_no_sort(
+        self, client: TestClient, path: str
+    ) -> None:
+        operation = client.get("/api/openapi.json").json()["paths"][path]["get"]
+
+        assert "sort" not in {parameter["name"] for parameter in operation["parameters"]}
+
+    def test_no_path_carries_a_test_name(self, client: TestClient) -> None:
+        """R1: a test name legitimately contains `/`, so no path segment can hold one.
+
+        The machine-checkable form of the rule. A route templated on a test name would be
+        unreachable for the names the design docs use as examples, so the document must not have
+        one -- every endpoint that names a test does so with a `test=` parameter.
+        """
+        paths = client.get("/api/openapi.json").json()["paths"]
+        named_after_a_test = {
+            segment
+            for path in paths
+            for segment in path.split("/")
+            if segment.startswith("{") and "test" in segment and segment != "{testsuite}"
+        }
+
+        assert not named_after_a_test, sorted(paths)
+
+    def test_a_sample_carries_only_the_metrics_that_have_a_value(self, client: TestClient) -> None:
+        # R4's stated exception: `metrics` is not a `fields` dict, so nothing in it is ever null.
+        sample = client.get("/api/openapi.json").json()["components"]["schemas"]["Sample"]
+        values = sample["properties"]["metrics"]["additionalProperties"]
+
+        assert set(sample["required"]) == set(sample["properties"]) == {"test", "metrics"}
+        assert {"type": "null"} not in values["anyOf"]
 
 
 class TestDocumentationViewer:

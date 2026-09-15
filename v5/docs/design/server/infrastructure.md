@@ -29,10 +29,17 @@ alongside an interactive viewer (see R8).
   `Location` header handed back at creation would answer 404. A machine name or a commit value
   that is not addressable in this sense is therefore rejected with 400 wherever the entity is
   created, including implicit creation during run submission (see D6), rather than accepted and
-  then unreachable. Suite names are already narrower than this by D4's pattern. Test names are the
-  exception: they legitimately contain `/` (`test.suite/benchmark`), tests are created implicitly
-  with no endpoint that could refuse one, and the route that names a test therefore cannot rely on
-  this rule.
+  then unreachable. Suite names are already narrower than this by D4's pattern.
+- Test names are the exception, and the API addresses them differently because of it. They
+  legitimately contain `/` (`test.suite/benchmark`), and tests are created implicitly by run
+  submission, so there is no endpoint that could refuse an unaddressable one and no rule to apply.
+  **No path therefore carries a test name.** A request that names a test does so in a `test=` query
+  parameter, or in a request body where one is already being sent; in both, `/` is an ordinary
+  character and nothing splits or normalizes it. Percent-encoding does not rescue the path form for
+  a key containing `/` -- `%2F` is decoded back to a separator before routing, so
+  `/runs/{uuid}/tests/test.suite%2Fbenchmark/samples` reaches no route at all. It does work for
+  every other character a path segment would otherwise mangle, which is why a profile's function
+  name can be one (see the endpoints spec).
 - An index endpoint at `GET /api` links to the test suite list and the API documentation
 - Suite-scoped resources live one level below the suite collection, under
   `/api/suites/{testsuite}/`. This keeps them disjoint from instance-level
@@ -65,11 +72,15 @@ future backward pagination) and clients must not rely on it. Cursors are opaque
 strings that clients must not parse. A client asks for the page after the one it
 holds by passing `cursor.next` back as a `cursor=` parameter, alongside the same
 filters and `sort` that produced it; a cursor that is malformed, or that was
-issued for a different list or a different ordering, is rejected with 400 rather
-than quietly answered with a page of the wrong rows. Opacity is a contract on the
-client rather than a cryptographic guarantee: a cursor need not be unforgeable,
-because it can only name a position in a query its holder could have asked for
-anyway.
+issued for a different *ordering* -- another list's rows, or the same list's in
+the other direction -- is rejected with 400 rather than quietly answered with a
+page of the wrong rows. Resending the filters is the client's part of the
+bargain and is deliberately not checked: a cursor names a position in an order,
+and two requests differing only by a filter share that order, so a cursor handed
+to the wrong one of them still names a real position rather than a wrong page.
+Opacity is a contract on the client rather than a cryptographic guarantee: a
+cursor need not be unforgeable, because it can only name a position in a query
+its holder could have asked for anyway.
 
 Offset pagination takes `offset` (default `0`) alongside `limit`. `total` is the
 number of items matching the request's filters, ignoring `limit` and `offset`,

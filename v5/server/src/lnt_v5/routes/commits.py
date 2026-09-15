@@ -47,7 +47,7 @@ from lnt_v5.querying import (
     sort_order,
 )
 from lnt_v5.responses import CursorPage
-from lnt_v5.routes.machines import machine_id
+from lnt_v5.routes.machines import NO_MACHINE_FILTERED, machine_id
 from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.scopes import Scope
 from lnt_v5.suites.entities import (
@@ -375,9 +375,7 @@ class Commits:
     "",
     dependencies=[require_scope(Scope.READ)],
     summary="List commits",
-    responses=suite_responses(
-        not_found=f"{SUITE_NOT_FOUND} Or the machine the `machine=` filter names is not in it."
-    ),
+    responses=suite_responses(not_found=NO_MACHINE_FILTERED),
 )
 def list_commits(
     testsuite: str,
@@ -441,10 +439,14 @@ def list_commits(
             profiled = commits.has_run(on_machine, profiled=True)
             conditions.append(profiled if has_profiles else ~profiled)
 
-        rows, next_cursor = cursor_page(
-            connection, commits.select().where(*conditions), commits.keyset(sort), limit, cursor
+        return cursor_page(
+            connection,
+            commits.select().where(*conditions),
+            commits.keyset(sort),
+            limit,
+            cursor,
+            commits.read,
         )
-        return CursorPage.of([commits.read(row) for row in rows], next_cursor)
 
 
 @router.post(
