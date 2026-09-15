@@ -26,6 +26,7 @@ from sqlalchemy import (
     Identity,
     Integer,
     MetaData,
+    Row,
     String,
     Table,
     insert,
@@ -97,10 +98,11 @@ def walk(db_engine: Engine) -> Callable[..., list[str]]:
         cursor: str | None = None
         for _ in range(100):
             with db_engine.connect() as connection:
-                page, cursor = cursor_page(
-                    connection, statement, keyset, limit, RequestCursor(cursor)
+                page = cursor_page(
+                    connection, statement, keyset, limit, RequestCursor(cursor), _row
                 )
-            seen.extend(row.label for row in page)
+            seen.extend(row.label for row in page.items)
+            cursor = page.cursor.next
             if cursor is None:
                 return seen
         raise AssertionError("pagination did not terminate")
@@ -128,17 +130,24 @@ def forged(cursor: str, *values: Any) -> str:
     return base64.urlsafe_b64encode(payload.encode()).decode().rstrip("=")
 
 
+def _row(row: Row[Any]) -> Row[Any]:
+    """`cursor_page`'s reader, when the test wants the rows themselves rather than a response."""
+    return row
+
+
 def one_page(
     engine: Engine, keyset: Keyset, limit: int, cursor: str | None = None, scope: str = ""
-) -> Any:
+) -> tuple[list[Row[Any]], str | None]:
     with engine.connect() as connection:
-        return cursor_page(
+        page = cursor_page(
             connection,
             sql_select(events),
             keyset,
             limit,
             RequestCursor(cursor, scope),
+            _row,
         )
+    return page.items, page.cursor.next
 
 
 @pytest.mark.usefixtures("rows")
