@@ -18,7 +18,9 @@ from .routes.admin import router as admin_router
 from .routes.health import router as health_router
 from .routes.index import DOCS_PATH, OPENAPI_PATH
 from .routes.index import router as index_router
+from .routes.suites import router as suites_router
 from .spa import RedirectTrailingSlash, SpaStaticFiles
+from .suites.registry import SuiteRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +80,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         swagger_ui_oauth2_redirect_url=None,
     )
 
+    # One per worker, holding that worker's copy of every suite schema (D2). Built here rather
+    # than in the lifespan because it needs no database and nothing to dispose: it loads lazily, on
+    # the first request that reads it.
+    app.state.suites = SuiteRegistry()
+
     register_error_handlers(app)
     use_r4_error_responses(app)
     app.add_middleware(RequestBodyLimitMiddleware, max_body_size=settings.body_limit)
@@ -88,6 +95,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health_router)
     app.include_router(index_router)
     app.include_router(admin_router)
+    app.include_router(suites_router)
 
     client_dist = Path(settings.client_dist) if settings.client_dist else _default_client_dist()
     if client_dist.is_dir():

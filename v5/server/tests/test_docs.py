@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 from fastapi.testclient import TestClient
 
 
@@ -88,6 +89,82 @@ class TestDocumentedAuthentication:
         keys = client.get("/api/openapi.json").json()["paths"]["/api/admin/api-keys"]["get"]
 
         assert {"400", "401", "403"} <= set(keys["responses"])
+
+
+class TestSuiteOperations:
+    """R8: the document describes what the API can actually do, including these five."""
+
+    @pytest.mark.parametrize(
+        ("path", "method"),
+        [
+            ("/api/suites", "get"),
+            ("/api/suites", "post"),
+            ("/api/suites/{name}", "get"),
+            ("/api/suites/{name}/schema", "patch"),
+            ("/api/suites/{name}", "delete"),
+        ],
+    )
+    def test_is_documented(self, client: TestClient, path: str, method: str) -> None:
+        paths = client.get("/api/openapi.json").json()["paths"]
+
+        assert method in paths[path], f"{method.upper()} {path} is not in the document"
+
+    @pytest.mark.parametrize(
+        ("path", "method", "status"),
+        [
+            ("/api/suites", "post", "409"),
+            ("/api/suites/{name}", "get", "404"),
+            ("/api/suites/{name}", "delete", "404"),
+            ("/api/suites/{name}/schema", "patch", "404"),
+            ("/api/suites/{name}/schema", "patch", "409"),
+        ],
+    )
+    def test_documents_the_failures_endpoints_md_specifies(
+        self, client: TestClient, path: str, method: str, status: str
+    ) -> None:
+        # `openapi.py` derives only 400/401/403 from the declared scope, so everything else has
+        # to be declared on the route -- and a status the spec promises but the document omits is a
+        # lie to every generated client.
+        operation = client.get("/api/openapi.json").json()["paths"][path][method]
+
+        assert status in operation["responses"]
+
+    def test_the_destructive_operations_document_their_confirmation(
+        self, client: TestClient
+    ) -> None:
+        paths = client.get("/api/openapi.json").json()["paths"]
+
+        for path, method in (
+            ("/api/suites/{name}", "delete"),
+            ("/api/suites/{name}/schema", "patch"),
+        ):
+            names = {p["name"] for p in paths[path][method].get("parameters", [])}
+            assert "confirm" in names, f"{method.upper()} {path} does not document ?confirm="
+
+    def test_creating_and_reading_a_suite_share_one_schema(self, client: TestClient) -> None:
+        """The machine-checkable form of "postable verbatim to another instance".
+
+        If the request body and the detail response ever referenced different components, a
+        generated client could not feed one to the other -- which is the whole property endpoints.md
+        rests on.
+        """
+        paths = client.get("/api/openapi.json").json()["paths"]
+        posted = paths["/api/suites"]["post"]["requestBody"]["content"]["application/json"]
+        returned = paths["/api/suites/{name}"]["get"]["responses"]["200"]["content"][
+            "application/json"
+        ]
+
+        assert posted["schema"] == returned["schema"]
+
+    def test_no_update_entry_accepts_a_type(self, client: TestClient) -> None:
+        # D2 forbids changing a type in place, so the document must not advertise the key. Declaring
+        # one only to reject it would describe an input the API refuses every time.
+        schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
+        updates = [name for name in schemas if name.endswith("Update")]
+
+        assert updates, "the update models are missing from the document"
+        for name in updates:
+            assert "type" not in schemas[name].get("properties", {}), name
 
 
 class TestDocumentationViewer:

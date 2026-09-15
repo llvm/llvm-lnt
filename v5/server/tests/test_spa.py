@@ -194,11 +194,22 @@ class TestRedirectTrailingSlash:
 
         assert response.headers["location"].endswith("/api?limit=25")
 
-    def test_preserves_the_method_and_body(self, client: TestClient) -> None:
+    @pytest.mark.parametrize("path", ["/api/admin/api-keys/", "/api/suites/"])
+    def test_preserves_the_method_and_body(self, client: TestClient, path: str) -> None:
         # 307 rather than 301 or 308, so a misspelled write arrives intact rather than as a GET.
-        response = client.post("/api/admin/api-keys/", json={"name": "x"}, follow_redirects=False)
+        response = client.post(path, json={"name": "x"}, follow_redirects=False)
 
         assert response.status_code == 307
+
+    @pytest.mark.parametrize("path", ["/api/suites/", "/api/suites/nts/"])
+    def test_redirects_a_suite_path_to_its_canonical_form(
+        self, client: TestClient, path: str
+    ) -> None:
+        # The paths a client is most likely to spell with a trailing slash, now that they exist.
+        response = client.get(path, follow_redirects=False)
+
+        assert response.status_code == 307
+        assert response.headers["location"].endswith(path.rstrip("/"))
 
     def test_does_not_let_the_health_probe_be_answered_by_the_spa(self, client: TestClient) -> None:
         # Without this, `/healthz/` falls through to the catch-all and answers 200 with the client
