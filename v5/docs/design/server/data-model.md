@@ -59,11 +59,11 @@ suite comes to accept metadata it did not declare at creation: undeclared keys a
 rejected on submission for both machines and commits (see D6).
 
 - **Adding** an entry leaves existing rows with no value for it.
-- **Updating** an entry changes presentation metadata only -- whichever of
+- Only presentation metadata can be **updated**: whichever of
   `display_name`, `unit`, `unit_abbrev`, `bigger_is_better`, `searchable`, and
-  `display` its list accepts (see D4). A `type`
-  cannot be changed in place, because the conversion is not always defined
-  (`text` to `integer` can fail per row, `real` to `integer` truncates).
+  `display` the entry accepts (see D4). A `type` cannot be changed in place,
+  because the conversion is not always defined (`text` to `integer` can fail
+  per row, `real` to `integer` truncates).
 - **Removing** an entry permanently destroys every value stored for it. Because
   those values are destroyed, an implementation may reuse whatever storage the
   removed entry occupied.
@@ -203,9 +203,9 @@ beginning with `pg_` is rejected.
 `machine_fields` follows the same rule as the suite name -- it must match
 `^[a-z][a-z0-9_]*$` and be at most 63 characters -- for the same reason: an
 entry becomes a column, so it is an identifier too. The rule deliberately does
-not exclude the SQL reserved words it admits (`order`, `user`, `table` are all
-legal entry names); an implementation quotes identifiers rather than
-restricting what a schema may call a metric.
+not exclude the SQL reserved words (`order`, `user`, `table` are all legal
+entry names); an implementation quotes identifiers rather than restricting
+valid names for a metric.
 
 A name must be unique within its list, but the three lists are independent: a
 metric and a machine field may share a name, because they are columns on
