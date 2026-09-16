@@ -12,11 +12,16 @@ from collections.abc import Callable, Iterator
 from typing import Any
 
 import pytest
-from sqlalchemy import Connection, Engine, Inspector, Table, func, insert, inspect, select, text
-from sqlalchemy.engine.interfaces import ReflectedColumn, ReflectedIndex
+from sqlalchemy import Connection, Engine, Table, func, insert, inspect, select, text
 from sqlalchemy.exc import IntegrityError, ProgrammingError
 
-from introspection import assert_names_survived, sql_type_of, stored_names
+from introspection import (
+    assert_names_survived,
+    columns_of,
+    indexes_of,
+    sql_type_of,
+    stored_names,
+)
 from lnt_v5.suites import tables as suite_tables
 from lnt_v5.suites.schema import CommitField, Entry, MachineField, Metric, SuiteSchema
 from lnt_v5.suites.states import RegressionState
@@ -79,14 +84,6 @@ def make_suite(db_engine: Engine) -> Iterator[Callable[..., SuiteTables]]:
     for name in created:
         with db_engine.begin() as connection:
             connection.execute(text(f'DROP SCHEMA IF EXISTS "{name}" CASCADE'))
-
-
-def columns_of(inspector: Inspector, suite: str, table: str) -> dict[str, ReflectedColumn]:
-    return {column["name"]: column for column in inspector.get_columns(table, schema=suite)}
-
-
-def indexes_of(inspector: Inspector, suite: str, table: str) -> dict[str, ReflectedIndex]:
-    return {str(index["name"]): index for index in inspector.get_indexes(table, schema=suite)}
 
 
 def seed(connection: Connection, tables: SuiteTables) -> dict[str, int]:

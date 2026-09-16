@@ -10,12 +10,12 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from lnt_v5.auth import require_scope
+from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.scopes import Scope
 
 INDEX_PATH = "/api"
 OPENAPI_PATH = "/api/openapi.json"
 DOCS_PATH = "/api/docs"
-SUITES_PATH = "/api/suites"
 
 
 class ApiLinks(BaseModel):

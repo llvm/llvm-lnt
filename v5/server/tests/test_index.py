@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from lnt_v5.routes.index import DOCS_PATH, OPENAPI_PATH, SUITES_PATH
+from lnt_v5.routes.index import DOCS_PATH, OPENAPI_PATH
+from lnt_v5.routes.suites import SUITES_PATH
 
 
 class TestIndex:
@@ -16,11 +17,11 @@ class TestIndex:
             "links": {"suites": SUITES_PATH, "openapi": OPENAPI_PATH, "docs": DOCS_PATH}
         }
 
-    def test_the_documentation_links_resolve(self, api_client: TestClient) -> None:
-        # The index is only useful if what it points at is actually served here. `suites` is
-        # deliberately not checked: the suite endpoints do not exist yet.
+    def test_every_link_resolves(self, api_client: TestClient) -> None:
+        # The index is only useful if what it points at is actually served here.
         links = api_client.get("/api").json()["links"]
 
+        assert api_client.get(links["suites"]).status_code == 200
         assert api_client.get(links["openapi"]).status_code == 200
         assert api_client.get(links["docs"]).status_code == 200
 

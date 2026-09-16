@@ -42,15 +42,52 @@ Test suite schemas are created via the API (`POST /api/suites`), evolved via
 Two global tables hold this state: `schema`, with one row per suite, and
 `schema_version`, a single-row counter. See D5 for their columns.
 
-On startup, all rows from `schema` are read and in-memory models for the schemas are
-built. The `schema_version` counter is cached.
+All rows from `schema` are read and in-memory models for the schemas are built, and
+the `schema_version` counter is cached alongside them. This may happen at startup or on
+first use; correctness does not depend on which, because of the comparison below. A
+build that loads at startup must not refuse to serve when the load fails -- an
+unreachable database is what `GET /healthz` exists to report (see R7), and it becomes
+reachable again without the process restarting.
 
 **Multi-process safety**: In a multi-worker deployment, when one worker creates,
 modifies, or deletes a suite, it bumps the `schema_version` counter in the same
-transaction. Every request path must compare its cached version counter against the
-database before reading the in-memory suite registry. When a mismatch is detected, all
+transaction. Every request path that reads the in-memory suite registry must first
+compare its cached version counter against the database. When a mismatch is detected, all
 schemas are reloaded from the database. The check is a single-row integer read
 per request.
+
+The counter and the schemas must be read consistently with each other -- from one
+snapshot. Read separately they can straddle another worker's commit, and in one of the
+two orders the reader ends up caching a counter *newer* than the schemas beside it, so it
+stops reloading and serves stale schemas until the next unrelated change.
+
+A reader's version check must be able to observe writes that committed after the
+request began. A database that gave each request a snapshot fixed at its start would
+never see another worker's bump within that request, and the reader would serve stale
+schemas indefinitely with nothing reporting it.
+
+**Writes do not read the registry**: a write that changes a suite derives the schema it
+is changing from the stored row, taken under a lock that serializes writes to that suite,
+never from the cached copy. The cache is permitted to lag by a commit, so two concurrent
+changes derived from it would each silently discard the other's -- while still applying
+their own column changes, leaving the tables and the stored schema permanently
+disagreeing. For the same reason every write takes that lock *before* it alters any
+table, so that a change and a deletion of one suite cannot each hold what the other
+needs.
+
+A write waits only a bounded time for what it needs, and reports a retryable conflict
+(409) rather than waiting indefinitely. Altering a suite's tables excludes every reader
+of them, and a request already waiting for that exclusion queues ahead of readers that
+arrive later -- so an unbounded wait behind one long-running query stalls every
+subsequent request for that suite, on every worker, each holding a database connection
+until it gives up. That exhausts the connection pool and takes the health check down
+with it.
+
+**A stale reader is answered, not silently wrong**: between a reader's version check and
+its next query, another worker can remove a field, so a request can reach a column that
+no longer exists. That window cannot be closed cheaply and is not required to be. A
+request that hits it must report a conflict (409) rather than a 500 -- the schema changed
+underneath it, and retrying will succeed.
 
 **Schema evolution**: A suite's `metrics`, `commit_fields`, and `machine_fields`
 lists can be changed after creation via `PATCH /api/suites/{name}/schema`, which
@@ -68,10 +105,17 @@ rejected on submission for both machines and commits (see D6).
   those values are destroyed, an implementation may reuse whatever storage the
   removed entry occupied.
 
+In an `update` entry, a key the request omits leaves the stored value unchanged. An
+explicit `null` clears one of the nullable keys (`display_name`, `unit`, `unit_abbrev`);
+the boolean keys (`bigger_is_better`, `searchable`, `display`) are not nullable, because
+D4 normalizes them to `false` rather than to null, so `null` on one of them is rejected
+(400).
+
 Notes:
 - Renaming is not supported; it is semantically a remove plus an add.
 - A schema change is atomic -- it applies entirely or not at all.
-- The same field cannot be the target of more than one add/update/remove operation in a given query.
+- The same field cannot be the target of more than one add/update/remove operation in a
+  given query, counting repeats within a single operation's own list.
 - The resulting schema is validated in full, exactly as if it had been supplied to `POST /api/suites`,
   rather than only the entries the request touched.
 
@@ -111,8 +155,8 @@ aggregation. Picking a sensible metric is the schema author's responsibility.
 ## D4: Schema Format
 
 A test suite's schema is a JSON document: it is the body of `POST /api/suites`,
-the `"schema"` object in the `GET /api/suites/{name}` response, and what the
-`schema` table stores (see D2 and D5). This is a clean break from v4, where
+the body `GET /api/suites/{name}` returns, and what the `schema` table stores
+(see D2 and D5). This is a clean break from v4, where
 suites were defined by YAML files shipped alongside the server -- in v5 a schema
 only ever exists as JSON travelling over the API. The two formats still share
 much of their vocabulary.

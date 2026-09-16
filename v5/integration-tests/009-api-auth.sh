@@ -24,11 +24,7 @@ expect_body '"code":"unauthorized"'
 
 # R5: a 401 says which scheme the caller should have used. Read off a GET rather than a HEAD --
 # FastAPI routes only the methods an endpoint declares, so HEAD is a miss like any other.
-if ! curl --silent --dump-header - --output /dev/null "$KEYS" \
-    | grep -qi '^www-authenticate: *Bearer'; then
-    echo "  expected a WWW-Authenticate: Bearer header on the 401" >&2
-    exit 1
-fi
+expect_header WWW-Authenticate 'Bearer'
 
 echo "  a malformed credential is told apart from a rejected one"
 request -H 'Authorization: Basic zzz' "$INDEX"
@@ -39,13 +35,7 @@ request -H "Authorization: Bearer $(printf 'f%.0s' {1..64})" "$INDEX"
 expect_status 401
 
 echo "  a key created out of band by the CLI authenticates over HTTP"
-# create-key prints the token on stdout and everything a human reads on stderr, so this captures
-# the token alone.
-bootstrap="$(docker exec "$CONTAINER" lnt-v5 server create-key --name integration --scope admin 2>/dev/null)"
-if ! printf '%s' "$bootstrap" | grep -Eq '^[0-9a-f]{64}$'; then
-    echo "  expected a 64-character hex token from create-key, got: ${bootstrap}" >&2
-    exit 1
-fi
+bootstrap="$(mint_key integration admin)"
 
 request -H "Authorization: Bearer ${bootstrap}" "$KEYS"
 expect_status 200

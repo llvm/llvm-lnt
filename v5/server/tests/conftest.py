@@ -164,6 +164,16 @@ def db_engine(_session_engine: Engine) -> Iterator[Engine]:
     """
     yield _session_engine
     with _session_engine.begin() as connection:
+        # Every suite's namespace, whether this test created it through the API or directly (D5).
+        # The database is session-scoped, so a leaked namespace would make the next test's
+        # `CREATE SCHEMA` fail -- an order-dependent 409 where it expected a 201.
+        for namespace in connection.execute(
+            text(
+                "SELECT nspname FROM pg_namespace WHERE nspname NOT LIKE 'pg\\_%' "
+                "AND nspname NOT IN ('public', 'information_schema')"
+            )
+        ).scalars():
+            connection.execute(text(f'DROP SCHEMA "{namespace}" CASCADE'))
         # Driven by the metadata rather than a written-out list, so that a global table added by a
         # later revision is emptied too. Missing one would leak rows into whatever test ran next,
         # and surface as an unrelated flake rather than as an obvious omission here.
