@@ -14,6 +14,8 @@ from lnt_v5.migrate import (
     head_revision,
     upgrade_to_head,
 )
+from lnt_v5.suites import tables as suite_tables
+from lnt_v5.suites.schema import SuiteSchema
 from lnt_v5.tables import SCHEMA_VERSION_ID, metadata
 
 
@@ -82,14 +84,24 @@ class TestUpgrade:
         the default namespace unless asked otherwise, so this asserts the property rather than any
         mechanism of ours -- and because it runs through env.py, switching that default on there
         fails here.
+
+        Built through the real table builder rather than from stub tables, so the namespace carries
+        everything a suite actually has -- dynamic columns, indexes, foreign keys, check constraints
+        -- which is the shape autogenerate would have to ignore.
         """
         upgrade_to_head(empty_engine)
-        with empty_engine.begin() as connection:
-            connection.execute(text("CREATE SCHEMA nts"))
-            connection.execute(text("CREATE TABLE nts.commit (id integer PRIMARY KEY)"))
-            connection.execute(
-                text("CREATE TABLE nts.regression_indicator (id integer PRIMARY KEY)")
+        suite = suite_tables.build(
+            SuiteSchema.model_validate(
+                {
+                    "name": "nts",
+                    "metrics": [{"name": "execution_time", "type": "real"}],
+                    "commit_fields": [{"name": "git_sha", "type": "text", "searchable": True}],
+                    "machine_fields": [{"name": "hardware", "type": "text"}],
+                }
             )
+        )
+        with empty_engine.begin() as connection:
+            suite_tables.create(connection, suite)
 
         assert_no_pending_revision(empty_engine)
 
