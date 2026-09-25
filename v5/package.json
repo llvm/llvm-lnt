@@ -11,7 +11,7 @@
     "build": "npm run build -w client",
     "test": "npm run test:client && npm run test:server",
     "test:client": "npm run test -w client",
-    "test:server": "cd server && uv run pytest",
+    "test:server": "cd server && uv run pytest --durations=20",
     "test:integration": "integration-tests/run.sh",
     "lint": "npm run lint:client && npm run lint:server",
     "lint:client": "npm run lint -w client",
