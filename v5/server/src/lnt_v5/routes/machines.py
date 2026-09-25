@@ -17,7 +17,6 @@ from __future__ import annotations
 from collections.abc import Sequence
 from datetime import datetime
 from typing import Annotated, Any, Literal
-from urllib.parse import quote
 
 from fastapi import APIRouter, Query, Response
 from pydantic import Field, StringConstraints
@@ -46,8 +45,10 @@ from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.scopes import Scope
 from lnt_v5.suites.entities import (
     Addressable,
+    BooleanValue,
     EntityObject,
     FieldValue,
+    location_of,
     rendered_fields,
     validate_fields,
 )
@@ -73,7 +74,7 @@ MachineName = Annotated[
 ]
 
 Tracked = Annotated[
-    bool,
+    BooleanValue,
     Field(
         description=(
             "Whether the machine takes part in automatic machine selection. An untracked machine "
@@ -201,17 +202,33 @@ class _Machines:
 
     def missing(self, name: str) -> ApiError:
         """The 404 for a machine that is not there, worded in one place for all three callers."""
-        return ApiError(
-            ErrorCode.NOT_FOUND, f"No machine named '{name}' in test suite '{self.schema.name}'"
-        )
+        return _missing(self.schema.name, name)
 
     def taken(self, name: str) -> str:
         return f"A machine named '{name}' already exists in test suite '{self.schema.name}'"
 
 
-def _location(testsuite: str, name: str) -> str:
-    """Where `POST` says the machine it created can be read back (R1)."""
-    return f"{MACHINES_PATH.format(testsuite=quote(testsuite, safe=''))}/{quote(name, safe='')}"
+def _missing(testsuite: str, name: str) -> ApiError:
+    """The 404 for a machine no suite holds, shared by the routes and by the `machine=` filter."""
+    return ApiError(ErrorCode.NOT_FOUND, f"No machine named '{name}' in test suite '{testsuite}'")
+
+
+def machine_id(connection: Connection, suite: Suite, name: str) -> int:
+    """The id of the machine a `machine=` filter names, or R3's 404 for one that is not there.
+
+    R3 makes an unknown `machine=` an error, unlike an unknown `commit=`, so every endpoint that
+    offers the filter owes the same lookup and the same wording -- which is why this lives beside
+    the 404 the machine routes themselves raise rather than being written out per endpoint. It
+    reads the table directly: `_Machines` carries the `last_run_at` probe, which a filter that
+    wants an id alone would build and discard.
+    """
+    machine = suite.tables.machine
+    found = connection.execute(
+        select(machine.c.id).where(machine.c.name == name)
+    ).scalar_one_or_none()
+    if found is None:
+        raise _missing(suite.schema.name, name)
+    return int(found)
 
 
 @router.get(
@@ -295,7 +312,7 @@ def create_machine(
             )
         created = machines.one(connection, body.name)
 
-    response.headers["Location"] = _location(testsuite, body.name)
+    response.headers["Location"] = location_of(MACHINES_PATH, testsuite, body.name)
     return created
 
 

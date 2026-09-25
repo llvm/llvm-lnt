@@ -109,15 +109,31 @@ a previously-set value; omitting the field instead leaves it unchanged.
 **Commit object**: `POST` and `PATCH` take the same entity object that a run
 submission nests under `commit` (see D6): `value` (identity), `ordinal` and
 `tag` (built-in attributes), and `fields` (declared `commit_fields`). Responses
-use the same shape. `value` is immutable -- commits cannot be renamed. Keys in
-`fields` must be declared in the suite's schema; an undeclared key is rejected
-with 400 (see D7).
+use the same shape. `value` is immutable -- commits cannot be renamed, and
+sending it to `PATCH` is rejected with 400 rather than ignored, unlike
+`PATCH /api/suites/{testsuite}/machines/{machine_name}`, where `name` renames.
+For the same reason -- a key that could not take effect is refused rather than
+dropped -- `tag` sent to `POST` is rejected with 400, since D7 makes it
+settable only by `PATCH`. Keys in `fields` must be declared in the suite's
+schema; an undeclared key is rejected with 400 (see D7).
 
 The detail response adds `previous` and `next`: the commit objects with the
 nearest lower and nearest higher `ordinal`, each without its own
 `previous`/`next`. Commits with no ordinal are skipped as neighbours; both keys
 are `null` at either end of the ordered range, and on a commit whose own
 `ordinal` is unset.
+
+`POST` returns 201 with the created commit's detail body and a `Location` header
+pointing at `GET /api/suites/{testsuite}/commits/{value}`; `PATCH` returns 200
+with the same body; `DELETE` returns 204. `POST` returns 409 `duplicate` if a
+commit with that value already exists, and both `POST` and `PATCH` return 409
+`ordinal_conflict` if the ordinal they set is already held by another commit
+(see D11 and R4). `DELETE` returns 409 `in_use` if a regression references the
+commit; otherwise it removes the commit, its runs, and their samples and
+profiles (see D5). Every route in this section returns 404 if the suite does not
+exist, and every route that addresses a commit returns 404 if no commit in the
+suite has that value. Unlike the destructive suite operations, `DELETE` requires
+no `?confirm=true`.
 
 Auth scopes: `read` for GET (including `/commits/resolve`), `submit` for
 `POST /commits`, `manage` for PATCH/DELETE.
@@ -136,8 +152,9 @@ were first seen by the server, not their ordinal order.
 ### Batch Resolve
 
 `POST /api/suites/{testsuite}/commits/resolve` accepts a JSON body
-`{"commits": ["abc", "def", ...]}` (at least one commit string) and returns
-each found commit's summary in a dict keyed by commit string:
+`{"commits": ["abc", "def", ...]}` (at least one commit string, and no more than
+R2's maximum page size) and returns each found commit's summary in a dict keyed
+by commit string:
 
 ```json
 {
@@ -151,8 +168,11 @@ each found commit's summary in a dict keyed by commit string:
 
 Each value in `results` is a commit object (`{value, ordinal, tag, fields}`),
 without the `previous`/`next` that the detail endpoint adds. Commit strings not
-found in the database are returned in a separate `not_found` list. Duplicates in
-the request are deduplicated; each commit appears at most once in the response.
+found in the database are returned in a separate `not_found` list -- including
+ones no commit could possibly have, such as a string longer than the column
+holds, since a lookup for something absent is what `not_found` reports.
+Duplicates in the request are deduplicated; each commit appears at most once in
+the response.
 
 Auth scope: `read`. Not paginated (response is bounded by request size).
 

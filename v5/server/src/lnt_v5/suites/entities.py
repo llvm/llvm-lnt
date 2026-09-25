@@ -8,6 +8,10 @@ type, and the step that turns a submitted `fields` dict into column values or a 
 Declared metadata lives in a nested dict of its own rather than flattened onto the entity (R4). That
 is what keeps a field from ever colliding with an identity or built-in key, and what makes the
 object a submission nests identical to the one the entity's own creation endpoint accepts.
+
+R1's rule about identity attributes lives here too -- the validator that refuses a natural key no
+URL could address, and the function that puts one into a URL -- because both are properties of an
+entity's identity rather than of any one endpoint's routing.
 """
 
 from __future__ import annotations
@@ -15,6 +19,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from typing import Annotated, Any
+from urllib.parse import quote
 
 from pydantic import (
     AfterValidator,
@@ -79,9 +84,30 @@ def _utc(value: datetime) -> datetime:
     return value.astimezone(UTC) if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
+# D3 maps `integer` to a PostgreSQL INTEGER, which is 32 bits wide. Without this, a value outside
+# that range passes validation and fails in the database with a range error -- a `DataError` rather
+# than an integrity failure, so nothing attributes it and the caller gets a 500 for a value it
+# supplied. R4 makes that an `invalid_request`, and stating the bound here also puts it in R8's
+# document.
+INT32_MIN = -(2**31)
+INT32_MAX = 2**31 - 1
+
+# D3's `integer`, as a reusable annotation: strict, so `"5"` and `true` are not integers, but
+# reading `8.0` as 8 because JSON has a single number type and a producer serializing through a
+# float writes an integer that way. Exported because the built-in integer attributes an entity
+# carries beside `fields` -- a commit's `ordinal` -- follow the same rule as a declared one (D7).
+IntegerValue = Annotated[
+    int, BeforeValidator(_whole_number), Strict(), Field(ge=INT32_MIN, le=INT32_MAX)
+]
+
+# The same for a built-in boolean -- a machine's `tracked` -- so that `"true"` and `1` are rejected
+# rather than read as booleans, matching how D3 treats every other value on the wire.
+BooleanValue = Annotated[bool, Strict()]
+
+
 _ADAPTERS: dict[AttributeType, TypeAdapter[Any]] = {
     AttributeType.REAL: TypeAdapter(Annotated[float, Strict()]),
-    AttributeType.INTEGER: TypeAdapter(Annotated[int, BeforeValidator(_whole_number), Strict()]),
+    AttributeType.INTEGER: TypeAdapter(IntegerValue),
     AttributeType.TEXT: TypeAdapter(Annotated[str, Strict()]),
     AttributeType.DATETIME: TypeAdapter(
         Annotated[datetime, BeforeValidator(_iso_8601), AfterValidator(_utc)]
@@ -108,6 +134,17 @@ def addressable(value: str) -> str:
 
 # What an entity's identity attribute is made of, beyond whatever length its own column allows.
 Addressable = AfterValidator(addressable)
+
+
+def location_of(path: str, testsuite: str, key: str) -> str:
+    """Where a `POST` says the entity it created can be read back (R1).
+
+    The counterpart to `addressable` above: that rule is what guarantees a natural key can be one
+    segment of a URL, and this is what puts it there. `safe=''` on both segments is the part a
+    hand-written copy gets wrong -- `quote` leaves `/` alone by default, which would turn a key
+    into two path segments.
+    """
+    return f"{path.format(testsuite=quote(testsuite, safe=''))}/{quote(key, safe='')}"
 
 
 class EntityObject(BaseModel):

@@ -17,7 +17,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine, insert, select, text
 
 from conftest import code_of
-from introspection import sql_type_of
+from introspection import row_count, sql_type_of
 from lnt_v5.routes.machines import _Machines
 from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.scopes import Scope
@@ -53,11 +53,9 @@ WRITES = [
 
 
 @pytest.fixture
-def suite(api_client: TestClient, manage: dict[str, str]) -> SuiteTables:
+def suite(make_api_suite: Callable[[dict[str, Any]], SuiteTables]) -> SuiteTables:
     """The `nts` suite, created through the API, with its tables for reading the database back."""
-    response = api_client.post(SUITES_PATH, json=NTS, headers=manage)
-    assert response.status_code == 201, response.text
-    return build(SuiteSchema.model_validate(response.json()))
+    return make_api_suite(NTS)
 
 
 @pytest.fixture
@@ -339,6 +337,25 @@ class TestCreate:
 
     def test_accepts_an_untracked_machine(self, create: Callable[..., Any]) -> None:
         assert create("retired", tracked=False).json()["tracked"] is False
+
+    @pytest.mark.parametrize("tracked", ["true", 1])
+    def test_refuses_a_tracked_that_is_not_a_boolean(
+        self, create: Callable[..., Any], tracked: Any
+    ) -> None:
+        # D3's typing applies to the built-in attributes beside `fields` too (D7), so `tracked` is
+        # no more willing to read `"true"` than a declared `text` field is to read a number.
+        response = create("linux", tracked=tracked)
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
+    def test_refuses_a_declared_integer_beyond_its_column(self, create: Callable[..., Any]) -> None:
+        # D3 maps `integer` to a 32-bit column; unchecked, the database's range error is a
+        # `DataError` nothing attributes, and the caller gets a 500 for a value it supplied.
+        response = create("linux", fields={"core_count": 2**31})
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
 
     def test_stores_declared_fields_with_the_types_d3_gives_them(
         self, db_engine: Engine, create: Callable[..., Any]
@@ -709,11 +726,6 @@ class TestDelete:
             )
         return suite
 
-    @staticmethod
-    def count(engine: Engine, statement: Any) -> int:
-        with engine.connect() as connection:
-            return len(connection.execute(statement).all())
-
     def test_removes_the_machine(
         self, api_client: TestClient, manage: dict[str, str], populated: SuiteTables
     ) -> None:
@@ -739,10 +751,10 @@ class TestDelete:
     ) -> None:
         api_client.delete(f"{MACHINES}/doomed", headers=manage)
 
-        assert self.count(db_engine, select(populated.sample.c.id)) == 0
-        assert self.count(db_engine, select(populated.profile.c.id)) == 0
+        assert row_count(db_engine, select(populated.sample.c.id)) == 0
+        assert row_count(db_engine, select(populated.profile.c.id)) == 0
         # The bystander's run is untouched, so this is a cascade rather than a table-wide delete.
-        assert self.count(db_engine, select(populated.run.c.id)) == 1
+        assert row_count(db_engine, select(populated.run.c.id)) == 1
 
     def test_cascades_to_every_regression_indicator_naming_it(
         self,
@@ -753,7 +765,7 @@ class TestDelete:
     ) -> None:
         api_client.delete(f"{MACHINES}/doomed", headers=manage)
 
-        assert self.count(db_engine, select(populated.regression_indicator.c.id)) == 0
+        assert row_count(db_engine, select(populated.regression_indicator.c.id)) == 0
 
     def test_keeps_a_regression_left_with_no_indicators(
         self,
@@ -782,7 +794,7 @@ class TestDelete:
         # D5: nothing deletes a test, so the cascade must stop at the sample.
         api_client.delete(f"{MACHINES}/doomed", headers=manage)
 
-        assert self.count(db_engine, select(populated.test.c.id)) == 1
+        assert row_count(db_engine, select(populated.test.c.id)) == 1
 
     def test_is_404_for_a_machine_that_is_not_there(
         self, api_client: TestClient, manage: dict[str, str], suite: SuiteTables
