@@ -5,7 +5,7 @@ and sorts on is its own -- and is declared there, so that R8's document enumerat
 unknown value is a 400 before the endpoint runs.
 
 Cursor pagination (R2, D10) lives here too, as `Keyset` and `cursor_page`. It is deliberately not
-private to any endpoint family: `GET /commits`, `GET /runs`, `GET /tests`, `POST /query` and
+private to any endpoint family: the commit, run, test and sample lists, `POST /query` and
 `GET /machines/{name}/runs` all page this way, and a second implementation of a keyset predicate
 would be a second chance to get the boundary conditions wrong.
 """
@@ -36,6 +36,8 @@ from sqlalchemy import (
 )
 
 from lnt_v5.errors import ApiError, ErrorCode
+from lnt_v5.responses import CursorPage
+from lnt_v5.suites.entities import DatetimeValue
 from lnt_v5.suites.schema import CommitField, MachineField
 
 # R2's page size: 25 by default, never more than 10 000, and never zero -- an endpoint has no reason
@@ -63,6 +65,14 @@ Cursor = Annotated[
 
 # R3 spells a descending sort by prefixing the field name.
 DESCENDING = "-"
+
+# R3's submission-time range, `after=`/`before=`. D3's wire form, which is what keeps a bound from
+# being read as a Unix epoch, and normalized to UTC because the columns these bound are
+# `timestamptz`: handing PostgreSQL a naive value leaves it to be read in whatever time zone the
+# session happens to carry, so one request would mean different instants on two servers. Here rather
+# than with the endpoints that take it, for the same reason `Limit` and `Cursor` are: R3 makes it a
+# convention shared by every list that filters on one time dimension.
+Timestamp = DatetimeValue
 
 
 def sort_order(sort: str) -> tuple[str, bool]:
@@ -126,9 +136,12 @@ class Keyset:
     The cursor is opaque by contract (R2): base64 over a compact JSON payload, carrying a
     fingerprint of the ordering it was issued for. The fingerprint is what turns feeding a
     `sort=ordinal` cursor to `sort=-ordinal`, or a commit cursor to the run list, into a 400
-    instead of a plausible-looking page of the wrong rows. It is deliberately not signed: forging
-    one buys a caller nothing it could not ask for with ordinary filters, and a signing key would
-    have to be shared across workers and survive restarts.
+    instead of a plausible-looking page of the wrong rows. It covers the ordering and nothing else:
+    two requests that differ only by a filter -- `GET /runs` and `GET /machines/{name}/runs`, or one
+    run's samples and another's -- order the same rows the same way, so a cursor from either names a
+    real position in the other, and R2 puts resending the filters on the client. It is deliberately
+    not signed: forging one buys a caller nothing it could not ask for with ordinary filters, and a
+    signing key would have to be shared across workers and survive restarts.
     """
 
     def __init__(self, *keys: SortKey, tiebreaker: Column[Any]) -> None:
@@ -202,14 +215,20 @@ class Keyset:
             ) from error
 
 
-def cursor_page(
+def cursor_page[T](
     connection: Connection,
     statement: Select[Any],
     keyset: Keyset,
     limit: int,
     cursor: str | None,
-) -> tuple[Sequence[Row[Any]], str | None]:
-    """One page of `statement` in `keyset`'s order, and the cursor for the page after it.
+    read: Callable[[Row[Any]], T],
+) -> CursorPage[T]:
+    """One page of `statement` in `keyset`'s order, in R2's envelope.
+
+    The envelope rather than the rows and a cursor, because the two are never useful apart: every
+    caller pairs this with `CursorPage.of`, and a caller that forgot to would be returning a page
+    with no way to ask for the next one. `read` turns a row into whatever the endpoint renders,
+    which is the only part that differs between them.
 
     One row beyond the page is fetched and discarded, so that `next` is null exactly when the
     caller has reached the end -- rather than handing back a cursor that leads to an empty page and
@@ -219,10 +238,10 @@ def cursor_page(
     if cursor is not None:
         statement = statement.where(keyset.after(cursor))
     rows = connection.execute(statement.order_by(*keyset.order()).limit(limit + 1)).all()
-    if len(rows) <= limit:
-        return rows, None
     page = rows[:limit]
-    return page, keyset.cursor(page[-1])
+    return CursorPage.of(
+        [read(row) for row in page], keyset.cursor(page[-1]) if len(rows) > limit else None
+    )
 
 
 def _fingerprint(keys: Sequence[SortKey]) -> str:

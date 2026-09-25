@@ -20,8 +20,11 @@ from .routes.health import router as health_router
 from .routes.index import DOCS_PATH, OPENAPI_PATH
 from .routes.index import router as index_router
 from .routes.machines import router as machines_router
+from .routes.runs import machine_runs_router
 from .routes.runs import router as runs_router
+from .routes.samples import router as samples_router
 from .routes.suites import router as suites_router
+from .routes.tests import router as tests_router
 from .spa import RedirectTrailingSlash, SpaStaticFiles
 from .suites.registry import SuiteRegistry
 
@@ -100,8 +103,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(admin_router)
     app.include_router(suites_router)
     app.include_router(machines_router)
+    app.include_router(machine_runs_router)
     app.include_router(commits_router)
     app.include_router(runs_router)
+    app.include_router(samples_router)
+    app.include_router(tests_router)
 
     client_dist = Path(settings.client_dist) if settings.client_dist else _default_client_dist()
     if client_dist.is_dir():

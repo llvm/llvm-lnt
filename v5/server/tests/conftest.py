@@ -300,6 +300,35 @@ def manage(make_key: Callable[..., str], bearer: Callable[[str], dict[str, str]]
 
 
 @pytest.fixture
+def submitter(
+    make_key: Callable[..., str], bearer: Callable[[str], dict[str, str]]
+) -> dict[str, str]:
+    """The header for a `submit` key -- what endpoints.md gives `POST /runs` (R5)."""
+    return bearer(make_key(Scope.SUBMIT))
+
+
+def walk_pages(client: TestClient, path: str, query: str = "") -> list[Any]:
+    """Every item a cursor-paginated list serves, following `cursor.next` to the end (R2).
+
+    Shared because five lists page this way and the contract they page by is one contract: pass the
+    previous page's `cursor.next` back unchanged, stop when it is null. A copy per endpoint module
+    would be five places to update when that contract changes, and five chances for one of them to
+    loop forever. The guard is what turns a cursor that fails to advance into a failed test rather
+    than a hung suite.
+    """
+    items: list[Any] = []
+    cursor: str | None = None
+    for _ in range(100):
+        response = client.get(f"{path}?{query if cursor is None else f'{query}&cursor={cursor}'}")
+        assert response.status_code == 200, response.text
+        items.extend(response.json()["items"])
+        cursor = response.json()["cursor"]["next"]
+        if cursor is None:
+            return items
+    raise AssertionError("pagination did not terminate")
+
+
+@pytest.fixture
 def make_api_suite(
     api_client: TestClient, manage: dict[str, str]
 ) -> Callable[[dict[str, Any]], SuiteTables]:

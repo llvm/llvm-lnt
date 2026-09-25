@@ -21,7 +21,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, insert, select, text
 
-from conftest import code_of
+from conftest import code_of, walk_pages
 from introspection import row_count
 from lnt_v5.querying import MAX_LIMIT
 from lnt_v5.routes.commits import COMMITS_PATH
@@ -139,16 +139,7 @@ def page(api_client: TestClient, query: str = "") -> Any:
 
 def walk(api_client: TestClient, query: str = "") -> list[str]:
     """Every commit the list serves, following cursors to the end."""
-    seen: list[str] = []
-    cursor: str | None = None
-    for _ in range(100):
-        response = page(api_client, query if cursor is None else f"{query}&cursor={cursor}")
-        assert response.status_code == 200, response.text
-        seen.extend(values_in(response))
-        cursor = response.json()["cursor"]["next"]
-        if cursor is None:
-            return seen
-    raise AssertionError("pagination did not terminate")
+    return [item["value"] for item in walk_pages(api_client, COMMITS, query)]
 
 
 class TestList:
