@@ -525,9 +525,7 @@ Returns 404 if the suite does not exist, 409 `conflict` if the deletion could no
 the locks it needs and should be retried, and 204 on success.
 
 Both this and `PATCH .../schema` resolve the suite before checking `confirm`, so an
-unknown name is 404 whether or not `confirm=true` was supplied. A suite's existence is
-already public through `GET /api/suites`, so this reveals nothing, and it gives the caller
-the more useful of the two errors.
+unknown name is 404 whether or not `confirm=true` was supplied.
 
 
 ## Admin
