@@ -26,6 +26,7 @@ from .routes.runs import router as runs_router
 from .routes.samples import router as samples_router
 from .routes.suites import router as suites_router
 from .routes.tests import router as tests_router
+from .routes.timeseries import router as timeseries_router
 from .spa import RedirectTrailingSlash, SpaStaticFiles
 from .suites.registry import SuiteRegistry
 
@@ -110,6 +111,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(samples_router)
     app.include_router(tests_router)
     app.include_router(regressions_router)
+    app.include_router(timeseries_router)
 
     client_dist = Path(settings.client_dist) if settings.client_dist else _default_client_dist()
     if client_dist.is_dir():

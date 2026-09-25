@@ -542,6 +542,11 @@ header pointing at its detail route; `PATCH` returns 200 with the same body;
 
 ## Time Series
 
+Both endpoints here are POSTs and both are `read`-scoped. R5 is explicit that the
+method implies nothing about the required scope; a body is what carries filters
+that do not fit a query string -- a list of test names, six range bounds -- and
+`POST /commits/resolve` is the same shape.
+
 ### Query
 
 ```
@@ -551,22 +556,43 @@ POST   /api/suites/{testsuite}/query
 Body (JSON): `{metric, machine, test, commit, after_commit, before_commit,
               after_time, before_time, sort, limit, cursor}`
 
-The `metric` field is required; all other fields are optional. The `test`
-field accepts a list of names for disjunction queries. The `commit` field
-filters for an exact commit match and cannot be combined with
+The `metric` field is required; all other fields are optional. Only samples that
+have a value for that metric are returned -- a sample that recorded nothing for it
+is not a point in its series, which is what lets every point carry a non-null
+`value`.
+
+The `test` field accepts a list of names for disjunction queries. R3's
+answers to a filter naming something absent all apply: an unknown `machine` or an
+unknown name in `test` is 404, an unknown `metric` is 400, and a `commit` value no
+commit has is an empty page. An empty `test` list keeps nothing, which is
+deliberately not the same as omitting the key -- a client that narrowed to a set
+which turned out to be empty asked for nothing, not for everything. That is the
+rule for a list that *filters*; a list that is the request's subject, as
+`POST /commits/resolve`'s is, requires at least one entry instead. `test` is
+bounded by R2's maximum page size, for the same reason `POST /commits/resolve` is.
+
+The `commit` field filters for an exact commit match and cannot be combined with
 `after_commit`/`before_commit` (400 if both are supplied). Time and commit
 range filters use exclusive
-bounds (strictly after / strictly before the given value).
+bounds (strictly after / strictly before the given value). The two commit bounds
+name a commit and mean its *position*, so unlike the `commit` filter beside them
+they are 404 for a value no commit has, which is what R4 gives an entity named by
+a request body; and they are 400 for a commit that exists but has no ordinal,
+since such a commit sits nowhere in the order and bounds nothing. For the same
+reason, a commit with no ordinal is in no range at all: whenever either bound is
+given, samples on unordered commits are excluded, whatever the `sort` says.
 
 Returns cursor-paginated time-series data for graphing, in R2's cursor envelope.
-Each data point carries: `test`, `machine`, `metric`, `value`, `commit`,
+`limit` and `cursor` are keys of the body rather than query parameters, which R2
+covers. Each data point carries: `test`, `machine`, `metric`, `value`, `commit`,
 `ordinal`, `run_uuid`, `submitted_at`, `tag` (the commit's tag, or null if
 unset). `metric` is echoed on every point even though the request names exactly
 one, making each data point self-descriptive.
 
-Sort fields: `test`, `commit` (by ordinal), `submitted_at`. When `sort` is
-omitted, results are returned in an arbitrary but stable order suitable for
-cursor pagination; no data is excluded. When `commit` is included in the sort,
+`sort` names one field, optionally prefixed with `-` for descending, as R3 spells
+every sort in this API: `test`, `commit` (by ordinal), or `submitted_at`. When
+`sort` is omitted, results are returned in an arbitrary but stable order suitable
+for cursor pagination; no data is excluded. When `sort` names `commit`,
 samples for commits without ordinals are excluded (they have no meaningful
 position in ordinal order).
 
@@ -584,22 +610,37 @@ The `metric` field is required and must be numeric (see D3). Non-numeric metrics
 are rejected with 400. For an `integer` metric the geomean is computed in floating
 point and returned as a real, like any other. All other fields are optional. Unlike
 the query endpoint's single machine string, `machine` accepts a list of names -- the
-Dashboard needs data for multiple machines in one call. `last_n` (integer,
-min 1, max 10000) limits the result to the most recent N commits by ordinal.
-Only commits with a non-null ordinal are included.
+Dashboard needs data for multiple machines in one call. An unknown name in it is
+404, and an empty list keeps nothing, both as on the query endpoint. `last_n`
+(integer, min 1, max 10000) limits the result to the most recent N commits by
+ordinal, counted over the commits the suite holds rather than over what the other
+filters leave -- so "the last 500 commits" spans the same range on every card of
+the Dashboard, and a machine that stopped reporting inside that range yields a
+trendline that stops rather than one stretched back over older commits to make up
+the count. It counts every commit that has an ordinal, including one registered
+ahead of any run (see D11), so an instance that registers every upstream commit
+and benchmarks one in twenty renders proportionally fewer points. Omitting
+`last_n` defaults it to 500, the Dashboard's own range: this response is
+unpaginated and `read`-scoped, and an omitted window must not mean "aggregate the
+whole suite", which with `machine` also omitted would be every sample the instance
+holds in one body. Only commits with a non-null ordinal are included.
 
 This endpoint does not filter on `tracked`: an explicitly named machine is
 returned whether or not it is tracked.
 
 Returns geomean-aggregated trend data per (machine, commit), in R2's unpaginated
 envelope -- the result set is bounded by (machines x last_n), typically < 5000
-rows. Each item carries: `machine` (the machine's name), `commit` (the commit's
-identity string), `ordinal` (always present, never null), `submitted_at` (latest
-run submission time), `tag` (the commit's tag, or null if unset), and `value`
-(the geomean). `metric` is not echoed per item, unlike a query point.
+rows. Items are ordered by machine name and then by ordinal, so a client rendering
+one line per machine does not have to sort them. Each item carries: `machine` (the
+machine's name), `commit` (the commit's identity string), `ordinal` (always present,
+never null), `submitted_at` (latest run submission time), `tag` (the commit's tag,
+or null if unset), and `value` (the geomean). `metric` is not echoed per item,
+unlike a query point.
 
 Geomean is computed in SQL: `exp(avg(ln(positive_values)))`, skipping
-zero/negative values.
+zero/negative values. A (machine, commit) whose values for the metric are all zero
+or negative therefore has no geomean at all, and is absent from the response rather
+than present with a null `value`.
 
 Auth scope: `read`.
 

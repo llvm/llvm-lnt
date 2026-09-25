@@ -30,7 +30,6 @@ from uuid import uuid4
 from fastapi import APIRouter, Query, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import (
-    Column,
     ColumnElement,
     Connection,
     Row,
@@ -52,6 +51,7 @@ from lnt_v5.querying import (
     SortKey,
     Timestamp,
     cursor_page,
+    exclusive_range,
     sort_order,
 )
 from lnt_v5.responses import CursorPage
@@ -363,18 +363,6 @@ def run_id(connection: Connection, suite: Suite, uuid: str) -> int:
     )
 
 
-def _submitted_between(
-    column: Column[Any], after: datetime | None, before: datetime | None
-) -> list[ColumnElement[bool]]:
-    """R3's `after=`/`before=`, both exclusive."""
-    conditions: list[ColumnElement[bool]] = []
-    if after is not None:
-        conditions.append(column > after)
-    if before is not None:
-        conditions.append(column < before)
-    return conditions
-
-
 @router.get(
     "",
     dependencies=[require_scope(Scope.READ)],
@@ -431,7 +419,7 @@ def list_runs(
     """
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         runs = Runs(suite)
-        conditions = _submitted_between(runs.table.c.submitted_at, after, before)
+        conditions = exclusive_range(runs.table.c.submitted_at, after, before)
         if search is not None:
             conditions.append(runs.search(search))
         if machine is not None:
@@ -471,7 +459,7 @@ def list_machine_runs(
     """
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         runs = Runs(suite)
-        conditions = _submitted_between(runs.table.c.submitted_at, after, before)
+        conditions = exclusive_range(runs.table.c.submitted_at, after, before)
         conditions.append(runs.table.c.machine_id == machine_id(connection, suite, machine_name))
         return runs.page(connection, conditions, sort, limit, cursor)
 
