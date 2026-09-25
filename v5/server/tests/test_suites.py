@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine, insert, inspect, select, text
 from sqlalchemy.exc import ProgrammingError
 
+from conftest import code_of
 from introspection import column_names, schema_version_of
 from lnt_v5.errors import ApiError, ErrorCode
 from lnt_v5.routes.suites import SUITES_PATH, delete_suite, patch_schema
@@ -48,11 +49,6 @@ NTS: dict[str, Any] = {
 
 
 @pytest.fixture
-def manage(make_key: Callable[..., str], bearer: Callable[[str], dict[str, str]]) -> dict[str, str]:
-    return bearer(make_key(Scope.MANAGE))
-
-
-@pytest.fixture
 def create(api_client: TestClient, manage: dict[str, str]) -> Callable[..., Any]:
     def post(body: dict[str, Any] | None = None, **overrides: Any) -> Any:
         return api_client.post(SUITES, json={**(body or NTS), **overrides}, headers=manage)
@@ -81,12 +77,6 @@ def patch_request(
     if confirm is not None:
         path += f"?confirm={'true' if confirm else 'false'}"
     return api_client.patch(path, json=body, headers=manage)
-
-
-def code_of(response: Any) -> str:
-    body = response.json()
-    assert list(body) == ["error"], body
-    return str(body["error"]["code"])
 
 
 class TestList:
@@ -276,7 +266,7 @@ class TestDetail:
         # genuine 404 carrying the error envelope (client/architecture.md).
         create()
 
-        response = api_client.get(f"{SUITES}/nts/machines")
+        response = api_client.get(f"{SUITES}/nts/runs")
 
         assert response.status_code == 404
         assert code_of(response) == "not_found"

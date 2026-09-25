@@ -23,6 +23,16 @@ alongside an interactive viewer (see R8).
 - An entity carries its own identifier in responses under the key it is addressed by: `name`
   (suite, machine, test), `value` (commit), `uuid`, `prefix`. R4 covers how one entity refers
   to another.
+- A natural key that appears in a path has to survive being one segment of it. A server decodes
+  `%2F` back to a path separator before routing, and normalizes `.` and `..` away, so a key
+  containing `/`, or equal to `.` or `..`, would name an entity that no URL can reach -- and the
+  `Location` header handed back at creation would answer 404. A machine name or a commit value
+  that is not addressable in this sense is therefore rejected with 400 wherever the entity is
+  created, including implicit creation during run submission (see D6), rather than accepted and
+  then unreachable. Suite names are already narrower than this by D4's pattern. Test names are the
+  exception: they legitimately contain `/` (`test.suite/benchmark`), tests are created implicitly
+  with no endpoint that could refuse one, and the route that names a test therefore cannot rely on
+  this rule.
 - An index endpoint at `GET /api` links to the test suite list and the API documentation
 - Suite-scoped resources live one level below the suite collection, under
   `/api/suites/{testsuite}/`. This keeps them disjoint from instance-level
@@ -61,7 +71,8 @@ offset-paginated: an exact `total` costs a scan of everything matching, so
 unbounded lists use a cursor and carry no `total`.
 
 Default page size is 25, with a configurable `limit` parameter (max `10 000`) on
-paginated lists.
+paginated lists. `limit` is at least 1: an endpoint has no reason to serve a page
+of nothing, and an offset-paginated list's `total` is available from any page.
 
 
 ## R3: Filtering and Sorting
@@ -115,6 +126,12 @@ spec need only name its keys.
 - Schema-declared data always sits in a nested dict of its own -- `fields` on
   machines and commits, `metrics` on samples -- and is never flattened onto the
   entity.
+- A `fields` dict carries every field the suite's schema declares, with `null`
+  where the entity has no value, so that a client rendering one column per
+  declared field does not have to discover which keys a given row happens to
+  carry. A sample's `metrics` is the deliberate exception and says so where it is
+  specified: a suite's metric list is long and sparsely populated, whereas a suite
+  declares few machine and commit fields.
 - Values inside `fields` and `metrics` use the JSON representation of their
   declared type (see D3) and are never stringified. Built-in timestamps follow
   the same convention (see D5).
@@ -137,7 +154,7 @@ time, so clients must branch on `code` alone and never parse `message`.
 | `duplicate` | 409 | The entity already exists: a run UUID, a suite name, a schema entry added twice |
 | `ordinal_conflict` | 409 | The ordinal is already held by another commit, or contradicts the one this commit has (see D11) |
 | `in_use` | 409 | Another entity references this one and must be removed first: a commit referenced by a regression |
-| `conflict` | 409 | The write contradicts existing state in a way the more specific 409 codes do not describe |
+| `conflict` | 409 | The request contradicts existing state in a way the more specific 409 codes do not describe, or could not complete because the suite's schema changed underneath it (see D2) |
 | `internal_error` | 500 | The server failed to answer, including when a stored profile blob cannot be deserialized |
 
 409 carries more than one code because its cases call for different client behaviour: a

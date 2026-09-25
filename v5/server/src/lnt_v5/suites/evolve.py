@@ -118,24 +118,23 @@ class SchemaPatch(BaseModel):
 class _List:
     """One of a schema's three lists, and what the rest of this module needs to know about it.
 
-    `attribute` names the field on both `SuiteSchema` and `SchemaPatch`, which carry the same three;
-    `entry` carries the table it extends as `Entry.TABLE`, so the list-to-table correspondence is
-    read off the schema model rather than restated here.
+    Everything is read off the entry model: `LIST` names the field on both `SuiteSchema` and
+    `SchemaPatch`, which carry the same three, and `TABLE` names the table the list extends. So the
+    correspondence lives with the entries rather than being restated here.
     """
 
-    attribute: str
     entry: type[Entry]
+
+    @property
+    def attribute(self) -> str:
+        return self.entry.LIST
 
     @property
     def table(self) -> str:
         return self.entry.TABLE
 
 
-LISTS = (
-    _List("metrics", Metric),
-    _List("commit_fields", CommitField),
-    _List("machine_fields", MachineField),
-)
+LISTS = (_List(Metric), _List(CommitField), _List(MachineField))
 
 
 def _changes(patch: SchemaPatch, of: _List) -> _Changes[Any, Any]:

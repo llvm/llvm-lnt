@@ -3,7 +3,8 @@
 Each worker keeps its own copies, because parsing a schema and building its tables costs real work
 and every suite-scoped request needs the result. Keeping those copies honest is what this module is
 for, and all it is for: the write path lives in `store.py`, which a write uses instead of reading
-here -- this cache is allowed to be a commit behind.
+here -- this cache is allowed to be a commit behind -- and what a *request* does with a suite it
+addresses lives in `scope.py`.
 
 The protocol is D2's. Every write bumps `schema_version` in its own transaction, and a reader
 compares its cached counter against the database before reading its copies. A mismatch reloads.
@@ -161,10 +162,11 @@ def get_registry(request: Request) -> SuiteRegistry:
 # What an endpoint writes to reach the suites:
 #
 #     def endpoint(db: EngineDep, registry: RegistryDep) -> Thing:
-#         with db.connect() as connection:
-#             suite = registry.resolve(connection, name)
+#         with db.connect() as connection, suite_scope(registry, connection, name) as suite:
+#             ...
 #
 # The dependency hands over the registry without touching the database; the freshness check happens
-# on the connection the endpoint opens, inside its own unit of work. There is deliberately no
-# accessor that skips the check, so an endpoint cannot obtain a snapshot without paying for it.
+# on the connection the endpoint opens, inside its own unit of work (see `scope.suite_scope`, which
+# is what a suite-scoped endpoint should call rather than `resolve` directly). There is deliberately
+# no accessor that skips the check, so an endpoint cannot obtain a snapshot without paying for it.
 RegistryDep = Annotated[SuiteRegistry, Depends(get_registry)]

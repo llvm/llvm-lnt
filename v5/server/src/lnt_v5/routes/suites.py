@@ -25,6 +25,7 @@ from lnt_v5.suites import tables as suite_tables
 from lnt_v5.suites.evolve import SchemaPatch
 from lnt_v5.suites.registry import RegistryDep
 from lnt_v5.suites.schema import SuiteSchema
+from lnt_v5.suites.scope import SUITE_NOT_FOUND
 from lnt_v5.suites.store import (
     SCHEMA_NAME_CONSTRAINT,
     bump,
@@ -46,7 +47,7 @@ Confirm = Annotated[
     Query(description="Must be true. Required because this operation destroys data permanently."),
 ]
 
-_NOT_FOUND = {"model": ErrorEnvelope, "description": "No suite has that name."}
+_NOT_FOUND = {"model": ErrorEnvelope, "description": SUITE_NOT_FOUND}
 # Every write can answer this: the suite was busy and the change could not take its locks (D2).
 _BUSY = "The suite is busy and the change should be retried."
 
