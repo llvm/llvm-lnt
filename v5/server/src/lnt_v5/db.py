@@ -11,7 +11,13 @@ from __future__ import annotations
 from typing import Annotated, Any
 
 from fastapi import Depends, Request
-from psycopg.errors import UndefinedTable, UniqueViolation
+from psycopg.errors import (
+    DeadlockDetected,
+    DuplicateSchema,
+    LockNotAvailable,
+    UndefinedTable,
+    UniqueViolation,
+)
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.exc import DBAPIError
 
@@ -55,6 +61,13 @@ def make_engine(settings: Settings) -> Engine:
         pool_timeout=10,
         pool_recycle=1800,
         pool_pre_ping=True,
+        # Pinned rather than left to the server's configuration, because the suite registry's
+        # freshness protocol depends on it (D2). At REPEATABLE READ a transaction's snapshot is
+        # frozen at its first statement, so one that read anything before checking the schema
+        # version could never observe another worker's bump within that request -- and every
+        # concurrent bump would fail serialization instead of simply serializing. A role- or
+        # parameter-group-level default would otherwise change this behaviour invisibly.
+        isolation_level="READ COMMITTED",
         connect_args=_connect_args(settings),
     )
 
@@ -102,3 +115,24 @@ def unique_violation_constraint(error: DBAPIError) -> str | None:
 def is_undefined_table(error: DBAPIError) -> bool:
     """Whether an error means the table is not there, i.e. the database was never migrated."""
     return isinstance(error.orig, UndefinedTable)
+
+
+def is_duplicate_schema(error: DBAPIError) -> bool:
+    """Whether an error means the namespace already exists.
+
+    `POST /api/suites` reaches this when the `schema` row is absent but a namespace of that name is
+    present -- the two are written in one transaction, so it takes an out-of-band change to get
+    there. endpoints.md answers 409 for it, which needs telling this from a genuine server fault.
+    """
+    return isinstance(error.orig, DuplicateSchema)
+
+
+def is_lock_unavailable(error: DBAPIError) -> bool:
+    """Whether an error means the statement gave up waiting for a lock, rather than failed.
+
+    Both cases a schema change can hit: `lock_timeout` expiring while an in-flight query holds the
+    table, and the deadlock detector picking this transaction as its victim. Neither says anything
+    is wrong with the request, so both answer 409 rather than 500 -- retrying is what a caller
+    should do.
+    """
+    return isinstance(error.orig, LockNotAvailable | DeadlockDetected)

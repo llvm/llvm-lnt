@@ -471,14 +471,15 @@ another. There are no standalone schema or metric-metadata endpoints.
 
 `GET /api/suites` returns those same objects in R2's unpaginated envelope,
 schemas included rather than names alone: suites are limited in number and
-parts of the client need every suite's metric list up front.
+parts of the client need every suite's metric list up front. Suites are ordered by
+`name` ascending, which is stable across requests because a suite cannot be renamed.
 
 **Create** (`POST /api/suites`): the request body is the schema definition
 itself -- `name`, `metrics`, `commit_fields`, `machine_fields` (see D4 in
 data-model.md for the schema format). On success, returns 201 with the
 created suite's detail body and a `Location` header pointing at
-`GET /api/suites/{name}`. Returns 409 if a suite with that name already
-exists, 400 if the schema definition fails validation (see D4), or 409 if
+`GET /api/suites/{name}`. Returns 409 `duplicate` if a suite with that name already
+exists, 400 if the schema definition fails validation (see D4), or 409 `conflict` if
 suite creation otherwise fails after passing schema validation.
 
 **Evolve** (`PATCH /api/suites/{name}/schema`): changes the suite's `metrics`,
@@ -503,12 +504,15 @@ The body supplies, for any of the three lists, any of `add`, `update`, and
 names.
 
 Because `remove` destroys data, a request containing a non-empty `remove` list
-requires a `?confirm=true` query parameter; omitting it returns 400. This
-mirrors `DELETE /api/suites/{name}`.
+requires a `?confirm=true` query parameter; omitting it -- or sending it as false --
+returns 400. An empty `remove` list requires nothing. This mirrors
+`DELETE /api/suites/{name}`.
 
-On success, returns 200 with the suite's detail body. Returns 404 if the suite
+On success, returns 200 with the suite's detail body; a request that asks for no change
+is a successful no-op. Returns 404 if the suite
 does not exist, or if `update` or `remove` names an entry that is not in that
-list. Returns 409 if `add` names an entry that already exists in that list.
+list. Returns 409 `duplicate` if `add` names an entry that already exists in that list,
+and 409 `conflict` if the change could not take the locks it needs and should be retried.
 Returns 400 if `update` attempts to change a `type`, if `confirm=true` is
 required but missing, or if the resulting schema fails validation (see D3, D4,
 and D5) -- validation runs against the whole resulting schema, not just the
@@ -516,8 +520,12 @@ entries the request touched.
 
 **Delete** (`DELETE /api/suites/{name}`): permanently deletes the suite and
 all of its data (machines, runs, commits, samples, regressions). Requires a
-`?confirm=true` query parameter; omitting it returns 400. Returns 404 if the
-suite does not exist, 204 on success.
+`?confirm=true` query parameter; omitting it -- or sending it as false -- returns 400.
+Returns 404 if the suite does not exist, 409 `conflict` if the deletion could not take
+the locks it needs and should be retried, and 204 on success.
+
+Both this and `PATCH .../schema` resolve the suite before checking `confirm`, so an
+unknown name is 404 whether or not `confirm=true` was supplied.
 
 
 ## Admin
