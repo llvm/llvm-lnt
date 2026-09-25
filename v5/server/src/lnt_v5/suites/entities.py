@@ -192,6 +192,14 @@ def addressable(value: str) -> str:
 # What an entity's identity attribute is made of, beyond whatever length its own column allows.
 Addressable = AfterValidator(addressable)
 
+# A UUID as it arrives in a path segment, for the three entities addressed by one (R1). Only the
+# lowercasing is shared behaviour: every UUID is stored lowercased, so every lookup has to be. The
+# format is deliberately *not* constrained -- a segment that is not a UUID at all passes through
+# unchanged and simply matches nothing, which is the 404 endpoints.md asks for. It names no entity
+# rather than being a malformed request, and the two endpoint families that take one must not
+# diverge on that.
+UuidPath = Annotated[str, AfterValidator(str.lower)]
+
 
 def location_of(path: str, testsuite: str, key: str) -> str:
     """Where a `POST` says the entity it created can be read back (R1).
@@ -525,21 +533,51 @@ def create_or_reconcile(
     return resolved.identifier
 
 
-def identifier(
-    connection: Connection, key: Column[Any], value: Any, missing: Callable[[], ApiError]
-) -> int:
-    """The internal id of the entity a natural key names, or the caller's 404 for one not there.
+def identifiers(
+    connection: Connection,
+    key: Column[Any],
+    values: Sequence[str],
+    missing: Callable[[str], ApiError],
+) -> dict[str, int]:
+    """The internal ids the entities these natural keys name, or the caller's 404 for one absent.
 
     R1 keeps auto-increment ids out of the API, so every request names an entity by its key and
-    every query filters on the id behind it. Three paths resolve one that way -- a `machine=` or
-    `test=` filter, and the run a sub-resource hangs off -- and each owes the same lookup; what
-    differs is only the wording of the 404, which each entity keeps. Taken as a callback rather
-    than a string so that the message is not built on the path where it is not used.
+    every query filters on the id behind it. Several paths resolve one that way -- a `machine=` or
+    `test=` filter, the run a sub-resource hangs off, a regression's indicators -- and each owes the
+    same lookup; what differs is only the wording of the 404, which each entity keeps. Taken as a
+    callback rather than a string so that the message is not built on the path where it is not used.
+
+    Plural because one request may name many entities at once: a regression's indicators each name
+    a machine and a test, and resolving them one at a time would be two statements per indicator.
+
+    Reported against the first *requested* value that is missing rather than whichever the database
+    happened not to return, so that the 404 a caller reads does not depend on row order.
     """
-    found = connection.execute(select(key.table.c.id).where(key == value)).scalar_one_or_none()
-    if found is None:
-        raise missing()
-    return int(found)
+    if not values:
+        # A batch that names nothing resolves to nothing, without a statement that could only ever
+        # match no rows.
+        return {}
+    found = {
+        name: int(found)
+        for name, found in connection.execute(
+            select(key, key.table.c.id).where(key.in_(set(values)))
+        ).all()
+    }
+    for value in values:
+        if value not in found:
+            raise missing(value)
+    return found
+
+
+def identifier(
+    connection: Connection, key: Column[Any], value: Any, missing: Callable[[str], ApiError]
+) -> int:
+    """The internal id of the one entity a natural key names, or the caller's 404 for one absent.
+
+    The singular case of `identifiers` above, which is where the lookup itself lives -- two
+    spellings of one SELECT would be two chances for the two to answer differently.
+    """
+    return identifiers(connection, key, [value], missing)[value]
 
 
 def rendered_fields(entries: Sequence[Entry], table: Table, row: Row[Any]) -> dict[str, FieldValue]:

@@ -7,8 +7,8 @@ arrays expand into rows -- so the work of reading it is worth doing once, in fro
 rather than interleaved with the inserts. `validate_submission` either returns the whole of what the
 run write needs or raises, so nothing half-validated ever reaches a statement.
 
-The run endpoints that address a run rather than create one take their UUID from a path segment, and
-`RunUuidPath` below is how they read it: the normalization a body's UUID gets has to be the same one
+The run endpoints that address a run rather than create one take their UUID from a path segment,
+and read it through `entities.UuidPath`: the normalization a body's UUID gets has to be the same one
 a path gets, or the two would disagree about which run is which.
 
 Test entries are the reason the payload model cannot describe the request on its own: a metric name
@@ -99,14 +99,6 @@ RunUuid = Annotated[
         )
     ),
 ]
-
-# The same UUID as it arrives in a path segment rather than in a body, so that the two agree on
-# what "the same run" is by construction rather than by each endpoint remembering to normalize.
-# Only the lowercasing is shared: a run is stored lowercased (D6), so the lookup has to be. The
-# format is deliberately *not* constrained here -- a segment that is not a UUID at all passes
-# through unchanged and simply matches nothing, which is the 404 endpoints.md asks for. It names no
-# run rather than being a malformed request.
-RunUuidPath = Annotated[str, AfterValidator(str.lower)]
 
 TestName = Annotated[
     str,

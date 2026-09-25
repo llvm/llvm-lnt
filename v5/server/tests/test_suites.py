@@ -266,7 +266,7 @@ class TestDetail:
         # genuine 404 carrying the error envelope (client/architecture.md).
         create()
 
-        response = api_client.get(f"{SUITES}/nts/regressions")
+        response = api_client.get(f"{SUITES}/nts/trends")
 
         assert response.status_code == 404
         assert code_of(response) == "not_found"

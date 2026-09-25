@@ -30,6 +30,7 @@ from lnt_v5.suites.tables import (
     COMMIT_VALUE_CONSTRAINT,
     MACHINE_NAME_CONSTRAINT,
     REGRESSION_COMMIT_CONSTRAINT,
+    REGRESSION_INDICATOR_CONSTRAINT,
     RUN_UUID_CONSTRAINT,
     SuiteTables,
 )
@@ -403,15 +404,17 @@ class TestNamingConvention:
     def test_the_longest_name_is_exactly_at_the_limit(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
     ) -> None:
-        # D5's unique constraint on regression_indicator composes to exactly the limit. Spelled out
-        # so that a change to the convention or to a column name fails here rather than silently
-        # producing a truncated name.
-        longest = "uq_regression_indicator_regression_id_machine_id_test_id_metric"
-        assert len(longest) == IDENTIFIER_MAX_LENGTH
+        # D5's unique constraint on regression_indicator composes to exactly the limit, so a change
+        # to the convention or to a column name must fail here rather than silently produce a
+        # truncated name. The constraint is checked against the database below, with the others.
+        assert len(REGRESSION_INDICATOR_CONSTRAINT) == IDENTIFIER_MAX_LENGTH
 
         make_suite("nts")
 
-        assert longest in stored_names(inspect(db_engine), schema="nts")["regression_indicator"]
+        assert (
+            REGRESSION_INDICATOR_CONSTRAINT
+            in stored_names(inspect(db_engine), schema="nts")["regression_indicator"]
+        )
 
     def test_two_suites_carry_identical_names(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
@@ -445,6 +448,7 @@ class TestNamingConvention:
             ("commit", COMMIT_ORDINAL_CONSTRAINT),
             ("run", RUN_UUID_CONSTRAINT),
             ("regression", REGRESSION_COMMIT_CONSTRAINT),
+            ("regression_indicator", REGRESSION_INDICATOR_CONSTRAINT),
         ],
     )
     def test_the_other_written_out_constraints_are_the_ones_postgres_holds(
