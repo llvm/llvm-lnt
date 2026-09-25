@@ -89,7 +89,12 @@ object identical to the one the entity's own creation endpoint accepts (see D7).
   object key as much as in a value. Nothing else about it is inspected.
 - `tests`: Required list of test entries, at most one per test. It may be empty
   -- a run that measured nothing is still a run -- but it may not be omitted.
-  Each entry has `name` plus metric values.
+  Each entry has `name` plus metric values. The list is deliberately not capped
+  the way every other list the API accepts is: a real submission carries tens of
+  thousands of entries, and D13 requires resolving them in a fixed number of
+  round trips precisely so that it can. The same goes for `run_parameters`. What
+  bounds a submission is the deployment's request-body limit (413, see R4),
+  which is a property of the deployment rather than of this format.
   - `name` is required, non-empty, and at most the length `{suite}.test.name`
     allows (see D5). Unlike a machine name or a commit value it is not required
     to be usable as a URL path segment: test names legitimately contain `/`, and
@@ -250,8 +255,10 @@ unified `?search=` parameter.
 - `GET /api/suites/{testsuite}/regressions?search=slowdown` matches the `title`
   column via case-insensitive substring matching.
 
-Server-side `search=` always performs plain substring matching. It does not
-interpret the client's `re:` regex-mode convention (see client
+Server-side `search=` always performs plain substring matching, with no
+wildcards: `%` and `_` are ordinary characters in a term, so `?search=100%`
+finds the rows containing `100%` rather than every row. It does not interpret
+the client's `re:` regex-mode convention (see client
 architecture.md) -- that convention is a client-side-only affordance for text
 filters that operate over data already loaded in the browser, not for any
 `search=` value sent to the API.

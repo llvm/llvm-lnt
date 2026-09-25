@@ -145,9 +145,9 @@ run on this machine; 404 if machine not found), `has_profiles=` (boolean;
 returns only commits where no run has profile data; when combined with
 `machine=`, only considers runs on that machine). Sort: `sort=ordinal` sorts
 by ordinal ascending (oldest first) and `sort=-ordinal` sorts by ordinal
-descending (newest first); both exclude commits with NULL ordinals. Default
-sort is by internal ID ascending, which reflects the order in which commits
-were first seen by the server, not their ordinal order.
+descending (newest first); both exclude commits with NULL ordinals. Omitting
+`sort` orders by the sequence in which the server first saw each commit, which
+is not their ordinal order and keeps the commits that have no ordinal.
 
 ### Batch Resolve
 
@@ -159,20 +159,36 @@ by commit string:
 ```json
 {
   "results": {
-    "abc": {"value": "abc", "ordinal": 42, "tag": null, "fields": {"git_sha": "..."}},
-    "def": {"value": "def", "ordinal": null, "tag": null, "fields": {}}
+    "abc": {
+      "value": "abc",
+      "ordinal": 42,
+      "tag": null,
+      "fields": {
+        "git_sha": "abc123def456789",
+        "author": "Jane Doe",
+        "commit_message": null,
+        "commit_timestamp": null
+      }
+    }
   },
   "not_found": ["unknown"]
 }
 ```
 
 Each value in `results` is a commit object (`{value, ordinal, tag, fields}`),
-without the `previous`/`next` that the detail endpoint adds. Commit strings not
+without the `previous`/`next` that the detail endpoint adds; `fields` carries
+every declared `commit_field`, per R4, so the example above is against D4's
+four-field schema. Commit strings not
 found in the database are returned in a separate `not_found` list -- including
 ones no commit could possibly have, such as a string longer than the column
-holds, since a lookup for something absent is what `not_found` reports.
+holds, since a lookup for something absent is what `not_found` reports. The one
+string that is not reported that way is one carrying a NUL, which D3 refuses
+with 400 wherever a value is read, this endpoint included.
 Duplicates in the request are deduplicated; each commit appears at most once in
-the response.
+the response. `not_found` keeps the order the request gave, so a client can line
+it up against what it sent. `results` is an object, whose member order JSON does
+not define and a client must not depend on -- a commit is looked up in it by the
+value the client already holds.
 
 Auth scope: `read`. Not paginated (response is bounded by request size).
 
@@ -658,9 +674,11 @@ envelope -- the result set is bounded by (machines x last_n), typically < 5000
 rows. Items are ordered by machine name and then by ordinal, so a client rendering
 one line per machine does not have to sort them. Each item carries: `machine` (the
 machine's name), `commit` (the commit's identity string), `ordinal` (always present,
-never null), `submitted_at` (latest run submission time), `tag` (the commit's tag,
+never null), `submitted_at`, `tag` (the commit's tag,
 or null if unset), and `value` (the geomean). `metric` is not echoed per item,
-unlike a query point.
+unlike a query point. `submitted_at` is the latest submission time among the
+runs that *contributed* to the geomean -- the same rows the aggregation saw, not
+every run at that (machine, commit) -- so it dates the point being plotted.
 
 Geomean is computed in SQL: `exp(avg(ln(positive_values)))`, skipping
 zero/negative values. A (machine, commit) whose values for the metric are all zero
@@ -698,8 +716,10 @@ itself -- `name`, `metrics`, `commit_fields`, `machine_fields` (see D4 in
 data-model.md for the schema format). On success, returns 201 with the
 created suite's detail body and a `Location` header pointing at
 `GET /api/suites/{name}`. Returns 409 `duplicate` if a suite with that name already
-exists, 400 if the schema definition fails validation (see D4), or 409 `conflict` if
-suite creation otherwise fails after passing schema validation.
+exists, 400 if the schema definition fails validation (see D4), and 409
+`conflict` in two cases the name alone does not cover: the suite's namespace
+already exists without a suite to go with it, and the creation could not take
+the locks it needs and should be retried.
 
 **Evolve** (`PATCH /api/suites/{name}/schema`): changes the suite's `metrics`,
 `commit_fields`, and/or `machine_fields` after creation. See D2 for the semantics;
@@ -745,6 +765,10 @@ the locks it needs and should be retried, and 204 on success.
 
 Both this and `PATCH .../schema` resolve the suite before checking `confirm`, so an
 unknown name is 404 whether or not `confirm=true` was supplied.
+
+`confirm` is an ordinary boolean query parameter -- `confirm=1` is
+`confirm=true`, and a value that is not a boolean at all is 400. It is written
+`?confirm=true` throughout because that is the spelling to use.
 
 
 ## Admin

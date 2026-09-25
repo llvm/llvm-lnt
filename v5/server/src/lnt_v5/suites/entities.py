@@ -159,11 +159,13 @@ def storable(value: str) -> str:
 Storable = AfterValidator(storable)
 
 # The identity of an entity a request names but does not create -- an indicator's machine and test,
-# a `test=` or `commit=` in a time-series body. Deliberately unconstrained in length and shape: a
+# a `test=` or `commit=` in a time-series body, a commit value handed to `POST /commits/resolve`.
+# Deliberately unconstrained in length and shape: a
 # value no machine, test or commit could possibly have still names none, which endpoints.md answers
 # with a 404 (or, for a commit filter, an empty result) rather than a 400. `Storable` is the one
 # exception, because a NUL cannot even be compared against a stored value -- PostgreSQL refuses it
-# as a parameter (D3).
+# as a parameter (D3). The same name arriving in a URL rather than a body is covered before routing
+# instead; see `RejectNulInUrl` in `spa.py`.
 Named = Annotated[str, Storable]
 
 # D3's `datetime`, as a reusable annotation: an ISO 8601 string and nothing else, normalized to
@@ -200,13 +202,15 @@ def addressable(value: str) -> str:
 # What an entity's identity attribute is made of, beyond whatever length its own column allows.
 Addressable = AfterValidator(addressable)
 
-# A UUID as it arrives in a path segment, for the three entities addressed by one (R1). Only the
+# A UUID as a request supplies one, for the three entities addressed by one (R1). Only the
 # lowercasing is shared behaviour: every UUID is stored lowercased, so every lookup has to be. The
-# format is deliberately *not* constrained -- a segment that is not a UUID at all passes through
+# format is deliberately *not* constrained -- a value that is not a UUID at all passes through
 # unchanged and simply matches nothing, which is the 404 endpoints.md asks for. It names no entity
 # rather than being a malformed request, and the two endpoint families that take one must not
-# diverge on that.
-UuidPath = Annotated[str, AfterValidator(str.lower)]
+# diverge on that. `Storable` is here for the one place this is read from a request *body* rather
+# than a path -- `DELETE .../regressions/{uuid}/indicators` -- which the URL-level check does not
+# reach; in a path segment it can never fire, which is the point.
+UuidPath = Annotated[str, AfterValidator(str.lower), Storable]
 
 
 def location_of(path: str, testsuite: str, key: str) -> str:

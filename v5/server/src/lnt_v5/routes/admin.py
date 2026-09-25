@@ -7,6 +7,7 @@ unauthenticated access never reaches.
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Annotated
 
 from fastapi import APIRouter
 from pydantic import BaseModel, ConfigDict, Field
@@ -17,6 +18,7 @@ from lnt_v5.db import EngineDep
 from lnt_v5.errors import ApiError, ErrorCode, ErrorEnvelope
 from lnt_v5.responses import Items
 from lnt_v5.scopes import Scope
+from lnt_v5.suites.entities import Storable
 from lnt_v5.tables import KEY_NAME_MAX_LENGTH
 
 router = APIRouter(
@@ -48,7 +50,10 @@ class ApiKeyCreated(ApiKey):
 
 
 class ApiKeyCreate(BaseModel):
-    name: str = Field(
+    # R4: a request body refuses a key it does not know.
+    model_config = ConfigDict(extra="forbid")
+
+    name: Annotated[str, Storable] = Field(
         min_length=1,
         max_length=KEY_NAME_MAX_LENGTH,
         description="A human-readable label. Not unique.",

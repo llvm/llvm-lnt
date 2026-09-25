@@ -75,13 +75,19 @@ def settings(client_dist: Path) -> Settings:
 
 
 @pytest.fixture
-def client(settings: Settings) -> TestClient:
-    """A client over the real application, without entering its lifespan.
+def app(settings: Settings) -> FastAPI:
+    """The real application, without its lifespan entered, and so without an engine."""
+    return create_app(settings)
+
+
+@pytest.fixture
+def client(app: FastAPI) -> TestClient:
+    """A client over that application.
 
     Enough for everything that does not touch the database; tests that need an engine build the
     app themselves so they can replace it after startup.
     """
-    return TestClient(create_app(settings))
+    return TestClient(app)
 
 
 # --------------------------------------------------------------------------------------------

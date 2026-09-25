@@ -15,7 +15,6 @@ readonly SUITES="${BASE_URL}/api/suites"
 # from `readonly`, whose own exit status would otherwise hide a failing `mint_key` from `set -e`.
 token="$(mint_key suites manage)"
 readonly AUTH="Authorization: Bearer ${token}"
-readonly JSON='Content-Type: application/json'
 
 # Enough times that every one of the four workers has almost certainly answered.
 readonly ATTEMPTS=12

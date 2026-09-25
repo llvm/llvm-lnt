@@ -78,6 +78,17 @@ its next query, another worker can remove a field, so a request can reach a colu
 no longer exists. Closing that window is not required. A request that hits it must
 report a conflict (409) rather than a 500.
 
+**A stored schema that will not parse takes only its own suite down.** D14
+allows two builds to disagree about what a schema may contain, and a row can be
+edited by hand, so a reader must be able to meet one it cannot read. Failing the
+load would make one bad row an outage for every suite on that worker, so the row
+is skipped instead: the suite is absent from `GET /api/suites` and 404s
+everywhere, while the rest of the instance serves normally. A reader that
+already holds a usable copy of that suite keeps serving it rather than dropping
+it. Either way the condition is recorded where an operator will see it, because
+nothing in the API reports it: a suite that has silently vanished is
+indistinguishable from one never created.
+
 **Schema evolution**: A suite's `metrics`, `commit_fields`, and `machine_fields`
 lists can be changed after creation via `PATCH /api/suites/{name}/schema`, which
 adds, updates, and/or removes entries in any of the three. This is the only way a
@@ -164,6 +175,16 @@ inside a run's `run_parameters` blob, in an object key as much as in a value
 An implementation enforces this where values are typed, not per endpoint: every
 one of those places is reachable from more than one write path, and a check
 attached to a path is one new path away from being forgotten.
+
+A value arriving in the *URL* -- a path segment, or a filter such as `machine=`
+or `search=` -- has no such place: it is declared by the endpoint that reads it,
+so a check there would be exactly the per-endpoint rule this paragraph rules
+out. A NUL is therefore refused for the whole URL, before routing, which covers
+every segment and every filter including ones added later. R4 lists that among
+the three things settled before a request reaches an endpoint, and says what it
+means for the order of checks. It is only the NUL that is refused this way; the
+non-finite numbers cannot be spelled in a URL, since every value there arrives
+as text and is parsed by the endpoint that declares it.
 
 JSON has a single number type, so the two numeric types are read from it leniently
 in *both* directions wherever nothing is lost: an `integer` is accepted where a

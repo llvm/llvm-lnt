@@ -7,6 +7,9 @@ set -euo pipefail
 
 trap 'echo "  FAILED ${0##*/}:${LINENO} -> ${BASH_COMMAND}" >&2' ERR
 
+# The content type every write in these checks sends, spelled once.
+readonly JSON='Content-Type: application/json'
+
 # Set by `request`, read by the expect_* helpers.
 STATUS=""
 BODY=""
@@ -57,7 +60,10 @@ request() {
     STATUS="$(curl --silent --output "$body_file" --dump-header "$header_file" \
         --write-out '%{http_code}' "$@")"
     BODY="$(cat "$body_file")"
-    HEADERS="$(cat "$header_file")"
+    # CRs stripped here rather than worked around in each assertion: they are how HTTP ends a
+    # header line, and they would otherwise sit between the value and any `$` an expectation
+    # anchors with.
+    HEADERS="$(tr -d '\r' < "$header_file")"
     rm -f "$body_file" "$header_file"
 }
 

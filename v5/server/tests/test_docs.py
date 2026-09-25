@@ -41,9 +41,11 @@ class TestOpenApiDocument:
                 extra = set(operation.get("responses", {})) - r4_statuses
                 assert not extra, f"{method.upper()} {path} documents {sorted(extra)}"
 
-    def test_excludes_the_health_probe(self, client: TestClient) -> None:
-        # R5 places /healthz outside the REST API surface, so it is not part of what R8 describes.
-        assert "/healthz" not in client.get("/api/openapi.json").json()["paths"]
+    @pytest.mark.parametrize("path", ["/healthz", "/llms.txt"])
+    def test_excludes_the_routes_outside_the_rest_api(self, client: TestClient, path: str) -> None:
+        # R5 places both of these outside the REST API surface, so neither is part of what R8
+        # describes. The other two exempt routes are the document and its viewer.
+        assert path not in client.get("/api/openapi.json").json()["paths"]
 
     def test_documents_no_validation_failure_the_api_cannot_produce(
         self, client: TestClient
