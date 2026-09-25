@@ -61,6 +61,7 @@ UUID_LENGTH = 36
 MACHINE_NAME_CONSTRAINT = "uq_machine_name"
 COMMIT_VALUE_CONSTRAINT = "uq_commit_commit"
 COMMIT_ORDINAL_CONSTRAINT = "uq_commit_ordinal"
+RUN_UUID_CONSTRAINT = "uq_run_uuid"
 # Not a unique constraint but a foreign key: D5 makes a commit a regression references undeletable,
 # and this is the constraint whose violation says so (R4's `in_use`).
 REGRESSION_COMMIT_CONSTRAINT = "fk_regression_commit_id_commit"

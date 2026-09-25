@@ -54,7 +54,8 @@ object identical to the one the entity's own creation endpoint accepts (see D7).
   hyphenated hex format (e.g., output of `uuidgen`). Case-insensitive on input;
   normalized to lowercase for storage. Any UUID version is accepted (v4, v5,
   v7, etc.) -- only the format is validated. If a run with the same UUID
-  already exists in the test suite, the server returns 409 Conflict. If omitted,
+  already exists in the test suite, the server returns 409 `duplicate` (see R4),
+  which a submitting bot recovers from by retrying with a fresh one. If omitted,
   the server generates a random UUID v4.
 - `machine`: Required object identifying the machine this run was measured on.
   - `name`: Required string. The machine's identity.
@@ -75,25 +76,72 @@ object identical to the one the entity's own creation endpoint accepts (see D7).
   - `ordinal`: Optional integer, a built-in attribute rather than a
     `commit_field`. Places the commit in the suite's total order. It is set
     when the commit has no ordinal yet; when the commit already has a
-    different one, the submission is rejected with 409. Use
-    `PATCH /api/suites/{testsuite}/commits/{value}` to change an ordinal once
-    set. Ordinals are unique within a suite, so a value already held by a
-    different commit is also rejected with 409 (see D11).
+    different one, the submission is rejected with 409 `ordinal_conflict` (see
+    R4). Use `PATCH /api/suites/{testsuite}/commits/{value}` to change an ordinal
+    once set. Ordinals are unique within a suite, so a value already held by a
+    different commit is rejected with `ordinal_conflict` too (see D11).
   - A run submission never sets `tag`: it is an editorial label applied after
     the fact, not something a submitter knows in advance (see D5).
 - `run_parameters`: Optional. Stored as JSONB on the Run. Run has no declared
-  field list, so this is a free-form blob rather than a `fields` dict.
-- `tests`: Required. Each entry has `name` plus metric values. Metric values
-  may be scalars or arrays. An array value (e.g. `"execution_time": [0.1, 0.2]`)
-  creates one Sample row per element. All arrays in a single test entry must
-  have the same length; scalar values are repeated across the resulting rows.
-  Metrics with null values must be omitted from the test entry (not sent as
-  `"metric": null`); only include metrics that have actual values. An optional
-  `profile` field may contain base64-encoded profile binary data; if present,
-  a Profile row is created and linked to the run+test. `name` and `profile` are
-  reserved keys within a test entry, so neither may be a metric name -- this is
-  enforced when the schema is created rather than at submission (see D5), so a
-  suite can never hold a metric that no submission could populate.
+  field list, so this is a free-form blob rather than a `fields` dict. Nothing in
+  it is validated against anything, with one exception: D3's rule about a value
+  the stored representation cannot hold reaches into it, at any depth and in an
+  object key as much as in a value. Nothing else about it is inspected.
+- `tests`: Required list of test entries, at most one per test. It may be empty
+  -- a run that measured nothing is still a run -- but it may not be omitted.
+  Each entry has `name` plus metric values.
+  - `name` is required, non-empty, and at most the length `{suite}.test.name`
+    allows (see D5). Unlike a machine name or a commit value it is not required
+    to be usable as a URL path segment: test names legitimately contain `/`, and
+    R1 exempts them.
+  - Two entries naming the same test are rejected with 400. The format already
+    expresses a test measured several times with an array value, and D5 permits
+    at most one profile per run+test pair, so two entries for one test could not
+    both be stored; refusing up front is better than an integrity failure
+    discovered halfway through writing the run.
+  - Metric values may be scalars or arrays. An array value (e.g.
+    `"execution_time": [0.1, 0.2]`) creates one Sample row per element. All
+    arrays in a single test entry must have the same length -- they describe the
+    same repetitions -- and scalar values are repeated across the resulting rows.
+  - An empty array is rejected with 400. It would produce no rows at all,
+    silently discarding every scalar metric in the same entry, which is never
+    what a producer meant.
+  - An entry therefore yields `max(1, array length)` Sample rows: one when it
+    carries no arrays, and one also when it carries nothing but a `name`, or
+    nothing but a `name` and a `profile`. That row records that the test ran in
+    this run even when it carries no metric values.
+  - Every metric key must be declared in the schema's `metrics`; an undeclared
+    one is rejected with 400. Values are typed per D3.
+  - Metrics with null values must be omitted from the test entry (not sent as
+    `"metric": null`); only include metrics that have actual values. A null
+    *element* inside an array is rejected for the same reason.
+  - An optional `profile` field may contain base64-encoded profile binary data;
+    if present, a Profile row is created and linked to the run+test (see D12).
+    Null is accepted there and means the entry carries no profile, exactly as
+    omitting the key does.
+  - `name` and `profile` are reserved keys within a test entry, so neither may
+    be a metric name -- this is enforced when the schema is created rather than
+    at submission (see D5), so a suite can never hold a metric that no submission
+    could populate.
+
+An explicit `null` means "omitted" exactly where the key is both optional and
+nullable, and is rejected with 400 everywhere else. A null never selects a
+default: `machine.tracked`, either `fields` dict and `run_parameters` all have
+defaults, and none of them is nullable, so sending any of them as `null` is a bad
+request rather than a request for the default. The keys where a null does mean
+"omitted" are `uuid`, `commit.ordinal` and a test entry's `profile`, along with
+the individual entries of `machine.fields` and `commit.fields`.
+
+That last case is the one worth spelling out. Inside a submission's
+`machine.fields` and `commit.fields`, an explicit `null` is neither written nor
+compared against the stored value, exactly as if the key had been omitted. The
+key must still be declared, so a misspelled one is rejected whether its value is
+null or not. This differs from `PATCH`, where an explicit null clears a stored
+value, and the difference is deliberate: a submission never overwrites metadata
+(see D7), so there is no clearing for it to express, and R4 has every `fields`
+dict in a response carry a `null` for each field the entity has no value for --
+so a tool that reads an entity and then submits a run for it would otherwise be
+rejected for echoing back the document the API just gave it.
 
 
 ## D7: Machine and Commit Metadata Population
@@ -122,10 +170,23 @@ Declaring a new field is a schema change (`PATCH /api/suites/{name}/schema`,
 see D2), not something a submission can do implicitly.
 
 **Matching on re-submission**: the match in path 1 considers only the keys
-present in the submission. A key the submission omits is not compared, so its
-stored value is left alone and can never cause a rejection. Submitters that
-send different subsets of a record's metadata therefore coexist, and a field
-introduced by a schema change does not break producers that do not send it yet.
+present in the submission, and a key present with an explicit `null` counts as
+absent (see D6). A key the submission omits is not compared, so its stored value
+is left alone and can never cause a rejection. Submitters that send different
+subsets of a record's metadata therefore coexist, and a field introduced by a
+schema change does not break producers that do not send it yet.
+
+A key the submission does send has one of three outcomes. If the record holds no
+value for it, the submission fills it in -- which is how a producer that starts
+sending a newly declared field populates the records that predate it. If the
+stored value equals the submitted one, there is nothing to do. If the stored
+value is anything else, the submission is rejected: stored metadata is never
+overwritten, and `PATCH` is the only way to change it. The rejection is 409
+`conflict` for a declared field and 409 `ordinal_conflict` for a commit's
+`ordinal` (see R4), a distinction R4 draws because a client cannot recover from
+the second by retrying. Either way the message names the key, the stored value
+and the submitted one, so that a submitter can correct its configuration without
+reading the database.
 
 Per-entity specifics:
 
@@ -263,12 +324,33 @@ profile binary data.
 On submission:
 1. The `profile` field is recognized as a reserved key (not a metric) and
    excluded from metric name validation.
-2. The base64 data is decoded to raw bytes. Invalid base64 is rejected
-   with 400.
-3. The format version byte is validated (must be 2). Invalid format is
-   rejected with 400.
-4. A Profile row is created with `(run_id, test_id, created_at, data)`.
-5. The unique constraint on `(run_id, test_id)` prevents duplicate profiles.
+2. The base64 data is decoded to raw bytes. ASCII whitespace is insignificant
+   and is removed first -- the `base64` command-line tool wraps at 76 columns by
+   default, as does every MIME encoder, and a wrapped profile is a perfectly
+   ordinary thing for a producer to send. What is left is then decoded strictly:
+   the standard alphabet, correctly padded, and everything outside the alphabet
+   an error rather than something discarded. Both halves matter, and the second
+   is the point of the first being spelled out as *whitespace* rather than as
+   "skip what does not fit": a lenient decoder that drops every unrecognized
+   character turns a payload which is not base64 at all into whatever happened to
+   survive. Invalid base64 is rejected with 400.
+3. The decoded blob is capped at 50 MB -- 52,428,800 bytes, see D5; a larger one
+   is rejected with 400. This caps one profile, not the request carrying it: an
+   oversized request *body* is refused at the transport layer with 413 (see R4),
+   and one submission may legitimately carry many profiles. An implementation may
+   refuse an over-long *encoded* string before decoding it, since base64 spends
+   four characters on every three bytes, but must measure it after removing the
+   whitespace of step 2 -- line breaks are not payload, and a cap applied to them
+   would refuse a wrapped profile for a size it does not have.
+4. The format version byte is validated (must be 2). Invalid format is
+   rejected with 400, and so is an empty blob, which is the degenerate case of
+   the same check: it carries no version byte to validate. Nothing beyond that
+   first byte is parsed at submission time: the binary format has a reader of its
+   own, and accepting a run must not depend on it.
+5. A Profile row is created with `(run_id, test_id, created_at, data)`.
+6. The unique constraint on `(run_id, test_id)` prevents duplicate profiles.
+   Two test entries in one submission naming the same test are already rejected
+   by D6, so this constraint only ever sees profiles from different submissions.
 
 Profiles are read-only after creation -- there is no PATCH endpoint.
 Deleting a run cascades to its profiles.
@@ -283,20 +365,98 @@ results and is only loaded when a request explicitly needs it.
 Run submission (`POST /api/suites/{testsuite}/runs`) is atomic from the API user's perspective: it
 either fully succeeds (201) or fully fails with no partial side effects.
 
-Machines, commits, and tests are created via a get-or-create pattern. When
-two concurrent sessions race to create the same entity, the loser's INSERT
-hits a unique constraint violation. All three get-or-create methods handle
-this with **savepoint-based retry**:
+Machines, commits, and tests are created via a get-or-create pattern, so two
+concurrent submissions naming the same entity race to create it. Whatever an
+implementation does about that, it must provide these guarantees:
+
+- **A lost identity race resolves to the winner's row.** The submission that
+  loses the race for a machine, a commit, or a test name ends up using the row
+  the winner created. It does not fail, and the client is never asked to retry.
+- **Work done earlier in the same transaction survives.** Losing the race for a
+  commit must not discard the machine the same submission created a moment
+  earlier, nor any other row it has already written.
+- **Every integrity failure that is not a lost identity race surfaces as
+  itself.** A commit's INSERT can equally violate the unique constraint on
+  `ordinal`, which is not a lost race at all: no re-read would find the commit,
+  and the caller is owed `ordinal_conflict` (see D11 and R4) rather than a retry
+  against a different problem.
+- **Test-name resolution costs a fixed number of round trips.** However many
+  names a submission carries, resolving them must not cost a statement per name,
+  nor one per chunk of names.
+- **Concurrent submissions cannot deadlock against each other.** A submission
+  takes row locks on the machine it names, on the commit it names, and on each
+  test name it creates, and two submissions touching the same rows must not each
+  end up holding what the other is waiting for. An implementation must therefore
+  acquire them in one order that every submission follows: the entities in a
+  fixed sequence, and the names within the set in a fixed order. PostgreSQL
+  breaks a cycle by killing one of the transactions, which would be a 500 on a
+  request that did nothing wrong.
+- **Stored metadata is never overwritten, including by a concurrent
+  submission.** D7's rule is that a submitted value either fills in a NULL,
+  matches what is stored, or is rejected. Two submissions can read the same NULL
+  before either writes, so an implementation that decides what to fill from an
+  unlocked read and then writes it has the second one overwriting a value it
+  never compared against -- D7 holding usually rather than always. The
+  reconciliation that decides a write must be the one made against the row as
+  locked for that write.
+
+The rest of this section is how PostgreSQL meets them.
+
+The payload may be validated before any of this, outside the write transaction
+and before it opens, and an implementation is encouraged to do so. Nothing in
+reading a submission needs stored state (see D6), and a submission legitimately
+carries tens of thousands of test entries and tens of megabytes of base64
+profile: doing that work inside the transaction holds a database connection and
+an open transaction -- which pins the vacuum horizon -- for the whole of it, for
+no benefit. The cost is that the suite's schema is read twice, once to validate
+against and again as the first statement of the write transaction, where D2 wants
+the freshness check. A schema that changed between the two readings is answered
+the same way any other stale read is, with D2's retryable 409, rather than
+written against a schema that has since gone away.
+
+Machines and commits are resolved one row at a time, with **savepoint-based
+retry**:
 
 1. The INSERT is wrapped in a Postgres SAVEPOINT.
-2. On a unique-constraint violation, only the savepoint is rolled back -- prior work in
-   the same transaction (e.g., a machine created earlier) is preserved.
-3. The method re-queries by name and returns the row created by the winner.
+2. On a violation of the entity's *identity* constraint -- the unique constraint
+   on a machine's name or a commit's value -- only the savepoint is rolled back,
+   so prior work in the same transaction (e.g., a machine created earlier) is
+   preserved.
+3. The row is re-read by its identity and the winner's row is returned. Only a
+   row that was already there is then reconciled (see D7): one this transaction
+   created itself holds exactly what was submitted.
+4. If that reconciliation has nothing to fill in -- the common case, since a
+   submission usually re-sends metadata the record already holds -- the entity is
+   resolved and no lock is taken. If it does, the same columns are re-read `FOR
+   UPDATE` and reconciled again, and it is the second reconciliation that
+   decides. By the time the lock is granted, a competing submission has either
+   committed, in which case its value is now the stored one and a submission
+   disagreeing with it is the 409 D7 requires, or rolled back, in which case the
+   column is still NULL and the fill is correct. Taking the lock only on the fill
+   path is what keeps the ordinary submission lock-free.
 
-This makes concurrent submissions for the same machine, commit, or test
-names safe. No client-side retry is needed.
+The recovery is limited to the identity constraint, and any other integrity
+failure raised by the same INSERT must surface rather than be absorbed, which is
+what tells a taken `ordinal` apart from a lost race. Note that the unique
+constraint on `ordinal` does not make step 4 unnecessary: it catches a
+*different* commit holding the ordinal, not two submissions handing *this* commit
+two different ones.
 
-For tests specifically, a batch resolution path exists that resolves all test
-names in O(1) DB round-trips regardless of test count. It provides the same
-concurrency safety guarantee as the single-test path: concurrent submissions
-with overlapping test sets never produce errors or partial results.
+The machine is resolved before the commit, and both before the test names. That
+sequence is what gives the deadlock guarantee above its fixed order for the
+entity rows, and it is load-bearing rather than incidental: two submissions
+naming the same machine and the same commit in opposite orders would each hold
+what the other waits for.
+
+Tests are resolved as a whole set rather than one at a time, in O(1) database
+round trips regardless of how many names a submission carries. The set is
+resolved by reading the names that already exist, inserting the remainder while
+skipping the rows a concurrent transaction has already written, and re-reading
+the skipped names, which is what picks up the winner's rows. An implementation
+may pass the names as a single array parameter rather than one parameter each,
+which is what keeps the round trip count fixed rather than bounded by Postgres's
+parameter limit. The rows are inserted in a single agreed order -- ascending by
+name -- so that two submitters whose test sets overlap cannot each hold the
+speculative insertion lock the other is waiting for. A name still unresolved
+after all that is a fault rather than a result, since nothing deletes a test
+(see D5).

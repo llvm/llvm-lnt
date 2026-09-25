@@ -665,6 +665,20 @@ class TestUpdate:
 
         assert patch("def", {"tag": "release-18.1"}).status_code == 200
 
+    def test_refuses_a_tag_carrying_a_nul_character(
+        self, create: Callable[..., Any], patch: Callable[..., Any]
+    ) -> None:
+        # D3: PostgreSQL stores no `text` value holding one, and reports that as a `DataError` --
+        # neither an integrity failure nor a missing relation, so nothing attributes it and the
+        # caller would read a 500 for a value it supplied. A tag is the one caller-supplied string
+        # only PATCH can set, so this is the only path that can carry one here.
+        create("abc")
+
+        response = patch("abc", {"tag": "release\x0018.1"})
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
     @pytest.mark.parametrize("key", ["ordinal", "tag"])
     def test_an_explicit_null_clears_a_stored_value(
         self, create: Callable[..., Any], patch: Callable[..., Any], key: str

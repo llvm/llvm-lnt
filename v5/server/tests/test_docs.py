@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from lnt_v5.querying import DEFAULT_LIMIT, MAX_LIMIT
 from lnt_v5.routes.commits import COMMITS_PATH
 from lnt_v5.routes.machines import MACHINES_PATH
+from lnt_v5.routes.runs import RUNS_PATH
 
 
 class TestOpenApiDocument:
@@ -423,6 +424,87 @@ class TestCommitOperations:
         schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
 
         assert set(schemas[model]["required"]) == set(schemas[model]["properties"])
+
+
+RUNS = RUNS_PATH
+RUN = f"{RUNS_PATH}/{{uuid}}"
+
+
+class TestRunOperations:
+    """R8: the document describes what the API can actually do, including these three."""
+
+    @pytest.mark.parametrize(("path", "method"), [(RUNS, "post"), (RUN, "get"), (RUN, "delete")])
+    def test_is_documented(self, client: TestClient, path: str, method: str) -> None:
+        paths = client.get("/api/openapi.json").json()["paths"]
+
+        assert method in paths[path], f"{method.upper()} {path} is not in the document"
+
+    @pytest.mark.parametrize(
+        ("path", "method", "status"),
+        [
+            # An unknown suite on every one of them (R1), an unknown run on the two that address
+            # one, and D2's stale reader everywhere the suite's own tables are written or read. The
+            # submission's 409 covers a repeated UUID, contradicted metadata and a taken ordinal.
+            (RUNS, "post", "404"),
+            (RUNS, "post", "409"),
+            (RUN, "get", "404"),
+            (RUN, "get", "409"),
+            (RUN, "delete", "404"),
+            (RUN, "delete", "409"),
+        ],
+    )
+    def test_documents_the_failures_endpoints_md_specifies(
+        self, client: TestClient, path: str, method: str, status: str
+    ) -> None:
+        operation = client.get("/api/openapi.json").json()["paths"][path][method]
+
+        assert status in operation["responses"]
+
+    def test_the_response_promises_every_key_it_documents(self, client: TestClient) -> None:
+        # R4: a key an endpoint documents is always present, and null when it has no value.
+        run = client.get("/api/openapi.json").json()["components"]["schemas"]["Run"]
+
+        assert set(run["required"]) == set(run["properties"])
+        assert set(run["properties"]) == {
+            "uuid",
+            "machine",
+            "commit",
+            "submitted_at",
+            "run_parameters",
+        }
+
+    def test_a_run_names_the_entities_it_references_rather_than_nesting_them(
+        self, client: TestClient
+    ) -> None:
+        # R4: a reference carries the other entity's identifier under a key named after it.
+        run = client.get("/api/openapi.json").json()["components"]["schemas"]["Run"]
+
+        assert run["properties"]["machine"]["type"] == "string"
+        assert run["properties"]["commit"]["type"] == "string"
+
+    def test_the_submission_body_is_the_one_d6_specifies(self, client: TestClient) -> None:
+        schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
+
+        assert set(schemas["RunSubmission"]["properties"]) == {
+            "format_version",
+            "uuid",
+            "machine",
+            "commit",
+            "run_parameters",
+            "tests",
+        }
+
+    def test_the_submission_nests_the_entity_objects_the_creation_endpoints_take(
+        self, client: TestClient
+    ) -> None:
+        # D6 and D7: one object per entity, shared with `POST /machines` and `POST /commits`, so a
+        # generated client can feed one to the other.
+        submission = client.get("/api/openapi.json").json()["components"]["schemas"][
+            "RunSubmission"
+        ]["properties"]
+
+        assert submission["machine"]["$ref"].endswith("/MachineObject")
+        assert submission["commit"]["$ref"].endswith("/CommitObject")
 
 
 class TestDocumentationViewer:

@@ -137,6 +137,34 @@ A value outside the range of the column its type maps to is also rejected with
 400 -- an `integer` is 32 bits wide, so a larger one is a bad request rather than
 a database failure the caller reads as a 500.
 
+**A value the stored representation cannot hold is rejected with 400 rather than
+left to fail in the database.** Two reasons make such a value the caller's
+mistake rather than a server fault. It does not survive the round trip, so
+accepting it would mean answering later reads with something other than what was
+submitted -- and a value that cannot be returned is not one that may be accepted.
+And the failure it causes further down is not one an implementation can
+attribute: it is neither an integrity violation nor a missing relation, so
+nothing connects it back to the value that caused it and the caller reads a 500
+for something it supplied (see R4).
+
+The rule has two instances. Both apply wherever a value is read -- in `fields`,
+in a metric, in a built-in attribute, in an identity attribute, and at any depth
+inside a run's `run_parameters` blob, in an object key as much as in a value
+(see D6):
+
+- `NaN`, `Infinity` and `-Infinity`. JSON has no literal for any of the three,
+  yet parsers commonly accept all three, so they reach an implementation that
+  did not ask for them. JSON serialization has nothing to render them as either,
+  so a stored one would come back as `null` and be indistinguishable from a value
+  the entity does not have.
+- The NUL character, `U+0000`. JSON can carry it and most languages' strings hold
+  it happily, but PostgreSQL stores it in neither a `text` column nor a `jsonb`
+  value.
+
+An implementation enforces this where values are typed, not per endpoint: every
+one of those places is reachable from more than one write path, and a check
+attached to a path is one new path away from being forgotten.
+
 JSON has a single number type, so the two numeric types are read from it leniently
 in *both* directions wherever nothing is lost: an `integer` is accepted where a
 `real` is declared, and a number with no fractional part (`8.0`) is accepted where
@@ -439,12 +467,13 @@ that form.
 | uuid | VARCHAR(36) | unique, not null |
 | machine_id | INTEGER FK -> Machine | not null |
 | commit_id | INTEGER FK -> Commit | not null, indexed |
-| submitted_at | TIMESTAMP WITH TIME ZONE | not null |
+| submitted_at | TIMESTAMP WITH TIME ZONE | not null, default `now()` |
 | run_parameters | JSONB | not null, default `{}` |
 
 - Every run must have a commit (`commit_id` is not null).
 - `submitted_at` is recorded by the server when the run is accepted; a
-  submission cannot supply it (see D6).
+  submission cannot supply it (see D6). The column default is what supplies it,
+  so the value is the database's clock rather than any one worker's.
 - Compound index on `(machine_id, submitted_at)`. Its leading column serves
   lookups of all runs for a machine, and the pair keeps both
   `GET /api/suites/{testsuite}/machines/{name}/runs?sort=-submitted_at` and the
@@ -540,8 +569,9 @@ The DB layer validates state values on create and update.
   (Unlike Run UUIDs, which may be client-provided, Profile and Regression
   UUIDs are always server-generated.)
 - Cascade: deleting a run cascades to its profiles.
-- Maximum accepted profile size on submission: 50 MB (decoded). Submissions
-  exceeding this are rejected.
+- Maximum accepted profile size on submission: 50 MB decoded, meaning exactly
+  52,428,800 bytes (50 x 1024 x 1024) and not 50,000,000. Submissions exceeding
+  this are rejected.
 
 ### Tables Dropped from v4
 
