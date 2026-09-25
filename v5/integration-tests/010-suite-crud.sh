@@ -11,8 +11,10 @@ source "$(dirname "$0")/lib.sh"
 
 readonly SUITES="${BASE_URL}/api/suites"
 
-# Its own key: the checks are declared independent, so this cannot inherit 009's.
-readonly AUTH="Authorization: Bearer $(mint_key suites manage)"
+# Its own key: the checks are declared independent, so this cannot inherit 009's. Assigned apart
+# from `readonly`, whose own exit status would otherwise hide a failing `mint_key` from `set -e`.
+token="$(mint_key suites manage)"
+readonly AUTH="Authorization: Bearer ${token}"
 readonly JSON='Content-Type: application/json'
 
 # Enough times that every one of the four workers has almost certainly answered.

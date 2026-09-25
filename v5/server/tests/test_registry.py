@@ -10,11 +10,12 @@ import threading
 from collections.abc import Callable
 
 import pytest
-from sqlalchemy import Engine, event, insert, inspect, select, update
+from sqlalchemy import Connection, Engine, event, insert, inspect, select, update
 from sqlalchemy.exc import ProgrammingError
 
 from introspection import schema_version_of, stored_names
 from lnt_v5.errors import ApiError, ErrorCode
+from lnt_v5.suites import registry as registry_module
 from lnt_v5.suites import tables as suite_tables
 from lnt_v5.suites.registry import SuiteRegistry
 from lnt_v5.suites.schema import SuiteSchema
@@ -199,6 +200,37 @@ class TestFreshness:
         assert loads == 1
         assert len(results) == threads
         assert all(result is results[0] for result in results)
+
+    def test_a_stale_read_does_not_undo_a_newer_reload(
+        self,
+        db_engine: Engine,
+        store: Callable[..., SuiteSchema],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A thread whose read predates another's commit must not install what it read.
+
+        `_read` runs outside the lock, so a slower thread can reach it holding a snapshot from
+        before a change that a faster thread has already loaded. The stale snapshot saw the counter
+        unmoved and so carries no rows; installing it would empty the map. The interleaving is
+        forced by running the faster thread's whole `fresh` inside the slower thread's read.
+        """
+        store("nts")
+        registry = SuiteRegistry()
+        fresh(registry, db_engine)
+        before = schema_version_of(db_engine)
+        store("other")
+        real = registry_module._read
+
+        def stale(connection: Connection, cached: int | None) -> tuple[int, list[tuple[str, str]]]:
+            monkeypatch.setattr(registry_module, "_read", real)
+            assert set(fresh(registry, db_engine)) == {"nts", "other"}
+            # What this thread's statement would have returned had it run before `other` committed.
+            return before, []
+
+        monkeypatch.setattr(registry_module, "_read", stale)
+
+        assert set(fresh(registry, db_engine)) == {"nts", "other"}
+        assert set(fresh(registry, db_engine)) == {"nts", "other"}
 
 
 class TestBadRows:

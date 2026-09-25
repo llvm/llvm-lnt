@@ -73,9 +73,14 @@ class SuiteRegistry:
         extra connection. Never call it while holding a database lock -- it takes a Python lock, and
         the two orders together would be a cycle.
         """
-        version, rows = _read(connection, self._version)
+        cached = self._version
+        version, rows = _read(connection, cached)
         with self._lock:
-            if version != self._version:
+            # `rows` only means something relative to `cached`: a read that saw the counter unmoved
+            # carries no rows at all. So if another thread has installed a newer map since, this
+            # read is stale, and installing it would empty the map or roll it back. Theirs is at
+            # least as fresh as this one, so serve it.
+            if self._version == cached and version != cached:
                 self._suites = self._parse(rows)
                 # Assigned only after a successful parse, and only alongside the map it describes,
                 # so a load that raises leaves the worker stale-but-retrying rather than convinced
