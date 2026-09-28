@@ -137,6 +137,11 @@ in *both* directions wherever nothing is lost: an `integer` is accepted where a
 an `integer` is. A number with a fractional part where an `integer` is declared is
 rejected rather than rounded.
 
+A value must also be one its column can store, and is otherwise rejected with 400: an
+`integer` must lie within the range of the column type above, a `real` must be finite
+(`NaN` and the infinities are not JSON, but some producers emit them anyway), and a
+`text` value must not contain the NUL character (see D5).
+
 A `datetime` is an ISO 8601 string in both directions, and nothing else is accepted
 for one. On the way in, a string carrying an offset is converted to UTC and one
 carrying none is read as UTC. On the way out it is always rendered in UTC with a `Z`
@@ -270,6 +275,11 @@ instance, and **per-suite tables**, which are created for each test suite.
 storing timezone-aware UTC values. Implementations
 must ensure timestamps are converted to UTC before storage. API responses
 serialize timestamps as ISO 8601 with `Z` suffix (e.g., `"2026-04-15T14:30:00Z"`).
+
+**String convention**: PostgreSQL cannot store the NUL character (U+0000) in a
+string column, although JSON can carry one. A submitted string containing it -- a
+declared `text` value or a built-in such as a machine name -- is rejected with 400
+rather than accepted and then failing to store.
 
 **Index convention**: A `unique` constraint or primary key implies an index, and
 compound indexes are listed in each table's notes. `indexed` therefore marks

@@ -44,6 +44,7 @@ from lnt_v5.querying import DEFAULT_LIMIT, Limit, Offset, search_condition, sort
 from lnt_v5.responses import OffsetPage
 from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.scopes import Scope
+from lnt_v5.strings import Storable
 from lnt_v5.suites.entities import (
     Addressable,
     EntityObject,
@@ -64,6 +65,7 @@ MachineName = Annotated[
     str,
     StringConstraints(min_length=1, max_length=NAME_LENGTH),
     Addressable,
+    Storable,
     Field(
         description=(
             "Identifies the machine within its test suite. It appears in the URL that addresses "

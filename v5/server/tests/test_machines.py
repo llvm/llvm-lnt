@@ -417,6 +417,44 @@ class TestCreate:
         assert response.status_code == 400, reason
         assert code_of(response) == "invalid_request"
 
+    @pytest.mark.parametrize(
+        ("fields", "reason"),
+        [
+            ('{"core_count": 2147483648}', "an integer above what INTEGER holds"),
+            ('{"core_count": -2147483649}', "an integer below what INTEGER holds"),
+            ('{"core_count": 1e20}', "a whole number, but still too large once read as one"),
+            ('{"clock_ghz": NaN}', "a NaN, which would be stored and then served as null"),
+            ('{"clock_ghz": Infinity}', "an infinity"),
+            ('{"clock_ghz": -Infinity}', "a negative infinity"),
+            ('{"hardware": "x\\u0000y"}', "a NUL, which no PostgreSQL string column can hold"),
+        ],
+    )
+    def test_refuses_a_value_its_column_cannot_store(
+        self,
+        api_client: TestClient,
+        manage: dict[str, str],
+        suite: SuiteTables,
+        fields: str,
+        reason: str,
+    ) -> None:
+        # D3: each of these is a well-typed value that the INSERT would reject, and must be a 400
+        # rather than a 500. Sent as raw text because NaN and the infinities are not JSON, so no
+        # JSON encoder produces them -- but Python's parser accepts them, and so does the server.
+        response = api_client.post(
+            MACHINES,
+            content=f'{{"name": "linux", "fields": {fields}}}',
+            headers={**manage, "Content-Type": "application/json"},
+        )
+
+        assert response.status_code == 400, reason
+        assert code_of(response) == "invalid_request"
+
+    @pytest.mark.parametrize("value", [2**31 - 1, -(2**31)])
+    def test_accepts_an_integer_at_either_end_of_the_range(
+        self, create: Callable[..., Any], value: int
+    ) -> None:
+        assert create("linux", fields={"core_count": value}).json()["fields"]["core_count"] == value
+
     def test_says_which_field_was_wrong_and_why(self, create: Callable[..., Any]) -> None:
         # R4 leaves `message` to humans, but a validation failure at the root of a bare value has
         # no location, so the reason must not arrive after an empty prefix and a stray colon.
@@ -471,6 +509,22 @@ class TestCreate:
             api_client.patch(f"{MACHINES}/linux", json={"name": "a/b"}, headers=manage).status_code
             == 400
         )
+
+    def test_refuses_a_name_postgres_cannot_store(self, create: Callable[..., Any]) -> None:
+        # D5: a NUL reaches the INSERT and fails there, which would be a 500.
+        response = create("a\x00b")
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
+    def test_refuses_a_rename_onto_a_name_postgres_cannot_store(
+        self, api_client: TestClient, manage: dict[str, str], create: Callable[..., Any]
+    ) -> None:
+        create("linux")
+
+        response = api_client.patch(f"{MACHINES}/linux", json={"name": "a\x00b"}, headers=manage)
+
+        assert response.status_code == 400
 
     def test_the_location_it_reports_is_encoded_and_resolves(
         self, api_client: TestClient, create: Callable[..., Any]

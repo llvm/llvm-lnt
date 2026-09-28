@@ -18,6 +18,7 @@ from typing import Annotated, Any
 
 from pydantic import (
     AfterValidator,
+    AllowInfNan,
     BaseModel,
     BeforeValidator,
     ConfigDict,
@@ -29,7 +30,9 @@ from pydantic import (
 from sqlalchemy import Row, Table
 
 from lnt_v5.errors import ApiError, ErrorCode, validation_problems
+from lnt_v5.strings import Storable
 from lnt_v5.suites.schema import AttributeType, Entry, SuiteSchema
+from lnt_v5.suites.tables import INTEGER_MAX, INTEGER_MIN
 
 # D3's JSON representation of each declared type, as the one type a `fields` value may have. Strict
 # on each member, so that the union cannot quietly reshape a value on its way in: `true` is not an
@@ -79,10 +82,21 @@ def _utc(value: datetime) -> datetime:
     return value.astimezone(UTC) if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
+# Each adapter also refuses what its column cannot store, so that such a value is a 400 here rather
+# than a `DataError` -- a 500 -- at INSERT time (D3). A `real` must be finite: JSON has no NaN or
+# infinity, but Python's parser accepts both, and PostgreSQL would store a NaN that pydantic then
+# serializes as `null`. An `integer` must fit the column. A `text` must not contain NUL.
 _ADAPTERS: dict[AttributeType, TypeAdapter[Any]] = {
-    AttributeType.REAL: TypeAdapter(Annotated[float, Strict()]),
-    AttributeType.INTEGER: TypeAdapter(Annotated[int, BeforeValidator(_whole_number), Strict()]),
-    AttributeType.TEXT: TypeAdapter(Annotated[str, Strict()]),
+    AttributeType.REAL: TypeAdapter(Annotated[float, Strict(), AllowInfNan(False)]),
+    AttributeType.INTEGER: TypeAdapter(
+        Annotated[
+            int,
+            BeforeValidator(_whole_number),
+            Strict(),
+            Field(ge=INTEGER_MIN, le=INTEGER_MAX),
+        ]
+    ),
+    AttributeType.TEXT: TypeAdapter(Annotated[str, Strict(), Storable]),
     AttributeType.DATETIME: TypeAdapter(
         Annotated[datetime, BeforeValidator(_iso_8601), AfterValidator(_utc)]
     ),

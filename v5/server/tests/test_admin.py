@@ -155,6 +155,7 @@ class TestCreate:
             ({"scope": "read"}, "no name"),
             ({"name": "", "scope": "read"}, "an empty name"),
             ({"name": "x" * (KEY_NAME_MAX_LENGTH + 1), "scope": "read"}, "an oversized name"),
+            ({"name": "a\x00b", "scope": "read"}, "a name PostgreSQL cannot store (D5)"),
             ({"name": "bot"}, "no scope"),
             ({"name": "bot", "scope": "root"}, "a scope outside R5's five"),
             ({"name": "bot", "scope": "READ"}, "a scope in the wrong case"),

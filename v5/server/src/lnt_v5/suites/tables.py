@@ -75,6 +75,11 @@ _COLUMN_TYPES: dict[AttributeType, TypeEngine[Any]] = {
     AttributeType.DATETIME: DateTime(timezone=True),
 }
 
+# The range PostgreSQL's INTEGER holds, and so the range of an `integer` value (D3). Beside the
+# mapping above because it follows from it: a change to the column type must change these too.
+INTEGER_MIN = -(2**31)
+INTEGER_MAX = 2**31 - 1
+
 
 def _dynamic(entries: Sequence[Entry]) -> list[Column[Any]]:
     """The columns a schema's `metrics`, `commit_fields` or `machine_fields` become.
