@@ -11,12 +11,24 @@ It also has a nullable one, for the rows D10 excludes from an order they have no
 from __future__ import annotations
 
 import base64
+import json
 from collections.abc import Callable, Iterator
 from datetime import UTC, datetime
 from typing import Any
 
 import pytest
-from sqlalchemy import Column, DateTime, Engine, Identity, Integer, MetaData, String, Table, insert
+from sqlalchemy import (
+    BigInteger,
+    Column,
+    DateTime,
+    Engine,
+    Identity,
+    Integer,
+    MetaData,
+    String,
+    Table,
+    insert,
+)
 from sqlalchemy import select as sql_select
 
 from lnt_v5.errors import ApiError
@@ -96,6 +108,18 @@ def by_time(*, descending: bool = False) -> Keyset:
 
 def by_rank() -> Keyset:
     return Keyset(SortKey(events.c.rank), tiebreaker=events.c.id)
+
+
+def forged(cursor: str, *values: Any) -> str:
+    """A cursor for the same ordering as `cursor`, carrying other key values.
+
+    What a client that ignored R2's opacity could send. Cursors need not be unforgeable, so a forged
+    one is ordinary input, and whatever it carries must be answered with a 400 rather than reach the
+    database.
+    """
+    ordering, _ = json.loads(base64.urlsafe_b64decode(cursor + "=" * (-len(cursor) % 4)))
+    payload = json.dumps([ordering, list(values)])
+    return base64.urlsafe_b64encode(payload.encode()).decode().rstrip("=")
 
 
 def one_page(engine: Engine, keyset: Keyset, limit: int, cursor: str | None = None) -> Any:
@@ -302,3 +326,39 @@ class TestCursorOpacity:
 
         with pytest.raises(ApiError):
             one_page(db_engine, Keyset(tiebreaker=events.c.id), 3, cursor)
+
+    @pytest.mark.parametrize("value", [2**31, -(2**31) - 1, 2**70])
+    def test_refuses_a_value_outside_its_column_s_range(
+        self, db_engine: Engine, value: int
+    ) -> None:
+        # `id` is an INTEGER, and the cursor's value is bound as one: out of range, it would fail in
+        # the database as a DataError -- a 500 for what is only a malformed cursor.
+        keyset = Keyset(tiebreaker=events.c.id)
+        _, cursor = one_page(db_engine, keyset, 3)
+        assert cursor is not None
+
+        with pytest.raises(ApiError) as failure:
+            one_page(db_engine, keyset, 3, forged(cursor, value))
+
+        assert failure.value.code.value == "invalid_request"
+
+    def test_accepts_a_value_at_either_end_of_its_column_s_range(self, db_engine: Engine) -> None:
+        # The bounds are the column's own, not one short of them.
+        keyset = Keyset(tiebreaker=events.c.id)
+        _, cursor = one_page(db_engine, keyset, 3)
+        assert cursor is not None
+
+        highest, _ = one_page(db_engine, keyset, 9, forged(cursor, 2**31 - 1))
+        lowest, _ = one_page(db_engine, keyset, 9, forged(cursor, -(2**31)))
+
+        assert highest == []
+        assert len(lowest) == 9
+
+
+def test_refuses_to_page_on_an_integer_type_it_has_no_range_for() -> None:
+    # Without a range, a hand-made cursor could once again carry a value the column cannot hold, so
+    # the keyset refuses at construction rather than when a caller first sends one.
+    wide = Table("querying_wide", MetaData(), Column("id", BigInteger, primary_key=True))
+
+    with pytest.raises(TypeError):
+        Keyset(tiebreaker=wide.c.id)

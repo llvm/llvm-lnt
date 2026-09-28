@@ -26,6 +26,7 @@ from sqlalchemy import (
     Column,
     ColumnElement,
     Connection,
+    Integer,
     Row,
     Select,
     Table,
@@ -37,6 +38,7 @@ from sqlalchemy import (
 
 from lnt_v5.errors import ApiError, ErrorCode
 from lnt_v5.suites.schema import CommitField, MachineField
+from lnt_v5.suites.tables import INT32_MAX, INT32_MIN
 
 # R2's page size: 25 by default, never more than 10 000, and never zero -- an endpoint has no reason
 # to serve a page of nothing, and `total` is available from any page.
@@ -247,6 +249,11 @@ def _integer(value: Any) -> int:
     # `bool` is a subclass of `int`, and JSON's `true` would otherwise silently become 1.
     if not isinstance(value, int) or isinstance(value, bool):
         raise ValueError("expected an integer")
+    # `after` binds a cursor's value as its column's type, so one outside INTEGER's range -- which
+    # only a hand-made cursor can carry -- would fail in the database, a 500 where R2 wants a 400.
+    # INTEGER is the only integer type a sort key may have (`_reader`); tables.py owns its range.
+    if not INT32_MIN <= value <= INT32_MAX:
+        raise ValueError("out of range for an INTEGER column")
     return value
 
 
@@ -283,6 +290,7 @@ def _reader(column: Column[Any]) -> Callable[[Any], Any]:
     types of its own, so the column is what says how each value is read back.
     """
     reader = _READERS.get(column.type.python_type)
-    if reader is None:
+    # `_integer` checks INTEGER's range, which BIGINT and SMALLINT do not share.
+    if reader is None or (reader is _integer and type(column.type) is not Integer):
         raise TypeError(f"'{column}' is a {column.type} and cannot be a cursor's sort key")
     return reader
