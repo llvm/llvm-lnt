@@ -5,6 +5,9 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
+from lnt_v5.querying import DEFAULT_LIMIT, MAX_LIMIT
+from lnt_v5.routes.machines import MACHINES_PATH
+
 
 class TestOpenApiDocument:
     def test_is_served_under_api(self, client: TestClient) -> None:
@@ -165,6 +168,125 @@ class TestSuiteOperations:
         assert updates, "the update models are missing from the document"
         for name in updates:
             assert "type" not in schemas[name].get("properties", {}), name
+
+
+MACHINES = MACHINES_PATH
+MACHINE = f"{MACHINES_PATH}/{{machine_name}}"
+
+
+class TestMachineOperations:
+    """R8: the document describes what the API can actually do, including these five."""
+
+    @pytest.mark.parametrize(
+        ("path", "method"),
+        [
+            (MACHINES, "get"),
+            (MACHINES, "post"),
+            (MACHINE, "get"),
+            (MACHINE, "patch"),
+            (MACHINE, "delete"),
+        ],
+    )
+    def test_is_documented(self, client: TestClient, path: str, method: str) -> None:
+        paths = client.get("/api/openapi.json").json()["paths"]
+
+        assert method in paths[path], f"{method.upper()} {path} is not in the document"
+
+    @pytest.mark.parametrize(
+        ("path", "method", "status"),
+        [
+            # An unknown suite on every one of them (R1), an unknown machine on the three that
+            # address one, a duplicate name on the two that can write one, and D2's stale reader
+            # everywhere the suite's own columns are queried.
+            (MACHINES, "get", "404"),
+            (MACHINES, "get", "409"),
+            (MACHINES, "post", "404"),
+            (MACHINES, "post", "409"),
+            (MACHINE, "get", "404"),
+            (MACHINE, "get", "409"),
+            (MACHINE, "patch", "404"),
+            (MACHINE, "patch", "409"),
+            (MACHINE, "delete", "404"),
+            (MACHINE, "delete", "409"),
+        ],
+    )
+    def test_documents_the_failures_endpoints_md_specifies(
+        self, client: TestClient, path: str, method: str, status: str
+    ) -> None:
+        operation = client.get("/api/openapi.json").json()["paths"][path][method]
+
+        assert status in operation["responses"]
+
+    @pytest.mark.parametrize("name", ["search", "tracked", "sort", "limit", "offset"])
+    def test_the_list_documents_every_parameter_endpoints_md_gives_it(
+        self, client: TestClient, name: str
+    ) -> None:
+        operation = client.get("/api/openapi.json").json()["paths"][MACHINES]["get"]
+
+        assert name in {parameter["name"] for parameter in operation["parameters"]}
+
+    def test_the_list_documents_r2s_page_size(self, client: TestClient) -> None:
+        operation = client.get("/api/openapi.json").json()["paths"][MACHINES]["get"]
+        limit = next(p for p in operation["parameters"] if p["name"] == "limit")
+
+        assert limit["schema"]["default"] == DEFAULT_LIMIT == 25
+        assert limit["schema"]["maximum"] == MAX_LIMIT == 10000
+
+    def test_the_list_enumerates_the_sort_fields_rather_than_taking_any_string(
+        self, client: TestClient
+    ) -> None:
+        # endpoints.md names four and no others, so a generated client should not be able to ask
+        # for a fifth.
+        operation = client.get("/api/openapi.json").json()["paths"][MACHINES]["get"]
+        sort = next(p for p in operation["parameters"] if p["name"] == "sort")
+
+        assert set(sort["schema"]["enum"]) == {"name", "-name", "last_run_at", "-last_run_at"}
+
+    def test_the_list_returns_r2s_offset_envelope(self, client: TestClient) -> None:
+        document = client.get("/api/openapi.json").json()
+        body = document["paths"][MACHINES]["get"]["responses"]["200"]["content"][
+            "application/json"
+        ]["schema"]
+        envelope = document["components"]["schemas"][body["$ref"].rsplit("/", 1)[-1]]
+
+        assert set(envelope["properties"]) == {"items", "total"}
+
+    def test_creating_and_reading_a_machine_share_the_entity_object(
+        self, client: TestClient
+    ) -> None:
+        # D7: `POST` takes the same object a run submission nests, and the response is that object
+        # plus the derived `last_run_at`. A generated client must be able to feed one to the other.
+        schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
+
+        assert set(schemas["Machine"]["properties"]) == {
+            *schemas["MachineObject"]["properties"],
+            "last_run_at",
+        }
+
+    def test_the_response_promises_every_key_it_documents(self, client: TestClient) -> None:
+        # R4: a key an endpoint documents is always present, and null when it has no value. The
+        # response model shares the request model's properties, so it must not also inherit the
+        # request model's optional-with-a-default treatment of them.
+        schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
+
+        assert set(schemas["Machine"]["required"]) == set(schemas["Machine"]["properties"])
+
+    def test_no_request_body_publishes_a_default_it_would_reject(self, client: TestClient) -> None:
+        """`PATCH` distinguishes an omitted key from a null one with a sentinel default.
+
+        That sentinel is never read, and some of them -- an empty `name` against a `minLength` of
+        1 -- are values the endpoint answers 400 for. Published, the document would be telling a
+        generated client to send one.
+        """
+        schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
+
+        for name, schema in schemas.items():
+            for key, property in schema.get("properties", {}).items():
+                minimum = property.get("minLength")
+                default = property.get("default")
+                assert not (isinstance(default, str) and minimum and len(default) < minimum), (
+                    f"{name}.{key} defaults to a value its own schema rejects"
+                )
 
 
 class TestDocumentationViewer:

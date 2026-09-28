@@ -61,12 +61,14 @@ A reader's version check must be able to observe writes that committed after the
 request began, so an implementation must not read it under a transaction snapshot fixed
 at the transaction's start.
 
-**Writes do not read the registry**: a write that changes a suite derives the schema it
-is changing from the stored row, taken under a lock that serializes writes to that suite,
-never from the cached copy, which is permitted to lag by a commit. Every such write takes
-that lock *before* it alters any table.
+**Writes do not read the registry**: a write that changes a suite's *schema* derives the
+schema it is changing from the stored row, taken under a lock that serializes schema
+writes to that suite, never from the cached copy, which is permitted to lag by a commit.
+Every such write takes that lock *before* it alters any table. An ordinary data write --
+creating a machine, submitting a run -- is not covered by this: it derives nothing from
+the schema that it could lose, and reads the registry like any other request.
 
-A write waits only a bounded time for the locks it needs, and reports a retryable
+A schema write waits only a bounded time for the locks it needs, and reports a retryable
 conflict (409) rather than waiting indefinitely. The wait must be shorter than the time a
 request will wait for a database connection, so that schema changes queued behind a
 long-running reader cannot exhaust the connection pool.
@@ -117,13 +119,33 @@ rejected (400) if `type` is missing or is not one of the values below.
 | Type       | Meaning                | SQL column type             | JSON representation         |
 |------------|------------------------|------------------------------|------------------------------|
 | `real`     | Floating-point number  | DOUBLE PRECISION             | number                       |
-| `integer`  | Whole number           | INTEGER                      | number                       |
+| `integer`  | Whole number           | BIGINT                       | number                       |
 | `text`     | Free-form string       | TEXT                         | string                       |
 | `datetime` | Timestamp              | TIMESTAMP WITH TIME ZONE     | ISO 8601 string, `Z` suffix  |
 
 Note that `searchable: true` (D4, D9) is only valid on `text`-typed entries. Setting
 `searchable: true` on a `real`, `integer`, or `datetime` field is rejected (400) at
 schema-creation time.
+
+**The JSON representation is the only one accepted.** A submitted value whose JSON
+type is not the one its declared type calls for is rejected with 400 rather than
+converted: `"5"` is not an `integer`, `5` is not `text`, and `true` is neither.
+
+JSON has a single number type, so the two numeric types are read from it leniently
+in *both* directions wherever nothing is lost: an `integer` is accepted where a
+`real` is declared, and a number with no fractional part (`8.0`) is accepted where
+an `integer` is. A number with a fractional part where an `integer` is declared is
+rejected rather than rounded.
+
+A value must also be one its column can store, and is otherwise rejected with 400: an
+`integer` must lie within the range of the column type above, a `real` must be finite
+(`NaN` and the infinities are not JSON, but some producers emit them anyway), and a
+`text` value must not contain the NUL character (see D5).
+
+A `datetime` is an ISO 8601 string in both directions, and nothing else is accepted
+for one. On the way in, a string carrying an offset is converted to UTC and one
+carrying none is read as UTC. On the way out it is always rendered in UTC with a `Z`
+suffix (see D5).
 
 **Numeric types**: `real` and `integer` together are the *numeric* types.
 Wherever the design needs a metric to be quantitative (e.g. geomean aggregation),
@@ -253,6 +275,11 @@ instance, and **per-suite tables**, which are created for each test suite.
 storing timezone-aware UTC values. Implementations
 must ensure timestamps are converted to UTC before storage. API responses
 serialize timestamps as ISO 8601 with `Z` suffix (e.g., `"2026-04-15T14:30:00Z"`).
+
+**String convention**: PostgreSQL cannot store the NUL character (U+0000) in a
+string column, although JSON can carry one. A submitted string containing it -- a
+declared `text` value or a built-in such as a machine name -- is rejected with 400
+rather than accepted and then failing to store.
 
 **Index convention**: A `unique` constraint or primary key implies an index, and
 compound indexes are listed in each table's notes. `indexed` therefore marks

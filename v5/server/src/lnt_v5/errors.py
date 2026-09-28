@@ -15,6 +15,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Mapping
 from enum import StrEnum
+from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -122,11 +123,17 @@ def validation_problems(error: ValidationError | RequestValidationError) -> str:
     validates something itself and has to translate the failure where it raises it. Two spellings
     would drift, and only one of them would carry the reason `input` is left out. The two exception
     types are unrelated by inheritance but agree on `errors()`, which is all this reads.
+
+    A failure at the root of what was validated has no location -- validating a bare value through
+    a `TypeAdapter` produces one -- so the reason is given on its own rather than after an empty
+    prefix and a stray colon.
     """
-    return "; ".join(
-        f"{'.'.join(str(part) for part in problem['loc'])}: {problem['msg']}"
-        for problem in error.errors()
-    )
+
+    def described(problem: Mapping[str, Any]) -> str:
+        location = ".".join(str(part) for part in problem["loc"])
+        return f"{location}: {problem['msg']}" if location else str(problem["msg"])
+
+    return "; ".join(described(problem) for problem in error.errors())
 
 
 async def _api_error_handler(request: Request, exc: Exception) -> Response:

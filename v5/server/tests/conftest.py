@@ -289,6 +289,24 @@ def bearer() -> Callable[[str], dict[str, str]]:
 
 
 @pytest.fixture
+def manage(make_key: Callable[..., str], bearer: Callable[[str], dict[str, str]]) -> dict[str, str]:
+    """The header for a `manage` key -- what every write outside `/api/admin` needs (R5)."""
+    return bearer(make_key(Scope.MANAGE))
+
+
+def code_of(response: Any) -> str:
+    """The R4 error code a failing response carries, having checked it is the whole body.
+
+    A plain function rather than a fixture so that it can be imported; the envelope's shape is
+    asserted here rather than at each call site, so that one test module cannot quietly start
+    accepting a body with something beside `error` in it.
+    """
+    body = response.json()
+    assert list(body) == ["error"], body
+    return str(body["error"]["code"])
+
+
+@pytest.fixture
 def configured_database(db_engine: Engine, monkeypatch: pytest.MonkeyPatch) -> Engine:
     """Point `Settings` -- and so the CLI -- at the migrated test database."""
     monkeypatch.setenv("DATABASE_URL", db_engine.url.render_as_string(hide_password=False))

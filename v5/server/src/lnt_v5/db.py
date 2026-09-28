@@ -8,6 +8,8 @@ this module fresh and no connection is ever inherited across a process boundary.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import Annotated, Any
 
 from fastapi import Depends, Request
@@ -15,13 +17,15 @@ from psycopg.errors import (
     DeadlockDetected,
     DuplicateSchema,
     LockNotAvailable,
+    UndefinedColumn,
     UndefinedTable,
     UniqueViolation,
 )
 from sqlalchemy import Engine, create_engine
-from sqlalchemy.exc import DBAPIError
+from sqlalchemy.exc import DBAPIError, IntegrityError
 
 from .config import Settings
+from .errors import ApiError, ErrorCode
 
 # Per-worker pool bounds. The live connection count is
 # `WEB_CONCURRENCY x (POOL_SIZE + MAX_OVERFLOW)`, which has to stay well inside the database's
@@ -112,9 +116,45 @@ def unique_violation_constraint(error: DBAPIError) -> str | None:
     return error.orig.diag.constraint_name
 
 
+@contextmanager
+def reporting_violation(constraint: str, code: ErrorCode, message: str) -> Iterator[None]:
+    """Report one named unique constraint's violation as an R4 error, re-raising anything else.
+
+    The `!=` guard is the load-bearing half, and the half a hand-written copy leaves out: without
+    it, an unrelated integrity failure inside the same statement would be reported as this
+    constraint's 409 and the caller would retry forever against a different problem.
+
+    The code is the caller's because R4 gives different 409s to different constraints -- a repeated
+    machine name is `duplicate`, a taken ordinal is `ordinal_conflict`.
+    """
+    try:
+        yield
+    except IntegrityError as error:
+        if unique_violation_constraint(error) != constraint:
+            raise
+        raise ApiError(code, message) from error
+
+
 def is_undefined_table(error: DBAPIError) -> bool:
-    """Whether an error means the table is not there, i.e. the database was never migrated."""
+    """Whether an error means the table is not there, i.e. the database was never migrated.
+
+    Deliberately narrower than `is_missing_relation` below, and not expressed in terms of it: the
+    two ask different questions, and the answer to this one must not widen because the answer to
+    that one did.
+    """
     return isinstance(error.orig, UndefinedTable)
+
+
+def is_missing_relation(error: DBAPIError) -> bool:
+    """Whether an error means the table or column the statement named is not there.
+
+    D2's stale reader: between a worker's version check and its next query another worker can
+    remove a field, or the whole suite, so a request can reach a column that no longer exists.
+    That window cannot be closed cheaply and does not have to be -- but the caller has to be able
+    to tell it from a genuine fault, because the schema changed underneath the request and
+    retrying will succeed (409, not 500).
+    """
+    return isinstance(error.orig, UndefinedTable | UndefinedColumn)
 
 
 def is_duplicate_schema(error: DBAPIError) -> bool:

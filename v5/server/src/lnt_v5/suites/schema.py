@@ -87,6 +87,13 @@ class Entry(BaseModel):
     TABLE: ClassVar[str] = ""
     RESERVED_COLUMNS: ClassVar[frozenset[str]] = frozenset()
 
+    # Which of a schema's three lists this entry belongs to -- the attribute on `SuiteSchema`, which
+    # is also the key under which D4 spells it on the wire. Carried by the class so that code
+    # handling an entry can name its list without being told, which is what keeps a caller
+    # validating both `machine_fields` and `commit_fields` in one request from labelling one as the
+    # other.
+    LIST: ClassVar[str] = ""
+
     name: Name
     type: AttributeType
     display_name: str | None = None
@@ -123,6 +130,7 @@ class Metric(Entry):
     """A measured value, stored as a column on `{suite}.sample` (D5)."""
 
     TABLE: ClassVar[str] = "sample"
+    LIST: ClassVar[str] = "metrics"
     RESERVED_COLUMNS: ClassVar[frozenset[str]] = frozenset({"id", "run_id", "test_id"})
 
     unit: str | None = None
@@ -146,6 +154,7 @@ class CommitField(_SearchableEntry):
     """Optional metadata on `{suite}.commit` (D5)."""
 
     TABLE: ClassVar[str] = "commit"
+    LIST: ClassVar[str] = "commit_fields"
     RESERVED_COLUMNS: ClassVar[frozenset[str]] = frozenset({"id", "commit", "ordinal", "tag"})
 
     display: bool = Field(
@@ -161,6 +170,7 @@ class MachineField(_SearchableEntry):
     """Optional metadata on `{suite}.machine` (D5)."""
 
     TABLE: ClassVar[str] = "machine"
+    LIST: ClassVar[str] = "machine_fields"
     RESERVED_COLUMNS: ClassVar[frozenset[str]] = frozenset({"id", "name", "tracked"})
 
 

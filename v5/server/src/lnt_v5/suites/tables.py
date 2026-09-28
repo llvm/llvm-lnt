@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     CheckConstraint,
     Column,
@@ -52,10 +53,18 @@ from lnt_v5.tables import NAMING_CONVENTION
 NAME_LENGTH = 256
 UUID_LENGTH = 36
 
+# What NAMING_CONVENTION names the unique constraint on `{suite}.machine.name`, and so the one a
+# repeated machine name trips. Written out because it is fixed -- the convention composes it from a
+# table and a column, neither of which mentions the suite -- and checked against what PostgreSQL
+# reports by `test_suite_tables.py`, so a convention change fails a test rather than silently
+# turning a 409 into a 500. The same arrangement as `store.SCHEMA_NAME_CONSTRAINT`.
+MACHINE_NAME_CONSTRAINT = "uq_machine_name"
+
 
 # D3's mapping from a declared type to the column that stores it. `Double` rather than `Float`
 # because D3 names DOUBLE PRECISION specifically, and SQLAlchemy's `Float` is REAL on PostgreSQL --
-# single precision, which would quietly round every sample.
+# single precision, which would quietly round every sample. `BigInteger` because a 32-bit INTEGER
+# overflows at about 2.1 billion, which counters such as retired instructions routinely exceed.
 #
 # The instances are shared across every column and every suite. That is safe because none of these
 # four is a `SchemaType`: nothing binds them to a parent column, so no column can mutate them. It
@@ -63,10 +72,15 @@ UUID_LENGTH = 36
 # their parent and must be constructed per call.
 _COLUMN_TYPES: dict[AttributeType, TypeEngine[Any]] = {
     AttributeType.REAL: Double(),
-    AttributeType.INTEGER: Integer(),
+    AttributeType.INTEGER: BigInteger(),
     AttributeType.TEXT: Text(),
     AttributeType.DATETIME: DateTime(timezone=True),
 }
+
+# The range PostgreSQL's BIGINT holds, and so the range of an `integer` value (D3). Beside the
+# mapping above because it follows from it: a change to the column type must change these too.
+INTEGER_MIN = -(2**63)
+INTEGER_MAX = 2**63 - 1
 
 
 def _dynamic(entries: Sequence[Entry]) -> list[Column[Any]]:
