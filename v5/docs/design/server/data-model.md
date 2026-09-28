@@ -134,15 +134,13 @@ converted: `"5"` is not an `integer`, `5` is not `text`, and `true` is neither.
 JSON has a single number type, so the two numeric types are read from it leniently
 in *both* directions wherever nothing is lost: an `integer` is accepted where a
 `real` is declared, and a number with no fractional part (`8.0`) is accepted where
-an `integer` is -- producers that serialize through a float write integers that way.
-A number with a fractional part where an `integer` is declared is rejected rather
-than rounded.
+an `integer` is. A number with a fractional part where an `integer` is declared is
+rejected rather than rounded.
 
 A `datetime` is an ISO 8601 string in both directions, and nothing else is accepted
-for one -- not a number, and not a string holding a number. Reading either as a Unix
-epoch would silently turn a mistyped `integer` into a date in 1970. On the way in, a
-string carrying an offset is converted to UTC and one carrying none is read as UTC.
-On the way out it is always rendered in UTC with a `Z` suffix (see D5).
+for one. On the way in, a string carrying an offset is converted to UTC and one
+carrying none is read as UTC. On the way out it is always rendered in UTC with a `Z`
+suffix (see D5).
 
 **Numeric types**: `real` and `integer` together are the *numeric* types.
 Wherever the design needs a metric to be quantitative (e.g. geomean aggregation),

@@ -39,12 +39,11 @@ submission nests under `machine` (see D6): `name` (identity), `tracked`
 (built-in attribute), and `fields` (declared `machine_fields`). Responses use
 the same shape, in the list and the detail alike, plus a read-only `last_run_at`
 (see Sort below). On `PATCH`, supplying `name` renames the machine, and omitting
-any key leaves it unchanged -- inside `fields` as well as beside it, so a caller
-that knows one field can send that field alone. An explicit `null` inside `fields`
-clears a stored value, the same convention as
-`PATCH /api/suites/{testsuite}/commits/{value}`; `name` and `tracked` are not
-nullable, so sending either as `null` is rejected with 400. Keys in `fields` must
-be declared in the suite's schema; an undeclared key is rejected with 400 (see D7).
+any key leaves it unchanged. An explicit `null` inside `fields` clears a stored
+value, the same convention as `PATCH /api/suites/{testsuite}/commits/{value}`.
+`name` and `tracked` are not nullable, so sending either as `null` is rejected
+with 400. Keys in `fields` must be declared in the suite's schema; an undeclared
+key is rejected with 400 (see D7).
 
 `POST` returns 201 with the created machine and a `Location` header pointing at
 `GET /api/suites/{testsuite}/machines/{machine_name}`; `PATCH` returns 200 with the
@@ -69,8 +68,7 @@ Sort: `sort=name` (the default, ascending), `-name`, `last_run_at`, and
 run, or null for a machine with no runs; it is derived rather than stored (see
 D5). Machines with no runs sort after every machine that has one, in both
 directions, and ties are broken by `name` ascending regardless of the primary
-direction, so that a page boundary is reproducible. This sort is used by the
-Dashboard for picking which trendlines to query.
+direction, so that a page boundary is reproducible.
 
 **`tracked`** (boolean, see D5) appears in machine list and detail responses.
 `POST` accepts it at creation and `PATCH` can flip it at any time; it defaults
