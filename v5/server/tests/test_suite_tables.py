@@ -325,7 +325,7 @@ class TestDynamicColumns:
         [
             # D3's type table, which is the contract a schema author reads.
             ("real", "DOUBLE PRECISION"),
-            ("integer", "INTEGER"),
+            ("integer", "BIGINT"),
             ("text", "TEXT"),
             ("datetime", "TIMESTAMP WITH TIME ZONE"),
         ],

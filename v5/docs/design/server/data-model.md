@@ -119,7 +119,7 @@ rejected (400) if `type` is missing or is not one of the values below.
 | Type       | Meaning                | SQL column type             | JSON representation         |
 |------------|------------------------|------------------------------|------------------------------|
 | `real`     | Floating-point number  | DOUBLE PRECISION             | number                       |
-| `integer`  | Whole number           | INTEGER                      | number                       |
+| `integer`  | Whole number           | BIGINT                       | number                       |
 | `text`     | Free-form string       | TEXT                         | string                       |
 | `datetime` | Timestamp              | TIMESTAMP WITH TIME ZONE     | ISO 8601 string, `Z` suffix  |
 

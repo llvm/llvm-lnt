@@ -362,7 +362,7 @@ class TestCreate:
             "clock_ghz": 3.5,
             "commissioned_at": "2026-04-15T14:30:00Z",
         }
-        assert sql_type_of(db_engine, "nts", "machine", "core_count") == "INTEGER"
+        assert sql_type_of(db_engine, "nts", "machine", "core_count") == "BIGINT"
         assert sql_type_of(db_engine, "nts", "machine", "clock_ghz") == "DOUBLE PRECISION"
 
     def test_converts_a_timestamp_to_utc(self, create: Callable[..., Any]) -> None:
@@ -420,8 +420,8 @@ class TestCreate:
     @pytest.mark.parametrize(
         ("fields", "reason"),
         [
-            ('{"core_count": 2147483648}', "an integer above what INTEGER holds"),
-            ('{"core_count": -2147483649}', "an integer below what INTEGER holds"),
+            ('{"core_count": 9223372036854775808}', "an integer above what BIGINT holds"),
+            ('{"core_count": -9223372036854775809}', "an integer below what BIGINT holds"),
             ('{"core_count": 1e20}', "a whole number, but still too large once read as one"),
             ('{"clock_ghz": NaN}', "a NaN, which would be stored and then served as null"),
             ('{"clock_ghz": Infinity}', "an infinity"),
@@ -449,7 +449,7 @@ class TestCreate:
         assert response.status_code == 400, reason
         assert code_of(response) == "invalid_request"
 
-    @pytest.mark.parametrize("value", [2**31 - 1, -(2**31)])
+    @pytest.mark.parametrize("value", [2**63 - 1, -(2**63)])
     def test_accepts_an_integer_at_either_end_of_the_range(
         self, create: Callable[..., Any], value: int
     ) -> None:
