@@ -21,7 +21,7 @@ from datetime import datetime
 from typing import Annotated, Any
 
 from fastapi import Depends, Query, Request
-from pydantic import Field
+from pydantic import BaseModel, Field
 from sqlalchemy import (
     Column,
     ColumnElement,
@@ -78,8 +78,8 @@ class RequestCursor:
     past the position it names -- a page that would silently skip every earlier one. Derived from
     the request rather than listed by each endpoint, so that no list can forget one of its filters,
     and the path is in it because it can carry one too: `GET /machines/{name}/runs` pages one table
-    for every machine. A list whose filters travel in a body instead (`POST /query`) has to put the
-    body in the scope itself.
+    for every machine. A list whose filters travel in a body instead (`POST /query`) builds one with
+    `body_cursor`.
     """
 
     token: str | None
@@ -102,6 +102,23 @@ def _request_cursor(
 
 
 Cursor = Annotated[RequestCursor, Depends(_request_cursor)]
+
+
+def body_cursor(request: Request, body: BaseModel) -> RequestCursor:
+    """The `RequestCursor` of a list asked for with a request body, whose `cursor` is a key of it.
+
+    The scope is the path and every key of the body apart from the paging ones, as the body reads
+    once validated rather than as it was spelled: omitting a key and sending its default ask for the
+    same list, and so do two spellings of one instant. A list keeps its order as sent -- whether two
+    orders select the same rows is the endpoint's business, not something to guess at here.
+    """
+    filters = body.model_dump(mode="json")
+    token = filters.pop("cursor")
+    for key in _PAGING_PARAMETERS:
+        filters.pop(key, None)
+    scope = json.dumps([request.url.path, filters], sort_keys=True, separators=(",", ":"))
+    return RequestCursor(token, scope)
+
 
 # The same two, as fields of a request body rather than as query parameters.
 BodyLimit = Annotated[int, Field(ge=1, le=MAX_LIMIT, description=_LIMIT)]

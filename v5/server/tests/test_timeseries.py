@@ -605,6 +605,34 @@ class TestQueryPagination:
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
 
+    @pytest.mark.parametrize(
+        "change",
+        [{"machine": "linux"}, {"test": "t"}, {"test": ["t"]}, {"after_commit": "c1"}],
+    )
+    def test_refuses_a_cursor_issued_under_other_filters(
+        self, api_client: TestClient, many: None, change: dict[str, Any]
+    ) -> None:
+        # infrastructure.md: the page would hold only points the new filters match, but would
+        # silently skip every one before the position the cursor names.
+        cursor = query(api_client, metric="execution_time", limit=2).json()["cursor"]["next"]
+
+        response = query(api_client, metric="execution_time", **change, cursor=cursor)
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
+    def test_accepts_a_cursor_with_another_page_size_or_a_spelled_out_default(
+        self, api_client: TestClient, many: None
+    ) -> None:
+        # The scope is the validated body: `limit` is not part of the list, and omitting a key
+        # asks for the same list as sending its default.
+        cursor = query(api_client, metric="execution_time", limit=2).json()["cursor"]["next"]
+
+        response = query(api_client, metric="execution_time", sort=None, limit=3, cursor=cursor)
+
+        assert response.status_code == 200
+        assert len(response.json()["items"]) == 3
+
     def test_refuses_a_cursor_issued_for_another_list(
         self, api_client: TestClient, many: None
     ) -> None:

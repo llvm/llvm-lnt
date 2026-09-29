@@ -18,7 +18,7 @@ from collections.abc import Collection
 from datetime import datetime
 from typing import Annotated, Any, Literal, Self
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy import (
     Column,
@@ -45,6 +45,7 @@ from lnt_v5.querying import (
     Keyset,
     SortKey,
     Timestamp,
+    body_cursor,
     cursor_page,
     exclusive_range,
     sort_order,
@@ -521,7 +522,11 @@ def _numeric(suite: Suite, name: str) -> Metric:
     responses=suite_responses(not_found=_NO_QUERY_ENTITY),
 )
 def query_points(
-    testsuite: str, body: QueryRequest, engine: EngineDep, registry: RegistryDep
+    testsuite: str,
+    body: QueryRequest,
+    request: Request,
+    engine: EngineDep,
+    registry: RegistryDep,
 ) -> CursorPage[DataPoint]:
     """One metric's measured values, filtered, ordered and cursor-paginated (R2, R3, D10).
 
@@ -555,7 +560,7 @@ def query_points(
             points.select().where(*conditions),
             points.keyset(body.sort),
             body.limit,
-            body.cursor,
+            body_cursor(request, body),
             points.read,
         )
 
