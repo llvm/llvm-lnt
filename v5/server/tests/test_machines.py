@@ -338,17 +338,6 @@ class TestCreate:
     def test_accepts_an_untracked_machine(self, create: Callable[..., Any]) -> None:
         assert create("retired", tracked=False).json()["tracked"] is False
 
-    @pytest.mark.parametrize("tracked", ["true", 1])
-    def test_refuses_a_tracked_that_is_not_a_boolean(
-        self, create: Callable[..., Any], tracked: Any
-    ) -> None:
-        # D3's typing applies to the built-in attributes beside `fields` too (D7), so `tracked` is
-        # no more willing to read `"true"` than a declared `text` field is to read a number.
-        response = create("linux", tracked=tracked)
-
-        assert response.status_code == 400
-        assert code_of(response) == "invalid_request"
-
     def test_stores_declared_fields_with_the_types_d3_gives_them(
         self, db_engine: Engine, create: Callable[..., Any]
     ) -> None:

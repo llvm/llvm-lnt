@@ -508,10 +508,10 @@ class TestCreate:
     def test_refuses_an_ordinal_that_is_not_one(
         self, create: Callable[..., Any], ordinal: Any, reason: str
     ) -> None:
-        # D3's typing applies to the built-in attributes beside `fields`, not only to the declared
-        # ones (D7). The out-of-range cases matter twice over: unchecked, the column's own range
-        # error is a `DataError` rather than an integrity failure, so nothing would attribute it
-        # and the caller would get a 500 for a value it supplied.
+        # D11 types an ordinal as D3 types a declared `integer`. The out-of-range cases matter
+        # twice over: unchecked, the column's own range error is a `DataError` rather than an
+        # integrity failure, so nothing would attribute it and the caller would get a 500 for a
+        # value it supplied.
         response = create("abc", ordinal=ordinal)
 
         assert response.status_code == 400, reason

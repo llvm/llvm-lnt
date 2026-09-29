@@ -152,14 +152,6 @@ set when unset, rejected when they contradict. As with `fields`, changing one
 through PATCH means a submitter still sending the old value is rejected until it
 is updated. See D5 for their columns and D11 for ordinal assignment.
 
-D3's typing rule covers these built-in attributes as well as the declared
-metadata inside `fields`, on every write path: the JSON representation is the
-only one accepted, so `"5"` and `true` are not an `ordinal` and `"true"` is not
-a `tracked`, while a number with no fractional part is read as the integer it
-is. An `ordinal` outside the range of its column (D5 makes it an `INTEGER`) is
-likewise rejected with 400 rather than left to fail in the database, which would
-be a 500 for a value the caller supplied.
-
 Run metadata is deliberately not covered here: `run_parameters` is written once
 at submission and never updated, so there is no reconciliation to specify.
 
@@ -255,6 +247,9 @@ page.
   409, including when it arrives inline with a run submission.
 - `previous` and `next` navigation on a commit is computed by querying for
   the nearest lower/higher ordinal (not a linked list).
+- An ordinal is typed as D3 types a declared `integer` -- `"5"` and `true` are
+  refused, `8.0` is read as 8 -- and one outside the range of its `INTEGER`
+  column (D5) is rejected with 400 rather than failing in the database.
 
 
 ## D12: Profile Submission and Storage

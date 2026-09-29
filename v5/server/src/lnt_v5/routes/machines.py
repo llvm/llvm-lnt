@@ -46,7 +46,6 @@ from lnt_v5.scopes import Scope
 from lnt_v5.strings import Storable
 from lnt_v5.suites.entities import (
     Addressable,
-    BooleanValue,
     EntityObject,
     FieldValue,
     location_of,
@@ -76,7 +75,7 @@ MachineName = Annotated[
 ]
 
 Tracked = Annotated[
-    BooleanValue,
+    bool,
     Field(
         description=(
             "Whether the machine takes part in automatic machine selection. An untracked machine "

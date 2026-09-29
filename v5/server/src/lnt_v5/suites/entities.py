@@ -90,17 +90,13 @@ def _utc(value: datetime) -> datetime:
 # D3's `integer`, as a reusable annotation: strict, so `"5"` and `true` are not integers, but
 # reading `8.0` as 8 because JSON has a single number type and a producer serializing through a
 # float writes an integer that way. Exported because the built-in integer attributes an entity
-# carries beside `fields` -- a commit's `ordinal` -- follow the same rule as a declared one (D7).
+# carries beside `fields` -- a commit's `ordinal` -- follow the same rule as a declared one (D11).
 #
 # It carries no range, because the range belongs to the column rather than to the rule: a declared
 # `integer` is a BIGINT (see `_ADAPTERS` below) while a commit's `ordinal` is an INTEGER, and each
 # use states its own bound. Without one, a value outside the column's range passes validation and
 # fails in the database as a `DataError` -- a 500 for a value the caller supplied.
 IntegerValue = Annotated[int, BeforeValidator(_whole_number), Strict()]
-
-# The same for a built-in boolean -- a machine's `tracked` -- so that `"true"` and `1` are rejected
-# rather than read as booleans, matching how D3 treats every other value on the wire.
-BooleanValue = Annotated[bool, Strict()]
 
 
 # Each adapter also refuses what its column cannot store, so that such a value is a 400 here rather
