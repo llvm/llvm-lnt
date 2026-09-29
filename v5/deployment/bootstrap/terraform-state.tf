@@ -1,7 +1,5 @@
-# Creates the S3 bucket that deployment/main uses as its remote state backend.
+# Creates the S3 bucket that holds the Terraform state of both deployment/main and this module.
 # This is a one-time setup to run on a new AWS account.
-#
-# This module's own state stays local and uncommitted.
 resource "aws_s3_bucket" "terraform_state" {
   bucket = var.state_bucket_name
 

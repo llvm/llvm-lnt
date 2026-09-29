@@ -8,8 +8,8 @@ Everything is provisioned with Terraform, split into two modules under `v5/deplo
 
 - `bootstrap`: creates the S3 bucket that `main` uses as its remote state backend, the OIDC provider
   and IAM role the `v5 Deploy` GitHub Actions workflow uses to authenticate to AWS, and the instance
-  roles the app servers run under. This is used once on a new AWS deployment. Its own state is local
-  and not committed.
+  roles the app servers run under. This is used once on a new AWS deployment. Its own state is kept
+  in the same S3 bucket, next to `main`'s.
 - `main`: the actual stack configuring networking, RDS, the EC2 instance, and the Cloudflare DNS
   record + Origin CA certificate.
 
@@ -18,16 +18,35 @@ independent copy of the `main` stack with its own domain, database and instance.
 
 ## One-time bootstrap
 
+The `bootstrap` module keeps its state in the S3 bucket that it creates, so the very first apply on a
+new AWS account has to start from local state, which is then moved into the bucket:
+
 ```sh
 export AWS_PROFILE=your-aws-profile
+
+# The state bucket doesn't exist yet, so temporarily override the backend to use local state.
+cat > v5/deployment/bootstrap/backend_override.tf <<'EOF'
+terraform {
+  backend "local" {}
+}
+EOF
 terraform -chdir=v5/deployment/bootstrap init
 terraform -chdir=v5/deployment/bootstrap apply
+
+# Now that the bucket exists, move the state into it.
+rm v5/deployment/bootstrap/backend_override.tf
+terraform -chdir=v5/deployment/bootstrap init -migrate-state
 ```
+
+After migrating the bootstrap state, the bootstrap state is stored in S3 alongside the `main` state
+that will be created on the first deployment. From then on, `bootstrap` is used like any other module
+(`init`, then `apply`) from any machine with credentials for the account.
 
 This creates the `lnt-v5-terraform-state` S3 bucket to hold the Terraform state, and an IAM role for
 the deployment pipeline. One thing is worth knowing before the first apply: S3 bucket names are
 globally unique. If `lnt-v5-terraform-state` is taken, set `-var="state_bucket_name=..."` and put the
-same value in `v5/deployment/main/backend.tf` (which cannot read variables).
+same value in the `backend.tf` of both `v5/deployment/bootstrap` and `v5/deployment/main` (which
+cannot read variables).
 
 The module also creates an instance role for the app server of each environment since that makes it
 easier to harden against privilege escalation than letting the deployment pipeline edit its own IAM

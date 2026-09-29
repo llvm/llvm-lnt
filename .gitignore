@@ -17,6 +17,7 @@ node_modules/
 v5/deployment/**/.terraform/
 v5/deployment/**/terraform.tfstate
 v5/deployment/**/terraform.tfstate.*
+v5/deployment/**/*_override.tf
 *.tfvars
 .venv/
 __pycache__/

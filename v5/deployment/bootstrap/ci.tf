@@ -86,13 +86,25 @@ resource "aws_iam_role_policy" "deploy_scoped" {
           "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:rds!db-*",
         ]
       },
+      # Only deployment/main's state: its default workspace and the other workspaces, along with their
+      # lock files. The bucket also holds the bootstrap state, which is has no business touching.
+      {
+        Sid      = "TerraformStateList"
+        Effect   = "Allow"
+        Action   = "s3:ListBucket"
+        Resource = aws_s3_bucket.terraform_state.arn
+      },
       {
         Sid    = "TerraformState"
         Effect = "Allow"
-        Action = "s3:*"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject",
+        ]
         Resource = [
-          aws_s3_bucket.terraform_state.arn,
-          "${aws_s3_bucket.terraform_state.arn}/*",
+          "${aws_s3_bucket.terraform_state.arn}/main.tfstate*",
+          "${aws_s3_bucket.terraform_state.arn}/env:/*",
         ]
       },
       {
