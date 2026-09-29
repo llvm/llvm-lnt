@@ -305,6 +305,11 @@ class TestCursorOpacity:
             ("YWJj", "base64 over something that is not JSON"),
             ("", "empty"),
             ("W10=", "JSON, but not the pair a cursor carries"),
+            pytest.param(
+                base64.urlsafe_b64encode(b"[" * 1_000_000).decode(),
+                "JSON nested past what the parser recurses through",
+                id="deeply-nested",
+            ),
         ],
     )
     def test_refuses_a_cursor_it_did_not_issue(

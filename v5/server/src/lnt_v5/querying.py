@@ -13,7 +13,6 @@ would be a second chance to get the boundary conditions wrong.
 from __future__ import annotations
 
 import base64
-import binascii
 import hashlib
 import json
 from collections.abc import Callable, Sequence
@@ -240,7 +239,9 @@ class Keyset:
             if fingerprint != self._fingerprint(scope) or len(values) != len(self._keys):
                 raise ValueError("not a cursor for this list")
             return [reader(value) for reader, value in zip(self._readers, values, strict=True)]
-        except (ValueError, TypeError, binascii.Error) as error:
+        # `binascii.Error` is a `ValueError`. `RecursionError` is what `json.loads` raises for a
+        # payload nested deeper than it recurses, which only a hand-made cursor can be.
+        except (ValueError, TypeError, RecursionError) as error:
             raise ApiError(
                 ErrorCode.INVALID_REQUEST,
                 "This cursor was not issued for this list, filters and sort order. Pass back the "
