@@ -27,7 +27,7 @@ globally unique. If `lnt-v5-terraform-state` is taken, set `-var="state_bucket_n
 same value in `v5/deployment/main/backend.tf` (which cannot read variables).
 
 The module also creates the app server's instance role since that makes it easier to harden against
-priviledge escalation than letting the deployment pipeline edit its own IAM settings.
+privilege escalation than letting the deployment pipeline edit its own IAM settings.
 
 Finally, the module creates the GitHub Actions OIDC provider if requested. Since an AWS account can
 hold only one OIDC provider per URL, this defaults to reusing an existing provider. If the account

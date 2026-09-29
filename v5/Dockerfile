@@ -26,7 +26,9 @@ ENV PATH="/app/server/.venv/bin:$PATH" \
 COPY --from=server-deps /app/server /app/server
 COPY --from=client-build /app/client/dist /app/client/dist
 EXPOSE 3000
-HEALTHCHECK --interval=30s --timeout=3s --retries=3 --start-period=5s \
+# Probe every second while starting up, so that anything waiting on the container becoming
+# healthy (Nginx, in production) is not held back by the much longer steady-state interval.
+HEALTHCHECK --interval=30s --timeout=3s --retries=3 --start-period=60s --start-interval=1s \
   CMD python -c "import sys,urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:3000/healthz', timeout=2).status == 200 else 1)"
 
 CMD ["lnt-v5", "server", "run"]

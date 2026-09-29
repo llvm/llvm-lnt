@@ -3,7 +3,7 @@
 # Manager.
 #
 # This is done as part of bootstrapping instead of the main deployment pipeline since it makes it
-# easier to bound the permissions given to the instance to prevent priviledge escalation.
+# easier to bound the permissions given to the instance to prevent privilege escalation.
 
 resource "aws_iam_role" "app" {
   name = "${var.resource_prefix}-app"
