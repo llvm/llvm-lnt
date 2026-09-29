@@ -307,6 +307,18 @@ class TestPagination:
 
         assert [item["test"] for item in served] == ["a"] * 5
 
+    def test_refuses_a_cursor_issued_for_another_run(
+        self, api_client: TestClient, run: str, submit: Callable[..., str]
+    ) -> None:
+        # One table and one order for every run's samples: only the path tells them apart.
+        other = submit({"name": "t0", "execution_time": 1.0})
+        cursor = listed(api_client, run, "limit=2").json()["cursor"]["next"]
+
+        response = listed(api_client, other, f"limit=2&cursor={cursor}")
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
     def test_refuses_a_cursor_issued_for_another_entitys_list(
         self, api_client: TestClient, run: str
     ) -> None:

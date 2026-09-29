@@ -115,6 +115,7 @@ def list_samples(
     uuid: RunUuidPath,
     engine: EngineDep,
     registry: RegistryDep,
+    cursor: Cursor,
     test: Annotated[
         str | None,
         Query(
@@ -125,7 +126,6 @@ def list_samples(
         ),
     ] = None,
     limit: Limit = DEFAULT_LIMIT,
-    cursor: Cursor = None,
 ) -> CursorPage[Sample]:
     """Every sample one run produced, optionally narrowed to one test (R2, R3, D10).
 

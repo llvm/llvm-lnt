@@ -125,6 +125,7 @@ def list_tests(
     testsuite: str,
     engine: EngineDep,
     registry: RegistryDep,
+    cursor: Cursor,
     search: Annotated[
         str | None,
         Query(description="Case-insensitive substring match against the test's name."),
@@ -147,7 +148,6 @@ def list_tests(
         ),
     ] = None,
     limit: Limit = DEFAULT_LIMIT,
-    cursor: Cursor = None,
 ) -> CursorPage[Test]:
     """Every test in the suite, filtered and cursor-paginated (R2, R3, D9, D10)."""
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:

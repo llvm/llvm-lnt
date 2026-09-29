@@ -1284,6 +1284,16 @@ class TestListPagination:
 
         assert response.status_code == 400
 
+    def test_refuses_a_cursor_issued_under_other_filters(self, api_client: TestClient) -> None:
+        # infrastructure.md: the page would hold only runs the new filter matches, but would
+        # silently skip every one before the position the cursor names.
+        cursor = listed(api_client, "limit=2").json()["cursor"]["next"]
+
+        response = listed(api_client, f"machine=linux&limit=2&cursor={cursor}")
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
 
 class TestMachineRuns:
     """`GET /machines/{name}/runs` (endpoints.md, Machines)."""
@@ -1324,6 +1334,20 @@ class TestMachineRuns:
         created = [run_at(datetime(2026, 1, day, tzinfo=UTC)) for day in range(1, 6)]
 
         assert walk(api_client, "sort=submitted_at&limit=2", self.path()) == created
+
+    def test_refuses_a_cursor_issued_for_another_machine(
+        self, api_client: TestClient, run_at: Callable[..., str]
+    ) -> None:
+        # The same table and the same order for every machine, so only the path tells the two
+        # lists apart -- which is why a cursor's scope includes it.
+        for machine in ("linux", "linux", "linux", "darwin"):
+            run_at(machine=machine)
+        cursor = listed(api_client, "limit=2", path=self.path()).json()["cursor"]["next"]
+
+        response = listed(api_client, f"limit=2&cursor={cursor}", path=self.path("darwin"))
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
 
     def test_is_404_for_a_machine_that_is_not_there(
         self, api_client: TestClient, suite: SuiteTables
