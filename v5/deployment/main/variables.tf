@@ -5,7 +5,7 @@ variable "aws_region" {
 }
 
 variable "resource_prefix" {
-  description = "Prefix for every named resource. This allows keeping a v5 stack disjoint from other deployments."
+  description = "Prefix for every named resource, followed by the workspace name. Must match deployment/bootstrap."
   type        = string
   default     = "lnt-v5"
 }

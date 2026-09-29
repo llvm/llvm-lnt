@@ -8,10 +8,13 @@ Everything is provisioned with Terraform, split into two modules under `v5/deplo
 
 - `bootstrap`: creates the S3 bucket that `main` uses as its remote state backend, the OIDC provider
   and IAM role the `v5 Deploy` GitHub Actions workflow uses to authenticate to AWS, and the instance
-  role the app server runs under. This is used once on a new AWS deployment. Its own state is local
+  roles the app servers run under. This is used once on a new AWS deployment. Its own state is local
   and not committed.
 - `main`: the actual stack configuring networking, RDS, the EC2 instance, and the Cloudflare DNS
   record + Origin CA certificate.
+
+The stack is deployed to two environments, `production` and `test`. Each environment is a complete,
+independent copy of the `main` stack with its own domain, database and instance.
 
 ## One-time bootstrap
 
@@ -26,18 +29,18 @@ the deployment pipeline. One thing is worth knowing before the first apply: S3 b
 globally unique. If `lnt-v5-terraform-state` is taken, set `-var="state_bucket_name=..."` and put the
 same value in `v5/deployment/main/backend.tf` (which cannot read variables).
 
-The module also creates the app server's instance role since that makes it easier to harden against
-privilege escalation than letting the deployment pipeline edit its own IAM settings.
+The module also creates an instance role for the app server of each environment since that makes it
+easier to harden against privilege escalation than letting the deployment pipeline edit its own IAM
+settings.
 
 Finally, the module creates the GitHub Actions OIDC provider if requested. Since an AWS account can
 hold only one OIDC provider per URL, this defaults to reusing an existing provider. If the account
 does not already trust GitHub Actions, apply with `-var="manage_github_oidc_provider=true"` to create
-the provider. By default the OIDC role is assumable only from the `v5-production` environment of
-`llvm/llvm-lnt`. The `github_repo` and `github_environment` variables can be overridden if needed
-(e.g. iterating from a fork).
+the provider. By default the OIDC role is assumable only from the `production` and `test`
+environments of `llvm/llvm-lnt`. The `github_repo` variable can be overridden if needed (e.g.
+iterating from a fork).
 
-After applying, configure the following once in the GitHub repository, under a `v5-production`
-environment:
+After applying, configure the following once in the GitHub repository, under each environment:
 
 - Secret `V5_CLOUDFLARE_API_TOKEN`: an API token for the account the domain is configured under. It
   needs `Zone:DNS:Edit` and `Zone:SSL and Certificates:Edit`, scoped to the domain's zone.
@@ -45,7 +48,8 @@ environment:
   of that domain. Not sensitive.
 - Variable `V5_AWS_DEPLOY_ROLE_ARN`: output by the bootstrap module as `github_actions_deploy_role_arn`.
   This is what lets the deploy pipeline act in the AWS account, via the OIDC trust chain established during
-  bootstrap. Not sensitive.
+  bootstrap. Not sensitive. The role is shared by all environments.
+- Deployment branches: restrict the environment to `main` to control who can run deployments.
 
 ## Building and pushing the app image
 
@@ -55,9 +59,10 @@ and tagged with the commit's short SHA as well as `latest`.
 
 ## Deploying the web app
 
-Deploying is done manually by triggering the `v5-deploy.yml` GitHub workflow. Select the image tag to
-use and launch the workflow, which runs `terraform apply` in `v5/deployment/main` with that tag, then
-waits for `/healthz` to report healthy.
+Deploying is done manually by triggering the `v5-deploy.yml` GitHub workflow. Select the environment
+to deploy to and the image tag to use, and launch the workflow. It runs `terraform apply` in
+`v5/deployment/main` with that tag and the appropriate environment, and then waits for `/healthz` to
+report healthy.
 
 Changing the image tag rewrites the instance's `user_data`, and `user_data_replace_on_change` means
 the EC2 instance is recreated to pick it up. That replacement *is* the deployment mechanism; expect a
@@ -68,6 +73,7 @@ Alternatively, deployment can be triggered locally:
 ```sh
 export AWS_PROFILE=your-aws-profile
 terraform -chdir=v5/deployment/main init
+terraform -chdir=v5/deployment/main workspace select -or-create test
 terraform -chdir=v5/deployment/main apply -var="app_image_tag=..."         \
                                           -var="cloudflare_api_token=..."  \
                                           -var="cloudflare_zone_id=..."    \
@@ -116,7 +122,7 @@ instance means revisiting both numbers together.
 ## Operating the instance
 
 There is no inbound SSH. The instance's IAM role carries `AmazonSSMManagedInstanceCore`, so shell
-access goes through Session Manager:
+access goes through Session Manager.
 
 ```sh
 aws ssm start-session --target <instance-id> --region us-west-2

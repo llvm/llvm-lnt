@@ -31,7 +31,7 @@ resource "aws_instance" "app" {
   instance_type          = "t4g.micro"
   subnet_id              = data.aws_subnets.default.ids[0]
   vpc_security_group_ids = [aws_security_group.ec2.id]
-  iam_instance_profile   = "${var.resource_prefix}-app"
+  iam_instance_profile   = data.aws_iam_instance_profile.app.name
 
   metadata_options {
     http_tokens = "required"
@@ -68,6 +68,6 @@ resource "aws_instance" "app" {
   depends_on = [aws_secretsmanager_secret_version.app]
 
   tags = {
-    Name = var.resource_prefix
+    Name = local.stack_name
   }
 }
