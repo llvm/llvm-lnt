@@ -116,7 +116,9 @@ class DataPoint(BaseModel):
     )
     run_uuid: str = Field(description="The UUID of the run this value came from.")
     submitted_at: datetime = Field(description="When the server accepted that run.")
-    tag: str | None = Field(description="That commit's human-readable label, or null if it has none.")
+    tag: str | None = Field(
+        description="That commit's human-readable label, or null if it has none."
+    )
 
 
 class TrendPoint(BaseModel):
@@ -138,7 +140,9 @@ class TrendPoint(BaseModel):
     submitted_at: datetime = Field(
         description="When the server accepted the most recent of the runs behind this value."
     )
-    tag: str | None = Field(description="That commit's human-readable label, or null if it has none.")
+    tag: str | None = Field(
+        description="That commit's human-readable label, or null if it has none."
+    )
     value: float = Field(
         description=(
             "The geometric mean of every positive value measured for this machine and commit. "
