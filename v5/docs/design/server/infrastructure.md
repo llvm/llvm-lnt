@@ -112,10 +112,14 @@ R2; every other endpoint returns the entity object itself, except where its own
 spec gives a different body. Status codes are drawn from 200, 201, 204, 400,
 401, 403, 404, 409, 500. The four routes exempt from the scope system (see R5)
 are not part of this surface and follow their own sections: they serve plain
-text or HTML as well as JSON. Two things are settled before a request reaches an
-endpoint at all, and are likewise outside this surface: an oversized request
-body, which is refused (see Errors, below), and a trailing slash, which is
-redirected (see R1).
+text or HTML as well as JSON. Three things are settled before a request reaches
+an endpoint at all, and are likewise outside this surface: an oversized request
+body, which is refused (see Errors, below); a trailing slash, which is
+redirected (see R1); and a URL carrying a NUL character, which is refused with
+400 `invalid_request` because no value the API can act on contains one (see D5).
+Being settled first, all three are answered whatever credential accompanied
+them; none of the three names a resource, so R5's reason for authorizing before
+resolving does not reach them.
 
 **Object conventions.** These hold for every response body, so each endpoint's
 spec need only name its keys.

@@ -37,6 +37,7 @@ from sqlalchemy import (
 )
 
 from lnt_v5.errors import ApiError, ErrorCode
+from lnt_v5.strings import storable
 from lnt_v5.suites.schema import CommitField, MachineField
 from lnt_v5.suites.tables import INT32_MAX, INT32_MIN
 
@@ -308,7 +309,10 @@ def _real(value: Any) -> float:
 def _text(value: Any) -> str:
     if not isinstance(value, str):
         raise ValueError("expected a string")
-    return value
+    # A cursor is opaque to clients but need not be unforgeable (R2), so what comes out of one is
+    # caller-supplied: D5's rule applies to it like any other string, and without this a hand-made
+    # cursor carrying a NUL would reach a text sort key as a bind parameter and be a 500.
+    return storable(value)
 
 
 def _timestamp(value: Any) -> datetime:

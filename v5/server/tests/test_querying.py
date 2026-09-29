@@ -342,6 +342,18 @@ class TestCursorOpacity:
 
         assert len(one_page(db_engine, by_time(), 3, cursor, scope="search=foo")[0]) == 3
 
+    def test_refuses_a_text_value_carrying_a_nul(self, db_engine: Engine) -> None:
+        # D5 reaches what comes out of a cursor too, because a cursor need not be unforgeable (R2):
+        # a hand-made one is a way to hand the database a string no column can hold.
+        keyset = Keyset(SortKey(events.c.label), tiebreaker=events.c.id)
+        _, cursor = one_page(db_engine, keyset, 3)
+        assert cursor is not None
+
+        with pytest.raises(ApiError) as failure:
+            one_page(db_engine, keyset, 3, forged(cursor, "a\x00b", 1))
+
+        assert failure.value.code.value == "invalid_request"
+
     @pytest.mark.parametrize("value", [2**31, -(2**31) - 1, 2**70])
     def test_refuses_a_value_outside_its_column_s_range(
         self, db_engine: Engine, value: int

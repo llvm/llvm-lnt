@@ -281,11 +281,10 @@ serialize timestamps as ISO 8601 with `Z` suffix (e.g., `"2026-04-15T14:30:00Z"`
 **String convention**: PostgreSQL cannot store the NUL character (U+0000) in a
 string column, although JSON can carry one. A submitted string containing it -- a
 declared `text` value or a built-in such as a machine name -- is rejected with 400
-rather than accepted and then failing to store. The same goes for a string that
-is only looked up by, such as a commit value in a path or a `search=` term: it
-can match nothing, and is rejected with 400 rather than sent to the database.
-Batch lookups that report unknown values instead (`POST .../commits/resolve`)
-report it as not found.
+rather than accepted and then failing to store, and so is one a body only looks
+something up by. A URL carrying one -- in a path segment or a filter such as
+`search=` -- is refused whole with 400 before routing (see R4), which covers
+every segment and every filter, including ones added later.
 
 **Index convention**: A `unique` constraint or primary key implies an index, and
 compound indexes are listed in each table's notes. `indexed` therefore marks

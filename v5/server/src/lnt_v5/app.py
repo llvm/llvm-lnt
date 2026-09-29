@@ -21,7 +21,7 @@ from .routes.index import DOCS_PATH, OPENAPI_PATH
 from .routes.index import router as index_router
 from .routes.machines import router as machines_router
 from .routes.suites import router as suites_router
-from .spa import RedirectTrailingSlash, SpaStaticFiles
+from .spa import RedirectTrailingSlash, RejectNulInUrl, SpaStaticFiles
 from .suites.registry import SuiteRegistry
 
 logger = logging.getLogger(__name__)
@@ -91,6 +91,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     use_r4_error_responses(app)
     app.add_middleware(RequestBodyLimitMiddleware, max_body_size=settings.body_limit)
     app.add_middleware(RedirectTrailingSlash)
+    app.add_middleware(RejectNulInUrl)
 
     # Routes before the SPA mount: a mount at "/" matches everything, so anything registered
     # after it is unreachable.
