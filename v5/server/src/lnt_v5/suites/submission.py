@@ -187,6 +187,7 @@ class SubmittedCommit:
 
     value: str
     ordinal: int | None
+    tag: str | None
     fields: Mapping[str, Any]
 
 
@@ -241,6 +242,7 @@ def validate_submission(schema: SuiteSchema, body: RunSubmission) -> ValidatedSu
     commit = SubmittedCommit(
         value=body.commit.value,
         ordinal=body.commit.ordinal,
+        tag=body.commit.tag,
         fields=_submitted_fields(schema, CommitField, body.commit.fields),
     )
 

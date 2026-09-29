@@ -188,11 +188,11 @@ class TestPayloadShape:
         # has no literal for any of these, yet Python's parser reads all three.
         assert "JSON has no literal" in refused(run_parameters={"x": value})
 
-    def test_refuses_a_commit_tag(self) -> None:
-        # D6: a tag is editorial and PATCH-only, so sending one is a 400 rather than a value
-        # silently dropped.
-        with pytest.raises(ValidationError):
-            parsed(commit={"value": "abc123", "tag": "release-18.1"})
+    def test_carries_a_commit_tag(self) -> None:
+        # D6: a submission may tag the commit it names, like it may place it in the order.
+        assert validated(commit={"value": "abc123", "tag": "release-18.1"}).commit.tag == (
+            "release-18.1"
+        )
 
     def test_refuses_an_unknown_key_beside_the_entity_object(self) -> None:
         with pytest.raises(ValidationError):

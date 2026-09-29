@@ -93,9 +93,9 @@ def submitted_machine(
 
 
 def submitted_commit(
-    value: str = "abc", *, ordinal: int | None = None, **fields: Any
+    value: str = "abc", *, ordinal: int | None = None, tag: str | None = None, **fields: Any
 ) -> SubmittedCommit:
-    return SubmittedCommit(value=value, ordinal=ordinal, fields=fields)
+    return SubmittedCommit(value=value, ordinal=ordinal, tag=tag, fields=fields)
 
 
 def until_blocked(engine: Engine) -> None:

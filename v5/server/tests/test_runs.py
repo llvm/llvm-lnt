@@ -592,6 +592,54 @@ class TestOrdinal:
         assert api_client.get(f"{COMMITS}/abc123").json()["ordinal"] == 42
 
 
+class TestTag:
+    """D7, inline: a submission may tag a commit that has no tag, but never re-tag one."""
+
+    def test_tags_the_commit_it_creates(
+        self, api_client: TestClient, submitted: Callable[..., Any]
+    ) -> None:
+        submitted(commit={"value": "abc123", "tag": "release-18.1"})
+
+        assert api_client.get(f"{COMMITS}/abc123").json()["tag"] == "release-18.1"
+
+    def test_tags_a_commit_that_has_none(
+        self, api_client: TestClient, submitted: Callable[..., Any]
+    ) -> None:
+        submitted(commit={"value": "abc123"})
+
+        submitted(commit={"value": "abc123", "tag": "release-18.1"})
+
+        assert api_client.get(f"{COMMITS}/abc123").json()["tag"] == "release-18.1"
+
+    def test_accepts_the_tag_the_commit_already_has(self, submit: Callable[..., Any]) -> None:
+        commit = {"value": "abc123", "tag": "release-18.1"}
+        assert submit(commit=commit).status_code == 201
+
+        assert submit(commit=commit).status_code == 201
+
+    def test_refuses_a_tag_that_contradicts_the_stored_one(
+        self, api_client: TestClient, submit: Callable[..., Any]
+    ) -> None:
+        # R4's generic `conflict`, as for a field: unlike an ordinal, a tag is not unique, so a
+        # mismatch says nothing about the client's view of the commit order.
+        submit(commit={"value": "abc123", "tag": "release-18.1-rc1"})
+
+        response = submit(commit={"value": "abc123", "tag": "release-18.1"})
+
+        assert response.status_code == 409
+        assert code_of(response) == "conflict"
+        assert api_client.get(f"{COMMITS}/abc123").json()["tag"] == "release-18.1-rc1"
+
+    def test_an_omitted_tag_never_contradicts(
+        self, api_client: TestClient, submitted: Callable[..., Any]
+    ) -> None:
+        submitted(commit={"value": "abc123", "tag": "release-18.1"})
+
+        submitted(commit={"value": "abc123"})
+
+        assert api_client.get(f"{COMMITS}/abc123").json()["tag"] == "release-18.1"
+
+
 class TestSamples:
     """D6: what a test entry expands into, as the rows PostgreSQL ends up holding."""
 

@@ -306,11 +306,12 @@ class Commits:
     def get_or_create(self, connection: Connection, submitted: SubmittedCommit) -> int:
         """The id of the commit a run submission names, creating it if it is not there (D7, D13).
 
-        `ordinal` is reconciled exactly as a declared field is -- D7 says so, because it is nullable
-        and factual rather than a policy flag: it is set when the commit has none, left alone when
-        it already equals the submitted one, and refused when it differs. What it does not share is
-        the code: R4 answers a contradicted ordinal with `ordinal_conflict`, which it splits out
-        because a client cannot recover from it by retrying.
+        `ordinal` and `tag` are reconciled exactly as a declared field is -- D7 says so, because
+        both are nullable and describe the commit rather than being a policy flag: each is set when
+        the commit has none, left alone when it already equals the submitted one, and refused when
+        it differs. What the ordinal does not share is the code: R4 answers a contradicted ordinal
+        with `ordinal_conflict`, which it splits out because a client cannot recover from it by
+        retrying. A contradicted tag is the generic `conflict`, like a field.
 
         `uq_commit_ordinal` is attributed around the whole body rather than around either statement,
         and that placement is load-bearing. The INSERT can trip it -- another commit already holds
@@ -318,12 +319,12 @@ class Commits:
         race, and this is what turns the re-raise into R4's 409 instead of a 500. The UPDATE that
         fills in a NULL ordinal can equally lose that race to a commit created since.
         """
-        # D7: only what the submission sends is matched, so the ordinal joins the fields exactly
-        # when one was sent. An omitted ordinal is neither compared nor written, and can never be
-        # the reason a submission is refused.
+        # D7: only what the submission sends is matched, so the ordinal and the tag join the fields
+        # exactly when each was sent. An omitted one is neither compared nor written, and can never
+        # be the reason a submission is refused.
+        built_in = {"ordinal": submitted.ordinal, "tag": submitted.tag}
         matched: dict[str, Any] = dict(submitted.fields)
-        if submitted.ordinal is not None:
-            matched["ordinal"] = submitted.ordinal
+        matched |= {key: value for key, value in built_in.items() if value is not None}
 
         with reporting_violation(
             COMMIT_ORDINAL_CONSTRAINT,
@@ -335,7 +336,7 @@ class Commits:
                 self.table.c.commit,
                 submitted.value,
                 constraint=COMMIT_VALUE_CONSTRAINT,
-                values={"ordinal": submitted.ordinal, **submitted.fields},
+                values={**built_in, **submitted.fields},
                 matched=matched,
                 contradiction=self._contradicted(submitted.value),
             )
