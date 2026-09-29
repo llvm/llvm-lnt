@@ -164,13 +164,15 @@ def addressable(value: str) -> str:
 # What an entity's identity attribute is made of, beyond whatever length its own column allows.
 Addressable = AfterValidator(addressable)
 
-# A UUID as it arrives in a path segment, for the three entities addressed by one (R1). Only the
+# A UUID as a request supplies one, for the three entities addressed by one (R1). Only the
 # lowercasing is shared behaviour: every UUID is stored lowercased, so every lookup has to be. The
-# format is deliberately *not* constrained -- a segment that is not a UUID at all passes through
+# format is deliberately *not* constrained -- a value that is not a UUID at all passes through
 # unchanged and simply matches nothing, which is the 404 endpoints.md asks for. It names no entity
 # rather than being a malformed request, and the two endpoint families that take one must not
-# diverge on that.
-UuidPath = Annotated[str, AfterValidator(str.lower)]
+# diverge on that. `Storable` is here for the one place this is read from a request *body* rather
+# than a path -- `DELETE .../regressions/{uuid}/indicators` -- which the URL-level check does not
+# reach; in a path segment it can never fire, which is the point.
+UuidPath = Annotated[str, AfterValidator(str.lower), Storable]
 
 
 def location_of(path: str, testsuite: str, key: str) -> str:
