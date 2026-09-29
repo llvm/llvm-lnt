@@ -217,6 +217,23 @@ class TestList:
             {key: value for key, value in detail.items() if key not in ("previous", "next")}
         ]
 
+    def test_serves_a_stored_commit_no_request_could_have_written(
+        self,
+        api_client: TestClient,
+        db_engine: Engine,
+        suite: SuiteTables,
+        create: Callable[..., Any],
+    ) -> None:
+        # The request validators govern what the API writes, not what is already stored: a commit
+        # imported from v4 with a '/' in its value, or an empty tag, must not fail every page and
+        # every neighbour lookup that reaches it.
+        with db_engine.begin() as connection:
+            connection.execute(insert(suite.commit).values(commit="a/b", ordinal=1, tag=""))
+        create("abc", ordinal=2)
+
+        assert values_in(page(api_client)) == ["a/b", "abc"]
+        assert api_client.get(f"{COMMITS}/abc").json()["previous"]["value"] == "a/b"
+
     def test_is_404_for_a_suite_that_is_not_there(self, api_client: TestClient) -> None:
         response = api_client.get(f"{SUITES_PATH}/nope/commits")
 

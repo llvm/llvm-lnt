@@ -271,12 +271,22 @@ class _Commits:
         return select(1).select_from(source).where(*conditions).exists()
 
     def read(self, row: Row[Any]) -> Commit:
-        return Commit(
-            value=row._mapping[self.table.c.commit],
-            ordinal=row._mapping[self.table.c.ordinal],
-            tag=row._mapping[self.table.c.tag],
-            fields=rendered_fields(self.schema.commit_fields, self.table, row),
-        )
+        """One row as a response object.
+
+        Constructed without validation, here and in `detail`, deliberately. The model's validators
+        are the rules for what a request may *write*; a row that was stored some other way -- by a
+        v4 import, say -- and breaks one of them still has to be served, rather than failing every
+        page that holds it.
+        """
+        return Commit.model_construct(**self._attributes(row))
+
+    def _attributes(self, row: Row[Any]) -> dict[str, Any]:
+        return {
+            "value": row._mapping[self.table.c.commit],
+            "ordinal": row._mapping[self.table.c.ordinal],
+            "tag": row._mapping[self.table.c.tag],
+            "fields": rendered_fields(self.schema.commit_fields, self.table, row),
+        }
 
     def detail(self, connection: Connection, value: str) -> CommitDetail:
         """One commit with its ordinal neighbours, as the detail, create and update responses go.
@@ -303,8 +313,8 @@ class _Commits:
         # ordinal it falls. There are none at all when that ordinal is null.
         neighbours = [other for other in rows if other is not row]
         own = row._mapping[column]
-        return CommitDetail(
-            **self.read(row).model_dump(),
+        return CommitDetail.model_construct(
+            **self._attributes(row),
             previous=next((self.read(r) for r in neighbours if r._mapping[column] < own), None),
             next=next((self.read(r) for r in neighbours if r._mapping[column] > own), None),
         )

@@ -188,7 +188,9 @@ class _Machines:
         return search_condition(term, self.table, ["name"], self.schema.machine_fields)
 
     def read(self, row: Row[Any]) -> Machine:
-        return Machine(
+        # Not validated: the model's validators are the rules for what a request may write, and a
+        # row stored some other way that breaks one still has to be served.
+        return Machine.model_construct(
             name=row._mapping[self.table.c.name],
             tracked=row._mapping[self.table.c.tracked],
             fields=rendered_fields(self.schema.machine_fields, self.table, row),

@@ -153,6 +153,16 @@ class TestList:
             api_client.get(f"{MACHINES}/linux").json()
         ]
 
+    def test_serves_a_stored_machine_no_request_could_have_written(
+        self, api_client: TestClient, db_engine: Engine, suite: SuiteTables
+    ) -> None:
+        # The request validators govern what the API writes, not what is already stored: a machine
+        # imported from v4 with a '/' in its name must not fail every page that holds it.
+        with db_engine.begin() as connection:
+            connection.execute(insert(suite.machine).values(name="a/b"))
+
+        assert names_in(api_client.get(MACHINES)) == ["a/b"]
+
     def test_is_404_for_a_suite_that_is_not_there(self, api_client: TestClient) -> None:
         response = api_client.get(f"{SUITES_PATH}/nope/machines")
 
