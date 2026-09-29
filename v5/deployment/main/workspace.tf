@@ -3,6 +3,10 @@
 # can live side by side in the same account.
 locals {
   stack_name = "${var.resource_prefix}-${terraform.workspace}"
+
+  # Production holds the data we care about, so it gets extra protection against deletion. Other
+  # environments are disposable and can be torn down without any manual step.
+  is_production = terraform.workspace == "production"
 }
 
 # The instance profile that deployment/bootstrap creates for each environment. Looking it up here
