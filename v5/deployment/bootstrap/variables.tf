@@ -6,9 +6,9 @@ variable "aws_region" {
 
 variable "state_bucket_name" {
   description = <<-EOT
-    Name of the S3 bucket to create for holding deployment/main's Terraform state. S3 bucket names
-    must be globally unique. Whatever is chosen here must also be set in deployment/main/backend.tf,
-    which cannot read variables.
+    Name of the S3 bucket to create for holding the Terraform state of deployment/bootstrap and deployment/main.
+    S3 bucket names must be globally unique. Whatever is chosen here must also be set in the backend.tf of both
+    modules, which cannot read variables.
   EOT
   type        = string
   default     = "lnt-v5-terraform-state"
