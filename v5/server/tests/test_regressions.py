@@ -1187,6 +1187,16 @@ class TestPagination:
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
 
+    def test_refuses_a_cursor_issued_under_other_filters(self, api_client: TestClient) -> None:
+        # infrastructure.md: the page would hold only regressions the new filter matches, but would
+        # silently skip every one before the position the cursor names.
+        cursor = listed(api_client, "limit=2").json()["cursor"]["next"]
+
+        response = listed(api_client, f"search=slow&limit=2&cursor={cursor}")
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
     def test_takes_no_offset(self, api_client: TestClient) -> None:
         # R2 pairs `offset` with `total`, and a cursor-paginated list has neither.
         assert "total" not in listed(api_client).json()

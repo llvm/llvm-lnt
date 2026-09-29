@@ -605,6 +605,7 @@ def list_regressions(
     testsuite: str,
     engine: EngineDep,
     registry: RegistryDep,
+    cursor: Cursor,
     search: Annotated[
         str | None,
         Query(description="Case-insensitive substring match against the regression's title."),
@@ -664,7 +665,6 @@ def list_regressions(
         ),
     ] = None,
     limit: Limit = DEFAULT_LIMIT,
-    cursor: Cursor = None,
 ) -> CursorPage[Regression]:
     """Every regression in the suite, filtered and cursor-paginated (R2, R3, D9, D10).
 
