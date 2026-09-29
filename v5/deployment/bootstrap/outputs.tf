@@ -5,5 +5,5 @@ output "state_bucket" {
 
 output "github_actions_deploy_role_arn" {
   value       = aws_iam_role.github_actions_deploy.arn
-  description = "Set this as the AWS_DEPLOY_ROLE_ARN GitHub Actions variable."
+  description = "Set this as the V5_AWS_DEPLOY_ROLE_ARN GitHub Actions variable."
 }
