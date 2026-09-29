@@ -131,6 +131,19 @@ resource "aws_iam_role_policy" "deploy_scoped" {
         Action   = "rds:*"
         Resource = "*"
       },
+      # RDS needs its service-linked role, which it creates on behalf of the caller the first time an
+      # RDS resource is created in the account.
+      {
+        Sid      = "RdsServiceLinkedRole"
+        Effect   = "Allow"
+        Action   = "iam:CreateServiceLinkedRole"
+        Resource = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-service-role/rds.amazonaws.com/AWSServiceRoleForRDS"
+        Condition = {
+          StringEquals = {
+            "iam:AWSServiceName" = "rds.amazonaws.com"
+          }
+        }
+      },
       # Needed for RDS storage encryption (aws/rds) and the auto-generated master
       # password secret (aws/secretsmanager).
       {
