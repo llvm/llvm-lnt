@@ -90,7 +90,7 @@ INTEGER_MAX = 2**63 - 1
 
 # The range PostgreSQL's INTEGER holds -- the type of `{suite}.commit.ordinal`, which D5 makes an
 # INTEGER rather than following D3's `integer`: it is a built-in column, not a declared one, so the
-# BIGINT above does not apply to it. Also what `querying` checks a cursor's INTEGER sort key against.
+# BIGINT above does not apply to it. Also what `querying` checks an INTEGER cursor value against.
 INT32_MIN = -(2**31)
 INT32_MAX = 2**31 - 1
 
