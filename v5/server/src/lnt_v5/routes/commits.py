@@ -51,7 +51,7 @@ from lnt_v5.responses import CursorPage
 from lnt_v5.routes.machines import machine_id
 from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.scopes import Scope
-from lnt_v5.strings import Storable
+from lnt_v5.strings import NUL, Storable
 from lnt_v5.suites.entities import (
     Addressable,
     EntityObject,
@@ -81,6 +81,7 @@ CommitValue = Annotated[
     str,
     StringConstraints(min_length=1, max_length=NAME_LENGTH),
     Addressable,
+    Storable,
     Field(
         description=(
             "Identifies the commit within its test suite -- a Git SHA, a version number, or an "
@@ -114,6 +115,11 @@ Tag = Annotated[
         )
     ),
 ]
+
+# A string the routes below only look commits up by -- the `{value}` path segment, and the `search=`
+# and `machine=` filters. No stored value can hold a NUL, but psycopg refuses to bind one at all, so
+# it is refused here as a 400 rather than at the query as a 500.
+Lookup = Annotated[str, Storable]
 
 # endpoints.md names these two and no others. A literal rather than a free string, so R8's document
 # enumerates them and an unknown one is a 400 before the endpoint runs.
@@ -342,7 +348,7 @@ def list_commits(
     engine: EngineDep,
     registry: RegistryDep,
     search: Annotated[
-        str | None,
+        Lookup | None,
         Query(
             description=(
                 "Case-insensitive substring match against the commit value, the tag, or any "
@@ -351,7 +357,7 @@ def list_commits(
         ),
     ] = None,
     machine: Annotated[
-        str | None,
+        Lookup | None,
         Query(description="Keep only commits with at least one run on this machine."),
     ] = None,
     has_profiles: Annotated[
@@ -471,8 +477,11 @@ def resolve_commits(
         # back in the order it asked -- `dict` preserves insertion order, and JSON objects render
         # in it.
         requested = list(dict.fromkeys(body.commits))
+        # A value holding a NUL is one no commit can have, so it belongs under `not_found` like any
+        # other -- and it has to be kept out of the query, which psycopg would refuse to send.
+        storable = [value for value in requested if NUL not in value]
         rows = connection.execute(
-            commits.select().where(commits.table.c.commit.in_(requested))
+            commits.select().where(commits.table.c.commit.in_(storable))
         ).all()
         found = {commit.value: commit for commit in (commits.read(row) for row in rows)}
         return ResolvedCommits(
@@ -488,7 +497,7 @@ def resolve_commits(
     responses=suite_responses(not_found=_NO_COMMIT),
 )
 def get_commit(
-    testsuite: str, value: str, engine: EngineDep, registry: RegistryDep
+    testsuite: str, value: Lookup, engine: EngineDep, registry: RegistryDep
 ) -> CommitDetail:
     """One commit, plus the commits either side of it in ordinal order (D11)."""
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
@@ -502,7 +511,7 @@ def get_commit(
     responses=suite_responses(not_found=_NO_COMMIT, conflict=_ORDINAL_TAKEN),
 )
 def update_commit(
-    testsuite: str, value: str, body: CommitUpdate, engine: EngineDep, registry: RegistryDep
+    testsuite: str, value: Lookup, body: CommitUpdate, engine: EngineDep, registry: RegistryDep
 ) -> CommitDetail:
     """Set or clear the ordinal and tag, and/or set declared fields (D7, D11).
 
@@ -542,7 +551,7 @@ def update_commit(
         conflict=f"A regression references this commit. {SUITE_SCHEMA_CHANGED}",
     ),
 )
-def delete_commit(testsuite: str, value: str, engine: EngineDep, registry: RegistryDep) -> None:
+def delete_commit(testsuite: str, value: Lookup, engine: EngineDep, registry: RegistryDep) -> None:
     """Delete a commit, its runs, and their samples and profiles (D1, D5).
 
     One statement: D5 gives `{suite}.run.commit_id` an `ON DELETE CASCADE`, and the runs take their

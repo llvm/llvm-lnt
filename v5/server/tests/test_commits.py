@@ -258,6 +258,13 @@ class TestListSearch:
 
         assert values_in(api_client.get(COMMITS, params={"search": "a%b"})) == ["a%b"]
 
+    def test_refuses_a_term_holding_a_nul(self, api_client: TestClient) -> None:
+        # D5: it can match nothing, and psycopg refuses to send it, which would be a 500.
+        response = api_client.get(COMMITS, params={"search": "a\x00b"})
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
 
 class TestListMachineFilter:
     @pytest.fixture(autouse=True)
@@ -277,6 +284,13 @@ class TestListMachineFilter:
 
         assert response.status_code == 404
         assert code_of(response) == "not_found"
+
+    def test_refuses_a_machine_holding_a_nul(self, api_client: TestClient) -> None:
+        # D5: no machine can be named that, and psycopg refuses to send it, which would be a 500.
+        response = api_client.get(COMMITS, params={"machine": "a\x00b"})
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
 
 
 class TestListHasProfilesFilter:
@@ -542,6 +556,13 @@ class TestCreate:
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
 
+    def test_refuses_a_value_postgres_cannot_store(self, create: Callable[..., Any]) -> None:
+        # D5: a NUL reaches the INSERT and fails there, which would be a 500.
+        response = create("a\x00b")
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
     def test_the_location_it_reports_is_encoded_and_resolves(
         self, api_client: TestClient, create: Callable[..., Any]
     ) -> None:
@@ -641,6 +662,15 @@ class TestDetail:
 
     def test_is_404_for_a_suite_that_is_not_there(self, api_client: TestClient) -> None:
         assert api_client.get(f"{SUITES_PATH}/nope/commits/abc").status_code == 404
+
+    def test_refuses_a_value_holding_a_nul(
+        self, api_client: TestClient, suite: SuiteTables
+    ) -> None:
+        # D5: no commit can have it, and psycopg refuses to send it, which would be a 500.
+        response = api_client.get(f"{COMMITS}/a%00b")
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
 
     def test_is_not_shadowed_by_the_spa_catch_all(
         self, api_client: TestClient, create: Callable[..., Any]
@@ -750,6 +780,15 @@ class TestUpdate:
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
 
+    def test_refuses_a_value_holding_a_nul(
+        self, suite: SuiteTables, patch: Callable[..., Any]
+    ) -> None:
+        # D5: no commit can have it, and psycopg refuses to send it, which would be a 500.
+        response = patch("a%00b", {"ordinal": 1})
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
     @pytest.mark.parametrize("ordinal", ["5", True, 2**31])
     def test_refuses_an_ordinal_that_is_not_one(
         self, create: Callable[..., Any], patch: Callable[..., Any], ordinal: Any
@@ -820,6 +859,15 @@ class TestDelete:
         create("abc", ordinal=1)
 
         assert api_client.delete(f"{COMMITS}/abc", headers=manage).status_code == 204
+
+    def test_refuses_a_value_holding_a_nul(
+        self, api_client: TestClient, manage: dict[str, str], suite: SuiteTables
+    ) -> None:
+        # D5: no commit can have it, and psycopg refuses to send it, which would be a 500.
+        response = api_client.delete(f"{COMMITS}/a%00b", headers=manage)
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
 
     def test_cascades_to_its_runs_samples_and_profiles(
         self,
@@ -951,6 +999,18 @@ class TestResolve:
         body = resolve(["x" * 500]).json()
 
         assert body == {"results": {}, "not_found": ["x" * 500]}
+
+    def test_reports_a_value_holding_a_nul_as_not_found(
+        self, create: Callable[..., Any], resolve: Callable[..., Any]
+    ) -> None:
+        # D5: no commit can have one either. psycopg refuses to send it, so unfiltered it would
+        # fail the whole lookup as a 500, taking the commits that do exist down with it.
+        create("abc")
+
+        body = resolve(["abc", "a\x00b"]).json()
+
+        assert list(body["results"]) == ["abc"]
+        assert body["not_found"] == ["a\x00b"]
 
     def test_refuses_more_values_than_a_page_may_hold(
         self, suite: SuiteTables, resolve: Callable[..., Any]

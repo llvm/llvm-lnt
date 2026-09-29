@@ -163,7 +163,8 @@ Each value in `results` is a commit object (`{value, ordinal, tag, fields}`),
 without the `previous`/`next` that the detail endpoint adds. Commit strings not
 found in the database are returned in a separate `not_found` list -- including
 ones no commit could possibly have, such as a string longer than the column
-holds, since a lookup for something absent is what `not_found` reports.
+holds or one containing a NUL character (see D5), since a lookup for something
+absent is what `not_found` reports.
 Duplicates in the request are deduplicated; each commit appears at most once in
 the response.
 
