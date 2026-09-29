@@ -80,6 +80,33 @@ terraform -chdir=v5/deployment/main apply -var="app_image_tag=..."         \
                                           -var="domain=lnt.example.com"
 ```
 
+## Tearing down an environment
+
+The `v5-teardown.yml` GitHub workflow destroys everything Terraform manages in an environment,
+including its database and DNS record, and then deletes the environment's Terraform workspace. In
+practice this is for cleaning up the `test` environment after a round of testing. The destroy plan
+is published to the run summary before being applied, so each run leaves a record of what it
+destroyed. Deploying to the environment again recreates it from scratch.
+
+The workflow deliberately doesn't offer the `production` environment. Its database has deletion
+protection, and deleting it takes a final snapshot (`lnt-v5-production-final`) and keeps the
+automated backups. Tearing down production is thus a manual procedure, meant to be done only in
+exceptional circumstances and by someone who knows exactly what they are doing:
+
+```sh
+export AWS_PROFILE=your-aws-profile
+aws rds modify-db-instance --db-instance-identifier lnt-v5-production --no-deletion-protection \
+                           --apply-immediately --region us-west-2
+terraform -chdir=v5/deployment/main workspace select production
+terraform -chdir=v5/deployment/main destroy -var="app_image_tag=unused-by-destroy" \
+                                            -var="cloudflare_api_token=..."        \
+                                            -var="cloudflare_zone_id=..."          \
+                                            -var="domain=lnt.example.com"
+```
+
+Since snapshot names are unique, the final snapshot of a previous teardown has to be deleted or
+renamed before production can be torn down again.
+
 ## Database schema
 
 The app applies any outstanding schema changes to its database when it starts, before it begins

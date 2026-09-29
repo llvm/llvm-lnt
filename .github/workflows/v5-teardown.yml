@@ -1,0 +1,117 @@
+#
+# Tear down a v5 environment: destroy everything Terraform manages in that environment's workspace,
+# then delete the now-empty workspace.
+#
+# The destroy plan is saved and rendered into the run summary before being applied, so a run leaves
+# behind a record of exactly what it destroyed.
+#
+# Production is deliberately not offered here. Its database has deletion protection, so a destroy
+# would fail anyway. Tearing down production is a manual procedure, see v5/docs/deployment.md.
+#
+
+name: v5 Teardown
+run-name: "v5 Teardown ${{ inputs.environment }} by @${{ github.actor }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to tear down"
+        required: true
+        type: choice
+        options:
+          - test
+      confirm:
+        description: "Type the environment's name again to confirm"
+        required: true
+        type: string
+
+# Deliberately the same group as the v5 Deploy workflow, so that a teardown can never interleave with
+# a deployment to the same environment.
+concurrency:
+  group: v5-deploy-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  teardown:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment:
+      name: ${{ inputs.environment }}
+    permissions:
+      id-token: write
+      contents: read
+    defaults:
+      run:
+        working-directory: v5/deployment/main
+    steps:
+      - name: Check that the confirmation matches the selected environment
+        working-directory: .
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          if [ "$CONFIRM" != "$ENVIRONMENT" ]; then
+            echo "::error::Confirmation does not match the selected environment '$ENVIRONMENT'."
+            exit 1
+          fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6.2.4
+        with:
+          role-to-assume: ${{ vars.V5_AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-west-2
+
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+
+      - name: Terraform init
+        run: terraform init
+
+      # Deliberately not `-or-create`, to fail loudly when tearing down an environment that doesn't exist.
+      - name: Select the Terraform workspace
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+        run: terraform workspace select "$ENVIRONMENT"
+
+      - name: Plan the destroy
+        env:
+          TF_VAR_cloudflare_api_token: ${{ secrets.V5_CLOUDFLARE_API_TOKEN }}
+          TF_VAR_cloudflare_zone_id: ${{ vars.V5_CLOUDFLARE_ZONE_ID }}
+          TF_VAR_domain: ${{ vars.V5_DOMAIN }}
+          TF_VAR_app_image_tag: unused-by-destroy
+        run: |
+          set -o pipefail
+          terraform plan -destroy -no-color -input=false -out=tfplan | tee "$RUNNER_TEMP/destroy-plan.txt"
+
+      - name: Publish the plan to the run summary
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+          DOMAIN: ${{ vars.V5_DOMAIN }}
+        run: |
+          summary=$(grep -E '^Plan: ' "$RUNNER_TEMP/destroy-plan.txt" || echo "Plan summary not found")
+          {
+            echo "## Destroy plan for \`$ENVIRONMENT\` ($DOMAIN)"
+            echo
+            echo "**$summary**"
+            echo
+            echo "<details><summary>Full plan</summary>"
+            echo
+            echo '```terraform'
+            cat "$RUNNER_TEMP/destroy-plan.txt"
+            echo '```'
+            echo
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Apply the destroy plan
+        run: terraform apply -input=false tfplan
+
+      # The workspace is empty now, so drop it instead of leaving a stale state object in the bucket.
+      # Terraform refuses to delete a workspace whose state isn't empty.
+      - name: Delete the now-empty workspace
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          terraform workspace select default
+          terraform workspace delete "$ENVIRONMENT"
