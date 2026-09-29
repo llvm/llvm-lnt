@@ -224,12 +224,16 @@ row served -- rather than the row it was produced from. A resumption therefore
 stays correct when that row is deleted before the next request arrives, which an
 implementation storing the row's identity and re-reading its sort values could
 not manage. Pagination is forward-only (R2), so a row inserted before the
-position a cursor names is not served and one inserted after it is; no row whose
-sort values stay put for the length of the traversal is ever skipped or served
-twice. A row whose sort values *change* mid-traversal can be, and no cursor
-scheme prevents it: reassigning an ordinal (D11) while a client is paging by
-ordinal can move a commit from behind the cursor to ahead of it, and the client
-sees it twice.
+position a cursor names is not served and one inserted after it is; no row that
+stays in the list with the same sort values for the length of the traversal is
+ever skipped or served twice. A row whose sort values *change* mid-traversal can
+be, and no cursor scheme prevents it: reassigning an ordinal (D11) while a client
+is paging by ordinal can move a commit from behind the cursor to ahead of it, and
+the client sees it twice. Likewise, a row that starts or stops matching the
+list's filters mid-traversal -- a commit gaining its first profiled run under
+`has_profiles=true` -- is seen or not depending on which side of the cursor it
+falls, as an insertion or a deletion would be. Each page reads the database as
+of its own request: a traversal is not a snapshot of one moment.
 
 A sort key must be a value no matching row can be missing, either because it is
 never null or because the endpoint excludes the rows where it is -- as sorting
