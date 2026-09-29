@@ -11,6 +11,7 @@ from .import_report import action_importreport
 from .profile import action_profile
 from .runserver import action_runserver
 from .runtest import group_runtest
+from .scrape_v4 import action_scrape_v4
 from .send_daily_report import action_send_daily_report
 from .send_run_comparison import action_send_run_comparison
 from .showtests import action_showtests
@@ -49,6 +50,7 @@ main.add_command(action_import)
 main.add_command(action_importreport)
 main.add_command(action_profile)
 main.add_command(action_runserver)
+main.add_command(action_scrape_v4)
 main.add_command(action_send_daily_report)
 main.add_command(action_send_run_comparison)
 main.add_command(action_showtests)

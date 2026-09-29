@@ -16,6 +16,8 @@ Contents
 
    tools
 
+   scrape_v4
+
    concepts
 
    api
