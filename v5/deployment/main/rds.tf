@@ -3,12 +3,13 @@
 #
 # It is automatically backed up every day and backups are kept for 7 days.
 resource "aws_db_subnet_group" "main" {
-  name       = var.resource_prefix
+  name       = local.stack_name
   subnet_ids = data.aws_subnets.default.ids
 }
 
 resource "aws_db_instance" "main" {
-  identifier     = var.resource_prefix
+  # deployment/bootstrap relies on this name to grant the instance access to the password secret.
+  identifier     = local.stack_name
   engine         = "postgres"
   engine_version = "18" # keep in sync with the version pinned for development
   instance_class = "db.t4g.micro"

@@ -15,7 +15,7 @@ variable "state_bucket_name" {
 }
 
 variable "resource_prefix" {
-  description = "Prefix for the IAM resources created by this bootstrap."
+  description = "Prefix for the IAM resources created by this bootstrap. Must match deployment/main."
   type        = string
   default     = "lnt-v5"
 }
@@ -24,12 +24,6 @@ variable "github_repo" {
   description = "The `owner/name` of the GitHub repository allowed to assume the deploy role."
   type        = string
   default     = "llvm/llvm-lnt"
-}
-
-variable "github_environment" {
-  description = "The GitHub Actions environment allowed to assume the deploy role."
-  type        = string
-  default     = "v5-production"
 }
 
 variable "manage_github_oidc_provider" {

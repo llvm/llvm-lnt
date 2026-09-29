@@ -1,27 +1,36 @@
 #
-# Deploy the v5 stack. Manual only: pick the image tag produced by the v5 Test workflow and apply.
+# Deploy the v5 stack. Manual only: pick an environment and the image tag produced by the v5 Test
+# workflow, and apply. Each environment is a GitHub environment holding that deployment's settings.
 #
 
 name: v5 Deploy
-run-name: "v5 Deploy ${{ inputs.app_image_tag }} by @${{ github.actor }}"
+run-name: "v5 Deploy ${{ inputs.app_image_tag }} to ${{ inputs.environment }} by @${{ github.actor }}"
 
 on:
   workflow_dispatch:
     inputs:
+      # Keep in sync with the `environments` in v5/deployment/bootstrap/ci.tf.
+      environment:
+        description: "Environment to deploy to"
+        required: true
+        type: choice
+        options:
+          - test
+          - production
       app_image_tag:
         description: "Tag of the ghcr.io/llvm/llvm-lnt-v5 image to deploy"
         required: true
         type: string
 
 concurrency:
-  group: v5-deploy-production
+  group: v5-deploy-${{ inputs.environment }}
   cancel-in-progress: false
 
 jobs:
   deploy:
     runs-on: ubuntu-24.04
     environment:
-      name: v5-production
+      name: ${{ inputs.environment }}
       url: https://${{ vars.V5_DOMAIN }}
     permissions:
       id-token: write
@@ -41,6 +50,11 @@ jobs:
 
       - name: Terraform init
         run: terraform init
+
+      - name: Select the Terraform workspace
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+        run: terraform workspace select -or-create "$ENVIRONMENT"
 
       - name: Terraform apply
         env:

@@ -14,7 +14,7 @@ data "aws_subnets" "default" {
 data "cloudflare_ip_ranges" "cloudflare" {}
 
 resource "aws_security_group" "ec2" {
-  name        = "${var.resource_prefix}-ec2"
+  name        = "${local.stack_name}-ec2"
   description = "HTTPS/HTTP from Cloudflare only; no inbound SSH (use SSM instead)"
   vpc_id      = data.aws_vpc.default.id
 
@@ -49,7 +49,7 @@ resource "aws_security_group" "ec2" {
 }
 
 resource "aws_security_group" "rds" {
-  name        = "${var.resource_prefix}-rds"
+  name        = "${local.stack_name}-rds"
   description = "Postgres from the app instance only"
   vpc_id      = data.aws_vpc.default.id
 

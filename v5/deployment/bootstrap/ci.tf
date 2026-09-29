@@ -1,6 +1,12 @@
 # One-time trust setup for the automated deployment pipeline. This creates an IAM policy with
 # just enough permissions to perform what the CI needs to do. Run it once manually.
 
+# The environments the stack is deployed to. Each one is at the same time a GitHub Actions
+# environment allowed to assume the deploy role, and a Terraform workspace of deployment/main.
+locals {
+  environments = toset(["production", "test"])
+}
+
 data "aws_caller_identity" "current" {}
 
 data "aws_kms_alias" "rds" {
@@ -40,7 +46,8 @@ data "aws_iam_openid_connect_provider" "existing" {
   }
 }
 
-# Only the configured environment in the configured repository can assume this role.
+# Only the configured environments in the configured repository can assume this role. It is shared
+# by all environments. Make sure to restrict which branches can deploy to each GitHub environment.
 resource "aws_iam_role" "github_actions_deploy" {
   name = "${var.resource_prefix}-github-actions-deploy"
 
@@ -53,7 +60,7 @@ resource "aws_iam_role" "github_actions_deploy" {
       Condition = {
         StringEquals = {
           "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
-          "token.actions.githubusercontent.com:sub" = "repo:${var.github_repo}:environment:${var.github_environment}"
+          "token.actions.githubusercontent.com:sub" = [for env in local.environments : "repo:${var.github_repo}:environment:${env}"]
         }
       }
     }]
@@ -92,7 +99,7 @@ resource "aws_iam_role_policy" "deploy_scoped" {
         Sid      = "IamPassAppRole"
         Effect   = "Allow"
         Action   = "iam:PassRole"
-        Resource = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.resource_prefix}-app"
+        Resource = [for role in aws_iam_role.app : role.arn]
         Condition = {
           StringEquals = {
             "iam:PassedToService" = "ec2.amazonaws.com"
@@ -107,10 +114,10 @@ resource "aws_iam_role_policy" "deploy_scoped" {
           "iam:GetRole",
           "iam:GetInstanceProfile",
         ]
-        Resource = [
-          "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.resource_prefix}-app",
-          "arn:aws:iam::${data.aws_caller_identity.current.account_id}:instance-profile/${var.resource_prefix}-app",
-        ]
+        Resource = concat(
+          [for role in aws_iam_role.app : role.arn],
+          [for profile in aws_iam_instance_profile.app : profile.arn],
+        )
       },
       {
         Sid      = "Ec2"

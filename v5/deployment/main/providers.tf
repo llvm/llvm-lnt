@@ -19,6 +19,13 @@ terraform {
 
 provider "aws" {
   region = var.aws_region
+
+  # Tag every resource with the environment it belongs to so we can see that at a glance.
+  default_tags {
+    tags = {
+      Environment = terraform.workspace
+    }
+  }
 }
 
 provider "cloudflare" {
