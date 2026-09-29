@@ -152,8 +152,8 @@ def build(schema: SuiteSchema) -> SuiteTables:
         Column("tag", String(NAME_LENGTH), nullable=True),
         *_dynamic(schema.commit_fields),
     )
-    # Partial, because the column is null on almost every row: tags are applied by hand to a
-    # handful of commits, and an index over the nulls would be most of the table for no lookups.
+    # Partial, because the column is null on almost every row: only a handful of commits (releases,
+    # say) carry a tag, and an index over the nulls would be most of the table for no lookups.
     Index(None, commit.c.tag, postgresql_where=commit.c.tag.is_not(None))
 
     machine = Table(

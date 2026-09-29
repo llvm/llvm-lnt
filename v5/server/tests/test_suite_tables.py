@@ -483,8 +483,8 @@ class TestIndexes:
     def test_tag_is_indexed_only_where_it_is_set(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
     ) -> None:
-        # D5 makes this index partial: a tag is applied by hand to a handful of commits, so an
-        # index over the nulls would be most of the table for no lookups.
+        # D5 makes this index partial: only a handful of commits carry a tag, so an index over the
+        # nulls would be most of the table for no lookups.
         make_suite("nts")
 
         tag = indexes_of(inspect(db_engine), "nts", "commit")["ix_commit_tag"]

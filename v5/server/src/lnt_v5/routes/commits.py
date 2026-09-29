@@ -51,6 +51,7 @@ from lnt_v5.responses import CursorPage
 from lnt_v5.routes.machines import machine_id
 from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.scopes import Scope
+from lnt_v5.strings import Storable
 from lnt_v5.suites.entities import (
     Addressable,
     EntityObject,
@@ -105,10 +106,11 @@ Ordinal = Annotated[
 Tag = Annotated[
     str,
     StringConstraints(min_length=1, max_length=NAME_LENGTH),
+    Storable,
     Field(
         description=(
-            "An editorial label, such as a release name. Several commits may share one. Set only "
-            "through PATCH, never at creation or by a run submission."
+            "A human-readable label, such as a release name. Several commits may share one. Null "
+            "means untagged."
         )
     ),
 ]
@@ -124,21 +126,17 @@ _ORDINAL_TAKEN = f"The ordinal is already held by another commit. {SUITE_SCHEMA_
 
 
 class CommitObject(EntityObject):
-    """D7's entity object for a commit, as every write path that creates one accepts it.
-
-    `tag` is deliberately absent: it is an editorial label applied after the fact, which D7 makes
-    settable only through PATCH. `extra="forbid"` is what turns sending one here into a 400 rather
-    than into a value silently dropped.
-    """
+    """D7's entity object for a commit, as every write path that creates one accepts it."""
 
     value: CommitValue
     ordinal: Ordinal | None = None
+    tag: Tag | None = None
 
 
 class Commit(CommitObject):
     """A commit as every response carries it.
 
-    `ordinal` and `fields` are redeclared without their defaults, and `tag` is added. R4 requires
+    `ordinal`, `tag` and `fields` are redeclared without their defaults. R4 requires
     every documented key to be present in a response, and inheriting the request model's
     optionality would instead tell a generated client they may be absent.
     """
@@ -423,7 +421,7 @@ def create_commit(
     registry: RegistryDep,
     response: Response,
 ) -> CommitDetail:
-    """Create a commit without a run, optionally placing it in the order (D7, D11).
+    """Create a commit without a run, optionally ordered and tagged (D7, D11).
 
     Commits are also created implicitly by run submission; this is the path for declaring one ahead
     of any data, or for giving an ordinal to a commit that will never carry any.
@@ -442,7 +440,9 @@ def create_commit(
             ),
         ):
             connection.execute(
-                insert(commits.table).values(commit=body.value, ordinal=body.ordinal, **values)
+                insert(commits.table).values(
+                    commit=body.value, ordinal=body.ordinal, tag=body.tag, **values
+                )
             )
         created = commits.detail(connection, body.value)
 
@@ -506,8 +506,8 @@ def update_commit(
 ) -> CommitDetail:
     """Set or clear the ordinal and tag, and/or set declared fields (D7, D11).
 
-    This is the only way to change an ordinal once set, and the only way to set a tag at all. A key
-    the request omits is left unchanged, inside `fields` as well as beside it.
+    This is the only way to change an ordinal or a tag once set, and the only way to clear one. A
+    key the request omits is left unchanged, inside `fields` as well as beside it.
     """
     with engine.begin() as connection, suite_scope(registry, connection, testsuite) as suite:
         commits = _Commits(suite)

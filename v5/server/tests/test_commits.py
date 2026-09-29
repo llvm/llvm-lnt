@@ -27,7 +27,7 @@ from lnt_v5.querying import MAX_LIMIT
 from lnt_v5.routes.commits import COMMITS_PATH
 from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.scopes import Scope
-from lnt_v5.suites.tables import SuiteTables
+from lnt_v5.suites.tables import NAME_LENGTH, SuiteTables
 
 COMMITS = COMMITS_PATH.format(testsuite="nts")
 
@@ -226,10 +226,9 @@ class TestList:
 
 class TestListSearch:
     @pytest.fixture(autouse=True)
-    def commits(self, create: Callable[..., Any], patch: Callable[..., Any]) -> None:
+    def commits(self, create: Callable[..., Any]) -> None:
         create("abc123", fields={"git_sha": "deadbeef", "author": "Jane", "commit_message": "Xeon"})
-        create("def456", fields={"git_sha": "cafebabe", "author": "Ashok"})
-        patch("def456", {"tag": "release-18.1"})
+        create("def456", fields={"git_sha": "cafebabe", "author": "Ashok"}, tag="release-18.1")
 
     def test_matches_the_commit_value(self, api_client: TestClient) -> None:
         assert values_in(page(api_client, "search=abc")) == ["abc123"]
@@ -497,11 +496,28 @@ class TestCreate:
         # it as 42 loses nothing.
         assert create("abc", ordinal=42.0).json()["ordinal"] == 42
 
-    def test_refuses_a_tag(self, create: Callable[..., Any]) -> None:
-        # D7: a tag is editorial and applied after the fact, so PATCH is the only way to set one.
-        response = create("abc", tag="release-18.1")
+    def test_accepts_a_tag(self, create: Callable[..., Any]) -> None:
+        # D7: a tag is settable on every write path, creation included.
+        assert create("abc", tag="release-18.1").json()["tag"] == "release-18.1"
 
-        assert response.status_code == 400
+    def test_a_null_tag_leaves_the_commit_untagged(self, create: Callable[..., Any]) -> None:
+        assert create("abc", tag=None).json()["tag"] is None
+
+    @pytest.mark.parametrize(
+        ("tag", "reason"),
+        [
+            (18, "a number rather than a string"),
+            ("", "empty"),
+            ("x" * (NAME_LENGTH + 1), "longer than D5's column"),
+            ("a\x00b", "a NUL, which no PostgreSQL string column can hold"),
+        ],
+    )
+    def test_refuses_a_tag_that_is_not_one(
+        self, create: Callable[..., Any], tag: Any, reason: str
+    ) -> None:
+        response = create("abc", tag=tag)
+
+        assert response.status_code == 400, reason
         assert code_of(response) == "invalid_request"
 
     def test_refuses_an_undeclared_field(self, create: Callable[..., Any]) -> None:
@@ -659,26 +675,41 @@ class TestUpdate:
     def test_several_commits_may_share_a_tag(
         self, create: Callable[..., Any], patch: Callable[..., Any]
     ) -> None:
-        create("abc")
+        create("abc", tag="release-18.1")
         create("def")
-        patch("abc", {"tag": "release-18.1"})
 
         assert patch("def", {"tag": "release-18.1"}).status_code == 200
+
+    def test_changes_a_tag_that_is_already_set(
+        self, create: Callable[..., Any], patch: Callable[..., Any]
+    ) -> None:
+        create("abc", tag="release-18.1-rc1")
+
+        assert patch("abc", {"tag": "release-18.1"}).json()["tag"] == "release-18.1"
+
+    @pytest.mark.parametrize("tag", [18, "", "a\x00b"])
+    def test_refuses_a_tag_that_is_not_one(
+        self, create: Callable[..., Any], patch: Callable[..., Any], tag: Any
+    ) -> None:
+        create("abc")
+
+        response = patch("abc", {"tag": tag})
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
 
     @pytest.mark.parametrize("key", ["ordinal", "tag"])
     def test_an_explicit_null_clears_a_stored_value(
         self, create: Callable[..., Any], patch: Callable[..., Any], key: str
     ) -> None:
-        create("abc", ordinal=1)
-        patch("abc", {"tag": "release-18.1"})
+        create("abc", ordinal=1, tag="release-18.1")
 
         assert patch("abc", {key: None}).json()[key] is None
 
     def test_leaves_every_key_the_request_omits_unchanged(
         self, create: Callable[..., Any], patch: Callable[..., Any]
     ) -> None:
-        create("abc", ordinal=1, fields={"git_sha": "abc123", "author": "Jane"})
-        patch("abc", {"tag": "release-18.1"})
+        create("abc", ordinal=1, tag="release-18.1", fields={"git_sha": "abc123", "author": "Jane"})
 
         body = patch("abc", {"fields": {"author": "Ashok"}}).json()
 

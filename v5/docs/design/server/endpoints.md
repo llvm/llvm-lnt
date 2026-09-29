@@ -88,7 +88,7 @@ R2).
 
 ```
 GET    /api/suites/{testsuite}/commits                      -- List (cursor-paginated, searchable)
-POST   /api/suites/{testsuite}/commits                      -- Create with metadata (fields) and, optionally, an ordinal
+POST   /api/suites/{testsuite}/commits                      -- Create with metadata (fields) and, optionally, an ordinal and a tag
 GET    /api/suites/{testsuite}/commits/{value}              -- Detail (includes previous/next commit by ordinal)
 PATCH  /api/suites/{testsuite}/commits/{value}              -- Update ordinal, tag, and/or fields
 DELETE /api/suites/{testsuite}/commits/{value}              -- Delete commit (cascades to runs/samples; 409 if referenced by regressions)
@@ -96,24 +96,19 @@ POST   /api/suites/{testsuite}/commits/resolve              -- Batch resolve com
 ```
 
 The `{value}` in the path is the commit identity string. Commits are also
-created implicitly during run submission, which may set an `ordinal` inline
-(see D6). `ordinal` may also be set at creation via
-`POST /api/suites/{testsuite}/commits`,
-or at any time via `PATCH /api/suites/{testsuite}/commits/{value}` (see D11). `tag`
-is set exclusively via `PATCH /api/suites/{testsuite}/commits/{value}`, never at
-creation. On `PATCH`, sending `ordinal: null` or `tag: null` explicitly clears
-a previously-set value; omitting the field instead leaves it unchanged.
+created implicitly during run submission, which may set an `ordinal` and a
+`tag` inline (see D6). Both may also be set at creation via
+`POST /api/suites/{testsuite}/commits`, or at any time via
+`PATCH /api/suites/{testsuite}/commits/{value}` (see D7 and D11). On `PATCH`,
+sending `ordinal: null` or `tag: null` explicitly clears a previously-set value;
+omitting the field instead leaves it unchanged.
 
 **Commit object**: `POST` and `PATCH` take the same entity object that a run
 submission nests under `commit` (see D6): `value` (identity), `ordinal` and
 `tag` (built-in attributes), and `fields` (declared `commit_fields`). Responses
-use the same shape. `value` is immutable -- commits cannot be renamed, and
-sending it to `PATCH` is rejected with 400 rather than ignored, unlike
-`PATCH /api/suites/{testsuite}/machines/{machine_name}`, where `name` renames.
-For the same reason -- a key that could not take effect is refused rather than
-dropped -- `tag` sent to `POST` is rejected with 400, since D7 makes it
-settable only by `PATCH`. Keys in `fields` must be declared in the suite's
-schema; an undeclared key is rejected with 400 (see D7).
+use the same shape. `value` is immutable (commits cannot be renamed), and sending
+it to `PATCH` is rejected with 400. Keys in `fields` must be declared in the
+suite's schema; an undeclared key is rejected with 400 (see D7).
 
 The detail response adds `previous` and `next`: the commit objects with the
 nearest lower and nearest higher `ordinal`, each without its own
@@ -236,7 +231,8 @@ from the comparison (see D7). Keys in `machine.fields` that are not declared as
 
 If the submission supplies `commit.ordinal`, it is rejected with 409 when the
 commit already has a different ordinal, or when that ordinal is already held by
-a different commit (see D11).
+a different commit (see D11). Likewise, if it supplies `commit.tag`, it is
+rejected with 409 when the commit already has a different tag (see D7).
 
 Auth scopes: `read` for GET, `submit` for POST, `manage` for DELETE.
 

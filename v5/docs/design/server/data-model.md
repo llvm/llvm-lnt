@@ -385,9 +385,8 @@ that form.
   as the default display value in the UI unless a `commit_field` with
   `display: true` is defined and populated.
 - `ordinal` has a regular unique constraint.
-- `tag` is an optional human-readable label (e.g., `release-18.1`). Set
-  exclusively via `PATCH /api/suites/{testsuite}/commits/{value}` (never during submission).
-  Multiple commits may share the same tag. The tag is always included in
+- `tag` is an optional human-readable label (e.g., `release-18.1`), settable
+  on every commit write path (see D7). Multiple commits may share the same tag. The tag is always included in
   `?search=` substring matching (see D9). When set, the UI appends it to the
   display value as `<display_value> (tag)`.
 - Dynamic columns are created from `commit_fields` in the schema (see D3 for

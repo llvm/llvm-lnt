@@ -388,26 +388,16 @@ class TestCommitOperations:
     def test_creating_and_reading_a_commit_share_the_entity_object(
         self, client: TestClient
     ) -> None:
-        # D7: `POST` takes the same object a run submission nests, and the response is that object
-        # plus what only a stored commit has.
+        # D7: `POST` takes the same object a run submission nests, and the response is that same
+        # object, with the detail adding what only a stored commit has.
         schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
 
-        assert set(schemas["Commit"]["properties"]) == {
-            *schemas["CommitObject"]["properties"],
-            "tag",
-        }
+        assert set(schemas["Commit"]["properties"]) == set(schemas["CommitObject"]["properties"])
         assert set(schemas["CommitDetail"]["properties"]) == {
             *schemas["Commit"]["properties"],
             "previous",
             "next",
         }
-
-    def test_no_request_body_accepts_a_tag_at_creation(self, client: TestClient) -> None:
-        # D7 makes `tag` PATCH-only, so the document must not advertise it where it is refused.
-        schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
-
-        assert "tag" not in schemas["CommitObject"]["properties"]
-        assert "tag" in schemas["CommitUpdate"]["properties"]
 
     def test_no_request_body_accepts_a_rename(self, client: TestClient) -> None:
         # endpoints.md: `value` is immutable.
