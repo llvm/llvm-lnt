@@ -304,7 +304,12 @@ def _integer(value: Any) -> int:
 def _real(value: Any) -> float:
     if not isinstance(value, int | float) or isinstance(value, bool):
         raise ValueError("expected a number")
-    return float(value)
+    # JSON's integers are unbounded, and one past a float's range raises `OverflowError` here,
+    # which would otherwise escape `Keyset._decode` as a 500.
+    try:
+        return float(value)
+    except OverflowError:
+        raise ValueError("out of range for a floating-point column") from None
 
 
 def _text(value: Any) -> str:

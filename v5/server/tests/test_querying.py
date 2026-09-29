@@ -21,6 +21,7 @@ from sqlalchemy import (
     BigInteger,
     Column,
     DateTime,
+    Double,
     Engine,
     Identity,
     Integer,
@@ -28,6 +29,7 @@ from sqlalchemy import (
     String,
     Table,
     insert,
+    update,
 )
 from sqlalchemy import select as sql_select
 
@@ -47,6 +49,8 @@ events = Table(
     # Nullable on purpose: D10 excludes rows with no value for a sort key, and only a nullable
     # column can show that.
     Column("rank", Integer, nullable=True),
+    # A real, for the cursor reader that reads one back. Only the tests that sort by it fill it.
+    Column("score", Double, nullable=True),
 )
 
 
@@ -86,7 +90,7 @@ def walk(db_engine: Engine) -> Callable[..., list[str]]:
     """Page through every row of a keyset, returning the labels seen in order."""
 
     def through(keyset: Keyset, limit: int, labels: list[str] | None = None) -> list[str]:
-        statement = sql_select(events.c.id, events.c.label, events.c.at, events.c.rank)
+        statement = sql_select(events)
         if labels is not None:
             statement = statement.where(events.c.label.in_(labels))
         seen: list[str] = []
@@ -130,7 +134,7 @@ def one_page(
     with engine.connect() as connection:
         return cursor_page(
             connection,
-            sql_select(events.c.id, events.c.label, events.c.at, events.c.rank),
+            sql_select(events),
             keyset,
             limit,
             RequestCursor(cursor, scope),
@@ -371,6 +375,19 @@ class TestCursorOpacity:
 
         with pytest.raises(ApiError) as failure:
             one_page(db_engine, keyset, 3, forged(cursor, value))
+
+        assert failure.value.code.value == "invalid_request"
+
+    def test_refuses_a_real_too_large_to_read_as_one(self, db_engine: Engine) -> None:
+        # JSON's integers are unbounded, and one past what a float holds does not convert at all.
+        keyset = Keyset(SortKey(events.c.score), tiebreaker=events.c.id)
+        with db_engine.begin() as connection:
+            connection.execute(update(events).values(score=1.5))
+        _, cursor = one_page(db_engine, keyset, 3)
+        assert cursor is not None
+
+        with pytest.raises(ApiError) as failure:
+            one_page(db_engine, keyset, 3, forged(cursor, 10**400, 1))
 
         assert failure.value.code.value == "invalid_request"
 
