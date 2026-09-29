@@ -347,6 +347,7 @@ def list_commits(
     testsuite: str,
     engine: EngineDep,
     registry: RegistryDep,
+    cursor: Cursor,
     search: Annotated[
         Lookup | None,
         Query(
@@ -380,7 +381,6 @@ def list_commits(
         ),
     ] = None,
     limit: Limit = DEFAULT_LIMIT,
-    cursor: Cursor = None,
 ) -> CursorPage[Commit]:
     """Every commit in the suite, filtered, ordered and cursor-paginated (R2, R3, D9, D10).
 

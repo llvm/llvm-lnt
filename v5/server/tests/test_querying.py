@@ -32,7 +32,7 @@ from sqlalchemy import (
 from sqlalchemy import select as sql_select
 
 from lnt_v5.errors import ApiError
-from lnt_v5.querying import Keyset, SortKey, cursor_page
+from lnt_v5.querying import Keyset, RequestCursor, SortKey, cursor_page
 
 _metadata = MetaData()
 
@@ -93,7 +93,9 @@ def walk(db_engine: Engine) -> Callable[..., list[str]]:
         cursor: str | None = None
         for _ in range(100):
             with db_engine.connect() as connection:
-                page, cursor = cursor_page(connection, statement, keyset, limit, cursor)
+                page, cursor = cursor_page(
+                    connection, statement, keyset, limit, RequestCursor(cursor)
+                )
             seen.extend(row.label for row in page)
             if cursor is None:
                 return seen
@@ -122,14 +124,16 @@ def forged(cursor: str, *values: Any) -> str:
     return base64.urlsafe_b64encode(payload.encode()).decode().rstrip("=")
 
 
-def one_page(engine: Engine, keyset: Keyset, limit: int, cursor: str | None = None) -> Any:
+def one_page(
+    engine: Engine, keyset: Keyset, limit: int, cursor: str | None = None, scope: str = ""
+) -> Any:
     with engine.connect() as connection:
         return cursor_page(
             connection,
             sql_select(events.c.id, events.c.label, events.c.at, events.c.rank),
             keyset,
             limit,
-            cursor,
+            RequestCursor(cursor, scope),
         )
 
 
@@ -326,6 +330,17 @@ class TestCursorOpacity:
 
         with pytest.raises(ApiError):
             one_page(db_engine, Keyset(tiebreaker=events.c.id), 3, cursor)
+
+    def test_refuses_a_cursor_issued_under_a_different_scope(self, db_engine: Engine) -> None:
+        # Same ordering, other filters: the page would hold only rows the new filters match, but
+        # would silently skip every one before the position the cursor names.
+        _, cursor = one_page(db_engine, by_time(), 3, scope="search=foo")
+        assert cursor is not None
+
+        with pytest.raises(ApiError):
+            one_page(db_engine, by_time(), 3, cursor, scope="search=bar")
+
+        assert len(one_page(db_engine, by_time(), 3, cursor, scope="search=foo")[0]) == 3
 
     @pytest.mark.parametrize("value", [2**31, -(2**31) - 1, 2**70])
     def test_refuses_a_value_outside_its_column_s_range(

@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Annotated, Any
 
-from fastapi import Query
+from fastapi import Depends, Query, Request
 from sqlalchemy import (
     Column,
     ColumnElement,
@@ -52,16 +52,53 @@ Limit = Annotated[
 
 Offset = Annotated[int, Query(ge=0, description="How many matching items to skip.")]
 
-Cursor = Annotated[
-    str | None,
-    Query(
-        description=(
-            "Continue the list where a previous page ended: pass back the `cursor.next` that page "
-            "returned. Cursors are opaque -- they must not be parsed, constructed or stored, and "
-            "one issued for a different list or a different sort order is rejected."
-        )
-    ),
-]
+# The query parameters a client may change between pages without changing the list it is paging:
+# the cursor itself, and the page size.
+_PAGING_PARAMETERS = frozenset({"cursor", "limit"})
+
+
+@dataclass(frozen=True)
+class RequestCursor:
+    """A `cursor=` as a request passed it, and the list that request asks for.
+
+    `scope` is the request's path and every query parameter apart from `cursor` and `limit`, in a
+    canonical order. A cursor is only accepted with the scope it was issued under (see `Keyset`), so
+    a cursor from `?search=foo` is refused by `?search=bar` rather than answered with the `bar` rows
+    past the position it names -- a page that would silently skip every earlier one. Derived from
+    the request rather than listed by each endpoint, so that no list can forget one of its filters,
+    and the path is in it because it can carry one too: `GET /machines/{name}/runs` pages one table
+    for every machine. A list whose filters travel in a body instead (`POST /query`) has to put the
+    body in the scope itself.
+    """
+
+    token: str | None
+    scope: str = ""
+
+
+def _request_cursor(
+    request: Request,
+    cursor: Annotated[
+        str | None,
+        Query(
+            description=(
+                "Continue the list where a previous page ended: pass back the `cursor.next` that "
+                "page returned, with the same filters and sort. Cursors are opaque -- they must "
+                "not be parsed, constructed or stored, and one issued for a different list, "
+                "different filters or a different sort order is rejected. `limit` may change "
+                "between pages."
+            )
+        ),
+    ] = None,
+) -> RequestCursor:
+    parameters = sorted(
+        (key, value)
+        for key, value in request.query_params.multi_items()
+        if key not in _PAGING_PARAMETERS
+    )
+    return RequestCursor(cursor, json.dumps([request.url.path, parameters], separators=(",", ":")))
+
+
+Cursor = Annotated[RequestCursor, Depends(_request_cursor)]
 
 # R3 spells a descending sort by prefixing the field name.
 DESCENDING = "-"
@@ -126,11 +163,12 @@ class Keyset:
     existed throughout is ever skipped or repeated.
 
     The cursor is opaque by contract (R2): base64 over a compact JSON payload, carrying a
-    fingerprint of the ordering it was issued for. The fingerprint is what turns feeding a
-    `sort=ordinal` cursor to `sort=-ordinal`, or a commit cursor to the run list, into a 400
-    instead of a plausible-looking page of the wrong rows. It is deliberately not signed: forging
-    one buys a caller nothing it could not ask for with ordinary filters, and a signing key would
-    have to be shared across workers and survive restarts.
+    fingerprint of the ordering and the request scope it was issued for (`RequestCursor`). The
+    fingerprint is what turns feeding a `sort=ordinal` cursor to `sort=-ordinal`, a commit cursor
+    to the run list, or a `search=foo` cursor to `search=bar`, into a 400 instead of a
+    plausible-looking page of the wrong rows. It is deliberately not signed: forging one buys a
+    caller nothing it could not ask for with ordinary filters, and a signing key would have to be
+    shared across workers and survive restarts.
     """
 
     def __init__(self, *keys: SortKey, tiebreaker: Column[Any]) -> None:
@@ -143,7 +181,7 @@ class Keyset:
             raise ValueError("every sort key of a keyset must run in the same direction")
         self._keys = (*keys, SortKey(tiebreaker, descending))
         self._descending = descending
-        self._ordering = _fingerprint(self._keys)
+        self._ordering = _ordering(self._keys)
         # Resolved up front, so that a key column of a type no cursor can carry is a failure before
         # any SQL runs rather than a 500 handed to whichever caller first passes a cursor.
         self._readers = [_reader(key.column) for key in self._keys]
@@ -163,7 +201,7 @@ class Keyset:
         """
         return [key.column.is_not(None) for key in self._keys if key.column.nullable]
 
-    def after(self, cursor: str) -> ColumnElement[bool]:
+    def after(self, cursor: str, scope: str) -> ColumnElement[bool]:
         """The rows that come strictly after the position a cursor names.
 
         A row comparison -- `(ordinal, id) > (50, 100)` -- rather than the equivalent OR of AND
@@ -172,7 +210,7 @@ class Keyset:
         1..N-1, so walking a list is quadratic in its length. Row comparison requires every term to
         run in the same direction, which `__init__` guarantees.
         """
-        values = self._decode(cursor)
+        values = self._decode(cursor, scope)
         row = tuple_(*(key.column for key in self._keys))
         position = tuple_(
             *(
@@ -183,23 +221,28 @@ class Keyset:
         comparison: ColumnElement[bool] = row < position if self._descending else row > position
         return comparison
 
-    def cursor(self, row: Row[Any]) -> str:
+    def cursor(self, row: Row[Any], scope: str) -> str:
         """The cursor that resumes after this row. Its key columns must be in the SELECT."""
         values = [_wire(row._mapping[key.column]) for key in self._keys]
-        payload = json.dumps([self._ordering, values], separators=(",", ":"))
+        payload = json.dumps([self._fingerprint(scope), values], separators=(",", ":"))
         return base64.urlsafe_b64encode(payload.encode()).decode().rstrip("=")
 
-    def _decode(self, cursor: str) -> list[Any]:
+    def _fingerprint(self, scope: str) -> str:
+        """A short digest of the ordering and the request scope, so that a cursor cannot be replayed
+        against a different one of either."""
+        return hashlib.sha256(f"{self._ordering}\n{scope}".encode()).hexdigest()[:12]
+
+    def _decode(self, cursor: str, scope: str) -> list[Any]:
         try:
             padded = cursor + "=" * (-len(cursor) % 4)
-            ordering, values = json.loads(base64.urlsafe_b64decode(padded))
-            if ordering != self._ordering or len(values) != len(self._keys):
-                raise ValueError("not a cursor for this ordering")
+            fingerprint, values = json.loads(base64.urlsafe_b64decode(padded))
+            if fingerprint != self._fingerprint(scope) or len(values) != len(self._keys):
+                raise ValueError("not a cursor for this list")
             return [reader(value) for reader, value in zip(self._readers, values, strict=True)]
         except (ValueError, TypeError, binascii.Error) as error:
             raise ApiError(
                 ErrorCode.INVALID_REQUEST,
-                "This cursor was not issued for this list and sort order. Pass back the "
+                "This cursor was not issued for this list, filters and sort order. Pass back the "
                 "'cursor.next' from a page of this same request, unmodified.",
             ) from error
 
@@ -209,7 +252,7 @@ def cursor_page(
     statement: Select[Any],
     keyset: Keyset,
     limit: int,
-    cursor: str | None,
+    cursor: RequestCursor,
 ) -> tuple[Sequence[Row[Any]], str | None]:
     """One page of `statement` in `keyset`'s order, and the cursor for the page after it.
 
@@ -218,26 +261,25 @@ def cursor_page(
     making every client pay for one extra request to discover that.
     """
     statement = statement.where(*keyset.defined())
-    if cursor is not None:
-        statement = statement.where(keyset.after(cursor))
+    if cursor.token is not None:
+        statement = statement.where(keyset.after(cursor.token, cursor.scope))
     rows = connection.execute(statement.order_by(*keyset.order()).limit(limit + 1)).all()
     if len(rows) <= limit:
         return rows, None
     page = rows[:limit]
-    return page, keyset.cursor(page[-1])
+    return page, keyset.cursor(page[-1], cursor.scope)
 
 
-def _fingerprint(keys: Sequence[SortKey]) -> str:
-    """A short digest of the ordering, so a cursor cannot be replayed against a different one.
+def _ordering(keys: Sequence[SortKey]) -> str:
+    """The ordering, spelled out for `Keyset._fingerprint`.
 
     Built from each column's qualified name, which carries the suite's namespace, so a cursor from
     one suite's commit list is not accepted by another's.
     """
-    description = "|".join(
+    return "|".join(
         f"{key.column.table.fullname}.{key.column.name}:{'desc' if key.descending else 'asc'}"
         for key in keys
     )
-    return hashlib.sha256(description.encode()).hexdigest()[:12]
 
 
 def _wire(value: Any) -> Any:

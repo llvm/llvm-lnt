@@ -395,6 +395,8 @@ class TestListPagination:
         [
             ("limit=2&cursor=nonsense", "not a cursor at all"),
             ("limit=2&sort=ordinal&cursor={cursor}", "issued for a different sort order"),
+            ("limit=2&search=c&cursor={cursor}", "issued without that filter"),
+            ("limit=2&has_profiles=false&cursor={cursor}", "issued without that filter either"),
         ],
     )
     def test_refuses_a_cursor_it_did_not_issue(
@@ -406,6 +408,16 @@ class TestListPagination:
 
         assert response.status_code == 400, reason
         assert code_of(response) == "invalid_request"
+
+    def test_accepts_a_cursor_with_another_page_size_and_parameter_order(
+        self, api_client: TestClient
+    ) -> None:
+        # `limit` is not part of the list a cursor belongs to, and parameter order carries nothing.
+        cursor = page(api_client, "limit=2&search=c").json()["cursor"]["next"]
+
+        response = page(api_client, f"search=c&limit=3&cursor={cursor}")
+
+        assert values_in(response) == ["c2", "c3", "c4"]
 
     def test_refuses_a_cursor_issued_by_another_suite(
         self, api_client: TestClient, manage: dict[str, str]
