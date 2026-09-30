@@ -259,8 +259,8 @@ for this machine), `metric=` (only tests with non-NULL values for this metric).
 Given together, `?machine=m&metric=execution_time` returns the tests that have
 an `execution_time` value *on that machine*.
 
-Results come back in an arbitrary but deterministic order suitable for
-pagination (R2, D10); this list takes no `sort`.
+Sort: none; results come back in an arbitrary but deterministic order suitable
+for pagination (R2, D10).
 
 
 ## Samples
@@ -287,8 +287,8 @@ D6), and those repetitions are indistinguishable by design.
 Filters: `test=` (only the samples for this test). A test that exists but that
 this run did not measure is an empty page rather than an error.
 
-Results come back in an arbitrary but deterministic order suitable for
-pagination (R2, D10); this list takes no `sort`.
+Sort: none; results come back in an arbitrary but deterministic order suitable
+for pagination (R2, D10).
 
 Auth scope: `read`.
 
