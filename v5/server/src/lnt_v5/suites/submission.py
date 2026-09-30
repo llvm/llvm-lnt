@@ -8,7 +8,7 @@ rather than interleaved with the inserts. `validate_submission` either returns t
 run write needs or raises, so nothing half-validated ever reaches a statement.
 
 The run endpoints that address a run rather than create one take their UUID from a path segment,
-and read it through `entities.UuidPath`: the normalization a body's UUID gets has to be the same one
+and read it through `entities.UuidKey`: the normalization a body's UUID gets has to be the same one
 a path gets, or the two would disagree about which run is which.
 
 Test entries are the reason the payload model cannot describe the request on its own: a metric name

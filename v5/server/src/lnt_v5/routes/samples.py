@@ -32,7 +32,7 @@ from lnt_v5.responses import CursorPage
 from lnt_v5.routes.runs import NO_RUN, RUNS_PATH, run_id
 from lnt_v5.routes.tests import test_id
 from lnt_v5.scopes import Scope
-from lnt_v5.suites.entities import DeclaredValue, UuidPath
+from lnt_v5.suites.entities import DeclaredValue, UuidKey
 from lnt_v5.suites.registry import RegistryDep, Suite
 from lnt_v5.suites.scope import suite_responses, suite_scope
 
@@ -111,7 +111,7 @@ class Samples:
 )
 def list_samples(
     testsuite: str,
-    uuid: UuidPath,
+    uuid: UuidKey,
     engine: EngineDep,
     registry: RegistryDep,
     cursor: Cursor,

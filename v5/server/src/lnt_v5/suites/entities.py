@@ -164,15 +164,15 @@ def addressable(value: str) -> str:
 # What an entity's identity attribute is made of, beyond whatever length its own column allows.
 Addressable = AfterValidator(addressable)
 
-# A UUID as a request supplies one, for the three entities addressed by one (R1). Only the
-# lowercasing is shared behaviour: every UUID is stored lowercased, so every lookup has to be. The
-# format is deliberately *not* constrained -- a value that is not a UUID at all passes through
-# unchanged and simply matches nothing, which is the 404 endpoints.md asks for. It names no entity
-# rather than being a malformed request, and the two endpoint families that take one must not
-# diverge on that. `Storable` is here for the one place this is read from a request *body* rather
-# than a path -- `DELETE .../regressions/{uuid}/indicators` -- which the URL-level check does not
-# reach; in a path segment it can never fire, which is the point.
-UuidPath = Annotated[str, AfterValidator(str.lower), Storable]
+# A UUID naming an existing entity, as a request supplies one: in a path segment, for the entities
+# addressed by one (R1), or in a body, for the indicators a removal names. Only the lowercasing is
+# shared behaviour: every UUID is stored lowercased, so every lookup has to be. The format is
+# deliberately *not* constrained -- a value that is not a UUID at all passes through unchanged and
+# simply matches nothing, which is the 404 endpoints.md asks for. It names no entity rather than
+# being a malformed request, and the endpoint families that take one must not diverge on that.
+# `Storable` is for the body, which the URL-level NUL check does not reach; in a path segment it
+# can never fire.
+UuidKey = Annotated[str, AfterValidator(str.lower), Storable]
 
 
 def location_of(path: str, testsuite: str, key: str) -> str:
@@ -557,7 +557,7 @@ def identifiers(
 
 
 def identifier(
-    connection: Connection, key: Column[Any], value: Any, missing: Callable[[str], ApiError]
+    connection: Connection, key: Column[Any], value: str, missing: Callable[[str], ApiError]
 ) -> int:
     """The internal id of the one entity a natural key names, or the caller's 404 for one absent.
 

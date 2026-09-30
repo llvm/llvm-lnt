@@ -68,7 +68,7 @@ from lnt_v5.routes.tests import test_id, test_ids
 from lnt_v5.scopes import Scope
 from lnt_v5.strings import Storable
 from lnt_v5.suites.entities import (
-    UuidPath,
+    UuidKey,
     declared_by_name,
     declared_entry,
     identifier,
@@ -302,7 +302,7 @@ class IndicatorRemoval(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    indicator_uuids: list[UuidPath] = Field(
+    indicator_uuids: list[UuidKey] = Field(
         min_length=1,
         max_length=MAX_INDICATORS,
         description=(
@@ -800,7 +800,7 @@ def create_regression(
     responses=suite_responses(not_found=_NO_REGRESSION),
 )
 def get_regression(
-    testsuite: str, uuid: UuidPath, engine: EngineDep, registry: RegistryDep
+    testsuite: str, uuid: UuidKey, engine: EngineDep, registry: RegistryDep
 ) -> RegressionDetail:
     """One regression, with its indicators embedded."""
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
@@ -815,7 +815,7 @@ def get_regression(
 )
 def update_regression(
     testsuite: str,
-    uuid: UuidPath,
+    uuid: UuidKey,
     body: RegressionUpdate,
     engine: EngineDep,
     registry: RegistryDep,
@@ -859,7 +859,7 @@ def update_regression(
     responses=suite_responses(not_found=_NO_REGRESSION),
 )
 def delete_regression(
-    testsuite: str, uuid: UuidPath, engine: EngineDep, registry: RegistryDep
+    testsuite: str, uuid: UuidKey, engine: EngineDep, registry: RegistryDep
 ) -> None:
     """Delete a regression and its indicators (D5).
 
@@ -883,7 +883,7 @@ def delete_regression(
 )
 def add_indicators(
     testsuite: str,
-    uuid: UuidPath,
+    uuid: UuidKey,
     body: IndicatorAddition,
     engine: EngineDep,
     registry: RegistryDep,
@@ -913,7 +913,7 @@ def add_indicators(
 )
 def remove_indicators(
     testsuite: str,
-    uuid: UuidPath,
+    uuid: UuidKey,
     body: IndicatorRemoval,
     engine: EngineDep,
     registry: RegistryDep,

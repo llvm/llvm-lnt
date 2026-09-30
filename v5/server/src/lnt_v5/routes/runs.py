@@ -68,7 +68,7 @@ from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.scopes import Scope
 from lnt_v5.suites import coverage
 from lnt_v5.suites.concurrency import resolve_names
-from lnt_v5.suites.entities import DatetimeValue, UuidPath, identifier, location_of
+from lnt_v5.suites.entities import DatetimeValue, UuidKey, identifier, location_of
 from lnt_v5.suites.registry import RegistryDep, Suite
 from lnt_v5.suites.scope import (
     SUITE_NOT_FOUND,
@@ -580,7 +580,7 @@ def submit_run(
     summary="Get a run",
     responses=suite_responses(not_found=NO_RUN),
 )
-def get_run(testsuite: str, uuid: UuidPath, engine: EngineDep, registry: RegistryDep) -> RunDetail:
+def get_run(testsuite: str, uuid: UuidKey, engine: EngineDep, registry: RegistryDep) -> RunDetail:
     """One run, in the same shape submission returns -- a list's object plus `run_parameters`."""
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         return Runs(suite).one(connection, uuid)
@@ -593,7 +593,7 @@ def get_run(testsuite: str, uuid: UuidPath, engine: EngineDep, registry: Registr
     summary="Delete a run",
     responses=suite_responses(not_found=NO_RUN),
 )
-def delete_run(testsuite: str, uuid: UuidPath, engine: EngineDep, registry: RegistryDep) -> None:
+def delete_run(testsuite: str, uuid: UuidKey, engine: EngineDep, registry: RegistryDep) -> None:
     """Delete a run, its samples and its profiles (D5).
 
     One statement: D5 gives `{suite}.sample.run_id` and `{suite}.profile.run_id` an
