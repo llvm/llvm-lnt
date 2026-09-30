@@ -25,7 +25,7 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import Engine, func, select
+from sqlalchemy import Engine, func, insert, select
 
 from conftest import code_of, run_payload, uuids_in, walk_pages
 from lnt_v5.routes.commits import COMMITS_PATH
@@ -387,6 +387,40 @@ class TestDetail:
         uuid = create()["uuid"]
 
         assert "<title>LNT</title>" not in api_client.get(f"{REGRESSIONS}/{uuid}").text
+
+
+class TestStoredRows:
+    """A row that breaks a rule a request would be held to is still served.
+
+    The model's validators are the rules for what a request may write. A row stored some other way
+    -- by an earlier build whose rules were looser, or by hand in SQL -- is data, and answering 500
+    for it would make it unreadable and undeletable through the API alike.
+    """
+
+    @pytest.fixture
+    def stored(self, db_engine: Engine, suite: SuiteTables) -> str:
+        # An empty title and bug, which the API has refused since they became a second spelling
+        # of "none" (endpoints.md), but which an earlier build accepted.
+        uuid = "5b0c3e1e-0000-4000-8000-000000000000"
+        with db_engine.begin() as connection:
+            connection.execute(
+                insert(suite.regression).values(
+                    uuid=uuid, title="", bug="", state=RegressionState.DETECTED.value
+                )
+            )
+        return uuid
+
+    def test_the_detail_serves_it(self, api_client: TestClient, stored: str) -> None:
+        response = api_client.get(f"{REGRESSIONS}/{stored}")
+
+        assert response.status_code == 200
+        assert (response.json()["title"], response.json()["bug"]) == ("", "")
+
+    def test_the_list_serves_it(self, api_client: TestClient, stored: str) -> None:
+        response = listed(api_client)
+
+        assert response.status_code == 200
+        assert [item["title"] for item in response.json()["items"]] == [""]
 
 
 class TestList:

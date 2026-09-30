@@ -441,7 +441,11 @@ class Regressions:
         }
 
     def read(self, row: Row[Any]) -> Regression:
-        return Regression(
+        # Not validated, like `Runs.read`: the model's validators are the rules for what a request
+        # may write, and a stored row that breaks one -- a title stored before the rules said it
+        # could not be empty, say -- still has to be served. The same goes for `detail` and
+        # `indicators` below.
+        return Regression.model_construct(
             **self._common(row),
             machine_count=row._mapping[self.machine_count],
             test_count=row._mapping[self.test_count],
@@ -458,7 +462,7 @@ class Regressions:
         ).one_or_none()
         if row is None:
             raise self.missing(uuid)
-        return RegressionDetail(
+        return RegressionDetail.model_construct(
             **self._common(row),
             notes=row._mapping[self.table.c.notes],
             indicators=self.indicators(connection, row._mapping[self.table.c.id]),
@@ -491,7 +495,7 @@ class Regressions:
         # By column object rather than by name: the row spans four tables and three of them have a
         # `name`.
         return [
-            Indicator(
+            Indicator.model_construct(
                 uuid=row._mapping[self._indicator.c.uuid],
                 machine=row._mapping[self._machine.c.name],
                 test=row._mapping[self._test.c.name],
