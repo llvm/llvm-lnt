@@ -524,6 +524,11 @@ class Regressions:
 
         Duplicates within the batch are collapsed here, before the insert: D5's unique constraint
         would ignore them anyway, but only after they had been counted as added.
+
+        The rows come back sorted, whatever order the request named them in. `add_indicators`
+        inserts under `ON CONFLICT DO NOTHING`, which waits on a row another transaction has
+        inserted but not committed, so two batches overlapping in opposite orders would each hold a
+        row the other waits on. In one fixed order, D13's rule for test names, they cannot.
         """
         # The declared list is turned into a lookup once rather than once per metric, which is what
         # `declared_entry` would do -- the batch may name thousands.
@@ -540,12 +545,10 @@ class Regressions:
             [one.metric for one in submitted],
             lambda _: schema_changed(self.schema.name),
         )
-        rows = dict.fromkeys(
-            (machines[one.machine], tests[one.test], metrics[one.metric]) for one in submitted
-        )
+        rows = {(machines[one.machine], tests[one.test], metrics[one.metric]) for one in submitted}
         return [
             {"machine_id": machine, "test_id": test, "metric_id": metric}
-            for machine, test, metric in rows
+            for machine, test, metric in sorted(rows)
         ]
 
     def add_indicators(

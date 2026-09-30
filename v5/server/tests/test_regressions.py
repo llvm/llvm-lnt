@@ -192,12 +192,15 @@ class TestCreate:
     def test_stores_the_indicators_it_was_given(
         self, create: Callable[..., Any], data: None
     ) -> None:
-        created = create(indicators=[LINUX_ONE, DARWIN_ONE])
+        created = create(indicators=[DARWIN_ONE, LINUX_ONE])
 
-        assert [
+        # In no particular order: a batch is stored in one fixed order rather than the request's, so
+        # that two overlapping batches cannot deadlock (see `test_concurrency.py`).
+        stored = [
             {key: indicator[key] for key in ("machine", "test", "metric")}
             for indicator in created["indicators"]
-        ] == [LINUX_ONE, DARWIN_ONE]
+        ]
+        assert sorted(stored, key=str) == sorted([LINUX_ONE, DARWIN_ONE], key=str)
 
     def test_gives_every_indicator_a_uuid(self, create: Callable[..., Any], data: None) -> None:
         created = create(indicators=[LINUX_ONE, DARWIN_ONE])

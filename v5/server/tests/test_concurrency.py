@@ -833,3 +833,57 @@ class TestIndicatorMetricRemoval:
 
         assert failure.value.code is ErrorCode.CONFLICT
         assert counted(db_engine, suite.tables, "regression_indicator") == 0
+
+
+class TestConcurrentIndicators:
+    def test_overlapping_batches_on_one_regression_do_not_deadlock(
+        self,
+        db_engine: Engine,
+        suite: Suite,
+        machines: Machines,
+        background: Callable[..., Future[Any]],
+    ) -> None:
+        """Two batches naming the same indicators in opposite orders both succeed.
+
+        Each inserts under `ON CONFLICT DO NOTHING`, which waits on a row another transaction has
+        inserted but not committed. Staged rather than left to load: one transaction has added the
+        first indicator and holds; a batch naming both, second first, arrives and blocks; the first
+        transaction then adds the second. Written in the order given, the batch would already hold
+        the second and the two would wait on each other until PostgreSQL killed one. In a fixed
+        order it blocks on the first before inserting anything, and simply waits its turn.
+        """
+        with db_engine.begin() as connection:
+            machines.get_or_create(connection, submitted_machine())
+            resolve_names(connection, suite.tables.test, ["suite/a", "suite/b"])
+            regression: int = connection.execute(
+                insert(suite.tables.regression)
+                .values(uuid=str(uuid4()), state=RegressionState.DETECTED)
+                .returning(suite.tables.regression.c.id)
+            ).scalar_one()
+        regressions = Regressions(suite)
+
+        def add(connection: Connection, tests: Sequence[str]) -> int:
+            indicators = [
+                IndicatorObject(machine="linux", test=test, metric="execution_time")
+                for test in tests
+            ]
+            resolved = regressions.resolved_indicators(connection, indicators)
+            return regressions.add_indicators(connection, regression, resolved)
+
+        def batch() -> int:
+            with db_engine.connect() as connection, connection.begin():
+                return add(connection, ["suite/b", "suite/a"])
+
+        holder = db_engine.connect()
+        try:
+            transaction = holder.begin()
+            assert add(holder, ["suite/a"]) == 1
+            running = background(batch)
+            until_blocked(db_engine)
+            assert add(holder, ["suite/b"]) == 1
+            transaction.commit()
+        finally:
+            holder.close()
+
+        assert running.result(timeout=BLOCK_TIMEOUT) == 0
+        assert counted(db_engine, suite.tables, "regression_indicator") == 2
