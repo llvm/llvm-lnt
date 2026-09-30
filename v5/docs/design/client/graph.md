@@ -227,7 +227,7 @@ the user can see the commit range.
 
 - `POST query` with JSON body `{machine, metric, test, sort, limit, cursor}`
   (one fetch pipeline per machine, targeted to discovered tests via multi-value `test`)
-- `GET tests?machine=...&metric=...&search=...` (test name discovery)
+- `GET tests?machine=...&metric=...` (test name discovery)
 - `GET commits?machine={name}&sort=ordinal` (x-axis scaffold, per machine)
 - `GET commits?machine={name}` (baseline commit dropdown)
 - `GET machines` (machine combobox)
