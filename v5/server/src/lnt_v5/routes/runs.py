@@ -35,7 +35,13 @@ from lnt_v5.scopes import Scope
 from lnt_v5.suites.concurrency import resolve_names
 from lnt_v5.suites.entities import location_of
 from lnt_v5.suites.registry import RegistryDep, Suite
-from lnt_v5.suites.scope import SUITE_NOT_FOUND, SUITE_SCHEMA_CHANGED, suite_responses, suite_scope
+from lnt_v5.suites.scope import (
+    SUITE_NOT_FOUND,
+    SUITE_SCHEMA_CHANGED,
+    schema_changed,
+    suite_responses,
+    suite_scope,
+)
 from lnt_v5.suites.submission import (
     RunSubmission,
     RunUuidPath,
@@ -247,15 +253,17 @@ def submit_run(
     # work, and doing it inside `engine.begin()` would hold one of the pool's connections and an
     # `idle in transaction` backend -- which pins the xmin horizon against VACUUM -- for all of it.
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
-        schema = suite.schema
-    validated = validate_submission(schema, body)
+        validated_against = suite
+    validated = validate_submission(validated_against.schema, body)
 
     # The suite is resolved a second time, and that is not a redundancy: D2 requires the freshness
     # check to be the first statement of the unit of work, and the write has to use the suite the
-    # *write* transaction resolved. A schema someone changed in between is answered by `suite_scope`
-    # as a retryable 409, which is exactly D2's "a stale reader is answered rather than silently
-    # wrong".
+    # *write* transaction resolved. The payload was typed against the first resolution, though, so
+    # a schema someone changed in between is answered with D2's retryable 409 rather than written:
+    # a removed metric would otherwise be dropped silently, and a removed field would be a 500.
     with engine.begin() as connection, suite_scope(registry, connection, testsuite) as suite:
+        if suite.schema_json != validated_against.schema_json:
+            raise schema_changed(testsuite)
         runs = Runs(suite)
 
         # The machine before the commit, and that order is load-bearing rather than incidental.

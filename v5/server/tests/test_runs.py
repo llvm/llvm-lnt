@@ -30,8 +30,9 @@ from lnt_v5.config import Settings
 from lnt_v5.routes.commits import COMMITS_PATH
 from lnt_v5.routes.machines import MACHINES_PATH
 from lnt_v5.routes.runs import RUNS_PATH
-from lnt_v5.routes.suites import SUITES_PATH
+from lnt_v5.routes.suites import SUITES_PATH, patch_schema
 from lnt_v5.scopes import Scope
+from lnt_v5.suites.evolve import SchemaPatch
 from lnt_v5.suites.submission import validate_submission
 from lnt_v5.suites.tables import SuiteTables
 
@@ -1163,6 +1164,16 @@ class TestSchemaChangedUnderneath:
         # point it at, were all written before the failure, and all of them go with it.
         assert counted(db_engine, suite, table) == 0
 
+    @pytest.mark.parametrize(
+        "change",
+        [
+            pytest.param({"metrics": {"remove": ["execution_time"]}}, id="metric-removed"),
+            pytest.param({"machine_fields": {"remove": ["hardware"]}}, id="field-removed"),
+            pytest.param(
+                {"metrics": {"add": [{"name": "size", "type": "integer"}]}}, id="metric-added"
+            ),
+        ],
+    )
     def test_a_change_between_validation_and_the_write_is_a_retryable_conflict(
         self,
         api_client: TestClient,
@@ -1170,25 +1181,27 @@ class TestSchemaChangedUnderneath:
         db_engine: Engine,
         suite: SuiteTables,
         monkeypatch: pytest.MonkeyPatch,
+        change: dict[str, Any],
     ) -> None:
         """The window submission deliberately opens by validating outside the write transaction.
 
-        `submit_run` resolves the suite once to validate against and again inside the transaction
-        that writes, because D2 wants the freshness check to be that transaction's first statement.
-        Between the two, another worker may change the schema -- and D2's answer is that the writer
-        is *answered* rather than silently wrong. Staged by hooking validation, which is the only
+        Another worker changes the schema in between, bumping D2's counter, so the write resolves a
+        suite that no longer matches the payload. Staged by hooking validation, which is the only
         deterministic way to land a change in a window that is otherwise microseconds wide.
         """
 
         def change_the_schema_first(*arguments: Any) -> Any:
             validated = validate_submission(*arguments)
-            with db_engine.begin() as connection:
-                connection.execute(text("ALTER TABLE nts.sample DROP COLUMN execution_time"))
+            patch_schema("nts", SchemaPatch.model_validate(change), db_engine, confirm=True)
             return validated
 
         monkeypatch.setattr("lnt_v5.routes.runs.validate_submission", change_the_schema_first)
 
-        response = api_client.post(RUNS, json=payload(), headers=submitter)
+        response = api_client.post(
+            RUNS,
+            json=payload(machine={"name": "linux", "fields": {"hardware": "x86_64"}}),
+            headers=submitter,
+        )
 
         assert response.status_code == 409, response.text
         assert code_of(response) == "conflict"
