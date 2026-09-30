@@ -426,7 +426,6 @@ def create_or_reconcile(
     key: Column[Any],
     value: Any,
     *,
-    constraint: str,
     values: Mapping[str, Any],
     matched: Mapping[str, Any],
     contradiction: Contradiction,
@@ -434,10 +433,9 @@ def create_or_reconcile(
     """The id of the entity a run submission names, created or reconciled as D7 requires (D7, D13).
 
     The whole of what a machine and a commit share on the submission path, which is everything but
-    the table, the constraint names and the wording of the rejection: resolve the row by its natural
-    key (D13's get-or-create), and then either return it because this transaction just wrote it, or
-    match what was submitted against what is stored and fill in whatever the record has no value
-    for.
+    the table and the wording of the rejection: resolve the row by its natural key (D13's
+    get-or-create), and then either return it because this transaction just wrote it, or match what
+    was submitted against what is stored and fill in whatever the record has no value for.
 
     `values` is everything the row is created with, and `matched` is the subset D7 compares against
     an existing record -- the two differ, because a machine's `tracked` is written at creation and
@@ -465,9 +463,7 @@ def create_or_reconcile(
     Deadlock freedom rests on the order the caller resolves entities in (see the call site in
     `routes/runs.py`) and on the strength of the lock `_locked_values` takes.
     """
-    resolved = concurrency.get_or_create(
-        connection, key, value, constraint=constraint, values=values, read=matched
-    )
+    resolved = concurrency.get_or_create(connection, key, value, values=values, read=matched)
     if resolved.created:
         # Written from the submission a moment ago, so there is nothing it could contradict.
         return resolved.identifier

@@ -231,12 +231,41 @@ class TestLostRace:
     ) -> None:
         assert counted(db_engine, suite.tables, "machine") == 1
 
+    @pytest.mark.parametrize("rebuilt", [False, True], ids=["fresh", "commit-index-rebuilt"])
+    def test_racing_to_create_one_commit_with_one_ordinal_resolves_to_the_winner(
+        self,
+        db_engine: Engine,
+        commits: Commits,
+        suite: Suite,
+        background: Callable[..., Future[Any]],
+        rebuilt: bool,
+    ) -> None:
+        # The race every fleet produces: several machines submitting the same new commit, each
+        # carrying its ordinal. PostgreSQL checks unique indexes in creation order, so re-creating
+        # the commit's index (as `REINDEX CONCURRENTLY` does) makes the loser trip the ordinal's.
+        if rebuilt:
+            with db_engine.begin() as connection:
+                connection.execute(
+                    text(
+                        "ALTER TABLE nts.commit DROP CONSTRAINT uq_commit_commit, "
+                        'ADD CONSTRAINT uq_commit_commit UNIQUE ("commit")'
+                    )
+                )
+        running = raced(
+            db_engine,
+            background,
+            lambda connection: commits.get_or_create(connection, submitted_commit(ordinal=5)),
+            lambda connection: commits.get_or_create(connection, submitted_commit(ordinal=5)),
+        )
+
+        winner = stored(db_engine, suite, "commit", "commit", "abc").id
+        assert running.result(timeout=BLOCK_TIMEOUT) == winner
+
     def test_an_ordinal_violation_is_not_mistaken_for_a_lost_race(
         self, db_engine: Engine, commits: Commits
     ) -> None:
-        # The subtlety the recovery has to get right: a commit INSERT can trip `uq_commit_ordinal`
-        # as well as `uq_commit_commit`, and only the second is a race. Swallowing this one would
-        # re-query for a commit that was never created and report the wrong thing entirely.
+        # The other side of the recovery: here the ordinal is held by a *different* commit, so the
+        # re-read finds no "second" and the violation must surface as `ordinal_conflict`.
         with db_engine.begin() as connection:
             commits.get_or_create(connection, submitted_commit("first", ordinal=5))
         with db_engine.begin() as connection, pytest.raises(ApiError) as failure:

@@ -330,10 +330,10 @@ change between validation and the write is then answered with D2's 409.
 With PostgreSQL, this is achieved as follows:
 
 - Machines and commits are resolved with a **savepoint-based retry**: the INSERT
-  is wrapped in a SAVEPOINT, and on a violation of the entity's identity
-  constraint (a machine's name, a commit's value) only the savepoint is rolled
-  back and the winner's row is re-read. Any other violation fails the
-  submission.
+  is wrapped in a SAVEPOINT, and if it fails only the savepoint is rolled back
+  and the row is re-read by its identity. If it is there now, the race was lost
+  and the winner's row is used, whichever unique index reported the failure;
+  otherwise the failure (e.g. a taken `ordinal`) fails the submission.
 - An existing row is reconciled against the submission (see D7). If a NULL must
   be filled in, the row is re-read `FOR NO KEY UPDATE` and reconciled again, and
   that second reconciliation decides the write. A submission with nothing to

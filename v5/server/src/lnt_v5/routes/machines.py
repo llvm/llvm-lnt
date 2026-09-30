@@ -118,9 +118,9 @@ class MachineUpdate(EntityObject):
 class Machines:
     """The query every machine response is built from, and how to read one of its rows back.
 
-    Public because a run submission creates machines too (D7), and the table, the 409 wording and
-    the constraint name it needs are all already here; `routes/runs.py` reaches `get_or_create`
-    below rather than restating any of them.
+    Public because a run submission creates machines too (D7), and the table and the 409 wording it
+    needs are already here; `routes/runs.py` reaches `get_or_create` below rather than restating
+    either.
 
     `last_run_at` is derived on read and never stored (D5): a stored copy would have to be
     recomputed whenever a run was deleted, and synchronized on submission. The LATERAL probe below
@@ -204,7 +204,6 @@ class Machines:
             connection,
             self.table.c.name,
             submitted.name,
-            constraint=MACHINE_NAME_CONSTRAINT,
             values={"tracked": submitted.tracked, **submitted.fields},
             matched=submitted.fields,
             contradiction=self._contradicted(submitted.name),

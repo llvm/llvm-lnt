@@ -179,7 +179,7 @@ class Commits:
     """The query every commit response is built from, and how to read one of its rows back.
 
     Public because a run submission creates commits too (D7), and the table, the two 409 wordings
-    and the constraint names it needs are all already here; `routes/runs.py` reaches
+    and the ordinal constraint it needs are all already here; `routes/runs.py` reaches
     `get_or_create` below rather than restating any of them.
 
     Holds the internal `id` alongside the commit's own columns: it is never rendered -- R1 keeps
@@ -335,7 +335,6 @@ class Commits:
                 connection,
                 self.table.c.commit,
                 submitted.value,
-                constraint=COMMIT_VALUE_CONSTRAINT,
                 values={**built_in, **submitted.fields},
                 matched=matched,
                 contradiction=self._contradicted(submitted.value),

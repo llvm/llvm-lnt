@@ -13,11 +13,10 @@ builds on. `resolve_names` resolves a whole set of test names in a fixed number 
 which is what keeps a submission carrying tens of thousands of tests from costing tens of thousands
 of statements.
 
-Deliberately ignorant of what a machine or a commit is: which table, which constraint, and the
-wording of each 409 all live with the entity (see `routes/machines.py` and `routes/commits.py`), and
-D7's reconciliation on top of this lives in `entities.py` -- so that each is stated once rather than
-once per write path. What lives here is what those two -- and the tests -- would otherwise each get
-subtly wrong.
+Deliberately ignorant of what a machine or a commit is: which table and the wording of each 409
+live with the entity (see `routes/machines.py` and `routes/commits.py`), and D7's reconciliation on
+top of this lives in `entities.py` -- so that each is stated once rather than once per write path.
+What lives here is what those two -- and the tests -- would otherwise each get subtly wrong.
 """
 
 from __future__ import annotations
@@ -43,8 +42,6 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.sql.elements import BindParameter
 
-from lnt_v5.db import unique_violation_constraint
-
 
 @dataclass(frozen=True)
 class Resolved:
@@ -69,7 +66,6 @@ def get_or_create(
     key: Column[Any],
     value: Any,
     *,
-    constraint: str,
     values: Mapping[str, Any],
     read: Collection[str],
 ) -> Resolved:
@@ -81,12 +77,13 @@ def get_or_create(
     the two paths produced the row. For a table shaped like `{suite}.machine` or `{suite}.commit`
     (see D5): a surrogate `id` and a unique natural key.
 
-    `constraint` is the name of the unique constraint on `key`, and the narrowness of the recovery
-    is the point. A lost race trips *that* constraint and nothing else, so anything else has to be
-    re-raised: a commit insert can equally trip `uq_commit_ordinal`, which is not a lost race at all
-    but an ordinal another commit already holds, and swallowing it would re-query, find the commit
-    it just failed to create absent, and report the wrong thing -- where R4 wants
-    `ordinal_conflict`. `unique_violation_constraint` is what tells the two apart.
+    A failed INSERT is a lost race exactly when the row is there afterwards, whichever unique index
+    reported it -- which is why the recovery re-reads rather than inspecting the constraint name. A
+    commit carrying an ordinal can trip `uq_commit_ordinal` before `uq_commit_commit` even when the
+    winner is this very commit, since PostgreSQL checks indexes in creation order, which
+    `REINDEX CONCURRENTLY` or re-creating a constraint changes. Anything else is re-raised: a
+    commit whose ordinal *another* commit holds is not there on the re-read, and the caller owes
+    `ordinal_conflict` for it (R4).
 
     The caller owns the transaction. Only the INSERT is wrapped in a savepoint, so a submission
     that has already created its machine keeps it when it loses the race for its commit.
@@ -113,19 +110,16 @@ def get_or_create(
             inserted = connection.execute(
                 insert(table).values({key.name: value, **values}).returning(table.c.id, *wanted)
             ).one()
-    except IntegrityError as error:
-        if unique_violation_constraint(error) != constraint:
+    except IntegrityError:
+        # The savepoint is gone and everything before it survives, so the winner's row is simply
+        # read. READ COMMITTED (see db.py) is what makes this work: the statement takes a fresh
+        # snapshot, and a winner we collided with has committed -- had it rolled back, our INSERT
+        # would have proceeded rather than failed.
+        row = connection.execute(query).one_or_none()
+        if row is None:
             raise
-    else:
-        return resolved(inserted, created=True)
-
-    # The savepoint is gone and everything before it survives, so the winner's row is simply read.
-    # READ COMMITTED (see db.py) is what makes this work: the statement takes a fresh snapshot, and
-    # the transaction that beat us to the INSERT has necessarily committed by now -- had it rolled
-    # back instead, our INSERT would have proceeded rather than failed. `one` rather than
-    # `one_or_none`: nothing but a concurrent DELETE of the row we were told already exists can get
-    # here, which is a fault rather than something to paper over.
-    return resolved(connection.execute(query).one(), created=False)
+        return resolved(row, created=False)
+    return resolved(inserted, created=True)
 
 
 def resolve_names(connection: Connection, table: Table, names: Collection[str]) -> dict[str, int]:
