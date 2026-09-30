@@ -414,6 +414,7 @@ class TestCreate:
             ({"commissioned_at": "1776000000"}, "a timestamp as a string holding a number"),
             ({"commissioned_at": "3"}, "a timestamp as a string holding a small number"),
             ({"core_count": True}, "a boolean"),
+            ({"clock_ghz": True}, "a boolean where a real is declared"),
             ({"hardware": ["x86_64"]}, "a list"),
         ],
     )
