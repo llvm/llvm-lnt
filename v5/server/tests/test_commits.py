@@ -19,7 +19,7 @@ from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import Engine, insert, select, text
+from sqlalchemy import Engine, event, insert, select, text
 
 from conftest import code_of
 from introspection import row_count
@@ -998,15 +998,47 @@ class TestResolve:
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
 
+    def test_accepts_as_many_values_as_a_page_may_hold(
+        self, create: Callable[..., Any], resolve: Callable[..., Any]
+    ) -> None:
+        create("c0")
+
+        body = resolve([f"c{index}" for index in range(MAX_LIMIT)]).json()
+
+        assert list(body["results"]) == ["c0"]
+        assert len(body["not_found"]) == MAX_LIMIT - 1
+
     def test_refuses_more_values_than_a_page_may_hold(
         self, suite: SuiteTables, resolve: Callable[..., Any]
     ) -> None:
-        # Unbounded, one request would expand into a statement with more bind parameters than the
-        # protocol carries -- a 500 for something that should be a 400.
+        # R2's page ceiling, so that a response is never larger than a page of any other list.
         response = resolve([f"c{index}" for index in range(MAX_LIMIT + 1)])
 
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
+
+    def test_sends_one_statement_whatever_the_request_size(
+        self, api_client: TestClient, suite: SuiteTables, resolve: Callable[..., Any]
+    ) -> None:
+        # `IN` would bind one parameter per value, making the statement text differ for every
+        # request size -- and each distinct text a separate entry in the driver's prepared-statement
+        # cache. One array parameter keeps it a single statement.
+        engine: Engine = api_client.app.state.engine  # type: ignore[attr-defined]
+        seen: list[str] = []
+
+        def record(connection: object, cursor: object, statement: str, *rest: object) -> None:
+            if "nts.commit" in statement:
+                seen.append(statement)
+
+        event.listen(engine, "before_cursor_execute", record)
+        try:
+            resolve(["a"])
+            resolve(["a", "b", "c"])
+        finally:
+            event.remove(engine, "before_cursor_execute", record)
+
+        assert len(seen) == 2, seen
+        assert seen[0] == seen[1]
 
     def test_needs_at_least_one_commit(
         self, suite: SuiteTables, resolve: Callable[..., Any]

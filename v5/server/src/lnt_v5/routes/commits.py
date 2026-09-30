@@ -26,12 +26,16 @@ from sqlalchemy import (
     Row,
     Select,
     Table,
+    Text,
+    any_,
+    bindparam,
     delete,
     insert,
     select,
     union_all,
     update,
 )
+from sqlalchemy.dialects.postgresql import ARRAY
 
 from lnt_v5.auth import require_scope
 from lnt_v5.db import EngineDep, reporting_violation
@@ -187,8 +191,8 @@ class ResolveRequest(BaseModel):
     # shaped like nothing that could be one, is still a value this suite does not hold, and the
     # endpoint's contract is to report that under `not_found` rather than fail the whole lookup.
     # The exception is a NUL (D5), which cannot even be compared against a stored value and so is
-    # refused like one anywhere else. The count is capped at R2's page ceiling, so that one request
-    # cannot expand into a statement with more bind parameters than the protocol carries.
+    # refused like one anywhere else. The count is capped at R2's page ceiling, so that a response
+    # is never larger than a page of any other list.
     commits: list[Annotated[str, Storable]] = Field(
         min_length=1,
         max_length=MAX_LIMIT,
@@ -483,8 +487,14 @@ def resolve_commits(
         # back in the order it asked -- `dict` preserves insertion order, and JSON objects render
         # in it.
         requested = list(dict.fromkeys(body.commits))
+        # One array parameter rather than `IN`, which binds one parameter per value: the statement
+        # text is then the same whatever the request size, so the driver's prepared-statement
+        # cache holds one entry for this lookup rather than one per length. TEXT[] rather than the
+        # column's own VARCHAR(256)[], because casting to the latter would silently truncate a
+        # longer value and look up its prefix instead; the unique index still applies.
+        values = bindparam("values", requested, type_=ARRAY(Text))
         rows = connection.execute(
-            commits.select().where(commits.table.c.commit.in_(requested))
+            commits.select().where(commits.table.c.commit == any_(values))
         ).all()
         found = {commit.value: commit for commit in (commits.read(row) for row in rows)}
         return ResolvedCommits(
