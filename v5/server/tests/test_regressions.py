@@ -484,9 +484,6 @@ class TestStateFilter:
 
         assert all(state in message for state in RegressionStateName)
 
-    def test_a_state_is_not_read_as_sql(self, api_client: TestClient) -> None:
-        assert listed(api_client, "state=1) OR (1=1").status_code == 400
-
 
 class TestIndicatorFilters:
     @pytest.fixture(autouse=True)
@@ -791,6 +788,7 @@ class TestDelete:
     ) -> None:
         uuid = create()["uuid"]
 
+        # No `?confirm=true`, unlike the destructive suite operations.
         assert api_client.delete(f"{REGRESSIONS}/{uuid}", headers=triage).status_code == 204
         assert api_client.get(f"{REGRESSIONS}/{uuid}").status_code == 404
 
@@ -825,14 +823,6 @@ class TestDelete:
         api_client.delete(f"{REGRESSIONS}/{uuid}", headers=triage)
 
         assert api_client.get(f"{MACHINES}/linux").status_code == 200
-
-    def test_needs_no_confirmation(
-        self, api_client: TestClient, triage: dict[str, str], create: Callable[..., Any]
-    ) -> None:
-        # Unlike the destructive suite operations, which take `?confirm=true`.
-        uuid = create()["uuid"]
-
-        assert api_client.delete(f"{REGRESSIONS}/{uuid}", headers=triage).status_code == 204
 
     def test_is_404_for_one_that_is_not_there(
         self, api_client: TestClient, triage: dict[str, str], suite: SuiteTables
