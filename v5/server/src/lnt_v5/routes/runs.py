@@ -565,7 +565,7 @@ def submit_run(
         tests = resolve_names(connection, suite.tables.test, names)
         runs.add_samples(connection, run_id, validated.tests, tests)
         runs.add_profiles(connection, run_id, validated.tests, tests)
-        # Last, so the coverage rows -- which every submission for this machine contends on -- are
+        # Last, so the coverage rows -- which submissions for the same machine contend on -- are
         # held for as short a time as the transaction allows.
         coverage.add(connection, suite, machine_id, validated.tests, tests)
 
@@ -601,27 +601,12 @@ def get_run(
 def delete_run(testsuite: str, uuid: RunUuidPath, engine: EngineDep, registry: RegistryDep) -> None:
     """Delete a run, its samples and its profiles (D5).
 
-    D5 gives `{suite}.sample.run_id` and `{suite}.profile.run_id` an `ON DELETE CASCADE`, so the
-    delete itself is one statement. The tests the samples named are deliberately left behind --
-    nothing deletes a test (D5) -- but `{suite}.test_coverage` stops counting the samples.
-
-    The run is locked first, so that two requests deleting it do not both subtract its samples: the
-    second waits here and then finds nothing to delete. Its machine is held before that, which is
-    what `coverage.hold_machines` asks of a deletion.
+    One statement: D5 gives `{suite}.sample.run_id` and `{suite}.profile.run_id` an
+    `ON DELETE CASCADE`. The tests the samples named are deliberately left behind -- nothing deletes
+    a test (D5).
     """
     with engine.begin() as connection, suite_scope(registry, connection, testsuite) as suite:
         runs = Runs(suite)
-        machine = connection.execute(
-            select(runs.table.c.machine_id).where(runs.table.c.uuid == uuid)
-        ).scalar_one_or_none()
-        if machine is None:
+        removed = connection.execute(delete(runs.table).where(runs.table.c.uuid == uuid))
+        if removed.rowcount == 0:
             raise runs.missing(uuid)
-        coverage.hold_machines(connection, suite, suite.tables.machine.c.id == machine)
-        locked = connection.execute(
-            select(runs.table.c.id).where(runs.table.c.uuid == uuid).with_for_update()
-        ).scalar_one_or_none()
-        # Gone since the first read: another request deleted the run, or its machine.
-        if locked is None:
-            raise runs.missing(uuid)
-        coverage.subtract(connection, suite, runs.table.c.id == locked)
-        connection.execute(delete(runs.table).where(runs.table.c.id == locked))

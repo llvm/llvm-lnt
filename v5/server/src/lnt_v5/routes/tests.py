@@ -5,6 +5,8 @@ attention here is the two filters, both of which ask a question about samples ra
 tests -- "which tests have data on this machine", "which tests have a value for this metric". They
 are answered from `{suite}.test_coverage` rather than from `{suite}.sample`, which cannot answer the
 second cheaply: proving that a test has no value for a metric would cost a read of all its samples.
+That table only accumulates, so a test stays in both filters after the runs that put it there are
+deleted, until its machine is (D5).
 
 A test name is also the one natural key R1 keeps out of every path, so a request that names one
 carries it in a query parameter. `test_id` below is what resolves it, here rather than in
@@ -76,13 +78,13 @@ class Tests:
         `Commits.has_run` makes: `?machine=m&metric=execution_time` asks which tests have an
         `execution_time` value *on that machine*, which is what a caller combining them means. On
         `{suite}.test_coverage` that is one row, and its existence alone answers `machine=`, since a
-        row is there exactly when the machine has samples of the test (D5).
+        row is there exactly when the machine has had samples of the test (D5).
         """
         conditions: list[ColumnElement[bool]] = [self._coverage.c.test_id == self.table.c.id]
         if machine is not None:
             conditions.append(self._coverage.c.machine_id == machine)
         if metric is not None:
-            conditions.append(self._coverage.c[metric.name] > 0)
+            conditions.append(self._coverage.c[metric.name].is_(True))
         return select(1).select_from(self._coverage).where(*conditions).exists()
 
     def read(self, row: Row[Any]) -> Test:
@@ -126,7 +128,8 @@ def list_tests(
         str | None,
         Query(
             description=(
-                "Keep only tests with data on this machine. 404 if there is no such machine."
+                "Keep only tests this machine has had data for. Deleting runs does not remove a "
+                "test from this; deleting the machine does. 404 if there is no such machine."
             )
         ),
     ] = None,
@@ -134,8 +137,9 @@ def list_tests(
         str | None,
         Query(
             description=(
-                "Keep only tests with a value for this metric. Combined with `machine=`, only "
-                "values measured on that machine count. 400 if the suite declares no such metric."
+                "Keep only tests that have had a value for this metric. Combined with `machine=`, "
+                "only values measured on that machine count. Deleting runs does not remove a test "
+                "from this. 400 if the suite declares no such metric."
             )
         ),
     ] = None,

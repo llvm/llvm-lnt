@@ -120,7 +120,7 @@ class _List:
 
     Everything is read off the entry model: `LIST` names the field on both `SuiteSchema` and
     `SchemaPatch`, which carry the same three, and `RESERVED_COLUMNS` is keyed by the tables the
-    list extends -- two for metrics, which `{suite}.test_coverage` counts. So the correspondence
+    list extends -- two for metrics, which `{suite}.test_coverage` records. So the correspondence
     lives with the entries rather than being restated here.
     """
 

@@ -496,20 +496,20 @@ are given in that form.
 |--------|------|-------------|
 | machine_id | INTEGER FK -> Machine | PK |
 | test_id | INTEGER FK -> Test | PK |
-| sample_count | INTEGER | not null |
-| _(dynamic)_ | INTEGER, one per metric | not null, default `0` |
+| _(dynamic)_ | BOOLEAN, one per metric | not null, default `false` |
 
-- One row per machine and test that has samples, so that the `machine=` and
+- One row per machine and test that has had samples, so that the `machine=` and
   `metric=` filters of `GET /api/suites/{testsuite}/tests` are a lookup rather
-  than a scan of `{suite}.sample`. `sample_count` counts that machine's samples
-  of that test, and each metric's column counts those that have a value for the
-  metric. A row whose `sample_count` reaches zero is removed.
-- The counts are exact: every write that adds or removes samples updates them in
-  the same transaction (see D13). Run submission adds its samples, deleting a run
-  or a commit subtracts the samples it deletes, and deleting a machine cascades
-  to its rows.
-- Adding a metric adds its column at zero; removing one drops its column here as
-  well as from `{suite}.sample`.
+  than a scan of `{suite}.sample`. Each metric's column records whether any of
+  those samples had a value for the metric.
+- It only accumulates. Run submission adds rows and sets flags in the same
+  transaction as its samples (see D13); deleting a run or a commit leaves the
+  table unchanged, so those filters can still return a test whose samples on
+  that machine are gone. Deleting a machine cascades to its rows. Keeping the
+  table exact would make every deletion coordinate with concurrent submissions,
+  which stale entries in a test picker do not justify.
+- Adding a metric adds its column as `false`; removing one drops its column here
+  as well as from `{suite}.sample`.
 
 #### `{suite}.regression`
 

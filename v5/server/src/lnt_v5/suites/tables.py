@@ -35,6 +35,7 @@ from sqlalchemy import (
     Table,
     Text,
     UniqueConstraint,
+    false,
     func,
     text,
     true,
@@ -96,15 +97,14 @@ INT32_MIN = -(2**31)
 INT32_MAX = 2**31 - 1
 
 
-def _counts(metrics: Sequence[Entry]) -> list[Column[Any]]:
-    """One count per metric on `{suite}.test_coverage`, whatever the metric's own type (D5).
+def _flags(metrics: Sequence[Entry]) -> list[Column[Any]]:
+    """One flag per metric on `{suite}.test_coverage`, whatever the metric's own type (D5).
 
-    Not nullable, and zero by default, so that adding a metric gives every existing row a count
-    that is already right -- nothing has a value for a metric that did not exist -- and so that the
-    submission and deletion arithmetic never meets a null.
+    Not nullable, and false by default, so that adding a metric gives every existing row a flag
+    that is already right: nothing has a value for a metric that did not exist.
     """
     return [
-        Column(metric.name, Integer, nullable=False, server_default=text("0")) for metric in metrics
+        Column(metric.name, Boolean, nullable=False, server_default=false()) for metric in metrics
     ]
 
 
@@ -233,17 +233,16 @@ def build(schema: SuiteSchema) -> SuiteTables:
     Index(None, sample.c.run_id, sample.c.test_id)
     Index(None, sample.c.test_id, sample.c.run_id)
 
-    # D5: which tests have samples on which machine, and how many carry each metric, kept exact by
-    # every write that adds or removes samples. It exists so that `GET /tests?machine=&metric=` is a
-    # lookup here rather than a scan of `sample`, which no index can answer "has a value for this
-    # metric" for. The machine cascade is D5's; nothing deletes a test, as for `sample`.
+    # D5: which tests have had samples on which machine, and for which metrics, so that
+    # `GET /tests?machine=&metric=` is a lookup here rather than a scan of `sample`. Only submission
+    # writes it, and only ever adds (see `suites/coverage.py`). The machine cascade is D5's; nothing
+    # deletes a test, as for `sample`.
     test_coverage = Table(
         "test_coverage",
         metadata,
         Column("machine_id", ForeignKey("machine.id", ondelete="CASCADE"), primary_key=True),
         Column("test_id", ForeignKey("test.id"), primary_key=True),
-        Column("sample_count", Integer, nullable=False),
-        *_counts(schema.metrics),
+        *_flags(schema.metrics),
     )
 
     regression = Table(
@@ -364,7 +363,7 @@ def add_column(connection: Connection, column: Column[Any]) -> None:
 
     Takes a column already attached to a table from `build`, so that the type and the target are
     described in exactly one place. Existing rows get the column's default: no value for a
-    declared entry, and a count of zero on `{suite}.test_coverage`.
+    declared entry, and false for a flag on `{suite}.test_coverage`.
     """
     specification = CreateColumn(column).compile(dialect=connection.dialect).string
     connection.execute(

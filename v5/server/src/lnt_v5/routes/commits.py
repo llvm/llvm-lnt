@@ -56,7 +56,6 @@ from lnt_v5.routes.machines import NO_MACHINE_FILTERED, machine_id
 from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.scopes import Scope
 from lnt_v5.strings import Storable
-from lnt_v5.suites import coverage
 from lnt_v5.suites.entities import (
     CommitObject,
     Contradiction,
@@ -596,32 +595,18 @@ def update_commit(
 def delete_commit(testsuite: str, value: str, engine: EngineDep, registry: RegistryDep) -> None:
     """Delete a commit, its runs, and their samples and profiles (D1, D5).
 
-    D5 gives `{suite}.run.commit_id` an `ON DELETE CASCADE`, and the runs take their samples and
-    profiles with them in turn, so the delete itself is one statement.
-    `{suite}.regression.commit_id` deliberately has no cascade, so a commit a regression still names
-    refuses to go -- reported as R4's `in_use`, which tells the caller to detach the regression
-    rather than to retry. The whole transaction rolls back then, the coverage subtraction included.
-
-    The commit is locked before its samples are counted out (D13). A submission still in flight for
-    it holds a key-share lock on the row, so this waits for it to finish -- and then counts its
-    samples too, rather than letting the cascade delete a run it never counted. The machines its
-    runs were measured on are held next (`coverage.hold_machines`); a deletion of one of them does
-    not need the commit, so taking the two in this order cannot close a cycle.
+    One statement: D5 gives `{suite}.run.commit_id` an `ON DELETE CASCADE`, and the runs take their
+    samples and profiles with them in turn. `{suite}.regression.commit_id` deliberately has no
+    cascade, so a commit a regression still names refuses to go -- reported as R4's `in_use`, which
+    tells the caller to detach the regression rather than to retry.
     """
     with engine.begin() as connection, suite_scope(registry, connection, testsuite) as suite:
         commits = Commits(suite)
-        locked = connection.execute(
-            select(commits.table.c.id).where(commits.table.c.commit == value).with_for_update()
-        ).scalar_one_or_none()
-        if locked is None:
-            raise commits.missing(value)
-        run = suite.tables.run
-        on_its_machines = suite.tables.machine.c.id.in_(
-            select(run.c.machine_id).where(run.c.commit_id == locked)
-        )
-        coverage.hold_machines(connection, suite, on_its_machines)
-        coverage.subtract(connection, suite, run.c.commit_id == locked)
         with reporting_violation(
             REGRESSION_COMMIT_CONSTRAINT, ErrorCode.IN_USE, commits.in_use(value)
         ):
-            connection.execute(delete(commits.table).where(commits.table.c.id == locked))
+            removed = connection.execute(
+                delete(commits.table).where(commits.table.c.commit == value)
+            )
+        if removed.rowcount == 0:
+            raise commits.missing(value)

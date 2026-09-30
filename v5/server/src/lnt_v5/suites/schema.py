@@ -127,13 +127,13 @@ class _SearchableEntry(Entry):
 
 
 class Metric(Entry):
-    """A measured value, stored as a column on `{suite}.sample` and counted as one on
+    """A measured value, stored as a column on `{suite}.sample` and recorded as a flag on
     `{suite}.test_coverage` (D5)."""
 
     LIST: ClassVar[str] = "metrics"
     RESERVED_COLUMNS: ClassVar[Mapping[str, frozenset[str]]] = {
         "sample": frozenset({"id", "run_id", "test_id"}),
-        "test_coverage": frozenset({"machine_id", "test_id", "sample_count"}),
+        "test_coverage": frozenset({"machine_id", "test_id"}),
     }
 
     unit: str | None = None

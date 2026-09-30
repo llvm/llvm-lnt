@@ -17,6 +17,7 @@ from fastapi.testclient import TestClient
 
 from conftest import code_of, run_payload, walk_pages
 from lnt_v5.routes.commits import COMMITS_PATH
+from lnt_v5.routes.machines import MACHINES_PATH
 from lnt_v5.routes.runs import RUNS_PATH
 from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.routes.tests import TESTS_PATH
@@ -25,6 +26,7 @@ from lnt_v5.suites.tables import SuiteTables
 TESTS = TESTS_PATH.format(testsuite="nts")
 RUNS = RUNS_PATH.format(testsuite="nts")
 COMMITS = COMMITS_PATH.format(testsuite="nts")
+MACHINES = MACHINES_PATH.format(testsuite="nts")
 
 NTS: dict[str, Any] = {
     "name": "nts",
@@ -156,16 +158,24 @@ class TestMachineFilter:
 
         assert names_in(listed(api_client, "machine=linux")) == ["a"]
 
-    def test_forgets_a_test_once_the_machines_samples_of_it_are_deleted(
+    def test_keeps_a_test_once_the_machines_samples_of_it_are_deleted(
         self, api_client: TestClient, submit: Callable[..., str], manage: dict[str, str]
     ) -> None:
-        # The counts behind the filter are exact (D5), so a deletion shows here at once -- while the
-        # unfiltered list keeps the test, since nothing deletes one.
+        # D5: what the filter reads only accumulates, so deleting runs does not show here.
         uuid = submit({"name": "a"}, machine="linux")
 
         assert api_client.delete(f"{RUNS}/{uuid}", headers=manage).status_code == 204
-        assert names_in(listed(api_client, "machine=linux")) == []
-        assert names_in(listed(api_client)) == ["a"]
+        assert names_in(listed(api_client, "machine=linux")) == ["a"]
+
+    def test_forgets_a_machines_tests_once_the_machine_is_deleted(
+        self, api_client: TestClient, submit: Callable[..., str], manage: dict[str, str]
+    ) -> None:
+        submit({"name": "a"}, machine="linux")
+        submit({"name": "a"}, machine="darwin")
+
+        assert api_client.delete(f"{MACHINES}/darwin", headers=manage).status_code == 204
+        assert names_in(listed(api_client, "machine=linux")) == ["a"]
+        assert code_of(listed(api_client, "machine=darwin")) == "not_found"
 
     def test_is_404_for_a_machine_that_is_not_there(
         self, api_client: TestClient, suite: SuiteTables
@@ -200,15 +210,14 @@ class TestMetricFilter:
 
         assert sorted(names_in(listed(api_client, "metric=execution_time"))) == ["a", "b"]
 
-    def test_forgets_a_test_once_its_values_for_that_metric_are_deleted(
+    def test_keeps_a_test_once_its_values_for_that_metric_are_deleted(
         self, api_client: TestClient, submit: Callable[..., str], manage: dict[str, str]
     ) -> None:
-        submit({"name": "a", "compile_time": 1.0})
+        # D5: as for `machine=`, deleting runs does not take a test out of this filter.
         with_time = submit({"name": "a", "execution_time": 1.0})
 
         assert api_client.delete(f"{RUNS}/{with_time}", headers=manage).status_code == 204
-        assert names_in(listed(api_client, "metric=execution_time")) == []
-        assert names_in(listed(api_client, "metric=compile_time")) == ["a"]
+        assert names_in(listed(api_client, "metric=execution_time")) == ["a"]
 
     def test_is_400_for_a_metric_the_schema_does_not_declare(
         self, api_client: TestClient, suite: SuiteTables

@@ -346,10 +346,6 @@ With PostgreSQL, this is achieved as follows:
   while skipping conflicts, and re-read what was skipped. Names are inserted in
   ascending order, so that submissions with overlapping sets lock them in the
   same order.
-- `{suite}.test_coverage` is written last, in one statement, and every writer
-  updates its rows in `(machine_id, test_id)` order. A deletion locks the run or
-  commit it removes before counting the samples it subtracts, so a submission
-  still in flight for that commit is waited for and counted rather than
-  cascaded away uncounted. Before either, it takes a key-share lock on the
-  machines involved, so that deleting one of those machines -- which cascades to
-  both runs and coverage rows -- waits rather than deadlocking against it.
+- `{suite}.test_coverage` is written last, in one statement, with its rows in
+  `(machine_id, test_id)` order, so that submissions for the same machine lock
+  them in the same order.

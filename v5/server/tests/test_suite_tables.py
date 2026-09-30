@@ -117,9 +117,7 @@ def seed(connection: Connection, tables: SuiteTables) -> dict[str, int]:
     sample = connection.execute(
         insert(tables.sample).values(run_id=run, test_id=test).returning(tables.sample.c.id)
     ).scalar_one()
-    connection.execute(
-        insert(tables.test_coverage).values(machine_id=machine, test_id=test, sample_count=1)
-    )
+    connection.execute(insert(tables.test_coverage).values(machine_id=machine, test_id=test))
     regression = connection.execute(
         insert(tables.regression)
         .values(
@@ -244,7 +242,6 @@ class TestBuiltInColumns:
                 [
                     "machine_id",
                     "test_id",
-                    "sample_count",
                     "execution_time",
                     "compile_status",
                     "build_id",
@@ -286,9 +283,8 @@ class TestBuiltInColumns:
             ("regression", "commit_id", True),
             ("regression", "state", False),
             ("profile", "data", False),
-            # D5: a count is a number, never unknown, and a metric's count is one whatever the
-            # metric's own type -- FULL's `build_id` is text.
-            ("test_coverage", "sample_count", False),
+            # D5: a flag is never unknown, and a metric's flag is one whatever the metric's own
+            # type -- FULL's `build_id` is text.
             ("test_coverage", "build_id", False),
         ],
     )
@@ -843,11 +839,11 @@ class TestEvolution:
 
         assert set(added) <= set(columns_of(inspect(db_engine), "nts", "sample"))
 
-    def test_an_added_count_starts_at_zero_on_existing_rows(
+    def test_an_added_flag_starts_false_on_existing_rows(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
     ) -> None:
         # D5: nothing has a value for a metric that did not exist, so every existing coverage row
-        # already has the right count for it -- and the arithmetic never meets a null.
+        # already has the right flag for it.
         tables = make_suite("nts")
         grown = suite_tables.build(
             SuiteSchema.model_validate(
@@ -860,7 +856,7 @@ class TestEvolution:
             suite_tables.add_column(connection, grown.test_coverage.c.execution_time)
 
             added = select(grown.test_coverage.c.execution_time)
-            assert connection.execute(added).scalar_one() == 0
+            assert connection.execute(added).scalar_one() is False
 
     def test_a_column_can_be_removed(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]

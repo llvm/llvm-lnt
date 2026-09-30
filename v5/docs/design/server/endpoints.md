@@ -257,7 +257,9 @@ Auth scope: `read`.
 Filters: `search=` (case-insensitive substring match on test name; see D9), `machine=` (only tests with data
 for this machine), `metric=` (only tests with non-NULL values for this metric).
 Given together, `?machine=m&metric=execution_time` returns the tests that have
-an `execution_time` value *on that machine*.
+an `execution_time` value *on that machine*. Both filters consider every sample
+ever submitted: deleting runs or commits does not remove a test from them,
+while deleting a machine does (see `{suite}.test_coverage` in D5).
 
 Sort: none; results come back in an arbitrary but deterministic order suitable
 for pagination (R2, D10).
