@@ -105,7 +105,7 @@ _NO_INDICATOR_TARGET = f"{_NO_REGRESSION} Or a machine or test an indicator name
 
 Title = Annotated[
     str,
-    StringConstraints(max_length=NAME_LENGTH),
+    StringConstraints(min_length=1, max_length=NAME_LENGTH),
     Storable,
     Field(
         description=(
@@ -118,9 +118,13 @@ Title = Annotated[
 
 Bug = Annotated[
     str,
-    StringConstraints(max_length=NAME_LENGTH),
+    StringConstraints(min_length=1, max_length=NAME_LENGTH),
     Storable,
-    Field(description="A URL naming this regression in an external bug tracker."),
+    Field(
+        description=(
+            "A URL naming this regression in an external bug tracker. Null when it has none."
+        )
+    ),
 ]
 
 Notes = Annotated[

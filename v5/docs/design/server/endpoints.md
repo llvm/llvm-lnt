@@ -416,6 +416,10 @@ state via PATCH.
   within the list are stored once, and the list is bounded, both as on the add
   route below.
 
+A `title` or `bug`, here or on update, is a non-empty string of at most 256
+characters (see D5). An empty string is rejected with 400 rather than stored as
+a second spelling of "none", which is `null`.
+
 **Update request body** (`PATCH /api/suites/{testsuite}/regressions/{uuid}`):
 accepts `title`, `bug`, `notes`, `state`, and `commit`. Sending `title: null`,
 `bug: null`, `notes: null`, or `commit: null` explicitly clears a previously-set

@@ -262,6 +262,17 @@ class TestCreate:
 
         assert "execution_time" in message and "compile_time" in message
 
+    @pytest.mark.parametrize("key", ["title", "bug"])
+    def test_is_400_for_an_empty_string(
+        self, api_client: TestClient, triage: dict[str, str], suite: SuiteTables, key: str
+    ) -> None:
+        # `null` is how a regression has no title or bug; an empty string would be a second
+        # spelling of it, and one a client's placeholder would not recognize.
+        response = api_client.post(REGRESSIONS, json={key: ""}, headers=triage)
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
     def test_is_400_for_a_state_that_is_not_one_of_the_five(
         self, api_client: TestClient, triage: dict[str, str], suite: SuiteTables
     ) -> None:
@@ -709,6 +720,17 @@ class TestUpdate:
         )
 
         assert response.status_code == 400
+
+    @pytest.mark.parametrize("key", ["title", "bug"])
+    def test_an_empty_string_is_rejected(
+        self, api_client: TestClient, triage: dict[str, str], create: Callable[..., Any], key: str
+    ) -> None:
+        uuid = create(title="t", bug="b")["uuid"]
+
+        response = api_client.patch(f"{REGRESSIONS}/{uuid}", json={key: ""}, headers=triage)
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
 
     def test_leaves_the_indicators_alone(
         self, create: Callable[..., Any], patch: Callable[..., Any], data: None
