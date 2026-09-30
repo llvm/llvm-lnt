@@ -29,6 +29,7 @@ object identical to the one the entity's own creation endpoint accepts (see D7).
   "commit": {
     "value": "abc123def456",
     "ordinal": 593922,
+    "tag": "release-18.1",
     "fields": {
       "git_sha": "abc123def456789...",
       "author": "Jane Doe",
@@ -79,8 +80,12 @@ object identical to the one the entity's own creation endpoint accepts (see D7).
     `PATCH /api/suites/{testsuite}/commits/{value}` to change an ordinal once
     set. Ordinals are unique within a suite, so a value already held by a
     different commit is also rejected with 409 (see D11).
-  - A run submission never sets `tag`: it is an editorial label applied after
-    the fact, not something a submitter knows in advance (see D5).
+  - `tag`: Optional string, a built-in attribute rather than a `commit_field`.
+    A human-readable label such as a release name; several commits may share
+    one (see D5). It is set when the commit has no tag yet; when the commit
+    already has a different one, the submission is rejected with 409 (see
+    D7). Use `PATCH /api/suites/{testsuite}/commits/{value}` to change or
+    clear a tag once set.
 - `run_parameters`: Optional. Stored as JSONB on the Run. Run has no declared
   field list, so this is a free-form blob rather than a `fields` dict.
 - `tests`: Required. Each entry has `name` plus metric values. Metric values
@@ -134,19 +139,18 @@ Per-entity specifics:
 | Identity attribute | `name` | `value` |
 | Declared metadata | `fields`, per `machine_fields` | `fields`, per `commit_fields` |
 | Built-in mutable attributes | `tracked` | `ordinal`, `tag` |
-| Settable during run submission | `tracked` (first-write-wins) | `ordinal` (must match if already set) |
-| Settable at explicit creation | `tracked` | `ordinal` |
-| Settable only via PATCH | -- | `tag` |
+| Settable during run submission | `tracked` (first-write-wins) | `ordinal`, `tag` (must match if already set) |
+| Settable at explicit creation | `tracked` | `ordinal`, `tag` |
 | Renameable via PATCH | yes | no |
 
 Built-in mutable attributes sit beside the identity attribute rather than
 inside `fields`. `tracked` is excluded from the match above: it is a
 non-nullable policy flag that operators are expected to change, so
-re-submitting it for an existing machine is never a mismatch. `ordinal` is
-nullable and factual, so it matches like `fields` do -- set when unset,
-rejected when it contradicts. `tag` is an editorial label applied after the
-fact, which is why it is PATCH-only. See D5 for their columns and D11 for
-ordinal assignment.
+re-submitting it for an existing machine is never a mismatch. `ordinal` and
+`tag` are nullable and describe the commit, so they match like `fields` do --
+set when unset, rejected when they contradict. As with `fields`, changing one
+through PATCH means a submitter still sending the old value is rejected until it
+is updated. See D5 for their columns and D11 for ordinal assignment.
 
 Run metadata is deliberately not covered here: `run_parameters` is written once
 at submission and never updated, so there is no reconciliation to specify.
@@ -207,6 +211,23 @@ are treated as opaque tokens. When no sort parameter is provided, results are
 returned in an arbitrary but deterministic order suitable for pagination, and
 no data is excluded.
 
+A cursor names a *position* in that ordering -- the sort key values of the last
+row served -- rather than the row itself, so a resumption survives that row's
+deletion, which re-reading a stored row's sort values could not. Each page reads
+the database as of its own request, and pagination is forward-only (R2): a row
+that joins the list mid-traversal, by insertion or by newly matching its
+filters, is served only if it falls after the cursor. A row in the list
+throughout is served exactly once, unless its sort values change: reassigning an
+ordinal (D11) while a client pages by ordinal can move a commit from behind the
+cursor to ahead of it, and the client sees it twice. No cursor scheme prevents
+that.
+
+A sort key must be a value no matching row can be missing, either because it is
+never null or because the endpoint excludes the rows where it is -- as sorting
+by ordinal does. A null compares as unknown against a cursor's value, so a row
+carrying one would fall on neither side of the position and vanish from every
+page.
+
 
 ## D11: Ordinal Management
 
@@ -226,6 +247,9 @@ no data is excluded.
   409, including when it arrives inline with a run submission.
 - `previous` and `next` navigation on a commit is computed by querying for
   the nearest lower/higher ordinal (not a linked list).
+- An ordinal is typed as D3 types a declared `integer` -- `"5"` and `true` are
+  refused, `8.0` is read as 8 -- and one outside the range of its `INTEGER`
+  column (D5) is rejected with 400 rather than failing in the database.
 
 
 ## D12: Profile Submission and Storage

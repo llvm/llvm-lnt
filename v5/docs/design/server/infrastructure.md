@@ -59,7 +59,15 @@ function's `instructions` -- as does a body that is not a list at all, such as
 
 Cursor pagination is forward-only: `previous` is always `null` (reserved for
 future backward pagination) and clients must not rely on it. Cursors are opaque
-strings that clients must not parse.
+strings that clients must not parse. A client asks for the page after the one it
+holds by passing `cursor.next` back as a `cursor=` parameter, alongside the same
+filters and `sort` that produced it; a cursor that is malformed, or that was
+issued for a different list, different filters or a different ordering, is
+rejected with 400 rather than quietly answered with a page of the wrong rows.
+Only `limit` may change from one page to the next. Opacity is a contract on the
+client rather than a cryptographic guarantee: a cursor need not be unforgeable,
+because it can only name a position in a query its holder could have asked for
+anyway.
 
 Offset pagination takes `offset` (default `0`) alongside `limit`. `total` is the
 number of items matching the request's filters, ignoring `limit` and `offset`,
@@ -104,10 +112,14 @@ R2; every other endpoint returns the entity object itself, except where its own
 spec gives a different body. Status codes are drawn from 200, 201, 204, 400,
 401, 403, 404, 409, 500. The four routes exempt from the scope system (see R5)
 are not part of this surface and follow their own sections: they serve plain
-text or HTML as well as JSON. Two things are settled before a request reaches an
-endpoint at all, and are likewise outside this surface: an oversized request
-body, which is refused (see Errors, below), and a trailing slash, which is
-redirected (see R1).
+text or HTML as well as JSON. Three things are settled before a request reaches
+an endpoint at all, and are likewise outside this surface: an oversized request
+body, which is refused (see Errors, below); a trailing slash, which is
+redirected (see R1); and a URL carrying a NUL character, which is refused with
+400 `invalid_request` because no value the API can act on contains one (see D5).
+Being settled first, all three are answered whatever credential accompanied
+them; none of the three names a resource, so R5's reason for authorizing before
+resolving does not reach them.
 
 **Object conventions.** These hold for every response body, so each endpoint's
 spec need only name its keys.

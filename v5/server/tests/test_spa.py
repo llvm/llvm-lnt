@@ -228,6 +228,46 @@ class TestRedirectTrailingSlash:
         assert "<title>LNT</title>" in response.text
 
 
+class TestRejectNulInUrl:
+    """D5, at the edge: a URL carrying a NUL is refused before anything routes it.
+
+    A NUL reaches no column the API can compare it against -- PostgreSQL refuses it even as a
+    query parameter -- so a request carrying one in a path segment or a filter would otherwise be
+    an unattributable 500 for something the caller supplied. Refusing the URL whole is what keeps
+    that from having to be remembered for each path segment and each filter; the cases below are
+    one of each rather than an enumeration, since none of them reaches its endpoint.
+    """
+
+    @pytest.mark.parametrize(
+        ("path", "why"),
+        [
+            ("/api/suites/nosuch/commits/a%00b", "a path segment"),
+            ("/api/suites/nosuch/commits?search=a%00b", "a query filter"),
+            ("/api/suites/nosuch/machines/a%00b", "a path segment on a route already on main"),
+            ("/api/admin/api-keys/a%00b", "a path segment on an admin-scoped route"),
+            ("/healthz%00", "a route outside the REST API"),
+            ("/suites/a%00b", "a client route"),
+        ],
+    )
+    def test_refuses_a_url_carrying_one(self, client: TestClient, path: str, why: str) -> None:
+        response = client.get(path)
+
+        assert response.status_code == 400, why
+        assert response.json()["error"]["code"] == "invalid_request"
+
+    def test_refuses_it_before_authentication(self, client: TestClient) -> None:
+        # The one thing here that is not simply "a 400 instead of a 500": this sits with the
+        # oversized body and the trailing-slash redirect, ahead of R5's order of checks, so an
+        # admin-scoped route answers it without a credential. It names no resource, so the reason
+        # R5 puts authorization first does not apply.
+        response = client.delete("/api/admin/api-keys/a%00b")
+
+        assert response.status_code == 400
+
+    def test_leaves_an_ordinary_url_alone(self, client: TestClient) -> None:
+        assert client.get("/suites/nts?search=abc").status_code == 200
+
+
 class TestSpaWithoutABuiltClient:
     def test_404s_rather_than_trying_to_serve_a_missing_index_html(
         self, settings: Settings, tmp_path: Path

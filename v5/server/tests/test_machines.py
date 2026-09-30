@@ -17,7 +17,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine, insert, select, text
 
 from conftest import code_of
-from introspection import sql_type_of
+from introspection import row_count, sql_type_of
 from lnt_v5.routes.machines import _Machines
 from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.scopes import Scope
@@ -53,11 +53,9 @@ WRITES = [
 
 
 @pytest.fixture
-def suite(api_client: TestClient, manage: dict[str, str]) -> SuiteTables:
+def suite(make_api_suite: Callable[[dict[str, Any]], SuiteTables]) -> SuiteTables:
     """The `nts` suite, created through the API, with its tables for reading the database back."""
-    response = api_client.post(SUITES_PATH, json=NTS, headers=manage)
-    assert response.status_code == 201, response.text
-    return build(SuiteSchema.model_validate(response.json()))
+    return make_api_suite(NTS)
 
 
 @pytest.fixture
@@ -154,6 +152,17 @@ class TestList:
         assert api_client.get(MACHINES).json()["items"] == [
             api_client.get(f"{MACHINES}/linux").json()
         ]
+
+    def test_serves_a_stored_machine_no_request_could_have_written(
+        self, api_client: TestClient, db_engine: Engine, suite: SuiteTables
+    ) -> None:
+        # The request validators govern what the API writes, not what is already stored: a machine
+        # stored by an earlier build or by hand with a '/' in its name must not fail every page
+        # that holds it.
+        with db_engine.begin() as connection:
+            connection.execute(insert(suite.machine).values(name="a/b"))
+
+        assert names_in(api_client.get(MACHINES)) == ["a/b"]
 
     def test_is_404_for_a_suite_that_is_not_there(self, api_client: TestClient) -> None:
         response = api_client.get(f"{SUITES_PATH}/nope/machines")
@@ -406,6 +415,7 @@ class TestCreate:
             ({"commissioned_at": "1776000000"}, "a timestamp as a string holding a number"),
             ({"commissioned_at": "3"}, "a timestamp as a string holding a small number"),
             ({"core_count": True}, "a boolean"),
+            ({"clock_ghz": True}, "a boolean where a real is declared"),
             ({"hardware": ["x86_64"]}, "a list"),
         ],
     )
@@ -763,11 +773,6 @@ class TestDelete:
             )
         return suite
 
-    @staticmethod
-    def count(engine: Engine, statement: Any) -> int:
-        with engine.connect() as connection:
-            return len(connection.execute(statement).all())
-
     def test_removes_the_machine(
         self, api_client: TestClient, manage: dict[str, str], populated: SuiteTables
     ) -> None:
@@ -793,10 +798,10 @@ class TestDelete:
     ) -> None:
         api_client.delete(f"{MACHINES}/doomed", headers=manage)
 
-        assert self.count(db_engine, select(populated.sample.c.id)) == 0
-        assert self.count(db_engine, select(populated.profile.c.id)) == 0
+        assert row_count(db_engine, select(populated.sample.c.id)) == 0
+        assert row_count(db_engine, select(populated.profile.c.id)) == 0
         # The bystander's run is untouched, so this is a cascade rather than a table-wide delete.
-        assert self.count(db_engine, select(populated.run.c.id)) == 1
+        assert row_count(db_engine, select(populated.run.c.id)) == 1
 
     def test_cascades_to_every_regression_indicator_naming_it(
         self,
@@ -807,7 +812,7 @@ class TestDelete:
     ) -> None:
         api_client.delete(f"{MACHINES}/doomed", headers=manage)
 
-        assert self.count(db_engine, select(populated.regression_indicator.c.id)) == 0
+        assert row_count(db_engine, select(populated.regression_indicator.c.id)) == 0
 
     def test_keeps_a_regression_left_with_no_indicators(
         self,
@@ -836,7 +841,7 @@ class TestDelete:
         # D5: nothing deletes a test, so the cascade must stop at the sample.
         api_client.delete(f"{MACHINES}/doomed", headers=manage)
 
-        assert self.count(db_engine, select(populated.test.c.id)) == 1
+        assert row_count(db_engine, select(populated.test.c.id)) == 1
 
     def test_is_404_for_a_machine_that_is_not_there(
         self, api_client: TestClient, manage: dict[str, str], suite: SuiteTables

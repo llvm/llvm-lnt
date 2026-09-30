@@ -279,7 +279,10 @@ serialize timestamps as ISO 8601 with `Z` suffix (e.g., `"2026-04-15T14:30:00Z"`
 **String convention**: PostgreSQL cannot store the NUL character (U+0000) in a
 string column, although JSON can carry one. A submitted string containing it -- a
 declared `text` value or a built-in such as a machine name -- is rejected with 400
-rather than accepted and then failing to store.
+rather than accepted and then failing to store, and so is one a body only looks
+something up by. A URL carrying one -- in a path segment or a filter such as
+`search=` -- is refused whole with 400 before routing (see R4), which covers
+every segment and every filter, including ones added later.
 
 **Index convention**: A `unique` constraint or primary key implies an index, and
 compound indexes are listed in each table's notes. `indexed` therefore marks
@@ -383,9 +386,8 @@ that form.
   as the default display value in the UI unless a `commit_field` with
   `display: true` is defined and populated.
 - `ordinal` has a regular unique constraint.
-- `tag` is an optional human-readable label (e.g., `release-18.1`). Set
-  exclusively via `PATCH /api/suites/{testsuite}/commits/{value}` (never during submission).
-  Multiple commits may share the same tag. The tag is always included in
+- `tag` is an optional human-readable label (e.g., `release-18.1`), settable
+  on every commit write path (see D7). Multiple commits may share the same tag. The tag is always included in
   `?search=` substring matching (see D9). When set, the UI appends it to the
   display value as `<display_value> (tag)`.
 - Dynamic columns are created from `commit_fields` in the schema (see D3 for

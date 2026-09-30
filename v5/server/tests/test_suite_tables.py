@@ -25,7 +25,13 @@ from introspection import (
 from lnt_v5.suites import tables as suite_tables
 from lnt_v5.suites.schema import CommitField, Entry, MachineField, Metric, SuiteSchema
 from lnt_v5.suites.states import RegressionState
-from lnt_v5.suites.tables import MACHINE_NAME_CONSTRAINT, SuiteTables
+from lnt_v5.suites.tables import (
+    COMMIT_ORDINAL_CONSTRAINT,
+    COMMIT_VALUE_CONSTRAINT,
+    MACHINE_NAME_CONSTRAINT,
+    REGRESSION_COMMIT_CONSTRAINT,
+    SuiteTables,
+)
 from lnt_v5.tables import IDENTIFIER_MAX_LENGTH
 from lnt_v5.tables import metadata as global_metadata
 
@@ -429,6 +435,27 @@ class TestNamingConvention:
 
         assert MACHINE_NAME_CONSTRAINT in stored_names(inspect(db_engine), schema="nts")["machine"]
 
+    @pytest.mark.parametrize(
+        ("table", "constraint"),
+        [
+            # Each of these is written out so that an endpoint can attribute a violation to it and
+            # answer the specific 409 R4 gives it: `duplicate`, `ordinal_conflict`, `in_use`.
+            ("commit", COMMIT_VALUE_CONSTRAINT),
+            ("commit", COMMIT_ORDINAL_CONSTRAINT),
+            ("regression", REGRESSION_COMMIT_CONSTRAINT),
+        ],
+    )
+    def test_the_written_out_commit_constraints_are_the_ones_postgres_holds(
+        self,
+        db_engine: Engine,
+        make_suite: Callable[..., SuiteTables],
+        table: str,
+        constraint: str,
+    ) -> None:
+        make_suite("nts")
+
+        assert constraint in stored_names(inspect(db_engine), schema="nts")[table]
+
 
 class TestReservedColumns:
     @pytest.mark.parametrize("entry", [Metric, CommitField, MachineField])
@@ -456,8 +483,8 @@ class TestIndexes:
     def test_tag_is_indexed_only_where_it_is_set(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
     ) -> None:
-        # D5 makes this index partial: a tag is applied by hand to a handful of commits, so an
-        # index over the nulls would be most of the table for no lookups.
+        # D5 makes this index partial: only a handful of commits carry a tag, so an index over the
+        # nulls would be most of the table for no lookups.
         make_suite("nts")
 
         tag = indexes_of(inspect(db_engine), "nts", "commit")["ix_commit_tag"]
