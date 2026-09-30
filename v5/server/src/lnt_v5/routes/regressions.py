@@ -760,8 +760,10 @@ def create_regression(
     """
     with engine.begin() as connection, suite_scope(registry, connection, testsuite) as suite:
         regressions = Regressions(suite)
-        commit = None if body.commit is None else commit_id(connection, suite, body.commit)
+        # The indicators before the commit, so that an undeclared metric is the 400 even when the
+        # commit is also unknown -- the precedence endpoints.md gives the list's filters.
         resolved = regressions.resolved_indicators(connection, body.indicators)
+        commit = None if body.commit is None else commit_id(connection, suite, body.commit)
 
         uuid = str(uuid4())
         created = int(

@@ -390,7 +390,7 @@ naming `execution_time` on that machine -- the same reading
 both an unknown `metric=` and an unknown `machine=`/`test=`, the 400 wins: a
 metric the schema does not declare is a request that could never be answered,
 whereas an absent machine is a fact about the suite. The same precedence applies
-to a request body naming both. This list takes no `sort` and returns results in
+to a request body, where an undeclared metric also wins over an unknown commit. This list takes no `sort` and returns results in
 an arbitrary but deterministic order suitable for pagination (R2, D10).
 
 **Regression states** (string enum):
