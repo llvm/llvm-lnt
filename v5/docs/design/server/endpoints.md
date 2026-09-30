@@ -79,9 +79,9 @@ otherwise returned by every endpoint like any other machine.
 `GET /api/suites/{testsuite}/machines/{machine_name}/runs` returns run objects
 (see Runs). Filters: `after=`/`before=`
 (submitted_at; exclusive), same convention as `GET /api/suites/{testsuite}/runs`.
-Sort: `sort=-submitted_at` returns newest-first; omitting `sort` returns
-results in an arbitrary but deterministic order suitable for pagination (see
-R2).
+Sort: `sort=submitted_at` returns oldest-first and `sort=-submitted_at`
+newest-first; omitting `sort` returns results in an arbitrary but deterministic
+order suitable for pagination (see R2).
 
 
 ## Commits
@@ -234,8 +234,9 @@ profile attached; `false` returns only runs without profiles.
 or any searchable machine_field; see D9) -- the same predicate as
 `GET /api/suites/{testsuite}/machines?search=`, applied through the run's machine.
 
-`sort=-submitted_at` returns newest-first; omitting `sort` returns results in
-an arbitrary but deterministic order suitable for pagination (see R2).
+`sort=submitted_at` returns oldest-first and `sort=-submitted_at` newest-first;
+omitting `sort` returns results in an arbitrary but deterministic order suitable
+for pagination (see R2).
 
 Auth scopes: `read` for GET, `submit` for POST, `manage` for DELETE.
 
@@ -255,6 +256,13 @@ Auth scope: `read`.
 
 Filters: `search=` (case-insensitive substring match on test name; see D9), `machine=` (only tests with data
 for this machine), `metric=` (only tests with non-NULL values for this metric).
+Given together, `?machine=m&metric=execution_time` returns the tests that have
+an `execution_time` value *on that machine*. Both filters consider every sample
+ever submitted: deleting runs or commits does not remove a test from them,
+while deleting a machine does (see `{suite}.test_coverage` in D5).
+
+Sort: none; results come back in an arbitrary but deterministic order suitable
+for pagination (R2, D10).
 
 
 ## Samples
@@ -263,8 +271,7 @@ Samples are always accessed through their parent run -- they have no external
 identifier of their own.
 
 ```
-GET    /api/suites/{testsuite}/runs/{uuid}/samples                        -- All samples for a run (cursor-paginated)
-GET    /api/suites/{testsuite}/runs/{uuid}/tests/{test_name}/samples      -- Samples for a specific test in a run (unpaginated)
+GET    /api/suites/{testsuite}/runs/{uuid}/samples   -- Samples for a run (cursor-paginated, filterable by test=)
 ```
 
 Read-only. Samples are created as part of run submission.
@@ -277,8 +284,13 @@ to value holding only the metrics that have a value, typed per D3 (see R4):
 ```
 
 A test measured repeatedly within one run yields one object per repetition (see
-D6), and those repetitions are indistinguishable by design. The per-test
-endpoint returns 404 if the run has no such test.
+D6), and those repetitions are indistinguishable by design.
+
+Filters: `test=` (only the samples for this test). A test that exists but that
+this run did not measure is an empty page rather than an error.
+
+Sort: none; results come back in an arbitrary but deterministic order suitable
+for pagination (R2, D10).
 
 Auth scope: `read`.
 

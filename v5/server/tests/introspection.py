@@ -45,7 +45,7 @@ def stored_names(inspector: Inspector, schema: str | None = None) -> dict[str, s
 
     The `get_multi_*` reflection calls rather than their singular forms: each is one query covering
     the whole namespace, where the singular ones are one query per table per kind. Checking the
-    eight per-suite tables costs five queries this way rather than forty.
+    nine per-suite tables costs five queries this way rather than forty-five.
     """
     names: dict[str, set[str]] = {}
 

@@ -259,14 +259,14 @@ class TestDetail:
 
         assert "<title>LNT</title>" not in api_client.get(f"{SUITES}/nts").text
 
-    def test_an_unimplemented_suite_scoped_path_is_a_json_404(
+    def test_an_unknown_suite_scoped_path_is_a_json_404(
         self, api_client: TestClient, create: Callable[..., Any]
     ) -> None:
-        # Not yet a route, and it must not fall through to index.html: an unmatched `/api/...` is a
+        # Not a route, and it must not fall through to index.html: an unmatched `/api/...` is a
         # genuine 404 carrying the error envelope (client/architecture.md).
         create()
 
-        response = api_client.get(f"{SUITES}/nts/runs")
+        response = api_client.get(f"{SUITES}/nts/no-such-resource")
 
         assert response.status_code == 404
         assert code_of(response) == "not_found"

@@ -346,3 +346,6 @@ With PostgreSQL, this is achieved as follows:
   while skipping conflicts, and re-read what was skipped. Names are inserted in
   ascending order, so that submissions with overlapping sets lock them in the
   same order.
+- `{suite}.test_coverage` is written last, in one statement, with its rows in
+  `(machine_id, test_id)` order, so that submissions for the same machine lock
+  them in the same order.

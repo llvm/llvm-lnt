@@ -35,6 +35,7 @@ from sqlalchemy import (
     Table,
     Text,
     UniqueConstraint,
+    false,
     func,
     text,
     true,
@@ -96,6 +97,17 @@ INT32_MIN = -(2**31)
 INT32_MAX = 2**31 - 1
 
 
+def _flags(metrics: Sequence[Entry]) -> list[Column[Any]]:
+    """One flag per metric on `{suite}.test_coverage`, whatever the metric's own type (D5).
+
+    Not nullable, and false by default, so that adding a metric gives every existing row a flag
+    that is already right: nothing has a value for a metric that did not exist.
+    """
+    return [
+        Column(metric.name, Boolean, nullable=False, server_default=false()) for metric in metrics
+    ]
+
+
 def _dynamic(entries: Sequence[Entry]) -> list[Column[Any]]:
     """The columns a schema's `metrics`, `commit_fields` or `machine_fields` become.
 
@@ -107,7 +119,7 @@ def _dynamic(entries: Sequence[Entry]) -> list[Column[Any]]:
 
 @dataclass(frozen=True)
 class SuiteTables:
-    """One suite's eight tables, and the metadata describing them together.
+    """One suite's nine tables, and the metadata describing them together.
 
     Held as named attributes rather than looked up by string so that the query code reads as
     `tables.sample.c.run_id`, and so that a typo is a type error.
@@ -119,6 +131,7 @@ class SuiteTables:
     run: Table
     test: Table
     sample: Table
+    test_coverage: Table
     regression: Table
     regression_indicator: Table
     profile: Table
@@ -189,6 +202,13 @@ def build(schema: SuiteSchema) -> SuiteTables:
     # `?sort=-submitted_at` and the derived `last_run_at` to a bounded index scan rather than a
     # scan of this table.
     Index(None, run.c.machine_id, run.c.submitted_at)
+    # D5: the same ordering with no machine to narrow it -- the suite-wide run list's
+    # `?sort=-submitted_at`, which the one above cannot serve because its leading column is absent
+    # from that query. `id` joins it because the keyset's tiebreaker is `(submitted_at, id)`, and
+    # only an index over both turns the cursor's row comparison into an index condition rather than
+    # a filter applied after the scan -- which is the difference between resuming at the cursor and
+    # re-reading every page already served.
+    Index(None, run.c.submitted_at, run.c.id)
 
     test = Table(
         "test",
@@ -212,6 +232,18 @@ def build(schema: SuiteSchema) -> SuiteTables:
     # (test_id, run_id) covers the time-series query, which scans one test across many runs.
     Index(None, sample.c.run_id, sample.c.test_id)
     Index(None, sample.c.test_id, sample.c.run_id)
+
+    # D5: which tests have had samples on which machine, and for which metrics, so that
+    # `GET /tests?machine=&metric=` is a lookup here rather than a scan of `sample`. Only submission
+    # writes it, and only ever adds (see `suites/coverage.py`). The machine cascade is D5's; nothing
+    # deletes a test, as for `sample`.
+    test_coverage = Table(
+        "test_coverage",
+        metadata,
+        Column("machine_id", ForeignKey("machine.id", ondelete="CASCADE"), primary_key=True),
+        Column("test_id", ForeignKey("test.id"), primary_key=True),
+        *_flags(schema.metrics),
+    )
 
     regression = Table(
         "regression",
@@ -279,6 +311,7 @@ def build(schema: SuiteSchema) -> SuiteTables:
         run=run,
         test=test,
         sample=sample,
+        test_coverage=test_coverage,
         regression=regression,
         regression_indicator=regression_indicator,
         profile=profile,
@@ -311,8 +344,8 @@ def create(connection: Connection, tables: SuiteTables) -> None:
     """
     connection.execute(text(f"CREATE SCHEMA {_quote(connection, tables.name)}"))
     # `checkfirst=False` because the CREATE SCHEMA above has just established that nothing in this
-    # namespace exists. The default would reflect each of the eight tables first, to skip the ones
-    # already there -- eight round trips that can only ever answer "no".
+    # namespace exists. The default would reflect each of the nine tables first, to skip the ones
+    # already there -- nine round trips that can only ever answer "no".
     tables.metadata.create_all(connection, checkfirst=False)
 
 
@@ -329,8 +362,8 @@ def add_column(connection: Connection, column: Column[Any]) -> None:
     """Add one dynamic column to an existing suite table (D2).
 
     Takes a column already attached to a table from `build`, so that the type and the target are
-    described in exactly one place. Existing rows are left with no value for it, which is why
-    every dynamic column is nullable.
+    described in exactly one place. Existing rows get the column's default: no value for a
+    declared entry, and false for a flag on `{suite}.test_coverage`.
     """
     specification = CreateColumn(column).compile(dialect=connection.dialect).string
     connection.execute(

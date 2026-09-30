@@ -6,8 +6,8 @@ endpoint that carries it should be four lines.
 
 The three lists are described once, in `LISTS`, and everything else reads that: which entry model
 validates an addition, which update model validates a change, and -- through the entry model's own
-`TABLE` -- which of the suite's tables gains or loses a column. Spelling that correspondence out per
-operation is how a fourth list would end up half-supported.
+`RESERVED_COLUMNS` -- which of the suite's tables gain or lose a column. Spelling that
+correspondence out per operation is how a fourth list would end up half-supported.
 """
 
 from __future__ import annotations
@@ -119,8 +119,9 @@ class _List:
     """One of a schema's three lists, and what the rest of this module needs to know about it.
 
     Everything is read off the entry model: `LIST` names the field on both `SuiteSchema` and
-    `SchemaPatch`, which carry the same three, and `TABLE` names the table the list extends. So the
-    correspondence lives with the entries rather than being restated here.
+    `SchemaPatch`, which carry the same three, and `RESERVED_COLUMNS` is keyed by the tables the
+    list extends -- two for metrics, which `{suite}.test_coverage` records. So the correspondence
+    lives with the entries rather than being restated here.
     """
 
     entry: type[Entry]
@@ -130,8 +131,8 @@ class _List:
         return self.entry.LIST
 
     @property
-    def table(self) -> str:
-        return self.entry.TABLE
+    def tables(self) -> tuple[str, ...]:
+        return tuple(self.entry.RESERVED_COLUMNS)
 
 
 LISTS = (_List(Metric), _List(CommitField), _List(MachineField))
@@ -253,12 +254,13 @@ def apply(connection: Connection, name: str, current: SuiteSchema, resulting: Su
     after = suite_tables.build(resulting) if any(added for _, added, _ in changes) else None
 
     for of, added, removed in changes:
-        for column in added:
-            assert after is not None
-            suite_tables.add_column(connection, getattr(after, of.table).c[column])
-        for column in removed:
-            assert before is not None
-            suite_tables.drop_column(connection, getattr(before, of.table), column)
+        for table in of.tables:
+            for column in added:
+                assert after is not None
+                suite_tables.add_column(connection, getattr(after, table).c[column])
+            for column in removed:
+                assert before is not None
+                suite_tables.drop_column(connection, getattr(before, table), column)
 
     connection.execute(
         update(schema_table)

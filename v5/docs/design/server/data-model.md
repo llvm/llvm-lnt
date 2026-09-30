@@ -265,7 +265,7 @@ valid names for a metric.
 
 A name must be unique within its list, but the three lists are independent: a
 metric and a machine field may share a name, because they are columns on
-different tables. A name that collides with a built-in column on the table the
+different tables. A name that collides with a built-in column on a table the
 entry extends is rejected (see D5 for each table's built-ins).
 
 
@@ -369,9 +369,9 @@ of its own named after its suite (see below).
 
 Each suite's tables live in a namespace of their own, named after the suite: a
 PostgreSQL schema called `{suite}`, holding `commit`, `machine`, `run`, `test`,
-`sample`, `regression`, `regression_indicator` and `profile`. A table is
-therefore addressed as `{suite}.commit`, and the entity names below are given in
-that form.
+`sample`, `test_coverage`, `regression`, `regression_indicator` and `profile`.
+A table is therefore addressed as `{suite}.commit`, and the entity names below
+are given in that form.
 
 #### `{suite}.commit`
 
@@ -457,6 +457,9 @@ that form.
   `GET /api/suites/{testsuite}/machines/{name}/runs?sort=-submitted_at` and the
   `last_run_at` aggregate described under `{suite}.machine` to a bounded index
   scan rather than a scan of this table.
+- Compound index on `(submitted_at, id)`: serves
+  `GET /api/suites/{testsuite}/runs?sort=-submitted_at` with no `machine=`,
+  which the index above cannot. `id` is the cursor's tiebreaker (D10).
 - Cascade: deleting a run cascades to its samples and profiles.
 
 #### `{suite}.test`
@@ -468,8 +471,8 @@ that form.
 
 - Nothing deletes a test: the Tests endpoint is read-only and tests are created
   implicitly by run submission. The references to this table from `sample`,
-  `profile`, and `regression_indicator` therefore cascade nowhere, and a
-  deletion attempted anyway is refused.
+  `test_coverage`, `profile`, and `regression_indicator` therefore cascade
+  nowhere, and a deletion attempted anyway is refused.
 
 #### `{suite}.sample`
 
@@ -484,8 +487,29 @@ that form.
 - Compound index on `(test_id, run_id)` -- covers time-series queries.
 - Dynamic columns from schema metrics (see D3 for the type-to-column mapping).
 - Metric names must not collide with built-in column names (`id`, `run_id`,
-  `test_id`), nor with the keys the submission format reserves inside a test
-  entry (see D6).
+  `test_id`) or with those of `{suite}.test_coverage`, nor with the keys the
+  submission format reserves inside a test entry (see D6).
+
+#### `{suite}.test_coverage`
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| machine_id | INTEGER FK -> Machine | PK |
+| test_id | INTEGER FK -> Test | PK |
+| _(dynamic)_ | BOOLEAN, one per metric | not null, default `false` |
+
+- One row per machine and test that has had samples, so that the `machine=` and
+  `metric=` filters of `GET /api/suites/{testsuite}/tests` are a lookup rather
+  than a scan of `{suite}.sample`. Each metric's column records whether any of
+  those samples had a value for the metric.
+- It only accumulates. Run submission adds rows and sets flags in the same
+  transaction as its samples (see D13); deleting a run or a commit leaves the
+  table unchanged, so those filters can still return a test whose samples on
+  that machine are gone. Deleting a machine cascades to its rows. Keeping the
+  table exact would make every deletion coordinate with concurrent submissions,
+  which stale entries in a test picker do not justify.
+- Adding a metric adds its column as `false`; removing one drops its column here
+  as well as from `{suite}.sample`.
 
 #### `{suite}.regression`
 
@@ -571,6 +595,11 @@ exist and which columns they carry, so no description written in advance could
 cover them. They are created by `POST /api/suites`, altered by
 `PATCH /api/suites/{name}/schema`, and dropped by `DELETE /api/suites/{name}`
 (see D2). This is ordinary request handling, not initialization.
+
+Only the dynamic columns are defined by data, though. The built-in columns,
+indexes and constraints D5 specifies are fixed by the server build and created
+with the suite, and nothing brings an existing suite forward when a later build
+changes them: such a change reaches only suites created after it.
 
 **Global tables are defined by code.** `schema`, `schema_version`, and
 `api_key` are fixed by the server build rather than by anything a user submits.

@@ -5,7 +5,7 @@ and sorts on is its own -- and is declared there, so that R8's document enumerat
 unknown value is a 400 before the endpoint runs.
 
 Cursor pagination (R2, D10) lives here too, as `Keyset` and `cursor_page`. It is deliberately not
-private to any endpoint family: `GET /commits`, `GET /runs`, `GET /tests`, `POST /query` and
+private to any endpoint family: the commit, run, test and sample lists, `POST /query` and
 `GET /machines/{name}/runs` all page this way, and a second implementation of a keyset predicate
 would be a second chance to get the boundary conditions wrong.
 """
@@ -36,6 +36,7 @@ from sqlalchemy import (
 )
 
 from lnt_v5.errors import ApiError, ErrorCode
+from lnt_v5.responses import CursorPage
 from lnt_v5.strings import storable
 from lnt_v5.suites.schema import CommitField, MachineField
 from lnt_v5.suites.tables import INT32_MAX, INT32_MIN
@@ -250,14 +251,20 @@ class Keyset:
             ) from error
 
 
-def cursor_page(
+def cursor_page[T](
     connection: Connection,
     statement: Select[Any],
     keyset: Keyset,
     limit: int,
     cursor: RequestCursor,
-) -> tuple[Sequence[Row[Any]], str | None]:
-    """One page of `statement` in `keyset`'s order, and the cursor for the page after it.
+    read: Callable[[Row[Any]], T],
+) -> CursorPage[T]:
+    """One page of `statement` in `keyset`'s order, in R2's envelope.
+
+    The envelope rather than the rows and a cursor, because the two are never useful apart: every
+    caller pairs this with `CursorPage.of`, and a caller that forgot to would be returning a page
+    with no way to ask for the next one. `read` turns a row into whatever the endpoint renders,
+    which is the only part that differs between them.
 
     One row beyond the page is fetched and discarded, so that `next` is null exactly when the
     caller has reached the end -- rather than handing back a cursor that leads to an empty page and
@@ -267,10 +274,11 @@ def cursor_page(
     if cursor.token is not None:
         statement = statement.where(keyset.after(cursor.token, cursor.scope))
     rows = connection.execute(statement.order_by(*keyset.order()).limit(limit + 1)).all()
-    if len(rows) <= limit:
-        return rows, None
     page = rows[:limit]
-    return page, keyset.cursor(page[-1], cursor.scope)
+    return CursorPage.of(
+        [read(row) for row in page],
+        keyset.cursor(page[-1], cursor.scope) if len(rows) > limit else None,
+    )
 
 
 def _ordering(keys: Sequence[SortKey]) -> str:

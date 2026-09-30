@@ -36,7 +36,7 @@ from lnt_v5.suites.tables import (
 from lnt_v5.tables import IDENTIFIER_MAX_LENGTH
 from lnt_v5.tables import metadata as global_metadata
 
-# The eight tables D5 gives every suite.
+# The nine tables D5 gives every suite.
 SUITE_TABLES = frozenset(
     {
         "commit",
@@ -44,6 +44,7 @@ SUITE_TABLES = frozenset(
         "run",
         "test",
         "sample",
+        "test_coverage",
         "regression",
         "regression_indicator",
         "profile",
@@ -116,6 +117,7 @@ def seed(connection: Connection, tables: SuiteTables) -> dict[str, int]:
     sample = connection.execute(
         insert(tables.sample).values(run_id=run, test_id=test).returning(tables.sample.c.id)
     ).scalar_one()
+    connection.execute(insert(tables.test_coverage).values(machine_id=machine, test_id=test))
     regression = connection.execute(
         insert(tables.regression)
         .values(
@@ -216,7 +218,7 @@ class TestBuiltInColumns:
     @pytest.mark.parametrize(
         ("table", "expected"),
         [
-            # D5's column list for each of the eight tables, in order, with FULL's dynamic columns
+            # D5's column list for each of the nine tables, in order, with FULL's dynamic columns
             # appended where the table takes them -- so this also pins that a schema's entries come
             # after the built-ins rather than interleaved with them.
             ("commit", ["id", "commit", "ordinal", "tag", "git_sha", "commit_timestamp"]),
@@ -228,6 +230,17 @@ class TestBuiltInColumns:
                 [
                     "id",
                     "run_id",
+                    "test_id",
+                    "execution_time",
+                    "compile_status",
+                    "build_id",
+                    "measured_at",
+                ],
+            ),
+            (
+                "test_coverage",
+                [
+                    "machine_id",
                     "test_id",
                     "execution_time",
                     "compile_status",
@@ -270,6 +283,9 @@ class TestBuiltInColumns:
             ("regression", "commit_id", True),
             ("regression", "state", False),
             ("profile", "data", False),
+            # D5: a flag is never unknown, and a metric's flag is one whatever the metric's own
+            # type -- FULL's `build_id` is text.
+            ("test_coverage", "build_id", False),
         ],
     )
     def test_each_built_in_column_is_nullable_where_d5_says(
@@ -476,9 +492,8 @@ class TestReservedColumns:
         """
         bare = suite_tables.build(SuiteSchema.model_validate({"name": "nts"}))
 
-        table = getattr(bare, entry.TABLE)
-
-        assert set(table.c.keys()) == entry.RESERVED_COLUMNS
+        for table, reserved in entry.RESERVED_COLUMNS.items():
+            assert set(getattr(bare, table).c.keys()) == reserved, table
 
 
 class TestIndexes:
@@ -519,6 +534,17 @@ class TestIndexes:
             "machine_id",
             "submitted_at",
         ]
+
+    def test_run_is_indexed_by_submission_time_alone_as_well(
+        self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
+    ) -> None:
+        # D5: the suite-wide `GET /runs?sort=-submitted_at` names no machine, so the index above
+        # cannot serve it. `id` is in this one because the cursor orders by `(submitted_at, id)`.
+        make_suite("nts")
+
+        indexes = indexes_of(inspect(db_engine), "nts", "run")
+
+        assert indexes["ix_run_submitted_at_id"]["column_names"] == ["submitted_at", "id"]
 
 
 class TestUniqueness:
@@ -717,6 +743,7 @@ class TestCascades:
             assert count(connection, tables.sample) == 0
             assert count(connection, tables.profile) == 0
             assert count(connection, tables.regression_indicator) == 0
+            assert count(connection, tables.test_coverage) == 0
 
     def test_deleting_a_machine_leaves_the_regression_itself(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
@@ -811,6 +838,25 @@ class TestEvolution:
                 suite_tables.add_column(connection, grown.sample.c[name])
 
         assert set(added) <= set(columns_of(inspect(db_engine), "nts", "sample"))
+
+    def test_an_added_flag_starts_false_on_existing_rows(
+        self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
+    ) -> None:
+        # D5: nothing has a value for a metric that did not exist, so every existing coverage row
+        # already has the right flag for it.
+        tables = make_suite("nts")
+        grown = suite_tables.build(
+            SuiteSchema.model_validate(
+                {"name": "nts", "metrics": [{"name": "execution_time", "type": "real"}]}
+            )
+        )
+
+        with db_engine.begin() as connection:
+            seed(connection, tables)
+            suite_tables.add_column(connection, grown.test_coverage.c.execution_time)
+
+            added = select(grown.test_coverage.c.execution_time)
+            assert connection.execute(added).scalar_one() is False
 
     def test_a_column_can_be_removed(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
