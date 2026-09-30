@@ -615,6 +615,73 @@ def suite_tables_for(engine: Engine) -> Any:
     return build(SuiteSchema.model_validate(stored_schema(engine, "nts")))
 
 
+def metric_rows(engine: Engine, name: str = "nts") -> list[str]:
+    """The names `{suite}.metric` holds, sorted."""
+    with engine.connect() as connection:
+        rows = connection.execute(text(f'SELECT name FROM "{name}".metric ORDER BY name'))
+        return list(rows.scalars())
+
+
+class TestMetricRows:
+    """`{suite}.metric` holds one row per metric the schema declares, whatever changes it (D5)."""
+
+    def test_creating_a_suite_adds_a_row_per_metric(
+        self, db_engine: Engine, create: Callable[..., Any]
+    ) -> None:
+        create()
+
+        assert metric_rows(db_engine) == ["compile_time", "execution_time"]
+
+    def test_adding_a_metric_adds_its_row(
+        self,
+        api_client: TestClient,
+        db_engine: Engine,
+        create: Callable[..., Any],
+        manage: dict[str, str],
+    ) -> None:
+        create()
+
+        patch_request(
+            api_client, manage, {"metrics": {"add": [{"name": "code_size", "type": "integer"}]}}
+        )
+
+        assert metric_rows(db_engine) == ["code_size", "compile_time", "execution_time"]
+
+    def test_removing_a_metric_removes_its_row(
+        self,
+        api_client: TestClient,
+        db_engine: Engine,
+        create: Callable[..., Any],
+        manage: dict[str, str],
+    ) -> None:
+        create()
+
+        patch_request(api_client, manage, {"metrics": {"remove": ["compile_time"]}}, confirm=True)
+
+        assert metric_rows(db_engine) == ["execution_time"]
+
+    def test_changing_anything_else_leaves_the_rows_alone(
+        self,
+        api_client: TestClient,
+        db_engine: Engine,
+        create: Callable[..., Any],
+        manage: dict[str, str],
+    ) -> None:
+        create()
+
+        patch_request(
+            api_client,
+            manage,
+            {
+                "metrics": {"update": [{"name": "compile_time", "display_name": "Compile"}]},
+                "machine_fields": {"add": [{"name": "os", "type": "text"}], "remove": ["hardware"]},
+            },
+            confirm=True,
+        )
+
+        assert metric_rows(db_engine) == ["compile_time", "execution_time"]
+
+
 class TestEvolveAgainstStoredData:
     @pytest.fixture
     def populated(self, db_engine: Engine, create: Callable[..., Any]) -> Any:

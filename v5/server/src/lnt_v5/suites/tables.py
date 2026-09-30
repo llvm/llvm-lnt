@@ -35,8 +35,10 @@ from sqlalchemy import (
     Table,
     Text,
     UniqueConstraint,
+    delete,
     false,
     func,
+    insert,
     text,
     true,
 )
@@ -46,7 +48,7 @@ from sqlalchemy.types import TypeEngine
 
 from lnt_v5.suites.schema import AttributeType, Entry, SuiteSchema
 from lnt_v5.suites.states import RegressionState
-from lnt_v5.tables import NAMING_CONVENTION
+from lnt_v5.tables import IDENTIFIER_MAX_LENGTH, NAMING_CONVENTION
 
 # D5's widths for the built-in string columns. A UUID is the 36-character hyphenated form (R1).
 # Deliberately not shared with `api_key.name`'s identical width in tables.py: D5 states these per
@@ -68,8 +70,12 @@ RUN_UUID_CONSTRAINT = "uq_run_uuid"
 # and this is the constraint whose violation says so (R4's `in_use`).
 REGRESSION_COMMIT_CONSTRAINT = "fk_regression_commit_id_commit"
 # The one named as an `ON CONFLICT` target rather than attributed after the fact: adding an
-# indicator a regression already has is the silent no-op endpoints.md asks for.
-REGRESSION_INDICATOR_CONSTRAINT = "uq_regression_indicator_regression_id_machine_id_test_id_metric"
+# indicator a regression already has is the silent no-op endpoints.md asks for. Named explicitly
+# because the convention would compose it from all four columns, past PostgreSQL's 63-byte limit.
+REGRESSION_INDICATOR_CONSTRAINT = "uq_regression_indicator_combination"
+# An indicator's reference to its metric. A violation means the metric was removed while the request
+# was running, which D2 answers with a retryable conflict.
+REGRESSION_INDICATOR_METRIC_CONSTRAINT = "fk_regression_indicator_metric_id_metric"
 
 
 # D3's mapping from a declared type to the column that stores it. `Double` rather than `Float`
@@ -122,7 +128,7 @@ def _dynamic(entries: Sequence[Entry]) -> list[Column[Any]]:
 
 @dataclass(frozen=True)
 class SuiteTables:
-    """One suite's nine tables, and the metadata describing them together.
+    """One suite's ten tables, and the metadata describing them together.
 
     Held as named attributes rather than looked up by string so that the query code reads as
     `tables.sample.c.run_id`, and so that a typo is a type error.
@@ -131,6 +137,7 @@ class SuiteTables:
     metadata: MetaData
     commit: Table
     machine: Table
+    metric: Table
     run: Table
     test: Table
     sample: Table
@@ -182,6 +189,15 @@ def build(schema: SuiteSchema) -> SuiteTables:
         # and are never cleaned up -- this is not a lifetime policy.
         Column("tracked", Boolean, nullable=False, server_default=true()),
         *_dynamic(schema.machine_fields),
+    )
+
+    # D5: the metrics the schema declares, as rows, so that what refers to a metric can do so by
+    # foreign key. Identity only: everything else about a metric stays in the stored schema.
+    metric = Table(
+        "metric",
+        metadata,
+        Column("id", Integer, Identity(), primary_key=True),
+        Column("name", String(IDENTIFIER_MAX_LENGTH), nullable=False, unique=True),
     )
 
     run = Table(
@@ -285,11 +301,16 @@ def build(schema: SuiteSchema) -> SuiteTables:
         # is not itself deleted -- an empty indicator set is a legal state.
         Column("machine_id", ForeignKey("machine.id", ondelete="CASCADE"), nullable=False),
         Column("test_id", ForeignKey("test.id"), nullable=False),
-        Column("metric", String(NAME_LENGTH), nullable=False),
-        # Composes to exactly 63 bytes, PostgreSQL's identifier limit, so this constraint cannot
-        # absorb another column or a longer table name without being silently truncated. See
-        # NAMING_CONVENTION in tables.py, and the test that checks every name against the database.
-        UniqueConstraint("regression_id", "machine_id", "test_id", "metric"),
+        # D5: removing a metric from the schema removes the indicators naming it, like deleting a
+        # machine does.
+        Column("metric_id", ForeignKey("metric.id", ondelete="CASCADE"), nullable=False),
+        UniqueConstraint(
+            "regression_id",
+            "machine_id",
+            "test_id",
+            "metric_id",
+            name=REGRESSION_INDICATOR_CONSTRAINT,
+        ),
     )
 
     profile = Table(
@@ -311,6 +332,7 @@ def build(schema: SuiteSchema) -> SuiteTables:
         metadata=metadata,
         commit=commit,
         machine=machine,
+        metric=metric,
         run=run,
         test=test,
         sample=sample,
@@ -338,18 +360,36 @@ def _qualified(connection: Connection, table: Table) -> str:
     return str(connection.dialect.identifier_preparer.format_table(table))
 
 
-def create(connection: Connection, tables: SuiteTables) -> None:
-    """Create the suite's namespace and every table in it.
+def create(connection: Connection, schema: SuiteSchema) -> SuiteTables:
+    """Create the suite's namespace and every table in it, and return the tables.
+
+    Takes the schema rather than tables already built from it because `{suite}.metric` starts out
+    holding a row per declared metric, which the tables alone do not describe.
 
     The caller owns the transaction. PostgreSQL has transactional DDL, so a failure partway leaves
     nothing behind, and the `schema` row and `schema_version` bump the caller writes alongside this
     commit or roll back with it (D2).
     """
+    tables = build(schema)
     connection.execute(text(f"CREATE SCHEMA {_quote(connection, tables.name)}"))
     # `checkfirst=False` because the CREATE SCHEMA above has just established that nothing in this
-    # namespace exists. The default would reflect each of the nine tables first, to skip the ones
-    # already there -- nine round trips that can only ever answer "no".
+    # namespace exists. The default would reflect each of the ten tables first, to skip the ones
+    # already there -- ten round trips that can only ever answer "no".
     tables.metadata.create_all(connection, checkfirst=False)
+    add_metrics(connection, tables.metric, [metric.name for metric in schema.metrics])
+    return tables
+
+
+def add_metrics(connection: Connection, table: Table, names: Sequence[str]) -> None:
+    """Give each newly declared metric its row in `{suite}.metric` (D5)."""
+    if names:
+        connection.execute(insert(table), [{"name": name} for name in names])
+
+
+def remove_metrics(connection: Connection, table: Table, names: Sequence[str]) -> None:
+    """Remove removed metrics' rows, and with them every regression indicator naming one (D5)."""
+    if names:
+        connection.execute(delete(table).where(table.c.name.in_(names)))
 
 
 def drop(connection: Connection, name: str) -> None:

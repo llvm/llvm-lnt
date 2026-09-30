@@ -28,13 +28,14 @@ from introspection import counted, counting_statements
 from lnt_v5.errors import ApiError, ErrorCode
 from lnt_v5.routes.commits import Commits
 from lnt_v5.routes.machines import Machines
+from lnt_v5.routes.regressions import IndicatorObject, Regressions
 from lnt_v5.routes.runs import Runs
 from lnt_v5.suites import tables as suite_tables
 from lnt_v5.suites.concurrency import resolve_names
 from lnt_v5.suites.registry import Suite
 from lnt_v5.suites.schema import SuiteSchema
+from lnt_v5.suites.states import RegressionState
 from lnt_v5.suites.submission import SubmittedCommit, SubmittedMachine
-from lnt_v5.suites.tables import build
 
 # A suite with a field of two different types on each entity, so that reconciliation is exercised
 # against something other than text, and one metric because D5 gives every suite a sample table.
@@ -65,9 +66,8 @@ def suite(db_engine: Engine) -> Suite:
     built in the test rather than posted. `db_engine` drops the namespace afterwards.
     """
     schema = SuiteSchema.model_validate(NTS)
-    tables = build(schema)
     with db_engine.begin() as connection:
-        suite_tables.create(connection, tables)
+        tables = suite_tables.create(connection, schema)
     return Suite(schema=schema, tables=tables, schema_json=schema.model_dump_json())
 
 
@@ -766,3 +766,70 @@ def test_a_failed_get_or_create_leaves_the_connection_usable(
             assert machines.get_or_create(connection, submitted_machine()) > 0
 
     assert counted(db_engine, suite.tables, "commit") == 0
+
+
+class TestIndicatorMetricRemoval:
+    """An indicator write racing the removal of the metric it names (D2, D5).
+
+    Removing a metric removes the indicators naming it, which only holds if an indicator written
+    concurrently cannot slip in behind the removal. Both orders are covered: the metric already gone
+    when the write looks it up, and the metric going while the write is in flight.
+    """
+
+    INDICATOR = IndicatorObject(machine="linux", test="suite/one", metric="execution_time")
+
+    @pytest.fixture
+    def regression(self, db_engine: Engine, suite: Suite, machines: Machines) -> int:
+        """A regression, and the machine and test an indicator on it can name."""
+        with db_engine.begin() as connection:
+            machines.get_or_create(connection, submitted_machine())
+            resolve_names(connection, suite.tables.test, ["suite/one"])
+            regression: int = connection.execute(
+                insert(suite.tables.regression)
+                .values(uuid=str(uuid4()), state=RegressionState.DETECTED)
+                .returning(suite.tables.regression.c.id)
+            ).scalar_one()
+        return regression
+
+    def test_a_metric_already_removed_is_a_conflict(
+        self, db_engine: Engine, suite: Suite, regression: int
+    ) -> None:
+        # `suite` is this worker's copy, which still declares the metric: the write passes the
+        # schema check and must then notice that the metric is gone.
+        with db_engine.begin() as connection:
+            suite_tables.remove_metrics(connection, suite.tables.metric, ["execution_time"])
+
+        with db_engine.begin() as connection, pytest.raises(ApiError) as failure:
+            Regressions(suite).resolved_indicators(connection, [self.INDICATOR])
+
+        assert failure.value.code is ErrorCode.CONFLICT
+
+    def test_a_metric_removed_while_the_write_is_in_flight_is_a_conflict(
+        self,
+        db_engine: Engine,
+        suite: Suite,
+        regression: int,
+        background: Callable[..., Future[Any]],
+    ) -> None:
+        # The removal holds its delete open, so the write resolves the metric from the row it can
+        # still see and then blocks on it when its insert checks the foreign key.
+        regressions = Regressions(suite)
+
+        def add(connection: Connection) -> int:
+            resolved = regressions.resolved_indicators(connection, [self.INDICATOR])
+            return regressions.add_indicators(connection, regression, resolved)
+
+        running = raced(
+            db_engine,
+            background,
+            lambda connection: suite_tables.remove_metrics(
+                connection, suite.tables.metric, ["execution_time"]
+            ),
+            add,
+        )
+
+        with pytest.raises(ApiError) as failure:
+            running.result(timeout=BLOCK_TIMEOUT)
+
+        assert failure.value.code is ErrorCode.CONFLICT
+        assert counted(db_engine, suite.tables, "regression_indicator") == 0

@@ -108,6 +108,14 @@ def listed(api_client: TestClient, query: str = "") -> Any:
     return api_client.get(f"{REGRESSIONS}?{query}")
 
 
+def remove_metric(api_client: TestClient, manage: dict[str, str], metric: str) -> Any:
+    return api_client.patch(
+        f"{SUITES_PATH}/nts/schema?confirm=true",
+        json={"metrics": {"remove": [metric]}},
+        headers=manage,
+    )
+
+
 class TestStates:
     def test_the_two_spellings_name_the_same_five_states(self) -> None:
         """D5 stores an integer and the API speaks a string, paired by the member's name.
@@ -1128,6 +1136,75 @@ class TestCascades:
 
         item = listed(api_client).json()["items"][0]
         assert (item["machine_count"], item["test_count"]) == (1, 1)
+
+    def test_removing_a_metric_removes_the_indicators_naming_it(
+        self,
+        api_client: TestClient,
+        manage: dict[str, str],
+        create: Callable[..., Any],
+        data: None,
+    ) -> None:
+        uuid = create(indicators=[LINUX_ONE, {**LINUX_ONE, "metric": "compile_time"}])["uuid"]
+
+        assert remove_metric(api_client, manage, "compile_time").status_code == 200
+
+        indicators = api_client.get(f"{REGRESSIONS}/{uuid}").json()["indicators"]
+        assert [one["metric"] for one in indicators] == ["execution_time"]
+
+    def test_removing_a_metric_keeps_a_regression_left_with_nothing(
+        self,
+        api_client: TestClient,
+        manage: dict[str, str],
+        create: Callable[..., Any],
+        data: None,
+    ) -> None:
+        uuid = create(title="kept", indicators=[{**LINUX_ONE, "metric": "compile_time"}])["uuid"]
+
+        remove_metric(api_client, manage, "compile_time")
+
+        detail = api_client.get(f"{REGRESSIONS}/{uuid}").json()
+        assert detail["title"] == "kept"
+        assert detail["indicators"] == []
+
+    def test_re_adding_a_removed_metric_brings_none_of_its_indicators_back(
+        self,
+        api_client: TestClient,
+        manage: dict[str, str],
+        create: Callable[..., Any],
+        data: None,
+    ) -> None:
+        # D2: the metric added back is a new one that happens to share a name, possibly with a
+        # different type or meaning, so it inherits nothing from the one that was removed.
+        uuid = create(indicators=[{**LINUX_ONE, "metric": "compile_time"}])["uuid"]
+        remove_metric(api_client, manage, "compile_time")
+
+        response = api_client.patch(
+            f"{SUITES_PATH}/nts/schema",
+            json={"metrics": {"add": [{"name": "compile_time", "type": "real"}]}},
+            headers=manage,
+        )
+
+        assert response.status_code == 200
+        assert api_client.get(f"{REGRESSIONS}/{uuid}").json()["indicators"] == []
+
+    def test_removing_a_field_leaves_every_indicator_alone(
+        self,
+        api_client: TestClient,
+        manage: dict[str, str],
+        create: Callable[..., Any],
+        data: None,
+    ) -> None:
+        uuid = create(indicators=[LINUX_ONE])["uuid"]
+        schema = f"{SUITES_PATH}/nts/schema"
+        field = {"name": "os", "type": "text"}
+        api_client.patch(schema, json={"machine_fields": {"add": [field]}}, headers=manage)
+
+        response = api_client.patch(
+            f"{schema}?confirm=true", json={"machine_fields": {"remove": ["os"]}}, headers=manage
+        )
+
+        assert response.status_code == 200
+        assert len(api_client.get(f"{REGRESSIONS}/{uuid}").json()["indicators"]) == 1
 
     def test_a_commit_a_regression_references_cannot_be_deleted(
         self,

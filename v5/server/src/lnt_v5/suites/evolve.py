@@ -261,6 +261,15 @@ def apply(connection: Connection, name: str, current: SuiteSchema, resulting: Su
             for column in removed:
                 assert before is not None
                 suite_tables.drop_column(connection, getattr(before, table), column)
+        # A metric is a row as well as columns (D5). Removing its row takes every regression
+        # indicator naming it along, by cascade.
+        if of.entry is Metric:
+            if added:
+                assert after is not None
+                suite_tables.add_metrics(connection, after.metric, added)
+            if removed:
+                assert before is not None
+                suite_tables.remove_metrics(connection, before.metric, removed)
 
     connection.execute(
         update(schema_table)

@@ -768,7 +768,9 @@ class TestDelete:
                     regression_id=regression,
                     machine_id=machine_id,
                     test_id=test_id,
-                    metric="execution_time",
+                    metric_id=select(suite.metric.c.id)
+                    .where(suite.metric.c.name == "execution_time")
+                    .scalar_subquery(),
                 )
             )
         return suite

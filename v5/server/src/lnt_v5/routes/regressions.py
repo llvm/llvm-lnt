@@ -49,7 +49,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import insert as upsert
 
 from lnt_v5.auth import require_scope
-from lnt_v5.db import EngineDep
+from lnt_v5.db import EngineDep, reporting_violation
 from lnt_v5.errors import ApiError, ErrorCode
 from lnt_v5.querying import (
     DEFAULT_LIMIT,
@@ -72,14 +72,19 @@ from lnt_v5.suites.entities import (
     declared_by_name,
     declared_entry,
     identifier,
+    identifiers,
     location_of,
     undeclared,
 )
 from lnt_v5.suites.registry import RegistryDep, Suite
 from lnt_v5.suites.schema import Metric
-from lnt_v5.suites.scope import SUITE_NOT_FOUND, suite_responses, suite_scope
+from lnt_v5.suites.scope import SUITE_NOT_FOUND, schema_changed, suite_responses, suite_scope
 from lnt_v5.suites.states import RegressionStateName
-from lnt_v5.suites.tables import NAME_LENGTH, REGRESSION_INDICATOR_CONSTRAINT
+from lnt_v5.suites.tables import (
+    NAME_LENGTH,
+    REGRESSION_INDICATOR_CONSTRAINT,
+    REGRESSION_INDICATOR_METRIC_CONSTRAINT,
+)
 
 REGRESSIONS_PATH = f"{SUITES_PATH}/{{testsuite}}/regressions"
 INDICATORS_PATH = f"{REGRESSIONS_PATH}/{{uuid}}/indicators"
@@ -140,8 +145,8 @@ class Indicator(BaseModel):
     """One (machine, test, metric) combination a regression affects (D5).
 
     R4's reference rule throughout: each part is the other entity's identifier under a key named
-    after it, rather than a nested object. `metric` is a name the suite's schema declares rather
-    than an entity of its own, and is stored as the name.
+    after it, rather than a nested object. A metric is declared by the suite's schema rather than
+    created like a machine or a test, but is referenced the same way underneath (D5).
     """
 
     uuid: str = Field(description="Identifies the indicator. Always server-generated.")
@@ -339,6 +344,7 @@ class Regressions:
         self._indicator: Table = suite.tables.regression_indicator
         self._commit: Table = suite.tables.commit
         self._machine: Table = suite.tables.machine
+        self._metric: Table = suite.tables.metric
         self._test: Table = suite.tables.test
         # Both counts from one pass over a regression's indicators, carried by the list query
         # itself. An aggregate with no GROUP BY always yields exactly one row, so a regression with
@@ -412,7 +418,10 @@ class Regressions:
         if test is not None:
             conditions.append(self._indicator.c.test_id == test)
         if metric is not None:
-            conditions.append(self._indicator.c.metric == metric)
+            conditions.append(
+                self._indicator.c.metric_id
+                == select(self._metric.c.id).where(self._metric.c.name == metric).scalar_subquery()
+            )
         return select(1).select_from(self._indicator).where(*conditions).exists()
 
     def _common(self, row: Row[Any]) -> dict[str, Any]:
@@ -460,24 +469,26 @@ class Regressions:
                 self._indicator.c.uuid,
                 self._machine.c.name,
                 self._test.c.name,
-                self._indicator.c.metric,
+                self._metric.c.name,
             )
             .select_from(
                 self._indicator.join(
                     self._machine, self._machine.c.id == self._indicator.c.machine_id
-                ).join(self._test, self._test.c.id == self._indicator.c.test_id)
+                )
+                .join(self._test, self._test.c.id == self._indicator.c.test_id)
+                .join(self._metric, self._metric.c.id == self._indicator.c.metric_id)
             )
             .where(self._indicator.c.regression_id == regression)
             .order_by(self._indicator.c.id)
         ).all()
-        # By column object rather than by name: the row spans three tables and two of them have a
+        # By column object rather than by name: the row spans four tables and three of them have a
         # `name`.
         return [
             Indicator(
                 uuid=row._mapping[self._indicator.c.uuid],
                 machine=row._mapping[self._machine.c.name],
                 test=row._mapping[self._test.c.name],
-                metric=row._mapping[self._indicator.c.metric],
+                metric=row._mapping[self._metric.c.name],
             )
             for row in rows
         ]
@@ -506,8 +517,10 @@ class Regressions:
         run, and that ordering is also what makes the 400 beat the 404 when a batch gets both
         wrong -- the same precedence the list's filters take.
 
-        Every machine and every test is then resolved in one statement each rather than one per
-        indicator, which is what keeps a batch of a thousand from costing two thousand round trips.
+        Every machine, test and metric is then resolved in one statement each rather than one per
+        indicator, which is what keeps a batch of a thousand from costing three thousand round
+        trips. A metric the schema declares but `{suite}.metric` does not hold was removed by
+        another worker since this one last loaded the schema, which is D2's retryable conflict.
 
         Duplicates within the batch are collapsed here, before the insert: D5's unique constraint
         would ignore them anyway, but only after they had been counted as added.
@@ -521,11 +534,17 @@ class Regressions:
 
         machines = machine_ids(connection, self.suite, [one.machine for one in submitted])
         tests = test_ids(connection, self.suite, [one.test for one in submitted])
+        metrics = identifiers(
+            connection,
+            self._metric.c.name,
+            [one.metric for one in submitted],
+            lambda _: schema_changed(self.schema.name),
+        )
         rows = dict.fromkeys(
-            (machines[one.machine], tests[one.test], one.metric) for one in submitted
+            (machines[one.machine], tests[one.test], metrics[one.metric]) for one in submitted
         )
         return [
-            {"machine_id": machine, "test_id": test, "metric": metric}
+            {"machine_id": machine, "test_id": test, "metric_id": metric}
             for machine, test, metric in rows
         ]
 
@@ -538,6 +557,9 @@ class Regressions:
         endpoints.md asks for a duplicate to be silently ignored, and the constraint is what makes
         that true under two triagers adding the same indicator at once.
 
+        A metric removed after `resolved_indicators` found it fails the foreign key rather than
+        leaving an indicator naming a metric that is gone (D5), and is D2's retryable conflict.
+
         `added` is the number of rows `RETURNING` hands back, which under `DO NOTHING` is exactly
         the rows that were inserted. Deliberately not `rowcount`: SQLAlchemy memoizes that for an
         UPDATE or a DELETE but not for an INSERT, so by the time it is read the driver has reset it
@@ -549,13 +571,18 @@ class Regressions:
         statement = upsert(self._indicator).values(
             [{"uuid": str(uuid4()), "regression_id": regression, **row} for row in resolved]
         )
-        return len(
-            connection.execute(
-                statement.on_conflict_do_nothing(
-                    constraint=REGRESSION_INDICATOR_CONSTRAINT
-                ).returning(self._indicator.c.id)
-            ).all()
-        )
+        with reporting_violation(
+            REGRESSION_INDICATOR_METRIC_CONSTRAINT,
+            ErrorCode.CONFLICT,
+            schema_changed(self.schema.name).message,
+        ):
+            return len(
+                connection.execute(
+                    statement.on_conflict_do_nothing(
+                        constraint=REGRESSION_INDICATOR_CONSTRAINT
+                    ).returning(self._indicator.c.id)
+                ).all()
+            )
 
     def remove_indicators(
         self, connection: Connection, regression: int, uuids: Sequence[str]
