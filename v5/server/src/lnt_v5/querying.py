@@ -159,8 +159,9 @@ class Keyset:
     not the row itself. That is what keeps a resumption correct when the page's last row is deleted
     before the next request arrives: an implementation that stored the row's id and re-read its
     sort values would have nothing left to read. Rows inserted before that position are missed and
-    rows inserted after it are served, which is what forward-only pagination means; no row that
-    existed throughout is ever skipped or repeated.
+    rows inserted after it are served, which is what forward-only pagination means. A row in the
+    list throughout is served exactly once unless its sort values change mid-traversal, which can
+    move it back ahead of the cursor (D10).
 
     The cursor is opaque by contract (R2): base64 over a compact JSON payload, carrying a
     fingerprint of the ordering and the request scope it was issued for (`RequestCursor`). The

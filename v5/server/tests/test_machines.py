@@ -157,7 +157,8 @@ class TestList:
         self, api_client: TestClient, db_engine: Engine, suite: SuiteTables
     ) -> None:
         # The request validators govern what the API writes, not what is already stored: a machine
-        # imported from v4 with a '/' in its name must not fail every page that holds it.
+        # stored by an earlier build or by hand with a '/' in its name must not fail every page
+        # that holds it.
         with db_engine.begin() as connection:
             connection.execute(insert(suite.machine).values(name="a/b"))
 

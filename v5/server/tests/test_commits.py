@@ -225,8 +225,8 @@ class TestList:
         create: Callable[..., Any],
     ) -> None:
         # The request validators govern what the API writes, not what is already stored: a commit
-        # imported from v4 with a '/' in its value, or an empty tag, must not fail every page and
-        # every neighbour lookup that reaches it.
+        # stored by an earlier build or by hand with a '/' in its value, or an empty tag, must not
+        # fail every page and every neighbour lookup that reaches it.
         with db_engine.begin() as connection:
             connection.execute(insert(suite.commit).values(commit="a/b", ordinal=1, tag=""))
         create("abc", ordinal=2)

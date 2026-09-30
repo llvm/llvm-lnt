@@ -13,9 +13,6 @@ from contextlib import contextmanager
 from typing import Annotated, Any
 
 from fastapi import Depends, Request
-
-# `IntegrityError` is aliased because SQLAlchemy wraps psycopg's in an exception of the same name,
-# and the two are compared against each other below.
 from psycopg.errors import (
     DeadlockDetected,
     DuplicateSchema,
@@ -24,6 +21,9 @@ from psycopg.errors import (
     UndefinedTable,
     UniqueViolation,
 )
+
+# `IntegrityError` is aliased because SQLAlchemy wraps psycopg's in an exception of the same name,
+# and the two are compared against each other below.
 from psycopg.errors import (
     IntegrityError as IntegrityViolation,
 )

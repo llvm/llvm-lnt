@@ -274,9 +274,9 @@ class _Commits:
         """One row as a response object.
 
         Constructed without validation, here and in `detail`, deliberately. The model's validators
-        are the rules for what a request may *write*; a row that was stored some other way -- by a
-        v4 import, say -- and breaks one of them still has to be served, rather than failing every
-        page that holds it.
+        are the rules for what a request may *write*; a row stored some other way -- by an earlier
+        build whose rules were looser, or by hand in SQL -- that breaks one of them still has to be
+        served, rather than failing every page that holds it.
         """
         return Commit.model_construct(**self._attributes(row))
 
