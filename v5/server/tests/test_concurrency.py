@@ -19,6 +19,7 @@ from collections.abc import Callable, Iterator, Sequence
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Any
+from uuid import uuid4
 
 import pytest
 from sqlalchemy import Connection, Engine, insert, select, text
@@ -27,6 +28,7 @@ from introspection import counted, counting_statements
 from lnt_v5.errors import ApiError, ErrorCode
 from lnt_v5.routes.commits import Commits
 from lnt_v5.routes.machines import Machines
+from lnt_v5.routes.runs import Runs
 from lnt_v5.suites import tables as suite_tables
 from lnt_v5.suites.concurrency import resolve_names
 from lnt_v5.suites.registry import Suite
@@ -641,18 +643,46 @@ class TestConcurrentFill:
         assert stored(db_engine, suite, "machine", "name", "linux").hardware == "x86_64"
 
     @pytest.mark.usefixtures("existing_machine")
+    def test_a_fill_does_not_deadlock_against_another_submissions_run(
+        self,
+        db_engine: Engine,
+        machines: Machines,
+        commits: Commits,
+        suite: Suite,
+        background: Callable[..., Future[Any]],
+    ) -> None:
+        # D13. Staged as the cycle `FOR UPDATE` would close: A creates a commit and holds it, B
+        # fills the machine's field and then waits on A's commit, and A inserts its run -- which
+        # needs a key-share lock on the machine B has just locked.
+        def fill() -> int:
+            with db_engine.connect() as b, b.begin():
+                machines.get_or_create(b, submitted_machine(hardware="x86_64"))
+                return commits.get_or_create(b, submitted_commit())
+
+        with db_engine.connect() as a, a.begin():
+            machine = machines.get_or_create(a, submitted_machine())
+            commit = commits.get_or_create(a, submitted_commit())
+            filling = background(fill)
+            until_blocked(db_engine)
+            Runs(suite).create(a, str(uuid4()), machine, commit, {})
+
+        assert filling.result(timeout=BLOCK_TIMEOUT) == commit
+        assert stored(db_engine, suite, "machine", "name", "linux").hardware == "x86_64"
+
+    @pytest.mark.usefixtures("existing_machine")
     def test_a_submission_with_nothing_to_fill_takes_no_lock(
         self, db_engine: Engine, machines: Machines
     ) -> None:
         # The hot path, which is the overwhelmingly common one: a submission re-sending metadata
         # that is already stored reconciles to nothing and must not serialize against anything.
         # Asserted by the statement it does *not* send, since a superfluous lock is invisible in
-        # the rows and only shows up as contention under load.
+        # the rows and only shows up as contention under load. " FOR " matches every row-locking
+        # clause, whichever strength it asks for.
         with db_engine.begin() as connection:
             machines.get_or_create(connection, submitted_machine(hardware="x86_64"))
         with (
             db_engine.begin() as connection,
-            counting_statements("FOR UPDATE") as locking,
+            counting_statements(" FOR ") as locking,
         ):
             machines.get_or_create(connection, submitted_machine(hardware="x86_64"))
             machines.get_or_create(connection, submitted_machine())

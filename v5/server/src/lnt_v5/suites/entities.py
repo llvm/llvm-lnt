@@ -398,10 +398,17 @@ def _locked_values(
 ) -> dict[str, Any]:
     """These columns of one row, re-read with the row itself locked against other writers.
 
-    `FOR UPDATE` rather than a plain SELECT: it blocks until every transaction that is currently
-    writing this row has ended, and then -- under READ COMMITTED (see db.py) -- reports the version
-    that survived. That is exactly the pair of facts a fill needs, and neither is available from an
+    Locked rather than a plain SELECT: it blocks until every transaction that is currently writing
+    this row has ended, and then -- under READ COMMITTED (see db.py) -- reports the version that
+    survived. That is exactly the pair of facts a fill needs, and neither is available from an
     unlocked read.
+
+    `FOR NO KEY UPDATE` rather than `FOR UPDATE`: a run insert takes `FOR KEY SHARE` on its machine
+    and commit through the foreign keys, which only `FOR UPDATE` conflicts with, so fills would
+    block other submissions' runs and could deadlock them (D13). Fills still serialize against each
+    other. Filling a commit's `ordinal` escalates to `FOR UPDATE` anyway, since the column is
+    uniquely indexed; that can make it wait on runs in flight for the commit, but not deadlock with
+    them, because a submission holding a commit's lock is not yet past resolving its commit.
 
     By column object rather than by name, for the same reason `concurrency.get_or_create` reads
     that way: a declared field may legally be called anything, and `Row._mapping` keyed by column
@@ -409,7 +416,7 @@ def _locked_values(
     """
     wanted = [table.c[name] for name in read]
     row = connection.execute(
-        select(*wanted).where(table.c.id == identifier).with_for_update()
+        select(*wanted).where(table.c.id == identifier).with_for_update(key_share=True)
     ).one()
     return {column.name: row._mapping[column] for column in wanted}
 
@@ -445,7 +452,7 @@ def create_or_reconcile(
     usually true. Under READ COMMITTED two submissions can both read the same column as NULL, both
     decide to fill it with different values, and the second -- having waited on the row lock the
     first's UPDATE took -- would then overwrite a value it never compared against. Re-reading under
-    `FOR UPDATE` closes that: by the time the lock is granted the competitor has either committed,
+    a row lock closes that: by the time the lock is granted the competitor has either committed,
     in which case its value is now stored and a differing submission is the 409 D7 owes, or rolled
     back, in which case the column is still NULL and the fill is correct. The unique constraint on
     `{suite}.commit.ordinal` does not cover this case -- it catches a *different* commit holding the
@@ -455,8 +462,8 @@ def create_or_reconcile(
     normally re-sends metadata that is already stored, so the overwhelmingly common path reconciles
     to nothing and returns without locking anything at all.
 
-    Two locks taken in two orders deadlock, so the order is fixed by the caller rather than here;
-    see the call site in `routes/runs.py`.
+    Deadlock freedom rests on the order the caller resolves entities in (see the call site in
+    `routes/runs.py`) and on the strength of the lock `_locked_values` takes.
     """
     resolved = concurrency.get_or_create(
         connection, key, value, constraint=constraint, values=values, read=matched

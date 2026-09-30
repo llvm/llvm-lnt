@@ -263,8 +263,9 @@ def submit_run(
         # NULL metadata it fills in (see `entities.create_or_reconcile`) -- so two submissions
         # naming the same machine and the same commit would deadlock if they took the two in
         # opposite orders, and PostgreSQL would kill one of them with a 500 on a request that did
-        # nothing wrong. Every submission goes through here, so every submission takes them in this
-        # order; D13 requires exactly that, of these rows as of the test names below.
+        # nothing wrong. Order alone is not enough, though: the run insert below takes key-share
+        # locks on both rows again through its foreign keys, which is why a fill must never lock
+        # a row strongly enough to conflict with that (see `entities._locked_values`, and D13).
         machine_id = Machines(suite).get_or_create(connection, validated.machine)
         commit_id = Commits(suite).get_or_create(connection, validated.commit)
         run_id = runs.create(

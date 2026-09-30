@@ -335,11 +335,13 @@ With PostgreSQL, this is achieved as follows:
   back and the winner's row is re-read. Any other violation fails the
   submission.
 - An existing row is reconciled against the submission (see D7). If a NULL must
-  be filled in, the row is re-read under a row lock and reconciled again, and
+  be filled in, the row is re-read `FOR NO KEY UPDATE` and reconciled again, and
   that second reconciliation decides the write. A submission with nothing to
   fill takes no lock.
-- Every submission resolves the machine, then the commit, then the test names,
-  so the rows they lock are always acquired in the same order.
+- Every submission resolves the machine, then the commit, then the test names.
+  Inserting the run then takes key-share locks on its machine and commit through
+  the foreign keys, so the fill lock must not be `FOR UPDATE`: that conflicts
+  with key-share, and two submissions could deadlock.
 - Test names are resolved as a set: read the ones that exist, insert the rest
   while skipping conflicts, and re-read what was skipped. Names are inserted in
   ascending order, so that submissions with overlapping sets lock them in the
