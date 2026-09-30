@@ -295,9 +295,6 @@ def _reject_unstorable(value: Any, where: str) -> None:
 
     Keys as well as values: JSONB holds an object key no more willingly than it holds a string, and
     a key is just as much something the caller sent.
-
-    Recursive, over a structure the JSON parser has itself just built recursively: anything nested
-    deeply enough to trouble this walk would have failed to parse in the first place.
     """
     if isinstance(value, float) and not isfinite(value):
         raise ApiError(
