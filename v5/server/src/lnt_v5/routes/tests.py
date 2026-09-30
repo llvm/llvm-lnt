@@ -94,7 +94,7 @@ class Tests:
         return select(1).select_from(source).where(*conditions).exists()
 
     def read(self, row: Row[Any]) -> Test:
-        return Test(name=row._mapping[self.table.c.name])
+        return Test.model_construct(name=row._mapping[self.table.c.name])
 
 
 def test_id(connection: Connection, suite: Suite, name: str) -> int:

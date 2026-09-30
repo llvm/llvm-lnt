@@ -51,7 +51,6 @@ from lnt_v5.querying import (
     Limit,
     RequestCursor,
     SortKey,
-    Timestamp,
     cursor_page,
     sort_order,
 )
@@ -68,7 +67,7 @@ from lnt_v5.routes.machines import (
 from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.scopes import Scope
 from lnt_v5.suites.concurrency import resolve_names
-from lnt_v5.suites.entities import identifier, location_of
+from lnt_v5.suites.entities import DatetimeValue, identifier, location_of
 from lnt_v5.suites.registry import RegistryDep, Suite
 from lnt_v5.suites.scope import (
     SUITE_NOT_FOUND,
@@ -101,14 +100,19 @@ RunSort = Literal["submitted_at", "-submitted_at"]
 
 # The three parameters both run lists share, spelled once. R3's `after=`/`before=` bound the
 # submission time and are exclusive; `sort=` orders by it.
+_TIMESTAMP = (
+    "An ISO 8601 timestamp. One without an offset is read as UTC; a '+' in an offset must be "
+    "sent as %2B, since a query string decodes a bare '+' to a space."
+)
+
 After = Annotated[
-    Timestamp | None,
-    Query(description="Keep only runs submitted strictly after this instant. Exclusive."),
+    DatetimeValue | None,
+    Query(description=f"Keep only runs submitted strictly after this instant. {_TIMESTAMP}"),
 ]
 
 Before = Annotated[
-    Timestamp | None,
-    Query(description="Keep only runs submitted strictly before this instant. Exclusive."),
+    DatetimeValue | None,
+    Query(description=f"Keep only runs submitted strictly before this instant. {_TIMESTAMP}"),
 ]
 
 Sort = Annotated[
@@ -253,18 +257,23 @@ class Runs:
         )
 
     def read(self, row: Row[Any]) -> Run:
-        return Run(
-            uuid=row._mapping[self.table.c.uuid],
-            machine=row._mapping[self._machine.c.name],
-            commit=row._mapping[self._commit.c.commit],
-            submitted_at=row._mapping[self.table.c.submitted_at],
-        )
+        # Not validated, like `Commits.read`: the model's validators are the rules for what a
+        # request may write, and a stored row that breaks one still has to be served.
+        return Run.model_construct(**self._attributes(row))
 
     def read_detail(self, row: Row[Any]) -> RunDetail:
-        return RunDetail(
-            **self.read(row).model_dump(),
+        return RunDetail.model_construct(
+            **self._attributes(row),
             run_parameters=row._mapping[self.table.c.run_parameters],
         )
+
+    def _attributes(self, row: Row[Any]) -> dict[str, Any]:
+        return {
+            "uuid": row._mapping[self.table.c.uuid],
+            "machine": row._mapping[self._machine.c.name],
+            "commit": row._mapping[self._commit.c.commit],
+            "submitted_at": row._mapping[self.table.c.submitted_at],
+        }
 
     def one(self, connection: Connection, uuid: str) -> RunDetail:
         row = connection.execute(

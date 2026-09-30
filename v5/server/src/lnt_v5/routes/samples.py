@@ -101,7 +101,7 @@ class Samples:
             for name, column in self._metrics
             if (value := row._mapping[column]) is not None
         }
-        return Sample(test=row._mapping[self._test.c.name], metrics=metrics)
+        return Sample.model_construct(test=row._mapping[self._test.c.name], metrics=metrics)
 
 
 @router.get(

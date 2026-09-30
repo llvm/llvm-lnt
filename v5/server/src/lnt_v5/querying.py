@@ -38,7 +38,6 @@ from sqlalchemy import (
 from lnt_v5.errors import ApiError, ErrorCode
 from lnt_v5.responses import CursorPage
 from lnt_v5.strings import storable
-from lnt_v5.suites.entities import DatetimeValue
 from lnt_v5.suites.schema import CommitField, MachineField
 from lnt_v5.suites.tables import INT32_MAX, INT32_MIN
 
@@ -104,14 +103,6 @@ Cursor = Annotated[RequestCursor, Depends(_request_cursor)]
 
 # R3 spells a descending sort by prefixing the field name.
 DESCENDING = "-"
-
-# R3's submission-time range, `after=`/`before=`. D3's wire form, which is what keeps a bound from
-# being read as a Unix epoch, and normalized to UTC because the columns these bound are
-# `timestamptz`: handing PostgreSQL a naive value leaves it to be read in whatever time zone the
-# session happens to carry, so one request would mean different instants on two servers. Here rather
-# than with the endpoints that take it, for the same reason `Limit` and `Cursor` are: R3 makes it a
-# convention shared by every list that filters on one time dimension.
-Timestamp = DatetimeValue
 
 
 def sort_order(sort: str) -> tuple[str, bool]:

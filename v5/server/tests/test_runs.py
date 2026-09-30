@@ -1060,13 +1060,14 @@ class TestList:
     def test_is_ordered_deterministically_by_default(
         self, api_client: TestClient, run_at: Callable[..., str]
     ) -> None:
-        # R2: no `sort` is an arbitrary but deterministic order, and here it is the order the
-        # server first saw each run in, which has nothing to do with `submitted_at`.
-        third = run_at(datetime(2020, 1, 1, tzinfo=UTC))
-        first = run_at(datetime(2026, 1, 1, tzinfo=UTC))
-        second = run_at(datetime(2023, 1, 1, tzinfo=UTC))
+        # R2: no `sort` is an arbitrary order, so only its determinism is promised -- two walks,
+        # paging at different boundaries, see the same runs in the same order.
+        created = {run_at(datetime(year, 1, 1, tzinfo=UTC)) for year in (2020, 2026, 2023)}
 
-        assert uuids_in(listed(api_client)) == [third, first, second]
+        first = walk(api_client, "limit=1")
+
+        assert set(first) == created
+        assert walk(api_client, "limit=2") == first
 
     def test_sorts_newest_first(self, api_client: TestClient, run_at: Callable[..., str]) -> None:
         old = run_at(datetime(2020, 1, 1, tzinfo=UTC))
@@ -1175,6 +1176,16 @@ class TestListFilters:
 
         assert uuids_in(listed(api_client, "after=2026-06-01T11:59:59")) == [wanted]
         assert uuids_in(listed(api_client, "after=2026-06-01T12:00:01")) == []
+
+    def test_reads_an_offset_sent_percent_encoded(
+        self, api_client: TestClient, run_at: Callable[..., str]
+    ) -> None:
+        # 12:00 UTC is 14:00 at +02:00. A bare `+` in a query string decodes to a space, so a
+        # client writes it as %2B -- which is what the parameter's description tells it to do.
+        wanted = run_at(datetime(2026, 6, 1, 12, 0, tzinfo=UTC))
+
+        assert uuids_in(listed(api_client, "after=2026-06-01T13:59:59%2B02:00")) == [wanted]
+        assert uuids_in(listed(api_client, "after=2026-06-01T14:00:01%2B02:00")) == []
 
     @pytest.mark.parametrize("bound", ["yesterday", "1700000000", "0"])
     def test_refuses_a_bound_that_is_not_an_iso_8601_timestamp(
