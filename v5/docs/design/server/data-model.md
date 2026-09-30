@@ -471,8 +471,8 @@ are given in that form.
 
 - Nothing deletes a test: the Tests endpoint is read-only and tests are created
   implicitly by run submission. The references to this table from `sample`,
-  `profile`, and `regression_indicator` therefore cascade nowhere, and a
-  deletion attempted anyway is refused.
+  `test_coverage`, `profile`, and `regression_indicator` therefore cascade
+  nowhere, and a deletion attempted anyway is refused.
 
 #### `{suite}.sample`
 
