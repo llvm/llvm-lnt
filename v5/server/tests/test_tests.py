@@ -43,13 +43,14 @@ def suite(make_api_suite: Callable[[dict[str, Any]], SuiteTables]) -> SuiteTable
 @pytest.fixture
 def submit(
     api_client: TestClient, submitter: dict[str, str], suite: SuiteTables
-) -> Callable[..., None]:
-    """Submit a run, which is the only thing that creates a test (D6)."""
+) -> Callable[..., str]:
+    """Submit a run, which is the only thing that creates a test (D6), and hand back its UUID."""
 
-    def post(*tests: dict[str, Any], machine: str = "linux") -> None:
+    def post(*tests: dict[str, Any], machine: str = "linux") -> str:
         body = run_payload(machine={"name": machine}, tests=list(tests))
         response = api_client.post(RUNS, json=body, headers=submitter)
         assert response.status_code == 201, response.text
+        return str(response.json()["uuid"])
 
     return post
 
@@ -77,7 +78,7 @@ class TestList:
         assert response.json() == {"items": [], "cursor": {"next": None, "previous": None}}
 
     def test_carries_an_object_around_the_name(
-        self, api_client: TestClient, submit: Callable[..., None]
+        self, api_client: TestClient, submit: Callable[..., str]
     ) -> None:
         # endpoints.md: an object rather than a bare string, so the list can gain a key later.
         submit({"name": "suite/one"})
@@ -85,7 +86,7 @@ class TestList:
         assert listed(api_client).json()["items"] == [{"name": "suite/one"}]
 
     def test_lists_the_tests_submission_created(
-        self, api_client: TestClient, submit: Callable[..., None]
+        self, api_client: TestClient, submit: Callable[..., str]
     ) -> None:
         submit({"name": "a"}, {"name": "b"})
         submit({"name": "c"})
@@ -93,7 +94,7 @@ class TestList:
         assert sorted(names_in(listed(api_client))) == ["a", "b", "c"]
 
     def test_names_a_test_once_however_many_runs_measured_it(
-        self, api_client: TestClient, submit: Callable[..., None]
+        self, api_client: TestClient, submit: Callable[..., str]
     ) -> None:
         # The filters are EXISTS subqueries rather than joins for exactly this reason.
         submit({"name": "a", "execution_time": [1.0, 2.0]})
@@ -104,7 +105,7 @@ class TestList:
     def test_keeps_a_test_whose_samples_were_all_deleted(
         self,
         api_client: TestClient,
-        submit: Callable[..., None],
+        submit: Callable[..., str],
         manage: dict[str, str],
     ) -> None:
         # D5: nothing deletes a test, so deleting every run that measured it leaves it behind.
@@ -114,7 +115,7 @@ class TestList:
         assert api_client.delete(f"{RUNS}/{uuid}", headers=manage).status_code == 204
         assert names_in(listed(api_client)) == ["a"]
 
-    def test_needs_no_credential(self, api_client: TestClient, submit: Callable[..., None]) -> None:
+    def test_needs_no_credential(self, api_client: TestClient, submit: Callable[..., str]) -> None:
         submit({"name": "a"})
 
         assert listed(api_client).status_code == 200
@@ -130,7 +131,7 @@ class TestList:
 
 class TestSearch:
     @pytest.fixture(autouse=True)
-    def tests(self, submit: Callable[..., None]) -> None:
+    def tests(self, submit: Callable[..., str]) -> None:
         submit({"name": "suite/BenchmarkOne"}, {"name": "suite/other"}, {"name": "100%/odd"})
 
     def test_matches_a_substring_of_the_name(self, api_client: TestClient) -> None:
@@ -148,12 +149,23 @@ class TestSearch:
 
 class TestMachineFilter:
     def test_keeps_only_tests_with_data_on_that_machine(
-        self, api_client: TestClient, submit: Callable[..., None]
+        self, api_client: TestClient, submit: Callable[..., str]
     ) -> None:
         submit({"name": "a"}, machine="linux")
         submit({"name": "b"}, machine="darwin")
 
         assert names_in(listed(api_client, "machine=linux")) == ["a"]
+
+    def test_forgets_a_test_once_the_machines_samples_of_it_are_deleted(
+        self, api_client: TestClient, submit: Callable[..., str], manage: dict[str, str]
+    ) -> None:
+        # The counts behind the filter are exact (D5), so a deletion shows here at once -- while the
+        # unfiltered list keeps the test, since nothing deletes one.
+        uuid = submit({"name": "a"}, machine="linux")
+
+        assert api_client.delete(f"{RUNS}/{uuid}", headers=manage).status_code == 204
+        assert names_in(listed(api_client, "machine=linux")) == []
+        assert names_in(listed(api_client)) == ["a"]
 
     def test_is_404_for_a_machine_that_is_not_there(
         self, api_client: TestClient, suite: SuiteTables
@@ -166,20 +178,37 @@ class TestMachineFilter:
 
 class TestMetricFilter:
     def test_keeps_only_tests_with_a_value_for_that_metric(
-        self, api_client: TestClient, submit: Callable[..., None]
+        self, api_client: TestClient, submit: Callable[..., str]
     ) -> None:
         submit({"name": "a", "execution_time": 1.0}, {"name": "b", "compile_time": 2.0})
 
         assert names_in(listed(api_client, "metric=execution_time")) == ["a"]
 
     def test_drops_a_test_that_ran_without_that_metric(
-        self, api_client: TestClient, submit: Callable[..., None]
+        self, api_client: TestClient, submit: Callable[..., str]
     ) -> None:
         # D6: an entry with no metric values still produces a sample row, and every metric on it
         # is NULL. The filter asks for non-NULL, so such a test does not match.
         submit({"name": "a"})
 
         assert names_in(listed(api_client, "metric=execution_time")) == []
+
+    def test_counts_every_machine(self, api_client: TestClient, submit: Callable[..., str]) -> None:
+        submit({"name": "a", "execution_time": 1.0}, machine="linux")
+        submit({"name": "b", "execution_time": 1.0}, machine="darwin")
+        submit({"name": "c", "compile_time": 1.0}, machine="darwin")
+
+        assert sorted(names_in(listed(api_client, "metric=execution_time"))) == ["a", "b"]
+
+    def test_forgets_a_test_once_its_values_for_that_metric_are_deleted(
+        self, api_client: TestClient, submit: Callable[..., str], manage: dict[str, str]
+    ) -> None:
+        submit({"name": "a", "compile_time": 1.0})
+        with_time = submit({"name": "a", "execution_time": 1.0})
+
+        assert api_client.delete(f"{RUNS}/{with_time}", headers=manage).status_code == 204
+        assert names_in(listed(api_client, "metric=execution_time")) == []
+        assert names_in(listed(api_client, "metric=compile_time")) == ["a"]
 
     def test_is_400_for_a_metric_the_schema_does_not_declare(
         self, api_client: TestClient, suite: SuiteTables
@@ -211,7 +240,7 @@ class TestMetricFilter:
 
 class TestFiltersTogether:
     @pytest.fixture(autouse=True)
-    def tests(self, submit: Callable[..., None]) -> None:
+    def tests(self, submit: Callable[..., str]) -> None:
         submit({"name": "both", "execution_time": 1.0}, machine="linux")
         submit({"name": "wrong_machine", "execution_time": 1.0}, machine="darwin")
         submit({"name": "wrong_metric", "compile_time": 1.0}, machine="linux")
@@ -221,7 +250,7 @@ class TestFiltersTogether:
         assert names_in(listed(api_client, "machine=linux&metric=execution_time")) == ["both"]
 
     def test_a_test_measured_elsewhere_with_that_metric_does_not_qualify(
-        self, api_client: TestClient, submit: Callable[..., None]
+        self, api_client: TestClient, submit: Callable[..., str]
     ) -> None:
         # The independent reading would let this through: it has data on linux, and it has an
         # `execution_time` somewhere. It has no `execution_time` on linux.
@@ -238,7 +267,7 @@ class TestFiltersTogether:
 
 class TestPagination:
     @pytest.fixture(autouse=True)
-    def tests(self, submit: Callable[..., None]) -> list[str]:
+    def tests(self, submit: Callable[..., str]) -> list[str]:
         names = [f"t{index}" for index in range(7)]
         submit(*({"name": name, "execution_time": 1.0} for name in names))
         return names
@@ -255,7 +284,7 @@ class TestPagination:
         assert sorted(walk(api_client, "limit=2")) == sorted(tests)
 
     def test_the_filters_survive_a_page_boundary(
-        self, api_client: TestClient, submit: Callable[..., None], tests: list[str]
+        self, api_client: TestClient, submit: Callable[..., str], tests: list[str]
     ) -> None:
         submit(*({"name": f"other{index}"} for index in range(4)), machine="darwin")
 

@@ -2,8 +2,9 @@
 
 Read-only, and the shortest entity in the API: a test is a name and nothing else. What is worth
 attention here is the two filters, both of which ask a question about samples rather than about
-tests -- "which tests have data on this machine", "which tests have a value for this metric" --
-and so are `EXISTS` subqueries over `{suite}.sample` rather than joins that would multiply rows.
+tests -- "which tests have data on this machine", "which tests have a value for this metric". They
+are answered from `{suite}.test_coverage` rather than from `{suite}.sample`, which cannot answer the
+second cheaply: proving that a test has no value for a metric would cost a read of all its samples.
 
 A test name is also the one natural key R1 keeps out of every path, so a request that names one
 carries it in a query parameter. `test_id` below is what resolves it, here rather than in
@@ -56,8 +57,7 @@ class Tests:
 
     def __init__(self, suite: Suite) -> None:
         self.table: Table = suite.tables.test
-        self._sample: Table = suite.tables.sample
-        self._run: Table = suite.tables.run
+        self._coverage: Table = suite.tables.test_coverage
 
     def select(self) -> Select[Any]:
         return select(self.table.c.id, self.table.c.name)
@@ -74,24 +74,16 @@ class Tests:
 
         One predicate for both filters rather than two independent ones, the same choice
         `Commits.has_run` makes: `?machine=m&metric=execution_time` asks which tests have an
-        `execution_time` value *on that machine*, which is what a caller combining them means.
-
-        The `sample.test_id` equality leads, so D5's `(test_id, run_id)` index -- the one it keeps
-        for exactly this direction -- serves the probe, and the join to `run` is by primary key.
+        `execution_time` value *on that machine*, which is what a caller combining them means. On
+        `{suite}.test_coverage` that is one row, and its existence alone answers `machine=`, since a
+        row is there exactly when the machine has samples of the test (D5).
         """
-        source = (
-            self._sample.join(self._run, self._run.c.id == self._sample.c.run_id)
-            if machine is not None
-            else self._sample
-        )
-        conditions: list[ColumnElement[bool]] = [self._sample.c.test_id == self.table.c.id]
+        conditions: list[ColumnElement[bool]] = [self._coverage.c.test_id == self.table.c.id]
         if machine is not None:
-            conditions.append(self._run.c.machine_id == machine)
+            conditions.append(self._coverage.c.machine_id == machine)
         if metric is not None:
-            # No index covers "this metric is not null", so this half is a heap read per candidate
-            # sample; the `test_id` probe above is what keeps the set of candidates small.
-            conditions.append(self._sample.c[metric.name].is_not(None))
-        return select(1).select_from(source).where(*conditions).exists()
+            conditions.append(self._coverage.c[metric.name] > 0)
+        return select(1).select_from(self._coverage).where(*conditions).exists()
 
     def read(self, row: Row[Any]) -> Test:
         return Test.model_construct(name=row._mapping[self.table.c.name])
