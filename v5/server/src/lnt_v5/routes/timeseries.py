@@ -44,7 +44,6 @@ from lnt_v5.querying import (
     BodyLimit,
     Keyset,
     SortKey,
-    Timestamp,
     body_cursor,
     cursor_page,
     exclusive_range,
@@ -56,7 +55,7 @@ from lnt_v5.routes.machines import machine_id, machine_ids
 from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.routes.tests import test_ids
 from lnt_v5.scopes import Scope
-from lnt_v5.suites.entities import DeclaredValue, Named, declared_entry
+from lnt_v5.suites.entities import DatetimeValue, DeclaredValue, Named, declared_entry
 from lnt_v5.suites.registry import RegistryDep, Suite
 from lnt_v5.suites.schema import NUMERIC_TYPES, Metric
 from lnt_v5.suites.scope import SUITE_NOT_FOUND, suite_responses, suite_scope
@@ -198,11 +197,11 @@ class QueryRequest(BaseModel):
     before_commit: Named | None = Field(
         default=None, description="The same, strictly before this one in ordinal order."
     )
-    after_time: Timestamp | None = Field(
+    after_time: DatetimeValue | None = Field(
         default=None,
         description="Keep only values from runs submitted strictly after this instant.",
     )
-    before_time: Timestamp | None = Field(
+    before_time: DatetimeValue | None = Field(
         default=None, description="The same, strictly before this instant."
     )
     sort: QuerySort | None = Field(
