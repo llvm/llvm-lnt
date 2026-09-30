@@ -19,7 +19,7 @@ from datetime import datetime
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Query, Response
-from pydantic import Field
+from pydantic import ConfigDict, Field
 from sqlalchemy import (
     ColumnElement,
     Connection,
@@ -39,6 +39,7 @@ from sqlalchemy import (
 from lnt_v5.auth import require_scope
 from lnt_v5.db import EngineDep, reporting_violation
 from lnt_v5.errors import ApiError, ErrorCode
+from lnt_v5.patching import omit_defaults
 from lnt_v5.querying import DEFAULT_LIMIT, Limit, Offset, search_condition, sort_order
 from lnt_v5.responses import OffsetPage
 from lnt_v5.routes.suites import SUITES_PATH
@@ -78,17 +79,6 @@ NO_MACHINE_FILTERED = f"{SUITE_NOT_FOUND} Or the machine the `machine=` filter n
 _NAME_TAKEN = f"A machine of that name already exists. {SUITE_SCHEMA_CHANGED}"
 
 
-def _hide_default(schema: dict[str, Any]) -> None:
-    """Keep a sentinel default out of R8's document.
-
-    `MachineUpdate` gives its optional keys defaults of the right *type* that are never read; `""`
-    is one, and it violates the `minLength` beside it. Published, it would tell a generated client
-    that omitting `name` means sending `""`, which the server answers 400 -- a response the
-    document would then be describing wrongly.
-    """
-    schema.pop("default", None)
-
-
 class Machine(MachineObject):
     """A machine as every response carries it: the entity object plus what D5 derives.
 
@@ -114,7 +104,9 @@ class MachineUpdate(EntityObject):
     `PATCH /api/suites/{testsuite}/commits/{value}`.
     """
 
-    name: MachineName = Field(default="", json_schema_extra=_hide_default)
+    model_config = ConfigDict(json_schema_extra=omit_defaults)
+
+    name: MachineName = ""
     tracked: Tracked = True
 
 

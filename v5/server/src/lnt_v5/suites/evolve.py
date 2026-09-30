@@ -20,6 +20,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_valida
 from sqlalchemy import Connection, update
 
 from lnt_v5.errors import ApiError, ErrorCode, validation_problems
+from lnt_v5.patching import omit_defaults
 from lnt_v5.suites import tables as suite_tables
 from lnt_v5.suites.schema import CommitField, Entry, MachineField, Metric, Name, SuiteSchema
 from lnt_v5.suites.store import bump, normalized_json
@@ -36,7 +37,7 @@ class _EntryUpdate(BaseModel):
     them no unset state to clear to, which makes `searchable: null` a 400 rather than an ambiguity.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", json_schema_extra=omit_defaults)
 
     name: Name
     display_name: str | None = None

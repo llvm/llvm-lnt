@@ -57,6 +57,35 @@ class TestOpenApiDocument:
         assert "HTTPValidationError" not in document["components"]["schemas"]
         assert "ValidationError" not in document["components"]["schemas"]
 
+    def test_no_patch_body_publishes_a_default(self, client: TestClient) -> None:
+        """On `PATCH`, an omitted key leaves the stored value unchanged.
+
+        A published default says otherwise -- that omitting the key sends the default -- and a
+        generated client may act on it. That holds for the `update` entries of a schema change
+        too, but not for its `add` entries: an added entry's omitted keys do take their defaults
+        (D4), so those are left out here.
+        """
+        document = client.get("/api/openapi.json").json()
+        schemas = document["components"]["schemas"]
+
+        def component(reference: dict[str, str]) -> str:
+            return reference["$ref"].removeprefix("#/components/schemas/")
+
+        bodies = [
+            component(operations["patch"]["requestBody"]["content"]["application/json"]["schema"])
+            for operations in document["paths"].values()
+            if "patch" in operations
+        ]
+        bodies += [
+            component(schemas[component(changes)]["properties"]["update"]["items"])
+            for changes in schemas["SchemaPatch"]["properties"].values()
+        ]
+
+        assert len(bodies) == 7
+        for name in bodies:
+            for key, property in schemas[name]["properties"].items():
+                assert "default" not in property, f"{name}.{key} publishes a default"
+
     def test_describes_the_error_envelope(self, client: TestClient) -> None:
         document = client.get("/api/openapi.json").json()
 

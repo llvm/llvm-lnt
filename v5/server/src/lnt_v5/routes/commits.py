@@ -40,6 +40,7 @@ from sqlalchemy.dialects.postgresql import ARRAY
 from lnt_v5.auth import require_scope
 from lnt_v5.db import EngineDep, reporting_violation
 from lnt_v5.errors import ApiError, ErrorCode
+from lnt_v5.patching import omit_defaults
 from lnt_v5.querying import (
     DEFAULT_LIMIT,
     MAX_LIMIT,
@@ -133,6 +134,8 @@ class CommitUpdate(EntityObject):
     while omitting them leaves it alone. Inside `fields`, an explicit null clears likewise. `value`
     is not here at all, because a commit cannot be renamed -- sending one is a 400.
     """
+
+    model_config = ConfigDict(json_schema_extra=omit_defaults)
 
     ordinal: Ordinal | None = None
     tag: Tag | None = None

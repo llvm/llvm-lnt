@@ -51,6 +51,7 @@ from sqlalchemy.dialects.postgresql import insert as upsert
 from lnt_v5.auth import require_scope
 from lnt_v5.db import EngineDep, reporting_violation
 from lnt_v5.errors import ApiError, ErrorCode
+from lnt_v5.patching import omit_defaults
 from lnt_v5.querying import (
     DEFAULT_LIMIT,
     MAX_LIMIT,
@@ -280,6 +281,8 @@ class RegressionUpdate(_RegressionBody):
     batch operations with counts of their own rather than a whole-list replacement. Sending one
     here is a 400, rather than a key that could not take effect being silently dropped.
     """
+
+    model_config = ConfigDict(json_schema_extra=omit_defaults)
 
 
 class IndicatorAddition(BaseModel):
