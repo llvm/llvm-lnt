@@ -6,20 +6,14 @@ name: v5 Validate Terraform
 
 on:
   pull_request:
-    paths:
-      - 'v5/deployment/**'
-      - '.github/workflows/v5-validate-terraform.yml'
   push:
     branches: [main]
-    paths:
-      - 'v5/deployment/**'
-      - '.github/workflows/v5-validate-terraform.yml'
 
 permissions:
   contents: read
 
 jobs:
-  terraform:
+  validate-terraform:
     runs-on: ubuntu-24.04
     strategy:
       matrix:

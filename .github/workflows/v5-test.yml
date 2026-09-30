@@ -8,14 +8,8 @@ name: v5 Test
 
 on:
   pull_request:
-    paths:
-      - 'v5/**'
-      - '.github/workflows/v5-test.yml'
   push:
     branches: [main]
-    paths:
-      - 'v5/**'
-      - '.github/workflows/v5-test.yml'
 
 permissions:
   contents: read
