@@ -114,8 +114,7 @@ TestName = Annotated[
     Field(
         description=(
             "Identifies the test within its test suite. Unlike a machine name or a commit value, "
-            "it is not required to be usable as a URL path segment: test names legitimately "
-            "contain '/', and R1 exempts them."
+            "it may contain '/'."
         )
     ),
 ]
