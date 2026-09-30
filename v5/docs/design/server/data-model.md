@@ -130,8 +130,6 @@ schema-creation time.
 **The JSON representation is the only one accepted.** A submitted value whose JSON
 type is not the one its declared type calls for is rejected with 400 rather than
 converted: `"5"` is not an `integer`, `5` is not `text`, and `true` is neither.
-The same holds for the built-in attributes an entity carries beside its declared
-metadata (see D7).
 
 JSON has a single number type, so the two numeric types are read from it leniently
 in *both* directions wherever nothing is lost: an `integer` is accepted where a
