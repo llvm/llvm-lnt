@@ -36,7 +36,7 @@ from lnt_v5.suites.tables import (
 from lnt_v5.tables import IDENTIFIER_MAX_LENGTH
 from lnt_v5.tables import metadata as global_metadata
 
-# The eight tables D5 gives every suite.
+# The nine tables D5 gives every suite.
 SUITE_TABLES = frozenset(
     {
         "commit",
@@ -44,6 +44,7 @@ SUITE_TABLES = frozenset(
         "run",
         "test",
         "sample",
+        "test_coverage",
         "regression",
         "regression_indicator",
         "profile",
@@ -116,6 +117,9 @@ def seed(connection: Connection, tables: SuiteTables) -> dict[str, int]:
     sample = connection.execute(
         insert(tables.sample).values(run_id=run, test_id=test).returning(tables.sample.c.id)
     ).scalar_one()
+    connection.execute(
+        insert(tables.test_coverage).values(machine_id=machine, test_id=test, sample_count=1)
+    )
     regression = connection.execute(
         insert(tables.regression)
         .values(
@@ -216,7 +220,7 @@ class TestBuiltInColumns:
     @pytest.mark.parametrize(
         ("table", "expected"),
         [
-            # D5's column list for each of the eight tables, in order, with FULL's dynamic columns
+            # D5's column list for each of the nine tables, in order, with FULL's dynamic columns
             # appended where the table takes them -- so this also pins that a schema's entries come
             # after the built-ins rather than interleaved with them.
             ("commit", ["id", "commit", "ordinal", "tag", "git_sha", "commit_timestamp"]),
@@ -229,6 +233,18 @@ class TestBuiltInColumns:
                     "id",
                     "run_id",
                     "test_id",
+                    "execution_time",
+                    "compile_status",
+                    "build_id",
+                    "measured_at",
+                ],
+            ),
+            (
+                "test_coverage",
+                [
+                    "machine_id",
+                    "test_id",
+                    "sample_count",
                     "execution_time",
                     "compile_status",
                     "build_id",
@@ -270,6 +286,10 @@ class TestBuiltInColumns:
             ("regression", "commit_id", True),
             ("regression", "state", False),
             ("profile", "data", False),
+            # D5: a count is a number, never unknown, and a metric's count is one whatever the
+            # metric's own type -- FULL's `build_id` is text.
+            ("test_coverage", "sample_count", False),
+            ("test_coverage", "build_id", False),
         ],
     )
     def test_each_built_in_column_is_nullable_where_d5_says(
@@ -476,9 +496,8 @@ class TestReservedColumns:
         """
         bare = suite_tables.build(SuiteSchema.model_validate({"name": "nts"}))
 
-        table = getattr(bare, entry.TABLE)
-
-        assert set(table.c.keys()) == entry.RESERVED_COLUMNS
+        for table, reserved in entry.RESERVED_COLUMNS.items():
+            assert set(getattr(bare, table).c.keys()) == reserved, table
 
 
 class TestIndexes:
@@ -728,6 +747,7 @@ class TestCascades:
             assert count(connection, tables.sample) == 0
             assert count(connection, tables.profile) == 0
             assert count(connection, tables.regression_indicator) == 0
+            assert count(connection, tables.test_coverage) == 0
 
     def test_deleting_a_machine_leaves_the_regression_itself(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
@@ -822,6 +842,25 @@ class TestEvolution:
                 suite_tables.add_column(connection, grown.sample.c[name])
 
         assert set(added) <= set(columns_of(inspect(db_engine), "nts", "sample"))
+
+    def test_an_added_count_starts_at_zero_on_existing_rows(
+        self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
+    ) -> None:
+        # D5: nothing has a value for a metric that did not exist, so every existing coverage row
+        # already has the right count for it -- and the arithmetic never meets a null.
+        tables = make_suite("nts")
+        grown = suite_tables.build(
+            SuiteSchema.model_validate(
+                {"name": "nts", "metrics": [{"name": "execution_time", "type": "real"}]}
+            )
+        )
+
+        with db_engine.begin() as connection:
+            seed(connection, tables)
+            suite_tables.add_column(connection, grown.test_coverage.c.execution_time)
+
+            added = select(grown.test_coverage.c.execution_time)
+            assert connection.execute(added).scalar_one() == 0
 
     def test_a_column_can_be_removed(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]

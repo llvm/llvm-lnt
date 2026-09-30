@@ -128,6 +128,12 @@ class TestEntryNames:
         with pytest.raises(ValidationError, match="built-in column on 'sample'"):
             SuiteSchema.model_validate(schema(metrics=[{"name": name, "type": "real"}]))
 
+    @pytest.mark.parametrize("name", ["machine_id", "sample_count"])
+    def test_a_metric_cannot_shadow_a_coverage_column(self, name: str) -> None:
+        # D5: a metric is also a count column on `test_coverage`, beside that table's built-ins.
+        with pytest.raises(ValidationError, match="built-in column on 'test_coverage'"):
+            SuiteSchema.model_validate(schema(metrics=[{"name": name, "type": "real"}]))
+
     @pytest.mark.parametrize("name", ["name", "profile"])
     def test_a_metric_cannot_take_a_reserved_submission_key(self, name: str) -> None:
         # D6: a test entry is `name` plus metric values, with `profile` carrying base64 profile

@@ -96,6 +96,18 @@ INT32_MIN = -(2**31)
 INT32_MAX = 2**31 - 1
 
 
+def _counts(metrics: Sequence[Entry]) -> list[Column[Any]]:
+    """One count per metric on `{suite}.test_coverage`, whatever the metric's own type (D5).
+
+    Not nullable, and zero by default, so that adding a metric gives every existing row a count
+    that is already right -- nothing has a value for a metric that did not exist -- and so that the
+    submission and deletion arithmetic never meets a null.
+    """
+    return [
+        Column(metric.name, Integer, nullable=False, server_default=text("0")) for metric in metrics
+    ]
+
+
 def _dynamic(entries: Sequence[Entry]) -> list[Column[Any]]:
     """The columns a schema's `metrics`, `commit_fields` or `machine_fields` become.
 
@@ -107,7 +119,7 @@ def _dynamic(entries: Sequence[Entry]) -> list[Column[Any]]:
 
 @dataclass(frozen=True)
 class SuiteTables:
-    """One suite's eight tables, and the metadata describing them together.
+    """One suite's nine tables, and the metadata describing them together.
 
     Held as named attributes rather than looked up by string so that the query code reads as
     `tables.sample.c.run_id`, and so that a typo is a type error.
@@ -119,6 +131,7 @@ class SuiteTables:
     run: Table
     test: Table
     sample: Table
+    test_coverage: Table
     regression: Table
     regression_indicator: Table
     profile: Table
@@ -220,6 +233,19 @@ def build(schema: SuiteSchema) -> SuiteTables:
     Index(None, sample.c.run_id, sample.c.test_id)
     Index(None, sample.c.test_id, sample.c.run_id)
 
+    # D5: which tests have samples on which machine, and how many carry each metric, kept exact by
+    # every write that adds or removes samples. It exists so that `GET /tests?machine=&metric=` is a
+    # lookup here rather than a scan of `sample`, which no index can answer "has a value for this
+    # metric" for. The machine cascade is D5's; nothing deletes a test, as for `sample`.
+    test_coverage = Table(
+        "test_coverage",
+        metadata,
+        Column("machine_id", ForeignKey("machine.id", ondelete="CASCADE"), primary_key=True),
+        Column("test_id", ForeignKey("test.id"), primary_key=True),
+        Column("sample_count", Integer, nullable=False),
+        *_counts(schema.metrics),
+    )
+
     regression = Table(
         "regression",
         metadata,
@@ -286,6 +312,7 @@ def build(schema: SuiteSchema) -> SuiteTables:
         run=run,
         test=test,
         sample=sample,
+        test_coverage=test_coverage,
         regression=regression,
         regression_indicator=regression_indicator,
         profile=profile,
@@ -318,8 +345,8 @@ def create(connection: Connection, tables: SuiteTables) -> None:
     """
     connection.execute(text(f"CREATE SCHEMA {_quote(connection, tables.name)}"))
     # `checkfirst=False` because the CREATE SCHEMA above has just established that nothing in this
-    # namespace exists. The default would reflect each of the eight tables first, to skip the ones
-    # already there -- eight round trips that can only ever answer "no".
+    # namespace exists. The default would reflect each of the nine tables first, to skip the ones
+    # already there -- nine round trips that can only ever answer "no".
     tables.metadata.create_all(connection, checkfirst=False)
 
 
@@ -336,8 +363,8 @@ def add_column(connection: Connection, column: Column[Any]) -> None:
     """Add one dynamic column to an existing suite table (D2).
 
     Takes a column already attached to a table from `build`, so that the type and the target are
-    described in exactly one place. Existing rows are left with no value for it, which is why
-    every dynamic column is nullable.
+    described in exactly one place. Existing rows get the column's default: no value for a
+    declared entry, and a count of zero on `{suite}.test_coverage`.
     """
     specification = CreateColumn(column).compile(dialect=connection.dialect).string
     connection.execute(

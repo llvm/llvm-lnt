@@ -14,7 +14,7 @@ What a schema *does* is create columns; see `tables.py` for the tables these ent
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from enum import StrEnum
 from typing import Annotated, ClassVar, Self
 
@@ -80,12 +80,11 @@ class Entry(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    # The per-suite table this entry adds a column to, and the columns that table already has (D5).
-    # A declared name may not collide with one of those. Each subclass names its own; the validator
+    # The per-suite tables this entry adds a column to, each with the columns it already has (D5).
+    # A declared name may not collide with any of those. Each subclass names its own; the validator
     # below is shared, and `test_suite_tables.py` checks each set against the columns the table
     # builder actually creates, since the two are stated separately and could otherwise drift.
-    TABLE: ClassVar[str] = ""
-    RESERVED_COLUMNS: ClassVar[frozenset[str]] = frozenset()
+    RESERVED_COLUMNS: ClassVar[Mapping[str, frozenset[str]]] = {}
 
     # Which of a schema's three lists this entry belongs to -- the attribute on `SuiteSchema`, which
     # is also the key under which D4 spells it on the wire. Carried by the class so that code
@@ -100,11 +99,12 @@ class Entry(BaseModel):
 
     @model_validator(mode="after")
     def _reject_reserved_column(self) -> Self:
-        if self.name in self.RESERVED_COLUMNS:
-            raise ValueError(
-                f"'{self.name}' is already a built-in column on '{self.TABLE}' and cannot be "
-                f"declared; built-in there: {', '.join(sorted(self.RESERVED_COLUMNS))}"
-            )
+        for table, columns in self.RESERVED_COLUMNS.items():
+            if self.name in columns:
+                raise ValueError(
+                    f"'{self.name}' is already a built-in column on '{table}' and cannot be "
+                    f"declared; built-in there: {', '.join(sorted(columns))}"
+                )
         return self
 
 
@@ -127,11 +127,14 @@ class _SearchableEntry(Entry):
 
 
 class Metric(Entry):
-    """A measured value, stored as a column on `{suite}.sample` (D5)."""
+    """A measured value, stored as a column on `{suite}.sample` and counted as one on
+    `{suite}.test_coverage` (D5)."""
 
-    TABLE: ClassVar[str] = "sample"
     LIST: ClassVar[str] = "metrics"
-    RESERVED_COLUMNS: ClassVar[frozenset[str]] = frozenset({"id", "run_id", "test_id"})
+    RESERVED_COLUMNS: ClassVar[Mapping[str, frozenset[str]]] = {
+        "sample": frozenset({"id", "run_id", "test_id"}),
+        "test_coverage": frozenset({"machine_id", "test_id", "sample_count"}),
+    }
 
     unit: str | None = None
     unit_abbrev: str | None = None
@@ -153,9 +156,10 @@ class Metric(Entry):
 class CommitField(_SearchableEntry):
     """Optional metadata on `{suite}.commit` (D5)."""
 
-    TABLE: ClassVar[str] = "commit"
     LIST: ClassVar[str] = "commit_fields"
-    RESERVED_COLUMNS: ClassVar[frozenset[str]] = frozenset({"id", "commit", "ordinal", "tag"})
+    RESERVED_COLUMNS: ClassVar[Mapping[str, frozenset[str]]] = {
+        "commit": frozenset({"id", "commit", "ordinal", "tag"})
+    }
 
     display: bool = Field(
         default=False,
@@ -169,9 +173,10 @@ class CommitField(_SearchableEntry):
 class MachineField(_SearchableEntry):
     """Optional metadata on `{suite}.machine` (D5)."""
 
-    TABLE: ClassVar[str] = "machine"
     LIST: ClassVar[str] = "machine_fields"
-    RESERVED_COLUMNS: ClassVar[frozenset[str]] = frozenset({"id", "name", "tracked"})
+    RESERVED_COLUMNS: ClassVar[Mapping[str, frozenset[str]]] = {
+        "machine": frozenset({"id", "name", "tracked"})
+    }
 
 
 def _reject_duplicates(entries: Sequence[Entry]) -> None:

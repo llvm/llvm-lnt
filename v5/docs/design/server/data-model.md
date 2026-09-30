@@ -265,7 +265,7 @@ valid names for a metric.
 
 A name must be unique within its list, but the three lists are independent: a
 metric and a machine field may share a name, because they are columns on
-different tables. A name that collides with a built-in column on the table the
+different tables. A name that collides with a built-in column on a table the
 entry extends is rejected (see D5 for each table's built-ins).
 
 
@@ -369,9 +369,9 @@ of its own named after its suite (see below).
 
 Each suite's tables live in a namespace of their own, named after the suite: a
 PostgreSQL schema called `{suite}`, holding `commit`, `machine`, `run`, `test`,
-`sample`, `regression`, `regression_indicator` and `profile`. A table is
-therefore addressed as `{suite}.commit`, and the entity names below are given in
-that form.
+`sample`, `test_coverage`, `regression`, `regression_indicator` and `profile`.
+A table is therefore addressed as `{suite}.commit`, and the entity names below
+are given in that form.
 
 #### `{suite}.commit`
 
@@ -487,8 +487,29 @@ that form.
 - Compound index on `(test_id, run_id)` -- covers time-series queries.
 - Dynamic columns from schema metrics (see D3 for the type-to-column mapping).
 - Metric names must not collide with built-in column names (`id`, `run_id`,
-  `test_id`), nor with the keys the submission format reserves inside a test
-  entry (see D6).
+  `test_id`) or with those of `{suite}.test_coverage`, nor with the keys the
+  submission format reserves inside a test entry (see D6).
+
+#### `{suite}.test_coverage`
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| machine_id | INTEGER FK -> Machine | PK |
+| test_id | INTEGER FK -> Test | PK |
+| sample_count | INTEGER | not null |
+| _(dynamic)_ | INTEGER, one per metric | not null, default `0` |
+
+- One row per machine and test that has samples, so that the `machine=` and
+  `metric=` filters of `GET /api/suites/{testsuite}/tests` are a lookup rather
+  than a scan of `{suite}.sample`. `sample_count` counts that machine's samples
+  of that test, and each metric's column counts those that have a value for the
+  metric. A row whose `sample_count` reaches zero is removed.
+- The counts are exact: every write that adds or removes samples updates them in
+  the same transaction (see D13). Run submission adds its samples, deleting a run
+  or a commit subtracts the samples it deletes, and deleting a machine cascades
+  to its rows.
+- Adding a metric adds its column at zero; removing one drops its column here as
+  well as from `{suite}.sample`.
 
 #### `{suite}.regression`
 
