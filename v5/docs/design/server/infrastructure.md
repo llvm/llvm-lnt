@@ -29,17 +29,10 @@ alongside an interactive viewer (see R8).
   `Location` header handed back at creation would answer 404. A machine name or a commit value
   that is not addressable in this sense is therefore rejected with 400 wherever the entity is
   created, including implicit creation during run submission (see D6), rather than accepted and
-  then unreachable. Suite names are already narrower than this by D4's pattern.
-- Test names are the exception, and the API addresses them differently because of it. They
-  legitimately contain `/` (`test.suite/benchmark`), and tests are created implicitly by run
-  submission, so there is no endpoint that could refuse an unaddressable one and no rule to apply.
-  **No path therefore carries a test name.** A request that names a test does so in a `test=` query
-  parameter, or in a request body where one is already being sent; in both, `/` is an ordinary
-  character and nothing splits or normalizes it. Percent-encoding does not rescue the path form for
-  a key containing `/` -- `%2F` is decoded back to a separator before routing, so
-  `/runs/{uuid}/tests/test.suite%2Fbenchmark/samples` reaches no route at all. It does work for
-  every other character a path segment would otherwise mangle, which is why a profile's function
-  name can be one (see the endpoints spec).
+  then unreachable.
+- Test names are exempt: they legitimately contain `/` and are created implicitly by run
+  submission, so no path carries one. A request names a test in a `test=` query parameter or in a
+  request body. Percent-encoding does not help, since `%2F` is decoded before routing.
 - An index endpoint at `GET /api` links to the test suite list and the API documentation
 - Suite-scoped resources live one level below the suite collection, under
   `/api/suites/{testsuite}/`. This keeps them disjoint from instance-level

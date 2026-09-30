@@ -227,12 +227,6 @@ rejected with 409 `conflict`, and a contradicted or already-taken `ordinal` with
 409 `ordinal_conflict` (see D11). Undeclared keys in `machine.fields` or
 `commit.fields` are rejected with 400, and so is a profile that D12 refuses.
 
-`machine=` keeps only the runs measured on that machine, and returns 404 if the
-suite holds no machine of that name. `commit=` keeps only the runs belonging to
-that commit, and a value no commit has is an empty page rather than an error --
-R3 draws that asymmetry deliberately. `after=`/`before=` bound `submitted_at`,
-both exclusive.
-
 `has_profiles=` (boolean): `true` returns only runs that have at least one
 profile attached; `false` returns only runs without profiles.
 
@@ -242,12 +236,7 @@ or any searchable machine_field; see D9) -- the same predicate as
 
 `sort=submitted_at` returns oldest-first and `sort=-submitted_at` newest-first;
 omitting `sort` returns results in an arbitrary but deterministic order suitable
-for pagination (see R2). Both directions, because R3's `-` prefix already spells
-one from the other and a list that offered only the descending spelling would be
-the sole exception to that convention; newest-first is merely the direction the
-UI asks for. `submitted_at` is not unique -- nothing stops two runs being
-accepted in the same instant -- so the server appends an internal tiebreaker to
-it, as D10 requires of every cursor-paginated ordering.
+for pagination (see R2).
 
 Auth scopes: `read` for GET, `submit` for POST, `manage` for DELETE.
 
@@ -263,19 +252,12 @@ Read-only. Tests are created implicitly via run submission.
 **Test object**: `name` -- an object rather than a bare string, so the list can
 gain a key later.
 
-A test name is the one natural key no path ever carries, because it legitimately
-contains `/` (see R1). A request names a test in a `test=` query parameter, or in
-a request body where one is already being sent -- `POST /query` and the
-regression indicators do the latter.
-
 Auth scope: `read`.
 
 Filters: `search=` (case-insensitive substring match on test name; see D9), `machine=` (only tests with data
 for this machine), `metric=` (only tests with non-NULL values for this metric).
-An unknown `machine=` is 404 and an unknown `metric=` is 400, per R3. Given
-together, the two describe one set of samples rather than two independent ones:
-`?machine=m&metric=execution_time` returns the tests that have an
-`execution_time` value *on that machine*.
+Given together, `?machine=m&metric=execution_time` returns the tests that have
+an `execution_time` value *on that machine*.
 
 Results come back in an arbitrary but deterministic order suitable for
 pagination (R2, D10); this list takes no `sort`.
@@ -302,28 +284,11 @@ to value holding only the metrics that have a value, typed per D3 (see R4):
 A test measured repeatedly within one run yields one object per repetition (see
 D6), and those repetitions are indistinguishable by design.
 
-Filters: `test=` (only the samples for this test). A name the suite has no test
-for is 404, the rule R3 gives every `test=` filter; a test that exists but that
-this run did not measure is an empty page rather than an error, exactly as a
-`machine=` naming a machine with no runs is.
-
-**Why `test=` and not a path segment.** R1 keeps a test name out of every path,
-because it legitimately contains `/` and no percent-encoding survives routing;
-this is the endpoint where that bites. Earlier drafts specified
-`GET /runs/{uuid}/tests/{test_name}/samples`, which can only ever address the
-minority of test names with no slash in them. Folding the test into the run's own
-sample list as a filter, rather than giving it a sibling route, keeps one way to
-read a run's samples and one pagination contract: the filtered list is
-cursor-paginated like the unfiltered one, and a client asking for a single test
-gets its handful of repetitions in one page with a null `cursor.next`. An
-unpaginated variant would buy that client nothing and would oblige every client
-to handle two shapes of response for one kind of data.
+Filters: `test=` (only the samples for this test). A test that exists but that
+this run did not measure is an empty page rather than an error.
 
 Results come back in an arbitrary but deterministic order suitable for
-pagination (R2, D10); this list takes no `sort`. In particular it is not ordered
-by test name -- the client sorts and filters the table it renders (see the Run
-Detail page in the client docs), and ordering by name on the server would cost a
-sort of the whole run on every page.
+pagination (R2, D10); this list takes no `sort`.
 
 Auth scope: `read`.
 
