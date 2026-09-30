@@ -204,16 +204,28 @@ server embedding a field whose meaning is purely a UI concern (see D4).
 Run lists and the detail return the same object, minus `run_parameters` in
 lists. `POST` returns 201 with the created run in its detail form and a
 `Location` header pointing at `GET /api/suites/{testsuite}/runs/{uuid}`.
+`DELETE` returns 204.
 
 The UUID is either provided by the client in the submission body or generated
 server-side (UUID v4) when omitted. Client-provided UUIDs must be in standard
 `8-4-4-4-12` hyphenated hex format and are normalized to lowercase. If a run
-with the same UUID already exists, the server returns 409 Conflict. The
+with the same UUID already exists, the server returns 409 `duplicate`. The
 submission endpoint requires JSON format with `format_version '5'`. Legacy
 formats (v0, v1, v2) and non-JSON payloads are rejected. There is no
 `on_existing_run` parameter -- v5 always creates a new run (multiple runs per
 machine+commit are allowed). Deleting a run cascades to its samples and
 profiles.
+
+The `{uuid}` in a path is matched case-insensitively. Every route in this
+section returns 404 if the suite does not exist, and every route that addresses
+a run returns 404 if no run in the suite has that UUID, including when the path
+segment is not a well-formed UUID. `DELETE` requires no `?confirm=true`.
+
+The machine and the commit a submission names are created if they do not exist,
+and otherwise reconciled with the submission (see D7): contradicted metadata is
+rejected with 409 `conflict`, and a contradicted or already-taken `ordinal` with
+409 `ordinal_conflict` (see D11). Undeclared keys in `machine.fields` or
+`commit.fields` are rejected with 400, and so is a profile that D12 refuses.
 
 `has_profiles=` (boolean): `true` returns only runs that have at least one
 profile attached; `false` returns only runs without profiles.
@@ -224,17 +236,6 @@ or any searchable machine_field; see D9) -- the same predicate as
 
 `sort=-submitted_at` returns newest-first; omitting `sort` returns results in
 an arbitrary but deterministic order suitable for pagination (see R2).
-
-If the submitted run's machine already exists with `machine.fields` values that
-differ from what's submitted, the submission is rejected. Only keys present in
-the submission are compared, and the built-in `tracked` attribute is excluded
-from the comparison (see D7). Keys in `machine.fields` that are not declared as
-`machine_fields` are rejected with 400 rather than stored.
-
-If the submission supplies `commit.ordinal`, it is rejected with 409 when the
-commit already has a different ordinal, or when that ordinal is already held by
-a different commit (see D11). Likewise, if it supplies `commit.tag`, it is
-rejected with 409 when the commit already has a different tag (see D7).
 
 Auth scopes: `read` for GET, `submit` for POST, `manage` for DELETE.
 

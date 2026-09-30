@@ -137,10 +137,13 @@ in *both* directions wherever nothing is lost: an `integer` is accepted where a
 an `integer` is. A number with a fractional part where an `integer` is declared is
 rejected rather than rounded.
 
-A value must also be one its column can store, and is otherwise rejected with 400: an
-`integer` must lie within the range of the column type above, a `real` must be finite
-(`NaN` and the infinities are not JSON, but some producers emit them anyway), and a
-`text` value must not contain the NUL character (see D5).
+A value its stored representation cannot hold is rejected with 400: an integer
+outside the range of its column (the column type above for a declared `integer`,
+the column D5 gives a built-in such as a commit's `ordinal`), a non-finite `real`
+(`NaN` and the infinities are not JSON, but some producers emit them anyway), or
+a string containing the NUL character (see D5). The last two apply to every
+value a request carries, including keys and values at any depth inside a run's
+`run_parameters`.
 
 A `datetime` is an ISO 8601 string in both directions, and nothing else is accepted
 for one. On the way in, a string carrying an offset is converted to UTC and one
@@ -276,13 +279,11 @@ storing timezone-aware UTC values. Implementations
 must ensure timestamps are converted to UTC before storage. API responses
 serialize timestamps as ISO 8601 with `Z` suffix (e.g., `"2026-04-15T14:30:00Z"`).
 
-**String convention**: PostgreSQL cannot store the NUL character (U+0000) in a
-string column, although JSON can carry one. A submitted string containing it -- a
-declared `text` value or a built-in such as a machine name -- is rejected with 400
-rather than accepted and then failing to store, and so is one a body only looks
-something up by. A URL carrying one -- in a path segment or a filter such as
-`search=` -- is refused whole with 400 before routing (see R4), which covers
-every segment and every filter, including ones added later.
+**String convention**: PostgreSQL stores the NUL character (U+0000) in neither a
+string column nor a `jsonb` value, although JSON can carry one. See D3 for how a
+request containing one is answered. A URL carrying one -- in a path segment or
+a filter such as `search=` -- is refused whole with 400 before routing (see R4),
+which covers every segment and every filter, including ones added later.
 
 **Index convention**: A `unique` constraint or primary key implies an index, and
 compound indexes are listed in each table's notes. `indexed` therefore marks
@@ -443,12 +444,14 @@ that form.
 | uuid | VARCHAR(36) | unique, not null |
 | machine_id | INTEGER FK -> Machine | not null |
 | commit_id | INTEGER FK -> Commit | not null, indexed |
-| submitted_at | TIMESTAMP WITH TIME ZONE | not null |
+| submitted_at | TIMESTAMP WITH TIME ZONE | not null, default `now()` |
 | run_parameters | JSONB | not null, default `{}` |
 
 - Every run must have a commit (`commit_id` is not null).
 - `submitted_at` is recorded by the server when the run is accepted; a
-  submission cannot supply it (see D6).
+  submission cannot supply it. It comes from the database's clock at the start
+  of the storing transaction, so it is comparable across workers but does not
+  reflect the order in which runs became visible.
 - Compound index on `(machine_id, submitted_at)`. Its leading column serves
   lookups of all runs for a machine, and the pair keeps both
   `GET /api/suites/{testsuite}/machines/{name}/runs?sort=-submitted_at` and the
@@ -544,8 +547,8 @@ The DB layer validates state values on create and update.
   (Unlike Run UUIDs, which may be client-provided, Profile and Regression
   UUIDs are always server-generated.)
 - Cascade: deleting a run cascades to its profiles.
-- Maximum accepted profile size on submission: 50 MB (decoded). Submissions
-  exceeding this are rejected.
+- A submitted profile may be at most 50 MiB (52,428,800 bytes) decoded; a
+  larger one is rejected (see D12).
 
 ### Tables Dropped from v4
 

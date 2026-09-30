@@ -51,10 +51,15 @@ def suite_scope(registry: SuiteRegistry, connection: Connection, name: str) -> I
     except DBAPIError as error:
         if not is_missing_relation(error):
             raise
-        raise ApiError(
-            ErrorCode.CONFLICT,
-            f"The schema of test suite '{name}' changed while this request was running. Retry.",
-        ) from error
+        raise schema_changed(name) from error
+
+
+def schema_changed(name: str) -> ApiError:
+    """D2's retryable conflict for a request whose suite changed while it was running."""
+    return ApiError(
+        ErrorCode.CONFLICT,
+        f"The schema of test suite '{name}' changed while this request was running. Retry.",
+    )
 
 
 def suite_responses(

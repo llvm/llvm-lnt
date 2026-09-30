@@ -128,7 +128,7 @@ def unique_violation_constraint(error: DBAPIError) -> str | None:
     """The name of the *unique* constraint an error tripped, or None if that is not what it was.
 
     Narrower than `violated_constraint` on purpose, for the callers that recover from a lost race
-    to insert a row (D13) and must not mistake some other integrity failure for one.
+    to insert a row and must not mistake some other integrity failure for one.
     """
     if not isinstance(error.orig, UniqueViolation):
         return None

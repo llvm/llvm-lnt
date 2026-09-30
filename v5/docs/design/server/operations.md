@@ -55,8 +55,8 @@ object identical to the one the entity's own creation endpoint accepts (see D7).
   hyphenated hex format (e.g., output of `uuidgen`). Case-insensitive on input;
   normalized to lowercase for storage. Any UUID version is accepted (v4, v5,
   v7, etc.) -- only the format is validated. If a run with the same UUID
-  already exists in the test suite, the server returns 409 Conflict. If omitted,
-  the server generates a random UUID v4.
+  already exists in the test suite, the server returns 409 `duplicate` (see R4).
+  If omitted, the server generates a random UUID v4.
 - `machine`: Required object identifying the machine this run was measured on.
   - `name`: Required string. The machine's identity.
   - `fields`: Optional. Every key must be declared in the schema's
@@ -76,7 +76,7 @@ object identical to the one the entity's own creation endpoint accepts (see D7).
   - `ordinal`: Optional integer, a built-in attribute rather than a
     `commit_field`. Places the commit in the suite's total order. It is set
     when the commit has no ordinal yet; when the commit already has a
-    different one, the submission is rejected with 409. Use
+    different one, the submission is rejected with 409 (see D7). Use
     `PATCH /api/suites/{testsuite}/commits/{value}` to change an ordinal once
     set. Ordinals are unique within a suite, so a value already held by a
     different commit is also rejected with 409 (see D11).
@@ -87,18 +87,36 @@ object identical to the one the entity's own creation endpoint accepts (see D7).
     D7). Use `PATCH /api/suites/{testsuite}/commits/{value}` to change or
     clear a tag once set.
 - `run_parameters`: Optional. Stored as JSONB on the Run. Run has no declared
-  field list, so this is a free-form blob rather than a `fields` dict.
-- `tests`: Required. Each entry has `name` plus metric values. Metric values
-  may be scalars or arrays. An array value (e.g. `"execution_time": [0.1, 0.2]`)
-  creates one Sample row per element. All arrays in a single test entry must
-  have the same length; scalar values are repeated across the resulting rows.
-  Metrics with null values must be omitted from the test entry (not sent as
-  `"metric": null`); only include metrics that have actual values. An optional
-  `profile` field may contain base64-encoded profile binary data; if present,
-  a Profile row is created and linked to the run+test. `name` and `profile` are
-  reserved keys within a test entry, so neither may be a metric name -- this is
-  enforced when the schema is created rather than at submission (see D5), so a
-  suite can never hold a metric that no submission could populate.
+  field list, so this is a free-form blob rather than a `fields` dict, validated
+  only against D3's rule on values that cannot be stored.
+- `tests`: Required list of test entries, which may be empty. Each entry has
+  `name` plus metric values.
+  - `name` is required, non-empty, and at most the length `{suite}.test.name`
+    allows (see D5).
+  - Two entries naming the same test are rejected with 400: repetitions are
+    expressed with arrays, and D5 allows only one profile per run+test pair.
+  - Metric values may be scalars or arrays. An array value (e.g.
+    `"execution_time": [0.1, 0.2]`) creates one Sample row per element. All
+    arrays in a single test entry must have the same length, and scalar values
+    are repeated across the resulting rows. An empty array is rejected with 400.
+  - An entry yields `max(1, array length)` Sample rows, so an entry with no
+    metric values still records that the test ran.
+  - Every metric key must be declared in the schema's `metrics`; an undeclared
+    one is rejected with 400. Values are typed per D3.
+  - Metrics with null values must be omitted from the test entry (not sent as
+    `"metric": null`), and a null element inside an array is rejected.
+  - An optional `profile` field may contain base64-encoded profile binary data;
+    if present, a Profile row is created and linked to the run+test (see D12).
+  - `name` and `profile` are reserved keys within a test entry, so neither may
+    be a metric name -- this is enforced when the schema is created rather than
+    at submission (see D5), so a suite can never hold a metric that no submission
+    could populate.
+
+An explicit `null` means "omitted" on `uuid`, `commit.ordinal`, `commit.tag`, a
+test entry's `profile`, and each entry of `machine.fields` and `commit.fields`;
+anywhere else it is rejected with 400. Unlike with `PATCH`, a `null` in `fields`
+never clears a stored value (see D7), so a client can submit the `fields` dict a
+response gave it, which carries a `null` for every unset field (see R4).
 
 
 ## D7: Machine and Commit Metadata Population
@@ -127,10 +145,17 @@ Declaring a new field is a schema change (`PATCH /api/suites/{name}/schema`,
 see D2), not something a submission can do implicitly.
 
 **Matching on re-submission**: the match in path 1 considers only the keys
-present in the submission. A key the submission omits is not compared, so its
-stored value is left alone and can never cause a rejection. Submitters that
-send different subsets of a record's metadata therefore coexist, and a field
-introduced by a schema change does not break producers that do not send it yet.
+present in the submission, and a key present with an explicit `null` counts as
+absent (see D6). A key the submission omits is not compared, so its stored value
+is left alone and can never cause a rejection. Submitters that send different
+subsets of a record's metadata therefore coexist, and a field introduced by a
+schema change does not break producers that do not send it yet.
+
+A key the submission sends fills in the value if the record has none, and is
+accepted if it equals the stored value. Any other value rejects the submission
+with 409 (`ordinal_conflict` for a commit's `ordinal`, `conflict` otherwise; see
+R4): stored metadata is never overwritten, and `PATCH` is the only way to change
+it.
 
 Per-entity specifics:
 
@@ -261,12 +286,15 @@ profile binary data.
 On submission:
 1. The `profile` field is recognized as a reserved key (not a metric) and
    excluded from metric name validation.
-2. The base64 data is decoded to raw bytes. Invalid base64 is rejected
-   with 400.
-3. The format version byte is validated (must be 2). Invalid format is
-   rejected with 400.
-4. A Profile row is created with `(run_id, test_id, created_at, data)`.
-5. The unique constraint on `(run_id, test_id)` prevents duplicate profiles.
+2. The data is decoded as standard, padded base64, ignoring ASCII whitespace
+   (so line-wrapped output is accepted). Any other character outside the
+   alphabet, or bad padding, is rejected with 400.
+3. A decoded blob larger than D5's cap is rejected with 400.
+4. The first byte, the format version, must be 2; otherwise, or if the blob is
+   empty, the profile is rejected with 400. Nothing else is parsed at
+   submission time.
+5. A Profile row is created with `(run_id, test_id, created_at, data)`.
+6. The unique constraint on `(run_id, test_id)` prevents duplicate profiles.
 
 Profiles are read-only after creation -- there is no PATCH endpoint.
 Deleting a run cascades to its profiles.
@@ -281,20 +309,40 @@ results and is only loaded when a request explicitly needs it.
 Run submission (`POST /api/suites/{testsuite}/runs`) is atomic from the API user's perspective: it
 either fully succeeds (201) or fully fails with no partial side effects.
 
-Machines, commits, and tests are created via a get-or-create pattern. When
-two concurrent sessions race to create the same entity, the loser's INSERT
-hits a unique constraint violation. All three get-or-create methods handle
-this with **savepoint-based retry**:
+Machines, commits, and tests are created via a get-or-create pattern, so
+concurrent submissions naming the same entity race to create it. An
+implementation must guarantee that:
 
-1. The INSERT is wrapped in a Postgres SAVEPOINT.
-2. On a unique-constraint violation, only the savepoint is rolled back -- prior work in
-   the same transaction (e.g., a machine created earlier) is preserved.
-3. The method re-queries by name and returns the row created by the winner.
+- **A lost race resolves to the winner's row.** The submission that loses the
+  race for a machine, a commit, or a test name uses the row the winner created,
+  and does not fail. Any other integrity failure is reported as its own error
+  (e.g. a taken `ordinal`, see D11).
+- **D7 holds under concurrency.** Two submissions filling the same unset value
+  cannot both succeed with different values.
+- **Concurrent submissions cannot deadlock against each other.**
+- **Test-name resolution costs a fixed number of round trips**, however many
+  names a submission carries.
 
-This makes concurrent submissions for the same machine, commit, or test
-names safe. No client-side retry is needed.
+The payload should be validated outside the write transaction, so that reading
+a large submission does not hold a connection and an open transaction. A schema
+change between validation and the write is then answered with D2's 409.
 
-For tests specifically, a batch resolution path exists that resolves all test
-names in O(1) DB round-trips regardless of test count. It provides the same
-concurrency safety guarantee as the single-test path: concurrent submissions
-with overlapping test sets never produce errors or partial results.
+With PostgreSQL, this is achieved as follows:
+
+- Machines and commits are resolved with a **savepoint-based retry**: the INSERT
+  is wrapped in a SAVEPOINT, and if it fails only the savepoint is rolled back
+  and the row is re-read by its identity. If it is there now, the race was lost
+  and the winner's row is used, whichever unique index reported the failure;
+  otherwise the failure (e.g. a taken `ordinal`) fails the submission.
+- An existing row is reconciled against the submission (see D7). If a NULL must
+  be filled in, the row is re-read `FOR NO KEY UPDATE` and reconciled again, and
+  that second reconciliation decides the write. A submission with nothing to
+  fill takes no lock.
+- Every submission resolves the machine, then the commit, then the test names.
+  Inserting the run then takes key-share locks on its machine and commit through
+  the foreign keys, so the fill lock must not be `FOR UPDATE`: that conflicts
+  with key-share, and two submissions could deadlock.
+- Test names are resolved as a set: read the ones that exist, insert the rest
+  while skipping conflicts, and re-read what was skipped. Names are inserted in
+  ascending order, so that submissions with overlapping sets lock them in the
+  same order.
