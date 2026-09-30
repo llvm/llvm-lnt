@@ -30,11 +30,11 @@ from sqlalchemy import Engine, func, select
 from conftest import code_of, run_payload, uuids_in, walk_pages
 from lnt_v5.routes.commits import COMMITS_PATH
 from lnt_v5.routes.machines import MACHINES_PATH
-from lnt_v5.routes.regressions import REGRESSIONS_PATH
+from lnt_v5.routes.regressions import MAX_INDICATORS, REGRESSIONS_PATH
 from lnt_v5.routes.runs import RUNS_PATH
 from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.suites.states import RegressionState, RegressionStateName
-from lnt_v5.suites.tables import SuiteTables
+from lnt_v5.suites.tables import NAME_LENGTH, SuiteTables
 
 REGRESSIONS = REGRESSIONS_PATH.format(testsuite="nts")
 RUNS = RUNS_PATH.format(testsuite="nts")
@@ -53,6 +53,13 @@ NTS: dict[str, Any] = {
 LINUX_ONE = {"machine": "linux", "test": "suite/one", "metric": "execution_time"}
 LINUX_TWO = {"machine": "linux", "test": "suite/two", "metric": "execution_time"}
 DARWIN_ONE = {"machine": "darwin", "test": "suite/one", "metric": "execution_time"}
+
+# What a title or a bug may not be, and why. `null` is how a regression has neither; an empty string
+# would be a second spelling of it, and one a client's placeholder would not recognize.
+UNSTORABLE_TEXT = pytest.mark.parametrize(
+    ("value", "reason"),
+    [("", "empty"), ("x" * (NAME_LENGTH + 1), "longer than D5's column")],
+)
 
 # Every route here that is not a GET, with a body it would accept, as the two authorization tests
 # walk them. One table rather than one per test, so that a route added to one and not the other
@@ -263,15 +270,28 @@ class TestCreate:
         assert "execution_time" in message and "compile_time" in message
 
     @pytest.mark.parametrize("key", ["title", "bug"])
-    def test_is_400_for_an_empty_string(
-        self, api_client: TestClient, triage: dict[str, str], suite: SuiteTables, key: str
+    @UNSTORABLE_TEXT
+    def test_is_400_for_a_title_or_bug_it_cannot_store(
+        self,
+        api_client: TestClient,
+        triage: dict[str, str],
+        suite: SuiteTables,
+        key: str,
+        value: str,
+        reason: str,
     ) -> None:
-        # `null` is how a regression has no title or bug; an empty string would be a second
-        # spelling of it, and one a client's placeholder would not recognize.
-        response = api_client.post(REGRESSIONS, json={key: ""}, headers=triage)
+        response = api_client.post(REGRESSIONS, json={key: value}, headers=triage)
 
-        assert response.status_code == 400
+        assert response.status_code == 400, reason
         assert code_of(response) == "invalid_request"
+
+    @pytest.mark.parametrize("key", ["title", "bug"])
+    def test_takes_a_title_or_bug_as_long_as_the_column(
+        self, create: Callable[..., Any], key: str
+    ) -> None:
+        value = "x" * NAME_LENGTH
+
+        assert create(**{key: value})[key] == value
 
     def test_is_400_for_a_state_that_is_not_one_of_the_five(
         self, api_client: TestClient, triage: dict[str, str], suite: SuiteTables
@@ -719,14 +739,21 @@ class TestUpdate:
         assert response.status_code == 400
 
     @pytest.mark.parametrize("key", ["title", "bug"])
-    def test_an_empty_string_is_rejected(
-        self, api_client: TestClient, triage: dict[str, str], create: Callable[..., Any], key: str
+    @UNSTORABLE_TEXT
+    def test_a_title_or_bug_it_cannot_store_is_rejected(
+        self,
+        api_client: TestClient,
+        triage: dict[str, str],
+        create: Callable[..., Any],
+        key: str,
+        value: str,
+        reason: str,
     ) -> None:
         uuid = create(title="t", bug="b")["uuid"]
 
-        response = api_client.patch(f"{REGRESSIONS}/{uuid}", json={key: ""}, headers=triage)
+        response = api_client.patch(f"{REGRESSIONS}/{uuid}", json={key: value}, headers=triage)
 
-        assert response.status_code == 400
+        assert response.status_code == 400, reason
         assert code_of(response) == "invalid_request"
 
     def test_leaves_the_indicators_alone(
@@ -987,6 +1014,45 @@ class TestAddIndicators:
         assert add(uuid, [LINUX_ONE, {**LINUX_ONE, "test": "nope"}]).status_code == 404
         assert api_client.get(f"{REGRESSIONS}/{uuid}").json()["indicators"] == []
 
+    def test_accepts_as_many_indicators_as_a_batch_may_hold(
+        self,
+        api_client: TestClient,
+        submitter: dict[str, str],
+        create: Callable[..., Any],
+        add: Callable[..., Any],
+    ) -> None:
+        # The batch is inserted in one statement, so a full one carries the most bind parameters
+        # any request here can produce, and is what would fail first if that ever outgrew what
+        # PostgreSQL accepts.
+        tests = [f"bulk/{index}" for index in range(MAX_INDICATORS // 2)]
+        body = run_payload(
+            machine={"name": "linux"},
+            commit={"value": "abc123"},
+            tests=[{"name": test, "execution_time": 1.0, "compile_time": 1.0} for test in tests],
+        )
+        assert api_client.post(RUNS, json=body, headers=submitter).status_code == 201
+        indicators = [
+            {"machine": "linux", "test": test, "metric": metric}
+            for test in tests
+            for metric in ("execution_time", "compile_time")
+        ]
+        uuid = create()["uuid"]
+
+        response = add(uuid, indicators)
+
+        assert response.status_code == 200
+        assert response.json()["added"] == MAX_INDICATORS
+
+    def test_refuses_more_indicators_than_a_batch_may_hold(
+        self, create: Callable[..., Any], add: Callable[..., Any]
+    ) -> None:
+        uuid = create()["uuid"]
+
+        response = add(uuid, [LINUX_ONE] * (MAX_INDICATORS + 1))
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
 
 class TestRemoveIndicators:
     @pytest.fixture
@@ -1112,6 +1178,14 @@ class TestRemoveIndicators:
         self, create: Callable[..., Any], remove: Callable[..., Any]
     ) -> None:
         assert remove(create()["uuid"], []).status_code == 400
+
+    def test_refuses_more_uuids_than_a_batch_may_hold(
+        self, create: Callable[..., Any], remove: Callable[..., Any]
+    ) -> None:
+        response = remove(create()["uuid"], [f"{index}" for index in range(MAX_INDICATORS + 1)])
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
 
 
 class TestCascades:
