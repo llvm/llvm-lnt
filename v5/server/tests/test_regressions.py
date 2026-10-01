@@ -815,6 +815,18 @@ class TestUpdate:
 
         assert response.status_code == 404
 
+    def test_names_the_missing_regression_rather_than_the_missing_commit(
+        self, api_client: TestClient, triage: dict[str, str], suite: SuiteTables
+    ) -> None:
+        uuid = "e6c9ba0a-0000-4000-8000-000000000000"
+
+        response = api_client.patch(
+            f"{REGRESSIONS}/{uuid}", json={"commit": "nope"}, headers=triage
+        )
+
+        assert response.status_code == 404
+        assert uuid in response.json()["error"]["message"]
+
     def test_is_404_for_a_regression_that_is_not_there_even_with_an_empty_body(
         self, api_client: TestClient, triage: dict[str, str], suite: SuiteTables
     ) -> None:

@@ -862,6 +862,9 @@ def update_regression(
     """
     with engine.begin() as connection, suite_scope(registry, connection, testsuite) as suite:
         regressions = Regressions(suite)
+        # The regression before the commit the body names, so that a request addressing a
+        # regression that is not there is told so rather than about its commit.
+        regression = regressions.resolve(connection, uuid)
         changes = body.model_dump(exclude_unset=True)
         values: dict[str, Any] = {
             key: changes[key] for key in ("title", "bug", "notes") if key in changes
@@ -875,15 +878,14 @@ def update_regression(
                 else commit_id(connection, suite, changes["commit"])
             )
 
-        # A request that changes nothing is still a 404 for a regression that is not there, which
-        # `detail` answers on its own -- an UPDATE with no values would match no rows either way.
         if values:
             with regressions.commit_deleted(changes.get("commit")):
                 changed = connection.execute(
                     update(regressions.table)
-                    .where(regressions.table.c.uuid == uuid)
+                    .where(regressions.table.c.id == regression)
                     .values(**values)
                 )
+            # A delete that committed after `resolve` leaves nothing to update.
             if changed.rowcount == 0:
                 raise regressions.missing(uuid)
         return regressions.detail(connection, uuid)
