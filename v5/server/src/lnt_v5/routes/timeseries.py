@@ -1,7 +1,7 @@
 """Time series (endpoints.md, Time Series).
 
 `POST /query` pages through D10's `Sample JOIN Run JOIN Commit`. It is a `read`-scoped POST because
-its filters do not fit a query string, so its cursor and page size travel in the body (R2).
+its test list does not fit a query string, so its cursor and page size travel in the body (R2).
 `GET /trends` combines the runs' geomeans (D15) into one per (machine, commit).
 """
 

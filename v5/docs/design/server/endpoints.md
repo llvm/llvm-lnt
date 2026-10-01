@@ -452,8 +452,8 @@ header pointing at its detail route; `PATCH` returns 200 with the same body;
 
 ## Time Series
 
-The query is a `read`-scoped POST because its filters (a list of test names,
-four range bounds) do not fit a query string.
+The query is a `read`-scoped POST because its list of test names, which may be
+long and whose names may contain any character, does not fit a query string.
 
 ### Query
 

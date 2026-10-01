@@ -49,8 +49,8 @@ MAX_LIMIT = 10_000
 
 # The wording of R2's two paging parameters, stated once because they travel by two carriers: as
 # query parameters on the GET lists, and as keys of the request body on `POST /query`, which is
-# asked for with a body because its filters do not fit a query string. R2 is explicit that nothing
-# else about the contract differs between the two.
+# asked for with a body because its test list does not fit a query string. R2 is explicit that
+# nothing else about the contract differs between the two.
 _LIMIT = "How many items to return, at most."
 _CURSOR = (
     "Continue the list where a previous page ended: pass back the `cursor.next` that page "
