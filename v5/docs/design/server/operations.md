@@ -324,6 +324,7 @@ member. Each of the following is rejected with 400:
   functions of the same name.
 - A function of more than 100,000 instructions.
 - Instructions of one function that do not all carry the same counters.
+- An instruction counter that is not one of the profile's top-level counters.
 - An instruction's counter value, or a function's sum of one counter, above
   the largest finite single-precision value (about 3.4028235e38).
 - An address lower than the one before it within a function.

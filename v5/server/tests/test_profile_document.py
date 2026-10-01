@@ -90,12 +90,23 @@ class TestWhatIsStored:
                         instruction(0, cycles=1.5, misses=2),
                         instruction(4, cycles=2.5, misses=0),
                     ],
-                }
+                },
+                counters={"cycles": 10, "misses": 10},
             )
         )
 
         assert profile.functions["main"].counters == {"cycles": 4.0, "misses": 2.0}
         assert profile.functions["main"].length == 2
+
+    def test_a_function_may_carry_fewer_counters_than_the_profile(self) -> None:
+        profile = stored(
+            document(
+                {"name": "f", "instructions": [instruction(cycles=1)]},
+                counters={"cycles": 10, "misses": 10},
+            )
+        )
+
+        assert profile.functions["f"].counters == {"cycles": 1.0}
 
     def test_a_function_with_no_instructions_has_no_counters(self) -> None:
         profile = stored(document({"name": "empty", "instructions": []}))
@@ -323,6 +334,11 @@ class TestDocument:
         )
 
         assert "every instruction of a function carries the same counters" in refused(mixed)
+
+    def test_refuses_an_instruction_counter_the_top_level_does_not_carry(self) -> None:
+        stray = document({"name": "f", "instructions": [instruction(misses=1)]})
+
+        assert "not top-level counters" in refused(stray)
 
     def test_refuses_an_address_lower_than_the_one_before_it(self) -> None:
         backwards = document({"name": "f", "instructions": [instruction(8), instruction(4)]})

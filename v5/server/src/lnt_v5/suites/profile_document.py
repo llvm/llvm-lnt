@@ -163,6 +163,18 @@ class ProfileDocument(Struct, forbid_unknown_fields=True, gc=False):
             self.counters[counter] = _unsigned(value, f"the top-level counter '{counter}'")
         if len({function.name for function in self.functions}) != len(self.functions):
             raise ValueError("two functions have the same name")
+        # A client shows a function's counter as its share of the top-level one (`client/
+        # profiles.md`), which needs the top-level one to exist. The first instruction speaks for
+        # the function, since its own hook has checked that every instruction carries the same.
+        for function in self.functions:
+            if function.instructions:
+                unknown = function.instructions[0].counters.keys() - self.counters.keys()
+                if unknown:
+                    raise ValueError(
+                        f"function '{function.name}' carries the counters {sorted(unknown)}, which "
+                        f"are not top-level counters; every counter of an instruction is one of "
+                        f"the profile's top-level counters"
+                    )
 
 
 _DECODER = msgspec.json.Decoder(ProfileDocument)
