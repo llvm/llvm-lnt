@@ -28,6 +28,7 @@ retried removal names UUIDs that are already gone.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from contextlib import AbstractContextManager, nullcontext
 from typing import Annotated, Any
 from uuid import uuid4
 
@@ -62,7 +63,7 @@ from lnt_v5.querying import (
     search_condition,
 )
 from lnt_v5.responses import CursorPage
-from lnt_v5.routes.commits import commit_id
+from lnt_v5.routes.commits import Commits, commit_id
 from lnt_v5.routes.machines import machine_id, machine_ids
 from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.routes.tests import test_id, test_ids
@@ -83,7 +84,9 @@ from lnt_v5.suites.scope import SUITE_NOT_FOUND, schema_changed, suite_responses
 from lnt_v5.suites.states import RegressionStateName
 from lnt_v5.suites.tables import (
     NAME_LENGTH,
+    REGRESSION_COMMIT_CONSTRAINT,
     REGRESSION_INDICATOR_CONSTRAINT,
+    REGRESSION_INDICATOR_MACHINE_CONSTRAINT,
     REGRESSION_INDICATOR_METRIC_CONSTRAINT,
 )
 
@@ -572,7 +575,10 @@ class Regressions:
         that true under two triagers adding the same indicator at once.
 
         A metric removed after `resolved_indicators` found it fails the foreign key rather than
-        leaving an indicator naming a metric that is gone (D5), and is D2's retryable conflict.
+        leaving an indicator naming a metric that is gone (D5), and is D2's retryable conflict. A
+        machine deleted in that window fails its own foreign key, and is the 404 an absent machine
+        always is: the request names a machine that is no longer there. Nothing deletes a test, so
+        its foreign key cannot fail this way.
 
         `added` is the number of rows `RETURNING` hands back, which under `DO NOTHING` is exactly
         the rows that were inserted. Deliberately not `rowcount`: SQLAlchemy memoizes that for an
@@ -585,10 +591,17 @@ class Regressions:
         statement = upsert(self._indicator).values(
             [{"uuid": str(uuid4()), "regression_id": regression, **row} for row in resolved]
         )
-        with reporting_violation(
-            REGRESSION_INDICATOR_METRIC_CONSTRAINT,
-            ErrorCode.CONFLICT,
-            schema_changed(self.schema.name).message,
+        with (
+            reporting_violation(
+                REGRESSION_INDICATOR_METRIC_CONSTRAINT,
+                ErrorCode.CONFLICT,
+                schema_changed(self.schema.name).message,
+            ),
+            reporting_violation(
+                REGRESSION_INDICATOR_MACHINE_CONSTRAINT,
+                ErrorCode.NOT_FOUND,
+                "A machine an indicator names was deleted while this request was running.",
+            ),
         ):
             return len(
                 connection.execute(
@@ -597,6 +610,22 @@ class Regressions:
                     ).returning(self._indicator.c.id)
                 ).all()
             )
+
+    def commit_deleted(self, value: str | None) -> AbstractContextManager[None]:
+        """The 404 for a commit deleted after the request resolved it, and before it was stored.
+
+        The foreign key is what notices: it waits for a delete still in flight, and fails once that
+        delete commits. The request then names a commit that is no longer there, which is the same
+        404, worded the same way, as one that never was. A request naming no commit stores no
+        reference, so there is nothing to translate.
+        """
+        if value is None:
+            return nullcontext()
+        return reporting_violation(
+            REGRESSION_COMMIT_CONSTRAINT,
+            ErrorCode.NOT_FOUND,
+            Commits(self.suite).missing(value).message,
+        )
 
     def remove_indicators(
         self, connection: Connection, regression: int, uuids: Sequence[str]
@@ -777,20 +806,21 @@ def create_regression(
         commit = None if body.commit is None else commit_id(connection, suite, body.commit)
 
         uuid = str(uuid4())
-        created = int(
-            connection.execute(
-                insert(regressions.table)
-                .values(
-                    uuid=uuid,
-                    title=body.title,
-                    bug=body.bug,
-                    notes=body.notes,
-                    state=body.state.stored,
-                    commit_id=commit,
-                )
-                .returning(regressions.table.c.id)
-            ).scalar_one()
-        )
+        with regressions.commit_deleted(body.commit):
+            created = int(
+                connection.execute(
+                    insert(regressions.table)
+                    .values(
+                        uuid=uuid,
+                        title=body.title,
+                        bug=body.bug,
+                        notes=body.notes,
+                        state=body.state.stored,
+                        commit_id=commit,
+                    )
+                    .returning(regressions.table.c.id)
+                ).scalar_one()
+            )
         regressions.add_indicators(connection, created, resolved)
         # Read back rather than assembled from the request, so that this is the same body the
         # detail endpoint serves for the same regression.
@@ -850,9 +880,12 @@ def update_regression(
         # A request that changes nothing is still a 404 for a regression that is not there, which
         # `detail` answers on its own -- an UPDATE with no values would match no rows either way.
         if values:
-            changed = connection.execute(
-                update(regressions.table).where(regressions.table.c.uuid == uuid).values(**values)
-            )
+            with regressions.commit_deleted(changes.get("commit")):
+                changed = connection.execute(
+                    update(regressions.table)
+                    .where(regressions.table.c.uuid == uuid)
+                    .values(**values)
+                )
             if changed.rowcount == 0:
                 raise regressions.missing(uuid)
         return regressions.detail(connection, uuid)

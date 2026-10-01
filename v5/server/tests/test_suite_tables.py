@@ -31,6 +31,7 @@ from lnt_v5.suites.tables import (
     MACHINE_NAME_CONSTRAINT,
     REGRESSION_COMMIT_CONSTRAINT,
     REGRESSION_INDICATOR_CONSTRAINT,
+    REGRESSION_INDICATOR_MACHINE_CONSTRAINT,
     REGRESSION_INDICATOR_METRIC_CONSTRAINT,
     RUN_UUID_CONSTRAINT,
     SuiteTables,
@@ -462,6 +463,7 @@ class TestNamingConvention:
             ("regression", REGRESSION_COMMIT_CONSTRAINT),
             ("regression_indicator", REGRESSION_INDICATOR_CONSTRAINT),
             ("regression_indicator", REGRESSION_INDICATOR_METRIC_CONSTRAINT),
+            ("regression_indicator", REGRESSION_INDICATOR_MACHINE_CONSTRAINT),
         ],
     )
     def test_the_other_written_out_constraints_are_the_ones_postgres_holds(

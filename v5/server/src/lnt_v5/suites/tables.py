@@ -66,8 +66,10 @@ MACHINE_NAME_CONSTRAINT = "uq_machine_name"
 COMMIT_VALUE_CONSTRAINT = "uq_commit_commit"
 COMMIT_ORDINAL_CONSTRAINT = "uq_commit_ordinal"
 RUN_UUID_CONSTRAINT = "uq_run_uuid"
-# Not a unique constraint but a foreign key: D5 makes a commit a regression references undeletable,
-# and this is the constraint whose violation says so (R4's `in_use`).
+# Not a unique constraint but a foreign key, violated from either side. Deleting a commit that a
+# regression references is refused, since D5 makes that commit undeletable (R4's `in_use`).
+# Storing a reference to a commit deleted after the request resolved it is a 404: it is no longer
+# there.
 REGRESSION_COMMIT_CONSTRAINT = "fk_regression_commit_id_commit"
 # The one named as an `ON CONFLICT` target rather than attributed after the fact: adding an
 # indicator a regression already has is the silent no-op endpoints.md asks for. Named explicitly
@@ -76,6 +78,9 @@ REGRESSION_INDICATOR_CONSTRAINT = "uq_regression_indicator_combination"
 # An indicator's reference to its metric. A violation means the metric was removed while the request
 # was running, which D2 answers with a retryable conflict.
 REGRESSION_INDICATOR_METRIC_CONSTRAINT = "fk_regression_indicator_metric_id_metric"
+# An indicator's reference to its machine. A violation means the machine was deleted after the
+# request resolved it, which leaves the request naming a machine that is not there: a 404.
+REGRESSION_INDICATOR_MACHINE_CONSTRAINT = "fk_regression_indicator_machine_id_machine"
 
 
 # D3's mapping from a declared type to the column that stores it. `Double` rather than `Float`

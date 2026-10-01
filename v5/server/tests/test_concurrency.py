@@ -22,20 +22,23 @@ from typing import Any
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import Connection, Engine, insert, select, text
+from fastapi.testclient import TestClient
+from sqlalchemy import Connection, Engine, delete, insert, select, text
 
+from conftest import code_of, run_payload
 from introspection import counted, counting_statements
 from lnt_v5.errors import ApiError, ErrorCode
-from lnt_v5.routes.commits import Commits
+from lnt_v5.routes.commits import COMMITS_PATH, Commits
 from lnt_v5.routes.machines import Machines
-from lnt_v5.routes.regressions import IndicatorObject, Regressions
-from lnt_v5.routes.runs import Runs
+from lnt_v5.routes.regressions import REGRESSIONS_PATH, IndicatorObject, Regressions
+from lnt_v5.routes.runs import RUNS_PATH, Runs
 from lnt_v5.suites import tables as suite_tables
 from lnt_v5.suites.concurrency import resolve_names
 from lnt_v5.suites.registry import Suite
 from lnt_v5.suites.schema import SuiteSchema
 from lnt_v5.suites.states import RegressionState
 from lnt_v5.suites.submission import SubmittedCommit, SubmittedMachine
+from lnt_v5.suites.tables import SuiteTables
 
 # A suite with a field of two different types on each entity, so that reconciliation is exercised
 # against something other than text, and one metric because D5 gives every suite a sample table.
@@ -56,6 +59,11 @@ NTS: dict[str, Any] = {
 # because it is only ever paid when something is wrong: the wait ends as soon as PostgreSQL reports
 # the block, which takes milliseconds.
 BLOCK_TIMEOUT = 20.0
+
+# The suite's routes, for the tests that race a request rather than a function.
+RUNS = RUNS_PATH.format(testsuite=NTS["name"])
+COMMITS = COMMITS_PATH.format(testsuite=NTS["name"])
+REGRESSIONS = REGRESSIONS_PATH.format(testsuite=NTS["name"])
 
 
 @pytest.fixture
@@ -887,3 +895,123 @@ class TestConcurrentIndicators:
 
         assert running.result(timeout=BLOCK_TIMEOUT) == 0
         assert counted(db_engine, suite.tables, "regression_indicator") == 2
+
+
+class TestReferenceDeletedMidRequest:
+    """A regression write racing the deletion of a machine or commit it names.
+
+    The write resolves the name, then stores a reference to the row; a delete that commits in
+    between leaves it naming something that is no longer there, which is the 404 an absent machine
+    or commit always is rather than a 500. Driven through the API, because a regression's commit is
+    stored by the endpoint itself. The delete holds its transaction open, so the request resolves
+    the row it can still see and then blocks on it when its write checks the foreign key.
+    """
+
+    @pytest.fixture
+    def tables(self, make_api_suite: Callable[[dict[str, Any]], SuiteTables]) -> SuiteTables:
+        return make_api_suite(NTS)
+
+    @pytest.fixture
+    def linux(self, api_client: TestClient, submitter: dict[str, str], tables: SuiteTables) -> None:
+        """A machine and a test an indicator can name, which only a run submission creates."""
+        body = run_payload(
+            machine={"name": "linux"},
+            commit={"value": "abc"},
+            tests=[{"name": "suite/one", "execution_time": 1.0}],
+        )
+        assert api_client.post(RUNS, json=body, headers=submitter).status_code == 201
+
+    @pytest.fixture
+    def doomed(
+        self, api_client: TestClient, submitter: dict[str, str], tables: SuiteTables
+    ) -> None:
+        """A commit no run is at, so that deleting it takes nothing else with it."""
+        created = api_client.post(COMMITS, json={"value": "doomed"}, headers=submitter)
+        assert created.status_code == 201
+
+    @pytest.fixture
+    def regression(
+        self, api_client: TestClient, triage: dict[str, str], tables: SuiteTables
+    ) -> str:
+        response = api_client.post(REGRESSIONS, json={}, headers=triage)
+        assert response.status_code == 201
+        uuid: str = response.json()["uuid"]
+        return uuid
+
+    @pytest.mark.usefixtures("linux")
+    def test_an_indicator_naming_a_deleted_machine_is_404(
+        self,
+        api_client: TestClient,
+        triage: dict[str, str],
+        db_engine: Engine,
+        background: Callable[..., Future[Any]],
+        tables: SuiteTables,
+        regression: str,
+    ) -> None:
+        indicator = {"machine": "linux", "test": "suite/one", "metric": "execution_time"}
+        running = raced(
+            db_engine,
+            background,
+            lambda connection: connection.execute(
+                delete(tables.machine).where(tables.machine.c.name == "linux")
+            ),
+            lambda _: api_client.post(
+                f"{REGRESSIONS}/{regression}/indicators",
+                json={"indicators": [indicator]},
+                headers=triage,
+            ),
+        )
+
+        response = running.result(timeout=BLOCK_TIMEOUT)
+        assert response.status_code == 404
+        assert code_of(response) == "not_found"
+        assert counted(db_engine, tables, "regression_indicator") == 0
+
+    @pytest.mark.usefixtures("doomed")
+    def test_creating_a_regression_naming_a_deleted_commit_is_404(
+        self,
+        api_client: TestClient,
+        triage: dict[str, str],
+        db_engine: Engine,
+        background: Callable[..., Future[Any]],
+        tables: SuiteTables,
+    ) -> None:
+        running = raced(
+            db_engine,
+            background,
+            lambda connection: connection.execute(
+                delete(tables.commit).where(tables.commit.c.commit == "doomed")
+            ),
+            lambda _: api_client.post(REGRESSIONS, json={"commit": "doomed"}, headers=triage),
+        )
+
+        response = running.result(timeout=BLOCK_TIMEOUT)
+        assert response.status_code == 404
+        assert code_of(response) == "not_found"
+        assert counted(db_engine, tables, "regression") == 0
+
+    @pytest.mark.usefixtures("doomed")
+    def test_attributing_a_regression_to_a_deleted_commit_is_404(
+        self,
+        api_client: TestClient,
+        triage: dict[str, str],
+        db_engine: Engine,
+        background: Callable[..., Future[Any]],
+        tables: SuiteTables,
+        regression: str,
+    ) -> None:
+        running = raced(
+            db_engine,
+            background,
+            lambda connection: connection.execute(
+                delete(tables.commit).where(tables.commit.c.commit == "doomed")
+            ),
+            lambda _: api_client.patch(
+                f"{REGRESSIONS}/{regression}", json={"commit": "doomed"}, headers=triage
+            ),
+        )
+
+        response = running.result(timeout=BLOCK_TIMEOUT)
+        assert response.status_code == 404
+        assert code_of(response) == "not_found"
+        assert api_client.get(f"{REGRESSIONS}/{regression}").json()["commit"] is None
