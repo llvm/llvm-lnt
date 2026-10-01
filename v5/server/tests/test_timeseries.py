@@ -607,7 +607,12 @@ class TestQueryPagination:
 
     @pytest.mark.parametrize(
         "change",
-        [{"machine": "linux"}, {"test": "t"}, {"test": ["t"]}, {"after_commit": "c1"}],
+        [
+            {"machine": "linux"},
+            {"test": ["t"]},
+            {"after_commit": "c1"},
+            {"after_time": "2000-01-01T00:00:00Z"},
+        ],
     )
     def test_refuses_a_cursor_issued_under_other_filters(
         self, api_client: TestClient, many: None, change: dict[str, Any]
