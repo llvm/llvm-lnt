@@ -558,15 +558,33 @@ class TestQueryPagination:
 
         assert len(points(api_client, metric="execution_time")) == DEFAULT_LIMIT == 25
 
-    @pytest.mark.parametrize("sort", [None, "commit", "-commit", "test", "-submitted_at"])
-    def test_pages_cover_every_point_exactly_once(
-        self, api_client: TestClient, many: None, sort: str | None
+    @pytest.mark.parametrize(
+        "sort", [None, "commit", "-commit", "test", "-test", "submitted_at", "-submitted_at"]
+    )
+    def test_pages_cover_every_point_exactly_once_and_in_order(
+        self,
+        api_client: TestClient,
+        submit: Callable[..., dict[str, Any]],
+        place: Callable[..., None],
+        sort: str | None,
     ) -> None:
+        # Three commits of three tests, each measured twice, so that page boundaries fall both
+        # between distinct sort values and between rows the sort leaves tied.
+        for c in range(3):
+            entries = [{"name": f"t{t}", "execution_time": [10.0 * c + t] * 2} for t in range(3)]
+            submit("linux", f"c{c}", *entries)
+            place(f"c{c}", ordinal=c)
+
         served = walk(
-            api_client, metric="execution_time", limit=2, **({} if sort is None else {"sort": sort})
+            api_client, metric="execution_time", limit=4, **({} if sort is None else {"sort": sort})
         )
 
-        assert sorted(point["value"] for point in served) == [float(index) for index in range(7)]
+        expected = [10.0 * c + t for c in range(3) for t in range(3)] * 2
+        assert sorted(point["value"] for point in served) == sorted(expected)
+        if sort is not None:
+            key = {"commit": "ordinal"}.get(sort.removeprefix("-"), sort.removeprefix("-"))
+            keys = [point[key] for point in served]
+            assert keys == sorted(keys, reverse=sort.startswith("-"))
 
     def test_the_filters_survive_a_page_boundary(
         self, api_client: TestClient, many: None, submit: Callable[..., dict[str, Any]]

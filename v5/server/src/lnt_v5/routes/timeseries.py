@@ -90,8 +90,9 @@ class DataPoint(BaseModel):
     commit: str = Field(description="The identity string of the commit the run belongs to.")
     ordinal: int | None = Field(
         description=(
-            "That commit's position in the suite's order, or null if it has none. Null only when "
-            "the request did not sort by commit, which excludes the commits that have no ordinal."
+            "That commit's position in the suite's order, or null if it has none. Never null when "
+            "the request sorts by commit or bounds a commit range, which exclude the commits that "
+            "have no ordinal."
         )
     )
     run_uuid: str = Field(description="The UUID of the run this value came from.")
@@ -273,8 +274,9 @@ class Points:
     def read(self, row: Row[Any]) -> DataPoint:
         # By column object rather than by name: several joined tables have a `name`, and a metric
         # may be called `commit` or `tag`. `_mapping` builds a view per access, so bind it once.
+        # Not validated, like every other stored row the API reads back.
         values = row._mapping
-        return DataPoint(
+        return DataPoint.model_construct(
             test=values[self._test.c.name],
             machine=values[self._machine.c.name],
             metric=self.metric,
@@ -359,7 +361,7 @@ class Trends:
 
     def read(self, row: Row[Any]) -> TrendPoint:
         values = row._mapping
-        return TrendPoint(
+        return TrendPoint.model_construct(
             machine=values[self._machine.c.name],
             commit=values[self._commit.c.commit],
             ordinal=values[self.ordinal],
