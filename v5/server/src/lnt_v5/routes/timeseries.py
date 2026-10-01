@@ -420,10 +420,8 @@ def query_points(
 ) -> CursorPage[DataPoint]:
     """One metric's measured values, filtered, ordered and cursor-paginated (R2, R3, D10).
 
-    The metric is resolved first, and that ordering is the precedence endpoints.md states for a
-    request that gets more than one thing wrong: an undeclared metric is a 400 and beats the 404 an
-    absent machine or test earns, because a metric the schema does not declare is a request that
-    could never be answered whereas an absent machine is a fact about the suite.
+    The metric is resolved first, so an undeclared one is a 400 even if the body also names an
+    absent machine or test. The spec leaves that order open.
     """
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         points = Points(suite, declared_entry(suite.schema, Metric, body.metric))

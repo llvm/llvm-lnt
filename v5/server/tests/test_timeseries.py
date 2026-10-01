@@ -434,8 +434,8 @@ class TestQueryMetric:
     def test_an_undeclared_metric_beats_an_absent_machine_or_test(
         self, api_client: TestClient, suite: SuiteTables, absent: dict[str, Any]
     ) -> None:
-        # endpoints.md states this precedence for a request body naming both, and names `test`
-        # alongside `machine`; the two resolve through different helpers, so both are checked.
+        # The implementation's choice rather than the spec's. Both are checked because they resolve
+        # through different helpers.
         response = query(api_client, metric="nope", **absent)
 
         assert response.status_code == 400
