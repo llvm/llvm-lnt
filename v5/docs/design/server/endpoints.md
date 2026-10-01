@@ -309,20 +309,10 @@ to UUIDs.
 GET  /api/suites/{testsuite}/runs/{uuid}/profiles              -- List profiles for a run
 ```
 
-Returns `{test, uuid}` objects for all profiles attached to the given run, in
-R2's unpaginated envelope. Bounded by tests-per-run, and in practice far below it:
-a profile is orders of magnitude more expensive to produce than a sample, so a run
-that measures tens of thousands of tests profiles a handful of them.
-
-404 if the suite does not exist, or if no run in it has that UUID (matched as for
+Returns `{test, uuid}` objects for all profiles attached to the given run, ordered
+by test name, in R2's unpaginated envelope (bounded by the tests of one run). 404
+if the suite does not exist, or if no run in it has that UUID (matched as for
 runs).
-
-Ordered by test name, ascending. This list is small and the client renders it
-straight into a dropdown (see the Profiles page in the client docs), so it can
-afford an order a reader recognizes. That is the opposite call from
-`GET /api/suites/{testsuite}/runs/{uuid}/samples`, which is deliberately *not*
-ordered by test name: it pages over the tens of thousands of samples a run holds,
-where the same sort would cost a scan of the whole run on every page.
 
 Auth scope: `read`.
 
@@ -349,16 +339,8 @@ route in this section returns 404 if the suite does not exist.
   `counters` is a dict of counter name -> float (the raw aggregated counter value
   for the function), `length` is instruction count. Sorted by the sum of the
   function's counter values, descending (hottest first), with ties broken by name
-  ascending so that the order is total and the same on every request. The sum
-  across heterogeneous counters is a default ordering rather than a meaningful
-  physical quantity -- adding cycles to branch misses means nothing -- and the
-  client re-sorts by whichever single counter the user picked (see the Function
-  Selector in the client docs).
-  Unpaginated for the same reason the whole response is served at once: it is
-  read out of the profile's index, which has to be parsed in full to answer at
-  all, so a page would cost what the whole list costs. The producer bounds the
-  list -- v4's importer keeps only symbols accounting for more than 0.5% of some
-  counter, which admits at most a few hundred.
+  ascending. The sum is only a default order: the client re-sorts by the counter
+  the user picks (see the Function Selector in the client docs).
 
 **Disassembly response** (`GET /api/suites/{testsuite}/profiles/{uuid}/disassembly?function={name}`):
 - `name`, `counters` (function-level aggregate, same raw float convention as
