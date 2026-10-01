@@ -314,6 +314,9 @@ R2's unpaginated envelope. Bounded by tests-per-run, and in practice far below i
 a profile is orders of magnitude more expensive to produce than a sample, so a run
 that measures tens of thousands of tests profiles a handful of them.
 
+404 if the suite does not exist, or if no run in it has that UUID (matched as for
+runs).
+
 Ordered by test name, ascending. This list is small and the client renders it
 straight into a dropdown (see the Profiles page in the client docs), so it can
 afford an order a reader recognizes. That is the opposite call from
@@ -332,6 +335,10 @@ GET  /api/suites/{testsuite}/profiles/{uuid}/disassembly           -- Disassembl
 ```
 
 Auth scope: `read` for all three endpoints.
+
+As for runs, the `{uuid}` in a path is matched case-insensitively, and one naming
+no profile -- including a segment that is not a well-formed UUID -- is 404. Every
+route in this section returns 404 if the suite does not exist.
 
 **Metadata response** (`GET /api/suites/{testsuite}/profiles/{uuid}`):
 - `uuid`, `test` (test name), `run_uuid`, `counters` (dict of counter

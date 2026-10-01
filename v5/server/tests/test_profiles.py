@@ -515,6 +515,16 @@ class TestAddressingSomethingThatIsNotThere:
         assert code_of(response) == "not_found"
 
     @pytest.mark.parametrize("suffix", PROFILE_DATA)
+    def test_a_segment_that_is_not_a_uuid_is_404(
+        self, api_client: TestClient, suite: SuiteTables, suffix: str
+    ) -> None:
+        # endpoints.md: no profile has that UUID, so it is the same 404 rather than a 400.
+        response = api_client.get(f"{PROFILES}/not-a-uuid{suffix}")
+
+        assert response.status_code == 404
+        assert code_of(response) == "not_found"
+
+    @pytest.mark.parametrize("suffix", PROFILE_DATA)
     def test_a_suite_that_does_not_exist_is_404(self, api_client: TestClient, suffix: str) -> None:
         # Before the profile is looked for at all: R1 scopes every one of these to a suite.
         response = api_client.get(f"{SUITES_PATH}/nope/profiles/{uuid4()}{suffix}")
