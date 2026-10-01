@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import sys
 from collections.abc import Callable
 from typing import Any
 
@@ -51,6 +52,20 @@ class TestAggregation:
     )
     def test_each_aggregation(self, aggregation: str, values: list[float], expected: float) -> None:
         assert SampleAggregation(aggregation)(values) == expected
+
+    @pytest.mark.parametrize(
+        ("aggregation", "expected"),
+        [("median", 1.25), ("mean", 1.25), ("min", 1.0), ("max", 1.5)],
+    )
+    def test_values_at_the_top_of_the_float_range_do_not_overflow(
+        self, aggregation: str, expected: float
+    ) -> None:
+        # D3 accepts any finite real. Every aggregate of these is representable, though the sum of
+        # the middle two -- which a median and a mean both take -- is not.
+        unit = sys.float_info.max / 2
+        values = [unit, unit, unit * 1.5, unit * 1.5]
+
+        assert SampleAggregation(aggregation)(values) == pytest.approx(unit * expected)
 
     def test_the_geomean_skips_zero_and_negative_values(self) -> None:
         assert geomean([2.0, 8.0, 0.0, -4.0]) == pytest.approx(4.0)
@@ -159,6 +174,22 @@ class TestSubmission:
         }
         assert stored["time", SampleAggregation.MEDIAN] == pytest.approx(4.0)
         assert stored["size", SampleAggregation.MAX] == pytest.approx(5.0)
+
+    def test_accepts_values_whose_sum_would_overflow(
+        self,
+        api_client: TestClient,
+        submitter: dict[str, str],
+        db_engine: Engine,
+        suite: SuiteTables,
+    ) -> None:
+        # D3 accepts any finite real, so this must not be a 500.
+        huge = sys.float_info.max * 0.75
+        self.submit(api_client, submitter, {"name": "a", "time": [huge, huge]})
+
+        stored = self.stored(db_engine, suite)
+
+        assert stored["time", SampleAggregation.MEAN] == pytest.approx(huge)
+        assert stored["time", SampleAggregation.MEDIAN] == pytest.approx(huge)
 
     def test_deleting_the_run_deletes_them(
         self,
