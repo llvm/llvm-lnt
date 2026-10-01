@@ -1,24 +1,13 @@
 """The profile endpoints (endpoints.md, Profiles).
 
-Driven over the real application and a real database. What is interesting here is mostly what the
-endpoints refuse to do: the listing never touches the blob (D5, D12), the metadata and function
-list never decompress, and a blob the server stored and cannot read is a 500 rather than anything
-the caller could have avoided (R4).
-
-The two blobs below were produced by v4's own writer, the same recipe `test_profile_format.py`
-documents:
-
-    from lnt.testing.profile.profilev1impl import ProfileV1
-    from lnt.testing.profile.profilev2impl import ProfileV2
-    base64.b64encode(ProfileV2.upgrade(ProfileV1(data)).serialize())
-
-Embedded rather than generated, so what is served is the format as it exists in the wild rather
-than as this tree imagines it, and so these tests need nothing from v4 at run time.
+Driven over the real application and a real database, with profiles submitted the way a client
+submits them (D12). What is interesting here is mostly what the endpoints serve -- raw counts, a
+function's counters derived from its instructions, an order the client can rely on -- and what they
+refuse to do: the listing never touches the stored blob (D5).
 """
 
 from __future__ import annotations
 
-import base64
 from collections.abc import Callable
 from typing import Any
 from urllib.parse import quote
@@ -28,7 +17,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, text
 
-from conftest import code_of, run_payload
+from conftest import code_of, encoded_profile, run_payload
 from lnt_v5 import profile_format
 from lnt_v5.routes.profiles import PROFILES_PATH, RUN_PROFILES_PATH
 from lnt_v5.routes.runs import RUNS_PATH
@@ -36,45 +25,36 @@ from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.scopes import Scope
 from lnt_v5.suites.tables import SuiteTables
 
-# Written from this ProfileV1 data:
-#
-#     {'counters': {'cycles': 1234567, 'branch-misses': 890},
-#      'disassembly-format': 'llvm-objdump',
-#      'functions': {
-#        'main':  {'counters': {'cycles': 50.0, 'branch-misses': 60.0},
-#                  'data': [[{'cycles': 30.0, 'branch-misses': 40.0}, 0x1000, 'push rbp'],
-#                           [{'cycles': 20.0, 'branch-misses': 20.0}, 0x1004, 'ret']]},
-#        'hot':   {'counters': {'cycles': 100.0, 'branch-misses': 5.0},
-#                  'data': [[{'cycles': 100.0, 'branch-misses': 5.0}, 0x2000, 'ret']]},
-#        'tie_b': {'counters': {'cycles': 10.0}, 'data': [[{'cycles': 10.0}, 0x3000, 'ret']]},
-#        'tie_a': {'counters': {'cycles': 10.0}, 'data': [[{'cycles': 10.0}, 0x4000, 'ret']]},
-#        'cold':  {'counters': {'cycles': 1.0}, 'data': []}}}
-#
+
+def ret(address: int, **counters: float) -> dict[str, Any]:
+    return {"address": address, "counters": counters, "text": "ret"}
+
+
 # The counters are chosen so the two orderings differ: `main` is the hottest by the sum endpoints.md
 # sorts on, while `hot` is the hottest by `cycles` alone. `tie_a` and `tie_b` have the same sum and
-# are named in the order that is not the blob's, so the tiebreaker has something to do.
-PROFILE = (
-    "AgANDRYjCCs7ZjKYASe/ATMK8gFebGx2bS1vYmpkdW1wCgJicmFuY2gtbWlzc2VzCmN5Y2xlcwoCAPoGAYetS0Ja"
-    "aDkxQVkmU1kAw8mjAAAEQHQEAEIioQBAAEAAIAAxADASKNNonSj0uWKCY0LXrPi7kinChIAGHk0YQlpoOTFBWSZT"
-    "WSrTZpEAAAPVQCQAQABAAEAAQAAgADDABppmhGlSmF3JFOFCQKtNmkRCWmg5MUFZJlNZV4rsNAAAAUAAVAAgACGY"
-    "GYRN4XckU4UJBXiuw0BCWmg5MUFZJlNZQuNswQAABNGAABBAABJAXgAgADEAMCAMIgDCINNrxdyRThQkELjbMEAF"
-    "Y29sZAoAAAAAAQGAgID8A2hvdAoBAAABAgCAgICFBAGAgKCWBG1haW4KAgoCAwIAgIDAkwQBgICgkgR0aWVfYQoB"
-    "HgUGAQGAgICJBHRpZV9iCgEjCAgBAYCAgIkE"
-)
-
-# The same writer on six function names that would not survive being a path segment, each with one
-# `ret` in it. `{'counters': {'cycles': 42}, 'disassembly-format': 'llvm-objdump', 'functions':
-# {SLASHED: 3.0, PUNCTUATED: 2.0, MANGLED: 1.0, PLUS: 4.0, DOTTED: 5.0, TRAILING: 6.0}}`, each
-# number being that function's `cycles`.
-EXOTIC = (
-    "AgANDQgVAxg1TSh1JZoBLArGAbUCbGx2bS1vYmpkdW1wCgFjeWNsZXMKAQAqQlpoOTFBWSZTWZPgfRwAAAZAQMwA"
-    "VwAABCAAIj1TQ9PUIMmI6xxkEeVYGi7kinChISfA+jhCWmg5MUFZJlNZnRW+ogAABZBAQABAACAAIQCCGHF3JFOF"
-    "CQnRW+ogQlpoOTFBWSZTWfZjq94AAABAAEBAIAAhAIKDF3JFOFCQ9mOr3kJaaDkxQVkmU1kYkWjnAAABQYAAEAIA"
-    "FAAgACGaaDNNFzxdyRThQkBiRaOcBkJpZzo6b3BlcmF0b3IrKEJpZyBjb25zdCYpIGNvbnN0CgEAAAABAICAgIQE"
-    "TWF0cml4PGRvdWJsZSwgMz46Om9wZXJhdG9yKihNYXRyaXg8ZG91YmxlLCAzPiBjb25zdCYpICYKAQUCAgEAgICA"
-    "gARfWk5TdDNfXzE2dmVjdG9ySWlOU185YWxsb2NhdG9ySWlFRUU5cHVzaF9iYWNrRVJLaQoBCgQEAQCAgID8A2Ev"
-    "Li4vYi8uL2MKAQ8GBgEAgICAhQRzdGQ6Om9wZXJhdG9yLwoBFAgIAQCAgICGBHN0ZDo6b3BlcmF0b3IvKHN0ZDo6"
-    "ZmlsZXN5c3RlbTo6cGF0aCBjb25zdCYsIHN0ZDo6ZmlsZXN5c3RlbTo6cGF0aCBjb25zdCYpCgEZCgoBAICAgIIE"
+# are listed in the order that is not the tiebreaker's, so the tiebreaker has something to do.
+PROFILE = encoded_profile(
+    {
+        "disassembly_format": "llvm-objdump",
+        "counters": {"cycles": 1234567, "branch-misses": 890},
+        "functions": [
+            {
+                "name": "main",
+                "instructions": [
+                    {
+                        "address": 0x1000,
+                        "counters": {"cycles": 30, "branch-misses": 40},
+                        "text": "push rbp",
+                    },
+                    ret(0x1004, cycles=20, **{"branch-misses": 20}),
+                ],
+            },
+            {"name": "hot", "instructions": [ret(0x2000, cycles=100, **{"branch-misses": 5})]},
+            {"name": "tie_b", "instructions": [ret(0x3000, cycles=10)]},
+            {"name": "tie_a", "instructions": [ret(0x4000, cycles=10)]},
+            {"name": "cold", "instructions": []},
+        ],
+    }
 )
 
 # A demangled `operator/` overload, which is why a function is named in a query parameter rather
@@ -92,6 +72,18 @@ DOTTED = "a/../b/./c"
 TRAILING = "std::operator/"
 EXOTIC_CYCLES = {SLASHED: 3.0, PUNCTUATED: 2.0, MANGLED: 1.0, PLUS: 4.0, DOTTED: 5.0, TRAILING: 6.0}
 
+# Six function names that would not survive being a path segment, each with one `ret` in it.
+EXOTIC = encoded_profile(
+    {
+        "disassembly_format": "llvm-objdump",
+        "counters": {"cycles": 42},
+        "functions": [
+            {"name": name, "instructions": [ret(0x1000, cycles=cycles)]}
+            for name, cycles in EXOTIC_CYCLES.items()
+        ],
+    }
+)
+
 NTS: dict[str, Any] = {"name": "nts", "metrics": [{"name": "execution_time", "type": "real"}]}
 
 RUNS = RUNS_PATH.format(testsuite="nts")
@@ -104,35 +96,6 @@ def run_profiles(run: str) -> str:
 
 def disassembly(uuid: str) -> str:
     return f"{PROFILES}/{uuid}/disassembly"
-
-
-def truncated(encoded: str) -> str:
-    """A blob that passes submission's version check and then runs out (D12).
-
-    Submission looks at the first byte and nothing else, so a prefix of a real profile is stored
-    exactly as a corrupted one would be: the section table survives and describes sections that are
-    no longer there. Fifty bytes is past the table and into the first section it describes.
-    """
-    return base64.b64encode(base64.b64decode(encoded)[:50]).decode()
-
-
-def undecompressible(encoded: str) -> str:
-    """A blob whose index is intact and whose four bz2 streams are not.
-
-    The technique `test_profile_format.py` uses, and the reason it works on a stored blob: the
-    stream headers are overwritten in place, so every offset and size in the section table still
-    describes the section it did before. Anything that reads only the index is unaffected; anything
-    that decompresses fails. The count is asserted because this is a blind search over a constant --
-    finding a different number of streams would mean the constant, not the reader, had changed.
-    """
-    data = bytearray(base64.b64decode(encoded))
-    found = 0
-    for at in range(len(data) - 3):
-        if bytes(data[at : at + 4]) == b"BZh9":
-            data[at : at + 4] = b"nope"
-            found += 1
-    assert found == 4, found
-    return base64.b64encode(bytes(data)).decode()
 
 
 @pytest.fixture
@@ -423,7 +386,6 @@ class TestDisassembly:
     def test_is_404_for_a_function_the_profile_does_not_hold(
         self, api_client: TestClient, stored: Callable[..., str]
     ) -> None:
-        # Not an `internal_error`: the blob is perfectly readable and simply has no such function.
         response = api_client.get(disassembly(stored()), params={"function": "nosuchfunction"})
 
         assert response.status_code == 404
@@ -531,70 +493,6 @@ class TestAddressingSomethingThatIsNotThere:
 
         assert response.status_code == 404
         assert code_of(response) == "not_found"
-
-
-class TestUnreadableBlob:
-    """R4's `internal_error`, which it names this exact case for.
-
-    A blob is stored without being parsed (D12), so the server can hold one it cannot read. The
-    caller did nothing wrong, hence a 500 rather than a 400 or a 404.
-    """
-
-    @pytest.fixture
-    def corrupt(self, stored: Callable[..., str]) -> str:
-        return stored(truncated(PROFILE))
-
-    @pytest.mark.parametrize("suffix", PROFILE_DATA)
-    def test_is_a_500_carrying_the_r4_envelope(
-        self, api_client: TestClient, corrupt: str, suffix: str
-    ) -> None:
-        response = api_client.get(f"{PROFILES}/{corrupt}{suffix}")
-
-        assert response.status_code == 500
-        assert code_of(response) == "internal_error"
-
-    @pytest.mark.parametrize("suffix", PROFILE_DATA)
-    def test_says_what_is_wrong_with_the_blob(
-        self, api_client: TestClient, corrupt: str, suffix: str
-    ) -> None:
-        # Not the generic handler's "the server failed to answer this request": whoever reads this
-        # has to be able to tell a corrupt profile from a fault, and which section failed.
-        message = api_client.get(f"{PROFILES}/{corrupt}{suffix}").json()["error"]["message"]
-
-        assert corrupt in message
-        assert "CounterNamePool" in message
-        assert "past the end" in message
-
-    def test_a_blob_that_only_fails_to_decompress_still_serves_its_index(
-        self, api_client: TestClient, stored: Callable[..., str]
-    ) -> None:
-        # The laziness the format exists for, seen from the outside: the index is readable and the
-        # compressed sections are not, so two of the three endpoints answer and one cannot.
-        uuid = stored(undecompressible(PROFILE))
-
-        assert api_client.get(f"{PROFILES}/{uuid}").status_code == 200
-        assert api_client.get(f"{PROFILES}/{uuid}/functions").status_code == 200
-
-        response = api_client.get(disassembly(uuid), params={"function": "main"})
-
-        assert response.status_code == 500
-        assert "LineCounters" in response.json()["error"]["message"]
-
-    def test_the_metadata_and_function_list_never_decompress(
-        self, api_client: TestClient, stored: Callable[..., str]
-    ) -> None:
-        # The same blob, asserted positively: everything those two responses carry comes out of the
-        # uncompressed index, so breaking every bz2 stream in the profile changes neither of them.
-        intact = stored(PROFILE)
-        broken = stored(undecompressible(PROFILE))
-
-        def contents(uuid: str) -> tuple[Any, Any]:
-            metadata = api_client.get(f"{PROFILES}/{uuid}").json()
-            functions = api_client.get(f"{PROFILES}/{uuid}/functions").json()
-            # Without the three keys that name the profile rather than describe it.
-            return (metadata["counters"], metadata["disassembly_format"]), functions
-
-        assert contents(broken) == contents(intact)
 
 
 class TestTheBlobStaysOutOfTheListing:

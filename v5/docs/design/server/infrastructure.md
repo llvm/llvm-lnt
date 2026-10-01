@@ -174,7 +174,7 @@ time, so clients must branch on `code` alone and never parse `message`.
 | `ordinal_conflict` | 409 | The ordinal is already held by another commit, or contradicts the one this commit has (see D11) |
 | `in_use` | 409 | Another entity references this one and must be removed first: a commit referenced by a regression |
 | `conflict` | 409 | The request contradicts existing state in a way the more specific 409 codes do not describe, or could not complete because the suite's schema changed underneath it (see D2) |
-| `internal_error` | 500 | The server failed to answer, including when a stored profile blob cannot be deserialized |
+| `internal_error` | 500 | The server failed to answer |
 
 409 carries more than one code because its cases call for different client behaviour: a
 submitting bot retries a `duplicate` run UUID with a fresh one, whereas an `ordinal_conflict`

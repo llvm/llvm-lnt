@@ -330,34 +330,32 @@ As for runs, the `{uuid}` in a path is matched case-insensitively, and one namin
 no profile -- including a segment that is not a well-formed UUID -- is 404. Every
 route in this section returns 404 if the suite does not exist.
 
+Every counter these endpoints return is a raw count (see D12).
+
 **Metadata response** (`GET /api/suites/{testsuite}/profiles/{uuid}`):
 - `uuid`, `test` (test name), `run_uuid`, `counters` (dict of counter
-  name -> integer value; raw top-level counts), `disassembly_format` (string)
+  name -> integer; the top-level counters), `disassembly_format` (string)
 
 **Functions response** (`GET /api/suites/{testsuite}/profiles/{uuid}/functions`):
 - R2's unpaginated envelope over `{name, counters, length}` objects, where
-  `counters` is a dict of counter name -> float (the raw aggregated counter value
-  for the function), `length` is instruction count. Sorted by the sum of the
-  function's counter values, descending (hottest first), with ties broken by name
-  ascending. The sum is only a default order: the client re-sorts by the counter
-  the user picks (see the Function Selector in the client docs).
+  `counters` is a dict of counter name -> number (the function's counters, each
+  the sum over its instructions) and `length` is its instruction count. Sorted
+  by the sum of the function's counter values, descending (hottest first), with
+  ties broken by name ascending. The sum is only a default order: the client
+  re-sorts by the counter the user picks (see the Function Selector in the
+  client docs).
 
 **Disassembly response** (`GET /api/suites/{testsuite}/profiles/{uuid}/disassembly?function={name}`):
-- `name`, `counters` (function-level aggregate, same raw float convention as
-  the functions response above), `disassembly_format`,
-  `instructions`: array of `{address, counters, text}` per instruction, where
-  `address` is an integer and `counters` is again a dict of counter name -> raw
-  float value (same convention, not a percentage).
+- `name`, `counters` (the function's counters, as in the functions response),
+  `disassembly_format`, and `instructions`: array of `{address, counters, text}`
+  per instruction, where `address` is an integer and `counters` is a dict of
+  counter name -> number.
 - `function` is required, and names the function by its name in the functions
   response; it is a query parameter because a name can contain `/` (see R1). A
   name the profile does not hold is 404.
 
-**Error handling**: If the stored profile blob is corrupt and cannot be
-deserialized, the profile data endpoints return 500 with a descriptive
-error message.
-
-Profiles are submitted as base64-encoded data within the run submission
-payload (see D6). No separate upload endpoint.
+Profiles are submitted within the run submission payload (see D6 and D12).
+There is no separate upload endpoint.
 
 
 ## Regressions

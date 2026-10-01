@@ -585,15 +585,14 @@ The DB layer validates state values on create and update.
 
 - Unique constraint on `(run_id, test_id)` -- at most one profile per
   run+test pair.
-- `data` stores the profile binary blob (base64-decoded on submission).
-  It must be excluded from the default result set when querying this table;
-  it may only be loaded when a request explicitly needs the blob.
+- `data` stores the submitted profile document (see D12), in an encoding the
+  implementation chooses; nothing outside the server reads it. It must be
+  excluded from the default result set when querying this table; it may only
+  be loaded when a request explicitly needs the profile.
 - `uuid` is server-generated, used by the API for profile data endpoints.
   (Unlike Run UUIDs, which may be client-provided, Profile and Regression
   UUIDs are always server-generated.)
 - Cascade: deleting a run cascades to its profiles.
-- A submitted profile may be at most 50 MiB (52,428,800 bytes) decoded; a
-  larger one is rejected (see D12).
 
 #### `{suite}.run_summary`
 

@@ -4,6 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from lnt_v5.config import Settings, get_settings
+from lnt_v5.profile_document import MAX_ENCODED_SIZE
 
 
 class TestDatabaseUrl:
@@ -51,10 +52,10 @@ class TestDatabaseSslCa:
 
 
 class TestBodyLimit:
-    def test_default_admits_a_base64_encoded_maximum_profile(self) -> None:
-        # Stated as the invariant rather than the literal: D5 caps a profile at 50 MB decoded and
-        # D6 carries it inline as base64, which inflates by 4/3.
-        assert Settings(database_url="postgres://x/y").body_limit > 50 * 1024 * 1024 * 4 / 3
+    def test_default_admits_a_maximum_profile(self) -> None:
+        # Stated as the invariant rather than the literal: D12 caps a profile's encoding, which D6
+        # carries inline.
+        assert Settings(database_url="postgres://x/y").body_limit > MAX_ENCODED_SIZE
 
     def test_reads_the_environment_variable(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("DATABASE_URL", "postgres://x/y")

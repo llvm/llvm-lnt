@@ -431,7 +431,7 @@ class TestBounds:
     def test_an_absurd_instruction_count_is_refused_before_any_of_it_is_built(self) -> None:
         # The number a function would have to claim to make a list nothing could hold. Refused
         # against the absolute cap, so the size of the blob is beside the point.
-        assert "more than the 1000000" in unreadable(
+        assert f"more than the {profile_format.MAX_INSTRUCTIONS}" in unreadable(
             patching(FUNCTIONS, b"_Z3foov\n\x02", b"_Z3foov\n" + uleb(2**40)), "_Z3foov"
         )
 

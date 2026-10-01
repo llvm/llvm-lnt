@@ -668,22 +668,6 @@ class TestProfileOperations:
 
         assert status in operation["responses"]
 
-    @pytest.mark.parametrize("path", PROFILE_DATA)
-    def test_the_data_endpoints_document_the_corrupt_blob_500(
-        self, client: TestClient, path: str
-    ) -> None:
-        # endpoints.md specifies it and R4 gives it a code, so unlike the generic handler's 500
-        # this one is part of the contract and has to be in the document.
-        operation = client.get("/api/openapi.json").json()["paths"][path]["get"]
-
-        assert "500" in operation["responses"]
-
-    def test_the_listing_documents_no_500(self, client: TestClient) -> None:
-        # It never opens a blob, so it has no way to discover that one is corrupt.
-        operation = client.get("/api/openapi.json").json()["paths"][RUN_PROFILES]["get"]
-
-        assert "500" not in operation["responses"]
-
     @pytest.mark.parametrize("path", [RUN_PROFILES, FUNCTIONS])
     def test_the_lists_are_unpaginated(self, client: TestClient, path: str) -> None:
         # R2: both are bounded -- by the tests of one run, and by the functions of one binary -- so

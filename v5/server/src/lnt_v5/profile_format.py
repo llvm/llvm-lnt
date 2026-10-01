@@ -1,42 +1,62 @@
-"""D12's profile binary format, read and written.
+"""The binary format profiles are stored in: v4's version 2 format, read and written.
 
-The format is v4's, unchanged: a profile is produced elsewhere, stored verbatim, and this is the
-only thing in v5 that interprets it. It is eight sections behind a table of (offset, size) pairs,
-built from exactly two primitives -- newline-terminated UTF-8 strings and ULEB128 integers -- with
-four of the sections bz2-compressed. The point of that layout is that the index is readable without
-touching the compressed part, so listing a profile's functions and their aggregate counters costs
-no decompression at all and only a request for one function's disassembly pays for it. That is why
-`read_profile` parses the four uncompressed sections eagerly and defers the rest to the first call
-to `Profile.instructions`; the endpoints that serve metadata and the function list would otherwise
-carry the cost of the data they do not serve.
+D12 leaves the stored encoding of a profile to the implementation. This one is v4's, unchanged,
+because it is the most compact of the representations measured on lnt.llvm.org's profiles, and
+because its index is readable without decompressing anything: listing a profile's functions and
+their aggregate counters costs no decompression, and only a request for one function's disassembly
+pays for it. That is why `read_profile` parses the index eagerly and defers the rest to the first
+call to `Profile.instructions`.
 
-`write_profile` is the inverse, and reproduces v4's writer byte for byte, which its tests check
-against blobs v4 wrote.
+Every blob is written by `write_profile`, from a document D12 has already validated, and
+`write_profile` reproduces v4's writer byte for byte -- which its tests check against blobs v4
+wrote.
 
-**Every way a stored blob can fail to be read is a `ProfileError`.** That guarantee is what the
-endpoints rest on: R4 makes a profile that cannot be deserialized an `internal_error` 500, and it
-can only report that if the failure arrives as one recognizable exception rather than as whichever
-of `struct.error`, `UnicodeDecodeError`, `KeyError`, `ValueError`, `EOFError` or `OSError` the
-underlying primitive happened to raise. It holds by construction rather than by a net: every byte
-is read through `_Reader`, which bounds-checks before it reads and validates after it decodes, so
-there is no path from blob to primitive that can raise anything else. A net is there anyway, at the
-two entry points, in case some path was overlooked.
+The format
+----------
 
-Corruption must also be cheap to discover. A blob that has been corrupted -- or crafted -- can
-claim any size it likes, so nothing here believes a number that describes how much work to do:
+A blob is built from two primitives. An *integer* is ULEB128: groups of seven bits, least
+significant first, the high bit of every byte but the last one set. A *string* is UTF-8 terminated
+by a newline, which it therefore cannot contain. A *float* is the integer whose value is the
+number's IEEE-754 single-precision bit pattern.
 
-- Every count is refused up front unless the section it indexes has at least one byte per element,
-  which it must, since no element of this format encodes in zero bytes.
-- A function's instruction count is bounded by `MAX_INSTRUCTIONS`: one byte of address delta expands
-  into an instruction object hundreds of times its size, so nothing derived from the stored size
-  bounds the work. It is also checked against the address bytes that remain to the function, which
-  is not a second memory bound -- the loop could not run past them anyway -- but a fast failure with
-  a message that says which section is short.
-- The compressed sections expand under one budget for the whole profile, `MAX_DECOMPRESSED_SIZE`.
-  bz2 reaches ratios beyond 200 000:1 on the repetitive data these sections hold, so no bound
-  derived from the stored size means anything and only an absolute ceiling does.
-- A ULEB128 integer is at most ten bytes and at most 64 bits, which every quantity the format
-  carries -- an address, an offset into the blob, a count, a 32-bit float pattern -- fits in.
+The blob begins with the format version, the integer 2, followed by a section table: eight headers,
+one per section in the order below, each an offset and a size. Offsets are relative to the end of
+the table. The TextPool header carries one more field, a string naming an external file the pool
+lives in instead -- scaffolding v4 never implemented, so it is always empty.
+
+1. **Header**: the disassembly format, as a string.
+2. **CounterNamePool**: a count, then that many strings. Everything else names a counter by its
+   index into this list.
+3. **TopLevelCounters**: a count, then that many pairs of counter index and integer value.
+4. **LineCounters**: per instruction, one float per counter *of its function*, in ascending order of
+   counter name.
+5. **LineAddresses**: per instruction, the delta from the previous instruction's address; a
+   function's addresses start from zero, so its first delta is its first address.
+6. **LineText**: per instruction, the byte offset of its text within TextPool. A zero follows each
+   function's offsets, which a reader never sees, since the index says how many to read.
+7. **TextPool**: strings one after another, each distinct text once, addressed by byte offset.
+8. **Functions**, the index: a count, then per function its name, its instruction count, its
+   offsets into LineCounters, LineAddresses and LineText in that order, then a count of its
+   counters followed by that many pairs of counter index and float value.
+
+Sections 4 to 7 are each an independent bz2 stream, and the offsets into them address their
+decompressed bytes. Sections 1, 2, 3 and 8 are stored as written, and are the index.
+
+Reading defensively
+-------------------
+
+A blob the server wrote should always read back, so a failure means corruption in storage or a bug
+here. The reader still believes nothing a blob claims, so that either turns into one recognizable
+`ProfileError` rather than whichever of `struct.error`, `UnicodeDecodeError`, `KeyError` or
+`OSError` a primitive happened to raise -- or into a hang, or an allocation nothing can satisfy:
+
+- Every byte is read through `_Reader`, which bounds-checks before it reads and validates after it
+  decodes. A net at the two entry points catches whatever some overlooked path might raise.
+- Every count is refused unless the section it indexes has at least one byte per element, which it
+  must, since no element of this format encodes in zero bytes.
+- A function's instruction count is bounded by `MAX_INSTRUCTIONS`, and the compressed sections
+  expand under one budget for the whole profile, `MAX_DECOMPRESSED_SIZE`.
+- A ULEB128 integer is at most ten bytes and at most 64 bits.
 """
 
 from __future__ import annotations
@@ -48,24 +68,17 @@ from dataclasses import dataclass
 from math import isfinite
 from typing import NoReturn
 
-# D12: the format version, which is the first thing in a blob and is fixed at 2. Owned here rather
-# than by the submission path that also checks it: that check exists so a blob nothing can read is
-# refused at the door, which it only does if both halves agree on what version 2 means.
+# The format version, the first thing in a blob.
 PROFILE_FORMAT_VERSION = 2
 
-# How much the four compressed sections may expand to, together, for one profile. An absolute
-# ceiling, because nothing derived from the stored size bounds this -- see the module docstring.
-# Chosen to dominate D5's 50 MB cap on a stored profile at the ratios these sections actually reach
-# when they hold real data (measured between 3:1 and 6:1), so that a well-formed profile the server
-# accepted is one it can still read. It cannot guarantee that, since bz2's ratio has no upper bound
-# and D12 says so; what it buys is that only a pathologically compressible blob lands on the wrong
-# side, rather than any large one.
-MAX_DECOMPRESSED_SIZE = 320 * 1024 * 1024
+# How much the four compressed sections may expand to, together, for one profile. A document within
+# D12's cap on a decompressed profile always expands to less than this in this format, which spends
+# fewer bytes than JSON does on every part of it; `write_profile` refuses to exceed it regardless.
+MAX_DECOMPRESSED_SIZE = 64 * 1024 * 1024
 
-# How many instructions one function may claim. Real functions are thousands of instructions long;
-# this is three orders of magnitude of headroom, and it is what keeps one request's materialized
-# disassembly to a size a server can hold.
-MAX_INSTRUCTIONS = 1_000_000
+# D12's cap on the instructions of one function: several times the largest function measured on
+# lnt.llvm.org, and what keeps one request's materialized disassembly to a size a server can hold.
+MAX_INSTRUCTIONS = 100_000
 
 # The longest ULEB128 encoding read, and the widest value one may hold. Ten bytes carry 70 bits, so
 # the byte limit alone would admit a value no quantity in this format can have; both are checked.
@@ -101,9 +114,9 @@ _COMPRESSED = (_LINE_COUNTERS, _LINE_ADDRESSES, _LINE_TEXT, _TEXT_POOL)
 # validation below fails to anticipate is still a `ProfileError`. Deliberately enumerated rather
 # than `Exception`: a `TypeError` or an `AttributeError` here is a bug in this module, and dressing
 # one up as a corrupt profile is how it would never get found. `LookupError` and `MemoryError` are
-# in the list because a blob is the only thing that could plausibly provoke either. `ProfileError`
-# descends from `Exception` alone and so is in none of these families, which is what lets a message
-# the validation already worded through the net unchanged rather than re-wrapped.
+# in the list because a corrupt blob is the only thing that could plausibly provoke either.
+# `ProfileError` descends from `Exception` alone and so is in none of these families, which is what
+# lets a message the validation already worded through the net unchanged rather than re-wrapped.
 _DECODING_FAILURES = (
     ValueError,  # also UnicodeDecodeError, and bz2 on a malformed stream
     struct.error,
@@ -119,9 +132,8 @@ class ProfileError(Exception):
     """A stored profile cannot be read.
 
     The only exception `read_profile` and `Profile.instructions` raise for anything to do with the
-    blob's contents. R4 turns it into an `internal_error` 500: a profile the server accepted and
-    stored and now cannot parse is the server's problem, not the caller's, so the message says what
-    is wrong with the blob for whoever reads the log rather than for whoever made the request.
+    blob's contents. Every blob is one the server wrote, so this is a fault -- R4's generic
+    `internal_error` -- and the message says what is wrong with the blob for whoever reads the log.
     """
 
 
@@ -402,8 +414,8 @@ def _read_profile(data: bytes) -> Profile:
 
     # Views rather than copies, because between them these four are the whole blob -- the index is
     # rounding error next to them -- and two of the three endpoints never expand any of them. A
-    # slice would double the resident bytes of a 50 MB profile to serve a response that reads none
-    # of it. `BZ2Decompressor` takes a memoryview, so nothing downstream has to care.
+    # slice would double the resident bytes of a profile to serve a response that reads none of
+    # it. `BZ2Decompressor` takes a memoryview, so nothing downstream has to care.
     whole = memoryview(data)
     compressed = {
         index: whole[start + table[index][0] : start + table[index][0] + table[index][1]]
@@ -672,7 +684,7 @@ def write_profile(
                 pooled[instruction.text] = text_pool.position
                 text_pool.string(instruction.text)
             line_text.number(pooled[instruction.text])
-        # The terminator v4 emits after each function's offsets (D12).
+        # The terminator v4 emits after each function's offsets; see the module docstring.
         line_text.number(0)
 
     # v4's pool starts out as a lone newline that the first string overwrites, so a profile with no

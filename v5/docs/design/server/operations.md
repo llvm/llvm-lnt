@@ -44,7 +44,7 @@ object identical to the one the entity's own creation endpoint accepts (see D7).
       "name": "test.suite/benchmark",
       "execution_time": 1.23,
       "compile_time": 0.45,
-      "profile": "<base64-encoded profile data>"
+      "profile": "<base64 of a gzip-compressed profile document>"
     }
   ]
 }
@@ -105,8 +105,8 @@ object identical to the one the entity's own creation endpoint accepts (see D7).
     one is rejected with 400. Values are typed per D3.
   - Metrics with null values must be omitted from the test entry (not sent as
     `"metric": null`), and a null element inside an array is rejected.
-  - An optional `profile` field may contain base64-encoded profile binary data;
-    if present, a Profile row is created and linked to the run+test (see D12).
+  - An optional `profile` field carries the test's profile: a JSON profile
+    document, gzip-compressed and base64-encoded (see D12).
   - `name` and `profile` are reserved keys within a test entry, so neither may
     be a metric name -- this is enforced when the schema is created rather than
     at submission (see D5), so a suite can never hold a metric that no submission
@@ -279,149 +279,59 @@ page.
 
 ## D12: Profile Submission and Storage
 
-Profiles are submitted inline as part of run submission. Each test entry in
-the submission JSON may include a `"profile"` field containing base64-encoded
-profile binary data.
+A profile records hardware performance counters per instruction for one test in
+one run. It is submitted inline, as the `profile` of a test entry (D6): a JSON
+**profile document**, compressed with gzip and base64-encoded.
 
-On submission:
-1. The `profile` field is recognized as a reserved key (not a metric) and
-   excluded from metric name validation.
-2. The data is decoded as standard, padded base64, ignoring ASCII whitespace
-   (so line-wrapped output is accepted). Any other character outside the
-   alphabet, or bad padding, is rejected with 400.
-3. A decoded blob larger than D5's cap is rejected with 400.
-4. The first byte, the format version, must be 2; otherwise, or if the blob is
-   empty, the profile is rejected with 400. Nothing else is parsed at
-   submission time.
-5. A Profile row is created with `(run_id, test_id, created_at, data)`.
-6. The unique constraint on `(run_id, test_id)` prevents duplicate profiles.
+```json
+{
+  "disassembly_format": "llvm-objdump",
+  "counters": {"cycles": 9123456, "instructions": 12000000},
+  "functions": [
+    {
+      "name": "main",
+      "instructions": [
+        {"address": 4096, "counters": {"cycles": 1200, "instructions": 900}, "text": "push rbp"},
+        {"address": 4100, "counters": {"cycles": 300, "instructions": 450}, "text": "ret"}
+      ]
+    }
+  ]
+}
+```
 
-Profiles are read-only after creation -- there is no PATCH endpoint.
-Deleting a run cascades to its profiles.
+- `disassembly_format`: how the instruction text was produced.
+- `counters`: the profile's top-level counters, each a non-negative integer
+  below 2^64. They total the whole profile, functions it does not list included.
+- `functions`: each function's `name` and its `instructions`, in order. Each
+  instruction carries its `address` (a non-negative integer below 2^64), its
+  `counters` (non-negative numbers) and its disassembled `text`.
 
-Profile data is stored as Postgres BYTEA. Postgres automatically applies
-TOAST compression for large values. The blob is excluded from default query
-results and is only loaded when a request explicitly needs it.
+Every counter value is a **raw count**, never a percentage. A function's own
+counters are not submitted: the server derives each as the sum of that counter
+over the function's instructions.
 
-### The version 2 binary format
+The `profile` string is decoded as standard, padded base64, ignoring ASCII
+whitespace (so line-wrapped output is accepted), and then as exactly one gzip
+member. Each of the following is rejected with 400:
 
-A profile is produced elsewhere and stored verbatim, so the format is not this
-system's to choose; it is stated here because it is the one thing in v5 that
-cannot be re-implemented from the rest of these documents.
+- Any other character outside the base64 alphabet, bad padding, or data that is
+  not one complete gzip member.
+- More than 4 MiB (4,194,304 bytes) compressed, or more than 64 MiB
+  (67,108,864 bytes) decompressed.
+- A document that is not valid JSON of the shape above, with exactly those keys
+  and types as D3 reads them.
+- An empty function or counter name, a newline or NUL in any string, or two
+  functions of the same name.
+- A function of more than 100,000 instructions.
+- Instructions of one function that do not all carry the same counters.
+- An address lower than the one before it within a function.
 
-A blob is built from exactly two primitives. An **integer** is ULEB128-encoded:
-groups of seven bits, least significant group first, the high bit of every byte
-but the last one set. A **string** is UTF-8 bytes terminated by a newline
-(`0x0A`), which a string therefore cannot contain. Everything below is one or the
-other -- including a **float**, which is stored as the integer whose value is the
-number's IEEE-754 single-precision bit pattern read as an unsigned 32-bit
-quantity.
+Function and instruction counter values may be stored with single precision,
+and are then returned rounded to it. Top-level counters are returned exactly.
 
-A blob begins with the format version, as an integer. It is 2, which encodes as
-the single byte `0x02` -- which is what step 4 above reads without parsing any
-further.
-
-Next comes the section table: eight headers in a fixed order, one per section,
-each an offset and a size in bytes, both integers. **Offsets are relative to the
-end of the table**, so the whole table has to be read before any of them can be
-resolved, and once it has been, every section can be located without reading any
-other. The TextPool header carries one field the others do not, after its size: a
-string naming an external file that the pool lives in instead of this blob. The
-mechanism was scaffolded and never implemented, so that name is empty in every
-profile that exists, and a blob that names one holds text that is not in it and
-cannot be read.
-
-The eight sections are, in the order their headers appear (a reader must locate
-each through the table rather than assume the bodies are laid out in that order
-too, even though in practice they are):
-
-1. **Header** -- one string: the disassembly format, for example `llvm-objdump`.
-2. **CounterNamePool** -- a count, then that many strings. Every other section
-   names a counter by its index into this list.
-3. **TopLevelCounters** -- a count, then that many pairs of a counter index and
-   an integer value. These are the profile's aggregate counters, and the only
-   integer-valued counters it has.
-4. **LineCounters** -- per-instruction counter values (see below).
-5. **LineAddresses** -- per-instruction addresses (see below).
-6. **LineText** -- per-instruction offsets into TextPool (see below).
-7. **TextPool** -- a string pool: strings one after another, each addressed by
-   its byte offset within the section. The first begins at offset zero, so zero
-   is an ordinary offset like any other. (The reference implementation's comment
-   claims a sentinel makes zero invalid; its own code overwrites the sentinel, and
-   what it writes is what is described here.)
-8. **Functions** -- a count, then that many entries. Each is the function's name,
-   its instruction count, its starting offset within LineCounters, within
-   LineAddresses and within LineText in that order, and then a count of the
-   function's own counters followed by that many pairs of a counter index and a
-   float value.
-
-Sections 4 to 7 -- LineCounters, LineAddresses, LineText and TextPool -- are each
-an independent bz2 stream; the other four are stored as written. That split is the
-point of the whole layout: sections 1, 2, 3 and 8 are the index, so the
-disassembly format, the top-level counters, and every function's name, aggregate
-counters and instruction count are all readable **without decompressing
-anything**. The read endpoints depend on it (see the endpoints spec): listing a
-profile's functions costs no decompression, and only a request for one function's
-disassembly pays for it.
-
-The three per-instruction sections carry no counts or delimiters of their own.
-Each is read from the function's own offset into it, for exactly as many
-instructions as the function's index entry declares. **Those offsets, and
-TextPool's, address the section's decompressed bytes**, not the compressed bytes
-the section table locates -- the table says where a section's bz2 stream lives in
-the blob, and every offset after that is an index into what the stream expands to:
-
-- **LineCounters** holds one float per counter *of that function*, per
-  instruction, in ascending order of counter name -- by Unicode code point, not by
-  any locale's collation. A function measured with fewer counters than the pool
-  holds therefore spends less per instruction than one measured with all of them,
-  and nothing in the section says which counters those are: the order comes from
-  the function's own counter list in the index. (The reference implementation's
-  module docstring says there is one value per counter in the *pool*; its code
-  writes one per counter of the function, and that is what is described here.)
-- **LineAddresses** holds one integer per instruction, each the delta from the
-  previous address. A function's addresses start from zero, so its first entry is
-  the first address itself. Deltas are what makes the section compress: on a RISC
-  target every one of them is the same number.
-- **LineText** holds one integer per instruction: the byte offset within TextPool
-  of that instruction's disassembly text. A zero follows each function's
-  offsets, left over from a terminator the writer emits; a reader never sees it,
-  since the index says how many instructions to read, but it is why a function's
-  offset into this section is not simply the sum of the lengths before it.
-
-### Reading a profile
-
-An implementation must bound the memory that reading one profile can cost, along
-two dimensions: the total expansion of the blob's compressed sections, and the
-number of instructions a single function may claim.
-
-Neither follows from D5's 50 MB cap on the stored blob. bz2 reaches ratios beyond
-200,000:1 on data as repetitive as these sections hold, so a blob comfortably
-inside the cap can still expand without limit, and one byte of address delta
-expands into an instruction object hundreds of times its size. Nor can either be
-caught earlier: step 4 above deliberately does not parse the body, so a blob that
-cannot be read within these bounds is accepted, stored, and discovered only when
-something reads it.
-
-Exceeding either bound is reported exactly as corruption is, with `internal_error`
-(500, see R4). From the read path a blob that expands without limit is not
-distinguishable from one that is malformed, and neither is anything the caller did.
-
-The bounds are stated as floors, so that an implementation may be more generous
-than another without either being wrong: at least 320 MB of total expansion for
-one profile, and at least 1,000,000 instructions in one function, must be
-readable.
-
-The expansion floor is set to dominate D5's store cap at the ratios these sections
-reach on real data -- measured between roughly 3:1 and 6:1, since the counters are
-floats and only the addresses are highly repetitive -- so that a well-formed
-profile the server accepted is one it can still read. It cannot guarantee that,
-and this is the one place where the two caps are genuinely independent: bz2's
-ratio has no upper bound, so a sufficiently compressible blob will always be
-acceptable at 50 MB stored and unreadable once expanded. Raising the floor further
-only moves that line; it does not remove it. The consequence is worth stating
-plainly, since a client cannot tell it from corruption: such a profile is accepted,
-stored, and then permanently answered with `internal_error`.
+How a profile is stored is left to the implementation. Since everything is
+validated at submission, a stored profile is always one the read endpoints can
+serve. Profiles are read-only after creation, and deleting a run deletes them.
 
 
 ## D13: Concurrent Submission

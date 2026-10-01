@@ -1,11 +1,12 @@
 """Profiles: instruction-level counter data for one test in one run (endpoints.md, Profiles).
 
-Read-only. A profile is produced elsewhere, submitted inside a run (D12) and stored verbatim, so
-these four endpoints are the only thing that looks inside one. Three of them address a profile by
-its own UUID and one lists a run's, which is the bridge the client crosses: it knows a run and a
-test name and needs the UUID the other three take (see `client/profiles.md`).
+Read-only. A profile is submitted inside a run as a JSON document, which the server validates and
+stores in the binary format `profile_format` describes (D12), so these four endpoints are the only
+thing that reads one. Three of them address a profile by its own UUID and one lists a run's, which
+is the bridge the client crosses: it knows a run and a test name and needs the UUID the other three
+take (see `client/profiles.md`).
 
-Four things here follow from the design docs rather than from convenience.
+Three things here follow from the design docs rather than from convenience.
 
 **The blob stays out of the default result set** (D5, D12). SQLAlchemy Core selects the columns it
 is asked for, so that obligation falls on each query rather than on the table, and only the three
@@ -17,15 +18,8 @@ render a list of names.
 format's index is uncompressed and its per-instruction data is not (`profile_format`), so the
 metadata and function-list endpoints never decompress anything and only a request for one
 function's disassembly pays for it. Nothing is cached between requests: a parse is cheap next to
-the round trip that fetched the blob, and a cache keyed by a 50 MB blob would be the largest thing
-in the process.
-
-**A blob the server stored and cannot read is a 500** (R4, which names exactly this case). It is
-not the caller's mistake -- the request was well-formed and named a profile that exists -- so the
-message says what is wrong with the blob rather than what the caller should do differently. A
-function name the profile does not hold is the other thing entirely, and is a 404, answered by
-asking the index whether it holds the name rather than by catching anything: the two failures are
-then told apart by which question was asked, not by which exception a lookup happened to raise.
+the round trip that fetched the blob, and a cache keyed by blobs would be the largest thing in the
+process.
 
 **A function is named in the `function=` query parameter, never in the path** (R1). The name is
 whatever the producer recorded, and one that demangles records an `operator/` overload as
@@ -35,7 +29,6 @@ decoded before routing. That is also why a test is named in `test=`.
 
 from __future__ import annotations
 
-import logging
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Query
@@ -45,7 +38,7 @@ from sqlalchemy import Connection, Row, Select, Table, select
 from lnt_v5 import profile_format
 from lnt_v5.auth import require_scope
 from lnt_v5.db import EngineDep
-from lnt_v5.errors import ApiError, ErrorCode, ErrorEnvelope
+from lnt_v5.errors import ApiError, ErrorCode
 from lnt_v5.responses import Items
 from lnt_v5.routes.runs import NO_RUN, RUNS_PATH, run_id
 from lnt_v5.routes.suites import SUITES_PATH
@@ -53,8 +46,6 @@ from lnt_v5.scopes import Scope
 from lnt_v5.suites.entities import UuidKey
 from lnt_v5.suites.registry import RegistryDep, Suite
 from lnt_v5.suites.scope import SUITE_NOT_FOUND, suite_responses, suite_scope
-
-logger = logging.getLogger(__name__)
 
 PROFILES_PATH = f"{SUITES_PATH}/{{testsuite}}/profiles"
 RUN_PROFILES_PATH = f"{RUNS_PATH}/{{uuid}}/profiles"
@@ -70,12 +61,6 @@ run_profiles_router = APIRouter(prefix=RUNS_PATH, tags=["Profiles"])
 # `suite_scope` produces; each widens the wording with the cases it adds of its own.
 _NO_PROFILE = f"{SUITE_NOT_FOUND} Or no profile in it has that UUID."
 _NO_FUNCTION = f"{_NO_PROFILE} Or the profile holds no function of that name."
-
-# R4's 500, which endpoints.md specifies for these three endpoints and which they therefore have to
-# declare. Unlike the generic handler's 500 this one is specified behaviour: a blob is accepted at
-# submission without being parsed (D12), so a profile the server holds and cannot read is a state
-# the API has to have an answer for.
-_UNREADABLE = "The stored profile blob cannot be deserialized."
 
 
 class RunProfile(BaseModel):
@@ -111,10 +96,11 @@ class ProfileFunction(BaseModel):
     name: str = Field(description="The function's name, as the profile's producer recorded it.")
     counters: dict[str, float] = Field(
         description=(
-            "The counter values aggregated over the whole function, keyed by counter name. Raw "
-            "values, not percentages: a client that wants a share of the profile computes it "
-            "against the top-level counters. A function carries only the counters it was measured "
-            "with, which may be fewer than the profile has."
+            "The function's counters, keyed by counter name: each the sum of that counter over the "
+            "function's instructions. Raw counts kept to single precision, not percentages: a "
+            "client that wants a share of the profile computes it against the top-level counters. "
+            "A function carries only the counters its instructions were measured with, which may "
+            "be fewer than the profile has."
         )
     )
     length: int = Field(description="How many instructions the function's disassembly holds.")
@@ -126,8 +112,8 @@ class Instruction(BaseModel):
     address: int = Field(description="The instruction's address.")
     counters: dict[str, float] = Field(
         description=(
-            "The counter values measured at this instruction, keyed by counter name. Raw values, "
-            "not percentages, and the same counters the function carries."
+            "The counts measured at this instruction, keyed by counter name. Raw counts kept to "
+            "single precision, not percentages, and the same counters the function carries."
         )
     )
     text: str = Field(
@@ -141,8 +127,8 @@ class FunctionDisassembly(BaseModel):
     name: str = Field(description="The function's name.")
     counters: dict[str, float] = Field(
         description=(
-            "The counter values aggregated over the whole function, keyed by counter name. The "
-            "same raw values the function list carries."
+            "The function's counters, keyed by counter name: the same sums the function list "
+            "carries."
         )
     )
     disassembly_format: str = Field(
@@ -233,28 +219,6 @@ class Profiles:
         )
 
 
-def _parse(data: bytes, uuid: str) -> profile_format.Profile:
-    """The profile a stored blob holds, or R4's `internal_error` for one that cannot be read."""
-    try:
-        return profile_format.read_profile(data)
-    except profile_format.ProfileError as error:
-        raise _unreadable(uuid, error) from error
-
-
-def _unreadable(uuid: str, error: profile_format.ProfileError) -> ApiError:
-    """R4's 500 for a stored blob that will not parse, logged on the way out.
-
-    Logged because this is the one 500 that reports a durable fact about the data rather than a
-    transient fault, and nothing else would record it: R4's envelope carries the reader's message
-    to the caller, but the caller is not who has to fix it. The generic 500 reaches the log through
-    Starlette's error middleware; an `ApiError` does not, so it is logged here.
-
-    Shared by the two places a blob is read, which are the parse and the decompression it defers.
-    """
-    logger.warning("Profile '%s' cannot be read: %s", uuid, error)
-    return ApiError(ErrorCode.INTERNAL_ERROR, f"Profile '{uuid}' cannot be read: {error}")
-
-
 def _hotness(function: profile_format.Function) -> tuple[float, str]:
     """The function list's order (endpoints.md): hottest first, ties broken by name.
 
@@ -264,14 +228,6 @@ def _hotness(function: profile_format.Function) -> tuple[float, str]:
     comes back in the same order every time, which is what the name tiebreaker adds.
     """
     return (-sum(function.counters.values()), function.name)
-
-
-def _profile_responses(not_found: str) -> dict[int | str, dict[str, Any]]:
-    """The failures a profile data endpoint can answer: `suite_scope`'s two, and R4's 500."""
-    return {
-        **suite_responses(not_found=not_found),
-        500: {"model": ErrorEnvelope, "description": _UNREADABLE},
-    }
 
 
 @run_profiles_router.get(
@@ -298,7 +254,7 @@ def list_run_profiles(
     "/{uuid}",
     dependencies=[require_scope(Scope.READ)],
     summary="Get a profile's metadata",
-    responses=_profile_responses(_NO_PROFILE),
+    responses=suite_responses(not_found=_NO_PROFILE),
 )
 def get_profile(
     testsuite: str, uuid: UuidKey, engine: EngineDep, registry: RegistryDep
@@ -311,7 +267,7 @@ def get_profile(
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         test, run, data = Profiles(suite).described(connection, uuid)
 
-    profile = _parse(data, uuid)
+    profile = profile_format.read_profile(data)
     return ProfileMetadata(
         uuid=uuid,
         test=test,
@@ -325,7 +281,7 @@ def get_profile(
     "/{uuid}/functions",
     dependencies=[require_scope(Scope.READ)],
     summary="List a profile's functions",
-    responses=_profile_responses(_NO_PROFILE),
+    responses=suite_responses(not_found=_NO_PROFILE),
 )
 def list_profile_functions(
     testsuite: str, uuid: UuidKey, engine: EngineDep, registry: RegistryDep
@@ -340,7 +296,7 @@ def list_profile_functions(
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         data = Profiles(suite).blob(connection, uuid)
 
-    profile = _parse(data, uuid)
+    profile = profile_format.read_profile(data)
     return Items(
         items=[
             ProfileFunction(
@@ -355,7 +311,7 @@ def list_profile_functions(
     "/{uuid}/disassembly",
     dependencies=[require_scope(Scope.READ)],
     summary="Get a function's disassembly",
-    responses=_profile_responses(_NO_FUNCTION),
+    responses=suite_responses(not_found=_NO_FUNCTION),
 )
 def get_profile_disassembly(
     testsuite: str,
@@ -376,10 +332,8 @@ def get_profile_disassembly(
 
     The one endpoint that decompresses, and it decompresses the whole profile's per-instruction
     sections to serve one function of it -- the format stores them as four streams rather than one
-    per function, so there is nothing smaller to expand. `MAX_DECOMPRESSED_SIZE` and
-    `MAX_INSTRUCTIONS` are what keep that bounded (D12); exceeding either is reported as
-    corruption, because from here a blob that expands without limit is indistinguishable from one
-    that is malformed.
+    per function, so there is nothing smaller to expand. D12's caps on a submitted profile are what
+    keep that bounded.
 
     The connection is given back before any of that runs. Expanding a large profile and building
     its instructions is the most expensive thing any read in this API does, and holding a pooled
@@ -390,18 +344,13 @@ def get_profile_disassembly(
         data = Profiles(suite).blob(connection, uuid)
         name = suite.schema.name
 
-    profile = _parse(data, uuid)
+    profile = profile_format.read_profile(data)
     measured = profile.functions.get(function)
     if measured is None:
         raise ApiError(
             ErrorCode.NOT_FOUND,
             f"Profile '{uuid}' in test suite '{name}' holds no function named '{function}'",
         )
-    try:
-        instructions = profile.instructions(function)
-    except profile_format.ProfileError as error:
-        raise _unreadable(uuid, error) from error
-
     return FunctionDisassembly(
         name=function,
         counters=dict(measured.counters),
@@ -412,6 +361,6 @@ def get_profile_disassembly(
                 counters=dict(instruction.counters),
                 text=instruction.text,
             )
-            for instruction in instructions
+            for instruction in profile.instructions(function)
         ],
     )

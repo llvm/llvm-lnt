@@ -9,6 +9,8 @@ Tests that touch the database run against a real PostgreSQL server -- see `datab
 from __future__ import annotations
 
 import base64
+import gzip
+import json
 import re
 from collections.abc import Callable, Iterator
 from pathlib import Path
@@ -26,7 +28,6 @@ from lnt_v5.app import create_app
 from lnt_v5.config import Settings, get_settings
 from lnt_v5.keys import create_key
 from lnt_v5.migrate import upgrade_to_head
-from lnt_v5.profile_format import PROFILE_FORMAT_VERSION
 from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.scopes import Scope
 from lnt_v5.suites.schema import SuiteSchema
@@ -398,13 +399,26 @@ def run_payload(**overrides: Any) -> dict[str, Any]:
     } | overrides
 
 
-def encoded_profile(*data: int) -> str:
-    """A profile blob, base64-encoded the way a submission carries it (D12).
+# A small, valid D12 profile document, for the tests that need a profile without caring which.
+PROFILE_DOCUMENT: dict[str, Any] = {
+    "disassembly_format": "raw",
+    "counters": {"cycles": 100},
+    "functions": [
+        {
+            "name": "main",
+            "instructions": [{"address": 0, "counters": {"cycles": 100}, "text": "ret"}],
+        }
+    ],
+}
 
-    The version byte comes from the constant rather than being written out, so that a test asserting
-    a *wrong* version is the only place a literal appears.
+
+def encoded_profile(document: dict[str, Any] | bytes = PROFILE_DOCUMENT) -> str:
+    """A profile document, gzip-compressed and base64-encoded the way a submission carries it (D12).
+
+    Raw bytes are compressed as they are, for the tests that need a document that is not JSON.
     """
-    return base64.b64encode(bytes([PROFILE_FORMAT_VERSION, *data])).decode()
+    raw = document if isinstance(document, bytes) else json.dumps(document).encode()
+    return base64.b64encode(gzip.compress(raw)).decode()
 
 
 @pytest.fixture
