@@ -529,8 +529,7 @@ class Regressions:
 
         The metrics go first, because they are checked against the schema already in memory: a
         batch naming a metric the suite does not declare is R3's 400 without a statement having
-        run, and that ordering is also what makes the 400 beat the 404 when a batch gets both
-        wrong -- the same precedence the list's filters take.
+        run.
 
         Every machine, test and metric is then resolved in one statement each rather than one per
         indicator, which is what keeps a batch of a thousand from costing three thousand round
@@ -801,8 +800,6 @@ def create_regression(
     """
     with engine.begin() as connection, suite_scope(registry, connection, testsuite) as suite:
         regressions = Regressions(suite)
-        # The indicators before the commit, so that an undeclared metric is the 400 even when the
-        # commit is also unknown -- the precedence endpoints.md gives the list's filters.
         resolved = regressions.resolved_indicators(connection, body.indicators)
         commit = None if body.commit is None else commit_id(connection, suite, body.commit)
 

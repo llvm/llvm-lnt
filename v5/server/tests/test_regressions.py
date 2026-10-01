@@ -301,18 +301,6 @@ class TestCreate:
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
 
-    def test_the_undeclared_metric_wins_over_the_absent_commit(
-        self, api_client: TestClient, triage: dict[str, str], data: None
-    ) -> None:
-        # endpoints.md: a metric the schema does not declare could never be answered, whereas an
-        # absent commit is a fact about the suite -- the precedence the list's filters take.
-        body = {"commit": "nope", "indicators": [{**LINUX_ONE, "metric": "nope"}]}
-
-        response = api_client.post(REGRESSIONS, json=body, headers=triage)
-
-        assert response.status_code == 400
-        assert code_of(response) == "invalid_request"
-
     def test_writes_nothing_when_an_indicator_cannot_be_resolved(
         self, api_client: TestClient, triage: dict[str, str], data: None
     ) -> None:
@@ -612,12 +600,6 @@ class TestIndicatorFilters:
 
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
-
-    def test_the_undeclared_metric_wins_over_the_absent_machine(
-        self, api_client: TestClient
-    ) -> None:
-        # endpoints.md settles the precedence, and the two write paths take the same one.
-        assert listed(api_client, "machine=nope&metric=nope").status_code == 400
 
 
 class TestCommitFilters:
@@ -1009,17 +991,6 @@ class TestAddIndicators:
 
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
-
-    def test_the_undeclared_metric_wins_over_the_absent_machine(
-        self, create: Callable[..., Any], add: Callable[..., Any], data: None
-    ) -> None:
-        # endpoints.md settles the precedence: a metric the schema does not declare is a request
-        # that could never be answered, whereas an absent machine is a fact about the suite.
-        uuid = create()["uuid"]
-
-        response = add(uuid, [{"machine": "nope", "test": "nope", "metric": "nope"}])
-
-        assert response.status_code == 400
 
     def test_is_404_for_a_regression_that_is_not_there(
         self, add: Callable[..., Any], data: None

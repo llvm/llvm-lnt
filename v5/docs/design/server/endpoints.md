@@ -386,10 +386,7 @@ an unknown `machine=` or `test=` is 404, an unknown `metric=` is 400, and a
 given together describe *one* indicator rather than three independent ones --
 `?machine=m&metric=execution_time` returns the regressions with an indicator
 naming `execution_time` on that machine -- the same reading
-`GET /api/suites/{testsuite}/tests` gives the same pair. Where a request gets
-both an unknown `metric=` and an unknown `machine=`/`test=`, the 400 wins: a
-metric the schema does not declare is a request that could never be answered,
-whereas an absent machine is a fact about the suite. This list takes no `sort`
+`GET /api/suites/{testsuite}/tests` gives the same pair. This list takes no `sort`
 and returns results in an arbitrary but deterministic order suitable for
 pagination (R2, D10).
 
@@ -414,8 +411,7 @@ state via PATCH.
   all resolved by name; 404 if any referenced machine or test does not
   exist, 400 if `metric` is not a valid metric name for the suite). Duplicates
   within the list are stored once, and the list is bounded, both as on the add
-  route below. An undeclared `metric` wins over an absent machine, test, or
-  `commit`, for the same reason it does among the list's filters above.
+  route below.
 
 A `title` or `bug`, here or on update, is a non-empty string of at most 256
 characters (see D5). An empty string is rejected with 400 rather than stored as
