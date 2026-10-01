@@ -10,11 +10,15 @@ from __future__ import annotations
 import base64
 import gzip
 import json
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 import pytest
 
 from conftest import encoded_profile, single
+from lnt_v5 import profile_format
 from lnt_v5.errors import ApiError, ErrorCode
 from lnt_v5.profile_format import MAX_INSTRUCTIONS, Instruction, Profile, read_profile
 from lnt_v5.suites import profile_document
@@ -367,3 +371,36 @@ class TestDocument:
         )
 
         assert "counters sum to" in refused(summed)
+
+
+class TestConcurrency:
+    def test_encodes_one_profile_at_a_time(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # The writer is the last step and the encoding's peak, so a slow stand-in for it shows
+        # whether two encodings ever overlap.
+        guard = threading.Lock()
+        running = 0
+        most = 0
+        write = profile_format.write_profile
+
+        def slow_write(*args: Any) -> bytes:
+            nonlocal running, most
+            with guard:
+                running += 1
+                most = max(most, running)
+            time.sleep(0.05)
+            with guard:
+                running -= 1
+            return write(*args)
+
+        monkeypatch.setattr(profile_document, "write_profile", slow_write)
+        encoded = encoded_profile(document())
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            list(pool.map(stored_profile, [encoded] * 4))
+
+        assert most == 1
+
+    def test_a_refused_profile_does_not_keep_the_next_one_waiting(self) -> None:
+        refused(b"{not json")
+
+        assert profile_document._ENCODING.acquire(blocking=False)
+        profile_document._ENCODING.release()

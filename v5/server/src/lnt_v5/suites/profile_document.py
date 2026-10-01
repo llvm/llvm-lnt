@@ -22,6 +22,7 @@ than once per instruction, since a hook per instruction would give back much of 
 from __future__ import annotations
 
 import base64
+import threading
 import zlib
 from collections.abc import Mapping, Sequence
 from typing import Annotated, cast
@@ -55,6 +56,14 @@ MAX_DOCUMENT_SIZE = MAX_DECOMPRESSED_SIZE
 # longest encoding a document within the cap can have; it admits up to two bytes more than the cap,
 # which the check on the decoded length then catches.
 MAX_ENCODED_SIZE = 4 * ((MAX_COMPRESSED_SIZE + 2) // 3)
+
+# How many profiles one worker encodes at once. Encoding a profile at the caps above holds hundreds
+# of megabytes for a few seconds, and FastAPI runs submissions on a threadpool of dozens of threads,
+# so without a bound a burst of concurrent submissions multiplies that until the process runs out of
+# memory. One at a time costs little throughput, since most of the work holds the GIL anyway, and
+# makes the worst case per worker one profile's worth. Nothing waiting here holds a database
+# connection: submission validates before it takes one.
+_ENCODING = threading.BoundedSemaphore(1)
 
 # The ASCII whitespace D12 makes insignificant in the base64, removed before decoding. Exactly the
 # ASCII set rather than `str.split()`'s: that one also eats U+00A0 and friends, which are outside
@@ -184,20 +193,21 @@ def stored_profile(encoded: str) -> bytes:
     """The bytes `{suite}.profile` stores for a submitted profile, or a 400 (D12).
 
     Everything D12 refuses is refused before the writer runs, so it is never handed a document it
-    cannot store.
+    cannot store. Profiles are encoded one at a time per worker; see `_ENCODING`.
     """
-    document = _parsed(_decompressed(_decoded(encoded)))
-    functions = {
-        # The casts restate what `__post_init__` established: every address and every top-level
-        # counter has been replaced by the integer it stands for.
-        function.name: MeasuredFunction(
-            _counters(function), cast(Sequence[InstructionData], function.instructions)
+    with _ENCODING:
+        document = _parsed(_decompressed(_decoded(encoded)))
+        functions = {
+            # The casts restate what `__post_init__` established: every address and every top-level
+            # counter has been replaced by the integer it stands for.
+            function.name: MeasuredFunction(
+                _counters(function), cast(Sequence[InstructionData], function.instructions)
+            )
+            for function in document.functions
+        }
+        return write_profile(
+            document.disassembly_format, cast(Mapping[str, int], document.counters), functions
         )
-        for function in document.functions
-    }
-    return write_profile(
-        document.disassembly_format, cast(Mapping[str, int], document.counters), functions
-    )
 
 
 def _counters(function: FunctionDocument) -> dict[str, float]:
