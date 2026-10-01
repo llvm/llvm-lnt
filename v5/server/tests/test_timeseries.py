@@ -39,8 +39,11 @@ NTS: dict[str, Any] = {
 # this endpoint takes them in a body.
 SLASHED = "suite/one"
 
-# The smallest body either endpoint accepts, which is all the access tests below need to reach one.
-ANY_METRIC = {"metric": "execution_time"}
+# The smallest body each endpoint accepts, which is all the access tests below need to reach one.
+MINIMAL_BODY = {
+    QUERY: {"metric": "execution_time"},
+    TRENDS: {"metric": "execution_time", "machine": []},
+}
 
 
 @pytest.fixture
@@ -653,7 +656,7 @@ class TestTrends:
     def test_is_an_unpaginated_envelope_even_when_nothing_matches(
         self, api_client: TestClient, suite: SuiteTables
     ) -> None:
-        response = trend_query(api_client, metric="execution_time")
+        response = trend_query(api_client, metric="execution_time", machine=[])
 
         assert response.status_code == 200
         assert response.json() == {"items": []}
@@ -667,7 +670,7 @@ class TestTrends:
         run = submit("linux", "abc", {"name": "t", "execution_time": 4.0})
         place("abc", ordinal=7, tag="release-18.1")
 
-        assert trends(api_client, metric="execution_time") == [
+        assert trends(api_client, metric="execution_time", machine=["linux"]) == [
             {
                 "machine": "linux",
                 "commit": "abc",
@@ -692,7 +695,9 @@ class TestTrends:
         )
         place("abc", ordinal=1)
 
-        assert trends(api_client, metric="execution_time")[0]["value"] == pytest.approx(2.0)
+        assert trends(api_client, metric="execution_time", machine=["linux"])[0][
+            "value"
+        ] == pytest.approx(2.0)
 
     def test_aggregates_across_every_run_at_that_machine_and_commit(
         self,
@@ -706,7 +711,7 @@ class TestTrends:
         latest = submit("linux", "abc", {"name": "t", "execution_time": 9.0})
         place("abc", ordinal=1)
 
-        item = trends(api_client, metric="execution_time")[0]
+        item = trends(api_client, metric="execution_time", machine=["linux"])[0]
 
         assert item["value"] == pytest.approx(3.0)
         assert item["submitted_at"] == latest["submitted_at"]
@@ -727,7 +732,9 @@ class TestTrends:
         )
         place("abc", ordinal=1)
 
-        assert trends(api_client, metric="execution_time")[0]["value"] == pytest.approx(2.0)
+        assert trends(api_client, metric="execution_time", machine=["linux"])[0][
+            "value"
+        ] == pytest.approx(2.0)
 
     def test_a_group_with_nothing_positive_is_absent_rather_than_null(
         self,
@@ -740,7 +747,9 @@ class TestTrends:
         place("good", ordinal=1)
         place("bad", ordinal=2)
 
-        assert [item["commit"] for item in trends(api_client, metric="execution_time")] == ["good"]
+        served = trends(api_client, metric="execution_time", machine=["linux"])
+
+        assert [item["commit"] for item in served] == ["good"]
 
     def test_an_integer_metric_is_averaged_in_floating_point(
         self,
@@ -757,7 +766,9 @@ class TestTrends:
         )
         place("abc", ordinal=1)
 
-        assert trends(api_client, metric="compile_status")[0]["value"] == pytest.approx(4.0)
+        assert trends(api_client, metric="compile_status", machine=["linux"])[0][
+            "value"
+        ] == pytest.approx(4.0)
 
     def test_excludes_the_commits_with_no_ordinal(
         self,
@@ -769,9 +780,9 @@ class TestTrends:
         submit("linux", "unordered", {"name": "t", "execution_time": 2.0})
         place("ordered", ordinal=1)
 
-        assert [item["commit"] for item in trends(api_client, metric="execution_time")] == [
-            "ordered"
-        ]
+        served = trends(api_client, metric="execution_time", machine=["linux"])
+
+        assert [item["commit"] for item in served] == ["ordered"]
 
     def test_orders_by_machine_and_then_by_ordinal(
         self,
@@ -785,7 +796,7 @@ class TestTrends:
         place("c1", ordinal=1)
         place("c2", ordinal=2)
 
-        served = trends(api_client, metric="execution_time")
+        served = trends(api_client, metric="execution_time", machine=["linux", "darwin"])
 
         assert [(item["machine"], item["ordinal"]) for item in served] == [
             ("darwin", 1),
@@ -843,9 +854,6 @@ class TestTrendsFilters:
         )
         assert patched.status_code == 200, patched.text
 
-        assert [item["machine"] for item in trends(api_client, metric="execution_time")] == [
-            "retired"
-        ]
         assert [
             item["machine"]
             for item in trends(api_client, metric="execution_time", machine=["retired"])
@@ -861,7 +869,7 @@ class TestTrendsFilters:
             submit("linux", f"c{index}", {"name": "t", "execution_time": 1.0})
             place(f"c{index}", ordinal=index)
 
-        served = trends(api_client, metric="execution_time", last_n=2)
+        served = trends(api_client, metric="execution_time", machine=["linux"], last_n=2)
 
         assert [item["ordinal"] for item in served] == [3, 4]
 
@@ -877,8 +885,8 @@ class TestTrendsFilters:
         submit("linux", "abc", {"name": "t", "execution_time": 1.0})
         place("abc", ordinal=1)
 
-        assert len(trends(api_client, metric="execution_time", last_n=1000)) == 1
-        assert len(trends(api_client, metric="execution_time")) == 1
+        assert len(trends(api_client, metric="execution_time", machine=["linux"], last_n=1000)) == 1
+        assert len(trends(api_client, metric="execution_time", machine=["linux"])) == 1
 
     def test_last_n_counts_over_the_suites_commits_rather_than_over_the_matches(
         self,
@@ -901,7 +909,7 @@ class TestTrendsFilters:
     def test_refuses_an_invalid_last_n(
         self, api_client: TestClient, suite: SuiteTables, last_n: int
     ) -> None:
-        response = trend_query(api_client, metric="execution_time", last_n=last_n)
+        response = trend_query(api_client, metric="execution_time", machine=[], last_n=last_n)
 
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
@@ -917,13 +925,19 @@ class TestTrendsFilters:
 
 class TestTrendsMetric:
     def test_the_metric_is_required(self, api_client: TestClient, suite: SuiteTables) -> None:
-        response = trend_query(api_client)
+        response = trend_query(api_client, machine=[])
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
+    def test_the_machine_is_required(self, api_client: TestClient, suite: SuiteTables) -> None:
+        response = trend_query(api_client, metric="execution_time")
 
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
 
     def test_an_undeclared_metric_is_400(self, api_client: TestClient, suite: SuiteTables) -> None:
-        response = trend_query(api_client, metric="nope")
+        response = trend_query(api_client, metric="nope", machine=[])
 
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
@@ -931,7 +945,7 @@ class TestTrendsMetric:
     def test_a_non_numeric_metric_is_400(self, api_client: TestClient, suite: SuiteTables) -> None:
         # D3: a geomean is arithmetic, and `text` is not a number. The type system deliberately
         # goes no further than that -- an `integer` encoding an enum is the author's problem.
-        response = trend_query(api_client, metric="toolchain")
+        response = trend_query(api_client, metric="toolchain", machine=[])
 
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
@@ -946,7 +960,7 @@ class TestTrendsMetric:
     def test_a_key_the_body_does_not_define_is_400(
         self, api_client: TestClient, suite: SuiteTables
     ) -> None:
-        response = trend_query(api_client, metric="execution_time", test=["t"])
+        response = trend_query(api_client, metric="execution_time", machine=[], test=["t"])
 
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
@@ -959,7 +973,7 @@ class TestAccess:
     def test_needs_no_credential(
         self, api_client: TestClient, suite: SuiteTables, path: str
     ) -> None:
-        assert api_client.post(path, json=ANY_METRIC).status_code == 200
+        assert api_client.post(path, json=MINIMAL_BODY[path]).status_code == 200
 
     def test_a_bad_token_is_401_even_though_the_endpoint_is_read_scoped(
         self,
@@ -969,13 +983,13 @@ class TestAccess:
         path: str,
     ) -> None:
         # R5: a bad credential is never silently downgraded to anonymous access.
-        response = api_client.post(path, json=ANY_METRIC, headers=bearer("f" * 64))
+        response = api_client.post(path, json=MINIMAL_BODY[path], headers=bearer("f" * 64))
 
         assert response.status_code == 401
         assert code_of(response) == "unauthorized"
 
     def test_is_404_for_a_suite_that_is_not_there(self, api_client: TestClient, path: str) -> None:
-        response = api_client.post(path.replace("/nts/", "/nope/"), json=ANY_METRIC)
+        response = api_client.post(path.replace("/nts/", "/nope/"), json=MINIMAL_BODY[path])
 
         assert response.status_code == 404
         assert code_of(response) == "not_found"
@@ -983,4 +997,4 @@ class TestAccess:
     def test_is_not_shadowed_by_the_spa_catch_all(
         self, api_client: TestClient, suite: SuiteTables, path: str
     ) -> None:
-        assert "<title>LNT</title>" not in api_client.post(path, json=ANY_METRIC).text
+        assert "<title>LNT</title>" not in api_client.post(path, json=MINIMAL_BODY[path]).text

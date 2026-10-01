@@ -889,7 +889,7 @@ class TestTimeSeriesOperations:
         schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
 
         assert set(schemas["TrendsRequest"]["properties"]) == {"metric", "machine", "last_n"}
-        assert schemas["TrendsRequest"]["required"] == ["metric"]
+        assert set(schemas["TrendsRequest"]["required"]) == {"metric", "machine"}
 
     def test_the_trends_window_defaults_to_a_bounded_one(self, client: TestClient) -> None:
         # endpoints.md: this response is unpaginated and `read`-scoped, so an omitted `last_n` must
@@ -908,10 +908,10 @@ class TestTimeSeriesOperations:
         # one call, and the Graph page plots one at a time.
         schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
         query = schemas["QueryRequest"]["properties"]["machine"]["anyOf"]
-        trends = schemas["TrendsRequest"]["properties"]["machine"]["anyOf"]
+        trends = schemas["TrendsRequest"]["properties"]["machine"]
 
         assert {"type": "string"} in query
-        assert [option["type"] for option in trends if "type" in option] == ["array", "null"]
+        assert trends["type"] == "array"
 
     def test_the_query_pages_with_a_cursor_and_trends_does_not_page_at_all(
         self, client: TestClient

@@ -504,10 +504,11 @@ Body (JSON): `{metric, machine, last_n}`
 
 The `metric` field is required and must be numeric (see D3). Non-numeric metrics
 are rejected with 400. For an `integer` metric the geomean is computed in floating
-point and returned as a real, like any other. All other fields are optional. Unlike
-the query endpoint's single machine string, `machine` accepts a list of names -- the
-Dashboard needs data for multiple machines in one call. An unknown name in it is
-404, and an empty list matches nothing. `last_n` (integer, min 1, max 10000,
+point and returned as a real, like any other. `machine` is required too, so that no
+request aggregates the whole suite at once. Unlike the query endpoint's single
+machine string, it is a list of names -- the Dashboard needs data for multiple
+machines in one call. An unknown name in it is 404, and an empty list matches
+nothing. `last_n` (integer, min 1, max 10000,
 default 500) limits the result to the N most recent commits by ordinal. They are
 counted over every commit in the suite that has an ordinal, including commits with
 no runs, rather than over what the other filters leave, so that the window is the

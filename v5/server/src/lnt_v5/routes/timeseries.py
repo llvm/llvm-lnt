@@ -218,13 +218,12 @@ class TrendsRequest(BaseModel):
             "arithmetic, and those are not numbers."
         )
     )
-    machine: list[Named] | None = Field(
-        default=None,
+    # Required, so that no request aggregates every machine in the suite at once.
+    machine: list[Named] = Field(
         max_length=MAX_LIMIT,
         description=(
-            f"Keep only these machines' values, at most {MAX_LIMIT} of them. 404 if any of them "
-            "names no machine. An empty list keeps nothing, which is not the same as omitting the "
-            "key. Tracked or not, a machine named here is returned."
+            f"The machines to return trends for, at most {MAX_LIMIT} of them. 404 if any of them "
+            "names no machine. Tracked or not, a machine named here is returned."
         ),
     )
     last_n: Annotated[int, Strict(), Field(ge=1, le=MAX_LIMIT)] = Field(
@@ -463,10 +462,7 @@ def query_trends(
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         trends = Trends(suite, _numeric(suite, body.metric))
         conditions: list[ColumnElement[bool]] = []
-        if body.machine is not None:
-            conditions.append(
-                trends.measured_on(machine_ids(connection, suite, body.machine).values())
-            )
+        conditions.append(trends.measured_on(machine_ids(connection, suite, body.machine).values()))
         cutoff = trends.cutoff(connection, body.last_n)
         if cutoff is not None:
             conditions.append(trends.ordinal >= cutoff)
