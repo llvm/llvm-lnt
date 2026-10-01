@@ -86,7 +86,8 @@ available from any page.
 
 ## R3: Filtering and Sorting
 
-- Filters and sorting are named query parameters. The endpoints spec is
+- Filters and sorting are named query parameters, or keys of the request body
+  for an endpoint that takes its filters in one. The endpoints spec is
   authoritative for which ones each endpoint takes; the OpenAPI document
   describes them (see R8).
 - Common filter types (examples):
