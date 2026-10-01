@@ -44,7 +44,7 @@ RUNS = RUNS_PATH.format(testsuite="nts")
 COMMITS = COMMITS_PATH.format(testsuite="nts")
 
 # One metric of each kind the two endpoints treat differently: a `real` and an `integer` are both
-# numeric (D3), so both may be averaged, and a `text` is neither.
+# numeric (D3), so both may be averaged, and a `text` or a `datetime` is neither.
 NTS: dict[str, Any] = {
     "name": "nts",
     "metrics": [
@@ -52,6 +52,7 @@ NTS: dict[str, Any] = {
         {"name": "compile_time", "type": "real"},
         {"name": "compile_status", "type": "integer"},
         {"name": "toolchain", "type": "text"},
+        {"name": "built_at", "type": "datetime"},
     ],
 }
 
@@ -217,6 +218,16 @@ class TestQueryPoint:
         submit("linux", "abc", {"name": "t", metric: value})
 
         assert [point["value"] for point in points(api_client, metric=metric)] == [value]
+
+    def test_a_datetime_value_is_rendered_in_utc(
+        self, api_client: TestClient, submit: Callable[..., dict[str, Any]]
+    ) -> None:
+        # D3: ISO 8601 in UTC with a `Z` suffix, whatever offset it was submitted with.
+        submit("linux", "abc", {"name": "t", "built_at": "2026-01-02T05:04:05+02:00"})
+
+        assert [p["value"] for p in points(api_client, metric="built_at")] == [
+            "2026-01-02T03:04:05Z"
+        ]
 
     def test_skips_the_samples_with_no_value_for_the_metric(
         self, api_client: TestClient, submit: Callable[..., dict[str, Any]]
