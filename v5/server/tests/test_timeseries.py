@@ -723,7 +723,7 @@ class TestTrends:
         aggregation: str | None,
         expected: float,
     ) -> None:
-        # The median by default. test_geomeans.py covers each aggregation and the per-test stage.
+        # The median by default. test_summaries.py covers each aggregation and the per-test stage.
         submit("linux", "abc", {"name": "t", "execution_time": [6.0, 1.0, 2.0]})
         place("abc", ordinal=1)
         requested = {} if aggregation is None else {"sample_agg": aggregation}

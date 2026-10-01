@@ -351,11 +351,13 @@ With PostgreSQL, this is achieved as follows:
   them in the same order.
 
 
-## D15: Run Geomeans
+## D15: Run Summaries
 
-Run submission stores, in the same transaction, the run's geomean for every
+Run submission stores, in the same transaction, a summary of the run for every
 numeric metric (see D3) and every sample aggregation: `median`, `mean`, `min`
-and `max`. Each is computed in two stages:
+and `max`. A summary holds statistics derived from the run's samples, so that
+reading them later does not mean reading every sample again. The only one so far
+is the run's geomean, computed in two stages:
 
 1. Each test's samples in the run that have a value for the metric are reduced
    to one value with the sample aggregation. The median of an even number of
@@ -365,9 +367,9 @@ and `max`. Each is computed in two stages:
    skipping the ones that are zero or negative.
 
 A metric and aggregation with no positive per-test value has no geomean, and
-nothing is stored for it. These are stored in `{suite}.run_geomean` (see D5),
-which is what lets a trend read a few rows per commit rather than every sample
-(see `GET /api/suites/{testsuite}/trends`).
+no summary is stored for it. Summaries are stored in `{suite}.run_summary` (see
+D5), which is what lets a trend read a few rows per commit rather than every
+sample (see `GET /api/suites/{testsuite}/trends`).
 
 Adding a metric needs no backfill: existing samples have no value for it, so
-existing runs have no geomean of it either.
+existing runs have no summary of it either.

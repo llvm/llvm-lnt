@@ -1,4 +1,4 @@
-"""D15's run geomeans: the two-stage computation, and what a submission stores."""
+"""D15's run summaries: the two-stage geomean, and what a submission stores."""
 
 from __future__ import annotations
 
@@ -14,9 +14,9 @@ from conftest import run_payload
 from lnt_v5.routes.runs import RUNS_PATH
 from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.suites.aggregation import SampleAggregation, geomean
-from lnt_v5.suites.geomeans import summarize
 from lnt_v5.suites.schema import Metric
 from lnt_v5.suites.submission import SubmittedTest
+from lnt_v5.suites.summaries import summarize
 from lnt_v5.suites.tables import SuiteTables
 
 TIME = Metric.model_validate({"name": "time", "type": "real"})
@@ -118,11 +118,11 @@ class TestSubmission:
         )
 
     def stored(self, db_engine: Engine, suite: SuiteTables) -> dict[Any, float]:
-        geomeans, metric = suite.run_geomean, suite.metric
+        summaries, metric = suite.run_summary, suite.metric
         with db_engine.connect() as connection:
             rows = connection.execute(
-                select(metric.c.name, geomeans.c.sample_agg, geomeans.c.value).join(
-                    metric, metric.c.id == geomeans.c.metric_id
+                select(metric.c.name, summaries.c.sample_agg, summaries.c.geomean).join(
+                    metric, metric.c.id == summaries.c.metric_id
                 )
             ).all()
         return {(name, aggregation): value for name, aggregation, value in rows}
@@ -177,7 +177,7 @@ class TestSubmission:
         assert response.status_code == 204
         assert self.stored(db_engine, suite) == {}
 
-    def test_removing_the_metric_deletes_its_geomeans(
+    def test_removing_the_metric_deletes_its_summaries(
         self,
         api_client: TestClient,
         submitter: dict[str, str],

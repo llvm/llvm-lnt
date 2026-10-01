@@ -294,18 +294,18 @@ class Trends:
     by a second geomean."""
 
     def __init__(self, suite: Suite, metric: Metric, aggregation: SampleAggregation) -> None:
-        geomeans = suite.tables.run_geomean
+        summaries = suite.tables.run_summary
         metrics = suite.tables.metric
         self._run: Table = suite.tables.run
         self._commit: Table = suite.tables.commit
         self._machine: Table = suite.tables.machine
         self.ordinal: Column[Any] = self._commit.c.ordinal
-        self._source = geomeans.join(metrics, metrics.c.id == geomeans.c.metric_id).join(
-            self._run, self._run.c.id == geomeans.c.run_id
+        self._source = summaries.join(metrics, metrics.c.id == summaries.c.metric_id).join(
+            self._run, self._run.c.id == summaries.c.run_id
         )
-        self._measured = [metrics.c.name == metric.name, geomeans.c.sample_agg == aggregation]
+        self._measured = [metrics.c.name == metric.name, summaries.c.sample_agg == aggregation]
         # Every run geomean is positive, so `ln` is always defined.
-        self.geomean = func.exp(func.avg(func.ln(geomeans.c.value)))
+        self.geomean = func.exp(func.avg(func.ln(summaries.c.geomean)))
         self.latest = func.max(self._run.c.submitted_at)
 
     def window(self, machines: Collection[int], last_n: int) -> Select[Any]:

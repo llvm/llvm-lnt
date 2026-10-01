@@ -154,7 +154,7 @@ class SuiteTables:
     regression: Table
     regression_indicator: Table
     profile: Table
-    run_geomean: Table
+    run_summary: Table
 
     @property
     def name(self) -> str:
@@ -338,16 +338,18 @@ def build(schema: SuiteSchema) -> SuiteTables:
         UniqueConstraint("run_id", "test_id"),
     )
 
-    # D15: one geomean per run, numeric metric and sample aggregation, which is what `GET /trends`
-    # reads instead of the run's samples. Written once, at submission, and deleted with the run or
-    # the metric it is derived from. `run_id` leads the key because trends reaches these by run.
-    run_geomean = Table(
-        "run_geomean",
+    # D15: statistics summarizing a run's samples, one row per numeric metric and sample
+    # aggregation, which is what `GET /trends` reads instead of the samples. One column per
+    # statistic, of which the geomean is the only one so far. Written once, at submission, and
+    # deleted with the run or the metric it is derived from. `run_id` leads the key because trends
+    # reaches these by run.
+    run_summary = Table(
+        "run_summary",
         metadata,
         Column("run_id", ForeignKey("run.id", ondelete="CASCADE"), primary_key=True),
         Column("metric_id", ForeignKey("metric.id", ondelete="CASCADE"), primary_key=True),
         Column("sample_agg", String(8), primary_key=True),
-        Column("value", Double, nullable=False),
+        Column("geomean", Double, nullable=False),
         CheckConstraint(
             "sample_agg IN ({})".format(
                 ", ".join(f"'{aggregation}'" for aggregation in SampleAggregation)
@@ -368,7 +370,7 @@ def build(schema: SuiteSchema) -> SuiteTables:
         regression=regression,
         regression_indicator=regression_indicator,
         profile=profile,
-        run_geomean=run_geomean,
+        run_summary=run_summary,
     )
 
 

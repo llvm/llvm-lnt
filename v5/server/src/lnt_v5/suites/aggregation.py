@@ -16,7 +16,7 @@ from enum import StrEnum, auto
 class SampleAggregation(StrEnum):
     """How a test's samples within one run are reduced to one value.
 
-    The same names the API speaks and `{suite}.run_geomean.sample_agg` stores.
+    The same names the API speaks and `{suite}.run_summary.sample_agg` stores.
     """
 
     MEDIAN = auto()

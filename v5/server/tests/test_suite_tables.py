@@ -53,7 +53,7 @@ SUITE_TABLES = frozenset(
         "regression",
         "regression_indicator",
         "profile",
-        "run_geomean",
+        "run_summary",
     }
 )
 
@@ -159,8 +159,8 @@ def seed(connection: Connection, tables: SuiteTables) -> dict[str, int]:
         )
     )
     connection.execute(
-        insert(tables.run_geomean).values(
-            run_id=run, metric_id=metric, sample_agg=SampleAggregation.MEDIAN, value=1.0
+        insert(tables.run_summary).values(
+            run_id=run, metric_id=metric, sample_agg=SampleAggregation.MEDIAN, geomean=1.0
         )
     )
     return {
@@ -275,7 +275,7 @@ class TestBuiltInColumns:
                 ["id", "uuid", "regression_id", "machine_id", "test_id", "metric_id"],
             ),
             ("profile", ["id", "uuid", "run_id", "test_id", "created_at", "data"]),
-            ("run_geomean", ["run_id", "metric_id", "sample_agg", "value"]),
+            ("run_summary", ["run_id", "metric_id", "sample_agg", "geomean"]),
         ],
     )
     def test_each_table_carries_what_d5_specifies(
@@ -709,7 +709,7 @@ class TestRegressionState:
         ]
 
 
-class TestRunGeomeanAggregation:
+class TestRunSummaryAggregation:
     def test_accepts_every_aggregation_d15_defines(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
     ) -> None:
@@ -717,15 +717,15 @@ class TestRunGeomeanAggregation:
 
         with db_engine.begin() as connection:
             rows = seed(connection, tables)
-            connection.execute(tables.run_geomean.delete())
+            connection.execute(tables.run_summary.delete())
             connection.execute(
-                insert(tables.run_geomean),
+                insert(tables.run_summary),
                 [
                     {
                         "run_id": rows["run"],
                         "metric_id": rows["metric"],
                         "sample_agg": aggregation,
-                        "value": 1.0,
+                        "geomean": 1.0,
                     }
                     for aggregation in SampleAggregation
                 ],
@@ -740,8 +740,8 @@ class TestRunGeomeanAggregation:
             rows = seed(connection, tables)
             with pytest.raises(IntegrityError):
                 connection.execute(
-                    insert(tables.run_geomean).values(
-                        run_id=rows["run"], metric_id=rows["metric"], sample_agg="p90", value=1.0
+                    insert(tables.run_summary).values(
+                        run_id=rows["run"], metric_id=rows["metric"], sample_agg="p90", geomean=1.0
                     )
                 )
 
@@ -766,7 +766,7 @@ class TestCascades:
             assert count(connection, tables.run) == 0
             assert count(connection, tables.sample) == 0
             assert count(connection, tables.profile) == 0
-            assert count(connection, tables.run_geomean) == 0
+            assert count(connection, tables.run_summary) == 0
 
     def test_a_commit_a_regression_points_at_cannot_be_deleted(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
@@ -796,7 +796,7 @@ class TestCascades:
             assert count(connection, tables.run) == 0
             assert count(connection, tables.sample) == 0
             assert count(connection, tables.profile) == 0
-            assert count(connection, tables.run_geomean) == 0
+            assert count(connection, tables.run_summary) == 0
             assert count(connection, tables.regression_indicator) == 0
             assert count(connection, tables.test_coverage) == 0
 
@@ -816,7 +816,7 @@ class TestCascades:
 
             assert count(connection, tables.regression) == 1
 
-    def test_deleting_a_run_takes_its_samples_profiles_and_geomeans(
+    def test_deleting_a_run_takes_its_samples_profiles_and_summaries(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
     ) -> None:
         tables = make_suite("nts")
@@ -828,10 +828,10 @@ class TestCascades:
 
             assert count(connection, tables.sample) == 0
             assert count(connection, tables.profile) == 0
-            assert count(connection, tables.run_geomean) == 0
+            assert count(connection, tables.run_summary) == 0
             assert count(connection, tables.machine) == 1
 
-    def test_removing_a_metric_takes_its_indicators_and_run_geomeans(
+    def test_removing_a_metric_takes_its_indicators_and_run_summaries(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
     ) -> None:
         # D2: removing a metric destroys everything stored for it.
@@ -843,7 +843,7 @@ class TestCascades:
             suite_tables.remove_metrics(connection, tables.metric, ["execution_time"])
 
             assert count(connection, tables.regression_indicator) == 0
-            assert count(connection, tables.run_geomean) == 0
+            assert count(connection, tables.run_summary) == 0
             assert count(connection, tables.run) == 1
 
     def test_deleting_a_regression_takes_its_indicators(
