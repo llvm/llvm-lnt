@@ -54,7 +54,7 @@ from lnt_v5.responses import Items
 from lnt_v5.routes.runs import NO_RUN, RUNS_PATH, run_id
 from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.scopes import Scope
-from lnt_v5.suites.entities import UuidPath
+from lnt_v5.suites.entities import UuidKey
 from lnt_v5.suites.registry import RegistryDep, Suite
 from lnt_v5.suites.scope import SUITE_NOT_FOUND, suite_responses, suite_scope
 
@@ -297,7 +297,7 @@ def _profile_responses(not_found: str) -> dict[int | str, dict[str, Any]]:
     responses=suite_responses(not_found=NO_RUN),
 )
 def list_run_profiles(
-    testsuite: str, uuid: UuidPath, engine: EngineDep, registry: RegistryDep
+    testsuite: str, uuid: UuidKey, engine: EngineDep, registry: RegistryDep
 ) -> Items[RunProfile]:
     """Which tests of one run have a profile, and the UUID of each (R2).
 
@@ -317,7 +317,7 @@ def list_run_profiles(
     responses=_profile_responses(_NO_PROFILE),
 )
 def get_profile(
-    testsuite: str, uuid: UuidPath, engine: EngineDep, registry: RegistryDep
+    testsuite: str, uuid: UuidKey, engine: EngineDep, registry: RegistryDep
 ) -> ProfileMetadata:
     """What a profile is of, and its top-level counters (endpoints.md).
 
@@ -344,7 +344,7 @@ def get_profile(
     responses=_profile_responses(_NO_PROFILE),
 )
 def list_profile_functions(
-    testsuite: str, uuid: UuidPath, engine: EngineDep, registry: RegistryDep
+    testsuite: str, uuid: UuidKey, engine: EngineDep, registry: RegistryDep
 ) -> Items[ProfileFunction]:
     """Every function the profile measured, hottest first (R2, endpoints.md).
 
@@ -375,7 +375,7 @@ def list_profile_functions(
 )
 def get_profile_function(
     testsuite: str,
-    uuid: UuidPath,
+    uuid: UuidKey,
     fn_name: FunctionName,
     engine: EngineDep,
     registry: RegistryDep,
