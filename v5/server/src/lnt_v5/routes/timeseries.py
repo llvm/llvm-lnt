@@ -19,7 +19,7 @@ from datetime import datetime
 from typing import Annotated, Any, Literal, Self
 
 from fastapi import APIRouter, Request
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, Strict, model_validator
 from sqlalchemy import (
     Column,
     ColumnElement,
@@ -264,7 +264,7 @@ class TrendsRequest(BaseModel):
             "key. Tracked or not, a machine named here is returned."
         ),
     )
-    last_n: Annotated[int, Field(ge=1, le=MAX_LIMIT)] = Field(
+    last_n: Annotated[int, Strict(), Field(ge=1, le=MAX_LIMIT)] = Field(
         default=DEFAULT_LAST_N,
         description=(
             "Keep only the most recent N commits by ordinal, counted over the commits the suite "

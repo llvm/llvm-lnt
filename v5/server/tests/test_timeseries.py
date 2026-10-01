@@ -648,8 +648,9 @@ class TestQueryPagination:
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
 
-    @pytest.mark.parametrize("limit", [0, 10001])
-    def test_refuses_a_page_size_outside_r2s_bounds(
+    # Out of R2's bounds, or not a JSON integer.
+    @pytest.mark.parametrize("limit", [0, 10001, True, "5", 2.5])
+    def test_refuses_an_invalid_page_size(
         self, api_client: TestClient, suite: SuiteTables, limit: int
     ) -> None:
         response = query(api_client, metric="execution_time", limit=limit)
@@ -906,8 +907,8 @@ class TestTrendsFilters:
 
         assert served == []
 
-    @pytest.mark.parametrize("last_n", [0, 10001])
-    def test_refuses_a_last_n_outside_its_bounds(
+    @pytest.mark.parametrize("last_n", [0, 10001, True, "5", 2.5])
+    def test_refuses_an_invalid_last_n(
         self, api_client: TestClient, suite: SuiteTables, last_n: int
     ) -> None:
         response = trend_query(api_client, metric="execution_time", last_n=last_n)

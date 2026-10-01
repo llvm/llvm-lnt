@@ -21,7 +21,7 @@ from datetime import datetime
 from typing import Annotated, Any
 
 from fastapi import Depends, Query, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, Strict
 from sqlalchemy import (
     Column,
     ColumnElement,
@@ -120,8 +120,9 @@ def body_cursor(request: Request, body: BaseModel) -> RequestCursor:
     return RequestCursor(token, scope)
 
 
-# The same two, as fields of a request body rather than as query parameters.
-BodyLimit = Annotated[int, Field(ge=1, le=MAX_LIMIT, description=_LIMIT)]
+# The same two, as fields of a request body rather than as query parameters. Strict, because a body
+# is JSON and `true` or `"5"` is not a page size.
+BodyLimit = Annotated[int, Strict(), Field(ge=1, le=MAX_LIMIT, description=_LIMIT)]
 
 BodyCursor = Annotated[str | None, Field(description=_CURSOR)]
 
