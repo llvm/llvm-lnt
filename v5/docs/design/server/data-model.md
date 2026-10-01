@@ -93,9 +93,8 @@ rejected on submission for both machines and commits (see D6).
 - **Removing** an entry permanently destroys every value stored for it. Because
   those values are destroyed, an implementation may reuse whatever storage the
   removed entry occupied. Removing a metric also removes every regression
-  indicator naming it (see D5), so that no indicator refers to a metric the
-  suite no longer declares -- and re-adding a metric of the same name later
-  brings none of them back.
+  indicator naming it (see D5); re-adding a metric of the same name brings none
+  back.
 
 In an `update` entry, a key the request omits leaves the stored value unchanged. An
 explicit `null` clears one of the nullable keys (`display_name`, `unit`, `unit_abbrev`);
@@ -447,15 +446,12 @@ are given in that form.
 | id | INTEGER | PK |
 | name | VARCHAR(63) | unique, not null |
 
-- One row per metric the suite's schema declares, so that what refers to a
-  metric -- a RegressionIndicator -- can do so by foreign key. It holds the
-  metric's identity only; everything else about a metric stays in the schema
-  (see D4).
-- Written only alongside the schema: creating the suite adds a row per declared
-  metric, and a schema change adds or removes rows as it adds or removes
-  metrics, in the same transaction (see D2). Removing a row cascades to every
-  RegressionIndicator naming the metric.
-- `name` is bounded by D4's rule on entry names.
+- One row per metric the suite's schema declares, so that a RegressionIndicator
+  can reference its metric by foreign key. It holds identity only; everything
+  else about a metric stays in the schema (see D4).
+- Rows are written with the suite at creation, and by the schema change that adds
+  or removes a metric, in its transaction (see D2). Removing a row cascades to the
+  RegressionIndicators naming the metric.
 
 #### `{suite}.run`
 
@@ -571,12 +567,10 @@ The DB layer validates state values on create and update.
   leading column also serves lookups of all indicators for a regression.
 - Each indicator represents one (machine, test, metric) combination
   affected by the regression.
-- Cascade: deleted with its regression, with the machine it names (see
-  `{suite}.machine`), and with its metric when a schema change removes it (see
-  D2). A regression left with no indicators is kept.
-- A write that names a metric the suite's schema no longer declares -- because
-  a schema change removed it while the request was running -- is D2's stale
-  reader, and is answered with a conflict (409).
+- Cascade: deleted with its regression, its machine, and its metric (see D2). A
+  regression left with no indicators is kept.
+- A write naming a metric that a concurrent schema change removed is answered
+  with D2's conflict (409).
 
 #### `{suite}.profile`
 
