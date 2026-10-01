@@ -24,13 +24,13 @@ performance trends across all test suites.
   `GET /api/suites/{ts}/machines?tracked=true&sort=-last_run_at&limit=5`, and
   the same machines are then requested for every card in that suite's section.
   Each card fetches its data in one call to
-  `GET /api/suites/{ts}/trends?metric={name}&machine=...&last_n={range}`. Only machines with `tracked: true`
-  are eligible -- untracked machines are ad-hoc or retired configurations not
-  tracked in the overview. A machine with no data for a given metric simply has
-  no trace on that card. Each trace is a colored line.
+  `GET /api/suites/{ts}/trends?metric={name}&machine=...&last_n={range}`. Only
+  machines with `tracked: true` are eligible -- untracked machines are ad-hoc or
+  retired configurations not tracked in the overview. A machine with no data for
+  a given metric simply has no trace on that card. Each trace is a colored line.
 - X-axis: sequential position (evenly spaced, no axis labels).
-- Y-axis: the geometric mean across tests at each commit for that machine+metric
-  combination. See below for calculation.
+- Y-axis: the trend item's `value` at each commit for that machine+metric
+  combination, a geometric mean across tests. See below for calculation.
 - Hover tooltip shows the machine name, commit (or `display` field), and value.
   Trend items do not carry the `display` field, so a card resolves the display
   values of its commits through `POST /api/suites/{ts}/commits/resolve`.
