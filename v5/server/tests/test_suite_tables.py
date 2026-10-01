@@ -30,17 +30,21 @@ from lnt_v5.suites.tables import (
     COMMIT_VALUE_CONSTRAINT,
     MACHINE_NAME_CONSTRAINT,
     REGRESSION_COMMIT_CONSTRAINT,
+    REGRESSION_INDICATOR_CONSTRAINT,
+    REGRESSION_INDICATOR_MACHINE_CONSTRAINT,
+    REGRESSION_INDICATOR_METRIC_CONSTRAINT,
+    REGRESSION_INDICATOR_REGRESSION_CONSTRAINT,
     RUN_UUID_CONSTRAINT,
     SuiteTables,
 )
-from lnt_v5.tables import IDENTIFIER_MAX_LENGTH
 from lnt_v5.tables import metadata as global_metadata
 
-# The nine tables D5 gives every suite.
+# The ten tables D5 gives every suite.
 SUITE_TABLES = frozenset(
     {
         "commit",
         "machine",
+        "metric",
         "run",
         "test",
         "sample",
@@ -81,9 +85,8 @@ def make_suite(db_engine: Engine) -> Iterator[Callable[..., SuiteTables]]:
 
     def make(name: str = "nts", **overrides: Any) -> SuiteTables:
         schema = SuiteSchema.model_validate({"name": name} | overrides)
-        built = suite_tables.build(schema)
         with db_engine.begin() as connection:
-            suite_tables.create(connection, built)
+            built = suite_tables.create(connection, schema)
         created.append(name)
         return built
 
@@ -109,6 +112,15 @@ def seed(connection: Connection, tables: SuiteTables) -> dict[str, int]:
     test = connection.execute(
         insert(tables.test).values(name="suite/benchmark").returning(tables.test.c.id)
     ).scalar_one()
+    # A suite declaring the metric already holds its row (D5); one declaring none does not.
+    metric = (
+        connection.execute(
+            select(tables.metric.c.id).where(tables.metric.c.name == "execution_time")
+        ).scalar_one_or_none()
+        or connection.execute(
+            insert(tables.metric).values(name="execution_time").returning(tables.metric.c.id)
+        ).scalar_one()
+    )
     run = connection.execute(
         insert(tables.run)
         .values(uuid="11111111-1111-4111-8111-111111111111", machine_id=machine, commit_id=commit)
@@ -141,13 +153,14 @@ def seed(connection: Connection, tables: SuiteTables) -> dict[str, int]:
             regression_id=regression,
             machine_id=machine,
             test_id=test,
-            metric="execution_time",
+            metric_id=metric,
         )
     )
     return {
         "machine": machine,
         "commit": commit,
         "test": test,
+        "metric": metric,
         "run": run,
         "sample": sample,
         "regression": regression,
@@ -218,11 +231,12 @@ class TestBuiltInColumns:
     @pytest.mark.parametrize(
         ("table", "expected"),
         [
-            # D5's column list for each of the nine tables, in order, with FULL's dynamic columns
+            # D5's column list for each of the ten tables, in order, with FULL's dynamic columns
             # appended where the table takes them -- so this also pins that a schema's entries come
             # after the built-ins rather than interleaved with them.
             ("commit", ["id", "commit", "ordinal", "tag", "git_sha", "commit_timestamp"]),
             ("machine", ["id", "name", "tracked", "hardware", "core_count"]),
+            ("metric", ["id", "name"]),
             ("run", ["id", "uuid", "machine_id", "commit_id", "submitted_at", "run_parameters"]),
             ("test", ["id", "name"]),
             (
@@ -251,7 +265,7 @@ class TestBuiltInColumns:
             ("regression", ["id", "uuid", "title", "bug", "notes", "state", "commit_id"]),
             (
                 "regression_indicator",
-                ["id", "uuid", "regression_id", "machine_id", "test_id", "metric"],
+                ["id", "uuid", "regression_id", "machine_id", "test_id", "metric_id"],
             ),
             ("profile", ["id", "uuid", "run_id", "test_id", "created_at", "data"]),
         ],
@@ -416,19 +430,6 @@ class TestNamingConvention:
 
         assert_names_survived(inspect(db_engine), tables.metadata, schema="nts")
 
-    def test_the_longest_name_is_exactly_at_the_limit(
-        self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
-    ) -> None:
-        # D5's unique constraint on regression_indicator composes to exactly the limit. Spelled out
-        # so that a change to the convention or to a column name fails here rather than silently
-        # producing a truncated name.
-        longest = "uq_regression_indicator_regression_id_machine_id_test_id_metric"
-        assert len(longest) == IDENTIFIER_MAX_LENGTH
-
-        make_suite("nts")
-
-        assert longest in stored_names(inspect(db_engine), schema="nts")["regression_indicator"]
-
     def test_two_suites_carry_identical_names(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
     ) -> None:
@@ -461,6 +462,10 @@ class TestNamingConvention:
             ("commit", COMMIT_ORDINAL_CONSTRAINT),
             ("run", RUN_UUID_CONSTRAINT),
             ("regression", REGRESSION_COMMIT_CONSTRAINT),
+            ("regression_indicator", REGRESSION_INDICATOR_CONSTRAINT),
+            ("regression_indicator", REGRESSION_INDICATOR_METRIC_CONSTRAINT),
+            ("regression_indicator", REGRESSION_INDICATOR_MACHINE_CONSTRAINT),
+            ("regression_indicator", REGRESSION_INDICATOR_REGRESSION_CONSTRAINT),
         ],
     )
     def test_the_other_written_out_constraints_are_the_ones_postgres_holds(
@@ -634,7 +639,7 @@ class TestUniqueness:
                         regression_id=rows["regression"],
                         machine_id=rows["machine"],
                         test_id=rows["test"],
-                        metric="execution_time",
+                        metric_id=rows["metric"],
                     )
                 )
 

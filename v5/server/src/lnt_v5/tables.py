@@ -44,9 +44,8 @@ from .scopes import Scope
 # `test_tables.py` checks both against what Postgres actually stored, but only for the tables in
 # this file: per-suite tables are built at runtime from a suite's schema and are not in this
 # metadata, so whatever creates them owes the same check. They are also where the limit actually
-# bites -- D5's unique constraint on `{suite}.regression_indicator` composes to
-# `uq_regression_indicator_regression_id_machine_id_test_id_metric`, which is exactly 63 bytes and
-# cannot absorb one more character.
+# bites: D5's unique constraint on `{suite}.regression_indicator` spans four columns and would
+# compose past it, so it carries an explicit name.
 NAMING_CONVENTION = {
     "ix": "ix_%(table_name)s_%(column_0_N_name)s",
     "uq": "uq_%(table_name)s_%(column_0_N_name)s",

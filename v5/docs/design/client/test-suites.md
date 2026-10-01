@@ -136,11 +136,15 @@ Suites page.
 The table displaying regressions is like this:
 
 ```
-Title                 State       Commit        Machines                      Tests         Bug
------------------------------------------------------------------------------------------------------------------------------------
-find_if slowdown      detected    abc123        linux-x86_64, macos-arm64     12            https://github.com/llvm/.../issues/1234
+Title                 State       Commit        Machines      Tests         Bug
+------------------------------------------------------------------------------------------------------------
+find_if slowdown      detected    abc123        2             12            https://github.com/llvm/.../issues/1234
 etc...
 ```
+
+Machines and Tests are the list item's `machine_count` and `test_count`, which
+count the whole regression even when the table is filtered. The names are on the
+regression detail page.
 
 The elements are clickable and link to the details page for that entity.
 Below the table, `[<- Previous] [Next ->]` allows navigating through pages.

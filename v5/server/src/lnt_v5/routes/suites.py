@@ -88,7 +88,7 @@ def create_suite(body: SuiteSchema, engine: EngineDep, response: Response) -> Su
             connection.execute(
                 schema_table.insert().values(name=body.name, schema_json=normalized_json(body))
             )
-            suite_tables.create(connection, suite_tables.build(body))
+            suite_tables.create(connection, body)
             bump(connection)
     except IntegrityError as error:
         if unique_violation_constraint(error) != SCHEMA_NAME_CONSTRAINT:

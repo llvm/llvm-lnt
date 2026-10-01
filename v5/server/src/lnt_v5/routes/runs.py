@@ -68,7 +68,7 @@ from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.scopes import Scope
 from lnt_v5.suites import coverage
 from lnt_v5.suites.concurrency import resolve_names
-from lnt_v5.suites.entities import DatetimeValue, identifier, location_of
+from lnt_v5.suites.entities import DatetimeValue, UuidKey, identifier, location_of
 from lnt_v5.suites.registry import RegistryDep, Suite
 from lnt_v5.suites.scope import (
     SUITE_NOT_FOUND,
@@ -77,12 +77,7 @@ from lnt_v5.suites.scope import (
     suite_responses,
     suite_scope,
 )
-from lnt_v5.suites.submission import (
-    RunSubmission,
-    RunUuidPath,
-    SubmittedTest,
-    validate_submission,
-)
+from lnt_v5.suites.submission import RunSubmission, SubmittedTest, validate_submission
 from lnt_v5.suites.tables import RUN_UUID_CONSTRAINT
 
 RUNS_PATH = f"{SUITES_PATH}/{{testsuite}}/runs"
@@ -380,7 +375,9 @@ def run_id(connection: Connection, suite: Suite, uuid: str) -> int:
     it away. The counterpart of `machines.machine_id`.
     """
     run = suite.tables.run
-    return identifier(connection, run.c.uuid, uuid, lambda: _missing(suite.schema.name, uuid))
+    return identifier(
+        connection, run.c.uuid, uuid, lambda missed: _missing(suite.schema.name, missed)
+    )
 
 
 def _submitted_between(
@@ -583,9 +580,7 @@ def submit_run(
     summary="Get a run",
     responses=suite_responses(not_found=NO_RUN),
 )
-def get_run(
-    testsuite: str, uuid: RunUuidPath, engine: EngineDep, registry: RegistryDep
-) -> RunDetail:
+def get_run(testsuite: str, uuid: UuidKey, engine: EngineDep, registry: RegistryDep) -> RunDetail:
     """One run, in the same shape submission returns -- a list's object plus `run_parameters`."""
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         return Runs(suite).one(connection, uuid)
@@ -598,7 +593,7 @@ def get_run(
     summary="Delete a run",
     responses=suite_responses(not_found=NO_RUN),
 )
-def delete_run(testsuite: str, uuid: RunUuidPath, engine: EngineDep, registry: RegistryDep) -> None:
+def delete_run(testsuite: str, uuid: UuidKey, engine: EngineDep, registry: RegistryDep) -> None:
     """Delete a run, its samples and its profiles (D5).
 
     One statement: D5 gives `{suite}.sample.run_id` and `{suite}.profile.run_id` an

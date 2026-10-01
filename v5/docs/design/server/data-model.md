@@ -92,7 +92,9 @@ rejected on submission for both machines and commits (see D6).
   per row, `real` to `integer` truncates).
 - **Removing** an entry permanently destroys every value stored for it. Because
   those values are destroyed, an implementation may reuse whatever storage the
-  removed entry occupied.
+  removed entry occupied. Removing a metric also removes every regression
+  indicator naming it (see D5); re-adding a metric of the same name brings none
+  back.
 
 In an `update` entry, a key the request omits leaves the stored value unchanged. An
 explicit `null` clears one of the nullable keys (`display_name`, `unit`, `unit_abbrev`);
@@ -368,8 +370,9 @@ of its own named after its suite (see below).
 ### Per-Suite Tables
 
 Each suite's tables live in a namespace of their own, named after the suite: a
-PostgreSQL schema called `{suite}`, holding `commit`, `machine`, `run`, `test`,
-`sample`, `test_coverage`, `regression`, `regression_indicator` and `profile`.
+PostgreSQL schema called `{suite}`, holding `commit`, `machine`, `metric`, `run`,
+`test`, `sample`, `test_coverage`, `regression`, `regression_indicator` and
+`profile`.
 A table is therefore addressed as `{suite}.commit`, and the entity names below
 are given in that form.
 
@@ -435,6 +438,20 @@ are given in that form.
   samples and profiles), and to every RegressionIndicator naming it. A
   regression left with no indicators is not itself deleted: it keeps its title,
   bug, notes, and commit, and an empty indicator set is a legal state.
+
+#### `{suite}.metric`
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| id | INTEGER | PK |
+| name | VARCHAR(63) | unique, not null |
+
+- One row per metric the suite's schema declares, so that a RegressionIndicator
+  can reference its metric by foreign key. It holds identity only; everything
+  else about a metric stays in the schema (see D4).
+- Rows are written with the suite at creation, and by the schema change that adds
+  or removes a metric, in its transaction (see D2). Removing a row cascades to the
+  RegressionIndicators naming the metric.
 
 #### `{suite}.run`
 
@@ -544,12 +561,16 @@ The DB layer validates state values on create and update.
 | regression_id | INTEGER FK -> Regression | not null |
 | machine_id | INTEGER FK -> Machine | not null |
 | test_id | INTEGER FK -> Test | not null |
-| metric | VARCHAR(256) | not null |
+| metric_id | INTEGER FK -> Metric | not null |
 
-- Unique constraint on `(regression_id, machine_id, test_id, metric)`. Its
+- Unique constraint on `(regression_id, machine_id, test_id, metric_id)`. Its
   leading column also serves lookups of all indicators for a regression.
 - Each indicator represents one (machine, test, metric) combination
   affected by the regression.
+- Cascade: deleted with its regression, its machine, and its metric (see D2). A
+  regression left with no indicators is kept.
+- A write naming a metric that a concurrent schema change removed is answered
+  with D2's conflict (409).
 
 #### `{suite}.profile`
 

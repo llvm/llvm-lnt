@@ -39,7 +39,7 @@ def store(db_engine: Engine) -> Callable[..., SuiteSchema]:
             connection.execute(
                 insert(schema).values(name=name, schema_json=normalized_json(parsed))
             )
-            suite_tables.create(connection, suite_tables.build(parsed))
+            suite_tables.create(connection, parsed)
             bump(connection)
         return parsed
 

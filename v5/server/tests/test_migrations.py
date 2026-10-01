@@ -90,15 +90,13 @@ class TestUpgrade:
         -- which is the shape autogenerate would have to ignore.
         """
         upgrade_to_head(empty_engine)
-        suite = suite_tables.build(
-            SuiteSchema.model_validate(
-                {
-                    "name": "nts",
-                    "metrics": [{"name": "execution_time", "type": "real"}],
-                    "commit_fields": [{"name": "git_sha", "type": "text", "searchable": True}],
-                    "machine_fields": [{"name": "hardware", "type": "text"}],
-                }
-            )
+        suite = SuiteSchema.model_validate(
+            {
+                "name": "nts",
+                "metrics": [{"name": "execution_time", "type": "real"}],
+                "commit_fields": [{"name": "git_sha", "type": "text", "searchable": True}],
+                "machine_fields": [{"name": "hardware", "type": "text"}],
+            }
         )
         with empty_engine.begin() as connection:
             suite_tables.create(connection, suite)

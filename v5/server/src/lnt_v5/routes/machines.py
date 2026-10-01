@@ -19,7 +19,7 @@ from datetime import datetime
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Query, Response
-from pydantic import Field
+from pydantic import ConfigDict, Field
 from sqlalchemy import (
     ColumnElement,
     Connection,
@@ -39,6 +39,7 @@ from sqlalchemy import (
 from lnt_v5.auth import require_scope
 from lnt_v5.db import EngineDep, reporting_violation
 from lnt_v5.errors import ApiError, ErrorCode
+from lnt_v5.patching import omit_defaults
 from lnt_v5.querying import DEFAULT_LIMIT, Limit, Offset, search_condition, sort_order
 from lnt_v5.responses import OffsetPage
 from lnt_v5.routes.suites import SUITES_PATH
@@ -52,6 +53,7 @@ from lnt_v5.suites.entities import (
     Tracked,
     create_or_reconcile,
     identifier,
+    identifiers,
     location_of,
     rendered_fields,
     validate_fields,
@@ -75,17 +77,6 @@ MachineSort = Literal["name", "-name", "last_run_at", "-last_run_at"]
 NO_MACHINE = f"{SUITE_NOT_FOUND} Or no machine in it has that name."
 NO_MACHINE_FILTERED = f"{SUITE_NOT_FOUND} Or the machine the `machine=` filter names is not in it."
 _NAME_TAKEN = f"A machine of that name already exists. {SUITE_SCHEMA_CHANGED}"
-
-
-def _hide_default(schema: dict[str, Any]) -> None:
-    """Keep a sentinel default out of R8's document.
-
-    `MachineUpdate` gives its optional keys defaults of the right *type* that are never read; `""`
-    is one, and it violates the `minLength` beside it. Published, it would tell a generated client
-    that omitting `name` means sending `""`, which the server answers 400 -- a response the
-    document would then be describing wrongly.
-    """
-    schema.pop("default", None)
 
 
 class Machine(MachineObject):
@@ -113,7 +104,9 @@ class MachineUpdate(EntityObject):
     `PATCH /api/suites/{testsuite}/commits/{value}`.
     """
 
-    name: MachineName = Field(default="", json_schema_extra=_hide_default)
+    model_config = ConfigDict(json_schema_extra=omit_defaults)
+
+    name: MachineName = ""
     tracked: Tracked = True
 
 
@@ -256,7 +249,22 @@ def machine_id(connection: Connection, suite: Suite, name: str) -> int:
     the 404 the machine routes themselves raise rather than being written out per endpoint.
     """
     machine = suite.tables.machine
-    return identifier(connection, machine.c.name, name, lambda: _missing(suite.schema.name, name))
+    return identifier(
+        connection, machine.c.name, name, lambda missed: _missing(suite.schema.name, missed)
+    )
+
+
+def machine_ids(connection: Connection, suite: Suite, names: Sequence[str]) -> dict[str, int]:
+    """The ids of many machines at once, keyed by name, or the 404 for the first one absent.
+
+    What a regression's indicators resolve through: each names a machine, and a batch of them would
+    otherwise be one statement per indicator. The same lookup and the same wording as `machine_id`
+    above, which is why it lives here too.
+    """
+    machine = suite.tables.machine
+    return identifiers(
+        connection, machine.c.name, names, lambda missed: _missing(suite.schema.name, missed)
+    )
 
 
 @router.get(
