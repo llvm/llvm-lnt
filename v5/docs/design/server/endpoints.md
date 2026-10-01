@@ -520,8 +520,9 @@ Returns geomean-aggregated trend data per (machine, commit), in R2's unpaginated
 envelope -- the result set is bounded by (machines x last_n), typically < 5000
 rows. Items are ordered by machine name, then by ordinal. Each item carries:
 `machine` (the machine's name), `commit` (the commit's identity string), `ordinal`
-(always present, never null), `submitted_at` (latest run submission time), `tag`
-(the commit's tag, or null if unset), and `value` (the geomean). `metric` is not
+(always present, never null), `submitted_at` (the latest submission among the
+runs the geomean covers), `tag` (the commit's tag, or null if unset), and `value`
+(the geomean). `metric` is not
 echoed per item, unlike a query point.
 
 Geomean is computed in SQL: `exp(avg(ln(positive_values)))`, skipping
