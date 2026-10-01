@@ -1,4 +1,4 @@
-"""D12's profile binary format, read.
+"""D12's profile binary format, read and written.
 
 The format is v4's, unchanged: a profile is produced elsewhere, stored verbatim, and this is the
 only thing in v5 that interprets it. It is eight sections behind a table of (offset, size) pairs,
@@ -10,8 +10,8 @@ no decompression at all and only a request for one function's disassembly pays f
 to `Profile.instructions`; the endpoints that serve metadata and the function list would otherwise
 carry the cost of the data they do not serve.
 
-Nothing here writes. Profiles arrive already encoded (D12) and the server never produces one, so a
-serializer would be a second, untested statement of what the format is.
+`write_profile` is the inverse, and reproduces v4's writer byte for byte, which its tests check
+against blobs v4 wrote.
 
 **Every way a stored blob can fail to be read is a `ProfileError`.** That guarantee is what the
 endpoints rest on: R4 makes a profile that cannot be deserialized an `internal_error` 500, and it
@@ -525,3 +525,183 @@ def _expand(data: memoryview, section: int, budget: int) -> bytes:
             f"{name}: {len(decompressor.unused_data)} bytes follow the end of the bz2 stream"
         )
     return expanded
+
+
+# --------------------------------------------------------------------------------------------
+# Writing
+# --------------------------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class MeasuredFunction:
+    """One function as `write_profile` takes it: its aggregate counters and its instructions.
+
+    Every instruction must carry exactly the function's counters. The format stores one value per
+    counter of the function for each instruction and no names, so an instruction with a counter
+    the function lacks would lose it, and one missing a counter would read back with a zero.
+    """
+
+    counters: Mapping[str, float]
+    instructions: Sequence[Instruction]
+
+
+class _Writer:
+    """An append-only buffer that encodes the format's two primitives, and refuses what they cannot
+    hold rather than writing something `_Reader` would not read back."""
+
+    def __init__(self) -> None:
+        self._data = bytearray()
+
+    @property
+    def position(self) -> int:
+        return len(self._data)
+
+    def getvalue(self) -> bytes:
+        return bytes(self._data)
+
+    def number(self, value: int) -> None:
+        """One ULEB128 integer, within the width `_Reader.number` accepts."""
+        if not 0 <= value < _MAX_NUMBER:
+            raise ValueError(f"{value} is not an integer in [0, 2**64)")
+        while value > 0x7F:
+            self._data.append(value & 0x7F | 0x80)
+            value >>= 7
+        self._data.append(value)
+
+    def string(self, value: str) -> None:
+        """One newline-terminated UTF-8 string, which therefore cannot contain a newline."""
+        if "\n" in value:
+            raise ValueError(f"{value!r} contains a newline, which ends a string in this format")
+        try:
+            self._data += value.encode() + b"\n"
+        except UnicodeEncodeError as error:
+            raise ValueError(f"{value!r} is not encodable as UTF-8: {error}") from None
+
+    def real(self, value: float) -> None:
+        """One float, as the ULEB128 encoding of its IEEE-754 single-precision bits.
+
+        Zero is written as the literal 0, as v4 does, which also folds -0.0 into it.
+        """
+        if value == 0.0:
+            self.number(0)
+            return
+        if not isfinite(value):
+            raise ValueError(f"{value} is not a finite number")
+        try:
+            packed = struct.pack(">f", value)
+        except OverflowError:
+            raise ValueError(f"{value} is too large for single precision") from None
+        self.number(struct.unpack(">I", packed)[0])
+
+
+def write_profile(
+    disassembly_format: str,
+    counters: Mapping[str, int],
+    functions: Mapping[str, MeasuredFunction],
+) -> bytes:
+    """The blob `read_profile` reads back as this profile.
+
+    Byte for byte what v4's writer produces for the same data, down to the order it emits things
+    in: functions and counters sorted by name, and each distinct instruction text pooled once, at
+    its first use. Counter values come back rounded to single precision, which is all the format
+    stores.
+
+    A profile `read_profile` would refuse to read is a `ValueError` here instead -- a function
+    over `MAX_INSTRUCTIONS`, sections expanding beyond `MAX_DECOMPRESSED_SIZE` -- and so is
+    anything the format cannot represent: a newline in a string, addresses that decrease within a
+    function (they are stored as unsigned deltas), a negative top-level counter.
+    """
+    ordered = sorted(functions.items())
+    for name, function in ordered:
+        if len(function.instructions) > MAX_INSTRUCTIONS:
+            raise ValueError(
+                f"function '{name}' has {len(function.instructions)} instructions, more than the "
+                f"{MAX_INSTRUCTIONS} a profile may hold for one function"
+            )
+        expected = set(function.counters)
+        if any(set(instruction.counters) != expected for instruction in function.instructions):
+            raise ValueError(f"an instruction of '{name}' does not carry exactly its counters")
+
+    names = sorted(
+        {*counters, *(counter for _, function in ordered for counter in function.counters)}
+    )
+    index = {counter: position for position, counter in enumerate(names)}
+
+    header = _Writer()
+    header.string(disassembly_format)
+
+    pool = _Writer()
+    pool.number(len(names))
+    for counter in names:
+        pool.string(counter)
+
+    top_level = _Writer()
+    top_level.number(len(counters))
+    for counter, value in sorted(counters.items()):
+        top_level.number(index[counter])
+        top_level.number(value)
+
+    line_counters, line_addresses, line_text, text_pool = _Writer(), _Writer(), _Writer(), _Writer()
+    pooled: dict[str, int] = {}
+    index_entries = _Writer()
+    index_entries.number(len(ordered))
+    for name, function in ordered:
+        index_entries.string(name)
+        index_entries.number(len(function.instructions))
+        index_entries.number(line_counters.position)
+        index_entries.number(line_addresses.position)
+        index_entries.number(line_text.position)
+        index_entries.number(len(function.counters))
+        for counter, aggregate in sorted(function.counters.items()):
+            index_entries.number(index[counter])
+            index_entries.real(aggregate)
+
+        measured = sorted(function.counters)
+        previous = 0
+        for instruction in function.instructions:
+            for counter in measured:
+                line_counters.real(instruction.counters[counter])
+            if instruction.address < previous:
+                raise ValueError(
+                    f"function '{name}' goes back from address {previous} to "
+                    f"{instruction.address}; addresses are stored as unsigned deltas"
+                )
+            line_addresses.number(instruction.address - previous)
+            previous = instruction.address
+            if instruction.text not in pooled:
+                pooled[instruction.text] = text_pool.position
+                text_pool.string(instruction.text)
+            line_text.number(pooled[instruction.text])
+        # The terminator v4 emits after each function's offsets (D12).
+        line_text.number(0)
+
+    # v4's pool starts out as a lone newline that the first string overwrites, so a profile with no
+    # instructions at all stores that newline rather than nothing.
+    expanded = [
+        line_counters.getvalue(),
+        line_addresses.getvalue(),
+        line_text.getvalue(),
+        text_pool.getvalue() or b"\n",
+    ]
+    if sum(map(len, expanded)) > MAX_DECOMPRESSED_SIZE:
+        raise ValueError(
+            f"the profile's sections expand beyond the {MAX_DECOMPRESSED_SIZE} byte limit"
+        )
+
+    sections = [
+        header.getvalue(),
+        pool.getvalue(),
+        top_level.getvalue(),
+        *(bz2.compress(section) for section in expanded),
+        index_entries.getvalue(),
+    ]
+    blob = _Writer()
+    blob.number(PROFILE_FORMAT_VERSION)
+    offset = 0
+    for position, section in enumerate(sections):
+        blob.number(offset)
+        blob.number(len(section))
+        if position == _TEXT_POOL:
+            blob.string("")  # No external pool file; see `_read_section_table`.
+        offset += len(section)
+    return blob.getvalue() + b"".join(sections)

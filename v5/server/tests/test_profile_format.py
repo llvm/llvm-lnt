@@ -15,12 +15,20 @@ from __future__ import annotations
 
 import base64
 import bz2
+import struct
 from collections.abc import Sequence
 
 import pytest
 
 from lnt_v5 import profile_format
-from lnt_v5.profile_format import PROFILE_FORMAT_VERSION, ProfileError, read_profile
+from lnt_v5.profile_format import (
+    PROFILE_FORMAT_VERSION,
+    Instruction,
+    MeasuredFunction,
+    ProfileError,
+    read_profile,
+    write_profile,
+)
 
 # A profile of three functions written by v4 from this ProfileV1 data:
 #
@@ -480,3 +488,159 @@ class TestSweeps:
             damaged = bytearray(data)
             damaged[position] ^= flip
             read_fully(bytes(damaged))
+
+
+def v4_function(
+    counters: dict[str, float], data: list[tuple[dict[str, float], int, str]]
+) -> MeasuredFunction:
+    """A function in the layout v4's ProfileV1 data uses, `[counters, address, text]` per line."""
+    return MeasuredFunction(
+        counters=counters,
+        instructions=[
+            Instruction(address=address, counters=values, text=text)
+            for values, address, text in data
+        ],
+    )
+
+
+# The data GOLDEN was written from, transcribed from the comment above it.
+GOLDEN_DATA: tuple[str, dict[str, int], dict[str, MeasuredFunction]] = (
+    "llvm-objdump",
+    {"cycles": 1234567, "branch-misses": 890, "instructions": 9999},
+    {
+        "main": v4_function(
+            {"cycles": 100.0, "branch-misses": 2.0, "instructions": 12.5},
+            [
+                ({"cycles": 50.0, "branch-misses": 1.0, "instructions": 4.0}, 0x1000, "push rbp"),
+                ({"cycles": 25.0, "branch-misses": 0.5, "instructions": 4.0}, 0x1004, ADD),
+                ({"cycles": 25.0, "branch-misses": 0.5, "instructions": 4.0}, 0x1008, ADD),
+                ({"cycles": 0.0, "branch-misses": 0.0, "instructions": 0.5}, 0x2000, "ret"),
+            ],
+        ),
+        "_Z3foov": v4_function(
+            {"cycles": 50.0}, [({"cycles": 30.0}, 0x3000, ADD), ({"cycles": 20.0}, 0x3004, "ret")]
+        ),
+        "no_instructions": v4_function({"cycles": 0.0}, []),
+    },
+)
+
+
+def one_function(**overrides: object) -> bytes:
+    """A small profile through the writer, with one argument of its single function replaced."""
+    function: dict[str, object] = {
+        "counters": {"cycles": 1.0},
+        "instructions": [Instruction(address=0x10, counters={"cycles": 1.0}, text="ret")],
+    }
+    function.update(overrides)
+    return write_profile("raw", {"cycles": 1}, {"f": MeasuredFunction(**function)})  # type: ignore[arg-type]
+
+
+class TestWriting:
+    """`write_profile`: the inverse of the reader, and v4's writer reproduced."""
+
+    def test_reproduces_what_v4_wrote_byte_for_byte(self) -> None:
+        # Not merely readable: identical, so the writer encodes exactly what v4's does, down to the
+        # order of the functions, the counter pool and the text pool, and bz2's compression level.
+        assert write_profile(*GOLDEN_DATA) == blob(GOLDEN)
+
+    def test_reproduces_v4s_profile_of_nothing(self) -> None:
+        # The case where v4's text pool keeps the newline it starts out with.
+        assert write_profile("raw", {}, {}) == blob(NO_FUNCTIONS)
+
+    def test_reads_back_as_what_was_written(self) -> None:
+        functions = {
+            "λ::café": v4_function(
+                {"a": 3.0, "b": 0.25},
+                [
+                    ({"a": 1.0, "b": 0.25}, 7, ""),
+                    ({"a": 2.0, "b": 0.0}, 7, "same address, empty text"),
+                    ({"a": 0.0, "b": 0.0}, 2**40, "ünïcode"),
+                ],
+            ),
+            "empty": v4_function({}, []),
+        }
+        profile = read_profile(write_profile("objdump", {"a": 2**63, "b": 0}, functions))
+
+        assert profile.disassembly_format == "objdump"
+        assert profile.counters == {"a": 2**63, "b": 0}
+        assert {name: f.counters for name, f in profile.functions.items()} == {
+            name: f.counters for name, f in functions.items()
+        }
+        for name, function in functions.items():
+            assert list(profile.instructions(name)) == list(function.instructions)
+
+    def test_counter_values_are_kept_to_single_precision(self) -> None:
+        profile = read_profile(
+            one_function(
+                counters={"cycles": 0.1},
+                instructions=[Instruction(address=0, counters={"cycles": 123456789.0}, text="ret")],
+            )
+        )
+
+        assert (
+            profile.functions["f"].counters["cycles"]
+            == struct.unpack(">f", struct.pack(">f", 0.1))[0]
+        )
+        assert profile.instructions("f")[0].counters["cycles"] == 123456792.0
+
+    @pytest.mark.parametrize(
+        ("overrides", "problem"),
+        [
+            ({"counters": {"cyc\nles": 1.0}, "instructions": []}, "contains a newline"),
+            (
+                {"instructions": [Instruction(address=0, counters={"cycles": 1.0}, text="a\nb")]},
+                "contains a newline",
+            ),
+            (
+                {
+                    "instructions": [
+                        Instruction(address=8, counters={"cycles": 1.0}, text="a"),
+                        Instruction(address=4, counters={"cycles": 1.0}, text="b"),
+                    ]
+                },
+                "goes back from address 8 to 4",
+            ),
+            (
+                {"instructions": [Instruction(address=0, counters={}, text="ret")]},
+                "does not carry exactly its counters",
+            ),
+            (
+                {
+                    "instructions": [
+                        Instruction(address=0, counters={"cycles": 1.0, "x": 1.0}, text="ret")
+                    ]
+                },
+                "does not carry exactly its counters",
+            ),
+            ({"counters": {"cycles": float("inf")}, "instructions": []}, "not a finite number"),
+            ({"counters": {"cycles": 1e39}, "instructions": []}, "too large for single precision"),
+        ],
+    )
+    def test_refuses_what_the_format_cannot_represent(
+        self, overrides: dict[str, object], problem: str
+    ) -> None:
+        with pytest.raises(ValueError, match=problem):
+            one_function(**overrides)
+
+    def test_refuses_a_newline_in_the_disassembly_format(self) -> None:
+        with pytest.raises(ValueError, match="contains a newline"):
+            write_profile("raw\n", {}, {})
+
+    @pytest.mark.parametrize("value", [-1, 2**64])
+    def test_refuses_a_top_level_counter_no_number_can_hold(self, value: int) -> None:
+        with pytest.raises(ValueError, match=r"not an integer in \[0, 2\*\*64\)"):
+            write_profile("raw", {"cycles": value}, {})
+
+    def test_refuses_a_function_the_reader_would_refuse(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(profile_format, "MAX_INSTRUCTIONS", 0)
+        with pytest.raises(ValueError, match="more than the 0"):
+            one_function()
+
+    def test_refuses_sections_the_reader_would_refuse_to_expand(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(profile_format, "MAX_DECOMPRESSED_SIZE", 4)
+        with pytest.raises(ValueError, match="expand beyond the 4 byte limit"):
+            one_function()
