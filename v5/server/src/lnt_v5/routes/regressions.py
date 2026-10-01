@@ -88,6 +88,7 @@ from lnt_v5.suites.tables import (
     REGRESSION_INDICATOR_CONSTRAINT,
     REGRESSION_INDICATOR_MACHINE_CONSTRAINT,
     REGRESSION_INDICATOR_METRIC_CONSTRAINT,
+    REGRESSION_INDICATOR_REGRESSION_CONSTRAINT,
 )
 
 REGRESSIONS_PATH = f"{SUITES_PATH}/{{testsuite}}/regressions"
@@ -939,7 +940,15 @@ def add_indicators(
         regressions = Regressions(suite)
         regression = regressions.resolve(connection, uuid)
         resolved = regressions.resolved_indicators(connection, body.indicators)
-        added = regressions.add_indicators(connection, regression, resolved)
+        # A delete of the regression committing after `resolve` fails the insert's foreign key, and
+        # is the same 404 as a regression that was never there. Creation needs no such guard: it
+        # adds indicators to a regression no other transaction can see yet.
+        with reporting_violation(
+            REGRESSION_INDICATOR_REGRESSION_CONSTRAINT,
+            ErrorCode.NOT_FOUND,
+            regressions.missing(uuid).message,
+        ):
+            added = regressions.add_indicators(connection, regression, resolved)
         return IndicatorsAdded(
             added=added, indicators=regressions.indicators(connection, regression)
         )

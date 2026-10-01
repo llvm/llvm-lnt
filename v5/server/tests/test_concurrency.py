@@ -898,7 +898,7 @@ class TestConcurrentIndicators:
 
 
 class TestReferenceDeletedMidRequest:
-    """A regression write racing the deletion of a machine or commit it names.
+    """A regression write racing the deletion of a machine or commit it names, or of the regression.
 
     The write resolves the name, then stores a reference to the row; a delete that commits in
     between leaves it naming something that is no longer there, which is the 404 an absent machine
@@ -954,6 +954,35 @@ class TestReferenceDeletedMidRequest:
             background,
             lambda connection: connection.execute(
                 delete(tables.machine).where(tables.machine.c.name == "linux")
+            ),
+            lambda _: api_client.post(
+                f"{REGRESSIONS}/{regression}/indicators",
+                json={"indicators": [indicator]},
+                headers=triage,
+            ),
+        )
+
+        response = running.result(timeout=BLOCK_TIMEOUT)
+        assert response.status_code == 404
+        assert code_of(response) == "not_found"
+        assert counted(db_engine, tables, "regression_indicator") == 0
+
+    @pytest.mark.usefixtures("linux")
+    def test_adding_an_indicator_to_a_deleted_regression_is_404(
+        self,
+        api_client: TestClient,
+        triage: dict[str, str],
+        db_engine: Engine,
+        background: Callable[..., Future[Any]],
+        tables: SuiteTables,
+        regression: str,
+    ) -> None:
+        indicator = {"machine": "linux", "test": "suite/one", "metric": "execution_time"}
+        running = raced(
+            db_engine,
+            background,
+            lambda connection: connection.execute(
+                delete(tables.regression).where(tables.regression.c.uuid == regression)
             ),
             lambda _: api_client.post(
                 f"{REGRESSIONS}/{regression}/indicators",

@@ -81,6 +81,9 @@ REGRESSION_INDICATOR_METRIC_CONSTRAINT = "fk_regression_indicator_metric_id_metr
 # An indicator's reference to its machine. A violation means the machine was deleted after the
 # request resolved it, which leaves the request naming a machine that is not there: a 404.
 REGRESSION_INDICATOR_MACHINE_CONSTRAINT = "fk_regression_indicator_machine_id_machine"
+# An indicator's reference to its regression. A violation means the regression was deleted after the
+# request resolved it: a 404, for the same reason.
+REGRESSION_INDICATOR_REGRESSION_CONSTRAINT = "fk_regression_indicator_regression_id_regression"
 
 
 # D3's mapping from a declared type to the column that stores it. `Double` rather than `Float`
