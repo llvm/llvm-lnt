@@ -508,9 +508,10 @@ once per machine (`?machine=a&machine=b`) -- the Dashboard needs data for
 multiple machines in one call. An unknown name in it is 404. `sample_agg` is one
 of `median` (the default), `mean`, `min` and `max`. `last_n` (integer, min 1,
 max 10000, default 500) limits the result to the N most recent commits, by
-ordinal, at which any of the named machines has a value. The window is shared by
-all the named machines, so one that stopped reporting inside it yields a
-trendline that stops early. Only commits with a non-null ordinal are included.
+ordinal, at which any of the named machines has a run geomean (see D15) for
+`metric` under `sample_agg`. The window is shared by all the named machines, so
+one that stopped reporting inside it yields a trendline that stops early. Only
+commits with a non-null ordinal are included.
 
 This endpoint does not filter on `tracked`: an explicitly named machine is
 returned whether or not it is tracked.

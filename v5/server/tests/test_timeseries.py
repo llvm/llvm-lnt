@@ -934,6 +934,32 @@ class TestTrendsFilters:
 
         assert [item["ordinal"] for item in served] == [2, 3]
 
+    def test_last_n_counts_the_commits_with_a_geomean_under_the_requested_aggregation(
+        self,
+        api_client: TestClient,
+        submit: Callable[..., dict[str, Any]],
+        place: Callable[..., None],
+    ) -> None:
+        for index in range(3):
+            submit("linux", f"c{index}", {"name": "t", "execution_time": 1.0})
+            place(f"c{index}", ordinal=index)
+        # A median of 1 but a minimum of -1, so only the median gives this commit a geomean.
+        submit("linux", "c3", {"name": "t", "execution_time": [-1.0, 3.0]})
+        place("c3", ordinal=3)
+
+        def window(sample_agg: str) -> list[int]:
+            served = trends(
+                api_client,
+                metric="execution_time",
+                machine=["linux"],
+                sample_agg=sample_agg,
+                last_n=2,
+            )
+            return [item["ordinal"] for item in served]
+
+        assert window("median") == [2, 3]
+        assert window("min") == [1, 2]
+
     def test_last_n_is_one_window_for_all_the_named_machines(
         self,
         api_client: TestClient,

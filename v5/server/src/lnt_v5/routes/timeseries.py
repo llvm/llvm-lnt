@@ -310,7 +310,8 @@ class Trends:
 
     def window(self, machines: Collection[int], last_n: int) -> Select[Any]:
         """The ids of the `last_n` most recent commits, by ordinal, at which any of `machines` has a
-        value. Counted over the machines together, so that their trendlines share one window."""
+        run geomean for the metric under the aggregation. Counted over the machines together, so
+        that their trendlines share one window."""
         has_value = (
             select(self._run.c.id)
             .select_from(self._source)
@@ -468,8 +469,8 @@ def query_trends(
             le=MAX_LIMIT,
             description=(
                 "Keep only the N most recent commits, by ordinal, at which any of the named "
-                f"machines has a value. Defaults to {DEFAULT_LAST_N}, so that the response is "
-                "always bounded."
+                "machines has a run geomean (D15) for the metric under the sample aggregation. "
+                f"Defaults to {DEFAULT_LAST_N}, so that the response is always bounded."
             ),
         ),
     ] = DEFAULT_LAST_N,
