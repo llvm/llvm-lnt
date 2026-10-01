@@ -66,7 +66,7 @@ from lnt_v5.routes.machines import (
 )
 from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.scopes import Scope
-from lnt_v5.suites import coverage
+from lnt_v5.suites import coverage, geomeans
 from lnt_v5.suites.concurrency import resolve_names
 from lnt_v5.suites.entities import DatetimeValue, UuidKey, identifier, location_of
 from lnt_v5.suites.registry import RegistryDep, Suite
@@ -500,7 +500,7 @@ def submit_run(
     registry: RegistryDep,
     response: Response,
 ) -> RunDetail:
-    """Store a run, its samples and its profiles, creating what it names (D6, D7, D12, D13).
+    """Store a run, its samples, profiles and geomeans, creating what it names (D6, D7, D12-D15).
 
     Everything it writes is one transaction, because D13 makes a submission atomic from the
     caller's point of view: a machine created on the way to a contradicted ordinal must not survive
@@ -519,6 +519,8 @@ def submit_run(
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         validated_against = suite
     validated = validate_submission(validated_against.schema, body)
+    # Pure too, and real work for a large submission, so likewise kept out of the transaction.
+    summaries = geomeans.summarize(validated_against.schema.metrics, validated.tests)
 
     # The suite is resolved a second time, and that is not a redundancy: D2 requires the freshness
     # check to be the first statement of the unit of work, and the write has to use the suite the
@@ -550,6 +552,7 @@ def submit_run(
         tests = resolve_names(connection, suite.tables.test, names)
         runs.add_samples(connection, run_id, validated.tests, tests)
         runs.add_profiles(connection, run_id, validated.tests, tests)
+        geomeans.add(connection, suite, run_id, summaries)
         # Last, so the coverage rows -- which submissions for the same machine contend on -- are
         # held for as short a time as the transaction allows.
         coverage.add(connection, suite, machine_id, validated.tests, tests)

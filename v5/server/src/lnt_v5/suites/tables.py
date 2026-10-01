@@ -46,6 +46,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.schema import CreateColumn
 from sqlalchemy.types import TypeEngine
 
+from lnt_v5.suites.aggregation import SampleAggregation
 from lnt_v5.suites.schema import AttributeType, Entry, SuiteSchema
 from lnt_v5.suites.states import RegressionState
 from lnt_v5.tables import IDENTIFIER_MAX_LENGTH, NAMING_CONVENTION
@@ -136,7 +137,7 @@ def _dynamic(entries: Sequence[Entry]) -> list[Column[Any]]:
 
 @dataclass(frozen=True)
 class SuiteTables:
-    """One suite's ten tables, and the metadata describing them together.
+    """One suite's eleven tables, and the metadata describing them together.
 
     Held as named attributes rather than looked up by string so that the query code reads as
     `tables.sample.c.run_id`, and so that a typo is a type error.
@@ -153,6 +154,7 @@ class SuiteTables:
     regression: Table
     regression_indicator: Table
     profile: Table
+    run_geomean: Table
 
     @property
     def name(self) -> str:
@@ -336,6 +338,24 @@ def build(schema: SuiteSchema) -> SuiteTables:
         UniqueConstraint("run_id", "test_id"),
     )
 
+    # D15: one geomean per run, numeric metric and sample aggregation, which is what `GET /trends`
+    # reads instead of the run's samples. Written once, at submission, and deleted with the run or
+    # the metric it is derived from. `run_id` leads the key because trends reaches these by run.
+    run_geomean = Table(
+        "run_geomean",
+        metadata,
+        Column("run_id", ForeignKey("run.id", ondelete="CASCADE"), primary_key=True),
+        Column("metric_id", ForeignKey("metric.id", ondelete="CASCADE"), primary_key=True),
+        Column("sample_agg", String(8), primary_key=True),
+        Column("value", Double, nullable=False),
+        CheckConstraint(
+            "sample_agg IN ({})".format(
+                ", ".join(f"'{aggregation}'" for aggregation in SampleAggregation)
+            ),
+            name="sample_agg",
+        ),
+    )
+
     return SuiteTables(
         metadata=metadata,
         commit=commit,
@@ -348,6 +368,7 @@ def build(schema: SuiteSchema) -> SuiteTables:
         regression=regression,
         regression_indicator=regression_indicator,
         profile=profile,
+        run_geomean=run_geomean,
     )
 
 
@@ -381,8 +402,8 @@ def create(connection: Connection, schema: SuiteSchema) -> SuiteTables:
     tables = build(schema)
     connection.execute(text(f"CREATE SCHEMA {_quote(connection, tables.name)}"))
     # `checkfirst=False` because the CREATE SCHEMA above has just established that nothing in this
-    # namespace exists. The default would reflect each of the ten tables first, to skip the ones
-    # already there -- ten round trips that can only ever answer "no".
+    # namespace exists. The default would reflect each of the eleven tables first, to skip the ones
+    # already there -- eleven round trips that can only ever answer "no".
     tables.metadata.create_all(connection, checkfirst=False)
     add_metrics(connection, tables.metric, [metric.name for metric in schema.metrics])
     return tables

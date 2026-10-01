@@ -349,3 +349,25 @@ With PostgreSQL, this is achieved as follows:
 - `{suite}.test_coverage` is written last, in one statement, with its rows in
   `(machine_id, test_id)` order, so that submissions for the same machine lock
   them in the same order.
+
+
+## D15: Run Geomeans
+
+Run submission stores, in the same transaction, the run's geomean for every
+numeric metric (see D3) and every sample aggregation: `median`, `mean`, `min`
+and `max`. Each is computed in two stages:
+
+1. Each test's samples in the run that have a value for the metric are reduced
+   to one value with the sample aggregation. The median of an even number of
+   values is the mean of the middle two. A test with no value for the metric
+   takes no part.
+2. The geomean, `exp(mean(ln(v)))`, is taken over those per-test values,
+   skipping the ones that are zero or negative.
+
+A metric and aggregation with no positive per-test value has no geomean, and
+nothing is stored for it. These are stored in `{suite}.run_geomean` (see D5),
+which is what lets a trend read a few rows per commit rather than every sample
+(see `GET /api/suites/{testsuite}/trends`).
+
+Adding a metric needs no backfill: existing samples have no value for it, so
+existing runs have no geomean of it either.
