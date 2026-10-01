@@ -1,26 +1,5 @@
-"""The time-series endpoints (endpoints.md, Time Series).
-
-Driven over the real application and a real database, because essentially everything interesting
-here is what PostgreSQL does: the five-table join D10 specifies, the keyset that pages it, and the
-geomean computed in SQL.
-
-Four things get most of the attention.
-
-The two ways a commit reaches a filter are deliberately different, and both are checked: `commit`
-selects rows belonging to a commit, so R3 makes an unknown one an empty page, while `after_commit`
-names a *position*, so an unknown one is a 404 and one without an ordinal is a 400.
-
-Sorting by commit excludes the commits that have no ordinal and omitting `sort` excludes nothing.
-That is D10's rule, it comes out of the shared keyset rather than out of this endpoint, and it is
-the one thing a natural implementation of "order by ordinal" gets wrong.
-
-The cursor arrives in the request body rather than in the query string. It is the same token under
-the same contract (R2), so the tests that matter are the ones that would catch it drifting: pages
-cover every point exactly once, and a cursor from another ordering is refused.
-
-And the geomean skips zero and negative values, which means a (machine, commit) with nothing
-positive to average forms no group at all rather than one with a null in it.
-"""
+"""The time-series endpoints (endpoints.md, Time Series), over a real database: the join, the
+keyset that pages it and the geomean are all PostgreSQL's work."""
 
 from __future__ import annotations
 

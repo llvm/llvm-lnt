@@ -1,15 +1,8 @@
-"""Time series: the two reads that answer "how has this metric moved" (endpoints.md, Time Series).
+"""Time series (endpoints.md, Time Series).
 
-D10 makes this the primary query pattern in the whole system, and the shape it gives it is one join:
-`Sample JOIN Run JOIN Commit`, narrowed by machine and test, ordered by the commit's ordinal.
-`POST /query` is that join served a page at a time; `POST /trends` is the same join collapsed to one
-geomean per (machine, commit), for the Dashboard's sparklines. `_Series` below is where the join
-itself lives, so that the two cannot drift apart on it.
-
-Both are POSTs and both are `read`-scoped: R5 says the method implies nothing about the scope, and
-names `POST /commits/resolve` as the same shape. The cursor and the page size therefore travel in
-the body, which R2 covers -- the same opaque token under the same contract, carried by the only
-thing this request has.
+Both endpoints read D10's `Sample JOIN Run JOIN Commit`: `POST /query` pages through it, and
+`POST /trends` collapses it to one geomean per (machine, commit). `_Series` holds the join they
+share. Both are `read`-scoped POSTs, so the cursor and page size travel in the body (R2).
 """
 
 from __future__ import annotations
@@ -70,11 +63,8 @@ router = APIRouter(prefix=f"{SUITES_PATH}/{{testsuite}}", tags=["Time Series"])
 # one is a 400 before the endpoint runs -- the same treatment the run and commit lists get.
 QuerySort = Literal["test", "-test", "commit", "-commit", "submitted_at", "-submitted_at"]
 
-# What `POST /trends` bounds itself to when a request names no window of its own. This response is
-# unpaginated and `read`-scoped, so an omitted `last_n` must not mean "aggregate the whole suite":
-# with no machine filter either, that is every sample row in the instance in one JSON body. 500 is
-# the Dashboard's own default range (client/dashboard.md), and it is the only number any client
-# asks for by default, so it is the one an omitted window falls back to.
+# `POST /trends` is unpaginated, so an omitted window must still be bounded. 500 is the Dashboard's
+# default range.
 DEFAULT_LAST_N = 500
 
 _NO_QUERY_ENTITY = (
@@ -85,16 +75,10 @@ _NO_TREND_ENTITY = f"{SUITE_NOT_FOUND} Or a machine the body names is not in it.
 
 
 class DataPoint(BaseModel):
-    """One measured value, placed in the time series (endpoints.md, Time Series).
+    """One measured value, placed in the time series.
 
-    R4's reference rule holds -- `test`, `machine` and `commit` are the other entity's identifier
-    under a key named after it, and the run's UUID says so in its key -- with the denormalization
-    R4 also grants this endpoint by name: `ordinal` and `tag` belong to the commit and ride along
-    anyway, because a client cannot place a point on an axis without them.
-
-    `metric` is echoed on every point even though the request names exactly one. That is
-    deliberate too: a point is then self-descriptive, so a client merging the answers to several
-    queries into one chart does not have to remember which request each point came from.
+    Carries the commit's `ordinal` and `tag`, the denormalization R4 grants this endpoint, and
+    echoes `metric` so that each point is self-descriptive.
     """
 
     test: str = Field(description="The name of the test this value was measured for.")
@@ -121,12 +105,7 @@ class DataPoint(BaseModel):
 
 
 class TrendPoint(BaseModel):
-    """One (machine, commit) group's geomean (endpoints.md, Time Series).
-
-    Unlike a data point, this carries no `metric`: an item is one point of one machine's trendline
-    for the metric the request named, and there is no second metric in the response to tell it
-    apart from.
-    """
+    """One (machine, commit) group's geomean. Unlike a data point, it does not echo `metric`."""
 
     machine: str = Field(description="The name of the machine these values were measured on.")
     commit: str = Field(description="The identity string of the commit they were measured at.")
@@ -151,13 +130,7 @@ class TrendPoint(BaseModel):
 
 
 class QueryRequest(BaseModel):
-    """The body of `POST /api/suites/{testsuite}/query`.
-
-    `metric` is the only required key: everything else narrows a series that is otherwise the whole
-    suite's. R3 explains why the two ranges are spelled out rather than taking the generic
-    `after=`/`before=` -- this is the one endpoint that bounds a commit-ordinal range and a
-    submission-time range at once, so one pair of names could not carry both.
-    """
+    """The body of `POST /api/suites/{testsuite}/query`."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -218,12 +191,7 @@ class QueryRequest(BaseModel):
 
     @model_validator(mode="after")
     def _one_kind_of_commit_filter(self) -> Self:
-        """endpoints.md: `commit` names a point and the bounds name a range, so never both.
-
-        Rejected rather than resolved in some order, because the two readings of a request that
-        sends both -- the commit, or the range -- are equally plausible and the caller meant one of
-        them.
-        """
+        """endpoints.md: `commit` names a point and the bounds name a range, so never both."""
         if self.commit is not None and (
             self.after_commit is not None or self.before_commit is not None
         ):
@@ -237,13 +205,8 @@ class QueryRequest(BaseModel):
 class TrendsRequest(BaseModel):
     """The body of `POST /api/suites/{testsuite}/trends`.
 
-    `machine` is a list here, where `POST /query` takes one name: the Dashboard draws one trendline
-    per machine on every card and asks for all of them in one call.
-
-    This endpoint deliberately does not filter on `tracked`. That flag governs *automatic* machine
-    selection (D5), and a machine named here was chosen deliberately -- the Dashboard applies
-    `tracked` when it picks the names, through `GET /machines?tracked=true&sort=-last_run_at`, and
-    what it then asks for is exactly what it picked.
+    No `tracked` filter: that flag governs automatic machine selection (D5), which the Dashboard
+    applies when it picks the machines it names here.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -276,19 +239,7 @@ class TrendsRequest(BaseModel):
 
 
 class _Series:
-    """The join D10 specifies, and the tables it spans (D10).
-
-    One instance per request, built around the one metric the request names: `value` is that
-    metric's column on `{suite}.sample`, which is not a column any static model could describe.
-
-    `sample` is named first because it is the table the filters narrow hardest, and D5 keeps
-    `(test_id, run_id)` on it for exactly this direction -- though `select_from` fixes the SQL and
-    not the plan, and PostgreSQL will drive from `{suite}.run` or `{suite}.commit` instead when
-    that is cheaper. Every join but the first is by primary key whichever way round it is taken.
-    The two readers below select different things from this join and page differently, but the join
-    is one thing and is stated once, so a change to the foreign keys cannot reach one and miss the
-    other.
-    """
+    """D10's join, built around the one metric a request names (`value` is its column)."""
 
     def __init__(self, suite: Suite, metric: Metric) -> None:
         self.table: Table = suite.tables.sample
@@ -296,8 +247,7 @@ class _Series:
         self._commit: Table = suite.tables.commit
         self._machine: Table = suite.tables.machine
         self.value: Column[Any] = self.table.c[metric.name]
-        # The two columns a range filter bounds. Public because `exclusive_range` takes a column
-        # rather than a predicate -- R3's ranges are the same shape whichever column they bound.
+        # The two columns the range filters bound.
         self.ordinal: Column[Any] = self._commit.c.ordinal
         self.submitted_at: Column[Any] = self._run.c.submitted_at
 
@@ -309,13 +259,7 @@ class _Series:
         )
 
     def measured_on(self, machines: Collection[int]) -> ColumnElement[bool]:
-        """R3's `machine=`, over however many machines the endpoint lets a request name.
-
-        `POST /query` names one and `POST /trends` a list, and a one-element `IN` plans exactly as
-        an equality does, so the two need one spelling rather than two. By id rather than by the
-        joined name, so the filter lands on the leading column of D5's `(machine_id, submitted_at)`
-        index -- and so an unknown name is R3's 404, raised where the ids are resolved.
-        """
+        """R3's `machine=`, by id so that it uses D5's `(machine_id, submitted_at)` index."""
         return self._run.c.machine_id.in_(machines)
 
 
@@ -326,9 +270,7 @@ class Points(_Series):
         super().__init__(suite, metric)
         self.metric = metric.name
         self._test: Table = suite.tables.test
-        # Resolved here rather than at the route, so that the three names endpoints.md gives `sort`
-        # and the columns they mean are stated once. `commit` means the *ordinal*: D1 separates a
-        # commit's identity from its position, and only the position is an order.
+        # Sorting by `commit` means by ordinal: only a commit's position is an order (D1).
         self._sortable: dict[str, Column[Any]] = {
             "test": self._test.c.name,
             "commit": self.ordinal,
@@ -336,12 +278,8 @@ class Points(_Series):
         }
 
     def select(self) -> Select[Any]:
-        """Every column a point is rendered from, plus the sample id the cursor orders by.
-
-        `value IS NOT NULL` is part of the query rather than a filter the caller asks for: a sample
-        that recorded nothing for this metric is not a point in its series, and R4 promises `value`
-        is there on every point returned.
-        """
+        """Every column a point is rendered from, plus the sample id the cursor orders by. A sample
+        with no value for the metric is not a point."""
         return (
             select(
                 self.table.c.id,
@@ -361,23 +299,10 @@ class Points(_Series):
     def keyset(self, sort: QuerySort | None) -> Keyset:
         """D10's ordering: the caller's sort, then the sample's id as the unique tiebreaker.
 
-        None of the three sort fields is unique -- a commit carries many tests, a test spans many
-        commits, and two runs can be accepted in the same instant -- so each needs the tiebreaker
-        under it. With no `sort` it is the whole order, which is the arbitrary but deterministic one
-        R2 allows, and which excludes nothing: it is the only key, and a primary key is never null.
-        Sorting by commit excludes the commits with no ordinal, and that falls out of the keyset
-        rather than being asked for here -- `Keyset.defined` drops the rows where a sort key is null
-        (D10).
-
-        One note on cost, which is this list's alone. The caller's sort key lives on
-        `{suite}.commit`, `{suite}.test` or `{suite}.run` while the tiebreaker is
-        `{suite}.sample.id`, so the cursor's row comparison spans two tables and is not the exact
-        index condition it is on the run list, where D5 adds `(submitted_at, id)` for that. It does
-        not degrade to a full sort per page: each of the three sort columns is indexed on its own
-        table -- `uq_commit_ordinal`, `uq_test_name`, `(submitted_at, id)` -- so PostgreSQL drives
-        the join from that index and finishes with an incremental sort over the tiebreaker alone,
-        which stops as soon as the page is full. The unsorted mode is better still, being a
-        single-table `sample.id > ?` on the primary key.
+        `Keyset.defined` drops the rows whose sort key is null, which is what excludes unordered
+        commits under `sort=commit` (D10). The sort key and the tiebreaker live on different tables,
+        so the cursor comparison is not a pure index condition; PostgreSQL still drives the join
+        from the sort column's index and finishes with an incremental sort, so a page stops early.
         """
         if sort is None:
             return Keyset(tiebreaker=self.table.c.id)
@@ -389,20 +314,12 @@ class Points(_Series):
         return self.table.c.test_id.in_(tests)
 
     def at_commit(self, value: str) -> ColumnElement[bool]:
-        """R3's `commit=`, over the join `select` already makes.
-
-        By the joined value rather than by a resolved id, which is what makes a value no commit has
-        an empty page rather than a 404 -- the asymmetry R3 draws between this filter and the two
-        range bounds beside it.
-        """
+        """R3's `commit=`, by value so that an unknown commit is an empty page rather than 404."""
         return self._commit.c.commit == value
 
     def read(self, row: Row[Any]) -> DataPoint:
-        # By column object rather than by name throughout: the row spans five tables, two of them
-        # have a `name`, and a metric may legally be called `commit`, `ordinal`, `tag` or `uuid` --
-        # D5 only reserves `{suite}.sample`'s own built-ins against a metric's name. The mapping is
-        # bound once rather than per column, because `Row._mapping` builds a new view on every
-        # access and this is the one reader that runs over pages of ten thousand rows.
+        # By column object rather than by name: several joined tables have a `name`, and a metric
+        # may be called `commit` or `tag`. `_mapping` builds a view per access, so bind it once.
         values = row._mapping
         return DataPoint(
             test=values[self._test.c.name],
@@ -418,37 +335,20 @@ class Points(_Series):
 
 
 class Trends(_Series):
-    """The same series collapsed to one geomean per (machine, commit).
-
-    Separate from `Points` rather than derived from it: this one has no cursor and no test
-    dimension, and selects aggregates where the other selects rows. What the two do share -- the
-    join and the machine filter -- they share through `_Series` rather than by restating it.
-    """
+    """The same series collapsed to one geomean per (machine, commit)."""
 
     def __init__(self, suite: Suite, metric: Metric) -> None:
         super().__init__(suite, metric)
-        # D3's geomean, in SQL. `ln` is defined only for a positive value, so the `value > 0` in
-        # `select` below is what makes this total -- and `exp(avg(...))` therefore never yields
-        # NULL. A (machine, commit) with nothing positive to average forms no group at all and is
-        # absent from the response, rather than present with a null where a geomean would be.
-        #
-        # Cast because an `integer` metric is aggregated in floating point and returned as a real,
-        # which endpoints.md states and D3 justifies: an integer geomean is not an integer, and
-        # PostgreSQL would otherwise be left to pick between `ln(numeric)` and `ln(double)` from an
-        # integer argument.
+        # `select` keeps only positive values, so `ln` is always defined and a (machine, commit)
+        # with none forms no group. Cast so that an `integer` metric is averaged as a real.
         self.geomean = func.exp(func.avg(func.ln(sql_cast(self.value, Double))))
         self.latest = func.max(self.submitted_at)
 
     def select(self) -> Select[Any]:
-        """One row per (machine, commit) that has at least one positive value for the metric.
+        """One row per (machine, commit) with a positive value, ordered by machine then ordinal.
 
-        Grouped by the two primary keys alone. PostgreSQL recognizes that a table's other columns
-        are functionally dependent on its primary key, so `machine.name` and the commit's three
-        columns are selectable without being grouped by -- which is both shorter and a narrower
-        grouping key than repeating them would be.
-
-        Ordered by machine and then by ordinal: the response is unpaginated, so it needs no keyset,
-        but a client rendering one line per machine should not have to sort it first.
+        Grouping by the primary keys alone is enough: PostgreSQL treats the other selected columns
+        as functionally dependent on them.
         """
         return (
             select(
@@ -467,17 +367,10 @@ class Trends(_Series):
 
     def cutoff(self, connection: Connection, last_n: int) -> int | None:
         """The lowest ordinal among the suite's `last_n` most recent commits, or None if it has
-        fewer than that many.
+        fewer than that many (meaning: keep everything).
 
-        Counted over the suite's commits rather than over the rows the other filters leave, so that
-        "the last 500 commits" means the same range on every card of the Dashboard -- a machine that
-        stopped reporting inside that range shows a trendline that stops, rather than one silently
-        stretched back over older commits to make up the count.
-
-        A separate statement rather than a scalar subquery, because "fewer commits than asked for"
-        has to mean "keep everything": as a subquery it would yield NULL, and `ordinal >= NULL` is
-        unknown for every row, which would empty the response instead of filling it. It costs one
-        bounded backward scan of the unique index D5 puts on `{suite}.commit.ordinal`.
+        A separate statement because, as a subquery, "fewer than that many" would compare against
+        NULL and empty the response.
         """
         return connection.execute(
             select(self.ordinal)
@@ -500,13 +393,7 @@ class Trends(_Series):
 
 
 def _numeric(suite: Suite, name: str) -> Metric:
-    """The metric a trend is taken of: declared, and one D3 calls numeric.
-
-    Two 400s from one place, because they are one question to the caller -- is this a metric this
-    suite can average? R3 already makes an undeclared metric a 400 rather than a 404, since it names
-    a column the schema declares rather than a row the suite holds; a `text` or `datetime` metric is
-    the same kind of answer, a request that no data could satisfy.
-    """
+    """The metric a trend is taken of, which must be declared and numeric (D3); 400 otherwise."""
     metric = declared_entry(suite.schema, Metric, name)
     if metric.type not in NUMERIC_TYPES:
         raise ApiError(
@@ -532,9 +419,6 @@ def query_points(
     registry: RegistryDep,
 ) -> CursorPage[DataPoint]:
     """One metric's measured values, filtered, ordered and cursor-paginated (R2, R3, D10).
-
-    `read`-scoped despite being a POST: the body is a filter too large for a query string, not a
-    change (R5) -- the same shape as `POST /commits/resolve`.
 
     The metric is resolved first, and that ordering is the precedence endpoints.md states for a
     request that gets more than one thing wrong: an undeclared metric is a 400 and beats the 404 an
@@ -577,12 +461,7 @@ def query_points(
 def query_trends(
     testsuite: str, body: TrendsRequest, engine: EngineDep, registry: RegistryDep
 ) -> Items[TrendPoint]:
-    """One geomean per machine and commit, for the Dashboard's sparklines (R2, R3, D3).
-
-    Unpaginated, because the result is bounded by (machines x `last_n`) -- a few thousand rows at
-    the ceiling, and a few hundred for the Dashboard, which asks for five machines and five hundred
-    commits.
-    """
+    """One geomean per machine and commit, for the Dashboard's sparklines (R2, R3, D3)."""
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         trends = Trends(suite, _numeric(suite, body.metric))
         conditions: list[ColumnElement[bool]] = []
