@@ -60,7 +60,7 @@ router = APIRouter(prefix=f"{SUITES_PATH}/{{testsuite}}", tags=["Time Series"])
 # one is a 400 before the endpoint runs -- the same treatment the run and commit lists get.
 QuerySort = Literal["test", "-test", "commit", "-commit", "submitted_at", "-submitted_at"]
 
-# `POST /trends` is unpaginated, so an omitted window must still be bounded. 500 is the Dashboard's
+# `GET /trends` is unpaginated, so an omitted window must still be bounded. 500 is the Dashboard's
 # default range.
 DEFAULT_LAST_N = 500
 
