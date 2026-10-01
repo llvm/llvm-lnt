@@ -93,8 +93,8 @@ rejected on submission for both machines and commits (see D6).
 - **Removing** an entry permanently destroys every value stored for it. Because
   those values are destroyed, an implementation may reuse whatever storage the
   removed entry occupied. Removing a metric also removes every regression
-  indicator naming it (see D5); re-adding a metric of the same name brings none
-  back.
+  indicator naming it and every run summary of it (see D5); re-adding a metric
+  of the same name brings none back.
 
 In an `update` entry, a key the request omits leaves the stored value unchanged. An
 explicit `null` clears one of the nullable keys (`display_name`, `unit`, `unit_abbrev`);
@@ -371,8 +371,8 @@ of its own named after its suite (see below).
 
 Each suite's tables live in a namespace of their own, named after the suite: a
 PostgreSQL schema called `{suite}`, holding `commit`, `machine`, `metric`, `run`,
-`test`, `sample`, `test_coverage`, `regression`, `regression_indicator` and
-`profile`.
+`test`, `sample`, `test_coverage`, `regression`, `regression_indicator`,
+`profile` and `run_summary`.
 A table is therefore addressed as `{suite}.commit`, and the entity names below
 are given in that form.
 
@@ -451,7 +451,7 @@ are given in that form.
   else about a metric stays in the schema (see D4).
 - Rows are written with the suite at creation, and by the schema change that adds
   or removes a metric, in its transaction (see D2). Removing a row cascades to the
-  RegressionIndicators naming the metric.
+  RegressionIndicators naming the metric and to its run summaries.
 
 #### `{suite}.run`
 
@@ -477,7 +477,7 @@ are given in that form.
 - Compound index on `(submitted_at, id)`: serves
   `GET /api/suites/{testsuite}/runs?sort=-submitted_at` with no `machine=`,
   which the index above cannot. `id` is the cursor's tiebreaker (D10).
-- Cascade: deleting a run cascades to its samples and profiles.
+- Cascade: deleting a run cascades to its samples, profiles and run summaries.
 
 #### `{suite}.test`
 
@@ -594,6 +594,22 @@ The DB layer validates state values on create and update.
 - Cascade: deleting a run cascades to its profiles.
 - A submitted profile may be at most 50 MiB (52,428,800 bytes) decoded; a
   larger one is rejected (see D12).
+
+#### `{suite}.run_summary`
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| run_id | INTEGER FK -> Run | PK |
+| metric_id | INTEGER FK -> Metric | PK |
+| sample_agg | VARCHAR(8) | PK, one of `median`, `mean`, `min`, `max` |
+| geomean | DOUBLE PRECISION | not null |
+
+- Statistics summarizing a run's samples for one numeric metric under one sample
+  aggregation, derived at submission (see D15), one column per statistic. It is
+  what `GET /api/suites/{testsuite}/trends` reads, so that a trend does not read
+  every sample in its window.
+- Never updated: a run's samples do not change after submission.
+- Cascade: deleted with its run and with its metric (see D2).
 
 ### Tables Dropped from v4
 

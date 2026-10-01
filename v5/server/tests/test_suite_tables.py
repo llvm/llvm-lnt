@@ -23,6 +23,7 @@ from introspection import (
     stored_names,
 )
 from lnt_v5.suites import tables as suite_tables
+from lnt_v5.suites.aggregation import SampleAggregation
 from lnt_v5.suites.schema import CommitField, Entry, MachineField, Metric, SuiteSchema
 from lnt_v5.suites.states import RegressionState
 from lnt_v5.suites.tables import (
@@ -39,7 +40,7 @@ from lnt_v5.suites.tables import (
 )
 from lnt_v5.tables import metadata as global_metadata
 
-# The ten tables D5 gives every suite.
+# The eleven tables D5 gives every suite.
 SUITE_TABLES = frozenset(
     {
         "commit",
@@ -52,6 +53,7 @@ SUITE_TABLES = frozenset(
         "regression",
         "regression_indicator",
         "profile",
+        "run_summary",
     }
 )
 
@@ -156,6 +158,11 @@ def seed(connection: Connection, tables: SuiteTables) -> dict[str, int]:
             metric_id=metric,
         )
     )
+    connection.execute(
+        insert(tables.run_summary).values(
+            run_id=run, metric_id=metric, sample_agg=SampleAggregation.MEDIAN, geomean=1.0
+        )
+    )
     return {
         "machine": machine,
         "commit": commit,
@@ -231,7 +238,7 @@ class TestBuiltInColumns:
     @pytest.mark.parametrize(
         ("table", "expected"),
         [
-            # D5's column list for each of the ten tables, in order, with FULL's dynamic columns
+            # D5's column list for each of the eleven tables, in order, with FULL's dynamic columns
             # appended where the table takes them -- so this also pins that a schema's entries come
             # after the built-ins rather than interleaved with them.
             ("commit", ["id", "commit", "ordinal", "tag", "git_sha", "commit_timestamp"]),
@@ -268,6 +275,7 @@ class TestBuiltInColumns:
                 ["id", "uuid", "regression_id", "machine_id", "test_id", "metric_id"],
             ),
             ("profile", ["id", "uuid", "run_id", "test_id", "created_at", "data"]),
+            ("run_summary", ["run_id", "metric_id", "sample_agg", "geomean"]),
         ],
     )
     def test_each_table_carries_what_d5_specifies(
@@ -701,6 +709,46 @@ class TestRegressionState:
         ]
 
 
+class TestRunSummaryAggregation:
+    def test_accepts_every_aggregation_d15_defines(
+        self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
+    ) -> None:
+        tables = make_suite("nts")
+
+        with db_engine.begin() as connection:
+            rows = seed(connection, tables)
+            connection.execute(tables.run_summary.delete())
+            connection.execute(
+                insert(tables.run_summary),
+                [
+                    {
+                        "run_id": rows["run"],
+                        "metric_id": rows["metric"],
+                        "sample_agg": aggregation,
+                        "geomean": 1.0,
+                    }
+                    for aggregation in SampleAggregation
+                ],
+            )
+
+    def test_rejects_an_aggregation_outside_that_set(
+        self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
+    ) -> None:
+        tables = make_suite("nts")
+
+        with db_engine.begin() as connection:
+            rows = seed(connection, tables)
+            with pytest.raises(IntegrityError):
+                connection.execute(
+                    insert(tables.run_summary).values(
+                        run_id=rows["run"], metric_id=rows["metric"], sample_agg="p90", geomean=1.0
+                    )
+                )
+
+    def test_the_stored_names_are_the_ones_d15_lists(self) -> None:
+        assert list(SampleAggregation) == ["median", "mean", "min", "max"]
+
+
 class TestCascades:
     def test_deleting_a_commit_takes_its_runs_samples_and_profiles(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
@@ -718,6 +766,7 @@ class TestCascades:
             assert count(connection, tables.run) == 0
             assert count(connection, tables.sample) == 0
             assert count(connection, tables.profile) == 0
+            assert count(connection, tables.run_summary) == 0
 
     def test_a_commit_a_regression_points_at_cannot_be_deleted(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
@@ -747,6 +796,7 @@ class TestCascades:
             assert count(connection, tables.run) == 0
             assert count(connection, tables.sample) == 0
             assert count(connection, tables.profile) == 0
+            assert count(connection, tables.run_summary) == 0
             assert count(connection, tables.regression_indicator) == 0
             assert count(connection, tables.test_coverage) == 0
 
@@ -766,7 +816,7 @@ class TestCascades:
 
             assert count(connection, tables.regression) == 1
 
-    def test_deleting_a_run_takes_its_samples_and_profiles(
+    def test_deleting_a_run_takes_its_samples_profiles_and_summaries(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
     ) -> None:
         tables = make_suite("nts")
@@ -778,7 +828,23 @@ class TestCascades:
 
             assert count(connection, tables.sample) == 0
             assert count(connection, tables.profile) == 0
+            assert count(connection, tables.run_summary) == 0
             assert count(connection, tables.machine) == 1
+
+    def test_removing_a_metric_takes_its_indicators_and_run_summaries(
+        self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
+    ) -> None:
+        # D2: removing a metric destroys everything stored for it.
+        tables = make_suite("nts")
+
+        with db_engine.begin() as connection:
+            seed(connection, tables)
+
+            suite_tables.remove_metrics(connection, tables.metric, ["execution_time"])
+
+            assert count(connection, tables.regression_indicator) == 0
+            assert count(connection, tables.run_summary) == 0
+            assert count(connection, tables.run) == 1
 
     def test_deleting_a_regression_takes_its_indicators(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]

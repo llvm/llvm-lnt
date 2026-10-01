@@ -125,6 +125,14 @@ RealValue = Annotated[float, Strict(), Field(allow_inf_nan=False)]
 # `integer` needs no such bound: a non-finite float has no fractional-free form, so `_whole_number`
 # leaves it a float and the strict validator rejects it for not being an integer.
 
+# The identity of an entity a request names but does not create -- an indicator's machine and test,
+# a `test=` or `commit=` in a time-series body. Deliberately unconstrained in length and shape: a
+# value no machine, test or commit could possibly have still names none, which endpoints.md answers
+# with a 404 (or, for a commit filter, an empty result) rather than a 400. `Storable` is the one
+# exception, because a NUL cannot even be compared against a stored value -- PostgreSQL refuses it
+# as a parameter (D3).
+Named = Annotated[str, Storable]
+
 # D3's `datetime`, as a reusable annotation: an ISO 8601 string and nothing else, normalized to
 # UTC. Exported because a timestamp on the wire is one thing wherever it appears -- a declared
 # field value, and R3's `after=`/`before=` bounds, which would otherwise read `?after=1700000000`
