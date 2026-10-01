@@ -21,6 +21,7 @@ from __future__ import annotations
 import base64
 from collections.abc import Callable
 from typing import Any
+from urllib.parse import quote
 from uuid import uuid4
 
 import pytest
@@ -61,27 +62,35 @@ PROFILE = (
     "HgUGAQGAgICJBHRpZV9iCgEjCAgBAYCAgIkE"
 )
 
-# The same writer on three function names that a path segment would otherwise mangle, each with one
+# The same writer on six function names that would not survive being a path segment, each with one
 # `ret` in it. `{'counters': {'cycles': 42}, 'disassembly-format': 'llvm-objdump', 'functions':
-# {SLASHED: ..., PUNCTUATED: ..., MANGLED: ...}}`, with counters 3.0, 2.0 and 1.0 respectively.
+# {SLASHED: 3.0, PUNCTUATED: 2.0, MANGLED: 1.0, PLUS: 4.0, DOTTED: 5.0, TRAILING: 6.0}}`, each
+# number being that function's `cycles`.
 EXOTIC = (
-    "AgANDQgVAxgwSC93JZwBLArIAdkBbGx2bS1vYmpkdW1wCgFjeWNsZXMKAQAqQlpoOTFBWSZTWWO3UngAAAPAQMwA"
-    "UAAABCAAMMAI0emoKEXeyeLuSKcKEgx26k8AQlpoOTFBWSZTWZfzmEUAAAIVQEAAQABAAEAAIAAhmmgzTRrni7ki"
-    "nChIS/nMIoBCWmg5MUFZJlNZxYVDjQAAAEAAUAAgACEAgoMXckU4UJDFhUONQlpoOTFBWSZTWRiRaOcAAAFBgAAQ"
-    "AgAUACAAIZpoM00XPF3JFOFCQGJFo5wDTWF0cml4PGRvdWJsZSwgMz46Om9wZXJhdG9yKihNYXRyaXg8ZG91Ymxl"
-    "LCAzPiBjb25zdCYpICYKAQAAAAEAgICAgARfWk5TdDNfXzE2dmVjdG9ySWlOU185YWxsb2NhdG9ySWlFRUU5cHVz"
-    "aF9iYWNrRVJLaQoBBQICAQCAgID8A3N0ZDo6b3BlcmF0b3IvKHN0ZDo6ZmlsZXN5c3RlbTo6cGF0aCBjb25zdCYs"
-    "IHN0ZDo6ZmlsZXN5c3RlbTo6cGF0aCBjb25zdCYpCgEKBAQBAICAgIIE"
+    "AgANDQgVAxg1TSh1JZoBLArGAbUCbGx2bS1vYmpkdW1wCgFjeWNsZXMKAQAqQlpoOTFBWSZTWZPgfRwAAAZAQMwA"
+    "VwAABCAAIj1TQ9PUIMmI6xxkEeVYGi7kinChISfA+jhCWmg5MUFZJlNZnRW+ogAABZBAQABAACAAIQCCGHF3JFOF"
+    "CQnRW+ogQlpoOTFBWSZTWfZjq94AAABAAEBAIAAhAIKDF3JFOFCQ9mOr3kJaaDkxQVkmU1kYkWjnAAABQYAAEAIA"
+    "FAAgACGaaDNNFzxdyRThQkBiRaOcBkJpZzo6b3BlcmF0b3IrKEJpZyBjb25zdCYpIGNvbnN0CgEAAAABAICAgIQE"
+    "TWF0cml4PGRvdWJsZSwgMz46Om9wZXJhdG9yKihNYXRyaXg8ZG91YmxlLCAzPiBjb25zdCYpICYKAQUCAgEAgICA"
+    "gARfWk5TdDNfXzE2dmVjdG9ySWlOU185YWxsb2NhdG9ySWlFRUU5cHVzaF9iYWNrRVJLaQoBCgQEAQCAgID8A2Ev"
+    "Li4vYi8uL2MKAQ8GBgEAgICAhQRzdGQ6Om9wZXJhdG9yLwoBFAgIAQCAgICGBHN0ZDo6b3BlcmF0b3IvKHN0ZDo6"
+    "ZmlsZXN5c3RlbTo6cGF0aCBjb25zdCYsIHN0ZDo6ZmlsZXN5c3RlbTo6cGF0aCBjb25zdCYpCgEZCgoBAICAgIIE"
 )
 
-# A demangled `operator/` overload, which is the whole reason the function name segment spans the
-# rest of the path (R1): v4's importer runs `objdump -C`, so what is stored is demangled.
+# A demangled `operator/` overload, which is why a function is named in a query parameter rather
+# than in the path (R1): v4's importer runs `objdump -C`, so what is stored is demangled.
 SLASHED = "std::operator/(std::filesystem::path const&, std::filesystem::path const&)"
-# Spaces, angle brackets, an ampersand and a comma -- every character a query string would have had
-# to escape, in a segment that does not.
+# Spaces, angle brackets, an ampersand and a comma, all of which a query string has to escape.
 PUNCTUATED = "Matrix<double, 3>::operator*(Matrix<double, 3> const&) &"
-# What the same symbol looks like when the producer did not demangle.
+# What a symbol looks like when the producer did not demangle.
 MANGLED = "_ZNSt3__16vectorIiNS_9allocatorIiEEE9push_backERKi"
+# A `+`, which an unescaped query string reads as a space.
+PLUS = "Big::operator+(Big const&) const"
+# Dot segments, which a URL path would normalize away.
+DOTTED = "a/../b/./c"
+# A trailing `/`, which R1's redirect would strip from a path.
+TRAILING = "std::operator/"
+EXOTIC_CYCLES = {SLASHED: 3.0, PUNCTUATED: 2.0, MANGLED: 1.0, PLUS: 4.0, DOTTED: 5.0, TRAILING: 6.0}
 
 NTS: dict[str, Any] = {"name": "nts", "metrics": [{"name": "execution_time", "type": "real"}]}
 
@@ -91,6 +100,10 @@ PROFILES = PROFILES_PATH.format(testsuite="nts")
 
 def run_profiles(run: str) -> str:
     return RUN_PROFILES_PATH.format(testsuite="nts", uuid=run)
+
+
+def disassembly(uuid: str) -> str:
+    return f"{PROFILES}/{uuid}/disassembly"
 
 
 def truncated(encoded: str) -> str:
@@ -361,30 +374,29 @@ class TestFunctionList:
         assert lengths == {"main": 2, "hot": 1, "tie_a": 1, "tie_b": 1, "cold": 0}
 
 
-class TestFunctionDisassembly:
-    """`GET /profiles/{uuid}/functions/{fn_name}`: the one endpoint that decompresses."""
+class TestDisassembly:
+    """`GET /profiles/{uuid}/disassembly?function=`: the one endpoint that decompresses."""
 
     @pytest.fixture
-    def disassembly(self, api_client: TestClient, stored: Callable[..., str]) -> dict[str, Any]:
-        body: dict[str, Any] = api_client.get(f"{PROFILES}/{stored()}/functions/main").json()
+    def main(self, api_client: TestClient, stored: Callable[..., str]) -> dict[str, Any]:
+        response = api_client.get(disassembly(stored()), params={"function": "main"})
+        body: dict[str, Any] = response.json()
         return body
 
-    def test_carries_exactly_the_keys_endpoints_md_gives_it(
-        self, disassembly: dict[str, Any]
-    ) -> None:
-        assert set(disassembly) == {"name", "counters", "disassembly_format", "instructions"}
+    def test_carries_exactly_the_keys_endpoints_md_gives_it(self, main: dict[str, Any]) -> None:
+        assert set(main) == {"name", "counters", "disassembly_format", "instructions"}
 
-    def test_repeats_the_functions_aggregate_counters(self, disassembly: dict[str, Any]) -> None:
-        assert disassembly["name"] == "main"
-        assert disassembly["counters"] == {"cycles": 50.0, "branch-misses": 60.0}
-        assert disassembly["disassembly_format"] == "llvm-objdump"
+    def test_repeats_the_functions_aggregate_counters(self, main: dict[str, Any]) -> None:
+        assert main["name"] == "main"
+        assert main["counters"] == {"cycles": 50.0, "branch-misses": 60.0}
+        assert main["disassembly_format"] == "llvm-objdump"
 
     def test_serves_every_instruction_with_its_address_counters_and_text(
-        self, disassembly: dict[str, Any]
+        self, main: dict[str, Any]
     ) -> None:
         # Addresses are stored as deltas from the previous one, so a wrong reading of the second
         # would be a wrong address rather than a failure. Counters are raw, as everywhere else.
-        assert disassembly["instructions"] == [
+        assert main["instructions"] == [
             {
                 "address": 0x1000,
                 "counters": {"cycles": 30.0, "branch-misses": 40.0},
@@ -397,13 +409,13 @@ class TestFunctionDisassembly:
             },
         ]
 
-    def test_an_address_is_an_integer(self, disassembly: dict[str, Any]) -> None:
-        assert all(isinstance(one["address"], int) for one in disassembly["instructions"])
+    def test_an_address_is_an_integer(self, main: dict[str, Any]) -> None:
+        assert all(isinstance(one["address"], int) for one in main["instructions"])
 
     def test_a_function_with_no_instructions_is_an_empty_list(
         self, api_client: TestClient, stored: Callable[..., str]
     ) -> None:
-        response = api_client.get(f"{PROFILES}/{stored()}/functions/cold")
+        response = api_client.get(disassembly(stored()), params={"function": "cold"})
 
         assert response.status_code == 200
         assert response.json()["instructions"] == []
@@ -412,7 +424,7 @@ class TestFunctionDisassembly:
         self, api_client: TestClient, stored: Callable[..., str]
     ) -> None:
         # Not an `internal_error`: the blob is perfectly readable and simply has no such function.
-        response = api_client.get(f"{PROFILES}/{stored()}/functions/nosuchfunction")
+        response = api_client.get(disassembly(stored()), params={"function": "nosuchfunction"})
 
         assert response.status_code == 404
         assert code_of(response) == "not_found"
@@ -434,78 +446,56 @@ class TestFunctionDisassembly:
 
         monkeypatch.setattr(profile_format, "read_profile", counting)
 
-        assert api_client.get(f"{PROFILES}/{uuid}/functions/main").status_code == 200
+        assert api_client.get(disassembly(uuid), params={"function": "main"}).status_code == 200
         assert parses == 1
 
 
 class TestFunctionNames:
-    """R1: the function name spans the rest of the path, which is what makes these reachable."""
+    """R1: a function is named in a query parameter, so any name the profile holds is reachable."""
 
     @pytest.fixture
     def exotic(self, stored: Callable[..., str]) -> str:
         return stored(EXOTIC)
 
-    @pytest.mark.parametrize("name", [SLASHED, PUNCTUATED, MANGLED])
-    def test_the_function_list_serves_the_name_verbatim(
-        self, api_client: TestClient, exotic: str, name: str
+    def test_the_function_list_serves_every_name_verbatim(
+        self, api_client: TestClient, exotic: str
     ) -> None:
         items = api_client.get(f"{PROFILES}/{exotic}/functions").json()["items"]
 
-        assert name in {item["name"] for item in items}
+        assert {item["name"] for item in items} == set(EXOTIC_CYCLES)
 
-    def test_a_name_containing_a_slash_is_addressable(
-        self, api_client: TestClient, exotic: str
+    @pytest.mark.parametrize("name", list(EXOTIC_CYCLES))
+    def test_every_name_the_list_serves_addresses_its_function(
+        self, api_client: TestClient, exotic: str, name: str
     ) -> None:
-        # The premise R1 used to rest on -- that only a test name can contain `/` -- is false: v4's
-        # importer demangles, so an `operator/` overload arrives with one in it. It works here and
-        # not for a test name because this segment is the last of its path.
-        response = api_client.get(f"{PROFILES}/{exotic}/functions/{SLASHED}")
+        # `params` encodes the name the way any HTTP client does, which is all a caller has to do:
+        # nothing in a query value is special to the router, `/` and dot segments included.
+        response = api_client.get(disassembly(exotic), params={"function": name})
 
         assert response.status_code == 200
-        assert response.json()["name"] == SLASHED
-        assert response.json()["counters"] == {"cycles": 3.0}
+        assert response.json()["name"] == name
+        assert response.json()["counters"] == {"cycles": EXOTIC_CYCLES[name]}
 
-    def test_a_percent_encoded_slash_addresses_the_same_function(
+    def test_a_plus_must_be_encoded_like_in_any_query_string(
         self, api_client: TestClient, exotic: str
     ) -> None:
-        # A server decodes `%2F` back to a separator before routing, so the two spellings are the
-        # same request by the time anything matches -- and the greedy segment captures either.
-        encoded = SLASHED.replace("/", "%2F").replace(":", "%3A")
+        # Everything escaped but the `+`, which a query string decodes as a space, so this asks for
+        # a function that is not there. Not something the endpoint chooses: it is how query strings
+        # are decoded, and any HTTP client's own encoding escapes it.
+        response = api_client.get(f"{disassembly(exotic)}?function={quote(PLUS, safe='+')}")
 
-        response = api_client.get(f"{PROFILES}/{exotic}/functions/{encoded}")
+        assert response.status_code == 404
 
-        assert response.status_code == 200
-        assert response.json()["name"] == SLASHED
+    def test_the_function_is_required(self, api_client: TestClient, exotic: str) -> None:
+        response = api_client.get(disassembly(exotic))
 
-    def test_a_name_containing_spaces_and_punctuation_is_addressable(
-        self, api_client: TestClient, exotic: str
-    ) -> None:
-        response = api_client.get(f"{PROFILES}/{exotic}/functions/{PUNCTUATED}")
-
-        assert response.status_code == 200
-        assert response.json()["name"] == PUNCTUATED
-
-    def test_a_mangled_name_is_addressable(self, api_client: TestClient, exotic: str) -> None:
-        # A producer that does not demangle is equally supported; nothing here interprets the name.
-        response = api_client.get(f"{PROFILES}/{exotic}/functions/{MANGLED}")
-
-        assert response.status_code == 200
-        assert response.json()["counters"] == {"cycles": 1.0}
-
-    def test_a_trailing_slash_reaches_the_function_list(
-        self, api_client: TestClient, exotic: str
-    ) -> None:
-        # R1's redirect runs before routing, so `/functions/` is the list rather than a request for
-        # a function with an empty name. The greedy segment would otherwise have matched it.
-        response = api_client.get(f"{PROFILES}/{exotic}/functions/", follow_redirects=False)
-
-        assert response.status_code == 307
-        assert response.headers["location"].endswith(f"{PROFILES}/{exotic}/functions")
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
 
 
 # The three endpoints that address a profile by its UUID, as the suffix each adds to it. Several
 # things below hold for all three and are asserted once over this list rather than once per class.
-PROFILE_DATA = ["", "/functions", "/functions/main"]
+PROFILE_DATA = ["", "/functions", "/disassembly?function=main"]
 
 
 class TestAddressingSomethingThatIsNotThere:
@@ -575,7 +565,7 @@ class TestUnreadableBlob:
         assert api_client.get(f"{PROFILES}/{uuid}").status_code == 200
         assert api_client.get(f"{PROFILES}/{uuid}/functions").status_code == 200
 
-        response = api_client.get(f"{PROFILES}/{uuid}/functions/main")
+        response = api_client.get(disassembly(uuid), params={"function": "main"})
 
         assert response.status_code == 500
         assert "LineCounters" in response.json()["error"]["message"]
@@ -657,7 +647,7 @@ class TestAuthorization:
             run_profiles(run),
             f"{PROFILES}/{uuid}",
             f"{PROFILES}/{uuid}/functions",
-            f"{PROFILES}/{uuid}/functions/main",
+            f"{PROFILES}/{uuid}/disassembly?function=main",
         ]
 
     def test_needs_no_credential(self, api_client: TestClient, paths: list[str]) -> None:

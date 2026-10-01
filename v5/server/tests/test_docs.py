@@ -642,10 +642,10 @@ class TestReadOperations:
 RUN_PROFILES = RUN_PROFILES_PATH
 PROFILE = f"{PROFILES_PATH}/{{uuid}}"
 FUNCTIONS = f"{PROFILE}/functions"
-FUNCTION = f"{FUNCTIONS}/{{fn_name}}"
+DISASSEMBLY = f"{PROFILE}/disassembly"
 
 # The three that serve what is inside a blob, as opposed to the listing, which never opens one.
-PROFILE_DATA = [PROFILE, FUNCTIONS, FUNCTION]
+PROFILE_DATA = [PROFILE, FUNCTIONS, DISASSEMBLY]
 
 
 class TestProfileOperations:
@@ -733,20 +733,14 @@ class TestProfileOperations:
             counters = schemas[schema]["properties"]["counters"]
             assert counters["additionalProperties"] == {"type": "number"}, schema
 
-    def test_the_function_name_is_one_path_parameter(self, client: TestClient) -> None:
-        """R1: the segment spans the rest of the path, and the document still shows one segment.
+    def test_the_function_is_a_required_query_parameter(self, client: TestClient) -> None:
+        # R1: a function name can contain `/`, so it travels in the query string, never the path.
+        operation = client.get("/api/openapi.json").json()["paths"][DISASSEMBLY]["get"]
+        parameters = {parameter["name"]: parameter for parameter in operation["parameters"]}
 
-        `{fn_name:path}` is how a name containing `/` stays addressable -- a demangled
-        `std::operator/(...)` -- and the point of checking it here is that the wire contract a
-        generated client sees is unchanged by it.
-        """
-        operation = client.get("/api/openapi.json").json()["paths"][FUNCTION]["get"]
-
-        assert {parameter["name"] for parameter in operation["parameters"]} == {
-            "testsuite",
-            "uuid",
-            "fn_name",
-        }
+        assert set(parameters) == {"testsuite", "uuid", "function"}
+        assert parameters["function"]["in"] == "query"
+        assert parameters["function"]["required"] is True
 
     @pytest.mark.parametrize("path", [RUN_PROFILES, *PROFILE_DATA])
     def test_can_be_refused_but_never_forbidden(self, client: TestClient, path: str) -> None:

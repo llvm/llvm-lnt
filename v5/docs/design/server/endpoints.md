@@ -328,7 +328,7 @@ Auth scope: `read`.
 ```
 GET  /api/suites/{testsuite}/profiles/{uuid}                       -- Metadata + top-level counters
 GET  /api/suites/{testsuite}/profiles/{uuid}/functions             -- Function list with counters
-GET  /api/suites/{testsuite}/profiles/{uuid}/functions/{fn_name}   -- Disassembly + per-instruction counters
+GET  /api/suites/{testsuite}/profiles/{uuid}/disassembly           -- Disassembly + per-instruction counters
 ```
 
 Auth scope: `read` for all three endpoints.
@@ -353,21 +353,15 @@ Auth scope: `read` for all three endpoints.
   list -- v4's importer keeps only symbols accounting for more than 0.5% of some
   counter, which admits at most a few hundred.
 
-**Function detail response** (`GET /api/suites/{testsuite}/profiles/{uuid}/functions/{fn_name}`):
+**Disassembly response** (`GET /api/suites/{testsuite}/profiles/{uuid}/disassembly?function={name}`):
 - `name`, `counters` (function-level aggregate, same raw float convention as
   the functions response above), `disassembly_format`,
   `instructions`: array of `{address, counters, text}` per instruction, where
   `address` is an integer and `counters` is again a dict of counter name -> raw
   float value (same convention, not a percentage).
-- A function name the profile does not hold is 404. The blob is readable and
-  simply has no such function, which is the caller naming something that does not
-  exist rather than anything wrong with the stored profile.
-- `{fn_name}` spans the remainder of the path: it is matched to the end of the
-  URL rather than stopping at the next `/`. Within it, `/` and its
-  percent-encoded form `%2F` are interchangeable; every other character a path
-  segment would mangle is handled by ordinary percent-encoding. R1 explains why
-  the segment has to be read this way, why the same treatment is not available to
-  a test name, and which two residual names no URL reaches.
+- `function` is required, and names the function by its name in the functions
+  response; it is a query parameter because a name can contain `/` (see R1). A
+  name the profile does not hold is 404.
 
 **Error handling**: If the stored profile blob is corrupt and cannot be
 deserialized, the profile data endpoints return 500 with a descriptive

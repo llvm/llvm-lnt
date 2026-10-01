@@ -27,14 +27,10 @@ function name the profile does not hold is the other thing entirely, and is a 40
 asking the index whether it holds the name rather than by catching anything: the two failures are
 then told apart by which question was asked, not by which exception a lookup happened to raise.
 
-**A function name spans the remainder of its path** (`{fn_name:path}`). R1 keeps natural keys
-containing `/` out of paths, and a function name can certainly contain one: the name is whatever
-the producer recorded, and a producer that demangles -- v4's importer runs `objdump -C` -- records
-an `operator/` overload as `std::operator/(...)`. What rescues it here, and did not rescue a test
-name, is position: the name is the *last* segment of its path, so a greedy segment can take all of
-it and there is nothing after it to collide with. `/` and `%2F` are interchangeable in it, since
-the server decodes before routing and the greedy segment captures the result either way -- with the
-residual exceptions R1 records, which no symbol a compiler emits can hit.
+**A function is named in the `function=` query parameter, never in the path** (R1). The name is
+whatever the producer recorded, and one that demangles records an `operator/` overload as
+`std::operator/(...)`, so it can contain `/` -- which a path segment cannot carry, since `%2F` is
+decoded before routing. That is also why a test is named in `test=`.
 """
 
 from __future__ import annotations
@@ -42,7 +38,7 @@ from __future__ import annotations
 import logging
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Path
+from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import Connection, Row, Select, Table, select
 
@@ -158,18 +154,6 @@ class FunctionDisassembly(BaseModel):
             "response rather than a list endpoint's body, so it keeps its own name (R2)."
         )
     )
-
-
-FunctionName = Annotated[
-    str,
-    Path(
-        description=(
-            "The function's name, spanning the rest of the path. A demangled C++ name may contain "
-            "`/` -- `std::operator/(...)` -- so this segment deliberately does not stop at one; "
-            "`/` and `%2F` are equivalent in it."
-        )
-    ),
-]
 
 
 class Profiles:
@@ -368,15 +352,23 @@ def list_profile_functions(
 
 
 @router.get(
-    "/{uuid}/functions/{fn_name:path}",
+    "/{uuid}/disassembly",
     dependencies=[require_scope(Scope.READ)],
     summary="Get a function's disassembly",
     responses=_profile_responses(_NO_FUNCTION),
 )
-def get_profile_function(
+def get_profile_disassembly(
     testsuite: str,
     uuid: UuidKey,
-    fn_name: FunctionName,
+    function: Annotated[
+        str,
+        Query(
+            description=(
+                "The name of the function, exactly as the function list gives it. 404 if the "
+                "profile holds no function of that name."
+            )
+        ),
+    ],
     engine: EngineDep,
     registry: RegistryDep,
 ) -> FunctionDisassembly:
@@ -399,20 +391,20 @@ def get_profile_function(
         name = suite.schema.name
 
     profile = _parse(data, uuid)
-    function = profile.functions.get(fn_name)
-    if function is None:
+    measured = profile.functions.get(function)
+    if measured is None:
         raise ApiError(
             ErrorCode.NOT_FOUND,
-            f"Profile '{uuid}' in test suite '{name}' holds no function named '{fn_name}'",
+            f"Profile '{uuid}' in test suite '{name}' holds no function named '{function}'",
         )
     try:
-        instructions = profile.instructions(fn_name)
+        instructions = profile.instructions(function)
     except profile_format.ProfileError as error:
         raise _unreadable(uuid, error) from error
 
     return FunctionDisassembly(
-        name=fn_name,
-        counters=dict(function.counters),
+        name=function,
+        counters=dict(measured.counters),
         disassembly_format=profile.disassembly_format,
         instructions=[
             Instruction(
