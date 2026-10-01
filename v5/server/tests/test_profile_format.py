@@ -1,6 +1,6 @@
-"""D12's profile binary format reader (`lnt_v5.profile_format`).
+"""The profile binary format (`lnt_v5.profile_format`): its reader and its writer.
 
-Pure unit tests: the reader touches no database and no request.
+Pure unit tests: neither touches a database or a request.
 
 The blobs at the top were produced by v4's own writer (`lnt/testing/profile/profilev2impl.py`, at
 the root of this repository) and are embedded rather than generated, so what is tested is the
@@ -15,11 +15,11 @@ from __future__ import annotations
 
 import base64
 import bz2
-import struct
 from collections.abc import Sequence
 
 import pytest
 
+from conftest import single
 from lnt_v5 import profile_format
 from lnt_v5.profile_format import (
     PROFILE_FORMAT_VERSION,
@@ -577,10 +577,7 @@ class TestWriting:
             )
         )
 
-        assert (
-            profile.functions["f"].counters["cycles"]
-            == struct.unpack(">f", struct.pack(">f", 0.1))[0]
-        )
+        assert profile.functions["f"].counters["cycles"] == single(0.1)
         assert profile.instructions("f")[0].counters["cycles"] == 123456792.0
 
     @pytest.mark.parametrize(
@@ -591,32 +588,11 @@ class TestWriting:
                 {"instructions": [Instruction(address=0, counters={"cycles": 1.0}, text="a\nb")]},
                 "contains a newline",
             ),
-            (
-                {
-                    "instructions": [
-                        Instruction(address=8, counters={"cycles": 1.0}, text="a"),
-                        Instruction(address=4, counters={"cycles": 1.0}, text="b"),
-                    ]
-                },
-                "goes back from address 8 to 4",
-            ),
-            (
-                {"instructions": [Instruction(address=0, counters={}, text="ret")]},
-                "does not carry exactly its counters",
-            ),
-            (
-                {
-                    "instructions": [
-                        Instruction(address=0, counters={"cycles": 1.0, "x": 1.0}, text="ret")
-                    ]
-                },
-                "does not carry exactly its counters",
-            ),
             ({"counters": {"cycles": float("inf")}, "instructions": []}, "not a finite number"),
             ({"counters": {"cycles": 1e39}, "instructions": []}, "too large for single precision"),
         ],
     )
-    def test_refuses_what_the_format_cannot_represent(
+    def test_refuses_what_the_primitives_cannot_encode(
         self, overrides: dict[str, object], problem: str
     ) -> None:
         with pytest.raises(ValueError, match=problem):
@@ -630,17 +606,3 @@ class TestWriting:
     def test_refuses_a_top_level_counter_no_number_can_hold(self, value: int) -> None:
         with pytest.raises(ValueError, match=r"not an integer in \[0, 2\*\*64\)"):
             write_profile("raw", {"cycles": value}, {})
-
-    def test_refuses_a_function_the_reader_would_refuse(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setattr(profile_format, "MAX_INSTRUCTIONS", 0)
-        with pytest.raises(ValueError, match="more than the 0"):
-            one_function()
-
-    def test_refuses_sections_the_reader_would_refuse_to_expand(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setattr(profile_format, "MAX_DECOMPRESSED_SIZE", 4)
-        with pytest.raises(ValueError, match="expand beyond the 4 byte limit"):
-            one_function()

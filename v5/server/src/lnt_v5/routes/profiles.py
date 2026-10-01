@@ -14,12 +14,11 @@ queries that actually serve the profile's contents name `data`. The listing does
 carry a profile per test, and `select(profile)` there would pull tens of megabytes off the disk to
 render a list of names.
 
-**Reading a profile costs one parse, and as little decompression as the endpoint needs.** The
-format's index is uncompressed and its per-instruction data is not (`profile_format`), so the
-metadata and function-list endpoints never decompress anything and only a request for one
-function's disassembly pays for it. Nothing is cached between requests: a parse is cheap next to
-the round trip that fetched the blob, and a cache keyed by blobs would be the largest thing in the
-process.
+**Reading a profile costs one parse, and as little as the endpoint needs.** `profile_format` reads
+a profile's index eagerly and its disassembly only on request, so the metadata and function-list
+endpoints never pay for instructions they do not serve. Nothing is cached between requests: a
+parse is cheap next to the round trip that fetched the blob, and a cache keyed by blobs would be
+the largest thing in the process.
 
 **A function is named in the `function=` query parameter, never in the path** (R1). The name is
 whatever the producer recorded, and one that demangles records an `operator/` overload as
@@ -261,8 +260,7 @@ def get_profile(
 ) -> ProfileMetadata:
     """What a profile is of, and its top-level counters (endpoints.md).
 
-    Reads the index alone: the top-level counters live in an uncompressed section, so answering
-    this costs no decompression at all.
+    Reads the profile's index alone (see `profile_format`).
     """
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         test, run, data = Profiles(suite).described(connection, uuid)
@@ -290,8 +288,7 @@ def list_profile_functions(
 
     Unpaginated: the list is bounded by the functions of one binary, and the client renders all of
     it into one combobox (`client/profiles.md`, "Function Selector"). Like the metadata endpoint
-    this reads the index alone -- a function's aggregate counters and its instruction count are
-    both in it, which is the whole reason the format keeps an index.
+    this reads the profile's index alone.
     """
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         data = Profiles(suite).blob(connection, uuid)
@@ -330,13 +327,10 @@ def get_profile_disassembly(
 ) -> FunctionDisassembly:
     """One function's disassembly and the counters measured along it (endpoints.md).
 
-    The one endpoint that decompresses, and it decompresses the whole profile's per-instruction
-    sections to serve one function of it -- the format stores them as four streams rather than one
-    per function, so there is nothing smaller to expand. D12's caps on a submitted profile are what
-    keep that bounded.
+    The one endpoint that reads a profile's instructions, which is the most expensive thing any
+    read in this API does; D12's caps on a submitted profile are what keep it bounded.
 
-    The connection is given back before any of that runs. Expanding a large profile and building
-    its instructions is the most expensive thing any read in this API does, and holding a pooled
+    The connection is given back before any of that runs. Holding a pooled
     connection -- and the open transaction that pins the vacuum horizon -- across it would be the
     anti-pattern D13 names for submission, on the one read that would really pay for it.
     """

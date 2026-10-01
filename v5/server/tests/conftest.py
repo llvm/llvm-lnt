@@ -12,6 +12,7 @@ import base64
 import gzip
 import json
 import re
+import struct
 from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
@@ -410,6 +411,12 @@ PROFILE_DOCUMENT: dict[str, Any] = {
         }
     ],
 }
+
+
+def single(value: float) -> float:
+    """`value` rounded to single precision, which is all a stored profile keeps of a count (D12)."""
+    rounded: float = struct.unpack(">f", struct.pack(">f", value))[0]
+    return rounded
 
 
 def encoded_profile(document: dict[str, Any] | bytes = PROFILE_DOCUMENT) -> str:

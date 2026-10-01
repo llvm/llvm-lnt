@@ -66,24 +66,28 @@ import struct
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from math import isfinite
-from typing import NoReturn
+from typing import NoReturn, Protocol
 
 # The format version, the first thing in a blob.
 PROFILE_FORMAT_VERSION = 2
 
-# How much the four compressed sections may expand to, together, for one profile. A document within
-# D12's cap on a decompressed profile always expands to less than this in this format, which spends
-# fewer bytes than JSON does on every part of it; `write_profile` refuses to exceed it regardless.
+# How much the four compressed sections may expand to, together, for one profile. D12's cap on a
+# decompressed document is defined as this (`suites.profile_document`), and a document always
+# expands to less in this format, which spends fewer bytes than JSON on every part of it.
 MAX_DECOMPRESSED_SIZE = 64 * 1024 * 1024
 
 # D12's cap on the instructions of one function: several times the largest function measured on
 # lnt.llvm.org, and what keeps one request's materialized disassembly to a size a server can hold.
 MAX_INSTRUCTIONS = 100_000
 
-# The longest ULEB128 encoding read, and the widest value one may hold. Ten bytes carry 70 bits, so
-# the byte limit alone would admit a value no quantity in this format can have; both are checked.
+# The longest ULEB128 encoding read, and one past the widest value one may hold. Ten bytes carry 70
+# bits, so the byte limit alone would admit a value no quantity in this format can have; both are
+# checked.
 _MAX_NUMBER_BYTES = 10
-_MAX_NUMBER = 1 << 64
+MAX_NUMBER = 1 << 64
+
+# The largest finite single-precision value, which is all a float in this format can hold.
+MAX_REAL: float = struct.unpack(">f", bytes.fromhex("7f7fffff"))[0]
 
 # The eight sections, in the order their headers appear. The indices are how a section is named in
 # a message, and `_TEXT_POOL` is singled out below because its header is the one that is not just
@@ -111,12 +115,9 @@ _FUNCTIONS = 7
 _COMPRESSED = (_LINE_COUNTERS, _LINE_ADDRESSES, _LINE_TEXT, _TEXT_POOL)
 
 # The exception families a decoding primitive raises, caught at the entry points so that a case the
-# validation below fails to anticipate is still a `ProfileError`. Deliberately enumerated rather
-# than `Exception`: a `TypeError` or an `AttributeError` here is a bug in this module, and dressing
-# one up as a corrupt profile is how it would never get found. `LookupError` and `MemoryError` are
-# in the list because a corrupt blob is the only thing that could plausibly provoke either.
-# `ProfileError` descends from `Exception` alone and so is in none of these families, which is what
-# lets a message the validation already worded through the net unchanged rather than re-wrapped.
+# checks below fail to anticipate is still a `ProfileError`. Enumerated rather than `Exception`, so
+# that a `TypeError` or an `AttributeError` -- a bug in this module -- is not dressed up as a
+# corrupt profile.
 _DECODING_FAILURES = (
     ValueError,  # also UnicodeDecodeError, and bz2 on a malformed stream
     struct.error,
@@ -179,9 +180,8 @@ class _Reader:
 
     Every byte of a profile is read through one of these. Each method checks what it needs before
     it reads it and validates what it decoded afterwards, so none of them can raise anything but a
-    `ProfileError` -- which is what makes the module's guarantee a property of the code rather than
-    of a `try` around it. `io.BytesIO` would not do: its `read` past the end returns short rather
-    than failing, and its `seek` to a negative offset raises a bare `ValueError`.
+    `ProfileError`. `io.BytesIO` would not do: its `read` past the end returns short rather than
+    failing, and its `seek` to a negative offset raises a bare `ValueError`.
 
     `section` names what is being read, so that a message says where in the blob the trouble is.
     """
@@ -217,7 +217,7 @@ class _Reader:
             self._position += 1
             value |= (byte & 0x7F) << shift
             if not byte & 0x80:
-                if value >= _MAX_NUMBER:
+                if value >= MAX_NUMBER:
                     self.fail(f"the number {value} is wider than the 64 bits anything here needs")
                 return value
         self.fail(f"a number runs past the {_MAX_NUMBER_BYTES} bytes anything here needs")
@@ -247,14 +247,7 @@ class _Reader:
             self.fail(f"a string is not valid UTF-8: {error}")
 
     def real(self) -> float:
-        """One float, stored as the ULEB128 encoding of its IEEE-754 single-precision bits.
-
-        The full unsigned 32-bit range is accepted, so a negative value reads back as itself. v4's
-        writer cannot actually produce one -- it converts the pattern through a *signed* 32-bit
-        field, and its ULEB128 writer does not terminate on the negative result -- but the encoding
-        is unambiguous and refusing half of it would buy nothing. Anything wider than 32 bits is not
-        a pattern at all, and is corruption.
-        """
+        """One float, stored as the ULEB128 encoding of its IEEE-754 single-precision bits."""
         bits = self.number()
         if bits >= 1 << 32:
             self.fail(f"{bits} is too wide to be a 32-bit float bit pattern")
@@ -316,8 +309,8 @@ class Profile:
             ) from error
 
     def _instructions(self, function: Function, offsets: _Offsets) -> Sequence[Instruction]:
-        # Before anything is decompressed, let alone built; see the module docstring for why an
-        # absolute cap and not only the exact bound below.
+        # Before anything is decompressed, let alone built: the exact bound below needs the
+        # expanded sections, and this one does not.
         if function.length > MAX_INSTRUCTIONS:
             raise ProfileError(
                 f"function '{function.name}' claims {function.length} instructions, more than the "
@@ -400,27 +393,23 @@ def _read_profile(data: bytes) -> Profile:
     table = _read_section_table(blob, len(data))
     start = blob.position
 
-    def raw(index: int) -> bytes:
+    # Views rather than copies: the four compressed sections are nearly the whole blob, and two of
+    # the three read endpoints never expand any of them. `BZ2Decompressor` takes a memoryview.
+    whole = memoryview(data)
+
+    def raw(index: int) -> memoryview:
         offset, size = table[index]
-        return data[start + offset : start + offset + size]
+        return whole[start + offset : start + offset + size]
 
     def section(index: int) -> _Reader:
-        return _Reader(raw(index), _SECTIONS[index])
+        return _Reader(bytes(raw(index)), _SECTIONS[index])
 
     disassembly_format = section(_HEADER).string()
     counter_names = _read_counter_names(section(_COUNTER_NAME_POOL))
     counters = _read_top_level_counters(section(_TOP_LEVEL_COUNTERS), counter_names)
     functions, offsets = _read_functions(section(_FUNCTIONS), counter_names)
 
-    # Views rather than copies, because between them these four are the whole blob -- the index is
-    # rounding error next to them -- and two of the three endpoints never expand any of them. A
-    # slice would double the resident bytes of a profile to serve a response that reads none of
-    # it. `BZ2Decompressor` takes a memoryview, so nothing downstream has to care.
-    whole = memoryview(data)
-    compressed = {
-        index: whole[start + table[index][0] : start + table[index][0] + table[index][1]]
-        for index in _COMPRESSED
-    }
+    compressed = {index: raw(index) for index in _COMPRESSED}
 
     return Profile(
         disassembly_format=disassembly_format,
@@ -544,17 +533,28 @@ def _expand(data: memoryview, section: int, budget: int) -> bytes:
 # --------------------------------------------------------------------------------------------
 
 
+class InstructionData(Protocol):
+    """One instruction as `write_profile` takes it: `Instruction`, or anything shaped like it."""
+
+    @property
+    def address(self) -> int: ...
+    @property
+    def counters(self) -> Mapping[str, float]: ...
+    @property
+    def text(self) -> str: ...
+
+
 @dataclass(frozen=True, slots=True)
 class MeasuredFunction:
     """One function as `write_profile` takes it: its aggregate counters and its instructions.
 
     Every instruction must carry exactly the function's counters. The format stores one value per
-    counter of the function for each instruction and no names, so an instruction with a counter
-    the function lacks would lose it, and one missing a counter would read back with a zero.
+    counter of the function for each instruction and no names, so that is a precondition rather
+    than something the format could record otherwise.
     """
 
     counters: Mapping[str, float]
-    instructions: Sequence[Instruction]
+    instructions: Sequence[InstructionData]
 
 
 class _Writer:
@@ -573,7 +573,7 @@ class _Writer:
 
     def number(self, value: int) -> None:
         """One ULEB128 integer, within the width `_Reader.number` accepts."""
-        if not 0 <= value < _MAX_NUMBER:
+        if not 0 <= value < MAX_NUMBER:
             raise ValueError(f"{value} is not an integer in [0, 2**64)")
         while value > 0x7F:
             self._data.append(value & 0x7F | 0x80)
@@ -618,21 +618,14 @@ def write_profile(
     its first use. Counter values come back rounded to single precision, which is all the format
     stores.
 
-    A profile `read_profile` would refuse to read is a `ValueError` here instead -- a function
-    over `MAX_INSTRUCTIONS`, sections expanding beyond `MAX_DECOMPRESSED_SIZE` -- and so is
-    anything the format cannot represent: a newline in a string, addresses that decrease within a
-    function (they are stored as unsigned deltas), a negative top-level counter.
+    The profile must be one `read_profile` can read back, which D12's validation of a submitted
+    document guarantees (see `suites.profile_document`): at most `MAX_INSTRUCTIONS` per function,
+    addresses that never decrease within one, and every instruction carrying exactly its
+    function's counters. A document within D12's cap on its decompressed size always expands to
+    less than `MAX_DECOMPRESSED_SIZE` here. What the primitives cannot encode -- a newline in a
+    string, a number outside [0, 2**64), a float single precision cannot hold -- is a `ValueError`.
     """
     ordered = sorted(functions.items())
-    for name, function in ordered:
-        if len(function.instructions) > MAX_INSTRUCTIONS:
-            raise ValueError(
-                f"function '{name}' has {len(function.instructions)} instructions, more than the "
-                f"{MAX_INSTRUCTIONS} a profile may hold for one function"
-            )
-        expected = set(function.counters)
-        if any(set(instruction.counters) != expected for instruction in function.instructions):
-            raise ValueError(f"an instruction of '{name}' does not carry exactly its counters")
 
     names = sorted(
         {*counters, *(counter for _, function in ordered for counter in function.counters)}
@@ -673,11 +666,6 @@ def write_profile(
         for instruction in function.instructions:
             for counter in measured:
                 line_counters.real(instruction.counters[counter])
-            if instruction.address < previous:
-                raise ValueError(
-                    f"function '{name}' goes back from address {previous} to "
-                    f"{instruction.address}; addresses are stored as unsigned deltas"
-                )
             line_addresses.number(instruction.address - previous)
             previous = instruction.address
             if instruction.text not in pooled:
@@ -695,10 +683,6 @@ def write_profile(
         line_text.getvalue(),
         text_pool.getvalue() or b"\n",
     ]
-    if sum(map(len, expanded)) > MAX_DECOMPRESSED_SIZE:
-        raise ValueError(
-            f"the profile's sections expand beyond the {MAX_DECOMPRESSED_SIZE} byte limit"
-        )
 
     sections = [
         header.getvalue(),

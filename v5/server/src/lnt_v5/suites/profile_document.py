@@ -16,7 +16,8 @@ from __future__ import annotations
 
 import base64
 import zlib
-from typing import Annotated
+from functools import cached_property
+from typing import Annotated, Self
 
 from pydantic import (
     AfterValidator,
@@ -25,10 +26,18 @@ from pydantic import (
     Field,
     StringConstraints,
     ValidationError,
+    model_validator,
 )
 
 from lnt_v5.errors import ApiError, ErrorCode, validation_problems
-from lnt_v5.profile_format import MAX_INSTRUCTIONS, Instruction, MeasuredFunction, write_profile
+from lnt_v5.profile_format import (
+    MAX_DECOMPRESSED_SIZE,
+    MAX_INSTRUCTIONS,
+    MAX_NUMBER,
+    MAX_REAL,
+    MeasuredFunction,
+    write_profile,
+)
 from lnt_v5.strings import Storable
 from lnt_v5.suites.entities import IntegerValue, RealValue
 
@@ -36,9 +45,10 @@ from lnt_v5.suites.entities import IntegerValue, RealValue
 # limits on a profile rather than on the request carrying it, whose body is refused at the transport
 # layer with R4's 413 instead (see `config.BODY_LIMIT`). The compressed cap is several times the
 # largest profile on lnt.llvm.org; the decompressed one admits whatever a document within the
-# compressed cap legitimately expands to, at the ratio real profiles compress at.
+# compressed cap legitimately expands to, at the ratio real profiles compress at. It is the stored
+# format's own expansion limit, so that everything admitted here can be stored and read back.
 MAX_COMPRESSED_SIZE = 4 * 1024 * 1024
-MAX_DOCUMENT_SIZE = 64 * 1024 * 1024
+MAX_DOCUMENT_SIZE = MAX_DECOMPRESSED_SIZE
 
 # The compressed cap in base64 characters, so that an oversized profile is refused before it is
 # decoded. Base64 spends 4 characters on every 3 bytes, rounded up to a whole group, so this is the
@@ -50,9 +60,6 @@ MAX_ENCODED_SIZE = 4 * ((MAX_COMPRESSED_SIZE + 2) // 3)
 # ASCII set rather than `str.split()`'s: that one also eats U+00A0 and friends, which are outside
 # the alphabet and are precisely what strict decoding is there to report.
 _WHITESPACE = str.maketrans("", "", " \t\n\r\v\f")
-
-# One past the widest integer the stored format holds (a ULEB128 number of at most 64 bits).
-_INTEGER_LIMIT = 2**64
 
 
 def _one_line(value: str) -> str:
@@ -68,9 +75,13 @@ Text = Annotated[str, AfterValidator(_one_line), Storable]
 # A function's or a counter's name, which also has to name something.
 Name = Annotated[Text, StringConstraints(min_length=1)]
 
-# A raw count at a function or an instruction. Real rather than integer: a producer that samples
-# reports estimates, and D3's leniency lets an integer through anyway.
-Count = Annotated[RealValue, Field(ge=0)]
+# A raw count at an instruction. Real rather than integer: a producer that samples reports
+# estimates, and D3's leniency lets an integer through anyway. Single precision is all the stored
+# format holds.
+Count = Annotated[RealValue, Field(ge=0, le=MAX_REAL)]
+
+# An address or a top-level counter: whatever the stored format's integers hold.
+Unsigned = Annotated[IntegerValue, Field(ge=0, lt=MAX_NUMBER)]
 
 
 class InstructionDocument(BaseModel):
@@ -78,7 +89,7 @@ class InstructionDocument(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    address: Annotated[IntegerValue, Field(ge=0, lt=_INTEGER_LIMIT)]
+    address: Unsigned
     counters: dict[Name, Count]
     text: Text
 
@@ -91,6 +102,41 @@ class FunctionDocument(BaseModel):
     name: Name
     instructions: list[InstructionDocument] = Field(max_length=MAX_INSTRUCTIONS)
 
+    @cached_property
+    def counters(self) -> dict[str, float]:
+        """Each counter summed over the function's instructions, which is what a function's
+        counters are in every profile v4 produced. Derived, so a document cannot contradict itself.
+        """
+        totals: dict[str, float] = {}
+        for instruction in self.instructions:
+            for counter, value in instruction.counters.items():
+                totals[counter] = totals.get(counter, 0.0) + value
+        return totals
+
+    @model_validator(mode="after")
+    def _consistent(self) -> Self:
+        if self.instructions:
+            expected = self.instructions[0].counters.keys()
+            previous = self.instructions[0].address
+            for position, instruction in enumerate(self.instructions):
+                if instruction.counters.keys() != expected:
+                    raise ValueError(
+                        f"instruction {position} carries the counters "
+                        f"{sorted(instruction.counters)} where the first one carries "
+                        f"{sorted(expected)}; every instruction of a function carries the same "
+                        f"counters"
+                    )
+                if instruction.address < previous:
+                    raise ValueError(
+                        f"instruction {position} is at address {instruction.address}, below the "
+                        f"{previous} before it; addresses never decrease within a function"
+                    )
+                previous = instruction.address
+        for counter, total in self.counters.items():
+            if total > MAX_REAL:
+                raise ValueError(f"the '{counter}' counters sum to {total}, which is too large")
+        return self
+
 
 class ProfileDocument(BaseModel):
     """The document a submission's `profile` decodes to (D12)."""
@@ -98,22 +144,31 @@ class ProfileDocument(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     disassembly_format: Text
-    counters: dict[Name, Annotated[IntegerValue, Field(ge=0, lt=_INTEGER_LIMIT)]]
+    counters: dict[Name, Unsigned]
     functions: list[FunctionDocument]
+
+    @model_validator(mode="after")
+    def _unique(self) -> Self:
+        if len({function.name for function in self.functions}) != len(self.functions):
+            raise ValueError("two functions have the same name")
+        return self
 
 
 def stored_profile(encoded: str) -> bytes:
-    """The bytes `{suite}.profile` stores for a submitted profile, or a 400 (D12)."""
+    """The bytes `{suite}.profile` stores for a submitted profile, or a 400 (D12).
+
+    Everything D12 refuses is refused by the validation above, so the writer is never handed a
+    document it cannot store.
+    """
     document = _parsed(_decompressed(_decoded(encoded)))
-    functions = {function.name: _measured(function) for function in document.functions}
-    if len(functions) != len(document.functions):
-        raise _refused("two functions have the same name")
-    try:
-        return write_profile(document.disassembly_format, document.counters, functions)
-    except ValueError as error:
-        # Only what validation cannot see coming reaches this: a value, or a function's sum of
-        # values, beyond what single precision can hold.
-        raise _refused(str(error)) from error
+    return write_profile(
+        document.disassembly_format,
+        document.counters,
+        {
+            function.name: MeasuredFunction(function.counters, function.instructions)
+            for function in document.functions
+        },
+    )
 
 
 def _decoded(encoded: str) -> bytes:
@@ -167,43 +222,6 @@ def _parsed(document: bytes) -> ProfileDocument:
         return ProfileDocument.model_validate_json(document)
     except ValidationError as error:
         raise _refused(f"not a valid profile document: {validation_problems(error)}") from error
-
-
-def _measured(function: FunctionDocument) -> MeasuredFunction:
-    """A function as the writer takes it, with the aggregate counters D12 derives.
-
-    A function's counters are the sums of its instructions' counters, which is what they are in
-    every profile v4 produced. Deriving them means a submission cannot contradict itself, at the
-    cost of the one field a response adds to what was submitted.
-    """
-    expected: set[str] | None = None
-    previous = 0
-    totals: dict[str, float] = {}
-    instructions: list[Instruction] = []
-    for position, instruction in enumerate(function.instructions):
-        if expected is None:
-            expected = set(instruction.counters)
-        elif set(instruction.counters) != expected:
-            raise _refused(
-                f"function '{function.name}': instruction {position} carries the counters "
-                f"{sorted(instruction.counters)}, but the first one carries {sorted(expected)}; "
-                f"every instruction of a function carries the same counters"
-            )
-        if instruction.address < previous:
-            raise _refused(
-                f"function '{function.name}': instruction {position} is at address "
-                f"{instruction.address}, below the {previous} before it; addresses never decrease "
-                f"within a function"
-            )
-        previous = instruction.address
-        for counter, value in instruction.counters.items():
-            totals[counter] = totals.get(counter, 0.0) + value
-        instructions.append(
-            Instruction(
-                address=instruction.address, counters=instruction.counters, text=instruction.text
-            )
-        )
-    return MeasuredFunction(counters=totals, instructions=instructions)
 
 
 def _refused(problem: str) -> ApiError:

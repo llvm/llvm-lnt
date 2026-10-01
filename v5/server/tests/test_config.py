@@ -4,7 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from lnt_v5.config import Settings, get_settings
-from lnt_v5.profile_document import MAX_ENCODED_SIZE
+from lnt_v5.suites.profile_document import MAX_ENCODED_SIZE
 
 
 class TestDatabaseUrl:

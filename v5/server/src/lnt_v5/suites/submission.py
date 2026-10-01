@@ -22,8 +22,9 @@ owns D12's document; this module only routes each entry's string to it.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from collections.abc import Iterator, Mapping, Sequence
+from contextlib import contextmanager
+from dataclasses import dataclass, replace
 from math import isfinite
 from typing import Annotated, Any, Literal
 from uuid import uuid4
@@ -31,7 +32,6 @@ from uuid import uuid4
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StringConstraints
 
 from lnt_v5.errors import ApiError, ErrorCode
-from lnt_v5.profile_document import stored_profile
 from lnt_v5.strings import NUL, Storable
 from lnt_v5.suites.entities import (
     CommitObject,
@@ -42,6 +42,7 @@ from lnt_v5.suites.entities import (
     validate_fields,
     validate_value,
 )
+from lnt_v5.suites.profile_document import stored_profile
 from lnt_v5.suites.schema import CommitField, Entry, MachineField, Metric, SuiteSchema
 from lnt_v5.suites.tables import NAME_LENGTH, UUID_LENGTH
 
@@ -230,13 +231,15 @@ def validate_submission(schema: SuiteSchema, body: RunSubmission) -> ValidatedSu
                 f"is submitted as one entry with array values, not as several entries",
             )
         seen.add(entry.name)
-        try:
+        with _naming(entry):
             tests.append(_submitted_test(declared, entry))
-        except ApiError as error:
-            # A submission carries thousands of entries, so every failure below has to say which
-            # one it is about. Named once here rather than by each of the messages underneath,
-            # which would then each have to be given the name to say it.
-            raise ApiError(error.code, f"test '{entry.name}': {error.message}") from error
+
+    # A second pass, because encoding a profile is by far the most expensive part of validation:
+    # a submission refused for one of its samples is refused before any of that work is done.
+    for position, entry in enumerate(body.tests):
+        if entry.profile is not None:
+            with _naming(entry):
+                tests[position] = replace(tests[position], profile=stored_profile(entry.profile))
 
     return ValidatedSubmission(
         # D6: the client's UUID when it sent one, and a v4 the server mints otherwise.
@@ -246,6 +249,20 @@ def validate_submission(schema: SuiteSchema, body: RunSubmission) -> ValidatedSu
         run_parameters=body.run_parameters,
         tests=tests,
     )
+
+
+@contextmanager
+def _naming(entry: TestEntry) -> Iterator[None]:
+    """Say which test entry a 400 raised inside is about.
+
+    A submission carries thousands of entries, so every failure has to name its own. Named once
+    here rather than by each of the messages underneath, which would then each have to be given the
+    name to say it.
+    """
+    try:
+        yield
+    except ApiError as error:
+        raise ApiError(error.code, f"test '{entry.name}': {error.message}") from error
 
 
 def _reject_unstorable(value: Any, where: str) -> None:
@@ -297,7 +314,7 @@ def _submitted_fields(
 
 
 def _submitted_test(declared: Mapping[str, Metric], entry: TestEntry) -> SubmittedTest:
-    """One test entry as the sample rows and the profile blob it stands for (D6).
+    """One test entry as the sample rows it stands for (D6).
 
     Array values are what make this more than a rename: a test measured several times in one run
     sends an array per metric, and the entry expands into one row per element, with the scalar
@@ -351,11 +368,8 @@ def _submitted_test(declared: Mapping[str, Metric], entry: TestEntry) -> Submitt
     samples = [
         measured | {key: values[index] for key, values in arrays.items()} for index in range(count)
     ]
-    return SubmittedTest(
-        name=entry.name,
-        samples=samples,
-        profile=None if entry.profile is None else stored_profile(entry.profile),
-    )
+    # The profile is encoded by the caller, once every entry's samples have been validated.
+    return SubmittedTest(name=entry.name, samples=samples, profile=None)
 
 
 def _measured(metric: Metric, value: Any) -> Any:

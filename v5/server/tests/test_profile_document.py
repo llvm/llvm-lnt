@@ -1,4 +1,4 @@
-"""D12's profile document (`lnt_v5.profile_document`): decoding, validation, and what is stored.
+"""D12's profile document (`suites.profile_document`): decoding, validation, what is stored.
 
 Pure unit tests: nothing here touches a database. What comes out of `stored_profile` is checked by
 reading it back with the format reader, since the stored encoding is the server's own business --
@@ -10,20 +10,19 @@ from __future__ import annotations
 import base64
 import gzip
 import json
-import struct
 from typing import Any
 
 import pytest
 
-from conftest import encoded_profile
-from lnt_v5 import profile_document
+from conftest import encoded_profile, single
 from lnt_v5.errors import ApiError, ErrorCode
-from lnt_v5.profile_document import (
+from lnt_v5.profile_format import MAX_INSTRUCTIONS, Instruction, Profile, read_profile
+from lnt_v5.suites import profile_document
+from lnt_v5.suites.profile_document import (
     MAX_COMPRESSED_SIZE,
     MAX_ENCODED_SIZE,
     stored_profile,
 )
-from lnt_v5.profile_format import MAX_INSTRUCTIONS, Instruction, Profile, read_profile
 
 
 def instruction(address: int = 0, text: str = "ret", **counters: Any) -> dict[str, Any]:
@@ -55,12 +54,6 @@ def refused(value: dict[str, Any] | bytes | str) -> str:
     assert caught.value.code is ErrorCode.INVALID_REQUEST
     assert caught.value.message.startswith("profile: ")
     return caught.value.message
-
-
-def single(value: float) -> float:
-    """`value` rounded to single precision, which is what the stored format keeps."""
-    rounded: float = struct.unpack(">f", struct.pack(">f", value))[0]
-    return rounded
 
 
 class TestWhatIsStored:
@@ -320,7 +313,7 @@ class TestDocument:
     def test_refuses_a_count_single_precision_cannot_hold(self) -> None:
         huge = document({"name": "f", "instructions": [instruction(cycles=1e39)]})
 
-        assert "too large for single precision" in refused(huge)
+        assert "not a valid profile document" in refused(huge)
 
     def test_refuses_counts_whose_sum_single_precision_cannot_hold(self) -> None:
         # Each value fits, but the function's derived counter does not.
@@ -328,4 +321,4 @@ class TestDocument:
             {"name": "f", "instructions": [instruction(cycles=3e38), instruction(cycles=3e38)]}
         )
 
-        assert "too large for single precision" in refused(summed)
+        assert "counters sum to" in refused(summed)
