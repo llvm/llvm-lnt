@@ -504,8 +504,8 @@ Query parameters: `metric`, `machine`, `sample_agg`, `last_n`.
 `metric` is required and must be numeric (see D3). Non-numeric metrics are
 rejected with 400. `machine` is required too, so that no request aggregates the
 whole suite at once. Unlike the query endpoint's single machine, it is repeated
-once per machine (`?machine=a&machine=b`) -- the Dashboard needs data for
-multiple machines in one call. An unknown name in it is 404. `sample_agg` is one
+once per machine (`?machine=a&machine=b`) so that the data for multiple machines
+can be retrieved in one call. An unknown name in it is 404. `sample_agg` is one
 of `median` (the default), `mean`, `min` and `max`. `last_n` (integer, min 1,
 max 10000, default 500) limits the result to the N most recent commits, by
 ordinal, at which any of the named machines has a run geomean (see D15) for
