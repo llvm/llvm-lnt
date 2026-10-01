@@ -468,17 +468,16 @@ The `metric` field is required; all other fields are optional. Only samples that
 have a value for that metric are returned, so every point has a non-null `value`.
 
 The `test` field accepts a list of names for disjunction queries, at most R2's
-maximum page size. R3's rules for absent entities apply: an unknown `machine` or
-name in `test` is 404, an unknown `metric` is 400, and an unknown `commit` is an
-empty page. An empty `test` list matches nothing, unlike an omitted one.
+maximum page size. An empty `test` list matches nothing, unlike an omitted one.
 
 The `commit` field filters for an exact commit match and cannot be combined with
-`after_commit`/`before_commit` (400 if both are supplied). Time and commit
-range filters use exclusive
-bounds (strictly after / strictly before the given value). The commit bounds
-name a position rather than a set of rows, so a value no commit has is 404, and
-a commit with no ordinal is 400. When either commit bound is given, samples on
-unordered commits are excluded, whatever the `sort`.
+`after_commit`/`before_commit` (400 if both are supplied). Time and commit range
+filters use exclusive bounds (strictly after / strictly before the given value).
+When either commit bound is given, samples on unordered commits are excluded,
+whatever the `sort`.
+
+Names that refer to nothing are answered as R3 says, for `commit` as a filter and
+for `after_commit`/`before_commit` as range bounds.
 
 Returns cursor-paginated time-series data for graphing, in R2's cursor envelope;
 `limit` and `cursor` are keys of the body. Each data point carries: `test`,

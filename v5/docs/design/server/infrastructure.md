@@ -86,27 +86,33 @@ available from any page.
 
 ## R3: Filtering and Sorting
 
-- Named query parameters per endpoint, documented in OpenAPI spec
-- Supported filter types per endpoint (examples):
+- Filters and sorting are named query parameters. The endpoints spec is
+  authoritative for which ones each endpoint takes; the OpenAPI document
+  describes them (see R8).
+- Common filter types (examples):
   - `machine=`, `test=`, `metric=`, `search=` (case-insensitive substring; see D9)
-  - `after=`, `before=` (submission-time range; exclusive). This is the generic
-    convention for endpoints that only need to filter on one time dimension
-    (currently `GET /api/suites/{testsuite}/runs` and
-    `GET /api/suites/{testsuite}/machines/{name}/runs`, both filtering
-    `submitted_at`). The `/api/suites/{testsuite}/query` time-series endpoint needs
-    both a commit-ordinal range and a submission-time range simultaneously, so
-    it uses the more specific
-    `after_commit`/`before_commit`/`after_time`/`before_time` instead (see the
-    endpoints spec). `GET /api/suites/{testsuite}/commits`, `GET /api/suites/{testsuite}/regressions`,
-    `GET /api/suites/{testsuite}/tests`, and `GET /api/suites/{testsuite}/trends` do not
-    support time-range filtering.
+  - `after=`, `before=`: exclusive bounds on submission time. An endpoint that
+    bounds more than one dimension names its bounds after each of them instead
+    (e.g. `after_commit`/`after_time` on `POST /api/suites/{testsuite}/query`).
   - `state=` (for regressions, supports multiple values via a comma-separated
     list: `?state=active,detected`)
   - `commit=`, `has_commit=` (for regressions), `has_profiles=` (for commits and runs)
   - `tracked=` (boolean, for machines; omitted returns both)
-  - `sort=<field>` (prefix with `-` for descending: `sort=-submitted_at`)
-- Exact filters and available sort fields defined per endpoint in the OpenAPI spec
-- Filtering by a nonexistent entity name (`machine=`, `test=`) returns 404. Filtering by an unknown metric returns 400. Filtering by a commit value that doesn't exist (`commit=`) returns an empty result set, not 404.
+- `sort=<field>` names one field, prefixed with `-` for descending
+  (`sort=-submitted_at`).
+- A name in a filter or a request body that refers to nothing is answered
+  according to what it names:
+  - A metric is part of the suite's schema, so an unknown one makes the request
+    invalid: 400.
+  - A commit used as a filter (`commit=`) selects the rows belonging to it, and a
+    commit no run has reached yet legitimately has none: an unknown one is an
+    empty result, not 404.
+  - A commit used as a range bound names a position in the commit order rather
+    than a set of rows: an unknown one is 404, and one with no ordinal, which has
+    no position, is 400.
+  - Any other entity -- a machine, a test, the commit a regression points at --
+    is 404, so that a misspelled name is reported rather than answered with an
+    empty result.
 
 
 ## R4: Response Format
@@ -160,7 +166,7 @@ time, so clients must branch on `code` alone and never parse `message`.
 | `invalid_request` | 400 | Malformed or invalid request: bad syntax, an unreadable `Authorization` header (see R5), a failed validation, an undeclared `fields` key, an unknown metric name, a missing `?confirm=true` |
 | `unauthorized` | 401 | A credential was required and none was usable (see R5) |
 | `forbidden` | 403 | Valid token, insufficient scope (see R5) |
-| `not_found` | 404 | An entity named by the path, by a `machine=`/`test=` filter, or by the request body does not exist. A commit *filter* naming an unknown commit is not an error (see R3), but a commit named as a range bound is |
+| `not_found` | 404 | An entity named by the path, by a filter, or by the request body does not exist, except where R3 answers it with an empty result |
 | `duplicate` | 409 | The entity already exists: a run UUID, a suite name, a schema entry added twice |
 | `ordinal_conflict` | 409 | The ordinal is already held by another commit, or contradicts the one this commit has (see D11) |
 | `in_use` | 409 | Another entity references this one and must be removed first: a commit referenced by a regression |
