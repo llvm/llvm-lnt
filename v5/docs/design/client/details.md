@@ -65,9 +65,8 @@ indicator on this machine. Each row's title links to its regression detail page.
 Each row shows:
 - Regression: the regression's title (truncated to 50 chars, or (untitled)), link to the regression detail page
 - State: a colored state badge
-- Tests: the number of affected tests. This is the regression's `test_count`, which
-  counts every indicator it has rather than only those on this machine -- the server
-  keeps the counts independent of the filter (see the server's endpoints spec)
+- Tests: the regression's `test_count`, which counts the tests across all of its
+  indicators rather than only those on this machine
 
 If there are no unresolved regressions for the machine, it shows "No active regressions on this machine."
 Below the table (when populated) there's a "Show all regressions" button linking to the regression list page
