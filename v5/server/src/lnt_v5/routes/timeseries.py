@@ -1,8 +1,8 @@
 """Time series (endpoints.md, Time Series).
 
-Both endpoints read D10's `Sample JOIN Run JOIN Commit`: `POST /query` pages through it, and
-`POST /trends` collapses it to one geomean per (machine, commit). `_Series` holds the join they
-share. Both are `read`-scoped POSTs, so the cursor and page size travel in the body (R2).
+`POST /query` pages through D10's `Sample JOIN Run JOIN Commit`. It is a `read`-scoped POST because
+its filters do not fit a query string, so its cursor and page size travel in the body (R2).
+`GET /trends` combines the runs' geomeans (D15) into one per (machine, commit).
 """
 
 from __future__ import annotations
@@ -11,21 +11,17 @@ from collections.abc import Collection
 from datetime import datetime
 from typing import Annotated, Any, Literal, Self
 
-from fastapi import APIRouter, Request
-from pydantic import BaseModel, ConfigDict, Field, Strict, model_validator
+from fastapi import APIRouter, Query, Request
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy import (
     Column,
     ColumnElement,
-    Connection,
-    Double,
-    Join,
     Row,
     Select,
     Table,
     func,
     select,
 )
-from sqlalchemy import cast as sql_cast
 
 from lnt_v5.auth import require_scope
 from lnt_v5.db import EngineDep
@@ -48,6 +44,7 @@ from lnt_v5.routes.machines import machine_id, machine_ids
 from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.routes.tests import test_ids
 from lnt_v5.scopes import Scope
+from lnt_v5.suites.aggregation import SampleAggregation
 from lnt_v5.suites.entities import DatetimeValue, DeclaredValue, Named, declared_entry
 from lnt_v5.suites.registry import RegistryDep, Suite
 from lnt_v5.suites.schema import NUMERIC_TYPES, Metric
@@ -71,7 +68,7 @@ _NO_QUERY_ENTITY = (
     f"{SUITE_NOT_FOUND} Or the machine, a test, or a range-bounding commit the body names is not "
     "in it."
 )
-_NO_TREND_ENTITY = f"{SUITE_NOT_FOUND} Or a machine the body names is not in it."
+_NO_TREND_ENTITY = f"{SUITE_NOT_FOUND} Or a machine the request names is not in it."
 
 
 class DataPoint(BaseModel):
@@ -123,8 +120,9 @@ class TrendPoint(BaseModel):
     )
     value: float = Field(
         description=(
-            "The geometric mean of every positive value measured for this machine and commit. "
-            "Always a real, even where the metric is declared 'integer' (D3)."
+            "The geometric mean of the geomeans of the runs at this machine and commit, for the "
+            "metric and sample aggregation the request names (D15). Always a real, even where the "
+            "metric is declared 'integer' (D3)."
         )
     )
 
@@ -202,71 +200,20 @@ class QueryRequest(BaseModel):
         return self
 
 
-class TrendsRequest(BaseModel):
-    """The body of `POST /api/suites/{testsuite}/trends`.
-
-    No `tracked` filter: that flag governs automatic machine selection (D5), which the Dashboard
-    applies when it picks the machines it names here.
-    """
-
-    model_config = ConfigDict(extra="forbid")
-
-    metric: Named = Field(
-        description=(
-            "A numeric metric name this test suite's schema declares (D3). 400 if it declares no "
-            "such metric, and 400 if the one it declares is 'text' or 'datetime': a geomean is "
-            "arithmetic, and those are not numbers."
-        )
-    )
-    # Required, so that no request aggregates every machine in the suite at once.
-    machine: list[Named] = Field(
-        max_length=MAX_LIMIT,
-        description=(
-            f"The machines to return trends for, at most {MAX_LIMIT} of them. 404 if any of them "
-            "names no machine. Tracked or not, a machine named here is returned."
-        ),
-    )
-    last_n: Annotated[int, Strict(), Field(ge=1, le=MAX_LIMIT)] = Field(
-        default=DEFAULT_LAST_N,
-        description=(
-            "Keep only the N most recent commits, by ordinal, at which any of the named machines "
-            f"has a run. Defaults to {DEFAULT_LAST_N}, so that the response is always bounded."
-        ),
-    )
-
-
-class _Series:
-    """D10's join, built around the one metric a request names (`value` is its column)."""
+class Points:
+    """D10's join as rows: one data point per sample that has a value for the metric."""
 
     def __init__(self, suite: Suite, metric: Metric) -> None:
         self.table: Table = suite.tables.sample
         self._run: Table = suite.tables.run
         self._commit: Table = suite.tables.commit
         self._machine: Table = suite.tables.machine
+        self._test: Table = suite.tables.test
+        self.metric = metric.name
         self.value: Column[Any] = self.table.c[metric.name]
         # The two columns the range filters bound.
         self.ordinal: Column[Any] = self._commit.c.ordinal
         self.submitted_at: Column[Any] = self._run.c.submitted_at
-
-    def source(self) -> Join:
-        return (
-            self.table.join(self._run, self._run.c.id == self.table.c.run_id)
-            .join(self._commit, self._commit.c.id == self._run.c.commit_id)
-            .join(self._machine, self._machine.c.id == self._run.c.machine_id)
-        )
-
-    def measured_on(self, machines: Collection[int]) -> ColumnElement[bool]:
-        """R3's `machine=`, by id so that it uses D5's `(machine_id, submitted_at)` index."""
-        return self._run.c.machine_id.in_(machines)
-
-
-class Points(_Series):
-    """The series as rows: one data point per sample that has a value for the metric."""
-
-    def __init__(self, suite: Suite, metric: Metric) -> None:
-        super().__init__(suite, metric)
-        self.metric = metric.name
-        self._test: Table = suite.tables.test
         # Sorting by `commit` means by ordinal: only a commit's position is an order (D1).
         self._sortable: dict[str, Column[Any]] = {
             "test": self._test.c.name,
@@ -289,7 +236,12 @@ class Points(_Series):
                 self._run.c.uuid,
                 self.submitted_at,
             )
-            .select_from(self.source().join(self._test, self._test.c.id == self.table.c.test_id))
+            .select_from(
+                self.table.join(self._run, self._run.c.id == self.table.c.run_id)
+                .join(self._commit, self._commit.c.id == self._run.c.commit_id)
+                .join(self._machine, self._machine.c.id == self._run.c.machine_id)
+                .join(self._test, self._test.c.id == self.table.c.test_id)
+            )
             .where(self.value.is_not(None))
         )
 
@@ -305,6 +257,10 @@ class Points(_Series):
             return Keyset(tiebreaker=self.table.c.id)
         field, descending = sort_order(sort)
         return Keyset(SortKey(self._sortable[field], descending), tiebreaker=self.table.c.id)
+
+    def measured_on(self, machine: int) -> ColumnElement[bool]:
+        """R3's `machine=`, by id so that it uses D5's `(machine_id, submitted_at)` index."""
+        return self._run.c.machine_id == machine
 
     def measured_for(self, tests: Collection[int]) -> ColumnElement[bool]:
         """endpoints.md's `test` list: a disjunction, landing on D5's `(test_id, run_id)` index."""
@@ -331,18 +287,49 @@ class Points(_Series):
         )
 
 
-class Trends(_Series):
-    """The same series collapsed to one geomean per (machine, commit)."""
+class Trends:
+    """One metric's run geomeans under one sample aggregation (D15), combined per (machine, commit)
+    by a second geomean."""
 
-    def __init__(self, suite: Suite, metric: Metric) -> None:
-        super().__init__(suite, metric)
-        # `select` keeps only positive values, so `ln` is always defined and a (machine, commit)
-        # with none forms no group. Cast so that an `integer` metric is averaged as a real.
-        self.geomean = func.exp(func.avg(func.ln(sql_cast(self.value, Double))))
-        self.latest = func.max(self.submitted_at)
+    def __init__(self, suite: Suite, metric: Metric, aggregation: SampleAggregation) -> None:
+        geomeans = suite.tables.run_geomean
+        metrics = suite.tables.metric
+        self._run: Table = suite.tables.run
+        self._commit: Table = suite.tables.commit
+        self._machine: Table = suite.tables.machine
+        self.ordinal: Column[Any] = self._commit.c.ordinal
+        self._source = geomeans.join(metrics, metrics.c.id == geomeans.c.metric_id).join(
+            self._run, self._run.c.id == geomeans.c.run_id
+        )
+        self._measured = [metrics.c.name == metric.name, geomeans.c.sample_agg == aggregation]
+        # Every run geomean is positive, so `ln` is always defined.
+        self.geomean = func.exp(func.avg(func.ln(geomeans.c.value)))
+        self.latest = func.max(self._run.c.submitted_at)
 
-    def select(self) -> Select[Any]:
-        """One row per (machine, commit) with a positive value, ordered by machine then ordinal.
+    def window(self, machines: Collection[int], last_n: int) -> Select[Any]:
+        """The ids of the `last_n` most recent commits, by ordinal, at which any of `machines` has a
+        value. Counted over the machines together, so that their trendlines share one window."""
+        has_value = (
+            select(self._run.c.id)
+            .select_from(self._source)
+            .where(
+                self._run.c.commit_id == self._commit.c.id,
+                self._run.c.machine_id.in_(machines),
+                *self._measured,
+            )
+            .exists()
+        )
+        # Not correlated with the commit of the statement it filters.
+        return (
+            select(self._commit.c.id)
+            .where(self.ordinal.is_not(None), has_value)
+            .order_by(self.ordinal.desc())
+            .limit(last_n)
+            .correlate(None)
+        )
+
+    def select(self, machines: Collection[int], last_n: int) -> Select[Any]:
+        """One row per (machine, commit) with a value, ordered by machine then ordinal.
 
         Grouping by the primary keys alone is enough: PostgreSQL treats the other selected columns
         as functionally dependent on them.
@@ -356,32 +343,19 @@ class Trends(_Series):
                 self.latest,
                 self.geomean,
             )
-            .select_from(self.source())
-            .where(self.value > 0, self.ordinal.is_not(None))
+            .select_from(
+                self._source.join(self._commit, self._commit.c.id == self._run.c.commit_id).join(
+                    self._machine, self._machine.c.id == self._run.c.machine_id
+                )
+            )
+            .where(
+                *self._measured,
+                self._run.c.machine_id.in_(machines),
+                self._commit.c.id.in_(self.window(machines, last_n)),
+            )
             .group_by(self._machine.c.id, self._commit.c.id)
             .order_by(self._machine.c.name, self.ordinal)
         )
-
-    def cutoff(self, connection: Connection, machines: Collection[int], last_n: int) -> int | None:
-        """The lowest ordinal among the `last_n` most recent commits at which any of `machines` has
-        a run, or None if there are fewer than that many (meaning: keep everything).
-
-        Counted over the machines together, so that every card of a Dashboard section, which all
-        name the same machines, shares one window. A separate statement because, as a subquery,
-        "fewer than that many" would compare against NULL and empty the response.
-        """
-        has_run = (
-            select(self._run.c.id)
-            .where(self._run.c.commit_id == self._commit.c.id, self.measured_on(machines))
-            .exists()
-        )
-        return connection.execute(
-            select(self.ordinal)
-            .where(self.ordinal.is_not(None), has_run)
-            .order_by(self.ordinal.desc())
-            .offset(last_n - 1)
-            .limit(1)
-        ).scalar_one_or_none()
 
     def read(self, row: Row[Any]) -> TrendPoint:
         values = row._mapping
@@ -430,7 +404,7 @@ def query_points(
         points = Points(suite, declared_entry(suite.schema, Metric, body.metric))
         conditions: list[ColumnElement[bool]] = []
         if body.machine is not None:
-            conditions.append(points.measured_on([machine_id(connection, suite, body.machine)]))
+            conditions.append(points.measured_on(machine_id(connection, suite, body.machine)))
         if body.test is not None:
             conditions.append(points.measured_for(test_ids(connection, suite, body.test).values()))
         if body.commit is not None:
@@ -453,23 +427,58 @@ def query_points(
         )
 
 
-@router.post(
+@router.get(
     "/trends",
     dependencies=[require_scope(Scope.READ)],
     summary="Query geomean-aggregated trend data",
     responses=suite_responses(not_found=_NO_TREND_ENTITY),
 )
 def query_trends(
-    testsuite: str, body: TrendsRequest, engine: EngineDep, registry: RegistryDep
+    testsuite: str,
+    engine: EngineDep,
+    registry: RegistryDep,
+    metric: Annotated[
+        str,
+        Query(
+            description=(
+                "A numeric metric name this test suite's schema declares (D3). 400 if it declares "
+                "no such metric, and 400 if the one it declares is 'text' or 'datetime'."
+            )
+        ),
+    ],
+    machine: Annotated[
+        list[str],
+        Query(
+            description=(
+                "A machine to return trends for. Repeat the parameter for several machines. 404 if "
+                "any of them names no machine. Tracked or not, a machine named here is returned."
+            ),
+        ),
+    ],
+    sample_agg: Annotated[
+        SampleAggregation,
+        Query(description="How each test's samples within a run are reduced to one value (D15)."),
+    ] = SampleAggregation.MEDIAN,
+    last_n: Annotated[
+        int,
+        Query(
+            ge=1,
+            le=MAX_LIMIT,
+            description=(
+                "Keep only the N most recent commits, by ordinal, at which any of the named "
+                f"machines has a value. Defaults to {DEFAULT_LAST_N}, so that the response is "
+                "always bounded."
+            ),
+        ),
+    ] = DEFAULT_LAST_N,
 ) -> Items[TrendPoint]:
-    """One geomean per machine and commit, for the Dashboard's sparklines (R2, R3, D3)."""
-    with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
-        trends = Trends(suite, _numeric(suite, body.metric))
-        machines = machine_ids(connection, suite, body.machine).values()
-        conditions = [trends.measured_on(machines)]
-        cutoff = trends.cutoff(connection, machines, body.last_n)
-        if cutoff is not None:
-            conditions.append(trends.ordinal >= cutoff)
+    """One geomean per machine and commit, for the Dashboard's sparklines (R2, R3, D15).
 
-        rows = connection.execute(trends.select().where(*conditions)).all()
+    No `tracked` filter: that flag governs automatic machine selection (D5), which the Dashboard
+    applies when it picks the machines it names here.
+    """
+    with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
+        trends = Trends(suite, _numeric(suite, metric), sample_agg)
+        machines = machine_ids(connection, suite, machine).values()
+        rows = connection.execute(trends.select(machines, last_n)).all()
         return Items(items=[trends.read(row) for row in rows])

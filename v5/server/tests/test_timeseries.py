@@ -39,12 +39,6 @@ NTS: dict[str, Any] = {
 # this endpoint takes them in a body.
 SLASHED = "suite/one"
 
-# The smallest body each endpoint accepts, which is all the access tests below need to reach one.
-MINIMAL_BODY = {
-    QUERY: {"metric": "execution_time"},
-    TRENDS: {"metric": "execution_time", "machine": []},
-}
-
 
 @pytest.fixture
 def suite(make_api_suite: Callable[[dict[str, Any]], SuiteTables]) -> SuiteTables:
@@ -125,12 +119,12 @@ def walk(api_client: TestClient, **body: Any) -> list[dict[str, Any]]:
     )
 
 
-def trend_query(api_client: TestClient, **body: Any) -> Any:
-    return api_client.post(TRENDS, json=body)
+def trend_query(api_client: TestClient, **params: Any) -> Any:
+    return api_client.get(TRENDS, params=params)
 
 
-def trends(api_client: TestClient, **body: Any) -> list[dict[str, Any]]:
-    response = trend_query(api_client, **body)
+def trends(api_client: TestClient, **params: Any) -> list[dict[str, Any]]:
+    response = trend_query(api_client, **params)
     assert response.status_code == 200, response.text
     return list(response.json()["items"])
 
@@ -654,9 +648,12 @@ class TestQueryPagination:
 
 class TestTrends:
     def test_is_an_unpaginated_envelope_even_when_nothing_matches(
-        self, api_client: TestClient, suite: SuiteTables
+        self, api_client: TestClient, submit: Callable[..., dict[str, Any]]
     ) -> None:
-        response = trend_query(api_client, metric="execution_time", machine=[])
+        # The run's commit has no ordinal, so it has no place in a trend.
+        submit("linux", "abc", {"name": "t", "execution_time": 1.0})
+
+        response = trend_query(api_client, metric="execution_time", machine=["linux"])
 
         assert response.status_code == 200
         assert response.json() == {"items": []}
@@ -681,7 +678,7 @@ class TestTrends:
             }
         ]
 
-    def test_is_the_geometric_mean_of_every_value_at_that_machine_and_commit(
+    def test_is_the_geometric_mean_across_the_tests_at_that_machine_and_commit(
         self,
         api_client: TestClient,
         submit: Callable[..., dict[str, Any]],
@@ -699,7 +696,25 @@ class TestTrends:
             "value"
         ] == pytest.approx(2.0)
 
-    def test_aggregates_across_every_run_at_that_machine_and_commit(
+    @pytest.mark.parametrize(("aggregation", "expected"), [(None, 2.0), ("max", 6.0)])
+    def test_reduces_each_tests_samples_with_the_requested_aggregation(
+        self,
+        api_client: TestClient,
+        submit: Callable[..., dict[str, Any]],
+        place: Callable[..., None],
+        aggregation: str | None,
+        expected: float,
+    ) -> None:
+        # The median by default. test_geomeans.py covers each aggregation and the per-test stage.
+        submit("linux", "abc", {"name": "t", "execution_time": [6.0, 1.0, 2.0]})
+        place("abc", ordinal=1)
+        requested = {} if aggregation is None else {"sample_agg": aggregation}
+
+        served = trends(api_client, metric="execution_time", machine=["linux"], **requested)
+
+        assert served[0]["value"] == pytest.approx(expected)
+
+    def test_combines_the_runs_at_that_machine_and_commit_by_their_geomean(
         self,
         api_client: TestClient,
         submit: Callable[..., dict[str, Any]],
@@ -827,17 +842,6 @@ class TestTrendsFilters:
         assert response.status_code == 404
         assert code_of(response) == "not_found"
 
-    def test_an_empty_machine_list_keeps_nothing(
-        self,
-        api_client: TestClient,
-        submit: Callable[..., dict[str, Any]],
-        place: Callable[..., None],
-    ) -> None:
-        submit("linux", "abc", {"name": "t", "execution_time": 1.0})
-        place("abc", ordinal=1)
-
-        assert trends(api_client, metric="execution_time", machine=[]) == []
-
     def test_an_untracked_machine_is_returned_when_it_is_named(
         self,
         api_client: TestClient,
@@ -888,7 +892,7 @@ class TestTrendsFilters:
         assert len(trends(api_client, metric="execution_time", machine=["linux"], last_n=1000)) == 1
         assert len(trends(api_client, metric="execution_time", machine=["linux"])) == 1
 
-    def test_last_n_counts_only_the_commits_the_named_machines_ran(
+    def test_last_n_counts_only_the_commits_the_named_machines_have_a_value_at(
         self,
         api_client: TestClient,
         submitter: dict[str, str],
@@ -898,11 +902,15 @@ class TestTrendsFilters:
         for index in range(4):
             submit("linux", f"c{index}", {"name": "t", "execution_time": 1.0})
             place(f"c{index}", ordinal=index)
-        # Newer commits that do not count: one with no run at all, and one only another machine ran.
+        # Newer commits that do not count: one with no run at all, one only another machine ran,
+        # and two the machine ran without a positive value for the metric.
         created = api_client.post(COMMITS, json={"value": "c4", "ordinal": 4}, headers=submitter)
         assert created.status_code == 201, created.text
         submit("darwin", "c5", {"name": "t", "execution_time": 1.0})
-        place("c5", ordinal=5)
+        submit("linux", "c6", {"name": "t", "compile_time": 1.0})
+        submit("linux", "c7", {"name": "t", "execution_time": -1.0})
+        for index in (5, 6, 7):
+            place(f"c{index}", ordinal=index)
 
         served = trends(api_client, metric="execution_time", machine=["linux"], last_n=2)
 
@@ -928,19 +936,19 @@ class TestTrendsFilters:
             ("linux", 3),
         ]
 
-    @pytest.mark.parametrize("last_n", [0, 10001, True, "5", 2.5])
+    @pytest.mark.parametrize("last_n", [0, 10001, "true", "2.5", "five"])
     def test_refuses_an_invalid_last_n(
-        self, api_client: TestClient, suite: SuiteTables, last_n: int
+        self, api_client: TestClient, suite: SuiteTables, last_n: Any
     ) -> None:
-        response = trend_query(api_client, metric="execution_time", machine=[], last_n=last_n)
+        response = trend_query(api_client, metric="execution_time", machine=["m"], last_n=last_n)
 
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
 
-    def test_refuses_a_machine_list_longer_than_r2s_page_ceiling(
+    def test_refuses_an_unknown_sample_aggregation(
         self, api_client: TestClient, suite: SuiteTables
     ) -> None:
-        response = trend_query(api_client, metric="execution_time", machine=["m"] * (MAX_LIMIT + 1))
+        response = trend_query(api_client, metric="execution_time", machine=["m"], sample_agg="p90")
 
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
@@ -948,7 +956,7 @@ class TestTrendsFilters:
 
 class TestTrendsMetric:
     def test_the_metric_is_required(self, api_client: TestClient, suite: SuiteTables) -> None:
-        response = trend_query(api_client, machine=[])
+        response = trend_query(api_client, machine=["m"])
 
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
@@ -960,7 +968,7 @@ class TestTrendsMetric:
         assert code_of(response) == "invalid_request"
 
     def test_an_undeclared_metric_is_400(self, api_client: TestClient, suite: SuiteTables) -> None:
-        response = trend_query(api_client, metric="nope", machine=[])
+        response = trend_query(api_client, metric="nope", machine=["m"])
 
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
@@ -968,7 +976,7 @@ class TestTrendsMetric:
     def test_a_non_numeric_metric_is_400(self, api_client: TestClient, suite: SuiteTables) -> None:
         # D3: a geomean is arithmetic, and `text` is not a number. The type system deliberately
         # goes no further than that -- an `integer` encoding an enum is the author's problem.
-        response = trend_query(api_client, metric="toolchain", machine=[])
+        response = trend_query(api_client, metric="toolchain", machine=["m"])
 
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
@@ -980,44 +988,44 @@ class TestTrendsMetric:
 
         assert response.status_code == 400
 
-    def test_a_key_the_body_does_not_define_is_400(
-        self, api_client: TestClient, suite: SuiteTables
-    ) -> None:
-        response = trend_query(api_client, metric="execution_time", machine=[], test=["t"])
-
-        assert response.status_code == 400
-        assert code_of(response) == "invalid_request"
-
 
 @pytest.mark.parametrize("path", [QUERY, TRENDS])
 class TestAccess:
-    """R5: both are read-only POSTs, so both allow an anonymous caller."""
+    """R5: both are `read`-scoped, so both allow an anonymous caller."""
 
-    def test_needs_no_credential(
-        self, api_client: TestClient, suite: SuiteTables, path: str
-    ) -> None:
-        assert api_client.post(path, json=MINIMAL_BODY[path]).status_code == 200
+    @pytest.fixture
+    def call(
+        self, api_client: TestClient, submit: Callable[..., dict[str, Any]], path: str
+    ) -> Callable[..., Any]:
+        """The smallest request each endpoint accepts, which is all these tests need."""
+        submit("linux", "abc")
+
+        def call(suite: str = "nts", **kwargs: Any) -> Any:
+            target = path.replace("/nts/", f"/{suite}/")
+            if path == QUERY:
+                return api_client.post(target, json={"metric": "execution_time"}, **kwargs)
+            params = {"metric": "execution_time", "machine": "linux"}
+            return api_client.get(target, params=params, **kwargs)
+
+        return call
+
+    def test_needs_no_credential(self, call: Callable[..., Any]) -> None:
+        assert call().status_code == 200
 
     def test_a_bad_token_is_401_even_though_the_endpoint_is_read_scoped(
-        self,
-        api_client: TestClient,
-        suite: SuiteTables,
-        bearer: Callable[[str], dict[str, str]],
-        path: str,
+        self, call: Callable[..., Any], bearer: Callable[[str], dict[str, str]]
     ) -> None:
         # R5: a bad credential is never silently downgraded to anonymous access.
-        response = api_client.post(path, json=MINIMAL_BODY[path], headers=bearer("f" * 64))
+        response = call(headers=bearer("f" * 64))
 
         assert response.status_code == 401
         assert code_of(response) == "unauthorized"
 
-    def test_is_404_for_a_suite_that_is_not_there(self, api_client: TestClient, path: str) -> None:
-        response = api_client.post(path.replace("/nts/", "/nope/"), json=MINIMAL_BODY[path])
+    def test_is_404_for_a_suite_that_is_not_there(self, call: Callable[..., Any]) -> None:
+        response = call(suite="nope")
 
         assert response.status_code == 404
         assert code_of(response) == "not_found"
 
-    def test_is_not_shadowed_by_the_spa_catch_all(
-        self, api_client: TestClient, suite: SuiteTables, path: str
-    ) -> None:
-        assert "<title>LNT</title>" not in api_client.post(path, json=MINIMAL_BODY[path]).text
+    def test_is_not_shadowed_by_the_spa_catch_all(self, call: Callable[..., Any]) -> None:
+        assert "<title>LNT</title>" not in call().text

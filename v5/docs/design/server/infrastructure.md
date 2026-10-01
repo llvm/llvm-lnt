@@ -98,7 +98,7 @@ available from any page.
     it uses the more specific
     `after_commit`/`before_commit`/`after_time`/`before_time` instead (see the
     endpoints spec). `GET /api/suites/{testsuite}/commits`, `GET /api/suites/{testsuite}/regressions`,
-    `GET /api/suites/{testsuite}/tests`, and `POST /api/suites/{testsuite}/trends` do not
+    `GET /api/suites/{testsuite}/tests`, and `GET /api/suites/{testsuite}/trends` do not
     support time-range filtering.
   - `state=` (for regressions, supports multiple values via a comma-separated
     list: `?state=active,detected`)

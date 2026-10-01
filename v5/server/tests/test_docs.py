@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -808,32 +810,31 @@ class TestRegressionOperations:
 
 
 class TestTimeSeriesOperations:
-    """R8: the two read-only POSTs endpoints.md specifies under Time Series."""
+    """R8: the two operations endpoints.md specifies under Time Series."""
 
-    @pytest.mark.parametrize("path", [QUERY_PATH, TRENDS_PATH])
-    def test_is_documented(self, client: TestClient, path: str) -> None:
+    @pytest.mark.parametrize(("path", "method"), [(QUERY_PATH, "post"), (TRENDS_PATH, "get")])
+    def test_is_documented(self, client: TestClient, path: str, method: str) -> None:
         paths = client.get("/api/openapi.json").json()["paths"]
 
-        assert "post" in paths[path], f"POST {path} is not in the document"
+        assert set(paths[path]) == {method}
 
-    @pytest.mark.parametrize("path", [QUERY_PATH, TRENDS_PATH])
+    @pytest.mark.parametrize(("path", "method"), [(QUERY_PATH, "post"), (TRENDS_PATH, "get")])
     @pytest.mark.parametrize("status", ["404", "409"])
     def test_documents_the_failures_endpoints_md_specifies(
-        self, client: TestClient, path: str, status: str
+        self, client: TestClient, path: str, method: str, status: str
     ) -> None:
-        # An unknown suite on both (R1), plus an unknown machine, test or bounding commit the body
-        # names; D2's stale reader accounts for the 409.
-        operation = client.get("/api/openapi.json").json()["paths"][path]["post"]
+        # An unknown suite on both (R1), plus an unknown machine, test or bounding commit the
+        # request names; D2's stale reader accounts for the 409.
+        operation = client.get("/api/openapi.json").json()["paths"][path][method]
 
         assert status in operation["responses"]
 
-    @pytest.mark.parametrize("path", [QUERY_PATH, TRENDS_PATH])
-    def test_takes_its_filters_in_the_body_rather_than_the_query_string(
-        self, client: TestClient, path: str
+    def test_the_query_takes_its_filters_in_the_body_rather_than_the_query_string(
+        self, client: TestClient
     ) -> None:
-        # The whole reason these are POSTs: a list of test names and six bounds do not fit a query
+        # The whole reason it is a POST: a list of test names and four bounds do not fit a query
         # string. The suite is the only thing left in the path.
-        operation = client.get("/api/openapi.json").json()["paths"][path]["post"]
+        operation = client.get("/api/openapi.json").json()["paths"][QUERY_PATH]["post"]
 
         assert "requestBody" in operation
         assert {p["name"] for p in operation.get("parameters", [])} == {"testsuite"}
@@ -883,23 +884,35 @@ class TestTimeSeriesOperations:
             {"test", "-test", "commit", "-commit", "submitted_at", "-submitted_at"}
         ]
 
-    def test_the_trends_body_carries_exactly_the_three_keys_endpoints_md_gives_it(
+    def trends_parameters(self, client: TestClient) -> dict[str, Any]:
+        operation = client.get("/api/openapi.json").json()["paths"][TRENDS_PATH]["get"]
+        return {p["name"]: p for p in operation["parameters"] if p["in"] == "query"}
+
+    def test_trends_takes_exactly_the_four_query_parameters_endpoints_md_gives_it(
         self, client: TestClient
     ) -> None:
-        schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
+        parameters = self.trends_parameters(client)
 
-        assert set(schemas["TrendsRequest"]["properties"]) == {"metric", "machine", "last_n"}
-        assert set(schemas["TrendsRequest"]["required"]) == {"metric", "machine"}
+        assert set(parameters) == {"metric", "machine", "sample_agg", "last_n"}
+        assert {name for name, p in parameters.items() if p["required"]} == {"metric", "machine"}
 
     def test_the_trends_window_defaults_to_a_bounded_one(self, client: TestClient) -> None:
         # endpoints.md: this response is unpaginated and `read`-scoped, so an omitted `last_n` must
         # not mean "aggregate the whole suite". The default is part of the wire contract.
-        last_n = client.get("/api/openapi.json").json()["components"]["schemas"]["TrendsRequest"][
-            "properties"
-        ]["last_n"]
+        last_n = self.trends_parameters(client)["last_n"]["schema"]
 
         assert last_n["default"] == DEFAULT_LAST_N == 500
         assert (last_n["minimum"], last_n["maximum"]) == (1, MAX_LIMIT)
+
+    def test_the_trends_sample_aggregation_enumerates_d15s_and_defaults_to_the_median(
+        self, client: TestClient
+    ) -> None:
+        document = client.get("/api/openapi.json").json()
+        schema = self.trends_parameters(client)["sample_agg"]["schema"]
+        enum = document["components"]["schemas"][schema["$ref"].rsplit("/", 1)[-1]]["enum"]
+
+        assert enum == ["median", "mean", "min", "max"]
+        assert schema["default"] == "median"
 
     def test_the_trends_machine_is_a_list_where_the_querys_is_one_name(
         self, client: TestClient
@@ -908,7 +921,7 @@ class TestTimeSeriesOperations:
         # one call, and the Graph page plots one at a time.
         schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
         query = schemas["QueryRequest"]["properties"]["machine"]["anyOf"]
-        trends = schemas["TrendsRequest"]["properties"]["machine"]
+        trends = self.trends_parameters(client)["machine"]["schema"]
 
         assert {"type": "string"} in query
         assert trends["type"] == "array"
@@ -921,11 +934,11 @@ class TestTimeSeriesOperations:
         document = client.get("/api/openapi.json").json()
         envelopes = {
             path: document["components"]["schemas"][
-                document["paths"][path]["post"]["responses"]["200"]["content"]["application/json"][
+                document["paths"][path][method]["responses"]["200"]["content"]["application/json"][
                     "schema"
                 ]["$ref"].rsplit("/", 1)[-1]
             ]
-            for path in (QUERY_PATH, TRENDS_PATH)
+            for path, method in ((QUERY_PATH, "post"), (TRENDS_PATH, "get"))
         }
 
         assert set(envelopes[QUERY_PATH]["properties"]) == {"items", "cursor"}

@@ -22,17 +22,18 @@ performance trends across all test suites.
 - Up to 5 traces per chart, one per most-recently-active machine. The set is
   chosen once per suite rather than per metric, via
   `GET /api/suites/{ts}/machines?tracked=true&sort=-last_run_at&limit=5`, and
-  the same machines are then requested for every card in that suite's section
-  through `POST /api/suites/{ts}/trends`. Only machines with `tracked: true`
+  the same machines are then requested for every card in that suite's section.
+  Each card fetches its data in one call to
+  `GET /api/suites/{ts}/trends?metric={name}&machine=...&last_n={range}`. Only machines with `tracked: true`
   are eligible -- untracked machines are ad-hoc or retired configurations not
   tracked in the overview. A machine with no data for a given metric simply has
   no trace on that card. Each trace is a colored line.
 - X-axis: sequential position (evenly spaced, no axis labels).
-- Y-axis: geometric mean of all test values at each commit for that machine+metric
+- Y-axis: the geometric mean across tests at each commit for that machine+metric
   combination. See below for calculation.
 - Hover tooltip shows the machine name, commit (or `display` field), and value.
-  Trend items do not carry the `display` field, so display values are resolved
-  once per section through `POST /api/suites/{ts}/commits/resolve`.
+  Trend items do not carry the `display` field, so a card resolves the display
+  values of its commits through `POST /api/suites/{ts}/commits/resolve`.
 - Clicking a sparkline navigates to the Graph page pre-populated with that
   suite, metric, and the displayed machines. Clicking directly on a specific
   trace navigates with just that machine.
@@ -47,5 +48,5 @@ purpose is trend visualization.
 
 ## Geomean calculation
 
-`exp(mean(ln(values)))`, skipping zero/negative values. Computed server-side in the
-trends endpoint.
+Computed server-side by the trends endpoint, from the run geomeans (see D15)
+under the median sample aggregation.

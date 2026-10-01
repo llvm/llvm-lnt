@@ -452,8 +452,8 @@ header pointing at its detail route; `PATCH` returns 200 with the same body;
 
 ## Time Series
 
-Both endpoints are `read`-scoped POSTs: their filters (a list of test names, six
-range bounds) do not fit a query string.
+The query is a `read`-scoped POST because its filters (a list of test names,
+four range bounds) do not fit a query string.
 
 ### Query
 
@@ -497,38 +497,36 @@ Auth scope: `read`.
 ### Trends (Aggregated)
 
 ```
-POST   /api/suites/{testsuite}/trends
+GET    /api/suites/{testsuite}/trends
 ```
 
-Body (JSON): `{metric, machine, last_n}`
+Query parameters: `metric`, `machine`, `sample_agg`, `last_n`.
 
-The `metric` field is required and must be numeric (see D3). Non-numeric metrics
-are rejected with 400. For an `integer` metric the geomean is computed in floating
-point and returned as a real, like any other. `machine` is required too, so that no
-request aggregates the whole suite at once. Unlike the query endpoint's single
-machine string, it is a list of names -- the Dashboard needs data for multiple
-machines in one call. An unknown name in it is 404, and an empty list matches
-nothing. `last_n` (integer, min 1, max 10000, default 500) limits the result to
-the N most recent commits, by ordinal, at which any of the named machines has a
-run. The window is shared by all the named machines, so one that stopped reporting
-inside it yields a trendline that stops early. Only commits with a non-null ordinal
-are included.
+`metric` is required and must be numeric (see D3). Non-numeric metrics are
+rejected with 400. `machine` is required too, so that no request aggregates the
+whole suite at once. Unlike the query endpoint's single machine, it is repeated
+once per machine (`?machine=a&machine=b`) -- the Dashboard needs data for
+multiple machines in one call. An unknown name in it is 404. `sample_agg` is one
+of `median` (the default), `mean`, `min` and `max`. `last_n` (integer, min 1,
+max 10000, default 500) limits the result to the N most recent commits, by
+ordinal, at which any of the named machines has a value. The window is shared by
+all the named machines, so one that stopped reporting inside it yields a
+trendline that stops early. Only commits with a non-null ordinal are included.
 
 This endpoint does not filter on `tracked`: an explicitly named machine is
 returned whether or not it is tracked.
 
-Returns geomean-aggregated trend data per (machine, commit), in R2's unpaginated
-envelope -- the result set is bounded by (machines x last_n), typically < 5000
-rows. Items are ordered by machine name, then by ordinal. Each item carries:
-`machine` (the machine's name), `commit` (the commit's identity string), `ordinal`
-(always present, never null), `submitted_at` (the latest submission among the
-runs the geomean covers), `tag` (the commit's tag, or null if unset), and `value`
-(the geomean). `metric` is not
-echoed per item, unlike a query point.
+Each item's `value` is the geomean of the run geomeans (see D15) of the runs at
+that machine and commit, for `metric` under `sample_agg`. A (machine, commit)
+with no run geomean is absent from the response.
 
-Geomean is computed in SQL: `exp(avg(ln(positive_values)))`, skipping
-zero/negative values. A (machine, commit) with no positive value is absent from
-the response.
+Returns one item per (machine, commit), in R2's unpaginated envelope -- the result
+set is bounded by (machines x last_n). Items are ordered by machine name, then by
+ordinal. Each item carries: `machine` (the machine's name), `commit` (the commit's
+identity string), `ordinal` (always present, never null), `submitted_at` (the
+latest submission among the runs the value covers), `tag` (the commit's tag, or
+null if unset), and `value`, which is a real even for an `integer` metric.
+`metric` is not echoed per item, unlike a query point.
 
 Auth scope: `read`.
 
