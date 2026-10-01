@@ -508,11 +508,11 @@ point and returned as a real, like any other. `machine` is required too, so that
 request aggregates the whole suite at once. Unlike the query endpoint's single
 machine string, it is a list of names -- the Dashboard needs data for multiple
 machines in one call. An unknown name in it is 404, and an empty list matches
-nothing. `last_n` (integer, min 1, max 10000,
-default 500) limits the result to the N most recent commits by ordinal. They are
-counted over every commit in the suite that has an ordinal, including commits with
-no runs, rather than over what the other filters leave, so that the window is the
-same for every machine. Only commits with a non-null ordinal are included.
+nothing. `last_n` (integer, min 1, max 10000, default 500) limits the result to
+the N most recent commits, by ordinal, at which any of the named machines has a
+run. The window is shared by all the named machines, so one that stopped reporting
+inside it yields a trendline that stops early. Only commits with a non-null ordinal
+are included.
 
 This endpoint does not filter on `tracked`: an explicitly named machine is
 returned whether or not it is tracked.

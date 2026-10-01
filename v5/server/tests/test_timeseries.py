@@ -888,22 +888,45 @@ class TestTrendsFilters:
         assert len(trends(api_client, metric="execution_time", machine=["linux"], last_n=1000)) == 1
         assert len(trends(api_client, metric="execution_time", machine=["linux"])) == 1
 
-    def test_last_n_counts_over_the_suites_commits_rather_than_over_the_matches(
+    def test_last_n_counts_only_the_commits_the_named_machines_ran(
+        self,
+        api_client: TestClient,
+        submitter: dict[str, str],
+        submit: Callable[..., dict[str, Any]],
+        place: Callable[..., None],
+    ) -> None:
+        for index in range(4):
+            submit("linux", f"c{index}", {"name": "t", "execution_time": 1.0})
+            place(f"c{index}", ordinal=index)
+        # Newer commits that do not count: one with no run at all, and one only another machine ran.
+        created = api_client.post(COMMITS, json={"value": "c4", "ordinal": 4}, headers=submitter)
+        assert created.status_code == 201, created.text
+        submit("darwin", "c5", {"name": "t", "execution_time": 1.0})
+        place("c5", ordinal=5)
+
+        served = trends(api_client, metric="execution_time", machine=["linux"], last_n=2)
+
+        assert [item["ordinal"] for item in served] == [2, 3]
+
+    def test_last_n_is_one_window_for_all_the_named_machines(
         self,
         api_client: TestClient,
         submit: Callable[..., dict[str, Any]],
         place: Callable[..., None],
     ) -> None:
-        # endpoints.md: "the last N commits" spans the same range on every card, so a machine that
-        # stopped reporting inside it yields a trendline that stops rather than one stretched back.
+        # A machine that stopped reporting inside the window yields a trendline that stops, rather
+        # than one stretched back over older commits.
         for index in range(4):
             submit("linux", f"c{index}", {"name": "t", "execution_time": 1.0})
             place(f"c{index}", ordinal=index)
         submit("retired", "c0", {"name": "t", "execution_time": 1.0})
 
-        served = trends(api_client, metric="execution_time", machine=["retired"], last_n=2)
+        served = trends(api_client, metric="execution_time", machine=["linux", "retired"], last_n=2)
 
-        assert served == []
+        assert [(item["machine"], item["ordinal"]) for item in served] == [
+            ("linux", 2),
+            ("linux", 3),
+        ]
 
     @pytest.mark.parametrize("last_n", [0, 10001, True, "5", 2.5])
     def test_refuses_an_invalid_last_n(

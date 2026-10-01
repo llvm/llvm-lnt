@@ -229,10 +229,8 @@ class TrendsRequest(BaseModel):
     last_n: Annotated[int, Strict(), Field(ge=1, le=MAX_LIMIT)] = Field(
         default=DEFAULT_LAST_N,
         description=(
-            "Keep only the most recent N commits by ordinal, counted over the commits the suite "
-            f"holds rather than over what the other filters leave. Defaults to {DEFAULT_LAST_N}, "
-            "the Dashboard's own range, so that a request naming no window still gets a bounded "
-            "response."
+            "Keep only the N most recent commits, by ordinal, at which any of the named machines "
+            f"has a run. Defaults to {DEFAULT_LAST_N}, so that the response is always bounded."
         ),
     )
 
@@ -364,16 +362,22 @@ class Trends(_Series):
             .order_by(self._machine.c.name, self.ordinal)
         )
 
-    def cutoff(self, connection: Connection, last_n: int) -> int | None:
-        """The lowest ordinal among the suite's `last_n` most recent commits, or None if it has
-        fewer than that many (meaning: keep everything).
+    def cutoff(self, connection: Connection, machines: Collection[int], last_n: int) -> int | None:
+        """The lowest ordinal among the `last_n` most recent commits at which any of `machines` has
+        a run, or None if there are fewer than that many (meaning: keep everything).
 
-        A separate statement because, as a subquery, "fewer than that many" would compare against
-        NULL and empty the response.
+        Counted over the machines together, so that every card of a Dashboard section, which all
+        name the same machines, shares one window. A separate statement because, as a subquery,
+        "fewer than that many" would compare against NULL and empty the response.
         """
+        has_run = (
+            select(self._run.c.id)
+            .where(self._run.c.commit_id == self._commit.c.id, self.measured_on(machines))
+            .exists()
+        )
         return connection.execute(
             select(self.ordinal)
-            .where(self.ordinal.is_not(None))
+            .where(self.ordinal.is_not(None), has_run)
             .order_by(self.ordinal.desc())
             .offset(last_n - 1)
             .limit(1)
@@ -461,9 +465,9 @@ def query_trends(
     """One geomean per machine and commit, for the Dashboard's sparklines (R2, R3, D3)."""
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         trends = Trends(suite, _numeric(suite, body.metric))
-        conditions: list[ColumnElement[bool]] = []
-        conditions.append(trends.measured_on(machine_ids(connection, suite, body.machine).values()))
-        cutoff = trends.cutoff(connection, body.last_n)
+        machines = machine_ids(connection, suite, body.machine).values()
+        conditions = [trends.measured_on(machines)]
+        cutoff = trends.cutoff(connection, machines, body.last_n)
         if cutoff is not None:
             conditions.append(trends.ordinal >= cutoff)
 
