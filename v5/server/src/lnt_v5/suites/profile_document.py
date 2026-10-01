@@ -10,36 +10,36 @@ representation measured on real profiles. D12 deliberately leaves that encoding 
 implementation; the only traces it leaves on the contract are the rules it cannot represent a
 document without -- addresses that never decrease within a function, strings without newlines, and
 counter values kept to single precision.
+
+The document is parsed with msgspec rather than pydantic, which reads every other request body. A
+profile carries hundreds of thousands of instructions, and pydantic's models hold one in about three
+times the memory msgspec's structs do, and take several times as long to build. msgspec's
+declarative constraints cannot express everything D12 asks for, so the rest is checked by hand in
+`FunctionDocument.__post_init__` and `ProfileDocument.__post_init__` -- once per function rather
+than once per instruction, since a hook per instruction would give back much of what msgspec saves.
 """
 
 from __future__ import annotations
 
 import base64
 import zlib
-from functools import cached_property
-from typing import Annotated, Self
+from collections.abc import Mapping, Sequence
+from typing import Annotated, cast
 
-from pydantic import (
-    AfterValidator,
-    BaseModel,
-    ConfigDict,
-    Field,
-    StringConstraints,
-    ValidationError,
-    model_validator,
-)
+import msgspec
+from msgspec import Meta, Struct
 
-from lnt_v5.errors import ApiError, ErrorCode, validation_problems
+from lnt_v5.errors import ApiError, ErrorCode
 from lnt_v5.profile_format import (
     MAX_DECOMPRESSED_SIZE,
     MAX_INSTRUCTIONS,
     MAX_NUMBER,
     MAX_REAL,
+    InstructionData,
     MeasuredFunction,
     write_profile,
 )
-from lnt_v5.strings import Storable
-from lnt_v5.suites.entities import IntegerValue, RealValue
+from lnt_v5.strings import NUL
 
 # D12's caps on one profile: on the compressed document, and on what it decompresses to. Both are
 # limits on a profile rather than on the request carrying it, whose body is refused at the transport
@@ -61,114 +61,151 @@ MAX_ENCODED_SIZE = 4 * ((MAX_COMPRESSED_SIZE + 2) // 3)
 # the alphabet and are precisely what strict decoding is there to report.
 _WHITESPACE = str.maketrans("", "", " \t\n\r\v\f")
 
+# An address or a top-level counter: a non-negative integer below 2**64, read as D3 reads an
+# `integer`. A union because msgspec's `int` refuses `8.0`, which D3 accepts; and the upper bound is
+# not declared because msgspec's bounds stop at 64-bit signed integers. `_unsigned` does the rest.
+Unsigned = Annotated[int, Meta(ge=0)] | Annotated[float, Meta(ge=0)]
 
-def _one_line(value: str) -> str:
+# A raw count at an instruction. Real rather than integer: a producer that samples reports
+# estimates, and an integer is accepted anyway, as D3 accepts one where a `real` is declared. Single
+# precision is all the stored format holds.
+Count = Annotated[float, Meta(ge=0, le=MAX_REAL)]
+
+# A function's or a counter's name, which has to name something.
+Name = Annotated[str, Meta(min_length=1)]
+
+
+def _text(value: str, what: str) -> None:
+    """Refuse a string the document cannot carry: a newline ends a string in the stored format, and
+    a NUL is refused in every string a request carries (D3)."""
     if "\n" in value:
-        raise ValueError("must not contain a newline")
+        raise ValueError(f"{what} must not contain a newline")
+    if NUL in value:
+        raise ValueError(f"{what} must not contain a NUL character (U+0000)")
+
+
+def _unsigned(value: int | float, what: str) -> int:
+    """`value` as the integer it stands for, or a refusal (D3): `8.0` is 8, and `8.5` is refused."""
+    if isinstance(value, float):
+        if not value.is_integer():
+            raise ValueError(f"{what} is {value}, which is not a whole number")
+        value = int(value)
+    if value >= MAX_NUMBER:
+        raise ValueError(f"{what} is {value}, which is not below 2**64")
     return value
 
 
-# Every string in a document. A newline is what ends a string in the stored format, and a NUL is
-# refused in every string a request carries (D3).
-Text = Annotated[str, AfterValidator(_one_line), Storable]
-
-# A function's or a counter's name, which also has to name something.
-Name = Annotated[Text, StringConstraints(min_length=1)]
-
-# A raw count at an instruction. Real rather than integer: a producer that samples reports
-# estimates, and D3's leniency lets an integer through anyway. Single precision is all the stored
-# format holds.
-Count = Annotated[RealValue, Field(ge=0, le=MAX_REAL)]
-
-# An address or a top-level counter: whatever the stored format's integers hold.
-Unsigned = Annotated[IntegerValue, Field(ge=0, lt=MAX_NUMBER)]
+# `gc=False` on all three: none of them can be part of a reference cycle, so the garbage collector
+# need not track them -- which matters when one document is hundreds of thousands of them.
 
 
-class InstructionDocument(BaseModel):
-    """One instruction: where it is, what was counted there, and its disassembled text."""
+class InstructionDocument(Struct, forbid_unknown_fields=True, gc=False):
+    """One instruction: where it is, what was counted there, and its disassembled text.
 
-    model_config = ConfigDict(extra="forbid")
+    Checked by its function rather than by a hook of its own; see the module docstring.
+    """
 
     address: Unsigned
     counters: dict[Name, Count]
-    text: Text
+    text: str
 
 
-class FunctionDocument(BaseModel):
-    """One function, as its instructions. Its aggregate counters are derived, never submitted."""
-
-    model_config = ConfigDict(extra="forbid")
+class FunctionDocument(Struct, forbid_unknown_fields=True, gc=False):
+    """One function, as its instructions. Its own counters are derived, never submitted."""
 
     name: Name
-    instructions: list[InstructionDocument] = Field(max_length=MAX_INSTRUCTIONS)
+    instructions: Annotated[list[InstructionDocument], Meta(max_length=MAX_INSTRUCTIONS)]
 
-    @cached_property
-    def counters(self) -> dict[str, float]:
-        """Each counter summed over the function's instructions, which is what a function's
-        counters are in every profile v4 produced. Derived, so a document cannot contradict itself.
+    def __post_init__(self) -> None:
+        """Every rule over the function's instructions, in one pass.
+
+        Also replaces each address with the integer it stands for, which is what the writer takes.
         """
-        totals: dict[str, float] = {}
-        for instruction in self.instructions:
-            for counter, value in instruction.counters.items():
-                totals[counter] = totals.get(counter, 0.0) + value
-        return totals
-
-    @model_validator(mode="after")
-    def _consistent(self) -> Self:
-        if self.instructions:
-            expected = self.instructions[0].counters.keys()
-            previous = self.instructions[0].address
-            for position, instruction in enumerate(self.instructions):
-                if instruction.counters.keys() != expected:
-                    raise ValueError(
-                        f"instruction {position} carries the counters "
-                        f"{sorted(instruction.counters)} where the first one carries "
-                        f"{sorted(expected)}; every instruction of a function carries the same "
-                        f"counters"
-                    )
-                if instruction.address < previous:
-                    raise ValueError(
-                        f"instruction {position} is at address {instruction.address}, below the "
-                        f"{previous} before it; addresses never decrease within a function"
-                    )
-                previous = instruction.address
-        for counter, total in self.counters.items():
-            if total > MAX_REAL:
-                raise ValueError(f"the '{counter}' counters sum to {total}, which is too large")
-        return self
+        _text(self.name, "a function name")
+        if not self.instructions:
+            return
+        expected = self.instructions[0].counters.keys()
+        # Every instruction carries these names, so checking them once checks them all.
+        for counter in expected:
+            _text(counter, "a counter name")
+        previous = 0
+        for position, instruction in enumerate(self.instructions):
+            _text(instruction.text, f"instruction {position}'s text")
+            if instruction.counters.keys() != expected:
+                raise ValueError(
+                    f"instruction {position} carries the counters "
+                    f"{sorted(instruction.counters)} where the first one carries "
+                    f"{sorted(expected)}; every instruction of a function carries the same counters"
+                )
+            address = _unsigned(instruction.address, f"instruction {position}'s address")
+            if address < previous:
+                raise ValueError(
+                    f"instruction {position} is at address {address}, below the {previous} "
+                    f"before it; addresses never decrease within a function"
+                )
+            instruction.address = previous = address
 
 
-class ProfileDocument(BaseModel):
-    """The document a submission's `profile` decodes to (D12)."""
+class ProfileDocument(Struct, forbid_unknown_fields=True, gc=False):
+    """The document a submission's `profile` decodes to (D12).
 
-    model_config = ConfigDict(extra="forbid")
+    Its functions are checked before this is: msgspec builds the children first.
+    """
 
-    disassembly_format: Text
+    disassembly_format: str
     counters: dict[Name, Unsigned]
     functions: list[FunctionDocument]
 
-    @model_validator(mode="after")
-    def _unique(self) -> Self:
+    def __post_init__(self) -> None:
+        _text(self.disassembly_format, "the disassembly format")
+        for counter, value in self.counters.items():
+            _text(counter, "a counter name")
+            self.counters[counter] = _unsigned(value, f"the top-level counter '{counter}'")
         if len({function.name for function in self.functions}) != len(self.functions):
             raise ValueError("two functions have the same name")
-        return self
+
+
+_DECODER = msgspec.json.Decoder(ProfileDocument)
 
 
 def stored_profile(encoded: str) -> bytes:
     """The bytes `{suite}.profile` stores for a submitted profile, or a 400 (D12).
 
-    Everything D12 refuses is refused by the validation above, so the writer is never handed a
-    document it cannot store.
+    Everything D12 refuses is refused before the writer runs, so it is never handed a document it
+    cannot store.
     """
     document = _parsed(_decompressed(_decoded(encoded)))
+    functions = {
+        # The casts restate what `__post_init__` established: every address and every top-level
+        # counter has been replaced by the integer it stands for.
+        function.name: MeasuredFunction(
+            _counters(function), cast(Sequence[InstructionData], function.instructions)
+        )
+        for function in document.functions
+    }
     return write_profile(
-        document.disassembly_format,
-        document.counters,
-        {
-            function.name: MeasuredFunction(function.counters, function.instructions)
-            for function in document.functions
-        },
+        document.disassembly_format, cast(Mapping[str, int], document.counters), functions
     )
+
+
+def _counters(function: FunctionDocument) -> dict[str, float]:
+    """A function's counters: each the sum of that counter over its instructions (D12).
+
+    Derived, so a document cannot contradict itself. Computed here rather than in the struct's hook,
+    which has nowhere to keep it: msgspec decodes every field a struct declares, so a field to hold
+    it would be one a submission could set.
+    """
+    totals: dict[str, float] = {}
+    for instruction in function.instructions:
+        for counter, value in instruction.counters.items():
+            totals[counter] = totals.get(counter, 0.0) + value
+    for counter, total in totals.items():
+        if total > MAX_REAL:
+            raise _refused(
+                f"function '{function.name}': the '{counter}' counters sum to {total}, which is "
+                f"larger than single precision can hold"
+            )
+    return totals
 
 
 def _decoded(encoded: str) -> bytes:
@@ -219,9 +256,13 @@ def _decompressed(compressed: bytes) -> bytes:
 
 def _parsed(document: bytes) -> ProfileDocument:
     try:
-        return ProfileDocument.model_validate_json(document)
-    except ValidationError as error:
-        raise _refused(f"not a valid profile document: {validation_problems(error)}") from error
+        return _DECODER.decode(document)
+    except (msgspec.DecodeError, UnicodeDecodeError) as error:
+        # `DecodeError` includes every `ValidationError`, which subclasses it: a refusal by a
+        # declared constraint, and each `ValueError` a `__post_init__` raises, which msgspec reports
+        # with its location. Bytes that are not UTF-8 are refused with neither, but as a bare
+        # `UnicodeDecodeError`, which would otherwise be a 500.
+        raise _refused(f"not a valid profile document: {error}") from error
 
 
 def _refused(problem: str) -> ApiError:

@@ -25,7 +25,7 @@ from lnt_v5.suites.profile_document import (
 )
 
 
-def instruction(address: int = 0, text: str = "ret", **counters: Any) -> dict[str, Any]:
+def instruction(address: float = 0, text: str = "ret", **counters: Any) -> dict[str, Any]:
     return {"address": address, "counters": counters or {"cycles": 1}, "text": text}
 
 
@@ -247,6 +247,18 @@ class TestDocument:
                 id="negative address",
             ),
             pytest.param(
+                document({"name": "f", "instructions": [instruction(address=4.5)]}),
+                id="fractional address",
+            ),
+            pytest.param(
+                document({"name": "f", "instructions": [instruction(address=2**64)]}),
+                id="address too wide",
+            ),
+            pytest.param(
+                document({"name": "f", "instructions": [instruction(address=2.0**64)]}),
+                id="whole-number address too wide",
+            ),
+            pytest.param(
                 document({"name": "f", "instructions": [instruction() | {"extra": 1}]}),
                 id="extra instruction key",
             ),
@@ -262,6 +274,23 @@ class TestDocument:
         )
 
         assert "not a valid profile document" in refused(raw.encode())
+
+    @pytest.mark.parametrize("field", ["address", "count", "top-level counter"])
+    def test_refuses_a_number_too_large_to_be_finite(self, field: str) -> None:
+        # Valid JSON, but no finite double holds it.
+        raw = {
+            "address": json.dumps(document()).replace('"address": 0', '"address": 1e400'),
+            "count": json.dumps(document()).replace('{"cycles": 1}', '{"cycles": 1e400}'),
+            "top-level counter": json.dumps(document()).replace(
+                '{"cycles": 10}', '{"cycles": 1e400}'
+            ),
+        }[field]
+
+        assert "1e400" in raw
+        assert "not a valid profile document" in refused(raw.encode())
+
+    def test_refuses_a_document_that_is_not_utf_8(self) -> None:
+        assert "not a valid profile document" in refused(b'{"disassembly_format": "\xff"}')
 
     @pytest.mark.parametrize(
         "broken",
