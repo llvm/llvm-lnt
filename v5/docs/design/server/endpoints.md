@@ -550,7 +550,7 @@ Auth scopes: `read` for GET, `manage` for POST/PATCH/DELETE.
 
 **Suite object**: a suite's detail body is its normalized schema -- the body
 `POST /api/suites` accepts, with omitted optional keys filled in (see D4 for the
-format, D5 for normalization). Request and response are therefore the same
+format and its normalization). Request and response are therefore the same
 document, and a suite fetched from one instance can be posted verbatim to
 another. There are no standalone schema or metric-metadata endpoints.
 
