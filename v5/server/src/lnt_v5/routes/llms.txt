@@ -2,194 +2,216 @@
 
 > LNT is LLVM's performance-monitoring server. Build bots submit benchmark
 > results to it; it stores them as time series and serves them back so that
-> performance changes can be found, investigated and tracked. This instance
-> exposes everything it knows through the REST API described below.
-
-This document orients an automated client -- an agent or a script -- that needs
-to drive this API. It is deliberately short: it gives the shape of the system
-and the handful of rules that are not guessable, and leaves the per-endpoint
-detail to the machine-readable specification.
+> performance changes can be found, investigated and tracked. Everything it
+> holds is available through the REST API described below.
 
 ## Documentation
 
-- [OpenAPI specification](/api/openapi.json): every endpoint, parameter,
-  request body, response body and status code this instance can produce. This
-  is the authoritative reference; read it before constructing a request.
-- [Interactive documentation](/api/docs): the same specification, rendered for
-  a human.
+- [OpenAPI specification](/api/openapi.json): every parameter, request body,
+  response body and status code. Consult it for anything this file leaves out.
+- [Interactive documentation](/api/docs): the same specification, for humans.
 - [API index](/api): links to the suite list and to both of the above.
-
-Both documentation routes are public and ignore any `Authorization` header, so
-a caller holding a broken token can still read them.
 
 ## Concepts
 
 - **Test suite** -- a namespace with a schema of its own. Nearly every endpoint
   lives under `/api/suites/{testsuite}/`, and nothing is shared between suites:
   two suites may hold machines of the same name and they are different machines.
-  Suites are few, and `GET /api/suites` returns all of them with their schemas.
+  `GET /api/suites` returns every suite with its schema.
 - **Schema** -- a suite declares its `metrics`, `machine_fields` and
-  `commit_fields` up front. Each entry has a `name` and a `type`, one of `real`,
+  `commit_fields` up front. Each entry has a `name` and a `type`: `real`,
   `integer`, `text` or `datetime`. Nothing undeclared can be stored: a metric or
   a field the schema does not name is rejected with 400 rather than ignored.
-  Declaring a new one is a schema change (`PATCH /api/suites/{name}/schema`).
 - **Machine** -- where a benchmark ran, addressed by `name`. Carries the
   declared `machine_fields` under `fields`, and a built-in `tracked` flag
-  marking whether it takes part in *automatic* machine selection. Untracked
-  machines are otherwise returned like any other.
+  marking whether it takes part in *automatic* machine selection, such as a
+  dashboard picking which machines to show.
 - **Commit** -- what was benchmarked, addressed by an identity string `value`
   (a Git SHA, a version, or an ad-hoc label like `experiment-vectorizer-v2`).
-  Two optional attributes matter: `ordinal`, an integer placing the commit in
-  the suite's total order, and `tag`, a human label such as `release-18.1`. An
-  ordinal is never inferred -- not even from a numeric commit string -- and a
-  commit without one is grouped but has no position, so it is absent from every
-  ordinal-ordered result.
+  Carries the declared `commit_fields` under `fields`, plus two optional
+  built-ins: `ordinal`, an integer placing the commit in the suite's total order,
+  and `tag`, a label such as `release-18.1`. An ordinal is never inferred, not
+  even from a numeric commit string. A commit without one has no position, so it
+  is absent from every result ordered by ordinal.
 - **Run** -- one submission of results for one machine at one commit,
   identified by a UUID. Several runs may share a machine and a commit.
 - **Test** -- a benchmark name, created implicitly by submission. Test names
-  legitimately contain `/`, so **no path ever carries one**: a request names a
-  test in the `test=` query parameter or in a request body.
+  contain `/`, so no path ever carries one: a test is named in a `test=` query
+  parameter or in a request body. Machine names and commit values do appear in
+  paths, so they may not contain `/` or be `.` or `..`.
 - **Sample** -- one measurement of one test in one run: `{test, metrics}`, where
   `metrics` holds only the metrics that have a value. A test measured several
   times in one run yields one sample per repetition.
 - **Profile** -- optional instruction-level counter data for one test in one
-  run, submitted inline with the run and read back through its own UUID.
+  run. It is submitted inline with the run, as a test entry's `profile`: a JSON
+  document, gzip-compressed and base64-encoded. It is read back through its own
+  UUID.
 - **Regression** -- a performance change someone is tracking: a title, a state,
   an optional suspected commit, free-form notes, and *indicators*, each naming
-  one `(machine, test, metric)` the change was observed on. LNT does **no**
+  one `(machine, test, metric)` the change was observed on. LNT does no
   detection of its own; an external analyzer reads the time series and records
   what it finds here.
 
+## Endpoints
+
+Every operation, with the scope it requires (see Authentication).
+
+```
+GET    /api                                                   read    API index
+GET    /api/suites                                            read    Every suite, with its schema
+POST   /api/suites                                            manage  Create a suite from a schema
+GET    /api/suites/{name}                                     read    One suite's schema
+PATCH  /api/suites/{name}/schema                              manage  Add, update or remove metrics and fields
+DELETE /api/suites/{name}                                     manage  Delete a suite and all its data
+
+GET    /api/suites/{testsuite}/machines                       read    List machines (search=, tracked=, sort=)
+POST   /api/suites/{testsuite}/machines                       manage  Create a machine
+GET    /api/suites/{testsuite}/machines/{machine_name}        read    One machine
+PATCH  /api/suites/{testsuite}/machines/{machine_name}        manage  Update or rename a machine
+DELETE /api/suites/{testsuite}/machines/{machine_name}        manage  Delete a machine and its runs
+GET    /api/suites/{testsuite}/machines/{machine_name}/runs   read    A machine's runs (after=, before=, sort=)
+
+GET    /api/suites/{testsuite}/commits                        read    List commits (search=, machine=, has_profiles=, sort=)
+POST   /api/suites/{testsuite}/commits                        submit  Create a commit
+POST   /api/suites/{testsuite}/commits/resolve                read    Look up many commits by value at once
+GET    /api/suites/{testsuite}/commits/{value}                read    One commit, with its previous/next by ordinal
+PATCH  /api/suites/{testsuite}/commits/{value}                manage  Set or clear its ordinal, tag or fields
+DELETE /api/suites/{testsuite}/commits/{value}                manage  Delete a commit and its runs
+
+GET    /api/suites/{testsuite}/runs                           read    List runs (machine=, commit=, search=, sort=, ...)
+POST   /api/suites/{testsuite}/runs                           submit  Submit a run
+GET    /api/suites/{testsuite}/runs/{uuid}                    read    One run
+DELETE /api/suites/{testsuite}/runs/{uuid}                    manage  Delete a run
+GET    /api/suites/{testsuite}/runs/{uuid}/samples            read    A run's samples (test=)
+GET    /api/suites/{testsuite}/runs/{uuid}/profiles           read    A run's profiles, as {test, uuid}
+
+GET    /api/suites/{testsuite}/tests                          read    List tests (search=, machine=, metric=)
+
+POST   /api/suites/{testsuite}/query                          read    Time-series data points for one metric
+GET    /api/suites/{testsuite}/trends                         read    Per-commit geomeans, per machine
+
+GET    /api/suites/{testsuite}/profiles/{uuid}                read    A profile's top-level counters
+GET    /api/suites/{testsuite}/profiles/{uuid}/functions      read    Its functions, with their counters
+GET    /api/suites/{testsuite}/profiles/{uuid}/disassembly    read    One function's instructions (function=)
+
+GET    /api/suites/{testsuite}/regressions                    read    List regressions (state=, machine=, test=, metric=, ...)
+POST   /api/suites/{testsuite}/regressions                    triage  Create a regression
+GET    /api/suites/{testsuite}/regressions/{uuid}             read    One regression, with its indicators
+PATCH  /api/suites/{testsuite}/regressions/{uuid}             triage  Update title, bug, notes, state or commit
+DELETE /api/suites/{testsuite}/regressions/{uuid}             triage  Delete a regression
+POST   /api/suites/{testsuite}/regressions/{uuid}/indicators  triage  Add indicators
+DELETE /api/suites/{testsuite}/regressions/{uuid}/indicators  triage  Remove indicators, by UUID
+
+GET    /api/admin/api-keys                                    admin   List API keys
+POST   /api/admin/api-keys                                    admin   Create an API key
+DELETE /api/admin/api-keys/{prefix}                           admin   Revoke an API key
+```
+
+Deleting a suite, or removing entries from its schema, destroys data and needs
+`?confirm=true`.
+
 ## Conventions
 
-Suite-scoped paths are written in full the first time and abbreviated
-afterwards: anything below starting `/commits`, `/machines`, `/profiles`,
-`/query`, `/regressions`, `/runs`, `/tests` or `/trends` hangs off
-`/api/suites/{testsuite}/`.
-
-- **No trailing slashes.** `/api/suites/` is answered with a 307 to
-  `/api/suites`. The method and body survive the redirect, but save the round
-  trip.
-- **Lists are objects, never bare arrays**: `{"items": [...]}`, plus `"cursor":
-  {"next": ..., "previous": null}` on a cursor-paginated list, or `"total": N`
-  on an offset-paginated one, which takes `offset=` alongside `limit=`. `items`
-  is present and empty when nothing matches. `/machines` is the only
-  offset-paginated list; every other paginated list uses a cursor.
-- **Cursors are opaque and forward-only.** Send `cursor.next` back unchanged,
-  the way that list takes it -- as the `cursor=` query parameter, or as the
-  `cursor` key of the request body for the lists that take a body -- alongside
-  the same filters and `sort`: a cursor sent with different ones is refused
-  with 400, and only `limit` may change between pages. Never parse one.
-  `previous` is always null. `limit` defaults to 25 and may not exceed 10000.
-- **Sorting** is `sort=<field>`, with a `-` prefix for descending
-  (`sort=-submitted_at`). Lists that take no `sort` are still in a stable order
-  suitable for paging.
-- **Errors** look like
-  `{"error": {"code": "not_found", "message": "..."}}`. Branch on `code`, never
-  on `message`. The one exception is a request body too large for the
-  deployment, refused at the transport layer with a plain-text 413 and no
-  envelope. The codes are `invalid_request` (400), `unauthorized` (401),
-  `forbidden` (403), `not_found` (404), `duplicate`, `ordinal_conflict`,
-  `in_use` and `conflict` (409), and `internal_error` (500). The four 409s are
-  distinct because they call for different behaviour: a `duplicate` run UUID is
-  worth retrying with a fresh one; an `ordinal_conflict` means your view of the
-  commit order is wrong and retrying cannot help; an `in_use` means something
-  else still references what you asked to delete, and has to go first; and a
-  `conflict` is everything else, which needs reading the message: a submission
-  contradicting stored metadata cannot be retried as sent, whereas one caused by
-  a concurrent schema change can.
-- **A filter naming something absent** has three different answers, on purpose:
-  an unknown `machine=` or `test=` is 404, an unknown `metric=` is 400, and a
-  `commit=` value no commit has is an empty page. A commit named as a *range
-  bound* is the exception and is 404, because it names a position rather than a
-  set of rows -- and 400 if it exists but has no ordinal, since then it sits
-  nowhere in the order. A request body follows the same rules: `/query`'s
-  `commit` is a filter and answers an empty page, its `after_commit` and
-  `before_commit` are range bounds, and a commit a body refers to -- a
-  regression's `commit` -- is 404.
-- **Timestamps** are ISO 8601 in UTC with a `Z` suffix, in both directions.
-  Values inside `fields` and `metrics` use the JSON form of their declared type
-  and are never stringified.
-- **References are mostly flat.** A run carries `"machine": "linux-x86_64"` and
-  `"commit": "abc123"` -- the other entity's identifier, not a nested object --
-  so resolve a page of commits in one call with `POST /commits/resolve`. Two
-  things nest or denormalize instead, and say so: a commit's `previous`/`next`
-  neighbours, and time-series points and trend items, which carry the commit's
-  `ordinal` and `tag` so a point can be placed without a second call.
+- **Lists are objects**: `{"items": [...]}`, plus `"cursor": {"next": ...,
+  "previous": null}` on a cursor-paginated list, or `"total": N` on an
+  offset-paginated one, which takes `offset=`. `/machines` is the only
+  offset-paginated list. `limit` defaults to 25, at most 10000.
+- **Cursors**: send `cursor.next` back unchanged -- as `cursor=`, or as the
+  `cursor` key of a request body -- with the same filters and `sort`; only
+  `limit` may change. Stop when it is null. Never parse or build one.
+- **Sorting**: `sort=<field>`, prefixed with `-` for descending.
+- **Errors**: `{"error": {"code": "...", "message": "..."}}`. Branch on `code`,
+  never on `message`. The codes are `invalid_request` (400), `unauthorized`
+  (401), `forbidden` (403), `not_found` (404), `duplicate`, `ordinal_conflict`,
+  `in_use` and `conflict` (409), and `internal_error` (500). A request body too
+  large for the deployment is a plain-text 413 instead. Among the 409s:
+  - `duplicate`: the entity exists. For a run UUID, retry with a fresh one.
+  - `ordinal_conflict`: the ordinal is taken, or contradicts the commit's own.
+    Your view of the commit order is wrong; retrying cannot help.
+  - `in_use`: a regression still references the commit you asked to delete.
+  - `conflict`: anything else. Contradicting stored metadata cannot be retried
+    as sent; a concurrent schema change can be retried.
+- **Names that match nothing**: an unknown machine or test is 404, an unknown
+  metric is 400, and an unknown commit used as a filter (`commit=`, or
+  `/query`'s `commit`) is an empty result. A commit used as a range bound
+  (`after_commit`, `before_commit`) is 404 if unknown and 400 if it has no
+  ordinal. A commit a body refers to, such as a regression's, is 404.
+- **Values**: timestamps are ISO 8601 in UTC with a `Z` suffix. Values in
+  `fields` and `metrics` use the JSON type their declared type calls for and are
+  never strings, and `"5"` is not accepted for an integer.
+- **References are flat**: a run carries `"machine": "linux-x86_64"` and
+  `"commit": "abc123"`, not nested objects. `POST /commits/resolve` turns a page
+  of commit values into full commits in one call.
 
 ## Authentication
 
-Send `Authorization: Bearer <token>`, where a token is 64 lowercase hex
-characters. Scopes form a hierarchy -- `read` < `submit` < `triage` < `manage`
-< `admin` -- and a key grants its own scope and every lower one.
-
-- `read` covers every read endpoint but one, including the `POST`s that only
-  query (`/commits/resolve`, `/query`), and **allows anonymous
-  access**: if you only need to read, send no header at all. The exception is
-  `GET /api/admin/api-keys`, which needs `admin` like the rest of that family.
-- `submit` submits runs and creates commits; `triage` manages regressions;
-  `manage` manages machines, commits, runs and suites; `admin` manages API keys.
-
-The HTTP method implies nothing about the scope; the OpenAPI document records
-what each operation needs. A header that is present but unreadable is 400 --
-an absent header and a broken one are not the same thing -- an unknown or
-revoked token is 401 even where anonymous access would have been allowed, and a
-valid token with too little scope is 403.
+Send `Authorization: Bearer <token>`. Scopes form a hierarchy -- `read` <
+`submit` < `triage` < `manage` < `admin` -- and a key grants its own scope and
+every lower one. `read` endpoints allow anonymous access, so send no header if
+you only read. An unreadable header is 400, an unknown or revoked token is 401
+even on a `read` endpoint, and too little scope is 403.
 
 ## Workflows
 
-**Find out what this instance holds.** `GET /api/suites` returns every suite
-with its full schema, which is what tells you the metric and field names every
-other call needs.
+Paths below are relative to `/api/suites/{testsuite}`. Metric and field names
+in the examples are placeholders: use the ones the suite's schema declares.
 
-**Submit a run.** `POST /api/suites/{testsuite}/runs` (scope `submit`) with
-`format_version: "5"`, a `machine` object, a `commit` object and a list of
-`tests`, each entry a test `name` plus its metric values. A metric value may be
-an array, which records one sample per repetition. The machine and the commit
-are created if they do not exist; the run's own `uuid` is optional and is
-generated when omitted. The whole submission is atomic. Two things to know:
-`submitted_at` is always the server's, never yours, and submission never
-overwrites stored metadata -- a field whose stored value differs from what you
-send is 409 `conflict`, and `PATCH` is the only way to change it.
+**Submit a run** with `POST /runs`:
 
-**Chart a metric over time.** `POST /api/suites/{testsuite}/query` (scope
-`read`) with a body of `{metric, machine, test, commit, after_commit,
-before_commit, after_time, before_time, sort, limit, cursor}`. Only `metric` is
-required; `test` accepts a list. Each point carries its `value` along with the
-commit's `ordinal` and `tag`, so it can be placed on an axis without a second
-call. The response is cursor-paginated: keep sending `cursor.next` back in the
-body until it is null.
+```json
+{
+  "format_version": "5",
+  "machine": {"name": "linux-x86_64", "fields": {"os": "linux"}},
+  "commit": {"value": "abc123", "ordinal": 593922, "fields": {"author": "Jane Doe"}},
+  "run_parameters": {"build_config": "Release"},
+  "tests": [
+    {"name": "bench/foo", "execution_time": 1.23, "compile_time": 0.45},
+    {"name": "bench/bar", "execution_time": [0.10, 0.11, 0.12]}
+  ]
+}
+```
 
-**Get an overview across machines.** `GET /api/suites/{testsuite}/trends`
-(scope `read`) takes `metric=` and one `machine=` per machine, both required,
-and returns one value per (machine, commit), unpaginated: per run, each test's
-samples are reduced with `sample_agg` (`median`, the default, `mean`, `min` or
-`max`) and the geomean taken across tests, then the runs at a commit are
-combined by a second geomean. `last_n` (default 500) keeps the most recent
-commits, by ordinal, at which those machines have such a value. The metric must
-be numeric. This is what a dashboard renders; `/query` is what a single
-trendline needs.
+The machine and the commit are created if they do not exist. An array records
+one sample per repetition. `uuid` is optional and generated when omitted. The
+submission is atomic, and answers 201 with the run. It never overwrites what is
+stored: a field, tag or ordinal that differs from the stored one is 409, and
+`PATCH` is the only way to change it.
 
-**Follow up on a data point.** A point carries `run_uuid`. From there,
-`GET /runs/{uuid}` gives the run and its `run_parameters`,
-`GET /runs/{uuid}/samples?test=<name>` every metric that run recorded for a
-test, and `GET /runs/{uuid}/profiles` the profiles it captured.
+**Chart a metric over time** with `POST /query`:
 
-**Read a profile.** `GET /runs/{uuid}/profiles` lists `{test, uuid}` for each
-profile the run captured, which is how a test name becomes a profile UUID.
-Then `GET /profiles/{uuid}` gives the top-level counters,
-`GET /profiles/{uuid}/functions` every function with its counters, by name, and
-`GET /profiles/{uuid}/disassembly?function=<name>` one function's instructions
-with their counters. The function goes in the query string because its name can
-contain `/`, and a name the profile does not hold is 404. Every counter is a raw
-count: to rank functions by how hot they are, sort them by one counter
-yourself.
+```json
+{"metric": "execution_time", "machine": "linux-x86_64", "test": ["bench/foo"], "sort": "commit"}
+```
 
-**Record a regression.** `POST /api/suites/{testsuite}/regressions` (scope
-`triage`). Every field is optional: `title`, `bug`, `notes`, the `commit` you
-suspect, and `indicators`, each `{machine, test, metric}`. The state starts at
-`detected` unless the body says otherwise, and moves freely between
-`detected`, `active`, `not_to_be_fixed`, `fixed` and `false_positive`
-via `PATCH`. Indicators are added and removed in batches through
-`/regressions/{uuid}/indicators`; a removal naming an indicator that is not
-there is ignored rather than an error, so retrying one is safe.
+Only `metric` is required. Other filters are `commit`, `after_commit`,
+`before_commit`, `after_time` and `before_time`, and `sort` takes `test`,
+`commit` (by ordinal) or `submitted_at`. Each point looks like:
+
+```json
+{"test": "bench/foo", "machine": "linux-x86_64", "metric": "execution_time",
+ "value": 1.23, "commit": "abc123", "ordinal": 593922, "tag": null,
+ "run_uuid": "573af861-8303-4a5b-a643-b8321e0142c4", "submitted_at": "2026-08-25T14:22:41Z"}
+```
+
+**Get an overview across machines** with
+`GET /trends?metric=execution_time&machine=a&machine=b&last_n=100`. It returns
+one `value` per (machine, commit), for the `last_n` most recent commits by
+ordinal that have data. Each test's samples in a run are reduced by
+`sample_agg` (`median` by default), the run's geomean is taken across tests, and
+the runs at a commit are combined by another geomean. The metric must be
+numeric.
+
+**Follow up on a data point** through its `run_uuid`: `GET /runs/{uuid}`,
+`GET /runs/{uuid}/samples?test=bench/foo`, and `GET /runs/{uuid}/profiles`. A
+profile is then read through its own UUID; every counter is a raw count.
+
+**Record a regression** with `POST /regressions`:
+
+```json
+{"title": "foo slowdown", "commit": "abc123",
+ "indicators": [{"machine": "linux-x86_64", "test": "bench/foo", "metric": "execution_time"}]}
+```
+
+Every key is optional. The state starts at `detected`, and moves freely between
+`detected`, `active`, `not_to_be_fixed`, `fixed` and `false_positive` through
+`PATCH`.

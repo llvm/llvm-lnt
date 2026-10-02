@@ -1,9 +1,10 @@
 """The AI agent orientation document (R6).
 
-Beyond how it is served, the tests here are about the *content*: every API path the document names,
-and every error code, has to be one this server really has. The document exists to be followed
-literally by something that cannot check, so a path that stopped existing would send every reader
-at a 404, and nothing else in the suite would notice.
+Beyond how it is served, the tests here are about the *content*: its endpoint index has to list
+exactly the operations this server has, with the scopes they enforce, and every other path and
+error code it names has to be real. The document exists to be followed literally by something that
+cannot check, so a path that stopped existing would send every reader at a 404, and nothing else in
+the suite would notice.
 
 Two of its properties are covered where they belong with their siblings rather than here: its
 trailing-slash handling with the other server paths in `test_spa.py`, and its absence from R8's
@@ -55,24 +56,24 @@ class TestContent:
 
         assert {code for code in ErrorCode if code.value in document} == set(ErrorCode)
 
-    def test_gives_the_right_scope_for_every_operation_it_annotates(
-        self, client: TestClient, app: FastAPI
-    ) -> None:
-        """Where the document names an operation's scope, it agrees with what the route enforces.
+    def test_indexes_every_operation_with_its_scope(self, client: TestClient, app: FastAPI) -> None:
+        """The endpoint index lists exactly the operations that declare a scope, with that scope.
 
-        Only the write workflows carry one, since `read` is the document's stated default; those
-        are also the ones a reader cannot guess, because R5 makes the method imply nothing.
+        Both directions: an operation added to the server and not to the index is as misleading as
+        one the index names and the server no longer has. The scope is checked too, because R5 makes
+        the method imply nothing, so it is the one thing a reader cannot guess.
         """
         declared = {
-            (route.path_format, method): required_scope(route)
+            (method, route.path_format): scope
             for route in iter_routes(app.routes)
+            if (scope := required_scope(route)) is not None
             for method in route.methods or ()
         }
 
-        annotated = _OPERATION.findall(_document(client))
-        assert annotated, "the document no longer annotates any operation with its scope"
-        for method, path, scope in annotated:
-            assert declared.get((path, method)) == Scope(scope), f"{method} {path}"
+        entries = _INDEX_ENTRY.findall(_document(client))
+        indexed = {(method, path): Scope(scope) for method, path, scope in entries}
+        assert len(indexed) == len(entries), "the index lists an operation twice"
+        assert indexed == declared
 
     def test_names_only_paths_this_server_serves(self, client: TestClient, app: FastAPI) -> None:
         """Every path in the document resolves to a route, as written or as a suite-relative tail.
@@ -94,15 +95,16 @@ class TestContent:
             )
 
 
-# An operation the document annotates with the scope it needs, as
-# "`POST /api/suites/{testsuite}/runs` (scope `submit`)". `\s+` rather than a space because the
-# annotation is prose and wraps.
-_OPERATION = re.compile(r"`(GET|POST|PATCH|DELETE) (/[^`]+)`\s*\(scope\s+`(\w+)`\)")
+# A line of the endpoint index: the method at the start of a line, then the path as the route
+# declares it, then the scope.
+_INDEX_ENTRY = re.compile(r"^(GET|POST|PATCH|DELETE) +(/\S+) +(\w+)", re.MULTILINE)
 
-# A path as the document writes one: a leading slash and at least one more character, stopping at
-# whitespace, at a closing backtick or bracket, and at a query string -- `?test=<name>` names a
-# parameter rather than part of the path. Trailing sentence punctuation is stripped after the fact.
-_PATH = re.compile(r"/[A-Za-z0-9_{}/.-]+")
+# A path as the document writes one: a slash that does not continue a word, and at least one more
+# character, stopping at whitespace, at a closing backtick or bracket, and at a query string --
+# `?test=<name>` names a parameter rather than part of the path. The lookbehind is what keeps a
+# test name such as `bench/foo`, or `previous/next` in prose, from reading as a path. Trailing
+# sentence punctuation is stripped after the fact.
+_PATH = re.compile(r"(?<![\w/.-])/[A-Za-z0-9_{}/.-]+")
 
 # Path parameters are named for the reader rather than for the router, so the document may write
 # `{name}` where the route says `{machine_name}`.
