@@ -25,7 +25,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import Connection, Row, Select, Table, select
+from sqlalchemy import Connection, Row, Select, Table, and_, select
 
 from lnt_v5.auth import require_scope
 from lnt_v5.db import EngineDep
@@ -34,7 +34,7 @@ from lnt_v5.responses import Items
 from lnt_v5.routes.runs import NO_RUN, RUNS_PATH, run_id
 from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.scopes import Scope
-from lnt_v5.suites.entities import UuidKey
+from lnt_v5.suites.entities import UuidKey, identifier
 from lnt_v5.suites.profile_document import instructions
 from lnt_v5.suites.registry import RegistryDep, Suite
 from lnt_v5.suites.scope import SUITE_NOT_FOUND, suite_responses, suite_scope
@@ -204,7 +204,7 @@ class Profiles:
 
     def functions(self, connection: Connection, uuid: str) -> list[ProfileFunction]:
         """Every function of one profile, in no particular order, or the 404 for a missing UUID."""
-        profile = self._id(connection, uuid)
+        profile = identifier(connection, self.table.c.uuid, uuid, self.missing)
         rows = connection.execute(
             select(self._function.c.name, self._function.c.counters, self._function.c.length).where(
                 self._function.c.profile_id == profile
@@ -219,34 +219,37 @@ class Profiles:
         self, connection: Connection, uuid: str, name: str
     ) -> tuple[str, dict[str, float], bytes]:
         """One function's disassembly format, counters and stored instructions, or the 404 for a
-        profile or a function that is not there."""
-        profile = connection.execute(
-            select(self.table.c.id, self.table.c.disassembly_format).where(
-                self.table.c.uuid == uuid
-            )
-        ).one_or_none()
-        if profile is None:
-            raise self.missing(uuid)
+        profile or a function that is not there.
+
+        One query for both: the outer join leaves the function's columns null when the profile
+        holds no function of that name, and returns no row at all when there is no such profile.
+        """
         row = connection.execute(
-            select(self._function.c.counters, self._function.c.instructions).where(
-                self._function.c.profile_id == profile.id, self._function.c.name == name
+            select(
+                self.table.c.disassembly_format,
+                self._function.c.counters,
+                self._function.c.instructions,
             )
+            .select_from(
+                self.table.outerjoin(
+                    self._function,
+                    and_(
+                        self._function.c.profile_id == self.table.c.id,
+                        self._function.c.name == name,
+                    ),
+                )
+            )
+            .where(self.table.c.uuid == uuid)
         ).one_or_none()
         if row is None:
+            raise self.missing(uuid)
+        if row.instructions is None:
             raise ApiError(
                 ErrorCode.NOT_FOUND,
                 f"Profile '{uuid}' in test suite '{self.schema.name}' holds no function named "
                 f"'{name}'",
             )
-        return profile.disassembly_format, row.counters, row.instructions
-
-    def _id(self, connection: Connection, uuid: str) -> int:
-        found = connection.execute(
-            select(self.table.c.id).where(self.table.c.uuid == uuid)
-        ).scalar_one_or_none()
-        if found is None:
-            raise self.missing(uuid)
-        return int(found)
+        return row.disassembly_format, row.counters, row.instructions
 
     def missing(self, uuid: str) -> ApiError:
         """The 404 for a profile that is not there, worded in one place for all its callers."""

@@ -411,6 +411,10 @@ PROFILE_DOCUMENT: dict[str, Any] = {
     ],
 }
 
+# What a `{suite}.profile` row needs beyond its uuid, run and test, for the tests that insert one
+# directly rather than submitting it.
+PROFILE_COLUMNS: dict[str, Any] = {"disassembly_format": "raw", "counters": {}}
+
 
 def encoded_profile(document: dict[str, Any] | bytes = PROFILE_DOCUMENT) -> str:
     """A profile document, gzip-compressed and base64-encoded the way a submission carries it (D12).

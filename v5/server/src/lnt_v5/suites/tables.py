@@ -341,7 +341,8 @@ def build(schema: SuiteSchema) -> SuiteTables:
 
     # One row per function of a profile (D5), so that the function list is a query and a
     # disassembly decompresses only the function it serves. The key leads with the profile, which
-    # is how both of those reach their rows.
+    # is how both of those reach their rows. A btree entry holds at most about 2.7 kB, which D12's
+    # cap on a function name (`profile_document.MAX_FUNCTION_NAME_BYTES`) keeps the key within.
     profile_function = Table(
         "profile_function",
         metadata,

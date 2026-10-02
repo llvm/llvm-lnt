@@ -21,7 +21,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, event, insert, select, text
 
-from conftest import code_of, walk_pages
+from conftest import PROFILE_COLUMNS, code_of, walk_pages
 from introspection import row_count
 from lnt_v5.querying import MAX_LIMIT
 from lnt_v5.routes.commits import COMMITS_PATH
@@ -124,8 +124,7 @@ def add_run(db_engine: Engine, suite: SuiteTables) -> Callable[..., str]:
                         uuid=str(uuid4()),
                         run_id=run_id,
                         test_id=test_id,
-                        disassembly_format="raw",
-                        counters={},
+                        **PROFILE_COLUMNS,
                     )
                 )
         return run

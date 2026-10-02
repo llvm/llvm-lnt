@@ -27,6 +27,7 @@ import zlib
 from collections.abc import Iterator
 from compression import zstd
 from dataclasses import dataclass
+from itertools import accumulate, pairwise, repeat
 from math import isfinite
 from typing import Annotated, cast
 
@@ -63,8 +64,8 @@ MAX_FUNCTIONS = 10_000
 # D12's cap on a function name, in UTF-8 bytes, so that every function the list serves can be asked
 # for: the name travels in `?function=` (R1), and even fully percent-encoded, at three characters a
 # byte, it then fits the 8 KiB request line common servers and proxies allow, nginx's included. The
-# longest name on lnt.llvm.org is 744 characters. It also keeps the name within what a btree entry
-# of `{suite}.profile_function`'s key can hold, about 2.7 kB.
+# longest name on lnt.llvm.org is 744 characters. Raising it is also bounded by the key of
+# `{suite}.profile_function` (see `tables.py`); `test_profiles.py` stores a name at the cap.
 MAX_FUNCTION_NAME_BYTES = 2048
 
 # The zstd level a function's instructions are compressed at. On the profiles sampled from
@@ -240,72 +241,58 @@ def stored_profile(encoded: str) -> StoredProfile:
         disassembly_format=document.disassembly_format,
         # `__post_init__` has replaced every top-level counter by the integer it stands for.
         counters=cast(dict[str, int], document.counters),
-        functions=[
-            StoredFunction(
-                name=function.name,
-                counters=_counters(function),
-                length=len(function.instructions),
-                instructions=_compressed(function),
-            )
-            for function in document.functions
-        ],
+        functions=[_stored(function) for function in document.functions],
     )
 
 
 def instructions(data: bytes) -> Iterator[tuple[int, dict[str, float], str]]:
     """The address, counters and text of each instruction a stored function holds, in order.
 
-    The inverse of `_compressed`, over bytes only this module wrote.
+    The inverse of `_stored`, over bytes only this module wrote.
     """
     columns = _COLUMNS_DECODER.decode(zstd.decompress(data))
-    address = 0
-    for position, (delta, text) in enumerate(
-        zip(columns.address_deltas, columns.text, strict=True)
+    names = list(columns.counters)
+    # A function measured with no counters has no columns to zip, but still one row per instruction;
+    # `repeat` is endless, so only finite columns can be held to the same length.
+    values = zip(*columns.counters.values(), strict=True) if names else repeat(())
+    for address, row, text in zip(
+        accumulate(columns.address_deltas), values, columns.text, strict=bool(names)
     ):
-        address += delta
-        counters = {counter: values[position] for counter, values in columns.counters.items()}
-        yield address, counters, text
+        yield address, dict(zip(names, row, strict=True)), text
 
 
-def _compressed(function: FunctionDocument) -> bytes:
-    """A function's instructions in the layout `instructions` reads back."""
+def _stored(function: FunctionDocument) -> StoredFunction:
+    """A function's row: its counters, and its instructions in the layout `instructions` reads.
+
+    A function's counters are derived as the sums of its columns (D12), so a document cannot
+    contradict itself. Computed here rather than in the struct's hook, which has nowhere to keep
+    them: msgspec decodes every field a struct declares, so a field to hold them would be one a
+    submission could set.
+    """
     rows = function.instructions
-    previous = 0
-    deltas = []
-    for instruction in rows:
-        # An integer by now; see `FunctionDocument.__post_init__`.
-        address = cast(int, instruction.address)
-        deltas.append(address - previous)
-        previous = address
+    # Integers by now; see `FunctionDocument.__post_init__`.
+    addresses = [cast(int, instruction.address) for instruction in rows]
     columns = _Columns(
-        address_deltas=deltas,
+        address_deltas=[after - before for before, after in pairwise([0, *addresses])],
         counters={
             counter: [instruction.counters[counter] for instruction in rows]
             for counter in (rows[0].counters if rows else ())
         },
         text=[instruction.text for instruction in rows],
     )
-    return zstd.compress(msgspec.json.encode(columns), level=_ZSTD_LEVEL)
-
-
-def _counters(function: FunctionDocument) -> dict[str, float]:
-    """A function's counters: each the sum of that counter over its instructions (D12).
-
-    Derived, so a document cannot contradict itself. Computed here rather than in the struct's hook,
-    which has nowhere to keep it: msgspec decodes every field a struct declares, so a field to hold
-    it would be one a submission could set.
-    """
-    totals: dict[str, float] = {}
-    for instruction in function.instructions:
-        for counter, value in instruction.counters.items():
-            totals[counter] = totals.get(counter, 0.0) + value
-    for counter, total in totals.items():
+    counters = {counter: sum(values) for counter, values in columns.counters.items()}
+    for counter, total in counters.items():
         if not isfinite(total):
             raise _refused(
                 f"function '{function.name}': the '{counter}' counters sum to more than a finite "
                 f"number can hold"
             )
-    return totals
+    return StoredFunction(
+        name=function.name,
+        counters=counters,
+        length=len(rows),
+        instructions=zstd.compress(msgspec.json.encode(columns), level=_ZSTD_LEVEL),
+    )
 
 
 def _decoded(encoded: str) -> bytes:

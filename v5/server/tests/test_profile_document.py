@@ -140,10 +140,19 @@ class TestWhatIsStored:
         assert [function.name for function in profile.functions] == names
 
     def test_counter_values_are_kept_exactly(self) -> None:
-        # Nothing is rounded to single precision, which no longer has anything to do with storage.
         value = document({"name": "f", "instructions": [instruction(cycles=123456789.1)]})
 
         assert read_back(value, "f")[0]["counters"] == {"cycles": 123456789.1}
+
+    def test_instructions_may_carry_no_counters(self) -> None:
+        listed = [
+            {"address": 0, "counters": {}, "text": "nop"},
+            {"address": 4, "counters": {}, "text": "ret"},
+        ]
+        value = document({"name": "f", "instructions": listed})
+
+        assert read_back(value, "f") == listed
+        assert function(stored(value), "f").counters == {}
 
     def test_reads_numbers_as_d3_does(self) -> None:
         # An integer is accepted where a count is a real, and `8.0` where an integer is expected.

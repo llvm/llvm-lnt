@@ -15,6 +15,7 @@ import pytest
 from sqlalchemy import Connection, Engine, Table, func, insert, inspect, select, text
 from sqlalchemy.exc import IntegrityError, ProgrammingError
 
+from conftest import PROFILE_COLUMNS
 from introspection import (
     assert_names_survived,
     columns_of,
@@ -656,8 +657,7 @@ class TestUniqueness:
                         uuid="55555555-5555-4555-8555-555555555555",
                         run_id=rows["run"],
                         test_id=rows["test"],
-                        disassembly_format="raw",
-                        counters={},
+                        **PROFILE_COLUMNS,
                     )
                 )
 

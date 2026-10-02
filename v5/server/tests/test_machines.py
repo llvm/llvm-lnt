@@ -16,7 +16,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, insert, select, text
 
-from conftest import code_of
+from conftest import PROFILE_COLUMNS, code_of
 from introspection import row_count, sql_type_of
 from lnt_v5.routes.machines import Machines
 from lnt_v5.routes.suites import SUITES_PATH
@@ -757,8 +757,7 @@ class TestDelete:
                     uuid=str(uuid4()),
                     run_id=run_id,
                     test_id=test_id,
-                    disassembly_format="raw",
-                    counters={},
+                    **PROFILE_COLUMNS,
                 )
             )
             regression = connection.execute(

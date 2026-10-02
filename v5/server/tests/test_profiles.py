@@ -22,6 +22,7 @@ from lnt_v5.routes.profiles import PROFILES_PATH, RUN_PROFILES_PATH
 from lnt_v5.routes.runs import RUNS_PATH
 from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.scopes import Scope
+from lnt_v5.suites.profile_document import MAX_FUNCTION_NAME_BYTES
 from lnt_v5.suites.tables import SuiteTables
 
 
@@ -373,7 +374,7 @@ class TestDisassembly:
         self, api_client: TestClient, stored: Callable[..., str]
     ) -> None:
         # In the document's order, addresses going backwards and text spanning lines included, and
-        # a count no single-precision float holds exactly.
+        # a count that needs double precision.
         listed = [
             {"address": 0x2000, "counters": {"cycles": 123456789.0}, "text": "b 0x1000"},
             {"address": 0x1000, "counters": {"cycles": 0.1}, "text": "ret\n; cold"},
@@ -444,6 +445,28 @@ class TestFunctionNames:
         assert response.status_code == 200
         assert response.json()["name"] == name
         assert response.json()["counters"] == {"cycles": EXOTIC_CYCLES[name]}
+
+    def test_a_name_as_long_as_d12_allows_is_stored_and_reachable(
+        self, api_client: TestClient, stored: Callable[..., str]
+    ) -> None:
+        # The name is part of `{suite}.profile_function`'s key, whose btree entries have a size
+        # limit of their own, so the cap is checked against the database and not only against the
+        # document. Varied characters, so that nothing could compress the key below its length.
+        name = "".join(chr(33 + (index * 7919) % 94) for index in range(MAX_FUNCTION_NAME_BYTES))
+        uuid = stored(
+            encoded_profile(
+                {
+                    "disassembly_format": "raw",
+                    "counters": {"cycles": 1},
+                    "functions": [{"name": name, "instructions": [ret(0, cycles=1)]}],
+                }
+            )
+        )
+
+        response = api_client.get(disassembly(uuid), params={"function": name})
+
+        assert response.status_code == 200
+        assert response.json()["name"] == name
 
     def test_a_plus_must_be_encoded_like_in_any_query_string(
         self, api_client: TestClient, exotic: str
