@@ -40,7 +40,7 @@ from lnt_v5.suites.tables import (
 )
 from lnt_v5.tables import metadata as global_metadata
 
-# The eleven tables D5 gives every suite.
+# The twelve tables D5 gives every suite.
 SUITE_TABLES = frozenset(
     {
         "commit",
@@ -53,6 +53,7 @@ SUITE_TABLES = frozenset(
         "regression",
         "regression_indicator",
         "profile",
+        "profile_function",
         "run_summary",
     }
 )
@@ -141,12 +142,24 @@ def seed(connection: Connection, tables: SuiteTables) -> dict[str, int]:
         )
         .returning(tables.regression.c.id)
     ).scalar_one()
-    connection.execute(
-        insert(tables.profile).values(
+    profile = connection.execute(
+        insert(tables.profile)
+        .values(
             uuid="22222222-2222-4222-8222-222222222222",
             run_id=run,
             test_id=test,
-            data=b"\x02profile",
+            disassembly_format="raw",
+            counters={"cycles": 2**63 - 1},
+        )
+        .returning(tables.profile.c.id)
+    ).scalar_one()
+    connection.execute(
+        insert(tables.profile_function).values(
+            profile_id=profile,
+            name="main",
+            counters={"cycles": 1.5},
+            length=1,
+            instructions=b"instructions",
         )
     )
     connection.execute(
@@ -171,6 +184,7 @@ def seed(connection: Connection, tables: SuiteTables) -> dict[str, int]:
         "run": run,
         "sample": sample,
         "regression": regression,
+        "profile": profile,
     }
 
 
@@ -274,7 +288,11 @@ class TestBuiltInColumns:
                 "regression_indicator",
                 ["id", "uuid", "regression_id", "machine_id", "test_id", "metric_id"],
             ),
-            ("profile", ["id", "uuid", "run_id", "test_id", "created_at", "data"]),
+            (
+                "profile",
+                ["id", "uuid", "run_id", "test_id", "created_at", "disassembly_format", "counters"],
+            ),
+            ("profile_function", ["profile_id", "name", "counters", "length", "instructions"]),
             ("run_summary", ["run_id", "metric_id", "sample_agg", "geomean"]),
         ],
     )
@@ -304,7 +322,11 @@ class TestBuiltInColumns:
             # D5: a regression need not name a commit, but must have a state.
             ("regression", "commit_id", True),
             ("regression", "state", False),
-            ("profile", "data", False),
+            ("profile", "disassembly_format", False),
+            ("profile", "counters", False),
+            ("profile_function", "counters", False),
+            ("profile_function", "length", False),
+            ("profile_function", "instructions", False),
             # D5: a flag is never unknown, and a metric's flag is one whatever the metric's own
             # type -- FULL's `build_id` is text.
             ("test_coverage", "build_id", False),
@@ -342,14 +364,21 @@ class TestBuiltInColumns:
             seed(connection, tables)
             assert connection.execute(select(tables.run.c.run_parameters)).scalar_one() == {}
 
-    def test_a_profile_blob_round_trips(
+    def test_a_profile_round_trips(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
     ) -> None:
+        # The top-level counters are integers as wide as D3's, which JSONB holds exactly.
         tables = make_suite("nts")
 
         with db_engine.begin() as connection:
             seed(connection, tables)
-            assert connection.execute(select(tables.profile.c.data)).scalar_one() == b"\x02profile"
+            assert connection.execute(select(tables.profile.c.counters)).scalar_one() == {
+                "cycles": 2**63 - 1
+            }
+            function = connection.execute(
+                select(tables.profile_function.c.counters, tables.profile_function.c.instructions)
+            ).one()
+            assert tuple(function) == ({"cycles": 1.5}, b"instructions")
 
     @pytest.mark.parametrize(
         ("table", "column"), [("run", "submitted_at"), ("profile", "created_at")]
@@ -627,7 +656,8 @@ class TestUniqueness:
                         uuid="55555555-5555-4555-8555-555555555555",
                         run_id=rows["run"],
                         test_id=rows["test"],
-                        data=b"\x02",
+                        disassembly_format="raw",
+                        counters={},
                     )
                 )
 
@@ -766,6 +796,7 @@ class TestCascades:
             assert count(connection, tables.run) == 0
             assert count(connection, tables.sample) == 0
             assert count(connection, tables.profile) == 0
+            assert count(connection, tables.profile_function) == 0
             assert count(connection, tables.run_summary) == 0
 
     def test_a_commit_a_regression_points_at_cannot_be_deleted(
@@ -796,6 +827,7 @@ class TestCascades:
             assert count(connection, tables.run) == 0
             assert count(connection, tables.sample) == 0
             assert count(connection, tables.profile) == 0
+            assert count(connection, tables.profile_function) == 0
             assert count(connection, tables.run_summary) == 0
             assert count(connection, tables.regression_indicator) == 0
             assert count(connection, tables.test_coverage) == 0
@@ -828,6 +860,7 @@ class TestCascades:
 
             assert count(connection, tables.sample) == 0
             assert count(connection, tables.profile) == 0
+            assert count(connection, tables.profile_function) == 0
             assert count(connection, tables.run_summary) == 0
             assert count(connection, tables.machine) == 1
 

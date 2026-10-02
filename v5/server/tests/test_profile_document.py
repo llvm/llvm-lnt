@@ -1,8 +1,8 @@
 """D12's profile document (`suites.profile_document`): decoding, validation, what is stored.
 
-Pure unit tests: nothing here touches a database. What comes out of `stored_profile` is checked by
-reading it back with the format reader, since the stored encoding is the server's own business --
-what D12 promises is that the profile reads back as the document described it.
+Pure unit tests: nothing here touches a database. A function's stored instructions are checked by
+reading them back with `instructions`, since their encoding is the server's own business -- what
+D12 promises is that the profile is served as the document described it.
 """
 
 from __future__ import annotations
@@ -10,17 +10,12 @@ from __future__ import annotations
 import base64
 import gzip
 import json
-import threading
-import time
-from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 import pytest
 
-from conftest import encoded_profile, single
-from lnt_v5 import profile_format
+from conftest import encoded_profile
 from lnt_v5.errors import ApiError, ErrorCode
-from lnt_v5.profile_format import Instruction, Profile, read_profile
 from lnt_v5.suites import profile_document
 from lnt_v5.suites.profile_document import (
     MAX_COMPRESSED_SIZE,
@@ -28,8 +23,12 @@ from lnt_v5.suites.profile_document import (
     MAX_FUNCTION_NAME_BYTES,
     MAX_FUNCTIONS,
     MAX_INSTRUCTIONS,
+    StoredFunction,
+    StoredProfile,
+    instructions,
     stored_profile,
 )
+from lnt_v5.suites.tables import INTEGER_MAX
 
 
 def instruction(address: float = 0, text: str = "ret", **counters: Any) -> dict[str, Any]:
@@ -47,10 +46,22 @@ def document(*functions: dict[str, Any], **overrides: Any) -> dict[str, Any]:
     } | (overrides)
 
 
-def stored(value: dict[str, Any] | bytes | str) -> Profile:
-    """What a document reads back as once stored."""
+def stored(value: dict[str, Any] | bytes | str) -> StoredProfile:
+    """What a document is stored as."""
     encoded = value if isinstance(value, str) else encoded_profile(value)
-    return read_profile(stored_profile(encoded))
+    return stored_profile(encoded)
+
+
+def function(profile: StoredProfile, name: str) -> StoredFunction:
+    return next(function for function in profile.functions if function.name == name)
+
+
+def read_back(value: dict[str, Any], name: str = "main") -> list[dict[str, Any]]:
+    """One function's instructions, as a document lists them, once stored and read back."""
+    return [
+        {"address": address, "counters": counters, "text": text}
+        for address, counters, text in instructions(function(stored(value), name).instructions)
+    ]
 
 
 def refused(value: dict[str, Any] | bytes | str) -> str:
@@ -65,45 +76,41 @@ def refused(value: dict[str, Any] | bytes | str) -> str:
 
 class TestWhatIsStored:
     def test_reads_back_as_the_document_described(self) -> None:
-        profile = stored(
-            document(
-                {
-                    "name": "main",
-                    "instructions": [
-                        instruction(0x1000, "push rbp", cycles=1200, instructions=900),
-                        instruction(0x1004, "ret", cycles=300, instructions=450),
-                    ],
-                },
-                disassembly_format="llvm-objdump",
-                counters={"cycles": 9123456, "instructions": 2**63},
-            )
+        listed = [
+            instruction(0x1000, "push rbp", cycles=1200, instructions=900),
+            instruction(0x1004, "ret", cycles=300, instructions=450),
+        ]
+        value = document(
+            {"name": "main", "instructions": listed},
+            disassembly_format="llvm-objdump",
+            counters={"cycles": 9123456, "instructions": INTEGER_MAX},
         )
+
+        profile = stored(value)
 
         assert profile.disassembly_format == "llvm-objdump"
-        assert profile.counters == {"cycles": 9123456, "instructions": 2**63}
-        assert list(profile.instructions("main")) == [
-            Instruction(
-                address=0x1000, counters={"cycles": 1200, "instructions": 900}, text="push rbp"
-            ),
-            Instruction(address=0x1004, counters={"cycles": 300, "instructions": 450}, text="ret"),
-        ]
+        assert profile.counters == {"cycles": 9123456, "instructions": INTEGER_MAX}
+        assert read_back(value) == listed
 
     def test_derives_a_functions_counters_as_the_sums_over_its_instructions(self) -> None:
-        profile = stored(
-            document(
-                {
-                    "name": "main",
-                    "instructions": [
-                        instruction(0, cycles=1.5, misses=2),
-                        instruction(4, cycles=2.5, misses=0),
-                    ],
-                },
-                counters={"cycles": 10, "misses": 10},
-            )
+        main = function(
+            stored(
+                document(
+                    {
+                        "name": "main",
+                        "instructions": [
+                            instruction(0, cycles=1.5, misses=2),
+                            instruction(4, cycles=2.5, misses=0),
+                        ],
+                    },
+                    counters={"cycles": 10, "misses": 10},
+                )
+            ),
+            "main",
         )
 
-        assert profile.functions["main"].counters == {"cycles": 4.0, "misses": 2.0}
-        assert profile.functions["main"].length == 2
+        assert main.counters == {"cycles": 4.0, "misses": 2.0}
+        assert main.length == 2
 
     def test_a_function_may_carry_fewer_counters_than_the_profile(self) -> None:
         profile = stored(
@@ -113,48 +120,52 @@ class TestWhatIsStored:
             )
         )
 
-        assert profile.functions["f"].counters == {"cycles": 1.0}
+        assert function(profile, "f").counters == {"cycles": 1.0}
 
     def test_a_function_with_no_instructions_has_no_counters(self) -> None:
-        profile = stored(document({"name": "empty", "instructions": []}))
+        value = document({"name": "empty", "instructions": []})
+        empty = function(stored(value), "empty")
 
-        assert profile.functions["empty"].counters == {}
-        assert profile.functions["empty"].length == 0
+        assert (empty.counters, empty.length) == ({}, 0)
+        assert read_back(value, "empty") == []
 
     def test_a_profile_may_list_no_functions(self) -> None:
         # Five of the 199 profiles sampled from lnt.llvm.org are like this.
-        assert stored(document(functions=[])).functions == {}
+        assert stored(document(functions=[])).functions == []
 
-    def test_counter_values_are_kept_to_single_precision(self) -> None:
-        profile = stored(document({"name": "f", "instructions": [instruction(cycles=123456789.0)]}))
+    def test_keeps_the_functions_in_the_order_the_document_lists_them(self) -> None:
+        names = ["zeta", "alpha", "middle"]
+        profile = stored(document(*({"name": name, "instructions": []} for name in names)))
 
-        assert profile.instructions("f")[0].counters == {"cycles": single(123456789.0)}
+        assert [function.name for function in profile.functions] == names
+
+    def test_counter_values_are_kept_exactly(self) -> None:
+        # Nothing is rounded to single precision, which no longer has anything to do with storage.
+        value = document({"name": "f", "instructions": [instruction(cycles=123456789.1)]})
+
+        assert read_back(value, "f")[0]["counters"] == {"cycles": 123456789.1}
 
     def test_reads_numbers_as_d3_does(self) -> None:
         # An integer is accepted where a count is a real, and `8.0` where an integer is expected.
-        profile = stored(
-            document(
-                counters={"cycles": 8.0},
-                functions=[
-                    {"name": "f", "instructions": [instruction(cycles=3) | {"address": 4.0}]}
-                ],
-            )
+        value = document(
+            counters={"cycles": 8.0},
+            functions=[{"name": "f", "instructions": [instruction(cycles=3) | {"address": 4.0}]}],
         )
 
-        assert profile.counters == {"cycles": 8}
-        assert profile.instructions("f")[0].address == 4
+        assert stored(value).counters == {"cycles": 8}
+        assert read_back(value, "f") == [instruction(4, cycles=3.0)]
 
-    def test_addresses_may_repeat(self) -> None:
-        # Only a decrease is refused.
-        profile = stored(document({"name": "f", "instructions": [instruction(8), instruction(8)]}))
+    def test_addresses_may_go_in_any_order(self) -> None:
+        # Instructions are kept in the order the document lists them, whatever their addresses.
+        listed = [instruction(8), instruction(8), instruction(4), instruction(INTEGER_MAX)]
 
-        assert [one.address for one in profile.instructions("f")] == [8, 8]
+        assert read_back(document({"name": "f", "instructions": listed}), "f") == listed
 
-    def test_any_text_without_a_newline_or_a_nul_survives(self) -> None:
-        name = "std::operator/(λ const&, ünïcode) &"
-        profile = stored(document({"name": name, "instructions": [instruction(text="")]}))
+    def test_any_text_without_a_nul_survives(self) -> None:
+        name = "std::operator/(λ const&, ünïcode) &\nsecond line"
+        listed = [instruction(text=""), instruction(text="a\nb\tc")]
 
-        assert profile.instructions(name)[0].text == ""
+        assert read_back(document({"name": name, "instructions": listed}), name) == listed
 
 
 class TestEncoding:
@@ -173,13 +184,13 @@ class TestEncoding:
         wrapped = "\n".join(encoded[index : index + 76] for index in range(0, len(encoded), 76))
 
         assert wrapped != encoded
-        assert stored(wrapped).functions.keys() == {"main"}
+        assert stored(wrapped) == stored(encoded)
 
     @pytest.mark.parametrize("spacing", [" ", "\t", "\r\n"])
     def test_accepts_any_ascii_whitespace_anywhere(self, spacing: str) -> None:
         encoded = encoded_profile(document())
 
-        assert stored(spacing + spacing.join(encoded) + spacing).functions.keys() == {"main"}
+        assert stored(spacing + spacing.join(encoded) + spacing) == stored(encoded)
 
     @pytest.mark.parametrize("spacing", ["\u00a0", "\u2003"])
     def test_still_refuses_whitespace_from_outside_ascii(self, spacing: str) -> None:
@@ -211,7 +222,7 @@ class TestSizes:
         encoded = encoded_profile(document())
         monkeypatch.setattr(profile_document, "MAX_ENCODED_SIZE", len(encoded))
 
-        assert stored("\n".join(encoded)).functions.keys() == {"main"}
+        assert stored("\n".join(encoded)) == stored(encoded)
 
     def test_refuses_a_compressed_document_over_the_cap(
         self, monkeypatch: pytest.MonkeyPatch
@@ -237,14 +248,6 @@ class TestSizes:
         assert "byte limit on a decompressed profile" in refused(b" " * 1_000_000)
 
 
-class TestStoredFormat:
-    def test_the_reader_admits_every_profile_d12_admits(self) -> None:
-        # D12's caps live here and the reader's bounds in the storage format, so that changing one
-        # cannot silently change the other -- but every profile admitted has to read back.
-        assert profile_document.MAX_DOCUMENT_SIZE <= profile_format.MAX_DECOMPRESSED_SIZE
-        assert profile_document.MAX_INSTRUCTIONS <= profile_format.MAX_INSTRUCTIONS
-
-
 class TestDocument:
     def test_refuses_what_is_not_json(self) -> None:
         assert "not a valid profile document" in refused(b"{not json")
@@ -256,7 +259,9 @@ class TestDocument:
             pytest.param(document(extra=1), id="extra key"),
             pytest.param(document(counters={"cycles": -1}), id="negative top-level counter"),
             pytest.param(document(counters={"cycles": 1.5}), id="fractional top-level counter"),
-            pytest.param(document(counters={"cycles": 2**64}), id="top-level counter too wide"),
+            pytest.param(
+                document(counters={"cycles": INTEGER_MAX + 1}), id="top-level counter too wide"
+            ),
             pytest.param(document(counters={"cycles": True}), id="boolean top-level counter"),
             pytest.param(document(counters={"": 1}), id="empty counter name"),
             pytest.param(document({"name": "", "instructions": []}), id="empty function name"),
@@ -277,7 +282,7 @@ class TestDocument:
                 id="fractional address",
             ),
             pytest.param(
-                document({"name": "f", "instructions": [instruction(address=2**64)]}),
+                document({"name": "f", "instructions": [instruction(address=INTEGER_MAX + 1)]}),
                 id="address too wide",
             ),
             pytest.param(
@@ -315,27 +320,30 @@ class TestDocument:
         assert "1e400" in raw
         assert "not a valid profile document" in refused(raw.encode())
 
+    def test_refuses_counts_whose_sum_is_not_finite(self) -> None:
+        # Each value is finite, but the function's derived counter would not be.
+        summed = document(
+            {"name": "f", "instructions": [instruction(cycles=1e308), instruction(cycles=1e308)]}
+        )
+
+        assert "counters sum to more than a finite number can hold" in refused(summed)
+
     def test_refuses_a_document_that_is_not_utf_8(self) -> None:
         assert "not a valid profile document" in refused(b'{"disassembly_format": "\xff"}')
 
     @pytest.mark.parametrize(
         "broken",
         [
-            pytest.param(document(disassembly_format="raw\n"), id="format"),
-            pytest.param(document(counters={"cyc\nles": 1}), id="counter name"),
-            pytest.param(document({"name": "f\n", "instructions": []}), id="function name"),
+            pytest.param(document(disassembly_format="raw\x00"), id="format"),
+            pytest.param(document(counters={"cyc\x00les": 1}), id="counter name"),
+            pytest.param(document({"name": "f\x00", "instructions": []}), id="function name"),
             pytest.param(
-                document({"name": "f", "instructions": [instruction(text="a\nb")]}), id="text"
+                document({"name": "f", "instructions": [instruction(text="a\x00b")]}), id="text"
             ),
         ],
     )
-    def test_refuses_a_newline_in_any_string(self, broken: dict[str, Any]) -> None:
-        assert "must not contain a newline" in refused(broken)
-
-    def test_refuses_a_nul_in_any_string(self) -> None:
+    def test_refuses_a_nul_in_any_string(self, broken: dict[str, Any]) -> None:
         # D3 refuses a NUL in every string a request carries.
-        broken = document({"name": "f", "instructions": [instruction(text="a\x00b")]})
-
         assert "NUL" in refused(broken)
 
     def test_refuses_two_functions_of_the_same_name(self) -> None:
@@ -354,11 +362,6 @@ class TestDocument:
         stray = document({"name": "f", "instructions": [instruction(misses=1)]})
 
         assert "not top-level counters" in refused(stray)
-
-    def test_refuses_an_address_lower_than_the_one_before_it(self) -> None:
-        backwards = document({"name": "f", "instructions": [instruction(8), instruction(4)]})
-
-        assert "addresses never decrease within a function" in refused(backwards)
 
     def test_refuses_a_profile_of_too_many_functions(self) -> None:
         many = document(
@@ -384,7 +387,7 @@ class TestDocument:
     def test_accepts_a_function_name_as_long_as_the_cap(self) -> None:
         name = "a" * MAX_FUNCTION_NAME_BYTES
 
-        assert name in stored(document({"name": name, "instructions": []})).functions
+        assert stored(document({"name": name, "instructions": []})).functions[0].name == name
 
     def test_refuses_a_function_of_too_many_instructions(self) -> None:
         many = document(
@@ -395,49 +398,3 @@ class TestDocument:
         )
 
         assert "not a valid profile document" in refused(many)
-
-    def test_refuses_a_count_single_precision_cannot_hold(self) -> None:
-        huge = document({"name": "f", "instructions": [instruction(cycles=1e39)]})
-
-        assert "not a valid profile document" in refused(huge)
-
-    def test_refuses_counts_whose_sum_single_precision_cannot_hold(self) -> None:
-        # Each value fits, but the function's derived counter does not.
-        summed = document(
-            {"name": "f", "instructions": [instruction(cycles=3e38), instruction(cycles=3e38)]}
-        )
-
-        assert "counters sum to" in refused(summed)
-
-
-class TestConcurrency:
-    def test_encodes_one_profile_at_a_time(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        # The writer is the last step and the encoding's peak, so a slow stand-in for it shows
-        # whether two encodings ever overlap.
-        guard = threading.Lock()
-        running = 0
-        most = 0
-        write = profile_format.write_profile
-
-        def slow_write(*args: Any) -> bytes:
-            nonlocal running, most
-            with guard:
-                running += 1
-                most = max(most, running)
-            time.sleep(0.05)
-            with guard:
-                running -= 1
-            return write(*args)
-
-        monkeypatch.setattr(profile_document, "write_profile", slow_write)
-        encoded = encoded_profile(document())
-        with ThreadPoolExecutor(max_workers=4) as pool:
-            list(pool.map(stored_profile, [encoded] * 4))
-
-        assert most == 1
-
-    def test_a_refused_profile_does_not_keep_the_next_one_waiting(self) -> None:
-        refused(b"{not json")
-
-        assert profile_document._ENCODING.acquire(blocking=False)
-        profile_document._ENCODING.release()

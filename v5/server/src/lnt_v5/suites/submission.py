@@ -42,7 +42,7 @@ from lnt_v5.suites.entities import (
     validate_fields,
     validate_value,
 )
-from lnt_v5.suites.profile_document import stored_profile
+from lnt_v5.suites.profile_document import StoredProfile, stored_profile
 from lnt_v5.suites.schema import CommitField, Entry, MachineField, Metric, SuiteSchema
 from lnt_v5.suites.tables import NAME_LENGTH, UUID_LENGTH
 
@@ -173,7 +173,7 @@ class SubmittedTest:
 
     name: str
     samples: Sequence[Mapping[str, Any]]
-    profile: bytes | None
+    profile: StoredProfile | None
 
 
 @dataclass(frozen=True)
@@ -195,9 +195,8 @@ class ValidatedSubmission:
 def validate_submission(schema: SuiteSchema, body: RunSubmission) -> ValidatedSubmission:
     """What a submission stands for against this suite's schema, or a 400 (D6, D12).
 
-    Pure -- apart from waiting its turn to encode a profile, see `profile_document` -- and complete:
-    it reaches no database and leaves nothing for the write path to validate, so a submission that
-    is going to be refused is refused before a single row is written. The
+    Pure, and complete: it reaches no database and leaves nothing for the write path to validate,
+    so a submission that is going to be refused is refused before a single row is written. The
     checks it cannot make are exactly the ones that need stored state -- a duplicate run UUID, a
     contradicted ordinal, machine metadata that disagrees with what is already there (D7).
     """

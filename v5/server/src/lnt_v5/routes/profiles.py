@@ -1,24 +1,17 @@
 """Profiles: instruction-level counter data for one test in one run (endpoints.md, Profiles).
 
 Read-only. A profile is submitted inside a run as a JSON document, which the server validates and
-stores in the binary format `profile_format` describes (D12), so these four endpoints are the only
-thing that reads one. Three of them address a profile by its own UUID and one lists a run's, which
-is the bridge the client crosses: it knows a run and a test name and needs the UUID the other three
-take (see `client/profiles.md`).
+stores as a `{suite}.profile` row and a `{suite}.profile_function` row per function (D5, D12). Three
+of these endpoints address a profile by its own UUID and one lists a run's, which is the bridge the
+client crosses: it knows a run and a test name and needs the UUID the other three take (see
+`client/profiles.md`).
 
-Three things here follow from the design docs rather than from convenience.
+Two things here follow from the design docs rather than from convenience.
 
-**The blob stays out of the default result set** (D5, D12). SQLAlchemy Core selects the columns it
-is asked for, so that obligation falls on each query rather than on the table, and only the three
-queries that actually serve the profile's contents name `data`. The listing does not: a run may
-carry a profile per test, and `select(profile)` there would pull tens of megabytes off the disk to
-render a list of names.
-
-**Reading a profile costs one parse, and as little as the endpoint needs.** `profile_format` reads
-a profile's index eagerly and its disassembly only on request, so the metadata and function-list
-endpoints never pay for instructions they do not serve. Nothing is cached between requests: parsing
-an index is cheap next to the round trip that fetched the blob, decompressing one for a disassembly
-is bounded by D12's caps, and a cache keyed by blobs would be the largest thing in the process.
+**A function's instructions stay out of the default result set** (D5). SQLAlchemy Core selects the
+columns it is asked for, so that obligation falls on each query rather than on the table, and only
+the disassembly names `instructions`, for the one function it serves. Everything else a profile
+holds is small and stored as it is served, so the other three endpoints decompress nothing.
 
 **A function is named in the `function=` query parameter, never in the path** (R1). The name is
 whatever the producer recorded, and one that demangles records an `operator/` overload as
@@ -34,7 +27,6 @@ from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import Connection, Row, Select, Table, select
 
-from lnt_v5 import profile_format
 from lnt_v5.auth import require_scope
 from lnt_v5.db import EngineDep
 from lnt_v5.errors import ApiError, ErrorCode
@@ -43,6 +35,7 @@ from lnt_v5.routes.runs import NO_RUN, RUNS_PATH, run_id
 from lnt_v5.routes.suites import SUITES_PATH
 from lnt_v5.scopes import Scope
 from lnt_v5.suites.entities import UuidKey
+from lnt_v5.suites.profile_document import instructions
 from lnt_v5.suites.registry import RegistryDep, Suite
 from lnt_v5.suites.scope import SUITE_NOT_FOUND, suite_responses, suite_scope
 
@@ -85,7 +78,7 @@ class ProfileMetadata(BaseModel):
     counters: dict[str, int] = Field(
         description=(
             "The profile's top-level counters, keyed by counter name. Raw totals for the whole "
-            "profile, and integers -- unlike every other counter here, which is a float."
+            "profile, and integers -- unlike every other counter here, which is a number."
         )
     )
     disassembly_format: str = Field(description=_DISASSEMBLY_FORMAT)
@@ -98,8 +91,8 @@ class ProfileFunction(BaseModel):
     counters: dict[str, float] = Field(
         description=(
             "The function's counters, keyed by counter name: each the sum of that counter over the "
-            "function's instructions. Raw counts kept to single precision, not percentages: a "
-            "client that wants a share of the profile computes it against the top-level counters. "
+            "function's instructions. Raw counts, not percentages: a client that wants a share of "
+            "the profile computes it against the top-level counters. "
             "A function carries only the counters its instructions were measured with, which may "
             "be fewer than the profile has."
         )
@@ -113,8 +106,8 @@ class Instruction(BaseModel):
     address: int = Field(description="The instruction's address.")
     counters: dict[str, float] = Field(
         description=(
-            "The counts measured at this instruction, keyed by counter name. Raw counts kept to "
-            "single precision, not percentages, and the same counters the function carries."
+            "The counts measured at this instruction, keyed by counter name. Raw counts, not "
+            "percentages, and the same counters the function carries."
         )
     )
     text: str = Field(
@@ -144,13 +137,14 @@ class FunctionDisassembly(BaseModel):
 class Profiles:
     """The queries the profile endpoints are built from, and how to read one of their rows back.
 
-    Three of them name `data` because they serve what is in it; the listing must not, and that is
-    D5's rule rather than an optimization -- see the module docstring.
+    Only `disassembly` names a function's `instructions`; that is D5's rule rather than an
+    optimization -- see the module docstring.
     """
 
     def __init__(self, suite: Suite) -> None:
         self.schema = suite.schema
         self.table: Table = suite.tables.profile
+        self._function: Table = suite.tables.profile_function
         self._test: Table = suite.tables.test
         self._run: Table = suite.tables.run
 
@@ -177,15 +171,20 @@ class Profiles:
             test=row._mapping[self._test.c.name], uuid=row._mapping[self.table.c.uuid]
         )
 
-    def described(self, connection: Connection, uuid: str) -> tuple[str, str, bytes]:
-        """One profile's test name, run UUID and blob, or the 404 for a UUID nothing holds.
+    def metadata(self, connection: Connection, uuid: str) -> ProfileMetadata:
+        """One profile's metadata, or the 404 for a UUID nothing holds.
 
-        The two joined columns are what R4 makes the metadata response carry: a reference to
-        another entity is that entity's identifier, so the test's name and the run's UUID rather
-        than the ids D5 stores.
+        The two joined columns are what R4 makes the response carry: a reference to another entity
+        is that entity's identifier, so the test's name and the run's UUID rather than the ids D5
+        stores.
         """
         row = connection.execute(
-            select(self._test.c.name, self._run.c.uuid, self.table.c.data)
+            select(
+                self._test.c.name,
+                self._run.c.uuid,
+                self.table.c.counters,
+                self.table.c.disassembly_format,
+            )
             .select_from(
                 self.table.join(self._test, self._test.c.id == self.table.c.test_id).join(
                     self._run, self._run.c.id == self.table.c.run_id
@@ -195,21 +194,59 @@ class Profiles:
         ).one_or_none()
         if row is None:
             raise self.missing(uuid)
-        return (
-            row._mapping[self._test.c.name],
-            row._mapping[self._run.c.uuid],
-            row._mapping[self.table.c.data],
+        return ProfileMetadata(
+            uuid=uuid,
+            test=row._mapping[self._test.c.name],
+            run_uuid=row._mapping[self._run.c.uuid],
+            counters=row._mapping[self.table.c.counters],
+            disassembly_format=row._mapping[self.table.c.disassembly_format],
         )
 
-    def blob(self, connection: Connection, uuid: str) -> bytes:
-        """One profile's stored bytes, for the two endpoints that serve nothing else about it."""
+    def functions(self, connection: Connection, uuid: str) -> list[ProfileFunction]:
+        """Every function of one profile, in no particular order, or the 404 for a missing UUID."""
+        profile = self._id(connection, uuid)
+        rows = connection.execute(
+            select(self._function.c.name, self._function.c.counters, self._function.c.length).where(
+                self._function.c.profile_id == profile
+            )
+        )
+        return [
+            ProfileFunction(name=name, counters=counters, length=length)
+            for name, counters, length in rows
+        ]
+
+    def disassembly(
+        self, connection: Connection, uuid: str, name: str
+    ) -> tuple[str, dict[str, float], bytes]:
+        """One function's disassembly format, counters and stored instructions, or the 404 for a
+        profile or a function that is not there."""
+        profile = connection.execute(
+            select(self.table.c.id, self.table.c.disassembly_format).where(
+                self.table.c.uuid == uuid
+            )
+        ).one_or_none()
+        if profile is None:
+            raise self.missing(uuid)
         row = connection.execute(
-            select(self.table.c.data).where(self.table.c.uuid == uuid)
+            select(self._function.c.counters, self._function.c.instructions).where(
+                self._function.c.profile_id == profile.id, self._function.c.name == name
+            )
         ).one_or_none()
         if row is None:
+            raise ApiError(
+                ErrorCode.NOT_FOUND,
+                f"Profile '{uuid}' in test suite '{self.schema.name}' holds no function named "
+                f"'{name}'",
+            )
+        return profile.disassembly_format, row.counters, row.instructions
+
+    def _id(self, connection: Connection, uuid: str) -> int:
+        found = connection.execute(
+            select(self.table.c.id).where(self.table.c.uuid == uuid)
+        ).scalar_one_or_none()
+        if found is None:
             raise self.missing(uuid)
-        data: bytes = row._mapping[self.table.c.data]
-        return data
+        return int(found)
 
     def missing(self, uuid: str) -> ApiError:
         """The 404 for a profile that is not there, worded in one place for all its callers."""
@@ -218,7 +255,7 @@ class Profiles:
         )
 
 
-def _hotness(function: profile_format.Function) -> tuple[float, str]:
+def _hotness(function: ProfileFunction) -> tuple[float, str]:
     """The function list's order (endpoints.md): hottest first, ties broken by name.
 
     The sum across a function's counters is a default rather than a physical quantity -- adding
@@ -241,7 +278,7 @@ def list_run_profiles(
     """Which tests of one run have a profile, and the UUID of each (R2).
 
     Unpaginated: a run holds at most one profile per test it measured, so the list is bounded by
-    the run itself. It opens no blob; see the module docstring.
+    the run itself.
     """
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         profiles = Profiles(suite)
@@ -258,21 +295,9 @@ def list_run_profiles(
 def get_profile(
     testsuite: str, uuid: UuidKey, engine: EngineDep, registry: RegistryDep
 ) -> ProfileMetadata:
-    """What a profile is of, and its top-level counters (endpoints.md).
-
-    Reads the profile's index alone (see `profile_format`).
-    """
+    """What a profile is of, and its top-level counters (endpoints.md)."""
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
-        test, run, data = Profiles(suite).described(connection, uuid)
-
-    profile = profile_format.read_profile(data)
-    return ProfileMetadata(
-        uuid=uuid,
-        test=test,
-        run_uuid=run,
-        counters=dict(profile.counters),
-        disassembly_format=profile.disassembly_format,
-    )
+        return Profiles(suite).metadata(connection, uuid)
 
 
 @router.get(
@@ -287,21 +312,12 @@ def list_profile_functions(
     """Every function the profile measured, hottest first (R2, endpoints.md).
 
     Unpaginated: D12 caps a profile's functions, and the client renders all of them into one
-    combobox (`client/profiles.md`, "Function Selector"). Like the metadata endpoint this reads the
-    profile's index alone.
+    combobox (`client/profiles.md`, "Function Selector"). Sorted here rather than in SQL, since
+    the order is a sum over a JSONB object's values.
     """
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
-        data = Profiles(suite).blob(connection, uuid)
-
-    profile = profile_format.read_profile(data)
-    return Items(
-        items=[
-            ProfileFunction(
-                name=function.name, counters=dict(function.counters), length=function.length
-            )
-            for function in sorted(profile.functions.values(), key=_hotness)
-        ]
-    )
+        functions = Profiles(suite).functions(connection, uuid)
+    return Items(items=sorted(functions, key=_hotness))
 
 
 @router.get(
@@ -327,34 +343,24 @@ def get_profile_disassembly(
 ) -> FunctionDisassembly:
     """One function's disassembly and the counters measured along it (endpoints.md).
 
-    The one endpoint that reads a profile's instructions, which is the most expensive thing any
-    read in this API does; D12's caps on a submitted profile are what keep it bounded.
+    The one endpoint that decompresses anything, and only the function it serves; D12's caps on a
+    submitted profile are what keep that bounded.
 
-    The connection is given back before any of that runs. Holding a pooled
-    connection -- and the open transaction that pins the vacuum horizon -- across it would be the
-    anti-pattern D13 names for submission, on the one read that would really pay for it.
+    The connection is given back before decompressing. Holding a pooled connection -- and the open
+    transaction that pins the vacuum horizon -- across it would be the anti-pattern D13 names for
+    submission, on the one read that would really pay for it.
     """
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
-        data = Profiles(suite).blob(connection, uuid)
-        name = suite.schema.name
-
-    profile = profile_format.read_profile(data)
-    measured = profile.functions.get(function)
-    if measured is None:
-        raise ApiError(
-            ErrorCode.NOT_FOUND,
-            f"Profile '{uuid}' in test suite '{name}' holds no function named '{function}'",
+        disassembly_format, counters, stored = Profiles(suite).disassembly(
+            connection, uuid, function
         )
+
     return FunctionDisassembly(
         name=function,
-        counters=dict(measured.counters),
-        disassembly_format=profile.disassembly_format,
+        counters=counters,
+        disassembly_format=disassembly_format,
         instructions=[
-            Instruction(
-                address=instruction.address,
-                counters=dict(instruction.counters),
-                text=instruction.text,
-            )
-            for instruction in profile.instructions(function)
+            Instruction(address=address, counters=values, text=text)
+            for address, values, text in instructions(stored)
         ],
     )

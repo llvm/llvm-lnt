@@ -20,7 +20,6 @@ from pydantic import ValidationError
 
 from conftest import PROFILE_DOCUMENT, encoded_profile, run_payload
 from lnt_v5.errors import ApiError, ErrorCode
-from lnt_v5.profile_format import read_profile
 from lnt_v5.suites import submission
 from lnt_v5.suites.schema import SuiteSchema
 from lnt_v5.suites.submission import RunSubmission, ValidatedSubmission, validate_submission
@@ -484,11 +483,11 @@ class TestSampleRows:
 class TestProfiles:
     """How an entry's profile reaches `profile_document`, where the document itself is tested."""
 
-    def test_an_entry_with_one_carries_the_bytes_to_store(self) -> None:
+    def test_an_entry_with_one_carries_the_profile_to_store(self) -> None:
         stored = one_test(profile=encoded_profile()).profile
 
         assert stored is not None
-        assert read_profile(stored).counters == PROFILE_DOCUMENT["counters"]
+        assert stored.counters == PROFILE_DOCUMENT["counters"]
 
     @pytest.mark.parametrize("value", [None, ...])
     def test_an_entry_without_one_carries_no_profile(self, value: Any) -> None:

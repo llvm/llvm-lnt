@@ -300,12 +300,12 @@ one run. It is submitted inline, as the `profile` of a test entry (D6): a JSON
 ```
 
 - `disassembly_format`: how the instruction text was produced.
-- `counters`: the profile's top-level counters, each a non-negative integer
-  below 2^64. They total the whole profile, functions it does not list included.
+- `counters`: the profile's top-level counters, each a non-negative `integer`
+  as D3 reads one. They total the whole profile, functions it does not list
+  included.
 - `functions`: each function's `name` and its `instructions`, in order. Each
-  instruction carries its `address` (a non-negative integer below 2^64), its
-  `counters` (non-negative numbers) and its disassembled `text`. Either list
-  may be empty.
+  instruction carries its `address` (a non-negative `integer`), its `counters`
+  (non-negative `real`s) and its disassembled `text`. Either list may be empty.
 
 Every counter value is a **raw count**, never a percentage. A function's own
 counters are not submitted: the server derives each as the sum of that counter
@@ -321,22 +321,20 @@ member. Each of the following is rejected with 400:
   (33,554,432 bytes) decompressed.
 - A document that is not valid JSON of the shape above, with exactly those keys
   and types as D3 reads them.
-- An empty function or counter name, a newline or NUL in any string, or two
+- An empty function or counter name, a NUL in any string (see D3), or two
   functions of the same name.
 - More than 10,000 functions, a function name longer than 2,048 bytes in UTF-8,
   or a function of more than 100,000 instructions.
 - Instructions of one function that do not all carry the same counters.
 - An instruction counter that is not one of the profile's top-level counters.
-- An instruction's counter value, or a function's sum of one counter, above
-  the largest finite single-precision value (about 3.4028235e38).
-- An address lower than the one before it within a function.
+- A function whose sum of one counter is too large to be a finite `real`.
 
-Function and instruction counter values may be stored with single precision,
-and are then returned rounded to it. Top-level counters are returned exactly.
-
-How a profile is stored is left to the implementation. Since everything is
-validated at submission, a stored profile is always one the read endpoints can
-serve. Profiles are read-only after creation, and deleting a run deletes them.
+A stored profile is returned as it was submitted, with each function's counters
+derived as above, and its functions' instructions in the order the document
+listed them. It is stored as D5's `{suite}.profile` and
+`{suite}.profile_function` rows. Since everything is validated at submission, a
+stored profile is always one the read endpoints can serve. Profiles are
+read-only after creation, and deleting a run deletes them.
 
 
 ## D13: Concurrent Submission

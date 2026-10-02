@@ -3,7 +3,7 @@
 Driven over the real application and a real database, with profiles submitted the way a client
 submits them (D12). What is interesting here is mostly what the endpoints serve -- raw counts, a
 function's counters derived from its instructions, an order the client can rely on -- and what they
-refuse to do: the listing never touches the stored blob (D5).
+refuse to do: only the disassembly touches a function's stored instructions (D5).
 """
 
 from __future__ import annotations
@@ -18,7 +18,6 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine, text
 
 from conftest import code_of, encoded_profile, run_payload
-from lnt_v5 import profile_format
 from lnt_v5.routes.profiles import PROFILES_PATH, RUN_PROFILES_PATH
 from lnt_v5.routes.runs import RUNS_PATH
 from lnt_v5.routes.suites import SUITES_PATH
@@ -370,6 +369,30 @@ class TestDisassembly:
     def test_an_address_is_an_integer(self, main: dict[str, Any]) -> None:
         assert all(isinstance(one["address"], int) for one in main["instructions"])
 
+    def test_serves_instructions_exactly_as_submitted(
+        self, api_client: TestClient, stored: Callable[..., str]
+    ) -> None:
+        # In the document's order, addresses going backwards and text spanning lines included, and
+        # a count no single-precision float holds exactly.
+        listed = [
+            {"address": 0x2000, "counters": {"cycles": 123456789.0}, "text": "b 0x1000"},
+            {"address": 0x1000, "counters": {"cycles": 0.1}, "text": "ret\n; cold"},
+        ]
+        uuid = stored(
+            encoded_profile(
+                {
+                    "disassembly_format": "raw",
+                    "counters": {"cycles": 1},
+                    "functions": [{"name": "f", "instructions": listed}],
+                }
+            )
+        )
+
+        body = api_client.get(disassembly(uuid), params={"function": "f"}).json()
+
+        assert body["instructions"] == listed
+        assert body["counters"] == {"cycles": 123456789.0 + 0.1}
+
     def test_a_function_with_no_instructions_is_an_empty_list(
         self, api_client: TestClient, stored: Callable[..., str]
     ) -> None:
@@ -394,26 +417,6 @@ class TestDisassembly:
 
         assert response.status_code == 404
         assert code_of(response) == "not_found"
-
-    def test_parses_the_blob_once_per_request(
-        self, api_client: TestClient, stored: Callable[..., str], monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        # A parse is not cached between requests, deliberately, so the one thing worth pinning is
-        # that a single request does not pay for it twice -- the aggregate counters this response
-        # repeats come from the profile already parsed for the disassembly.
-        uuid = stored()
-        parses = 0
-        real = profile_format.read_profile
-
-        def counting(data: bytes) -> profile_format.Profile:
-            nonlocal parses
-            parses += 1
-            return real(data)
-
-        monkeypatch.setattr(profile_format, "read_profile", counting)
-
-        assert api_client.get(disassembly(uuid), params={"function": "main"}).status_code == 200
-        assert parses == 1
 
 
 class TestFunctionNames:
@@ -499,24 +502,26 @@ class TestAddressingSomethingThatIsNotThere:
         assert code_of(response) == "not_found"
 
 
-class TestTheBlobStaysOutOfTheListing:
-    """D5 and D12: `data` is excluded from the default result set and loaded only when needed.
+class TestInstructionsAreReadOnlyByTheDisassembly:
+    """D5: a function's `instructions` are excluded from the default result set.
 
     Core selects the columns it is asked for, so the rule is a property of each query rather than
     of the table, and the check has to be one too. Renaming the column out from under the server is
-    the strongest form of it available: a query that names `data` cannot run at all afterwards, and
-    one that does not is untouched.
+    the strongest form of it available: a query that names `instructions` cannot run at all
+    afterwards, and one that does not is untouched.
     """
 
     @pytest.fixture
     def without_the_column(self, db_engine: Engine) -> Callable[[], None]:
         def rename() -> None:
             with db_engine.begin() as connection:
-                connection.execute(text("ALTER TABLE nts.profile RENAME COLUMN data TO hidden"))
+                connection.execute(
+                    text("ALTER TABLE nts.profile_function RENAME COLUMN instructions TO hidden")
+                )
 
         return rename
 
-    def test_the_listing_does_not_touch_the_blob(
+    def test_the_listing_does_not_touch_them(
         self,
         api_client: TestClient,
         submit: Callable[..., str],
@@ -530,21 +535,32 @@ class TestTheBlobStaysOutOfTheListing:
         assert response.status_code == 200
         assert [item["test"] for item in response.json()["items"]] == ["bench"]
 
-    @pytest.mark.parametrize("suffix", PROFILE_DATA)
-    def test_the_data_endpoints_do(
+    @pytest.mark.parametrize("suffix", ["", "/functions"])
+    def test_neither_do_the_metadata_and_the_function_list(
         self,
         api_client: TestClient,
         stored: Callable[..., str],
         without_the_column: Callable[[], None],
         suffix: str,
     ) -> None:
-        # The other half of the check: without this the test above would pass just as well against
-        # an endpoint that had stopped working. A column the server expects and cannot find is D2's
-        # stale reader, so the 409 is the schema-changed answer rather than a fault.
         uuid = stored()
         without_the_column()
 
-        response = api_client.get(f"{PROFILES}/{uuid}{suffix}")
+        assert api_client.get(f"{PROFILES}/{uuid}{suffix}").status_code == 200
+
+    def test_the_disassembly_does(
+        self,
+        api_client: TestClient,
+        stored: Callable[..., str],
+        without_the_column: Callable[[], None],
+    ) -> None:
+        # The other half of the check: without this the tests above would pass just as well against
+        # a server that had stopped storing instructions at all. A column the server expects and
+        # cannot find is D2's stale reader, so the 409 is the schema-changed answer.
+        uuid = stored()
+        without_the_column()
+
+        response = api_client.get(disassembly(uuid), params={"function": "main"})
 
         assert response.status_code == 409
         assert code_of(response) == "conflict"

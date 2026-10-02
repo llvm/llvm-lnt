@@ -1,14 +1,16 @@
-"""D12's profile document: what a submission carries for a profile, and how it becomes stored bytes.
+"""D12's profile document: what a submission carries for a profile, and how it is stored.
 
 A test entry's `profile` is a JSON document, gzip-compressed and base64-encoded (D6, D12). This
-module takes that string apart, validates the document, and hands back the blob `{suite}.profile`
-stores. Everything is checked here, at submission, so that a stored profile is always one the read
-endpoints can serve: nothing a caller sends ever reaches the reader unvalidated.
+module takes that string apart, validates the document, and hands back the rows `{suite}.profile`
+and `{suite}.profile_function` store (D5). Everything is checked here, at submission, so that a
+stored profile is always one the read endpoints can serve.
 
-What is stored is v4's binary format (`profile_format`, which says why). D12 deliberately leaves
-that encoding to the implementation; the only traces it leaves on the contract are the rules it
-cannot represent a document without -- addresses that never decrease within a function, strings
-without newlines, and counter values kept to single precision.
+A function's instructions are stored compressed, in a layout of this module's choosing: D5 leaves
+it to the implementation, and nothing but `instructions` below ever reads it back. That layout is
+column by column -- the address deltas, then each counter's values, then the text -- under zstd,
+which on profiles sampled from lnt.llvm.org stores them in about the space v4's binary format did.
+One function per row is what lets the metadata and function-list endpoints answer without
+decompressing anything, and a disassembly decompress only its own function.
 
 The document is parsed with msgspec rather than pydantic, which reads every other request body. A
 profile carries hundreds of thousands of instructions, and pydantic's models hold one in about three
@@ -21,33 +23,26 @@ msgspec saves.
 from __future__ import annotations
 
 import base64
-import threading
 import zlib
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator
+from compression import zstd
+from dataclasses import dataclass
+from math import isfinite
 from typing import Annotated, cast
 
 import msgspec
 from msgspec import Meta, Struct
 
 from lnt_v5.errors import ApiError, ErrorCode
-from lnt_v5.profile_format import (
-    MAX_NUMBER,
-    MAX_REAL,
-    InstructionData,
-    MeasuredFunction,
-    write_profile,
-)
 from lnt_v5.strings import NUL
+from lnt_v5.suites.tables import INTEGER_MAX
 
 # D12's caps on one profile: on the compressed document, and on what it decompresses to. Both are
 # limits on a profile rather than on the request carrying it, whose body is refused at the transport
 # layer with R4's 413 instead (see `config.BODY_LIMIT`). Of the roughly 200,000 profiles on
 # lnt.llvm.org, the largest is a 17 MiB document that compresses to 1.1 MiB, so the compressed cap
 # is several times that and the decompressed one about twice it. The decompressed cap is the one
-# that bounds memory: encoding a profile peaks at about seven and a half times the document's size,
-# so a document at this cap costs about 240 MiB. The stored format's reader admits whatever this
-# does, since a document always expands to less in that format, which spends fewer bytes than JSON
-# on every part of it.
+# that bounds memory, since the whole document is parsed before anything is stored.
 MAX_COMPRESSED_SIZE = 4 * 1024 * 1024
 MAX_DOCUMENT_SIZE = 32 * 1024 * 1024
 
@@ -61,61 +56,56 @@ MAX_ENCODED_SIZE = 4 * ((MAX_COMPRESSED_SIZE + 2) // 3)
 MAX_INSTRUCTIONS = 100_000
 
 # D12's cap on the functions of one profile. The size caps alone admit close to a million empty
-# functions, which cost little to submit but are all in the uncompressed index every read of the
-# profile parses, and in the unpaginated function list. The largest profile on lnt.llvm.org has 79.
+# functions, which cost little to submit but are each a row, and all in the unpaginated function
+# list. The largest profile on lnt.llvm.org has 79.
 MAX_FUNCTIONS = 10_000
 
 # D12's cap on a function name, in UTF-8 bytes, so that every function the list serves can be asked
 # for: the name travels in `?function=` (R1), and even fully percent-encoded, at three characters a
 # byte, it then fits the 8 KiB request line common servers and proxies allow, nginx's included. The
-# longest name on lnt.llvm.org is 744 characters.
+# longest name on lnt.llvm.org is 744 characters. It also keeps the name within what a btree entry
+# of `{suite}.profile_function`'s key can hold, about 2.7 kB.
 MAX_FUNCTION_NAME_BYTES = 2048
 
-# How many profiles one worker encodes at once. Encoding a profile at the caps above holds a couple
-# of hundred megabytes for a second or more, and FastAPI runs submissions on a threadpool of dozens
-# of threads, so without a bound a burst of concurrent submissions multiplies that until the process
-# runs out of memory. One at a time costs little throughput, since most of the work holds the GIL
-# anyway, and makes the worst case per worker one profile's worth. Nothing waiting here holds a
-# database connection: submission validates before it takes one.
-_ENCODING = threading.BoundedSemaphore(1)
+# The zstd level a function's instructions are compressed at. On the profiles sampled from
+# lnt.llvm.org, level 9 stores them in about the space v4's binary format did, at a fraction of the
+# time the highest levels take for a few percent less.
+_ZSTD_LEVEL = 9
 
 # The ASCII whitespace D12 makes insignificant in the base64, removed before decoding. Exactly the
 # ASCII set rather than `str.split()`'s: that one also eats U+00A0 and friends, which are outside
 # the alphabet and are precisely what strict decoding is there to report.
 _WHITESPACE = str.maketrans("", "", " \t\n\r\v\f")
 
-# An address or a top-level counter: a non-negative integer below 2**64, read as D3 reads an
-# `integer`. A union because msgspec's `int` refuses `8.0`, which D3 accepts; and the upper bound is
-# not declared because msgspec's bounds stop at 64-bit signed integers. `_unsigned` does the rest,
+# An address or a top-level counter: a non-negative integer, read as D3 reads an `integer`. A union
+# because msgspec's `int` refuses `8.0`, which D3 accepts; and the upper bound is not declared
+# because msgspec decodes an integer of any size before it applies one. `_integer` does the rest,
 # the same rule `entities._whole_number` applies to pydantic models.
-Unsigned = Annotated[int, Meta(ge=0)] | Annotated[float, Meta(ge=0)]
+Integer = Annotated[int, Meta(ge=0)] | Annotated[float, Meta(ge=0)]
 
 # A raw count at an instruction. Real rather than integer: a producer that samples reports
-# estimates, and an integer is accepted anyway, as D3 accepts one where a `real` is declared. Single
-# precision is all the stored format holds.
-Count = Annotated[float, Meta(ge=0, le=MAX_REAL)]
+# estimates, and an integer is accepted anyway, as D3 accepts one where a `real` is declared.
+# msgspec refuses a number no finite double holds, so every one of these is finite.
+Count = Annotated[float, Meta(ge=0)]
 
 # A function's or a counter's name, which has to name something.
 Name = Annotated[str, Meta(min_length=1)]
 
 
-def _text(value: str, what: str) -> None:
-    """Refuse a string the document cannot carry: a newline ends a string in the stored format, and
-    a NUL is refused in every string a request carries (D3)."""
-    if "\n" in value:
-        raise ValueError(f"{what} must not contain a newline")
+def _no_nul(value: str, what: str) -> None:
+    """Refuse a NUL, which D3 refuses in every string a request carries."""
     if NUL in value:
         raise ValueError(f"{what} must not contain a NUL character (U+0000)")
 
 
-def _unsigned(value: int | float, what: str) -> int:
+def _integer(value: int | float, what: str) -> int:
     """`value` as the integer it stands for, or a refusal (D3): `8.0` is 8, and `8.5` is refused."""
     if isinstance(value, float):
         if not value.is_integer():
             raise ValueError(f"{what} is {value}, which is not a whole number")
         value = int(value)
-    if value >= MAX_NUMBER:
-        raise ValueError(f"{what} is {value}, which is not below 2**64")
+    if value > INTEGER_MAX:
+        raise ValueError(f"{what} is {value}, which is larger than an integer can be")
     return value
 
 
@@ -129,7 +119,7 @@ class InstructionDocument(Struct, forbid_unknown_fields=True, gc=False):
     Checked by its function rather than by a hook of its own; see the module docstring.
     """
 
-    address: Unsigned
+    address: Integer
     # Not `Name`: each of these is one of the profile's top-level counters, which `ProfileDocument`
     # checks once rather than here once per instruction.
     counters: dict[str, Count]
@@ -145,9 +135,9 @@ class FunctionDocument(Struct, forbid_unknown_fields=True, gc=False):
     def __post_init__(self) -> None:
         """Every rule over the function's instructions, in one pass.
 
-        Also replaces each address with the integer it stands for, which is what the writer takes.
+        Also replaces each address with the integer it stands for, which is what is stored.
         """
-        _text(self.name, "a function name")
+        _no_nul(self.name, "a function name")
         if len(self.name.encode()) > MAX_FUNCTION_NAME_BYTES:
             raise ValueError(
                 f"the function name '{self.name[:50]}...' is longer than "
@@ -156,12 +146,11 @@ class FunctionDocument(Struct, forbid_unknown_fields=True, gc=False):
         if not self.instructions:
             return
         expected = self.instructions[0].counters.keys()
-        previous = 0
         for position, instruction in enumerate(self.instructions):
             # The position is only spelled out for a refusal: this runs once per instruction.
             try:
-                _text(instruction.text, "its text")
-                address = _unsigned(instruction.address, "its address")
+                _no_nul(instruction.text, "its text")
+                instruction.address = _integer(instruction.address, "its address")
             except ValueError as error:
                 raise ValueError(f"instruction {position}: {error}") from None
             if instruction.counters.keys() != expected:
@@ -170,12 +159,6 @@ class FunctionDocument(Struct, forbid_unknown_fields=True, gc=False):
                     f"{sorted(instruction.counters)} where the first one carries "
                     f"{sorted(expected)}; every instruction of a function carries the same counters"
                 )
-            if address < previous:
-                raise ValueError(
-                    f"instruction {position} is at address {address}, below the {previous} "
-                    f"before it; addresses never decrease within a function"
-                )
-            instruction.address = previous = address
 
 
 class ProfileDocument(Struct, forbid_unknown_fields=True, gc=False):
@@ -185,14 +168,14 @@ class ProfileDocument(Struct, forbid_unknown_fields=True, gc=False):
     """
 
     disassembly_format: str
-    counters: dict[Name, Unsigned]
+    counters: dict[Name, Integer]
     functions: Annotated[list[FunctionDocument], Meta(max_length=MAX_FUNCTIONS)]
 
     def __post_init__(self) -> None:
-        _text(self.disassembly_format, "the disassembly format")
+        _no_nul(self.disassembly_format, "the disassembly format")
         for counter, value in self.counters.items():
-            _text(counter, "a counter name")
-            self.counters[counter] = _unsigned(value, f"the top-level counter '{counter}'")
+            _no_nul(counter, "a counter name")
+            self.counters[counter] = _integer(value, f"the top-level counter '{counter}'")
         if len({function.name for function in self.functions}) != len(self.functions):
             raise ValueError("two functions have the same name")
         # A client shows a function's counter as its share of the top-level one (`client/
@@ -212,25 +195,97 @@ class ProfileDocument(Struct, forbid_unknown_fields=True, gc=False):
 _DECODER = msgspec.json.Decoder(ProfileDocument)
 
 
-def stored_profile(encoded: str) -> bytes:
-    """The bytes `{suite}.profile` stores for a submitted profile, or a 400 (D12).
+class _Columns(Struct, gc=False):
+    """A function's instructions as they are stored: one list per field rather than per instruction.
 
-    Everything D12 refuses is refused before the writer runs, so it is never handed a document it
-    cannot store. Profiles are encoded one at a time per worker; see `_ENCODING`.
+    Addresses are stored as deltas from the previous one, starting from zero, which is what makes
+    them compress: within a function they are close together, and on a RISC target every delta is
+    the same number.
     """
-    with _ENCODING:
-        document = _parsed(_decompressed(_decoded(encoded)))
-        functions = {
-            # The casts restate what `__post_init__` established: every address and every top-level
-            # counter has been replaced by the integer it stands for.
-            function.name: MeasuredFunction(
-                _counters(function), cast(Sequence[InstructionData], function.instructions)
+
+    address_deltas: list[int]
+    counters: dict[str, list[float]]
+    text: list[str]
+
+
+_COLUMNS_DECODER = msgspec.json.Decoder(_Columns)
+
+
+@dataclass(frozen=True, slots=True)
+class StoredFunction:
+    """One `{suite}.profile_function` row: a function's index entry and its compressed instructions.
+
+    `counters` are the function's own, each the sum of that counter over its instructions (D12).
+    """
+
+    name: str
+    counters: dict[str, float]
+    length: int
+    instructions: bytes
+
+
+@dataclass(frozen=True, slots=True)
+class StoredProfile:
+    """What `{suite}.profile` and `{suite}.profile_function` store for one submitted profile."""
+
+    disassembly_format: str
+    counters: dict[str, int]
+    functions: list[StoredFunction]
+
+
+def stored_profile(encoded: str) -> StoredProfile:
+    """The rows a submitted profile is stored as, or a 400 (D12)."""
+    document = _parsed(_decompressed(_decoded(encoded)))
+    return StoredProfile(
+        disassembly_format=document.disassembly_format,
+        # `__post_init__` has replaced every top-level counter by the integer it stands for.
+        counters=cast(dict[str, int], document.counters),
+        functions=[
+            StoredFunction(
+                name=function.name,
+                counters=_counters(function),
+                length=len(function.instructions),
+                instructions=_compressed(function),
             )
             for function in document.functions
-        }
-        return write_profile(
-            document.disassembly_format, cast(Mapping[str, int], document.counters), functions
-        )
+        ],
+    )
+
+
+def instructions(data: bytes) -> Iterator[tuple[int, dict[str, float], str]]:
+    """The address, counters and text of each instruction a stored function holds, in order.
+
+    The inverse of `_compressed`, over bytes only this module wrote.
+    """
+    columns = _COLUMNS_DECODER.decode(zstd.decompress(data))
+    address = 0
+    for position, (delta, text) in enumerate(
+        zip(columns.address_deltas, columns.text, strict=True)
+    ):
+        address += delta
+        counters = {counter: values[position] for counter, values in columns.counters.items()}
+        yield address, counters, text
+
+
+def _compressed(function: FunctionDocument) -> bytes:
+    """A function's instructions in the layout `instructions` reads back."""
+    rows = function.instructions
+    previous = 0
+    deltas = []
+    for instruction in rows:
+        # An integer by now; see `FunctionDocument.__post_init__`.
+        address = cast(int, instruction.address)
+        deltas.append(address - previous)
+        previous = address
+    columns = _Columns(
+        address_deltas=deltas,
+        counters={
+            counter: [instruction.counters[counter] for instruction in rows]
+            for counter in (rows[0].counters if rows else ())
+        },
+        text=[instruction.text for instruction in rows],
+    )
+    return zstd.compress(msgspec.json.encode(columns), level=_ZSTD_LEVEL)
 
 
 def _counters(function: FunctionDocument) -> dict[str, float]:
@@ -245,10 +300,10 @@ def _counters(function: FunctionDocument) -> dict[str, float]:
         for counter, value in instruction.counters.items():
             totals[counter] = totals.get(counter, 0.0) + value
     for counter, total in totals.items():
-        if total > MAX_REAL:
+        if not isfinite(total):
             raise _refused(
-                f"function '{function.name}': the '{counter}' counters sum to {total}, which is "
-                f"larger than single precision can hold"
+                f"function '{function.name}': the '{counter}' counters sum to more than a finite "
+                f"number can hold"
             )
     return totals
 

@@ -27,13 +27,13 @@ from conftest import PROFILE_DOCUMENT, code_of, encoded_profile, run_payload, uu
 from introspection import counted, counting_statements
 from lnt_v5.app import create_app
 from lnt_v5.config import Settings
-from lnt_v5.profile_format import read_profile
 from lnt_v5.routes.commits import COMMITS_PATH
 from lnt_v5.routes.machines import MACHINES_PATH
 from lnt_v5.routes.runs import RUNS_PATH
 from lnt_v5.routes.suites import SUITES_PATH, patch_schema
 from lnt_v5.scopes import Scope
 from lnt_v5.suites.evolve import SchemaPatch
+from lnt_v5.suites.profile_document import instructions
 from lnt_v5.suites.submission import validate_submission
 from lnt_v5.suites.tables import SuiteTables
 
@@ -149,7 +149,8 @@ def profiles(db_engine: Engine, suite: SuiteTables) -> list[dict[str, Any]]:
                     suite.test.c.name.label("test"),
                     suite.profile.c.uuid,
                     suite.profile.c.created_at,
-                    suite.profile.c.data,
+                    suite.profile.c.disassembly_format,
+                    suite.profile.c.counters,
                 ).join_from(suite.profile, suite.test, suite.test.c.id == suite.profile.c.test_id)
             )
             .mappings()
@@ -807,15 +808,25 @@ class TestProfiles:
     def test_stores_the_submitted_document(
         self, db_engine: Engine, suite: SuiteTables, submitted: Callable[..., Any]
     ) -> None:
-        # The stored encoding is the server's own (D12), so what is checked is what it reads back
-        # as; `test_profile_document.py` covers the document in detail.
+        # A function's instructions are stored in an encoding of the server's own (D5), so they are
+        # checked by reading them back; `test_profile_document.py` covers the document in detail.
         submitted(tests=[{"name": "suite/one", "profile": encoded_profile()}])
 
         stored = profiles(db_engine, suite)
         assert [row["test"] for row in stored] == ["suite/one"]
-        profile = read_profile(stored[0]["data"])
-        assert profile.counters == PROFILE_DOCUMENT["counters"]
-        assert [instruction.text for instruction in profile.instructions("main")] == ["ret"]
+        assert stored[0]["disassembly_format"] == PROFILE_DOCUMENT["disassembly_format"]
+        assert stored[0]["counters"] == PROFILE_DOCUMENT["counters"]
+        with db_engine.connect() as connection:
+            function = connection.execute(
+                select(
+                    suite.profile_function.c.name,
+                    suite.profile_function.c.counters,
+                    suite.profile_function.c.length,
+                    suite.profile_function.c.instructions,
+                )
+            ).one()
+        assert function[:3] == ("main", {"cycles": 100.0}, 1)
+        assert list(instructions(function.instructions)) == [(0, {"cycles": 100.0}, "ret")]
 
     def test_gives_each_profile_a_server_generated_uuid(
         self, db_engine: Engine, suite: SuiteTables, submitted: Callable[..., Any]
@@ -883,9 +894,7 @@ class TestProfiles:
             ]
         )
 
-        stored = {
-            row["test"]: read_profile(row["data"]).counters for row in profiles(db_engine, suite)
-        }
+        stored = {row["test"]: row["counters"] for row in profiles(db_engine, suite)}
         assert stored == {"suite/one": {"cycles": 1}, "suite/three": {"cycles": 3}}
 
     def test_refuses_a_profile_it_cannot_decode(self, submit: Callable[..., Any]) -> None:

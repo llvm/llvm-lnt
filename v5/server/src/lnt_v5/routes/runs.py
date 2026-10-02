@@ -186,6 +186,7 @@ class Runs:
         self._commit: Table = suite.tables.commit
         self._sample: Table = suite.tables.sample
         self._profile: Table = suite.tables.profile
+        self._profile_function: Table = suite.tables.profile_function
 
     def select(self) -> Select[Any]:
         """The list query, deliberately without the unbounded `run_parameters`; `one` adds it."""
@@ -342,24 +343,44 @@ class Runs:
         tests: Sequence[SubmittedTest],
         ids: Mapping[str, int],
     ) -> None:
-        """One profile row per run+test the submission carried one for, in one statement (D12).
+        """The profile row of every run+test the submission carried one for, then their functions'
+        rows, in one statement each (D5, D12).
 
         The UUID is minted here and never taken from the submission: R1 makes a run's UUID the one
         a client may choose, and every other UUID in the API server-generated. `created_at` is left
         to D5's column default, for the same reason `submitted_at` is.
         """
-        rows = [
+        profiles = {ids[test.name]: test.profile for test in tests if test.profile is not None}
+        if not profiles:
+            return
+        # Matched back by test rather than by position: a run holds one profile per test (D5).
+        inserted = connection.execute(
+            insert(self._profile).returning(self._profile.c.test_id, self._profile.c.id),
+            [
+                {
+                    "uuid": str(uuid4()),
+                    "run_id": run_id,
+                    "test_id": test_id,
+                    "disassembly_format": profile.disassembly_format,
+                    "counters": profile.counters,
+                }
+                for test_id, profile in profiles.items()
+            ],
+        )
+        profile_ids = dict(inserted.tuples().all())
+        functions = [
             {
-                "uuid": str(uuid4()),
-                "run_id": run_id,
-                "test_id": ids[test.name],
-                "data": test.profile,
+                "profile_id": profile_ids[test_id],
+                "name": function.name,
+                "counters": function.counters,
+                "length": function.length,
+                "instructions": function.instructions,
             }
-            for test in tests
-            if test.profile is not None
+            for test_id, profile in profiles.items()
+            for function in profile.functions
         ]
-        if rows:
-            connection.execute(insert(self._profile), rows)
+        if functions:
+            connection.execute(insert(self._profile_function), functions)
 
 
 def _missing(testsuite: str, uuid: str) -> ApiError:

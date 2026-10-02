@@ -121,7 +121,11 @@ def add_run(db_engine: Engine, suite: SuiteTables) -> Callable[..., str]:
             if profile:
                 connection.execute(
                     insert(suite.profile).values(
-                        uuid=str(uuid4()), run_id=run_id, test_id=test_id, data=b"\x02"
+                        uuid=str(uuid4()),
+                        run_id=run_id,
+                        test_id=test_id,
+                        disassembly_format="raw",
+                        counters={},
                     )
                 )
         return run
