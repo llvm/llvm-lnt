@@ -585,10 +585,10 @@ The DB layer validates state values on create and update.
 
 - Unique constraint on `(run_id, test_id)` -- at most one profile per
   run+test pair.
-- `data` stores the submitted profile document (see D12), in an encoding the
-  implementation chooses; nothing outside the server reads it. It must be
-  excluded from the default result set when querying this table; it may only
-  be loaded when a request explicitly needs the profile.
+- `data` stores the profile submitted for this run+test (see D12), in an
+  encoding the implementation chooses; nothing outside the server reads it. It
+  must be excluded from the default result set when querying this table; it may
+  only be loaded when a request explicitly needs the profile.
 - `uuid` is server-generated, used by the API for profile data endpoints.
   (Unlike Run UUIDs, which may be client-provided, Profile and Regression
   UUIDs are always server-generated.)

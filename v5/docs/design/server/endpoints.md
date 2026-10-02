@@ -341,15 +341,15 @@ Every counter these endpoints return is a raw count (see D12).
   `counters` is a dict of counter name -> number (the function's counters, each
   the sum over its instructions) and `length` is its instruction count. Sorted
   by the sum of the function's counter values, descending (hottest first), with
-  ties broken by name ascending. The sum is only a default order: the client
-  re-sorts by the counter the user picks (see the Function Selector in the
-  client docs).
+  ties broken by name in ascending code-point order. The sum is only a default
+  order: the client re-sorts by the counter the user picks (see the Function
+  Selector in the client docs).
 
 **Disassembly response** (`GET /api/suites/{testsuite}/profiles/{uuid}/disassembly?function={name}`):
 - `name`, `counters` (the function's counters, as in the functions response),
   `disassembly_format`, and `instructions`: array of `{address, counters, text}`
-  per instruction, where `address` is an integer and `counters` is a dict of
-  counter name -> number.
+  per instruction, in the order the profile document listed them, where
+  `address` is an integer and `counters` is a dict of counter name -> number.
 - `function` is required, and names the function by its name in the functions
   response; it is a query parameter because a name can contain `/` (see R1). A
   name the profile does not hold is 404.

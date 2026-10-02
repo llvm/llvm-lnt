@@ -304,7 +304,8 @@ one run. It is submitted inline, as the `profile` of a test entry (D6): a JSON
   below 2^64. They total the whole profile, functions it does not list included.
 - `functions`: each function's `name` and its `instructions`, in order. Each
   instruction carries its `address` (a non-negative integer below 2^64), its
-  `counters` (non-negative numbers) and its disassembled `text`.
+  `counters` (non-negative numbers) and its disassembled `text`. Either list
+  may be empty.
 
 Every counter value is a **raw count**, never a percentage. A function's own
 counters are not submitted: the server derives each as the sum of that counter
