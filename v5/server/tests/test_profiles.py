@@ -30,9 +30,9 @@ def ret(address: int, **counters: float) -> dict[str, Any]:
     return {"address": address, "counters": counters, "text": "ret"}
 
 
-# The counters are chosen so the two orderings differ: `main` is the hottest by the sum endpoints.md
-# sorts on, while `hot` is the hottest by `cycles` alone. `tie_a` and `tie_b` have the same sum and
-# are listed in the order that is not the tiebreaker's, so the tiebreaker has something to do.
+# The functions are listed out of name order, so that the function list has to sort them. `Zebra` is
+# capitalized so that code-point order, which endpoints.md specifies, puts it first, whereas a
+# locale's collation would put it last.
 PROFILE = encoded_profile(
     {
         "disassembly_format": "llvm-objdump",
@@ -49,7 +49,7 @@ PROFILE = encoded_profile(
                     ret(0x1004, cycles=20, **{"branch-misses": 20}),
                 ],
             },
-            {"name": "hot", "instructions": [ret(0x2000, cycles=100, **{"branch-misses": 5})]},
+            {"name": "Zebra", "instructions": [ret(0x2000, cycles=100, **{"branch-misses": 5})]},
             {"name": "tie_b", "instructions": [ret(0x3000, cycles=10)]},
             {"name": "tie_a", "instructions": [ret(0x4000, cycles=10)]},
             {"name": "cold", "instructions": []},
@@ -278,7 +278,7 @@ class TestMetadata:
 
 
 class TestFunctionList:
-    """`GET /profiles/{uuid}/functions`: every function, hottest first."""
+    """`GET /profiles/{uuid}/functions`: every function, by name."""
 
     @pytest.fixture
     def listed(self, api_client: TestClient, stored: Callable[..., str]) -> dict[str, Any]:
@@ -294,21 +294,16 @@ class TestFunctionList:
     def test_covers_every_function_the_profile_holds(self, listed: dict[str, Any]) -> None:
         assert {item["name"] for item in listed["items"]} == {
             "main",
-            "hot",
+            "Zebra",
             "tie_a",
             "tie_b",
             "cold",
         }
 
-    def test_is_hottest_first_with_ties_broken_by_name(self, listed: dict[str, Any]) -> None:
-        # endpoints.md: hottest first, where "hottest" is the sum across counters -- a default
-        # ordering rather than a physical quantity. `hot` has the larger `cycles` of the two and
-        # still comes after `main`, which is exactly the case the client's own counter dropdown
-        # re-sorts. `tie_a` and `tie_b` have the same sum, so without the tiebreaker their order
-        # would be whatever the document happened to list.
+    def test_is_ordered_by_name_in_code_point_order(self, listed: dict[str, Any]) -> None:
         names = [item["name"] for item in listed["items"]]
 
-        assert names == ["main", "hot", "tie_a", "tie_b", "cold"]
+        assert names == ["Zebra", "cold", "main", "tie_a", "tie_b"]
 
     def test_the_counters_are_the_raw_aggregate_rather_than_a_percentage(
         self, listed: dict[str, Any]
@@ -317,7 +312,7 @@ class TestFunctionList:
         # counter the API serves is raw and the client computes shares from it.
         functions = {item["name"]: item["counters"] for item in listed["items"]}
 
-        assert functions["hot"] == {"cycles": 100.0, "branch-misses": 5.0}
+        assert functions["Zebra"] == {"cycles": 100.0, "branch-misses": 5.0}
 
     def test_a_function_carries_only_the_counters_it_was_measured_with(
         self, listed: dict[str, Any]
@@ -329,7 +324,7 @@ class TestFunctionList:
     def test_the_length_is_the_instruction_count(self, listed: dict[str, Any]) -> None:
         lengths = {item["name"]: item["length"] for item in listed["items"]}
 
-        assert lengths == {"main": 2, "hot": 1, "tie_a": 1, "tie_b": 1, "cold": 0}
+        assert lengths == {"main": 2, "Zebra": 1, "tie_a": 1, "tie_b": 1, "cold": 0}
 
 
 class TestDisassembly:

@@ -203,12 +203,17 @@ class Profiles:
         )
 
     def functions(self, connection: Connection, uuid: str) -> list[ProfileFunction]:
-        """Every function of one profile, in no particular order, or the 404 for a missing UUID."""
+        """Every function of one profile, by name, or the 404 for a missing UUID.
+
+        In code-point order, as endpoints.md specifies, rather than in the database's collation,
+        which depends on the locale it was created with. The "C" collation compares UTF-8 byte by
+        byte, which orders by code point.
+        """
         profile = identifier(connection, self.table.c.uuid, uuid, self.missing)
         rows = connection.execute(
-            select(self._function.c.name, self._function.c.counters, self._function.c.length).where(
-                self._function.c.profile_id == profile
-            )
+            select(self._function.c.name, self._function.c.counters, self._function.c.length)
+            .where(self._function.c.profile_id == profile)
+            .order_by(self._function.c.name.collate("C"))
         )
         return [
             ProfileFunction(name=name, counters=counters, length=length)
@@ -258,17 +263,6 @@ class Profiles:
         )
 
 
-def _hotness(function: ProfileFunction) -> tuple[float, str]:
-    """The function list's order (endpoints.md): hottest first, ties broken by name.
-
-    The sum across a function's counters is a default rather than a physical quantity -- adding
-    cycles to branch misses means nothing -- and endpoints.md says so: the client re-sorts by
-    whichever single counter the user picked. What the sum has to be is *total*, so that the list
-    comes back in the same order every time, which is what the name tiebreaker adds.
-    """
-    return (-sum(function.counters.values()), function.name)
-
-
 @run_profiles_router.get(
     "/{uuid}/profiles",
     dependencies=[require_scope(Scope.READ)],
@@ -312,15 +306,14 @@ def get_profile(
 def list_profile_functions(
     testsuite: str, uuid: UuidKey, engine: EngineDep, registry: RegistryDep
 ) -> Items[ProfileFunction]:
-    """Every function the profile measured, hottest first (R2, endpoints.md).
+    """Every function the profile measured, by name (R2, endpoints.md).
 
     Unpaginated: D12 caps a profile's functions, and the client renders all of them into one
-    combobox (`client/profiles.md`, "Function Selector"). Sorted here rather than in SQL, since
-    the order is a sum over a JSONB object's values.
+    combobox (`client/profiles.md`, "Function Selector"), which it sorts by the counter the user
+    picks.
     """
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
-        functions = Profiles(suite).functions(connection, uuid)
-    return Items(items=sorted(functions, key=_hotness))
+        return Items(items=Profiles(suite).functions(connection, uuid))
 
 
 @router.get(

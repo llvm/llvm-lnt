@@ -340,10 +340,9 @@ Every counter these endpoints return is a raw count (see D12).
 - R2's unpaginated envelope over `{name, counters, length}` objects, where
   `counters` is a dict of counter name -> number (the function's counters, each
   the sum over its instructions) and `length` is its instruction count. Sorted
-  by the sum of the function's counter values, descending (hottest first), with
-  ties broken by name in ascending code-point order. The sum is only a default
-  order: the client re-sorts by the counter the user picks (see the Function
-  Selector in the client docs).
+  by name in ascending code-point order. Ordering by how hot a function is
+  depends on the counter the user picks, so the client sorts by that itself (see
+  the Function Selector in the client docs).
 
 **Disassembly response** (`GET /api/suites/{testsuite}/profiles/{uuid}/disassembly?function={name}`):
 - `name`, `counters` (the function's counters, as in the functions response),
