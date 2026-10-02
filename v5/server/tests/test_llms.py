@@ -51,10 +51,11 @@ class TestContent:
 
     def test_names_every_error_code(self, client: TestClient) -> None:
         # R4's codes are what the document tells a reader to branch on, so a code it does not
-        # mention is one a reader will not handle.
+        # mention is one a reader will not handle. Matched in backticks, as the document writes
+        # them, because a bare `conflict` would be found inside `ordinal_conflict`.
         document = _document(client)
 
-        assert {code for code in ErrorCode if code.value in document} == set(ErrorCode)
+        assert {code for code in ErrorCode if f"`{code.value}`" in document} == set(ErrorCode)
 
     def test_indexes_every_operation_with_its_scope(self, client: TestClient, app: FastAPI) -> None:
         """The endpoint index lists exactly the operations that declare a scope, with that scope.
@@ -76,13 +77,14 @@ class TestContent:
         assert indexed == declared
 
     def test_names_only_paths_this_server_serves(self, client: TestClient, app: FastAPI) -> None:
-        """Every path in the document resolves to a route, as written or as a suite-relative tail.
+        """Every path in the document resolves to a route, in full or relative to a suite.
 
         The document spells a suite-scoped path in full the first time and abbreviates it
         afterwards -- `/runs/{uuid}/samples` for what is really
         `/api/suites/{testsuite}/runs/{uuid}/samples` -- because a reader that has got that far
-        knows the prefix and the full form is unreadable six times in a paragraph. Matching on a
-        tail accepts both, and still catches a path that names nothing.
+        knows the prefix and the full form is unreadable six times in a paragraph. Accepting
+        exactly those two readings, rather than any route that merely ends the same way, keeps a
+        relative path from passing on the strength of a route somewhere else in the tree.
         """
         served = {
             _shape(route.path_format) for route in iter_routes(app.routes) if route.path_format
@@ -90,7 +92,7 @@ class TestContent:
 
         for path in _paths_named_in(_document(client)):
             shape = _shape(path)
-            assert any(route.endswith(shape) for route in served), (
+            assert shape in served or _SUITE_PREFIX + shape in served, (
                 f"the document names {path}, which no route serves"
             )
 
@@ -105,6 +107,9 @@ _INDEX_ENTRY = re.compile(r"^(GET|POST|PATCH|DELETE) +(/\S+) +(\w+)", re.MULTILI
 # test name such as `bench/foo`, or `previous/next` in prose, from reading as a path. Trailing
 # sentence punctuation is stripped after the fact.
 _PATH = re.compile(r"(?<![\w/.-])/[A-Za-z0-9_{}/.-]+")
+
+# What the document's suite-relative paths are relative to, as `_shape` writes it.
+_SUITE_PREFIX = "/api/suites/{}"
 
 # Path parameters are named for the reader rather than for the router, so the document may write
 # `{name}` where the route says `{machine_name}`.
