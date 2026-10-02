@@ -316,8 +316,8 @@ member. Each of the following is rejected with 400:
 
 - Any other character outside the base64 alphabet, bad padding, or data that is
   not one complete gzip member.
-- More than 4 MiB (4,194,304 bytes) compressed, or more than 64 MiB
-  (67,108,864 bytes) decompressed.
+- More than 4 MiB (4,194,304 bytes) compressed, or more than 32 MiB
+  (33,554,432 bytes) decompressed.
 - A document that is not valid JSON of the shape above, with exactly those keys
   and types as D3 reads them.
 - An empty function or counter name, a newline or NUL in any string, or two

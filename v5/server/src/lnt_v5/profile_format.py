@@ -74,7 +74,7 @@ PROFILE_FORMAT_VERSION = 2
 # How much the four compressed sections may expand to, together, for one profile. D12's cap on a
 # decompressed document is defined as this (`suites.profile_document`), and a document always
 # expands to less in this format, which spends fewer bytes than JSON on every part of it.
-MAX_DECOMPRESSED_SIZE = 64 * 1024 * 1024
+MAX_DECOMPRESSED_SIZE = 32 * 1024 * 1024
 
 # D12's cap on the instructions of one function: several times the largest function measured on
 # lnt.llvm.org, and what keeps one request's materialized disassembly to a size a server can hold.

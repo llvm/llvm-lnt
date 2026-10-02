@@ -44,10 +44,12 @@ from lnt_v5.strings import NUL
 
 # D12's caps on one profile: on the compressed document, and on what it decompresses to. Both are
 # limits on a profile rather than on the request carrying it, whose body is refused at the transport
-# layer with R4's 413 instead (see `config.BODY_LIMIT`). The compressed cap is several times the
-# largest profile on lnt.llvm.org; the decompressed one admits whatever a document within the
-# compressed cap legitimately expands to, at the ratio real profiles compress at. It is the stored
-# format's own expansion limit, so that everything admitted here can be stored and read back.
+# layer with R4's 413 instead (see `config.BODY_LIMIT`). Of the roughly 200,000 profiles on
+# lnt.llvm.org, the largest is a 17 MiB document that compresses to 1.1 MiB, so the compressed cap
+# is several times that and the decompressed one about twice it. The decompressed cap is the one
+# that bounds memory: encoding a profile peaks at about seven and a half times the document's size,
+# so a document at this cap costs about 240 MiB. It is also the stored format's own expansion limit,
+# so that everything admitted here can be stored and read back.
 MAX_COMPRESSED_SIZE = 4 * 1024 * 1024
 MAX_DOCUMENT_SIZE = MAX_DECOMPRESSED_SIZE
 
@@ -57,12 +59,12 @@ MAX_DOCUMENT_SIZE = MAX_DECOMPRESSED_SIZE
 # which the check on the decoded length then catches.
 MAX_ENCODED_SIZE = 4 * ((MAX_COMPRESSED_SIZE + 2) // 3)
 
-# How many profiles one worker encodes at once. Encoding a profile at the caps above holds hundreds
-# of megabytes for a few seconds, and FastAPI runs submissions on a threadpool of dozens of threads,
-# so without a bound a burst of concurrent submissions multiplies that until the process runs out of
-# memory. One at a time costs little throughput, since most of the work holds the GIL anyway, and
-# makes the worst case per worker one profile's worth. Nothing waiting here holds a database
-# connection: submission validates before it takes one.
+# How many profiles one worker encodes at once. Encoding a profile at the caps above holds a couple
+# of hundred megabytes for a second or more, and FastAPI runs submissions on a threadpool of dozens
+# of threads, so without a bound a burst of concurrent submissions multiplies that until the process
+# runs out of memory. One at a time costs little throughput, since most of the work holds the GIL
+# anyway, and makes the worst case per worker one profile's worth. Nothing waiting here holds a
+# database connection: submission validates before it takes one.
 _ENCODING = threading.BoundedSemaphore(1)
 
 # The ASCII whitespace D12 makes insignificant in the base64, removed before decoding. Exactly the
