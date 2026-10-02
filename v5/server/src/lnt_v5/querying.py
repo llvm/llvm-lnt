@@ -234,8 +234,9 @@ class Keyset:
         except (ValueError, TypeError, RecursionError) as error:
             raise ApiError(
                 ErrorCode.INVALID_REQUEST,
-                "This cursor was not issued for this list, filters and sort order. Pass back the "
-                "'cursor.next' from a page of this same request, unmodified.",
+                "This cursor was not issued for this list, filters and sort order, or the list has "
+                "changed since it was. Pass back the 'cursor.next' from a page of this same "
+                "request, unmodified, or start again from the first page.",
             ) from error
 
 
@@ -262,7 +263,9 @@ def cursor_page[T](
     whether it came from the query string, the path or a body -- and nothing else is in it, so
     neither an unrelated parameter nor another spelling of the same filter (`has_profiles=1` for
     `true`, a default spelled out, one instant in two time zones) invalidates a cursor. It names the
-    suite's tables, so a cursor from one suite is not accepted by another's either.
+    suite's tables, so a cursor from one suite is not accepted by another's either. The flip side is
+    that anything changing the statement -- a schema change to a column it selects or searches, or
+    a deploy that alters the query -- invalidates the cursors already issued for it, as R2 allows.
 
     One row beyond the page is fetched and discarded, so that `next` is null exactly when the
     caller has reached the end -- rather than handing back a cursor that leads to an empty page and
