@@ -41,7 +41,7 @@ from lnt_v5.suites.tables import (
 )
 from lnt_v5.tables import metadata as global_metadata
 
-# The twelve tables D5 gives every suite.
+# The tables D5 gives every suite.
 SUITE_TABLES = frozenset(
     {
         "commit",
@@ -253,7 +253,7 @@ class TestBuiltInColumns:
     @pytest.mark.parametrize(
         ("table", "expected"),
         [
-            # D5's column list for each of the eleven tables, in order, with FULL's dynamic columns
+            # D5's column list for each table, in order, with FULL's dynamic columns
             # appended where the table takes them -- so this also pins that a schema's entries come
             # after the built-ins rather than interleaved with them.
             ("commit", ["id", "commit", "ordinal", "tag", "git_sha", "commit_timestamp"]),

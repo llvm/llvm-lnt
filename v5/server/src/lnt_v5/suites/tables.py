@@ -137,7 +137,7 @@ def _dynamic(entries: Sequence[Entry]) -> list[Column[Any]]:
 
 @dataclass(frozen=True)
 class SuiteTables:
-    """One suite's twelve tables, and the metadata describing them together.
+    """All of one suite's tables, and the metadata describing them together.
 
     Held as named attributes rather than looked up by string so that the query code reads as
     `tables.sample.c.run_id`, and so that a typo is a type error.
@@ -424,8 +424,8 @@ def create(connection: Connection, schema: SuiteSchema) -> SuiteTables:
     tables = build(schema)
     connection.execute(text(f"CREATE SCHEMA {_quote(connection, tables.name)}"))
     # `checkfirst=False` because the CREATE SCHEMA above has just established that nothing in this
-    # namespace exists. The default would reflect each of the twelve tables first, to skip the ones
-    # already there -- twelve round trips that can only ever answer "no".
+    # namespace exists. The default would reflect each table first, to skip the ones already there
+    # -- a round trip per table that can only ever answer "no".
     tables.metadata.create_all(connection, checkfirst=False)
     add_metrics(connection, tables.metric, [metric.name for metric in schema.metrics])
     return tables
