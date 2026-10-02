@@ -117,7 +117,8 @@ _COMPRESSED = (_LINE_COUNTERS, _LINE_ADDRESSES, _LINE_TEXT, _TEXT_POOL)
 # The exception families a decoding primitive raises, caught at the entry points so that a case the
 # checks below fail to anticipate is still a `ProfileError`. Enumerated rather than `Exception`, so
 # that a `TypeError` or an `AttributeError` -- a bug in this module -- is not dressed up as a
-# corrupt profile.
+# corrupt profile, and neither is a `MemoryError`, which says the server is short of memory rather
+# than anything about the blob: the reader's bounds keep a stored profile from asking for much.
 _DECODING_FAILURES = (
     ValueError,  # also UnicodeDecodeError, and bz2 on a malformed stream
     struct.error,
@@ -125,7 +126,6 @@ _DECODING_FAILURES = (
     ArithmeticError,  # also OverflowError, from a number too wide to convert
     EOFError,
     OSError,  # bz2 on invalid data
-    MemoryError,
 )
 
 
