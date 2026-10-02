@@ -133,11 +133,13 @@ Deleting a suite, or removing entries from its schema, destroys data and needs
   - `in_use`: a regression still references the commit you asked to delete.
   - `conflict`: anything else. Contradicting stored metadata cannot be retried
     as sent; a concurrent schema change can be retried.
-- **Names that match nothing**: an unknown machine or test is 404, an unknown
-  metric is 400, and an unknown commit used as a filter (`commit=`, or
+- **Names that match nothing**: a run submission creates the machine, commit
+  and tests it names. Everywhere else, an unknown machine or test is 404, an
+  unknown metric is 400, and an unknown commit used as a filter (`commit=`, or
   `/query`'s `commit`) is an empty result. A commit used as a range bound
   (`after_commit`, `before_commit`) is 404 if unknown and 400 if it has no
-  ordinal. A commit a body refers to, such as a regression's, is 404.
+  ordinal. A commit a regression refers to is 404. A schema `PATCH` that updates
+  or removes an entry the schema does not have is 404, metrics included.
 - **Values**: timestamps are ISO 8601 in UTC with a `Z` suffix. Values in
   `fields` and `metrics` use the JSON type their declared type calls for: a
   number for `real` and `integer`, never a string, so `"5"` is not accepted for
