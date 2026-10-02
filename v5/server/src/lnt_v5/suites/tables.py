@@ -137,7 +137,7 @@ def _dynamic(entries: Sequence[Entry]) -> list[Column[Any]]:
 
 @dataclass(frozen=True)
 class SuiteTables:
-    """One suite's eleven tables, and the metadata describing them together.
+    """All of one suite's tables, and the metadata describing them together.
 
     Held as named attributes rather than looked up by string so that the query code reads as
     `tables.sample.c.run_id`, and so that a typo is a type error.
@@ -154,6 +154,7 @@ class SuiteTables:
     regression: Table
     regression_indicator: Table
     profile: Table
+    profile_function: Table
     run_summary: Table
 
     @property
@@ -331,11 +332,28 @@ def build(schema: SuiteSchema) -> SuiteTables:
         Column("run_id", ForeignKey("run.id", ondelete="CASCADE"), nullable=False),
         Column("test_id", ForeignKey("test.id"), nullable=False, index=True),
         Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
-        # D5 and D12: the blob must stay out of the default result set and be loaded only when a
-        # request actually needs it. Core selects the columns it is asked for, so that obligation
-        # falls on each query -- `select(profile)` would pull every blob it matched.
-        Column("data", LargeBinary, nullable=False),
+        Column("disassembly_format", Text, nullable=False),
+        # D12's top-level counters, by name. JSONB rather than a column per counter: which counters
+        # a profile measured is up to its producer, not the suite's schema.
+        Column("counters", JSONB, nullable=False),
         UniqueConstraint("run_id", "test_id"),
+    )
+
+    # One row per function of a profile (D5). The key leads with the profile, which is how every
+    # query reaches these rows, and D12's cap on a function name
+    # (`profile_document.MAX_FUNCTION_NAME_BYTES`) keeps it within a btree entry, about 2.7 kB.
+    profile_function = Table(
+        "profile_function",
+        metadata,
+        Column("profile_id", ForeignKey("profile.id", ondelete="CASCADE"), primary_key=True),
+        Column("name", Text, primary_key=True),
+        Column("counters", JSONB, nullable=False),
+        Column("length", Integer, nullable=False),
+        # D5: the instructions must stay out of the default result set and be loaded only when a
+        # request actually needs them. Core selects the columns it is asked for, so that obligation
+        # falls on each query -- `select(profile_function)` would pull every function's
+        # instructions it matched. The encoding is `profile_document`'s.
+        Column("instructions", LargeBinary, nullable=False),
     )
 
     # D15: statistics summarizing a run's samples, one row per numeric metric and sample
@@ -370,6 +388,7 @@ def build(schema: SuiteSchema) -> SuiteTables:
         regression=regression,
         regression_indicator=regression_indicator,
         profile=profile,
+        profile_function=profile_function,
         run_summary=run_summary,
     )
 
@@ -404,8 +423,8 @@ def create(connection: Connection, schema: SuiteSchema) -> SuiteTables:
     tables = build(schema)
     connection.execute(text(f"CREATE SCHEMA {_quote(connection, tables.name)}"))
     # `checkfirst=False` because the CREATE SCHEMA above has just established that nothing in this
-    # namespace exists. The default would reflect each of the eleven tables first, to skip the ones
-    # already there -- eleven round trips that can only ever answer "no".
+    # namespace exists. The default would reflect each table first, to skip the ones already there
+    # -- a round trip per table that can only ever answer "no".
     tables.metadata.create_all(connection, checkfirst=False)
     add_metrics(connection, tables.metric, [metric.name for metric in schema.metrics])
     return tables

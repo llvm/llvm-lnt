@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 from lnt_v5.querying import DEFAULT_LIMIT, MAX_LIMIT
 from lnt_v5.routes.commits import COMMITS_PATH
 from lnt_v5.routes.machines import MACHINES_PATH
+from lnt_v5.routes.profiles import PROFILES_PATH, RUN_PROFILES_PATH
 from lnt_v5.routes.regressions import INDICATORS_PATH, REGRESSIONS_PATH
 from lnt_v5.routes.runs import MACHINE_RUNS_PATH, RUNS_PATH
 from lnt_v5.routes.samples import SAMPLES_PATH
@@ -636,6 +637,101 @@ class TestReadOperations:
 
         assert set(sample["required"]) == set(sample["properties"]) == {"test", "metrics"}
         assert {"type": "null"} not in values["anyOf"]
+
+
+RUN_PROFILES = RUN_PROFILES_PATH
+PROFILE = f"{PROFILES_PATH}/{{uuid}}"
+FUNCTIONS = f"{PROFILE}/functions"
+DISASSEMBLY = f"{PROFILE}/disassembly"
+
+# The three that serve what is inside a blob, as opposed to the listing, which never opens one.
+PROFILE_DATA = [PROFILE, FUNCTIONS, DISASSEMBLY]
+
+
+class TestProfileOperations:
+    """R8: the four reads endpoints.md specifies under Profiles."""
+
+    @pytest.mark.parametrize("path", [RUN_PROFILES, *PROFILE_DATA])
+    def test_is_documented(self, client: TestClient, path: str) -> None:
+        paths = client.get("/api/openapi.json").json()["paths"]
+
+        assert "get" in paths[path], f"GET {path} is not in the document"
+
+    @pytest.mark.parametrize("path", [RUN_PROFILES, *PROFILE_DATA])
+    @pytest.mark.parametrize("status", ["404", "409"])
+    def test_documents_the_failures_endpoints_md_specifies(
+        self, client: TestClient, path: str, status: str
+    ) -> None:
+        # An unknown suite on every one of them (R1), plus the run, the profile or the function the
+        # path names. D2's stale reader accounts for the 409.
+        operation = client.get("/api/openapi.json").json()["paths"][path]["get"]
+
+        assert status in operation["responses"]
+
+    @pytest.mark.parametrize("path", [RUN_PROFILES, FUNCTIONS])
+    def test_the_lists_are_unpaginated(self, client: TestClient, path: str) -> None:
+        # R2: both are bounded -- by the tests of one run, and by the functions of one binary -- so
+        # they carry `items` alone, with neither a cursor nor a total to page by.
+        document = client.get("/api/openapi.json").json()
+        operation = document["paths"][path]["get"]
+        body = operation["responses"]["200"]["content"]["application/json"]["schema"]
+        envelope = document["components"]["schemas"][body["$ref"].rsplit("/", 1)[-1]]
+        names = {parameter["name"] for parameter in operation["parameters"]}
+
+        assert set(envelope["properties"]) == {"items"}
+        assert not names & {"limit", "offset", "cursor"}
+
+    @pytest.mark.parametrize(
+        ("schema", "keys"),
+        [
+            ("RunProfile", {"test", "uuid"}),
+            ("ProfileMetadata", {"uuid", "test", "run_uuid", "counters", "disassembly_format"}),
+            ("ProfileFunction", {"name", "counters", "length"}),
+            ("Instruction", {"address", "counters", "text"}),
+            (
+                "FunctionDisassembly",
+                {"name", "counters", "disassembly_format", "instructions"},
+            ),
+        ],
+    )
+    def test_a_response_carries_exactly_the_keys_endpoints_md_gives_it(
+        self, client: TestClient, schema: str, keys: set[str]
+    ) -> None:
+        # R4: a documented key is always present, so `properties` and `required` agree.
+        described = client.get("/api/openapi.json").json()["components"]["schemas"][schema]
+
+        assert set(described["properties"]) == keys
+        assert set(described["required"]) == keys
+
+    def test_a_top_level_counter_is_an_integer_and_every_other_counter_a_number(
+        self, client: TestClient
+    ) -> None:
+        # endpoints.md draws that line: the top-level counters are integers, and the function and
+        # instruction counters are floats. Both are raw values rather than percentages.
+        schemas = client.get("/api/openapi.json").json()["components"]["schemas"]
+
+        assert schemas["ProfileMetadata"]["properties"]["counters"]["additionalProperties"] == {
+            "type": "integer"
+        }
+        for schema in ("ProfileFunction", "Instruction", "FunctionDisassembly"):
+            counters = schemas[schema]["properties"]["counters"]
+            assert counters["additionalProperties"] == {"type": "number"}, schema
+
+    def test_the_function_is_a_required_query_parameter(self, client: TestClient) -> None:
+        # R1: a function name can contain `/`, so it travels in the query string, never the path.
+        operation = client.get("/api/openapi.json").json()["paths"][DISASSEMBLY]["get"]
+        parameters = {parameter["name"]: parameter for parameter in operation["parameters"]}
+
+        assert set(parameters) == {"testsuite", "uuid", "function"}
+        assert parameters["function"]["in"] == "query"
+        assert parameters["function"]["required"] is True
+
+    @pytest.mark.parametrize("path", [RUN_PROFILES, *PROFILE_DATA])
+    def test_can_be_refused_but_never_forbidden(self, client: TestClient, path: str) -> None:
+        # R5: all four are `read`-scoped, and every valid key grants `read`.
+        operation = client.get("/api/openapi.json").json()["paths"][path]["get"]
+
+        assert "403" not in operation["responses"]
 
 
 REGRESSIONS = REGRESSIONS_PATH

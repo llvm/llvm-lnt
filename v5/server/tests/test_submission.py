@@ -12,25 +12,17 @@ with an `ApiError` carrying that code itself.
 
 from __future__ import annotations
 
-import base64
 import uuid
 from typing import Any
 
 import pytest
 from pydantic import ValidationError
 
-from conftest import encoded_profile, run_payload
+from conftest import PROFILE_DOCUMENT, encoded_profile, run_payload
 from lnt_v5.errors import ApiError, ErrorCode
 from lnt_v5.suites import submission
 from lnt_v5.suites.schema import SuiteSchema
-from lnt_v5.suites.submission import (
-    MAX_ENCODED_PROFILE_SIZE,
-    MAX_PROFILE_SIZE,
-    RunSubmission,
-    ValidatedSubmission,
-    decode_profile,
-    validate_submission,
-)
+from lnt_v5.suites.submission import RunSubmission, ValidatedSubmission, validate_submission
 from lnt_v5.suites.tables import NAME_LENGTH
 
 # A suite declaring one metric of every type D3 offers, plus fields on both entities, so that one
@@ -427,7 +419,7 @@ class TestSampleRows:
         ]
 
     def test_an_entry_carrying_only_a_profile_yields_one_row_of_nulls(self) -> None:
-        test = one_test(profile=encoded_profile(0, 0))
+        test = one_test(profile=encoded_profile())
         assert test.samples == [row()]
         assert test.profile is not None
 
@@ -489,11 +481,13 @@ class TestSampleRows:
 
 
 class TestProfiles:
-    def test_decodes_the_blob(self) -> None:
-        assert one_test(profile=encoded_profile(1, 2, 3)).profile == bytes([2, 1, 2, 3])
+    """How an entry's profile reaches `profile_document`, where the document itself is tested."""
 
-    def test_accepts_a_blob_that_is_only_a_version_byte(self) -> None:
-        assert one_test(profile=encoded_profile()).profile == bytes([2])
+    def test_an_entry_with_one_carries_the_profile_to_store(self) -> None:
+        stored = one_test(profile=encoded_profile()).profile
+
+        assert stored is not None
+        assert stored.counters == PROFILE_DOCUMENT["counters"]
 
     @pytest.mark.parametrize("value", [None, ...])
     def test_an_entry_without_one_carries_no_profile(self, value: Any) -> None:
@@ -501,86 +495,24 @@ class TestProfiles:
         entry = {} if value is ... else {"profile": value}
         assert one_test(**entry).profile is None
 
-    @pytest.mark.parametrize("value", ["not base64!", "AAA", "====", "é"])
-    def test_rejects_anything_that_is_not_base64(self, value: str) -> None:
-        # Strict decoding: Python's lenient mode discards characters outside the alphabet, which
-        # would turn a payload that is not base64 at all into whatever remained.
-        assert "profile is not valid base64" in refused_test(profile=value)
+    def test_a_sample_is_refused_before_any_profile_is_encoded(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Encoding a profile is the expensive part of validation, so it comes last: a submission
+        # refused for a sample in a later entry encodes none of the profiles before it.
+        encoded: list[str] = []
+        monkeypatch.setattr(submission, "stored_profile", lambda value: encoded.append(value))
 
-    def test_accepts_line_wrapped_base64(self) -> None:
-        # D12 makes whitespace insignificant, which is what it takes to accept the producers that
-        # actually exist: `base64(1)` wraps at 76 columns by default, and so does every MIME
-        # encoder. Nothing is lost by stripping it, because what is left is still decoded strictly.
-        blob = base64.b64encode(bytes([2, *range(200)])).decode()
-        wrapped = "\n".join(blob[index : index + 76] for index in range(0, len(blob), 76))
-
-        assert len(wrapped) > len(blob)  # the wrapping is actually there
-        assert one_test(profile=wrapped).profile == bytes([2, *range(200)])
-
-    @pytest.mark.parametrize("spacing", [" ", "\t", "\r\n", "\n\n"])
-    def test_accepts_any_ascii_whitespace_anywhere_in_the_blob(self, spacing: str) -> None:
-        blob = encoded_profile(1, 2, 3)
-        spaced = spacing + spacing.join(blob) + spacing
-
-        assert one_test(profile=spaced).profile == bytes([2, 1, 2, 3])
-
-    @pytest.mark.parametrize("spacing", ["\u00a0", "\u2003"])
-    def test_still_rejects_whitespace_from_outside_ascii(self, spacing: str) -> None:
-        # The strip is deliberately the ASCII set rather than `str.split()`'s: a non-breaking space
-        # or an em space is a character outside the alphabet, which is exactly what strict decoding
-        # is there to report rather than quietly drop.
-        assert "profile is not valid base64" in refused_test(
-            profile=spacing + encoded_profile(1, 2, 3)
+        message = refused(
+            tests=[
+                {"name": "first", "profile": encoded_profile()},
+                {"name": "second", "execution_time": "slow"},
+            ]
         )
 
-    def test_rejects_an_empty_profile(self) -> None:
-        assert "profile is empty" in refused_test(profile="")
+        assert message.startswith("test 'second':")
+        assert encoded == []
 
-    def test_rejects_a_profile_of_another_format_version(self) -> None:
-        blob = base64.b64encode(bytes([1, 2, 3])).decode()
-        assert "declares format version 1" in refused_test(profile=blob)
-
-    def test_rejects_one_larger_than_the_cap_before_decoding_it(self) -> None:
-        # The encoded-length gate: 4 characters carry 3 bytes, so a longer string cannot decode to
-        # anything within the cap, and refusing here avoids materializing ~50 MB to find out.
-        assert "larger than" in refused_test(profile="A" * (MAX_ENCODED_PROFILE_SIZE + 1))
-
-    def test_measures_the_encoded_cap_after_removing_the_whitespace(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        # Line breaks are not payload, so the gate has to be applied to what is left once they are
-        # gone: measuring the string as it arrived would refuse a wrapped profile for a size it
-        # does not have -- and wrapping is what the common producers do.
-        monkeypatch.setattr(submission, "MAX_ENCODED_PROFILE_SIZE", 5)
-        blob = encoded_profile(1, 2)
-        wrapped = "\n".join(blob)
-
-        assert len(wrapped) > 5 >= len(blob)
-        assert decode_profile(wrapped) == bytes([2, 1, 2])
-
-    def test_rejects_one_larger_than_the_cap_after_decoding_it(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        # The gate above admits up to two bytes more than the cap, so this check is what makes
-        # `MAX_PROFILE_SIZE` exact. Both caps are lowered rather than a 50 MB blob built, since the
-        # window between them is two bytes wide.
-        monkeypatch.setattr(submission, "MAX_PROFILE_SIZE", 2)
-        monkeypatch.setattr(submission, "MAX_ENCODED_PROFILE_SIZE", 1000)
-        assert "larger than" in refused_test(profile=encoded_profile(1, 2))
-
-    def test_the_encoded_cap_admits_every_blob_the_decoded_cap_does(self) -> None:
-        # Stated as arithmetic rather than by encoding 50 MB: base64 spends 4 characters on every
-        # 3 bytes, rounded up to a whole group.
-        assert len(base64.b64encode(b"x" * MAX_PROFILE_SIZE)) == MAX_ENCODED_PROFILE_SIZE
-
-
-class TestDecodeProfile:
-    """`decode_profile` on its own, for the one caller that is not a test entry."""
-
-    def test_returns_the_bytes(self) -> None:
-        assert decode_profile(encoded_profile(7)) == bytes([2, 7])
-
-    def test_raises_the_r4_code_for_a_bad_request(self) -> None:
-        with pytest.raises(ApiError) as caught:
-            decode_profile("nope")
-        assert caught.value.code is ErrorCode.INVALID_REQUEST
+    def test_a_refused_profile_names_its_test(self) -> None:
+        # A submission carries thousands of entries, so the 400 says which one is at fault.
+        assert refused_test(profile="not base64!").startswith("test 'bench': profile:")

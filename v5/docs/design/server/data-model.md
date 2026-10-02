@@ -372,7 +372,7 @@ of its own named after its suite (see below).
 Each suite's tables live in a namespace of their own, named after the suite: a
 PostgreSQL schema called `{suite}`, holding `commit`, `machine`, `metric`, `run`,
 `test`, `sample`, `test_coverage`, `regression`, `regression_indicator`,
-`profile` and `run_summary`.
+`profile`, `profile_function` and `run_summary`.
 A table is therefore addressed as `{suite}.commit`, and the entity names below
 are given in that form.
 
@@ -581,19 +581,38 @@ The DB layer validates state values on create and update.
 | run_id | INTEGER FK -> Run | not null |
 | test_id | INTEGER FK -> Test | not null, indexed |
 | created_at | TIMESTAMP WITH TIME ZONE | not null |
-| data | BYTEA | not null |
+| disassembly_format | TEXT | not null |
+| counters | JSONB | not null |
 
+- One row per profile submitted for a run+test (see D12), holding everything
+  about it but its functions. `counters` is the profile's top-level counters,
+  keyed by counter name.
 - Unique constraint on `(run_id, test_id)` -- at most one profile per
   run+test pair.
-- `data` stores the profile binary blob (base64-decoded on submission).
-  It must be excluded from the default result set when querying this table;
-  it may only be loaded when a request explicitly needs the blob.
 - `uuid` is server-generated, used by the API for profile data endpoints.
   (Unlike Run UUIDs, which may be client-provided, Profile and Regression
   UUIDs are always server-generated.)
 - Cascade: deleting a run cascades to its profiles.
-- A submitted profile may be at most 50 MiB (52,428,800 bytes) decoded; a
-  larger one is rejected (see D12).
+
+#### `{suite}.profile_function`
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| profile_id | INTEGER FK -> Profile | PK |
+| name | TEXT | PK |
+| counters | JSONB | not null |
+| length | INTEGER | not null |
+| instructions | BYTEA | not null |
+
+- One row per function of a profile, so that a profile's function list is read
+  without its instructions, and one function's instructions without any other's.
+- `counters` is the function's counters, each the sum over its instructions (see
+  D12), and `length` its number of instructions.
+- `instructions` holds the function's instructions, in an encoding the
+  implementation chooses; nothing outside the server reads it. It must be
+  excluded from the default result set when querying this table; it may only be
+  loaded when a request explicitly needs that function's instructions.
+- Cascade: deleting a profile cascades to its functions.
 
 #### `{suite}.run_summary`
 

@@ -63,7 +63,8 @@ When only side A is selected:
 
 A combobox for each side, populated from the profile's function list.
 - Sorted by hottest-first (highest counter value for the selected counter)
-- Each suggestion shows a colored badge with the counter percentage
+- Each suggestion shows a colored badge with the function's share of the
+  profile's top-level value for that counter
 - A counter dropdown controls which counter is used for sorting and display
 
 
@@ -100,7 +101,8 @@ display mode is currently implemented.
 
 ### Counter Display Modes
 
-A dropdown to control how counter values are displayed:
+The API serves raw counts only, so every percentage below is computed
+client-side. A dropdown controls how counter values are displayed:
 - **Relative %**: percentage of function total (default)
 - **Absolute**: raw counter values
 - **Cumulative**: running sum through instructions
@@ -134,8 +136,8 @@ When only one side:
 5. When user selects a test, resolve the profile UUID from the list and call
    `GET /profiles/{uuid}` for metadata + counters, and
    `GET /profiles/{uuid}/functions` for the function list.
-6. When user selects a function, call `GET /profiles/{uuid}/functions/{fn}` for
-   disassembly data.
+6. When user selects a function, call
+   `GET /profiles/{uuid}/disassembly?function={fn}` for disassembly data.
 
 **URL restoration** (page load with `run_a`/`test_a` params):
 1. Call `GET /runs/{uuid}` to recover machine + commit.

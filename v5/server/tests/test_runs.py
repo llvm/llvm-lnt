@@ -23,7 +23,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, select, text, update
 
-from conftest import code_of, encoded_profile, run_payload, uuids_in, walk_pages
+from conftest import PROFILE_DOCUMENT, code_of, encoded_profile, run_payload, uuids_in, walk_pages
 from introspection import counted, counting_statements
 from lnt_v5.app import create_app
 from lnt_v5.config import Settings
@@ -33,6 +33,7 @@ from lnt_v5.routes.runs import RUNS_PATH
 from lnt_v5.routes.suites import SUITES_PATH, patch_schema
 from lnt_v5.scopes import Scope
 from lnt_v5.suites.evolve import SchemaPatch
+from lnt_v5.suites.profile_document import instructions
 from lnt_v5.suites.submission import validate_submission
 from lnt_v5.suites.tables import SuiteTables
 
@@ -62,9 +63,6 @@ NTS: dict[str, Any] = {
 }
 
 METRICS = [metric["name"] for metric in NTS["metrics"]]
-
-# D12 fixes the format version at 2, so every profile a test submits starts with that byte.
-PROFILE = bytes([2, 0xAB, 0xCD])
 
 # What a submission measures when the test does not care what it measured. `conftest.run_payload`
 # defaults to no tests at all, which is the minimal D6 body; most of these tests want a run that
@@ -151,7 +149,8 @@ def profiles(db_engine: Engine, suite: SuiteTables) -> list[dict[str, Any]]:
                     suite.test.c.name.label("test"),
                     suite.profile.c.uuid,
                     suite.profile.c.created_at,
-                    suite.profile.c.data,
+                    suite.profile.c.disassembly_format,
+                    suite.profile.c.counters,
                 ).join_from(suite.profile, suite.test, suite.test.c.id == suite.profile.c.test_id)
             )
             .mappings()
@@ -804,16 +803,30 @@ class TestSamples:
 
 
 class TestProfiles:
-    """D12: one profile row per run+test, with the bytes the submission encoded."""
+    """D12: one profile row per run+test, holding the document the submission carried."""
 
-    def test_stores_the_decoded_bytes(
+    def test_stores_the_submitted_document(
         self, db_engine: Engine, suite: SuiteTables, submitted: Callable[..., Any]
     ) -> None:
-        submitted(tests=[{"name": "suite/one", "profile": encoded_profile(0xAB, 0xCD)}])
+        # A function's instructions are stored in an encoding of the server's own (D5), so they are
+        # checked by reading them back; `test_profile_document.py` covers the document in detail.
+        submitted(tests=[{"name": "suite/one", "profile": encoded_profile()}])
 
         stored = profiles(db_engine, suite)
-        assert [row["data"] for row in stored] == [PROFILE]
-        assert stored[0]["test"] == "suite/one"
+        assert [row["test"] for row in stored] == ["suite/one"]
+        assert stored[0]["disassembly_format"] == PROFILE_DOCUMENT["disassembly_format"]
+        assert stored[0]["counters"] == PROFILE_DOCUMENT["counters"]
+        with db_engine.connect() as connection:
+            function = connection.execute(
+                select(
+                    suite.profile_function.c.name,
+                    suite.profile_function.c.counters,
+                    suite.profile_function.c.length,
+                    suite.profile_function.c.instructions,
+                )
+            ).one()
+        assert function[:3] == ("main", {"cycles": 100.0}, 1)
+        assert list(instructions(function.instructions)) == [(0, {"cycles": 100.0}, "ret")]
 
     def test_gives_each_profile_a_server_generated_uuid(
         self, db_engine: Engine, suite: SuiteTables, submitted: Callable[..., Any]
@@ -822,8 +835,8 @@ class TestProfiles:
         # the submission format has nowhere to put one for a profile.
         submitted(
             tests=[
-                {"name": "suite/one", "profile": encoded_profile(1)},
-                {"name": "suite/two", "profile": encoded_profile(2)},
+                {"name": "suite/one", "profile": encoded_profile()},
+                {"name": "suite/two", "profile": encoded_profile()},
             ]
         )
 
@@ -835,7 +848,7 @@ class TestProfiles:
         self, db_engine: Engine, suite: SuiteTables, submitted: Callable[..., Any]
     ) -> None:
         # D5 gives the column a default, so the value comes from the database's clock.
-        submitted(tests=[{"name": "suite/one", "profile": encoded_profile(1)}])
+        submitted(tests=[{"name": "suite/one", "profile": encoded_profile()}])
 
         assert recent(profiles(db_engine, suite)[0]["created_at"])
 
@@ -844,7 +857,7 @@ class TestProfiles:
     ) -> None:
         # D5's unique constraint is on (run_id, test_id), so the same test profiled in two runs is
         # two rows rather than a duplicate.
-        entry = [{"name": "suite/one", "profile": encoded_profile(1)}]
+        entry = [{"name": "suite/one", "profile": encoded_profile()}]
         submitted(tests=entry)
         submitted(tests=entry)
 
@@ -855,7 +868,7 @@ class TestProfiles:
     ) -> None:
         submitted(
             tests=[
-                {"name": "suite/one", "profile": encoded_profile(1)},
+                {"name": "suite/one", "profile": encoded_profile()},
                 {"name": "suite/two"},
                 {"name": "suite/three", "profile": None},
             ]
@@ -863,11 +876,31 @@ class TestProfiles:
 
         assert [row["test"] for row in profiles(db_engine, suite)] == ["suite/one"]
 
-    def test_refuses_a_blob_it_cannot_decode(self, submit: Callable[..., Any]) -> None:
+    def test_stores_each_entrys_own_profile(
+        self, db_engine: Engine, suite: SuiteTables, submitted: Callable[..., Any]
+    ) -> None:
+        # Profiles are encoded in a pass of their own after the samples (`validate_submission`), so
+        # each has to find its way back to its own entry -- past one that carries none.
+        def profile(cycles: int) -> str:
+            return encoded_profile(
+                {"disassembly_format": "raw", "counters": {"cycles": cycles}, "functions": []}
+            )
+
+        submitted(
+            tests=[
+                {"name": "suite/one", "profile": profile(1)},
+                {"name": "suite/two"},
+                {"name": "suite/three", "profile": profile(3)},
+            ]
+        )
+
+        stored = {row["test"]: row["counters"] for row in profiles(db_engine, suite)}
+        assert stored == {"suite/one": {"cycles": 1}, "suite/three": {"cycles": 3}}
+
+    def test_refuses_a_profile_it_cannot_decode(self, submit: Callable[..., Any]) -> None:
         # One case rather than the matrix: what the endpoint owes is that a profile D12 refuses
-        # comes back as R4's 400 in the error envelope. Which blobs are refused -- bad padding, an
-        # empty one, the wrong version byte, one over the size cap -- is `test_submission.py`'s,
-        # which settles it without a CREATE SCHEMA per case.
+        # comes back as R4's 400 in the error envelope. Which profiles are refused is
+        # `test_profile_document.py`'s, which settles it without a CREATE SCHEMA per case.
         response = submit(tests=[{"name": "suite/one", "profile": "not base64!"}])
 
         assert response.status_code == 400
@@ -927,7 +960,7 @@ class TestAtomicity:
         return submit(
             machine={"name": "brand-new", "fields": {"hardware": "x86_64"}},
             commit={"value": "abc123", "ordinal": 2},
-            tests=[{"name": "suite/one", "execution_time": 1.0, "profile": encoded_profile(1)}],
+            tests=[{"name": "suite/one", "execution_time": 1.0, "profile": encoded_profile()}],
         )
 
     def test_the_submission_is_refused(self, failed_halfway: Any) -> None:
@@ -1197,7 +1230,7 @@ class TestListFilters:
     def test_keeps_only_runs_carrying_profiles(
         self, api_client: TestClient, run_at: Callable[..., str]
     ) -> None:
-        profiled = run_at(tests=[{"name": "suite/one", "profile": encoded_profile(1)}])
+        profiled = run_at(tests=[{"name": "suite/one", "profile": encoded_profile()}])
         bare = run_at()
 
         assert uuids_in(listed(api_client, "has_profiles=true")) == [profiled]
@@ -1206,7 +1239,7 @@ class TestListFilters:
     def test_omitting_has_profiles_returns_both(
         self, api_client: TestClient, run_at: Callable[..., str]
     ) -> None:
-        profiled = run_at(tests=[{"name": "suite/one", "profile": encoded_profile(1)}])
+        profiled = run_at(tests=[{"name": "suite/one", "profile": encoded_profile()}])
         bare = run_at()
 
         assert set(uuids_in(listed(api_client))) == {profiled, bare}
@@ -1455,10 +1488,10 @@ class TestDelete:
         submitted: Callable[..., Any],
     ) -> None:
         doomed = submitted(
-            tests=[{"name": "suite/one", "execution_time": 1.0, "profile": encoded_profile(1)}]
+            tests=[{"name": "suite/one", "execution_time": 1.0, "profile": encoded_profile()}]
         )
         submitted(
-            tests=[{"name": "suite/one", "execution_time": 2.0, "profile": encoded_profile(2)}]
+            tests=[{"name": "suite/one", "execution_time": 2.0, "profile": encoded_profile()}]
         )
 
         api_client.delete(f"{RUNS}/{doomed['uuid']}", headers=manage)

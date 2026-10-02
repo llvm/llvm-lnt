@@ -44,7 +44,7 @@ object identical to the one the entity's own creation endpoint accepts (see D7).
       "name": "test.suite/benchmark",
       "execution_time": 1.23,
       "compile_time": 0.45,
-      "profile": "<base64-encoded profile data>"
+      "profile": "<base64 of a gzip-compressed profile document>"
     }
   ]
 }
@@ -105,8 +105,8 @@ object identical to the one the entity's own creation endpoint accepts (see D7).
     one is rejected with 400. Values are typed per D3.
   - Metrics with null values must be omitted from the test entry (not sent as
     `"metric": null`), and a null element inside an array is rejected.
-  - An optional `profile` field may contain base64-encoded profile binary data;
-    if present, a Profile row is created and linked to the run+test (see D12).
+  - An optional `profile` field carries the test's profile: a JSON profile
+    document, gzip-compressed and base64-encoded (see D12).
   - `name` and `profile` are reserved keys within a test entry, so neither may
     be a metric name -- this is enforced when the schema is created rather than
     at submission (see D5), so a suite can never hold a metric that no submission
@@ -279,29 +279,63 @@ page.
 
 ## D12: Profile Submission and Storage
 
-Profiles are submitted inline as part of run submission. Each test entry in
-the submission JSON may include a `"profile"` field containing base64-encoded
-profile binary data.
+A profile records hardware performance counters per instruction for one test in
+one run. It is submitted inline, as the `profile` of a test entry (D6): a JSON
+**profile document**, compressed with gzip and base64-encoded.
 
-On submission:
-1. The `profile` field is recognized as a reserved key (not a metric) and
-   excluded from metric name validation.
-2. The data is decoded as standard, padded base64, ignoring ASCII whitespace
-   (so line-wrapped output is accepted). Any other character outside the
-   alphabet, or bad padding, is rejected with 400.
-3. A decoded blob larger than D5's cap is rejected with 400.
-4. The first byte, the format version, must be 2; otherwise, or if the blob is
-   empty, the profile is rejected with 400. Nothing else is parsed at
-   submission time.
-5. A Profile row is created with `(run_id, test_id, created_at, data)`.
-6. The unique constraint on `(run_id, test_id)` prevents duplicate profiles.
+```json
+{
+  "disassembly_format": "llvm-objdump",
+  "counters": {"cycles": 9123456, "instructions": 12000000},
+  "functions": [
+    {
+      "name": "main",
+      "instructions": [
+        {"address": 4096, "counters": {"cycles": 1200, "instructions": 900}, "text": "push rbp"},
+        {"address": 4100, "counters": {"cycles": 300, "instructions": 450}, "text": "ret"}
+      ]
+    }
+  ]
+}
+```
 
-Profiles are read-only after creation -- there is no PATCH endpoint.
-Deleting a run cascades to its profiles.
+- `disassembly_format`: how the instruction text was produced.
+- `counters`: the profile's top-level counters, each a non-negative `integer`
+  as D3 reads one. They total the whole profile, functions it does not list
+  included.
+- `functions`: each function's `name` and its `instructions`, in order. Each
+  instruction carries its `address` (a non-negative `integer`), its `counters`
+  (non-negative `real`s) and its disassembled `text`. Either list may be empty.
 
-Profile data is stored as Postgres BYTEA. Postgres automatically applies
-TOAST compression for large values. The blob is excluded from default query
-results and is only loaded when a request explicitly needs it.
+Every counter value is a **raw count**, never a percentage. A function's own
+counters are not submitted: the server derives each as the sum of that counter
+over the function's instructions.
+
+The `profile` string is decoded as standard, padded base64, ignoring ASCII
+whitespace (so line-wrapped output is accepted), and then as exactly one gzip
+member. Each of the following is rejected with 400:
+
+- Any other character outside the base64 alphabet, bad padding, or data that is
+  not one complete gzip member.
+- More than 4 MiB (4,194,304 bytes) compressed, or more than 32 MiB
+  (33,554,432 bytes) decompressed.
+- A document that is not valid JSON of the shape above, with exactly those keys
+  and types as D3 reads them.
+- An empty function or counter name, a NUL in any string (see D3), or two
+  functions of the same name.
+- More than 10,000 functions, a function name longer than 2,048 bytes in UTF-8,
+  or a function of more than 100,000 instructions.
+- Instructions of one function that do not all carry the same counters.
+- An instruction counter that is not one of the profile's top-level counters.
+- A function whose sum of one counter is too large to be a finite `real`.
+
+A stored profile is returned with the values it was submitted with, each typed
+as above (an address `8.0` is returned as `8`, an instruction counter `5` as a
+`real`), with each function's counters derived as above, and its functions'
+instructions in the order the document listed them. It is stored as D5's
+`{suite}.profile` and `{suite}.profile_function` rows. Since everything is
+validated at submission, a stored profile is always one the read endpoints can
+serve. Profiles are read-only after creation, and deleting a run deletes them.
 
 
 ## D13: Concurrent Submission

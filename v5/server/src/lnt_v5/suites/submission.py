@@ -16,14 +16,14 @@ is data, not part of the format, so `TestEntry` accepts extra keys and `validate
 what they mean. Everything else here is declared, and `extra="forbid"` makes a misspelled key a 400
 rather than a value silently dropped.
 
-The profile blob is decoded and its format version checked, and deliberately nothing more: D12's
-binary format has a reader of its own, and a submission must not depend on it.
+A test entry's profile is decoded, validated and encoded for storage by `profile_document`, which
+owns D12's document; this module only routes each entry's string to it.
 """
 
 from __future__ import annotations
 
-import base64
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass
 from math import isfinite
 from typing import Annotated, Any, Literal
@@ -42,6 +42,7 @@ from lnt_v5.suites.entities import (
     validate_fields,
     validate_value,
 )
+from lnt_v5.suites.profile_document import StoredProfile, stored_profile
 from lnt_v5.suites.schema import CommitField, Entry, MachineField, Metric, SuiteSchema
 from lnt_v5.suites.tables import NAME_LENGTH, UUID_LENGTH
 
@@ -54,32 +55,6 @@ from lnt_v5.suites.tables import NAME_LENGTH, UUID_LENGTH
 # it is not redundant: `$` matches before a trailing newline in some regex engines, and pinning the
 # length to D5's column width closes that whichever engine pydantic is built on.
 UUID_PATTERN = r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
-
-# D12: the first byte of a decoded profile is the format version, and v5 accepts only version 2.
-PROFILE_FORMAT_VERSION = 2
-
-# D5's cap on one decoded profile. This is a limit on a profile, not on the request carrying it: an
-# oversized request *body* is refused at the transport layer with R4's 413 (see `config.BODY_LIMIT`,
-# which is deliberately larger), and one submission may legitimately carry many profiles.
-MAX_PROFILE_SIZE = 50 * 1024 * 1024
-
-# The same cap in encoded characters, so an over-sized profile is refused before ~67 MB of base64 is
-# materialized as bytes. Base64 spends 4 characters on every 3 bytes, rounded up to a whole group,
-# so this is the longest encoding a blob of the permitted size can have. It admits up to two bytes
-# more than the cap, which the check on the decoded length then catches; this one is a pre-filter,
-# and `MAX_PROFILE_SIZE` is the rule.
-MAX_ENCODED_PROFILE_SIZE = 4 * ((MAX_PROFILE_SIZE + 2) // 3)
-
-# The ASCII whitespace D12 makes insignificant inside an encoded profile, removed before decoding.
-# Exactly the ASCII set rather than `str.split()`'s: that one also eats U+00A0 and friends, which
-# are outside the alphabet and are precisely what strict decoding is there to report.
-_WHITESPACE = str.maketrans("", "", " \t\n\r\v\f")
-
-# One wording for both size checks, and the place the two caps are told apart for the submitter.
-_TOO_LARGE = (
-    f"profile is larger than the {MAX_PROFILE_SIZE} byte limit on a single profile; note that "
-    f"this is not the limit on the request body, which is reported as 413"
-)
 
 # One wording for every NUL the `run_parameters` walk finds, in a key or in a value.
 _NO_NUL = (
@@ -127,8 +102,9 @@ class TestEntry(BaseModel):
     profile: str | None = Field(
         default=None,
         description=(
-            "Base64-encoded profile data for this test in this run (D12). Null means the entry "
-            "carries no profile, exactly as omitting the key does."
+            "The profile of this test in this run: a JSON profile document, gzip-compressed and "
+            "base64-encoded (D12). Null means the entry carries no profile, exactly as omitting "
+            "the key does."
         ),
     )
 
@@ -192,12 +168,12 @@ class SubmittedTest:
 
     Every mapping carries every metric the suite declares, with `None` where the entry had no value
     -- which is what an omitted metric means anyway (D6). Uniform key sets are a promise the write
-    layer relies on; see `_submitted_test`, which establishes it.
+    layer relies on; see `_samples`, which establishes it.
     """
 
     name: str
     samples: Sequence[Mapping[str, Any]]
-    profile: bytes | None
+    profile: StoredProfile | None
 
 
 @dataclass(frozen=True)
@@ -237,7 +213,7 @@ def validate_submission(schema: SuiteSchema, body: RunSubmission) -> ValidatedSu
         fields=_submitted_fields(schema, CommitField, body.commit.fields),
     )
 
-    tests: list[SubmittedTest] = []
+    samples: list[Sequence[Mapping[str, Any]]] = []
     seen: set[str] = set()
     # Built once for the whole submission rather than per entry: a submission legitimately names
     # tens of thousands of tests, and rebuilding the table for each would be work proportional to
@@ -255,13 +231,16 @@ def validate_submission(schema: SuiteSchema, body: RunSubmission) -> ValidatedSu
                 f"is submitted as one entry with array values, not as several entries",
             )
         seen.add(entry.name)
-        try:
-            tests.append(_submitted_test(declared, entry))
-        except ApiError as error:
-            # A submission carries thousands of entries, so every failure below has to say which
-            # one it is about. Named once here rather than by each of the messages underneath,
-            # which would then each have to be given the name to say it.
-            raise ApiError(error.code, f"test '{entry.name}': {error.message}") from error
+        with _naming(entry):
+            samples.append(_samples(declared, entry))
+
+    # A second pass, because encoding a profile is by far the most expensive part of validation:
+    # a submission refused for one of its samples is refused before any of that work is done.
+    tests: list[SubmittedTest] = []
+    for entry, rows in zip(body.tests, samples, strict=True):
+        with _naming(entry):
+            profile = None if entry.profile is None else stored_profile(entry.profile)
+        tests.append(SubmittedTest(name=entry.name, samples=rows, profile=profile))
 
     return ValidatedSubmission(
         # D6: the client's UUID when it sent one, and a v4 the server mints otherwise.
@@ -271,6 +250,15 @@ def validate_submission(schema: SuiteSchema, body: RunSubmission) -> ValidatedSu
         run_parameters=body.run_parameters,
         tests=tests,
     )
+
+
+@contextmanager
+def _naming(entry: TestEntry) -> Iterator[None]:
+    """Say which test entry a 400 raised inside is about, since a submission carries thousands."""
+    try:
+        yield
+    except ApiError as error:
+        raise ApiError(error.code, f"test '{entry.name}': {error.message}") from error
 
 
 def _reject_unstorable(value: Any, where: str) -> None:
@@ -321,8 +309,8 @@ def _submitted_fields(
     return {key: value for key, value in values.items() if value is not None}
 
 
-def _submitted_test(declared: Mapping[str, Metric], entry: TestEntry) -> SubmittedTest:
-    """One test entry as the sample rows and the profile blob it stands for (D6).
+def _samples(declared: Mapping[str, Metric], entry: TestEntry) -> list[dict[str, Any]]:
+    """The sample rows one test entry stands for (D6).
 
     Array values are what make this more than a rename: a test measured several times in one run
     sends an array per metric, and the entry expands into one row per element, with the scalar
@@ -373,14 +361,9 @@ def _submitted_test(declared: Mapping[str, Metric], entry: TestEntry) -> Submitt
     # D6: an entry yields max(1, array length) rows. With no arrays that is the single row which
     # records that the test ran in this run, whether or not it carries any metric value.
     count = 1 if repetitions is None else repetitions
-    samples = [
+    return [
         measured | {key: values[index] for key, values in arrays.items()} for index in range(count)
     ]
-    return SubmittedTest(
-        name=entry.name,
-        samples=samples,
-        profile=None if entry.profile is None else decode_profile(entry.profile),
-    )
 
 
 def _measured(metric: Metric, value: Any) -> Any:
@@ -398,46 +381,3 @@ def _measured(metric: Metric, value: Any) -> Any:
             f"rather than sent as null",
         )
     return validate_value(metric, value)
-
-
-def decode_profile(encoded: str) -> bytes:
-    """The bytes a base64-encoded profile stands for, or a 400 (D12).
-
-    Only the first byte of the result is looked at, and only to check the format version D12 fixes
-    at 2. The body is deliberately not parsed: a submission must not depend on the profile reader,
-    and a blob that turns out to be unreadable later is D12's problem rather than this one's.
-
-    D12 makes whitespace insignificant, and everything else outside the alphabet an error, so ASCII
-    whitespace is removed and what is left is decoded strictly. Both halves matter. Stripping first
-    is what accepts the ubiquitous producers: `base64(1)` wraps at 76 columns by default, and so
-    does every MIME encoder. Decoding strictly afterwards is what keeps the rule honest -- Python's
-    lenient mode discards *every* character outside the alphabet, so a payload that is not base64
-    at all would decode to whatever happened to remain rather than being reported.
-
-    The encoded-size gate is applied to the stripped string, since line breaks are not payload:
-    checking before the strip would refuse a wrapped profile that is comfortably inside the cap.
-    """
-    data_only = encoded.translate(_WHITESPACE)
-    if len(data_only) > MAX_ENCODED_PROFILE_SIZE:
-        raise ApiError(ErrorCode.INVALID_REQUEST, _TOO_LARGE)
-    try:
-        data = base64.b64decode(data_only, validate=True)
-    except ValueError as error:
-        # binascii.Error for a bad alphabet or bad padding, and a plain ValueError for a string
-        # carrying non-ASCII; the former is a subclass of the latter.
-        raise ApiError(
-            ErrorCode.INVALID_REQUEST, f"profile is not valid base64: {error}"
-        ) from error
-    if len(data) > MAX_PROFILE_SIZE:
-        raise ApiError(ErrorCode.INVALID_REQUEST, _TOO_LARGE)
-    if not data:
-        raise ApiError(
-            ErrorCode.INVALID_REQUEST, "profile is empty, so it carries no format version byte"
-        )
-    if data[0] != PROFILE_FORMAT_VERSION:
-        raise ApiError(
-            ErrorCode.INVALID_REQUEST,
-            f"profile declares format version {data[0]}, but only version "
-            f"{PROFILE_FORMAT_VERSION} is supported",
-        )
-    return data

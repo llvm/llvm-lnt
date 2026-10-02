@@ -42,8 +42,8 @@ NAME_PATTERN = r"^[a-z][a-z0-9_]*$"
 RESERVED_SUITE_NAMES = frozenset({"public", "information_schema"})
 RESERVED_SUITE_PREFIX = "pg_"
 
-# D6: a test entry in a submission is `name` plus metric values, with `profile` carrying
-# base64-encoded profile data. A metric called either could never be given a value, so a schema
+# D6: a test entry in a submission is `name` plus metric values, with `profile` carrying the test's
+# profile document (D12). A metric called either could never be given a value, so a schema
 # declaring one is rejected rather than accepted into a state where one of its metrics is
 # unreachable. This is a property of the submission format, not of any table's columns.
 RESERVED_TEST_ENTRY_KEYS = frozenset({"name", "profile"})

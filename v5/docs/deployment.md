@@ -165,6 +165,10 @@ connection pool, so the instance's ceiling against RDS is `WEB_CONCURRENCY x (PO
 which has to stay well inside the `max_connections` of the database instance. Moving to a larger
 instance means revisiting both numbers together.
 
+Memory scales with concurrency too. Parsing a profile at the largest size the server accepts peaks at
+about 200 MiB, and each submission in flight can reach that at the same time. Scale the instance in
+accordance with the expected usage.
+
 ## Operating the instance
 
 There is no inbound SSH. The instance's IAM role carries `AmazonSSMManagedInstanceCore`, so shell

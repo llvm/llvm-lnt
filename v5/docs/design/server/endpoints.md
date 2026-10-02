@@ -309,8 +309,10 @@ to UUIDs.
 GET  /api/suites/{testsuite}/runs/{uuid}/profiles              -- List profiles for a run
 ```
 
-Returns `{test, uuid}` objects for all profiles attached to the given run, in
-R2's unpaginated envelope. Bounded by tests-per-run.
+Returns `{test, uuid}` objects for all profiles attached to the given run, ordered
+by test name, in R2's unpaginated envelope (bounded by the tests of one run). 404
+if the suite does not exist, or if no run in it has that UUID (matched as for
+runs).
 
 Auth scope: `read`.
 
@@ -319,37 +321,40 @@ Auth scope: `read`.
 ```
 GET  /api/suites/{testsuite}/profiles/{uuid}                       -- Metadata + top-level counters
 GET  /api/suites/{testsuite}/profiles/{uuid}/functions             -- Function list with counters
-GET  /api/suites/{testsuite}/profiles/{uuid}/functions/{fn_name}   -- Disassembly + per-instruction counters
+GET  /api/suites/{testsuite}/profiles/{uuid}/disassembly           -- Disassembly + per-instruction counters
 ```
 
 Auth scope: `read` for all three endpoints.
 
+As for runs, the `{uuid}` in a path is matched case-insensitively, and one naming
+no profile -- including a segment that is not a well-formed UUID -- is 404. Every
+route in this section returns 404 if the suite does not exist.
+
+Every counter these endpoints return is a raw count (see D12).
+
 **Metadata response** (`GET /api/suites/{testsuite}/profiles/{uuid}`):
 - `uuid`, `test` (test name), `run_uuid`, `counters` (dict of counter
-  name -> integer value; raw top-level counts), `disassembly_format` (string)
+  name -> integer; the top-level counters), `disassembly_format` (string)
 
 **Functions response** (`GET /api/suites/{testsuite}/profiles/{uuid}/functions`):
 - R2's unpaginated envelope over `{name, counters, length}` objects, where
-  `counters` is a dict of counter name -> float (the raw aggregated counter value
-  for the function), `length` is instruction count. Sorted by total counter value
-  descending (hottest first).
+  `counters` is a dict of counter name -> number (the function's counters, each
+  the sum over its instructions) and `length` is its instruction count. Sorted
+  by name in ascending code-point order. Ordering by how hot a function is
+  depends on the counter the user picks, so the client sorts by that itself (see
+  the Function Selector in the client docs).
 
-**Function detail response** (`GET /api/suites/{testsuite}/profiles/{uuid}/functions/{fn_name}`):
-- `name`, `counters` (function-level aggregate, same raw float convention as
-  the functions response above), `disassembly_format`,
-  `instructions`: array of `{address, counters, text}` per instruction, where
-  `counters` is again a dict of counter name -> raw float value (same
-  convention, not a percentage).
-  Function names may contain special characters (e.g. C++ mangled names) and
-  must be percent-encoded when used as a path segment, per standard URL
-  encoding rules.
+**Disassembly response** (`GET /api/suites/{testsuite}/profiles/{uuid}/disassembly?function={name}`):
+- `name`, `counters` (the function's counters, as in the functions response),
+  `disassembly_format`, and `instructions`: array of `{address, counters, text}`
+  per instruction, in the order the profile document listed them, where
+  `address` is an integer and `counters` is a dict of counter name -> number.
+- `function` is required, and names the function by its name in the functions
+  response; it is a query parameter because a name can contain `/` (see R1). A
+  name the profile does not hold is 404.
 
-**Error handling**: If the stored profile blob is corrupt and cannot be
-deserialized, the profile data endpoints return 500 with a descriptive
-error message.
-
-Profiles are submitted as base64-encoded data within the run submission
-payload (see D6). No separate upload endpoint.
+Profiles are submitted within the run submission payload (see D6 and D12).
+There is no separate upload endpoint.
 
 
 ## Regressions
