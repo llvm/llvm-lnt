@@ -1,23 +1,15 @@
 """D12's profile document: what a submission carries for a profile, and how it is stored.
 
 A test entry's `profile` is a JSON document, gzip-compressed and base64-encoded (D6, D12). This
-module takes that string apart, validates the document, and hands back the rows `{suite}.profile`
-and `{suite}.profile_function` store (D5). Everything is checked here, at submission, so that a
-stored profile is always one the read endpoints can serve.
+module validates it in full and hands back the rows `{suite}.profile` and `{suite}.profile_function`
+store (D5), with each function's instructions compressed in a layout of its own choosing, which only
+`instructions` below reads back.
 
-A function's instructions are stored compressed, in a layout of this module's choosing: D5 leaves
-it to the implementation, and nothing but `instructions` below ever reads it back. That layout is
-column by column -- the address deltas, then each counter's values, then the text -- under zstd,
-which on profiles sampled from lnt.llvm.org stores them in about the space v4's binary format did.
-One function per row is what lets the metadata and function-list endpoints answer without
-decompressing anything, and a disassembly decompress only its own function.
-
-The document is parsed with msgspec rather than pydantic, which reads every other request body. A
-profile carries hundreds of thousands of instructions, and pydantic's models hold one in about three
-times the memory msgspec's structs do, and take several times as long to build. msgspec's
-declarative constraints cannot express everything D12 asks for, so the rest is checked by hand --
-from a hook per function rather than one per instruction, which would give back much of what
-msgspec saves.
+The document is parsed with msgspec rather than pydantic, which reads every other request body: a
+profile carries hundreds of thousands of instructions, and pydantic's models take about three times
+the memory and several times as long to build. What msgspec's declarative constraints cannot express
+is checked by hand, from a hook per function rather than per instruction, which would give back
+much of that.
 """
 
 from __future__ import annotations
@@ -38,55 +30,37 @@ from lnt_v5.errors import ApiError, ErrorCode
 from lnt_v5.strings import NUL
 from lnt_v5.suites.tables import INTEGER_MAX
 
-# D12's caps on one profile: on the compressed document, and on what it decompresses to. Both are
-# limits on a profile rather than on the request carrying it, whose body is refused at the transport
-# layer with R4's 413 instead (see `config.BODY_LIMIT`). Of the roughly 200,000 profiles on
-# lnt.llvm.org, the largest is a 17 MiB document that compresses to 1.1 MiB, so the compressed cap
-# is several times that and the decompressed one about twice it. The decompressed cap is the one
-# that bounds memory, since the whole document is parsed before anything is stored.
+# D12's caps on one profile, each several times the largest seen on lnt.llvm.org. These are limits
+# on a profile, not on the request body, which is refused with R4's 413 instead. The decompressed
+# cap is the one that bounds memory, since the whole document is parsed before anything is stored.
 MAX_COMPRESSED_SIZE = 4 * 1024 * 1024
 MAX_DOCUMENT_SIZE = 32 * 1024 * 1024
-
-# The compressed cap in base64 characters, so that an oversized profile is refused before it is
-# decoded. Base64 spends 4 characters on every 3 bytes, rounded up to a whole group, so this is the
-# longest encoding a document within the cap can have; it admits up to two bytes more than the cap,
-# which the check on the decoded length then catches.
-MAX_ENCODED_SIZE = 4 * ((MAX_COMPRESSED_SIZE + 2) // 3)
-
-# D12's cap on the instructions of one function: several times the largest on lnt.llvm.org, 20,069.
 MAX_INSTRUCTIONS = 100_000
-
-# D12's cap on the functions of one profile. The size caps alone admit close to a million empty
-# functions, which cost little to submit but are each a row, and all in the unpaginated function
-# list. The largest profile on lnt.llvm.org has 79.
 MAX_FUNCTIONS = 10_000
 
-# D12's cap on a function name, in UTF-8 bytes, so that every function the list serves can be asked
-# for: the name travels in `?function=` (R1), and even fully percent-encoded, at three characters a
-# byte, it then fits the 8 KiB request line common servers and proxies allow, nginx's included. The
-# longest name on lnt.llvm.org is 744 characters. Raising it is also bounded by the key of
-# `{suite}.profile_function` (see `tables.py`); `test_profiles.py` stores a name at the cap.
+# The longest base64 encoding of a document within the compressed cap, so that an oversized profile
+# is refused before it is decoded. It admits up to two bytes more than the cap, which the check on
+# the decoded length catches.
+MAX_ENCODED_SIZE = 4 * ((MAX_COMPRESSED_SIZE + 2) // 3)
+
+# D12's cap on a function name, in UTF-8 bytes. A name travels in `?function=` (R1), and at this
+# length it fits the 8 KiB request line common proxies allow even fully percent-encoded. It also
+# keeps `{suite}.profile_function`'s key within a btree entry (see `tables.py`).
 MAX_FUNCTION_NAME_BYTES = 2048
 
-# The zstd level a function's instructions are compressed at. On the profiles sampled from
-# lnt.llvm.org, level 9 stores them in about the space v4's binary format did, at a fraction of the
-# time the highest levels take for a few percent less.
+# About as compact as v4's binary format was, at a fraction of the highest levels' encoding time.
 _ZSTD_LEVEL = 9
 
-# The ASCII whitespace D12 makes insignificant in the base64, removed before decoding. Exactly the
-# ASCII set rather than `str.split()`'s: that one also eats U+00A0 and friends, which are outside
-# the alphabet and are precisely what strict decoding is there to report.
+# Exactly the ASCII whitespace D12 makes insignificant in the base64. `str.split()`'s set would also
+# drop U+00A0 and friends, which are outside the alphabet and must be refused.
 _WHITESPACE = str.maketrans("", "", " \t\n\r\v\f")
 
-# An address or a top-level counter: a non-negative integer, read as D3 reads an `integer`. A union
-# because msgspec's `int` refuses `8.0`, which D3 accepts; and the upper bound is not declared
-# because msgspec decodes an integer of any size before it applies one. `_integer` does the rest,
-# the same rule `entities._whole_number` applies to pydantic models.
+# An address or a top-level counter: a non-negative integer as D3 reads one. A union because
+# msgspec's `int` refuses `8.0`, which D3 accepts; `_integer` applies the rest of D3's rule.
 Integer = Annotated[int, Meta(ge=0)] | Annotated[float, Meta(ge=0)]
 
-# A raw count at an instruction. Real rather than integer: a producer that samples reports
-# estimates, and an integer is accepted anyway, as D3 accepts one where a `real` is declared.
-# msgspec refuses a number no finite double holds, so every one of these is finite.
+# A count at an instruction: a real, since a sampling producer reports estimates. msgspec refuses a
+# number no finite double holds.
 Count = Annotated[float, Meta(ge=0)]
 
 # A function's or a counter's name, which has to name something.
@@ -110,19 +84,18 @@ def _integer(value: int | float, what: str) -> int:
     return value
 
 
-# `gc=False` on all three: none of them can be part of a reference cycle, so the garbage collector
-# need not track them -- which matters when one document is hundreds of thousands of them.
+# `gc=False` on all three: none can be part of a reference cycle, and a document holds hundreds of
+# thousands of them for the garbage collector to otherwise track.
 
 
 class InstructionDocument(Struct, forbid_unknown_fields=True, gc=False):
     """One instruction: where it is, what was counted there, and its disassembled text.
 
-    Checked by its function rather than by a hook of its own; see the module docstring.
+    Checked by its function's hook, not one of its own.
     """
 
     address: Integer
-    # Not `Name`: each of these is one of the profile's top-level counters, which `ProfileDocument`
-    # checks once rather than here once per instruction.
+    # Not `Name`: `ProfileDocument` checks these against its top-level counters, which are.
     counters: dict[str, Count]
     text: str
 
@@ -179,9 +152,9 @@ class ProfileDocument(Struct, forbid_unknown_fields=True, gc=False):
             self.counters[counter] = _integer(value, f"the top-level counter '{counter}'")
         if len({function.name for function in self.functions}) != len(self.functions):
             raise ValueError("two functions have the same name")
-        # A client shows a function's counter as its share of the top-level one (`client/
-        # profiles.md`), which needs the top-level one to exist. The first instruction speaks for
-        # the function, since its own hook has checked that every instruction carries the same.
+        # The client shows a function's counters as shares of the top-level ones (`client/
+        # profiles.md`). The first instruction speaks for its function, whose hook has checked that
+        # every instruction carries the same counters.
         for function in self.functions:
             if function.instructions:
                 unknown = function.instructions[0].counters.keys() - self.counters.keys()
@@ -199,9 +172,8 @@ _DECODER = msgspec.json.Decoder(ProfileDocument)
 class _Columns(Struct, gc=False):
     """A function's instructions as they are stored: one list per field rather than per instruction.
 
-    Addresses are stored as deltas from the previous one, starting from zero, which is what makes
-    them compress: within a function they are close together, and on a RISC target every delta is
-    the same number.
+    Addresses are stored as deltas from the previous one, starting from zero, because deltas within
+    a function are small and repetitive, and compress well.
     """
 
     address_deltas: list[int]
@@ -262,12 +234,8 @@ def instructions(data: bytes) -> Iterator[tuple[int, dict[str, float], str]]:
 
 
 def _stored(function: FunctionDocument) -> StoredFunction:
-    """A function's row: its counters, and its instructions in the layout `instructions` reads.
-
-    A function's counters are derived as the sums of its columns (D12), so a document cannot
-    contradict itself. Computed here rather than in the struct's hook, which has nowhere to keep
-    them: msgspec decodes every field a struct declares, so a field to hold them would be one a
-    submission could set.
+    """A function's row: its counters, the sums of its columns (D12), and its instructions in the
+    layout `instructions` reads.
     """
     rows = function.instructions
     # Integers by now; see `FunctionDocument.__post_init__`.
@@ -298,13 +266,10 @@ def _stored(function: FunctionDocument) -> StoredFunction:
 def _decoded(encoded: str) -> bytes:
     """The compressed document a base64 string stands for.
 
-    D12 makes ASCII whitespace insignificant and everything else outside the alphabet an error, so
-    the whitespace is removed and what is left is decoded strictly. Stripping first accepts the
-    common producers -- `base64(1)` wraps at 76 columns by default, as does every MIME encoder --
-    and decoding strictly afterwards keeps the rule honest: Python's lenient mode discards *every*
-    character outside the alphabet, so a string that is not base64 at all would decode to whatever
-    happened to remain. The size gate is applied to the stripped string, since line breaks are not
-    payload.
+    The whitespace D12 allows is removed and the rest decoded strictly: Python's lenient mode
+    discards *every* character outside the alphabet, so a string that is not base64 at all would
+    decode to whatever happened to remain. Line breaks are not payload, so the size gate measures
+    the string without them.
     """
     data_only = encoded.translate(_WHITESPACE)
     if len(data_only) > MAX_ENCODED_SIZE:
@@ -345,9 +310,8 @@ def _parsed(document: bytes) -> ProfileDocument:
     try:
         return _DECODER.decode(document)
     except (msgspec.DecodeError, UnicodeDecodeError) as error:
-        # `DecodeError` includes every `ValidationError`, which subclasses it: a refusal by a
-        # declared constraint, and each `ValueError` a `__post_init__` raises, which msgspec reports
-        # with its location. Bytes that are not UTF-8 are refused with neither, but as a bare
+        # `ValidationError` subclasses `DecodeError`, and carries both a declared constraint's
+        # refusal and a `__post_init__`'s. Bytes that are not UTF-8 raise neither, but a bare
         # `UnicodeDecodeError`, which would otherwise be a 500.
         raise _refused(f"not a valid profile document: {error}") from error
 

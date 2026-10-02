@@ -1,22 +1,9 @@
 """Profiles: instruction-level counter data for one test in one run (endpoints.md, Profiles).
 
-Read-only. A profile is submitted inside a run as a JSON document, which the server validates and
-stores as a `{suite}.profile` row and a `{suite}.profile_function` row per function (D5, D12). Three
-of these endpoints address a profile by its own UUID and one lists a run's, which is the bridge the
-client crosses: it knows a run and a test name and needs the UUID the other three take (see
-`client/profiles.md`).
-
-Two things here follow from the design docs rather than from convenience.
-
-**A function's instructions stay out of the default result set** (D5). SQLAlchemy Core selects the
-columns it is asked for, so that obligation falls on each query rather than on the table, and only
-the disassembly names `instructions`, for the one function it serves. Everything else a profile
-holds is small and stored as it is served, so the other three endpoints decompress nothing.
-
-**A function is named in the `function=` query parameter, never in the path** (R1). The name is
-whatever the producer recorded, and one that demangles records an `operator/` overload as
-`std::operator/(...)`, so it can contain `/` -- which a path segment cannot carry, since `%2F` is
-decoded before routing. That is also why a test is named in `test=`.
+Read-only: a profile is submitted inside a run, and stored as a `{suite}.profile` row and a
+`{suite}.profile_function` row per function (D5, D12). Three endpoints address a profile by its
+UUID, and the run's listing is how a client that knows a run and a test finds that UUID. A function
+is named in `function=` rather than in the path, since its name can contain `/` (R1).
 """
 
 from __future__ import annotations
@@ -44,13 +31,11 @@ RUN_PROFILES_PATH = f"{RUNS_PATH}/{{uuid}}/profiles"
 
 router = APIRouter(prefix=PROFILES_PATH, tags=["Profiles"])
 
-# The one route that hangs off a run rather than off `/profiles`. A router of its own because its
-# prefix is the runs', and it is tagged with the profiles so that R8's document groups it where
-# endpoints.md specifies it -- the same arrangement `runs.machine_runs_router` makes.
+# The one route under a run rather than under `/profiles`, tagged so that R8's document groups it
+# with the profiles, as `runs.machine_runs_router` is with the machines.
 run_profiles_router = APIRouter(prefix=RUNS_PATH, tags=["Profiles"])
 
-# Every operation here reaches the suite's own tables, so every one can answer both of the failures
-# `suite_scope` produces; each widens the wording with the cases it adds of its own.
+# `suite_scope`'s 404, widened with the cases these endpoints add.
 _NO_PROFILE = f"{SUITE_NOT_FOUND} Or no profile in it has that UUID."
 _NO_FUNCTION = f"{_NO_PROFILE} Or the profile holds no function of that name."
 
@@ -127,18 +112,15 @@ class FunctionDisassembly(BaseModel):
     )
     disassembly_format: str = Field(description=_DISASSEMBLY_FORMAT)
     instructions: list[Instruction] = Field(
-        description=(
-            "The function's instructions, in the order the profile records them. A field of this "
-            "response rather than a list endpoint's body, so it keeps its own name (R2)."
-        )
+        description="The function's instructions, in the order the profile records them."
     )
 
 
 class Profiles:
     """The queries the profile endpoints are built from, and how to read one of their rows back.
 
-    Only `disassembly` names a function's `instructions`; that is D5's rule rather than an
-    optimization -- see the module docstring.
+    Only `disassembly` selects a function's `instructions`, and only for the function it serves
+    (D5).
     """
 
     def __init__(self, suite: Suite) -> None:
@@ -149,14 +131,7 @@ class Profiles:
         self._run: Table = suite.tables.run
 
     def of_run(self, run: int) -> Select[Any]:
-        """Every profile attached to one run, by test name (endpoints.md).
-
-        Ordered by name where `GET /runs/{uuid}/samples` deliberately is not, and the difference is
-        the size of the result. That list pages over the tens of thousands of samples a run holds,
-        so ordering it by a column no index offers would cost a sort of the whole run on every
-        page; this one is bounded by the tests of a run that carry a profile, and the client renders
-        it straight into a dropdown (`client/profiles.md`, "Test").
-        """
+        """Every profile attached to one run, by test name (endpoints.md)."""
         return (
             select(self._test.c.name, self.table.c.uuid)
             .select_from(self.table.join(self._test, self._test.c.id == self.table.c.test_id))
@@ -165,19 +140,12 @@ class Profiles:
         )
 
     def read(self, row: Row[Any]) -> RunProfile:
-        # By column object rather than by name, the convention everywhere a row spans two tables:
-        # `Row._mapping` keyed by a column cannot pick the wrong one of a pair sharing a name.
         return RunProfile(
             test=row._mapping[self._test.c.name], uuid=row._mapping[self.table.c.uuid]
         )
 
     def metadata(self, connection: Connection, uuid: str) -> ProfileMetadata:
-        """One profile's metadata, or the 404 for a UUID nothing holds.
-
-        The two joined columns are what R4 makes the response carry: a reference to another entity
-        is that entity's identifier, so the test's name and the run's UUID rather than the ids D5
-        stores.
-        """
+        """One profile's metadata, or the 404 for a UUID nothing holds."""
         row = connection.execute(
             select(
                 self._test.c.name,
@@ -205,9 +173,8 @@ class Profiles:
     def functions(self, connection: Connection, uuid: str) -> list[ProfileFunction]:
         """Every function of one profile, by name, or the 404 for a missing UUID.
 
-        In code-point order, as endpoints.md specifies, rather than in the database's collation,
-        which depends on the locale it was created with. The "C" collation compares UTF-8 byte by
-        byte, which orders by code point.
+        The "C" collation gives endpoints.md's code-point order, whereas the database's default
+        depends on its locale.
         """
         profile = identifier(connection, self.table.c.uuid, uuid, self.missing)
         rows = connection.execute(
@@ -308,9 +275,7 @@ def list_profile_functions(
 ) -> Items[ProfileFunction]:
     """Every function the profile measured, by name (R2, endpoints.md).
 
-    Unpaginated: D12 caps a profile's functions, and the client renders all of them into one
-    combobox (`client/profiles.md`, "Function Selector"), which it sorts by the counter the user
-    picks.
+    Unpaginated, since D12 caps a profile's functions.
     """
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         return Items(items=Profiles(suite).functions(connection, uuid))
@@ -339,12 +304,8 @@ def get_profile_disassembly(
 ) -> FunctionDisassembly:
     """One function's disassembly and the counters measured along it (endpoints.md).
 
-    The one endpoint that decompresses anything, and only the function it serves; D12's caps on a
-    submitted profile are what keep that bounded.
-
-    The connection is given back before decompressing. Holding a pooled connection -- and the open
-    transaction that pins the vacuum horizon -- across it would be the anti-pattern D13 names for
-    submission, on the one read that would really pay for it.
+    The connection is released before the instructions are decompressed, so that a pooled
+    connection and its open transaction are not held across the expensive part.
     """
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         disassembly_format, counters, stored = Profiles(suite).disassembly(

@@ -152,8 +152,6 @@ class TestRunListing:
     def test_is_ordered_by_test_name(
         self, api_client: TestClient, submit: Callable[..., str]
     ) -> None:
-        # endpoints.md: the client renders this straight into a dropdown, and the list is bounded
-        # by the tests of one run, so unlike `GET /runs/{uuid}/samples` it can afford the sort.
         run = submit(("zeta", PROFILE), ("alpha", PROFILE), ("middle", PROFILE))
 
         items = api_client.get(run_profiles(run)).json()["items"]
@@ -308,8 +306,7 @@ class TestFunctionList:
     def test_the_counters_are_the_raw_aggregate_rather_than_a_percentage(
         self, listed: dict[str, Any]
     ) -> None:
-        # The v4 proof of concept called these percentages; endpoints.md is emphatic that every
-        # counter the API serves is raw and the client computes shares from it.
+        # D12: every counter the API serves is raw; the client computes shares from it.
         functions = {item["name"]: item["counters"] for item in listed["items"]}
 
         assert functions["Zebra"] == {"cycles": 100.0, "branch-misses": 5.0}
@@ -467,8 +464,7 @@ class TestFunctionNames:
         self, api_client: TestClient, exotic: str
     ) -> None:
         # Everything escaped but the `+`, which a query string decodes as a space, so this asks for
-        # a function that is not there. Not something the endpoint chooses: it is how query strings
-        # are decoded, and any HTTP client's own encoding escapes it.
+        # a function that is not there. Any HTTP client's own encoding escapes it.
         response = api_client.get(f"{disassembly(exotic)}?function={quote(PLUS, safe='+')}")
 
         assert response.status_code == 404

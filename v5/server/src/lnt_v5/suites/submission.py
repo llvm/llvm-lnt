@@ -254,12 +254,7 @@ def validate_submission(schema: SuiteSchema, body: RunSubmission) -> ValidatedSu
 
 @contextmanager
 def _naming(entry: TestEntry) -> Iterator[None]:
-    """Say which test entry a 400 raised inside is about.
-
-    A submission carries thousands of entries, so every failure has to name its own. Named once
-    here rather than by each of the messages underneath, which would then each have to be given the
-    name to say it.
-    """
+    """Say which test entry a 400 raised inside is about, since a submission carries thousands."""
     try:
         yield
     except ApiError as error:
