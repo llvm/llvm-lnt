@@ -329,12 +329,13 @@ member. Each of the following is rejected with 400:
 - An instruction counter that is not one of the profile's top-level counters.
 - A function whose sum of one counter is too large to be a finite `real`.
 
-A stored profile is returned as it was submitted, with each function's counters
-derived as above, and its functions' instructions in the order the document
-listed them. It is stored as D5's `{suite}.profile` and
-`{suite}.profile_function` rows. Since everything is validated at submission, a
-stored profile is always one the read endpoints can serve. Profiles are
-read-only after creation, and deleting a run deletes them.
+A stored profile is returned with the values it was submitted with, each typed
+as above (an address `8.0` is returned as `8`, an instruction counter `5` as a
+`real`), with each function's counters derived as above, and its functions'
+instructions in the order the document listed them. It is stored as D5's
+`{suite}.profile` and `{suite}.profile_function` rows. Since everything is
+validated at submission, a stored profile is always one the read endpoints can
+serve. Profiles are read-only after creation, and deleting a run deletes them.
 
 
 ## D13: Concurrent Submission
