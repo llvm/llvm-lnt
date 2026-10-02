@@ -125,7 +125,9 @@ Deleting a suite, or removing entries from its schema, destroys data and needs
   (401), `forbidden` (403), `not_found` (404), `duplicate`, `ordinal_conflict`,
   `in_use` and `conflict` (409), and `internal_error` (500). A request body too
   large for the deployment is a plain-text 413 instead. Among the 409s:
-  - `duplicate`: the entity exists. For a run UUID, retry with a fresh one.
+  - `duplicate`: the entity exists. For a run whose UUID you chose, an earlier
+    attempt most likely succeeded: do not resubmit under a fresh UUID, which
+    would store the run twice.
   - `ordinal_conflict`: the ordinal is taken, or contradicts the commit's own.
     Your view of the commit order is wrong; retrying cannot help.
   - `in_use`: a regression still references the commit you asked to delete.

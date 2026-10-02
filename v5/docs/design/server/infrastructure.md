@@ -178,7 +178,9 @@ time, so clients must branch on `code` alone and never parse `message`.
 | `internal_error` | 500 | The server failed to answer |
 
 409 carries more than one code because its cases call for different client behaviour: a
-submitting bot retries a `duplicate` run UUID with a fresh one, whereas an `ordinal_conflict`
+`duplicate` run UUID means the run is already stored -- for a submitting bot that chose the UUID
+itself, most likely by an earlier attempt whose response was lost, so it is done and must not
+resubmit under a fresh UUID, which would store the run twice -- whereas an `ordinal_conflict`
 means its view of the commit order is wrong and retrying cannot help.
 
 **Oversized request bodies** are rejected but do not have to use the envelope: they can be rejected
