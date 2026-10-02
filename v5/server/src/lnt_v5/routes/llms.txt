@@ -139,8 +139,9 @@ Deleting a suite, or removing entries from its schema, destroys data and needs
   (`after_commit`, `before_commit`) is 404 if unknown and 400 if it has no
   ordinal. A commit a body refers to, such as a regression's, is 404.
 - **Values**: timestamps are ISO 8601 in UTC with a `Z` suffix. Values in
-  `fields` and `metrics` use the JSON type their declared type calls for and are
-  never strings, and `"5"` is not accepted for an integer.
+  `fields` and `metrics` use the JSON type their declared type calls for: a
+  number for `real` and `integer`, never a string, so `"5"` is not accepted for
+  an integer; a string for `text`; an ISO 8601 string for `datetime`.
 - **References are flat**: a run carries `"machine": "linux-x86_64"` and
   `"commit": "abc123"`, not nested objects. `POST /commits/resolve` turns a page
   of commit values into full commits in one call.
