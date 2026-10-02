@@ -56,7 +56,8 @@ _CURSOR = (
     "Continue the list where a previous page ended: pass back the `cursor.next` that page "
     "returned, with the same filters and sort. Cursors are opaque -- they must not be parsed, "
     "constructed or stored, and one issued for a different list, different filters or a different "
-    "sort order is rejected. `limit` may change between pages."
+    "sort order is rejected. So is one whose list changed between pages, e.g. by a schema change; "
+    "start again from the first page. `limit` may change between pages."
 )
 
 Limit = Annotated[int, Query(ge=1, le=MAX_LIMIT, description=_LIMIT)]
@@ -264,8 +265,9 @@ def cursor_page[T](
     neither an unrelated parameter nor another spelling of the same filter (`has_profiles=1` for
     `true`, a default spelled out, one instant in two time zones) invalidates a cursor. It names the
     suite's tables, so a cursor from one suite is not accepted by another's either. The flip side is
-    that anything changing the statement -- a schema change to a column it selects or searches, or
-    a deploy that alters the query -- invalidates the cursors already issued for it, as R2 allows.
+    that anything changing the statement -- a schema change to a column it selects or searches, an
+    entity a filter names resolving to another id or ordinal, or a deploy that alters the query --
+    invalidates the cursors already issued for it, as R2 allows.
 
     One row beyond the page is fetched and discarded, so that `next` is null exactly when the
     caller has reached the end -- rather than handing back a cursor that leads to an empty page and
