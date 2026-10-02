@@ -25,6 +25,7 @@ from lnt_v5.suites import profile_document
 from lnt_v5.suites.profile_document import (
     MAX_COMPRESSED_SIZE,
     MAX_ENCODED_SIZE,
+    MAX_FUNCTIONS,
     stored_profile,
 )
 
@@ -348,6 +349,20 @@ class TestDocument:
         backwards = document({"name": "f", "instructions": [instruction(8), instruction(4)]})
 
         assert "addresses never decrease within a function" in refused(backwards)
+
+    def test_refuses_a_profile_of_too_many_functions(self) -> None:
+        many = document(
+            *({"name": f"f{index}", "instructions": []} for index in range(MAX_FUNCTIONS + 1))
+        )
+
+        assert "not a valid profile document" in refused(many)
+
+    def test_accepts_a_profile_of_as_many_functions_as_the_cap(self) -> None:
+        most = document(
+            *({"name": f"f{index}", "instructions": []} for index in range(MAX_FUNCTIONS))
+        )
+
+        assert len(stored(most).functions) == MAX_FUNCTIONS
 
     def test_refuses_a_function_of_too_many_instructions(self) -> None:
         many = document(

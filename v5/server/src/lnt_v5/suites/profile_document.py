@@ -59,6 +59,11 @@ MAX_DOCUMENT_SIZE = MAX_DECOMPRESSED_SIZE
 # which the check on the decoded length then catches.
 MAX_ENCODED_SIZE = 4 * ((MAX_COMPRESSED_SIZE + 2) // 3)
 
+# D12's cap on the functions of one profile. The size caps alone admit close to a million empty
+# functions, which cost little to submit but are all in the uncompressed index every read of the
+# profile parses, and in the unpaginated function list. The largest profile on lnt.llvm.org has 79.
+MAX_FUNCTIONS = 10_000
+
 # How many profiles one worker encodes at once. Encoding a profile at the caps above holds a couple
 # of hundred megabytes for a second or more, and FastAPI runs submissions on a threadpool of dozens
 # of threads, so without a bound a burst of concurrent submissions multiplies that until the process
@@ -165,7 +170,7 @@ class ProfileDocument(Struct, forbid_unknown_fields=True, gc=False):
 
     disassembly_format: str
     counters: dict[Name, Unsigned]
-    functions: list[FunctionDocument]
+    functions: Annotated[list[FunctionDocument], Meta(max_length=MAX_FUNCTIONS)]
 
     def __post_init__(self) -> None:
         _text(self.disassembly_format, "the disassembly format")

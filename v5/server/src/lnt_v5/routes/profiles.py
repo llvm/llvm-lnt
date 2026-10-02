@@ -286,9 +286,9 @@ def list_profile_functions(
 ) -> Items[ProfileFunction]:
     """Every function the profile measured, hottest first (R2, endpoints.md).
 
-    Unpaginated: the list is bounded by the functions of one binary, and the client renders all of
-    it into one combobox (`client/profiles.md`, "Function Selector"). Like the metadata endpoint
-    this reads the profile's index alone.
+    Unpaginated: D12 caps a profile's functions, and the client renders all of them into one
+    combobox (`client/profiles.md`, "Function Selector"). Like the metadata endpoint this reads the
+    profile's index alone.
     """
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         data = Profiles(suite).blob(connection, uuid)
