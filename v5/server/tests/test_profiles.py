@@ -391,6 +391,15 @@ class TestDisassembly:
         assert response.status_code == 404
         assert code_of(response) == "not_found"
 
+    def test_is_404_for_an_empty_function_name(
+        self, api_client: TestClient, stored: Callable[..., str]
+    ) -> None:
+        # No function can have one (D12), so it names nothing rather than being malformed.
+        response = api_client.get(disassembly(stored()), params={"function": ""})
+
+        assert response.status_code == 404
+        assert code_of(response) == "not_found"
+
     def test_parses_the_blob_once_per_request(
         self, api_client: TestClient, stored: Callable[..., str], monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -526,11 +535,13 @@ class TestTheBlobStaysOutOfTheListing:
         assert response.status_code == 200
         assert [item["test"] for item in response.json()["items"]] == ["bench"]
 
+    @pytest.mark.parametrize("suffix", PROFILE_DATA)
     def test_the_data_endpoints_do(
         self,
         api_client: TestClient,
         stored: Callable[..., str],
         without_the_column: Callable[[], None],
+        suffix: str,
     ) -> None:
         # The other half of the check: without this the test above would pass just as well against
         # an endpoint that had stopped working. A column the server expects and cannot find is D2's
@@ -538,7 +549,7 @@ class TestTheBlobStaysOutOfTheListing:
         uuid = stored()
         without_the_column()
 
-        response = api_client.get(f"{PROFILES}/{uuid}")
+        response = api_client.get(f"{PROFILES}/{uuid}{suffix}")
 
         assert response.status_code == 409
         assert code_of(response) == "conflict"

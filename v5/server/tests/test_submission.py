@@ -21,6 +21,7 @@ from pydantic import ValidationError
 from conftest import PROFILE_DOCUMENT, encoded_profile, run_payload
 from lnt_v5.errors import ApiError, ErrorCode
 from lnt_v5.profile_format import read_profile
+from lnt_v5.suites import submission
 from lnt_v5.suites.schema import SuiteSchema
 from lnt_v5.suites.submission import RunSubmission, ValidatedSubmission, validate_submission
 from lnt_v5.suites.tables import NAME_LENGTH
@@ -494,6 +495,24 @@ class TestProfiles:
         # Explicit null and omission mean the same thing: no profile.
         entry = {} if value is ... else {"profile": value}
         assert one_test(**entry).profile is None
+
+    def test_a_sample_is_refused_before_any_profile_is_encoded(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Encoding a profile is the expensive part of validation, so it comes last: a submission
+        # refused for a sample in a later entry encodes none of the profiles before it.
+        encoded: list[str] = []
+        monkeypatch.setattr(submission, "stored_profile", lambda value: encoded.append(value))
+
+        message = refused(
+            tests=[
+                {"name": "first", "profile": encoded_profile()},
+                {"name": "second", "execution_time": "slow"},
+            ]
+        )
+
+        assert message.startswith("test 'second':")
+        assert encoded == []
 
     def test_a_refused_profile_names_its_test(self) -> None:
         # A submission carries thousands of entries, so the 400 says which one is at fault.

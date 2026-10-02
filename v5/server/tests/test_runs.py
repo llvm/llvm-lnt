@@ -865,6 +865,29 @@ class TestProfiles:
 
         assert [row["test"] for row in profiles(db_engine, suite)] == ["suite/one"]
 
+    def test_stores_each_entrys_own_profile(
+        self, db_engine: Engine, suite: SuiteTables, submitted: Callable[..., Any]
+    ) -> None:
+        # Profiles are encoded in a pass of their own after the samples (D12), so each has to find
+        # its way back to its own entry -- past one that carries none.
+        def profile(cycles: int) -> str:
+            return encoded_profile(
+                {"disassembly_format": "raw", "counters": {"cycles": cycles}, "functions": []}
+            )
+
+        submitted(
+            tests=[
+                {"name": "suite/one", "profile": profile(1)},
+                {"name": "suite/two"},
+                {"name": "suite/three", "profile": profile(3)},
+            ]
+        )
+
+        stored = {
+            row["test"]: read_profile(row["data"]).counters for row in profiles(db_engine, suite)
+        }
+        assert stored == {"suite/one": {"cycles": 1}, "suite/three": {"cycles": 3}}
+
     def test_refuses_a_profile_it_cannot_decode(self, submit: Callable[..., Any]) -> None:
         # One case rather than the matrix: what the endpoint owes is that a profile D12 refuses
         # comes back as R4's 400 in the error envelope. Which profiles are refused is
