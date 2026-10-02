@@ -33,7 +33,7 @@ STATIC_ASSET_EXTENSIONS = frozenset(
 
 # Paths the server answers itself that are not under /api/. They share the API's slash handling:
 # a probe is as easy to misconfigure with a trailing slash as an endpoint is.
-INFRASTRUCTURE_PATHS = frozenset({"/healthz"})
+INFRASTRUCTURE_PATHS = frozenset({"/healthz", "/llms.txt"})
 
 
 def is_api_path(path: str) -> bool:

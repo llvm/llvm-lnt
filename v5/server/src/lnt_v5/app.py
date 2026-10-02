@@ -19,6 +19,7 @@ from .routes.commits import router as commits_router
 from .routes.health import router as health_router
 from .routes.index import DOCS_PATH, OPENAPI_PATH
 from .routes.index import router as index_router
+from .routes.llms import router as llms_router
 from .routes.machines import router as machines_router
 from .routes.profiles import router as profiles_router
 from .routes.profiles import run_profiles_router
@@ -104,6 +105,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # Routes before the SPA mount: a mount at "/" matches everything, so anything registered
     # after it is unreachable.
     app.include_router(health_router)
+    app.include_router(llms_router)
     app.include_router(index_router)
     app.include_router(admin_router)
     app.include_router(suites_router)
