@@ -171,16 +171,21 @@ in the examples are placeholders: use the ones the suite's schema declares.
   "run_parameters": {"build_config": "Release"},
   "tests": [
     {"name": "bench/foo", "execution_time": 1.23, "compile_time": 0.45},
-    {"name": "bench/bar", "execution_time": [0.10, 0.11, 0.12]}
+    {"name": "bench/bar", "execution_time": [0.10, 0.11, 0.12], "compile_time": 0.40}
   ]
 }
 ```
 
 The machine and the commit are created if they do not exist. An array records
-one sample per repetition. `uuid` is optional and generated when omitted. The
-submission is atomic, and answers 201 with the run. It never overwrites what is
-stored: a field, tag or ordinal that differs from the stored one is 409, and
-`PATCH` is the only way to change it.
+one sample per repetition. Every array in one test must have the same length,
+and a scalar beside them is repeated in each of those samples: above,
+`bench/bar` yields three samples, each with `compile_time` 0.40, so
+aggregating per sample counts that value three times. `uuid` is optional and
+generated when omitted. The submission is atomic, and answers 201 with the run.
+It never overwrites what is stored: a field, tag or ordinal that differs from
+the stored one is 409, and `PATCH` is the only way to change it. The machine's
+`tracked` flag is the exception: it is set only when the submission creates the
+machine, and ignored rather than compared afterwards.
 
 **Chart a metric over time** with `POST /query`:
 
