@@ -263,8 +263,13 @@ class Points:
         return self._run.c.machine_id == machine
 
     def measured_for(self, tests: Collection[int]) -> ColumnElement[bool]:
-        """endpoints.md's `test` list: a disjunction, landing on D5's `(test_id, run_id)` index."""
-        return self.table.c.test_id.in_(tests)
+        """endpoints.md's `test` list: a disjunction, landing on D5's `(test_id, run_id)` index.
+
+        Sorted because the ids are bound in the order given, and that order is part of the cursor's
+        scope (`cursor_page`). The ids come from a lookup with no ORDER BY, whose row order follows
+        the plan PostgreSQL picks, so an identical request could otherwise have its cursor refused.
+        """
+        return self.table.c.test_id.in_(sorted(tests))
 
     def at_commit(self, value: str) -> ColumnElement[bool]:
         """R3's `commit=`, by value so that an unknown commit is an empty page rather than 404."""
