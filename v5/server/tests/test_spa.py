@@ -152,6 +152,7 @@ class TestCanonicalServerPath:
             ("/api/admin/api-keys/", "/api/admin/api-keys"),
             ("/api/openapi.json/", "/api/openapi.json"),
             ("/healthz/", "/healthz"),
+            ("/llms.txt/", "/llms.txt"),
         ],
     )
     def test_strips_a_trailing_slash_from_a_server_path(self, path: str, canonical: str) -> None:
@@ -162,6 +163,7 @@ class TestCanonicalServerPath:
         [
             "/api",  # already canonical
             "/healthz",
+            "/llms.txt",
             "/",  # the client's own root, not a stray slash
             "//",
             "/suites/nts/",  # a client route: the SPA answers both forms itself
@@ -175,7 +177,7 @@ class TestCanonicalServerPath:
 
 class TestRedirectTrailingSlash:
     @pytest.mark.parametrize(
-        "path", ["/api/", "/api/admin/api-keys/", "/api/docs/", "/api/openapi.json/"]
+        "path", ["/api/", "/api/admin/api-keys/", "/api/docs/", "/api/openapi.json/", "/llms.txt/"]
     )
     def test_sends_a_server_path_to_its_canonical_form(self, client: TestClient, path: str) -> None:
         response = client.get(path, follow_redirects=False)
@@ -265,6 +267,7 @@ class TestRejectNulInUrl:
         assert response.status_code == 400
 
     def test_leaves_an_ordinary_url_alone(self, client: TestClient) -> None:
+        assert client.get("/llms.txt").status_code == 200
         assert client.get("/suites/nts?search=abc").status_code == 200
 
 

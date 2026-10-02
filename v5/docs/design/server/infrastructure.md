@@ -13,8 +13,9 @@ alongside an interactive viewer (see R8).
 - No path carries a trailing slash. A request that adds one is answered with a
   307 redirect to the canonical form; 307 rather than 301 or 308 so that the
   method and body survive and a misspelled write is not downgraded to a GET.
-  This covers `/healthz` as well. Client routes are unaffected -- the web UI
-  answers both spellings itself, and redirecting between them would be noise.
+  This covers `/healthz` and `/llms.txt` as well. Client routes are unaffected
+  -- the web UI answers both spellings itself, and redirecting between them
+  would be noise.
 - Entities addressed by natural keys (suite name, machine name, test name, commit value) or
   UUIDs (runs, regressions, regression indicators, profiles) -- never by internal
   auto-increment database IDs. API keys are the one exception to both: they are addressed by
@@ -177,7 +178,9 @@ time, so clients must branch on `code` alone and never parse `message`.
 | `internal_error` | 500 | The server failed to answer |
 
 409 carries more than one code because its cases call for different client behaviour: a
-submitting bot retries a `duplicate` run UUID with a fresh one, whereas an `ordinal_conflict`
+`duplicate` run UUID means the run is already stored -- for a submitting bot that chose the UUID
+itself, most likely by an earlier attempt whose response was lost, so it is done and must not
+resubmit under a fresh UUID, which would store the run twice -- whereas an `ordinal_conflict`
 means its view of the commit order is wrong and retrying cannot help.
 
 **Oversized request bodies** are rejected but do not have to use the envelope: they can be rejected

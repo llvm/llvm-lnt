@@ -24,8 +24,8 @@ from lnt_v5.scopes import Scope
 READABLE = "/api"
 ADMIN_ONLY = "/api/admin/api-keys"
 
-# R5 exempts four routes from the scope system. Two exist today; `/healthz` lives outside `/api/`
-# and is covered below, and `/llms.txt` (R6) is not implemented yet.
+# R5 exempts four routes from the scope system. Two of them live under `/api/`; the other two,
+# `/healthz` and `/llms.txt`, do not and are covered by `TestExemptRoutes` below.
 EXEMPT_API_PATHS = {"/api/openapi.json", "/api/docs"}
 
 # Well-formed as a Bearer credential, but not a token this server ever issued.
@@ -178,7 +178,7 @@ class TestRevocation:
 
 
 class TestExemptRoutes:
-    @pytest.mark.parametrize("path", ["/api/openapi.json", "/api/docs", "/healthz"])
+    @pytest.mark.parametrize("path", ["/api/openapi.json", "/api/docs", "/healthz", "/llms.txt"])
     def test_an_authorization_header_has_no_effect(self, api_client: TestClient, path: str) -> None:
         # R5: no authentication happens on their path at all -- not even for a header that would
         # be a 400 or a 401 anywhere else under /api/.
