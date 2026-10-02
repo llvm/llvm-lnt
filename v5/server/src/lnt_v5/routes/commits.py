@@ -431,7 +431,7 @@ def list_commits(
     testsuite: str,
     engine: EngineDep,
     registry: RegistryDep,
-    cursor: Cursor,
+    cursor: Cursor = None,
     search: Annotated[
         str | None,
         Query(

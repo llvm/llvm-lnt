@@ -416,6 +416,29 @@ class TestListPagination:
 
         assert values_in(response) == ["c2", "c3", "c4"]
 
+    @pytest.mark.parametrize(
+        ("issued", "resumed", "reason"),
+        [
+            ("has_profiles=1", "has_profiles=true", "another spelling of the same filter"),
+            ("_=1", "_=2", "a parameter the endpoint does not read, such as a cache-buster"),
+        ],
+    )
+    def test_accepts_a_cursor_under_a_query_string_meaning_the_same_list(
+        self,
+        api_client: TestClient,
+        add_run: Callable[..., str],
+        issued: str,
+        resumed: str,
+        reason: str,
+    ) -> None:
+        for index in range(4):
+            add_run(f"c{index}", profile=True)
+        cursor = page(api_client, f"limit=2&{issued}").json()["cursor"]["next"]
+
+        response = page(api_client, f"limit=2&{resumed}&cursor={cursor}")
+
+        assert values_in(response) == ["c2", "c3"], reason
+
     def test_refuses_a_cursor_issued_by_another_suite(
         self, api_client: TestClient, manage: dict[str, str]
     ) -> None:

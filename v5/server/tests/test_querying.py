@@ -20,6 +20,7 @@ import pytest
 from sqlalchemy import (
     BigInteger,
     Column,
+    ColumnElement,
     DateTime,
     Double,
     Engine,
@@ -35,7 +36,7 @@ from sqlalchemy import (
 from sqlalchemy import select as sql_select
 
 from lnt_v5.errors import ApiError
-from lnt_v5.querying import Keyset, RequestCursor, SortKey, cursor_page
+from lnt_v5.querying import Keyset, SortKey, cursor_page
 
 _metadata = MetaData()
 
@@ -98,9 +99,7 @@ def walk(db_engine: Engine) -> Callable[..., list[str]]:
         cursor: str | None = None
         for _ in range(100):
             with db_engine.connect() as connection:
-                page = cursor_page(
-                    connection, statement, keyset, limit, RequestCursor(cursor), _row
-                )
+                page = cursor_page(connection, statement, keyset, limit, cursor, _row)
             seen.extend(row.label for row in page.items)
             cursor = page.cursor.next
             if cursor is None:
@@ -136,16 +135,15 @@ def _row(row: Row[Any]) -> Row[Any]:
 
 
 def one_page(
-    engine: Engine, keyset: Keyset, limit: int, cursor: str | None = None, scope: str = ""
+    engine: Engine,
+    keyset: Keyset,
+    limit: int,
+    cursor: str | None = None,
+    *conditions: ColumnElement[bool],
 ) -> tuple[list[Row[Any]], str | None]:
     with engine.connect() as connection:
         page = cursor_page(
-            connection,
-            sql_select(events),
-            keyset,
-            limit,
-            RequestCursor(cursor, scope),
-            _row,
+            connection, sql_select(events).where(*conditions), keyset, limit, cursor, _row
         )
     return page.items, page.cursor.next
 
@@ -349,16 +347,18 @@ class TestCursorOpacity:
         with pytest.raises(ApiError):
             one_page(db_engine, Keyset(tiebreaker=events.c.id), 3, cursor)
 
-    def test_refuses_a_cursor_issued_under_a_different_scope(self, db_engine: Engine) -> None:
+    def test_refuses_a_cursor_issued_for_different_filters(self, db_engine: Engine) -> None:
         # Same ordering, other filters: the page would hold only rows the new filters match, but
         # would silently skip every one before the position the cursor names.
-        _, cursor = one_page(db_engine, by_time(), 3, scope="search=foo")
+        _, cursor = one_page(db_engine, by_time(), 3, None, events.c.label != "a")
         assert cursor is not None
 
         with pytest.raises(ApiError):
-            one_page(db_engine, by_time(), 3, cursor, scope="search=bar")
+            one_page(db_engine, by_time(), 3, cursor, events.c.label != "b")
+        with pytest.raises(ApiError):
+            one_page(db_engine, by_time(), 3, cursor)
 
-        assert len(one_page(db_engine, by_time(), 3, cursor, scope="search=foo")[0]) == 3
+        assert len(one_page(db_engine, by_time(), 3, cursor, events.c.label != "a")[0]) == 3
 
     def test_refuses_a_text_value_carrying_a_nul(self, db_engine: Engine) -> None:
         # D5 reaches what comes out of a cursor too, because a cursor need not be unforgeable (R2):

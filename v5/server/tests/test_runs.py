@@ -1379,7 +1379,8 @@ class TestMachineRuns:
         self, api_client: TestClient, run_at: Callable[..., str]
     ) -> None:
         # The same table and the same order for every machine, so only the path tells the two
-        # lists apart -- which is why a cursor's scope includes it.
+        # lists apart -- through the machine id it resolves to, which the statement a cursor is
+        # scoped to binds.
         for machine in ("linux", "linux", "linux", "darwin"):
             run_at(machine=machine)
         cursor = listed(api_client, "limit=2", path=self.path()).json()["cursor"]["next"]

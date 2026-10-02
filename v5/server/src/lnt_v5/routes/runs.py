@@ -48,7 +48,6 @@ from lnt_v5.querying import (
     Cursor,
     Keyset,
     Limit,
-    RequestCursor,
     SortKey,
     cursor_page,
     exclusive_range,
@@ -241,7 +240,7 @@ class Runs:
         conditions: Sequence[ColumnElement[bool]],
         sort: RunSort | None,
         limit: int,
-        cursor: RequestCursor,
+        cursor: str | None,
     ) -> CursorPage[Run]:
         """One page of runs, shared by the two lists that differ only in how they name a machine."""
         return cursor_page(
@@ -411,7 +410,7 @@ def list_runs(
     testsuite: str,
     engine: EngineDep,
     registry: RegistryDep,
-    cursor: Cursor,
+    cursor: Cursor = None,
     search: Annotated[
         str | None,
         Query(
@@ -483,7 +482,7 @@ def list_machine_runs(
     machine_name: str,
     engine: EngineDep,
     registry: RegistryDep,
-    cursor: Cursor,
+    cursor: Cursor = None,
     after: After = None,
     before: Before = None,
     sort: Sort = None,

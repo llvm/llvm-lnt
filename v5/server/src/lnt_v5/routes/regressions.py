@@ -670,7 +670,7 @@ def list_regressions(
     testsuite: str,
     engine: EngineDep,
     registry: RegistryDep,
-    cursor: Cursor,
+    cursor: Cursor = None,
     search: Annotated[
         str | None,
         Query(description="Case-insensitive substring match against the regression's title."),

@@ -114,7 +114,7 @@ def list_samples(
     uuid: UuidKey,
     engine: EngineDep,
     registry: RegistryDep,
-    cursor: Cursor,
+    cursor: Cursor = None,
     test: Annotated[
         str | None,
         Query(

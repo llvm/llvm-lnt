@@ -71,10 +71,13 @@ holds by passing `cursor.next` back as `cursor`, alongside the same filters and
 for a list that takes its filters in a request body (where `limit` is a body key
 too). A cursor that is malformed, or that was issued for a different list,
 different filters or a different ordering, is rejected with 400 rather than
-quietly answered with a page of the wrong rows. Only `limit` may change from one
-page to the next. Opacity is a contract on the client rather than a cryptographic
-guarantee: a cursor need not be unforgeable, because it can only name a position
-in a query its holder could have asked for anyway.
+quietly answered with a page of the wrong rows. A cursor may also stop being
+accepted when the suite's schema, the server, or an entity one of the list's
+filters names changes between two pages; a client whose unmodified cursor is
+rejected starts the list again from the first page. Only `limit` may change from
+one page to the next. Opacity is a contract on the client rather than a
+cryptographic guarantee: a cursor need not be unforgeable, because it can only
+name a position in a query its holder could have asked for anyway.
 
 Offset pagination takes `offset` (default `0`) alongside `limit`. `total` is the
 number of items matching the request's filters, ignoring `limit` and `offset`,
