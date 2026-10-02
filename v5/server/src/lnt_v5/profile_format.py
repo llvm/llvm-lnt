@@ -71,13 +71,11 @@ from typing import NoReturn, Protocol
 # The format version, the first thing in a blob.
 PROFILE_FORMAT_VERSION = 2
 
-# How much the four compressed sections may expand to, together, for one profile. D12's cap on a
-# decompressed document is defined as this (`suites.profile_document`), and a document always
-# expands to less in this format, which spends fewer bytes than JSON on every part of it.
+# The reader's bounds: how much the four compressed sections of one profile may expand to,
+# together, and how many instructions one function may claim. They have to admit every profile the
+# server writes, which D12's caps on a submitted document bound (`suites.profile_document`; a test
+# holds the two together), and they keep one read's work to a size a server can hold.
 MAX_DECOMPRESSED_SIZE = 32 * 1024 * 1024
-
-# D12's cap on the instructions of one function: several times the largest function measured on
-# lnt.llvm.org, and what keeps one request's materialized disassembly to a size a server can hold.
 MAX_INSTRUCTIONS = 100_000
 
 # The longest ULEB128 encoding read, and one past the widest value one may hold. Ten bytes carry 70
@@ -260,6 +258,13 @@ class _Reader:
         return value
 
 
+def _section(data: bytes, index: int, offset: int = 0) -> _Reader:
+    """A `_Reader` over section `index`'s bytes, named after it, starting at `offset`."""
+    reader = _Reader(data, _SECTIONS[index])
+    reader.seek(offset)
+    return reader
+
+
 class Profile:
     """A parsed profile: an index that is ready, and per-instruction data that is not.
 
@@ -319,13 +324,10 @@ class Profile:
 
         sections = self._sections()
 
-        counters = _Reader(sections[_LINE_COUNTERS], _SECTIONS[_LINE_COUNTERS])
-        counters.seek(offsets.counters)
-        addresses = _Reader(sections[_LINE_ADDRESSES], _SECTIONS[_LINE_ADDRESSES])
-        addresses.seek(offsets.addresses)
-        text = _Reader(sections[_LINE_TEXT], _SECTIONS[_LINE_TEXT])
-        text.seek(offsets.text)
-        pool = _Reader(sections[_TEXT_POOL], _SECTIONS[_TEXT_POOL])
+        counters = _section(sections[_LINE_COUNTERS], _LINE_COUNTERS, offsets.counters)
+        addresses = _section(sections[_LINE_ADDRESSES], _LINE_ADDRESSES, offsets.addresses)
+        text = _section(sections[_LINE_TEXT], _LINE_TEXT, offsets.text)
+        pool = _section(sections[_TEXT_POOL], _TEXT_POOL)
 
         # The exact bound, and again before a single instruction is built. The address delta is the
         # one field every instruction spends at least a byte on whatever else it holds -- a function
@@ -402,7 +404,7 @@ def _read_profile(data: bytes) -> Profile:
         return whole[start + offset : start + offset + size]
 
     def section(index: int) -> _Reader:
-        return _Reader(bytes(raw(index)), _SECTIONS[index])
+        return _section(bytes(raw(index)), index)
 
     disassembly_format = section(_HEADER).string()
     counter_names = _read_counter_names(section(_COUNTER_NAME_POOL))
@@ -619,11 +621,10 @@ def write_profile(
     stores.
 
     The profile must be one `read_profile` can read back, which D12's validation of a submitted
-    document guarantees (see `suites.profile_document`): at most `MAX_INSTRUCTIONS` per function,
-    addresses that never decrease within one, and every instruction carrying exactly its
-    function's counters. A document within D12's cap on its decompressed size always expands to
-    less than `MAX_DECOMPRESSED_SIZE` here. What the primitives cannot encode -- a newline in a
-    string, a number outside [0, 2**64), a float single precision cannot hold -- is a `ValueError`.
+    document guarantees (see `suites.profile_document`): within the reader's bounds, addresses that
+    never decrease within a function, and every instruction carrying exactly its function's
+    counters. What the primitives cannot encode -- a newline in a string, a number outside
+    [0, 2**64), a float single precision cannot hold -- is a `ValueError`.
     """
     ordered = sorted(functions.items())
 

@@ -5,18 +5,17 @@ module takes that string apart, validates the document, and hands back the blob 
 stores. Everything is checked here, at submission, so that a stored profile is always one the read
 endpoints can serve: nothing a caller sends ever reaches the reader unvalidated.
 
-What is stored is v4's binary format (`profile_format`), chosen because it is the most compact
-representation measured on real profiles. D12 deliberately leaves that encoding to the
-implementation; the only traces it leaves on the contract are the rules it cannot represent a
-document without -- addresses that never decrease within a function, strings without newlines, and
-counter values kept to single precision.
+What is stored is v4's binary format (`profile_format`, which says why). D12 deliberately leaves
+that encoding to the implementation; the only traces it leaves on the contract are the rules it
+cannot represent a document without -- addresses that never decrease within a function, strings
+without newlines, and counter values kept to single precision.
 
 The document is parsed with msgspec rather than pydantic, which reads every other request body. A
 profile carries hundreds of thousands of instructions, and pydantic's models hold one in about three
 times the memory msgspec's structs do, and take several times as long to build. msgspec's
-declarative constraints cannot express everything D12 asks for, so the rest is checked by hand in
-`FunctionDocument.__post_init__` and `ProfileDocument.__post_init__` -- once per function rather
-than once per instruction, since a hook per instruction would give back much of what msgspec saves.
+declarative constraints cannot express everything D12 asks for, so the rest is checked by hand --
+from a hook per function rather than one per instruction, which would give back much of what
+msgspec saves.
 """
 
 from __future__ import annotations
@@ -32,8 +31,6 @@ from msgspec import Meta, Struct
 
 from lnt_v5.errors import ApiError, ErrorCode
 from lnt_v5.profile_format import (
-    MAX_DECOMPRESSED_SIZE,
-    MAX_INSTRUCTIONS,
     MAX_NUMBER,
     MAX_REAL,
     InstructionData,
@@ -48,16 +45,20 @@ from lnt_v5.strings import NUL
 # lnt.llvm.org, the largest is a 17 MiB document that compresses to 1.1 MiB, so the compressed cap
 # is several times that and the decompressed one about twice it. The decompressed cap is the one
 # that bounds memory: encoding a profile peaks at about seven and a half times the document's size,
-# so a document at this cap costs about 240 MiB. It is also the stored format's own expansion limit,
-# so that everything admitted here can be stored and read back.
+# so a document at this cap costs about 240 MiB. The stored format's reader admits whatever this
+# does, since a document always expands to less in that format, which spends fewer bytes than JSON
+# on every part of it.
 MAX_COMPRESSED_SIZE = 4 * 1024 * 1024
-MAX_DOCUMENT_SIZE = MAX_DECOMPRESSED_SIZE
+MAX_DOCUMENT_SIZE = 32 * 1024 * 1024
 
 # The compressed cap in base64 characters, so that an oversized profile is refused before it is
 # decoded. Base64 spends 4 characters on every 3 bytes, rounded up to a whole group, so this is the
 # longest encoding a document within the cap can have; it admits up to two bytes more than the cap,
 # which the check on the decoded length then catches.
 MAX_ENCODED_SIZE = 4 * ((MAX_COMPRESSED_SIZE + 2) // 3)
+
+# D12's cap on the instructions of one function: several times the largest on lnt.llvm.org, 20,069.
+MAX_INSTRUCTIONS = 100_000
 
 # D12's cap on the functions of one profile. The size caps alone admit close to a million empty
 # functions, which cost little to submit but are all in the uncompressed index every read of the
@@ -85,7 +86,8 @@ _WHITESPACE = str.maketrans("", "", " \t\n\r\v\f")
 
 # An address or a top-level counter: a non-negative integer below 2**64, read as D3 reads an
 # `integer`. A union because msgspec's `int` refuses `8.0`, which D3 accepts; and the upper bound is
-# not declared because msgspec's bounds stop at 64-bit signed integers. `_unsigned` does the rest.
+# not declared because msgspec's bounds stop at 64-bit signed integers. `_unsigned` does the rest,
+# the same rule `entities._whole_number` applies to pydantic models.
 Unsigned = Annotated[int, Meta(ge=0)] | Annotated[float, Meta(ge=0)]
 
 # A raw count at an instruction. Real rather than integer: a producer that samples reports
@@ -128,7 +130,9 @@ class InstructionDocument(Struct, forbid_unknown_fields=True, gc=False):
     """
 
     address: Unsigned
-    counters: dict[Name, Count]
+    # Not `Name`: each of these is one of the profile's top-level counters, which `ProfileDocument`
+    # checks once rather than here once per instruction.
+    counters: dict[str, Count]
     text: str
 
 
@@ -152,19 +156,20 @@ class FunctionDocument(Struct, forbid_unknown_fields=True, gc=False):
         if not self.instructions:
             return
         expected = self.instructions[0].counters.keys()
-        # Every instruction carries these names, so checking them once checks them all.
-        for counter in expected:
-            _text(counter, "a counter name")
         previous = 0
         for position, instruction in enumerate(self.instructions):
-            _text(instruction.text, f"instruction {position}'s text")
+            # The position is only spelled out for a refusal: this runs once per instruction.
+            try:
+                _text(instruction.text, "its text")
+                address = _unsigned(instruction.address, "its address")
+            except ValueError as error:
+                raise ValueError(f"instruction {position}: {error}") from None
             if instruction.counters.keys() != expected:
                 raise ValueError(
                     f"instruction {position} carries the counters "
                     f"{sorted(instruction.counters)} where the first one carries "
                     f"{sorted(expected)}; every instruction of a function carries the same counters"
                 )
-            address = _unsigned(instruction.address, f"instruction {position}'s address")
             if address < previous:
                 raise ValueError(
                     f"instruction {position} is at address {address}, below the {previous} "

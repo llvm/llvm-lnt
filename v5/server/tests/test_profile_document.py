@@ -20,13 +20,14 @@ import pytest
 from conftest import encoded_profile, single
 from lnt_v5 import profile_format
 from lnt_v5.errors import ApiError, ErrorCode
-from lnt_v5.profile_format import MAX_INSTRUCTIONS, Instruction, Profile, read_profile
+from lnt_v5.profile_format import Instruction, Profile, read_profile
 from lnt_v5.suites import profile_document
 from lnt_v5.suites.profile_document import (
     MAX_COMPRESSED_SIZE,
     MAX_ENCODED_SIZE,
     MAX_FUNCTION_NAME_BYTES,
     MAX_FUNCTIONS,
+    MAX_INSTRUCTIONS,
     stored_profile,
 )
 
@@ -234,6 +235,14 @@ class TestSizes:
         monkeypatch.setattr(profile_document, "MAX_DOCUMENT_SIZE", 1000)
 
         assert "byte limit on a decompressed profile" in refused(b" " * 1_000_000)
+
+
+class TestStoredFormat:
+    def test_the_reader_admits_every_profile_d12_admits(self) -> None:
+        # D12's caps live here and the reader's bounds in the storage format, so that changing one
+        # cannot silently change the other -- but every profile admitted has to read back.
+        assert profile_document.MAX_DOCUMENT_SIZE <= profile_format.MAX_DECOMPRESSED_SIZE
+        assert profile_document.MAX_INSTRUCTIONS <= profile_format.MAX_INSTRUCTIONS
 
 
 class TestDocument:

@@ -4,11 +4,12 @@ Pure unit tests: neither touches a database or a request.
 
 The blobs at the top were produced by v4's own writer (`lnt/testing/profile/profilev2impl.py`, at
 the root of this repository) and are embedded rather than generated, so what is tested is the
-format as it exists in the wild rather than the format as this tree imagines it. Everything else is
-surgery on those blobs: `sections` takes one apart, `rebuilt` puts one back together, and the
-corruption tests replace one piece in between. `test_taking_a_blob_apart_and_back_together_is_exact`
-is what keeps that surgery honest -- if it stopped producing byte-identical blobs, every corruption
-test below would be testing something other than the corruption it names.
+format as it exists in the wild rather than the format as this tree imagines it; the writer's tests
+check that it reproduces them. The reader's tests are otherwise surgery on those blobs: `sections`
+takes one apart, `rebuilt` puts one back together, and the corruption tests replace one piece in
+between. `test_taking_a_blob_apart_and_back_together_is_exact` is what keeps that surgery honest --
+if it stopped producing byte-identical blobs, every corruption test below would be testing
+something other than the corruption it names.
 """
 
 from __future__ import annotations
@@ -278,7 +279,7 @@ class TestReadingARealProfile:
 
 
 class TestFormatVersion:
-    """D12 fixes the version at 2, and nothing else is read."""
+    """The reader accepts version 2 only."""
 
     def test_the_golden_blob_declares_the_version_the_constant_names(self) -> None:
         assert blob()[0] == PROFILE_FORMAT_VERSION
@@ -297,7 +298,7 @@ class TestFormatVersion:
 
 
 class TestLaziness:
-    """Reading the index must not decompress anything -- the point of the format (D12)."""
+    """Reading the index must not decompress anything, which is the point of the format."""
 
     def golden_with_unreadable_compression(self) -> bytes:
         parts = sections()

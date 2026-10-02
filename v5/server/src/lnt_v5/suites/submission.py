@@ -24,7 +24,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from math import isfinite
 from typing import Annotated, Any, Literal
 from uuid import uuid4
@@ -168,7 +168,7 @@ class SubmittedTest:
 
     Every mapping carries every metric the suite declares, with `None` where the entry had no value
     -- which is what an omitted metric means anyway (D6). Uniform key sets are a promise the write
-    layer relies on; see `_submitted_test`, which establishes it.
+    layer relies on; see `_samples`, which establishes it.
     """
 
     name: str
@@ -195,8 +195,9 @@ class ValidatedSubmission:
 def validate_submission(schema: SuiteSchema, body: RunSubmission) -> ValidatedSubmission:
     """What a submission stands for against this suite's schema, or a 400 (D6, D12).
 
-    Pure, and complete: it reaches no database and leaves nothing for the write path to validate,
-    so a submission that is going to be refused is refused before a single row is written. The
+    Pure -- apart from waiting its turn to encode a profile, see `profile_document` -- and complete:
+    it reaches no database and leaves nothing for the write path to validate, so a submission that
+    is going to be refused is refused before a single row is written. The
     checks it cannot make are exactly the ones that need stored state -- a duplicate run UUID, a
     contradicted ordinal, machine metadata that disagrees with what is already there (D7).
     """
@@ -213,7 +214,7 @@ def validate_submission(schema: SuiteSchema, body: RunSubmission) -> ValidatedSu
         fields=_submitted_fields(schema, CommitField, body.commit.fields),
     )
 
-    tests: list[SubmittedTest] = []
+    samples: list[Sequence[Mapping[str, Any]]] = []
     seen: set[str] = set()
     # Built once for the whole submission rather than per entry: a submission legitimately names
     # tens of thousands of tests, and rebuilding the table for each would be work proportional to
@@ -232,14 +233,15 @@ def validate_submission(schema: SuiteSchema, body: RunSubmission) -> ValidatedSu
             )
         seen.add(entry.name)
         with _naming(entry):
-            tests.append(_submitted_test(declared, entry))
+            samples.append(_samples(declared, entry))
 
     # A second pass, because encoding a profile is by far the most expensive part of validation:
     # a submission refused for one of its samples is refused before any of that work is done.
-    for position, entry in enumerate(body.tests):
-        if entry.profile is not None:
-            with _naming(entry):
-                tests[position] = replace(tests[position], profile=stored_profile(entry.profile))
+    tests: list[SubmittedTest] = []
+    for entry, rows in zip(body.tests, samples, strict=True):
+        with _naming(entry):
+            profile = None if entry.profile is None else stored_profile(entry.profile)
+        tests.append(SubmittedTest(name=entry.name, samples=rows, profile=profile))
 
     return ValidatedSubmission(
         # D6: the client's UUID when it sent one, and a v4 the server mints otherwise.
@@ -313,8 +315,8 @@ def _submitted_fields(
     return {key: value for key, value in values.items() if value is not None}
 
 
-def _submitted_test(declared: Mapping[str, Metric], entry: TestEntry) -> SubmittedTest:
-    """One test entry as the sample rows it stands for (D6).
+def _samples(declared: Mapping[str, Metric], entry: TestEntry) -> list[dict[str, Any]]:
+    """The sample rows one test entry stands for (D6).
 
     Array values are what make this more than a rename: a test measured several times in one run
     sends an array per metric, and the entry expands into one row per element, with the scalar
@@ -365,11 +367,9 @@ def _submitted_test(declared: Mapping[str, Metric], entry: TestEntry) -> Submitt
     # D6: an entry yields max(1, array length) rows. With no arrays that is the single row which
     # records that the test ran in this run, whether or not it carries any metric value.
     count = 1 if repetitions is None else repetitions
-    samples = [
+    return [
         measured | {key: values[index] for key, values in arrays.items()} for index in range(count)
     ]
-    # The profile is encoded by the caller, once every entry's samples have been validated.
-    return SubmittedTest(name=entry.name, samples=samples, profile=None)
 
 
 def _measured(metric: Metric, value: Any) -> Any:

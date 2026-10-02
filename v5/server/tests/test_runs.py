@@ -868,8 +868,8 @@ class TestProfiles:
     def test_stores_each_entrys_own_profile(
         self, db_engine: Engine, suite: SuiteTables, submitted: Callable[..., Any]
     ) -> None:
-        # Profiles are encoded in a pass of their own after the samples (D12), so each has to find
-        # its way back to its own entry -- past one that carries none.
+        # Profiles are encoded in a pass of their own after the samples (`validate_submission`), so
+        # each has to find its way back to its own entry -- past one that carries none.
         def profile(cycles: int) -> str:
             return encoded_profile(
                 {"disassembly_format": "raw", "counters": {"cycles": cycles}, "functions": []}

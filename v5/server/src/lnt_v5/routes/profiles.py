@@ -16,9 +16,9 @@ render a list of names.
 
 **Reading a profile costs one parse, and as little as the endpoint needs.** `profile_format` reads
 a profile's index eagerly and its disassembly only on request, so the metadata and function-list
-endpoints never pay for instructions they do not serve. Nothing is cached between requests: a
-parse is cheap next to the round trip that fetched the blob, and a cache keyed by blobs would be
-the largest thing in the process.
+endpoints never pay for instructions they do not serve. Nothing is cached between requests: parsing
+an index is cheap next to the round trip that fetched the blob, decompressing one for a disassembly
+is bounded by D12's caps, and a cache keyed by blobs would be the largest thing in the process.
 
 **A function is named in the `function=` query parameter, never in the path** (R1). The name is
 whatever the producer recorded, and one that demangles records an `operator/` overload as
@@ -61,11 +61,15 @@ run_profiles_router = APIRouter(prefix=RUNS_PATH, tags=["Profiles"])
 _NO_PROFILE = f"{SUITE_NOT_FOUND} Or no profile in it has that UUID."
 _NO_FUNCTION = f"{_NO_PROFILE} Or the profile holds no function of that name."
 
+# Field descriptions more than one response model carries.
+_TEST = "The name of the test this profile was measured for."
+_DISASSEMBLY_FORMAT = "How the instruction text was produced, for example `llvm-objdump`."
+
 
 class RunProfile(BaseModel):
     """A profile as a run's listing carries it: what it measured, and how to ask for it."""
 
-    test: str = Field(description="The name of the test this profile was measured for.")
+    test: str = Field(description=_TEST)
     uuid: str = Field(
         description="Identifies the profile. Server-generated (R1); the profile data endpoints "
         "take it."
@@ -76,7 +80,7 @@ class ProfileMetadata(BaseModel):
     """What a profile is of, and the counters it measured as a whole."""
 
     uuid: str = Field(description="Identifies the profile.")
-    test: str = Field(description="The name of the test this profile was measured for.")
+    test: str = Field(description=_TEST)
     run_uuid: str = Field(description="The UUID of the run this profile belongs to.")
     counters: dict[str, int] = Field(
         description=(
@@ -84,9 +88,7 @@ class ProfileMetadata(BaseModel):
             "profile, and integers -- unlike every other counter here, which is a float."
         )
     )
-    disassembly_format: str = Field(
-        description="How the instruction text was produced, for example `llvm-objdump`."
-    )
+    disassembly_format: str = Field(description=_DISASSEMBLY_FORMAT)
 
 
 class ProfileFunction(BaseModel):
@@ -130,9 +132,7 @@ class FunctionDisassembly(BaseModel):
             "carries."
         )
     )
-    disassembly_format: str = Field(
-        description="How the instruction text was produced, for example `llvm-objdump`."
-    )
+    disassembly_format: str = Field(description=_DISASSEMBLY_FORMAT)
     instructions: list[Instruction] = Field(
         description=(
             "The function's instructions, in the order the profile records them. A field of this "

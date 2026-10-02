@@ -11,7 +11,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 from urllib.parse import quote
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -147,7 +147,7 @@ class TestRunListing:
 
         assert list(body) == ["items"]
         assert [item["test"] for item in body["items"]] == ["bench"]
-        assert len(body["items"]) == 1
+        assert UUID(body["items"][0]["uuid"]).version == 4
 
     def test_is_ordered_by_test_name(
         self, api_client: TestClient, submit: Callable[..., str]
@@ -300,17 +300,12 @@ class TestFunctionList:
             "cold",
         }
 
-    def test_is_sorted_by_the_sum_of_a_functions_counters_descending(
-        self, listed: dict[str, Any]
-    ) -> None:
+    def test_is_hottest_first_with_ties_broken_by_name(self, listed: dict[str, Any]) -> None:
         # endpoints.md: hottest first, where "hottest" is the sum across counters -- a default
         # ordering rather than a physical quantity. `hot` has the larger `cycles` of the two and
-        # still comes second, which is exactly the case the client's own counter dropdown re-sorts.
-        assert [item["name"] for item in listed["items"]][:2] == ["main", "hot"]
-
-    def test_breaks_a_tie_by_name_ascending(self, listed: dict[str, Any]) -> None:
-        # Two functions with the same sum, so without the tiebreaker the order would be whatever
-        # the blob happened to list. endpoints.md makes it total.
+        # still comes after `main`, which is exactly the case the client's own counter dropdown
+        # re-sorts. `tie_a` and `tie_b` have the same sum, so without the tiebreaker their order
+        # would be whatever the document happened to list.
         names = [item["name"] for item in listed["items"]]
 
         assert names == ["main", "hot", "tie_a", "tie_b", "cold"]
