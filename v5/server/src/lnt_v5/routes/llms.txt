@@ -46,11 +46,11 @@
   run. It is submitted inline with the run, as a test entry's `profile`: a JSON
   document, gzip-compressed and base64-encoded. It is read back through its own
   UUID.
-- **Regression** -- a performance change someone is tracking: a title, a state,
-  an optional suspected commit, free-form notes, and *indicators*, each naming
-  one `(machine, test, metric)` the change was observed on. LNT does no
-  detection of its own; an external analyzer reads the time series and records
-  what it finds here.
+- **Regression** -- a performance change someone is tracking: a state, and
+  optionally a title, a `bug` URL in an external tracker, a suspected commit and
+  free-form notes, plus *indicators*, each naming one `(machine, test, metric)`
+  the change was observed on. LNT does no detection of its own; an external
+  analyzer reads the time series and records what it finds here.
 
 ## Endpoints
 
@@ -94,7 +94,7 @@ GET    /api/suites/{testsuite}/profiles/{uuid}                read    A profile'
 GET    /api/suites/{testsuite}/profiles/{uuid}/functions      read    Its functions, with their counters
 GET    /api/suites/{testsuite}/profiles/{uuid}/disassembly    read    One function's instructions (function=)
 
-GET    /api/suites/{testsuite}/regressions                    read    List regressions (state=, machine=, test=, metric=, ...)
+GET    /api/suites/{testsuite}/regressions                    read    List regressions (state=a,b, machine=, test=, metric=, ...)
 POST   /api/suites/{testsuite}/regressions                    triage  Create a regression
 GET    /api/suites/{testsuite}/regressions/{uuid}             read    One regression, with its indicators
 PATCH  /api/suites/{testsuite}/regressions/{uuid}             triage  Update title, bug, notes, state or commit
@@ -222,6 +222,6 @@ profile is then read through its own UUID; every counter is a raw count.
  "indicators": [{"machine": "linux-x86_64", "test": "bench/foo", "metric": "execution_time"}]}
 ```
 
-Every key is optional. The state starts at `detected`, and moves freely between
-`detected`, `active`, `not_to_be_fixed`, `fixed` and `false_positive` through
-`PATCH`.
+Every key is optional; `bug`, `notes` and `state` are accepted too. The state
+defaults to `detected`, and moves freely between `detected`, `active`,
+`not_to_be_fixed`, `fixed` and `false_positive` through `PATCH`.
