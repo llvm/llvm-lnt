@@ -37,7 +37,7 @@ def suite_scope(registry: SuiteRegistry, connection: Connection, name: str) -> I
     Two obligations, both D2's. The freshness check happens on the endpoint's own connection, as
     the first statement of its unit of work, and an unknown suite is a 404 before any query runs.
     And a query that reaches a column another worker has since removed reports a retryable
-    conflict rather than a fault: the check and the query cannot be made one atomic step, and they
+    409 rather than a fault: the check and the query cannot be made one atomic step, and they
     do not have to be, as long as the reader is answered rather than silently wrong.
 
     The translation deliberately starts *after* the suite resolves. Reaching this code at all
@@ -55,9 +55,9 @@ def suite_scope(registry: SuiteRegistry, connection: Connection, name: str) -> I
 
 
 def schema_changed(name: str) -> ApiError:
-    """D2's retryable conflict for a request whose suite changed while it was running."""
+    """D2's retryable 409 for a request whose suite changed while it was running."""
     return ApiError(
-        ErrorCode.CONFLICT,
+        ErrorCode.RETRY,
         f"The schema of test suite '{name}' changed while this request was running. Retry.",
     )
 

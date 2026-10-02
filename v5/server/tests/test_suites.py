@@ -243,14 +243,14 @@ class TestDetail:
     def test_the_schema_sub_path_is_not_a_readable_route(
         self, api_client: TestClient, create: Callable[..., Any]
     ) -> None:
-        # `/{name}/schema` exists for PATCH alone. I4 has no 405, so a GET of it collapses to
-        # "nothing here" (see errors.py).
+        # `/{name}/schema` exists for PATCH alone, so a GET of it is I4's 405.
         create()
 
         response = api_client.get(f"{SUITES}/nts/schema")
 
-        assert response.status_code == 404
-        assert code_of(response) == "not_found"
+        assert response.status_code == 405
+        assert code_of(response) == "method_not_allowed"
+        assert response.headers["allow"] == "PATCH"
 
     def test_is_not_shadowed_by_the_spa_catch_all(
         self, api_client: TestClient, create: Callable[..., Any]
@@ -970,6 +970,24 @@ class TestConcurrentWrites:
             )
 
         assert raised.value.code is ErrorCode.NOT_FOUND
+
+    def test_a_change_blocked_by_a_reader_is_retryable(
+        self, db_engine: Engine, create: Callable[..., Any]
+    ) -> None:
+        """D2's bounded wait: a change that cannot take its locks gives up with I4's `retry`.
+
+        Adding a metric needs ACCESS EXCLUSIVE on the suite's sample table, which an open read holds
+        it out of for longer than the change is willing to wait.
+        """
+        create()
+
+        with db_engine.begin() as reader:
+            reader.execute(text('SELECT 1 FROM "nts".sample LIMIT 1'))
+            with pytest.raises(ApiError) as raised:
+                self.add_metric(db_engine, "nts", "aaa")
+
+        assert raised.value.code is ErrorCode.RETRY
+        assert "aaa" not in column_names(db_engine, "nts", "sample")
 
 
 class TestWriteAuthorization:

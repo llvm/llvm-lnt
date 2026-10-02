@@ -160,6 +160,7 @@ class TestCreate:
             ({"name": "bot", "scope": "root"}, "a scope outside I5's five"),
             ({"name": "bot", "scope": "READ"}, "a scope in the wrong case"),
             ({"name": "bot", "scope": None}, "a null scope"),
+            ({"name": "bot", "scope": "read", "expires": "never"}, "a key the body does not take"),
         ],
     )
     def test_rejects_a_bad_body(

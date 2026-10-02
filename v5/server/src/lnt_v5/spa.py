@@ -19,7 +19,8 @@ from starlette.responses import RedirectResponse, Response
 from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from .errors import ErrorCode, error_response, no_route
+from .auth import iter_routes
+from .errors import ApiError, ErrorCode, error_response
 
 # Extensions that mark a request as asking for a file rather than for a page. Accepted
 # limitation: a client route whose last segment ends in one of these (a machine named `node.js`,
@@ -150,15 +151,38 @@ def is_static_asset_path(path: str) -> bool:
 
 def _not_found(method: str | None, path: str) -> StarletteHTTPException:
     """A 404 worded like every other 404 the app emits, rather than StaticFiles' "Not Found"."""
-    return StarletteHTTPException(404, no_route(method, path))
+    return StarletteHTTPException(404, f"No route for {method} {path}")
+
+
+def _api_miss(scope: Scope, method: str | None, path: str) -> Exception:
+    """An API path no route served: I4's 405 if routes serve it with other methods, else a 404.
+
+    Answered here rather than by Starlette, whose 405 never arrives: a route matching the path but
+    not the method is only a partial match, and this mount -- which matches everything -- wins over
+    it. Starlette's would be wrong anyway, naming in `Allow` the methods of the first route that
+    matched rather than of every route serving the path, as RFC 9110 requires.
+    """
+    allowed: set[str] = set()
+    for route in iter_routes(scope["app"].routes):
+        regex = getattr(route, "path_regex", None)
+        if regex is not None and regex.match(path):
+            allowed.update(route.methods or ())
+    if not allowed:
+        return _not_found(method, path)
+    return ApiError(
+        ErrorCode.METHOD_NOT_ALLOWED,
+        f"{method} is not allowed on {path}",
+        headers={"Allow": ", ".join(sorted(allowed))},
+    )
 
 
 class SpaStaticFiles(StaticFiles):
     """Static files, with unmatched page routes falling back to index.html.
 
     Mounted at `/`, so it is the last thing to see a request; everything it declines becomes a 404
-    carrying the error envelope. Constructed with `directory=None` when the client has not been
-    built, which the base class understands as "serve nothing".
+    carrying the error envelope, or a 405 for an API path served under other methods. Constructed
+    with `directory=None` when the client has not been built, which the base class understands as
+    "serve nothing".
     """
 
     async def get_response(self, path: str, scope: Scope) -> Response:
@@ -166,10 +190,12 @@ class SpaStaticFiles(StaticFiles):
         # segments are gone, and `/` arrives as `.`). Rebuild the request path the predicates read.
         request_path = "/" + ("" if path == "." else path)
 
-        # StaticFiles answers a non-GET/HEAD with 405, and would happily serve a file that
-        # shadowed an API route. Both are "nothing here" as far as the design is concerned.
+        # StaticFiles would happily serve a file that shadowed an API route, and answers a
+        # non-GET/HEAD with 405 -- which I4 gives to the API alone. The rest is "nothing here".
         method = scope.get("method")
-        if method not in ("GET", "HEAD") or is_api_path(request_path):
+        if is_api_path(request_path):
+            raise _api_miss(scope, method, request_path)
+        if method not in ("GET", "HEAD"):
             raise _not_found(method, request_path)
 
         try:

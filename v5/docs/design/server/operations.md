@@ -358,7 +358,7 @@ implementation must guarantee that:
 
 The payload should be validated outside the write transaction, so that reading
 a large submission does not hold a connection and an open transaction. A schema
-change between validation and the write is then answered with D2's 409.
+change between validation and the write is then answered with D2's retryable 409 (`retry`).
 
 With PostgreSQL, this is achieved as follows:
 

@@ -1227,6 +1227,17 @@ class TestListFilters:
         assert response.status_code == 400
         assert code_of(response) == "invalid_request"
 
+    @pytest.mark.parametrize("bound", ["0001-01-01T00:00:00%2B01:00", "9999-12-31T23:59:59-01:00"])
+    def test_refuses_a_bound_out_of_range_in_utc(
+        self, api_client: TestClient, suite: SuiteTables, bound: str
+    ) -> None:
+        # Valid ISO 8601, but outside the representable range once converted to UTC, which once
+        # escaped validation as a 500.
+        response = listed(api_client, f"after={bound}")
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
+
     def test_keeps_only_runs_carrying_profiles(
         self, api_client: TestClient, run_at: Callable[..., str]
     ) -> None:
@@ -1567,7 +1578,7 @@ class TestSchemaChangedUnderneath:
 
     def test_a_submission_is_a_retryable_conflict(self, after_the_column_vanished: Any) -> None:
         assert after_the_column_vanished.status_code == 409
-        assert code_of(after_the_column_vanished) == "conflict"
+        assert code_of(after_the_column_vanished) == "retry"
 
     @pytest.mark.usefixtures("after_the_column_vanished")
     @pytest.mark.parametrize("table", ["run", "machine", "commit", "sample"])
@@ -1618,7 +1629,7 @@ class TestSchemaChangedUnderneath:
         )
 
         assert response.status_code == 409, response.text
-        assert code_of(response) == "conflict"
+        assert code_of(response) == "retry"
 
 
 class TestAuthorization:

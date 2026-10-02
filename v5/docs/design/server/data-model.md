@@ -69,14 +69,14 @@ creating a machine, submitting a run -- is not covered by this: it derives nothi
 the schema that it could lose, and reads the registry like any other request.
 
 A schema write waits only a bounded time for the locks it needs, and reports a retryable
-conflict (409) rather than waiting indefinitely. The wait must be shorter than the time a
+409 (`retry`, see I4) rather than waiting indefinitely. The wait must be shorter than the time a
 request will wait for a database connection, so that schema changes queued behind a
 long-running reader cannot exhaust the connection pool.
 
 **A stale reader is answered, not silently wrong**: between a reader's version check and
 its next query, another worker can remove a field, so a request can reach a column that
 no longer exists. Closing that window is not required. A request that hits it must
-report a conflict (409) rather than a 500.
+report the same retryable 409 (`retry`) rather than a 500.
 
 **Schema evolution**: A suite's `metrics`, `commit_fields`, and `machine_fields`
 lists can be changed after creation via `PATCH /api/suites/{name}/schema`, which
@@ -399,7 +399,7 @@ are given in that form.
 - Commits are deletable (regardless of whether `ordinal` is set). Deleting a
   commit cascades to its runs, which in turn cascade to their samples and
   profiles. Commits referenced by a Regression's `commit_id` cannot be
-  deleted (409).
+  deleted (409 `conflict`).
 - Schema-defined `commit_fields` names must not collide with built-in column
   names (`id`, `commit`, `ordinal`, `tag`). The schema parser rejects these.
 
@@ -570,7 +570,7 @@ The DB layer validates state values on create and update.
 - Cascade: deleted with its regression, its machine, and its metric (see D2). A
   regression left with no indicators is kept.
 - A write naming a metric that a concurrent schema change removed is answered
-  with D2's conflict (409).
+  with D2's retryable 409 (`retry`).
 
 #### `{suite}.profile`
 

@@ -65,16 +65,17 @@ class TestHeaderParsing:
             ("", "an empty header"),
         ],
     )
-    def test_an_unreadable_header_is_a_400(
+    def test_a_header_with_no_usable_bearer_credential_is_a_401(
         self, api_client: TestClient, header: str, why: str
     ) -> None:
-        # I5: this is a malformed request rather than a rejected credential, and deliberately not
-        # treated as an absent header -- falling through to anonymous access would silently ignore
-        # a credential the caller believes it sent.
+        # I5: RFC 6750 treats this as a request without credentials, and it is deliberately not
+        # treated as an absent header -- falling through to anonymous access on this read-scoped
+        # endpoint would silently ignore a credential the caller believes it sent.
         response = api_client.get(READABLE, headers={"Authorization": header})
 
-        assert response.status_code == 400, why
-        assert response.json()["error"]["code"] == "invalid_request"
+        assert response.status_code == 401, why
+        assert response.json()["error"]["code"] == "unauthorized"
+        assert response.headers["WWW-Authenticate"] == "Bearer"
 
     @pytest.mark.parametrize(
         "token",
@@ -181,7 +182,7 @@ class TestExemptRoutes:
     @pytest.mark.parametrize("path", ["/api/openapi.json", "/api/docs", "/healthz", "/llms.txt"])
     def test_an_authorization_header_has_no_effect(self, api_client: TestClient, path: str) -> None:
         # I5: no authentication happens on their path at all -- not even for a header that would
-        # be a 400 or a 401 anywhere else under /api/.
+        # be a 401 anywhere else under /api/.
         unauthenticated = api_client.get(path)
 
         for header in ("Basic zzz", f"Bearer {UNKNOWN_TOKEN}", "Bearer"):

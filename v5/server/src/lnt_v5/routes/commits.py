@@ -299,7 +299,7 @@ class Commits:
             f"'{self.schema.name}'"
         )
 
-    def in_use(self, value: str) -> str:
+    def referenced(self, value: str) -> str:
         return (
             f"Commit '{value}' is referenced by a regression in test suite "
             f"'{self.schema.name}' and cannot be deleted until that reference is removed"
@@ -647,13 +647,13 @@ def delete_commit(testsuite: str, value: str, engine: EngineDep, registry: Regis
 
     One statement: D5 gives `{suite}.run.commit_id` an `ON DELETE CASCADE`, and the runs take their
     samples and profiles with them in turn. `{suite}.regression.commit_id` deliberately has no
-    cascade, so a commit a regression still names refuses to go -- reported as I4's `in_use`, which
-    tells the caller to detach the regression rather than to retry.
+    cascade, so a commit a regression still names refuses to go -- reported as I4's `conflict`:
+    the caller has to detach the regression, and retrying as sent cannot help.
     """
     with engine.begin() as connection, suite_scope(registry, connection, testsuite) as suite:
         commits = Commits(suite)
         with reporting_violation(
-            REGRESSION_COMMIT_CONSTRAINT, ErrorCode.IN_USE, commits.in_use(value)
+            REGRESSION_COMMIT_CONSTRAINT, ErrorCode.CONFLICT, commits.referenced(value)
         ):
             removed = connection.execute(
                 delete(commits.table).where(commits.table.c.commit == value)

@@ -103,7 +103,7 @@ class TestSpaServing:
     def test_does_not_serve_the_spa_for_non_get_requests(
         self, client: TestClient, method: str
     ) -> None:
-        # Starlette's StaticFiles answers these with 405, which I4 does not permit.
+        # Starlette's StaticFiles answers these with 405, which I4 gives to the API alone.
         response = getattr(client, method)("/suites/nts")
 
         assert response.status_code == 404

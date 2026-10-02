@@ -799,7 +799,7 @@ class TestIndicatorMetricRemoval:
             ).scalar_one()
         return regression
 
-    def test_a_metric_already_removed_is_a_conflict(
+    def test_a_metric_already_removed_is_retryable(
         self, db_engine: Engine, suite: Suite, regression: int
     ) -> None:
         # `suite` is this worker's copy, which still declares the metric: the write passes the
@@ -810,9 +810,9 @@ class TestIndicatorMetricRemoval:
         with db_engine.begin() as connection, pytest.raises(ApiError) as failure:
             Regressions(suite).resolved_indicators(connection, [self.INDICATOR])
 
-        assert failure.value.code is ErrorCode.CONFLICT
+        assert failure.value.code is ErrorCode.RETRY
 
-    def test_a_metric_removed_while_the_write_is_in_flight_is_a_conflict(
+    def test_a_metric_removed_while_the_write_is_in_flight_is_retryable(
         self,
         db_engine: Engine,
         suite: Suite,
@@ -839,7 +839,7 @@ class TestIndicatorMetricRemoval:
         with pytest.raises(ApiError) as failure:
             running.result(timeout=BLOCK_TIMEOUT)
 
-        assert failure.value.code is ErrorCode.CONFLICT
+        assert failure.value.code is ErrorCode.RETRY
         assert counted(db_engine, suite.tables, "regression_indicator") == 0
 
 

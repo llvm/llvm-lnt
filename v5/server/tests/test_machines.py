@@ -187,7 +187,10 @@ class TestListPagination:
     def test_total_respects_the_filters(self, api_client: TestClient) -> None:
         assert api_client.get(f"{MACHINES}?search=m3").json()["total"] == 1
 
-    @pytest.mark.parametrize("query", ["limit=0", "limit=10001", "offset=-1"])
+    # The last is one past what PostgreSQL's OFFSET takes, which once failed in the database.
+    @pytest.mark.parametrize(
+        "query", ["limit=0", "limit=10001", "offset=-1", "offset=9223372036854775808"]
+    )
     def test_refuses_a_page_it_cannot_serve(self, api_client: TestClient, query: str) -> None:
         response = api_client.get(f"{MACHINES}?{query}")
 
@@ -379,6 +382,19 @@ class TestCreate:
         response = create("linux", fields={"commissioned_at": "2026-04-15T16:30:00+02:00"})
 
         assert response.json()["fields"]["commissioned_at"] == "2026-04-15T14:30:00Z"
+
+    @pytest.mark.parametrize(
+        "timestamp", ["0001-01-01T00:00:00+01:00", "9999-12-31T23:59:59-01:00"]
+    )
+    def test_refuses_a_timestamp_out_of_range_in_utc(
+        self, create: Callable[..., Any], timestamp: str
+    ) -> None:
+        # Valid ISO 8601, but outside the representable range once converted to UTC (D5), which
+        # once escaped validation as a 500.
+        response = create("linux", fields={"commissioned_at": timestamp})
+
+        assert response.status_code == 400
+        assert code_of(response) == "invalid_request"
 
     def test_reports_every_declared_field_even_when_unset(self, create: Callable[..., Any]) -> None:
         # I4: a documented key is present and null when it has no value, so a client rendering one
@@ -878,7 +894,7 @@ class TestSchemaChangedUnderneath:
         response = api_client.get(MACHINES)
 
         assert response.status_code == 409
-        assert code_of(response) == "conflict"
+        assert code_of(response) == "retry"
 
     @pytest.mark.usefixtures("column_dropped_behind_the_registry")
     def test_a_write_is_a_retryable_conflict(
@@ -887,7 +903,7 @@ class TestSchemaChangedUnderneath:
         response = api_client.post(MACHINES, json={"name": "darwin"}, headers=manage)
 
         assert response.status_code == 409
-        assert code_of(response) == "conflict"
+        assert code_of(response) == "retry"
 
     def test_a_dropped_suite_is_a_retryable_conflict(
         self, api_client: TestClient, db_engine: Engine, create: Callable[..., Any]

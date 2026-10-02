@@ -112,14 +112,19 @@ available from any page.
   - A metric is part of the suite's schema, so an unknown one makes the request
     invalid: 400.
   - A commit used as a filter (`commit=`) selects the rows belonging to it, and a
-    commit no run has reached yet legitimately has none: an unknown one is an
-    empty result, not 404.
+    commit no run has reached yet legitimately has none -- a client may well ask
+    for the runs of a revision before any has been submitted: an unknown one is
+    an empty result, not 404.
   - A commit used as a range bound names a position in the commit order rather
     than a set of rows: an unknown one is 404, and one with no ordinal, which has
     no position, is 400.
   - Any other entity -- a machine, a test, the commit a regression points at --
-    is 404, so that a misspelled name is reported rather than answered with an
-    empty result.
+    is 404. These are named from what the suite already holds rather than ahead of
+    it, so an unknown one is almost always a misspelling, which is reported rather
+    than answered with an empty result.
+- These rules cover names a request uses to refer to something. A schema change
+  that names the entry it updates or removes addresses that entry instead, and
+  answers an unknown one with 404 like any other missing target (see E10).
 
 
 ## I4: Response Format
@@ -127,7 +132,7 @@ available from any page.
 All REST API responses are JSON. A list endpoint returns one of the envelopes in
 I2; every other endpoint returns the entity object itself, except where its own
 spec gives a different body. Status codes are drawn from 200, 201, 204, 400,
-401, 403, 404, 409, 500. The four routes exempt from the scope system (see I5)
+401, 403, 404, 405, 409, 500. The four routes exempt from the scope system (see I5)
 are not part of this surface and follow their own sections: they serve plain
 text or HTML as well as JSON. Three things are settled before a request reaches
 an endpoint at all, and are likewise outside this surface: an oversized request
@@ -170,21 +175,30 @@ time, so clients must branch on `code` alone and never parse `message`.
 
 | Code | Status | Meaning |
 |------|--------|---------|
-| `invalid_request` | 400 | Malformed or invalid request: bad syntax, an unreadable `Authorization` header (see I5), a failed validation, an undeclared `fields` key, an unknown metric name, a missing `?confirm=true` |
-| `unauthorized` | 401 | A credential was required and none was usable (see I5) |
+| `invalid_request` | 400 | Malformed or invalid request: bad syntax, a failed validation, an undeclared `fields` key, an unknown metric name, a missing `?confirm=true` |
+| `unauthorized` | 401 | A credential was required and none was usable, or the `Authorization` header carries no usable one (see I5) |
 | `forbidden` | 403 | Valid token, insufficient scope (see I5) |
-| `not_found` | 404 | An entity named by the path, by a filter, or by the request body does not exist, except where I3 answers it with an empty result |
-| `duplicate` | 409 | The entity already exists: a run UUID, a suite name, a schema entry added twice |
+| `not_found` | 404 | No route matches the path, or an entity named by the path, by a filter, or by the request body does not exist, except where I3 answers it with an empty result |
+| `method_not_allowed` | 405 | The path is an API route, but not for this method; the `Allow` header lists the methods it serves |
+| `duplicate` | 409 | The entity already exists: a run UUID, a suite name, a schema entry added to a list that already has one of that name |
 | `ordinal_conflict` | 409 | The ordinal is already held by another commit, or contradicts the one this commit has (see O6) |
-| `in_use` | 409 | Another entity references this one and must be removed first: a commit referenced by a regression |
-| `conflict` | 409 | The request contradicts existing state in a way the more specific 409 codes do not describe, or could not complete because the suite's schema changed underneath it (see D2) |
+| `conflict` | 409 | The request contradicts existing state in a way the more specific codes above do not describe, and will fail again if sent unchanged: submitted metadata that disagrees with what is stored (see O2), deleting a commit a regression references, a suite name already taken by a database namespace |
+| `retry` | 409 | A concurrent change to the suite's schema kept the request from completing, and nothing was written: the schema changed while it ran, or a schema change could not take its locks in time (see D2) |
 | `internal_error` | 500 | The server failed to answer |
 
 409 carries more than one code because its cases call for different client behaviour: a
 `duplicate` run UUID means the run is already stored -- for a submitting bot that chose the UUID
 itself, most likely by an earlier attempt whose response was lost, so it is done and must not
 resubmit under a fresh UUID, which would store the run twice -- whereas an `ordinal_conflict`
-means its view of the commit order is wrong and retrying cannot help.
+means its view of the commit order is wrong and retrying cannot help. `conflict` and `retry` split
+along the line that matters most to an automated client: a `conflict` fails again until the request
+or the stored state changes, so it must not be retried as sent, whereas a `retry` changed nothing
+and the identical request is expected to succeed, so a client may send it again unchanged.
+
+A method mismatch is answered with 405 only under `/api/`. Elsewhere -- a client route, `/healthz`,
+`/llms.txt` -- it is a 404 like any other miss. Either way it is answered whatever credential
+accompanied the request: no endpoint is reached, and which methods a path serves is public in the
+API document (I8).
 
 **Oversized request bodies** are rejected but do not have to use the envelope: they can be rejected
 at the transport layer instead. However, they must be rejected with `413`. This is a property of the
@@ -223,7 +237,7 @@ documentation viewer at `GET /api/docs` (I8). None of them participates in the
 scope system and none returns the I4 error envelope, so no authentication
 happens on their path and an `Authorization` header has no effect on them -- not
 even a malformed or revoked one, which anywhere else under `/api/` would be a
-400 or a 401.
+401.
 
 The exemption is an explicit list rather than a consequence of living outside
 `/api/`, since two of the four live under it. For `/healthz` it is deliberate
@@ -238,12 +252,12 @@ the scheme name is matched case-insensitively, per RFC 9110.
 
 - No `Authorization` header: allowed on `read`-scoped endpoints, 401 on any
   endpoint requiring a higher scope.
-- Header present but not parseable as a Bearer credential -- unreadable syntax,
-  or a scheme other than `Bearer`: **400**, matching RFC 6750's
-  `invalid_request`. This is a malformed request rather than a rejected
-  credential, and it is deliberately not treated as an absent header: falling
-  through to anonymous access would silently ignore a credential the caller
-  believes it sent.
+- Header present but carrying no usable Bearer credential -- unreadable syntax,
+  a scheme other than `Bearer`, or no token after it: **401** on every endpoint
+  under `/api/`. RFC 6750 treats a request with no Bearer credential as one
+  without credentials, which is a 401. It is deliberately not treated as an
+  absent header: falling through to anonymous access would silently ignore a
+  credential the caller believes it sent.
 - Well-formed Bearer credential carrying a token that is malformed, unknown, or
   belongs to a revoked key: **401** on every endpoint under `/api/` --
   including `read`-scoped ones that would have allowed anonymous access. This
@@ -254,9 +268,8 @@ the scheme name is matched case-insensitively, per RFC 9110.
 - Valid token whose scope is insufficient for the endpoint: **403**, matching
   RFC 6750's `insufficient_scope`.
 
-A 401 carries a `WWW-Authenticate: Bearer` header. All three responses use the
-I4 error envelope, with `code` set to `invalid_request`, `unauthorized` and
-`forbidden` respectively.
+A 401 carries a `WWW-Authenticate: Bearer` header. Both statuses use the I4
+error envelope, with `code` set to `unauthorized` and `forbidden` respectively.
 
 **Order of checks**. Authentication precedes authorization, which precedes
 resolving the addressed resource. An insufficiently-scoped request therefore
@@ -264,7 +277,10 @@ gets 403 whether or not the resource it names exists -- resolving first and
 answering 404 would let an unauthorized caller enumerate which resources do.
 This matters for the API keys, the only resources whose existence is not
 already public; the rule is stated uniformly rather than per endpoint so that
-there is one order to implement and to reason about.
+there is one order to implement and to reason about. A body whose syntax cannot
+be read at all -- JSON that does not parse -- may be refused with 400 before
+authentication: like the cases I4 settles before an endpoint, it names nothing,
+so answering it first reveals nothing.
 
 **Authorization is not cached**. Every authenticated request resolves its token
 against the database, so revoking a key takes effect immediately rather than
@@ -330,7 +346,8 @@ instance. The exact mechanism is implementation-specific.
 - The specification describes only responses the API can actually produce. In
   particular it must not advertise a status outside the set I4 permits: a
   generator that documents its framework's native validation failure (commonly
-  422) has to be corrected to the 400 the error envelope specifies.
+  422) has to be corrected to the 400 the error envelope specifies. A 405 is
+  listed on no operation: it answers a method for which no operation exists.
 - `GET /api/docs` serves an interactive documentation viewer rendering that
   specification, as `text/html`.
 - How the viewer obtains its own scripts and stylesheets is left to the

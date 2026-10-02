@@ -906,8 +906,8 @@ class TestDelete:
         suite: SuiteTables,
         create: Callable[..., Any],
     ) -> None:
-        # D5 and I4: `in_use` rather than the generic conflict, because the caller has to detach
-        # the regression rather than retry.
+        # D5 and I4: `conflict` rather than `retry`, because the caller has to detach the
+        # regression first -- sending the same request again cannot help.
         create("abc")
         with db_engine.begin() as connection:
             commit_id = connection.execute(
@@ -920,7 +920,7 @@ class TestDelete:
         response = api_client.delete(f"{COMMITS}/abc", headers=manage)
 
         assert response.status_code == 409
-        assert code_of(response) == "in_use"
+        assert code_of(response) == "conflict"
         assert api_client.get(f"{COMMITS}/abc").status_code == 200
 
     def test_needs_no_confirmation(
@@ -1097,7 +1097,7 @@ class TestSchemaChangedUnderneath:
         response = page(api_client)
 
         assert response.status_code == 409
-        assert code_of(response) == "conflict"
+        assert code_of(response) == "retry"
 
     @pytest.mark.usefixtures("column_dropped_behind_the_registry")
     def test_a_write_is_a_retryable_conflict(
@@ -1106,7 +1106,7 @@ class TestSchemaChangedUnderneath:
         response = api_client.post(COMMITS, json={"value": "def"}, headers=manage)
 
         assert response.status_code == 409
-        assert code_of(response) == "conflict"
+        assert code_of(response) == "retry"
 
 
 class TestAuthorization:

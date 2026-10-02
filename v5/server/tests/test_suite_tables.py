@@ -495,7 +495,7 @@ class TestNamingConvention:
         ("table", "constraint"),
         [
             # Each of these is written out so that an endpoint can attribute a violation to it and
-            # answer the specific 409 I4 gives it: `duplicate`, `ordinal_conflict`, `in_use`.
+            # answer the specific 409 I4 gives it: `duplicate`, `ordinal_conflict`, `conflict`.
             ("commit", COMMIT_VALUE_CONSTRAINT),
             ("commit", COMMIT_ORDINAL_CONSTRAINT),
             ("run", RUN_UUID_CONSTRAINT),
@@ -801,7 +801,7 @@ class TestCascades:
     def test_a_commit_a_regression_points_at_cannot_be_deleted(
         self, db_engine: Engine, make_suite: Callable[..., SuiteTables]
     ) -> None:
-        # D5, and the source of I4's `in_use` 409.
+        # D5, and the source of the `conflict` 409 that deleting such a commit answers (I4).
         tables = make_suite("nts")
 
         with db_engine.begin() as connection:

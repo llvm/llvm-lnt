@@ -100,8 +100,17 @@ def utc(value: datetime) -> datetime:
 
     Shared with the `after=`/`before=` filters (I3), which compare against a `timestamptz` column
     and so must not hand PostgreSQL a naive value for the session's time zone to interpret.
+
+    A timestamp at the very edge of the representable range can fall outside it once moved to UTC,
+    and `astimezone` reports that as an `OverflowError`. Turned into a `ValueError` so that it is a
+    validation failure -- a 400 -- rather than an exception that escapes validation as a 500.
     """
-    return value.astimezone(UTC) if value.tzinfo is not None else value.replace(tzinfo=UTC)
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    try:
+        return value.astimezone(UTC)
+    except OverflowError:
+        raise ValueError("timestamp is out of range once converted to UTC") from None
 
 
 # D3's `integer`, as a reusable annotation: strict, so `"5"` and `true` are not integers, but

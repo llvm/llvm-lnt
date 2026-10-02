@@ -1,8 +1,7 @@
 """Authentication and authorization (I5).
 
 An endpoint declares the scope it requires, and everything else follows from that: whether an
-anonymous caller is allowed, which failures are a 400 rather than a 401, and what I8's document
-says the operation can answer.
+anonymous caller is allowed, and what I8's document says the operation can answer.
 
 Order of checks matters and is guaranteed structurally. I5 requires authentication before
 authorization before resolving the addressed resource, so that an under-scoped caller cannot
@@ -43,8 +42,8 @@ class BearerToken(SecurityBase):
     FastAPI's own `HTTPBearer` does not fit either way round. With `auto_error` it raises a 403,
     which is not what I5 specifies for any of these cases. With `auto_error=False` it answers
     `None` to a missing header, a non-Bearer scheme and an empty credential alike -- and I5 keeps
-    the first apart from the other two, because falling through to anonymous access would silently
-    ignore a credential the caller believes it sent.
+    the first apart from the other two: they are a 401, because falling through to anonymous access
+    would silently ignore a credential the caller believes it sent.
 
     It is therefore not subclassed but replaced, reusing only its OpenAPI model: that is what
     declares the scheme in I8's document and gives the viewer its Authorize button.
@@ -62,13 +61,14 @@ class BearerToken(SecurityBase):
             return None
 
         scheme, credentials = get_authorization_scheme_param(header)
-        # The scheme is matched case-insensitively, per RFC 9110. An empty credential is a syntax
-        # error rather than a token that failed to resolve: RFC 6750's grammar requires at least
-        # one character, so there is no token there to call malformed.
+        # The scheme is matched case-insensitively, per RFC 9110. Another scheme, or none at all,
+        # is no credentials in RFC 6750's terms, which is a 401 -- on every endpoint, since I5
+        # never lets an unusable header fall through to anonymous access.
         if scheme.lower() != "bearer" or not credentials:
             raise ApiError(
-                ErrorCode.INVALID_REQUEST,
+                ErrorCode.UNAUTHORIZED,
                 "The Authorization header must carry a Bearer credential.",
+                headers=UNAUTHENTICATED_HEADERS,
             )
         return credentials
 

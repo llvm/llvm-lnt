@@ -105,6 +105,6 @@ def suite_write(engine: Engine, name: str) -> Iterator[Connection]:
         if not is_lock_unavailable(error):
             raise
         raise ApiError(
-            ErrorCode.CONFLICT,
+            ErrorCode.RETRY,
             f"Test suite '{name}' is busy: the change could not take the locks it needs. Retry.",
         ) from error

@@ -1,9 +1,8 @@
 """The I4 JSON error envelope, and the handlers that make the framework produce it.
 
 FastAPI's defaults do not match I4: HTTPException renders `{"detail": ...}`, request validation
-fails with 422, an unmatched method on a declared route gives 405, and an unhandled exception
-returns a plain-text body. Neither 422 nor 405 is a status I4 permits, so these handlers are what
-keep the API inside its specified surface.
+fails with 422, and an unhandled exception returns a plain-text body. 422 is not a status I4
+permits, so these handlers are what keep the API inside its specified surface.
 
 They are registered app-wide rather than under `/api/`, so a miss on a client path answers with
 the envelope too. The one deliberate hole is an oversized request body, which I4 places at the
@@ -37,10 +36,11 @@ class ErrorCode(StrEnum):
     UNAUTHORIZED = "unauthorized"
     FORBIDDEN = "forbidden"
     NOT_FOUND = "not_found"
+    METHOD_NOT_ALLOWED = "method_not_allowed"
     DUPLICATE = "duplicate"
     ORDINAL_CONFLICT = "ordinal_conflict"
-    IN_USE = "in_use"
     CONFLICT = "conflict"
+    RETRY = "retry"
     INTERNAL_ERROR = "internal_error"
 
 
@@ -50,10 +50,11 @@ _STATUS: dict[ErrorCode, int] = {
     ErrorCode.UNAUTHORIZED: 401,
     ErrorCode.FORBIDDEN: 403,
     ErrorCode.NOT_FOUND: 404,
+    ErrorCode.METHOD_NOT_ALLOWED: 405,
     ErrorCode.DUPLICATE: 409,
     ErrorCode.ORDINAL_CONFLICT: 409,
-    ErrorCode.IN_USE: 409,
     ErrorCode.CONFLICT: 409,
+    ErrorCode.RETRY: 409,
     ErrorCode.INTERNAL_ERROR: 500,
 }
 
@@ -72,7 +73,7 @@ class ErrorBody(BaseModel):
     """An error's machine-readable code and human-readable message."""
 
     # Deliberately a plain string rather than ErrorCode: this one schema describes every error
-    # response, and enumerating all nine codes on it would claim a 401 might carry `duplicate`.
+    # response, and enumerating every code on it would claim a 401 might carry `duplicate`.
     code: str
     message: str
 
@@ -105,11 +106,6 @@ class ApiError(Exception):
         self.code = code
         self.message = message
         self.headers = dict(headers) if headers else None
-
-
-def no_route(method: str | None, path: str) -> str:
-    """The message for a request that matched nothing. Shared so the wording has one source."""
-    return f"No route for {method} {path}"
 
 
 def validation_problems(error: ValidationError | RequestValidationError) -> str:
@@ -153,19 +149,17 @@ async def _http_exception_handler(request: Request, exc: Exception) -> Response:
     if exc.status_code == 413:
         return PlainTextResponse("Content Too Large", status_code=413)
 
-    # Starlette raises a bare 405 when a path matches but the method does not. I4 has no 405, so
-    # it collapses to "nothing here".
-    if exc.status_code == 405:
-        return error_response(ErrorCode.NOT_FOUND, no_route(request.method, request.url.path))
-
     # 404s reach here already worded, because spa.py replaces StaticFiles' bare "Not Found".
     if exc.status_code == 404:
         return error_response(ErrorCode.NOT_FOUND, str(exc.detail))
 
-    # Nothing else raises HTTPException today. An endpoint that needs to report a specific code
-    # should gain an exception type carrying one, rather than a status this would have to guess a
-    # code from -- guessing cannot tell `duplicate` from `ordinal_conflict`, which is the whole
-    # reason I4 splits them. Until then, answer inside I4's surface and say so in the log.
+    # FastAPI's own answer to a body it could not read at all, such as JSON that is not UTF-8.
+    if exc.status_code == 400:
+        return error_response(ErrorCode.INVALID_REQUEST, str(exc.detail))
+
+    # Nothing else is expected (a 405 is spa.py's, raised as an `ApiError`). An endpoint that needs
+    # a specific code raises `ApiError` rather than a status this would have to guess a code from --
+    # guessing cannot tell `duplicate` from `ordinal_conflict`. Answer inside I4's surface and log.
     logger.warning("Unexpected HTTPException with status %d; answering 500", exc.status_code)
     return error_response(ErrorCode.INTERNAL_ERROR, "The server failed to answer this request")
 
