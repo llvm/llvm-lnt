@@ -25,6 +25,7 @@ from lnt_v5.suites import profile_document
 from lnt_v5.suites.profile_document import (
     MAX_COMPRESSED_SIZE,
     MAX_ENCODED_SIZE,
+    MAX_FUNCTION_NAME_BYTES,
     MAX_FUNCTIONS,
     stored_profile,
 )
@@ -363,6 +364,18 @@ class TestDocument:
         )
 
         assert len(stored(most).functions) == MAX_FUNCTIONS
+
+    def test_refuses_a_function_name_too_long_to_be_asked_for(self) -> None:
+        # Measured in UTF-8 bytes, which is what percent-encoding multiplies: 1,025 two-byte
+        # characters are over the cap.
+        long = document({"name": "é" * (MAX_FUNCTION_NAME_BYTES // 2 + 1), "instructions": []})
+
+        assert f"longer than {MAX_FUNCTION_NAME_BYTES} bytes" in refused(long)
+
+    def test_accepts_a_function_name_as_long_as_the_cap(self) -> None:
+        name = "a" * MAX_FUNCTION_NAME_BYTES
+
+        assert name in stored(document({"name": name, "instructions": []})).functions
 
     def test_refuses_a_function_of_too_many_instructions(self) -> None:
         many = document(

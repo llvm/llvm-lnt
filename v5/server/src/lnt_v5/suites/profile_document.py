@@ -64,6 +64,12 @@ MAX_ENCODED_SIZE = 4 * ((MAX_COMPRESSED_SIZE + 2) // 3)
 # profile parses, and in the unpaginated function list. The largest profile on lnt.llvm.org has 79.
 MAX_FUNCTIONS = 10_000
 
+# D12's cap on a function name, in UTF-8 bytes, so that every function the list serves can be asked
+# for: the name travels in `?function=` (R1), and even fully percent-encoded, at three characters a
+# byte, it then fits the 8 KiB request line common servers and proxies allow, nginx's included. The
+# longest name on lnt.llvm.org is 744 characters.
+MAX_FUNCTION_NAME_BYTES = 2048
+
 # How many profiles one worker encodes at once. Encoding a profile at the caps above holds a couple
 # of hundred megabytes for a second or more, and FastAPI runs submissions on a threadpool of dozens
 # of threads, so without a bound a burst of concurrent submissions multiplies that until the process
@@ -138,6 +144,11 @@ class FunctionDocument(Struct, forbid_unknown_fields=True, gc=False):
         Also replaces each address with the integer it stands for, which is what the writer takes.
         """
         _text(self.name, "a function name")
+        if len(self.name.encode()) > MAX_FUNCTION_NAME_BYTES:
+            raise ValueError(
+                f"the function name '{self.name[:50]}...' is longer than "
+                f"{MAX_FUNCTION_NAME_BYTES} bytes in UTF-8"
+            )
         if not self.instructions:
             return
         expected = self.instructions[0].counters.keys()

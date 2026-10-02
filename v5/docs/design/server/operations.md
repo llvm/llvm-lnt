@@ -322,7 +322,8 @@ member. Each of the following is rejected with 400:
   and types as D3 reads them.
 - An empty function or counter name, a newline or NUL in any string, or two
   functions of the same name.
-- More than 10,000 functions, or a function of more than 100,000 instructions.
+- More than 10,000 functions, a function name longer than 2,048 bytes in UTF-8,
+  or a function of more than 100,000 instructions.
 - Instructions of one function that do not all carry the same counters.
 - An instruction counter that is not one of the profile's top-level counters.
 - An instruction's counter value, or a function's sum of one counter, above
