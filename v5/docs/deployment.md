@@ -165,10 +165,9 @@ connection pool, so the instance's ceiling against RDS is `WEB_CONCURRENCY x (PO
 which has to stay well inside the `max_connections` of the database instance. Moving to a larger
 instance means revisiting both numbers together.
 
-Memory scales with concurrency too. Storing a profile at the largest size the server accepts peaks at
-about 200 MiB on top of the request body carrying it, and every submission a worker is handling at
-once can be at that peak. Size the instance for the number of profile-carrying submissions you expect
-at the same time, or cap concurrent submissions at the reverse proxy.
+Memory scales with concurrency too. Some operations performed by the server, such as parsing profiles
+included in submissions, can require a fair amount of memory. Scale the instance in accordance with
+the expected usage.
 
 ## Operating the instance
 
