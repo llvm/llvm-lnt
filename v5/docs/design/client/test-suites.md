@@ -142,9 +142,9 @@ find_if slowdown      detected    abc123        2             12            http
 etc...
 ```
 
-Machines and Tests are the list item's `machine_count` and `test_count`, which
-count the whole regression even when the table is filtered. The names are on the
-regression detail page.
+Machines and Tests are the `machine_count` and `test_count` the list endpoint returns
+for each regression. They count the whole regression even when the table is filtered.
+The names are on the regression detail page.
 
 The elements are clickable and link to the details page for that entity.
 Below the table, `[<- Previous] [Next ->]` allows navigating through pages.

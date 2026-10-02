@@ -36,7 +36,7 @@ alongside an interactive viewer (see I8).
   so no path carries one. A request names a test in a `test=` query parameter or in a request
   body, and a function in a `function=` query parameter. Percent-encoding does not help, since
   `%2F` is decoded before routing.
-- An index endpoint at `GET /api` links to the test suite list and the API documentation
+- An index endpoint at `GET /api` links to the test suite list endpoint and the API documentation
 - Suite-scoped resources live one level below the suite collection, under
   `/api/suites/{testsuite}/`. This keeps them disjoint from instance-level
   routes (`/api/suites`, `/api/admin/...`), so routing reserves no suite names
@@ -47,47 +47,52 @@ alongside an interactive viewer (see I8).
 
 ## I2: Pagination
 
+A **list endpoint** is one whose response is a sequence of like items --
+entities, data points or aggregates -- such as
+`GET /api/suites/{testsuite}/machines` or `POST /api/suites/{testsuite}/query`.
 Every list endpoint returns a JSON object carrying its results under `items`,
-never a bare array. Cursor-paginated lists add a `cursor`:
+never a bare array. A cursor-paginated endpoint adds a `cursor`:
 `{"items": [...], "cursor": {"next": "...", "previous": null}}`.
-Offset-paginated lists add a `total`: `{"items": [...], "total": N}`.
-Unpaginated lists carry `items` alone. The endpoints spec is authoritative for
-which endpoint uses which; this section says what each envelope means.
+An offset-paginated endpoint adds a `total`: `{"items": [...], "total": N}`.
+An unpaginated endpoint returns `items` alone. The endpoints spec is
+authoritative for which endpoint uses which; this section says what each
+envelope means.
 
 `items` is present and empty rather than absent when nothing matches. Wrapping
-even the unpaginated lists is what lets one of them grow a cursor later without
-breaking clients.
+even unpaginated results is what lets such an endpoint gain a cursor later
+without breaking clients.
 
 The rule governs a list endpoint's top-level body. An array that is a *field* of
 some larger response keeps its own name -- a regression's `indicators`, a
-function's `instructions` -- as does a body that is not a list at all, such as
-`POST /commits/resolve`'s lookup table keyed by commit string.
+function's `instructions` -- as does a body that is not such a sequence,
+such as `POST /commits/resolve`'s lookup table keyed by commit string.
 
 Cursor pagination is forward-only: `previous` is always `null` (reserved for
 future backward pagination) and clients must not rely on it. Cursors are opaque
 strings that clients must not parse. A client asks for the page after the one it
 holds by passing `cursor.next` back as `cursor`, alongside the same filters and
-`sort` that produced it: as the `cursor=` query parameter, or as a `cursor` key
-for a list that takes its filters in a request body (where `limit` is a body key
-too). A cursor that is malformed, or that was issued for a different list,
-different filters or a different ordering, is rejected with 400 rather than
-quietly answered with a page of the wrong rows. A cursor may also stop being
-accepted when the suite's schema, the server, or an entity one of the list's
-filters names changes between two pages; a client whose unmodified cursor is
-rejected starts the list again from the first page. Only `limit` may change from
-one page to the next. Opacity is a contract on the client rather than a
-cryptographic guarantee: a cursor need not be unforgeable, because it can only
-name a position in a query its holder could have asked for anyway.
+`sort` that produced it: as the `cursor=` query parameter, or as a `cursor` body
+key for an endpoint that takes its filters in a request body (where `limit` is
+a body key too). Only `limit` may change from one page to the next. A cursor
+that is malformed, or that was issued for a request differing in anything else
+-- another endpoint, other path parameters, other filters or another ordering --
+is rejected with 400 rather than quietly answered with a page of the wrong rows.
+A cursor may also stop being accepted when the suite's schema, the server, or an
+entity named by one of the request's filters changes between two pages; a client
+whose unmodified cursor is rejected starts again from the first page. Opacity is
+a contract on the client rather than a cryptographic guarantee: a cursor need
+not be unforgeable, because it can only name a position in a query its holder
+could have asked for anyway.
 
 Offset pagination takes `offset` (default `0`) alongside `limit`. `total` is the
 number of items matching the request's filters, ignoring `limit` and `offset`,
-so that a client can render "1-25 of 240". Only bounded lists are
-offset-paginated: an exact `total` costs a scan of everything matching, so
-unbounded lists use a cursor and carry no `total`.
+so that a client can render "1-25 of 240". Only endpoints with bounded results
+are offset-paginated: an exact `total` costs a scan of everything matching, so
+the rest use a cursor and carry no `total`.
 
 Default page size is 25, with a configurable `limit` parameter (max `10 000`) on
-paginated lists. `limit` is at least 1 and an offset-paginated list's `total` is
-available from any page.
+paginated endpoints. `limit` is at least 1 and an offset-paginated endpoint's
+`total` is available from any page.
 
 
 ## I3: Filtering and Sorting

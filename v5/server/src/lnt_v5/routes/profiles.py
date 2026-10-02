@@ -70,7 +70,7 @@ class ProfileMetadata(BaseModel):
 
 
 class ProfileFunction(BaseModel):
-    """One function of a profile, as the function list carries it."""
+    """One function of a profile, as the functions response carries it."""
 
     name: str = Field(description="The function's name, as the profile's producer recorded it.")
     counters: dict[str, float] = Field(
@@ -106,8 +106,8 @@ class FunctionDisassembly(BaseModel):
     name: str = Field(description="The function's name.")
     counters: dict[str, float] = Field(
         description=(
-            "The function's counters, keyed by counter name: the same sums the function list "
-            "carries."
+            "The function's counters, keyed by counter name: the same sums the functions "
+            "response carries."
         )
     )
     disassembly_format: str = Field(description=_DISASSEMBLY_FORMAT)
@@ -241,8 +241,8 @@ def list_run_profiles(
 ) -> Items[RunProfile]:
     """Which tests of one run have a profile, and the UUID of each (I2).
 
-    Unpaginated: a run holds at most one profile per test it measured, so the list is bounded by
-    the run itself.
+    Unpaginated: a run holds at most one profile per test it measured, so the response is bounded
+    by the run itself.
     """
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         profiles = Profiles(suite)
@@ -294,7 +294,7 @@ def get_profile_disassembly(
         str,
         Query(
             description=(
-                "The name of the function, exactly as the function list gives it. 404 if the "
+                "The name of the function, exactly as the functions response gives it. 404 if the "
                 "profile holds no function of that name."
             )
         ),

@@ -69,8 +69,8 @@ Each row shows:
   indicators rather than only those on this machine
 
 If there are no unresolved regressions for the machine, it shows "No active regressions on this machine."
-Below the table (when populated) there's a "Show all regressions" button linking to the regression list page
-under `Test Suites`, pre-filtered for this machine.
+Below the table (when populated) there's a "Show all regressions" button linking to the Regressions tab
+of the Test Suites page, pre-filtered for this machine.
 
 ### Run History table
 

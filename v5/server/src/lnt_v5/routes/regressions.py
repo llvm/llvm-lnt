@@ -195,11 +195,11 @@ class _Regression(BaseModel):
 
 
 class Regression(_Regression):
-    """A regression as the list carries it (E8).
+    """A regression as the list endpoint returns it (E8).
 
     The two counts describe the regression rather than the request: they count the distinct
     machines and tests across *every* indicator it has, whatever `machine=` or `test=` narrowed the
-    list down to.
+    results down to.
     """
 
     machine_count: int = Field(

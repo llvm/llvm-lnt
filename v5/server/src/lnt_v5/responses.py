@@ -1,8 +1,8 @@
 """The envelopes list endpoints return (I2).
 
 Every list endpoint returns an object carrying its results under `items`, never a bare array, and
-`items` is present and empty rather than absent when nothing matches. Wrapping even the
-unpaginated lists is what lets one of them grow a cursor later without breaking clients.
+`items` is present and empty rather than absent when nothing matches. Wrapping even unpaginated
+results is what lets such an endpoint gain a cursor later without breaking clients.
 
 What *produces* a cursor lives in `querying.py`; this module is only the shape it travels in.
 """
@@ -23,8 +23,8 @@ class OffsetPage[T](BaseModel):
 
     `total` counts everything matching the request's filters, ignoring `limit` and `offset`, so that
     a client can render "1-25 of 240". That exact count costs a scan of everything matching, which
-    is why only bounded lists are offset-paginated -- an unbounded one uses a cursor and carries no
-    `total`.
+    is why only endpoints with bounded results are offset-paginated -- the rest use a cursor and
+    carry no `total`.
     """
 
     items: list[T]
@@ -32,7 +32,7 @@ class OffsetPage[T](BaseModel):
 
 
 class PageCursor(BaseModel):
-    """Where a cursor-paginated list continues (I2).
+    """Where a cursor-paginated endpoint's results continue (I2).
 
     `previous` is typed as null rather than as an optional string because I8 requires the document
     to describe only what the API can produce, and forward-only pagination can never produce a
@@ -44,8 +44,8 @@ class PageCursor(BaseModel):
     next: str | None = Field(
         description=(
             "An opaque token for the page after this one, or null when this is the last page. "
-            "Pass it back the way this list takes it -- as the `cursor=` query parameter, or as "
-            "the `cursor` key of the request body where the list is asked for with one. Do not "
+            "Pass it back the way this endpoint takes it -- as the `cursor=` query parameter, or "
+            "as the `cursor` key of the request body for an endpoint that takes one. Do not "
             "parse it."
         )
     )
@@ -58,7 +58,7 @@ class CursorPage[T](BaseModel):
     """I2's cursor envelope: `{"items": [...], "cursor": {"next": ..., "previous": null}}`.
 
     Carries no `total`, deliberately: an exact count costs a scan of everything matching, which is
-    why an unbounded list is cursor-paginated in the first place.
+    why an endpoint with unbounded results is cursor-paginated in the first place.
     """
 
     items: list[T]

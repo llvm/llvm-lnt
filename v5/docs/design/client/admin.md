@@ -43,14 +43,14 @@ Prefix      Name          Scope       Created                     Last Used     
 ```
 
 Keys are listed newest first, so a newly created key appears at the top of the table
-without a reload. Revoked keys remain in the list with `Active` showing
+without a reload. Revoked keys remain in the table with `Active` showing
 `No`, since revoking does not delete them, and they carry no Revoke button. `Last Used`
 shows `Never` for a key that has not yet authenticated a request, and is otherwise a
 best-effort value that may lag actual use (see D5).
 
-Column headers are click-to-sort, applied client-side over the already-loaded list --
-it is unpaginated, so sorting issues no request. Sorting by `Last Used` is how to
-surface the most- and least-recently-active keys; keys that have never been used sort
+Column headers are click-to-sort, applied client-side over the already-loaded keys -- the
+list endpoint is unpaginated, so sorting issues no request. Sorting by `Last Used` is how
+to surface the most- and least-recently-active keys; keys that have never been used sort
 after every key carrying a timestamp, in both directions. The default order is
 `Created` descending, which is also the order the API returns.
 

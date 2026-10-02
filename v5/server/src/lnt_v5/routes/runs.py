@@ -115,7 +115,7 @@ Sort = Annotated[
     Query(
         description=(
             "Order by submission time, ascending (oldest first) or descending. Omit for an "
-            "arbitrary but stable order, which is the cheapest way to walk the whole list."
+            "arbitrary but stable order, which is the cheapest way to page through every run."
         )
     ),
 ]
@@ -126,11 +126,11 @@ NO_RUN = f"{SUITE_NOT_FOUND} Or no run in it has that UUID."
 
 
 class Run(BaseModel):
-    """A run as a list carries it (I4).
+    """A run as a list endpoint returns it (I4).
 
     `machine` and `commit` are the referenced entity's identifier rather than a nested object, which
-    is I4's rule for one entity referring to another: a run list is long, and a client that wants
-    more than the identity resolves a page of commits in one call to `POST /commits/resolve`.
+    is I4's rule for one entity referring to another: a page of runs is long, and a client that
+    wants more than the identity resolves a page of commits in one call to `POST /commits/resolve`.
     """
 
     uuid: str = Field(
@@ -150,10 +150,10 @@ class Run(BaseModel):
 
 
 class RunDetail(Run):
-    """A run as the detail and create responses carry it: everything a list has, plus the blob.
+    """A run as the detail and create responses carry it: a list item, plus the blob.
 
     `run_parameters` is detail-only because it is unbounded and no list view renders it -- the same
-    reason a regression's `notes` is, and the reason the list query does not even select it.
+    reason a regression's `notes` is, and the reason the list endpoints do not even select it.
     """
 
     run_parameters: dict[str, Any] = Field(
@@ -593,7 +593,7 @@ def submit_run(
     responses=suite_responses(not_found=NO_RUN),
 )
 def get_run(testsuite: str, uuid: UuidKey, engine: EngineDep, registry: RegistryDep) -> RunDetail:
-    """One run, in the same shape submission returns -- a list's object plus `run_parameters`."""
+    """One run, in the same shape submission returns -- a list item plus `run_parameters`."""
     with engine.connect() as connection, suite_scope(registry, connection, testsuite) as suite:
         return Runs(suite).one(connection, uuid)
 

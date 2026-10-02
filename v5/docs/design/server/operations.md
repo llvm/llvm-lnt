@@ -238,8 +238,8 @@ A cursor names a *position* in that ordering -- the sort key values of the last
 row served -- rather than the row itself, so a resumption survives that row's
 deletion, which re-reading a stored row's sort values could not. Each page reads
 the database as of its own request, and pagination is forward-only (I2): a row
-that joins the list mid-traversal, by insertion or by newly matching its
-filters, is served only if it falls after the cursor. A row in the list
+that joins the results mid-traversal, by insertion or by newly matching the
+filters, is served only if it falls after the cursor. A row that matches
 throughout is served exactly once, unless its sort values change: reassigning an
 ordinal (O6) while a client pages by ordinal can move a commit from behind the
 cursor to ahead of it, and the client sees it twice. No cursor scheme prevents
