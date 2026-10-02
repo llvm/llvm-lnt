@@ -634,8 +634,8 @@ class TestQueryPagination:
     def test_accepts_a_cursor_with_another_page_size_or_a_spelled_out_default(
         self, api_client: TestClient, many: None
     ) -> None:
-        # The scope is the validated body: `limit` is not part of the list, and omitting a key
-        # asks for the same list as sending its default.
+        # The scope is the statement the body compiles to: `limit` is not part of it, and omitting
+        # a key builds the same statement as sending its default.
         cursor = query(api_client, metric="execution_time", limit=2).json()["cursor"]["next"]
 
         response = query(api_client, metric="execution_time", sort=None, limit=3, cursor=cursor)
