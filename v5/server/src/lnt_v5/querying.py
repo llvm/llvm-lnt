@@ -55,9 +55,10 @@ _LIMIT = "How many items to return, at most."
 _CURSOR = (
     "Continue from where a previous page ended: pass back the `cursor.next` that page returned, "
     "with the same filters and sort. Only `limit` may change between pages. Cursors are opaque -- "
-    "they must not be parsed, constructed or stored, and one issued for a request that differed in "
-    "anything else is rejected. One may also be rejected after a change between pages, e.g. to the "
-    "suite's schema; start again from the first page."
+    "they must not be parsed, constructed or stored, and one presented with a request asking for "
+    "other results -- other path parameters, filters or sort -- is rejected. One may also be "
+    "rejected after a change between pages, e.g. to the suite's schema; start again from the first "
+    "page."
 )
 
 Limit = Annotated[int, Query(ge=1, le=MAX_LIMIT, description=_LIMIT)]
@@ -237,9 +238,9 @@ class Keyset:
         except (ValueError, TypeError, RecursionError) as error:
             raise ApiError(
                 ErrorCode.INVALID_REQUEST,
-                "This cursor was not issued for this same request, or is no longer valid. Pass "
-                "back the 'cursor.next' from a page of this same request, unmodified, or start "
-                "again from the first page.",
+                "This cursor was not issued for these path parameters, filters and sort order, or "
+                "is no longer valid. Pass back the 'cursor.next' from a page of this same request, "
+                "unmodified, or start again from the first page.",
             ) from error
 
 

@@ -166,11 +166,11 @@ class ResolveRequest(BaseModel):
 
 
 class ResolvedCommits(BaseModel):
-    """The body of `POST /commits/resolve`: a lookup table, not one of I2's list envelopes.
+    """The body of `POST /commits/resolve`: a lookup table, not one of I2's envelopes.
 
-    I2's `items` rule governs a list endpoint's top-level body; this is a table keyed by commit
-    value, which is what makes it useful -- a client resolving a page of runs looks each one up by
-    the value it already holds.
+    I2's `items` rule governs a response that is a sequence of results; this is a table keyed by
+    commit value, which is what makes it useful -- a client resolving a page of runs looks each one
+    up by the value it already holds.
     """
 
     results: dict[str, Commit] = Field(

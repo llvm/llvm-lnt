@@ -1,8 +1,8 @@
-"""The envelopes list endpoints return (I2).
+"""The envelopes a sequence of results is returned in (I2).
 
-Every list endpoint returns an object carrying its results under `items`, never a bare array, and
-`items` is present and empty rather than absent when nothing matches. Wrapping even unpaginated
-results is what lets such an endpoint gain a cursor later without breaking clients.
+A response carrying a sequence of results never returns a bare array: it carries them under `items`,
+which is present and empty rather than absent when nothing matches. Wrapping even unpaginated
+results is what lets an endpoint gain a cursor later without breaking clients.
 
 What *produces* a cursor lives in `querying.py`; this module is only the shape it travels in.
 """

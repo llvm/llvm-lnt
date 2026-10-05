@@ -47,25 +47,26 @@ alongside an interactive viewer (see I8).
 
 ## I2: Pagination
 
-A **list endpoint** is one whose response is a sequence of like items --
-entities, data points or aggregates -- such as
-`GET /api/suites/{testsuite}/machines` or `POST /api/suites/{testsuite}/query`.
-Every list endpoint returns a JSON object carrying its results under `items`,
-never a bare array. A cursor-paginated endpoint adds a `cursor`:
-`{"items": [...], "cursor": {"next": "...", "previous": null}}`.
-An offset-paginated endpoint adds a `total`: `{"items": [...], "total": N}`.
-An unpaginated endpoint returns `items` alone. The endpoints spec is
-authoritative for which endpoint uses which; this section says what each
-envelope means.
+A response whose body is a sequence of results -- entities, data points or
+aggregates -- never returns them as a bare array. It carries them under `items`,
+in one of three envelopes:
+
+- Cursor-paginated: `{"items": [...], "cursor": {"next": "...", "previous": null}}`
+- Offset-paginated: `{"items": [...], "total": N}`
+- Unpaginated: `{"items": [...]}`
+
+The endpoints spec names the envelope each endpoint uses; this section says
+what each one means.
 
 `items` is present and empty rather than absent when nothing matches. Wrapping
-even unpaginated results is what lets such an endpoint gain a cursor later
-without breaking clients.
+even unpaginated results is what lets an endpoint gain a cursor later without
+breaking clients.
 
-The rule governs a list endpoint's top-level body. An array that is a *field* of
-some larger response keeps its own name -- a regression's `indicators`, a
-function's `instructions` -- as does a body that is not such a sequence,
-such as `POST /commits/resolve`'s lookup table keyed by commit string.
+The rule governs only a response's top-level body. An array that is a *field*
+of some larger response keeps its own name -- a regression's `indicators`, a
+function's `instructions` -- and a body that is not a sequence of results, such
+as `POST /commits/resolve`'s lookup table keyed by commit string, has the shape
+its endpoint specifies.
 
 Cursor pagination is forward-only: `previous` is always `null` (reserved for
 future backward pagination) and clients must not rely on it. Cursors are opaque
@@ -74,9 +75,10 @@ holds by passing `cursor.next` back as `cursor`, alongside the same filters and
 `sort` that produced it: as the `cursor=` query parameter, or as a `cursor` body
 key for an endpoint that takes its filters in a request body (where `limit` is
 a body key too). Only `limit` may change from one page to the next. A cursor
-that is malformed, or that was issued for a request differing in anything else
--- another endpoint, other path parameters, other filters or another ordering --
-is rejected with 400 rather than quietly answered with a page of the wrong rows.
+that is malformed, or that is presented with a request asking for other results
+than the one it was issued for -- other path parameters, other filters or
+another ordering -- is rejected with 400 rather than quietly answered with a
+page of the wrong rows.
 A cursor may also stop being accepted when the suite's schema, the server, or an
 entity named by one of the request's filters changes between two pages; a client
 whose unmodified cursor is rejected starts again from the first page. Opacity is
@@ -134,9 +136,9 @@ paginated endpoints. `limit` is at least 1 and an offset-paginated endpoint's
 
 ## I4: Response Format
 
-All REST API responses are JSON. A list endpoint returns one of the envelopes in
-I2; every other endpoint returns the entity object itself, except where its own
-spec gives a different body. Status codes are drawn from 200, 201, 204, 400,
+All REST API responses are JSON. A sequence of results comes in one of the
+envelopes in I2; any other response is the entity object itself, except where
+its endpoint's spec says otherwise. Status codes are drawn from 200, 201, 204, 400,
 401, 403, 404, 405, 409, 500. The four routes exempt from the scope system (see I5)
 are not part of this surface and follow their own sections: they serve plain
 text or HTML as well as JSON. Three things are settled before a request reaches
