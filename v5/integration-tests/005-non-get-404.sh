@@ -15,6 +15,11 @@ expect_status 405
 expect_body '"code":"method_not_allowed"'
 expect_header Allow 'GET, POST'
 
-# HEAD should be answered exactly like GET, but that is deliberately not asserted here yet: the
-# current server tests `method !== 'GET'` and so 404s every HEAD request. Add the assertion
-# together with the fix.
+# HEAD on a client route is answered like GET, minus the body.
+request --head "${BASE_URL}/suites/nts"
+expect_status 200
+expect_header Content-Type 'text/html'
+
+# HEAD on an API path is a 404 rather than a 405: no API endpoint serves it (I4).
+request --head "${BASE_URL}/api/suites"
+expect_status 404

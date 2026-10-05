@@ -168,10 +168,9 @@ def _api_miss(scope: Scope, method: str | None) -> Exception:
     method it refused.
 
     HEAD stays a 404: FastAPI routes never serve it, so a 405 would refuse HEAD on a path that
-    serves GET, which RFC 9110 requires every server to answer.
+    serves GET, which RFC 9110 requires every server to answer. Answering it like GET instead
+    (status and headers, no body) is the fix if a client or monitor ever needs it.
     """
-    # ponytail: HEAD on a GET endpoint is a 404 rather than served like GET; answer it like GET
-    # (status and headers, no body) if a client or monitor ever needs it.
     path = get_route_path(scope)
     allowed: set[str] = set()
     if method != "HEAD":

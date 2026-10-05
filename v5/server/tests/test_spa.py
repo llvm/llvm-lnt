@@ -85,7 +85,6 @@ class TestSpaServing:
 
     @pytest.mark.parametrize("url", ["/", "/suites/nts", "/real.css"])
     def test_head_is_answered_like_get(self, client: TestClient, url: str) -> None:
-        # A literal port of the TypeScript `method !== 'GET'` check would 404 every HEAD.
         response = client.head(url)
 
         assert response.status_code == 200
