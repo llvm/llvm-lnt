@@ -394,8 +394,8 @@ not a well-formed UUID -- is 404. Every route in this section returns 404 if the
 suite does not exist. `DELETE` requires no `?confirm=true`.
 
 Filters: `search=` (case-insensitive substring match on `title`; see O4),
-`state=` (comma-separated state names, e.g. `?state=active,detected`; an unknown
-name is 400), `machine=`, `test=` and `metric=` (keep only regressions with an
+`state=` (any number of state names, repeated as I3 says; an unknown name is
+400), `machine=`, `test=` and `metric=` (keep only regressions with an
 indicator naming it), `commit=` and `has_commit=`. Filters naming something
 absent are answered as I3 says. `machine=`, `test=` and `metric=` given together
 must match the *same* indicator, as with `GET /api/suites/{testsuite}/tests`.

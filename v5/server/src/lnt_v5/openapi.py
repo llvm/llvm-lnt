@@ -1,15 +1,18 @@
 """Keeping I8's document inside the surface I4 permits.
 
-Two corrections to what FastAPI generates on its own.
+Three corrections to what FastAPI generates on its own.
 
 It documents a `422` on every operation that takes a body or any parameter. I4 does not permit
 422, and `errors.py` already turns the validation failure behind it into a `400`, so the document
 has to say 400.
 
-And it knows nothing about I5, so nothing would say that a scoped operation can answer 401 or 403.
+It knows nothing about I5, so nothing would say that a scoped operation can answer 401 or 403.
 Those are derived from each route's declared scope rather than restated on every endpoint: there
 will eventually be dozens of them, all with identical auth failures, and a derived answer cannot
 drift from the scope the route actually enforces.
+
+And it does not know that every scoped operation refuses a query parameter it does not take (I3),
+so that 400 is derived from the scope too.
 """
 
 from __future__ import annotations
@@ -33,7 +36,10 @@ def _error(description: str) -> dict[str, Any]:
     }
 
 
-_BAD_REQUEST = _error("The request is malformed, or fails validation.")
+_BAD_REQUEST = _error(
+    "The request is malformed or fails validation, which includes a query parameter this operation "
+    "does not take, and a repeated one that takes a single value."
+)
 # Worded from I5.
 _UNAUTHORIZED = _error(
     "No API key was presented, the Authorization header carries no usable Bearer credential, or "
@@ -96,6 +102,7 @@ def _correct(app: FastAPI, document: dict[str, Any]) -> None:
 
             scope = scopes.get((path, method))
             if scope is not None:
+                responses.setdefault("400", _BAD_REQUEST)
                 responses.setdefault("401", _UNAUTHORIZED)
                 # A read-scoped operation can never answer 403: every valid key grants `read`.
                 if scope is not Scope.READ:

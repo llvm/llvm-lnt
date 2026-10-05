@@ -6,10 +6,14 @@ every outcome I5 specifies.
 
 The scope hierarchy itself is `Scope.grants`, tested in `test_keys.py`; what is checked here is
 that endpoints enforce it, and that they do so in the order I5 requires.
+
+Also here: I3's refusal of a query parameter an endpoint does not take, which every scoped endpoint
+runs before authenticating.
 """
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from typing import Any
 
@@ -189,6 +193,65 @@ class TestExemptRoutes:
             response = api_client.get(path, headers={"Authorization": header})
 
             assert response.status_code == unauthenticated.status_code == 200, header
+
+    @pytest.mark.parametrize("path", ["/api/openapi.json", "/api/docs", "/healthz", "/llms.txt"])
+    def test_a_query_parameter_has_no_effect(self, api_client: TestClient, path: str) -> None:
+        # I3's refusal is for the REST API surface, which these are outside of: a proxy busting a
+        # cache, or a probe tagging its requests, must not turn them into a 400.
+        assert api_client.get(f"{path}?v=1&v=2").status_code == 200
+
+
+class TestUnknownQueryParameters:
+    """I3: a query parameter an endpoint does not take is a 400, as is repeating one it takes once.
+
+    Most of these need no database: the refusal comes before authentication, and so before anything
+    that reads one.
+    """
+
+    def test_every_scoped_operation_refuses_one_before_authenticating(
+        self, client: TestClient, app: FastAPI
+    ) -> None:
+        # Every operation rather than a sample, because the point is that no endpoint has to opt
+        # in. The Authorization header is one I5 answers with 401 everywhere under /api/, so a 400
+        # here also shows the order I5 states.
+        operations = [
+            (method, re.sub(r"\{[^}]*\}", "x", route.path_format))
+            for route in iter_routes(app.routes)
+            if required_scope(route) is not None and route.path_format is not None
+            for method in sorted(route.methods or ())
+        ]
+        assert operations
+
+        for method, path in operations:
+            response = client.request(
+                method, f"{path}?bogus=1", headers={"Authorization": "Basic zzz"}
+            )
+
+            assert response.status_code == 400, f"{method} {path}"
+            assert response.json()["error"]["code"] == "invalid_request"
+            assert "'bogus'" in response.json()["error"]["message"]
+
+    def test_names_every_one_and_what_the_endpoint_takes(self, client: TestClient) -> None:
+        response = client.get("/api/suites/nts/machines?machnie=linux&serch=x&search=y")
+
+        message = response.json()["error"]["message"]
+        assert "'machnie'" in message
+        assert "'serch'" in message
+        # Then what the caller may have meant.
+        assert "'search'" in message
+        assert "'tracked'" in message
+
+    def test_one_without_a_value_is_still_refused(self, client: TestClient) -> None:
+        assert client.get(f"{READABLE}?bogus").status_code == 400
+
+    def test_a_single_valued_parameter_given_twice_is_refused(self, client: TestClient) -> None:
+        # Rather than answered with the last value, which is what a client repeating `machine=`
+        # in the belief that it took several would otherwise silently get.
+        response = client.get("/api/suites/nts/runs?machine=a&machine=b")
+
+        assert response.status_code == 400
+        assert response.json()["error"]["code"] == "invalid_request"
+        assert "'machine'" in response.json()["error"]["message"]
 
 
 class TestLastUsed:

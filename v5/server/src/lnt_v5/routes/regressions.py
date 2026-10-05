@@ -663,25 +663,6 @@ class Regressions:
         )
 
 
-def _requested_states(requested: str) -> list[int]:
-    """I3's `?state=active,detected`, as the integers D5 stores, or the 400 for an unknown name.
-
-    A comma-separated list because I3 spells this one filter that way; the framework's own list
-    handling would spell it `?state=active&state=detected` instead.
-    """
-    states = []
-    for name in requested.split(","):
-        try:
-            states.append(RegressionStateName(name).stored)
-        except ValueError as error:
-            raise ApiError(
-                ErrorCode.INVALID_REQUEST,
-                f"'{name}' is not a regression state; expected a comma-separated list of: "
-                f"{', '.join(RegressionStateName)}",
-            ) from error
-    return states
-
-
 @router.get(
     "",
     dependencies=[require_scope(Scope.READ)],
@@ -698,11 +679,11 @@ def list_regressions(
         Query(description="Case-insensitive substring match against the regression's title."),
     ] = None,
     state: Annotated[
-        str | None,
+        list[RegressionStateName] | None,
         Query(
             description=(
-                "Keep only regressions in one of these states: a comma-separated list, such as "
-                "`active,detected`. Omit for every state."
+                "Keep only regressions in one of these states. Repeat the parameter for several "
+                "states, as in `state=active&state=detected`. Omit for every state."
             )
         ),
     ] = None,
@@ -769,7 +750,7 @@ def list_regressions(
         if search is not None:
             conditions.append(regressions.search(search))
         if state is not None:
-            conditions.append(regressions.table.c.state.in_(_requested_states(state)))
+            conditions.append(regressions.table.c.state.in_([name.stored for name in state]))
         if commit is not None:
             conditions.append(regressions.commit_is(commit))
         if has_commit is not None:
