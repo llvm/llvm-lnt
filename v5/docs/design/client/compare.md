@@ -319,15 +319,15 @@ A horizontal summary bar between the chart and the comparison table shows the
 count of tests in each status category, with percentages for comparable
 categories:
 
-| Category   | Counts rows where                          | Dot color |
+| Category   | Counts tests that                          | Dot color |
 |------------|--------------------------------------------|-----------|
-| Improved   | `status === 'improved'`                    | `#2ca02c` |
-| Regressed  | `status === 'regressed'`                   | `#d62728` |
-| Noise      | `status === 'noise'`                       | `#999999` |
-| Unchanged  | `status === 'unchanged'`                   | `#999999` |
-| Only in A  | `sidePresent === 'a_only'`                 | `#888888` |
-| Only in B  | `sidePresent === 'b_only'`                 | `#888888` |
-| N/A        | `status === 'na'`                          | `#888888` |
+| Improved   | have Status Improved (see CP2)             | `#2ca02c` |
+| Regressed  | have Status Regressed                      | `#d62728` |
+| Noise      | have Status Noise                          | `#999999` |
+| Unchanged  | have Status Unchanged                      | `#999999` |
+| Only in A  | are present on side A only                 | `#888888` |
+| Only in B  | are present on side B only                 | `#888888` |
+| N/A        | have Status N/A                            | `#888888` |
 
 **Comparable categories** (Improved, Regressed, Noise, Unchanged) show a colored
 dot, label, and "count (pct%)" where the denominator is the sum of comparable
@@ -335,8 +335,8 @@ categories only (within the filtered set). Percentages use one decimal place,
 except whole numbers drop the trailing `.0` (e.g. `25%` not `25.0%`).
 Percentages among comparable categories sum to ~100% (one-decimal rounding may
 cause minor drift). When there are no comparable tests, comparable categories
-show just the count with no percentage. A tooltip on the `.summary-count` span
-explains the denominator.
+show just the count with no percentage. A tooltip on each count explains the
+denominator.
 
 **Non-comparable categories** (Only in A, Only in B, N/A) show a colored dot,
 label, and count only — no percentage.

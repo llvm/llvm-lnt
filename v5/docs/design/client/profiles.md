@@ -75,7 +75,7 @@ Two display modes, selectable via dropdown:
 - Address (hex)
 - Instruction text
 
-**Control-flow graph (CFG) view**: D3-based visualization with:
+**Control-flow graph (CFG) view**: a visualization with:
 - Instruction set selector: AArch64, AArch32-T32, RISC-V, X86-64
 - Basic blocks as rectangles with left-side weight sidebar
 - Instructions listed vertically within blocks
@@ -91,7 +91,8 @@ Display mode selector options:
 
 The CFG view requires ISA-specific basic block boundary detection (parsing
 instruction semantics to identify branches, jumps, and fall-throughs). The v4
-implementation in `lnt_profile.js` provides the reference regex patterns per ISA.
+implementation in `lnt/server/ui/static/lnt_profile.js` can serve as a reference
+for the patterns of each ISA.
 
 **Note**: The CFG view is deferred to a future phase. Only the straight-line
 display mode is currently implemented.

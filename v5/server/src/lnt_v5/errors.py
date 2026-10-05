@@ -88,7 +88,7 @@ class ErrorEnvelope(BaseModel):
 class ApiError(Exception):
     """An error an endpoint reports by naming its I4 code.
 
-    The code is what a client branches on, and it does not follow from the status: I4 serves four
+    The code is what a client branches on, and it does not follow from the status: I4 serves three
     distinct codes as 409. So a caller names the code and the status follows, which is why this
     exists rather than endpoints raising HTTPException with a status the handler would have to
     guess a code from.
