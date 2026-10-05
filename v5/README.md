@@ -73,8 +73,8 @@ Individual halves are available as `:client` / `:server` variants, e.g. `npm run
 Note that the server tests need the Postgres from `npm run db:up`: they create throwaway databases
 of their own and drop them afterwards, so they don't touch the one used by `npm run dev`.
 
-The integration tests are what CI runs against the image; they need Docker, but create and remove
-their own database.
+The integration tests are what CI runs against the image; they need Docker and `jq`, but create
+and remove their own database.
 
 Stop the local database with `npm run db:down` when you're done.
 

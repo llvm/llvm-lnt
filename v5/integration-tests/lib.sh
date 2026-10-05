@@ -79,6 +79,20 @@ expect_body() {
     fi
 }
 
+# expect_json <jq filter> [jq options...] -- the body is JSON, and the filter yields true for it.
+#
+# For checks that compare structured data, which a regex over the body cannot do reliably. The
+# options go to jq, so that a check can hand the filter its expectations with --argjson.
+expect_json() {
+    local filter="$1"
+    shift
+    if ! printf '%s' "$BODY" | jq --exit-status "$@" "$filter" >/dev/null; then
+        echo "  expected body to satisfy: ${filter}" >&2
+        _show_body
+        exit 1
+    fi
+}
+
 # expect_header <name> <extended regex>
 #
 # The name is matched case-insensitively, since HTTP does not fix a casing for it.
