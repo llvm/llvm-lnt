@@ -115,7 +115,7 @@ def search_condition(
     One function for all five of O4's cases, because they differ only in which columns they cover:
     an entity's own always-searched columns (`identity` -- a machine's `name`, a commit's `commit`,
     `tag` and display field, a test's `name`, a regression's `title`) plus every declared entry
-    marked `searchable`. Stating that rule once is what keeps the machine list and the run list,
+    marked `searchable`. Stating that rule once is what keeps the machine and run list endpoints,
     which O4 requires to share a predicate, from drifting apart.
 
     `autoescape` is doing real work: without it the `%` and `_` in the caller's term would be LIKE
@@ -171,8 +171,8 @@ class Keyset:
         # The tiebreaker takes the direction of the last key it breaks ties for: having every term
         # agree is what lets `after` be a row comparison, which is the whole difference between a
         # bounded index scan and a scan of every row already paged past. With no keys it is the
-        # whole order, ascending. A list that wants that order in a chosen direction sorts by the
-        # tiebreaker itself, which is already total, so it is not appended again after itself.
+        # whole order, ascending. An endpoint that wants that order in a chosen direction sorts by
+        # the tiebreaker itself, which is already total, so it is not appended again after itself.
         descending = keys[-1].descending if keys else False
         if any(key.descending != descending for key in keys):
             raise ValueError("every sort key of a keyset must run in the same direction")

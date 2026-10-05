@@ -115,7 +115,8 @@ paginated endpoints. `limit` is at least 1 and an offset-paginated endpoint's
   - `tracked=` (boolean, for machines; omitted returns both)
 - `sort=<field>` names one field, prefixed with `-` for descending
   (`sort=-submitted_at`). A sort name may also stand for an order that no
-  response field carries, such as the commit list's `first_seen` (see E3).
+  response field carries, such as `first_seen` on the commit list endpoint
+  (see E3).
 - A name in a filter or a request body that refers to nothing is answered
   according to what it names:
   - A metric is part of the suite's schema, so an unknown one makes the request

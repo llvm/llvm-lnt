@@ -75,9 +75,9 @@ suggestions always reflect the text currently in the input; a response for text
 the user has since changed is discarded. The search covers the display value
 the suggestions show (see O4).
 
-A page of matches is not a complete list, so a picker never treats it as one.
-A typed value is accepted only if it is exactly a commit the picker offers,
-which the picker checks by looking that commit up under its filters (e.g.
+A page of matches need not hold every matching commit, so a typed value is
+accepted only if it is exactly a commit the picker offers, which the picker
+checks by looking that commit up under its filters (e.g.
 `GET runs?machine={name}&commit={value}&limit=1`) rather than by finding it
 among the suggestions: a short value can be a substring of more commits than
 fit on a page. Likewise, a commit the picker is given rather than chosen --

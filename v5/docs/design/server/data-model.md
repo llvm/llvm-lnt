@@ -216,8 +216,8 @@ Notes:
 - `display: true` on at most one `commit_field` is a hint for the UI: when set
   and the field has a non-null value, the UI shows that value instead of the
   raw commit string (e.g., a shortened SHA, a version tag). The server stores
-  and returns it like any other field, with one exception: the commit list's
-  `?search=` always covers the display field, whether or not it is
+  and returns it like any other field, with one exception: `?search=` on the
+  commit list endpoint always covers the display field, whether or not it is
   `searchable`, so that a commit picker's typeahead finds what its suggestions
   show (see O4 and AR2). It is therefore only valid on a `text`-typed field. A
   schema with more than one `commit_field` marked `display: true`, or with one
